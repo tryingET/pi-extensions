@@ -161,6 +161,11 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     "observation.actualLowLevelCallsAvoided",
     errors,
   );
+  const validationCommandsRun = readOptionalCount(
+    filledObservation.validationCommandsRun,
+    "observation.validationCommandsRun",
+    errors,
+  );
   const duplicateReadsObserved = booleanOrNull(filledObservation.duplicateReadsObserved);
   const recommendationMatchedOutcome = booleanOrNull(
     filledObservation.recommendationMatchedOutcome,
@@ -203,6 +208,7 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     expectedLowLevelCallsAvoided: expectedAvoided,
     actualLowLevelReadSearchStatusCalls: actualResidualCalls ?? null,
     actualLowLevelCallsAvoided: actualAvoided ?? null,
+    validationCommandsRun: validationCommandsRun ?? null,
     duplicateReadsObserved,
     omissionFollowupsUsed,
     omissionFollowupsTruncated: Math.max(
@@ -248,6 +254,7 @@ export const formatDogfoodObservationEvaluation = (evaluation) => {
     `Expected low-level calls avoided: ${evaluation.expectedLowLevelCallsAvoided}`,
     `Actual low-level read/search/status calls: ${evaluation.actualLowLevelReadSearchStatusCalls ?? "not recorded"}`,
     `Actual low-level calls avoided: ${evaluation.actualLowLevelCallsAvoided ?? "not recorded"}`,
+    `Validation commands run: ${evaluation.validationCommandsRun ?? "not recorded"}`,
     `Duplicate reads observed: ${evaluation.duplicateReadsObserved ?? "not recorded"}`,
     `Recommendation matched outcome: ${evaluation.recommendationMatchedOutcome ?? "not recorded"}`,
     `Packet utility recommendation: ${evaluation.packetUtilityRecommendationStatus}`,
@@ -336,6 +343,11 @@ const normalizeStoredEvaluation = (value, ref) => {
     `${ref}.actualLowLevelCallsAvoided`,
     errors,
   );
+  const validationCommandsRun = readOptionalCount(
+    evaluation.validationCommandsRun,
+    `${ref}.validationCommandsRun`,
+    errors,
+  );
   const alreadyLoadedItems = readOptionalCount(
     evaluation.alreadyLoadedItems,
     `${ref}.alreadyLoadedItems`,
@@ -367,6 +379,7 @@ const normalizeStoredEvaluation = (value, ref) => {
     expectedLowLevelCallsAvoided,
     actualLowLevelReadSearchStatusCalls: actualLowLevelReadSearchStatusCalls ?? null,
     actualLowLevelCallsAvoided: actualLowLevelCallsAvoided ?? null,
+    validationCommandsRun: validationCommandsRun ?? null,
     duplicateReadsObserved: booleanOrNull(evaluation.duplicateReadsObserved),
     omissionFollowupsUsed: sanitizeFollowups(evaluation.omissionFollowupsUsed),
     omissionFollowupsTruncated: omissionFollowupsTruncated ?? 0,
@@ -539,6 +552,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     expectedLowLevelCallsAvoided: evaluation.expectedLowLevelCallsAvoided,
     actualLowLevelReadSearchStatusCalls: evaluation.actualLowLevelReadSearchStatusCalls,
     actualLowLevelCallsAvoided: evaluation.actualLowLevelCallsAvoided,
+    validationCommandsRun: evaluation.validationCommandsRun,
     duplicateReadsObserved: evaluation.duplicateReadsObserved,
     recommendationMatchedOutcome: evaluation.recommendationMatchedOutcome,
     packetUtilityRecommendationStatus: evaluation.packetUtilityRecommendationStatus,
@@ -580,6 +594,10 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
       ),
       actualLowLevelReadSearchStatusCalls: validEvaluations.reduce(
         (sum, entry) => sum + (entry.evaluation.actualLowLevelReadSearchStatusCalls ?? 0),
+        0,
+      ),
+      validationCommandsRun: validEvaluations.reduce(
+        (sum, entry) => sum + (entry.evaluation.validationCommandsRun ?? 0),
         0,
       ),
       omissionFollowupsTruncated: validEvaluations.reduce(
@@ -633,6 +651,7 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     `Expected low-level calls avoided: ${aggregate.totals.expectedLowLevelCallsAvoided}`,
     `Actual low-level calls avoided: ${aggregate.totals.actualLowLevelCallsAvoided}`,
     `Actual low-level read/search/status calls: ${aggregate.totals.actualLowLevelReadSearchStatusCalls}`,
+    `Validation commands run: ${aggregate.totals.validationCommandsRun}`,
     `Omission follow-ups truncated: ${aggregate.totals.omissionFollowupsTruncated}`,
     "",
     "## Calibration status counts",

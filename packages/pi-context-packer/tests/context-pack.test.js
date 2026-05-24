@@ -1995,6 +1995,7 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.equal(template.packet.objectiveRef, "packet.objective");
   assert.equal(template.packet.objective, undefined);
   assert.equal(template.observation.actualLowLevelReadSearchStatusCalls, null);
+  assert.equal(template.observation.validationCommandsRun, null);
   assert.equal(template.prediction.expectedLowLevelCallsAvoided, 2);
   assert.ok(template.packet.providerRoutes.some((route) => route.provider === "docs"));
   assert.match(template.nonAuthorization, /did not persist evidence/);
@@ -2107,6 +2108,11 @@ test("context_pack emits measurement receipt for packet usefulness", async () =>
   assert.equal(
     result.packet.measurementReceipt.dogfoodFollowupReceipt.actualLowLevelReadSearchStatusCalls,
     null,
+  );
+  assert.equal(result.packet.measurementReceipt.dogfoodFollowupReceipt.validationCommandsRun, null);
+  assert.match(
+    result.packet.measurementReceipt.dogfoodFollowupReceipt.nonAuthorization,
+    /not task-completion proof/,
   );
   assert.ok(result.packet.measurementHints.some((hint) => hint.metric === "tool_calls_avoided"));
   assert.ok(result.packet.measurementHints.some((hint) => hint.metric === "dogfood_followup"));

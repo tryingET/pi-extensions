@@ -206,6 +206,7 @@ export default function(pi) {
             observation: {
               actualLowLevelReadSearchStatusCalls: 0,
               actualLowLevelCallsAvoided: 1,
+              validationCommandsRun: 0,
               duplicateReadsObserved: false,
               omissionFollowupsUsed: [],
               recommendationMatchedOutcome: true,

@@ -152,13 +152,14 @@ export const buildDogfoodFollowupReceipt = (receipt) => ({
   status: "observation_pending",
   expectedLowLevelCallsAvoided: receipt.estimatedToolCallsAvoided,
   actualLowLevelReadSearchStatusCalls: null,
+  validationCommandsRun: null,
   duplicateReadsObserved: null,
   omissionFollowupsUsed: [],
   recommendationMatchedOutcome: null,
   notes:
     "Fill externally after the work if maintaining dogfood evidence; context-packer does not persist or validate this receipt.",
   nonAuthorization:
-    "packet-local follow-up scaffold only; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
+    "packet-local follow-up scaffold only; validation counts are calibration metadata, not task-completion proof; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
 });
 
 const compactSelectedItems = (sections) =>
@@ -274,13 +275,14 @@ export const buildDogfoodObservationTemplate = ({
   observation: {
     actualLowLevelReadSearchStatusCalls: null,
     actualLowLevelCallsAvoided: null,
+    validationCommandsRun: null,
     duplicateReadsObserved: null,
     omissionFollowupsUsed: [],
     recommendationMatchedOutcome: null,
     notes: "",
   },
   countingRule:
-    "Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; track validation commands separately.",
+    "Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; record validationCommandsRun separately from context probes and do not treat it as completion proof.",
   instructions:
     "After the work, paste this template into the owning dogfood evidence surface only if useful, fill observation fields, and keep any sensitive task content out of notes.",
   nonAuthorization:

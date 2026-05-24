@@ -42,6 +42,7 @@ test("context-packer extension registers command and all model-callable tools", 
       observation: {
         actualLowLevelReadSearchStatusCalls: 0,
         actualLowLevelCallsAvoided: 1,
+        validationCommandsRun: 0,
         duplicateReadsObserved: false,
         omissionFollowupsUsed: [],
         recommendationMatchedOutcome: true,
@@ -51,6 +52,7 @@ test("context-packer extension registers command and all model-callable tools", 
   });
 
   assert.match(result.content[0].text, /Status: matched/);
+  assert.match(result.content[0].text, /Validation commands run: 0/);
   assert.equal(result.details.dogfoodObservationEvaluation.status, "matched");
 
   const aggregate = await tools.get("context_dogfood_summarize").execute("tool-call-2", {

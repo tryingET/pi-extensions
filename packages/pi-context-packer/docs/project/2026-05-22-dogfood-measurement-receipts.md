@@ -433,6 +433,20 @@ context-packer runtime registration and installed core execution OK
 
 Outcome: release smoke now covers registration metadata, installed-artifact seeded packing, installed-artifact docs-list discovery, and installed-artifact dogfood calibration. This remains package release evidence only; it does not publish the package or activate the current operator session.
 
+## Receipt G — validation commands separated from context probes
+
+### Context
+
+While reviewing the next highest-impact slice from the current product posture, the main gap remained live usefulness proof rather than provider breadth. The dogfood counting rule already said validation commands should be tracked separately from ad-hoc read/search/status probes, but the structured observation and aggregate model only had probe counts.
+
+### Slice
+
+The receipt scaffold now includes `validationCommandsRun` as an optional non-negative integer in both the immediate follow-up receipt and the copy-ready observation template. `context_dogfood_evaluate` carries it through single-receipt calibration, and `context_dogfood_summarize` totals it separately from low-level context probes.
+
+Adversarial coverage rejects fractional, negative, or non-integer validation counts instead of silently coercing them. The field is deliberately numeric-only: detailed validation output remains in the owning test/check surface, and the count is packet-local calibration metadata, not task-completion proof.
+
+Outcome: evaluated dogfood receipts can now distinguish “the packet avoided context probes” from “the agent still ran validation,” which should reduce false over/under-claiming before ranking changes or new provider adapters are justified.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

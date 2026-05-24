@@ -51,6 +51,7 @@ test("contextPacketToolResult returns markdown content and compact details", asy
   );
   assert.equal(result.details.dogfoodFollowupReceipt.status, "observation_pending");
   assert.equal(result.details.dogfoodFollowupReceipt.actualLowLevelReadSearchStatusCalls, null);
+  assert.equal(result.details.dogfoodFollowupReceipt.validationCommandsRun, null);
   assert.equal(
     result.details.dogfoodObservationTemplate.kind,
     "context_pack_dogfood_observation_v1",
@@ -59,6 +60,7 @@ test("contextPacketToolResult returns markdown content and compact details", asy
     result.details.dogfoodObservationTemplate.observation.actualLowLevelReadSearchStatusCalls,
     null,
   );
+  assert.equal(result.details.dogfoodObservationTemplate.observation.validationCommandsRun, null);
   assert.equal(
     result.details.dogfoodFollowupReceipt.nonAuthorization.includes("AK evidence"),
     true,

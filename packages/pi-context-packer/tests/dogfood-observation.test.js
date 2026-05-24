@@ -29,6 +29,7 @@ const baseObservation = (overrides = {}) => ({
   observation: {
     actualLowLevelReadSearchStatusCalls: 1,
     actualLowLevelCallsAvoided: 3,
+    validationCommandsRun: 2,
     duplicateReadsObserved: false,
     omissionFollowupsUsed: [],
     recommendationMatchedOutcome: true,
@@ -48,7 +49,9 @@ test("dogfood evaluator classifies matched observations without raw packet conte
   assert.equal(evaluation.expectedLowLevelCallsAvoided, 3);
   assert.equal(evaluation.actualLowLevelReadSearchStatusCalls, 1);
   assert.equal(evaluation.actualLowLevelCallsAvoided, 3);
+  assert.equal(evaluation.validationCommandsRun, 2);
   assert.match(text, /Status: matched/);
+  assert.match(text, /Validation commands run: 2/);
   assert.match(text, /did not persist evidence/);
   assert.doesNotMatch(JSON.stringify(evaluation), /packet\.sections|provenance|path/);
 });
@@ -164,6 +167,7 @@ test("dogfood evaluator rejects fractional count fields instead of flooring them
       observation: {
         actualLowLevelReadSearchStatusCalls: 0,
         actualLowLevelCallsAvoided: 3.1,
+        validationCommandsRun: -1,
         duplicateReadsObserved: false,
         omissionFollowupsUsed: [],
         recommendationMatchedOutcome: true,
@@ -175,6 +179,7 @@ test("dogfood evaluator rejects fractional count fields instead of flooring them
   assert.equal(evaluation.ok, false);
   assert.match(evaluation.errors.join("\n"), /expectedLowLevelCallsAvoided/);
   assert.match(evaluation.errors.join("\n"), /actualLowLevelCallsAvoided/);
+  assert.match(evaluation.errors.join("\n"), /validationCommandsRun/);
   assert.match(evaluation.errors.join("\n"), /alreadyLoadedItems/);
 });
 
@@ -262,6 +267,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
         observation: {
           actualLowLevelReadSearchStatusCalls: 0,
           actualLowLevelCallsAvoided: 4,
+          validationCommandsRun: 3,
           duplicateReadsObserved: false,
           omissionFollowupsUsed: [],
           recommendationMatchedOutcome: true,
@@ -273,6 +279,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
         observation: {
           actualLowLevelReadSearchStatusCalls: 5,
           actualLowLevelCallsAvoided: 0,
+          validationCommandsRun: 1,
           duplicateReadsObserved: true,
           omissionFollowupsUsed: [{ provider: "docs", reason: "missing ranking" }],
           recommendationMatchedOutcome: false,
@@ -291,6 +298,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
   assert.equal(aggregate.statusCounts.overestimated, 1);
   assert.equal(aggregate.providerOmissionCounts.ak, 1);
   assert.equal(aggregate.omissionFollowupCounts["docs/missing ranking"], 1);
+  assert.equal(aggregate.totals.validationCommandsRun, 6);
   assert.match(aggregate.nonAuthorization, /did not persist evidence/);
 });
 
@@ -301,6 +309,7 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
       observation: {
         actualLowLevelReadSearchStatusCalls: 1,
         actualLowLevelCallsAvoided: 1,
+        validationCommandsRun: 1,
         duplicateReadsObserved: true,
         omissionFollowupsUsed: Array.from({ length: 20 }, (_, index) => `followup-${index}`),
         recommendationMatchedOutcome: true,
@@ -317,6 +326,7 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
         observation: {
           actualLowLevelReadSearchStatusCalls: null,
           actualLowLevelCallsAvoided: null,
+          validationCommandsRun: 2,
           duplicateReadsObserved: null,
           omissionFollowupsUsed: [],
           recommendationMatchedOutcome: null,
@@ -335,6 +345,7 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
   assert.equal(aggregate.evaluations[1].omissionFollowupsTruncated, 8);
   assert.match(result.content[0].text, /Omission follow-up counts/);
   assert.match(result.content[0].text, /Omission follow-ups truncated: 8/);
+  assert.match(result.content[0].text, /Validation commands run: 5/);
   assert.match(result.content[0].text, /followup-0/);
   assert.match(result.content[0].text, /Invalid receipts/);
   assert.match(result.content[0].text, /items\[1\]/);

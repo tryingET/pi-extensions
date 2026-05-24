@@ -175,6 +175,7 @@ observation.observation = {
   ...observation.observation,
   actualLowLevelReadSearchStatusCalls: 0,
   actualLowLevelCallsAvoided: result.packet.measurementReceipt.estimatedToolCallsAvoided,
+  validationCommandsRun: 1,
   duplicateReadsObserved: false,
   omissionFollowupsUsed: [],
   recommendationMatchedOutcome: true,
@@ -185,6 +186,11 @@ observation.observation = {
 const evaluation = buildDogfoodObservationEvaluation({ observation });
 assert.equal(evaluation.ok, true, "dogfood observation evaluation should be valid");
 assert.equal(evaluation.status, "matched", "dogfood smoke evaluation should match prediction");
+assert.equal(
+  evaluation.validationCommandsRun,
+  1,
+  "dogfood smoke should track validation separately",
+);
 
 console.log("== context-packer structured docs-list JSON dogfood smoke");
 console.log(`docs-list script: ${docsListScript}`);
