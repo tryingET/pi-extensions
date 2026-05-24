@@ -2088,10 +2088,30 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.equal(template.packet.objectiveRef, "packet.objective");
   assert.equal(template.packet.objective, undefined);
   assert.equal(template.observation.activityType, null);
+  assert.equal(template.observation.runtimeContext, "unknown");
+  assert.deepEqual(template.observation.runtimeContextOptions, [
+    "source_local",
+    "installed_artifact",
+    "live_pi_reloaded",
+    "unknown",
+  ]);
+  template.observation.runtimeContextOptions.push("forged_runtime");
+  const followupResult = await buildContextPacket({
+    objective: "Measure packet usefulness again",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "docs/project/secret```file.md" }],
+    providers: { git: "off", sci: "off" },
+  });
+  assert.deepEqual(
+    followupResult.packet.dogfoodObservationTemplate.observation.runtimeContextOptions,
+    ["source_local", "installed_artifact", "live_pi_reloaded", "unknown"],
+  );
   assert.equal(template.observation.actualLowLevelReadSearchStatusCalls, null);
   assert.equal(template.observation.validationCommandsRun, null);
   assert.ok(template.observation.omissionFollowupClassOptions.includes("true_missing_capability"));
   assert.match(template.countingRule, /classification/);
+  assert.match(template.countingRule, /runtimeContext/);
   assert.equal(template.prediction.expectedLowLevelCallsAvoided, 2);
   assert.ok(template.packet.providerRoutes.some((route) => route.provider === "docs"));
   assert.match(template.nonAuthorization, /did not persist evidence/);
@@ -2107,6 +2127,7 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.match(templateBlock, /```+\n# dogfood-observation-template\.json/);
   assert.match(templateBlock, /context_pack_dogfood_observation_v1/);
   assert.match(templateBlock, /omissionFollowupClassOptions/);
+  assert.match(templateBlock, /runtimeContextOptions/);
   assert.doesNotMatch(templateBlock, /TOP SECRET PACKET BODY/);
   assert.doesNotMatch(templateBlock, /secret```file/);
 });

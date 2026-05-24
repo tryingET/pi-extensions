@@ -30,6 +30,13 @@ const CALIBRATION_STATUSES = [
 ];
 const CORE_ACTIVITY_TYPES = Object.freeze(["implementation", "review", "validation"]);
 const KNOWN_ACTIVITY_TYPES = new Set([...CORE_ACTIVITY_TYPES, "planning", "other", "unspecified"]);
+const RUNTIME_CONTEXTS = Object.freeze([
+  "source_local",
+  "installed_artifact",
+  "live_pi_reloaded",
+  "unknown",
+]);
+const KNOWN_RUNTIME_CONTEXTS = new Set(RUNTIME_CONTEXTS);
 const KNOWN_FOLLOWUP_CLASSES = new Set(DOGFOOD_OMISSION_FOLLOWUP_CLASSES);
 const CONTRARY_FOLLOWUP_CLASSES = new Set(DOGFOOD_CONTRARY_OMISSION_FOLLOWUP_CLASSES);
 
@@ -74,6 +81,16 @@ const normalizeActivityType = (value) => {
     .replace(/[\s_-]+/gu, "_");
   if (KNOWN_ACTIVITY_TYPES.has(normalized)) return normalized;
   return sanitizeLabel(value, "activity type");
+};
+
+const normalizeRuntimeContext = (value) => {
+  if (typeof value !== "string" || !value.trim()) return "unknown";
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/gu, "_");
+  if (KNOWN_RUNTIME_CONTEXTS.has(normalized)) return normalized;
+  return sanitizeLabel(value, "runtime context");
 };
 
 const normalizeFollowupClass = (value, fallback = "other") => {
@@ -371,6 +388,7 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     errors,
   );
   const activityType = normalizeActivityType(filledObservation.activityType);
+  const runtimeContext = normalizeRuntimeContext(filledObservation.runtimeContext);
   const duplicateReadsObserved = booleanOrNull(filledObservation.duplicateReadsObserved);
   const recommendationMatchedOutcome = booleanOrNull(
     filledObservation.recommendationMatchedOutcome,
@@ -422,6 +440,7 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     status: calibrationStatus,
     expectedLowLevelCallsAvoided: expectedAvoided,
     activityType,
+    runtimeContext,
     actualLowLevelReadSearchStatusCalls: actualResidualCalls ?? null,
     actualLowLevelCallsAvoided: actualAvoided ?? null,
     validationCommandsRun: validationCommandsRun ?? null,
@@ -478,6 +497,7 @@ export const formatDogfoodObservationEvaluation = (evaluation) => {
     `Status: ${evaluation.status}`,
     `Expected low-level calls avoided: ${evaluation.expectedLowLevelCallsAvoided}`,
     `Activity type: ${evaluation.activityType}`,
+    `Runtime context: ${evaluation.runtimeContext ?? "unknown"}`,
     `Actual low-level read/search/status calls: ${evaluation.actualLowLevelReadSearchStatusCalls ?? "not recorded"}`,
     `Actual low-level calls avoided: ${evaluation.actualLowLevelCallsAvoided ?? "not recorded"}`,
     `Validation commands run: ${evaluation.validationCommandsRun ?? "not recorded"}`,
@@ -584,6 +604,7 @@ const normalizeStoredEvaluation = (value, ref) => {
     `${ref}.actualLowLevelCallsAvoided`,
     errors,
   );
+  const runtimeContext = normalizeRuntimeContext(evaluation.runtimeContext);
   const validationCommandsRun = readOptionalCount(
     evaluation.validationCommandsRun,
     `${ref}.validationCommandsRun`,
@@ -625,6 +646,7 @@ const normalizeStoredEvaluation = (value, ref) => {
     status,
     expectedLowLevelCallsAvoided,
     activityType: normalizeActivityType(evaluation.activityType),
+    runtimeContext,
     actualLowLevelReadSearchStatusCalls: actualLowLevelReadSearchStatusCalls ?? null,
     actualLowLevelCallsAvoided: actualLowLevelCallsAvoided ?? null,
     validationCommandsRun: validationCommandsRun ?? null,
@@ -756,6 +778,19 @@ const activityCoverageFor = (activityTypeCounts) => {
   };
 };
 
+const runtimeCoverageFor = (runtimeContextCounts) => {
+  const livePiReloadedCount = Object.hasOwn(runtimeContextCounts, "live_pi_reloaded")
+    ? runtimeContextCounts.live_pi_reloaded
+    : 0;
+  return {
+    known: [...RUNTIME_CONTEXTS],
+    livePiReloadedCount,
+    hasLivePiReloadedReceipt: livePiReloadedCount > 0,
+    nonAuthorization:
+      "runtime context is observer-supplied packet-local calibration metadata only; context-packer did not verify install, reload, live activation, or task completion",
+  };
+};
+
 const aggregateStatusFor = ({ validCount, invalidCount, statusCounts, activityCoverage }) => {
   if (validCount === 0) return "no_valid_receipts";
   if (invalidCount > 0 || statusCounts.needs_review > 0) return "review_before_tuning";
@@ -833,15 +868,20 @@ const aggregateProviderRoutes = (validEvaluations) => {
   };
 };
 
-const aggregateNextAction = (status, activityCoverage) => {
+const runtimeActivationSuffix = (runtimeCoverage) =>
+  runtimeCoverage?.hasLivePiReloadedReceipt
+    ? " At least one observer-supplied live_pi_reloaded receipt is present, but this is still not owner-surface evidence or task completion proof."
+    : " No live_pi_reloaded receipt is recorded; do not treat this aggregate as live-session activation proof.";
+
+const aggregateNextAction = (status, activityCoverage, runtimeCoverage) => {
   if (status === "stable_positive_signal") {
-    return "Repeated redacted receipts matched; keep dogfooding and promote only through the owning evidence surface if needed.";
+    return `Repeated redacted receipts matched as packet-local calibration; keep dogfooding and promote only through the owning evidence surface if needed.${runtimeActivationSuffix(runtimeCoverage)}`;
   }
   if (status === "limited_positive_signal") {
-    return "One or two matched receipts are useful calibration, but gather more implementation/review/validation receipts before tuning ranking.";
+    return `One or two matched receipts are useful calibration, but gather more implementation/review/validation receipts before tuning ranking.${runtimeActivationSuffix(runtimeCoverage)}`;
   }
   if (status === "activity_coverage_gap") {
-    return `Repeated receipts matched, but core activity coverage is incomplete; gather ${activityCoverage.missing.join("/")} receipt(s) before treating the signal as stable for ranking or provider tuning.`;
+    return `Repeated receipts matched, but core activity coverage is incomplete; gather ${activityCoverage.missing.join("/")} receipt(s) before treating the signal as stable for ranking or provider tuning.${runtimeActivationSuffix(runtimeCoverage)}`;
   }
   if (status === "ranking_or_provider_gap_suspected") {
     return "Review overestimated receipts and omission follow-ups before changing ranking or adding provider adapters.";
@@ -896,6 +936,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     ref,
     status: evaluation.status,
     activityType: evaluation.activityType,
+    runtimeContext: evaluation.runtimeContext ?? "unknown",
     expectedLowLevelCallsAvoided: evaluation.expectedLowLevelCallsAvoided,
     actualLowLevelReadSearchStatusCalls: evaluation.actualLowLevelReadSearchStatusCalls,
     actualLowLevelCallsAvoided: evaluation.actualLowLevelCallsAvoided,
@@ -927,7 +968,11 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
   const activityTypeCounts = countValues(
     validEvaluations.map(({ evaluation }) => evaluation.activityType ?? "unspecified"),
   );
+  const runtimeContextCounts = countValues(
+    validEvaluations.map(({ evaluation }) => evaluation.runtimeContext ?? "unknown"),
+  );
   const activityCoverage = activityCoverageFor(activityTypeCounts);
+  const runtimeCoverage = runtimeCoverageFor(runtimeContextCounts);
   const aggregateStatus = aggregateStatusFor({
     validCount: validEvaluations.length,
     invalidCount: allInvalidEntries.length,
@@ -980,6 +1025,8 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     packetUtilityRecommendationCounts,
     activityTypeCounts,
     activityCoverage,
+    runtimeContextCounts,
+    runtimeCoverage,
     providerOmissionCounts,
     providerRouteCounts: routeAggregate.providerRouteCounts,
     providerRouteRoleCounts: routeAggregate.providerRouteRoleCounts,
@@ -990,7 +1037,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     omissionFollowupClassNextActions,
     evaluations,
     invalidEntries: allInvalidEntries,
-    nextAction: aggregateNextAction(aggregateStatus, activityCoverage),
+    nextAction: aggregateNextAction(aggregateStatus, activityCoverage, runtimeCoverage),
     nonAuthorization: NON_AUTHORIZATION,
   };
 };
@@ -1030,6 +1077,10 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
   );
   const activityLines = Object.entries(aggregate.activityTypeCounts).map(
     ([activityType, count]) => `- ${markdownInlineLabel(activityType, "activity type")}: ${count}`,
+  );
+  const runtimeContextLines = Object.entries(aggregate.runtimeContextCounts ?? {}).map(
+    ([runtimeContext, count]) =>
+      `- ${markdownInlineLabel(runtimeContext, "runtime context")}: ${count}`,
   );
   const followupLines = Object.entries(aggregate.omissionFollowupCounts).map(
     ([followup, count]) => `- ${markdownInlineLabel(followup, "omission follow-up")}: ${count}`,
@@ -1072,6 +1123,14 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     `- missing: ${aggregate.activityCoverage.missing.length ? aggregate.activityCoverage.missing.map((activityType) => markdownInlineLabel(activityType, "activity type")).join(", ") : "none"}`,
     `- complete: ${aggregate.activityCoverage.complete}`,
     `- non-authorization: ${aggregate.activityCoverage.nonAuthorization}`,
+    "",
+    "## Runtime context counts",
+    runtimeContextLines.length ? runtimeContextLines.join("\n") : "- none recorded",
+    "",
+    "## Runtime activation coverage",
+    `- live_pi_reloaded receipts: ${aggregate.runtimeCoverage?.livePiReloadedCount ?? 0}`,
+    `- has live_pi_reloaded receipt: ${aggregate.runtimeCoverage?.hasLivePiReloadedReceipt ?? false}`,
+    `- non-authorization: ${aggregate.runtimeCoverage?.nonAuthorization ?? "runtime context is packet-local calibration metadata only"}`,
     "",
     "## Unwired provider omission counts",
     providerLines.length ? providerLines.join("\n") : "- none recorded",

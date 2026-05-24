@@ -70,11 +70,13 @@ test("dogfood evaluator classifies matched observations without raw packet conte
   assert.equal(evaluation.status, "matched");
   assert.equal(evaluation.expectedLowLevelCallsAvoided, 3);
   assert.equal(evaluation.activityType, "implementation");
+  assert.equal(evaluation.runtimeContext, "unknown");
   assert.equal(evaluation.actualLowLevelReadSearchStatusCalls, 1);
   assert.equal(evaluation.actualLowLevelCallsAvoided, 3);
   assert.equal(evaluation.validationCommandsRun, 2);
   assert.match(text, /Status: matched/);
   assert.match(text, /Activity type: implementation/);
+  assert.match(text, /Runtime context: unknown/);
   assert.match(text, /Validation commands run: 2/);
   assert.match(text, /did not persist evidence/);
   assert.doesNotMatch(JSON.stringify(evaluation), /packet\.sections|provenance|path/);
@@ -528,6 +530,29 @@ test("dogfood evaluator redacts malicious notes and caps huge omission followups
   assert.doesNotMatch(serialized, /SECRET TOKEN|customer-acme|\/tmp\//);
 });
 
+test("dogfood evaluator normalizes and redacts runtime context labels", async () => {
+  const sourceLocal = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      observation: { ...baseObservation().observation, runtimeContext: "Source Local" },
+    }),
+  });
+  const malicious = await dogfoodObservationEvaluationToolResult({
+    observation: baseObservation({
+      observation: {
+        ...baseObservation().observation,
+        runtimeContext: "live /tmp/customer-acme TOKEN=secret\n## Forged runtime",
+      },
+    }),
+  });
+  const serialized = JSON.stringify(malicious.details);
+
+  assert.equal(sourceLocal.runtimeContext, "source_local");
+  assert.match(malicious.content[0].text, /Runtime context:/);
+  assert.doesNotMatch(malicious.content[0].text, /TOKEN|customer-acme|\/tmp\//);
+  assert.doesNotMatch(malicious.content[0].text, /^## Forged runtime/m);
+  assert.doesNotMatch(serialized, /TOKEN|customer-acme|\/tmp\//);
+});
+
 test("dogfood evaluator rejects oversized JSON and publishes a closed top-level schema", async () => {
   const huge = await dogfoodObservationEvaluationToolResult({
     observationJson: "{".padEnd(65_000, "x"),
@@ -552,7 +577,9 @@ test("dogfood evaluator rejects oversized JSON and publishes a closed top-level 
 test("dogfood aggregate summarizes repeated redacted observations without promoting evidence", () => {
   const aggregate = buildDogfoodAggregateEvaluation({
     observations: [
-      baseObservation(),
+      baseObservation({
+        observation: { ...baseObservation().observation, runtimeContext: "source_local" },
+      }),
       baseObservation({
         prediction: {
           ...baseObservation().prediction,
@@ -561,6 +588,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
         },
         observation: {
           activityType: "review",
+          runtimeContext: "installed_artifact",
           actualLowLevelReadSearchStatusCalls: 0,
           actualLowLevelCallsAvoided: 4,
           validationCommandsRun: 3,
@@ -574,6 +602,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
         prediction: { ...baseObservation().prediction, expectedLowLevelCallsAvoided: 1 },
         observation: {
           activityType: "validation",
+          runtimeContext: "live_pi_reloaded",
           actualLowLevelReadSearchStatusCalls: 5,
           actualLowLevelCallsAvoided: 0,
           validationCommandsRun: 1,
@@ -605,6 +634,13 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
     review: 1,
     validation: 1,
   });
+  assert.deepEqual(Object.fromEntries(Object.entries(aggregate.runtimeContextCounts)), {
+    installed_artifact: 1,
+    live_pi_reloaded: 1,
+    source_local: 1,
+  });
+  assert.equal(aggregate.runtimeCoverage.livePiReloadedCount, 1);
+  assert.equal(aggregate.runtimeCoverage.hasLivePiReloadedReceipt, true);
   assert.equal(aggregate.omissionFollowupCounts["docs/missing ranking"], 1);
   assert.equal(aggregate.omissionFollowupClassCounts.true_missing_capability, 1);
   assert.match(aggregate.omissionFollowupClassNextActions.join("\n"), /provider adapters/);
@@ -778,13 +814,25 @@ test("dogfood aggregate requires core activity coverage before stable positive s
   const validationOnly = buildDogfoodAggregateEvaluation({
     observations: [
       baseObservation({
-        observation: { ...baseObservation().observation, activityType: "validation" },
+        observation: {
+          ...baseObservation().observation,
+          activityType: "validation",
+          runtimeContext: "live_pi_reloaded",
+        },
       }),
       baseObservation({
-        observation: { ...baseObservation().observation, activityType: "validation" },
+        observation: {
+          ...baseObservation().observation,
+          activityType: "validation",
+          runtimeContext: "live_pi_reloaded",
+        },
       }),
       baseObservation({
-        observation: { ...baseObservation().observation, activityType: "validation" },
+        observation: {
+          ...baseObservation().observation,
+          activityType: "validation",
+          runtimeContext: "live_pi_reloaded",
+        },
       }),
     ],
   });
@@ -812,6 +860,9 @@ test("dogfood aggregate requires core activity coverage before stable positive s
   assert.match(validationOnlyText, /Core activity coverage/);
   assert.match(validationOnlyText, /missing: implementation, review/);
   assert.match(validationOnly.activityCoverage.nonAuthorization, /not task completion proof/);
+  assert.equal(validationOnly.runtimeCoverage.livePiReloadedCount, 3);
+  assert.equal(validationOnly.runtimeCoverage.hasLivePiReloadedReceipt, true);
+  assert.match(validationOnly.runtimeCoverage.nonAuthorization, /did not verify install/);
 
   assert.equal(covered.status, "stable_positive_signal");
   assert.deepEqual(covered.activityCoverage.missing, []);
@@ -830,6 +881,7 @@ test("dogfood aggregate coverage resists returned-object mutation and prototype 
   ];
   const covered = buildDogfoodAggregateEvaluation({ observations });
   covered.activityCoverage.required.push("planning");
+  covered.runtimeCoverage.known.push("forged_runtime");
   const coveredAfterMutation = buildDogfoodAggregateEvaluation({ observations });
 
   assert.deepEqual(coveredAfterMutation.activityCoverage.required, [
@@ -837,11 +889,18 @@ test("dogfood aggregate coverage resists returned-object mutation and prototype 
     "review",
     "validation",
   ]);
+  assert.deepEqual(coveredAfterMutation.runtimeCoverage.known, [
+    "source_local",
+    "installed_artifact",
+    "live_pi_reloaded",
+    "unknown",
+  ]);
   assert.equal(coveredAfterMutation.status, "stable_positive_signal");
 
   try {
     Object.prototype.implementation = 1;
     Object.prototype.review = 1;
+    Object.prototype.live_pi_reloaded = 99;
     const validationOnly = buildDogfoodAggregateEvaluation({
       observations: [
         baseObservation({
@@ -859,9 +918,11 @@ test("dogfood aggregate coverage resists returned-object mutation and prototype 
     assert.equal(validationOnly.status, "activity_coverage_gap");
     assert.deepEqual(validationOnly.activityCoverage.present, ["validation"]);
     assert.deepEqual(validationOnly.activityCoverage.missing, ["implementation", "review"]);
+    assert.equal(validationOnly.runtimeCoverage.livePiReloadedCount, 0);
   } finally {
     delete Object.prototype.implementation;
     delete Object.prototype.review;
+    delete Object.prototype.live_pi_reloaded;
   }
 });
 

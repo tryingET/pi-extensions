@@ -5,6 +5,12 @@ import {
 
 const ESTIMATED_BYTES_PER_TOKEN = 4;
 const DOGFOOD_TEMPLATE_ITEM_LIMIT = 20;
+const DOGFOOD_RUNTIME_CONTEXT_OPTIONS = Object.freeze([
+  "source_local",
+  "installed_artifact",
+  "live_pi_reloaded",
+  "unknown",
+]);
 const PLANNED_UNWIRED_PROVIDER_IDS = new Set(["prompt_vault", "ak", "fcos"]);
 
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
@@ -281,6 +287,8 @@ export const buildDogfoodObservationTemplate = ({
   },
   observation: {
     activityType: null,
+    runtimeContext: "unknown",
+    runtimeContextOptions: [...DOGFOOD_RUNTIME_CONTEXT_OPTIONS],
     actualLowLevelReadSearchStatusCalls: null,
     actualLowLevelCallsAvoided: null,
     validationCommandsRun: null,
@@ -290,7 +298,7 @@ export const buildDogfoodObservationTemplate = ({
     recommendationMatchedOutcome: null,
     notes: "",
   },
-  countingRule: `Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; record validationCommandsRun separately from context probes; optionally set activityType to implementation, review, validation, planning, or other; for omissionFollowupsUsed, ${DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE}; do not treat counts or labels as completion proof.`,
+  countingRule: `Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; record validationCommandsRun separately from context probes; optionally set activityType to implementation, review, validation, planning, or other; set runtimeContext to source_local, installed_artifact, live_pi_reloaded, or unknown based on the observer's actual execution surface; for omissionFollowupsUsed, ${DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE}; do not treat counts, runtime labels, or activity labels as completion proof.`,
   instructions:
     "After the work, paste this template into the owning dogfood evidence surface only if useful, fill observation fields, and keep any sensitive task content out of notes.",
   nonAuthorization:

@@ -174,6 +174,7 @@ const observation = structuredClone(result.packet.dogfoodObservationTemplate);
 observation.observation = {
   ...observation.observation,
   activityType: "validation",
+  runtimeContext: "source_local",
   actualLowLevelReadSearchStatusCalls: 0,
   actualLowLevelCallsAvoided: result.packet.measurementReceipt.estimatedToolCallsAvoided,
   validationCommandsRun: 1,
@@ -188,6 +189,11 @@ const evaluation = buildDogfoodObservationEvaluation({ observation });
 assert.equal(evaluation.ok, true, "dogfood observation evaluation should be valid");
 assert.equal(evaluation.status, "matched", "dogfood smoke evaluation should match prediction");
 assert.equal(evaluation.activityType, "validation", "dogfood smoke should label activity type");
+assert.equal(
+  evaluation.runtimeContext,
+  "source_local",
+  "dogfood smoke should label runtime context",
+);
 assert.equal(
   evaluation.validationCommandsRun,
   1,
