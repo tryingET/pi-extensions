@@ -12,6 +12,9 @@ const execFileAsync = promisify(execFile);
 const DOCS_LIST_MAX_BUFFER = 512_000;
 const DOCS_LIST_TIMEOUT_MS = 8_000;
 const DEFAULT_TOP = 8;
+const DEFAULT_DOCS_LIST_SCRIPT_PATHS = [
+  "/home/tryinget/ai-society/core/agent-scripts/scripts/docs-list.mjs",
+];
 const DISCOVERY_ROOT_MARKERS = ["package.json", "AGENTS.md", "README.md", "docs"];
 
 const isInside = (root, candidate) => {
@@ -112,6 +115,17 @@ const customDocsListOverrideAllowed = (env = {}) =>
   env.allowCustomDocsListScript === true ||
   /^(1|true|yes)$/iu.test(process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST ?? "");
 
+const processDocsListOverrideRefusals = (env = {}) => {
+  if (customDocsListOverrideAllowed(env)) return [];
+  return ["PI_CONTEXT_PACKER_DOCS_LIST", "DOCS_LIST_SCRIPT"]
+    .filter((name) => typeof process.env[name] === "string" && process.env[name].trim().length > 0)
+    .map((name) => ({
+      provider: "docs",
+      reason: "blocked",
+      detail: `process-level ${name} override ignored because PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST is not set; raw command path omitted`,
+    }));
+};
+
 const candidateScripts = (env = {}) =>
   [
     env.docsListScript,
@@ -119,9 +133,7 @@ const candidateScripts = (env = {}) =>
     ...(customDocsListOverrideAllowed(env)
       ? [process.env.PI_CONTEXT_PACKER_DOCS_LIST, process.env.DOCS_LIST_SCRIPT]
       : []),
-    process.env.HOME
-      ? join(process.env.HOME, "ai-society/core/agent-scripts/scripts/docs-list.mjs")
-      : undefined,
+    ...(env.disableDefaultDocsListScript === true ? [] : DEFAULT_DOCS_LIST_SCRIPT_PATHS),
   ].filter(Boolean);
 
 const firstExistingScript = async (env = {}) => {
@@ -375,12 +387,14 @@ export const discoverDocsSeeds = async ({
 }) => {
   const discoveryRoot = await docsDiscoveryRoot({ repoRoot, cwd });
   const docsRoot = discoveryRoot.root;
+  const overrideRefusals = processDocsListOverrideRefusals(env);
   const script = await firstExistingScript(env);
   if (!script) {
     return {
       seeds: [],
       omissions: [
         ...discoveryRoot.omissions,
+        ...overrideRefusals,
         {
           provider: "docs",
           reason: "unavailable",
@@ -413,7 +427,7 @@ export const discoverDocsSeeds = async ({
       value,
       note: "docs-list ranked Markdown context",
     }));
-    const omissions = [...discoveryRoot.omissions, ...discovered.omissions];
+    const omissions = [...discoveryRoot.omissions, ...overrideRefusals, ...discovered.omissions];
     if (seeds.length === 0 && !discovered.suppressNoResults) {
       omissions.push({
         provider: "docs",
@@ -427,6 +441,7 @@ export const discoverDocsSeeds = async ({
       seeds: [],
       omissions: [
         ...discoveryRoot.omissions,
+        ...overrideRefusals,
         {
           provider: "docs",
           reason: "unavailable",

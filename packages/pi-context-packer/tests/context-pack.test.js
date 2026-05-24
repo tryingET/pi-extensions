@@ -524,12 +524,15 @@ test("context_pack ignores process docs-list env overrides unless trusted overri
       delete process.env.PI_CONTEXT_PACKER_DOCS_LIST;
       process.env[envName] = script;
       delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
-      const result = await buildContextPacket({
-        objective: `Do not execute untrusted ${envName} docs-list override`,
-        cwd: root,
-        repoRoot: root,
-        providers: { agents: "off", docs: "required", git: "off", sci: "off" },
-      });
+      const result = await buildContextPacket(
+        {
+          objective: `Do not execute untrusted ${envName} docs-list override`,
+          cwd: root,
+          repoRoot: root,
+          providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+        },
+        { disableDefaultDocsListScript: true },
+      );
 
       assert.equal(await fileExists(mutationPath), false);
       assert.equal(
@@ -551,6 +554,57 @@ test("context_pack ignores process docs-list env overrides unless trusted overri
       if (previousTrust === undefined) delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
       else process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST = previousTrust;
     }
+  }
+});
+
+test("context_pack does not derive docs-list executable identity from HOME", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "docs", "project"), { recursive: true });
+  await writeFile(join(root, "docs", "project", "note.md"), "# Safe note\n", "utf8");
+  const evilHome = join(root, "evil-home");
+  const evilScriptDir = join(evilHome, "ai-society", "core", "agent-scripts", "scripts");
+  const mutationPath = join(root, "MUTATED_BY_HOME.txt");
+  await mkdir(evilScriptDir, { recursive: true });
+  await writeFile(
+    join(evilScriptDir, "docs-list.mjs"),
+    [
+      "import { writeFileSync } from 'node:fs';",
+      "import { join } from 'node:path';",
+      "writeFileSync(join(process.cwd(), 'MUTATED_BY_HOME.txt'), 'mutated');",
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/note.md' }] }));",
+    ].join(String.fromCharCode(10)),
+    "utf8",
+  );
+  const previousHome = process.env.HOME;
+  const previousDocsListScript = process.env.DOCS_LIST_SCRIPT;
+  const previousContextDocsList = process.env.PI_CONTEXT_PACKER_DOCS_LIST;
+  const previousTrust = process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+
+  try {
+    process.env.HOME = evilHome;
+    delete process.env.DOCS_LIST_SCRIPT;
+    delete process.env.PI_CONTEXT_PACKER_DOCS_LIST;
+    delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+    await buildContextPacket(
+      {
+        objective: "Do not execute HOME-derived docs-list scripts",
+        cwd: root,
+        repoRoot: root,
+        providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      },
+      { disableDefaultDocsListScript: true },
+    );
+
+    assert.equal(await fileExists(mutationPath), false);
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousDocsListScript === undefined) delete process.env.DOCS_LIST_SCRIPT;
+    else process.env.DOCS_LIST_SCRIPT = previousDocsListScript;
+    if (previousContextDocsList === undefined) delete process.env.PI_CONTEXT_PACKER_DOCS_LIST;
+    else process.env.PI_CONTEXT_PACKER_DOCS_LIST = previousContextDocsList;
+    if (previousTrust === undefined) delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+    else process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST = previousTrust;
   }
 });
 
@@ -1139,7 +1193,11 @@ test("context_pack preserves nested package ambiguity when docs-list is unavaila
         repoRoot: root,
         providers: { agents: "off", docs: "required", git: "off", sci: "off" },
       },
-      { cwd: root, docsListScript: join(root, "missing-docs-list.mjs") },
+      {
+        cwd: root,
+        docsListScript: join(root, "missing-docs-list.mjs"),
+        disableDefaultDocsListScript: true,
+      },
     );
 
     assert.ok(
