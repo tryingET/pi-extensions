@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "49bed7bb2bc979c79849c286afdf1b7d44e0e5cb"
+created_at: "2026-05-24T17:15:52Z"
+intent: "Refresh pi-context-packer product posture frontier after compact projection and atomic-completion work"
+files:
+  - "docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Update next-iteration frontier map with actual maturity, proof, boundaries, and remaining gap"
