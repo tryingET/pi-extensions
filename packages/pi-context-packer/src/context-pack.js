@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { open, realpath, stat } from "node:fs/promises";
-import { dirname, isAbsolute, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { publicOmissionDetail, subprocessFailureDetail } from "./context-intake-safety.js";
 import { formatContextPacket, toolResultFromContextPacketResult } from "./context-pack-result.js";
@@ -25,6 +25,7 @@ const ESTIMATED_BYTES_PER_TOKEN = 4;
 const MAX_ITEM_BYTES = 48_000;
 const GIT_MAX_BUFFER = 32_000;
 const TRUSTED_GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git"];
+const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"];
 const SECTION_AUTHORITY = {
   agents: "Active/relevant AGENTS files are instruction context; this packet only mirrors them.",
   git: "Git status is current workspace posture; read-only metadata only.",
@@ -223,28 +224,37 @@ const readBoundedFile = async ({
 };
 
 const findAgentFiles = async (cwd, repoRoot) => {
-  const candidates = [];
   const root = resolve(repoRoot);
+  const directories = [];
   let current = resolve(cwd);
   while (isInside(root, current)) {
-    candidates.push(resolve(current, "AGENTS.md"));
+    directories.push(current);
     const parent = dirname(current);
     if (parent === current) break;
     current = parent;
   }
 
   const existing = [];
-  const relativeCandidates = unique(candidates)
-    .reverse()
-    .map((candidate) => candidate.slice(root.length + 1))
-    .filter((candidate) => candidate && !candidate.startsWith(".."));
-
-  for (const candidate of relativeCandidates) {
-    try {
-      const candidateStat = await stat(resolve(root, candidate));
-      if (candidateStat.isFile()) existing.push(candidate);
-    } catch {
-      // Missing ancestor AGENTS files are normal loader behavior, not packet omissions.
+  for (const directory of directories.reverse()) {
+    for (const filename of CONTEXT_FILE_CANDIDATES) {
+      const candidate = resolve(directory, filename);
+      const relativeCandidate = relative(root, candidate);
+      if (
+        !relativeCandidate ||
+        relativeCandidate.startsWith("..") ||
+        isAbsolute(relativeCandidate)
+      ) {
+        continue;
+      }
+      try {
+        const candidateStat = await stat(candidate);
+        if (candidateStat.isFile()) {
+          existing.push(relativeCandidate);
+          break;
+        }
+      } catch {
+        // Missing ancestor instruction files are normal loader behavior, not packet omissions.
+      }
     }
   }
 
@@ -261,7 +271,7 @@ const buildAgentsSection = async ({ cwd, repoRoot, maxBytes, loadedSystemPrompt 
       root: repoRoot,
       pathSeed,
       provider: "agents",
-      rationale: "active or ancestor AGENTS file for package/workspace instruction context",
+      rationale: "active or ancestor instruction context file for package/workspace context",
       budgetBytes: maxBytes,
       loadedSystemPrompt,
     });

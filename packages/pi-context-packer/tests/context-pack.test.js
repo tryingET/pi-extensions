@@ -1641,6 +1641,61 @@ test("context_pack preserves loader-style AGENTS order", async () => {
   );
 });
 
+test("context_pack mirrors Pi instruction-file fallback and priority", async () => {
+  const root = await makeWorkspace();
+  await writeGitMarker(root);
+  await mkdir(join(root, "packages", "pkg"), { recursive: true });
+  await writeFile(join(root, "CLAUDE.md"), "# Root CLAUDE should not win\n", "utf8");
+  await writeFile(join(root, "packages", "AGENTS.MD"), "# Uppercase package agents\n", "utf8");
+  await writeFile(join(root, "packages", "CLAUDE.md"), "# Package CLAUDE should not win\n", "utf8");
+  await writeFile(join(root, "packages", "pkg", "CLAUDE.MD"), "# Leaf uppercase Claude\n", "utf8");
+
+  const result = await buildContextPacket({
+    objective: "Read instruction context",
+    cwd: join(root, "packages", "pkg"),
+    repoRoot: root,
+    providers: { git: "off", sci: "off", docs: "off" },
+  });
+
+  const agents = result.packet.sections.find((section) => section.provider === "agents");
+  assert.deepEqual(
+    agents.items.map((item) => item.provenance.path),
+    ["AGENTS.md", "packages/AGENTS.MD", "packages/pkg/CLAUDE.MD"],
+  );
+  assert.equal(
+    agents.items.some((item) => item.provenance.path === "CLAUDE.md"),
+    false,
+  );
+  assert.equal(
+    agents.items.some((item) => item.provenance.path === "packages/CLAUDE.md"),
+    false,
+  );
+});
+
+test("context_pack dedupes selected fallback instruction files", async () => {
+  const root = await makeWorkspace();
+  await writeGitMarker(root);
+  await mkdir(join(root, "packages", "pkg"), { recursive: true });
+  const leafClaude = "# Leaf CLAUDE\n\nAlready loaded instruction context.\n";
+  await writeFile(join(root, "packages", "pkg", "CLAUDE.md"), leafClaude, "utf8");
+
+  const result = await buildContextPacket(
+    {
+      objective: "Read instruction context",
+      cwd: join(root, "packages", "pkg"),
+      repoRoot: root,
+      providers: { git: "off", sci: "off", docs: "off" },
+    },
+    { systemPrompt: leafClaude },
+  );
+
+  const agents = result.packet.sections.find((section) => section.provider === "agents");
+  const duplicate = agents.items.find((item) => item.provenance.path === "packages/pkg/CLAUDE.md");
+  assert.equal(duplicate.contentMode, "metadata");
+  assert.equal(duplicate.duplicateOf, "system_prompt");
+  assert.match(duplicate.content, /already loaded in system_prompt/);
+});
+
 test("context_pack accepts a git-root ancestor repoRoot from a package cwd", async () => {
   const root = await makeWorkspace();
   const packageCwd = join(root, "packages", "pkg");
