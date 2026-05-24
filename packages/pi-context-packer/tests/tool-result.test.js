@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { contextPacketToolResult } from "../src/context-pack.js";
+import { buildContextPlan, compactContextPlanDetails } from "../src/context-plan.js";
 
 const makeWorkspace = async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-pack-tool-"));
@@ -12,6 +13,59 @@ const makeWorkspace = async () => {
   await writeFile(join(root, "docs", "note.md"), "# Note\n\nUseful packet content.\n", "utf8");
   return root;
 };
+
+test("compactContextPlanDetails omits raw objectives, paths, queries, and seeds", async () => {
+  const root = await makeWorkspace();
+  const sentinel = "SENTINEL_SECRET_OBJECTIVE";
+  const plan = buildContextPlan(
+    {
+      objective: `Plan docs for ${sentinel}`,
+      cwd: root,
+      repoRoot: root,
+      seeds: [
+        { kind: "path", value: "docs/note.md", note: `note-${sentinel}` },
+        { kind: "symbol", value: `symbol${sentinel}` },
+        { kind: "prompt", value: `prompt-${sentinel}` },
+        { kind: "free_text", value: `free-${sentinel}` },
+      ],
+      providers: { docs: "required", sci: "required", prompt_vault: "required" },
+    },
+    { cwd: root },
+  );
+  const details = compactContextPlanDetails(plan);
+
+  assert.equal(details.ok, true);
+  assert.equal(details.objective, undefined);
+  assert.equal(details.cwd, undefined);
+  assert.equal(details.repoRoot, undefined);
+  assert.equal(details.objectiveRef, "plan Markdown title");
+  assert.equal(details.workspace.absolutePathsOmitted, true);
+  assert.equal(details.redaction.rawObjectiveOmitted, true);
+  assert.equal(details.redaction.rawQueriesOmitted, true);
+  assert.equal(details.redaction.rawSeedsOmitted, true);
+  assert.equal(details.redaction.rawSeedNotesOmitted, true);
+
+  const byProvider = Object.fromEntries(details.providers.map((entry) => [entry.provider, entry]));
+  assert.equal(byProvider.docs.posture, "selected");
+  assert.equal(byProvider.docs.queryCount, 1);
+  assert.equal(byProvider.docs.proposedQueries[0].queryOmitted, true);
+  assert.equal(byProvider.docs.proposedQueries[0].rawSeedsOmitted, true);
+  assert.equal(byProvider.docs.proposedQueries[0].seedKindCounts.path, 1);
+  assert.equal(byProvider.sci.proposedQueries[0].seedKindCounts.symbol, 1);
+  assert.equal(byProvider.prompt_vault.proposedQueries[0].seedKindCounts.prompt, 1);
+  assert.equal(Array.isArray(details.risks), true);
+  assert.equal(Array.isArray(details.ownerSurfaceRecommendations), true);
+  assert.ok(details.nonAuthorizations.some((item) => item.includes("does not mutate")));
+
+  const serializedDetails = JSON.stringify(details);
+  assert.equal(serializedDetails.includes(root), false);
+  assert.equal(serializedDetails.includes(sentinel), false);
+  assert.equal(serializedDetails.includes("docs/note.md"), false);
+  assert.equal(serializedDetails.includes("symbolSENTINEL"), false);
+  assert.equal(serializedDetails.includes("note-SENTINEL"), false);
+  assert.equal(serializedDetails.includes("prompt-SENTINEL"), false);
+  assert.equal(serializedDetails.includes("free-SENTINEL"), false);
+});
 
 test("contextPacketToolResult returns markdown content and compact details", async () => {
   const root = await makeWorkspace();

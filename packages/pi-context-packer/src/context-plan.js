@@ -113,6 +113,18 @@ const positiveInteger = (value, fallback) => {
   return normalized > 0 ? normalized : fallback;
 };
 
+const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
+const textTokens = (value) => Math.ceil(textBytes(value) / ESTIMATED_BYTES_PER_TOKEN);
+
+const countSeedKinds = (seeds = []) => {
+  const counts = Object.create(null);
+  for (const seed of seeds) {
+    const kind = coerceString(seed?.kind, "unknown");
+    counts[kind] = (counts[kind] ?? 0) + 1;
+  }
+  return counts;
+};
+
 const normalizeSeedNote = (note) => {
   const value = coerceString(note).trim();
   if (!value) return undefined;
@@ -623,6 +635,72 @@ export const buildContextPlan = (input = {}, env = {}) => {
       workspaceRisks,
     }),
     nonAuthorizations: NON_AUTHORIZATIONS,
+  };
+};
+
+const compactPlanQuery = (query = {}) => ({
+  id: query.id,
+  queryRef: "plan Markdown title",
+  queryOmitted: true,
+  seedCount: Array.isArray(query.seeds) ? query.seeds.length : 0,
+  seedKindCounts: countSeedKinds(query.seeds),
+  rawSeedsOmitted: true,
+  maxResults: query.maxResults,
+  maxBytes: query.maxBytes,
+  maxTokens: query.maxTokens,
+});
+
+export const compactContextPlanDetails = (plan) => {
+  if (!plan.ok) {
+    return {
+      ok: false,
+      errors: plan.errors ?? [],
+      redaction: {
+        rawObjectiveOmitted: true,
+        absoluteWorkspacePathsOmitted: true,
+        rawQueriesOmitted: true,
+        rawSeedsOmitted: true,
+      },
+      nonAuthorizations: plan.nonAuthorizations ?? NON_AUTHORIZATIONS,
+    };
+  }
+
+  return {
+    ok: true,
+    objectiveRef: "plan Markdown title",
+    objectiveEstimatedTokens: textTokens(plan.objective),
+    objectiveBytes: textBytes(plan.objective),
+    workspace: {
+      cwdRef: "context_plan input/env cwd",
+      repoRootRef: plan.repoRoot ? "context_plan input/inferred repoRoot" : undefined,
+      absolutePathsOmitted: true,
+    },
+    budget: plan.budget,
+    providers: plan.providerPlans.map((providerPlan) => ({
+      provider: providerPlan.provider,
+      posture: providerPlan.posture,
+      reason: providerPlan.reason,
+      queryCount: providerPlan.proposedQueries.length,
+      proposedQueries: providerPlan.proposedQueries.map(compactPlanQuery),
+      maxTokens: providerPlan.maxTokens,
+      authority: providerPlan.authority,
+    })),
+    omittedSeedCount: plan.omittedSeeds?.length ?? 0,
+    omittedSeeds: (plan.omittedSeeds ?? []).map((seed) => ({
+      kind: seed.kind,
+      provider: seed.provider,
+      reason: seed.reason,
+    })),
+    risks: plan.risks,
+    ownerSurfaceRecommendations: plan.ownerSurfaceRecommendations ?? [],
+    redaction: {
+      rawObjectiveOmitted: true,
+      absoluteWorkspacePathsOmitted: true,
+      rawQueriesOmitted: true,
+      rawSeedsOmitted: true,
+      rawSeedNotesOmitted: true,
+    },
+    nonAuthorizations: plan.nonAuthorizations,
   };
 };
 

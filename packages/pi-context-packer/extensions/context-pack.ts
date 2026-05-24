@@ -7,6 +7,7 @@ import { CONTEXT_PACK_PARAMETERS, contextPacketToolResult } from "../src/context
 import {
   buildContextPlan,
   CONTEXT_PLAN_PARAMETERS,
+  compactContextPlanDetails,
   formatContextPlan,
 } from "../src/context-plan.js";
 import {
@@ -76,7 +77,7 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     parameters: CONTEXT_PLAN_PARAMETERS,
     async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
       const plan = buildContextPlan(rawParams, contextEnv(ctx));
-      return textResult(formatContextPlan(plan), { ok: plan.ok, plan });
+      return textResult(formatContextPlan(plan), compactContextPlanDetails(plan));
     },
   });
 

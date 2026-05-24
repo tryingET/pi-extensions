@@ -532,6 +532,26 @@ node --test tests/context-plan.test.js tests/context-pack.test.js
 
 Outcome: dogfood route telemetry and omission counts are more trustworthy because raw caller seed contamination cannot be laundered by normalization before provider selection.
 
+## Receipt L — compact context_plan details projection
+
+### Context
+
+After raw seed intake hardening, the next highest-impact projection gap was `context_plan` tool details. The rendered plan text was compact, but the extension returned the raw plan object in structured details, including raw objective text, absolute workspace paths, proposed query strings, raw seeds, and raw seed notes.
+
+### Slice
+
+`context_plan` now exposes compact details with objective/workspace/query/seed references, provider postures, query counts, seed-kind counts, omitted-seed reasons, risks, owner-surface recommendations, a redaction receipt, and non-authorizations. The live extension returns this compact projection instead of the raw plan object.
+
+Adversarial coverage verifies compact plan details omit sentinel objectives, absolute temp roots, raw path/symbol/prompt/free-text seed values, and raw seed notes while preserving provider posture and count telemetry.
+
+Validation:
+
+```text
+node --test tests/tool-result.test.js
+```
+
+Outcome: the always-available planning tool now follows the same Markdown-primary / compact-details discipline as `context_pack`, reducing hidden JSON bloat and accidental leakage before packet assembly.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.
