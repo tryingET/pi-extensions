@@ -23,6 +23,8 @@ const isInside = (root, candidate) => {
   );
 };
 
+const toPosixPath = (value) => value.split(sep).join("/");
+
 const hasMarker = async (candidate, marker) => {
   try {
     const markerStat = await stat(join(candidate, marker));
@@ -106,12 +108,17 @@ const docsDiscoveryRoot = async ({ repoRoot, cwd }) => {
   return { root: markedAncestors[0] ?? root, omissions: [] };
 };
 
+const customDocsListOverrideAllowed = (env = {}) =>
+  env.allowCustomDocsListScript === true ||
+  /^(1|true|yes)$/iu.test(process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST ?? "");
+
 const candidateScripts = (env = {}) =>
   [
     env.docsListScript,
     env.PI_CONTEXT_PACKER_DOCS_LIST,
-    process.env.PI_CONTEXT_PACKER_DOCS_LIST,
-    process.env.DOCS_LIST_SCRIPT,
+    ...(customDocsListOverrideAllowed(env)
+      ? [process.env.PI_CONTEXT_PACKER_DOCS_LIST, process.env.DOCS_LIST_SCRIPT]
+      : []),
     process.env.HOME
       ? join(process.env.HOME, "ai-society/core/agent-scripts/scripts/docs-list.mjs")
       : undefined,
@@ -165,33 +172,20 @@ const normalizeCandidatePaths = (rawCandidates) => {
   return { paths, omissions };
 };
 
-const normalizeTextOutputPaths = (stdout, rebaseContext) => {
-  const lines = stdout
-    .split(/\r?\n/u)
-    .filter(
-      (line) =>
-        line.trim() && !line.trim().startsWith("Docs ") && !line.trim().startsWith("Showing "),
-    );
-  const candidates = rebaseContext
-    ? lines.map((line) => rebaseProviderPath(line, rebaseContext))
-    : lines;
-  return normalizeCandidatePaths(candidates);
-};
-
 const rebaseProviderPath = (rawPath, { repoRoot, providerRoot }) => {
   if (hasControlCharacter(rawPath) || rawPath !== rawPath.trim()) return rawPath;
   const root = resolve(repoRoot);
   const sourceRoot = resolve(providerRoot);
   if (sourceRoot === root) return rawPath;
   if (repoRelativePathSafetyIssue(rawPath, "docs-list path")) return rawPath;
-  const sourceRootRelative = relative(root, sourceRoot);
+  const sourceRootRelative = toPosixPath(relative(root, sourceRoot));
   if (
     sourceRootRelative &&
-    (rawPath === sourceRootRelative || rawPath.startsWith(`${sourceRootRelative}${sep}`))
+    (rawPath === sourceRootRelative || rawPath.startsWith(`${sourceRootRelative}/`))
   ) {
     return rawPath;
   }
-  const rebased = relative(root, resolve(sourceRoot, rawPath));
+  const rebased = toPosixPath(relative(root, resolve(sourceRoot, rawPath)));
   return rebased || rawPath;
 };
 
@@ -318,7 +312,17 @@ const normalizeJsonOutputPaths = (stdout, { repoRoot, docsRoot }) => {
       suppressNoResults: normalized.paths.length === 0 && normalized.omissions.length > 0,
     };
   } catch {
-    return undefined;
+    return {
+      paths: [],
+      omissions: [
+        {
+          provider: "docs",
+          reason: "schema_mismatch",
+          detail: "docs-list JSON output was invalid; raw provider output omitted",
+        },
+      ],
+      suppressNoResults: true,
+    };
   }
 };
 
@@ -363,10 +367,7 @@ export const discoverDocsSeeds = async ({
       ],
       { cwd: docsRoot, timeout: DOCS_LIST_TIMEOUT_MS, maxBuffer: DOCS_LIST_MAX_BUFFER },
     );
-    const discovered = normalizeJsonOutputPaths(stdout, { repoRoot, docsRoot }) ?? {
-      ...normalizeTextOutputPaths(stdout, { repoRoot, providerRoot: docsRoot }),
-      suppressNoResults: false,
-    };
+    const discovered = normalizeJsonOutputPaths(stdout, { repoRoot, docsRoot });
     const seeds = discovered.paths.map((value) => ({
       kind: "path",
       value,

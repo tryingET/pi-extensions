@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -27,6 +27,15 @@ const makeWorkspace = async () => {
 const writeGitMarker = async (root) => {
   await mkdir(join(root, ".git"), { recursive: true });
   await writeFile(join(root, ".git", "HEAD"), "ref: refs/heads/main\n", "utf8");
+};
+
+const fileExists = async (path) => {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 test("context_pack assembles AGENTS and seeded Markdown without mutating providers", async () => {
@@ -224,7 +233,11 @@ test("context_pack discovers ranked Markdown docs through docs-list when availab
     "utf8",
   );
   const script = join(root, "docs-list-fake.mjs");
-  await writeFile(script, "console.log('docs/project/auto.md');\n", "utf8");
+  await writeFile(
+    script,
+    "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/auto.md' }] }));\n",
+    "utf8",
+  );
   await chmod(script, 0o755);
 
   const result = await buildContextPacket(
@@ -339,47 +352,54 @@ test("context_pack keeps JSON repoPath in the caller repo-root basis", async () 
   assert.doesNotMatch(docs.items[0].content, /Root shadow/);
 });
 
-test("context_pack rebases package-root docs-list text output paths", async () => {
+test("context_pack treats invalid docs-list JSON as schema mismatch without text fallback", async () => {
   const root = await makeWorkspace();
-  await mkdir(join(root, "packages", "pkg", "docs", "project"), { recursive: true });
-  await writeFile(join(root, "packages", "pkg", "package.json"), '{"name":"pkg"}\n', "utf8");
   await writeFile(
-    join(root, "packages", "pkg", "docs", "project", "text-ranked.md"),
-    "# Text ranked\n\nPackage-root-relative text output context.\n",
+    join(root, "docs", "project", "invalid-json-fallback.md"),
+    "# Invalid JSON fallback\n\nThis must not be selected from malformed JSON.\n",
     "utf8",
   );
-  const script = join(root, "docs-list-text-rebase-fake.mjs");
+  const script = join(root, "docs-list-invalid-json-fake.mjs");
   await writeFile(
     script,
-    [
-      "const docsArgIndex = process.argv.indexOf('--docs') + 1;",
-      "const docsRoot = process.argv[docsArgIndex];",
-      "if (!docsRoot.endsWith('/packages/pkg')) throw new Error('expected package docs root, got ' + docsRoot);",
-      "console.log('docs/project/text-ranked.md');",
-    ].join("\n"),
+    ["console.log('docs/project/invalid-json-fallback.md');", "console.log('{ not json');"].join(
+      String.fromCharCode(10),
+    ),
     "utf8",
   );
   await chmod(script, 0o755);
 
   const result = await buildContextPacket(
     {
-      objective: "Use package-root-relative docs-list text output",
-      cwd: join(root, "packages", "pkg"),
+      objective: "Use docs from invalid JSON output",
+      cwd: root,
       repoRoot: root,
       providers: { agents: "off", docs: "required", git: "off", sci: "off" },
     },
     { cwd: root, docsListScript: script },
   );
 
-  const docs = result.packet.sections.find((section) => section.provider === "docs");
-  assert.deepEqual(
-    docs.items.map((item) => item.provenance.path),
-    ["packages/pkg/docs/project/text-ranked.md"],
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "docs"),
+    false,
   );
-  assert.match(docs.items[0].content, /Package-root-relative text output context/);
+  assert.equal(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "docs" && omission.reason === "no_results",
+    ),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "docs" &&
+        omission.reason === "schema_mismatch" &&
+        omission.detail.includes("JSON output was invalid"),
+    ),
+  );
 });
 
-test("context_pack honors DOCS_LIST_SCRIPT for live provider parity with docs-list wrapper", async () => {
+test("context_pack honors DOCS_LIST_SCRIPT only with explicit trusted override", async () => {
   const root = await makeWorkspace();
   await writeFile(
     join(root, "docs", "project", "env-ranked.md"),
@@ -394,9 +414,11 @@ test("context_pack honors DOCS_LIST_SCRIPT for live provider parity with docs-li
   );
   await chmod(script, 0o755);
   const previous = process.env.DOCS_LIST_SCRIPT;
+  const previousTrust = process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
 
   try {
     process.env.DOCS_LIST_SCRIPT = script;
+    process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST = "1";
     const result = await buildContextPacket({
       objective: "Use docs-list env configuration",
       cwd: root,
@@ -413,6 +435,58 @@ test("context_pack honors DOCS_LIST_SCRIPT for live provider parity with docs-li
   } finally {
     if (previous === undefined) delete process.env.DOCS_LIST_SCRIPT;
     else process.env.DOCS_LIST_SCRIPT = previous;
+    if (previousTrust === undefined) delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+    else process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST = previousTrust;
+  }
+});
+
+test("context_pack ignores process DOCS_LIST_SCRIPT unless trusted override is explicit", async () => {
+  const root = await makeWorkspace();
+  const script = join(root, "docs-list-mutating-env-fake.mjs");
+  const mutationPath = join(root, "MUTATED.txt");
+  await writeFile(
+    script,
+    [
+      "import { writeFileSync } from 'node:fs';",
+      "import { join } from 'node:path';",
+      "writeFileSync(join(process.cwd(), 'MUTATED.txt'), 'mutated');",
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/note.md' }] }));",
+    ].join(String.fromCharCode(10)),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+  const previousHome = process.env.HOME;
+  const previous = process.env.DOCS_LIST_SCRIPT;
+  const previousTrust = process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+
+  try {
+    process.env.HOME = "";
+    process.env.DOCS_LIST_SCRIPT = script;
+    delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+    const result = await buildContextPacket({
+      objective: "Do not execute untrusted env docs-list override",
+      cwd: root,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    });
+
+    assert.equal(await fileExists(mutationPath), false);
+    assert.equal(
+      result.packet.sections.some((section) => section.provider === "docs"),
+      false,
+    );
+    assert.ok(
+      result.packet.omissions.some(
+        (omission) => omission.provider === "docs" && omission.reason === "unavailable",
+      ),
+    );
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previous === undefined) delete process.env.DOCS_LIST_SCRIPT;
+    else process.env.DOCS_LIST_SCRIPT = previous;
+    if (previousTrust === undefined) delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+    else process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST = previousTrust;
   }
 });
 
@@ -511,7 +585,11 @@ test("context_pack still runs docs-list when unsafe seeds were omitted and no sa
     "utf8",
   );
   const script = join(root, "docs-list-fake.mjs");
-  await writeFile(script, "console.log('docs/project/auto-after-unsafe.md');\n", "utf8");
+  await writeFile(
+    script,
+    "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/auto-after-unsafe.md' }] }));\n",
+    "utf8",
+  );
   await chmod(script, 0o755);
 
   const result = await buildContextPacket(
@@ -1352,7 +1430,11 @@ test("context_pack screens docs-list discovered paths with the shared path polic
   await mkdir(join(root, "node_modules", "pkg"), { recursive: true });
   await writeFile(join(root, "node_modules", "pkg", "README.md"), "# Vendor\n", "utf8");
   const script = join(root, "docs-list-fake.mjs");
-  await writeFile(script, "console.log('node_modules/pkg/README.md');\n", "utf8");
+  await writeFile(
+    script,
+    "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'node_modules/pkg/README.md' }] }));\n",
+    "utf8",
+  );
   await chmod(script, 0o755);
 
   const result = await buildContextPacket(
@@ -1386,10 +1468,12 @@ test("context_pack screens docs-list control-character paths without dropping sa
   await writeFile(
     script,
     [
-      "console.log('\\u000bdocs/project/leading-control.md');",
-      "console.log('docs/project/bad\\u007fname.md');",
-      "console.log('docs/project/trailing-control.md\\u0085');",
-      "console.log('docs/project/safe-after-control.md');",
+      "console.log(JSON.stringify({ ok: true, rankedItems: [",
+      "  { repoPath: '\\u000bdocs/project/leading-control.md' },",
+      "  { repoPath: 'docs/project/bad\\u007fname.md' },",
+      "  { repoPath: 'docs/project/trailing-control.md\\u0085' },",
+      "  { repoPath: 'docs/project/safe-after-control.md' }",
+      "] }));",
     ].join("\n"),
     "utf8",
   );
