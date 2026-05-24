@@ -120,7 +120,7 @@ export default function(pi) {
       const { contextPacketToolResult } = await import(
         pathToFileURL(join(installedPackageRoot, "src", "context-pack.js")).href
       );
-      const { buildDogfoodObservationEvaluation } = await import(
+      const { buildDogfoodAggregateEvaluation, buildDogfoodObservationEvaluation } = await import(
         pathToFileURL(join(installedPackageRoot, "src", "dogfood-observation.js")).href
       );
 
@@ -217,6 +217,44 @@ export default function(pi) {
         if (evaluationResult.status !== "matched" || evaluationResult.validationCommandsRun !== 0) {
           throw new Error(
             `context_dogfood_evaluate execution failed: ${JSON.stringify(evaluationResult)}`,
+          );
+        }
+        const aggregateResult = buildDogfoodAggregateEvaluation({
+          observations: [
+            {
+              kind: "context_pack_dogfood_observation_v1",
+              prediction: { expectedLowLevelCallsAvoided: 1 },
+              observation: {
+                actualLowLevelReadSearchStatusCalls: 0,
+                actualLowLevelCallsAvoided: 1,
+                duplicateReadsObserved: false,
+                omissionFollowupsUsed: [],
+                recommendationMatchedOutcome: true,
+                notes: "legacy installed runtime release smoke",
+              },
+            },
+            {
+              kind: "context_pack_dogfood_observation_v1",
+              prediction: { expectedLowLevelCallsAvoided: 1 },
+              observation: {
+                actualLowLevelReadSearchStatusCalls: 0,
+                actualLowLevelCallsAvoided: 1,
+                validationCommandsRun: 0,
+                duplicateReadsObserved: false,
+                omissionFollowupsUsed: [],
+                recommendationMatchedOutcome: true,
+                notes: "installed runtime release smoke with validation count",
+              },
+            },
+          ],
+        });
+        if (
+          !aggregateResult.ok ||
+          aggregateResult.totals.validationCommandsRecordedCount !== 1 ||
+          aggregateResult.totals.validationCommandsMissingCount !== 1
+        ) {
+          throw new Error(
+            `context_dogfood_summarize execution failed: ${JSON.stringify(aggregateResult)}`,
           );
         }
       } finally {

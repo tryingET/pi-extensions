@@ -80,7 +80,7 @@ npm audit --omit=dev --audit-level=moderate
 npm run release:check
 ```
 
-`npm run release:check` includes isolated Pi tarball install plus runtime registration smoke for `/context-pack` and the four model-callable tools, then executes installed artifact code for `context_plan`, seeded `context_pack`, docs-list-discovered `context_pack`, and dogfood evaluation against a temporary read-only fixture. The smoke verifies registered tool metadata through Pi runtime; executable behavior is tested through installed package modules because `pi.getAllTools()` exposes metadata, not tool handler functions.
+`npm run release:check` includes isolated Pi tarball install plus runtime registration smoke for `/context-pack` and the four model-callable tools, then executes installed artifact code for `context_plan`, seeded `context_pack`, docs-list-discovered `context_pack`, dogfood evaluation, and aggregate dogfood validation-count observability against a temporary read-only fixture. The smoke verifies registered tool metadata through Pi runtime; executable behavior is tested through installed package modules because `pi.getAllTools()` exposes metadata, not tool handler functions.
 
 `npm run check` uses the quick artifact release check and intentionally skips the Pi smoke; use `npm run release:check` before claiming live package activation readiness.
 

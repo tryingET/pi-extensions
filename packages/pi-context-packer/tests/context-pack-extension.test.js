@@ -61,6 +61,14 @@ test("context-packer extension registers command and all model-callable tools", 
 
   assert.match(aggregate.content[0].text, /Context-pack dogfood aggregate evaluation/);
   assert.equal(aggregate.details.dogfoodAggregateEvaluation.validReceiptCount, 1);
+  assert.equal(
+    aggregate.details.dogfoodAggregateEvaluation.totals.validationCommandsRecordedCount,
+    1,
+  );
+  assert.equal(
+    aggregate.details.dogfoodAggregateEvaluation.totals.validationCommandsMissingCount,
+    0,
+  );
 });
 
 test("context_pack extension passes trusted SCI read-only env only from host configuration", async () => {

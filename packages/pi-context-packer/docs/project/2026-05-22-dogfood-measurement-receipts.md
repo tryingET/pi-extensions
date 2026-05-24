@@ -421,7 +421,8 @@ Release readiness previously proved that the tarball installed and registered `/
 - seeded `context_pack` reads Markdown and renders packet content;
 - docs-list-discovered `context_pack` reads ranked JSON output from a temporary docs-list script without a caller Markdown seed;
 - compact details omit raw selected item content;
-- dogfood evaluation returns `matched` for the runtime smoke receipt.
+- dogfood evaluation returns `matched` for the runtime smoke receipt;
+- aggregate dogfood evaluation preserves validation-count recorded/missing posture for a mixed current/legacy receipt set.
 
 The smoke intentionally describes executable behavior as installed-core execution rather than registered-tool-handler execution because Pi `getAllTools()` exposes tool metadata, not handler functions.
 
@@ -431,7 +432,7 @@ Observed release-check output:
 context-packer runtime registration and installed core execution OK
 ```
 
-Outcome: release smoke now covers registration metadata, installed-artifact seeded packing, installed-artifact docs-list discovery, and installed-artifact dogfood calibration. This remains package release evidence only; it does not publish the package or activate the current operator session.
+Outcome: release smoke now covers registration metadata, installed-artifact seeded packing, installed-artifact docs-list discovery, installed-artifact dogfood calibration, and aggregate validation-count observability. This remains package release evidence only; it does not publish the package or activate the current operator session.
 
 ## Receipt G — validation commands separated from context probes
 
