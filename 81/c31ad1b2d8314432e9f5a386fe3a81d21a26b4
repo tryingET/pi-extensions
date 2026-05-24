@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "81c31ad1b2d8314432e9f5a386fe3a81d21a26b4"
-created_at: "2026-05-24T17:58:34Z"
+created_at: "2026-05-24T18:05:02Z"
 intent: "Use byte-based rendered Markdown token accounting for context-packer compact packet details"
 files:
   - "packages/pi-context-packer/docs/project/product-posture.md"
@@ -16,8 +16,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 2
-  total: 2
+  total: 3
   rationale: "Context-packer telemetry fix with regression coverage and docs"
