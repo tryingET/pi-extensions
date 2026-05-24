@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "cb4993f8063ed7cc006b022c495cb79ce2c00f55"
+created_at: "2026-05-24T08:29:12Z"
+intent: "Refresh pi-context-packer product posture after activity coverage and aggregate membrane hardening"
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run docs:list -- --task \"product posture activity coverage dogfood frontier\" --top 8"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "docs-only frontier posture refresh"
