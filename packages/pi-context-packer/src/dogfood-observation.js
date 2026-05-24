@@ -19,6 +19,14 @@ const CALIBRATION_STATUSES = [
   "needs_review",
   "observation_incomplete",
 ];
+const KNOWN_ACTIVITY_TYPES = new Set([
+  "implementation",
+  "review",
+  "validation",
+  "planning",
+  "other",
+  "unspecified",
+]);
 
 const NON_AUTHORIZATION =
   "packet-local dogfood evaluation only; context-packer did not persist evidence, update AK/FCOS, write session memory, read files, call providers, or validate task completion";
@@ -52,6 +60,16 @@ const sanitizeNote = (value) =>
 
 const sanitizeLabel = (value, fallback = "value") =>
   sanitizeText(value, `${fallback} withheld`, MAX_SAFE_LABEL_LENGTH) || fallback;
+
+const normalizeActivityType = (value) => {
+  if (typeof value !== "string" || !value.trim()) return "unspecified";
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/gu, "_");
+  if (KNOWN_ACTIVITY_TYPES.has(normalized)) return normalized;
+  return sanitizeLabel(value, "activity type");
+};
 
 const sanitizeFollowups = (values) => {
   if (!Array.isArray(values)) return [];
@@ -166,6 +184,7 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     "observation.validationCommandsRun",
     errors,
   );
+  const activityType = normalizeActivityType(filledObservation.activityType);
   const duplicateReadsObserved = booleanOrNull(filledObservation.duplicateReadsObserved);
   const recommendationMatchedOutcome = booleanOrNull(
     filledObservation.recommendationMatchedOutcome,
@@ -206,6 +225,7 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     sourceKind: OBSERVATION_KIND,
     status: calibrationStatus,
     expectedLowLevelCallsAvoided: expectedAvoided,
+    activityType,
     actualLowLevelReadSearchStatusCalls: actualResidualCalls ?? null,
     actualLowLevelCallsAvoided: actualAvoided ?? null,
     validationCommandsRun: validationCommandsRun ?? null,
@@ -252,6 +272,7 @@ export const formatDogfoodObservationEvaluation = (evaluation) => {
     "",
     `Status: ${evaluation.status}`,
     `Expected low-level calls avoided: ${evaluation.expectedLowLevelCallsAvoided}`,
+    `Activity type: ${evaluation.activityType}`,
     `Actual low-level read/search/status calls: ${evaluation.actualLowLevelReadSearchStatusCalls ?? "not recorded"}`,
     `Actual low-level calls avoided: ${evaluation.actualLowLevelCallsAvoided ?? "not recorded"}`,
     `Validation commands run: ${evaluation.validationCommandsRun ?? "not recorded"}`,
@@ -377,6 +398,7 @@ const normalizeStoredEvaluation = (value, ref) => {
       typeof evaluation.sourceKind === "string" ? sanitizeLabel(evaluation.sourceKind) : "unknown",
     status,
     expectedLowLevelCallsAvoided,
+    activityType: normalizeActivityType(evaluation.activityType),
     actualLowLevelReadSearchStatusCalls: actualLowLevelReadSearchStatusCalls ?? null,
     actualLowLevelCallsAvoided: actualLowLevelCallsAvoided ?? null,
     validationCommandsRun: validationCommandsRun ?? null,
@@ -549,6 +571,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
   const evaluations = validEvaluations.map(({ ref, evaluation }) => ({
     ref,
     status: evaluation.status,
+    activityType: evaluation.activityType,
     expectedLowLevelCallsAvoided: evaluation.expectedLowLevelCallsAvoided,
     actualLowLevelReadSearchStatusCalls: evaluation.actualLowLevelReadSearchStatusCalls,
     actualLowLevelCallsAvoided: evaluation.actualLowLevelCallsAvoided,
@@ -568,6 +591,9 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
   );
   const packetUtilityRecommendationCounts = countValues(
     validEvaluations.map(({ evaluation }) => evaluation.packetUtilityRecommendationStatus),
+  );
+  const activityTypeCounts = countValues(
+    validEvaluations.map(({ evaluation }) => evaluation.activityType ?? "unspecified"),
   );
   const aggregateStatus = aggregateStatusFor({
     validCount: validEvaluations.length,
@@ -611,6 +637,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
       ),
     },
     packetUtilityRecommendationCounts,
+    activityTypeCounts,
     providerOmissionCounts,
     omissionFollowupCounts,
     evaluations,
@@ -640,6 +667,9 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
   const utilityLines = Object.entries(aggregate.packetUtilityRecommendationCounts).map(
     ([status, count]) => `- ${markdownInlineLabel(status, "packet utility status")}: ${count}`,
   );
+  const activityLines = Object.entries(aggregate.activityTypeCounts).map(
+    ([activityType, count]) => `- ${markdownInlineLabel(activityType, "activity type")}: ${count}`,
+  );
   const followupLines = Object.entries(aggregate.omissionFollowupCounts).map(
     ([followup, count]) => `- ${markdownInlineLabel(followup, "omission follow-up")}: ${count}`,
   );
@@ -664,6 +694,9 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     "",
     "## Packet utility recommendation counts",
     utilityLines.length ? utilityLines.join("\n") : "- none recorded",
+    "",
+    "## Activity type counts",
+    activityLines.length ? activityLines.join("\n") : "- none recorded",
     "",
     "## Unwired provider omission counts",
     providerLines.length ? providerLines.join("\n") : "- none recorded",

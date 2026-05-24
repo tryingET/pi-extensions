@@ -151,6 +151,7 @@ export const buildMeasurementReceipt = ({
 export const buildDogfoodFollowupReceipt = (receipt) => ({
   status: "observation_pending",
   expectedLowLevelCallsAvoided: receipt.estimatedToolCallsAvoided,
+  activityType: null,
   actualLowLevelReadSearchStatusCalls: null,
   validationCommandsRun: null,
   duplicateReadsObserved: null,
@@ -159,7 +160,7 @@ export const buildDogfoodFollowupReceipt = (receipt) => ({
   notes:
     "Fill externally after the work if maintaining dogfood evidence; context-packer does not persist or validate this receipt.",
   nonAuthorization:
-    "packet-local follow-up scaffold only; validation counts are calibration metadata, not task-completion proof; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
+    "packet-local follow-up scaffold only; activity labels and validation counts are calibration metadata, not task-completion proof; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
 });
 
 const compactSelectedItems = (sections) =>
@@ -273,6 +274,7 @@ export const buildDogfoodObservationTemplate = ({
     unwiredProviderOmissions: measurementReceipt.unwiredProviderOmissions,
   },
   observation: {
+    activityType: null,
     actualLowLevelReadSearchStatusCalls: null,
     actualLowLevelCallsAvoided: null,
     validationCommandsRun: null,
@@ -282,7 +284,7 @@ export const buildDogfoodObservationTemplate = ({
     notes: "",
   },
   countingRule:
-    "Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; record validationCommandsRun separately from context probes and do not treat it as completion proof.",
+    "Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; record validationCommandsRun separately from context probes; optionally set activityType to implementation, review, validation, planning, or other; do not treat counts or labels as completion proof.",
   instructions:
     "After the work, paste this template into the owning dogfood evidence surface only if useful, fill observation fields, and keep any sensitive task content out of notes.",
   nonAuthorization:

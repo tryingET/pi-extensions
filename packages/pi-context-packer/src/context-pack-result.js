@@ -74,6 +74,7 @@ export const formatContextPacket = (result) => {
       ? [
           `- status: ${dogfoodFollowup.status}`,
           `- expected low-level calls avoided: ${dogfoodFollowup.expectedLowLevelCallsAvoided}`,
+          "- activity type: optionally fill activityType as implementation, review, validation, planning, or other",
           "- actual low-level read/search/status calls: fill externally after work if useful",
           "- validation commands run: fill validationCommandsRun separately from context probes if recording dogfood",
           `- non-authorization: ${dogfoodFollowup.nonAuthorization}`,

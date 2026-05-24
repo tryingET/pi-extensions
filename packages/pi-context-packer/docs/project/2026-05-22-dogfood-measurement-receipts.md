@@ -448,6 +448,27 @@ Adversarial coverage rejects fractional, negative, or non-integer validation cou
 
 Outcome: evaluated dogfood receipts can now distinguish “the packet avoided context probes” from “the agent still ran validation,” which should reduce false over/under-claiming before ranking changes or new provider adapters are justified. Follow-up hardening preserved missing-vs-zero semantics in aggregate summaries so legacy receipts without `validationCommandsRun` do not silently imply zero validation commands.
 
+## Receipt H — activity-type dogfood calibration labels
+
+### Context
+
+The product posture's main gap still points to repeated evaluated receipts across implementation, review, and validation tasks before ranking changes or new provider adapters. Existing receipts separated validation-command counts from context probes, but the evaluator and aggregate summary did not preserve what kind of activity the receipt represented.
+
+### Slice
+
+The dogfood observation scaffold now includes optional `activityType` metadata (`implementation`, `review`, `validation`, `planning`, or `other`). `context_dogfood_evaluate` normalizes missing legacy labels to `unspecified`, redacts caller-controlled activity labels before returning text/details, and keeps the field as packet-local calibration metadata rather than task-completion proof. `context_dogfood_summarize` reports `activityTypeCounts` and per-receipt activity labels so repeated receipts can show whether matched signals cover a useful task mix.
+
+Adversarial coverage redacts malicious activity labels containing local paths, secret-like strings, and Markdown-structure injection; legacy receipts without labels remain valid; stored prior evaluations round-trip the label through aggregate summaries. The package-local docs-list dogfood smoke now fills `activityType: "validation"` and verifies the label appears in the non-persistent evaluation.
+
+Validation:
+
+```text
+npm run check
+npm run dogfood:docs-list-json
+```
+
+Outcome: activity coverage is now observable in redacted dogfood summaries. This supports the next frontier—collecting repeated implementation/review/validation receipts—without adding provider adapters, reading receipt files, mutating AK/FCOS, promoting evidence, or treating labels/counts as completion proof.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

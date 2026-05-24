@@ -173,6 +173,7 @@ assert.doesNotMatch(
 const observation = structuredClone(result.packet.dogfoodObservationTemplate);
 observation.observation = {
   ...observation.observation,
+  activityType: "validation",
   actualLowLevelReadSearchStatusCalls: 0,
   actualLowLevelCallsAvoided: result.packet.measurementReceipt.estimatedToolCallsAvoided,
   validationCommandsRun: 1,
@@ -186,6 +187,7 @@ observation.observation = {
 const evaluation = buildDogfoodObservationEvaluation({ observation });
 assert.equal(evaluation.ok, true, "dogfood observation evaluation should be valid");
 assert.equal(evaluation.status, "matched", "dogfood smoke evaluation should match prediction");
+assert.equal(evaluation.activityType, "validation", "dogfood smoke should label activity type");
 assert.equal(
   evaluation.validationCommandsRun,
   1,

@@ -50,12 +50,14 @@ test("contextPacketToolResult returns markdown content and compact details", asy
     true,
   );
   assert.equal(result.details.dogfoodFollowupReceipt.status, "observation_pending");
+  assert.equal(result.details.dogfoodFollowupReceipt.activityType, null);
   assert.equal(result.details.dogfoodFollowupReceipt.actualLowLevelReadSearchStatusCalls, null);
   assert.equal(result.details.dogfoodFollowupReceipt.validationCommandsRun, null);
   assert.equal(
     result.details.dogfoodObservationTemplate.kind,
     "context_pack_dogfood_observation_v1",
   );
+  assert.equal(result.details.dogfoodObservationTemplate.observation.activityType, null);
   assert.equal(
     result.details.dogfoodObservationTemplate.observation.actualLowLevelReadSearchStatusCalls,
     null,

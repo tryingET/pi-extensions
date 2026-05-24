@@ -28,6 +28,7 @@ const baseObservation = (overrides = {}) => ({
     unwiredProviderOmissions: [],
   },
   observation: {
+    activityType: "implementation",
     actualLowLevelReadSearchStatusCalls: 1,
     actualLowLevelCallsAvoided: 3,
     validationCommandsRun: 2,
@@ -48,10 +49,12 @@ test("dogfood evaluator classifies matched observations without raw packet conte
   assert.equal(evaluation.ok, true);
   assert.equal(evaluation.status, "matched");
   assert.equal(evaluation.expectedLowLevelCallsAvoided, 3);
+  assert.equal(evaluation.activityType, "implementation");
   assert.equal(evaluation.actualLowLevelReadSearchStatusCalls, 1);
   assert.equal(evaluation.actualLowLevelCallsAvoided, 3);
   assert.equal(evaluation.validationCommandsRun, 2);
   assert.match(text, /Status: matched/);
+  assert.match(text, /Activity type: implementation/);
   assert.match(text, /Validation commands run: 2/);
   assert.match(text, /did not persist evidence/);
   assert.doesNotMatch(JSON.stringify(evaluation), /packet\.sections|provenance|path/);
@@ -210,6 +213,7 @@ test("dogfood evaluator redacts malicious notes and caps huge omission followups
       unwiredProviderOmissions: ["ak", { provider: "fcos", reason: "TOKEN=secret" }],
     },
     observation: {
+      activityType: "review\n## Forged at /tmp/customer-acme TOKEN=secret",
       actualLowLevelReadSearchStatusCalls: 2,
       actualLowLevelCallsAvoided: null,
       duplicateReadsObserved: true,
@@ -227,6 +231,7 @@ test("dogfood evaluator redacts malicious notes and caps huge omission followups
   const serialized = JSON.stringify(result.details);
 
   assert.equal(result.details.dogfoodObservationEvaluation.status, "overestimated");
+  assert.match(result.details.dogfoodObservationEvaluation.activityType, /withheld/);
   assert.equal(result.details.dogfoodObservationEvaluation.omissionFollowupsUsed.length, 12);
   assert.equal(result.details.dogfoodObservationEvaluation.omissionFollowupsTruncated, 8);
   assert.doesNotMatch(result.content[0].text, /SECRET TOKEN|customer-acme|\/tmp\//);
@@ -266,6 +271,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
           unwiredProviderOmissions: ["ak"],
         },
         observation: {
+          activityType: "review",
           actualLowLevelReadSearchStatusCalls: 0,
           actualLowLevelCallsAvoided: 4,
           validationCommandsRun: 3,
@@ -278,6 +284,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
       baseObservation({
         prediction: { ...baseObservation().prediction, expectedLowLevelCallsAvoided: 1 },
         observation: {
+          activityType: "validation",
           actualLowLevelReadSearchStatusCalls: 5,
           actualLowLevelCallsAvoided: 0,
           validationCommandsRun: 1,
@@ -298,6 +305,7 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
   assert.equal(aggregate.statusCounts.underestimated, 1);
   assert.equal(aggregate.statusCounts.overestimated, 1);
   assert.equal(aggregate.providerOmissionCounts.ak, 1);
+  assert.deepEqual(aggregate.activityTypeCounts, { implementation: 1, review: 1, validation: 1 });
   assert.equal(aggregate.omissionFollowupCounts["docs/missing ranking"], 1);
   assert.equal(aggregate.totals.validationCommandsRun, 6);
   assert.equal(aggregate.totals.validationCommandsRecordedCount, 3);
@@ -325,7 +333,10 @@ test("dogfood aggregate preserves missing validation-command counts for legacy r
   assert.equal(aggregate.totals.validationCommandsRun, 2);
   assert.equal(aggregate.totals.validationCommandsRecordedCount, 1);
   assert.equal(aggregate.totals.validationCommandsMissingCount, 1);
+  assert.equal(aggregate.activityTypeCounts.unspecified, 1);
   assert.match(text, /Validation commands run: 2 \(1 recorded, 1 missing\)/);
+  assert.match(text, /Activity type counts/);
+  assert.match(text, /- unspecified: 1/);
 });
 
 test("dogfood aggregate accepts prior evaluations and reports mixed invalid receipts", async () => {
@@ -333,6 +344,7 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
   const truncatedEvaluation = buildDogfoodObservationEvaluation({
     observation: baseObservation({
       observation: {
+        activityType: "review",
         actualLowLevelReadSearchStatusCalls: 1,
         actualLowLevelCallsAvoided: 1,
         validationCommandsRun: 1,
@@ -350,6 +362,7 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
       truncatedEvaluation,
       baseObservation({
         observation: {
+          activityType: "validation",
           actualLowLevelReadSearchStatusCalls: null,
           actualLowLevelCallsAvoided: null,
           validationCommandsRun: 2,
@@ -369,6 +382,9 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
   assert.equal(aggregate.invalidReceiptCount, 1);
   assert.equal(aggregate.totals.omissionFollowupsTruncated, 8);
   assert.equal(aggregate.evaluations[1].omissionFollowupsTruncated, 8);
+  assert.deepEqual(aggregate.activityTypeCounts, { implementation: 1, review: 1, validation: 1 });
+  assert.match(result.content[0].text, /Activity type counts/);
+  assert.match(result.content[0].text, /- review: 1/);
   assert.match(result.content[0].text, /Omission follow-up counts/);
   assert.match(result.content[0].text, /Omission follow-ups truncated: 8/);
   assert.match(result.content[0].text, /Validation commands run: 5 \(3 recorded, 0 missing\)/);
@@ -386,6 +402,7 @@ test("dogfood aggregate redacts malicious labels and fails closed on oversized i
         unwiredProviderOmissions: ["/tmp/customer-acme TOKEN=secret"],
       },
       observation: {
+        activityType: "review\n## Forged at /tmp/customer-acme TOKEN=secret",
         actualLowLevelReadSearchStatusCalls: 2,
         actualLowLevelCallsAvoided: null,
         duplicateReadsObserved: true,
@@ -438,6 +455,7 @@ test("dogfood aggregate counts prototype-shaped labels without losing them", () 
           unwiredProviderOmissions: ["__proto__"],
         },
         observation: {
+          activityType: "implementation",
           actualLowLevelReadSearchStatusCalls: 0,
           actualLowLevelCallsAvoided: 1,
           duplicateReadsObserved: true,
@@ -453,6 +471,7 @@ test("dogfood aggregate counts prototype-shaped labels without losing them", () 
   assert.equal(aggregate.packetUtilityRecommendationCounts.__proto__, 1);
   assert.equal(aggregate.providerOmissionCounts.__proto__, 1);
   assert.equal(aggregate.omissionFollowupCounts.__proto__, 1);
+  assert.equal(aggregate.activityTypeCounts.implementation, 1);
   assert.match(JSON.stringify(aggregate), /"__proto__":1/);
 });
 

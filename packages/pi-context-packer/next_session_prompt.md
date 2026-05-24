@@ -15,6 +15,8 @@ system4d:
 
 Implement one focused package slice while preserving monorepo compatibility.
 
+Latest landed slice: dogfood observation/evaluation/aggregate surfaces now carry redacted `activityType` labels so implementation/review/validation receipt coverage is visible without becoming evidence or completion proof.
+
 ## Package context
 
 - workspace path: `packages/pi-context-packer`

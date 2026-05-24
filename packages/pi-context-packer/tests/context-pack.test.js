@@ -1865,6 +1865,7 @@ test("formatContextPacket summarizes selected sections, omissions, owner routes,
   assert.match(text, /## Dogfood follow-up/);
   assert.match(text, /## Dogfood observation template/);
   assert.match(text, /context_pack_dogfood_observation_v1/);
+  assert.match(text, /activity type: optionally fill activityType/);
   assert.match(text, /actual low-level read\/search\/status calls: fill externally/);
   assert.match(text, /validation commands run: fill validationCommandsRun separately/);
   assert.match(text, /no AK evidence, FCOS update, session memory/);
@@ -1995,6 +1996,7 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.equal(template.status, "observation_pending");
   assert.equal(template.packet.objectiveRef, "packet.objective");
   assert.equal(template.packet.objective, undefined);
+  assert.equal(template.observation.activityType, null);
   assert.equal(template.observation.actualLowLevelReadSearchStatusCalls, null);
   assert.equal(template.observation.validationCommandsRun, null);
   assert.equal(template.prediction.expectedLowLevelCallsAvoided, 2);
@@ -2106,6 +2108,7 @@ test("context_pack emits measurement receipt for packet usefulness", async () =>
     result.packet.measurementReceipt.dogfoodFollowupReceipt.expectedLowLevelCallsAvoided,
     result.packet.measurementReceipt.estimatedToolCallsAvoided,
   );
+  assert.equal(result.packet.measurementReceipt.dogfoodFollowupReceipt.activityType, null);
   assert.equal(
     result.packet.measurementReceipt.dogfoodFollowupReceipt.actualLowLevelReadSearchStatusCalls,
     null,

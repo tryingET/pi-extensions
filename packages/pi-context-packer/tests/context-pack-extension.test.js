@@ -40,6 +40,7 @@ test("context-packer extension registers command and all model-callable tools", 
         packetUtilityRecommendationStatus: "use_packet",
       },
       observation: {
+        activityType: "validation",
         actualLowLevelReadSearchStatusCalls: 0,
         actualLowLevelCallsAvoided: 1,
         validationCommandsRun: 0,
@@ -52,6 +53,7 @@ test("context-packer extension registers command and all model-callable tools", 
   });
 
   assert.match(result.content[0].text, /Status: matched/);
+  assert.match(result.content[0].text, /Activity type: validation/);
   assert.match(result.content[0].text, /Validation commands run: 0/);
   assert.equal(result.details.dogfoodObservationEvaluation.status, "matched");
 
@@ -69,6 +71,7 @@ test("context-packer extension registers command and all model-callable tools", 
     aggregate.details.dogfoodAggregateEvaluation.totals.validationCommandsMissingCount,
     0,
   );
+  assert.equal(aggregate.details.dogfoodAggregateEvaluation.activityTypeCounts.validation, 1);
 });
 
 test("context_pack extension passes trusted SCI read-only env only from host configuration", async () => {
