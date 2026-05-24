@@ -19,6 +19,8 @@ export interface CommandExecution {
   rawCommand: string;
   timestamp: number;
   success: boolean;
+  productiveWorkflow?: boolean;
+  recoveryEvidence?: boolean;
 }
 
 export interface ErrorEncounter {
@@ -28,6 +30,8 @@ export interface ErrorEncounter {
   timestamp: number;
   lastSeen?: number;
   count: number;
+  activeCount?: number;
+  recoveredAt?: number;
 }
 
 export interface OperationLog {

@@ -4,6 +4,13 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  analyzePatterns,
+  createPatternDetector,
+  queryErrors,
+  queryHandoffSummary,
+  trackError,
+} from "../../extensions/self/perception.ts";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
 
 function recordBash(harness, id, command, { isError = false, text = "" } = {}) {
@@ -247,6 +254,160 @@ test("self query: later validation success frames handoff failures as recovered"
   await cleanup(tempDir);
 });
 
+test("self query: partial failure recurrence after recovery does not reuse old failures", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 2; i++) {
+    recordBash(harness, `cmd-partial-before-recovery-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+  recordBash(
+    harness,
+    "cmd-partial-recovery-validation",
+    "npm --prefix packages/pi-autonomous-session-control run check",
+  );
+  recordBash(harness, "cmd-partial-after-recovery", "false", {
+    isError: true,
+    text: "Command exited with code 1",
+  });
+
+  const result = await tool.execute(
+    "tc-partial-recurrence-after-recovery",
+    { query: "rank continuation slices" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.nextMove, undefined);
+  assert.equal(result.details.data.sliceCandidates.length, 0);
+  assert.ok(
+    result.content[0].text.includes("no continuation slice candidate"),
+    "pre-recovery failures should not combine with one new failure into an active loop",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: long validation command still recovers stale failure cues", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-long-recovery-failed-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+  recordBash(harness, "cmd-long-recovery-validation", `cd ${"a".repeat(120)} && npm run check`);
+
+  const result = await tool.execute(
+    "tc-long-command-recovery",
+    { query: "rank continuation slices" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.nextMove, undefined);
+  assert.ok(
+    result.content[0].text.includes("no continuation slice candidate"),
+    "recovery classification must not depend on truncated display command text",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self perception: display-only legacy command entries are not recovery evidence", () => {
+  const now = Date.now();
+  const displayOnlyCommand = `npm run check ${"x".repeat(90)}`.slice(0, 100);
+  const log = {
+    fileOps: [],
+    commands: [
+      { command: "false", rawCommand: "false", timestamp: now, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 1, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 2, success: false },
+      {
+        command: displayOnlyCommand,
+        rawCommand: displayOnlyCommand,
+        timestamp: now + 3,
+        success: true,
+      },
+    ],
+    errors: [
+      {
+        toolName: "bash",
+        signature: "Command exited with code N",
+        rawMessage: "Command exited with code 1",
+        timestamp: now,
+        lastSeen: now + 2,
+        count: 3,
+      },
+    ],
+    sessionStartAt: now,
+    lastMeaningfulChangeAt: now,
+    turnCount: 4,
+    turnsSinceMeaningfulChange: 0,
+  };
+  const detector = createPatternDetector();
+
+  analyzePatterns(log, detector);
+  const result = queryHandoffSummary(log, detector);
+
+  assert.equal(result.nextMove?.owner, "peer-tools");
+  assert.equal(result.errors[0].activeCount, 3);
+});
+
+test("self perception: legacy recovered errors recur with a fresh active count", () => {
+  const now = Date.now();
+  const log = {
+    fileOps: [],
+    commands: [
+      { command: "false", rawCommand: "false", timestamp: now, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 1, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 2, success: false },
+      { command: "npm run check", rawCommand: "npm run check", timestamp: now + 3, success: true },
+    ],
+    errors: [
+      {
+        toolName: "bash",
+        signature: "Command exited with code N",
+        rawMessage: "Command exited with code 1",
+        timestamp: now,
+        lastSeen: now + 2,
+        count: 3,
+      },
+    ],
+    sessionStartAt: now,
+    lastMeaningfulChangeAt: now,
+    turnCount: 5,
+    turnsSinceMeaningfulChange: 0,
+  };
+  const detector = createPatternDetector();
+
+  trackError(log, "bash", "Command exited with code 1");
+  analyzePatterns(log, detector);
+  const errors = queryErrors(log).errors;
+  const result = queryHandoffSummary(log, detector);
+
+  assert.equal(errors[0].count, 4);
+  assert.equal(errors[0].activeCount, 1);
+  assert.equal(result.nextMove, undefined);
+});
+
 test("self query: git status after failures is not recovery evidence", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -474,14 +635,10 @@ test("self query: controller handoff summary includes actionable mirror cues", a
   assert.equal(result.details.data.files[0].netLinesDelta, 1);
   assert.equal(result.details.data.commands.length, 2);
   assert.equal(result.details.data.errors[0].tool, "bash");
+  assert.equal(result.details.data.errors[0].activeCount, 1);
   assert.ok(result.details.data.cues.some((cue) => cue.includes("failed command")));
-  assert.equal(result.details.data.nextMove.owner, "peer-tools");
-  assert.ok(result.details.data.nextMove.slice.includes("failure-recovery"));
-  assert.ok(result.details.data.nextMove.slice.includes("source-owner"));
-  assert.ok(result.details.data.nextMove.slice.includes("authority-risk"));
-  assert.ok(result.details.data.nextMove.prefillText.startsWith("/scoutpeer "));
-  assert.equal(result.details.data.nextMove.prefillText.includes("scout_peer_spawn"), false);
-  assert.ok(result.details.data.sliceCandidates.length >= 1);
+  assert.equal(result.details.data.nextMove, undefined);
+  assert.equal(result.details.data.sliceCandidates.length, 0);
 
   await cleanup(tempDir);
 });

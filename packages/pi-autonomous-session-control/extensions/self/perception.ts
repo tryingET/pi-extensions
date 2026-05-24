@@ -3,7 +3,14 @@
  * The LLM queries this to perceive its own behavior.
  */
 
-import type { DetectedPattern, FileOperation, OperationLog, PatternDetector } from "./types.ts";
+import type {
+  CommandExecution,
+  DetectedPattern,
+  ErrorEncounter,
+  FileOperation,
+  OperationLog,
+  PatternDetector,
+} from "./types.ts";
 
 // ============================================================================
 // CONSTANTS
@@ -38,12 +45,22 @@ export function trackFileOp(log: OperationLog, op: Omit<FileOperation, "timestam
 
 export function trackCommand(log: OperationLog, rawCommand: string, success: boolean): void {
   const normalized = normalizeCommand(rawCommand);
+  const now = Date.now();
+  const recoveryEvidence = success && isRecoveryEvidenceCommand(rawCommand);
   log.commands.push({
     command: normalized,
     rawCommand: rawCommand.slice(0, COMMAND_NORMALIZE_MAX_LEN),
-    timestamp: Date.now(),
+    timestamp: now,
     success,
+    productiveWorkflow: isProductiveWorkflowCommand(rawCommand),
+    recoveryEvidence,
   });
+  if (recoveryEvidence) {
+    for (const error of log.errors) {
+      error.recoveredAt = now;
+      error.activeCount = 0;
+    }
+  }
   trimLog(log);
 }
 
@@ -54,9 +71,15 @@ export function trackError(log: OperationLog, toolName: string, rawMessage: stri
   // Find or create error entry
   const entry = log.errors.find((e) => e.toolName === toolName && e.signature === signature);
   if (entry) {
+    const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
+    const priorLastSeen = entry.lastSeen ?? entry.timestamp;
+    const priorActiveCount =
+      entry.activeCount ??
+      (latestRecoveryEvidenceAt > 0 && priorLastSeen <= latestRecoveryEvidenceAt ? 0 : entry.count);
     entry.count++;
     entry.lastSeen = now;
     entry.rawMessage = rawMessage.slice(0, 200);
+    entry.activeCount = priorActiveCount + 1;
   } else {
     log.errors.push({
       toolName,
@@ -65,6 +88,7 @@ export function trackError(log: OperationLog, toolName: string, rawMessage: stri
       timestamp: now,
       lastSeen: now,
       count: 1,
+      activeCount: 1,
     });
   }
   trimLog(log);
@@ -144,12 +168,22 @@ function isRecoveryEvidenceCommand(command: string): boolean {
   return isValidationOrQualityCommand(command.trim().toLowerCase());
 }
 
+function commandIsProductiveWorkflow(cmd: CommandExecution): boolean {
+  return cmd.productiveWorkflow ?? isProductiveWorkflowCommand(cmd.rawCommand);
+}
+
+function commandIsRecoveryEvidence(cmd: CommandExecution): boolean {
+  if (typeof cmd.recoveryEvidence === "boolean") return cmd.recoveryEvidence;
+  return (
+    cmd.success &&
+    cmd.rawCommand.length < COMMAND_NORMALIZE_MAX_LEN &&
+    isRecoveryEvidenceCommand(cmd.rawCommand)
+  );
+}
+
 function latestSuccessfulRecoveryEvidenceCommandAt(log: OperationLog): number {
   return log.commands.reduce(
-    (latest, cmd) =>
-      cmd.success && isRecoveryEvidenceCommand(cmd.rawCommand)
-        ? Math.max(latest, cmd.timestamp)
-        : latest,
+    (latest, cmd) => (commandIsRecoveryEvidence(cmd) ? Math.max(latest, cmd.timestamp) : latest),
     0,
   );
 }
@@ -157,19 +191,17 @@ function latestSuccessfulRecoveryEvidenceCommandAt(log: OperationLog): number {
 function latestRecoveryEvidenceCommandIndex(log: OperationLog): number {
   let latestRecoveryEvidenceIndex = -1;
   log.commands.forEach((cmd, index) => {
-    if (cmd.success && isRecoveryEvidenceCommand(cmd.rawCommand)) {
+    if (commandIsRecoveryEvidence(cmd)) {
       latestRecoveryEvidenceIndex = index;
     }
   });
   return latestRecoveryEvidenceIndex;
 }
 
-function hasRecoveryEvidenceAfterLatestFailedCommand(log: OperationLog): boolean {
-  let latestFailedIndex = -1;
-  log.commands.forEach((cmd, index) => {
-    if (!cmd.success) latestFailedIndex = index;
-  });
-  return latestFailedIndex >= 0 && latestRecoveryEvidenceCommandIndex(log) > latestFailedIndex;
+function activeErrorCount(error: ErrorEncounter, latestRecoveryEvidenceAt: number): number {
+  if (typeof error.activeCount === "number") return error.activeCount;
+  const lastSeen = error.lastSeen ?? error.timestamp;
+  return latestRecoveryEvidenceAt > 0 && lastSeen <= latestRecoveryEvidenceAt ? 0 : error.count;
 }
 
 // ============================================================================
@@ -210,38 +242,29 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
   // Detect command loops: same normalized command 3+ times.
   // Repeated successful workflow commands are common validation/closeout, not stuckness.
   const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
-  const recoveredLatestFailure = hasRecoveryEvidenceAfterLatestFailedCommand(log);
+  const latestRecoveryEvidenceIndex = latestRecoveryEvidenceCommandIndex(log);
+  const activeCommands = log.commands.filter((_, index) => index > latestRecoveryEvidenceIndex);
   const commandCounts = new Map<
     string,
-    { count: number; successes: number; productive: boolean; latestFailureAt: number }
+    { count: number; successes: number; productive: boolean }
   >();
-  for (const cmd of log.commands) {
+  for (const cmd of activeCommands) {
     const existing = commandCounts.get(cmd.command);
     if (existing) {
       existing.count++;
       if (cmd.success) existing.successes++;
-      if (!cmd.success)
-        existing.latestFailureAt = Math.max(existing.latestFailureAt, cmd.timestamp);
-      existing.productive = existing.productive || isProductiveWorkflowCommand(cmd.rawCommand);
+      existing.productive = existing.productive || commandIsProductiveWorkflow(cmd);
     } else {
       commandCounts.set(cmd.command, {
         count: 1,
         successes: cmd.success ? 1 : 0,
-        productive: isProductiveWorkflowCommand(cmd.rawCommand),
-        latestFailureAt: cmd.success ? 0 : cmd.timestamp,
+        productive: commandIsProductiveWorkflow(cmd),
       });
     }
   }
   for (const [command, data] of commandCounts) {
     if (data.count >= LOOP_THRESHOLD) {
       if (data.successes === data.count && data.productive) continue;
-      if (
-        data.latestFailureAt > 0 &&
-        recoveredLatestFailure &&
-        latestRecoveryEvidenceAt >= data.latestFailureAt
-      ) {
-        continue;
-      }
       patterns.push({
         type: "command_loop",
         key: command,
@@ -253,22 +276,16 @@ export function analyzePatterns(log: OperationLog, detector: PatternDetector): v
     }
   }
 
-  // Detect error loops: same error signature 3+ times. A later successful validation/check
-  // command is recovery evidence, so stale failures should not dominate continuation routing.
+  // Detect error loops: same active error signature 3+ times. A later successful
+  // validation/check command is the active-signal boundary.
   for (const error of log.errors) {
-    if (error.count >= LOOP_THRESHOLD) {
-      const errorLastSeen = error.lastSeen ?? error.timestamp;
-      if (
-        latestRecoveryEvidenceAt > errorLastSeen ||
-        (recoveredLatestFailure && latestRecoveryEvidenceAt >= errorLastSeen)
-      ) {
-        continue;
-      }
+    const activeCount = activeErrorCount(error, latestRecoveryEvidenceAt);
+    if (activeCount >= LOOP_THRESHOLD) {
       patterns.push({
         type: "error_loop",
         key: `${error.toolName}:${error.signature}`,
-        count: error.count,
-        firstSeen: error.timestamp,
+        count: activeCount,
+        firstSeen: error.recoveredAt ?? error.timestamp,
         lastSeen: now,
         severity: "critical",
       });
@@ -385,6 +402,7 @@ export interface ErrorsResult {
     tool: string;
     signature: string;
     count: number;
+    activeCount: number;
     lastMessage: string;
     lastSeen: number;
   }>;
@@ -392,11 +410,13 @@ export interface ErrorsResult {
 }
 
 export function queryErrors(log: OperationLog): ErrorsResult {
+  const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
   return {
     errors: log.errors.map((e) => ({
       tool: e.toolName,
       signature: e.signature,
       count: e.count,
+      activeCount: activeErrorCount(e, latestRecoveryEvidenceAt),
       lastMessage: e.rawMessage,
       lastSeen: e.lastSeen ?? e.timestamp,
     })),
@@ -447,7 +467,7 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
     (cmd) =>
       cmd.timestamp >= log.lastMeaningfulChangeAt &&
       cmd.success &&
-      isProductiveWorkflowCommand(cmd.rawCommand),
+      commandIsProductiveWorkflow(cmd),
   ).length;
   const concern = isStalled
     ? recentProductiveCommands > 0
@@ -496,7 +516,12 @@ export interface SliceCandidate extends SuggestedHarnessMove {
 
 export interface HandoffSummaryResult {
   files: FilesTouchedResult["files"];
-  commands: Array<{ command: string; rawCommand: string; success: boolean }>;
+  commands: Array<{
+    command: string;
+    rawCommand: string;
+    success: boolean;
+    activeFailure?: boolean;
+  }>;
   errors: ErrorsResult["errors"];
   progress: ProgressResult;
   loops: LoopStatusResult;
@@ -513,29 +538,18 @@ export function queryHandoffSummary(
   const files = queryFilesTouched(log).files;
   const latestRecoveryEvidenceIndex = latestRecoveryEvidenceCommandIndex(log);
   const recentCommandEntries = log.commands.map((cmd, index) => ({ cmd, index })).slice(-5);
-  const commands = recentCommandEntries.map(({ cmd }) => ({
+  const commands = recentCommandEntries.map(({ cmd, index }) => ({
     command: cmd.command,
     rawCommand: cmd.rawCommand,
     success: cmd.success,
+    activeFailure: !cmd.success && index > latestRecoveryEvidenceIndex,
   }));
-  const unrecoveredFailedCommands = recentCommandEntries.filter(
-    ({ cmd, index }) => !cmd.success && index > latestRecoveryEvidenceIndex,
-  ).length;
-  const recoveredFailedCommands = recentCommandEntries.filter(
-    ({ cmd, index }) => !cmd.success && index <= latestRecoveryEvidenceIndex,
+  const unrecoveredFailedCommands = commands.filter((cmd) => cmd.activeFailure).length;
+  const recoveredFailedCommands = commands.filter(
+    (cmd) => !cmd.success && !cmd.activeFailure,
   ).length;
   const allErrors = queryErrors(log).errors;
-  const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
-  const recoveredLatestFailure = hasRecoveryEvidenceAfterLatestFailedCommand(log);
-  const errors = allErrors
-    .filter(
-      (error) =>
-        latestRecoveryEvidenceAt === 0 ||
-        (recoveredLatestFailure
-          ? error.lastSeen > latestRecoveryEvidenceAt
-          : error.lastSeen >= latestRecoveryEvidenceAt),
-    )
-    .slice(0, 5);
+  const errors = allErrors.filter((error) => error.activeCount > 0).slice(0, 5);
   const progress = queryProgress(log, detector);
   const loops = queryLoopStatus(detector);
 
@@ -590,15 +604,21 @@ export function queryHandoffSummary(
 
 export function rankSliceCandidates(input: {
   files: FilesTouchedResult["files"];
-  commands: Array<{ command: string; rawCommand: string; success: boolean }>;
+  commands: Array<{
+    command: string;
+    rawCommand: string;
+    success: boolean;
+    activeFailure?: boolean;
+  }>;
   errors: ErrorsResult["errors"];
   loops: LoopStatusResult;
   progress: ProgressResult;
 }): SliceCandidate[] {
   const candidates: SliceCandidate[] = [];
-  const failedCommands = input.commands.filter((cmd) => !cmd.success).length;
+  const failedCommands = input.commands.filter((cmd) => cmd.activeFailure ?? !cmd.success).length;
+  const activeErrorPatterns = input.errors.filter((error) => error.activeCount >= LOOP_THRESHOLD);
 
-  if (input.errors.length > 0 || input.loops.isLooping) {
+  if (activeErrorPatterns.length > 0 || input.loops.isLooping || failedCommands >= LOOP_THRESHOLD) {
     candidates.push({
       slice: "temporal + failure-recovery + source-owner + authority-risk",
       owner: "peer-tools",
@@ -608,7 +628,9 @@ export function rankSliceCandidates(input: {
         "Loop/error cues need a read-only recovery review before more mutation or authority claims.",
       evidence: [
         ...(input.loops.isLooping ? [`${input.loops.patterns.length} loop pattern(s)`] : []),
-        ...(input.errors.length > 0 ? [`${input.errors.length} error pattern(s)`] : []),
+        ...(activeErrorPatterns.length > 0
+          ? [`${activeErrorPatterns.length} active error loop(s)`]
+          : []),
         ...(failedCommands > 0 ? [`${failedCommands} failed recent command(s)`] : []),
       ],
       nonAuthorizations: ["do not edit files", "do not claim task/evidence authority"],
@@ -621,7 +643,7 @@ export function rankSliceCandidates(input: {
     candidates.push({
       slice: "temporal + artifact/packet",
       owner: "pi-session-compaction",
-      score: input.errors.length > 0 || input.loops.isLooping ? 70 : 90,
+      score: activeErrorPatterns.length > 0 || input.loops.isLooping ? 70 : 90,
       confidence: "high",
       reason:
         "A continuation or handoff should preserve session order, artifacts, and next action.",
