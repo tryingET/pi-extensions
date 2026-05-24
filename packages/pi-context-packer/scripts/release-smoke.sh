@@ -246,6 +246,7 @@ export default function(pi) {
               packetUtilityRecommendationStatus: "use_packet",
             },
             observation: {
+              runtimeContext: "installed_artifact",
               actualLowLevelReadSearchStatusCalls: 0,
               actualLowLevelCallsAvoided: 1,
               validationCommandsRun: 0,
@@ -256,7 +257,11 @@ export default function(pi) {
             },
           },
         });
-        if (evaluationResult.status !== "matched" || evaluationResult.validationCommandsRun !== 0) {
+        if (
+          evaluationResult.status !== "matched" ||
+          evaluationResult.validationCommandsRun !== 0 ||
+          evaluationResult.runtimeContext !== "installed_artifact"
+        ) {
           throw new Error(
             `context_dogfood_evaluate execution failed: ${JSON.stringify(evaluationResult)}`,
           );
@@ -279,6 +284,7 @@ export default function(pi) {
               kind: "context_pack_dogfood_observation_v1",
               prediction: { expectedLowLevelCallsAvoided: 1 },
               observation: {
+                runtimeContext: "installed_artifact",
                 actualLowLevelReadSearchStatusCalls: 0,
                 actualLowLevelCallsAvoided: 1,
                 validationCommandsRun: 0,
@@ -293,7 +299,9 @@ export default function(pi) {
         if (
           !aggregateResult.ok ||
           aggregateResult.totals.validationCommandsRecordedCount !== 1 ||
-          aggregateResult.totals.validationCommandsMissingCount !== 1
+          aggregateResult.totals.validationCommandsMissingCount !== 1 ||
+          aggregateResult.runtimeContextCounts.installed_artifact !== 1 ||
+          aggregateResult.runtimeContextCounts.unknown !== 1
         ) {
           throw new Error(
             `context_dogfood_summarize execution failed: ${JSON.stringify(aggregateResult)}`,

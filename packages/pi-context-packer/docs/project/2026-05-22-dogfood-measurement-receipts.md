@@ -628,7 +628,28 @@ npm run dogfood:docs-list-json
 node /home/tryinget/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict
 ```
 
-Outcome: repeated receipts can now separate package-local, installed-artifact, and live-reloaded calibration before ranking/provider tuning, while core implementation/review/validation activity coverage remains the stable-positive gate. The first plain `npm run check` attempt hit local `~/.npm` ENOSPC during `npm pack`; rerunning with a temporary npm cache passed.
+Outcome: repeated receipts can now separate package-local, installed-artifact, and live-reloaded calibration before ranking/provider tuning. At this point, core implementation/review/validation activity coverage remained the stable-positive gate, and runtime coverage was reported separately. The first plain `npm run check` attempt hit local `~/.npm` ENOSPC during `npm pack`; rerunning with a temporary npm cache passed.
+
+## Receipt Q — dogfood receipt contract spine hardening
+
+### Context
+
+A deep adversarial review found that runtime-context provenance had landed in the copy-ready observation template but not every receipt surface. Stored evaluation inputs could also carry a forged `status`, and installed-artifact smoke did not prove `installed_artifact` runtime labels.
+
+### Slice
+
+The dogfood receipt contract now propagates `runtimeContext` into the immediate follow-up receipt, recomputes stored evaluation status from stored fields before aggregate counting, records supplied-vs-recomputed status metadata, gates `stable_positive_signal` on both core activity coverage and at least one observer-supplied `live_pi_reloaded` receipt, and updates installed release smoke to set/assert `installed_artifact` runtime context while preserving one legacy unknown receipt for missingness coverage.
+
+Validation:
+
+```text
+node --test tests/dogfood-observation.test.js tests/tool-result.test.js tests/context-pack.test.js
+npm_config_cache=/tmp/pi-npm-cache npm run check
+npm_config_cache=/tmp/pi-npm-cache npm run release:check
+npm_config_cache=/tmp/pi-npm-cache npm audit --omit=dev --audit-level=moderate
+```
+
+Outcome: aggregate dogfood summaries are less vulnerable to forged stored statuses, runtime provenance is consistent across receipt scaffolds, and release smoke now exercises installed-artifact runtime labels instead of silently normalizing them to `unknown`.
 
 ## Lessons for ranking and product bets
 
@@ -638,7 +659,7 @@ Outcome: repeated receipts can now separate package-local, installed-artifact, a
 - SCI omissions should remain explicit. A read-only packet must not hide `.ontology` side effects or pretend SCI coverage exists when artifacts block safe assembly.
 - Landed next improvement: `context_pack` now emits a redacted copy-ready `context_pack_dogfood_observation_v1` template in packet Markdown and compact details so agents can paste observed follow-up counts without persisting evidence, mutating owner surfaces, duplicating raw packet content, or leaking selected item paths / raw omission details.
 - Provider-route summaries are a useful addition to the receipt scaffold: they expose provider/posture/query/seed-kind counts for mismatch review while omitting raw seed values, and they must distinguish selected query counts from optional follow-up query counts. Adding more provider adapters remains lower leverage until more evaluated receipts accumulate.
-- Release and dogfood proof text must not overclaim: distinguish registered tool metadata, installed core execution, source-local dogfood, and live operator-session activation. Fill `runtimeContext` truthfully; it is observer-supplied calibration metadata, not proof that context-packer verified reload or task completion.
+- Release and dogfood proof text must not overclaim: distinguish registered tool metadata, installed core execution, source-local dogfood, and live operator-session activation. Fill `runtimeContext` truthfully; it is observer-supplied calibration metadata, not proof that context-packer verified reload or task completion. Stored evaluations are input, not authority; aggregate status must be derived from normalized fields.
 - Packet budget metrics are selected-content metrics unless a receipt explicitly says otherwise; rendered Markdown scaffolding needs separate accounting in tool details.
 - Empty docs-list results are provider information, not success; receipt truth needs an explicit `docs/no_results` omission so required docs misses do not disappear.
 - Docs-list JSON is a provider contract boundary: invalid JSON, `ok:false`, schema drift, unsupported item shapes, and payload repoRoot mismatch must surface as provider/schema omissions; mixed valid/unsupported items can still select safe docs while preserving the schema omission; nested `package.json` discovery ambiguity must survive provider failures, package roots under fixture/sample container directories must not silently narrow package docs scans, legitimate nested package roots and packages merely named sample/fixture should stay nearest-package scoped, `repoPath` should stay in caller repo-root basis unless the payload declares a safe inner `repoRoot`, package-local JSON `path` fallbacks must be rebased to POSIX repo-relative paths before repo-root packet reads, and process-level docs-list script overrides must be treated as trusted executable code rather than ordinary read-only data.

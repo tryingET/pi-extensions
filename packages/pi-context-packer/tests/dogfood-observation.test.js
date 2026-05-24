@@ -845,6 +845,23 @@ test("dogfood aggregate requires core activity coverage before stable positive s
         observation: { ...baseObservation().observation, activityType: "review" },
       }),
       baseObservation({
+        observation: {
+          ...baseObservation().observation,
+          activityType: "validation",
+          runtimeContext: "live_pi_reloaded",
+        },
+      }),
+    ],
+  });
+  const noLiveCoverage = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "implementation" },
+      }),
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "review" },
+      }),
+      baseObservation({
         observation: { ...baseObservation().observation, activityType: "validation" },
       }),
     ],
@@ -864,9 +881,14 @@ test("dogfood aggregate requires core activity coverage before stable positive s
   assert.equal(validationOnly.runtimeCoverage.hasLivePiReloadedReceipt, true);
   assert.match(validationOnly.runtimeCoverage.nonAuthorization, /did not verify install/);
 
+  assert.equal(noLiveCoverage.status, "runtime_coverage_gap");
+  assert.equal(noLiveCoverage.runtimeCoverage.status, "live_activation_receipt_missing");
+  assert.match(noLiveCoverage.nextAction, /live_pi_reloaded/);
+
   assert.equal(covered.status, "stable_positive_signal");
   assert.deepEqual(covered.activityCoverage.missing, []);
   assert.equal(covered.activityCoverage.complete, true);
+  assert.equal(covered.runtimeCoverage.status, "live_activation_receipt_present");
 });
 
 test("dogfood aggregate coverage resists returned-object mutation and prototype pollution", () => {
@@ -876,7 +898,11 @@ test("dogfood aggregate coverage resists returned-object mutation and prototype 
     }),
     baseObservation({ observation: { ...baseObservation().observation, activityType: "review" } }),
     baseObservation({
-      observation: { ...baseObservation().observation, activityType: "validation" },
+      observation: {
+        ...baseObservation().observation,
+        activityType: "validation",
+        runtimeContext: "live_pi_reloaded",
+      },
     }),
   ];
   const covered = buildDogfoodAggregateEvaluation({ observations });
@@ -951,6 +977,47 @@ test("dogfood aggregate preserves missing validation-command counts for legacy r
   assert.match(text, /Validation commands run: 2 \(1 recorded, 1 missing\)/);
   assert.match(text, /Activity type counts/);
   assert.match(text, /- unspecified: 1/);
+});
+
+test("dogfood aggregate recomputes stored evaluation status from stored fields", () => {
+  const forgedMatchedEvaluation = (activityType) => ({
+    kind: "context_pack_dogfood_evaluation_v1",
+    sourceKind: "context_pack_dogfood_observation_v1",
+    status: "matched",
+    expectedLowLevelCallsAvoided: 3,
+    activityType,
+    runtimeContext: "live_pi_reloaded",
+    actualLowLevelReadSearchStatusCalls: 0,
+    actualLowLevelCallsAvoided: 3,
+    validationCommandsRun: 0,
+    duplicateReadsObserved: true,
+    omissionFollowupsUsed: [],
+    omissionFollowupClasses: [],
+    recommendationMatchedOutcome: false,
+    packetUtilityRecommendationStatus: "use_packet",
+    alreadyLoadedItems: 0,
+    freshItemCount: 1,
+    duplicateTokensAvoided: 0,
+    unwiredProviderOmissions: [],
+    providerRoutes: [],
+    providerRoutesTruncated: 0,
+    notes: "stored status should not be authority",
+  });
+  const aggregate = buildDogfoodAggregateEvaluation({
+    evaluations: [
+      forgedMatchedEvaluation("implementation"),
+      forgedMatchedEvaluation("review"),
+      forgedMatchedEvaluation("validation"),
+    ],
+  });
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.status, "review_before_tuning");
+  assert.equal(aggregate.statusCounts.needs_review, 3);
+  assert.equal(aggregate.statusCounts.matched, 0);
+  assert.equal(aggregate.evaluations[0].status, "needs_review");
+  assert.equal(aggregate.evaluations[0].statusAsSupplied, "matched");
+  assert.equal(aggregate.evaluations[0].statusRecomputedFromStoredFields, true);
 });
 
 test("dogfood aggregate accepts prior evaluations and reports mixed invalid receipts", async () => {

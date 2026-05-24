@@ -163,6 +163,8 @@ export const buildDogfoodFollowupReceipt = (receipt) => ({
   status: "observation_pending",
   expectedLowLevelCallsAvoided: receipt.estimatedToolCallsAvoided,
   activityType: null,
+  runtimeContext: "unknown",
+  runtimeContextOptions: [...DOGFOOD_RUNTIME_CONTEXT_OPTIONS],
   actualLowLevelReadSearchStatusCalls: null,
   validationCommandsRun: null,
   duplicateReadsObserved: null,
@@ -171,7 +173,7 @@ export const buildDogfoodFollowupReceipt = (receipt) => ({
   notes:
     "Fill externally after the work if maintaining dogfood evidence; context-packer does not persist or validate this receipt.",
   nonAuthorization:
-    "packet-local follow-up scaffold only; activity labels and validation counts are calibration metadata, not task-completion proof; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
+    "packet-local follow-up scaffold only; activity labels, runtime labels, and validation counts are calibration metadata, not task-completion proof; no AK evidence, FCOS update, session memory, or source-owner mutation was recorded",
 });
 
 const compactSelectedItems = (sections) =>

@@ -209,6 +209,13 @@ test("contextPacketToolResult returns markdown content and compact details", asy
   );
   assert.equal(result.details.dogfoodFollowupReceipt.status, "observation_pending");
   assert.equal(result.details.dogfoodFollowupReceipt.activityType, null);
+  assert.equal(result.details.dogfoodFollowupReceipt.runtimeContext, "unknown");
+  assert.deepEqual(result.details.dogfoodFollowupReceipt.runtimeContextOptions, [
+    "source_local",
+    "installed_artifact",
+    "live_pi_reloaded",
+    "unknown",
+  ]);
   assert.equal(result.details.dogfoodFollowupReceipt.actualLowLevelReadSearchStatusCalls, null);
   assert.equal(result.details.dogfoodFollowupReceipt.validationCommandsRun, null);
   assert.equal(

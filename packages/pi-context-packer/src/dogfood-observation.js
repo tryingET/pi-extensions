@@ -491,10 +491,14 @@ export const formatDogfoodObservationEvaluation = (evaluation) => {
       `- ${markdownInlineLabel(classification, "omission follow-up class")}: ${count}`,
   );
 
+  const storedStatusLine = evaluation.statusRecomputedFromStoredFields
+    ? `Stored status as supplied: ${markdownInlineLabel(evaluation.statusAsSupplied, "status")}; recomputed from stored fields`
+    : undefined;
   const lines = [
     "# Context-pack dogfood observation evaluation",
     "",
     `Status: ${evaluation.status}`,
+    ...(storedStatusLine ? [storedStatusLine] : []),
     `Expected low-level calls avoided: ${evaluation.expectedLowLevelCallsAvoided}`,
     `Activity type: ${evaluation.activityType}`,
     `Runtime context: ${evaluation.runtimeContext ?? "unknown"}`,
@@ -638,32 +642,46 @@ const normalizeStoredEvaluation = (value, ref) => {
   );
   if (errors.length) return { ok: false, errors };
 
+  const actualResidualCalls = actualLowLevelReadSearchStatusCalls;
+  const actualAvoided = actualLowLevelCallsAvoided;
+  const duplicateReadsObserved = booleanOrNull(evaluation.duplicateReadsObserved);
+  const recommendationMatchedOutcome = booleanOrNull(evaluation.recommendationMatchedOutcome);
+  const omissionFollowupsUsed = sanitizeFollowups(evaluation.omissionFollowupsUsed);
+  const omissionFollowupClasses = normalizeStoredFollowupClasses(
+    evaluation.omissionFollowupClasses,
+    evaluation.omissionFollowupsUsed,
+  );
+  const recomputedStatus = classifyCalibration({
+    expectedAvoided: expectedLowLevelCallsAvoided,
+    actualAvoided,
+    actualResidualCalls,
+    duplicateReadsObserved,
+    omissionFollowupsUsed,
+    omissionFollowupClasses,
+    recommendationMatchedOutcome,
+  });
+  const statusRecomputedFromStoredFields = status !== recomputedStatus;
+
   return {
     ok: true,
     kind: EVALUATION_KIND,
     sourceKind:
       typeof evaluation.sourceKind === "string" ? sanitizeLabel(evaluation.sourceKind) : "unknown",
-    status,
+    status: recomputedStatus,
+    statusAsSupplied: status,
+    statusRecomputedFromStoredFields,
     expectedLowLevelCallsAvoided,
     activityType: normalizeActivityType(evaluation.activityType),
     runtimeContext,
-    actualLowLevelReadSearchStatusCalls: actualLowLevelReadSearchStatusCalls ?? null,
-    actualLowLevelCallsAvoided: actualLowLevelCallsAvoided ?? null,
+    actualLowLevelReadSearchStatusCalls: actualResidualCalls ?? null,
+    actualLowLevelCallsAvoided: actualAvoided ?? null,
     validationCommandsRun: validationCommandsRun ?? null,
-    duplicateReadsObserved: booleanOrNull(evaluation.duplicateReadsObserved),
-    omissionFollowupsUsed: sanitizeFollowups(evaluation.omissionFollowupsUsed),
-    omissionFollowupClasses: normalizeStoredFollowupClasses(
-      evaluation.omissionFollowupClasses,
-      evaluation.omissionFollowupsUsed,
-    ),
-    omissionFollowupClassCounts: countValues(
-      normalizeStoredFollowupClasses(
-        evaluation.omissionFollowupClasses,
-        evaluation.omissionFollowupsUsed,
-      ),
-    ),
+    duplicateReadsObserved,
+    omissionFollowupsUsed,
+    omissionFollowupClasses,
+    omissionFollowupClassCounts: countValues(omissionFollowupClasses),
     omissionFollowupsTruncated: omissionFollowupsTruncated ?? 0,
-    recommendationMatchedOutcome: booleanOrNull(evaluation.recommendationMatchedOutcome),
+    recommendationMatchedOutcome,
     packetUtilityRecommendationStatus:
       typeof evaluation.packetUtilityRecommendationStatus === "string"
         ? sanitizeLabel(evaluation.packetUtilityRecommendationStatus, "packet utility status")
@@ -675,10 +693,7 @@ const normalizeStoredEvaluation = (value, ref) => {
     providerRoutes,
     providerRoutesTruncated,
     notes: sanitizeNote(evaluation.notes),
-    nextAction:
-      typeof evaluation.nextAction === "string"
-        ? sanitizeNote(evaluation.nextAction)
-        : nextActionForStatus(status),
+    nextAction: nextActionForStatus(recomputedStatus),
     countingRule:
       typeof evaluation.countingRule === "string"
         ? sanitizeNote(evaluation.countingRule)
@@ -782,23 +797,36 @@ const runtimeCoverageFor = (runtimeContextCounts) => {
   const livePiReloadedCount = Object.hasOwn(runtimeContextCounts, "live_pi_reloaded")
     ? runtimeContextCounts.live_pi_reloaded
     : 0;
+  const hasLivePiReloadedReceipt = livePiReloadedCount > 0;
   return {
     known: [...RUNTIME_CONTEXTS],
+    status: hasLivePiReloadedReceipt
+      ? "live_activation_receipt_present"
+      : "live_activation_receipt_missing",
     livePiReloadedCount,
-    hasLivePiReloadedReceipt: livePiReloadedCount > 0,
+    hasLivePiReloadedReceipt,
     nonAuthorization:
       "runtime context is observer-supplied packet-local calibration metadata only; context-packer did not verify install, reload, live activation, or task completion",
   };
 };
 
-const aggregateStatusFor = ({ validCount, invalidCount, statusCounts, activityCoverage }) => {
+const aggregateStatusFor = ({
+  validCount,
+  invalidCount,
+  statusCounts,
+  activityCoverage,
+  runtimeCoverage,
+}) => {
   if (validCount === 0) return "no_valid_receipts";
   if (invalidCount > 0 || statusCounts.needs_review > 0) return "review_before_tuning";
   if (statusCounts.overestimated > 0) return "ranking_or_provider_gap_suspected";
   if (statusCounts.observation_incomplete > 0) return "needs_more_observations";
   if (statusCounts.underestimated > 0) return "possible_underestimate";
   if (validCount >= 3 && statusCounts.matched === validCount) {
-    return activityCoverage.complete ? "stable_positive_signal" : "activity_coverage_gap";
+    if (!activityCoverage.complete) return "activity_coverage_gap";
+    return runtimeCoverage.hasLivePiReloadedReceipt
+      ? "stable_positive_signal"
+      : "runtime_coverage_gap";
   }
   return "limited_positive_signal";
 };
@@ -883,6 +911,9 @@ const aggregateNextAction = (status, activityCoverage, runtimeCoverage) => {
   if (status === "activity_coverage_gap") {
     return `Repeated receipts matched, but core activity coverage is incomplete; gather ${activityCoverage.missing.join("/")} receipt(s) before treating the signal as stable for ranking or provider tuning.${runtimeActivationSuffix(runtimeCoverage)}`;
   }
+  if (status === "runtime_coverage_gap") {
+    return "Repeated receipts matched with core activity coverage, but no live_pi_reloaded receipt is recorded; gather at least one live-reloaded receipt before treating the signal as stable for live-session behavior.";
+  }
   if (status === "ranking_or_provider_gap_suspected") {
     return "Review overestimated receipts and omission follow-ups before changing ranking or adding provider adapters.";
   }
@@ -935,6 +966,8 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
   const evaluations = validEvaluations.map(({ ref, evaluation }) => ({
     ref,
     status: evaluation.status,
+    statusAsSupplied: evaluation.statusAsSupplied,
+    statusRecomputedFromStoredFields: evaluation.statusRecomputedFromStoredFields ?? false,
     activityType: evaluation.activityType,
     runtimeContext: evaluation.runtimeContext ?? "unknown",
     expectedLowLevelCallsAvoided: evaluation.expectedLowLevelCallsAvoided,
@@ -978,6 +1011,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     invalidCount: allInvalidEntries.length,
     statusCounts,
     activityCoverage,
+    runtimeCoverage,
   });
   const validationCommandsRecordedCount = validEvaluations.filter(
     ({ evaluation }) => evaluation.validationCommandsRun !== null,
@@ -1128,6 +1162,7 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     runtimeContextLines.length ? runtimeContextLines.join("\n") : "- none recorded",
     "",
     "## Runtime activation coverage",
+    `- status: ${aggregate.runtimeCoverage?.status ?? "unknown"}`,
     `- live_pi_reloaded receipts: ${aggregate.runtimeCoverage?.livePiReloadedCount ?? 0}`,
     `- has live_pi_reloaded receipt: ${aggregate.runtimeCoverage?.hasLivePiReloadedReceipt ?? false}`,
     `- non-authorization: ${aggregate.runtimeCoverage?.nonAuthorization ?? "runtime context is packet-local calibration metadata only"}`,
