@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "16a112eae4a3e3406938e877a7ce09ad29329334"
+created_at: "2026-05-24T09:27:38Z"
+intent: "Refresh pi-context-packer product posture after centralized dogfood follow-up class implementation and validation."
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run docs:list"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Documentation-only posture refresh for next-iteration frontier map."
