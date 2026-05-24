@@ -9,6 +9,7 @@ import {
   createPatternDetector,
   queryErrors,
   queryHandoffSummary,
+  rankSliceCandidates,
   trackError,
 } from "../../extensions/self/perception.ts";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
@@ -869,6 +870,44 @@ test("self query: rank continuation slices surfaces multi-dimensional candidates
   assert.equal(result.details.data.sliceCandidates[0].confidence, "high");
 
   await cleanup(tempDir);
+});
+
+test("self perception: active failed command loops rank failure recovery beyond recent command window", () => {
+  const candidates = rankSliceCandidates({
+    files: [],
+    commands: Array.from({ length: 5 }, () => ({
+      command: "pwd",
+      rawCommand: "pwd",
+      success: true,
+    })),
+    errors: [],
+    loops: {
+      isLooping: true,
+      patterns: [
+        {
+          type: "command_loop",
+          key: "false",
+          count: 3,
+          firstSeen: Date.now() - 1000,
+          lastSeen: Date.now(),
+          severity: "critical",
+        },
+      ],
+    },
+    progress: {
+      hasProgress: false,
+      filesTouched: 0,
+      operations: 0,
+      turnsSinceChange: 0,
+      isStalled: false,
+      concern: "no_concern",
+      progressEvidence: { recentSuccessfulProductiveCommands: 0 },
+      summary: "no progress",
+    },
+  });
+
+  assert.equal(candidates[0].owner, "peer-tools");
+  assert.ok(candidates[0].evidence.some((item) => item.includes("failure-recovery")));
 });
 
 test("self query: successful nonproductive command loops do not rank failure recovery peer-tools", async () => {

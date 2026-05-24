@@ -630,7 +630,9 @@ export function rankSliceCandidates(input: {
   const failedCommands = input.commands.filter((cmd) => cmd.activeFailure ?? !cmd.success).length;
   const activeErrorPatterns = input.errors.filter((error) => error.activeCount >= LOOP_THRESHOLD);
   const failureRecoveryLoopPatterns = input.loops.patterns.filter(
-    (pattern) => pattern.type === "error_loop",
+    (pattern) =>
+      pattern.type === "error_loop" ||
+      (pattern.type === "command_loop" && pattern.severity === "critical"),
   );
 
   if (

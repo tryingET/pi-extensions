@@ -186,6 +186,7 @@ test("dispatch_subagent writes lock metadata for live reservations", async () =>
         const payload = JSON.parse(await readFile(lockPath, "utf-8"));
         assert.equal(payload.sessionName, "same");
         assert.equal(payload.pid, process.pid);
+        assert.equal(payload.sessionKind, "subagent");
         assert.equal(typeof payload.createdAt, "string");
         releaseReservation = true;
         return {

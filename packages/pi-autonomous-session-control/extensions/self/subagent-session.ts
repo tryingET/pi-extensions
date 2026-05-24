@@ -152,6 +152,16 @@ function getExistingSessionArtifactPaths(sessionsDir: string, sessionName: strin
   ].filter((path) => existsSync(path));
 }
 
+function lockHasAscOwnershipMarker(sessionsDir: string, sessionName: string): boolean {
+  try {
+    const raw = readFileSync(join(sessionsDir, `${sessionName}.lock`), "utf-8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return parsed.sessionName === sessionName && parsed.sessionKind === "subagent";
+  } catch {
+    return false;
+  }
+}
+
 function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
   if (!existsSync(sessionsDir)) return;
 
@@ -223,6 +233,12 @@ function getSubagentArtifactPaths(sessionsDir: string): string[] {
     for (const path of getExistingSessionArtifactPaths(sessionsDir, base)) {
       paths.add(path);
     }
+  }
+
+  for (const f of readdirSync(sessionsDir)) {
+    if (!f.endsWith(".lock")) continue;
+    const base = f.slice(0, -".lock".length);
+    if (lockHasAscOwnershipMarker(sessionsDir, base)) paths.add(join(sessionsDir, f));
   }
 
   return [...paths];

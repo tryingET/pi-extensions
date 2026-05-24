@@ -172,6 +172,31 @@ test("cleanupOldSessions ignores valid-shaped sidecars without ASC ownership mar
   }
 });
 
+test("clearSubagentSessions removes owned orphan lock files without status sidecars", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-owned-orphan-lock-"));
+
+  try {
+    await writeFile(
+      join(sessionsDir, "orphan.lock"),
+      JSON.stringify({
+        pid: process.pid,
+        ppid: process.ppid,
+        sessionName: "orphan",
+        createdAt: new Date().toISOString(),
+        sessionKind: "subagent",
+      }),
+    );
+
+    const state = createSubagentState(sessionsDir);
+    clearSubagentSessions(state);
+
+    const files = await readdir(sessionsDir);
+    assert.deepEqual(files, []);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("clearSubagentSessions ignores valid-shaped sidecars without ASC ownership markers", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-unowned-status-"));
 

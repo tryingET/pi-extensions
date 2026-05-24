@@ -11,6 +11,7 @@ interface SessionLockPayload {
   ppid: number;
   sessionName: string;
   createdAt: string;
+  sessionKind?: "subagent";
 }
 
 /**
@@ -129,6 +130,7 @@ function acquireSessionNameLock(sessionName: string, sessionsDir: string): (() =
           ppid: process.ppid,
           sessionName,
           createdAt: new Date().toISOString(),
+          sessionKind: "subagent",
         };
         writeFileSync(fd, JSON.stringify(payload), "utf-8");
       } catch (error) {
