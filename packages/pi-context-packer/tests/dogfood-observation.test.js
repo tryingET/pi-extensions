@@ -146,7 +146,32 @@ test("dogfood evaluator rejects invalid provider route counts", () => {
   assert.equal(evaluation.ok, false);
   assert.match(evaluation.errors.join("\n"), /selectedQueryCount/);
   assert.match(evaluation.errors.join("\n"), /followupQueryCount/);
-  assert.match(evaluation.errors.join("\n"), /seedCounts.markdown/);
+  assert.match(evaluation.errors.join("\n"), /seedCounts\[0\]\.markdown/);
+});
+
+test("dogfood evaluator redacts invalid provider route seed-count keys", async () => {
+  const result = await dogfoodObservationEvaluationToolResult({
+    observation: baseObservation({
+      packet: {
+        ...baseObservation().packet,
+        providerRoutes: [
+          {
+            provider: "docs",
+            posture: "required",
+            routeRole: "selected",
+            selectedQueryCount: 1,
+            seedCounts: { "/tmp/customer-acme TOKEN=secret": 0.5 },
+          },
+        ],
+      },
+    }),
+  });
+  const serialized = JSON.stringify(result.details);
+
+  assert.equal(result.details.dogfoodObservationEvaluation.ok, false);
+  assert.match(result.content[0].text, /seedCounts\[0\]/);
+  assert.doesNotMatch(result.content[0].text, /TOKEN|customer-acme|\/tmp\//);
+  assert.doesNotMatch(serialized, /TOKEN|customer-acme|\/tmp\//);
 });
 
 test("dogfood evaluator redacts and truncates malicious provider route labels", async () => {
@@ -608,6 +633,69 @@ test("dogfood aggregate preserves legacy evaluations without provider route tele
   assert.equal(aggregate.totals.providerRouteCount, 0);
   assert.equal(aggregate.totals.providerRouteSelectedQueryCount, 0);
   assert.deepEqual(Object.fromEntries(Object.entries(aggregate.providerRouteCounts)), {});
+});
+
+test("dogfood aggregate reports provider route seed-kind truncation", () => {
+  const seedCounts = Object.fromEntries(
+    Array.from({ length: 14 }, (_, index) => [`kind-${index}`, 1]),
+  );
+  const aggregate = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation({
+        packet: {
+          ...baseObservation().packet,
+          providerRoutes: [
+            {
+              provider: "docs",
+              posture: "required",
+              routeRole: "selected",
+              selectedQueryCount: 1,
+              seedCounts,
+            },
+          ],
+        },
+      }),
+    ],
+  });
+  const text = formatDogfoodAggregateEvaluation(aggregate);
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.totals.providerRouteSeedCount, 12);
+  assert.equal(aggregate.totals.providerRouteSeedCountsTruncated, 2);
+  assert.match(text, /2 seed-kind entries truncated/);
+});
+
+test("dogfood aggregate formatter tolerates legacy aggregate objects without provider routes", () => {
+  const text = formatDogfoodAggregateEvaluation({
+    ok: true,
+    status: "limited_positive_signal",
+    validReceiptCount: 1,
+    invalidReceiptCount: 0,
+    receiptCount: 1,
+    totals: {
+      expectedLowLevelCallsAvoided: 1,
+      actualLowLevelCallsAvoided: 1,
+      actualLowLevelReadSearchStatusCalls: 0,
+      validationCommandsRun: 0,
+      validationCommandsRecordedCount: 0,
+      validationCommandsMissingCount: 1,
+      omissionFollowupsTruncated: 0,
+    },
+    statusCounts: { matched: 1 },
+    packetUtilityRecommendationCounts: {},
+    activityTypeCounts: {},
+    activityCoverage: { present: [], missing: [], complete: false, nonAuthorization: "legacy" },
+    providerOmissionCounts: {},
+    omissionFollowupCounts: {},
+    omissionFollowupClassCounts: {},
+    omissionFollowupClassNextActions: [],
+    invalidEntries: [],
+    nextAction: "legacy aggregate",
+    nonAuthorization: "legacy aggregate only",
+  });
+
+  assert.match(text, /Provider routes: 0/);
+  assert.match(text, /Provider route query totals/);
 });
 
 test("dogfood aggregate requires core activity coverage before stable positive signal", () => {
