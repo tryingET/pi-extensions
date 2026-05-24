@@ -23,11 +23,29 @@ const unique = (values) => Array.from(new Set(values.filter(Boolean)));
 
 const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${sep}`);
 
+const truthy = (value) => /^(1|true|yes)$/iu.test(value ?? "");
+
+const customSciCliOverrideAllowed = (env = {}) =>
+  env.allowCustomSciCommand === true || truthy(process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI);
+
+const processSciCliOverrideRefusals = (env = {}) => {
+  if (customSciCliOverrideAllowed(env)) return [];
+  return ["PI_CONTEXT_PACKER_SCI_CLI", "SCI_CLI"]
+    .filter((name) => typeof process.env[name] === "string" && process.env[name].trim().length > 0)
+    .map((name) => ({
+      provider: "sci",
+      reason: "blocked",
+      detail: `process-level ${name} override ignored because PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI is not set; raw command path omitted`,
+    }));
+};
+
 const sciCommandCandidates = (env = {}) => {
+  const processCandidates = customSciCliOverrideAllowed(env)
+    ? [process.env.PI_CONTEXT_PACKER_SCI_CLI, process.env.SCI_CLI]
+    : [];
   const candidates = [
     env.sciCommand,
-    process.env.PI_CONTEXT_PACKER_SCI_CLI,
-    process.env.SCI_CLI,
+    ...processCandidates,
     "sci",
     "semantic-code-intelligence",
   ].filter((candidate) => typeof candidate === "string" && candidate.trim().length > 0);
@@ -50,15 +68,40 @@ const parseWorkflowStdout = (stdout) => {
   }
 };
 
-const workflowEnv = (cwd) => ({
-  ...process.env,
-  SILENT_MODE: "true",
-  STDIO_MODE: "true",
-  PWD: cwd,
-  OLDPWD: cwd,
-  INIT_CWD: cwd,
-  npm_config_local_prefix: cwd,
-});
+const SUBPROCESS_ENV_ALLOWLIST = new Set([
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TERM",
+  "NO_COLOR",
+  "CI",
+]);
+const SUBPROCESS_ENV_FORBIDDEN =
+  /^(?:SCI|PI_CONTEXT_PACKER)_|(?:TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|CREDENTIAL)/iu;
+
+const workflowEnv = (cwd) => {
+  const inherited = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!SUBPROCESS_ENV_ALLOWLIST.has(name) || SUBPROCESS_ENV_FORBIDDEN.test(name)) continue;
+    if (typeof value === "string") inherited[name] = value;
+  }
+  return {
+    ...inherited,
+    SILENT_MODE: "true",
+    STDIO_MODE: "true",
+    PWD: cwd,
+    OLDPWD: cwd,
+    INIT_CWD: cwd,
+    npm_config_local_prefix: cwd,
+  };
+};
 
 const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync }) => {
   const { stdout } = await exec(
@@ -277,6 +320,7 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
   const sourceRepoRoot = repoRoot ? resolve(repoRoot) : undefined;
   const sourceArtifactPaths = artifactPaths({ cwd: sourceCwd, repoRoot: sourceRepoRoot });
   const hadSourceArtifactBefore = await firstExistingArtifact(sourceArtifactPaths);
+  omissions.push(...processSciCliOverrideRefusals(env));
 
   if (env.sciReadOnlySafe !== true) {
     return {

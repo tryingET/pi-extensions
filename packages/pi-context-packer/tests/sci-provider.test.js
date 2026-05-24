@@ -36,6 +36,22 @@ const pathExists = async (path) => {
   }
 };
 
+const withProcessEnv = async (updates, callback) => {
+  const previous = new Map(Object.keys(updates).map((name) => [name, process.env[name]]));
+  try {
+    for (const [name, value] of Object.entries(updates)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    return await callback();
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+};
+
 test("context_pack uses SCI read_file for code path seeds", async () => {
   const root = await makeWorkspace();
   const calls = [];
@@ -786,4 +802,176 @@ test("context_pack runs SCI in a temporary sandbox rather than source cwd", asyn
   assert.equal(await pathExists(join(root, ".ontology")), false);
   const sci = result.packet.sections.find((section) => section.provider === "sci");
   assert.match(sci.items[0].content, /sandbox-derived context/);
+});
+
+test("context_pack ignores untrusted process-level SCI_CLI overrides without leaking paths", async () => {
+  await withProcessEnv(
+    {
+      SCI_CLI: "/tmp/malicious-sci-cli",
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: undefined,
+    },
+    async () => {
+      const root = await makeWorkspace();
+      const marker = join(root, "MUTATED.txt");
+      const calls = [];
+      const fakeExec = async (command) => {
+        calls.push(command);
+        if (command === "/tmp/malicious-sci-cli") {
+          await writeFile(marker, "mutation\n", "utf8");
+          return { stdout: sciStdout({ content: "MALICIOUS CONTENT\n" }) };
+        }
+        throw new Error(`missing default SCI command ${command}`);
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { execFileAsync: fakeExec, sciReadOnlySafe: true },
+      );
+
+      assert.deepEqual(calls, ["sci", "semantic-code-intelligence"]);
+      assert.equal(await pathExists(marker), false);
+      assert.equal(
+        result.packet.sections.some((section) => section.provider === "sci"),
+        false,
+      );
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" && omission.detail.includes("SCI_CLI override ignored"),
+        ),
+      );
+      assert.doesNotMatch(JSON.stringify(result.packet), /malicious-sci-cli|MALICIOUS CONTENT/);
+    },
+  );
+});
+
+test("context_pack ignores untrusted process-level PI_CONTEXT_PACKER_SCI_CLI overrides", async () => {
+  await withProcessEnv(
+    {
+      PI_CONTEXT_PACKER_SCI_CLI: "/tmp/malicious-context-packer-sci-cli",
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: undefined,
+    },
+    async () => {
+      const root = await makeWorkspace();
+      const calls = [];
+      const fakeExec = async (command) => {
+        calls.push(command);
+        if (command === "/tmp/malicious-context-packer-sci-cli") {
+          throw new Error("override should not run");
+        }
+        throw new Error("default SCI unavailable");
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { execFileAsync: fakeExec, sciReadOnlySafe: true },
+      );
+
+      assert.deepEqual(calls, ["sci", "semantic-code-intelligence"]);
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" &&
+            omission.detail.includes("PI_CONTEXT_PACKER_SCI_CLI override ignored"),
+        ),
+      );
+      assert.doesNotMatch(JSON.stringify(result.packet), /malicious-context-packer-sci-cli/);
+    },
+  );
+});
+
+test("context_pack allows explicitly trusted process-level SCI CLI override", async () => {
+  await withProcessEnv(
+    {
+      SCI_CLI: "/tmp/trusted-sci-cli",
+      PI_CONTEXT_PACKER_SCI_CLI: undefined,
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: "1",
+    },
+    async () => {
+      const root = await makeWorkspace();
+      const calls = [];
+      const fakeExec = async (command) => {
+        calls.push(command);
+        assert.equal(command, "/tmp/trusted-sci-cli");
+        return { stdout: sciStdout({ content: "trusted override context\n" }) };
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { execFileAsync: fakeExec, sciReadOnlySafe: true },
+      );
+
+      assert.deepEqual(calls, ["/tmp/trusted-sci-cli"]);
+      const sci = result.packet.sections.find((section) => section.provider === "sci");
+      assert.match(sci.items[0].content, /trusted override context/);
+      assert.equal(
+        result.packet.omissions.some((omission) => omission.detail.includes("override ignored")),
+        false,
+      );
+    },
+  );
+});
+
+test("context_pack scrubs SCI subprocess environment", async () => {
+  await withProcessEnv(
+    {
+      SECRET_TOKEN: "super-secret",
+      API_KEY: "secret-api-key",
+      SCI_ALLOW_ARTIFACTS: "1",
+      SCI_CLI: "/tmp/untrusted-sci-cli",
+      PI_CONTEXT_PACKER_SCI_ARTIFACT_BYPASS: "1",
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: undefined,
+    },
+    async () => {
+      const root = await makeWorkspace();
+      const seenEnvs = [];
+      const fakeExec = async (_command, _args, options) => {
+        seenEnvs.push(options.env);
+        return { stdout: sciStdout({ content: "env-safe context\n" }) };
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+      );
+
+      assert.equal(seenEnvs.length, 1);
+      assert.equal(seenEnvs[0].PWD, seenEnvs[0].INIT_CWD);
+      assert.notEqual(seenEnvs[0].PWD, root);
+      assert.equal(seenEnvs[0].SILENT_MODE, "true");
+      assert.equal(seenEnvs[0].STDIO_MODE, "true");
+      assert.equal(seenEnvs[0].SECRET_TOKEN, undefined);
+      assert.equal(seenEnvs[0].API_KEY, undefined);
+      assert.equal(seenEnvs[0].SCI_ALLOW_ARTIFACTS, undefined);
+      assert.equal(seenEnvs[0].SCI_CLI, undefined);
+      assert.equal(seenEnvs[0].PI_CONTEXT_PACKER_SCI_ARTIFACT_BYPASS, undefined);
+      const sci = result.packet.sections.find((section) => section.provider === "sci");
+      assert.match(sci.items[0].content, /env-safe context/);
+      assert.doesNotMatch(JSON.stringify(result.packet), /super-secret|secret-api-key/);
+    },
+  );
 });
