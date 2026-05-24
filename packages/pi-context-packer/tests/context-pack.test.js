@@ -81,6 +81,62 @@ test("context_pack keeps Markdown-only path packets on docs without SCI omission
   );
 });
 
+test("context_pack omits contaminated Markdown path seeds without reading or leaking them", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "contaminated.md"),
+    "# Contaminated\n\nMUST_NOT_READ_CONTAMINATED_SEED\n",
+    "utf8",
+  );
+  const docsListScript = join(root, "docs-list-empty.mjs");
+  await writeFile(
+    docsListScript,
+    "console.log(JSON.stringify({ ok: true, rankedItems: [] }));\n",
+    "utf8",
+  );
+
+  const result = await buildContextPacket(
+    {
+      objective: "Read docs context",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: "\ndocs/project/contaminated.md" }],
+      providers: { agents: "off", docs: "required", git: "off", session: "off", sci: "off" },
+    },
+    { docsListScript },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "docs"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "docs" &&
+        omission.reason === "unsafe_path" &&
+        omission.detail.includes("control characters"),
+    ),
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "docs" && omission.reason === "no_results",
+    ),
+  );
+  assert.equal(
+    result.packet.omissions.some((omission) => omission.provider === "sci"),
+    false,
+  );
+
+  const publicPacket = JSON.stringify({
+    sections: result.packet.sections,
+    omissions: result.packet.omissions,
+    template: result.packet.dogfoodObservationTemplate,
+  });
+  assert.doesNotMatch(publicPacket, /contaminated\.md|MUST_NOT_READ_CONTAMINATED_SEED/);
+});
+
 test("context_pack keeps provider query seeds scoped through mixed docs and SCI packets", async () => {
   const root = await makeWorkspace();
   await mkdir(join(root, "src"), { recursive: true });

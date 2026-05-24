@@ -194,6 +194,40 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
   );
 });
 
+test("context_plan rejects raw path and symbol seed controls before trimming", () => {
+  const plan = buildContextPlan({
+    objective: "Plan docs and code context",
+    seeds: [
+      { kind: "path", value: "docs/project/safe.md" },
+      { kind: "symbol", value: "safeSymbol" },
+      { kind: "path", value: " docs/project/spaced.md" },
+      { kind: "path", value: "\ndocs/project/newline.md" },
+      { kind: "path", value: "docs/project/c1.md\u0085" },
+      { kind: "symbol", value: " targetSymbol" },
+      { kind: "symbol", value: "targetSymbol\n" },
+    ],
+    providers: { git: "off", session: "off" },
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.omittedSeeds.length, 5);
+  assert.equal(plan.omittedSeeds.filter((seed) => seed.provider === "docs").length, 3);
+  assert.equal(plan.omittedSeeds.filter((seed) => seed.provider === "sci").length, 2);
+  assert.ok(plan.omittedSeeds.some((seed) => seed.reason.includes("control characters")));
+  assert.ok(plan.omittedSeeds.some((seed) => seed.reason.includes("leading or trailing")));
+
+  const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
+  assert.deepEqual(byProvider.docs.proposedQueries[0].seeds, [
+    { kind: "path", value: "docs/project/safe.md" },
+  ]);
+  assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, [
+    { kind: "symbol", value: "safeSymbol" },
+  ]);
+
+  const routedSeeds = JSON.stringify(plan.providerPlans.flatMap((entry) => entry.proposedQueries));
+  assert.doesNotMatch(routedSeeds, /spaced\.md|newline\.md|c1\.md|targetSymbol/);
+});
+
 test("context_plan screens unsafe workspace roots without treating them as authority", async () => {
   const safeRepo = await mkdtemp(join(tmpdir(), "pi-context-plan-safe-"));
   const plan = buildContextPlan(

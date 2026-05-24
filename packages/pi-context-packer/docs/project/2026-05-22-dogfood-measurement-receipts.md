@@ -512,6 +512,26 @@ node --test tests/dogfood-observation.test.js
 
 Outcome: the dogfood aggregate projection is now harder to corrupt across calls in a persistent host. This keeps activity coverage advisory and non-persistent while reducing false stable-positive signals caused by JavaScript object capability leaks.
 
+## Receipt K — raw seed normalization fail-closed hardening
+
+### Context
+
+A next-slice review found that caller-controlled path and symbol seeds were trimmed before safety checks. That meant raw values such as `"\ndocs/project/vision.md"` could be silently normalized into safe-looking provider queries, weakening the pre-provider safety and receipt-accounting membrane.
+
+### Slice
+
+Raw path and symbol seed values now fail closed when they contain C0/C1/DEL control characters or leading/trailing whitespace. The omitted-seed projection still classifies Markdown-looking contaminated paths as `docs` omissions for source-owner meaning, but it does not route the raw value to providers or expose it in packet details or dogfood templates.
+
+Adversarial coverage verifies contaminated seeds are excluded from provider queries, contaminated Markdown targets are not read by `context_pack`, docs-list fallback/no-results behavior still works, and public packet/receipt surfaces omit raw contaminated paths and content.
+
+Validation:
+
+```text
+node --test tests/context-plan.test.js tests/context-pack.test.js
+```
+
+Outcome: dogfood route telemetry and omission counts are more trustworthy because raw caller seed contamination cannot be laundered by normalization before provider selection.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

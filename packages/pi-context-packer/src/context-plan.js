@@ -119,6 +119,20 @@ const normalizeSeedNote = (note) => {
   return value.length > MAX_SEED_NOTE_CHARS ? `${value.slice(0, MAX_SEED_NOTE_CHARS)}…` : value;
 };
 
+const seedValueForProviderClassification = (value) =>
+  Array.from(coerceString(value))
+    .filter((character) => !hasControlCharacter(character))
+    .join("")
+    .trim();
+
+const rawSeedValueIssue = (kind, rawValue) => {
+  if (kind !== "path" && kind !== "symbol") return undefined;
+  const label = kind === "symbol" ? "symbol seed" : "path seed";
+  if (hasControlCharacter(rawValue)) return `${label} contains control characters`;
+  if (rawValue !== rawValue.trim()) return `${label} contains leading or trailing whitespace`;
+  return undefined;
+};
+
 const normalizeSeeds = (seeds) => {
   if (!Array.isArray(seeds)) return { seeds: [], omittedSeeds: [] };
   const normalizedSeeds = [];
@@ -136,13 +150,24 @@ const normalizeSeeds = (seeds) => {
       continue;
     }
 
-    const value = coerceString(raw.value).trim();
+    const rawValue = coerceString(raw.value);
+    const value = rawValue.trim();
     if (!value) continue;
-    if (value.length > MAX_SEED_VALUE_CHARS) {
+    if (rawValue.length > MAX_SEED_VALUE_CHARS) {
       omittedSeeds.push({
         kind,
-        provider: omittedSeedProvider({ kind, value }),
+        provider: omittedSeedProvider({ kind, value: rawValue }),
         reason: `seed value exceeds compact input limit (${MAX_SEED_VALUE_CHARS} characters)`,
+      });
+      continue;
+    }
+
+    const rawIssue = rawSeedValueIssue(kind, rawValue);
+    if (rawIssue) {
+      omittedSeeds.push({
+        kind,
+        provider: omittedSeedProvider({ kind, value: rawValue }),
+        reason: rawIssue,
       });
       continue;
     }
@@ -166,7 +191,12 @@ const seedSafetyIssue = (seed) => {
 
 const omittedSeedProvider = (seed) => {
   if (seed.kind === "symbol") return "sci";
-  if (seed.kind === "path") return isMarkdownPath(seed.value) ? "docs" : "sci";
+  if (seed.kind === "path") {
+    return isMarkdownPath(seed.value) ||
+      isMarkdownPath(seedValueForProviderClassification(seed.value))
+      ? "docs"
+      : "sci";
+  }
   if (seed.kind === "ak" || seed.kind === "task") return "ak";
   if (seed.kind === "fcos") return "fcos";
   if (seed.kind === "prompt") return "prompt_vault";
