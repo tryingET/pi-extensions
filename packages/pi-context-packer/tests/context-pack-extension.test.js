@@ -31,6 +31,22 @@ test("context-packer extension registers command and all model-callable tools", 
   );
   assert.equal(tools.get("context_dogfood_evaluate").parameters.additionalProperties, false);
   assert.equal(tools.get("context_dogfood_summarize").parameters.additionalProperties, false);
+  assert.match(tools.get("context_plan").description, /repo-bounded AGENTS\/CLAUDE/);
+  assert.match(
+    tools.get("context_plan").promptGuidelines.join("\n"),
+    /repo-bounded AGENTS\/CLAUDE/,
+  );
+  assert.match(tools.get("context_pack").description, /repo-bounded AGENTS\/CLAUDE/);
+  assert.match(tools.get("context_pack").promptSnippet, /repo-bounded AGENTS\/CLAUDE/);
+  assert.doesNotMatch(
+    [
+      tools.get("context_plan").description,
+      tools.get("context_plan").promptGuidelines.join("\n"),
+      tools.get("context_pack").description,
+      tools.get("context_pack").promptSnippet,
+    ].join("\n"),
+    /AGENTS files|AGENTS\/docs\/git|docs\/AGENTS\/AK/,
+  );
 
   const result = await tools.get("context_dogfood_evaluate").execute("tool-call-1", {
     observation: {

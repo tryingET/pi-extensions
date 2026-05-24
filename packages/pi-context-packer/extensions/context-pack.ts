@@ -65,13 +65,13 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     name: "context_plan",
     label: "Context Plan",
     description:
-      "Plan a read-only context packet across source-owned providers such as SCI, docs, AGENTS, git, session context, Prompt Vault, AK, and FCOS without retrieving or mutating source data.",
+      "Plan a read-only context packet across source-owned providers such as SCI, docs, repo-bounded AGENTS/CLAUDE instruction projection, git, session context, Prompt Vault, AK, and FCOS without retrieving or mutating source data.",
     promptSnippet:
       "Use context_plan before broad context gathering when you need to reduce raw read/search tool calls and preserve source-owner authority boundaries.",
     promptGuidelines: [
       "Use context_plan for cross-source planning before collecting large code/docs/task context.",
       "Treat the result as a read-only plan and provider-boundary membrane, not as task/evidence authority.",
-      "Use SCI for code context and separate docs/AGENTS/AK/FCOS/Prompt Vault providers for non-code context.",
+      "Use SCI for code context and separate docs/repo-bounded AGENTS/CLAUDE/AK/FCOS/Prompt Vault providers for non-code context.",
       "Follow owner-surface recommendations directly when the task needs self, subagent execution, peer messaging/launch, workflow supervision, AK/FCOS authority, or Prompt Vault governance.",
     ],
     parameters: CONTEXT_PLAN_PARAMETERS,
@@ -85,9 +85,9 @@ export default function contextPackerExtension(pi: ExtensionAPI) {
     name: "context_pack",
     label: "Context Pack",
     description:
-      "Assemble a bounded read-only context packet from wired providers such as AGENTS files, Markdown/docs-list, git status, session metadata, and SCI seeded code context, while recording omissions and owner-surface routes for unavailable or authority-sensitive providers.",
+      "Assemble a bounded read-only context packet from wired providers such as repo-bounded AGENTS/CLAUDE instruction files, Markdown/docs-list, git status, session metadata, and SCI seeded code context, while recording omissions and owner-surface routes for unavailable or authority-sensitive providers.",
     promptSnippet:
-      "Use context_pack after context_plan when a small read-only packet from AGENTS/docs/git plus explicit provider omissions can reduce raw read/search tool calls.",
+      "Use context_pack after context_plan when a small read-only packet from repo-bounded AGENTS/CLAUDE/docs/git plus explicit provider omissions can reduce raw read/search tool calls.",
     promptGuidelines: [
       "Use context_pack only for read-only packet assembly; it must not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, or peer tooling.",
       "Treat packet content as a projection with provenance and omissions, not source-owner authority.",
