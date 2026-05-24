@@ -469,6 +469,29 @@ npm run dogfood:docs-list-json
 
 Outcome: activity coverage is now observable in redacted dogfood summaries. This supports the next frontier—collecting repeated implementation/review/validation receipts—without adding provider adapters, reading receipt files, mutating AK/FCOS, promoting evidence, or treating labels/counts as completion proof.
 
+## Receipt I — core activity coverage gates stable aggregates
+
+### Context
+
+After activity-type labels landed, aggregate summaries could count implementation/review/validation receipts, but a set of three matched receipts from a single activity type could still be classified as `stable_positive_signal`. That would overstate dogfood coverage before ranking or provider tuning.
+
+### Slice
+
+`context_dogfood_summarize` now derives packet-local `activityCoverage` for core activity types: `implementation`, `review`, and `validation`. Aggregate status only reaches `stable_positive_signal` when repeated matched receipts also cover all three core activity types. Repeated matched receipts with missing core activities now produce `activity_coverage_gap` and a next action naming the missing receipt types.
+
+The coverage projection is advisory only: it does not read receipt files, promote evidence, update AK/FCOS, or prove task completion.
+
+Adversarial/negative coverage verifies validation-only matched receipts do not become stable, mixed implementation/review/validation receipts can become stable, legacy `unspecified` labels remain valid while leaving coverage incomplete, and the formatted aggregate exposes present/missing coverage plus a non-authorization.
+
+Validation:
+
+```text
+node --test tests/dogfood-observation.test.js
+npm run check
+```
+
+Outcome: dogfood aggregate status is now harder to overclaim. Repeated positive receipts must cover the core implementation/review/validation loop before they are treated as stable packet-local calibration for ranking or provider tuning.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

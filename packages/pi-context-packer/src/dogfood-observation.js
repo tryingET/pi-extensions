@@ -19,14 +19,8 @@ const CALIBRATION_STATUSES = [
   "needs_review",
   "observation_incomplete",
 ];
-const KNOWN_ACTIVITY_TYPES = new Set([
-  "implementation",
-  "review",
-  "validation",
-  "planning",
-  "other",
-  "unspecified",
-]);
+const CORE_ACTIVITY_TYPES = ["implementation", "review", "validation"];
+const KNOWN_ACTIVITY_TYPES = new Set([...CORE_ACTIVITY_TYPES, "planning", "other", "unspecified"]);
 
 const NON_AUTHORIZATION =
   "packet-local dogfood evaluation only; context-packer did not persist evidence, update AK/FCOS, write session memory, read files, call providers, or validate task completion";
@@ -502,22 +496,42 @@ const normalizeAggregateEntry = ({ value, ref }) => {
   };
 };
 
-const aggregateStatusFor = ({ validCount, invalidCount, statusCounts }) => {
+const activityCoverageFor = (activityTypeCounts) => {
+  const present = CORE_ACTIVITY_TYPES.filter(
+    (activityType) => activityTypeCounts[activityType] > 0,
+  );
+  const missing = CORE_ACTIVITY_TYPES.filter((activityType) => !present.includes(activityType));
+  return {
+    required: CORE_ACTIVITY_TYPES,
+    present,
+    missing,
+    complete: missing.length === 0,
+    nonAuthorization:
+      "activity coverage is packet-local calibration metadata only; it is not task completion proof or owner-surface evidence",
+  };
+};
+
+const aggregateStatusFor = ({ validCount, invalidCount, statusCounts, activityCoverage }) => {
   if (validCount === 0) return "no_valid_receipts";
   if (invalidCount > 0 || statusCounts.needs_review > 0) return "review_before_tuning";
   if (statusCounts.overestimated > 0) return "ranking_or_provider_gap_suspected";
   if (statusCounts.observation_incomplete > 0) return "needs_more_observations";
   if (statusCounts.underestimated > 0) return "possible_underestimate";
-  if (validCount >= 3 && statusCounts.matched === validCount) return "stable_positive_signal";
+  if (validCount >= 3 && statusCounts.matched === validCount) {
+    return activityCoverage.complete ? "stable_positive_signal" : "activity_coverage_gap";
+  }
   return "limited_positive_signal";
 };
 
-const aggregateNextAction = (status) => {
+const aggregateNextAction = (status, activityCoverage) => {
   if (status === "stable_positive_signal") {
     return "Repeated redacted receipts matched; keep dogfooding and promote only through the owning evidence surface if needed.";
   }
   if (status === "limited_positive_signal") {
     return "One or two matched receipts are useful calibration, but gather more implementation/review/validation receipts before tuning ranking.";
+  }
+  if (status === "activity_coverage_gap") {
+    return `Repeated receipts matched, but core activity coverage is incomplete; gather ${activityCoverage.missing.join("/")} receipt(s) before treating the signal as stable for ranking or provider tuning.`;
   }
   if (status === "ranking_or_provider_gap_suspected") {
     return "Review overestimated receipts and omission follow-ups before changing ranking or adding provider adapters.";
@@ -595,10 +609,12 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
   const activityTypeCounts = countValues(
     validEvaluations.map(({ evaluation }) => evaluation.activityType ?? "unspecified"),
   );
+  const activityCoverage = activityCoverageFor(activityTypeCounts);
   const aggregateStatus = aggregateStatusFor({
     validCount: validEvaluations.length,
     invalidCount: allInvalidEntries.length,
     statusCounts,
+    activityCoverage,
   });
   const validationCommandsRecordedCount = validEvaluations.filter(
     ({ evaluation }) => evaluation.validationCommandsRun !== null,
@@ -638,11 +654,12 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     },
     packetUtilityRecommendationCounts,
     activityTypeCounts,
+    activityCoverage,
     providerOmissionCounts,
     omissionFollowupCounts,
     evaluations,
     invalidEntries: allInvalidEntries,
-    nextAction: aggregateNextAction(aggregateStatus),
+    nextAction: aggregateNextAction(aggregateStatus, activityCoverage),
     nonAuthorization: NON_AUTHORIZATION,
   };
 };
@@ -697,6 +714,12 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     "",
     "## Activity type counts",
     activityLines.length ? activityLines.join("\n") : "- none recorded",
+    "",
+    "## Core activity coverage",
+    `- present: ${aggregate.activityCoverage.present.length ? aggregate.activityCoverage.present.map((activityType) => markdownInlineLabel(activityType, "activity type")).join(", ") : "none"}`,
+    `- missing: ${aggregate.activityCoverage.missing.length ? aggregate.activityCoverage.missing.map((activityType) => markdownInlineLabel(activityType, "activity type")).join(", ") : "none"}`,
+    `- complete: ${aggregate.activityCoverage.complete}`,
+    `- non-authorization: ${aggregate.activityCoverage.nonAuthorization}`,
     "",
     "## Unwired provider omission counts",
     providerLines.length ? providerLines.join("\n") : "- none recorded",

@@ -15,7 +15,7 @@ system4d:
 
 Implement one focused package slice while preserving monorepo compatibility.
 
-Latest landed slice: dogfood observation/evaluation/aggregate surfaces now carry redacted `activityType` labels so implementation/review/validation receipt coverage is visible without becoming evidence or completion proof.
+Latest landed slices: dogfood observation/evaluation/aggregate surfaces now carry redacted `activityType` labels, and aggregate `stable_positive_signal` requires core implementation/review/validation coverage so repeated single-activity receipts do not overclaim readiness.
 
 ## Package context
 

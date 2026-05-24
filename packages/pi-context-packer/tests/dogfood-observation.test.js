@@ -313,6 +313,50 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
   assert.match(aggregate.nonAuthorization, /did not persist evidence/);
 });
 
+test("dogfood aggregate requires core activity coverage before stable positive signal", () => {
+  const validationOnly = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "validation" },
+      }),
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "validation" },
+      }),
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "validation" },
+      }),
+    ],
+  });
+  const covered = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "implementation" },
+      }),
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "review" },
+      }),
+      baseObservation({
+        observation: { ...baseObservation().observation, activityType: "validation" },
+      }),
+    ],
+  });
+  const validationOnlyText = formatDogfoodAggregateEvaluation(validationOnly);
+
+  assert.equal(validationOnly.ok, true);
+  assert.equal(validationOnly.status, "activity_coverage_gap");
+  assert.deepEqual(validationOnly.activityCoverage.present, ["validation"]);
+  assert.deepEqual(validationOnly.activityCoverage.missing, ["implementation", "review"]);
+  assert.equal(validationOnly.activityCoverage.complete, false);
+  assert.match(validationOnly.nextAction, /gather implementation\/review receipt/);
+  assert.match(validationOnlyText, /Core activity coverage/);
+  assert.match(validationOnlyText, /missing: implementation, review/);
+  assert.match(validationOnly.activityCoverage.nonAuthorization, /not task completion proof/);
+
+  assert.equal(covered.status, "stable_positive_signal");
+  assert.deepEqual(covered.activityCoverage.missing, []);
+  assert.equal(covered.activityCoverage.complete, true);
+});
+
 test("dogfood aggregate preserves missing validation-command counts for legacy receipts", () => {
   const legacyObservation = baseObservation({
     observation: {
@@ -334,6 +378,7 @@ test("dogfood aggregate preserves missing validation-command counts for legacy r
   assert.equal(aggregate.totals.validationCommandsRecordedCount, 1);
   assert.equal(aggregate.totals.validationCommandsMissingCount, 1);
   assert.equal(aggregate.activityTypeCounts.unspecified, 1);
+  assert.deepEqual(aggregate.activityCoverage.missing, ["review", "validation"]);
   assert.match(text, /Validation commands run: 2 \(1 recorded, 1 missing\)/);
   assert.match(text, /Activity type counts/);
   assert.match(text, /- unspecified: 1/);
