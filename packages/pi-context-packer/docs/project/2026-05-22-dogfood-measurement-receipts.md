@@ -445,7 +445,7 @@ The receipt scaffold now includes `validationCommandsRun` as an optional non-neg
 
 Adversarial coverage rejects fractional, negative, or non-integer validation counts instead of silently coercing them. The field is deliberately numeric-only: detailed validation output remains in the owning test/check surface, and the count is packet-local calibration metadata, not task-completion proof.
 
-Outcome: evaluated dogfood receipts can now distinguish “the packet avoided context probes” from “the agent still ran validation,” which should reduce false over/under-claiming before ranking changes or new provider adapters are justified.
+Outcome: evaluated dogfood receipts can now distinguish “the packet avoided context probes” from “the agent still ran validation,” which should reduce false over/under-claiming before ranking changes or new provider adapters are justified. Follow-up hardening preserved missing-vs-zero semantics in aggregate summaries so legacy receipts without `validationCommandsRun` do not silently imply zero validation commands.
 
 ## Lessons for ranking and product bets
 

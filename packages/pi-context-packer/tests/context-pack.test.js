@@ -1866,6 +1866,7 @@ test("formatContextPacket summarizes selected sections, omissions, owner routes,
   assert.match(text, /## Dogfood observation template/);
   assert.match(text, /context_pack_dogfood_observation_v1/);
   assert.match(text, /actual low-level read\/search\/status calls: fill externally/);
+  assert.match(text, /validation commands run: fill validationCommandsRun separately/);
   assert.match(text, /no AK evidence, FCOS update, session memory/);
   assert.match(text, /## Section summary/);
   assert.match(text, /## Omissions/);

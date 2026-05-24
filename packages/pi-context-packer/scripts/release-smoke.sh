@@ -214,7 +214,7 @@ export default function(pi) {
             },
           },
         });
-        if (evaluationResult.status !== "matched") {
+        if (evaluationResult.status !== "matched" || evaluationResult.validationCommandsRun !== 0) {
           throw new Error(
             `context_dogfood_evaluate execution failed: ${JSON.stringify(evaluationResult)}`,
           );

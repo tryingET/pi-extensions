@@ -7,6 +7,7 @@ import {
   DOGFOOD_OBSERVATION_EVALUATION_PARAMETERS,
   dogfoodAggregateEvaluationToolResult,
   dogfoodObservationEvaluationToolResult,
+  formatDogfoodAggregateEvaluation,
   formatDogfoodObservationEvaluation,
 } from "../src/dogfood-observation.js";
 
@@ -299,7 +300,32 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
   assert.equal(aggregate.providerOmissionCounts.ak, 1);
   assert.equal(aggregate.omissionFollowupCounts["docs/missing ranking"], 1);
   assert.equal(aggregate.totals.validationCommandsRun, 6);
+  assert.equal(aggregate.totals.validationCommandsRecordedCount, 3);
+  assert.equal(aggregate.totals.validationCommandsMissingCount, 0);
   assert.match(aggregate.nonAuthorization, /did not persist evidence/);
+});
+
+test("dogfood aggregate preserves missing validation-command counts for legacy receipts", () => {
+  const legacyObservation = baseObservation({
+    observation: {
+      actualLowLevelReadSearchStatusCalls: 0,
+      actualLowLevelCallsAvoided: 3,
+      duplicateReadsObserved: false,
+      omissionFollowupsUsed: [],
+      recommendationMatchedOutcome: true,
+      notes: "legacy receipt before validation count existed",
+    },
+  });
+  const aggregate = buildDogfoodAggregateEvaluation({
+    observations: [legacyObservation, baseObservation()],
+  });
+  const text = formatDogfoodAggregateEvaluation(aggregate);
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.totals.validationCommandsRun, 2);
+  assert.equal(aggregate.totals.validationCommandsRecordedCount, 1);
+  assert.equal(aggregate.totals.validationCommandsMissingCount, 1);
+  assert.match(text, /Validation commands run: 2 \(1 recorded, 1 missing\)/);
 });
 
 test("dogfood aggregate accepts prior evaluations and reports mixed invalid receipts", async () => {
@@ -345,7 +371,7 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
   assert.equal(aggregate.evaluations[1].omissionFollowupsTruncated, 8);
   assert.match(result.content[0].text, /Omission follow-up counts/);
   assert.match(result.content[0].text, /Omission follow-ups truncated: 8/);
-  assert.match(result.content[0].text, /Validation commands run: 5/);
+  assert.match(result.content[0].text, /Validation commands run: 5 \(3 recorded, 0 missing\)/);
   assert.match(result.content[0].text, /followup-0/);
   assert.match(result.content[0].text, /Invalid receipts/);
   assert.match(result.content[0].text, /items\[1\]/);

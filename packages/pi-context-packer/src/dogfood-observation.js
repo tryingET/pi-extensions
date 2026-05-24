@@ -574,6 +574,9 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     invalidCount: allInvalidEntries.length,
     statusCounts,
   });
+  const validationCommandsRecordedCount = validEvaluations.filter(
+    ({ evaluation }) => evaluation.validationCommandsRun !== null,
+  ).length;
 
   return {
     ok: true,
@@ -600,6 +603,8 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
         (sum, entry) => sum + (entry.evaluation.validationCommandsRun ?? 0),
         0,
       ),
+      validationCommandsRecordedCount,
+      validationCommandsMissingCount: validEvaluations.length - validationCommandsRecordedCount,
       omissionFollowupsTruncated: validEvaluations.reduce(
         (sum, entry) => sum + (entry.evaluation.omissionFollowupsTruncated ?? 0),
         0,
@@ -651,7 +656,7 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     `Expected low-level calls avoided: ${aggregate.totals.expectedLowLevelCallsAvoided}`,
     `Actual low-level calls avoided: ${aggregate.totals.actualLowLevelCallsAvoided}`,
     `Actual low-level read/search/status calls: ${aggregate.totals.actualLowLevelReadSearchStatusCalls}`,
-    `Validation commands run: ${aggregate.totals.validationCommandsRun}`,
+    `Validation commands run: ${aggregate.totals.validationCommandsRun} (${aggregate.totals.validationCommandsRecordedCount} recorded, ${aggregate.totals.validationCommandsMissingCount} missing)`,
     `Omission follow-ups truncated: ${aggregate.totals.omissionFollowupsTruncated}`,
     "",
     "## Calibration status counts",
