@@ -5,6 +5,22 @@ import { join } from "node:path";
 import test from "node:test";
 import { createExtension } from "../extensions/self.ts";
 
+async function writeStatus(sessionsDir, sessionName) {
+  const now = new Date().toISOString();
+  await writeFile(
+    join(sessionsDir, `${sessionName}.status.json`),
+    JSON.stringify({
+      sessionName,
+      status: "done",
+      pid: process.pid,
+      ppid: process.ppid,
+      createdAt: now,
+      updatedAt: now,
+      sessionKind: "subagent",
+    }),
+  );
+}
+
 function createPiHarness() {
   const tools = new Map();
   const commands = new Map();
@@ -34,7 +50,7 @@ test("session_start does not clear subagent sessions by default", async () => {
   delete process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START;
 
   try {
-    await writeFile(join(sessionsDir, "keep.status.json"), "{}");
+    await writeStatus(sessionsDir, "keep");
     await writeFile(join(sessionsDir, "keep.jsonl"), "{}");
 
     const harness = createPiHarness();
@@ -63,7 +79,7 @@ test("session_start clears subagent sessions when explicitly enabled", async () 
   process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START = "true";
 
   try {
-    await writeFile(join(sessionsDir, "delete-me.status.json"), "{}");
+    await writeStatus(sessionsDir, "delete-me");
     await writeFile(join(sessionsDir, "delete-me.jsonl"), "{}");
 
     const harness = createPiHarness();

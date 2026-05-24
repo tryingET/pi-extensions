@@ -154,6 +154,69 @@ test("createSubagentDashboardSnapshot can filter to the current live session and
   }
 });
 
+test("createSubagentDashboardSnapshot keeps current-session records that lack legacy repo-root metadata", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-legacy-repo-filter-"));
+
+  try {
+    await writeStatus(
+      sessionsDir,
+      "legacy-current-session",
+      "done",
+      "2026-03-06T11:30:00.000Z",
+      "Summarize a current-session run recorded before repo-root metadata existed.",
+      { parentSessionKey: "live-2" },
+    );
+
+    const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+      currentSessionKey: "live-2",
+      currentRepoRoot: "/repo/current",
+      sessionScope: "current",
+      maxAgeMs: 60 * 60 * 1000,
+    });
+
+    assert.equal(snapshot.total, 1);
+    assert.equal(snapshot.rows[0].sessionName, "legacy-current-session");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentDashboardSnapshot ignores invalid status sidecars", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-invalid-status-"));
+
+  try {
+    await writeFile(
+      join(sessionsDir, "weird.status.json"),
+      JSON.stringify({
+        sessionName: "weird",
+        status: "bogus",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+      }),
+    );
+
+    const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(snapshot.total, 0);
+    assert.deepEqual(snapshot.rows, []);
+    assert.deepEqual(snapshot.counts, {
+      running: 0,
+      done: 0,
+      error: 0,
+      timeout: 0,
+      aborted: 0,
+      abandoned: 0,
+    });
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createSubagentDashboardSnapshot can filter to the current repo root as well as the live session", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-repo-filter-"));
 

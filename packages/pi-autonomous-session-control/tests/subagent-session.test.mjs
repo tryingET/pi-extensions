@@ -1,15 +1,33 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
   canSpawnSubagent,
   cleanupOldSessions,
+  clearSubagentSessions,
   createSubagentState,
   getSessionStatusPath,
   getSubagentStats,
 } from "../extensions/self/subagent-session.ts";
+
+async function writeStatus(sessionsDir, sessionName, status = "done", extras = {}) {
+  const now = new Date().toISOString();
+  await writeFile(
+    getSessionStatusPath(sessionsDir, sessionName),
+    JSON.stringify({
+      sessionName,
+      status,
+      pid: process.pid,
+      ppid: process.ppid,
+      createdAt: now,
+      updatedAt: now,
+      sessionKind: "subagent",
+      ...extras,
+    }),
+  );
+}
 
 test("createSubagentState uses default maxConcurrent", () => {
   const state = createSubagentState("/tmp/test-sessions");
@@ -41,7 +59,7 @@ test("cleanupOldSessions removes files older than maxAgeMs", async () => {
     const oldFile = join(sessionsDir, "old-session.json");
     await writeFile(oldFile, "{}");
     await writeFile(join(sessionsDir, "old-session.lock"), "busy");
-    await writeFile(getSessionStatusPath(sessionsDir, "old-session"), "{}");
+    await writeStatus(sessionsDir, "old-session");
 
     // Set mtime to 10 days ago
     const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
@@ -50,6 +68,7 @@ test("cleanupOldSessions removes files older than maxAgeMs", async () => {
     // Create new session file
     const newFile = join(sessionsDir, "new-session.json");
     await writeFile(newFile, "{}");
+    await writeStatus(sessionsDir, "new-session");
 
     const state = createSubagentState(sessionsDir);
     const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
@@ -72,7 +91,7 @@ test("cleanupOldSessions removes excess files based on maxCount", async () => {
       const file = join(sessionsDir, `${name}.json`);
       await writeFile(file, "{}");
       await writeFile(join(sessionsDir, `${name}.lock`), "busy");
-      await writeFile(getSessionStatusPath(sessionsDir, name), "{}");
+      await writeStatus(sessionsDir, name);
       // Stagger mtimes so they have different ages
       await new Promise((r) => setTimeout(r, 10));
     }
@@ -95,7 +114,7 @@ test("cleanupOldSessions ignores native Pi sessions without ASC status sidecars"
     await writeFile(join(sessionsDir, "human-session.jsonl"), "{}\n");
     const subagentFile = join(sessionsDir, "subagent-session.jsonl");
     await writeFile(subagentFile, "{}\n");
-    await writeFile(getSessionStatusPath(sessionsDir, "subagent-session"), "{}");
+    await writeStatus(sessionsDir, "subagent-session");
     const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
     await utimes(subagentFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
 
@@ -111,6 +130,65 @@ test("cleanupOldSessions ignores native Pi sessions without ASC status sidecars"
   }
 });
 
+test("cleanupOldSessions ignores legacy JSON files without valid ASC status sidecars", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-json-safe-"));
+
+  try {
+    const humanFile = join(sessionsDir, "human-session.json");
+    await writeFile(humanFile, "{}\n");
+    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    await utimes(humanFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+
+    assert.equal(result.removedSessions, 0);
+    assert.equal(result.removedFiles, 0);
+    assert.equal(await readFile(humanFile, "utf8"), "{}\n");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("cleanupOldSessions keeps live running subagents even when their trace mtime is old", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-running-safe-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "live-subagent.jsonl");
+    await writeFile(sessionFile, "{}\n");
+    await writeStatus(sessionsDir, "live-subagent", "running");
+    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    await utimes(sessionFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+
+    assert.equal(result.removedSessions, 0);
+    assert.equal(result.removedFiles, 0);
+    assert.equal(await readFile(sessionFile, "utf8"), "{}\n");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("clearSubagentSessions ignores foreign lock files without ASC status sidecars", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-lock-safe-"));
+
+  try {
+    await writeFile(join(sessionsDir, "human.jsonl"), "{}\n");
+    await writeFile(join(sessionsDir, "foreign.lock"), "not-asc");
+
+    const state = createSubagentState(sessionsDir);
+    clearSubagentSessions(state);
+
+    const files = await readdir(sessionsDir);
+    assert.ok(files.includes("human.jsonl"));
+    assert.ok(files.includes("foreign.lock"));
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("getSubagentStats returns correct session count", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-stats-"));
 
@@ -119,33 +197,13 @@ test("getSubagentStats returns correct session count", async () => {
     for (let i = 0; i < 3; i++) {
       await writeFile(join(sessionsDir, `session-${i}.json`), "{}");
     }
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "session-0"),
-      JSON.stringify({
-        sessionName: "session-0",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }),
-    );
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "session-1"),
-      JSON.stringify({
-        sessionName: "session-1",
-        status: "abandoned",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }),
-    );
+    await writeStatus(sessionsDir, "session-0", "done");
+    await writeStatus(sessionsDir, "session-1", "abandoned");
 
     const state = createSubagentState(sessionsDir);
     const stats = getSubagentStats(state);
 
-    assert.equal(stats.sessionFiles, 3);
+    assert.equal(stats.sessionFiles, 2);
     assert.equal(stats.active, 0);
     assert.equal(stats.completed, 0);
     assert.equal(stats.maxConcurrent, 5);

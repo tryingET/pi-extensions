@@ -11,6 +11,22 @@ import {
   registerSubagentTool,
 } from "../extensions/self/subagent.ts";
 
+async function writeStatus(sessionsDir, sessionName) {
+  const now = new Date().toISOString();
+  await writeFile(
+    join(sessionsDir, `${sessionName}.status.json`),
+    JSON.stringify({
+      sessionName,
+      status: "done",
+      pid: process.pid,
+      ppid: process.ppid,
+      createdAt: now,
+      updatedAt: now,
+      sessionKind: "subagent",
+    }),
+  );
+}
+
 function createHarness(sessionsDir, capturedDefs) {
   const state = createSubagentState(sessionsDir);
   let tool;
@@ -363,7 +379,7 @@ test("clearSubagentSessions removes stale lock files for a true fresh start", as
 
   try {
     await writeFile(join(sessionsDir, "same.lock"), "busy");
-    await writeFile(join(sessionsDir, "same.status.json"), "{}");
+    await writeStatus(sessionsDir, "same");
     await writeFile(join(sessionsDir, "same.jsonl"), "{}");
 
     const state = createSubagentState(sessionsDir);

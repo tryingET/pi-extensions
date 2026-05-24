@@ -9,7 +9,7 @@
     },
     {
       "name": "same.status.json",
-      "content": "{}"
+      "content": "{\"sessionName\":\"same\",\"status\":\"done\",\"pid\":1,\"ppid\":1,\"createdAt\":\"2026-05-24T00:00:00.000Z\",\"updatedAt\":\"2026-05-24T00:00:00.000Z\",\"sessionKind\":\"subagent\"}"
     },
     {
       "name": "same.jsonl",

@@ -47,6 +47,45 @@ export interface SubagentSessionStatus {
 }
 
 const DEFAULT_MAX_CONCURRENT = 5;
+const SUBAGENT_STATUS_VALUES = new Set<SubagentSessionStatus["status"]>([
+  "running",
+  "done",
+  "error",
+  "timeout",
+  "aborted",
+  "abandoned",
+]);
+
+export function isSubagentSessionStatusValue(
+  value: unknown,
+): value is SubagentSessionStatus["status"] {
+  return (
+    typeof value === "string" &&
+    SUBAGENT_STATUS_VALUES.has(value as SubagentSessionStatus["status"])
+  );
+}
+
+export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSessionStatus | null {
+  if (typeof parsed !== "object" || parsed === null) return null;
+
+  const candidate = parsed as Record<string, unknown>;
+  if (
+    typeof candidate.sessionName !== "string" ||
+    !isSubagentSessionStatusValue(candidate.status) ||
+    typeof candidate.pid !== "number" ||
+    typeof candidate.ppid !== "number" ||
+    typeof candidate.createdAt !== "string" ||
+    typeof candidate.updatedAt !== "string"
+  ) {
+    return null;
+  }
+
+  if (candidate.sessionKind !== undefined && candidate.sessionKind !== "subagent") {
+    return null;
+  }
+
+  return candidate as unknown as SubagentSessionStatus;
+}
 
 export function getSessionStatusPath(sessionsDir: string, sessionName: string): string {
   return join(sessionsDir, `${sessionName}.status.json`);
@@ -79,23 +118,28 @@ export function writeSessionStatus(
 function readSessionStatus(path: string): SubagentSessionStatus | null {
   try {
     const raw = readFileSync(path, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      typeof parsed.sessionName !== "string" ||
-      typeof parsed.status !== "string" ||
-      typeof parsed.pid !== "number" ||
-      typeof parsed.ppid !== "number" ||
-      typeof parsed.createdAt !== "string" ||
-      typeof parsed.updatedAt !== "string"
-    ) {
-      return null;
-    }
-    return parsed as SubagentSessionStatus;
+    return parseSubagentSessionStatusPayload(JSON.parse(raw));
   } catch {
     return null;
   }
+}
+
+function readOwnedSessionStatus(
+  sessionsDir: string,
+  sessionName: string,
+): SubagentSessionStatus | null {
+  const status = readSessionStatus(getSessionStatusPath(sessionsDir, sessionName));
+  if (!status || status.sessionName !== sessionName) return null;
+  return status;
+}
+
+function getExistingSessionArtifactPaths(sessionsDir: string, sessionName: string): string[] {
+  return [
+    join(sessionsDir, `${sessionName}.jsonl`),
+    join(sessionsDir, `${sessionName}.json`),
+    join(sessionsDir, `${sessionName}.lock`),
+    getSessionStatusPath(sessionsDir, sessionName),
+  ].filter((path) => existsSync(path));
 }
 
 function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
@@ -103,8 +147,8 @@ function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
 
   for (const f of readdirSync(sessionsDir)) {
     if (!f.endsWith(".status.json")) continue;
-    const path = join(sessionsDir, f);
-    const status = readSessionStatus(path);
+    const base = f.slice(0, -".status.json".length);
+    const status = readOwnedSessionStatus(sessionsDir, base);
     if (!status || status.status !== "running") continue;
     if (processIsAlive(status.pid)) continue;
 
@@ -153,35 +197,25 @@ export function clearSubagentSessions(state: SubagentState): void {
 interface SessionFileInfo {
   path: string;
   name: string;
+  baseName: string;
   mtime: number;
-}
-
-function getSessionBaseName(fileName: string): string | null {
-  if (fileName.endsWith(".status.json")) return null;
-  if (fileName.endsWith(".jsonl")) return fileName.slice(0, -".jsonl".length);
-  if (fileName.endsWith(".json")) return fileName.slice(0, -".json".length);
-  return null;
+  status: SubagentSessionStatus;
 }
 
 function getSubagentArtifactPaths(sessionsDir: string): string[] {
   const paths = new Set<string>();
 
   for (const f of readdirSync(sessionsDir)) {
-    if (f.endsWith(".status.json")) {
-      const base = f.slice(0, -".status.json".length);
-      paths.add(join(sessionsDir, f));
-      paths.add(join(sessionsDir, `${base}.jsonl`));
-      paths.add(join(sessionsDir, `${base}.json`));
-      paths.add(join(sessionsDir, `${base}.lock`));
-      continue;
-    }
+    if (!f.endsWith(".status.json")) continue;
+    const base = f.slice(0, -".status.json".length);
+    if (!readOwnedSessionStatus(sessionsDir, base)) continue;
 
-    if (f.endsWith(".lock")) {
-      paths.add(join(sessionsDir, f));
+    for (const path of getExistingSessionArtifactPaths(sessionsDir, base)) {
+      paths.add(path);
     }
   }
 
-  return [...paths].filter((path) => existsSync(path));
+  return [...paths];
 }
 
 export function listSubagentSessionStatuses(sessionsDir: string): SubagentSessionStatus[] {
@@ -190,10 +224,21 @@ export function listSubagentSessionStatuses(sessionsDir: string): SubagentSessio
   const statuses: SubagentSessionStatus[] = [];
   for (const f of readdirSync(sessionsDir)) {
     if (!f.endsWith(".status.json")) continue;
-    const status = readSessionStatus(join(sessionsDir, f));
+    const base = f.slice(0, -".status.json".length);
+    const status = readOwnedSessionStatus(sessionsDir, base);
     if (status) statuses.push(status);
   }
   return statuses;
+}
+
+function getPrimarySessionArtifactPath(sessionsDir: string, sessionName: string): string {
+  const jsonlPath = join(sessionsDir, `${sessionName}.jsonl`);
+  if (existsSync(jsonlPath)) return jsonlPath;
+
+  const legacyJsonPath = join(sessionsDir, `${sessionName}.json`);
+  if (existsSync(legacyJsonPath)) return legacyJsonPath;
+
+  return getSessionStatusPath(sessionsDir, sessionName);
 }
 
 function getSessionFiles(sessionsDir: string): SessionFileInfo[] {
@@ -201,18 +246,15 @@ function getSessionFiles(sessionsDir: string): SessionFileInfo[] {
 
   const files: SessionFileInfo[] = [];
   for (const f of readdirSync(sessionsDir)) {
-    const baseName = getSessionBaseName(f);
-    if (!baseName) continue;
+    if (!f.endsWith(".status.json")) continue;
+    const baseName = f.slice(0, -".status.json".length);
+    const status = readOwnedSessionStatus(sessionsDir, baseName);
+    if (!status) continue;
 
-    const isNativeJsonl = f.endsWith(".jsonl");
-    if (isNativeJsonl && !existsSync(getSessionStatusPath(sessionsDir, baseName))) {
-      continue;
-    }
-
-    const path = join(sessionsDir, f);
+    const path = getPrimarySessionArtifactPath(sessionsDir, baseName);
     try {
       const stats = statSync(path);
-      files.push({ path, name: f, mtime: stats.mtimeMs });
+      files.push({ path, name: basename(path), baseName, mtime: stats.mtimeMs, status });
     } catch {
       // Skip files we can't stat
     }
@@ -241,14 +283,14 @@ export function cleanupOldSessions(
       shouldRemove = true;
     }
 
-    if (shouldRemove) {
-      sessionBasesToRemove.add(file.path.replace(/\.jsonl?$/, ""));
+    if (shouldRemove && !(file.status.status === "running" && processIsAlive(file.status.pid))) {
+      sessionBasesToRemove.add(file.baseName);
     }
   }
 
   let removedFiles = 0;
   for (const base of sessionBasesToRemove) {
-    for (const path of [`${base}.jsonl`, `${base}.json`, `${base}.lock`, `${base}.status.json`]) {
+    for (const path of getExistingSessionArtifactPaths(state.sessionsDir, base)) {
       try {
         unlinkSync(path);
         removedFiles++;

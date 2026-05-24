@@ -1,6 +1,10 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { listSubagentSessionStatuses, type SubagentSessionStatus } from "./subagent-session.ts";
+import {
+  listSubagentSessionStatuses,
+  parseSubagentSessionStatusPayload,
+  type SubagentSessionStatus,
+} from "./subagent-session.ts";
 
 export interface SubagentDashboardRow {
   sessionName: string;
@@ -186,7 +190,13 @@ function readStatusArtifact(statusPath: string): {
 
   try {
     const raw = readFileSync(statusPath, "utf-8");
-    const parsed = JSON.parse(raw) as SubagentSessionStatus;
+    const parsed = parseSubagentSessionStatusPayload(JSON.parse(raw));
+    if (!parsed) {
+      return {
+        raw: raw.trim(),
+        warning: "Status sidecar is not a valid ASC subagent status artifact.",
+      };
+    }
     return {
       parsed,
       raw: raw.trim(),
@@ -270,7 +280,12 @@ function filterDashboardStatuses(
       return false;
     }
 
-    if (normalizedCurrentRepoRoot && status.parentRepoRoot?.trim() !== normalizedCurrentRepoRoot) {
+    const statusRepoRoot = status.parentRepoRoot?.trim() || undefined;
+    if (
+      normalizedCurrentRepoRoot &&
+      statusRepoRoot &&
+      statusRepoRoot !== normalizedCurrentRepoRoot
+    ) {
       return false;
     }
 
