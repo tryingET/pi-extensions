@@ -54,6 +54,7 @@ export interface SubagentSessionStatus {
 }
 
 const DEFAULT_MAX_CONCURRENT = 5;
+const UNVERIFIED_RUNNING_STATUS_GRACE_MS = 60 * 60 * 1000;
 const SUBAGENT_STATUS_VALUES = new Set<SubagentSessionStatus["status"]>([
   "running",
   "done",
@@ -136,7 +137,13 @@ function processIsAlive(pid: number): boolean {
 
 function runningStatusHasLiveOwner(status: SubagentSessionStatus): boolean {
   if (!processIsAlive(status.pid)) return false;
-  if (typeof status.pidStartedAt !== "number") return true;
+  if (typeof status.pidStartedAt !== "number") {
+    const updatedAtMs = Date.parse(status.updatedAt);
+    const ageMs = Date.now() - updatedAtMs;
+    return (
+      Number.isFinite(updatedAtMs) && ageMs >= 0 && ageMs <= UNVERIFIED_RUNNING_STATUS_GRACE_MS
+    );
+  }
   return getProcessStartTicks(status.pid) === status.pidStartedAt;
 }
 
@@ -144,12 +151,13 @@ export function writeSessionStatus(
   sessionsDir: string,
   sessionName: string,
   status: Omit<SubagentSessionStatus, "sessionName" | "updatedAt">,
+  options: { updatedAt?: string } = {},
 ): void {
   const path = getSessionStatusPath(sessionsDir, sessionName);
   const payload: SubagentSessionStatus = {
     ...status,
     sessionName,
-    updatedAt: new Date().toISOString(),
+    updatedAt: options.updatedAt ?? new Date().toISOString(),
     sessionKind: "subagent",
   };
   writeFileSync(path, JSON.stringify(payload, null, 2), "utf-8");
@@ -272,10 +280,15 @@ function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
     if (!status || status.status !== "running") continue;
     if (runningStatusHasLiveOwner(status)) continue;
 
-    writeSessionStatus(sessionsDir, status.sessionName, {
-      ...status,
-      status: "abandoned",
-    });
+    writeSessionStatus(
+      sessionsDir,
+      status.sessionName,
+      {
+        ...status,
+        status: "abandoned",
+      },
+      { updatedAt: status.updatedAt },
+    );
   }
 }
 

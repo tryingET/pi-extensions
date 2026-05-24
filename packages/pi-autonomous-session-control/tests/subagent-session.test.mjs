@@ -518,6 +518,59 @@ test("createSubagentState rejects running sidecars with mismatched process ident
   }
 });
 
+test("createSubagentState rejects stale running sidecars without process identity", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-active-stale-unverified-"));
+
+  try {
+    const oldTime = Date.now() - 2 * 60 * 60 * 1000;
+    const oldUpdatedAt = new Date(oldTime).toISOString();
+    const sessionFile = join(sessionsDir, "stale-unverified.jsonl");
+    await writeFile(sessionFile, "{}\n");
+    await utimes(sessionFile, new Date(oldTime), new Date(oldTime));
+    await writeStatus(sessionsDir, "stale-unverified", "running", { updatedAt: oldUpdatedAt });
+
+    const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
+    const status = JSON.parse(
+      await readFile(getSessionStatusPath(sessionsDir, "stale-unverified"), "utf8"),
+    );
+    const result = cleanupOldSessions(state, { maxAgeMs: 60 * 60 * 1000 });
+
+    assert.equal(state.activeCount, 0);
+    assert.equal(canSpawnSubagent(state), true);
+    assert.equal(status.status, "abandoned");
+    assert.equal(status.updatedAt, oldUpdatedAt);
+    assert.equal(result.removedSessions, 1);
+    assert.equal(result.removedFiles, 2);
+    assert.deepEqual(await readdir(sessionsDir), []);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentState rejects future-dated running sidecars without process identity", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-active-future-unverified-"));
+
+  try {
+    const futureUpdatedAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await writeFile(join(sessionsDir, "future-unverified.jsonl"), "{}\n");
+    await writeStatus(sessionsDir, "future-unverified", "running", {
+      updatedAt: futureUpdatedAt,
+    });
+
+    const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
+    const status = JSON.parse(
+      await readFile(getSessionStatusPath(sessionsDir, "future-unverified"), "utf8"),
+    );
+
+    assert.equal(state.activeCount, 0);
+    assert.equal(canSpawnSubagent(state), true);
+    assert.equal(status.status, "abandoned");
+    assert.equal(status.updatedAt, futureUpdatedAt);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("getSubagentStats returns correct session count", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-stats-"));
 
