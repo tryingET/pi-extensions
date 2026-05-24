@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 export const VISIBLE_LOOP_COMMAND = "visible-loop";
+export const NEXUS_LOOP_COMMAND = "nexus-loop";
 export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
 export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete";
 
@@ -23,10 +24,14 @@ const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "- `vault_query(..., include_content:false)`",
   "2) Retrieve that template's full content.",
   "- `vault_retrieve(..., include_content:true)`",
-  "3) Execute it as written. Execution means: inspect the current repo/state, apply the needed bounded fixes, run verification, and only then report. Do not stop after retrieving the template, quoting it, or filling its output format with a plan.",
-  "4) If the template has an OUTPUT FORMAT, follow it exactly for the final answer, but make the fields reflect actual work performed, explicit deferrals, or hard blockers.",
-  "5) Do not reference unretrieved frameworks.",
-  "6) If vault is unavailable, continue best-effort and say so.",
+  "3) Before executing it, check dispatch posture.",
+  '- `vault_dispatch_check({ template_names: ["<name>"] })`',
+  "- If posture is `text_ok`, execute it as written.",
+  "- If posture requires orchestrator dispatch/gating, use that binding; do not bypass the gate with text-only interpretation.",
+  "4) Execution means: inspect the current repo/state, apply the needed bounded fixes, run verification, and only then report. Do not stop after retrieving the template, quoting it, or filling its output format with a plan.",
+  "5) If the template has an OUTPUT FORMAT, follow it exactly for the final answer, but make the fields reflect actual work performed, explicit deferrals, or hard blockers.",
+  "6) Do not reference unretrieved frameworks.",
+  "7) If vault is unavailable, continue best-effort and say so.",
   "Use as many frameworks as necessary, and as few as possible.",
   "Grounding (one line at end):",
   "`grounding: template=<name>, vault_status=<ok|unavailable>`",
@@ -49,6 +54,17 @@ const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Do not send/allow the visible-loop completion signal until this posture refresh is done.",
   "Do not commit yet.",
 ].join("\n");
+
+export const DEFAULT_NEXUS_LOOP_PROMPTS = [
+  "/deep-review",
+  "proceed with nexus implementation until completion and verification",
+  [
+    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
+    "",
+    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
+  ].join("\n"),
+  "/commit",
+] as const;
 
 export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
   [
@@ -152,6 +168,13 @@ interface VisibleLoopPromptTemplate {
   content: string;
 }
 
+interface VisibleLoopPromptExpansion {
+  ok: boolean;
+  prompt: string;
+  templateName?: string;
+  error?: string;
+}
+
 export type ContinueVisibleLoopInNewSession = (input: {
   config: VisibleLoopRunConfig;
   configPath: string;
@@ -213,8 +236,9 @@ export type VisibleLoopCommandParseResult =
 
 export function parseVisibleLoopCommandArgs(
   args: string | undefined,
+  commandName = VISIBLE_LOOP_COMMAND,
 ): VisibleLoopCommandParseResult {
-  const usage = `Usage: /${VISIBLE_LOOP_COMMAND} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none]`;
+  const usage = `Usage: /${commandName} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none]`;
   const tokens = tokenizeArgs(args ?? "");
   let loopCount: number | undefined;
   let parentPeerTarget: string | undefined;
@@ -306,18 +330,29 @@ export function createVisibleLoopRunConfig(input: {
   parentPeerTarget?: string;
   prompts?: readonly string[];
   runId?: string;
+  runIdPrefix?: string;
+  title?: string;
 }): VisibleLoopRunConfig {
+  const runIdPrefix = normalizeRunIdPrefix(input.runIdPrefix ?? "visible-loop");
   return {
     schemaVersion: 1,
-    runId: input.runId ?? `visible-loop-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
+    runId: input.runId ?? `${runIdPrefix}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
     loopCount: input.loopCount,
     cwd: input.cwd,
     prompts: [...(input.prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS)],
     reportBack: input.reportBack,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
-    title: "Visible loop",
+    title: input.title ?? "Visible loop",
     createdAt: new Date().toISOString(),
   };
+}
+
+function normalizeRunIdPrefix(value: string): string {
+  const normalized = value
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "visible-loop";
 }
 
 export function getVisibleLoopStateDir(env: NodeJS.ProcessEnv = process.env): string {
@@ -431,7 +466,7 @@ export function handleVisibleLoopAgentStart(
 
   state.followupsQueuedForIteration = state.completedIterations;
   persistActiveVisibleLoopState(state, ctx, env);
-  queueVisibleLoopFollowups(state, env);
+  queueVisibleLoopFollowups(state, ctx, env);
 }
 
 export function handleVisibleLoopAgentEnd(
@@ -636,7 +671,12 @@ function queueVisibleLoopIteration(
     },
     env,
   );
-  state.sendUserMessage(prompts[0]);
+  const initialPrompt = expandVisibleLoopPromptTemplate(prompts[0], state.config.cwd);
+  if (!initialPrompt.ok) {
+    stopVisibleLoopForPromptExpansionFailure(state, ctx, initialPrompt, iteration, 1, env);
+    return;
+  }
+  state.sendUserMessage(initialPrompt.prompt);
   const queuedCompletedIterations = state.completedIterations;
   setTimeout(() => {
     if (
@@ -647,13 +687,14 @@ function queueVisibleLoopIteration(
     ) {
       state.followupsQueuedForIteration = queuedCompletedIterations;
       persistActiveVisibleLoopState(state, ctx, env);
-      queueVisibleLoopFollowups(state, env);
+      queueVisibleLoopFollowups(state, ctx, env);
     }
   }, 1000);
 }
 
 function queueVisibleLoopFollowups(
   state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext | undefined,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
   const prompts = getVisibleLoopPrompts(state.config);
@@ -691,10 +732,23 @@ function queueVisibleLoopFollowups(
         },
         env,
       );
-      state.sendUserMessage(
-        isCompletionPrompt ? prompt : expandVisibleLoopPromptTemplate(prompt, state.config.cwd),
-        { deliverAs: "followUp" },
-      );
+      if (isCompletionPrompt) {
+        state.sendUserMessage(prompt, { deliverAs: "followUp" });
+        return;
+      }
+      const expandedPrompt = expandVisibleLoopPromptTemplate(prompt, state.config.cwd);
+      if (!expandedPrompt.ok) {
+        stopVisibleLoopForPromptExpansionFailure(
+          state,
+          ctx,
+          expandedPrompt,
+          iteration,
+          index + 2,
+          env,
+        );
+        return;
+      }
+      state.sendUserMessage(expandedPrompt.prompt, { deliverAs: "followUp" });
     }, 150 * index);
   });
 }
@@ -717,40 +771,124 @@ function renderVisibleLoopCompletionPrompt(input: {
   ].join("\n");
 }
 
-function expandVisibleLoopPromptTemplate(prompt: string, cwd: string): string {
-  if (!prompt.startsWith("/")) return prompt;
+function expandVisibleLoopPromptTemplate(prompt: string, cwd: string): VisibleLoopPromptExpansion {
+  const templateName = getVisibleLoopSlashTemplateName(prompt);
+  if (!templateName) return { ok: true, prompt };
+  const resolved = resolveVisibleLoopPromptTemplate(prompt, cwd);
+  if (!resolved) {
+    return {
+      ok: false,
+      prompt,
+      templateName,
+      error: `prompt template /${templateName} is not available to visible-loop expansion`,
+    };
+  }
+  return { ok: true, prompt: resolved.content, templateName: resolved.name };
+}
+
+function stopVisibleLoopForPromptExpansionFailure(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext | undefined,
+  expansion: VisibleLoopPromptExpansion,
+  iteration: number,
+  promptIndex: number,
+  env: NodeJS.ProcessEnv,
+): void {
+  state.stopped = true;
+  const detail = expansion.error ?? "prompt template expansion failed";
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "prompt_template_unresolved",
+      iteration,
+      promptIndex,
+      prompt: expansion.prompt,
+      templateName: expansion.templateName ?? null,
+      error: detail,
+      expansionScope: "project-and-global-prompt-dirs",
+    },
+    env,
+  );
+  ctx?.ui?.notify?.(`visible-loop stopped: ${detail}`, "error");
+}
+
+export function listMissingVisibleLoopPromptTemplates(
+  prompts: readonly string[],
+  cwd: string,
+): string[] {
   const templates = loadVisibleLoopPromptTemplates(cwd);
-  if (templates.length === 0) return prompt;
+  const templateNames = new Set(templates.map((template) => template.name));
+  return uniqueStrings(
+    prompts
+      .map((prompt) => getVisibleLoopSlashTemplateName(prompt))
+      .filter((name): name is string => name !== null)
+      .filter((name) => !templateNames.has(name)),
+  );
+}
+
+function resolveVisibleLoopPromptTemplate(
+  prompt: string,
+  cwd: string,
+): { name: string; content: string } | null {
+  const templateName = getVisibleLoopSlashTemplateName(prompt);
+  if (!templateName) return null;
+  const templates = loadVisibleLoopPromptTemplates(cwd);
+  if (templates.length === 0) return null;
 
   const spaceIndex = prompt.indexOf(" ");
-  const templateName = spaceIndex === -1 ? prompt.slice(1) : prompt.slice(1, spaceIndex);
   const argsString = spaceIndex === -1 ? "" : prompt.slice(spaceIndex + 1);
   const template = templates.find((candidate) => candidate.name === templateName);
-  if (!template) return prompt;
+  if (!template) return null;
 
-  return substituteVisibleLoopPromptArgs(template.content, parseVisibleLoopPromptArgs(argsString));
+  return {
+    name: template.name,
+    content: substituteVisibleLoopPromptArgs(
+      template.content,
+      parseVisibleLoopPromptArgs(argsString),
+    ),
+  };
+}
+
+function getVisibleLoopSlashTemplateName(prompt: string): string | null {
+  if (!prompt.startsWith("/")) return null;
+  const spaceIndex = prompt.indexOf(" ");
+  const templateName = spaceIndex === -1 ? prompt.slice(1) : prompt.slice(1, spaceIndex);
+  return templateName.trim() || null;
 }
 
 function loadVisibleLoopPromptTemplates(cwd: string): VisibleLoopPromptTemplate[] {
-  const dirs = [join(homedir(), ".pi", "agent", "prompts"), join(cwd, ".pi", "prompts")];
+  // Extension-originated pi.sendUserMessage deliberately bypasses Pi command handling and
+  // prompt-template expansion. The public extension API does not expose the active package,
+  // settings, or CLI prompt-template list, so visible-loop performs the safe subset it can
+  // resolve itself: the default project and global prompt directories documented by Pi.
+  // Unresolved slash templates fail closed instead of being sent as misleading literal text.
+  const dirs = [join(cwd, ".pi", "prompts"), join(homedir(), ".pi", "agent", "prompts")];
   const templates: VisibleLoopPromptTemplate[] = [];
+  const seen = new Set<string>();
   for (const dir of dirs) {
     try {
       for (const entry of readdirSync(dir)) {
         if (!entry.endsWith(".md")) continue;
+        const name = entry.replace(/\.md$/, "");
+        if (seen.has(name)) continue;
         const path = join(dir, entry);
         const stats = statSync(path);
         if (!stats.isFile()) continue;
+        seen.add(name);
         templates.push({
-          name: entry.replace(/\.md$/, ""),
+          name,
           content: stripVisibleLoopFrontmatter(readFileSync(path, "utf8")).trim(),
         });
       }
     } catch {
-      // Prompt expansion is best-effort; unexpanded prompt text is still safe to send.
+      // Prompt expansion is best-effort for ordinary visible-loop prompts.
     }
   }
   return templates;
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)];
 }
 
 function stripVisibleLoopFrontmatter(content: string): string {

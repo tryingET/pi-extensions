@@ -19,9 +19,13 @@ import {
 import {
   type ContinueVisibleLoopInNewSession,
   createVisibleLoopRunConfig,
+  DEFAULT_NEXUS_LOOP_PROMPTS,
+  DEFAULT_VISIBLE_LOOP_PROMPTS,
   getVisibleLoopStatusPath,
   handleVisibleLoopAgentEnd,
   handleVisibleLoopAgentStart,
+  listMissingVisibleLoopPromptTemplates,
+  NEXUS_LOOP_COMMAND,
   parseVisibleLoopCommandArgs,
   resolveParentPeerTarget,
   startVisibleLoopChildCompleteRunner,
@@ -1705,13 +1709,14 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
     function createVisibleLoopContinuation(ctx: PiCommandContext): ContinueVisibleLoopInNewSession {
       return async ({ config, configPath, nextIteration }) => {
+        const titlePrefix = config.title ?? "Visible loop";
         const launch = await launchPiQuestSession({
           pi,
           ctx,
           options,
           prompt: `/${VISIBLE_LOOP_CHILD_COMMAND} ${configPath}`,
-          titlePrompt: `visible loop ${nextIteration}/${config.loopCount}`,
-          titlePrefix: "Visible loop",
+          titlePrompt: `${titlePrefix.toLowerCase()} ${nextIteration}/${config.loopCount}`,
+          titlePrefix,
           cwd: config.cwd || ctx.cwd || process.cwd(),
         });
         if (!launch.ok) {
@@ -1722,15 +1727,21 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
           const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
           ctx.ui.notify(
-            `Opened visible-loop iteration ${nextIteration}/${config.loopCount} in ${modeLabel}${suffix}`,
+            `Opened ${titlePrefix.toLowerCase()} iteration ${nextIteration}/${config.loopCount} in ${modeLabel}${suffix}`,
             "info",
           );
         }
       };
     }
 
-    async function runVisibleLoopCommand(args: string | undefined, ctx: PiCommandContext) {
-      const parsed = parseVisibleLoopCommandArgs(args);
+    async function runVisibleLoopCommand(
+      args: string | undefined,
+      ctx: PiCommandContext,
+      commandName = VISIBLE_LOOP_COMMAND,
+      titlePrefix = "Visible loop",
+      prompts?: readonly string[],
+    ) {
+      const parsed = parseVisibleLoopCommandArgs(args, commandName);
       if (!parsed.ok) {
         if (ctx.hasUI) ctx.ui.notify(`${parsed.error}\n${parsed.usage}`, "warning");
         return;
@@ -1740,11 +1751,32 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const parentPeerTarget = parsed.parentPeerTarget ?? resolveParentPeerTarget(ctx);
       const reportBack =
         parsed.reportBack === "intercom" && !parentPeerTarget ? "manual" : parsed.reportBack;
+      const effectivePrompts = prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS;
+      const missingPromptTemplates = listMissingVisibleLoopPromptTemplates(effectivePrompts, cwd);
+      if (missingPromptTemplates.length > 0) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `/${commandName} cannot launch: missing required prompt template(s): ${missingPromptTemplates
+              .map((name) => `/${name}`)
+              .join(", ")}. Add them under ${join(cwd, ".pi", "prompts")} or ${join(
+              homedir(),
+              ".pi",
+              "agent",
+              "prompts",
+            )}. Extension-originated visible loops can expand project/global prompt templates only; Pi package/settings/CLI prompt templates are not exposed to extensions.`,
+            "error",
+          );
+        }
+        return;
+      }
       const config = createVisibleLoopRunConfig({
         loopCount: parsed.loopCount,
         cwd,
         reportBack,
         parentPeerTarget,
+        ...(prompts ? { prompts } : {}),
+        runIdPrefix: commandName,
+        title: titlePrefix,
       });
       const configPath = writeVisibleLoopRunConfig(config, options.env ?? process.env);
       const childPrompt = `/${VISIBLE_LOOP_CHILD_COMMAND} ${configPath}`;
@@ -1753,17 +1785,14 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         ctx,
         options,
         prompt: childPrompt,
-        titlePrompt: `visible loop x${parsed.loopCount}`,
-        titlePrefix: "Visible loop",
+        titlePrompt: `${titlePrefix.toLowerCase()} x${parsed.loopCount}`,
+        titlePrefix,
         cwd,
       });
 
       if (!launch.ok) {
         if (ctx.hasUI) {
-          ctx.ui.notify(
-            `${VISIBLE_LOOP_COMMAND} failed to launch Ghostty: ${launch.failure}`,
-            "error",
-          );
+          ctx.ui.notify(`/${commandName} failed to launch Ghostty: ${launch.failure}`, "error");
         }
         return;
       }
@@ -1778,7 +1807,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             : "; intercom disabled/manual because no exact parent peer target was available";
         const statusPath = getVisibleLoopStatusPath(config, options.env ?? process.env);
         ctx.ui.notify(
-          `Opened visible-loop in ${modeLabel}: ${parsed.loopCount} iteration(s)${reportBackNote}; status ${statusPath}${suffix}`,
+          `Opened ${commandName} in ${modeLabel}: ${parsed.loopCount} iteration(s)${reportBackNote}; status ${statusPath}${suffix}`,
           "info",
         );
       }
@@ -2521,6 +2550,19 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         description:
           "Launch a visible Ghostty Pi tab that runs the default prompt sequence for N iterations",
         handler: runVisibleLoopCommand,
+      });
+
+      pi.registerCommand(NEXUS_LOOP_COMMAND, {
+        description:
+          "Launch a visible Ghostty Pi tab that loops deep-review, nexus implementation, atomic-completion, and commit",
+        handler: (args, ctx) =>
+          runVisibleLoopCommand(
+            args,
+            ctx,
+            NEXUS_LOOP_COMMAND,
+            "Nexus loop",
+            DEFAULT_NEXUS_LOOP_PROMPTS,
+          ),
       });
 
       pi.registerCommand(VISIBLE_LOOP_CHILD_COMMAND, {

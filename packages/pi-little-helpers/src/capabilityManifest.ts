@@ -5,6 +5,7 @@ export const LITTLE_HELPERS_COMMAND_NAMES = [
   "scoutpeer",
   "parallelquest",
   "visible-loop",
+  "nexus-loop",
 ] as const;
 export const LITTLE_HELPERS_PEER_TOOL_NAMES = [
   "fork_peer_spawn",
@@ -52,10 +53,11 @@ export const LITTLE_HELPERS_CAPABILITY_MANIFEST = {
   schemaVersion: 1,
   id: LITTLE_HELPERS_CAPABILITY_ID,
   ownerPackage: "@tryinget/pi-little-helpers",
-  title: "Visible peer spawn",
+  title: "Visible peer and loop helpers",
   description:
-    "Fork, scout, and candidate peer launch surfaces exposed as slash commands and model-callable tools from one capability contract.",
+    "Fork, scout, candidate peer, and visible loop slash-command surfaces, with model-callable tools only for peer-spawn and candidate cleanup operations.",
   commands: LITTLE_HELPERS_COMMAND_NAMES,
+  commandOnlySurfaces: ["visible-loop", "nexus-loop"],
   tools: LITTLE_HELPERS_PEER_TOOL_NAMES,
   projections: LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS,
   toolboxExports: LITTLE_HELPERS_TOOLBOX_EXPORTS,

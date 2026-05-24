@@ -29,11 +29,14 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `scoutpeer` | Launch a clean visible read-only scout/review peer in the current workspace |
 | `parallelquest` | Human slash command to launch a clean visible candidate peer in an isolated git worktree |
 | `visible-loop` | Launch a clean visible Ghostty Pi tab for each iteration, queue the default prompt sequence as follow-ups inside that per-iteration session, require product-posture refresh and `/commit` prompts before completion, then launch the next iteration in a fresh visible session after the explicit completion checkpoint while emitting canonical intercom progress/final messages from persisted loop state |
+| `nexus-loop` | Launch the same visible-loop machinery with a focused prompt sequence: `/deep-review`, nexus implementation through verification, atomic-completion cleanup with Prompt Vault grounding, and `/commit` |
 | `stash` | Persist and restore stashed editor content across sessions |
 
 ## Visible peer tools
 
-The `sidequest` extension owns the visible peer capability. Slash commands and model-callable peer tools are registered by the extension as standard tooling during Pi startup; the toolbox bundle exposes the same manifest for catalog/test alignment. Both projections are governed by one capability manifest in [`src/capabilityManifest.ts`](src/capabilityManifest.ts), including the machine-readable `LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS` map for tool-to-slash equivalents; see [Visible peer capability contract](docs/project/2026-05-05-visible-peer-capability-contract.md) when debugging registration or package-export drift:
+The `sidequest` extension owns the visible peer and loop helper capability. Slash commands and model-callable peer tools are registered by the extension as standard tooling during Pi startup; `/visible-loop` and `/nexus-loop` are command-only loop surfaces, not model-callable peer-spawn tools. The toolbox bundle exposes the same manifest for catalog/test alignment. Both projections are governed by one capability manifest in [`src/capabilityManifest.ts`](src/capabilityManifest.ts), including the machine-readable `LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS` map for tool-to-slash equivalents; see [Visible peer and loop capability contract](docs/project/2026-05-05-visible-peer-capability-contract.md) when debugging registration, package-export drift, or visible-loop prompt expansion.
+
+Visible-loop slash prompts are resolved before delivery because extension-originated `pi.sendUserMessage` bypasses normal Pi command handling. The extension-visible expansion scope is explicit: `<cwd>/.pi/prompts` first, then `~/.pi/agent/prompts`. Repo-local templates intentionally override global templates for queued loop prompts. If a configured slash prompt such as `/deep-review` or `/commit` cannot resolve through those directories, the loop fails closed instead of sending literal slash text as a user message. Pi package/settings/CLI prompt-template sources are not exposed to this extension through the current public API.
 
 | Tool | Purpose | Mutation boundary |
 |---|---|---|
@@ -58,7 +61,7 @@ Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
 ## Toolbox bundle
 
 This package exports `@tryinget/pi-little-helpers/toolbox-bundle` for `pi-toolbox-discovery`.
-The sidequest extension registers the visible peer-spawn tool family (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, `candidate_peer_cleanup`) as standard model-callable tooling at Pi startup. The toolbox bundle registers the same tool family only for package-owned test/catalog compatibility; command/UI helpers such as `/codeblocks`, `/artifacts`, `/package-updates`, `/session-presence`, and `/stash` are not part of the model-callable toolbox coverage.
+The sidequest extension registers the visible peer-spawn tool family (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, `candidate_peer_cleanup`) as standard model-callable tooling at Pi startup. The toolbox bundle registers the same tool family only for package-owned test/catalog compatibility; command/UI helpers such as `/visible-loop`, `/nexus-loop`, `/codeblocks`, `/artifacts`, `/package-updates`, `/session-presence`, and `/stash` are not part of the model-callable toolbox coverage.
 
 ## Steve-specific session presence / hot restore coupling
 
@@ -122,10 +125,11 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Then in Pi:
 
 1. run `/reload`
-2. verify `/codeblocks`, `/artifacts`, `/show-artifacts`, `Ctrl+Shift+S`, `/sidequest "test prompt"`, `/scoutpeer "test prompt"`, `/parallelquest "test prompt"`, `/visible-loop --count 1`, `/session-presence`, the `stash` shortcuts/commands, `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, `candidate_peer_cleanup` dry-run, and any `write`/`edit` flow that produces an `.html` file in a real session
+2. verify `/codeblocks`, `/artifacts`, `/show-artifacts`, `Ctrl+Shift+S`, `/sidequest "test prompt"`, `/scoutpeer "test prompt"`, `/parallelquest "test prompt"`, `/visible-loop --count 1`, `/nexus-loop --count 1`, `/session-presence`, the `stash` shortcuts/commands, `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, `candidate_peer_cleanup` dry-run, and any `write`/`edit` flow that produces an `.html` file in a real session
 3. verify `/visible-loop --count 2` opens one visible Ghostty Pi tab for iteration 1, queues only the real prompt sequence as follow-up prompts, requires the product-posture refresh prompt and `/commit` prompt after the final fix-bugs prompt, emits `VISIBLE_LOOP_ITERATION` only after the explicit completion checkpoint confirms those prompts finished, then launches iteration 2 in a fresh visible Pi session; do not queue internal completion commands as follow-ups because extension-originated command prompts are intercepted at enqueue time rather than after prior follow-ups finish
-4. for `/sidequest`, `/visible-loop`, and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
-5. if `/sidequest`, `/visible-loop`, or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
+4. verify `/nexus-loop --count 2` uses the same per-iteration launch/completion/intercom behavior while queueing only `/deep-review`, nexus implementation through verification, atomic-completion cleanup with Prompt Vault grounding, and `/commit`
+5. for `/sidequest`, `/visible-loop`, `/nexus-loop`, and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
+6. if `/sidequest`, `/visible-loop`, `/nexus-loop`, or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
 
 ## Docs discovery
 

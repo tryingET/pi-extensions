@@ -109,6 +109,18 @@ function createContext(options = {}) {
   };
 }
 
+function setTemporaryHomeWithPromptTemplates(homePath) {
+  const originalHome = process.env.HOME;
+  mkdirSync(`${homePath}/.pi/agent/prompts`, { recursive: true });
+  writeFileSync(`${homePath}/.pi/agent/prompts/deep-review.md`, "GLOBAL DEEP REVIEW\n", "utf8");
+  writeFileSync(`${homePath}/.pi/agent/prompts/commit.md`, "GLOBAL COMMIT\n", "utf8");
+  process.env.HOME = homePath;
+  return () => {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+  };
+}
+
 function createExecStub(handler) {
   const calls = [];
 
@@ -593,6 +605,7 @@ test("sidequest defaults to slash commands, visible-loop, and standard peer-spaw
   assert.equal(commands.has("candidatepeer"), false);
   assert.ok(commands.has("parallelquest"));
   assert.ok(commands.has("visible-loop"));
+  assert.ok(commands.has("nexus-loop"));
   assert.ok(commands.has("visible-loop-child"));
   assert.ok(commands.has("visible-loop-child-complete"));
   assert.ok(tools.has("fork_peer_spawn"));
@@ -661,6 +674,7 @@ test("/scoutpeer uses intercom report-back when the controller session id is ava
 
 test("visible-loop writes config and launches one clean Ghostty tab with the child command", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
     const execStub = createExecStub(({ command, args }) => {
       if (command === "/usr/bin/ghostty" && args[0] === "+help") {
@@ -732,6 +746,126 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.prompts[8], "/commit");
     assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
   } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("nexus-loop writes a focused visible-loop config and launches the shared child runner", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands, userMessages } = registerExtension(extension);
+    const repoRoot = `${stateHome}/repo`;
+    const harness = createContext({ cwd: repoRoot });
+    mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
+    writeFileSync(
+      `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
+      "EXPANDED DEEP REVIEW LOCAL_SENTINEL $ARGUMENTS\n",
+      "utf8",
+    );
+    writeFileSync(
+      `${harness.ctx.cwd}/.pi/prompts/commit.md`,
+      "EXPANDED COMMIT LOCAL_SENTINEL $ARGUMENTS\n",
+      "utf8",
+    );
+
+    await commands.get("nexus-loop").handler("--count 3 --manual", harness.ctx);
+
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.ok(ghosttyCall);
+    const piArgs = extractPiArgs(ghosttyCall.args);
+    assert.match(piArgs.at(-1), /^\/visible-loop-child /);
+    const configPath = piArgs.at(-1).replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.match(config.runId, /^nexus-loop-/);
+    assert.equal(config.title, "Nexus loop");
+    assert.equal(config.loopCount, 3);
+    assert.equal(config.cwd, repoRoot);
+    assert.equal(config.reportBack, "manual");
+    assert.equal(config.prompts.length, 4);
+    assert.equal(config.prompts[0], "/deep-review");
+    assert.equal(
+      config.prompts[1],
+      "proceed with nexus implementation until completion and verification",
+    );
+    assert.match(config.prompts[2], /fix any bugs/);
+    assert.match(config.prompts[2], /atomic-completion/);
+    assert.match(config.prompts[2], /Prompt Vault/);
+    assert.match(config.prompts[2], /vault_query\(\.\.\., include_content:false\)/);
+    assert.match(config.prompts[2], /vault_retrieve\(\.\.\., include_content:true\)/);
+    assert.match(config.prompts[2], /vault_dispatch_check/);
+    assert.equal(config.prompts[3], "/commit");
+    assert.match(harness.notifications.at(-1).message, /Opened nexus-loop/);
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    assert.equal(userMessages.length, 1);
+    assert.equal(userMessages[0].message, "EXPANDED DEEP REVIEW LOCAL_SENTINEL ");
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("nexus-loop fails closed before launch when required slash prompt templates are missing", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-missing-prompts-state-`);
+  const originalHome = process.env.HOME;
+  try {
+    const fakeHome = `${stateHome}/home`;
+    mkdirSync(fakeHome, { recursive: true });
+    process.env.HOME = fakeHome;
+    const execStub = createExecStub(({ command }) => {
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands } = registerExtension(extension);
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+
+    await commands.get("nexus-loop").handler("--count 1 --manual", harness.ctx);
+
+    assert.equal(execStub.calls.length, 0);
+    assert.match(harness.notifications.at(-1).message, /missing required prompt template/);
+    assert.match(harness.notifications.at(-1).message, /\/deep-review/);
+    assert.match(harness.notifications.at(-1).message, /\/commit/);
+  } finally {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
     rmSync(stateHome, { recursive: true, force: true });
   }
 });
@@ -1091,6 +1225,7 @@ test("visible-loop intercom timeout does not block prompt queue or next iteratio
 
 test("visible-loop manual completion command advances non-final iterations", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-command-next-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
     const execStub = createExecStub(({ command, args }) => {
       if (command === "/usr/bin/ghostty" && args[0] === "+help") {
@@ -1161,12 +1296,14 @@ test("visible-loop manual completion command advances non-final iterations", asy
       false,
     );
   } finally {
+    restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
   }
 });
 
 test("visible-loop manual completion command finalizes", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-command-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
     const execStub = createExecStub(({ command, args }) => {
       if (command === "/usr/bin/ghostty" && args[0] === "+help") {
@@ -1253,6 +1390,7 @@ test("visible-loop manual completion command finalizes", async () => {
       ),
     );
   } finally {
+    restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
   }
 });

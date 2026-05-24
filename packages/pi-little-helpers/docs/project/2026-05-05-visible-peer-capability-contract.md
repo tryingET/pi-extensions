@@ -1,8 +1,8 @@
 ---
-summary: "Visible peer-spawn capability contract for slash commands and model-callable tools."
+summary: "Visible peer and loop helper capability contract for slash commands and model-callable peer tools."
 read_when:
-  - "When debugging /sidequest, /scoutpeer, /parallelquest, fork_peer_spawn, scout_peer_spawn, or candidate_peer_spawn registration."
-  - "When changing the pi-little-helpers visible peer-spawn surface."
+  - "When debugging /sidequest, /scoutpeer, /parallelquest, /visible-loop, /nexus-loop, fork_peer_spawn, scout_peer_spawn, or candidate_peer_spawn registration."
+  - "When changing the pi-little-helpers visible peer or loop surface."
 type: "runbook"
 system4d:
   container: "Capability contract for pi-little-helpers visible peer-spawn surfaces."
@@ -11,12 +11,15 @@ system4d:
   fog: "Main risk is treating toolbox activation as a substitute for startup tool-schema registration."
 ---
 
-# Visible peer capability contract
+# Visible peer and loop capability contract
 
-The visible peer-spawn surface is one capability with two runtime projections:
+The little-helpers visible surface is one compatibility capability with asymmetric runtime projections:
 
-- slash commands: `/sidequest`, `/scoutpeer`, `/parallelquest`
-- model-callable tools: `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`
+- slash commands: `/sidequest`, `/scoutpeer`, `/parallelquest`, `/visible-loop`, `/nexus-loop`
+- model-callable peer tools: `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, `candidate_peer_cleanup`
+- command-only loop surfaces: `/visible-loop`, `/nexus-loop`
+
+`/visible-loop` and `/nexus-loop` intentionally do not have model-callable peer-spawn tool projections; they launch visible child sessions and drive prompt queues through visible-loop state/intercom machinery.
 
 The source of truth is `src/capabilityManifest.ts`. It also exports `LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS`, the machine-readable map used by downstream suggestion surfaces to choose the operator-facing slash command instead of model-callable tool syntax:
 
@@ -31,7 +34,9 @@ The source of truth is `src/capabilityManifest.ts`. It also exports `LITTLE_HELP
 LITTLE_HELPERS_CAPABILITY_MANIFEST
 ```
 
-The sidequest extension imports this manifest and registers slash commands plus model-callable peer-spawn tools by default during Pi startup. The toolbox bundle exports the same manifest for package-owned test/catalog compatibility. Tests assert that the manifest, slash-command projection, standard tool projection, and toolbox-tool projection stay aligned so API sessions include peer-spawn tools in their initial callable namespace.
+The sidequest extension imports this manifest and registers slash commands plus model-callable peer-spawn tools by default during Pi startup. The toolbox bundle exports the same manifest for package-owned test/catalog compatibility. Tests assert that the manifest, slash-command projection, standard tool projection, and toolbox-tool projection stay aligned so API sessions include peer-spawn tools in their initial callable namespace. `/visible-loop` and `/nexus-loop` share the visible-loop state/intercom machinery; `/nexus-loop` only swaps in the focused deep-review → nexus implementation → atomic-completion → commit prompt sequence.
+
+Visible-loop slash prompt expansion is deterministic and fail-closed. Extension-originated `pi.sendUserMessage` does not invoke Pi's command/prompt expansion pipeline, so the extension resolves configured slash prompts itself from `<cwd>/.pi/prompts` before `~/.pi/agent/prompts`; repo-local templates win over global templates for queued loop prompts. If a required configured slash prompt such as `/deep-review` or `/commit` cannot resolve from those extension-visible directories, the loop does not launch/continue with misleading literal slash text. Package, settings, and CLI prompt-template sources remain upstream Pi host state and are not currently exposed through the public extension API.
 
 ## Why this exists
 
@@ -54,9 +59,9 @@ That is not just a missing import. It means slash commands, package exports, sta
 
 ## Debugging checklist
 
-When a peer-spawn surface fails, check the capability in this order:
+When a peer or visible-loop surface fails, check the capability in this order:
 
-1. `src/capabilityManifest.ts` contains the expected command and tool names.
+1. `src/capabilityManifest.ts` contains the expected command names, peer tool names, and command-only loop surfaces.
 2. `package.json` exports both:
    - `./capability-manifest`
    - `./toolbox-bundle`
