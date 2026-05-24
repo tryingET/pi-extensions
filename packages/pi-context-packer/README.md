@@ -71,7 +71,7 @@ npm install
 npm run check
 ```
 
-`npm run check` includes structure validation, Biome, real TypeScript checking for the extension entrypoint, tests, and a quick package artifact check. For package-local production dogfood of real structured docs-list JSON intake, run `npm run dogfood:docs-list-json`; it assembles docs packets from package-root and package-subdirectory cwd values using real `rankedItems[].repoPath`, checks compact details redaction, tracks validation separately from context probes, labels the activity type, and evaluates a non-persistent dogfood receipt.
+`npm run check` includes structure validation, Biome, real TypeScript checking for the extension entrypoint, tests, and a quick package artifact check. For package-local production dogfood of real structured docs-list JSON intake, run `npm run dogfood:docs-list-json`; it assembles docs packets from package-root and package-subdirectory cwd values using real `rankedItems[].repoPath`, checks compact details redaction, carries provider-route telemetry, tracks validation separately from context probes, labels the activity type, and evaluates a non-persistent dogfood receipt.
 
 For dependency-audit and full release-readiness checks:
 

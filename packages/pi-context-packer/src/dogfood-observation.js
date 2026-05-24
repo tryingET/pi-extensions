@@ -15,6 +15,8 @@ export { DOGFOOD_OMISSION_FOLLOWUP_CLASSES } from "./dogfood-followup-classes.js
 const OBSERVATION_KIND = "context_pack_dogfood_observation_v1";
 const EVALUATION_KIND = "context_pack_dogfood_evaluation_v1";
 const MAX_FOLLOWUPS = 12;
+const MAX_PROVIDER_ROUTES = 20;
+const MAX_PROVIDER_ROUTE_SEED_KINDS = 12;
 const MAX_SAFE_NOTE_LENGTH = 480;
 const MAX_SAFE_LABEL_LENGTH = 80;
 const MAX_OBSERVATION_JSON_BYTES = 64_000;
@@ -120,6 +122,120 @@ const normalizeStoredFollowupClasses = (classes, followups) => {
     normalizeFollowupClass(classes[index], "legacy_unspecified"),
   );
 };
+
+const normalizeRouteRole = (value) => {
+  if (typeof value !== "string" || !value.trim()) return "unknown";
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/gu, "_");
+  if (["selected", "followup", "skipped"].includes(normalized)) return normalized;
+  return sanitizeLabel(value, "route role");
+};
+
+const normalizeSeedCounts = (value, path, errors) => {
+  const seedCounts = Object.create(null);
+  if (value === null || value === undefined) return { seedCounts, seedCountsTruncated: 0 };
+  const raw = asObject(value);
+  if (!raw) {
+    errors.push(`${path} must be an object when supplied`);
+    return { seedCounts, seedCountsTruncated: 0 };
+  }
+
+  const entries = Object.entries(raw);
+  for (const [seedKind, rawCount] of entries.slice(0, MAX_PROVIDER_ROUTE_SEED_KINDS)) {
+    const count = readOptionalCount(rawCount, `${path}.${seedKind}`, errors);
+    if (count !== undefined) {
+      const safeKind = sanitizeLabel(seedKind, "seed kind");
+      seedCounts[safeKind] = (seedCounts[safeKind] ?? 0) + count;
+    }
+  }
+  return {
+    seedCounts,
+    seedCountsTruncated: Math.max(0, entries.length - MAX_PROVIDER_ROUTE_SEED_KINDS),
+  };
+};
+
+const normalizeProviderRoute = (value, path, errors) => {
+  const route = asObject(value);
+  if (!route) {
+    errors.push(`${path} must be an object`);
+    return undefined;
+  }
+
+  const queryCount = readOptionalCount(route.queryCount, `${path}.queryCount`, errors);
+  const selectedQueryCount = readOptionalCount(
+    route.selectedQueryCount,
+    `${path}.selectedQueryCount`,
+    errors,
+  );
+  const followupQueryCount = readOptionalCount(
+    route.followupQueryCount,
+    `${path}.followupQueryCount`,
+    errors,
+  );
+  const { seedCounts, seedCountsTruncated } = normalizeSeedCounts(
+    route.seedCounts,
+    `${path}.seedCounts`,
+    errors,
+  );
+  const seedCount = readOptionalCount(route.seedCount, `${path}.seedCount`, errors);
+  const routeRole = normalizeRouteRole(route.routeRole);
+  const inferredSeedCount = Object.values(seedCounts).reduce((sum, count) => sum + count, 0);
+
+  return {
+    provider: sanitizeLabel(route.provider, "provider"),
+    posture: sanitizeLabel(route.posture, "posture"),
+    routeRole,
+    queryCount: selectedQueryCount ?? (routeRole === "selected" ? (queryCount ?? 0) : 0),
+    selectedQueryCount: selectedQueryCount ?? (routeRole === "selected" ? (queryCount ?? 0) : 0),
+    followupQueryCount: followupQueryCount ?? (routeRole === "followup" ? (queryCount ?? 0) : 0),
+    seedCount: seedCount ?? inferredSeedCount,
+    seedCounts,
+    seedCountsTruncated,
+  };
+};
+
+const normalizeProviderRoutes = (value, truncatedValue, path, errors) => {
+  const providerRoutesTruncated = readOptionalCount(
+    truncatedValue,
+    `${path}.providerRoutesTruncated`,
+    errors,
+  );
+  if (value === null || value === undefined) {
+    return { providerRoutes: [], providerRoutesTruncated: providerRoutesTruncated ?? 0 };
+  }
+  if (!Array.isArray(value)) {
+    errors.push(`${path}.providerRoutes must be an array when supplied`);
+    return { providerRoutes: [], providerRoutesTruncated: providerRoutesTruncated ?? 0 };
+  }
+
+  const providerRoutes = value
+    .slice(0, MAX_PROVIDER_ROUTES)
+    .map((route, index) =>
+      normalizeProviderRoute(route, `${path}.providerRoutes[${index}]`, errors),
+    )
+    .filter(Boolean);
+  return {
+    providerRoutes,
+    providerRoutesTruncated:
+      Math.max(0, value.length - MAX_PROVIDER_ROUTES) + (providerRoutesTruncated ?? 0),
+  };
+};
+
+const routeSeedCountsText = (seedCounts) => {
+  const entries = Object.entries(seedCounts ?? {});
+  if (!entries.length) return "none";
+  return entries
+    .map(([seedKind, count]) => `${markdownInlineLabel(seedKind, "seed kind")}: ${count}`)
+    .join(", ");
+};
+
+const providerRouteLines = (providerRoutes) =>
+  providerRoutes.map(
+    (route) =>
+      `- ${markdownInlineLabel(route.provider, "provider")}: role=${markdownInlineLabel(route.routeRole, "route role")}, posture=${markdownInlineLabel(route.posture, "posture")}, selectedQueries=${route.selectedQueryCount}, followupQueries=${route.followupQueryCount}, seeds=${route.seedCount} (${routeSeedCountsText(route.seedCounts)})`,
+  );
 
 const parseObservationInput = (input = {}) => {
   const raw = asObject(input) ?? {};
@@ -245,6 +361,13 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     "prediction.duplicateTokensAvoided",
     errors,
   );
+  const packet = asObject(observation.packet) ?? {};
+  const { providerRoutes, providerRoutesTruncated } = normalizeProviderRoutes(
+    packet.providerRoutes,
+    packet.providerRoutesTruncated,
+    "packet",
+    errors,
+  );
   if (errors.length > 0) {
     return { ok: false, errors, nonAuthorization: NON_AUTHORIZATION };
   }
@@ -292,6 +415,8 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     freshItemCount: freshItemCount ?? null,
     duplicateTokensAvoided: duplicateTokensAvoided ?? null,
     unwiredProviderOmissions: sanitizeFollowups(prediction.unwiredProviderOmissions),
+    providerRoutes,
+    providerRoutesTruncated,
     notes,
     nextAction: nextActionForStatus(calibrationStatus),
     countingRule:
@@ -330,6 +455,14 @@ export const formatDogfoodObservationEvaluation = (evaluation) => {
     `Duplicate reads observed: ${evaluation.duplicateReadsObserved ?? "not recorded"}`,
     `Recommendation matched outcome: ${evaluation.recommendationMatchedOutcome ?? "not recorded"}`,
     `Packet utility recommendation: ${evaluation.packetUtilityRecommendationStatus}`,
+    "",
+    "## Provider route telemetry",
+    evaluation.providerRoutes?.length
+      ? providerRouteLines(evaluation.providerRoutes).join("\n")
+      : "- none recorded",
+    evaluation.providerRoutesTruncated
+      ? `- truncated route entries: ${evaluation.providerRoutesTruncated}`
+      : "",
     "",
     "## Omission follow-ups used",
     evaluation.omissionFollowupsUsed.length
@@ -447,6 +580,12 @@ const normalizeStoredEvaluation = (value, ref) => {
     `${ref}.omissionFollowupsTruncated`,
     errors,
   );
+  const { providerRoutes, providerRoutesTruncated } = normalizeProviderRoutes(
+    evaluation.providerRoutes,
+    evaluation.providerRoutesTruncated,
+    ref,
+    errors,
+  );
   if (errors.length) return { ok: false, errors };
 
   return {
@@ -482,6 +621,8 @@ const normalizeStoredEvaluation = (value, ref) => {
     freshItemCount: freshItemCount ?? null,
     duplicateTokensAvoided: duplicateTokensAvoided ?? null,
     unwiredProviderOmissions: sanitizeFollowups(evaluation.unwiredProviderOmissions),
+    providerRoutes,
+    providerRoutesTruncated,
     notes: sanitizeNote(evaluation.notes),
     nextAction:
       typeof evaluation.nextAction === "string"
@@ -603,6 +744,60 @@ const followupClassNextActionsFor = (classCounts) =>
     .filter(([classification]) => (classCounts[classification] ?? 0) > 0)
     .map(([, nextAction]) => nextAction);
 
+const incrementCount = (target, key, count = 1) => {
+  target[key] = (target[key] ?? 0) + count;
+};
+
+const aggregateProviderRoutes = (validEvaluations) => {
+  const providerRouteCounts = Object.create(null);
+  const providerRouteRoleCounts = Object.create(null);
+  const providerRouteSeedKindCounts = Object.create(null);
+  const providerRouteQueryTotals = Object.create(null);
+  const totals = {
+    providerRouteCount: 0,
+    selectedQueryCount: 0,
+    followupQueryCount: 0,
+    seedCount: 0,
+    providerRoutesTruncated: 0,
+  };
+
+  for (const { evaluation } of validEvaluations) {
+    totals.providerRoutesTruncated += evaluation.providerRoutesTruncated ?? 0;
+    for (const route of evaluation.providerRoutes ?? []) {
+      totals.providerRouteCount += 1;
+      totals.selectedQueryCount += route.selectedQueryCount;
+      totals.followupQueryCount += route.followupQueryCount;
+      totals.seedCount += route.seedCount;
+      incrementCount(providerRouteCounts, route.provider);
+      incrementCount(providerRouteRoleCounts, route.routeRole);
+      if (!providerRouteQueryTotals[route.provider]) {
+        providerRouteQueryTotals[route.provider] = {
+          routeCount: 0,
+          selectedQueryCount: 0,
+          followupQueryCount: 0,
+          seedCount: 0,
+        };
+      }
+      const providerTotals = providerRouteQueryTotals[route.provider];
+      providerTotals.routeCount += 1;
+      providerTotals.selectedQueryCount += route.selectedQueryCount;
+      providerTotals.followupQueryCount += route.followupQueryCount;
+      providerTotals.seedCount += route.seedCount;
+      for (const [seedKind, count] of Object.entries(route.seedCounts ?? {})) {
+        incrementCount(providerRouteSeedKindCounts, seedKind, count);
+      }
+    }
+  }
+
+  return {
+    providerRouteCounts,
+    providerRouteRoleCounts,
+    providerRouteSeedKindCounts,
+    providerRouteQueryTotals,
+    totals,
+  };
+};
+
 const aggregateNextAction = (status, activityCoverage) => {
   if (status === "stable_positive_signal") {
     return "Repeated redacted receipts matched; keep dogfooding and promote only through the owning evidence surface if needed.";
@@ -677,7 +872,10 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     omissionFollowupClassCounts: evaluation.omissionFollowupClassCounts,
     omissionFollowupsTruncated: evaluation.omissionFollowupsTruncated,
     unwiredProviderOmissionCount: evaluation.unwiredProviderOmissions.length,
+    providerRouteCount: evaluation.providerRoutes?.length ?? 0,
+    providerRoutesTruncated: evaluation.providerRoutesTruncated ?? 0,
   }));
+  const routeAggregate = aggregateProviderRoutes(validEvaluations);
   const providerOmissionCounts = countValues(
     validEvaluations.flatMap(({ evaluation }) => evaluation.unwiredProviderOmissions),
   );
@@ -736,11 +934,20 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
         (sum, entry) => sum + (entry.evaluation.omissionFollowupsTruncated ?? 0),
         0,
       ),
+      providerRouteCount: routeAggregate.totals.providerRouteCount,
+      providerRouteSelectedQueryCount: routeAggregate.totals.selectedQueryCount,
+      providerRouteFollowupQueryCount: routeAggregate.totals.followupQueryCount,
+      providerRouteSeedCount: routeAggregate.totals.seedCount,
+      providerRoutesTruncated: routeAggregate.totals.providerRoutesTruncated,
     },
     packetUtilityRecommendationCounts,
     activityTypeCounts,
     activityCoverage,
     providerOmissionCounts,
+    providerRouteCounts: routeAggregate.providerRouteCounts,
+    providerRouteRoleCounts: routeAggregate.providerRouteRoleCounts,
+    providerRouteSeedKindCounts: routeAggregate.providerRouteSeedKindCounts,
+    providerRouteQueryTotals: routeAggregate.providerRouteQueryTotals,
     omissionFollowupCounts,
     omissionFollowupClassCounts,
     omissionFollowupClassNextActions,
@@ -767,6 +974,16 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
   );
   const providerLines = Object.entries(aggregate.providerOmissionCounts).map(
     ([provider, count]) => `- ${markdownInlineLabel(provider, "provider")}: ${count}`,
+  );
+  const providerRouteLines = Object.entries(aggregate.providerRouteQueryTotals).map(
+    ([provider, totals]) =>
+      `- ${markdownInlineLabel(provider, "provider")}: routes=${totals.routeCount}, selectedQueries=${totals.selectedQueryCount}, followupQueries=${totals.followupQueryCount}, seeds=${totals.seedCount}`,
+  );
+  const providerRouteRoleLines = Object.entries(aggregate.providerRouteRoleCounts).map(
+    ([role, count]) => `- ${markdownInlineLabel(role, "route role")}: ${count}`,
+  );
+  const providerRouteSeedKindLines = Object.entries(aggregate.providerRouteSeedKindCounts).map(
+    ([seedKind, count]) => `- ${markdownInlineLabel(seedKind, "seed kind")}: ${count}`,
   );
   const utilityLines = Object.entries(aggregate.packetUtilityRecommendationCounts).map(
     ([status, count]) => `- ${markdownInlineLabel(status, "packet utility status")}: ${count}`,
@@ -799,6 +1016,7 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     `Actual low-level read/search/status calls: ${aggregate.totals.actualLowLevelReadSearchStatusCalls}`,
     `Validation commands run: ${aggregate.totals.validationCommandsRun} (${aggregate.totals.validationCommandsRecordedCount} recorded, ${aggregate.totals.validationCommandsMissingCount} missing)`,
     `Omission follow-ups truncated: ${aggregate.totals.omissionFollowupsTruncated}`,
+    `Provider routes: ${aggregate.totals.providerRouteCount} (${aggregate.totals.providerRoutesTruncated} truncated), selected queries ${aggregate.totals.providerRouteSelectedQueryCount}, follow-up queries ${aggregate.totals.providerRouteFollowupQueryCount}, seeds ${aggregate.totals.providerRouteSeedCount}`,
     "",
     "## Calibration status counts",
     statusLines.join("\n"),
@@ -817,6 +1035,15 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     "",
     "## Unwired provider omission counts",
     providerLines.length ? providerLines.join("\n") : "- none recorded",
+    "",
+    "## Provider route query totals",
+    providerRouteLines.length ? providerRouteLines.join("\n") : "- none recorded",
+    "",
+    "## Provider route role counts",
+    providerRouteRoleLines.length ? providerRouteRoleLines.join("\n") : "- none recorded",
+    "",
+    "## Provider route seed-kind counts",
+    providerRouteSeedKindLines.length ? providerRouteSeedKindLines.join("\n") : "- none recorded",
     "",
     "## Omission follow-up counts",
     followupLines.length ? followupLines.join("\n") : "- none recorded",

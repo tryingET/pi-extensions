@@ -80,6 +80,110 @@ test("dogfood evaluator classifies matched observations without raw packet conte
   assert.doesNotMatch(JSON.stringify(evaluation), /packet\.sections|provenance|path/);
 });
 
+test("dogfood evaluator preserves redacted provider route telemetry", () => {
+  const evaluation = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      packet: {
+        ...baseObservation().packet,
+        providerRoutes: [
+          {
+            provider: "docs",
+            posture: "required",
+            routeRole: "selected",
+            queryCount: 1,
+            selectedQueryCount: 1,
+            followupQueryCount: 0,
+            seedCount: 1,
+            seedCounts: { markdown: 1 },
+          },
+          {
+            provider: "prompt_vault",
+            posture: "optional",
+            routeRole: "followup",
+            queryCount: 2,
+            seedCounts: { prompt: 1, free_text: 1 },
+          },
+        ],
+      },
+    }),
+  });
+  const text = formatDogfoodObservationEvaluation(evaluation);
+
+  assert.equal(evaluation.ok, true);
+  assert.equal(evaluation.providerRoutes.length, 2);
+  assert.equal(evaluation.providerRoutes[0].selectedQueryCount, 1);
+  assert.equal(evaluation.providerRoutes[1].selectedQueryCount, 0);
+  assert.equal(evaluation.providerRoutes[1].followupQueryCount, 2);
+  assert.deepEqual(Object.fromEntries(Object.entries(evaluation.providerRoutes[1].seedCounts)), {
+    free_text: 1,
+    prompt: 1,
+  });
+  assert.match(text, /Provider route telemetry/);
+  assert.match(text, /docs: role=selected/);
+  assert.match(text, /prompt_vault: role=followup/);
+});
+
+test("dogfood evaluator rejects invalid provider route counts", () => {
+  const evaluation = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      packet: {
+        ...baseObservation().packet,
+        providerRoutes: [
+          {
+            provider: "docs",
+            posture: "required",
+            routeRole: "selected",
+            selectedQueryCount: 1.5,
+            followupQueryCount: -1,
+            seedCount: 1,
+            seedCounts: { markdown: 0.5 },
+          },
+        ],
+      },
+    }),
+  });
+
+  assert.equal(evaluation.ok, false);
+  assert.match(evaluation.errors.join("\n"), /selectedQueryCount/);
+  assert.match(evaluation.errors.join("\n"), /followupQueryCount/);
+  assert.match(evaluation.errors.join("\n"), /seedCounts.markdown/);
+});
+
+test("dogfood evaluator redacts and truncates malicious provider route labels", async () => {
+  const providerRoutes = Array.from({ length: 25 }, (_, index) => {
+    const seedCounts = Object.create(null);
+    seedCounts[index === 0 ? "/tmp/customer-acme TOKEN=secret" : "markdown"] = 1;
+    seedCounts.__proto__ = 1;
+    return {
+      provider: index === 0 ? "/tmp/customer-acme TOKEN=secret" : `provider-${index}`,
+      posture: "optional\n## Forged section",
+      routeRole: index === 0 ? "followup" : "selected",
+      queryCount: 1,
+      seedCount: 1,
+      seedCounts,
+    };
+  });
+  const result = await dogfoodObservationEvaluationToolResult({
+    observation: baseObservation({
+      packet: {
+        ...baseObservation().packet,
+        providerRoutes,
+        providerRoutesTruncated: 3,
+      },
+    }),
+  });
+  const evaluation = result.details.dogfoodObservationEvaluation;
+  const serialized = JSON.stringify(result.details);
+
+  assert.equal(evaluation.ok, true);
+  assert.equal(evaluation.providerRoutes.length, 20);
+  assert.equal(evaluation.providerRoutesTruncated, 8);
+  assert.doesNotMatch(result.content[0].text, /TOKEN|customer-acme|\/tmp\//);
+  assert.doesNotMatch(result.content[0].text, /^## Forged section/m);
+  assert.doesNotMatch(serialized, /TOKEN|customer-acme|\/tmp\//);
+  assert.equal(evaluation.providerRoutes[1].seedCounts.__proto__, 1);
+});
+
 test("dogfood evaluator classifies overestimated and underestimated usefulness from observed avoided calls", () => {
   const overestimated = buildDogfoodObservationEvaluation({
     observation: baseObservation({
@@ -442,6 +546,70 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
   assert.match(aggregate.nonAuthorization, /did not persist evidence/);
 });
 
+test("dogfood aggregate summarizes provider route telemetry without treating follow-up as selected", () => {
+  const observation = baseObservation({
+    packet: {
+      ...baseObservation().packet,
+      providerRoutes: [
+        {
+          provider: "docs",
+          posture: "required",
+          routeRole: "selected",
+          selectedQueryCount: 1,
+          followupQueryCount: 0,
+          seedCount: 1,
+          seedCounts: { markdown: 1 },
+        },
+        {
+          provider: "prompt_vault",
+          posture: "optional",
+          routeRole: "followup",
+          queryCount: 2,
+          seedCount: 2,
+          seedCounts: { prompt: 2 },
+        },
+      ],
+      providerRoutesTruncated: 1,
+    },
+  });
+  const priorEvaluation = buildDogfoodObservationEvaluation({ observation });
+  const aggregate = buildDogfoodAggregateEvaluation({
+    observations: [observation, baseObservation()],
+    evaluations: [priorEvaluation],
+  });
+  const text = formatDogfoodAggregateEvaluation(aggregate);
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.totals.providerRouteCount, 4);
+  assert.equal(aggregate.totals.providerRouteSelectedQueryCount, 2);
+  assert.equal(aggregate.totals.providerRouteFollowupQueryCount, 4);
+  assert.equal(aggregate.totals.providerRoutesTruncated, 2);
+  assert.equal(aggregate.providerRouteCounts.docs, 2);
+  assert.equal(aggregate.providerRouteCounts.prompt_vault, 2);
+  assert.equal(aggregate.providerRouteRoleCounts.selected, 2);
+  assert.equal(aggregate.providerRouteRoleCounts.followup, 2);
+  assert.equal(aggregate.providerRouteSeedKindCounts.markdown, 2);
+  assert.equal(aggregate.providerRouteSeedKindCounts.prompt, 4);
+  assert.equal(aggregate.providerRouteQueryTotals.docs.selectedQueryCount, 2);
+  assert.equal(aggregate.providerRouteQueryTotals.prompt_vault.selectedQueryCount, 0);
+  assert.equal(aggregate.providerRouteQueryTotals.prompt_vault.followupQueryCount, 4);
+  assert.match(text, /Provider route query totals/);
+  assert.match(text, /prompt_vault: routes=2, selectedQueries=0, followupQueries=4/);
+});
+
+test("dogfood aggregate preserves legacy evaluations without provider route telemetry", () => {
+  const priorEvaluation = buildDogfoodObservationEvaluation({ observation: baseObservation() });
+  const legacyEvaluation = { ...priorEvaluation };
+  delete legacyEvaluation.providerRoutes;
+  delete legacyEvaluation.providerRoutesTruncated;
+  const aggregate = buildDogfoodAggregateEvaluation({ evaluations: [legacyEvaluation] });
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.totals.providerRouteCount, 0);
+  assert.equal(aggregate.totals.providerRouteSelectedQueryCount, 0);
+  assert.deepEqual(Object.fromEntries(Object.entries(aggregate.providerRouteCounts)), {});
+});
+
 test("dogfood aggregate requires core activity coverage before stable positive signal", () => {
   const validationOnly = buildDogfoodAggregateEvaluation({
     observations: [
@@ -694,6 +862,35 @@ test("dogfood aggregate fails closed for non-object top-level input", () => {
   assert.equal(arrayInput.ok, false);
   assert.match(nullInput.errors[0], /at least one observation or evaluation is required/);
   assert.match(arrayInput.errors[0], /at least one observation or evaluation is required/);
+});
+
+test("dogfood aggregate counts prototype-shaped provider route labels without losing them", () => {
+  const aggregate = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation({
+        packet: {
+          ...baseObservation().packet,
+          providerRoutes: [
+            {
+              provider: "__proto__",
+              posture: "required",
+              routeRole: "selected",
+              selectedQueryCount: 1,
+              followupQueryCount: 0,
+              seedCount: 1,
+              seedCounts: { constructor: 1 },
+            },
+          ],
+        },
+      }),
+    ],
+  });
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.providerRouteCounts.__proto__, 1);
+  assert.equal(aggregate.providerRouteQueryTotals.__proto__.selectedQueryCount, 1);
+  assert.equal(aggregate.providerRouteSeedKindCounts.constructor, 1);
+  assert.match(JSON.stringify(aggregate), /"__proto__"/);
 });
 
 test("dogfood aggregate counts prototype-shaped labels without losing them", () => {
