@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "c0904e81891760200119a93d246e953b901baed4"
+created_at: "2026-05-24T07:55:23Z"
+intent: "Refresh context-packer product posture after strict docs-list contract hardening"
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-context-packer run docs:list"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-context-packer run check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "docs-only next-iteration frontier refresh"
