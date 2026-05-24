@@ -130,6 +130,47 @@ test("cleanupOldSessions ignores native Pi sessions without ASC status sidecars"
   }
 });
 
+test("cleanupOldSessions ignores valid-shaped sidecars without ASC ownership markers", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-unowned-status-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "foreign-session.jsonl");
+    await writeFile(sessionFile, "{}\n");
+    await writeStatus(sessionsDir, "foreign-session", "done", { sessionKind: undefined });
+    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    await utimes(sessionFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+
+    assert.equal(result.removedSessions, 0);
+    assert.equal(result.removedFiles, 0);
+    assert.equal(await readFile(sessionFile, "utf8"), "{}\n");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("clearSubagentSessions ignores valid-shaped sidecars without ASC ownership markers", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-unowned-status-"));
+
+  try {
+    await writeFile(join(sessionsDir, "foreign-session.jsonl"), "{}\n");
+    await writeFile(join(sessionsDir, "foreign-session.lock"), "not-asc");
+    await writeStatus(sessionsDir, "foreign-session", "done", { sessionKind: undefined });
+
+    const state = createSubagentState(sessionsDir);
+    clearSubagentSessions(state);
+
+    const files = await readdir(sessionsDir);
+    assert.ok(files.includes("foreign-session.jsonl"));
+    assert.ok(files.includes("foreign-session.lock"));
+    assert.ok(files.includes("foreign-session.status.json"));
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("cleanupOldSessions ignores legacy JSON files without valid ASC status sidecars", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-json-safe-"));
 

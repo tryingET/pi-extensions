@@ -124,12 +124,21 @@ function readSessionStatus(path: string): SubagentSessionStatus | null {
   }
 }
 
-function readOwnedSessionStatus(
+function readMatchingSessionStatus(
   sessionsDir: string,
   sessionName: string,
 ): SubagentSessionStatus | null {
   const status = readSessionStatus(getSessionStatusPath(sessionsDir, sessionName));
   if (!status || status.sessionName !== sessionName) return null;
+  return status;
+}
+
+function readLifecycleOwnedSessionStatus(
+  sessionsDir: string,
+  sessionName: string,
+): SubagentSessionStatus | null {
+  const status = readMatchingSessionStatus(sessionsDir, sessionName);
+  if (!status || status.sessionKind !== "subagent") return null;
   return status;
 }
 
@@ -148,7 +157,7 @@ function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
   for (const f of readdirSync(sessionsDir)) {
     if (!f.endsWith(".status.json")) continue;
     const base = f.slice(0, -".status.json".length);
-    const status = readOwnedSessionStatus(sessionsDir, base);
+    const status = readLifecycleOwnedSessionStatus(sessionsDir, base);
     if (!status || status.status !== "running") continue;
     if (processIsAlive(status.pid)) continue;
 
@@ -208,7 +217,7 @@ function getSubagentArtifactPaths(sessionsDir: string): string[] {
   for (const f of readdirSync(sessionsDir)) {
     if (!f.endsWith(".status.json")) continue;
     const base = f.slice(0, -".status.json".length);
-    if (!readOwnedSessionStatus(sessionsDir, base)) continue;
+    if (!readLifecycleOwnedSessionStatus(sessionsDir, base)) continue;
 
     for (const path of getExistingSessionArtifactPaths(sessionsDir, base)) {
       paths.add(path);
@@ -225,7 +234,7 @@ export function listSubagentSessionStatuses(sessionsDir: string): SubagentSessio
   for (const f of readdirSync(sessionsDir)) {
     if (!f.endsWith(".status.json")) continue;
     const base = f.slice(0, -".status.json".length);
-    const status = readOwnedSessionStatus(sessionsDir, base);
+    const status = readLifecycleOwnedSessionStatus(sessionsDir, base);
     if (status) statuses.push(status);
   }
   return statuses;
@@ -248,7 +257,7 @@ function getSessionFiles(sessionsDir: string): SessionFileInfo[] {
   for (const f of readdirSync(sessionsDir)) {
     if (!f.endsWith(".status.json")) continue;
     const baseName = f.slice(0, -".status.json".length);
-    const status = readOwnedSessionStatus(sessionsDir, baseName);
+    const status = readLifecycleOwnedSessionStatus(sessionsDir, baseName);
     if (!status) continue;
 
     const path = getPrimarySessionArtifactPath(sessionsDir, baseName);

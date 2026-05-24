@@ -57,6 +57,7 @@ export function trackCommand(log: OperationLog, rawCommand: string, success: boo
   });
   if (recoveryEvidence) {
     for (const error of log.errors) {
+      if (!recoveryEvidenceAppliesToError(error)) continue;
       error.recoveredAt = now;
       error.activeCount = 0;
     }
@@ -73,9 +74,11 @@ export function trackError(log: OperationLog, toolName: string, rawMessage: stri
   if (entry) {
     const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
     const priorLastSeen = entry.lastSeen ?? entry.timestamp;
-    const priorActiveCount =
-      entry.activeCount ??
-      (latestRecoveryEvidenceAt > 0 && priorLastSeen <= latestRecoveryEvidenceAt ? 0 : entry.count);
+    const recoveredBeforeRecurrence =
+      recoveryEvidenceAppliesToError(entry) &&
+      latestRecoveryEvidenceAt > 0 &&
+      priorLastSeen < latestRecoveryEvidenceAt;
+    const priorActiveCount = entry.activeCount ?? (recoveredBeforeRecurrence ? 0 : entry.count);
     entry.count++;
     entry.lastSeen = now;
     entry.rawMessage = rawMessage.slice(0, 200);
@@ -173,11 +176,10 @@ function commandIsProductiveWorkflow(cmd: CommandExecution): boolean {
 }
 
 function commandIsRecoveryEvidence(cmd: CommandExecution): boolean {
+  if (!cmd.success) return false;
   if (typeof cmd.recoveryEvidence === "boolean") return cmd.recoveryEvidence;
   return (
-    cmd.success &&
-    cmd.rawCommand.length < COMMAND_NORMALIZE_MAX_LEN &&
-    isRecoveryEvidenceCommand(cmd.rawCommand)
+    cmd.rawCommand.length < COMMAND_NORMALIZE_MAX_LEN && isRecoveryEvidenceCommand(cmd.rawCommand)
   );
 }
 
@@ -198,10 +200,20 @@ function latestRecoveryEvidenceCommandIndex(log: OperationLog): number {
   return latestRecoveryEvidenceIndex;
 }
 
+function recoveryEvidenceAppliesToError(error: ErrorEncounter): boolean {
+  return error.toolName === "bash";
+}
+
 function activeErrorCount(error: ErrorEncounter, latestRecoveryEvidenceAt: number): number {
-  if (typeof error.activeCount === "number") return error.activeCount;
   const lastSeen = error.lastSeen ?? error.timestamp;
-  return latestRecoveryEvidenceAt > 0 && lastSeen <= latestRecoveryEvidenceAt ? 0 : error.count;
+  if (
+    recoveryEvidenceAppliesToError(error) &&
+    latestRecoveryEvidenceAt > 0 &&
+    lastSeen < latestRecoveryEvidenceAt
+  ) {
+    return 0;
+  }
+  return typeof error.activeCount === "number" ? error.activeCount : error.count;
 }
 
 // ============================================================================
@@ -617,8 +629,15 @@ export function rankSliceCandidates(input: {
   const candidates: SliceCandidate[] = [];
   const failedCommands = input.commands.filter((cmd) => cmd.activeFailure ?? !cmd.success).length;
   const activeErrorPatterns = input.errors.filter((error) => error.activeCount >= LOOP_THRESHOLD);
+  const failureRecoveryLoopPatterns = input.loops.patterns.filter(
+    (pattern) => pattern.type === "command_loop" || pattern.type === "error_loop",
+  );
 
-  if (activeErrorPatterns.length > 0 || input.loops.isLooping || failedCommands >= LOOP_THRESHOLD) {
+  if (
+    activeErrorPatterns.length > 0 ||
+    failureRecoveryLoopPatterns.length > 0 ||
+    failedCommands >= LOOP_THRESHOLD
+  ) {
     candidates.push({
       slice: "temporal + failure-recovery + source-owner + authority-risk",
       owner: "peer-tools",
@@ -627,7 +646,9 @@ export function rankSliceCandidates(input: {
       reason:
         "Loop/error cues need a read-only recovery review before more mutation or authority claims.",
       evidence: [
-        ...(input.loops.isLooping ? [`${input.loops.patterns.length} loop pattern(s)`] : []),
+        ...(failureRecoveryLoopPatterns.length > 0
+          ? [`${failureRecoveryLoopPatterns.length} failure-recovery loop pattern(s)`]
+          : []),
         ...(activeErrorPatterns.length > 0
           ? [`${activeErrorPatterns.length} active error loop(s)`]
           : []),
@@ -643,7 +664,7 @@ export function rankSliceCandidates(input: {
     candidates.push({
       slice: "temporal + artifact/packet",
       owner: "pi-session-compaction",
-      score: activeErrorPatterns.length > 0 || input.loops.isLooping ? 70 : 90,
+      score: activeErrorPatterns.length > 0 || failureRecoveryLoopPatterns.length > 0 ? 70 : 90,
       confidence: "high",
       reason:
         "A continuation or handoff should preserve session order, artifacts, and next action.",

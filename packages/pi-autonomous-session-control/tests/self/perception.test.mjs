@@ -371,8 +371,49 @@ test("self perception: display-only legacy command entries are not recovery evid
   assert.equal(result.errors[0].activeCount, 3);
 });
 
-test("self perception: legacy recovered errors recur with a fresh active count", () => {
+test("self perception: failed commands flagged as recovery evidence do not recover errors", () => {
   const now = Date.now();
+  const log = {
+    fileOps: [],
+    commands: [
+      { command: "false", rawCommand: "false", timestamp: now, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 1, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 2, success: false },
+      {
+        command: "npm run check",
+        rawCommand: "npm run check",
+        timestamp: now + 3,
+        success: false,
+        recoveryEvidence: true,
+      },
+    ],
+    errors: [
+      {
+        toolName: "bash",
+        signature: "Command exited with code N",
+        rawMessage: "Command exited with code 1",
+        timestamp: now,
+        lastSeen: now + 2,
+        count: 3,
+      },
+    ],
+    sessionStartAt: now,
+    lastMeaningfulChangeAt: now,
+    turnCount: 5,
+    turnsSinceMeaningfulChange: 0,
+  };
+  const detector = createPatternDetector();
+
+  analyzePatterns(log, detector);
+  const errors = queryErrors(log).errors;
+  const result = queryHandoffSummary(log, detector);
+
+  assert.equal(errors[0].activeCount, 3);
+  assert.equal(result.nextMove?.owner, "peer-tools");
+});
+
+test("self perception: legacy recovered errors recur with a fresh active count", () => {
+  const now = Date.now() - 1000;
   const log = {
     fileOps: [],
     commands: [
@@ -406,6 +447,120 @@ test("self perception: legacy recovered errors recur with a fresh active count",
   assert.equal(errors[0].count, 4);
   assert.equal(errors[0].activeCount, 1);
   assert.equal(result.nextMove, undefined);
+});
+
+test("self perception: stale active counts reconcile with later recovery evidence", () => {
+  const now = Date.now();
+  const log = {
+    fileOps: [],
+    commands: [
+      { command: "false", rawCommand: "false", timestamp: now, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 1, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 2, success: false },
+      { command: "npm run check", rawCommand: "npm run check", timestamp: now + 3, success: true },
+    ],
+    errors: [
+      {
+        toolName: "bash",
+        signature: "Command exited with code N",
+        rawMessage: "Command exited with code 1",
+        timestamp: now,
+        lastSeen: now + 2,
+        count: 3,
+        activeCount: 3,
+      },
+    ],
+    sessionStartAt: now,
+    lastMeaningfulChangeAt: now,
+    turnCount: 5,
+    turnsSinceMeaningfulChange: 0,
+  };
+  const detector = createPatternDetector();
+
+  analyzePatterns(log, detector);
+  const errors = queryErrors(log).errors;
+  const result = queryHandoffSummary(log, detector);
+
+  assert.equal(errors[0].activeCount, 0);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.nextMove, undefined);
+});
+
+test("self query: validation success does not recover unrelated provider errors", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    toolResultHandler({
+      toolName: "vault_query",
+      toolCallId: `vault-failed-${i}`,
+      isError: true,
+      content: [{ type: "text", text: "Prompt Vault unavailable" }],
+    });
+  }
+  recordBash(harness, "cmd-provider-unrelated-validation", "npm run check");
+
+  const result = await tool.execute(
+    "tc-provider-errors-not-recovered",
+    { query: "controller handoff summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.errors[0].tool, "vault_query");
+  assert.equal(result.details.data.errors[0].activeCount, 3);
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
+
+  await cleanup(tempDir);
+});
+
+test("self query: recurring provider errors stay active after local validation", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    toolResultHandler({
+      toolName: "vault_query",
+      toolCallId: `vault-before-validation-${i}`,
+      isError: true,
+      content: [{ type: "text", text: "Prompt Vault unavailable" }],
+    });
+  }
+  recordBash(harness, "cmd-provider-recurrence-validation", "npm run check");
+  toolResultHandler({
+    toolName: "vault_query",
+    toolCallId: "vault-after-validation",
+    isError: true,
+    content: [{ type: "text", text: "Prompt Vault unavailable" }],
+  });
+
+  const result = await tool.execute(
+    "tc-provider-errors-recur-after-validation",
+    { query: "controller handoff summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.errors[0].tool, "vault_query");
+  assert.equal(result.details.data.errors[0].count, 4);
+  assert.equal(result.details.data.errors[0].activeCount, 4);
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
+
+  await cleanup(tempDir);
 });
 
 test("self query: git status after failures is not recovery evidence", async () => {
@@ -674,6 +829,42 @@ test("self query: rank continuation slices surfaces multi-dimensional candidates
   assert.ok(result.details.data.nextMove.slice.includes("authority-risk"));
   assert.ok(result.details.data.nextMove.prefillText.startsWith("/scoutpeer "));
   assert.equal(result.details.data.sliceCandidates[0].confidence, "high");
+
+  await cleanup(tempDir);
+});
+
+test("self query: edit-only loops do not rank failure recovery peer-tools", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    toolCallHandler({
+      toolName: "edit",
+      input: { path: "a.ts", oldText: "a", newText: `a${i}` },
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-edit-only-loop-slice-ranking",
+    { query: "rank continuation slices" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.notEqual(result.details.data.nextMove?.owner, "peer-tools");
+  assert.equal(
+    result.details.data.sliceCandidates.some((candidate) =>
+      candidate.slice.includes("failure-recovery"),
+    ),
+    false,
+  );
 
   await cleanup(tempDir);
 });

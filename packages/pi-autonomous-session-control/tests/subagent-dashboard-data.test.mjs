@@ -22,6 +22,7 @@ async function writeStatus(sessionsDir, sessionName, status, updatedAt, objectiv
       createdAt: updatedAt,
       updatedAt,
       objective,
+      sessionKind: "subagent",
       ...extras,
     }),
   );
@@ -182,6 +183,42 @@ test("createSubagentDashboardSnapshot keeps current-session records that lack le
   }
 });
 
+test("createSubagentDashboardSnapshot ignores valid-shaped sidecars without ASC ownership markers", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-unowned-status-"));
+
+  try {
+    await writeFile(join(sessionsDir, "foreign.jsonl"), "{}\n");
+    await writeFile(
+      join(sessionsDir, "foreign.status.json"),
+      JSON.stringify({
+        sessionName: "foreign",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+      }),
+    );
+
+    const snapshot = createSubagentDashboardSnapshot(sessionsDir, {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(snapshot.total, 0);
+    assert.deepEqual(snapshot.rows, []);
+    assert.deepEqual(snapshot.counts, {
+      running: 0,
+      done: 0,
+      error: 0,
+      timeout: 0,
+      aborted: 0,
+      abandoned: 0,
+    });
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createSubagentDashboardSnapshot ignores invalid status sidecars", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-invalid-status-"));
 
@@ -254,6 +291,36 @@ test("createSubagentDashboardSnapshot can filter to the current repo root as wel
   }
 });
 
+test("createSubagentSessionInspection does not classify unowned status sidecars as ASC lifecycle state", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-unowned-"));
+
+  try {
+    await writeFile(join(sessionsDir, "foreign.jsonl"), "{}\n");
+    await writeFile(
+      getSessionStatusPath(sessionsDir, "foreign"),
+      JSON.stringify({
+        sessionName: "foreign",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+      }),
+    );
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "foreign", {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(inspection.found, true);
+    assert.equal(inspection.status, undefined);
+    assert.match(inspection.warnings.join("\n"), /not an owned ASC subagent status artifact/i);
+    assert.match(inspection.recommendedActionHint, /inspect artifact paths/i);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createSubagentSessionInspection summarizes lifecycle metadata and artifact paths", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-"));
   const updatedAt = "2026-03-06T11:59:00.000Z";
@@ -273,6 +340,7 @@ test("createSubagentSessionInspection summarizes lifecycle metadata and artifact
         resultPreview: "Review landed cleanly; next step is to verify the dashboard in Pi.",
         exitCode: 0,
         elapsed: 61_000,
+        sessionKind: "subagent",
       }),
     );
     await writeFile(join(sessionsDir, "done-session.jsonl"), '{"session":true}\n');

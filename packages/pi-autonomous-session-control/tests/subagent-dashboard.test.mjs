@@ -18,6 +18,7 @@ async function writeStatus(sessionsDir, sessionName, updatedAt, extras = {}) {
       createdAt: updatedAt,
       updatedAt,
       objective: "Review the current-session dashboard behavior.",
+      sessionKind: "subagent",
       ...extras,
     }),
   );

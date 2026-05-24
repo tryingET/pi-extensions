@@ -669,6 +669,7 @@ test("createSubagentState marks dead running status as abandoned", async () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         objective: "Review changes",
+        sessionKind: "subagent",
       }),
     );
 

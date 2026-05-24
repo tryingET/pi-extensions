@@ -179,7 +179,10 @@ function processIsAlive(pid: number): boolean {
   }
 }
 
-function readStatusArtifact(statusPath: string): {
+function readStatusArtifact(
+  statusPath: string,
+  expectedSessionName: string,
+): {
   parsed?: SubagentSessionStatus;
   raw?: string;
   warning?: string;
@@ -191,10 +194,14 @@ function readStatusArtifact(statusPath: string): {
   try {
     const raw = readFileSync(statusPath, "utf-8");
     const parsed = parseSubagentSessionStatusPayload(JSON.parse(raw));
-    if (!parsed) {
+    if (
+      !parsed ||
+      parsed.sessionName !== expectedSessionName ||
+      parsed.sessionKind !== "subagent"
+    ) {
       return {
         raw: raw.trim(),
-        warning: "Status sidecar is not a valid ASC subagent status artifact.",
+        warning: "Status sidecar is not an owned ASC subagent status artifact.",
       };
     }
     return {
@@ -366,7 +373,7 @@ export function createSubagentSessionInspection(
   const warnings: string[] = [];
   const statuses = listSubagentSessionStatuses(sessionsDir);
   const statusArtifact = summarizeArtifact(statusPath);
-  const statusRead = readStatusArtifact(statusPath);
+  const statusRead = readStatusArtifact(statusPath, sessionName);
   const sessionPath =
     statusRead.parsed?.sessionFile?.trim() || join(sessionsDir, `${sessionName}.jsonl`);
   const sessionArtifact = summarizeArtifact(sessionPath);
