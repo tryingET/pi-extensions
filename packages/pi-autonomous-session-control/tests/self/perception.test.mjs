@@ -6,10 +6,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   analyzePatterns,
+  createOperationLog,
   createPatternDetector,
+  queryCommandsRun,
   queryErrors,
   queryHandoffSummary,
+  queryLoopStatus,
   rankSliceCandidates,
+  trackCommand,
   trackError,
 } from "../../extensions/self/perception.ts";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
@@ -63,6 +67,28 @@ test("self query: am I looping returns no loops initially", async () => {
   assert.ok(result.content[0].text.includes("no loop concern"), "should report no loops");
 
   await cleanup(tempDir);
+});
+
+test("perception command query reports zero success rate when no commands ran", () => {
+  const result = queryCommandsRun(createOperationLog());
+
+  assert.equal(result.total, 0);
+  assert.equal(result.successRate, 0);
+});
+
+test("perception treats workspace validation commands as recovery evidence", () => {
+  const log = createOperationLog();
+  for (let i = 0; i < 3; i++) {
+    trackError(log, "bash", "Command exited with code 1");
+  }
+  trackCommand(log, "npm --workspace packages/pi-autonomous-session-control run check", true);
+
+  const detector = createPatternDetector();
+  analyzePatterns(log, detector);
+  const loopStatus = queryLoopStatus(detector);
+
+  assert.equal(queryErrors(log).errors[0].activeCount, 0);
+  assert.equal(loopStatus.isLooping, false);
 });
 
 test("self query: repeated successful validation commands are productive workflow, not a loop", async () => {

@@ -42,6 +42,7 @@ import {
   evaluateRuntimeInvariants,
   formatRuntimeInvariantReport,
 } from "./self/runtime-invariants.ts";
+import { getContextSessionKey } from "./self/session-context.ts";
 import { createSelfState } from "./self/state.ts";
 import {
   clearSubagentSessions,
@@ -122,8 +123,10 @@ function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentStat
   const clearOnSessionStart =
     process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START?.trim().toLowerCase() === "true";
   if (clearOnSessionStart) {
-    pi.on("session_start", async () => {
-      clearSubagentSessions(subagentState);
+    pi.on("session_start", async (_event, ctx) => {
+      const parentSessionKey = getContextSessionKey(ctx);
+      if (!parentSessionKey) return;
+      clearSubagentSessions(subagentState, { parentSessionKey });
     });
   }
 }

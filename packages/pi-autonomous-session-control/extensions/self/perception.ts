@@ -148,7 +148,7 @@ function extractErrorSignature(message: string): string {
 
 function isValidationOrQualityCommand(lowerCommand: string): boolean {
   return (
-    /\b(?:npm|pnpm|yarn)(?:\s+(?:--prefix|-c|--cwd)\s+\S+|\s+--\S+(?:=\S+)?)*\s+(?:run\s+)?(?:test|check|lint|typecheck|quality(?::\w+)?|ci|release:check(?::quick)?)\b/.test(
+    /\b(?:npm|pnpm|yarn)(?:\s+(?:--prefix|-c|--cwd|--workspace|-w|--filter|-F|-C)\s+\S+|\s+--\S+(?:=\S+)?)*\s+(?:run\s+)?(?:test|check|lint|typecheck|quality(?::\w+)?|ci|release:check(?::quick)?)\b/.test(
       lowerCommand,
     ) ||
     /\b(?:node\s+--test|vitest|jest|tsc|biome\s+(?:check|ci|lint)|just\s+(?:test|check|lint|ci))\b/.test(
@@ -405,7 +405,7 @@ export function queryCommandsRun(log: OperationLog): CommandsRunResult {
       }))
       .sort((a, b) => b.count - a.count),
     total: totalRuns,
-    successRate: totalRuns > 0 ? totalSuccesses / totalRuns : 1,
+    successRate: totalRuns > 0 ? totalSuccesses / totalRuns : 0,
   };
 }
 

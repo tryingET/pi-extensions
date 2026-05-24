@@ -128,6 +128,73 @@ test("writeSessionStatus stamps the ASC ownership marker", async () => {
   }
 });
 
+test("cleanupOldSessions deletes the recorded ASC trace instead of basename collisions", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-recorded-trace-"));
+
+  try {
+    const collidingNativeFile = join(sessionsDir, "owned.jsonl");
+    const recordedTraceFile = join(sessionsDir, "actual-subagent.jsonl");
+    await writeFile(collidingNativeFile, "native\n");
+    await writeFile(recordedTraceFile, "asc\n");
+    await writeStatus(sessionsDir, "owned", "done", { sessionFile: recordedTraceFile });
+    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    await utimes(recordedTraceFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+
+    assert.equal(result.removedSessions, 1);
+    assert.equal(result.removedFiles, 2);
+    assert.equal(await readFile(collidingNativeFile, "utf8"), "native\n");
+    const files = await readdir(sessionsDir);
+    assert.equal(files.includes("actual-subagent.jsonl"), false);
+    assert.equal(files.includes("owned.status.json"), false);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("cleanupOldSessions honors zero thresholds as remove-all for non-running owned sessions", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-zero-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "done.jsonl");
+    await writeFile(sessionFile, "done\n");
+    await writeStatus(sessionsDir, "done", "done", { sessionFile });
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 0, maxCount: 0 });
+
+    assert.equal(result.removedSessions, 1);
+    assert.equal(result.removedFiles, 2);
+    assert.deepEqual(await readdir(sessionsDir), []);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("clearSubagentSessions can scope cleanup to a parent live session", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-current-scope-"));
+
+  try {
+    await writeFile(join(sessionsDir, "old.jsonl"), "old\n");
+    await writeStatus(sessionsDir, "old", "done", { parentSessionKey: "live-old" });
+    await writeFile(join(sessionsDir, "current.jsonl"), "current\n");
+    await writeStatus(sessionsDir, "current", "done", { parentSessionKey: "live-current" });
+
+    const state = createSubagentState(sessionsDir);
+    clearSubagentSessions(state, { parentSessionKey: "live-current" });
+
+    const files = await readdir(sessionsDir);
+    assert.ok(files.includes("old.jsonl"));
+    assert.ok(files.includes("old.status.json"));
+    assert.equal(files.includes("current.jsonl"), false);
+    assert.equal(files.includes("current.status.json"), false);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("cleanupOldSessions ignores native Pi sessions without ASC status sidecars", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-native-safe-"));
 
@@ -151,6 +218,40 @@ test("cleanupOldSessions ignores native Pi sessions without ASC status sidecars"
   }
 });
 
+test("cleanupOldSessions ignores malformed ASC sidecars with non-string sessionFile", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-bad-session-file-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "bad-session.jsonl");
+    await writeFile(sessionFile, "{}\n");
+    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    await utimes(sessionFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+    const now = new Date().toISOString();
+    await writeFile(
+      getSessionStatusPath(sessionsDir, "bad-session"),
+      JSON.stringify({
+        sessionName: "bad-session",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: now,
+        updatedAt: now,
+        sessionKind: "subagent",
+        sessionFile: 123,
+      }),
+    );
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+
+    assert.equal(result.removedSessions, 0);
+    assert.equal(result.removedFiles, 0);
+    assert.equal(await readFile(sessionFile, "utf8"), "{}\n");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("cleanupOldSessions ignores valid-shaped sidecars without ASC ownership markers", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-unowned-status-"));
 
@@ -169,6 +270,43 @@ test("cleanupOldSessions ignores valid-shaped sidecars without ASC ownership mar
     assert.equal(await readFile(sessionFile, "utf8"), "{}\n");
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("clearSubagentSessions removes owned custom sessionFile traces recorded in status", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-custom-trace-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "custom-worker.jsonl");
+    await writeFile(sessionFile, "{}\n");
+    await writeStatus(sessionsDir, "worker", "done", { sessionFile });
+
+    const state = createSubagentState(sessionsDir);
+    clearSubagentSessions(state);
+
+    const files = await readdir(sessionsDir);
+    assert.deepEqual(files, []);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("clearSubagentSessions preserves status-recorded sessionFile paths outside sessionsDir", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-external-trace-"));
+  const externalDir = await mkdtemp(join(tmpdir(), "session-clear-external-owned-"));
+
+  try {
+    const sessionFile = join(externalDir, "external-worker.jsonl");
+    await writeFile(sessionFile, "{}\n");
+    await writeStatus(sessionsDir, "worker", "done", { sessionFile });
+
+    const state = createSubagentState(sessionsDir);
+    clearSubagentSessions(state);
+
+    assert.equal(await readFile(sessionFile, "utf8"), "{}\n");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+    await rm(externalDir, { recursive: true, force: true });
   }
 });
 

@@ -125,10 +125,12 @@ const candidateScripts = (env = {}) =>
   ].filter(Boolean);
 
 const firstExistingScript = async (env = {}) => {
+  const baseCwd = resolve(env.cwd || process.cwd());
   for (const candidate of candidateScripts(env)) {
     try {
-      const candidateStat = await stat(candidate);
-      if (candidateStat.isFile()) return candidate;
+      const scriptPath = isAbsolute(candidate) ? candidate : resolve(baseCwd, candidate);
+      const candidateStat = await stat(scriptPath);
+      if (candidateStat.isFile()) return scriptPath;
     } catch {
       // Try the next configured candidate.
     }

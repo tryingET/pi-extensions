@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import {
   listSubagentSessionStatuses,
   parseSubagentSessionStatusPayload,
@@ -68,6 +68,31 @@ const OBJECTIVE_PREVIEW_LENGTH = 52;
 const RECENT_SESSION_SUGGESTION_LIMIT = 5;
 const HISTORY_BOUNDARY_NOTE =
   "This view summarizes bounded local subagent artifacts for replay/inspection only; Pi's native session tree remains the live session authority.";
+
+function isSafeSessionName(sessionName: string): boolean {
+  const trimmed = sessionName.trim();
+  return (
+    trimmed.length > 0 &&
+    trimmed !== "." &&
+    trimmed !== ".." &&
+    !trimmed.includes("/") &&
+    !trimmed.includes("\\")
+  );
+}
+
+function resolveContainedSessionPath(sessionsDir: string, path: unknown): string | null {
+  if (typeof path !== "string") return null;
+  const trimmed = path.trim();
+  if (!trimmed) return null;
+
+  const root = resolve(sessionsDir);
+  const resolved = resolve(root, trimmed);
+  const rel = relative(root, resolved);
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
+    return resolved;
+  }
+  return null;
+}
 
 function summarizeObjective(objective?: string): string {
   const normalized = objective?.replace(/\s+/g, " ").trim();
@@ -369,13 +394,53 @@ export function createSubagentSessionInspection(
   options?: { now?: number; currentSessionKey?: string; currentRepoRoot?: string },
 ): SubagentSessionInspection {
   const now = options?.now ?? Date.now();
-  const statusPath = join(sessionsDir, `${sessionName}.status.json`);
   const warnings: string[] = [];
   const statuses = listSubagentSessionStatuses(sessionsDir);
+
+  if (!isSafeSessionName(sessionName)) {
+    const statusArtifact = summarizeArtifact(join(sessionsDir, "__invalid__.status.json"));
+    const sessionArtifact = summarizeArtifact(join(sessionsDir, "__invalid__.jsonl"));
+    warnings.push(
+      "Invalid session name; inspection is constrained to the subagent session directory.",
+    );
+    return {
+      sessionName,
+      found: false,
+      recommendedActionHint: "Use a plain subagent session name without path separators.",
+      currentSessionKey: options?.currentSessionKey?.trim() || undefined,
+      currentRepoRoot: options?.currentRepoRoot?.trim() || undefined,
+      sessionScope: "unknown",
+      sessionScopeLabel: describeSessionScope({
+        currentSessionKey: options?.currentSessionKey,
+      }).label,
+      historyBoundaryNote: HISTORY_BOUNDARY_NOTE,
+      pidState: "unknown",
+      statusArtifact,
+      sessionArtifact,
+      warnings,
+      recentSessionSuggestions: collectRecentSessionSuggestions(statuses, sessionName),
+    };
+  }
+
+  const statusPath = join(sessionsDir, `${sessionName}.status.json`);
   const statusArtifact = summarizeArtifact(statusPath);
   const statusRead = readStatusArtifact(statusPath, sessionName);
-  const sessionPath =
-    statusRead.parsed?.sessionFile?.trim() || join(sessionsDir, `${sessionName}.jsonl`);
+  let sessionPath = join(sessionsDir, `${sessionName}.jsonl`);
+
+  if (typeof statusRead.parsed?.sessionFile === "string" && statusRead.parsed.sessionFile.trim()) {
+    const containedSessionFile = resolveContainedSessionPath(
+      sessionsDir,
+      statusRead.parsed.sessionFile,
+    );
+    if (containedSessionFile) {
+      sessionPath = containedSessionFile;
+    } else {
+      warnings.push(
+        "Recorded session file path escapes the subagent session directory; ignoring it.",
+      );
+    }
+  }
+
   const sessionArtifact = summarizeArtifact(sessionPath);
 
   if (statusRead.warning) {

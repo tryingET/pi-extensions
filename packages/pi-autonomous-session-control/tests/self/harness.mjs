@@ -81,6 +81,7 @@ export async function loadExtensionWithMocks() {
     "query-resolver.ts",
     "runtime-invariants.ts",
     "state.ts",
+    "session-context.ts",
     "prompt-vault-compat.ts",
     "edge-contract-kernel.ts",
     "memory.ts",
@@ -168,6 +169,16 @@ export function registerSubagentTool(pi, state) {
   await writeFile(
     path.join(underTestModuleDir, "subagent-dashboard.ts"),
     `export function registerSubagentDashboard() {}
+`,
+  );
+
+  await writeFile(
+    path.join(underTestModuleDir, "session-context.ts"),
+    `export function getContextSessionKey(ctx) {
+  if (typeof ctx?.sessionKey === "string") return ctx.sessionKey;
+  if (typeof ctx?.sessionManager?.getSessionId === "function") return ctx.sessionManager.getSessionId();
+  return undefined;
+}
 `,
   );
 

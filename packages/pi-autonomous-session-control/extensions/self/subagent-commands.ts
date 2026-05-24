@@ -55,11 +55,13 @@ export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState)
     handler: async (args, ctx) => {
       const parsed = args.trim().split(/\s+/).filter(Boolean);
       const maxAgeDays =
-        parsed[0] && /^\d+$/.test(parsed[0])
+        parsed[0] !== undefined && /^\d+$/.test(parsed[0])
           ? parseInt(parsed[0], 10)
           : DEFAULT_MAX_SESSION_AGE_DAYS;
       const maxCount =
-        parsed[1] && /^\d+$/.test(parsed[1]) ? parseInt(parsed[1], 10) : DEFAULT_MAX_SESSION_COUNT;
+        parsed[1] !== undefined && /^\d+$/.test(parsed[1])
+          ? parseInt(parsed[1], 10)
+          : DEFAULT_MAX_SESSION_COUNT;
 
       const result = cleanupOldSessions(state, {
         maxAgeMs: maxAgeDays * ONE_DAY_MS,

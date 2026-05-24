@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -316,6 +316,109 @@ test("createSubagentSessionInspection does not classify unowned status sidecars 
     assert.equal(inspection.status, undefined);
     assert.match(inspection.warnings.join("\n"), /not an owned ASC subagent status artifact/i);
     assert.match(inspection.recommendedActionHint, /inspect artifact paths/i);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentSessionInspection rejects path traversal session names", async () => {
+  const root = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-traversal-"));
+  const sessionsDir = join(root, "native", "sessions");
+  const outsideDir = join(root, "native", "outside");
+
+  try {
+    await mkdir(sessionsDir, { recursive: true });
+    await mkdir(outsideDir, { recursive: true });
+    await writeFile(
+      join(outsideDir, "probe.status.json"),
+      JSON.stringify({
+        sessionName: "../outside/probe",
+        sessionKind: "subagent",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+        resultPreview: "OUTSIDE_READ",
+      }),
+    );
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "../outside/probe", {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(inspection.found, false);
+    assert.equal(inspection.status, undefined);
+    assert.equal(inspection.resultPreview, undefined);
+    assert.match(inspection.warnings.join("\n"), /invalid session name/i);
+    assert.ok(inspection.statusArtifact.path.startsWith(sessionsDir));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentSessionInspection ignores recorded session files outside the session dir", async () => {
+  const root = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-contained-"));
+  const sessionsDir = join(root, "native", "sessions");
+  const outsideDir = join(root, "native", "outside");
+
+  try {
+    await mkdir(sessionsDir, { recursive: true });
+    await mkdir(outsideDir, { recursive: true });
+    await writeFile(join(outsideDir, "probe.jsonl"), "outside\n");
+    await writeFile(
+      getSessionStatusPath(sessionsDir, "probe"),
+      JSON.stringify({
+        sessionName: "probe",
+        sessionKind: "subagent",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+        sessionFile: join(outsideDir, "probe.jsonl"),
+        resultPreview: "STATUS_OK",
+      }),
+    );
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "probe", {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(inspection.status, "done");
+    assert.equal(inspection.resultPreview, "STATUS_OK");
+    assert.match(inspection.warnings.join("\n"), /escapes the subagent session directory/i);
+    assert.equal(inspection.sessionArtifact.path, join(sessionsDir, "probe.jsonl"));
+    assert.equal(inspection.sessionArtifact.exists, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentSessionInspection rejects malformed non-string sessionFile sidecars", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-bad-file-"));
+
+  try {
+    await writeFile(
+      getSessionStatusPath(sessionsDir, "bad-session-file"),
+      JSON.stringify({
+        sessionName: "bad-session-file",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+        sessionKind: "subagent",
+        sessionFile: 123,
+      }),
+    );
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "bad-session-file", {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(inspection.status, undefined);
+    assert.match(inspection.warnings.join("\n"), /not an owned ASC subagent status artifact/i);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

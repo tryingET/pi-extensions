@@ -39,7 +39,7 @@ test("getPiNativeSessionDirForCwd mirrors Pi's encoded cwd session directory", (
   );
 });
 
-test("resolveSubagentSessionsDir defaults to the Pi native session tree", async () => {
+test("resolveSubagentSessionsDir defaults below the Pi native session tree", async () => {
   const agentDir = await mkdtemp(join(tmpdir(), "asc-native-agent-dir-"));
 
   try {
@@ -51,7 +51,7 @@ test("resolveSubagentSessionsDir defaults to the Pi native session tree", async 
       async () => {
         const resolved = resolveSubagentSessionsDir({ cwd: "/work/repo", agentDir });
         assert.equal(resolved.source, "pi-native");
-        assert.equal(resolved.path, join(agentDir, "sessions", "--work-repo--"));
+        assert.equal(resolved.path, join(agentDir, "sessions", "--work-repo--", "asc-subagents"));
       },
     );
   } finally {

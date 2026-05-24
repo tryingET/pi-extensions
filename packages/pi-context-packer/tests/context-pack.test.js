@@ -1232,6 +1232,40 @@ test("context_pack rebases docs-list item.path fallback from package roots", asy
   assert.doesNotMatch(docs.items[0].content, /Root shadow/);
 });
 
+test("context_pack resolves relative docs-list scripts before switching to package docs roots", async () => {
+  const root = await makeWorkspace();
+  const packageRoot = join(root, "packages", "pkg");
+  await mkdir(join(packageRoot, "docs", "project"), { recursive: true });
+  await writeFile(join(packageRoot, "package.json"), '{"name":"pkg"}\n', "utf8");
+  await writeFile(
+    join(packageRoot, "docs", "project", "relative-script-ranked.md"),
+    "# Relative script ranked\n\nRelative docsListScript survives package-root cwd switching.\n",
+    "utf8",
+  );
+  await writeFile(
+    join(root, "docs-list-relative-fake.mjs"),
+    "console.log(JSON.stringify({ ok: true, rankedItems: [{ path: 'docs/project/relative-script-ranked.md' }] }));\n",
+    "utf8",
+  );
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use relative docs-list script from package cwd",
+      cwd: packageRoot,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { cwd: root, docsListScript: "docs-list-relative-fake.mjs" },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["packages/pkg/docs/project/relative-script-ranked.md"],
+  );
+  assert.match(docs.items[0].content, /Relative docsListScript survives/);
+});
+
 test("context_pack rebases package-root repoPath only when provider repoRoot declares that basis", async () => {
   const root = await makeWorkspace();
   const packageRoot = join(root, "packages", "pkg");

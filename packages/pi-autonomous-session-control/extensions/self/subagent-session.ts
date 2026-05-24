@@ -11,7 +11,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 export interface SubagentState {
   sessionsDir: string;
@@ -24,6 +24,10 @@ export interface SubagentState {
 export interface SessionCleanupOptions {
   maxAgeMs?: number; // Remove sessions older than this
   maxCount?: number; // Keep only the N most recent sessions
+}
+
+export interface SubagentSessionClearOptions {
+  parentSessionKey?: string;
 }
 
 export interface SubagentSessionStatus {
@@ -81,6 +85,10 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
   }
 
   if (candidate.sessionKind !== undefined && candidate.sessionKind !== "subagent") {
+    return null;
+  }
+
+  if (candidate.sessionFile !== undefined && typeof candidate.sessionFile !== "string") {
     return null;
   }
 
@@ -143,13 +151,53 @@ function readLifecycleOwnedSessionStatus(
   return status;
 }
 
-function getExistingSessionArtifactPaths(sessionsDir: string, sessionName: string): string[] {
-  return [
-    join(sessionsDir, `${sessionName}.jsonl`),
-    join(sessionsDir, `${sessionName}.json`),
-    join(sessionsDir, `${sessionName}.lock`),
-    getSessionStatusPath(sessionsDir, sessionName),
-  ].filter((path) => existsSync(path));
+function resolveContainedSessionPath(sessionsDir: string, path: unknown): string | null {
+  if (typeof path !== "string") return null;
+  const trimmed = path.trim();
+  if (!trimmed) return null;
+
+  const root = resolve(sessionsDir);
+  const resolved = resolve(root, trimmed);
+  const rel = relative(root, resolved);
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
+    return resolved;
+  }
+  return null;
+}
+
+function getRecordedSessionTracePath(
+  sessionsDir: string,
+  status: SubagentSessionStatus,
+): string | null {
+  const recorded = resolveContainedSessionPath(sessionsDir, status.sessionFile);
+  if (recorded) return recorded;
+
+  if (typeof status.sessionFile === "string" && status.sessionFile.trim()) {
+    return null;
+  }
+
+  const jsonlPath = join(sessionsDir, `${status.sessionName}.jsonl`);
+  if (existsSync(jsonlPath)) return jsonlPath;
+
+  const legacyJsonPath = join(sessionsDir, `${status.sessionName}.json`);
+  if (existsSync(legacyJsonPath)) return legacyJsonPath;
+
+  return null;
+}
+
+function getExistingSessionArtifactPaths(
+  sessionsDir: string,
+  status: SubagentSessionStatus,
+): string[] {
+  const paths = new Set<string>();
+  const tracePath = getRecordedSessionTracePath(sessionsDir, status);
+  if (tracePath && existsSync(tracePath)) paths.add(tracePath);
+
+  const lockPath = join(sessionsDir, `${status.sessionName}.lock`);
+  if (existsSync(lockPath)) paths.add(lockPath);
+
+  paths.add(getSessionStatusPath(sessionsDir, status.sessionName));
+  return [...paths].filter((path) => existsSync(path));
 }
 
 function lockHasAscOwnershipMarker(sessionsDir: string, sessionName: string): boolean {
@@ -199,9 +247,12 @@ export function createSubagentState(
   };
 }
 
-export function clearSubagentSessions(state: SubagentState): void {
+export function clearSubagentSessions(
+  state: SubagentState,
+  options: SubagentSessionClearOptions = {},
+): void {
   if (existsSync(state.sessionsDir)) {
-    for (const path of getSubagentArtifactPaths(state.sessionsDir)) {
+    for (const path of getSubagentArtifactPaths(state.sessionsDir, options)) {
       try {
         unlinkSync(path);
       } catch (err) {
@@ -222,23 +273,38 @@ interface SessionFileInfo {
   status: SubagentSessionStatus;
 }
 
-function getSubagentArtifactPaths(sessionsDir: string): string[] {
+function statusMatchesClearOptions(
+  status: SubagentSessionStatus,
+  options: SubagentSessionClearOptions,
+): boolean {
+  const parentSessionKey = options.parentSessionKey?.trim();
+  if (!parentSessionKey) return true;
+  return status.parentSessionKey?.trim() === parentSessionKey;
+}
+
+function getSubagentArtifactPaths(
+  sessionsDir: string,
+  options: SubagentSessionClearOptions,
+): string[] {
   const paths = new Set<string>();
 
   for (const f of readdirSync(sessionsDir)) {
     if (!f.endsWith(".status.json")) continue;
     const base = f.slice(0, -".status.json".length);
-    if (!readLifecycleOwnedSessionStatus(sessionsDir, base)) continue;
+    const status = readLifecycleOwnedSessionStatus(sessionsDir, base);
+    if (!status || !statusMatchesClearOptions(status, options)) continue;
 
-    for (const path of getExistingSessionArtifactPaths(sessionsDir, base)) {
+    for (const path of getExistingSessionArtifactPaths(sessionsDir, status)) {
       paths.add(path);
     }
   }
 
-  for (const f of readdirSync(sessionsDir)) {
-    if (!f.endsWith(".lock")) continue;
-    const base = f.slice(0, -".lock".length);
-    if (lockHasAscOwnershipMarker(sessionsDir, base)) paths.add(join(sessionsDir, f));
+  if (!options.parentSessionKey?.trim()) {
+    for (const f of readdirSync(sessionsDir)) {
+      if (!f.endsWith(".lock")) continue;
+      const base = f.slice(0, -".lock".length);
+      if (lockHasAscOwnershipMarker(sessionsDir, base)) paths.add(join(sessionsDir, f));
+    }
   }
 
   return [...paths];
@@ -257,14 +323,11 @@ export function listSubagentSessionStatuses(sessionsDir: string): SubagentSessio
   return statuses;
 }
 
-function getPrimarySessionArtifactPath(sessionsDir: string, sessionName: string): string {
-  const jsonlPath = join(sessionsDir, `${sessionName}.jsonl`);
-  if (existsSync(jsonlPath)) return jsonlPath;
-
-  const legacyJsonPath = join(sessionsDir, `${sessionName}.json`);
-  if (existsSync(legacyJsonPath)) return legacyJsonPath;
-
-  return getSessionStatusPath(sessionsDir, sessionName);
+function getPrimarySessionArtifactPath(sessionsDir: string, status: SubagentSessionStatus): string {
+  return (
+    getRecordedSessionTracePath(sessionsDir, status) ??
+    getSessionStatusPath(sessionsDir, status.sessionName)
+  );
 }
 
 function getSessionFiles(sessionsDir: string): SessionFileInfo[] {
@@ -277,7 +340,7 @@ function getSessionFiles(sessionsDir: string): SessionFileInfo[] {
     const status = readLifecycleOwnedSessionStatus(sessionsDir, baseName);
     if (!status) continue;
 
-    const path = getPrimarySessionArtifactPath(sessionsDir, baseName);
+    const path = getPrimarySessionArtifactPath(sessionsDir, status);
     try {
       const stats = statSync(path);
       files.push({ path, name: basename(path), baseName, mtime: stats.mtimeMs, status });
@@ -300,12 +363,12 @@ export function cleanupOldSessions(
     let shouldRemove = false;
 
     // Check age-based cleanup
-    if (options.maxAgeMs && now - file.mtime > options.maxAgeMs) {
+    if (options.maxAgeMs !== undefined && now - file.mtime > options.maxAgeMs) {
       shouldRemove = true;
     }
 
     // Check count-based cleanup (files are sorted newest first)
-    if (options.maxCount && index >= options.maxCount) {
+    if (options.maxCount !== undefined && index >= options.maxCount) {
       shouldRemove = true;
     }
 
@@ -316,7 +379,9 @@ export function cleanupOldSessions(
 
   let removedFiles = 0;
   for (const base of sessionBasesToRemove) {
-    for (const path of getExistingSessionArtifactPaths(state.sessionsDir, base)) {
+    const status = readLifecycleOwnedSessionStatus(state.sessionsDir, base);
+    if (!status) continue;
+    for (const path of getExistingSessionArtifactPaths(state.sessionsDir, status)) {
       try {
         unlinkSync(path);
         removedFiles++;

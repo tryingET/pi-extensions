@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
 const PI_SESSION_DIR_ENV = "PI_CODING_AGENT_SESSION_DIR";
+const ASC_NATIVE_SUBAGENT_DIR = "asc-subagents";
 
 export interface ResolvedSubagentSessionsDir {
   path: string;
@@ -50,10 +51,13 @@ export function resolveSubagentSessionsDir(options?: {
   }
 
   const piSessionDir = options?.sessionDirEnv ?? process.env[PI_SESSION_DIR_ENV]?.trim();
-  const path = getPiNativeSessionDirForCwd(options?.cwd ?? process.cwd(), {
-    agentDir: options?.agentDir,
-    sessionDir: piSessionDir,
-  });
+  const path = join(
+    getPiNativeSessionDirForCwd(options?.cwd ?? process.cwd(), {
+      agentDir: options?.agentDir,
+      sessionDir: piSessionDir,
+    }),
+    ASC_NATIVE_SUBAGENT_DIR,
+  );
   mkdirSync(path, { recursive: true });
   return { path, source: "pi-native" };
 }
