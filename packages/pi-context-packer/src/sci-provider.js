@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
-import { lstat, mkdir, mkdtemp, open, realpath, rm, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, open, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import {
   repoRelativePathSafetyIssue,
@@ -14,6 +14,15 @@ const execFileAsync = promisify(execFile);
 const ESTIMATED_BYTES_PER_TOKEN = 4;
 const SCI_MAX_BUFFER = 96_000;
 const SCI_TIMEOUT_MS = 10_000;
+const DEFAULT_SUBPROCESS_PATH = "/usr/local/bin:/usr/bin:/bin";
+const DEFAULT_SCI_COMMAND_PATHS = [
+  "/usr/local/bin/sci",
+  "/usr/bin/sci",
+  "/bin/sci",
+  "/usr/local/bin/semantic-code-intelligence",
+  "/usr/bin/semantic-code-intelligence",
+  "/bin/semantic-code-intelligence",
+];
 
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
 
@@ -39,16 +48,27 @@ const processSciCliOverrideRefusals = (env = {}) => {
     }));
 };
 
-const sciCommandCandidates = (env = {}) => {
+const executableExists = async (candidate) => {
+  if (typeof candidate !== "string" || !isAbsolute(candidate)) return false;
+  try {
+    await access(candidate, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const sciCommandCandidates = async (env = {}) => {
   const processCandidates = customSciCliOverrideAllowed(env)
     ? [process.env.PI_CONTEXT_PACKER_SCI_CLI, process.env.SCI_CLI]
     : [];
-  const candidates = [
-    env.sciCommand,
-    ...processCandidates,
-    "sci",
-    "semantic-code-intelligence",
-  ].filter((candidate) => typeof candidate === "string" && candidate.trim().length > 0);
+  const trustedDefaultCandidates = [];
+  for (const candidate of DEFAULT_SCI_COMMAND_PATHS) {
+    if (await executableExists(candidate)) trustedDefaultCandidates.push(candidate);
+  }
+  const candidates = [env.sciCommand, ...processCandidates, ...trustedDefaultCandidates].filter(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+  );
   return Array.from(new Set(candidates.map((candidate) => candidate.trim())));
 };
 
@@ -69,7 +89,6 @@ const parseWorkflowStdout = (stdout) => {
 };
 
 const SUBPROCESS_ENV_ALLOWLIST = new Set([
-  "PATH",
   "HOME",
   "USER",
   "LOGNAME",
@@ -94,6 +113,7 @@ const workflowEnv = (cwd) => {
   }
   return {
     ...inherited,
+    PATH: DEFAULT_SUBPROCESS_PATH,
     SILENT_MODE: "true",
     STDIO_MODE: "true",
     PWD: cwd,
@@ -119,7 +139,7 @@ const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync 
 
 const tryWorkflow = async ({ cwd, workflow, args, env, exec, shouldAbort }) => {
   const errors = [];
-  for (const command of sciCommandCandidates(env)) {
+  for (const command of await sciCommandCandidates(env)) {
     try {
       const result = await runWorkflow({ cwd, command, workflow, args, exec });
       return { ...result, command };

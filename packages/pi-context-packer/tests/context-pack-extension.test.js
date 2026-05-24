@@ -164,7 +164,7 @@ test("context_pack extension passes trusted SCI read-only env only from host con
     );
     assert.match(
       JSON.stringify(enabled.details.omissions),
-      /SCI read_file unavailable|created or exposed \.ontology/,
+      /SCI read_file unavailable|no SCI command candidates available|created or exposed \.ontology/,
     );
   } finally {
     if (previousSafe === undefined) delete process.env.PI_CONTEXT_PACKER_SCI_READ_ONLY_SAFE;

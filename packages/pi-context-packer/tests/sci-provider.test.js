@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -804,6 +804,55 @@ test("context_pack runs SCI in a temporary sandbox rather than source cwd", asyn
   assert.match(sci.items[0].content, /sandbox-derived context/);
 });
 
+test("context_pack does not resolve default SCI commands through ambient PATH", async () => {
+  const root = await makeWorkspace();
+  const bin = await mkdtemp(join(tmpdir(), "pi-context-pack-sci-path-hijack-"));
+  const maliciousSci = join(bin, "sci");
+  const marker = join(root, "MUTATED_BY_PATH_HIJACK.txt");
+  await writeFile(maliciousSci, "#!/bin/sh\necho malicious\n", "utf8");
+  await chmod(maliciousSci, 0o755);
+
+  await withProcessEnv(
+    {
+      PATH: `${bin}:${process.env.PATH ?? ""}`,
+      SCI_CLI: undefined,
+      PI_CONTEXT_PACKER_SCI_CLI: undefined,
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: undefined,
+    },
+    async () => {
+      const calls = [];
+      const fakeExec = async (command) => {
+        calls.push(command);
+        if (command === "sci" || command === maliciousSci) {
+          await writeFile(marker, "mutation\n", "utf8");
+          return { stdout: sciStdout({ content: "PATH HIJACK CONTENT\n" }) };
+        }
+        throw new Error(`default SCI unavailable at ${command}`);
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { execFileAsync: fakeExec, sciReadOnlySafe: true },
+      );
+
+      assert.equal(calls.includes("sci"), false);
+      assert.equal(calls.includes(maliciousSci), false);
+      assert.equal(await pathExists(marker), false);
+      assert.equal(
+        result.packet.sections.some((section) => section.provider === "sci"),
+        false,
+      );
+      assert.doesNotMatch(JSON.stringify(result.packet), /PATH HIJACK CONTENT|MUTATED_BY_PATH/);
+    },
+  );
+});
+
 test("context_pack ignores untrusted process-level SCI_CLI overrides without leaking paths", async () => {
   await withProcessEnv(
     {
@@ -834,7 +883,7 @@ test("context_pack ignores untrusted process-level SCI_CLI overrides without lea
         { execFileAsync: fakeExec, sciReadOnlySafe: true },
       );
 
-      assert.deepEqual(calls, ["sci", "semantic-code-intelligence"]);
+      assert.equal(calls.includes("/tmp/malicious-sci-cli"), false);
       assert.equal(await pathExists(marker), false);
       assert.equal(
         result.packet.sections.some((section) => section.provider === "sci"),
@@ -879,7 +928,7 @@ test("context_pack ignores untrusted process-level PI_CONTEXT_PACKER_SCI_CLI ove
         { execFileAsync: fakeExec, sciReadOnlySafe: true },
       );
 
-      assert.deepEqual(calls, ["sci", "semantic-code-intelligence"]);
+      assert.equal(calls.includes("/tmp/malicious-context-packer-sci-cli"), false);
       assert.ok(
         result.packet.omissions.some(
           (omission) =>
@@ -962,6 +1011,7 @@ test("context_pack scrubs SCI subprocess environment", async () => {
       assert.equal(seenEnvs.length, 1);
       assert.equal(seenEnvs[0].PWD, seenEnvs[0].INIT_CWD);
       assert.notEqual(seenEnvs[0].PWD, root);
+      assert.equal(seenEnvs[0].PATH, "/usr/local/bin:/usr/bin:/bin");
       assert.equal(seenEnvs[0].SILENT_MODE, "true");
       assert.equal(seenEnvs[0].STDIO_MODE, "true");
       assert.equal(seenEnvs[0].SECRET_TOKEN, undefined);
@@ -969,6 +1019,7 @@ test("context_pack scrubs SCI subprocess environment", async () => {
       assert.equal(seenEnvs[0].SCI_ALLOW_ARTIFACTS, undefined);
       assert.equal(seenEnvs[0].SCI_CLI, undefined);
       assert.equal(seenEnvs[0].PI_CONTEXT_PACKER_SCI_ARTIFACT_BYPASS, undefined);
+      assert.doesNotMatch(seenEnvs[0].PATH, /untrusted-sci-cli/);
       const sci = result.packet.sections.find((section) => section.provider === "sci");
       assert.match(sci.items[0].content, /env-safe context/);
       assert.doesNotMatch(JSON.stringify(result.packet), /super-secret|secret-api-key/);
