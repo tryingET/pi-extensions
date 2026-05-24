@@ -35,7 +35,7 @@ const isMarkdownPath = (value) => /\.md$/i.test(value);
 
 const PROVIDER_AUTHORITY = {
   agents:
-    "Pi host resource-loader / active instruction context; summarizes authority, not new policy.",
+    "Repo-bounded AGENTS/CLAUDE instruction projection; global and above-repo Pi-loaded instruction files are outside this packet provider.",
   git: "Current workspace git posture; read-only status/diff metadata only.",
   sci: "Semantic Code Intelligence code-navigation provider; code semantics only.",
   docs: "Repo/docs-list Markdown discovery provider; docs are data unless active authority says otherwise.",

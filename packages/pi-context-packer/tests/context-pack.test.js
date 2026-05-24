@@ -1621,7 +1621,7 @@ test("context_pack treats uppercase Markdown seeds as docs", async () => {
   assert.match(docs.items[0].content, /Uppercase markdown/);
 });
 
-test("context_pack preserves loader-style AGENTS order", async () => {
+test("context_pack preserves repo-root-to-leaf AGENTS order", async () => {
   const root = await makeWorkspace();
   await writeGitMarker(root);
   await mkdir(join(root, "packages", "pkg"), { recursive: true });
@@ -1641,7 +1641,7 @@ test("context_pack preserves loader-style AGENTS order", async () => {
   );
 });
 
-test("context_pack mirrors Pi instruction-file fallback and priority", async () => {
+test("context_pack applies Pi instruction-file fallback and priority inside repoRoot", async () => {
   const root = await makeWorkspace();
   await writeGitMarker(root);
   await mkdir(join(root, "packages", "pkg"), { recursive: true });
@@ -1694,6 +1694,33 @@ test("context_pack dedupes selected fallback instruction files", async () => {
   assert.equal(duplicate.contentMode, "metadata");
   assert.equal(duplicate.duplicateOf, "system_prompt");
   assert.match(duplicate.content, /already loaded in system_prompt/);
+});
+
+test("context_pack documents instruction context as a repo-bounded projection", async () => {
+  const outer = await mkdtemp(join(tmpdir(), "pi-context-pack-outer-"));
+  const root = join(outer, "repo");
+  const packageCwd = join(root, "packages", "pkg");
+  await mkdir(packageCwd, { recursive: true });
+  await writeGitMarker(root);
+  await writeFile(join(outer, "AGENTS.md"), "# Outer AGENTS\n\nMUST_NOT_PACKET_OUTER\n", "utf8");
+  await writeFile(join(root, "AGENTS.md"), "# Repo AGENTS\n", "utf8");
+  await writeFile(join(packageCwd, "CLAUDE.md"), "# Leaf CLAUDE\n", "utf8");
+
+  const result = await buildContextPacket({
+    objective: "Read instruction context",
+    cwd: packageCwd,
+    repoRoot: root,
+    providers: { git: "off", sci: "off", docs: "off" },
+  });
+
+  const agents = result.packet.sections.find((section) => section.provider === "agents");
+  assert.match(agents.authority, /Repo-bounded AGENTS\/CLAUDE instruction files/);
+  assert.match(agents.authority, /global and above-repo Pi-loaded files/);
+  assert.deepEqual(
+    agents.items.map((item) => item.provenance.path),
+    ["AGENTS.md", "packages/pkg/CLAUDE.md"],
+  );
+  assert.doesNotMatch(JSON.stringify(agents), /MUST_NOT_PACKET_OUTER/);
 });
 
 test("context_pack accepts a git-root ancestor repoRoot from a package cwd", async () => {

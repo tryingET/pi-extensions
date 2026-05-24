@@ -61,6 +61,8 @@ test("context_plan selects code and docs providers from objective and seeds", as
   assert.equal(plan.cwd, repo);
   const byProvider = Object.fromEntries(plan.providerPlans.map((entry) => [entry.provider, entry]));
   assert.equal(byProvider.agents.posture, "selected");
+  assert.match(byProvider.agents.authority, /Repo-bounded AGENTS\/CLAUDE instruction projection/);
+  assert.match(byProvider.agents.authority, /above-repo Pi-loaded instruction files are outside/);
   assert.equal(byProvider.sci.posture, "selected");
   assert.equal(byProvider.docs.posture, "selected");
   assert.equal(byProvider.fcos.posture, "optional");

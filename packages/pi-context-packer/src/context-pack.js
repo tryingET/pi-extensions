@@ -27,7 +27,8 @@ const GIT_MAX_BUFFER = 32_000;
 const TRUSTED_GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git"];
 const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"];
 const SECTION_AUTHORITY = {
-  agents: "Active/relevant AGENTS files are instruction context; this packet only mirrors them.",
+  agents:
+    "Repo-bounded AGENTS/CLAUDE instruction files are context projections; global and above-repo Pi-loaded files may already be active in the session but are not read by this packet.",
   git: "Git status is current workspace posture; read-only metadata only.",
   docs: "Markdown/docs are source-owned data unless active instructions make them authoritative.",
 };
@@ -271,7 +272,8 @@ const buildAgentsSection = async ({ cwd, repoRoot, maxBytes, loadedSystemPrompt 
       root: repoRoot,
       pathSeed,
       provider: "agents",
-      rationale: "active or ancestor instruction context file for package/workspace context",
+      rationale:
+        "repo-bounded ancestor instruction context projection for package/workspace context",
       budgetBytes: maxBytes,
       loadedSystemPrompt,
     });

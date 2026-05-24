@@ -61,7 +61,7 @@ The package currently owns:
 - `/context-pack` planning posture command;
 - always-active `context_plan` when toolbox baseline is current;
 - toolbox-activatable `context_pack` for bounded packet assembly;
-- AGENTS provider with Pi loader-style root-to-leaf instruction-file ordering (`AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`);
+- repo-bounded AGENTS/CLAUDE instruction provider with Pi loader-style per-directory priority (`AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`) from accepted `repoRoot` to cwd;
 - caller-seeded Markdown docs provider;
 - docs-list-ranked Markdown discovery when no explicit safe Markdown seed was supplied, including after unrelated unsafe seeds were omitted;
 - shared intake-safety membrane for caller and provider-discovered paths, default-deny dot-prefixed path segments, C0/C1/DEL control-character rejection, trusted nearest-ancestor git-root inference when `repoRoot` is omitted, monorepo ancestor repoRoot acceptance only with a valid `.git` marker, cwd-relative seed rebasing to a single repo-root path basis that preserves existing repo-root-relative seed precedence, boundary-aware provider/owner-surface matching and provider-scoped query seeds where Markdown path seeds route to docs rather than SCI, adaptive Markdown fences, and bounded one-line Markdown structural labels;
