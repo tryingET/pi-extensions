@@ -15,7 +15,7 @@ system4d:
 
 Implement one focused package slice while preserving monorepo compatibility.
 
-Latest landed slices: dogfood observation/evaluation/aggregate surfaces now carry redacted `activityType` labels; aggregate `stable_positive_signal` requires core implementation/review/validation coverage; and aggregate coverage projections now use copy/freeze/null-prototype membranes to resist returned-object mutation and prototype pollution.
+Latest landed slices: compact `context_plan`/`context_pack` details use redacted projection membranes; dogfood receipts carry activity/runtime calibration labels; aggregate `stable_positive_signal` requires core implementation/review/validation plus live-reloaded coverage; and compact `context_pack` details now omit raw omission details and next-tool suggestion reasons while preserving refs/counts.
 
 ## Package context
 

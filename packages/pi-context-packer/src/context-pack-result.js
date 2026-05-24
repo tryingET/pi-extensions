@@ -116,6 +116,26 @@ const compactProvenance = (provenance = {}) => ({
   ...(provenance.ref ? { ref: provenance.ref } : {}),
 });
 
+const compactOmissions = (omissions = []) =>
+  omissions.map((omission, omissionIndex) => ({
+    provider: omission.provider,
+    reason: omission.reason,
+    detailRef: `packet.omissions[${omissionIndex}].detail`,
+    detailOmitted: Boolean(omission.detail),
+    detailEstimatedTokens: textTokens(omission.detail ?? ""),
+    detailBytes: textBytes(omission.detail),
+  }));
+
+const compactNextToolSuggestions = (suggestions = []) =>
+  suggestions.map((suggestion, suggestionIndex) => ({
+    tool: suggestion.tool,
+    reasonRef: `packet.nextToolSuggestions[${suggestionIndex}].reason`,
+    reasonOmitted: Boolean(suggestion.reason),
+    reasonEstimatedTokens: textTokens(suggestion.reason ?? ""),
+    reasonBytes: textBytes(suggestion.reason),
+    nonAuthorization: suggestion.nonAuthorization,
+  }));
+
 const compactMeasurementReceipt = (receipt) => ({
   ...receipt,
   sessionAwareness: receipt.sessionAwareness
@@ -175,10 +195,10 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
         duplicateTokensAvoided: item.duplicateTokensAvoided,
       })),
     })),
-    omissions: cloneProjection(packet.omissions),
+    omissions: compactOmissions(packet.omissions),
     ownerSurfaceRecommendations: cloneProjection(packet.ownerSurfaceRecommendations),
     nextOwnerActions: cloneProjection(packet.nextOwnerActions),
-    nextToolSuggestions: cloneProjection(packet.nextToolSuggestions),
+    nextToolSuggestions: compactNextToolSuggestions(packet.nextToolSuggestions),
     measurementReceipt: cloneProjection(measurementReceipt),
     packetUtilityRecommendation: cloneProjection(measurementReceipt.packetUtilityRecommendation),
     dogfoodFollowupReceipt: cloneProjection(measurementReceipt.dogfoodFollowupReceipt),
@@ -189,6 +209,8 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
       absoluteWorkspacePathsOmitted: true,
       rawSelectedItemPathsOmitted: true,
       rawItemContentOmitted: true,
+      rawOmissionDetailsOmitted: true,
+      rawNextToolSuggestionReasonsOmitted: true,
     },
     nonAuthorizations: cloneProjection(packet.nonAuthorizations),
   };

@@ -171,6 +171,56 @@ test("compactContextPacketDetails resists returned projection mutation", async (
   assert.equal(packetResult.packet.nonAuthorizations.includes("MUTATED AUTH BOUNDARY"), false);
 });
 
+test("compactContextPacketDetails omits raw omission details and suggestion reasons", async () => {
+  const root = await makeWorkspace();
+  const omittedPath = "docs/omitted-budget-path.md";
+  await writeFile(
+    join(root, omittedPath),
+    "# Omitted budget path\n\nThis file is intentionally too large for the tiny packet budget.\n",
+    "utf8",
+  );
+
+  const result = await contextPacketToolResult(
+    {
+      objective: "Assemble tiny docs packet",
+      cwd: root,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: omittedPath }],
+      providers: { agents: "off", docs: "required", sci: "off", git: "off", session: "off" },
+      budget: { maxTokens: 20, reserveTokens: 19 },
+    },
+    { cwd: root },
+  );
+
+  assert.match(result.content[0].text, /omitted-budget-path\.md/);
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.omissions[0].provider, "docs");
+  assert.equal(result.details.omissions[0].reason, "budget");
+  assert.equal(result.details.omissions[0].detail, undefined);
+  assert.equal(result.details.omissions[0].detailOmitted, true);
+  assert.equal(result.details.omissions[0].detailRef, "packet.omissions[0].detail");
+  assert.equal(typeof result.details.omissions[0].detailEstimatedTokens, "number");
+  assert.equal(typeof result.details.omissions[0].detailBytes, "number");
+
+  const suggestion = result.details.nextToolSuggestions.find(
+    (entry) => entry.tool === "docs owner surface",
+  );
+  assert.ok(suggestion);
+  assert.equal(suggestion.reason, undefined);
+  assert.equal(suggestion.reasonOmitted, true);
+  assert.equal(typeof suggestion.reasonEstimatedTokens, "number");
+  assert.equal(typeof suggestion.reasonBytes, "number");
+
+  assert.equal(
+    result.details.dogfoodObservationTemplate.packet.omissions[0].detailRef,
+    "packet.omissions[0].detail",
+  );
+  assert.equal(JSON.stringify(result.details).includes(omittedPath), false);
+  assert.equal(JSON.stringify(result.details).includes(`docs:${omittedPath}`), false);
+  assert.equal(result.details.redaction.rawOmissionDetailsOmitted, true);
+  assert.equal(result.details.redaction.rawNextToolSuggestionReasonsOmitted, true);
+});
+
 test("contextPacketToolResult returns markdown content and compact details", async () => {
   const root = await makeWorkspace();
   const result = await contextPacketToolResult(

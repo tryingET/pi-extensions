@@ -651,6 +651,26 @@ npm_config_cache=/tmp/pi-npm-cache npm audit --omit=dev --audit-level=moderate
 
 Outcome: aggregate dogfood summaries are less vulnerable to forged stored statuses, runtime provenance is consistent across receipt scaffolds, and release smoke now exercises installed-artifact runtime labels instead of silently normalizing them to `unknown`.
 
+## Receipt R — compact omission and suggestion detail projection
+
+### Context
+
+A next-slice review found that the Markdown packet and dogfood observation template had safer omission projections than the structured `context_pack` tool details. Compact details still cloned public omission `detail` strings and mirrored them into `nextToolSuggestions[].reason`, which could expose repo-relative omitted item paths or budget item ids in the JSON receipt surface.
+
+### Slice
+
+`compactContextPacketDetails` now projects omissions and next-tool suggestions by reference and accounting fields instead of raw detail/reason strings. Markdown packet output remains human-usable, but compact details expose `detailRef` / `reasonRef`, `...Omitted`, estimated token counts, byte counts, provider/reason/tool metadata, and non-authorizations.
+
+Adversarial coverage forces a budget omission for a caller-seeded Markdown path and verifies the packet Markdown can mention the public omission while `details`, compact omissions, and compact next-tool suggestions omit the raw repo-relative path and item id. Existing returned-projection mutation coverage still protects source packet state.
+
+Validation:
+
+```text
+node --test tests/tool-result.test.js
+```
+
+Outcome: the structured details surface is now closer to the dogfood receipt membrane and less likely to become a raw JSON side channel for omission paths or mirrored owner-surface suggestions.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

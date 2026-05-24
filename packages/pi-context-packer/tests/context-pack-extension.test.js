@@ -168,18 +168,25 @@ test("context_pack extension passes trusted SCI read-only env only from host con
     const blocked = await tools
       .get("context_pack")
       .execute("tool-call-3", params, undefined, undefined, context);
-    assert.match(JSON.stringify(blocked.details.omissions), /read-only safety was not confirmed/);
+    assert.match(blocked.content[0].text, /read-only safety was not confirmed/);
+    assert.doesNotMatch(
+      JSON.stringify(blocked.details.omissions),
+      /read-only safety was not confirmed/,
+    );
+    assert.equal(blocked.details.omissions[0].detailOmitted, true);
+    assert.equal(blocked.details.redaction.rawOmissionDetailsOmitted, true);
 
     process.env.PI_CONTEXT_PACKER_SCI_READ_ONLY_SAFE = "true";
     const enabled = await tools
       .get("context_pack")
       .execute("tool-call-4", params, undefined, undefined, context);
+    assert.doesNotMatch(enabled.content[0].text, /read-only safety was not confirmed/);
     assert.doesNotMatch(
       JSON.stringify(enabled.details.omissions),
       /read-only safety was not confirmed/,
     );
     assert.match(
-      JSON.stringify(enabled.details.omissions),
+      enabled.content[0].text,
       /SCI read_file unavailable|no SCI command candidates available|created or exposed \.ontology/,
     );
   } finally {
