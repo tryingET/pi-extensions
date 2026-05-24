@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DOGFOOD_CONTRARY_OMISSION_FOLLOWUP_CLASSES,
+  DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE,
+  DOGFOOD_OMISSION_FOLLOWUP_CLASS_NEXT_ACTIONS,
+  DOGFOOD_OMISSION_FOLLOWUP_CLASSES,
+  DOGFOOD_USER_OMISSION_FOLLOWUP_CLASSES,
+} from "../src/dogfood-followup-classes.js";
+import {
   buildDogfoodAggregateEvaluation,
   buildDogfoodObservationEvaluation,
   DOGFOOD_AGGREGATE_EVALUATION_PARAMETERS,
@@ -10,6 +17,19 @@ import {
   formatDogfoodAggregateEvaluation,
   formatDogfoodObservationEvaluation,
 } from "../src/dogfood-observation.js";
+
+test("dogfood follow-up class registry has coherent public and internal projections", () => {
+  assert.ok(DOGFOOD_OMISSION_FOLLOWUP_CLASSES.includes("legacy_unspecified"));
+  assert.equal(DOGFOOD_USER_OMISSION_FOLLOWUP_CLASSES.includes("legacy_unspecified"), false);
+  assert.ok(DOGFOOD_CONTRARY_OMISSION_FOLLOWUP_CLASSES.includes("true_missing_capability"));
+  assert.equal(DOGFOOD_CONTRARY_OMISSION_FOLLOWUP_CLASSES.includes("useful_omission"), false);
+  assert.match(DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE, /true_missing_capability/);
+  assert.doesNotMatch(DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE, /legacy_unspecified/);
+  assert.match(
+    DOGFOOD_OMISSION_FOLLOWUP_CLASS_NEXT_ACTIONS.provenance_source_owner_followup,
+    /owning surface/,
+  );
+});
 
 const baseObservation = (overrides = {}) => ({
   kind: "context_pack_dogfood_observation_v1",

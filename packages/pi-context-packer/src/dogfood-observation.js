@@ -4,6 +4,13 @@ import {
   publicOmissionDetail,
 } from "./context-intake-safety.js";
 import { textResult } from "./context-pack-result.js";
+import {
+  DOGFOOD_CONTRARY_OMISSION_FOLLOWUP_CLASSES,
+  DOGFOOD_OMISSION_FOLLOWUP_CLASS_NEXT_ACTIONS,
+  DOGFOOD_OMISSION_FOLLOWUP_CLASSES,
+} from "./dogfood-followup-classes.js";
+
+export { DOGFOOD_OMISSION_FOLLOWUP_CLASSES } from "./dogfood-followup-classes.js";
 
 const OBSERVATION_KIND = "context_pack_dogfood_observation_v1";
 const EVALUATION_KIND = "context_pack_dogfood_evaluation_v1";
@@ -21,24 +28,8 @@ const CALIBRATION_STATUSES = [
 ];
 const CORE_ACTIVITY_TYPES = Object.freeze(["implementation", "review", "validation"]);
 const KNOWN_ACTIVITY_TYPES = new Set([...CORE_ACTIVITY_TYPES, "planning", "other", "unspecified"]);
-export const DOGFOOD_OMISSION_FOLLOWUP_CLASSES = Object.freeze([
-  "useful_omission",
-  "residual_probe",
-  "validation_activity",
-  "legacy_missingness",
-  "provenance_source_owner_followup",
-  "true_missing_capability",
-  "legacy_unspecified",
-  "other",
-]);
 const KNOWN_FOLLOWUP_CLASSES = new Set(DOGFOOD_OMISSION_FOLLOWUP_CLASSES);
-const CONTRARY_FOLLOWUP_CLASSES = new Set([
-  "residual_probe",
-  "provenance_source_owner_followup",
-  "true_missing_capability",
-  "legacy_unspecified",
-  "other",
-]);
+const CONTRARY_FOLLOWUP_CLASSES = new Set(DOGFOOD_CONTRARY_OMISSION_FOLLOWUP_CLASSES);
 
 const NON_AUTHORIZATION =
   "packet-local dogfood evaluation only; context-packer did not persist evidence, update AK/FCOS, write session memory, read files, call providers, or validate task completion";
@@ -607,41 +598,10 @@ const aggregateStatusFor = ({ validCount, invalidCount, statusCounts, activityCo
   return "limited_positive_signal";
 };
 
-const followupClassNextActionsFor = (classCounts) => {
-  const actions = [];
-  if ((classCounts.true_missing_capability ?? 0) > 0) {
-    actions.push(
-      "Review repeated true-missing-capability follow-ups before adding provider adapters or ranking scope.",
-    );
-  }
-  if ((classCounts.residual_probe ?? 0) > 0) {
-    actions.push("Review residual-probe follow-ups for ranking, budget, or packet-shape gaps.");
-  }
-  if ((classCounts.provenance_source_owner_followup ?? 0) > 0) {
-    actions.push(
-      "Route provenance/source-owner follow-ups to the owning surface; context-packer only recorded the packet-local calibration label.",
-    );
-  }
-  if ((classCounts.validation_activity ?? 0) > 0) {
-    actions.push(
-      "Keep validation activity separate from context-probe counts when comparing usefulness.",
-    );
-  }
-  if ((classCounts.useful_omission ?? 0) > 0) {
-    actions.push(
-      "Treat useful-omission follow-ups as healthy omission signals, not missing adapter proof.",
-    );
-  }
-  if ((classCounts.legacy_unspecified ?? 0) > 0 || (classCounts.legacy_missingness ?? 0) > 0) {
-    actions.push(
-      "Prefer structured follow-up objects in future receipts to reduce legacy ambiguity.",
-    );
-  }
-  if ((classCounts.other ?? 0) > 0) {
-    actions.push("Review 'other' follow-ups manually before tuning ranking or providers.");
-  }
-  return actions;
-};
+const followupClassNextActionsFor = (classCounts) =>
+  Object.entries(DOGFOOD_OMISSION_FOLLOWUP_CLASS_NEXT_ACTIONS)
+    .filter(([classification]) => (classCounts[classification] ?? 0) > 0)
+    .map(([, nextAction]) => nextAction);
 
 const aggregateNextAction = (status, activityCoverage) => {
   if (status === "stable_positive_signal") {

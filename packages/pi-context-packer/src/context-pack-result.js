@@ -1,5 +1,6 @@
 import { markdownFence, markdownInlineLabel } from "./context-intake-safety.js";
 import { formatContextPlan } from "./context-plan.js";
+import { DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE } from "./dogfood-followup-classes.js";
 
 export const textResult = (text, details = {}) => ({ content: [{ type: "text", text }], details });
 
@@ -77,7 +78,7 @@ export const formatContextPacket = (result) => {
           "- activity type: optionally fill activityType as implementation, review, validation, planning, or other",
           "- actual low-level read/search/status calls: fill externally after work if useful",
           "- validation commands run: fill validationCommandsRun separately from context probes if recording dogfood",
-          "- omission follow-ups: optionally use objects with provider, reason, and classification (useful_omission, residual_probe, validation_activity, legacy_missingness, provenance_source_owner_followup, true_missing_capability, or other)",
+          `- omission follow-ups: ${DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE}`,
           `- non-authorization: ${dogfoodFollowup.nonAuthorization}`,
         ].join("\n")
       : "- none",

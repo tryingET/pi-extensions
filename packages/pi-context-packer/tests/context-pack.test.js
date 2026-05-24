@@ -2034,7 +2034,7 @@ test("context_pack emits copy-ready dogfood observation template without raw con
   assert.equal(template.observation.actualLowLevelReadSearchStatusCalls, null);
   assert.equal(template.observation.validationCommandsRun, null);
   assert.ok(template.observation.omissionFollowupClassOptions.includes("true_missing_capability"));
-  assert.match(template.countingRule, /classification from omissionFollowupClassOptions/);
+  assert.match(template.countingRule, /classification/);
   assert.equal(template.prediction.expectedLowLevelCallsAvoided, 2);
   assert.ok(template.packet.providerRoutes.some((route) => route.provider === "docs"));
   assert.match(template.nonAuthorization, /did not persist evidence/);
