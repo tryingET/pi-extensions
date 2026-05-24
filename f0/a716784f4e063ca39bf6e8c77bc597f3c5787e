@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "f0a716784f4e063ca39bf6e8c77bc597f3c5787e"
-created_at: "2026-05-24T18:02:01Z"
+created_at: "2026-05-24T18:05:02Z"
 intent: "Record process start identity for ASC subagent liveness and reject stale PID-reuse sidecars"
 files:
   - "packages/pi-autonomous-session-control/CHANGELOG.md"
@@ -16,7 +16,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 3
   total: 3
