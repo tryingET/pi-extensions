@@ -47,6 +47,7 @@ export interface SubagentSessionStatus {
   resultPreview?: string;
   sessionKind?: "subagent";
   sessionFile?: string;
+  pidStartedAt?: number;
   profile?: string;
   model?: string;
   tools?: string;
@@ -94,11 +95,33 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
     return null;
   }
 
+  if (candidate.pidStartedAt !== undefined && typeof candidate.pidStartedAt !== "number") {
+    return null;
+  }
+
   return candidate as unknown as SubagentSessionStatus;
 }
 
 export function getSessionStatusPath(sessionsDir: string, sessionName: string): string {
   return join(sessionsDir, `${sessionName}.status.json`);
+}
+
+export function getProcessStartTicks(pid: number): number | null {
+  if (!Number.isInteger(pid) || pid <= 0 || process.platform !== "linux") return null;
+
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf-8");
+    const closingParen = stat.lastIndexOf(")");
+    if (closingParen < 0) return null;
+    const fields = stat
+      .slice(closingParen + 2)
+      .trim()
+      .split(/\s+/);
+    const startTicks = Number(fields[19]);
+    return Number.isFinite(startTicks) ? startTicks : null;
+  } catch {
+    return null;
+  }
 }
 
 function processIsAlive(pid: number): boolean {
@@ -109,6 +132,12 @@ function processIsAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+function runningStatusHasLiveOwner(status: SubagentSessionStatus): boolean {
+  if (!processIsAlive(status.pid)) return false;
+  if (typeof status.pidStartedAt !== "number") return true;
+  return getProcessStartTicks(status.pid) === status.pidStartedAt;
 }
 
 export function writeSessionStatus(
@@ -241,7 +270,7 @@ function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
     const base = f.slice(0, -".status.json".length);
     const status = readLifecycleOwnedSessionStatus(sessionsDir, base);
     if (!status || status.status !== "running") continue;
-    if (processIsAlive(status.pid)) continue;
+    if (runningStatusHasLiveOwner(status)) continue;
 
     writeSessionStatus(sessionsDir, status.sessionName, {
       ...status,
@@ -252,7 +281,7 @@ function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
 
 function countLiveRunningSessionStatuses(sessionsDir: string): number {
   return listSubagentSessionStatuses(sessionsDir).filter(
-    (status) => status.status === "running" && processIsAlive(status.pid),
+    (status) => status.status === "running" && runningStatusHasLiveOwner(status),
   ).length;
 }
 
@@ -323,7 +352,7 @@ function getSubagentArtifactPaths(
     const base = f.slice(0, -".status.json".length);
     const status = readLifecycleOwnedSessionStatus(sessionsDir, base);
     if (!status || !statusMatchesClearOptions(status, options)) continue;
-    if (status.status === "running" && processIsAlive(status.pid)) continue;
+    if (status.status === "running" && runningStatusHasLiveOwner(status)) continue;
 
     for (const path of getExistingSessionArtifactPaths(sessionsDir, status)) {
       paths.add(path);
@@ -411,7 +440,10 @@ export function cleanupOldSessions(
       shouldRemove = true;
     }
 
-    if (shouldRemove && !(file.status.status === "running" && processIsAlive(file.status.pid))) {
+    if (
+      shouldRemove &&
+      !(file.status.status === "running" && runningStatusHasLiveOwner(file.status))
+    ) {
       sessionBasesToRemove.add(file.baseName);
     }
   }

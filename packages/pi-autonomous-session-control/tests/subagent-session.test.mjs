@@ -498,6 +498,26 @@ test("createSubagentState restores active concurrency from live running status s
   }
 });
 
+test("createSubagentState rejects running sidecars with mismatched process identity", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-active-pid-identity-"));
+
+  try {
+    await writeFile(join(sessionsDir, "stale-subagent.jsonl"), "{}\n");
+    await writeStatus(sessionsDir, "stale-subagent", "running", { pidStartedAt: -1 });
+
+    const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
+    const status = JSON.parse(
+      await readFile(getSessionStatusPath(sessionsDir, "stale-subagent"), "utf8"),
+    );
+
+    assert.equal(state.activeCount, 0);
+    assert.equal(canSpawnSubagent(state), true);
+    assert.equal(status.status, "abandoned");
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("getSubagentStats returns correct session count", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-stats-"));
 

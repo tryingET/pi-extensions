@@ -4,7 +4,11 @@ import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import type { InvariantIssue } from "./edge-contract-kernel.ts";
-import { type SubagentState, writeSessionStatus } from "./subagent-session.ts";
+import {
+  getProcessStartTicks,
+  type SubagentState,
+  writeSessionStatus,
+} from "./subagent-session.ts";
 
 export interface SubagentDef {
   name: string;
@@ -610,6 +614,7 @@ export function spawnSubagentWithSpawn(
         pid: proc?.pid ?? process.pid,
         ppid: process.pid,
         createdAt,
+        pidStartedAt: getProcessStartTicks(proc?.pid ?? process.pid) ?? undefined,
         objective: def.objective,
         exitCode: result.exitCode,
         elapsed: result.elapsed,
@@ -782,6 +787,7 @@ export function spawnSubagentWithSpawn(
         pid: proc.pid ?? process.pid,
         ppid: process.pid,
         createdAt,
+        pidStartedAt: getProcessStartTicks(proc.pid ?? process.pid) ?? undefined,
         objective: def.objective,
         parentSessionKey: def.parentSessionKey,
         parentRepoRoot: def.parentRepoRoot,
