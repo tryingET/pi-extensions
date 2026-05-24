@@ -48,6 +48,7 @@ export interface SubagentSessionStatus {
   sessionKind?: "subagent";
   sessionFile?: string;
   pidStartedAt?: number;
+  pidIdentity?: "proc-start-ticks" | "unsupported";
   profile?: string;
   model?: string;
   tools?: string;
@@ -100,6 +101,14 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
     return null;
   }
 
+  if (
+    candidate.pidIdentity !== undefined &&
+    candidate.pidIdentity !== "proc-start-ticks" &&
+    candidate.pidIdentity !== "unsupported"
+  ) {
+    return null;
+  }
+
   return candidate as unknown as SubagentSessionStatus;
 }
 
@@ -135,9 +144,11 @@ function processIsAlive(pid: number): boolean {
   }
 }
 
-function runningStatusHasLiveOwner(status: SubagentSessionStatus): boolean {
+export function runningStatusHasLiveOwner(status: SubagentSessionStatus): boolean {
   if (!processIsAlive(status.pid)) return false;
   if (typeof status.pidStartedAt !== "number") {
+    if (status.pidIdentity === "unsupported") return true;
+
     const updatedAtMs = Date.parse(status.updatedAt);
     const ageMs = Date.now() - updatedAtMs;
     return (

@@ -28,7 +28,7 @@ All notable changes to this project should be documented here.
 - `/subagent-clear` and `/subagent-cleanup` now preserve subagent traces by default and require an explicit `--delete` flag before pruning ASC-owned artifacts.
 - Legacy startup cleanup env flags no longer delete session traces; startup now preserves by policy and destructive pruning is command-explicit.
 - Destructive pruning no longer trusts arbitrary contained `sessionFile` paths; only expected ASC trace names (`<session>.jsonl` / legacy `<session>.json`) are deletion candidates.
-- Running-session liveness now records process start ticks when available, rejects mismatched PID identity on restart, and abandons stale legacy running sidecars that lack process identity after a bounded grace window.
+- Running-session liveness now records process start ticks when available, marks unsupported process-identity platforms explicitly, rejects mismatched PID identity on restart, keeps unsupported-identity live sessions while their PID is alive, abandons stale legacy running sidecars that lack process identity after a bounded grace window, and reports the same identity-aware live-owner state in subagent inspection.
 
 ## [0.1.5] - 2026-05-12
 

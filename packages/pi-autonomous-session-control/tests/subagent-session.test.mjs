@@ -571,6 +571,31 @@ test("createSubagentState rejects future-dated running sidecars without process 
   }
 });
 
+test("createSubagentState keeps running sidecars when process identity is unsupported", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-active-unsupported-identity-"));
+
+  try {
+    const oldUpdatedAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    await writeFile(join(sessionsDir, "unsupported-identity.jsonl"), "{}\n");
+    await writeStatus(sessionsDir, "unsupported-identity", "running", {
+      updatedAt: oldUpdatedAt,
+      pidIdentity: "unsupported",
+    });
+
+    const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
+    const status = JSON.parse(
+      await readFile(getSessionStatusPath(sessionsDir, "unsupported-identity"), "utf8"),
+    );
+
+    assert.equal(state.activeCount, 1);
+    assert.equal(canSpawnSubagent(state), false);
+    assert.equal(status.status, "running");
+    assert.equal(status.updatedAt, oldUpdatedAt);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("getSubagentStats returns correct session count", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-stats-"));
 

@@ -501,6 +501,30 @@ test("createSubagentSessionInspection rejects malformed non-string sessionFile s
   }
 });
 
+test("createSubagentSessionInspection reports stale process identity as not live", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-stale-pid-"));
+
+  try {
+    await writeStatus(
+      sessionsDir,
+      "stale-pid",
+      "running",
+      new Date().toISOString(),
+      "Inspect a stale running sidecar after PID reuse.",
+      { pidStartedAt: -1 },
+    );
+    await writeFile(join(sessionsDir, "stale-pid.jsonl"), "{}\n");
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "stale-pid");
+
+    assert.equal(inspection.status, "running");
+    assert.equal(inspection.pidState, "dead");
+    assert.match(inspection.warnings.join("\n"), /process identity mismatch/i);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createSubagentSessionInspection summarizes lifecycle metadata and artifact paths", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-"));
   const updatedAt = "2026-03-06T11:59:00.000Z";

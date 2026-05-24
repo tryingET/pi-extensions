@@ -4,6 +4,7 @@ import {
   listSubagentSessionStatuses,
   parseSubagentSessionStatusPayload,
   resolveContainedSessionPath,
+  runningStatusHasLiveOwner,
   type SubagentSessionStatus,
 } from "./subagent-session.ts";
 
@@ -177,17 +178,6 @@ function recommendedActionHint(status: SubagentSessionStatus["status"]): string 
       return "Confirm cancellation intent before rerunning.";
     case "abandoned":
       return "Decide whether to resume, rerun, or clean up.";
-  }
-}
-
-function processIsAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -451,10 +441,10 @@ export function createSubagentSessionInspection(
   } else if (parsedStatus.status !== "running") {
     pidState = "not-applicable";
   } else {
-    pidState = processIsAlive(parsedStatus.pid) ? "alive" : "dead";
+    pidState = runningStatusHasLiveOwner(parsedStatus) ? "alive" : "dead";
     if (pidState === "dead") {
       warnings.push(
-        "Status says running, but the recorded PID is no longer alive. Reconcile before resuming.",
+        "Status says running, but the recorded PID is not accepted as a live owner (dead, stale, or process identity mismatch). Reconcile before resuming.",
       );
     }
   }

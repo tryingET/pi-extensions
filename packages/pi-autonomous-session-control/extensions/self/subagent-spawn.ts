@@ -782,12 +782,15 @@ export function spawnSubagentWithSpawn(
         env: { ...process.env, ...(requestEnv ?? {}) },
         cwd: ctx.cwd || process.cwd(),
       });
+      const childPid = proc.pid ?? process.pid;
+      const pidStartedAt = getProcessStartTicks(childPid);
       writeSessionStatus(state.sessionsDir, def.name, {
         status: "running",
-        pid: proc.pid ?? process.pid,
+        pid: childPid,
         ppid: process.pid,
         createdAt,
-        pidStartedAt: getProcessStartTicks(proc.pid ?? process.pid) ?? undefined,
+        pidStartedAt: pidStartedAt ?? undefined,
+        pidIdentity: pidStartedAt === null ? "unsupported" : "proc-start-ticks",
         objective: def.objective,
         parentSessionKey: def.parentSessionKey,
         parentRepoRoot: def.parentRepoRoot,
