@@ -112,6 +112,7 @@ test("dogfood evaluator preserves redacted provider route telemetry", () => {
   assert.equal(evaluation.ok, true);
   assert.equal(evaluation.providerRoutes.length, 2);
   assert.equal(evaluation.providerRoutes[0].selectedQueryCount, 1);
+  assert.equal(evaluation.providerRoutes[1].totalQueryCount, 2);
   assert.equal(evaluation.providerRoutes[1].selectedQueryCount, 0);
   assert.equal(evaluation.providerRoutes[1].followupQueryCount, 2);
   assert.deepEqual(Object.fromEntries(Object.entries(evaluation.providerRoutes[1].seedCounts)), {
@@ -147,6 +148,48 @@ test("dogfood evaluator rejects invalid provider route counts", () => {
   assert.match(evaluation.errors.join("\n"), /selectedQueryCount/);
   assert.match(evaluation.errors.join("\n"), /followupQueryCount/);
   assert.match(evaluation.errors.join("\n"), /seedCounts\[0\]\.markdown/);
+});
+
+test("dogfood evaluator rejects provider route selected/follow-up count contradictions", () => {
+  const selectedOnFollowup = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      packet: {
+        ...baseObservation().packet,
+        providerRoutes: [
+          {
+            provider: "prompt_vault",
+            posture: "optional",
+            routeRole: "followup",
+            totalQueryCount: 7,
+            selectedQueryCount: 7,
+            followupQueryCount: 0,
+          },
+        ],
+      },
+    }),
+  });
+  const followupOnSelected = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      packet: {
+        ...baseObservation().packet,
+        providerRoutes: [
+          {
+            provider: "docs",
+            posture: "required",
+            routeRole: "selected",
+            totalQueryCount: 1,
+            selectedQueryCount: 1,
+            followupQueryCount: 1,
+          },
+        ],
+      },
+    }),
+  });
+
+  assert.equal(selectedOnFollowup.ok, false);
+  assert.match(selectedOnFollowup.errors.join("\n"), /selectedQueryCount must be zero/);
+  assert.equal(followupOnSelected.ok, false);
+  assert.match(followupOnSelected.errors.join("\n"), /followupQueryCount must be zero/);
 });
 
 test("dogfood evaluator redacts invalid provider route seed-count keys", async () => {
@@ -608,6 +651,7 @@ test("dogfood aggregate summarizes provider route telemetry without treating fol
   assert.equal(aggregate.totals.providerRouteCount, 4);
   assert.equal(aggregate.totals.providerRouteSelectedQueryCount, 2);
   assert.equal(aggregate.totals.providerRouteFollowupQueryCount, 4);
+  assert.equal(aggregate.totals.providerRouteUnclassifiedQueryCount, 0);
   assert.equal(aggregate.totals.providerRoutesTruncated, 2);
   assert.equal(aggregate.providerRouteCounts.docs, 2);
   assert.equal(aggregate.providerRouteCounts.prompt_vault, 2);
@@ -618,8 +662,12 @@ test("dogfood aggregate summarizes provider route telemetry without treating fol
   assert.equal(aggregate.providerRouteQueryTotals.docs.selectedQueryCount, 2);
   assert.equal(aggregate.providerRouteQueryTotals.prompt_vault.selectedQueryCount, 0);
   assert.equal(aggregate.providerRouteQueryTotals.prompt_vault.followupQueryCount, 4);
+  assert.equal(aggregate.providerRouteQueryTotals.prompt_vault.unclassifiedQueryCount, 0);
   assert.match(text, /Provider route query totals/);
-  assert.match(text, /prompt_vault: routes=2, selectedQueries=0, followupQueries=4/);
+  assert.match(
+    text,
+    /prompt_vault: routes=2, selectedQueries=0, followupQueries=4, unclassifiedQueries=0/,
+  );
 });
 
 test("dogfood aggregate preserves legacy evaluations without provider route telemetry", () => {
@@ -663,6 +711,34 @@ test("dogfood aggregate reports provider route seed-kind truncation", () => {
   assert.equal(aggregate.totals.providerRouteSeedCount, 12);
   assert.equal(aggregate.totals.providerRouteSeedCountsTruncated, 2);
   assert.match(text, /2 seed-kind entries truncated/);
+});
+
+test("dogfood aggregate preserves unclassified query counts without selected/follow-up inflation", () => {
+  const aggregate = buildDogfoodAggregateEvaluation({
+    observations: [
+      baseObservation({
+        packet: {
+          ...baseObservation().packet,
+          providerRoutes: [
+            {
+              provider: "legacy",
+              posture: "unknown",
+              routeRole: "unknown",
+              totalQueryCount: 3,
+              seedCount: 0,
+              seedCounts: {},
+            },
+          ],
+        },
+      }),
+    ],
+  });
+
+  assert.equal(aggregate.ok, true);
+  assert.equal(aggregate.totals.providerRouteSelectedQueryCount, 0);
+  assert.equal(aggregate.totals.providerRouteFollowupQueryCount, 0);
+  assert.equal(aggregate.totals.providerRouteUnclassifiedQueryCount, 3);
+  assert.equal(aggregate.providerRouteQueryTotals.legacy.unclassifiedQueryCount, 3);
 });
 
 test("dogfood aggregate formatter tolerates legacy aggregate objects without provider routes", () => {

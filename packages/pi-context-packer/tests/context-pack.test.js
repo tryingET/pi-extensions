@@ -158,7 +158,8 @@ test("context_pack keeps provider query seeds scoped through mixed docs and SCI 
   assert.deepEqual(routeByProvider.sci.seedCounts, { code: 1, symbol: 1 });
   assert.equal(routeByProvider.agents.seedCount, 0);
   assert.equal(routeByProvider.prompt_vault.routeRole, "followup");
-  assert.equal(routeByProvider.prompt_vault.queryCount, 0);
+  assert.equal(routeByProvider.prompt_vault.queryCount, 1);
+  assert.equal(routeByProvider.prompt_vault.totalQueryCount, 1);
   assert.equal(routeByProvider.prompt_vault.followupQueryCount, 1);
   const docs = result.packet.sections.find((section) => section.provider === "docs");
   assert.deepEqual(

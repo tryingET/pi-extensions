@@ -166,6 +166,11 @@ const normalizeProviderRoute = (value, path, errors) => {
   }
 
   const queryCount = readOptionalCount(route.queryCount, `${path}.queryCount`, errors);
+  const totalQueryCount = readOptionalCount(
+    route.totalQueryCount,
+    `${path}.totalQueryCount`,
+    errors,
+  );
   const selectedQueryCount = readOptionalCount(
     route.selectedQueryCount,
     `${path}.selectedQueryCount`,
@@ -184,14 +189,36 @@ const normalizeProviderRoute = (value, path, errors) => {
   const seedCount = readOptionalCount(route.seedCount, `${path}.seedCount`, errors);
   const routeRole = normalizeRouteRole(route.routeRole);
   const inferredSeedCount = Object.values(seedCounts).reduce((sum, count) => sum + count, 0);
+  const rawTotalQueryCount = totalQueryCount ?? queryCount;
+  const normalizedSelectedQueryCount =
+    selectedQueryCount ?? (routeRole === "selected" ? (rawTotalQueryCount ?? 0) : 0);
+  const normalizedFollowupQueryCount =
+    followupQueryCount ?? (routeRole === "followup" ? (rawTotalQueryCount ?? 0) : 0);
+  const normalizedTotalQueryCount =
+    rawTotalQueryCount ?? normalizedSelectedQueryCount + normalizedFollowupQueryCount;
+  if (routeRole !== "selected" && normalizedSelectedQueryCount > 0) {
+    errors.push(`${path}.selectedQueryCount must be zero unless routeRole is selected`);
+  }
+  if (routeRole !== "followup" && normalizedFollowupQueryCount > 0) {
+    errors.push(`${path}.followupQueryCount must be zero unless routeRole is followup`);
+  }
+  if (normalizedSelectedQueryCount + normalizedFollowupQueryCount > normalizedTotalQueryCount) {
+    errors.push(`${path}.totalQueryCount must cover selected and follow-up query counts`);
+  }
+  const unclassifiedQueryCount = Math.max(
+    0,
+    normalizedTotalQueryCount - normalizedSelectedQueryCount - normalizedFollowupQueryCount,
+  );
 
   return {
     provider: sanitizeLabel(route.provider, "provider"),
     posture: sanitizeLabel(route.posture, "posture"),
     routeRole,
-    queryCount: selectedQueryCount ?? (routeRole === "selected" ? (queryCount ?? 0) : 0),
-    selectedQueryCount: selectedQueryCount ?? (routeRole === "selected" ? (queryCount ?? 0) : 0),
-    followupQueryCount: followupQueryCount ?? (routeRole === "followup" ? (queryCount ?? 0) : 0),
+    queryCount: normalizedTotalQueryCount,
+    totalQueryCount: normalizedTotalQueryCount,
+    selectedQueryCount: normalizedSelectedQueryCount,
+    followupQueryCount: normalizedFollowupQueryCount,
+    unclassifiedQueryCount,
     seedCount: seedCount ?? inferredSeedCount,
     seedCounts,
     seedCountsTruncated,
@@ -236,7 +263,7 @@ const routeSeedCountsText = (seedCounts) => {
 const providerRouteLines = (providerRoutes) =>
   providerRoutes.map(
     (route) =>
-      `- ${markdownInlineLabel(route.provider, "provider")}: role=${markdownInlineLabel(route.routeRole, "route role")}, posture=${markdownInlineLabel(route.posture, "posture")}, selectedQueries=${route.selectedQueryCount}, followupQueries=${route.followupQueryCount}, seeds=${route.seedCount} (${routeSeedCountsText(route.seedCounts)})`,
+      `- ${markdownInlineLabel(route.provider, "provider")}: role=${markdownInlineLabel(route.routeRole, "route role")}, posture=${markdownInlineLabel(route.posture, "posture")}, totalQueries=${route.totalQueryCount}, selectedQueries=${route.selectedQueryCount}, followupQueries=${route.followupQueryCount}, unclassifiedQueries=${route.unclassifiedQueryCount}, seeds=${route.seedCount} (${routeSeedCountsText(route.seedCounts)}${route.seedCountsTruncated ? `; ${route.seedCountsTruncated} seed-kind entries truncated` : ""})`,
   );
 
 const parseObservationInput = (input = {}) => {
@@ -759,6 +786,7 @@ const aggregateProviderRoutes = (validEvaluations) => {
     providerRouteCount: 0,
     selectedQueryCount: 0,
     followupQueryCount: 0,
+    unclassifiedQueryCount: 0,
     seedCount: 0,
     providerRoutesTruncated: 0,
     seedCountsTruncated: 0,
@@ -770,6 +798,7 @@ const aggregateProviderRoutes = (validEvaluations) => {
       totals.providerRouteCount += 1;
       totals.selectedQueryCount += route.selectedQueryCount;
       totals.followupQueryCount += route.followupQueryCount;
+      totals.unclassifiedQueryCount += route.unclassifiedQueryCount ?? 0;
       totals.seedCount += route.seedCount;
       totals.seedCountsTruncated += route.seedCountsTruncated ?? 0;
       incrementCount(providerRouteCounts, route.provider);
@@ -779,6 +808,7 @@ const aggregateProviderRoutes = (validEvaluations) => {
           routeCount: 0,
           selectedQueryCount: 0,
           followupQueryCount: 0,
+          unclassifiedQueryCount: 0,
           seedCount: 0,
         };
       }
@@ -786,6 +816,7 @@ const aggregateProviderRoutes = (validEvaluations) => {
       providerTotals.routeCount += 1;
       providerTotals.selectedQueryCount += route.selectedQueryCount;
       providerTotals.followupQueryCount += route.followupQueryCount;
+      providerTotals.unclassifiedQueryCount += route.unclassifiedQueryCount ?? 0;
       providerTotals.seedCount += route.seedCount;
       for (const [seedKind, count] of Object.entries(route.seedCounts ?? {})) {
         incrementCount(providerRouteSeedKindCounts, seedKind, count);
@@ -941,6 +972,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
       providerRouteCount: routeAggregate.totals.providerRouteCount,
       providerRouteSelectedQueryCount: routeAggregate.totals.selectedQueryCount,
       providerRouteFollowupQueryCount: routeAggregate.totals.followupQueryCount,
+      providerRouteUnclassifiedQueryCount: routeAggregate.totals.unclassifiedQueryCount,
       providerRouteSeedCount: routeAggregate.totals.seedCount,
       providerRoutesTruncated: routeAggregate.totals.providerRoutesTruncated,
       providerRouteSeedCountsTruncated: routeAggregate.totals.seedCountsTruncated,
@@ -985,7 +1017,7 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
   const providerRouteSeedKindCounts = aggregate.providerRouteSeedKindCounts ?? {};
   const providerRouteLines = Object.entries(providerRouteQueryTotals).map(
     ([provider, totals]) =>
-      `- ${markdownInlineLabel(provider, "provider")}: routes=${totals.routeCount ?? 0}, selectedQueries=${totals.selectedQueryCount ?? 0}, followupQueries=${totals.followupQueryCount ?? 0}, seeds=${totals.seedCount ?? 0}`,
+      `- ${markdownInlineLabel(provider, "provider")}: routes=${totals.routeCount ?? 0}, selectedQueries=${totals.selectedQueryCount ?? 0}, followupQueries=${totals.followupQueryCount ?? 0}, unclassifiedQueries=${totals.unclassifiedQueryCount ?? 0}, seeds=${totals.seedCount ?? 0}`,
   );
   const providerRouteRoleLines = Object.entries(providerRouteRoleCounts).map(
     ([role, count]) => `- ${markdownInlineLabel(role, "route role")}: ${count}`,
@@ -1024,7 +1056,7 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     `Actual low-level read/search/status calls: ${aggregate.totals.actualLowLevelReadSearchStatusCalls}`,
     `Validation commands run: ${aggregate.totals.validationCommandsRun} (${aggregate.totals.validationCommandsRecordedCount} recorded, ${aggregate.totals.validationCommandsMissingCount} missing)`,
     `Omission follow-ups truncated: ${aggregate.totals.omissionFollowupsTruncated}`,
-    `Provider routes: ${aggregate.totals.providerRouteCount ?? 0} (${aggregate.totals.providerRoutesTruncated ?? 0} route entries truncated, ${aggregate.totals.providerRouteSeedCountsTruncated ?? 0} seed-kind entries truncated), selected queries ${aggregate.totals.providerRouteSelectedQueryCount ?? 0}, follow-up queries ${aggregate.totals.providerRouteFollowupQueryCount ?? 0}, seeds ${aggregate.totals.providerRouteSeedCount ?? 0}`,
+    `Provider routes: ${aggregate.totals.providerRouteCount ?? 0} (${aggregate.totals.providerRoutesTruncated ?? 0} route entries truncated, ${aggregate.totals.providerRouteSeedCountsTruncated ?? 0} seed-kind entries truncated), selected queries ${aggregate.totals.providerRouteSelectedQueryCount ?? 0}, follow-up queries ${aggregate.totals.providerRouteFollowupQueryCount ?? 0}, unclassified queries ${aggregate.totals.providerRouteUnclassifiedQueryCount ?? 0}, seeds ${aggregate.totals.providerRouteSeedCount ?? 0}`,
     "",
     "## Calibration status counts",
     statusLines.join("\n"),
