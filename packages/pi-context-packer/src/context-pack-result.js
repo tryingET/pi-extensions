@@ -104,6 +104,7 @@ export const formatContextPacket = (result) => {
 
 const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
 const textTokens = (value) => Math.ceil(textBytes(value) / 4);
+const cloneProjection = (value) => (value === undefined ? undefined : structuredClone(value));
 
 const compactProvenance = (provenance = {}) => ({
   provider: provenance.provider,
@@ -150,8 +151,8 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
       repoRootRef: "packet.repoRoot",
       absolutePathsOmitted: true,
     },
-    budget: packet.budget,
-    totals: packet.totals,
+    budget: cloneProjection(packet.budget),
+    totals: cloneProjection(packet.totals),
     ...(renderedMarkdown ? { renderedMarkdown } : {}),
     sections: packet.sections.map((section, sectionIndex) => ({
       id: section.id,
@@ -173,22 +174,22 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
         duplicateTokensAvoided: item.duplicateTokensAvoided,
       })),
     })),
-    omissions: packet.omissions,
-    ownerSurfaceRecommendations: packet.ownerSurfaceRecommendations,
-    nextOwnerActions: packet.nextOwnerActions,
-    nextToolSuggestions: packet.nextToolSuggestions,
-    measurementReceipt,
-    packetUtilityRecommendation: measurementReceipt.packetUtilityRecommendation,
-    dogfoodFollowupReceipt: measurementReceipt.dogfoodFollowupReceipt,
-    dogfoodObservationTemplate: packet.dogfoodObservationTemplate,
-    measurementHints: packet.measurementHints,
+    omissions: cloneProjection(packet.omissions),
+    ownerSurfaceRecommendations: cloneProjection(packet.ownerSurfaceRecommendations),
+    nextOwnerActions: cloneProjection(packet.nextOwnerActions),
+    nextToolSuggestions: cloneProjection(packet.nextToolSuggestions),
+    measurementReceipt: cloneProjection(measurementReceipt),
+    packetUtilityRecommendation: cloneProjection(measurementReceipt.packetUtilityRecommendation),
+    dogfoodFollowupReceipt: cloneProjection(measurementReceipt.dogfoodFollowupReceipt),
+    dogfoodObservationTemplate: cloneProjection(packet.dogfoodObservationTemplate),
+    measurementHints: cloneProjection(packet.measurementHints),
     redaction: {
       rawObjectiveOmitted: true,
       absoluteWorkspacePathsOmitted: true,
       rawSelectedItemPathsOmitted: true,
       rawItemContentOmitted: true,
     },
-    nonAuthorizations: packet.nonAuthorizations,
+    nonAuthorizations: cloneProjection(packet.nonAuthorizations),
   };
 };
 

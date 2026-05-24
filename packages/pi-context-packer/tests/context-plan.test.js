@@ -112,7 +112,8 @@ test("context_plan caps seed counts, seed values, and seed notes before provider
   assert.equal(CONTEXT_PLAN_PARAMETERS.properties.seeds.maxItems, 40);
   assert.equal(CONTEXT_PLAN_PARAMETERS.properties.seeds.items.properties.value.maxLength, 1000);
   assert.equal(CONTEXT_PLAN_PARAMETERS.properties.seeds.items.properties.note.maxLength, 500);
-  assert.equal(routedDocsSeeds[0].note.length, 501);
+  assert.equal(routedDocsSeeds[0].note.length, 500);
+  assert.equal(routedDocsSeeds[0].note.endsWith("…"), true);
   assert.equal(plan.omittedSeeds.length, 4);
   assert.ok(plan.omittedSeeds.some((seed) => seed.reason.includes("seed value exceeds")));
   const overflowSeeds = plan.omittedSeeds.filter((seed) =>

@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { contextPacketToolResult } from "../src/context-pack.js";
+import { buildContextPacket, contextPacketToolResult } from "../src/context-pack.js";
+import { compactContextPacketDetails } from "../src/context-pack-result.js";
 import { buildContextPlan, compactContextPlanDetails } from "../src/context-plan.js";
 
 const makeWorkspace = async () => {
@@ -85,10 +86,22 @@ test("compactContextPlanDetails normalizes labels and resists returned-array mut
   ]);
 
   invalidDetails.nonAuthorizations.push("MUTATED AUTH BOUNDARY");
+  const mutablePlan = buildContextPlan({
+    objective: "Use Prompt Vault task",
+    seeds: [{ kind: "path", value: "/tmp/secret.md" }],
+    providers: { prompt_vault: "required" },
+  });
+  const mutableDetails = compactContextPlanDetails(mutablePlan);
+  mutableDetails.budget.maxTokens = 1;
+  mutableDetails.risks[0].message = "MUTATED RISK";
+  mutableDetails.ownerSurfaceRecommendations[0].surface = "MUTATED OWNER";
   const nextPlan = buildContextPlan({ objective: "Fresh plan" });
   const nextDetails = compactContextPlanDetails(nextPlan);
   assert.equal(nextPlan.nonAuthorizations.includes("MUTATED AUTH BOUNDARY"), false);
   assert.equal(nextDetails.nonAuthorizations.includes("MUTATED AUTH BOUNDARY"), false);
+  assert.notEqual(mutablePlan.budget.maxTokens, 1);
+  assert.notEqual(mutablePlan.risks[0].message, "MUTATED RISK");
+  assert.notEqual(mutablePlan.ownerSurfaceRecommendations[0].surface, "MUTATED OWNER");
 
   const packetResult = await contextPacketToolResult(
     {
@@ -100,6 +113,62 @@ test("compactContextPlanDetails normalizes labels and resists returned-array mut
   );
   assert.equal(packetResult.content[0].text.includes(sentinel), false);
   assert.equal(JSON.stringify(packetResult.details).includes(sentinel), false);
+
+  const promptSeedResult = await contextPacketToolResult(
+    {
+      objective: "Read prompt context",
+      seeds: [{ kind: "prompt", value: "p".repeat(1001) }],
+      providers: { agents: "off", docs: "off", sci: "off", git: "off", session: "off" },
+    },
+    { cwd: process.cwd() },
+  );
+  assert.equal(promptSeedResult.details.omissions[0].reason, "unsafe_seed");
+});
+
+test("compactContextPacketDetails resists returned projection mutation", async () => {
+  const packetResult = await buildContextPacket(
+    {
+      objective: "Review AK omission projection",
+      providers: {
+        agents: "off",
+        docs: "off",
+        sci: "off",
+        git: "off",
+        session: "off",
+        ak: "required",
+      },
+    },
+    { cwd: process.cwd() },
+  );
+  const details = compactContextPacketDetails(packetResult, "");
+
+  details.budget.maxTokens = 1;
+  details.totals.candidatesSelected = 999;
+  details.omissions[0].detail = "MUTATED OMISSION";
+  details.ownerSurfaceRecommendations[0].surface = "MUTATED OWNER";
+  details.nextOwnerActions[0].surface = "MUTATED ACTION";
+  details.nextToolSuggestions[0].reason = "MUTATED SUGGESTION";
+  details.measurementReceipt.wiredProviders.push("mutated_provider");
+  details.dogfoodObservationTemplate.packet.omissions[0].provider = "mutated_provider";
+  details.measurementHints[0].note = "MUTATED HINT";
+  details.nonAuthorizations.push("MUTATED AUTH BOUNDARY");
+
+  assert.notEqual(packetResult.packet.budget.maxTokens, 1);
+  assert.notEqual(packetResult.packet.totals.candidatesSelected, 999);
+  assert.notEqual(packetResult.packet.omissions[0].detail, "MUTATED OMISSION");
+  assert.notEqual(packetResult.packet.ownerSurfaceRecommendations[0].surface, "MUTATED OWNER");
+  assert.notEqual(packetResult.packet.nextOwnerActions[0].surface, "MUTATED ACTION");
+  assert.notEqual(packetResult.packet.nextToolSuggestions[0].reason, "MUTATED SUGGESTION");
+  assert.equal(
+    packetResult.packet.measurementReceipt.wiredProviders.includes("mutated_provider"),
+    false,
+  );
+  assert.notEqual(
+    packetResult.packet.dogfoodObservationTemplate.packet.omissions[0].provider,
+    "mutated_provider",
+  );
+  assert.notEqual(packetResult.packet.measurementHints[0].note, "MUTATED HINT");
+  assert.equal(packetResult.packet.nonAuthorizations.includes("MUTATED AUTH BOUNDARY"), false);
 });
 
 test("contextPacketToolResult returns markdown content and compact details", async () => {

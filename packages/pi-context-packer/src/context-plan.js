@@ -126,6 +126,7 @@ const positiveInteger = (value, fallback) => {
 
 const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
 const textTokens = (value) => Math.ceil(textBytes(value) / ESTIMATED_BYTES_PER_TOKEN);
+const cloneProjection = (value) => (value === undefined ? undefined : structuredClone(value));
 
 export const normalizeContextPlanSeedKind = (kind) => {
   const value = coerceString(kind, "free_text");
@@ -144,7 +145,7 @@ const countSeedKinds = (seeds = []) => {
 const normalizeSeedNote = (note) => {
   const value = coerceString(note).trim();
   if (!value) return undefined;
-  return value.length > MAX_SEED_NOTE_CHARS ? `${value.slice(0, MAX_SEED_NOTE_CHARS)}…` : value;
+  return value.length > MAX_SEED_NOTE_CHARS ? `${value.slice(0, MAX_SEED_NOTE_CHARS - 1)}…` : value;
 };
 
 const seedValueForProviderClassification = (value) =>
@@ -691,7 +692,7 @@ export const compactContextPlanDetails = (plan) => {
       repoRootRef: plan.repoRoot ? "context_plan input/inferred repoRoot" : undefined,
       absolutePathsOmitted: true,
     },
-    budget: plan.budget,
+    budget: cloneProjection(plan.budget),
     providers: plan.providerPlans.map((providerPlan) => ({
       provider: providerPlan.provider,
       posture: providerPlan.posture,
@@ -707,8 +708,8 @@ export const compactContextPlanDetails = (plan) => {
       provider: seed.provider,
       reason: seed.reason,
     })),
-    risks: plan.risks,
-    ownerSurfaceRecommendations: plan.ownerSurfaceRecommendations ?? [],
+    risks: cloneProjection(plan.risks),
+    ownerSurfaceRecommendations: cloneProjection(plan.ownerSurfaceRecommendations ?? []),
     redaction: {
       rawObjectiveOmitted: true,
       absoluteWorkspacePathsOmitted: true,

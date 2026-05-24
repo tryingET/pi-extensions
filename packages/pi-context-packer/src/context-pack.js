@@ -37,6 +37,11 @@ const selectedProviderIds = (plan) =>
     .filter((providerPlan) => providerPlan.posture === "selected")
     .map((providerPlan) => providerPlan.provider);
 const unique = (values) => Array.from(new Set(values));
+const omissionReasonForSeedKind = (seedKind) => {
+  if (seedKind === "symbol") return "unsafe_symbol";
+  if (seedKind === "path") return "unsafe_path";
+  return "unsafe_seed";
+};
 const providerQuerySeeds = (plan, provider) =>
   unique(
     plan.providerPlans
@@ -474,7 +479,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
     const seedKind = normalizeContextPlanSeedKind(seed.kind);
     return {
       provider: seed.provider ?? (seedKind === "symbol" ? "sci" : "docs"),
-      reason: seedKind === "symbol" ? "unsafe_symbol" : "unsafe_path",
+      reason: omissionReasonForSeedKind(seedKind),
       detail: `${seedKind} seed omitted during planning: ${seed.reason}`,
     };
   });

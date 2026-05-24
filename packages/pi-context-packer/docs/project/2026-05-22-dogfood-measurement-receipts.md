@@ -591,6 +591,24 @@ node --test tests/context-plan.test.js tests/tool-result.test.js
 
 Outcome: context-plan projections now treat caller-controlled metadata labels and returned object references as part of the adversarial boundary, not harmless implementation details.
 
+## Receipt O — atomic-completion projection reference hardening
+
+### Context
+
+An atomic-completion pass found four remaining projection and intake debts: compact plan details still returned live budget/risk/owner-recommendation references, compact packet details returned live packet projection references, non-path omitted seeds rendered as `unsafe_path`, and note truncation appended an ellipsis after the declared 500-character cap.
+
+### Slice
+
+Plan and packet compact details now clone returned projection surfaces, omitted seed reasons distinguish path/symbol/general seed failures, and note truncation keeps the final displayed note within the schema cap. Regression coverage mutates returned plan and packet details to prove source packet/plan objects are not changed, verifies `prompt` oversize omissions render as `unsafe_seed`, and verifies truncated notes stay at 500 characters including the ellipsis.
+
+Validation:
+
+```text
+node --test tests/context-plan.test.js tests/tool-result.test.js
+```
+
+Outcome: compact details are safer for long-lived in-process consumers, and provider/seed omission labels no longer imply path semantics for non-path seed failures.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.
