@@ -297,6 +297,43 @@ test("context_pack consumes structured docs-list JSON using repo-relative ranked
   );
 });
 
+test("context_pack honors DOCS_LIST_SCRIPT for live provider parity with docs-list wrapper", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "env-ranked.md"),
+    "# Env ranked\n\nDOCS_LIST_SCRIPT context.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-env-fake.mjs");
+  await writeFile(
+    script,
+    "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/env-ranked.md' }] }));\n",
+    "utf8",
+  );
+  await chmod(script, 0o755);
+  const previous = process.env.DOCS_LIST_SCRIPT;
+
+  try {
+    process.env.DOCS_LIST_SCRIPT = script;
+    const result = await buildContextPacket({
+      objective: "Use docs-list env configuration",
+      cwd: root,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    });
+
+    const docs = result.packet.sections.find((section) => section.provider === "docs");
+    assert.deepEqual(
+      docs.items.map((item) => item.provenance.path),
+      ["docs/project/env-ranked.md"],
+    );
+    assert.match(docs.items[0].content, /DOCS_LIST_SCRIPT context/);
+  } finally {
+    if (previous === undefined) delete process.env.DOCS_LIST_SCRIPT;
+    else process.env.DOCS_LIST_SCRIPT = previous;
+  }
+});
+
 test("context_pack discovers package docs from a package subdirectory cwd", async () => {
   const root = await makeWorkspace();
   await mkdir(join(root, "packages", "pkg", "src"), { recursive: true });
@@ -336,6 +373,52 @@ test("context_pack discovers package docs from a package subdirectory cwd", asyn
     ["packages/pkg/docs/project/subdir-ranked.md"],
   );
   assert.match(docs.items[0].content, /Package subdir docs-list context/);
+});
+
+test("context_pack prefers package roots over nested README docs-list markers", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "packages", "pkg", "src", "feature"), { recursive: true });
+  await mkdir(join(root, "packages", "pkg", "docs", "project"), { recursive: true });
+  await writeFile(join(root, "packages", "pkg", "package.json"), '{"name":"pkg"}\n', "utf8");
+  await writeFile(
+    join(root, "packages", "pkg", "src", "feature", "README.md"),
+    "# Feature\n",
+    "utf8",
+  );
+  await writeFile(
+    join(root, "packages", "pkg", "docs", "project", "package-ranked.md"),
+    "# Package ranked\n\nPackage-root docs should win over nested README.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-root-priority-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const docsArgIndex = process.argv.indexOf('--docs') + 1;",
+      "const docsRoot = process.argv[docsArgIndex];",
+      "if (!docsRoot.endsWith('/packages/pkg')) throw new Error('expected package root, got ' + docsRoot);",
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'packages/pkg/docs/project/package-ranked.md' }] }));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use package docs from nested source docs",
+      cwd: join(root, "packages", "pkg", "src", "feature"),
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { cwd: root, docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["packages/pkg/docs/project/package-ranked.md"],
+  );
+  assert.match(docs.items[0].content, /Package-root docs should win/);
 });
 
 test("context_pack still runs docs-list when unsafe seeds were omitted and no safe docs seed exists", async () => {

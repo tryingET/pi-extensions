@@ -23,14 +23,18 @@ const isInside = (root, candidate) => {
   );
 };
 
+const hasMarker = async (candidate, marker) => {
+  try {
+    const markerStat = await stat(join(candidate, marker));
+    return markerStat.isFile() || markerStat.isDirectory();
+  } catch {
+    return false;
+  }
+};
+
 const hasDiscoveryRootMarker = async (candidate) => {
   for (const marker of DISCOVERY_ROOT_MARKERS) {
-    try {
-      const markerStat = await stat(join(candidate, marker));
-      if (markerStat.isFile() || markerStat.isDirectory()) return true;
-    } catch {
-      // Try the next marker.
-    }
+    if (await hasMarker(candidate, marker)) return true;
   }
   return false;
 };
@@ -40,13 +44,21 @@ const docsDiscoveryRoot = async ({ repoRoot, cwd }) => {
   let candidate = cwd ? resolve(cwd) : root;
   if (!isInside(root, candidate) || relative(root, candidate) === "") return root;
 
+  const markedAncestors = [];
   while (isInside(root, candidate) && candidate !== root) {
-    if (await hasDiscoveryRootMarker(candidate)) return candidate;
+    if (await hasDiscoveryRootMarker(candidate)) markedAncestors.push(candidate);
     const parent = dirname(candidate);
     if (parent === candidate) break;
     candidate = parent;
   }
-  return root;
+
+  for (const marker of DISCOVERY_ROOT_MARKERS) {
+    for (const ancestor of markedAncestors) {
+      if (await hasMarker(ancestor, marker)) return ancestor;
+    }
+  }
+
+  return markedAncestors[0] ?? root;
 };
 
 const candidateScripts = (env = {}) =>
@@ -54,6 +66,7 @@ const candidateScripts = (env = {}) =>
     env.docsListScript,
     env.PI_CONTEXT_PACKER_DOCS_LIST,
     process.env.PI_CONTEXT_PACKER_DOCS_LIST,
+    process.env.DOCS_LIST_SCRIPT,
     process.env.HOME
       ? join(process.env.HOME, "ai-society/core/agent-scripts/scripts/docs-list.mjs")
       : undefined,

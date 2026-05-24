@@ -84,7 +84,7 @@ import { pathToFileURL } from "node:url";
 
 export default function(pi) {
   pi.registerCommand("assert_context_packer_release_smoke", {
-    description: "Assert installed context-packer extension registration and tool execution",
+    description: "Assert installed context-packer extension registration and core execution",
     handler: async () => {
       const tools = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
       const commands = new Map(pi.getCommands().map((command) => [command.name, command]));
@@ -133,10 +133,23 @@ export default function(pi) {
           "# Runtime Smoke\n\nInstalled context_pack can read seeded Markdown.\n",
           "utf8",
         );
+        const docsListScript = join(workspace, "docs-list-json-smoke.mjs");
+        await writeFile(
+          docsListScript,
+          [
+            "const payload = {",
+            "  ok: true,",
+            "  rankedItems: [{ repoPath: 'docs/project/smoke.md' }],",
+            "};",
+            "console.log(JSON.stringify(payload));",
+          ].join("\n"),
+          "utf8",
+        );
         const env = {
           cwd: workspace,
           systemPrompt: "",
           contextUsage: { usedTokens: 0, maxTokens: 100000 },
+          docsListScript,
         };
         const baseParams = {
           objective: "Installed runtime smoke for context-packer tools",
@@ -172,6 +185,17 @@ export default function(pi) {
           throw new Error("context_pack compact details exposed raw selected item content");
         }
 
+        const discoveredPackResult = await contextPacketToolResult(baseParams, env);
+        if (!discoveredPackResult.details?.ok) {
+          throw new Error(
+            `context_pack docs-list discovery execution failed: ${JSON.stringify(discoveredPackResult.details)}`,
+          );
+        }
+        const discoveredPackText = discoveredPackResult.content?.[0]?.text ?? "";
+        if (!discoveredPackText.includes("Runtime Smoke")) {
+          throw new Error("context_pack docs-list discovery did not include ranked Markdown content");
+        }
+
         const evaluationResult = buildDogfoodObservationEvaluation({
           observation: {
             kind: "context_pack_dogfood_observation_v1",
@@ -198,13 +222,13 @@ export default function(pi) {
         await rm(workspace, { recursive: true, force: true });
       }
 
-      console.log("context-packer runtime registration and tool execution OK");
+      console.log("context-packer runtime registration and installed core execution OK");
     },
   });
 }
 EOF
 
-echo "== context-packer installed runtime registration and tool execution smoke"
+echo "== context-packer installed runtime registration and core execution smoke"
 PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" \
   pi --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates --no-context-files --no-themes \
   -e "$INSTALLED_PACKAGE_ROOT" \
@@ -212,9 +236,9 @@ PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" INSTALLED_PACKAGE_ROOT="$INSTALLED_PA
   -p "/assert_context_packer_release_smoke" >"$SMOKE_OUTPUT" 2>&1
 cat "$SMOKE_OUTPUT"
 
-if ! grep -q "context-packer runtime registration and tool execution OK" "$SMOKE_OUTPUT"; then
-  echo "Runtime registration/tool execution smoke did not report success." >&2
+if ! grep -q "context-packer runtime registration and installed core execution OK" "$SMOKE_OUTPUT"; then
+  echo "Runtime registration/installed core execution smoke did not report success." >&2
   exit 1
 fi
 
-echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC and verified context-packer command/tool registration plus tool execution through Pi runtime."
+echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC and verified context-packer command/tool registration plus installed core execution through Pi runtime."

@@ -46,6 +46,7 @@
   "files": [
     "extensions/context-pack.ts",
     "src",
+    "scripts",
     "prompts",
     "examples",
     "policy/security-policy.json",

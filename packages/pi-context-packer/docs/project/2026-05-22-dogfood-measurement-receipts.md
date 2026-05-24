@@ -410,24 +410,28 @@ Outcome: structured JSON intake and package-subdirectory docs-list root climbing
 
 ### Context
 
-Release readiness previously proved that the tarball installed and registered `/context-pack` plus all model-callable tools in an isolated Pi runtime. The next hardening step was to prove the installed artifact code also executes core packet paths without relying on the source checkout.
+Release readiness previously proved that the tarball installed and registered `/context-pack` plus all model-callable tools in an isolated Pi runtime. The next hardening step was to prove the installed artifact code also executes core packet paths without relying on the source checkout, and then to close adversarial gaps around docs-list discovery and overclaiming registered-handler execution.
 
 ### Smoke behavior
 
 `npm run release:check` now installs the packed tarball into isolated `PI_CODING_AGENT_DIR` and `NPM_CONFIG_PREFIX`, loads the installed extension through Pi, then executes installed artifact code against a temporary read-only fixture:
 
+- Pi runtime registration metadata exists for `/context-pack`, `context_plan`, `context_pack`, `context_dogfood_evaluate`, and `context_dogfood_summarize`;
 - `context_plan` returns an ok plan;
-- `context_pack` reads seeded Markdown and renders packet content;
+- seeded `context_pack` reads Markdown and renders packet content;
+- docs-list-discovered `context_pack` reads ranked JSON output from a temporary docs-list script without a caller Markdown seed;
 - compact details omit raw selected item content;
 - dogfood evaluation returns `matched` for the runtime smoke receipt.
+
+The smoke intentionally describes executable behavior as installed-core execution rather than registered-tool-handler execution because Pi `getAllTools()` exposes tool metadata, not handler functions.
 
 Observed release-check output:
 
 ```text
-context-packer runtime registration and tool execution OK
+context-packer runtime registration and installed core execution OK
 ```
 
-Outcome: release smoke now covers registration and installed-artifact execution for the main planning, packing, and dogfood calibration path. This remains package release evidence only; it does not publish the package or activate the current operator session.
+Outcome: release smoke now covers registration metadata, installed-artifact seeded packing, installed-artifact docs-list discovery, and installed-artifact dogfood calibration. This remains package release evidence only; it does not publish the package or activate the current operator session.
 
 ## Lessons for ranking and product bets
 
@@ -437,4 +441,5 @@ Outcome: release smoke now covers registration and installed-artifact execution 
 - SCI omissions should remain explicit. A read-only packet must not hide `.ontology` side effects or pretend SCI coverage exists when artifacts block safe assembly.
 - Landed next improvement: `context_pack` now emits a redacted copy-ready `context_pack_dogfood_observation_v1` template in packet Markdown and compact details so agents can paste observed follow-up counts without persisting evidence, mutating owner surfaces, duplicating raw packet content, or leaking selected item paths / raw omission details.
 - Provider-route summaries are a useful addition to the receipt scaffold: they expose provider/posture/query/seed-kind counts for mismatch review while omitting raw seed values, and they must distinguish selected query counts from optional follow-up query counts. Adding more provider adapters remains lower leverage until more evaluated receipts accumulate.
+- Release and dogfood proof text must not overclaim: distinguish registered tool metadata, installed core execution, source-local dogfood, and live operator-session activation.
 - Packet budget metrics are selected-content metrics unless a receipt explicitly says otherwise; rendered Markdown scaffolding needs separate accounting in tool details.
