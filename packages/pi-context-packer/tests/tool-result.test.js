@@ -63,6 +63,11 @@ test("contextPacketToolResult returns markdown content and compact details", asy
     null,
   );
   assert.equal(result.details.dogfoodObservationTemplate.observation.validationCommandsRun, null);
+  assert.ok(
+    result.details.dogfoodObservationTemplate.observation.omissionFollowupClassOptions.includes(
+      "true_missing_capability",
+    ),
+  );
   assert.equal(
     result.details.dogfoodFollowupReceipt.nonAuthorization.includes("AK evidence"),
     true,

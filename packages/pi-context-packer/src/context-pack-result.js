@@ -77,6 +77,7 @@ export const formatContextPacket = (result) => {
           "- activity type: optionally fill activityType as implementation, review, validation, planning, or other",
           "- actual low-level read/search/status calls: fill externally after work if useful",
           "- validation commands run: fill validationCommandsRun separately from context probes if recording dogfood",
+          "- omission follow-ups: optionally use objects with provider, reason, and classification (useful_omission, residual_probe, validation_activity, legacy_missingness, provenance_source_owner_followup, true_missing_capability, or other)",
           `- non-authorization: ${dogfoodFollowup.nonAuthorization}`,
         ].join("\n")
       : "- none",

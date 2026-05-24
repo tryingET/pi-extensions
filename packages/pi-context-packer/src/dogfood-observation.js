@@ -21,6 +21,24 @@ const CALIBRATION_STATUSES = [
 ];
 const CORE_ACTIVITY_TYPES = Object.freeze(["implementation", "review", "validation"]);
 const KNOWN_ACTIVITY_TYPES = new Set([...CORE_ACTIVITY_TYPES, "planning", "other", "unspecified"]);
+export const DOGFOOD_OMISSION_FOLLOWUP_CLASSES = Object.freeze([
+  "useful_omission",
+  "residual_probe",
+  "validation_activity",
+  "legacy_missingness",
+  "provenance_source_owner_followup",
+  "true_missing_capability",
+  "legacy_unspecified",
+  "other",
+]);
+const KNOWN_FOLLOWUP_CLASSES = new Set(DOGFOOD_OMISSION_FOLLOWUP_CLASSES);
+const CONTRARY_FOLLOWUP_CLASSES = new Set([
+  "residual_probe",
+  "provenance_source_owner_followup",
+  "true_missing_capability",
+  "legacy_unspecified",
+  "other",
+]);
 
 const NON_AUTHORIZATION =
   "packet-local dogfood evaluation only; context-packer did not persist evidence, update AK/FCOS, write session memory, read files, call providers, or validate task completion";
@@ -65,17 +83,51 @@ const normalizeActivityType = (value) => {
   return sanitizeLabel(value, "activity type");
 };
 
-const sanitizeFollowups = (values) => {
+const normalizeFollowupClass = (value, fallback = "other") => {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/gu, "_");
+  return KNOWN_FOLLOWUP_CLASSES.has(normalized) ? normalized : "other";
+};
+
+const followupClassFromObject = (value) =>
+  normalizeFollowupClass(value.classification ?? value.class ?? value.type, "other");
+
+const sanitizeFollowupEntries = (values) => {
   if (!Array.isArray(values)) return [];
   return values.slice(0, MAX_FOLLOWUPS).map((value, index) => {
-    if (typeof value === "string") return sanitizeNote(value) || `omission follow-up ${index + 1}`;
+    if (typeof value === "string") {
+      return {
+        label: sanitizeNote(value) || `omission follow-up ${index + 1}`,
+        classification: "legacy_unspecified",
+      };
+    }
     if (value && typeof value === "object") {
       const provider = sanitizeLabel(value.provider, "provider");
       const reason = sanitizeLabel(value.reason, "reason");
-      return `${provider}/${reason}`;
+      return {
+        label: `${provider}/${reason}`,
+        classification: followupClassFromObject(value),
+      };
     }
-    return `omission follow-up ${index + 1}`;
+    return {
+      label: `omission follow-up ${index + 1}`,
+      classification: "legacy_unspecified",
+    };
   });
+};
+
+const sanitizeFollowups = (values) => sanitizeFollowupEntries(values).map((entry) => entry.label);
+
+const normalizeStoredFollowupClasses = (classes, followups) => {
+  const followupCount = Array.isArray(followups) ? Math.min(followups.length, MAX_FOLLOWUPS) : 0;
+  if (!Array.isArray(classes))
+    return Array.from({ length: followupCount }, () => "legacy_unspecified");
+  return Array.from({ length: followupCount }, (_, index) =>
+    normalizeFollowupClass(classes[index], "legacy_unspecified"),
+  );
 };
 
 const parseObservationInput = (input = {}) => {
@@ -101,12 +153,16 @@ const classifyCalibration = ({
   actualResidualCalls,
   duplicateReadsObserved,
   omissionFollowupsUsed,
+  omissionFollowupClasses = [],
   recommendationMatchedOutcome,
 }) => {
+  const contraryFollowups = omissionFollowupClasses.length
+    ? omissionFollowupClasses.some((classification) =>
+        CONTRARY_FOLLOWUP_CLASSES.has(classification),
+      )
+    : omissionFollowupsUsed.length > 0;
   const contrarySignals =
-    recommendationMatchedOutcome === false ||
-    duplicateReadsObserved === true ||
-    omissionFollowupsUsed.length > 0;
+    recommendationMatchedOutcome === false || duplicateReadsObserved === true || contraryFollowups;
   const unexpectedlyHighResidualCalls =
     actualResidualCalls !== undefined && actualResidualCalls > expectedAvoided;
 
@@ -202,7 +258,9 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     return { ok: false, errors, nonAuthorization: NON_AUTHORIZATION };
   }
 
-  const omissionFollowupsUsed = sanitizeFollowups(filledObservation.omissionFollowupsUsed);
+  const omissionFollowupEntries = sanitizeFollowupEntries(filledObservation.omissionFollowupsUsed);
+  const omissionFollowupsUsed = omissionFollowupEntries.map((entry) => entry.label);
+  const omissionFollowupClasses = omissionFollowupEntries.map((entry) => entry.classification);
   const notes = sanitizeNote(filledObservation.notes);
   const calibrationStatus = classifyCalibration({
     expectedAvoided,
@@ -210,6 +268,7 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     actualResidualCalls,
     duplicateReadsObserved,
     omissionFollowupsUsed,
+    omissionFollowupClasses,
     recommendationMatchedOutcome,
   });
 
@@ -225,6 +284,8 @@ export const buildDogfoodObservationEvaluation = (input = {}) => {
     validationCommandsRun: validationCommandsRun ?? null,
     duplicateReadsObserved,
     omissionFollowupsUsed,
+    omissionFollowupClasses,
+    omissionFollowupClassCounts: countValues(omissionFollowupClasses),
     omissionFollowupsTruncated: Math.max(
       0,
       Array.isArray(filledObservation.omissionFollowupsUsed)
@@ -261,6 +322,11 @@ export const formatDogfoodObservationEvaluation = (evaluation) => {
     ].join("\n");
   }
 
+  const classLines = Object.entries(evaluation.omissionFollowupClassCounts ?? {}).map(
+    ([classification, count]) =>
+      `- ${markdownInlineLabel(classification, "omission follow-up class")}: ${count}`,
+  );
+
   const lines = [
     "# Context-pack dogfood observation evaluation",
     "",
@@ -278,6 +344,9 @@ export const formatDogfoodObservationEvaluation = (evaluation) => {
     evaluation.omissionFollowupsUsed.length
       ? evaluation.omissionFollowupsUsed.map((item) => `- ${item}`).join("\n")
       : "- none recorded",
+    "",
+    "## Omission follow-up class counts",
+    classLines.length ? classLines.join("\n") : "- none recorded",
     "",
     "## Notes",
     evaluation.notes ? `- ${evaluation.notes}` : "- none recorded",
@@ -326,7 +395,7 @@ const parseAggregateJsonEntry = (value, ref) => {
   }
 };
 
-const countValues = (values) => {
+function countValues(values) {
   const counts = new Map();
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
   const result = Object.create(null);
@@ -336,7 +405,7 @@ const countValues = (values) => {
     result[key] = count;
   }
   return result;
-};
+}
 
 const normalizeStoredEvaluation = (value, ref) => {
   const evaluation = asObject(value);
@@ -402,6 +471,16 @@ const normalizeStoredEvaluation = (value, ref) => {
     validationCommandsRun: validationCommandsRun ?? null,
     duplicateReadsObserved: booleanOrNull(evaluation.duplicateReadsObserved),
     omissionFollowupsUsed: sanitizeFollowups(evaluation.omissionFollowupsUsed),
+    omissionFollowupClasses: normalizeStoredFollowupClasses(
+      evaluation.omissionFollowupClasses,
+      evaluation.omissionFollowupsUsed,
+    ),
+    omissionFollowupClassCounts: countValues(
+      normalizeStoredFollowupClasses(
+        evaluation.omissionFollowupClasses,
+        evaluation.omissionFollowupsUsed,
+      ),
+    ),
     omissionFollowupsTruncated: omissionFollowupsTruncated ?? 0,
     recommendationMatchedOutcome: booleanOrNull(evaluation.recommendationMatchedOutcome),
     packetUtilityRecommendationStatus:
@@ -528,6 +607,42 @@ const aggregateStatusFor = ({ validCount, invalidCount, statusCounts, activityCo
   return "limited_positive_signal";
 };
 
+const followupClassNextActionsFor = (classCounts) => {
+  const actions = [];
+  if ((classCounts.true_missing_capability ?? 0) > 0) {
+    actions.push(
+      "Review repeated true-missing-capability follow-ups before adding provider adapters or ranking scope.",
+    );
+  }
+  if ((classCounts.residual_probe ?? 0) > 0) {
+    actions.push("Review residual-probe follow-ups for ranking, budget, or packet-shape gaps.");
+  }
+  if ((classCounts.provenance_source_owner_followup ?? 0) > 0) {
+    actions.push(
+      "Route provenance/source-owner follow-ups to the owning surface; context-packer only recorded the packet-local calibration label.",
+    );
+  }
+  if ((classCounts.validation_activity ?? 0) > 0) {
+    actions.push(
+      "Keep validation activity separate from context-probe counts when comparing usefulness.",
+    );
+  }
+  if ((classCounts.useful_omission ?? 0) > 0) {
+    actions.push(
+      "Treat useful-omission follow-ups as healthy omission signals, not missing adapter proof.",
+    );
+  }
+  if ((classCounts.legacy_unspecified ?? 0) > 0 || (classCounts.legacy_missingness ?? 0) > 0) {
+    actions.push(
+      "Prefer structured follow-up objects in future receipts to reduce legacy ambiguity.",
+    );
+  }
+  if ((classCounts.other ?? 0) > 0) {
+    actions.push("Review 'other' follow-ups manually before tuning ranking or providers.");
+  }
+  return actions;
+};
+
 const aggregateNextAction = (status, activityCoverage) => {
   if (status === "stable_positive_signal") {
     return "Repeated redacted receipts matched; keep dogfooding and promote only through the owning evidence surface if needed.";
@@ -599,6 +714,7 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     recommendationMatchedOutcome: evaluation.recommendationMatchedOutcome,
     packetUtilityRecommendationStatus: evaluation.packetUtilityRecommendationStatus,
     omissionFollowupCount: evaluation.omissionFollowupsUsed.length,
+    omissionFollowupClassCounts: evaluation.omissionFollowupClassCounts,
     omissionFollowupsTruncated: evaluation.omissionFollowupsTruncated,
     unwiredProviderOmissionCount: evaluation.unwiredProviderOmissions.length,
   }));
@@ -608,6 +724,10 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
   const omissionFollowupCounts = countValues(
     validEvaluations.flatMap(({ evaluation }) => evaluation.omissionFollowupsUsed),
   );
+  const omissionFollowupClassCounts = countValues(
+    validEvaluations.flatMap(({ evaluation }) => evaluation.omissionFollowupClasses ?? []),
+  );
+  const omissionFollowupClassNextActions = followupClassNextActionsFor(omissionFollowupClassCounts);
   const packetUtilityRecommendationCounts = countValues(
     validEvaluations.map(({ evaluation }) => evaluation.packetUtilityRecommendationStatus),
   );
@@ -662,6 +782,8 @@ export const buildDogfoodAggregateEvaluation = (input = {}) => {
     activityCoverage,
     providerOmissionCounts,
     omissionFollowupCounts,
+    omissionFollowupClassCounts,
+    omissionFollowupClassNextActions,
     evaluations,
     invalidEntries: allInvalidEntries,
     nextAction: aggregateNextAction(aggregateStatus, activityCoverage),
@@ -694,6 +816,13 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
   );
   const followupLines = Object.entries(aggregate.omissionFollowupCounts).map(
     ([followup, count]) => `- ${markdownInlineLabel(followup, "omission follow-up")}: ${count}`,
+  );
+  const followupClassLines = Object.entries(aggregate.omissionFollowupClassCounts).map(
+    ([classification, count]) =>
+      `- ${markdownInlineLabel(classification, "omission follow-up class")}: ${count}`,
+  );
+  const followupClassActionLines = aggregate.omissionFollowupClassNextActions.map(
+    (action) => `- ${markdownInlineLabel(action, "omission follow-up next action", 160)}`,
   );
   const invalidLines = aggregate.invalidEntries.map(
     (entry) =>
@@ -731,6 +860,12 @@ export const formatDogfoodAggregateEvaluation = (aggregate) => {
     "",
     "## Omission follow-up counts",
     followupLines.length ? followupLines.join("\n") : "- none recorded",
+    "",
+    "## Omission follow-up class counts",
+    followupClassLines.length ? followupClassLines.join("\n") : "- none recorded",
+    "",
+    "## Omission follow-up class next actions",
+    followupClassActionLines.length ? followupClassActionLines.join("\n") : "- none recorded",
     "",
     "## Invalid receipts",
     invalidLines.length ? invalidLines.join("\n") : "- none",

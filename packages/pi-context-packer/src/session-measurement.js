@@ -1,5 +1,14 @@
 const ESTIMATED_BYTES_PER_TOKEN = 4;
 const DOGFOOD_TEMPLATE_ITEM_LIMIT = 20;
+const DOGFOOD_FOLLOWUP_CLASS_OPTIONS = [
+  "useful_omission",
+  "residual_probe",
+  "validation_activity",
+  "legacy_missingness",
+  "provenance_source_owner_followup",
+  "true_missing_capability",
+  "other",
+];
 const PLANNED_UNWIRED_PROVIDER_IDS = new Set(["prompt_vault", "ak", "fcos"]);
 
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
@@ -280,11 +289,12 @@ export const buildDogfoodObservationTemplate = ({
     validationCommandsRun: null,
     duplicateReadsObserved: null,
     omissionFollowupsUsed: [],
+    omissionFollowupClassOptions: DOGFOOD_FOLLOWUP_CLASS_OPTIONS,
     recommendationMatchedOutcome: null,
     notes: "",
   },
   countingRule:
-    "Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; record validationCommandsRun separately from context probes; optionally set activityType to implementation, review, validation, planning, or other; do not treat counts or labels as completion proof.",
+    "Count ad-hoc read/search/list/status probes that the packet should have avoided; optionally fill actualLowLevelCallsAvoided when a baseline is known; record validationCommandsRun separately from context probes; optionally set activityType to implementation, review, validation, planning, or other; optionally record omissionFollowupsUsed entries as strings or objects with provider, reason, and classification from omissionFollowupClassOptions; do not treat counts or labels as completion proof.",
   instructions:
     "After the work, paste this template into the owning dogfood evidence surface only if useful, fill observation fields, and keep any sensitive task content out of notes.",
   nonAuthorization:

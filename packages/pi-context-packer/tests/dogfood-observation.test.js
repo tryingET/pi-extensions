@@ -89,6 +89,97 @@ test("dogfood evaluator classifies overestimated and underestimated usefulness f
   assert.equal(overestimated.status, "overestimated");
   assert.equal(underestimated.status, "underestimated");
   assert.equal(overestimated.omissionFollowupsUsed[0], "docs/provider gap");
+  assert.equal(overestimated.omissionFollowupClasses[0], "legacy_unspecified");
+  assert.equal(overestimated.omissionFollowupClassCounts.legacy_unspecified, 1);
+});
+
+async function assertNoSecretLeak(result) {
+  const serialized = JSON.stringify(result.details ?? result);
+  assert.doesNotMatch(serialized, /TOKEN|customer-acme|\/tmp\//);
+  if (result.content?.[0]?.text) {
+    assert.doesNotMatch(result.content[0].text, /TOKEN|customer-acme|\/tmp\//);
+    assert.doesNotMatch(result.content[0].text, /^## Forged section/m);
+  }
+}
+
+test("dogfood evaluator normalizes structured omission follow-up classes", async () => {
+  const result = await dogfoodObservationEvaluationToolResult({
+    observation: baseObservation({
+      observation: {
+        activityType: "review",
+        actualLowLevelReadSearchStatusCalls: 3,
+        actualLowLevelCallsAvoided: 1,
+        validationCommandsRun: 1,
+        duplicateReadsObserved: true,
+        omissionFollowupsUsed: [
+          {
+            provider: "docs",
+            reason: "packet omission was useful",
+            classification: "useful omission",
+          },
+          { provider: "sci", reason: "needed symbol lookup", class: "residual-probe" },
+          {
+            provider: "ak",
+            reason: "needed owner surface",
+            type: "provenance_source_owner_followup",
+          },
+          {
+            provider: "/tmp/customer-acme",
+            reason: "TOKEN=secret",
+            classification: "../../forged TOKEN=secret",
+          },
+        ],
+        recommendationMatchedOutcome: false,
+        notes: "needed typed follow-up review",
+      },
+    }),
+  });
+  const evaluation = result.details.dogfoodObservationEvaluation;
+
+  assert.equal(evaluation.ok, true);
+  assert.deepEqual(evaluation.omissionFollowupClasses, [
+    "useful_omission",
+    "residual_probe",
+    "provenance_source_owner_followup",
+    "other",
+  ]);
+  assert.equal(evaluation.omissionFollowupClassCounts.useful_omission, 1);
+  assert.equal(evaluation.omissionFollowupClassCounts.residual_probe, 1);
+  assert.equal(evaluation.omissionFollowupClassCounts.provenance_source_owner_followup, 1);
+  assert.equal(evaluation.omissionFollowupClassCounts.other, 1);
+  assert.match(result.content[0].text, /Omission follow-up class counts/);
+  assert.match(result.content[0].text, /useful_omission/);
+  await assertNoSecretLeak(result);
+});
+
+test("dogfood evaluator does not treat healthy typed follow-up classes as contrary signals", () => {
+  const evaluation = buildDogfoodObservationEvaluation({
+    observation: baseObservation({
+      observation: {
+        activityType: "validation",
+        actualLowLevelReadSearchStatusCalls: 1,
+        actualLowLevelCallsAvoided: 3,
+        validationCommandsRun: 2,
+        duplicateReadsObserved: false,
+        omissionFollowupsUsed: [
+          {
+            provider: "docs",
+            reason: "omission was correctly excluded",
+            classification: "useful_omission",
+          },
+          { provider: "test", reason: "validation command", classification: "validation_activity" },
+          { provider: "legacy", reason: "missing old field", classification: "legacy_missingness" },
+        ],
+        recommendationMatchedOutcome: true,
+        notes: "typed follow-ups explain healthy non-context activity",
+      },
+    }),
+  });
+
+  assert.equal(evaluation.status, "matched");
+  assert.equal(evaluation.omissionFollowupClassCounts.useful_omission, 1);
+  assert.equal(evaluation.omissionFollowupClassCounts.validation_activity, 1);
+  assert.equal(evaluation.omissionFollowupClassCounts.legacy_missingness, 1);
 });
 
 test("dogfood evaluator sends contradictory observations to review instead of matching", () => {
@@ -98,7 +189,13 @@ test("dogfood evaluator sends contradictory observations to review instead of ma
         actualLowLevelReadSearchStatusCalls: 999,
         actualLowLevelCallsAvoided: 3,
         duplicateReadsObserved: true,
-        omissionFollowupsUsed: ["prompt_vault/provider unavailable"],
+        omissionFollowupsUsed: [
+          {
+            provider: "prompt_vault",
+            reason: "provider unavailable",
+            classification: "provenance_source_owner_followup",
+          },
+        ],
         recommendationMatchedOutcome: false,
         notes: "equal avoided count conflicts with expensive follow-up",
       },
@@ -289,7 +386,13 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
           actualLowLevelCallsAvoided: 0,
           validationCommandsRun: 1,
           duplicateReadsObserved: true,
-          omissionFollowupsUsed: [{ provider: "docs", reason: "missing ranking" }],
+          omissionFollowupsUsed: [
+            {
+              provider: "docs",
+              reason: "missing ranking",
+              classification: "true_missing_capability",
+            },
+          ],
           recommendationMatchedOutcome: false,
           notes: "needed docs follow-up",
         },
@@ -311,6 +414,8 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
     validation: 1,
   });
   assert.equal(aggregate.omissionFollowupCounts["docs/missing ranking"], 1);
+  assert.equal(aggregate.omissionFollowupClassCounts.true_missing_capability, 1);
+  assert.match(aggregate.omissionFollowupClassNextActions.join("\n"), /provider adapters/);
   assert.equal(aggregate.totals.validationCommandsRun, 6);
   assert.equal(aggregate.totals.validationCommandsRecordedCount, 3);
   assert.equal(aggregate.totals.validationCommandsMissingCount, 0);
@@ -437,6 +542,13 @@ test("dogfood aggregate preserves missing validation-command counts for legacy r
 
 test("dogfood aggregate accepts prior evaluations and reports mixed invalid receipts", async () => {
   const priorEvaluation = buildDogfoodObservationEvaluation({ observation: baseObservation() });
+  const legacyPriorEvaluation = {
+    ...priorEvaluation,
+    omissionFollowupsUsed: ["docs/legacy follow-up"],
+    omissionFollowupClasses: undefined,
+    omissionFollowupClassCounts: undefined,
+    omissionFollowupsTruncated: 0,
+  };
   const truncatedEvaluation = buildDogfoodObservationEvaluation({
     observation: baseObservation({
       observation: {
@@ -454,6 +566,7 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
   const result = await dogfoodAggregateEvaluationToolResult({
     items: [
       JSON.stringify(priorEvaluation),
+      legacyPriorEvaluation,
       { kind: "wrong" },
       truncatedEvaluation,
       baseObservation({
@@ -474,23 +587,26 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
 
   assert.equal(aggregate.ok, true);
   assert.equal(aggregate.status, "review_before_tuning");
-  assert.equal(aggregate.validReceiptCount, 3);
+  assert.equal(aggregate.validReceiptCount, 4);
   assert.equal(aggregate.invalidReceiptCount, 1);
   assert.equal(aggregate.totals.omissionFollowupsTruncated, 8);
-  assert.equal(aggregate.evaluations[1].omissionFollowupsTruncated, 8);
+  assert.equal(aggregate.evaluations[1].omissionFollowupClassCounts.legacy_unspecified, 1);
+  assert.equal(aggregate.evaluations[2].omissionFollowupsTruncated, 8);
   assert.deepEqual(Object.fromEntries(Object.entries(aggregate.activityTypeCounts)), {
-    implementation: 1,
+    implementation: 2,
     review: 1,
     validation: 1,
   });
   assert.match(result.content[0].text, /Activity type counts/);
   assert.match(result.content[0].text, /- review: 1/);
   assert.match(result.content[0].text, /Omission follow-up counts/);
+  assert.match(result.content[0].text, /Omission follow-up class counts/);
+  assert.match(result.content[0].text, /legacy_unspecified/);
   assert.match(result.content[0].text, /Omission follow-ups truncated: 8/);
-  assert.match(result.content[0].text, /Validation commands run: 5 \(3 recorded, 0 missing\)/);
+  assert.match(result.content[0].text, /Validation commands run: 7 \(4 recorded, 0 missing\)/);
   assert.match(result.content[0].text, /followup-0/);
   assert.match(result.content[0].text, /Invalid receipts/);
-  assert.match(result.content[0].text, /items\[1\]/);
+  assert.match(result.content[0].text, /items\[2\]/);
 });
 
 test("dogfood aggregate redacts malicious labels and fails closed on oversized inputs", async () => {
@@ -506,18 +622,33 @@ test("dogfood aggregate redacts malicious labels and fails closed on oversized i
         actualLowLevelReadSearchStatusCalls: 2,
         actualLowLevelCallsAvoided: null,
         duplicateReadsObserved: true,
-        omissionFollowupsUsed: ["/tmp/customer-acme TOKEN=secret"],
+        omissionFollowupsUsed: [
+          {
+            provider: "/tmp/customer-acme",
+            reason: "TOKEN=secret",
+            classification: "../../forged TOKEN=secret",
+          },
+        ],
         recommendationMatchedOutcome: false,
         notes: "## Forged section\nTOKEN=secret at /tmp/customer-acme",
       },
     }),
   });
 
-  const result = await dogfoodAggregateEvaluationToolResult({ evaluations: [malicious] });
+  const maliciousStoredEvaluation = {
+    ...malicious,
+    omissionFollowupsUsed: ["stored follow-up"],
+    omissionFollowupClasses: ["../../forged TOKEN=secret"],
+    omissionFollowupClassCounts: undefined,
+  };
+  const result = await dogfoodAggregateEvaluationToolResult({
+    evaluations: [malicious, maliciousStoredEvaluation],
+  });
   const huge = await dogfoodAggregateEvaluationToolResult({ items: ["{".padEnd(65_000, "x")] });
   const serialized = JSON.stringify(result.details);
 
   assert.equal(result.details.dogfoodAggregateEvaluation.ok, true);
+  assert.equal(result.details.dogfoodAggregateEvaluation.omissionFollowupClassCounts.other, 2);
   assert.doesNotMatch(result.content[0].text, /TOKEN|customer-acme|\/tmp\//);
   assert.doesNotMatch(result.content[0].text, /^## Forged section/m);
   assert.doesNotMatch(serialized, /TOKEN|customer-acme|\/tmp\//);
@@ -571,6 +702,7 @@ test("dogfood aggregate counts prototype-shaped labels without losing them", () 
   assert.equal(aggregate.packetUtilityRecommendationCounts.__proto__, 1);
   assert.equal(aggregate.providerOmissionCounts.__proto__, 1);
   assert.equal(aggregate.omissionFollowupCounts.__proto__, 1);
+  assert.equal(aggregate.omissionFollowupClassCounts.legacy_unspecified, 1);
   assert.equal(aggregate.activityTypeCounts.implementation, 1);
   assert.match(JSON.stringify(aggregate), /"__proto__":1/);
 });
