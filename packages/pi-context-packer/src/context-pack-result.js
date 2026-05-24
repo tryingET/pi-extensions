@@ -1,3 +1,7 @@
+import {
+  compactNextToolSuggestionProjections,
+  compactOmissionProjections,
+} from "./compact-projection.js";
 import { markdownFence, markdownInlineLabel } from "./context-intake-safety.js";
 import { formatContextPlan } from "./context-plan.js";
 import { DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE } from "./dogfood-followup-classes.js";
@@ -116,26 +120,6 @@ const compactProvenance = (provenance = {}) => ({
   ...(provenance.ref ? { ref: provenance.ref } : {}),
 });
 
-const compactOmissions = (omissions = []) =>
-  omissions.map((omission, omissionIndex) => ({
-    provider: omission.provider,
-    reason: omission.reason,
-    detailRef: `packet.omissions[${omissionIndex}].detail`,
-    detailOmitted: Boolean(omission.detail),
-    detailEstimatedTokens: textTokens(omission.detail ?? ""),
-    detailBytes: textBytes(omission.detail),
-  }));
-
-const compactNextToolSuggestions = (suggestions = []) =>
-  suggestions.map((suggestion, suggestionIndex) => ({
-    tool: suggestion.tool,
-    reasonRef: `packet.nextToolSuggestions[${suggestionIndex}].reason`,
-    reasonOmitted: Boolean(suggestion.reason),
-    reasonEstimatedTokens: textTokens(suggestion.reason ?? ""),
-    reasonBytes: textBytes(suggestion.reason),
-    nonAuthorization: suggestion.nonAuthorization,
-  }));
-
 const compactMeasurementReceipt = (receipt) => ({
   ...receipt,
   sessionAwareness: receipt.sessionAwareness
@@ -195,10 +179,10 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
         duplicateTokensAvoided: item.duplicateTokensAvoided,
       })),
     })),
-    omissions: compactOmissions(packet.omissions),
+    omissions: compactOmissionProjections(packet.omissions),
     ownerSurfaceRecommendations: cloneProjection(packet.ownerSurfaceRecommendations),
     nextOwnerActions: cloneProjection(packet.nextOwnerActions),
-    nextToolSuggestions: compactNextToolSuggestions(packet.nextToolSuggestions),
+    nextToolSuggestions: compactNextToolSuggestionProjections(packet.nextToolSuggestions),
     measurementReceipt: cloneProjection(measurementReceipt),
     packetUtilityRecommendation: cloneProjection(measurementReceipt.packetUtilityRecommendation),
     dogfoodFollowupReceipt: cloneProjection(measurementReceipt.dogfoodFollowupReceipt),

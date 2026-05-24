@@ -15,7 +15,7 @@ system4d:
 
 Implement one focused package slice while preserving monorepo compatibility.
 
-Latest landed slices: compact `context_plan`/`context_pack` details use redacted projection membranes; dogfood receipts carry activity/runtime calibration labels; aggregate `stable_positive_signal` requires core implementation/review/validation plus live-reloaded coverage; and compact `context_pack` details now omit raw omission details and next-tool suggestion reasons while preserving refs/counts.
+Latest landed slices: compact `context_plan`/`context_pack` details use redacted projection membranes; dogfood receipts carry activity/runtime calibration labels; aggregate `stable_positive_signal` requires core implementation/review/validation plus live-reloaded coverage; compact `context_pack` details omit raw omission details and next-tool suggestion reasons while preserving refs/counts; and shared compact projection helpers keep details/dogfood omission receipt shapes aligned.
 
 ## Package context
 

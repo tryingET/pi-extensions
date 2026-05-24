@@ -1,3 +1,4 @@
+import { compactOmissionProjections } from "./compact-projection.js";
 import {
   DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE,
   DOGFOOD_USER_OMISSION_FOLLOWUP_CLASSES,
@@ -14,7 +15,6 @@ const DOGFOOD_RUNTIME_CONTEXT_OPTIONS = Object.freeze([
 const PLANNED_UNWIRED_PROVIDER_IDS = new Set(["prompt_vault", "ak", "fcos"]);
 
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
-const textBytes = (text) => Buffer.byteLength(typeof text === "string" ? text : "");
 
 const sectionFromItems = (provider, title, items) => ({
   id: provider,
@@ -193,16 +193,7 @@ const compactSelectedItems = (sections) =>
     .slice(0, DOGFOOD_TEMPLATE_ITEM_LIMIT);
 
 const compactOmissions = (omissions) =>
-  omissions
-    .map((omission, omissionIndex) => ({
-      ref: `packet.omissions[${omissionIndex}]`,
-      provider: omission.provider,
-      reason: omission.reason,
-      detailRef: `packet.omissions[${omissionIndex}].detail`,
-      detailEstimatedTokens: textTokens(omission.detail ?? ""),
-      detailBytes: textBytes(omission.detail),
-    }))
-    .slice(0, DOGFOOD_TEMPLATE_ITEM_LIMIT);
+  compactOmissionProjections(omissions, { includeRef: true }).slice(0, DOGFOOD_TEMPLATE_ITEM_LIMIT);
 
 const seedRouteKind = (seed) => {
   if (seed?.kind === "symbol") return "symbol";

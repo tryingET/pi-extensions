@@ -671,6 +671,24 @@ node --test tests/tool-result.test.js
 
 Outcome: the structured details surface is now closer to the dogfood receipt membrane and less likely to become a raw JSON side channel for omission paths or mirrored owner-surface suggestions.
 
+## Receipt S — shared compact projection helper
+
+### Context
+
+After compact omission details landed, the same projection shape existed in two places: `context_pack` tool details and the dogfood observation template. Duplication made future drift likely, especially around whether omission details were represented as raw strings, refs, omitted flags, or byte/token accounting.
+
+### Slice
+
+A shared compact projection helper now owns omission and next-tool suggestion receipt shapes. `compactContextPacketDetails` and dogfood observation omission projection both use the same omission projection path, and dogfood omissions now include the explicit `detailOmitted` flag alongside `detailRef`, token estimates, and byte counts.
+
+Validation:
+
+```text
+node --test tests/tool-result.test.js
+```
+
+Outcome: compact projection surfaces are less likely to drift apart, and future receipt hardening has one smaller implementation seam to extend.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

@@ -215,6 +215,11 @@ test("compactContextPacketDetails omits raw omission details and suggestion reas
     result.details.dogfoodObservationTemplate.packet.omissions[0].detailRef,
     "packet.omissions[0].detail",
   );
+  assert.equal(result.details.dogfoodObservationTemplate.packet.omissions[0].detailOmitted, true);
+  assert.equal(
+    result.details.dogfoodObservationTemplate.packet.omissions[0].detailBytes,
+    result.details.omissions[0].detailBytes,
+  );
   assert.equal(JSON.stringify(result.details).includes(omittedPath), false);
   assert.equal(JSON.stringify(result.details).includes(`docs:${omittedPath}`), false);
   assert.equal(result.details.redaction.rawOmissionDetailsOmitted, true);
