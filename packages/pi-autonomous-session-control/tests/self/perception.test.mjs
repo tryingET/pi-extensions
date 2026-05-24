@@ -159,7 +159,7 @@ test("self query: repeated failed commands remain a loop concern", async () => {
   await cleanup(tempDir);
 });
 
-test("self query: later productive success recovers stale failure loop cues", async () => {
+test("self query: later validation success recovers stale failure loop cues", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -202,6 +202,46 @@ test("self query: later productive success recovers stale failure loop cues", as
   assert.ok(
     handoffResult.content[0].text.includes("no continuation slice candidate"),
     "stale recovered failures should not prefill a scout peer",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: later validation success frames handoff failures as recovered", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-handoff-failed-recovered-${i}`, "false", {
+      isError: true,
+      text: "command failed",
+    });
+  }
+  recordBash(
+    harness,
+    "cmd-handoff-recovery-validation",
+    "npm --prefix packages/pi-autonomous-session-control run check",
+  );
+
+  const result = await tool.execute(
+    "tc-recovered-handoff-summary",
+    { query: "controller handoff summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.nextMove, undefined);
+  assert.equal(result.content[0].text.includes("/scoutpeer"), false);
+  assert.equal(result.content[0].text.includes("recent failed command(s)"), false);
+  assert.ok(
+    result.details.data.cues.some((cue) => cue.includes("successful validation/check evidence")),
+    "recovered failures should be framed as recovered handoff history",
   );
 
   await cleanup(tempDir);

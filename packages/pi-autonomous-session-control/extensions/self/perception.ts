@@ -154,16 +154,22 @@ function latestSuccessfulRecoveryEvidenceCommandAt(log: OperationLog): number {
   );
 }
 
-function hasRecoveryEvidenceAfterLatestFailedCommand(log: OperationLog): boolean {
-  let latestFailedIndex = -1;
+function latestRecoveryEvidenceCommandIndex(log: OperationLog): number {
   let latestRecoveryEvidenceIndex = -1;
   log.commands.forEach((cmd, index) => {
-    if (!cmd.success) latestFailedIndex = index;
     if (cmd.success && isRecoveryEvidenceCommand(cmd.rawCommand)) {
       latestRecoveryEvidenceIndex = index;
     }
   });
-  return latestFailedIndex >= 0 && latestRecoveryEvidenceIndex > latestFailedIndex;
+  return latestRecoveryEvidenceIndex;
+}
+
+function hasRecoveryEvidenceAfterLatestFailedCommand(log: OperationLog): boolean {
+  let latestFailedIndex = -1;
+  log.commands.forEach((cmd, index) => {
+    if (!cmd.success) latestFailedIndex = index;
+  });
+  return latestFailedIndex >= 0 && latestRecoveryEvidenceCommandIndex(log) > latestFailedIndex;
 }
 
 // ============================================================================
@@ -505,11 +511,19 @@ export function queryHandoffSummary(
   detector: PatternDetector,
 ): HandoffSummaryResult {
   const files = queryFilesTouched(log).files;
-  const commands = log.commands.slice(-5).map((cmd) => ({
+  const latestRecoveryEvidenceIndex = latestRecoveryEvidenceCommandIndex(log);
+  const recentCommandEntries = log.commands.map((cmd, index) => ({ cmd, index })).slice(-5);
+  const commands = recentCommandEntries.map(({ cmd }) => ({
     command: cmd.command,
     rawCommand: cmd.rawCommand,
     success: cmd.success,
   }));
+  const unrecoveredFailedCommands = recentCommandEntries.filter(
+    ({ cmd, index }) => !cmd.success && index > latestRecoveryEvidenceIndex,
+  ).length;
+  const recoveredFailedCommands = recentCommandEntries.filter(
+    ({ cmd, index }) => !cmd.success && index <= latestRecoveryEvidenceIndex,
+  ).length;
   const allErrors = queryErrors(log).errors;
   const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
   const recoveredLatestFailure = hasRecoveryEvidenceAfterLatestFailedCommand(log);
@@ -530,17 +544,20 @@ export function queryHandoffSummary(
     cues.push(`handoff should mention ${files.length} touched file(s)`);
   }
   if (commands.length > 0) {
-    const failedCommands = commands.filter((cmd) => !cmd.success).length;
-    cues.push(
-      failedCommands > 0
-        ? `include ${failedCommands} recent failed command(s) and validation caveats`
-        : "include recent validation/check commands",
-    );
+    if (unrecoveredFailedCommands > 0) {
+      cues.push(
+        `include ${unrecoveredFailedCommands} unrecovered recent failed command(s) and validation caveats`,
+      );
+    } else if (recoveredFailedCommands > 0) {
+      cues.push("earlier failed command(s) are followed by successful validation/check evidence");
+    } else {
+      cues.push("include recent validation/check commands");
+    }
   }
   if (errors.length > 0) {
     cues.push(`include ${errors.length} unrecovered error pattern(s) still visible to self`);
   } else if (allErrors.length > 0) {
-    cues.push("earlier error pattern(s) are followed by successful productive command evidence");
+    cues.push("earlier error pattern(s) are followed by successful validation/check evidence");
   }
   if (loops.isLooping) {
     cues.push("mirror-only repetition cue visible; caller should decide whether it is intentional");

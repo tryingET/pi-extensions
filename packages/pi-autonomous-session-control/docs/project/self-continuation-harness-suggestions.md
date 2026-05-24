@@ -73,7 +73,7 @@ Example:
 
 ## Recovery evidence rule
 
-A successful validation/check command after the latest failed command is recovery evidence. It should suppress stale failure-loop and error-loop cues from becoming the top continuation slice. Keep the older failures available in mirror history, but do not prefill `/scoutpeer` from recovered failures alone. Read-only inspection commands such as `git status`, `git diff`, and provenance helpers may still be productive progress context, but they are not recovery evidence.
+A successful validation/check command after the latest failed command is recovery evidence. It should suppress stale failure-loop and error-loop cues from becoming the top continuation slice and should frame handoff failed-command cues as recovered history rather than active failure-recovery advice. Keep the older failures available in mirror history, but do not prefill `/scoutpeer` from recovered failures alone. Read-only inspection commands such as `git status`, `git diff`, and provenance helpers may still be productive progress context, but they are not recovery evidence.
 
 ## Stop rule
 
