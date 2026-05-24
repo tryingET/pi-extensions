@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "81c31ad1b2d8314432e9f5a386fe3a81d21a26b4"
+created_at: "2026-05-24T17:58:34Z"
+intent: "Use byte-based rendered Markdown token accounting for context-packer compact packet details"
+files:
+  - "packages/pi-context-packer/docs/project/product-posture.md"
+  - "packages/pi-context-packer/next_session_prompt.md"
+  - "packages/pi-context-packer/src/context-pack-result.js"
+  - "packages/pi-context-packer/tests/context-pack.test.js"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-context-packer run docs:list && npm --prefix packages/pi-context-packer run check"
+    status: "pass"
+  full_gate:
+    command: "npm run check"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "Context-packer telemetry fix with regression coverage and docs"
