@@ -321,9 +321,10 @@ const setupSciSandbox = async ({ sourceRoot, pathSeeds }) => {
   return { sandboxRoot, copiedPaths, omissions };
 };
 
-const sandboxSetupFailure = () => ({
+const sandboxSetupFailure = (omissions = []) => ({
   section: sectionFromItems([]),
   omissions: [
+    ...omissions,
     {
       provider: "sci",
       reason: "blocked",
@@ -346,6 +347,7 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
     return {
       section: sectionFromItems([]),
       omissions: [
+        ...omissions,
         {
           provider: "sci",
           reason: "blocked",
@@ -360,6 +362,7 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
     return {
       section: sectionFromItems([]),
       omissions: [
+        ...omissions,
         {
           provider: "sci",
           reason: "blocked",
@@ -377,7 +380,7 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
       pathSeeds: pathSeedsForSci(seeds),
     });
   } catch {
-    return sandboxSetupFailure();
+    return sandboxSetupFailure(omissions);
   }
   omissions.push(...sandbox.omissions);
   const sandboxArtifactPaths = artifactPaths({ cwd: sandbox.sandboxRoot });

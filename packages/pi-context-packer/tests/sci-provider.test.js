@@ -260,6 +260,50 @@ test("context_pack refuses SCI workflows until read-only safety is confirmed", a
   );
 });
 
+test("context_pack preserves refused SCI override omissions on read-only safety refusal", async () => {
+  await withProcessEnv(
+    {
+      SCI_CLI: "/tmp/refused-sci-cli",
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: undefined,
+    },
+    async () => {
+      const root = await makeWorkspace();
+      const calls = [];
+      const fakeExec = async () => {
+        calls.push("called");
+        return { stdout: sciStdout({ content: "should not run" }) };
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec },
+      );
+
+      assert.deepEqual(calls, []);
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" && omission.detail.includes("SCI_CLI override ignored"),
+        ),
+      );
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" &&
+            omission.detail.includes("read-only safety was not confirmed"),
+        ),
+      );
+      assert.doesNotMatch(JSON.stringify(result.packet), /refused-sci-cli|should not run/);
+    },
+  );
+});
+
 test("context_pack ignores allowSciArtifactCreation as a read-only safety bypass", async () => {
   const root = await makeWorkspace();
   const calls = [];
@@ -333,6 +377,101 @@ test("context_pack refuses existing SCI artifacts even when bypass flag is set",
     result.packet.omissions.some(
       (omission) => omission.provider === "sci" && omission.detail.includes("existing .ontology"),
     ),
+  );
+});
+
+test("context_pack preserves refused SCI override omissions on existing artifact refusal", async () => {
+  await withProcessEnv(
+    {
+      PI_CONTEXT_PACKER_SCI_CLI: "/tmp/refused-context-packer-sci-cli",
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: undefined,
+    },
+    async () => {
+      const root = await makeWorkspace();
+      await mkdir(join(root, ".ontology"));
+      const calls = [];
+      const fakeExec = async () => {
+        calls.push("called");
+        return { stdout: sciStdout({ content: "should not run" }) };
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+      );
+
+      assert.deepEqual(calls, []);
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" &&
+            omission.detail.includes("PI_CONTEXT_PACKER_SCI_CLI override ignored"),
+        ),
+      );
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" && omission.detail.includes("existing .ontology"),
+        ),
+      );
+      assert.doesNotMatch(
+        JSON.stringify(result.packet),
+        /refused-context-packer-sci-cli|should not run/,
+      );
+    },
+  );
+});
+
+test("context_pack preserves refused SCI override omissions on sandbox setup failure", async () => {
+  const root = await makeWorkspace();
+  await withProcessEnv(
+    {
+      TMPDIR: join(root, "missing-tmp"),
+      SCI_CLI: "/tmp/refused-sci-cli-for-sandbox-setup",
+      PI_CONTEXT_PACKER_TRUST_CUSTOM_SCI_CLI: undefined,
+    },
+    async () => {
+      const calls = [];
+      const fakeExec = async () => {
+        calls.push("called");
+        return { stdout: sciStdout({ content: "should not run" }) };
+      };
+
+      const result = await buildContextPacket(
+        {
+          objective: "Use code context for implementation",
+          cwd: root,
+          repoRoot: root,
+          seeds: [{ kind: "path", value: "src/example.js" }],
+          providers: { agents: "off", docs: "off", git: "off", sci: "required" },
+        },
+        { sciCommand: "/tmp/fake-sci", execFileAsync: fakeExec, sciReadOnlySafe: true },
+      );
+
+      assert.deepEqual(calls, []);
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" && omission.detail.includes("SCI_CLI override ignored"),
+        ),
+      );
+      assert.ok(
+        result.packet.omissions.some(
+          (omission) =>
+            omission.provider === "sci" && omission.detail.includes("SCI sandbox setup failed"),
+        ),
+      );
+      assert.doesNotMatch(
+        JSON.stringify(result.packet),
+        /refused-sci-cli-for-sandbox-setup|should not run/,
+      );
+    },
   );
 });
 
