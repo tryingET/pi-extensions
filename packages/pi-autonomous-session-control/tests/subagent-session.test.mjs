@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -310,6 +310,31 @@ test("clearSubagentSessions preserves status-recorded sessionFile paths outside 
   }
 });
 
+test("cleanupOldSessions does not follow status-recorded symlinks outside sessionsDir", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-symlink-safe-"));
+  const externalDir = await mkdtemp(join(tmpdir(), "session-cleanup-symlink-outside-"));
+
+  try {
+    const outsideFile = join(externalDir, "outside.jsonl");
+    const sessionFile = join(sessionsDir, "worker-link.jsonl");
+    await writeFile(outsideFile, "outside\n");
+    await symlink(outsideFile, sessionFile);
+    await writeStatus(sessionsDir, "worker", "done", { sessionFile });
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxCount: 0 });
+
+    assert.equal(result.removedSessions, 1);
+    assert.equal(result.removedFiles, 1);
+    assert.equal(await readFile(outsideFile, "utf8"), "outside\n");
+    const files = await readdir(sessionsDir);
+    assert.deepEqual(files, ["worker-link.jsonl"]);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+    await rm(externalDir, { recursive: true, force: true });
+  }
+});
+
 test("clearSubagentSessions removes owned orphan lock files without status sidecars", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-owned-orphan-lock-"));
 
@@ -409,6 +434,40 @@ test("clearSubagentSessions ignores foreign lock files without ASC status sideca
     const files = await readdir(sessionsDir);
     assert.ok(files.includes("human.jsonl"));
     assert.ok(files.includes("foreign.lock"));
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("clearSubagentSessions keeps live running subagent artifacts", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-running-safe-"));
+
+  try {
+    await writeFile(join(sessionsDir, "live-subagent.jsonl"), "{}\n");
+    await writeStatus(sessionsDir, "live-subagent", "running");
+
+    const state = createSubagentState(sessionsDir);
+    clearSubagentSessions(state);
+
+    const files = await readdir(sessionsDir);
+    assert.ok(files.includes("live-subagent.jsonl"));
+    assert.ok(files.includes("live-subagent.status.json"));
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentState restores active concurrency from live running status sidecars", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-active-restart-"));
+
+  try {
+    await writeFile(join(sessionsDir, "live-subagent.jsonl"), "{}\n");
+    await writeStatus(sessionsDir, "live-subagent", "running");
+
+    const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
+
+    assert.equal(state.activeCount, 1);
+    assert.equal(canSpawnSubagent(state), false);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

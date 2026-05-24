@@ -146,11 +146,22 @@ function extractErrorSignature(message: string): string {
     .trim();
 }
 
+const PACKAGE_MANAGER_VALIDATION_SCRIPT =
+  "(?:test|check|lint|typecheck|quality(?::\\w+)?|ci|release:check(?::quick)?)";
+const PACKAGE_MANAGER_SCOPE_OPTION =
+  "(?:(?:--prefix|-c|--cwd|--workspace|-w|--filter|-F|-C)(?:\\s+|=)\\S+|--\\S+(?:=\\S+)?)";
+const PACKAGE_MANAGER_VALIDATION_PATTERNS = [
+  new RegExp(
+    `\\b(?:npm|pnpm|yarn)(?:\\s+${PACKAGE_MANAGER_SCOPE_OPTION})*\\s+(?:run\\s+)?${PACKAGE_MANAGER_VALIDATION_SCRIPT}\\b`,
+  ),
+  new RegExp(
+    `\\b(?:npm|pnpm|yarn)\\s+run(?:\\s+${PACKAGE_MANAGER_SCOPE_OPTION})*\\s+${PACKAGE_MANAGER_VALIDATION_SCRIPT}\\b`,
+  ),
+];
+
 function isValidationOrQualityCommand(lowerCommand: string): boolean {
   return (
-    /\b(?:npm|pnpm|yarn)(?:\s+(?:--prefix|-c|--cwd|--workspace|-w|--filter|-F|-C)\s+\S+|\s+--\S+(?:=\S+)?)*\s+(?:run\s+)?(?:test|check|lint|typecheck|quality(?::\w+)?|ci|release:check(?::quick)?)\b/.test(
-      lowerCommand,
-    ) ||
+    PACKAGE_MANAGER_VALIDATION_PATTERNS.some((pattern) => pattern.test(lowerCommand)) ||
     /\b(?:node\s+--test|vitest|jest|tsc|biome\s+(?:check|ci|lint)|just\s+(?:test|check|lint|ci))\b/.test(
       lowerCommand,
     )

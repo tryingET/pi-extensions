@@ -4,9 +4,11 @@
 
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -151,18 +153,34 @@ function readLifecycleOwnedSessionStatus(
   return status;
 }
 
-function resolveContainedSessionPath(sessionsDir: string, path: unknown): string | null {
+function pathIsWithin(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+export function resolveContainedSessionPath(
+  sessionsDir: string,
+  path: unknown,
+  options: { requireExisting?: boolean } = {},
+): string | null {
   if (typeof path !== "string") return null;
   const trimmed = path.trim();
   if (!trimmed) return null;
 
   const root = resolve(sessionsDir);
   const resolved = resolve(root, trimmed);
-  const rel = relative(root, resolved);
-  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
-    return resolved;
+  if (!pathIsWithin(root, resolved)) return null;
+
+  try {
+    const realRoot = realpathSync(root);
+    const realResolved = realpathSync(resolved);
+    if (!pathIsWithin(realRoot, realResolved)) return null;
+    if (lstatSync(resolved).isSymbolicLink()) return null;
+  } catch {
+    return options.requireExisting === false ? resolved : null;
   }
-  return null;
+
+  return resolved;
 }
 
 function getRecordedSessionTracePath(
@@ -227,6 +245,12 @@ function reconcileAbandonedSessionStatuses(sessionsDir: string): void {
   }
 }
 
+function countLiveRunningSessionStatuses(sessionsDir: string): number {
+  return listSubagentSessionStatuses(sessionsDir).filter(
+    (status) => status.status === "running" && processIsAlive(status.pid),
+  ).length;
+}
+
 export function createSubagentState(
   sessionsDir: string,
   options?: { maxConcurrent?: number },
@@ -240,7 +264,7 @@ export function createSubagentState(
 
   return {
     sessionsDir,
-    activeCount: 0,
+    activeCount: countLiveRunningSessionStatuses(sessionsDir),
     completedCount: 0,
     maxConcurrent: options?.maxConcurrent ?? DEFAULT_MAX_CONCURRENT,
     reservedSessionNames: new Set(),
@@ -293,6 +317,7 @@ function getSubagentArtifactPaths(
     const base = f.slice(0, -".status.json".length);
     const status = readLifecycleOwnedSessionStatus(sessionsDir, base);
     if (!status || !statusMatchesClearOptions(status, options)) continue;
+    if (status.status === "running" && processIsAlive(status.pid)) continue;
 
     for (const path of getExistingSessionArtifactPaths(sessionsDir, status)) {
       paths.add(path);

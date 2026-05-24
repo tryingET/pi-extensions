@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -392,6 +392,83 @@ test("createSubagentSessionInspection ignores recorded session files outside the
     assert.equal(inspection.sessionArtifact.exists, false);
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentSessionInspection does not follow recorded symlinks outside the session dir", async () => {
+  const root = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-symlink-"));
+  const sessionsDir = join(root, "native", "sessions");
+  const outsideDir = join(root, "native", "outside");
+
+  try {
+    await mkdir(sessionsDir, { recursive: true });
+    await mkdir(outsideDir, { recursive: true });
+    const outsideFile = join(outsideDir, "probe.jsonl");
+    const symlinkFile = join(sessionsDir, "probe-link.jsonl");
+    await writeFile(outsideFile, "outside\n");
+    await symlink(outsideFile, symlinkFile);
+    await writeFile(
+      getSessionStatusPath(sessionsDir, "probe"),
+      JSON.stringify({
+        sessionName: "probe",
+        sessionKind: "subagent",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+        sessionFile: symlinkFile,
+        resultPreview: "STATUS_OK",
+      }),
+    );
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "probe", {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(inspection.status, "done");
+    assert.equal(inspection.resultPreview, "STATUS_OK");
+    assert.match(inspection.warnings.join("\n"), /escapes the subagent session directory/i);
+    assert.equal(inspection.sessionArtifact.path, join(sessionsDir, "probe.jsonl"));
+    assert.notEqual(inspection.sessionArtifact.path, symlinkFile);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createSubagentSessionInspection reports missing recorded files inside the session dir without escape warnings", async () => {
+  const sessionsDir = await mkdtemp(
+    join(tmpdir(), "subagent-dashboard-inspect-missing-contained-"),
+  );
+
+  try {
+    const missingFile = join(sessionsDir, "missing-recorded.jsonl");
+    await writeFile(
+      getSessionStatusPath(sessionsDir, "probe"),
+      JSON.stringify({
+        sessionName: "probe",
+        sessionKind: "subagent",
+        status: "done",
+        pid: process.pid,
+        ppid: process.ppid,
+        createdAt: "2026-03-06T11:30:00.000Z",
+        updatedAt: "2026-03-06T11:30:00.000Z",
+        sessionFile: missingFile,
+        resultPreview: "STATUS_OK",
+      }),
+    );
+
+    const inspection = createSubagentSessionInspection(sessionsDir, "probe", {
+      now: Date.parse("2026-03-06T12:00:00.000Z"),
+    });
+
+    assert.equal(inspection.status, "done");
+    assert.equal(inspection.sessionArtifact.path, missingFile);
+    assert.equal(inspection.sessionArtifact.exists, false);
+    assert.doesNotMatch(inspection.warnings.join("\n"), /escapes the subagent session directory/i);
+    assert.match(inspection.warnings.join("\n"), /missing session file/i);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
   }
 });
 

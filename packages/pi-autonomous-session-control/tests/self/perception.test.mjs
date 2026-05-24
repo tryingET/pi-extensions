@@ -91,6 +91,21 @@ test("perception treats workspace validation commands as recovery evidence", () 
   assert.equal(loopStatus.isLooping, false);
 });
 
+test("perception treats npm run workspace validation commands as recovery evidence", () => {
+  const log = createOperationLog();
+  for (let i = 0; i < 3; i++) {
+    trackError(log, "bash", "Command exited with code 1");
+  }
+  trackCommand(log, "npm run --workspace packages/pi-autonomous-session-control check", true);
+
+  const detector = createPatternDetector();
+  analyzePatterns(log, detector);
+  const loopStatus = queryLoopStatus(detector);
+
+  assert.equal(queryErrors(log).errors[0].activeCount, 0);
+  assert.equal(loopStatus.isLooping, false);
+});
+
 test("self query: repeated successful validation commands are productive workflow, not a loop", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

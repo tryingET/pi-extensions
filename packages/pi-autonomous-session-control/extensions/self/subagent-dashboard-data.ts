@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join } from "node:path";
 import {
   listSubagentSessionStatuses,
   parseSubagentSessionStatusPayload,
+  resolveContainedSessionPath,
   type SubagentSessionStatus,
 } from "./subagent-session.ts";
 
@@ -78,20 +79,6 @@ function isSafeSessionName(sessionName: string): boolean {
     !trimmed.includes("/") &&
     !trimmed.includes("\\")
   );
-}
-
-function resolveContainedSessionPath(sessionsDir: string, path: unknown): string | null {
-  if (typeof path !== "string") return null;
-  const trimmed = path.trim();
-  if (!trimmed) return null;
-
-  const root = resolve(sessionsDir);
-  const resolved = resolve(root, trimmed);
-  const rel = relative(root, resolved);
-  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
-    return resolved;
-  }
-  return null;
 }
 
 function summarizeObjective(objective?: string): string {
@@ -431,6 +418,7 @@ export function createSubagentSessionInspection(
     const containedSessionFile = resolveContainedSessionPath(
       sessionsDir,
       statusRead.parsed.sessionFile,
+      { requireExisting: false },
     );
     if (containedSessionFile) {
       sessionPath = containedSessionFile;
