@@ -30,11 +30,13 @@ system4d:
   - `scripts/ci/full.sh`
   - `scripts/ci/packages.sh`
   - `scripts/package-quality-gate.sh`
+  - `scripts/file-budget-audit.mjs`
   - `scripts/validate-package-release-contracts.mjs`
   - `scripts/pi-host-compatibility-canary.mjs`
   - `scripts/engineering-review-surfaces.mjs`
 - Validation composition:
   - root pre-commit = `scripts/ci/smoke.sh --staged-only` + `scripts/ci/packages.sh pre-commit --staged-only`
+  - package pre-commit / pre-push / CI include a warn-only file-budget audit with defaults: code 500 LOC / 50KB, tests 1000 LOC / 80KB, Markdown 800 LOC / 60KB
   - root pre-push / CI = `scripts/ci/full.sh`
 - Dedicated CI workflow:
   - `.github/workflows/compatibility-canary.yml`

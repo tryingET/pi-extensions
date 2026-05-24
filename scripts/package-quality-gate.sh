@@ -242,6 +242,20 @@ run_structure_validation_target() {
   (cd "$workdir" && bash ./scripts/validate-structure.sh "$@")
 }
 
+run_file_budget_audit_target() {
+  local workdir="$1"
+  local audit_script="$REPO_ROOT/scripts/file-budget-audit.mjs"
+  if [[ ! -f "$audit_script" ]]; then
+    return 0
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "file-budget: skipped ($(relative_target "$workdir"), node unavailable)" >&2
+    return 0
+  fi
+
+  node "$audit_script" --root "$workdir" --warn-only
+}
+
 has_npm_script() {
   local workdir="$1"
   local script_name="$2"
@@ -301,16 +315,19 @@ run_simple_stage() {
       ;;
     pre-commit)
       run_structure_validation_target "$workdir" --staged-only
+      run_file_budget_audit_target "$workdir"
       run_lint_target "$workdir"
       ;;
     pre-push)
       run_structure_validation_target "$workdir"
+      run_file_budget_audit_target "$workdir"
       run_lint_target "$workdir"
       run_typecheck_target "$workdir"
       run_tests_target "$workdir"
       ;;
     ci)
       run_structure_validation_target "$workdir"
+      run_file_budget_audit_target "$workdir"
       run_lint_target "$workdir"
       run_typecheck_target "$workdir"
       run_tests_target "$workdir"
