@@ -82,6 +82,7 @@ export async function loadExtensionWithMocks() {
     "runtime-invariants.ts",
     "state.ts",
     "session-context.ts",
+    "file-budget.ts",
     "prompt-vault-compat.ts",
     "edge-contract-kernel.ts",
     "memory.ts",

@@ -2,6 +2,7 @@
  * Perception domain resolver - queries about session state and operations.
  */
 
+import { analyzeTouchedFileBudgets } from "../file-budget.ts";
 import {
   analyzePatterns,
   queryCommandsRun,
@@ -11,7 +12,7 @@ import {
   queryLoopStatus,
   queryProgress,
 } from "../perception.ts";
-import type { SelfResponse, SelfState } from "../types.ts";
+import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
 
 export const PERCEPTION_KEYWORDS = [
   "what files",
@@ -82,13 +83,26 @@ export function mapPerceptionIntent(lower: string): string {
   return "session_summary";
 }
 
-export function resolvePerceptionQuery(intent: string, state: SelfState): SelfResponse {
+export function resolvePerceptionQuery(
+  intent: string,
+  state: SelfState,
+  query?: SelfQuery,
+): SelfResponse {
   // Ensure patterns are analyzed
   analyzePatterns(state.operations, state.patterns);
 
   switch (intent) {
     case "files_touched": {
       const result = queryFilesTouched(state.operations);
+      const fileBudgetObservations = analyzeTouchedFileBudgets(result.files, {
+        cwd: currentCwdFromQuery(query),
+      });
+      const budgetText = fileBudgetObservations.length
+        ? ` File-budget cues: ${fileBudgetObservations
+            .slice(0, 3)
+            .map((item) => item.advisory)
+            .join(" | ")}${fileBudgetObservations.length > 3 ? "..." : ""}`
+        : "";
       return {
         understood: true,
         intent: "perception",
@@ -97,9 +111,9 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
             ? `Touched ${result.total} file(s): ${result.files
                 .slice(0, 10)
                 .map((f) => f.path)
-                .join(", ")}${result.total > 10 ? "..." : ""}`
+                .join(", ")}${result.total > 10 ? "..." : ""}.${budgetText}`
             : "No files touched in this session.",
-        data: result,
+        data: { ...result, fileBudgetObservations },
       };
     }
 
@@ -177,6 +191,9 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
 
     case "handoff_summary": {
       const result = queryHandoffSummary(state.operations, state.patterns);
+      const fileBudgetObservations = analyzeTouchedFileBudgets(result.files, {
+        cwd: currentCwdFromQuery(query),
+      });
       const fileText =
         result.files.length > 0
           ? result.files
@@ -203,11 +220,15 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
         ? `; next suggested move=${result.nextMove.slice} via ${result.nextMove.owner}`
         : "";
 
+      const budgetText = fileBudgetObservations.length
+        ? `; file-budget cues=${fileBudgetObservations.map((item) => item.advisory).join(" | ")}`
+        : "";
+
       return {
         understood: true,
         intent: "perception",
-        answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}${nextMoveText}`,
-        data: result,
+        answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}${budgetText}${nextMoveText}`,
+        data: { ...result, fileBudgetObservations },
       };
     }
 
@@ -236,6 +257,11 @@ export function resolvePerceptionQuery(intent: string, state: SelfState): SelfRe
       return resolveSessionSummary(state);
     }
   }
+}
+
+function currentCwdFromQuery(query?: SelfQuery): string | undefined {
+  const cwd = query?.context?.cwd;
+  return typeof cwd === "string" && cwd.trim() ? cwd : undefined;
 }
 
 function resolveSessionSummary(state: SelfState): SelfResponse {

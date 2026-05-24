@@ -98,6 +98,38 @@ test("context_plan routes Markdown-only path seeds to docs without selecting SCI
   assert.deepEqual(byProvider.sci.proposedQueries[0].seeds, []);
 });
 
+test("context_plan reports file-budget retrieval risks by file type", async () => {
+  const repo = await mkdtemp(join(tmpdir(), "pi-context-plan-file-budget-"));
+  await mkdir(join(repo, "src"), { recursive: true });
+  await mkdir(join(repo, "tests"), { recursive: true });
+  await mkdir(join(repo, "docs"), { recursive: true });
+  await writeFile(join(repo, "src", "large.ts"), `${"x\n".repeat(501)}`, "utf8");
+  await writeFile(join(repo, "tests", "large.test.js"), `${"x\n".repeat(1001)}`, "utf8");
+  await writeFile(join(repo, "docs", "large.md"), `${"x\n".repeat(801)}`, "utf8");
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan context for large files",
+      cwd: repo,
+      repoRoot: repo,
+      seeds: [
+        { kind: "path", value: "src/large.ts" },
+        { kind: "path", value: "tests/large.test.js" },
+        { kind: "path", value: "docs/large.md" },
+      ],
+    },
+    { cwd: repo },
+  );
+
+  assert.equal(plan.ok, true);
+  const budgetRisks = plan.risks.filter((risk) => risk.kind === "file_budget");
+  assert.equal(budgetRisks.length, 3);
+  assert.ok(budgetRisks.some((risk) => risk.message.includes("src/large.ts exceeds code")));
+  assert.ok(budgetRisks.some((risk) => risk.message.includes("tests/large.test.js exceeds test")));
+  assert.ok(budgetRisks.some((risk) => risk.message.includes("docs/large.md exceeds markdown")));
+  assert.match(formatContextPlan(plan), /prefer range\/symbol selection/);
+});
+
 test("context_plan caps seed counts, seed values, and seed notes before provider routing", () => {
   const seeds = [
     { kind: "path", value: "README.md", note: "n".repeat(600) },

@@ -288,12 +288,13 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       await memoryLifecycle.ready;
 
       const typedParams = params as { query: string; context?: Record<string, unknown> };
-      const context =
+      const callerContext =
         typedParams.context &&
         typeof typedParams.context === "object" &&
         !Array.isArray(typedParams.context)
           ? typedParams.context
           : undefined;
+      const context = { ...(callerContext ?? {}), cwd: ctx.cwd || process.cwd() };
       const response = resolveQuery({ query: typedParams.query, context }, state);
       const prefillData = response.data as { prefill?: unknown; text?: unknown } | undefined;
       const didPrefill =

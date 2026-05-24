@@ -299,7 +299,7 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
     case "meta":
       return resolveMetaQuery(intent.intent);
     case "perception":
-      return resolvePerceptionQuery(intent.intent, state);
+      return resolvePerceptionQuery(intent.intent, state, query);
     case "direction":
       return resolveDirectionQuery(intent.intent, query, state);
     case "crystallization": {

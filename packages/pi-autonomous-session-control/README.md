@@ -134,7 +134,7 @@ The `self-prompt-vault-compat` command reports the ASC package version, vault-cl
 
 ### Capability discovery surfaces
 
-The `self` tool accepts operational handoff queries such as `controller handoff summary` and `closeout summary`. These summaries are mirror-only: they aggregate tracked file touches, recent commands, errors, progress/stall state, loop state, and handoff cues for the caller to decide what to report. They are not durable evidence, AK/KES authority, or a controller. When a handoff includes `nextMove`, `self({ query: "prefill suggested next move" })` copies that exact operator-facing suggestion into the Pi editor.
+The `self` tool accepts operational handoff queries such as `controller handoff summary` and `closeout summary`. These summaries are mirror-only: they aggregate tracked file touches, recent commands, errors, progress/stall state, loop state, file-budget advisories for touched files, and handoff cues for the caller to decide what to report. They are not durable evidence, AK/KES authority, validation authority, or a controller. When a handoff includes `nextMove`, `self({ query: "prefill suggested next move" })` copies that exact operator-facing suggestion into the Pi editor.
 
 Loop/stall responses from `self` are mirror-only advisories. Repeated successful validation, provenance-helper, VCS, or AK-completion commands may indicate productive workflow rather than stuckness; stall signals may coexist with recent command evidence when the mirror has not seen a recent file change. The caller decides what the session-local evidence means in task context.
 

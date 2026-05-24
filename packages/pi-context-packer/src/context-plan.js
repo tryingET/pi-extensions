@@ -8,6 +8,7 @@ import {
   repoRelativePathSafetyIssue,
   symbolSeedSafetyIssue,
 } from "./context-intake-safety.js";
+import { fileBudgetRisksForPathSeeds } from "./file-budget.js";
 import { buildOwnerSurfaceRecommendations } from "./owner-surface-routing.js";
 
 const PROVIDER_IDS = ["agents", "git", "sci", "docs", "session", "prompt_vault", "ak", "fcos"];
@@ -551,6 +552,7 @@ const buildRisks = ({
   budget,
   omittedSeeds = [],
   workspaceRisks = [],
+  fileBudgetRisks = [],
 }) => {
   const risks = [...workspaceRisks];
   const selectedCount = providerPlans.filter((plan) => plan.posture === "selected").length;
@@ -560,6 +562,14 @@ const buildRisks = ({
       kind: omittedSeed.kind === "path" ? "path" : "seed",
       severity: "blocked",
       message: `${omittedSeed.reason}; provider queries exclude the unsafe caller-controlled seed`,
+    });
+  }
+
+  for (const fileBudgetRisk of fileBudgetRisks) {
+    risks.push({
+      kind: "file_budget",
+      severity: "warning",
+      message: `${fileBudgetRisk.path} exceeds ${fileBudgetRisk.kind} readability budget (${fileBudgetRisk.lines}/${fileBudgetRisk.maxLines} LOC, ${fileBudgetRisk.bytes}/${fileBudgetRisk.maxBytes} bytes); prefer range/symbol selection or split before treating whole-file retrieval as cheap`,
     });
   }
 
@@ -634,6 +644,7 @@ export const buildContextPlan = (input = {}, env = {}) => {
     seeds: safeSeeds,
     providerPlans,
   });
+  const fileBudgetRisks = fileBudgetRisksForPathSeeds({ seeds: safeSeeds, cwd, repoRoot });
 
   return {
     ok: true,
@@ -650,6 +661,7 @@ export const buildContextPlan = (input = {}, env = {}) => {
       budget,
       omittedSeeds,
       workspaceRisks,
+      fileBudgetRisks,
     }),
     nonAuthorizations: nonAuthorizations(),
   };

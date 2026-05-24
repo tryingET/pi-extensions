@@ -22,7 +22,7 @@ This package is the proposed implementation seam for FCOS item `context-window-p
 ## Current surface
 
 - `/context-pack` — preview the package's read-only planning posture.
-- `context_plan` — model-callable tool that returns a provider plan, budget, risks, and non-authorizations.
+- `context_plan` — model-callable tool that returns a provider plan, budget, file-type readability/retrieval risks, and non-authorizations.
 - `context_pack` — model-callable packet assembler for currently wired read-only providers.
 - `context_dogfood_evaluate` — model-callable, non-persistent evaluator for filled redacted dogfood observation templates.
 - `context_dogfood_summarize` — model-callable, non-persistent aggregate summary for multiple redacted dogfood observations/evaluations.

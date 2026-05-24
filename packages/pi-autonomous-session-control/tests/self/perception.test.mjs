@@ -3,6 +3,9 @@
  */
 
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   analyzePatterns,
@@ -67,6 +70,40 @@ test("self query: am I looping returns no loops initially", async () => {
   assert.ok(result.content[0].text.includes("no loop concern"), "should report no loops");
 
   await cleanup(tempDir);
+});
+
+test("self query: files touched includes mirror-only file budget cues", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const workspace = await mkdtemp(join(tmpdir(), "self-file-budget-"));
+  const harness = createPiHarness();
+
+  try {
+    await mkdir(join(workspace, "src"), { recursive: true });
+    await writeFile(join(workspace, "src", "large.ts"), `${"x\n".repeat(501)}`, "utf8");
+    extension(harness.pi);
+    harness.eventHandlers.get("tool_call")({
+      toolName: "edit",
+      input: { path: "src/large.ts", oldText: "x", newText: "x\ny" },
+    });
+
+    const result = await harness.tools
+      .get("self")
+      .execute(
+        "tc-file-budget",
+        { query: "What files have I touched?" },
+        null,
+        null,
+        createMockContext({ cwd: workspace }),
+      );
+
+    assert.match(result.content[0].text, /File-budget cues/);
+    assert.match(result.content[0].text, /src\/large\.ts exceeds code budget/);
+    assert.equal(result.details.data.fileBudgetObservations[0].kind, "code");
+    assert.equal(result.details.data.fileBudgetObservations[0].growing, true);
+  } finally {
+    await cleanup(tempDir);
+    await rm(workspace, { recursive: true, force: true });
+  }
 });
 
 test("perception command query reports zero success rate when no commands ran", () => {
