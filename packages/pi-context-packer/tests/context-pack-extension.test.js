@@ -74,6 +74,61 @@ test("context-packer extension registers command and all model-callable tools", 
   assert.equal(aggregate.details.dogfoodAggregateEvaluation.activityTypeCounts.validation, 1);
 });
 
+test("context_plan extension returns compact redacted details", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-extension-redaction-"));
+  await mkdir(join(root, "docs"), { recursive: true });
+  await writeFile(join(root, "AGENTS.md"), "# AGENTS\n", "utf8");
+  await writeFile(join(root, "docs", "note.md"), "# Note\n", "utf8");
+  const sentinel = "EXTENSION_PLAN_SECRET_SENTINEL";
+  const { tools } = createHarness();
+
+  const result = await tools.get("context_plan").execute(
+    "tool-call-plan-redaction",
+    {
+      objective: `Plan source-owned context for ${sentinel}`,
+      cwd: root,
+      repoRoot: root,
+      seeds: [
+        { kind: "path", value: "docs/note.md", note: `note-${sentinel}` },
+        { kind: "symbol", value: `symbol${sentinel}` },
+        { kind: "prompt", value: `prompt-${sentinel}` },
+        { kind: "free_text", value: `free-${sentinel}` },
+      ],
+      providers: { docs: "required", sci: "required", prompt_vault: "required" },
+    },
+    undefined,
+    undefined,
+    { cwd: root },
+  );
+
+  assert.match(result.content[0].text, /Context plan for:/);
+  assert.match(result.content[0].text, new RegExp(sentinel));
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.plan, undefined);
+  assert.equal(result.details.objective, undefined);
+  assert.equal(result.details.cwd, undefined);
+  assert.equal(result.details.repoRoot, undefined);
+  assert.equal(result.details.redaction.rawObjectiveOmitted, true);
+  assert.equal(result.details.redaction.rawQueriesOmitted, true);
+  assert.equal(result.details.redaction.rawSeedsOmitted, true);
+  assert.equal(result.details.redaction.rawSeedNotesOmitted, true);
+  const docsPlan = result.details.providers.find((provider) => provider.provider === "docs");
+  assert.equal(docsPlan.posture, "selected");
+  assert.equal(docsPlan.proposedQueries[0].seedKindCounts.path, 1);
+  assert.equal(docsPlan.proposedQueries[0].queryOmitted, true);
+  assert.equal(docsPlan.proposedQueries[0].rawSeedsOmitted, true);
+  assert.ok(result.details.nonAuthorizations.some((item) => item.includes("does not mutate")));
+
+  const serializedDetails = JSON.stringify(result.details);
+  assert.equal(serializedDetails.includes(root), false);
+  assert.equal(serializedDetails.includes(sentinel), false);
+  assert.equal(serializedDetails.includes("docs/note.md"), false);
+  assert.equal(serializedDetails.includes("symbolEXTENSION"), false);
+  assert.equal(serializedDetails.includes("note-EXTENSION"), false);
+  assert.equal(serializedDetails.includes("prompt-EXTENSION"), false);
+  assert.equal(serializedDetails.includes("free-EXTENSION"), false);
+});
+
 test("context_pack extension passes trusted SCI read-only env only from host configuration", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-context-pack-extension-sci-"));
   await mkdir(join(root, "src"), { recursive: true });

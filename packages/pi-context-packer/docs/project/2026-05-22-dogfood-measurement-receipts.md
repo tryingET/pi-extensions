@@ -552,6 +552,27 @@ node --test tests/tool-result.test.js
 
 Outcome: the always-available planning tool now follows the same Markdown-primary / compact-details discipline as `context_pack`, reducing hidden JSON bloat and accidental leakage before packet assembly.
 
+## Receipt M — context_plan wrapper and installed projection smoke
+
+### Context
+
+After compact `context_plan` details landed, validation still needed to prove the source extension wrapper and installed release artifact kept the compact projection boundary. Direct projection tests were useful, but they did not execute the registered source wrapper, and release smoke only checked installed registration metadata plus core module execution.
+
+### Slice
+
+The extension test harness now executes the registered `context_plan` tool wrapper with sentinel objective/seed/note/workspace values and verifies structured details omit the raw values while preserving provider posture and seed-kind telemetry. Release smoke now imports the installed compact plan projection and asserts installed artifact redaction for sentinel objective, workspace, seed, and note values.
+
+The release smoke wording remains bounded: it validates installed registration metadata and installed core/projection execution, not registered handler execution through Pi internals.
+
+Validation:
+
+```text
+node --test tests/context-pack-extension.test.js
+npm run release:check
+```
+
+Outcome: compact `context_plan` details are now protected at the source wrapper and installed artifact boundaries without overstating runtime authority or handler execution coverage.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

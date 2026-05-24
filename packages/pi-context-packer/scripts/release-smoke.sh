@@ -114,7 +114,7 @@ export default function(pi) {
 
       const installedPackageRoot = process.env.INSTALLED_PACKAGE_ROOT;
       if (!installedPackageRoot) throw new Error("INSTALLED_PACKAGE_ROOT is required");
-      const { buildContextPlan } = await import(
+      const { buildContextPlan, compactContextPlanDetails } = await import(
         pathToFileURL(join(installedPackageRoot, "src", "context-plan.js")).href
       );
       const { contextPacketToolResult } = await import(
@@ -158,9 +158,51 @@ export default function(pi) {
           providers: { agents: "required", docs: "required", git: "off", sci: "off", session: "off" },
         };
 
-        const planResult = buildContextPlan(baseParams, env);
+        const planSentinel = "INSTALLED_CONTEXT_PLAN_SECRET_SENTINEL";
+        const planResult = buildContextPlan(
+          {
+            ...baseParams,
+            objective: `Installed runtime smoke for compact context_plan details ${planSentinel}`,
+            seeds: [
+              { kind: "path", value: "docs/project/smoke.md", note: `note-${planSentinel}` },
+              { kind: "symbol", value: `symbol${planSentinel}` },
+              { kind: "prompt", value: `prompt-${planSentinel}` },
+            ],
+            providers: {
+              agents: "required",
+              docs: "required",
+              git: "off",
+              sci: "required",
+              session: "off",
+              prompt_vault: "required",
+            },
+          },
+          env,
+        );
         if (!planResult.ok) {
           throw new Error(`context_plan execution failed: ${JSON.stringify(planResult.errors)}`);
+        }
+        const planDetails = compactContextPlanDetails(planResult);
+        const serializedPlanDetails = JSON.stringify(planDetails);
+        if (!planDetails.redaction?.rawObjectiveOmitted || !planDetails.redaction?.rawSeedsOmitted) {
+          throw new Error("context_plan compact details did not report objective/seed redaction");
+        }
+        if (
+          serializedPlanDetails.includes(planSentinel) ||
+          serializedPlanDetails.includes(workspace) ||
+          serializedPlanDetails.includes("docs/project/smoke.md") ||
+          serializedPlanDetails.includes("note-INSTALLED_CONTEXT_PLAN") ||
+          serializedPlanDetails.includes("symbolINSTALLED_CONTEXT_PLAN") ||
+          serializedPlanDetails.includes("prompt-INSTALLED_CONTEXT_PLAN")
+        ) {
+          throw new Error("context_plan compact details exposed raw objective, workspace, seed, or note data");
+        }
+        const docsPlan = planDetails.providers.find((provider) => provider.provider === "docs");
+        if (docsPlan?.proposedQueries?.[0]?.seedKindCounts?.path !== 1) {
+          throw new Error("context_plan compact details lost docs seed-kind telemetry");
+        }
+        if (!planDetails.nonAuthorizations?.some((item) => item.includes("does not mutate"))) {
+          throw new Error("context_plan compact details lost non-authorization language");
         }
 
         const packResult = await contextPacketToolResult(
