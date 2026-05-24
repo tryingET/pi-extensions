@@ -1395,6 +1395,54 @@ test("visible-loop manual completion command finalizes", async () => {
   }
 });
 
+test("visible-loop completion recreates continuation after active state is unavailable", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-recreate-continuation-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const pi = {
+      sendUserMessage() {},
+    };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 2,
+      cwd: harness.ctx.cwd,
+      reportBack: "manual",
+      runId: "visible-loop-recreate-continuation-test",
+      prompts: ["finish this turn"],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    let continuationCount = 0;
+
+    await startVisibleLoopChildCompleteRunner(`${configPath} --iteration 1`, pi, harness.ctx, env, {
+      continueInNewSession: ({ nextIteration }) => {
+        continuationCount += 1;
+        assert.equal(nextIteration, 2);
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    assert.equal(continuationCount, 1);
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    const statusEntries = readFileSync(statusPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(statusEntries.some((entry) => entry.event === "active_state_recreated"));
+    assert.ok(
+      statusEntries.some(
+        (entry) => entry.event === "next_iteration_launch_requested" && entry.nextIteration === 2,
+      ),
+    );
+    assert.ok(
+      statusEntries.some(
+        (entry) => entry.event === "next_iteration_launch_dispatched" && entry.nextIteration === 2,
+      ),
+    );
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("fork_peer_spawn launches a forked-context peer", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {

@@ -2576,7 +2576,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       pi.registerCommand(VISIBLE_LOOP_CHILD_COMPLETE_COMMAND, {
         description: "Internal helper that advances a visible-loop child iteration",
         handler: (args, ctx) =>
-          startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env),
+          startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env, {
+            continueInNewSession: createVisibleLoopContinuation(ctx),
+          }),
       });
     }
 
@@ -2614,6 +2616,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             pi,
             ctx,
             options.env ?? process.env,
+            {
+              continueInNewSession: createVisibleLoopContinuation(ctx as PiCommandContext),
+            },
           );
           return successToolResult("visible-loop completion request processed", {
             ok: Boolean(configPath && Number.isInteger(iteration) && iteration > 0),

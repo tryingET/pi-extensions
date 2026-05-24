@@ -1042,17 +1042,27 @@ function completeVisibleLoopIteration(
     state.stopped = true;
     persistActiveVisibleLoopState(state, ctx, env);
     void progressReport
-      .then(() =>
-        Promise.resolve(
+      .then(() => {
+        appendVisibleLoopStatus(
+          state.config,
+          { event: "next_iteration_launch_requested", nextIteration },
+          env,
+        );
+        return Promise.resolve(
           state.continueInNewSession?.({
             config: state.config,
             configPath: state.configPath,
             completedIterations: state.completedIterations,
             nextIteration,
           }),
-        ),
-      )
+        );
+      })
       .then(() => {
+        appendVisibleLoopStatus(
+          state.config,
+          { event: "next_iteration_launch_dispatched", nextIteration },
+          env,
+        );
         removeActiveVisibleLoopState(ctx, env);
         if (activeVisibleLoop === state) activeVisibleLoop = null;
         ctx.ui?.setStatus?.("visible-loop", undefined);
@@ -1102,6 +1112,7 @@ function recreateActiveVisibleLoopState(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): ActiveVisibleLoopState | null {
   const sendUserMessage = getSendUserMessage(pi);
   if (!sendUserMessage) return null;
@@ -1113,9 +1124,11 @@ function recreateActiveVisibleLoopState(
     sendUserMessage,
     peerRuntime: null,
     intercomSendTail: Promise.resolve(),
-    intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env),
+    intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
     stopped: false,
     followupsQueuedForIteration: null,
+    createPeerRuntime: runnerOptions.createPeerRuntime,
+    continueInNewSession: runnerOptions.continueInNewSession,
   };
   activeVisibleLoop = state;
   appendVisibleLoopStatus(
@@ -1354,6 +1367,7 @@ export async function startVisibleLoopChildCompleteRunner(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): Promise<void> {
   const parsed = parseVisibleLoopCompletionArgs(args);
   if (!parsed.ok) {
@@ -1361,7 +1375,8 @@ export async function startVisibleLoopChildCompleteRunner(
     return;
   }
 
-  const existingState = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env);
+  const existingState =
+    activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
   if (!parsed.configPath) {
     if (!existingState) {
       ctx.ui?.notify?.(
@@ -1406,7 +1421,14 @@ export async function startVisibleLoopChildCompleteRunner(
 
   const state =
     existingState ??
-    recreateActiveVisibleLoopState(configResult.config, parsed.configPath, pi, ctx, env);
+    recreateActiveVisibleLoopState(
+      configResult.config,
+      parsed.configPath,
+      pi,
+      ctx,
+      env,
+      runnerOptions,
+    );
   if (!state) {
     appendVisibleLoopStatus(
       configResult.config,
