@@ -495,7 +495,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
 
   if (providerIds.includes("docs")) {
     if (docsSeeds.length === 0) {
-      const discovered = await discoverDocsSeeds({ repoRoot, objective: plan.objective, env });
+      const discovered = await discoverDocsSeeds({ repoRoot, cwd, objective: plan.objective, env });
       docsSeeds = unique(
         [...docsSeeds, ...discovered.seeds].map((seed) => JSON.stringify(seed)),
       ).map((seed) => JSON.parse(seed));

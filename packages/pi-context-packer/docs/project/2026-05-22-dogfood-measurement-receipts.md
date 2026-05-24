@@ -371,6 +371,64 @@ The packet used mixed seed kinds: one code path seed, one Markdown path seed, an
 
 Outcome: provider-route summaries are useful receipt metadata. They make query-seed mismatches reviewable without putting raw seeds into pasteable dogfood evidence, while SCI omissions still force owner-surface follow-up instead of implying coverage. The receipt projection now separates selected `queryCount` from optional `followupQueryCount`, and packet totals explicitly count selected provider content rather than rendered Markdown scaffolding.
 
+## Receipt E — executable structured docs-list JSON smoke
+
+### Context
+
+After wiring structured docs-list JSON intake, package-cwd dogfood exposed an important production issue: asking docs-list to scan the whole monorepo root can exceed the docs provider buffer and rank unrelated monorepo docs before package-local evidence. The fix is to run docs-list from the package `cwd` while preserving monorepo-root-relative `repoPath` values for packet reads.
+
+### Packet-local smoke
+
+`npm run dogfood:docs-list-json` now runs a repeatable package-local smoke that:
+
+- calls the real `docs-list.mjs` with `--json`, `rankedItems`, and `repoPath` output;
+- assembles `context_pack` docs packets from package-root and package-subdirectory `cwd` values with monorepo `repoRoot`;
+- verifies selected docs paths came from ranked repo-relative JSON output in both cwd postures;
+- verifies package-root and package-subdirectory discovery select the same ranked package docs;
+- fails if selected packet omissions remain hidden behind a matched receipt;
+- verifies compact details omit raw selected docs paths and content;
+- fills a redacted observation template and evaluates it locally without persisting evidence.
+
+Observed smoke output:
+
+```json
+{
+  "status": "matched",
+  "selectedDocs": 8,
+  "packageSubdirSelectedDocs": 8,
+  "expectedLowLevelCallsAvoided": 8,
+  "actualLowLevelReadSearchStatusCalls": 0,
+  "actualLowLevelCallsAvoided": 8,
+  "duplicateReadsObserved": false,
+  "recommendationMatchedOutcome": true
+}
+```
+
+Outcome: structured JSON intake and package-subdirectory docs-list root climbing are now covered by both unit tests and a real package-local dogfood command. This is still package-local product proof only; it is not AK evidence, FCOS closeout, Prompt Vault governance, or live operator-session activation.
+
+## Receipt F — isolated installed-artifact execution smoke
+
+### Context
+
+Release readiness previously proved that the tarball installed and registered `/context-pack` plus all model-callable tools in an isolated Pi runtime. The next hardening step was to prove the installed artifact code also executes core packet paths without relying on the source checkout.
+
+### Smoke behavior
+
+`npm run release:check` now installs the packed tarball into isolated `PI_CODING_AGENT_DIR` and `NPM_CONFIG_PREFIX`, loads the installed extension through Pi, then executes installed artifact code against a temporary read-only fixture:
+
+- `context_plan` returns an ok plan;
+- `context_pack` reads seeded Markdown and renders packet content;
+- compact details omit raw selected item content;
+- dogfood evaluation returns `matched` for the runtime smoke receipt.
+
+Observed release-check output:
+
+```text
+context-packer runtime registration and tool execution OK
+```
+
+Outcome: release smoke now covers registration and installed-artifact execution for the main planning, packing, and dogfood calibration path. This remains package release evidence only; it does not publish the package or activate the current operator session.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

@@ -243,6 +243,101 @@ test("context_pack discovers ranked Markdown docs through docs-list when availab
   assert.match(docs.items[0].content, /Ranked docs-list context/);
 });
 
+test("context_pack consumes structured docs-list JSON using repo-relative ranked items", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "packages", "pkg", "docs", "project"), { recursive: true });
+  await writeFile(
+    join(root, "packages", "pkg", "docs", "project", "ranked.md"),
+    "# Ranked JSON\n\nStructured docs-list context.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-json-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const docsArgIndex = process.argv.indexOf('--docs') + 1;",
+      "const docsRoot = process.argv[docsArgIndex];",
+      "if (!docsRoot.endsWith('/packages/pkg')) throw new Error('expected package docs root, got ' + docsRoot);",
+      "if (process.cwd() !== docsRoot) throw new Error('expected cwd to match docs root, got ' + process.cwd());",
+      "const payload = {",
+      "  items: [{ path: 'docs/project/wrong.md', repoPath: 'docs/project/wrong.md' }],",
+      "  rankedItems: [",
+      "    { path: 'docs/project/local.md', repoPath: 'packages/pkg/docs/project/ranked.md' },",
+      "    { path: 'docs/project/unsafe.md', repoPath: ' node_modules/pkg/README.md ' }",
+      "  ],",
+      "  ok: true",
+      "};",
+      "console.log(JSON.stringify(payload));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use architecture docs for implementation",
+      cwd: join(root, "packages", "pkg"),
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { cwd: root, docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["packages/pkg/docs/project/ranked.md"],
+  );
+  assert.match(docs.items[0].content, /Structured docs-list context/);
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.reason === "unsafe_path" && omission.detail.includes("surrounding whitespace"),
+    ),
+  );
+});
+
+test("context_pack discovers package docs from a package subdirectory cwd", async () => {
+  const root = await makeWorkspace();
+  await mkdir(join(root, "packages", "pkg", "src"), { recursive: true });
+  await mkdir(join(root, "packages", "pkg", "docs", "project"), { recursive: true });
+  await writeFile(join(root, "packages", "pkg", "package.json"), '{"name":"pkg"}\n', "utf8");
+  await writeFile(
+    join(root, "packages", "pkg", "docs", "project", "subdir-ranked.md"),
+    "# Subdir ranked\n\nPackage subdir docs-list context.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-subdir-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const docsArgIndex = process.argv.indexOf('--docs') + 1;",
+      "const docsRoot = process.argv[docsArgIndex];",
+      "if (!docsRoot.endsWith('/packages/pkg')) throw new Error('expected package root, got ' + docsRoot);",
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'packages/pkg/docs/project/subdir-ranked.md' }] }));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use package docs from a source subdirectory",
+      cwd: join(root, "packages", "pkg", "src"),
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { cwd: root, docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["packages/pkg/docs/project/subdir-ranked.md"],
+  );
+  assert.match(docs.items[0].content, /Package subdir docs-list context/);
+});
+
 test("context_pack still runs docs-list when unsafe seeds were omitted and no safe docs seed exists", async () => {
   const root = await makeWorkspace();
   await writeFile(
