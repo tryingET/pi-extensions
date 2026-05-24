@@ -206,18 +206,52 @@ const jsonPayloadRepoRootIssue = (value, { repoRoot }) => {
   return undefined;
 };
 
+const packageScopedRepoPathNeedsExplicitRoot = (rawPath, { repoRoot, docsRoot }) => {
+  const root = resolve(repoRoot);
+  const sourceRoot = resolve(docsRoot);
+  if (sourceRoot === root) return false;
+  if (hasControlCharacter(rawPath) || rawPath !== rawPath.trim()) return false;
+  if (repoRelativePathSafetyIssue(rawPath, "docs-list path")) return false;
+
+  const sourceRootRelative = toPosixPath(relative(root, sourceRoot));
+  return Boolean(
+    sourceRootRelative &&
+      rawPath !== sourceRootRelative &&
+      !rawPath.startsWith(`${sourceRootRelative}/`),
+  );
+};
+
+const ambiguousPackageRepoPathOmission = (fallbackUsed = false) => ({
+  provider: "docs",
+  reason: "schema_mismatch",
+  detail: fallbackUsed
+    ? "docs-list JSON repoPath was ambiguous for package-root discovery and item.path fallback was attempted; include JSON repoRoot to make repoPath basis explicit; raw provider output omitted"
+    : "docs-list JSON repoPath was ambiguous for package-root discovery; include JSON repoRoot or item.path to make the path basis explicit; raw provider output omitted",
+});
+
 const jsonItemPath = (item, { repoRoot, docsRoot, payloadRepoRoot }) => {
   if (typeof item?.repoPath === "string") {
     const payloadRoot = typeof payloadRepoRoot === "string" ? resolve(payloadRepoRoot) : undefined;
     if (payloadRoot && isInside(repoRoot, payloadRoot)) {
-      return rebaseProviderPath(item.repoPath, { repoRoot, providerRoot: payloadRoot });
+      return {
+        path: rebaseProviderPath(item.repoPath, { repoRoot, providerRoot: payloadRoot }),
+      };
     }
-    return item.repoPath;
+    if (packageScopedRepoPathNeedsExplicitRoot(item.repoPath, { repoRoot, docsRoot })) {
+      if (typeof item?.path === "string") {
+        return {
+          path: rebaseProviderPath(item.path, { repoRoot, providerRoot: docsRoot }),
+          omission: ambiguousPackageRepoPathOmission(true),
+        };
+      }
+      return { omission: ambiguousPackageRepoPathOmission(false) };
+    }
+    return { path: item.repoPath };
   }
   if (typeof item?.path === "string") {
-    return rebaseProviderPath(item.path, { repoRoot, providerRoot: docsRoot });
+    return { path: rebaseProviderPath(item.path, { repoRoot, providerRoot: docsRoot }) };
   }
-  return undefined;
+  return { unsupported: true };
 };
 
 const normalizeJsonOutputPaths = (stdout, { repoRoot, docsRoot }) => {
@@ -280,13 +314,17 @@ const normalizeJsonOutputPaths = (stdout, { repoRoot, docsRoot }) => {
         suppressNoResults: true,
       };
     }
-    const rawCandidatePaths = preferredItems.map((item) =>
+    const itemPathResults = preferredItems.map((item) =>
       jsonItemPath(item, { repoRoot, docsRoot, payloadRepoRoot: payload.repoRoot }),
     );
-    const unsupportedItemCount = rawCandidatePaths.filter((value) => value === undefined).length;
-    const normalized = normalizeCandidatePaths(
-      rawCandidatePaths.filter((value) => value !== undefined),
+    const unsupportedItemCount = itemPathResults.filter((result) => result.unsupported).length;
+    const itemPathOmissions = itemPathResults.flatMap((result) =>
+      result.omission ? [result.omission] : [],
     );
+    const normalized = normalizeCandidatePaths(
+      itemPathResults.map((result) => result.path).filter((value) => value !== undefined),
+    );
+    normalized.omissions.unshift(...itemPathOmissions);
     if (preferredItems.length > 0 && unsupportedItemCount === preferredItems.length) {
       return {
         paths: [],

@@ -1364,6 +1364,146 @@ test("context_pack rebases package-root repoPath only when provider repoRoot dec
   assert.match(docs.items[0].content, /Provider-root-relative repoPath context/);
 });
 
+test("context_pack fails closed on package-root repoPath without explicit JSON repoRoot", async () => {
+  const root = await makeWorkspace();
+  const packageRoot = join(root, "packages", "pkg");
+  await mkdir(join(root, "docs", "project"), { recursive: true });
+  await mkdir(join(packageRoot, "docs", "project"), { recursive: true });
+  await writeFile(join(packageRoot, "package.json"), '{"name":"pkg"}\n', "utf8");
+  await writeFile(join(root, "docs", "project", "ranked.md"), "# Root shadow\n", "utf8");
+  await writeFile(
+    join(packageRoot, "docs", "project", "ranked.md"),
+    "# Package ranked\n\nAmbiguous package docs-list repoPath context.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-ambiguous-repopath-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const docsArgIndex = process.argv.indexOf('--docs') + 1;",
+      "const docsRoot = process.argv[docsArgIndex];",
+      `if (docsRoot !== ${JSON.stringify(packageRoot)}) throw new Error('expected package docs root, got ' + docsRoot);`,
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/ranked.md' }] }));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Do not trust ambiguous package docs-list repoPath",
+      cwd: packageRoot,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { cwd: root, docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(docs, undefined);
+  const serialized = JSON.stringify(result.packet.omissions);
+  assert.match(serialized, /repoPath was ambiguous for package-root discovery/);
+  assert.match(serialized, /include JSON repoRoot or item\.path/);
+  assert.doesNotMatch(serialized, /Root shadow|Ambiguous package docs-list repoPath context/);
+  assert.doesNotMatch(serialized, new RegExp(root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("context_pack uses package-root path fallback when repoPath basis is ambiguous", async () => {
+  const root = await makeWorkspace();
+  const packageRoot = join(root, "packages", "pkg");
+  await mkdir(join(root, "docs", "project"), { recursive: true });
+  await mkdir(join(packageRoot, "docs", "project"), { recursive: true });
+  await writeFile(join(packageRoot, "package.json"), '{"name":"pkg"}\n', "utf8");
+  await writeFile(join(root, "docs", "project", "ranked.md"), "# Root shadow\n", "utf8");
+  await writeFile(
+    join(packageRoot, "docs", "project", "ranked.md"),
+    "# Package ranked\n\nFallback package docs-list path context.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-ambiguous-repopath-with-path-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const docsArgIndex = process.argv.indexOf('--docs') + 1;",
+      "const docsRoot = process.argv[docsArgIndex];",
+      `if (docsRoot !== ${JSON.stringify(packageRoot)}) throw new Error('expected package docs root, got ' + docsRoot);`,
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/ranked.md', path: 'docs/project/ranked.md' }] }));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use package docs-list path fallback for ambiguous repoPath",
+      cwd: packageRoot,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { cwd: root, docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["packages/pkg/docs/project/ranked.md"],
+  );
+  assert.match(docs.items[0].content, /Fallback package docs-list path context/);
+  assert.doesNotMatch(docs.items[0].content, /Root shadow/);
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) =>
+        omission.provider === "docs" &&
+        omission.reason === "schema_mismatch" &&
+        omission.detail.includes("item.path fallback was attempted"),
+    ),
+  );
+});
+
+test("context_pack screens unsafe path fallback after ambiguous package repoPath", async () => {
+  const root = await makeWorkspace();
+  const packageRoot = join(root, "packages", "pkg");
+  await mkdir(join(root, "docs", "project"), { recursive: true });
+  await mkdir(join(packageRoot, "docs", "project"), { recursive: true });
+  await writeFile(join(packageRoot, "package.json"), '{"name":"pkg"}\n', "utf8");
+  await writeFile(join(root, "docs", "project", "ranked.md"), "# Root shadow\n", "utf8");
+  await writeFile(
+    join(packageRoot, "docs", "project", "ranked.md"),
+    "# Package ranked\n\nUnsafe fallback should not read this content.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-ambiguous-repopath-unsafe-path-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const docsArgIndex = process.argv.indexOf('--docs') + 1;",
+      "const docsRoot = process.argv[docsArgIndex];",
+      `if (docsRoot !== ${JSON.stringify(packageRoot)}) throw new Error('expected package docs root, got ' + docsRoot);`,
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/ranked.md', path: '../secret.md' }] }));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Reject unsafe path fallback for ambiguous repoPath",
+      cwd: packageRoot,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { cwd: root, docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(docs, undefined);
+  const serialized = JSON.stringify(result.packet.omissions);
+  assert.match(serialized, /repoPath was ambiguous for package-root discovery/);
+  assert.match(serialized, /parent-traversing path seed omitted/);
+  assert.doesNotMatch(serialized, /Root shadow|Unsafe fallback should not read this content/);
+  assert.doesNotMatch(serialized, /secret\.md/);
+});
+
 test("context_pack consumes JSON items fallback without rankedItems", async () => {
   const root = await makeWorkspace();
   await writeFile(
