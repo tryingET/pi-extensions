@@ -78,7 +78,7 @@ export function trackError(log: OperationLog, toolName: string, rawMessage: stri
       recoveryEvidenceAppliesToError(entry) &&
       latestRecoveryEvidenceAt > 0 &&
       priorLastSeen < latestRecoveryEvidenceAt;
-    const priorActiveCount = entry.activeCount ?? (recoveredBeforeRecurrence ? 0 : entry.count);
+    const priorActiveCount = recoveredBeforeRecurrence ? 0 : (entry.activeCount ?? entry.count);
     entry.count++;
     entry.lastSeen = now;
     entry.rawMessage = rawMessage.slice(0, 200);
@@ -630,7 +630,7 @@ export function rankSliceCandidates(input: {
   const failedCommands = input.commands.filter((cmd) => cmd.activeFailure ?? !cmd.success).length;
   const activeErrorPatterns = input.errors.filter((error) => error.activeCount >= LOOP_THRESHOLD);
   const failureRecoveryLoopPatterns = input.loops.patterns.filter(
-    (pattern) => pattern.type === "command_loop" || pattern.type === "error_loop",
+    (pattern) => pattern.type === "error_loop",
   );
 
   if (

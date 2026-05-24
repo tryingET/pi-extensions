@@ -111,6 +111,7 @@ export function writeSessionStatus(
     ...status,
     sessionName,
     updatedAt: new Date().toISOString(),
+    sessionKind: "subagent",
   };
   writeFileSync(path, JSON.stringify(payload, null, 2), "utf-8");
 }

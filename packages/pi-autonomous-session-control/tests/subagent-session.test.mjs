@@ -10,6 +10,7 @@ import {
   createSubagentState,
   getSessionStatusPath,
   getSubagentStats,
+  writeSessionStatus,
 } from "../extensions/self/subagent-session.ts";
 
 async function writeStatus(sessionsDir, sessionName, status = "done", extras = {}) {
@@ -102,6 +103,26 @@ test("cleanupOldSessions removes excess files based on maxCount", async () => {
     assert.equal(result.removedSessions, 5);
     assert.equal(result.removedFiles, 15);
     assert.equal(result.kept, 5);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("writeSessionStatus stamps the ASC ownership marker", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-status-owned-writer-"));
+
+  try {
+    writeSessionStatus(sessionsDir, "owned-session", {
+      status: "done",
+      pid: process.pid,
+      ppid: process.ppid,
+      createdAt: new Date().toISOString(),
+    });
+
+    const raw = JSON.parse(
+      await readFile(getSessionStatusPath(sessionsDir, "owned-session"), "utf8"),
+    );
+    assert.equal(raw.sessionKind, "subagent");
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

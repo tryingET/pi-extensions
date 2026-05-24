@@ -486,6 +486,44 @@ test("self perception: stale active counts reconcile with later recovery evidenc
   assert.equal(result.nextMove, undefined);
 });
 
+test("self perception: recurring stale active counts restart after recovery evidence", () => {
+  const now = Date.now() - 10_000;
+  const log = {
+    fileOps: [],
+    commands: [
+      { command: "false", rawCommand: "false", timestamp: now, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 1, success: false },
+      { command: "false", rawCommand: "false", timestamp: now + 2, success: false },
+      { command: "npm run check", rawCommand: "npm run check", timestamp: now + 3, success: true },
+    ],
+    errors: [
+      {
+        toolName: "bash",
+        signature: "Command exited with code N",
+        rawMessage: "Command exited with code 1",
+        timestamp: now,
+        lastSeen: now + 2,
+        count: 3,
+        activeCount: 3,
+      },
+    ],
+    sessionStartAt: now,
+    lastMeaningfulChangeAt: now,
+    turnCount: 5,
+    turnsSinceMeaningfulChange: 0,
+  };
+  const detector = createPatternDetector();
+
+  trackError(log, "bash", "Command exited with code 1");
+  analyzePatterns(log, detector);
+  const errors = queryErrors(log).errors;
+  const result = queryHandoffSummary(log, detector);
+
+  assert.equal(errors[0].count, 4);
+  assert.equal(errors[0].activeCount, 1);
+  assert.equal(result.nextMove, undefined);
+});
+
 test("self query: validation success does not recover unrelated provider errors", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -829,6 +867,38 @@ test("self query: rank continuation slices surfaces multi-dimensional candidates
   assert.ok(result.details.data.nextMove.slice.includes("authority-risk"));
   assert.ok(result.details.data.nextMove.prefillText.startsWith("/scoutpeer "));
   assert.equal(result.details.data.sliceCandidates[0].confidence, "high");
+
+  await cleanup(tempDir);
+});
+
+test("self query: successful nonproductive command loops do not rank failure recovery peer-tools", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-success-loop-${i}`, "pwd");
+  }
+
+  const result = await tool.execute(
+    "tc-success-command-loop-slice-ranking",
+    { query: "rank continuation slices" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.notEqual(result.details.data.nextMove?.owner, "peer-tools");
+  assert.equal(
+    result.details.data.sliceCandidates.some((candidate) =>
+      candidate.slice.includes("failure-recovery"),
+    ),
+    false,
+  );
 
   await cleanup(tempDir);
 });
