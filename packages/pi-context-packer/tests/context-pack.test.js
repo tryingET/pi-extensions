@@ -449,6 +449,31 @@ test("context_pack still runs docs-list when unsafe seeds were omitted and no sa
   assert.ok(result.packet.omissions.some((omission) => omission.reason === "unsafe_path"));
 });
 
+test("context_pack records an omission when structured docs-list returns no ranked Markdown", async () => {
+  const root = await makeWorkspace();
+  const script = join(root, "docs-list-empty-json-fake.mjs");
+  await writeFile(script, "console.log(JSON.stringify({ ok: true, rankedItems: [] }));\n", "utf8");
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use architecture docs",
+      cwd: root,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.equal(docs, undefined);
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "docs" && omission.reason === "no_results",
+    ),
+  );
+});
+
 test("context_pack screens docs-list discovered paths with the shared path policy", async () => {
   const root = await makeWorkspace();
   await mkdir(join(root, "node_modules", "pkg"), { recursive: true });

@@ -184,7 +184,15 @@ export const discoverDocsSeeds = async ({
       value,
       note: "docs-list ranked Markdown context",
     }));
-    return { seeds, omissions: discovered.omissions };
+    const omissions = [...discovered.omissions];
+    if (seeds.length === 0) {
+      omissions.push({
+        provider: "docs",
+        reason: "no_results",
+        detail: "docs-list returned no safe Markdown candidates for this objective and workspace",
+      });
+    }
+    return { seeds, omissions };
   } catch (error) {
     return {
       seeds: [],

@@ -443,3 +443,4 @@ Outcome: release smoke now covers registration metadata, installed-artifact seed
 - Provider-route summaries are a useful addition to the receipt scaffold: they expose provider/posture/query/seed-kind counts for mismatch review while omitting raw seed values, and they must distinguish selected query counts from optional follow-up query counts. Adding more provider adapters remains lower leverage until more evaluated receipts accumulate.
 - Release and dogfood proof text must not overclaim: distinguish registered tool metadata, installed core execution, source-local dogfood, and live operator-session activation.
 - Packet budget metrics are selected-content metrics unless a receipt explicitly says otherwise; rendered Markdown scaffolding needs separate accounting in tool details.
+- Empty docs-list results are provider information, not success; receipt truth needs an explicit `docs/no_results` omission so required docs misses do not disappear.
