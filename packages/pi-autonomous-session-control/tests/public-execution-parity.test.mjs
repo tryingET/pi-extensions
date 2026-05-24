@@ -380,8 +380,8 @@ test("public runtime parity: live lock collisions pick the same suffixed session
       assert.deepEqual(toolResult, runtimeResult);
       assert.equal(harness.runtimeDefs.length, 1);
       assert.equal(harness.toolDefs.length, 1);
-      assert.equal(basename(harness.runtimeDefs[0].sessionFile), "same-1.json");
-      assert.equal(basename(harness.toolDefs[0].sessionFile), "same-1.json");
+      assert.equal(basename(harness.runtimeDefs[0].sessionFile), "same-1.jsonl");
+      assert.equal(basename(harness.toolDefs[0].sessionFile), "same-1.jsonl");
     } finally {
       await harness.cleanup();
     }
@@ -418,7 +418,7 @@ test("public runtime parity: concurrent same-name requests reserve the same uniq
     const toolSessionFiles = harness.toolDefs.map((def) => basename(def.sessionFile)).sort();
 
     assert.deepEqual(toolSessionFiles, runtimeSessionFiles);
-    assert.deepEqual(runtimeSessionFiles, ["same-1.json", "same.json"]);
+    assert.deepEqual(runtimeSessionFiles, ["same-1.jsonl", "same.jsonl"]);
   } finally {
     await harness.cleanup();
   }

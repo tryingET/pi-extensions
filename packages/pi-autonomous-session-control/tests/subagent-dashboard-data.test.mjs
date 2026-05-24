@@ -212,7 +212,7 @@ test("createSubagentSessionInspection summarizes lifecycle metadata and artifact
         elapsed: 61_000,
       }),
     );
-    await writeFile(join(sessionsDir, "done-session.json"), '{"session":true}\n');
+    await writeFile(join(sessionsDir, "done-session.jsonl"), '{"session":true}\n');
 
     const inspection = createSubagentSessionInspection(sessionsDir, "done-session", {
       now: Date.parse("2026-03-06T12:00:00.000Z"),

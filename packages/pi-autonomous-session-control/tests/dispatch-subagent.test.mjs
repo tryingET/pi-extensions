@@ -907,7 +907,7 @@ test("dispatch_subagent sanitizes session name to prevent path traversal", async
 
     const def = harness.getCapturedDef();
     assert.ok(def.sessionFile.startsWith(harness.state.sessionsDir));
-    assert.match(def.sessionFile, /\.\._\.\._outside\.json$/);
+    assert.match(def.sessionFile, /\.\._\.\._outside\.jsonl$/);
   } finally {
     await harness.cleanup();
   }
@@ -1019,8 +1019,8 @@ test("dispatch_subagent generates unique session names for colliding inputs", as
     const def2 = harness.getCapturedDef();
 
     assert.notEqual(def1.sessionFile, def2.sessionFile);
-    assert.match(def1.sessionFile, /test_name\.json$/);
-    assert.match(def2.sessionFile, /test_name-1\.json$/);
+    assert.match(def1.sessionFile, /test_name\.jsonl$/);
+    assert.match(def2.sessionFile, /test_name-1\.jsonl$/);
   } finally {
     await harness.cleanup();
   }

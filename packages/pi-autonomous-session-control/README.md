@@ -379,8 +379,10 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - ASC reports `skillProfile`, `loadedSkills`, `librarySkills`, `skillWarnings`, and `skillRegistry` in result/update details, but does not install, promote, or mutate skill-library sources.
 
 **Session storage:**
-- `PI_SUBAGENT_SESSIONS_DIR` — directory for session files (default: `./.pi-subagent-sessions`)
-- `PI_SUBAGENT_CLEAR_ON_SESSION_START` — set to `true` to clear `*.json` subagent sessions on `session_start` (default: off / non-destructive)
+- Default storage now uses Pi's native session tree for the current cwd: `~/.pi/agent/sessions/--<encoded-cwd>--/`.
+- `PI_CODING_AGENT_SESSION_DIR` is respected when Pi is configured to use a custom native session directory.
+- `PI_SUBAGENT_SESSIONS_DIR` remains an escape hatch for a separate ASC-owned directory.
+- `PI_SUBAGENT_CLEAR_ON_SESSION_START` — set to `true` to clear tracked subagent session artifacts on `session_start` (default: off / non-destructive)
 - `PI_SUBAGENT_RESERVE_SESSION_NAMES` — set to `false` to disable all session-name reservation mechanisms (in-memory + file-lock) for rollback/debugging (default: enabled)
 - `PI_SUBAGENT_FILE_LOCK_SESSION_NAMES` — set to `false` to disable only cross-process file-lock reservation while keeping in-memory reservation (default: enabled; ignored when `PI_SUBAGENT_RESERVE_SESSION_NAMES=false`)
 - `PI_SUBAGENT_LOCK_STALE_AFTER_MS` — stale-lock reclamation threshold in milliseconds for orphaned subagent locks that no longer have a live owning PID (default: `3600000`)
@@ -388,7 +390,9 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - `PI_SUBAGENT_RAW_PI_EVENT_BUFFER_BYTES` — raw upstream `pi --mode json` line buffer inside the filter helper before aggregate events are dropped (default: `8388608`)
 
 **Session artifact notes:**
-- Local session files in `./.pi-subagent-sessions` are runtime artifacts and are gitignored by default.
+- Subagent child runs are stored as `.jsonl` Pi session files so Pi-native session tooling, export/share workflows, and future dataset pipelines can discover the raw LLM trace.
+- ASC keeps its lifecycle metadata in sidecars next to the child session (`<session>.status.json` and transient `<session>.lock`) rather than creating a separate hidden session world by default.
+- Human Pi sessions in the same native directory are ignored by ASC cleanup/statistics unless they have an ASC status sidecar.
 - Unless `PI_SUBAGENT_MODEL` overrides it, subagents inherit the current session model when Pi exposes one; the fixed fallback `openai-codex/gpt-5.4` is only used when no current model is available.
 - When that requested model points at a numeric-suffix provider alias supplied by an extension (for example `openai-codex-2` from multi-pass), ASC preserves that exact requested/effective model and auto-loads `pi-multi-pass` into the child runtime.
 - `dispatch_subagent` also accepts `extensions: ["vault-client", "/abs/path/to/ext.ts", ...]` so a subagent can opt into specific extension-provided tools without inheriting the full parent extension surface.
@@ -399,11 +403,11 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - Parent-side execution timeouts now arm only after the helper emits its `transport_ready` handshake, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget.
 - Helper shutdown now tears down the raw `pi` child process group before parent-side force kill, preventing orphaned raw subprocesses on timeout/abort.
 - Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.
-- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned`; dead running sessions are reconciled to `abandoned` on next startup.
+- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned` plus subagent metadata such as session file path, profile, model, tools, parent session key, parent repo root, and bounded result preview; dead running sessions are reconciled to `abandoned` on next startup.
 - Status sidecars now also keep a bounded `resultPreview` plus the originating live `parentSessionKey` when available so dashboard/inspection views can stay session-aware without parsing the whole session log.
 - `subagent-status` now reports counts by terminal/runtime status for faster operator diagnosis.
 - A read-only widget surfaces recent subagent sessions for the current live session only, appears only after this session dispatches a subagent, and auto-clears once entries age past 1 hour.
-- If you want long-horizon analysis/retention, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`). Those local artifacts are bounded replay aids; Pi's native session tree remains the live conversation authority.
+- If you want to keep subagent traces outside Pi's native session tree, set `PI_SUBAGENT_SESSIONS_DIR` to a durable external path (for example `~/.pi/subagent-sessions`). The default favors native Pi session storage because subagent traces are useful operator/eval data rather than disposable repo-local clutter.
 
 **Dashboard commands:**
 - `/subagent-dashboard` — open a read-only summary of recent subagent sessions, including current-session scope and bounded result previews
@@ -417,7 +421,7 @@ PI_SUBAGENT_MODEL=github-copilot/gpt-4o pi
 # Force extra child-only extensions for every subagent
 PI_SUBAGENT_EXTENSIONS=vault-client,/abs/path/to/custom-extension.ts pi
 
-# Custom session directory
+# Optional separate ASC session directory instead of Pi-native sessions
 PI_SUBAGENT_SESSIONS_DIR=/tmp/pi-sessions pi
 ```
 
@@ -432,7 +436,7 @@ Persistence behavior:
 
 - `PI_SELF_MEMORY_PATH` — explicit memory snapshot file path override
 - Default path: sibling of the sessions directory, named `<sessionsDirBase>.self-memory.json`
-  - default sessions dir `./.pi-subagent-sessions` ⇒ default memory file `./.pi-subagent-sessions.self-memory.json`
+  - default Pi-native sessions dir `~/.pi/agent/sessions/--<encoded-cwd>--` ⇒ default memory file `~/.pi/agent/sessions/--<encoded-cwd>--.self-memory.json`
 - Snapshot format is schema-versioned (`schemaVersion: 1`) and validated on load
 - Malformed snapshots fail safe (tool remains usable; snapshot is repaired on next successful scoped persistence)
 

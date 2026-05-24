@@ -172,6 +172,14 @@ export function registerSubagentTool(pi, state) {
   );
 
   await writeFile(
+    path.join(underTestModuleDir, "subagent-session-paths.ts"),
+    `export function resolveSubagentSessionsDir(options = {}) {
+  return { path: options.explicitDir || process.env.PI_SUBAGENT_SESSIONS_DIR || "./.pi-subagent-sessions", source: options.explicitDir ? "explicit" : "env" };
+}
+`,
+  );
+
+  await writeFile(
     path.join(underTestModuleDir, "subagent-model-selection.ts"),
     `export const DEFAULT_SUBAGENT_MODEL = "openai-codex/gpt-5.4";
 

@@ -56,6 +56,7 @@ import {
   resolveSubagentModel,
   resolveSubagentModelSelection,
 } from "./self/subagent-model-selection.ts";
+import { resolveSubagentSessionsDir as resolveSubagentSessionsDirPath } from "./self/subagent-session-paths.ts";
 import type { SelfState } from "./self/types.ts";
 
 type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
@@ -96,16 +97,7 @@ function hasRelativeDevNullRedirect(command: string): boolean {
 // ============================================================================
 
 function resolveSubagentSessionsDir(sessionsDir?: string): string {
-  if (sessionsDir?.trim()) {
-    return sessionsDir;
-  }
-
-  const fromEnv = process.env.PI_SUBAGENT_SESSIONS_DIR?.trim();
-  if (fromEnv) {
-    return fromEnv;
-  }
-
-  return join(process.cwd(), ".pi-subagent-sessions");
+  return resolveSubagentSessionsDirPath({ explicitDir: sessionsDir }).path;
 }
 
 function resolveSelfMemoryPath(sessionsDir: string): string {

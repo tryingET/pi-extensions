@@ -11,7 +11,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 export interface SubagentState {
   sessionsDir: string;
@@ -39,6 +39,11 @@ export interface SubagentSessionStatus {
   parentSessionKey?: string;
   parentRepoRoot?: string;
   resultPreview?: string;
+  sessionKind?: "subagent";
+  sessionFile?: string;
+  profile?: string;
+  model?: string;
+  tools?: string;
 }
 
 const DEFAULT_MAX_CONCURRENT = 5;
@@ -132,14 +137,12 @@ export function createSubagentState(
 
 export function clearSubagentSessions(state: SubagentState): void {
   if (existsSync(state.sessionsDir)) {
-    for (const f of readdirSync(state.sessionsDir)) {
-      if (f.endsWith(".json") || f.endsWith(".lock")) {
-        try {
-          unlinkSync(join(state.sessionsDir, f));
-        } catch (err) {
-          // Log but don't fail - session cleanup is best-effort
-          console.error(`[subagent] Failed to delete session file ${f}:`, err);
-        }
+    for (const path of getSubagentArtifactPaths(state.sessionsDir)) {
+      try {
+        unlinkSync(path);
+      } catch (err) {
+        // Log but don't fail - session cleanup is best-effort
+        console.error(`[subagent] Failed to delete session artifact ${basename(path)}:`, err);
       }
     }
   }
@@ -151,6 +154,34 @@ interface SessionFileInfo {
   path: string;
   name: string;
   mtime: number;
+}
+
+function getSessionBaseName(fileName: string): string | null {
+  if (fileName.endsWith(".status.json")) return null;
+  if (fileName.endsWith(".jsonl")) return fileName.slice(0, -".jsonl".length);
+  if (fileName.endsWith(".json")) return fileName.slice(0, -".json".length);
+  return null;
+}
+
+function getSubagentArtifactPaths(sessionsDir: string): string[] {
+  const paths = new Set<string>();
+
+  for (const f of readdirSync(sessionsDir)) {
+    if (f.endsWith(".status.json")) {
+      const base = f.slice(0, -".status.json".length);
+      paths.add(join(sessionsDir, f));
+      paths.add(join(sessionsDir, `${base}.jsonl`));
+      paths.add(join(sessionsDir, `${base}.json`));
+      paths.add(join(sessionsDir, `${base}.lock`));
+      continue;
+    }
+
+    if (f.endsWith(".lock")) {
+      paths.add(join(sessionsDir, f));
+    }
+  }
+
+  return [...paths].filter((path) => existsSync(path));
 }
 
 export function listSubagentSessionStatuses(sessionsDir: string): SubagentSessionStatus[] {
@@ -170,7 +201,14 @@ function getSessionFiles(sessionsDir: string): SessionFileInfo[] {
 
   const files: SessionFileInfo[] = [];
   for (const f of readdirSync(sessionsDir)) {
-    if (!f.endsWith(".json") || f.endsWith(".status.json")) continue;
+    const baseName = getSessionBaseName(f);
+    if (!baseName) continue;
+
+    const isNativeJsonl = f.endsWith(".jsonl");
+    if (isNativeJsonl && !existsSync(getSessionStatusPath(sessionsDir, baseName))) {
+      continue;
+    }
+
     const path = join(sessionsDir, f);
     try {
       const stats = statSync(path);
@@ -188,7 +226,7 @@ export function cleanupOldSessions(
 ): { removedSessions: number; removedFiles: number; kept: number } {
   const files = getSessionFiles(state.sessionsDir);
   const now = Date.now();
-  const sessionBasesToRemove: string[] = [];
+  const sessionBasesToRemove = new Set<string>();
 
   for (const [index, file] of files.entries()) {
     let shouldRemove = false;
@@ -204,13 +242,13 @@ export function cleanupOldSessions(
     }
 
     if (shouldRemove) {
-      sessionBasesToRemove.push(file.path.replace(/\.json$/, ""));
+      sessionBasesToRemove.add(file.path.replace(/\.jsonl?$/, ""));
     }
   }
 
   let removedFiles = 0;
   for (const base of sessionBasesToRemove) {
-    for (const path of [`${base}.json`, `${base}.lock`, `${base}.status.json`]) {
+    for (const path of [`${base}.jsonl`, `${base}.json`, `${base}.lock`, `${base}.status.json`]) {
       try {
         unlinkSync(path);
         removedFiles++;
@@ -224,9 +262,9 @@ export function cleanupOldSessions(
   }
 
   return {
-    removedSessions: sessionBasesToRemove.length,
+    removedSessions: sessionBasesToRemove.size,
     removedFiles,
-    kept: Math.max(0, files.length - sessionBasesToRemove.length),
+    kept: Math.max(0, files.length - sessionBasesToRemove.size),
   };
 }
 

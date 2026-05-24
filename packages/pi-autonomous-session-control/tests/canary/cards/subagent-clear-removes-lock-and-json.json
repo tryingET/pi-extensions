@@ -1,6 +1,6 @@
 {
-  "id": "subagent-clear-removes-lock-and-json",
-  "title": "subagent-clear must remove .lock + .json files",
+  "id": "subagent-clear-removes-lock-and-jsonl",
+  "title": "subagent-clear must remove tracked .lock + .jsonl session artifacts",
   "target": "subagent_sessions",
   "seedFiles": [
     {
@@ -8,7 +8,11 @@
       "content": "busy"
     },
     {
-      "name": "same.json",
+      "name": "same.status.json",
+      "content": "{}"
+    },
+    {
+      "name": "same.jsonl",
       "content": "{}"
     },
     {
@@ -27,7 +31,11 @@
     },
     {
       "path": "files",
-      "notIncludes": "same.json"
+      "notIncludes": "same.status.json"
+    },
+    {
+      "path": "files",
+      "notIncludes": "same.jsonl"
     }
   ]
 }

@@ -37,12 +37,17 @@ function getSessionJsonPath(sessionName: string, sessionsDir: string): string {
   return join(sessionsDir, `${sessionName}.json`);
 }
 
+function getSessionJsonlPath(sessionName: string, sessionsDir: string): string {
+  return join(sessionsDir, `${sessionName}.jsonl`);
+}
+
 function getSessionStatusPath(sessionName: string, sessionsDir: string): string {
   return join(sessionsDir, `${sessionName}.status.json`);
 }
 
 function sessionArtifactExists(sessionName: string, sessionsDir: string): boolean {
   return (
+    existsSync(getSessionJsonlPath(sessionName, sessionsDir)) ||
     existsSync(getSessionJsonPath(sessionName, sessionsDir)) ||
     existsSync(getSessionStatusPath(sessionName, sessionsDir))
   );

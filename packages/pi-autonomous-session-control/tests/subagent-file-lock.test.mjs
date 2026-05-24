@@ -66,7 +66,7 @@ test("dispatch_subagent skips locked base session name when file-lock reservatio
     );
 
     assert.equal(capturedDefs.length, 1);
-    assert.match(capturedDefs[0].sessionFile, /same-1\.json$/);
+    assert.match(capturedDefs[0].sessionFile, /same-1\.jsonl$/);
   } finally {
     if (previous === undefined) {
       delete process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES;
@@ -97,7 +97,7 @@ test("dispatch_subagent can ignore lock files when file-lock reservation is disa
     );
 
     assert.equal(capturedDefs.length, 1);
-    assert.match(capturedDefs[0].sessionFile, /same\.json$/);
+    assert.match(capturedDefs[0].sessionFile, /same\.jsonl$/);
   } finally {
     if (previous === undefined) {
       delete process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES;
@@ -134,8 +134,8 @@ test("dispatch_subagent releases file-lock reservations after execution", async 
     );
 
     assert.equal(capturedDefs.length, 2);
-    assert.match(capturedDefs[0].sessionFile, /same\.json$/);
-    assert.match(capturedDefs[1].sessionFile, /same\.json$/);
+    assert.match(capturedDefs[0].sessionFile, /same\.jsonl$/);
+    assert.match(capturedDefs[1].sessionFile, /same\.jsonl$/);
   } finally {
     if (previous === undefined) {
       delete process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES;
@@ -228,7 +228,7 @@ test("dispatch_subagent reclaims stale locks from dead pids", async () => {
     );
 
     assert.equal(capturedDefs.length, 1);
-    assert.match(capturedDefs[0].sessionFile, /same\.json$/);
+    assert.match(capturedDefs[0].sessionFile, /same\.jsonl$/);
   } finally {
     if (previous === undefined) {
       delete process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES;
@@ -269,7 +269,7 @@ test("dispatch_subagent does not reclaim live locks solely due to age", async ()
     );
 
     assert.equal(capturedDefs.length, 1);
-    assert.match(capturedDefs[0].sessionFile, /same-1\.json$/);
+    assert.match(capturedDefs[0].sessionFile, /same-1\.jsonl$/);
   } finally {
     if (previousLockFlag === undefined) {
       delete process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES;
@@ -313,7 +313,7 @@ test("dispatch_subagent treats status-only session artifacts as occupied names",
     );
 
     assert.equal(capturedDefs.length, 1);
-    assert.match(capturedDefs[0].sessionFile, /same-1\.json$/);
+    assert.match(capturedDefs[0].sessionFile, /same-1\.jsonl$/);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }
@@ -363,14 +363,15 @@ test("clearSubagentSessions removes stale lock files for a true fresh start", as
 
   try {
     await writeFile(join(sessionsDir, "same.lock"), "busy");
-    await writeFile(join(sessionsDir, "same.json"), "{}");
+    await writeFile(join(sessionsDir, "same.status.json"), "{}");
+    await writeFile(join(sessionsDir, "same.jsonl"), "{}");
 
     const state = createSubagentState(sessionsDir);
     clearSubagentSessions(state);
 
     const files = await readdir(sessionsDir);
     assert.equal(files.includes("same.lock"), false);
-    assert.equal(files.includes("same.json"), false);
+    assert.equal(files.includes("same.jsonl"), false);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

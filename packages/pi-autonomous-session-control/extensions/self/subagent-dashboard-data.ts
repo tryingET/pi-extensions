@@ -348,12 +348,13 @@ export function createSubagentSessionInspection(
 ): SubagentSessionInspection {
   const now = options?.now ?? Date.now();
   const statusPath = join(sessionsDir, `${sessionName}.status.json`);
-  const sessionPath = join(sessionsDir, `${sessionName}.json`);
   const warnings: string[] = [];
   const statuses = listSubagentSessionStatuses(sessionsDir);
   const statusArtifact = summarizeArtifact(statusPath);
-  const sessionArtifact = summarizeArtifact(sessionPath);
   const statusRead = readStatusArtifact(statusPath);
+  const sessionPath =
+    statusRead.parsed?.sessionFile?.trim() || join(sessionsDir, `${sessionName}.jsonl`);
+  const sessionArtifact = summarizeArtifact(sessionPath);
 
   if (statusRead.warning) {
     warnings.push(statusRead.warning);

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -83,6 +83,29 @@ test("cleanupOldSessions removes excess files based on maxCount", async () => {
     assert.equal(result.removedSessions, 5);
     assert.equal(result.removedFiles, 15);
     assert.equal(result.kept, 5);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("cleanupOldSessions ignores native Pi sessions without ASC status sidecars", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-native-safe-"));
+
+  try {
+    await writeFile(join(sessionsDir, "human-session.jsonl"), "{}\n");
+    const subagentFile = join(sessionsDir, "subagent-session.jsonl");
+    await writeFile(subagentFile, "{}\n");
+    await writeFile(getSessionStatusPath(sessionsDir, "subagent-session"), "{}");
+    const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    await utimes(subagentFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
+
+    assert.equal(result.removedSessions, 1);
+    assert.equal(result.removedFiles, 2);
+    assert.equal(result.kept, 0);
+    assert.equal(await readFile(join(sessionsDir, "human-session.jsonl"), "utf8"), "{}\n");
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

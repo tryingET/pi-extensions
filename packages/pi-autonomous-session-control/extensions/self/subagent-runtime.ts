@@ -488,6 +488,7 @@ export async function executeDispatchSubagentRequest(options: {
       }
     | undefined;
   let result: SubagentResult;
+  let sessionFile: string | undefined;
   try {
     sessionReservation = reserveUniqueSessionName(
       name || profile,
@@ -503,12 +504,15 @@ export async function executeDispatchSubagentRequest(options: {
     const parentSessionKey = getContextSessionKey(options.ctx);
     const parentRepoRoot = getContextRepoRoot(options.ctx);
 
+    sessionFile = join(options.state.sessionsDir, `${sessionReservation.sessionName}.jsonl`);
+
     const def: SubagentDef = {
       name: sessionReservation.sessionName,
       objective: safeObjective,
       tools: tools || profileDef?.tools || "read,bash",
       systemPrompt: promptEnvelope.systemPrompt,
-      sessionFile: join(options.state.sessionsDir, `${sessionReservation.sessionName}.json`),
+      profile: profile as string,
+      sessionFile,
       timeout: timeoutMs,
       executionSlotReserved: true,
       parentSessionKey,

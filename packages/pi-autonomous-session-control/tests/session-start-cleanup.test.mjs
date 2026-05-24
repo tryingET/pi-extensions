@@ -34,7 +34,8 @@ test("session_start does not clear subagent sessions by default", async () => {
   delete process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START;
 
   try {
-    await writeFile(join(sessionsDir, "keep.json"), "{}");
+    await writeFile(join(sessionsDir, "keep.status.json"), "{}");
+    await writeFile(join(sessionsDir, "keep.jsonl"), "{}");
 
     const harness = createPiHarness();
     createExtension(sessionsDir)(harness.pi);
@@ -45,7 +46,7 @@ test("session_start does not clear subagent sessions by default", async () => {
     await handler({}, { hasUI: false });
 
     const files = await readdir(sessionsDir);
-    assert.ok(files.includes("keep.json"));
+    assert.ok(files.includes("keep.jsonl"));
   } finally {
     if (previous === undefined) {
       delete process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START;
@@ -62,7 +63,8 @@ test("session_start clears subagent sessions when explicitly enabled", async () 
   process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START = "true";
 
   try {
-    await writeFile(join(sessionsDir, "delete-me.json"), "{}");
+    await writeFile(join(sessionsDir, "delete-me.status.json"), "{}");
+    await writeFile(join(sessionsDir, "delete-me.jsonl"), "{}");
 
     const harness = createPiHarness();
     createExtension(sessionsDir)(harness.pi);
@@ -73,7 +75,8 @@ test("session_start clears subagent sessions when explicitly enabled", async () 
     await handler();
 
     const files = await readdir(sessionsDir);
-    assert.equal(files.includes("delete-me.json"), false);
+    assert.equal(files.includes("delete-me.jsonl"), false);
+    assert.equal(files.includes("delete-me.status.json"), false);
   } finally {
     if (previous === undefined) {
       delete process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START;

@@ -24,6 +24,7 @@ All notable changes to this project should be documented here.
 ### Changed
 
 - `self` persists scoped memory after action writes so Level-4 handoff/dogfood checkpoints survive extension restarts.
+- `dispatch_subagent` now defaults child session traces to Pi's native `~/.pi/agent/sessions/--<encoded-cwd>--/` JSONL store, while keeping ASC status/lock sidecars for lifecycle metadata and preserving `PI_SUBAGENT_SESSIONS_DIR` as an explicit separate-store override.
 
 ## [0.1.5] - 2026-05-12
 

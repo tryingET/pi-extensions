@@ -11,6 +11,7 @@ export interface SubagentDef {
   objective: string;
   tools: string;
   systemPrompt?: string;
+  profile?: string;
   sessionFile: string | null;
   timeout?: number; // milliseconds, 0 = no timeout
   env?: Record<string, string>;
@@ -423,7 +424,7 @@ export function spawnSubagentWithSpawn(
     "--tools",
     def.tools,
     "--session-file",
-    def.sessionFile || join(state.sessionsDir, `${def.name}.json`),
+    def.sessionFile || join(state.sessionsDir, `${def.name}.jsonl`),
     "--objective",
     def.objective,
   ];
@@ -615,6 +616,11 @@ export function spawnSubagentWithSpawn(
         parentSessionKey: def.parentSessionKey,
         parentRepoRoot: def.parentRepoRoot,
         resultPreview: toStatusResultPreview(result.output),
+        sessionKind: "subagent",
+        sessionFile: def.sessionFile || join(state.sessionsDir, `${def.name}.jsonl`),
+        profile: def.profile,
+        model,
+        tools: def.tools,
       });
       if (managesExecutionSlot) {
         state.activeCount = Math.max(0, state.activeCount - 1);
@@ -779,6 +785,11 @@ export function spawnSubagentWithSpawn(
         objective: def.objective,
         parentSessionKey: def.parentSessionKey,
         parentRepoRoot: def.parentRepoRoot,
+        sessionKind: "subagent",
+        sessionFile: def.sessionFile || join(state.sessionsDir, `${def.name}.jsonl`),
+        profile: def.profile,
+        model,
+        tools: def.tools,
       });
       if (managesExecutionSlot) {
         state.activeCount++;
