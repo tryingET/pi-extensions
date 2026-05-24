@@ -305,7 +305,11 @@ test("dogfood aggregate summarizes repeated redacted observations without promot
   assert.equal(aggregate.statusCounts.underestimated, 1);
   assert.equal(aggregate.statusCounts.overestimated, 1);
   assert.equal(aggregate.providerOmissionCounts.ak, 1);
-  assert.deepEqual(aggregate.activityTypeCounts, { implementation: 1, review: 1, validation: 1 });
+  assert.deepEqual(Object.fromEntries(Object.entries(aggregate.activityTypeCounts)), {
+    implementation: 1,
+    review: 1,
+    validation: 1,
+  });
   assert.equal(aggregate.omissionFollowupCounts["docs/missing ranking"], 1);
   assert.equal(aggregate.totals.validationCommandsRun, 6);
   assert.equal(aggregate.totals.validationCommandsRecordedCount, 3);
@@ -355,6 +359,53 @@ test("dogfood aggregate requires core activity coverage before stable positive s
   assert.equal(covered.status, "stable_positive_signal");
   assert.deepEqual(covered.activityCoverage.missing, []);
   assert.equal(covered.activityCoverage.complete, true);
+});
+
+test("dogfood aggregate coverage resists returned-object mutation and prototype pollution", () => {
+  const observations = [
+    baseObservation({
+      observation: { ...baseObservation().observation, activityType: "implementation" },
+    }),
+    baseObservation({ observation: { ...baseObservation().observation, activityType: "review" } }),
+    baseObservation({
+      observation: { ...baseObservation().observation, activityType: "validation" },
+    }),
+  ];
+  const covered = buildDogfoodAggregateEvaluation({ observations });
+  covered.activityCoverage.required.push("planning");
+  const coveredAfterMutation = buildDogfoodAggregateEvaluation({ observations });
+
+  assert.deepEqual(coveredAfterMutation.activityCoverage.required, [
+    "implementation",
+    "review",
+    "validation",
+  ]);
+  assert.equal(coveredAfterMutation.status, "stable_positive_signal");
+
+  try {
+    Object.prototype.implementation = 1;
+    Object.prototype.review = 1;
+    const validationOnly = buildDogfoodAggregateEvaluation({
+      observations: [
+        baseObservation({
+          observation: { ...baseObservation().observation, activityType: "validation" },
+        }),
+        baseObservation({
+          observation: { ...baseObservation().observation, activityType: "validation" },
+        }),
+        baseObservation({
+          observation: { ...baseObservation().observation, activityType: "validation" },
+        }),
+      ],
+    });
+
+    assert.equal(validationOnly.status, "activity_coverage_gap");
+    assert.deepEqual(validationOnly.activityCoverage.present, ["validation"]);
+    assert.deepEqual(validationOnly.activityCoverage.missing, ["implementation", "review"]);
+  } finally {
+    delete Object.prototype.implementation;
+    delete Object.prototype.review;
+  }
 });
 
 test("dogfood aggregate preserves missing validation-command counts for legacy receipts", () => {
@@ -427,7 +478,11 @@ test("dogfood aggregate accepts prior evaluations and reports mixed invalid rece
   assert.equal(aggregate.invalidReceiptCount, 1);
   assert.equal(aggregate.totals.omissionFollowupsTruncated, 8);
   assert.equal(aggregate.evaluations[1].omissionFollowupsTruncated, 8);
-  assert.deepEqual(aggregate.activityTypeCounts, { implementation: 1, review: 1, validation: 1 });
+  assert.deepEqual(Object.fromEntries(Object.entries(aggregate.activityTypeCounts)), {
+    implementation: 1,
+    review: 1,
+    validation: 1,
+  });
   assert.match(result.content[0].text, /Activity type counts/);
   assert.match(result.content[0].text, /- review: 1/);
   assert.match(result.content[0].text, /Omission follow-up counts/);

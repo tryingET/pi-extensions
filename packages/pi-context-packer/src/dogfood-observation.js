@@ -19,7 +19,7 @@ const CALIBRATION_STATUSES = [
   "needs_review",
   "observation_incomplete",
 ];
-const CORE_ACTIVITY_TYPES = ["implementation", "review", "validation"];
+const CORE_ACTIVITY_TYPES = Object.freeze(["implementation", "review", "validation"]);
 const KNOWN_ACTIVITY_TYPES = new Set([...CORE_ACTIVITY_TYPES, "planning", "other", "unspecified"]);
 
 const NON_AUTHORIZATION =
@@ -329,9 +329,13 @@ const parseAggregateJsonEntry = (value, ref) => {
 const countValues = (values) => {
   const counts = new Map();
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return Object.fromEntries(
-    Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right)),
-  );
+  const result = Object.create(null);
+  for (const [key, count] of Array.from(counts.entries()).sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    result[key] = count;
+  }
+  return result;
 };
 
 const normalizeStoredEvaluation = (value, ref) => {
@@ -498,11 +502,12 @@ const normalizeAggregateEntry = ({ value, ref }) => {
 
 const activityCoverageFor = (activityTypeCounts) => {
   const present = CORE_ACTIVITY_TYPES.filter(
-    (activityType) => activityTypeCounts[activityType] > 0,
+    (activityType) =>
+      Object.hasOwn(activityTypeCounts, activityType) && activityTypeCounts[activityType] > 0,
   );
   const missing = CORE_ACTIVITY_TYPES.filter((activityType) => !present.includes(activityType));
   return {
-    required: CORE_ACTIVITY_TYPES,
+    required: [...CORE_ACTIVITY_TYPES],
     present,
     missing,
     complete: missing.length === 0,

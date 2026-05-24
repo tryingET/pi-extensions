@@ -492,6 +492,26 @@ npm run check
 
 Outcome: dogfood aggregate status is now harder to overclaim. Repeated positive receipts must cover the core implementation/review/validation loop before they are treated as stable packet-local calibration for ranking or provider tuning.
 
+## Receipt J — immutable aggregate coverage membrane
+
+### Context
+
+A post-implementation adversarial review found two in-process object-boundary risks in the activity coverage slice: aggregate details exposed the module-level core activity array by reference, and coverage checks read activity counts through ordinary inherited-property lookup. In a long-lived Pi host, either could make later summaries overclaim `stable_positive_signal` after returned-object mutation or prototype pollution.
+
+### Slice
+
+The aggregate coverage membrane now freezes the core activity constant, returns a fresh `required` array in each `activityCoverage` projection, builds aggregate count maps as null-prototype objects, and checks core activity counts with own-property lookup. This preserves JSON-shaped output while making in-process consumers less able to poison later packet-local calibration.
+
+Adversarial coverage verifies that mutating `aggregate.activityCoverage.required` does not alter subsequent summaries, and that polluted `Object.prototype.implementation/review` does not let validation-only receipts satisfy core activity coverage. Prototype-shaped labels such as `__proto__` remain countable.
+
+Validation:
+
+```text
+node --test tests/dogfood-observation.test.js
+```
+
+Outcome: the dogfood aggregate projection is now harder to corrupt across calls in a persistent host. This keeps activity coverage advisory and non-persistent while reducing false stable-positive signals caused by JavaScript object capability leaks.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.
