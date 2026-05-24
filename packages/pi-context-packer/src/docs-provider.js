@@ -115,8 +115,13 @@ const customDocsListOverrideAllowed = (env = {}) =>
   env.allowCustomDocsListScript === true ||
   /^(1|true|yes)$/iu.test(process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST ?? "");
 
+const hasTrustedHostDocsListScript = (env = {}) =>
+  [env.docsListScript, env.PI_CONTEXT_PACKER_DOCS_LIST].some(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+  );
+
 const processDocsListOverrideRefusals = (env = {}) => {
-  if (customDocsListOverrideAllowed(env)) return [];
+  if (customDocsListOverrideAllowed(env) || hasTrustedHostDocsListScript(env)) return [];
   return ["PI_CONTEXT_PACKER_DOCS_LIST", "DOCS_LIST_SCRIPT"]
     .filter((name) => typeof process.env[name] === "string" && process.env[name].trim().length > 0)
     .map((name) => ({

@@ -557,6 +557,69 @@ test("context_pack ignores process docs-list env overrides unless trusted overri
   }
 });
 
+test("context_pack trusts host docsListScript without noisy process override omissions", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "trusted-host.md"),
+    "# Trusted host docs-list\n",
+    "utf8",
+  );
+  const trustedScript = join(root, "trusted-docs-list.mjs");
+  const processOverrideScript = join(root, "ignored-process-docs-list.mjs");
+  const mutationPath = join(root, "MUTATED_BY_PROCESS_OVERRIDE.txt");
+  await writeFile(
+    trustedScript,
+    "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/trusted-host.md' }] }));\n",
+    "utf8",
+  );
+  await writeFile(
+    processOverrideScript,
+    [
+      "import { writeFileSync } from 'node:fs';",
+      "import { join } from 'node:path';",
+      "writeFileSync(join(process.cwd(), 'MUTATED_BY_PROCESS_OVERRIDE.txt'), 'mutated');",
+      "console.log(JSON.stringify({ ok: true, rankedItems: [{ repoPath: 'docs/project/note.md' }] }));",
+    ].join(String.fromCharCode(10)),
+    "utf8",
+  );
+  const previousDocsListScript = process.env.DOCS_LIST_SCRIPT;
+  const previousContextDocsList = process.env.PI_CONTEXT_PACKER_DOCS_LIST;
+  const previousTrust = process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+
+  try {
+    process.env.DOCS_LIST_SCRIPT = processOverrideScript;
+    delete process.env.PI_CONTEXT_PACKER_DOCS_LIST;
+    delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+    const result = await buildContextPacket(
+      {
+        objective: "Use trusted host docs-list script without process override noise",
+        cwd: root,
+        repoRoot: root,
+        providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+      },
+      { docsListScript: trustedScript, disableDefaultDocsListScript: true },
+    );
+
+    const docs = result.packet.sections.find((section) => section.provider === "docs");
+    assert.deepEqual(
+      docs.items.map((item) => item.provenance.path),
+      ["docs/project/trusted-host.md"],
+    );
+    assert.equal(await fileExists(mutationPath), false);
+    assert.equal(
+      result.packet.omissions.some((omission) => omission.detail.includes("override ignored")),
+      false,
+    );
+  } finally {
+    if (previousDocsListScript === undefined) delete process.env.DOCS_LIST_SCRIPT;
+    else process.env.DOCS_LIST_SCRIPT = previousDocsListScript;
+    if (previousContextDocsList === undefined) delete process.env.PI_CONTEXT_PACKER_DOCS_LIST;
+    else process.env.PI_CONTEXT_PACKER_DOCS_LIST = previousContextDocsList;
+    if (previousTrust === undefined) delete process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST;
+    else process.env.PI_CONTEXT_PACKER_TRUST_CUSTOM_DOCS_LIST = previousTrust;
+  }
+});
+
 test("context_pack does not derive docs-list executable identity from HOME", async () => {
   const root = await makeWorkspace();
   await mkdir(join(root, "docs", "project"), { recursive: true });

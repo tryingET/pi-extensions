@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_SCRIPT="$HOME/ai-society/core/agent-scripts/scripts/docs-list.mjs"
+DEFAULT_SCRIPT="/home/tryinget/ai-society/core/agent-scripts/scripts/docs-list.mjs"
 LOCAL_FALLBACK_SCRIPT="$ROOT_DIR/scripts/docs-list.mjs"
 
 usage() {
@@ -12,7 +12,7 @@ Usage: ./scripts/docs-list.sh [docs-list args]
 Resolves docs-list script in this order:
 1) DOCS_LIST_SCRIPT env var (absolute/relative path)
 2) Local fallback: ./scripts/docs-list.mjs
-3) Default global path: ~/ai-society/core/agent-scripts/scripts/docs-list.mjs
+3) Fixed default global path: /home/tryinget/ai-society/core/agent-scripts/scripts/docs-list.mjs
 
 Examples:
   ./scripts/docs-list.sh

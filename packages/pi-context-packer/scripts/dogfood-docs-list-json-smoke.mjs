@@ -20,11 +20,9 @@ const repoRoot = resolve(packageRoot, "../..");
 const docsRoot = packageRoot;
 const objective =
   "Dogfood structured docs-list JSON intake for pi-context-packer production readiness";
-const docsListScript =
-  process.env.DOCS_LIST_SCRIPT ||
-  (process.env.HOME
-    ? join(process.env.HOME, "ai-society/core/agent-scripts/scripts/docs-list.mjs")
-    : "");
+const DEFAULT_DOCS_LIST_SCRIPT =
+  "/home/tryinget/ai-society/core/agent-scripts/scripts/docs-list.mjs";
+const docsListScript = process.env.DOCS_LIST_SCRIPT || DEFAULT_DOCS_LIST_SCRIPT;
 
 const fail = (message) => {
   console.error(`dogfood docs-list JSON smoke failed: ${message}`);
