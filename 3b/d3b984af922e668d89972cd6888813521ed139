@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "3bd3b984af922e668d89972cd6888813521ed139"
-created_at: "2026-05-24T17:58:15Z"
+created_at: "2026-05-24T18:05:02Z"
 intent: "Harden ASC subagent session cleanup to preserve traces by default and restrict destructive pruning to expected trace names"
 files:
   - "packages/pi-autonomous-session-control/CHANGELOG.md"
@@ -20,8 +20,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run check"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
-  total: 2
+  total: 3
   rationale: "ASC cleanup semantics and docs/tests changed together"
