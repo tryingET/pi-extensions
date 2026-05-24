@@ -6,11 +6,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { resolveQuery } from "../../extensions/self/query-resolver.ts";
 import { createSelfState } from "../../extensions/self/state.ts";
-import {
-  clearSubagentSessions,
-  createSubagentState,
-  registerSubagentTool,
-} from "../../extensions/self/subagent.ts";
+import { createSubagentState, registerSubagentTool } from "../../extensions/self/subagent.ts";
+import { registerSubagentCommands } from "../../extensions/self/subagent-commands.ts";
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const CARDS_DIR = join(TEST_DIR, "cards");
@@ -166,7 +163,20 @@ async function runSubagentSessionsCard(card) {
     }
 
     const state = createSubagentState(sessionsDir);
-    clearSubagentSessions(state);
+    const commands = new Map();
+    registerSubagentCommands(
+      {
+        registerCommand(name, definition) {
+          commands.set(name, definition);
+        },
+      },
+      state,
+    );
+
+    const commandName = card.command?.name ?? "subagent-clear";
+    const command = commands.get(commandName);
+    assert.ok(command, `${card.id}: command ${commandName} must be registered`);
+    await command.handler(card.command?.args ?? "", { hasUI: false });
 
     const files = await readdir(sessionsDir);
     return { files, state };

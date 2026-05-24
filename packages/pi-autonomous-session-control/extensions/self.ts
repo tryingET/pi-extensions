@@ -42,10 +42,8 @@ import {
   evaluateRuntimeInvariants,
   formatRuntimeInvariantReport,
 } from "./self/runtime-invariants.ts";
-import { getContextSessionKey } from "./self/session-context.ts";
 import { createSelfState } from "./self/state.ts";
 import {
-  clearSubagentSessions,
   createSubagentState,
   registerSubagentCommands,
   registerSubagentTool,
@@ -114,25 +112,11 @@ function resolveSelfMemoryPath(sessionsDir: string): string {
 
 export { DEFAULT_SUBAGENT_MODEL, resolveSubagentModel, resolveSubagentModelSelection };
 
-function envFlagEnabled(name: string): boolean {
-  return process.env[name]?.trim().toLowerCase() === "true";
-}
-
 function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentState): void {
   registerSubagentTool(pi, subagentState, (ctx) => resolveSubagentModelSelection(ctx));
 
   registerSubagentCommands(pi, subagentState);
   registerSubagentDashboard(pi, subagentState);
-
-  const clearOnSessionStart = envFlagEnabled("PI_SUBAGENT_CLEAR_ON_SESSION_START");
-  const allowDestructiveCleanup = envFlagEnabled("PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP");
-  if (clearOnSessionStart && allowDestructiveCleanup) {
-    pi.on("session_start", async (_event, ctx) => {
-      const parentSessionKey = getContextSessionKey(ctx);
-      if (!parentSessionKey) return;
-      clearSubagentSessions(subagentState, { parentSessionKey });
-    });
-  }
 }
 
 // ============================================================================

@@ -24,9 +24,10 @@ All notable changes to this project should be documented here.
 ### Changed
 
 - `self` persists scoped memory after action writes so Level-4 handoff/dogfood checkpoints survive extension restarts.
-- `dispatch_subagent` now defaults child session traces to Pi's native `~/.pi/agent/sessions/--<encoded-cwd>--/` JSONL store, while keeping ASC status/lock sidecars for lifecycle metadata and preserving `PI_SUBAGENT_SESSIONS_DIR` as an explicit separate-store override.
-- `/subagent-clear` and `/subagent-cleanup` now preserve subagent traces by default and require an explicit `--delete` flag before deleting ASC-owned artifacts.
-- `PI_SUBAGENT_CLEAR_ON_SESSION_START=true` no longer deletes session traces by itself; startup deletion now also requires `PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP=true`.
+- `dispatch_subagent` now defaults child session traces to the ASC-owned `asc-subagents/` subdirectory inside Pi's native `~/.pi/agent/sessions/--<encoded-cwd>--/` store, while keeping `PI_SUBAGENT_SESSIONS_DIR` as an explicit separate-store override.
+- `/subagent-clear` and `/subagent-cleanup` now preserve subagent traces by default and require an explicit `--delete` flag before pruning ASC-owned artifacts.
+- Legacy startup cleanup env flags no longer delete session traces; startup now preserves by policy and destructive pruning is command-explicit.
+- Destructive pruning no longer trusts arbitrary contained `sessionFile` paths; only expected ASC trace names (`<session>.jsonl` / legacy `<session>.json`) are deletion candidates.
 
 ## [0.1.5] - 2026-05-12
 

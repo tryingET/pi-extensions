@@ -183,12 +183,17 @@ export function resolveContainedSessionPath(
   return resolved;
 }
 
+function isExpectedSessionTracePath(path: string, sessionName: string): boolean {
+  const name = basename(path);
+  return name === `${sessionName}.jsonl` || name === `${sessionName}.json`;
+}
+
 function getRecordedSessionTracePath(
   sessionsDir: string,
   status: SubagentSessionStatus,
 ): string | null {
   const recorded = resolveContainedSessionPath(sessionsDir, status.sessionFile);
-  if (recorded) return recorded;
+  if (recorded && isExpectedSessionTracePath(recorded, status.sessionName)) return recorded;
 
   if (typeof status.sessionFile === "string" && status.sessionFile.trim()) {
     return null;
@@ -285,6 +290,7 @@ export function clearSubagentSessions(
       }
     }
   }
+  state.activeCount = countLiveRunningSessionStatuses(state.sessionsDir);
   state.completedCount = 0;
   state.reservedSessionNames.clear();
 }
@@ -368,7 +374,15 @@ function getSessionFiles(sessionsDir: string): SessionFileInfo[] {
     const path = getPrimarySessionArtifactPath(sessionsDir, status);
     try {
       const stats = statSync(path);
-      files.push({ path, name: basename(path), baseName, mtime: stats.mtimeMs, status });
+      const updatedAtMs = Date.parse(status.updatedAt);
+      const lifecycleMtime = Number.isNaN(updatedAtMs) ? stats.mtimeMs : updatedAtMs;
+      files.push({
+        path,
+        name: basename(path),
+        baseName,
+        mtime: Math.max(stats.mtimeMs, lifecycleMtime),
+        status,
+      });
     } catch {
       // Skip files we can't stat
     }

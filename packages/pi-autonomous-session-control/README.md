@@ -379,11 +379,11 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - ASC reports `skillProfile`, `loadedSkills`, `librarySkills`, `skillWarnings`, and `skillRegistry` in result/update details, but does not install, promote, or mutate skill-library sources.
 
 **Session storage:**
-- Default storage now uses Pi's native session tree for the current cwd: `~/.pi/agent/sessions/--<encoded-cwd>--/`.
+- Default storage now uses an ASC-owned subdirectory inside Pi's native session tree for the current cwd: `~/.pi/agent/sessions/--<encoded-cwd>--/asc-subagents/`.
 - `PI_CODING_AGENT_SESSION_DIR` is respected when Pi is configured to use a custom native session directory.
 - `PI_SUBAGENT_SESSIONS_DIR` remains an escape hatch for a separate ASC-owned directory.
-- `PI_SUBAGENT_CLEAR_ON_SESSION_START` — legacy destructive startup cleanup flag; ignored unless `PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP=true` is also set (default: preserve traces)
-- `PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP` — required opt-in for startup cleanup to delete ASC-owned subagent artifacts (default: off / preserve traces)
+- `PI_SUBAGENT_CLEAR_ON_SESSION_START` — legacy startup cleanup flag; retained as a no-op compatibility knob because ASC preserves subagent traces by default
+- `PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP` — legacy compatibility knob; startup cleanup no longer deletes traces, use `/subagent-clear --delete` or `/subagent-cleanup --delete ...` for explicit destructive pruning
 - `PI_SUBAGENT_RESERVE_SESSION_NAMES` — set to `false` to disable all session-name reservation mechanisms (in-memory + file-lock) for rollback/debugging (default: enabled)
 - `PI_SUBAGENT_FILE_LOCK_SESSION_NAMES` — set to `false` to disable only cross-process file-lock reservation while keeping in-memory reservation (default: enabled; ignored when `PI_SUBAGENT_RESERVE_SESSION_NAMES=false`)
 - `PI_SUBAGENT_LOCK_STALE_AFTER_MS` — stale-lock reclamation threshold in milliseconds for orphaned subagent locks that no longer have a live owning PID (default: `3600000`)
@@ -394,7 +394,8 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - Subagent child runs are stored as `.jsonl` Pi session files so Pi-native session tooling, export/share workflows, and future dataset pipelines can discover the raw LLM trace.
 - ASC keeps its lifecycle metadata in sidecars next to the child session (`<session>.status.json` and transient `<session>.lock`) rather than creating a separate hidden session world by default.
 - Human Pi sessions in the same native directory are ignored by ASC statistics and by any explicitly destructive ASC cleanup unless they have an ASC status sidecar.
-- `/subagent-clear` and `/subagent-cleanup` preserve traces by default; they delete only when passed `--delete`, and startup cleanup also requires `PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP=true`.
+- `/subagent-clear` and `/subagent-cleanup` preserve traces by default; they delete only when passed `--delete`. Startup cleanup does not delete traces.
+- Destructive pruning only deletes expected ASC trace names (`<session>.jsonl` / legacy `<session>.json`) plus matching ASC sidecars; a status sidecar cannot point deletion at an arbitrary contained trace.
 - Unless `PI_SUBAGENT_MODEL` overrides it, subagents inherit the current session model when Pi exposes one; the fixed fallback `openai-codex/gpt-5.4` is only used when no current model is available.
 - When that requested model points at a numeric-suffix provider alias supplied by an extension (for example `openai-codex-2` from multi-pass), ASC preserves that exact requested/effective model and auto-loads `pi-multi-pass` into the child runtime.
 - `dispatch_subagent` also accepts `extensions: ["vault-client", "/abs/path/to/ext.ts", ...]` so a subagent can opt into specific extension-provided tools without inheriting the full parent extension surface.

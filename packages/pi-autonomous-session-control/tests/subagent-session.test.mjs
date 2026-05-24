@@ -65,6 +65,9 @@ test("cleanupOldSessions removes files older than maxAgeMs", async () => {
     // Set mtime to 10 days ago
     const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
     await utimes(oldFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+    await writeStatus(sessionsDir, "old-session", "done", {
+      updatedAt: new Date(tenDaysAgo).toISOString(),
+    });
 
     // Create new session file
     const newFile = join(sessionsDir, "new-session.json");
@@ -128,27 +131,46 @@ test("writeSessionStatus stamps the ASC ownership marker", async () => {
   }
 });
 
-test("cleanupOldSessions deletes the recorded ASC trace instead of basename collisions", async () => {
+test("cleanupOldSessions preserves mismatched recorded traces and basename collisions", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-recorded-trace-"));
 
   try {
     const collidingNativeFile = join(sessionsDir, "owned.jsonl");
-    const recordedTraceFile = join(sessionsDir, "actual-subagent.jsonl");
+    const mismatchedTraceFile = join(sessionsDir, "actual-subagent.jsonl");
     await writeFile(collidingNativeFile, "native\n");
-    await writeFile(recordedTraceFile, "asc\n");
-    await writeStatus(sessionsDir, "owned", "done", { sessionFile: recordedTraceFile });
+    await writeFile(mismatchedTraceFile, "asc\n");
+    await writeStatus(sessionsDir, "owned", "done", { sessionFile: mismatchedTraceFile });
+
+    const state = createSubagentState(sessionsDir);
+    const result = cleanupOldSessions(state, { maxAgeMs: 0, maxCount: 0 });
+
+    assert.equal(result.removedSessions, 1);
+    assert.equal(result.removedFiles, 1);
+    assert.equal(await readFile(collidingNativeFile, "utf8"), "native\n");
+    assert.equal(await readFile(mismatchedTraceFile, "utf8"), "asc\n");
+    const files = await readdir(sessionsDir);
+    assert.equal(files.includes("owned.status.json"), false);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("cleanupOldSessions preserves old trace files when lifecycle status was updated recently", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "session-cleanup-fresh-status-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "fresh-status.jsonl");
+    await writeFile(sessionFile, "done\n");
+    await writeStatus(sessionsDir, "fresh-status", "done", { sessionFile });
     const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
-    await utimes(recordedTraceFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+    await utimes(sessionFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
 
     const state = createSubagentState(sessionsDir);
     const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
 
-    assert.equal(result.removedSessions, 1);
-    assert.equal(result.removedFiles, 2);
-    assert.equal(await readFile(collidingNativeFile, "utf8"), "native\n");
-    const files = await readdir(sessionsDir);
-    assert.equal(files.includes("actual-subagent.jsonl"), false);
-    assert.equal(files.includes("owned.status.json"), false);
+    assert.equal(result.removedSessions, 0);
+    assert.equal(result.removedFiles, 0);
+    assert.equal(await readFile(sessionFile, "utf8"), "done\n");
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }
@@ -205,6 +227,9 @@ test("cleanupOldSessions ignores native Pi sessions without ASC status sidecars"
     await writeStatus(sessionsDir, "subagent-session");
     const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
     await utimes(subagentFile, new Date(tenDaysAgo), new Date(tenDaysAgo));
+    await writeStatus(sessionsDir, "subagent-session", "done", {
+      updatedAt: new Date(tenDaysAgo).toISOString(),
+    });
 
     const state = createSubagentState(sessionsDir);
     const result = cleanupOldSessions(state, { maxAgeMs: 7 * 24 * 60 * 60 * 1000 });
@@ -273,7 +298,7 @@ test("cleanupOldSessions ignores valid-shaped sidecars without ASC ownership mar
   }
 });
 
-test("clearSubagentSessions removes owned custom sessionFile traces recorded in status", async () => {
+test("clearSubagentSessions preserves mismatched custom sessionFile traces recorded in status", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-clear-custom-trace-"));
 
   try {
@@ -285,7 +310,7 @@ test("clearSubagentSessions removes owned custom sessionFile traces recorded in 
     clearSubagentSessions(state);
 
     const files = await readdir(sessionsDir);
-    assert.deepEqual(files, []);
+    assert.deepEqual(files, ["custom-worker.jsonl"]);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

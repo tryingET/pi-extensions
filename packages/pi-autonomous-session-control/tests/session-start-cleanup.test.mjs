@@ -123,58 +123,31 @@ test("session_start preserves sessions when legacy clear flag is set without des
   }
 });
 
-test("session_start clears only the current live session when destructive cleanup is explicitly enabled", async () => {
+test("session_start preserves sessions even when legacy destructive env flags are set", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-start-enabled-"));
   const previous = captureCleanupEnv();
   process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START = "true";
   process.env.PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP = "true";
 
   try {
-    await writeStatus(sessionsDir, "delete-me", { parentSessionKey: "live-current" });
-    await writeFile(join(sessionsDir, "delete-me.jsonl"), "{}");
+    await writeStatus(sessionsDir, "keep-current", { parentSessionKey: "live-current" });
+    await writeFile(join(sessionsDir, "keep-current.jsonl"), "{}");
     await writeStatus(sessionsDir, "keep-other", { parentSessionKey: "live-other" });
     await writeFile(join(sessionsDir, "keep-other.jsonl"), "{}");
 
     const harness = createPiHarness();
     createExtension(sessionsDir)(harness.pi);
 
-    const handler = harness.eventHandlers.get("session_start");
-    assert.equal(typeof handler, "function");
-
-    await handler({}, { sessionManager: { getSessionId: () => "live-current" }, hasUI: false });
+    await maybeCallSessionStart(harness.eventHandlers.get("session_start"), {
+      sessionManager: { getSessionId: () => "live-current" },
+      hasUI: false,
+    });
 
     const files = await readdir(sessionsDir);
-    assert.equal(files.includes("delete-me.jsonl"), false);
-    assert.equal(files.includes("delete-me.status.json"), false);
+    assert.ok(files.includes("keep-current.jsonl"));
+    assert.ok(files.includes("keep-current.status.json"));
     assert.ok(files.includes("keep-other.jsonl"));
     assert.ok(files.includes("keep-other.status.json"));
-  } finally {
-    restoreCleanupEnv(previous);
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("session_start skips enabled cleanup when the live session key is unavailable", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "session-start-enabled-no-key-"));
-  const previous = captureCleanupEnv();
-  process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START = "true";
-  process.env.PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP = "true";
-
-  try {
-    await writeStatus(sessionsDir, "keep");
-    await writeFile(join(sessionsDir, "keep.jsonl"), "{}");
-
-    const harness = createPiHarness();
-    createExtension(sessionsDir)(harness.pi);
-
-    const handler = harness.eventHandlers.get("session_start");
-    assert.equal(typeof handler, "function");
-
-    await handler({}, { hasUI: false });
-
-    const files = await readdir(sessionsDir);
-    assert.ok(files.includes("keep.jsonl"));
-    assert.ok(files.includes("keep.status.json"));
   } finally {
     restoreCleanupEnv(previous);
     await rm(sessionsDir, { recursive: true, force: true });
