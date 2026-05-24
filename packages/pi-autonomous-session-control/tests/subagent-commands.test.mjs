@@ -33,8 +33,8 @@ async function writeStatus(sessionsDir, sessionName, extras = {}) {
   );
 }
 
-test("subagent-cleanup treats explicit zero thresholds as remove-all", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-command-cleanup-zero-"));
+test("subagent-cleanup preserves sessions unless destructive deletion is explicit", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-command-cleanup-preserve-"));
 
   try {
     const sessionFile = join(sessionsDir, "done.jsonl");
@@ -46,6 +46,54 @@ test("subagent-cleanup treats explicit zero thresholds as remove-all", async () 
     registerSubagentCommands(harness.pi, state);
 
     await harness.commands.get("subagent-cleanup").handler("0 0", { hasUI: false });
+
+    const files = await readdir(sessionsDir);
+    assert.ok(files.includes("done.jsonl"));
+    assert.ok(files.includes("done.status.json"));
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("subagent-cleanup treats explicit --delete zero thresholds as remove-all", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-command-cleanup-zero-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "done.jsonl");
+    await writeFile(sessionFile, "done\n");
+    await writeStatus(sessionsDir, "done", { sessionFile });
+
+    const state = createSubagentState(sessionsDir);
+    const harness = createPiHarness();
+    registerSubagentCommands(harness.pi, state);
+
+    await harness.commands.get("subagent-cleanup").handler("--delete 0 0", { hasUI: false });
+
+    assert.deepEqual(await readdir(sessionsDir), []);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("subagent-clear preserves sessions unless destructive deletion is explicit", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-command-clear-preserve-"));
+
+  try {
+    const sessionFile = join(sessionsDir, "done.jsonl");
+    await writeFile(sessionFile, "done\n");
+    await writeStatus(sessionsDir, "done", { sessionFile });
+
+    const state = createSubagentState(sessionsDir);
+    const harness = createPiHarness();
+    registerSubagentCommands(harness.pi, state);
+
+    await harness.commands.get("subagent-clear").handler("", { hasUI: false });
+
+    const files = await readdir(sessionsDir);
+    assert.ok(files.includes("done.jsonl"));
+    assert.ok(files.includes("done.status.json"));
+
+    await harness.commands.get("subagent-clear").handler("--delete", { hasUI: false });
 
     assert.deepEqual(await readdir(sessionsDir), []);
   } finally {

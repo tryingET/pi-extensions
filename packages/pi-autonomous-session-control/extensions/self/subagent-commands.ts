@@ -2,7 +2,7 @@
  * Subagent commands registration.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, RegisteredCommand } from "@mariozechner/pi-coding-agent";
 import {
   cleanupOldSessions,
   clearSubagentSessions,
@@ -14,13 +14,36 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_SESSION_AGE_DAYS = 7;
 const DEFAULT_MAX_SESSION_COUNT = 100;
 
+function parseCommandArgs(args: string): string[] {
+  return args.trim().split(/\s+/).filter(Boolean);
+}
+
+function hasDeleteFlag(tokens: string[]): boolean {
+  return tokens.includes("--delete");
+}
+
+function notifyPreserved(ctx: Parameters<RegisteredCommand["handler"]>[1], command: string): void {
+  if (ctx.hasUI) {
+    ctx.ui.notify(
+      `${command} preserved subagent sessions. Pass --delete for explicit destructive pruning.`,
+      "info",
+    );
+  }
+}
+
 export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState): void {
   pi.registerCommand("subagent-clear", {
-    description: "Clear all subagent session files (start fresh)",
-    handler: async (_args, ctx) => {
+    description: "Preserve subagent sessions by default; pass --delete to remove ASC artifacts",
+    handler: async (args, ctx) => {
+      const tokens = parseCommandArgs(args);
+      if (!hasDeleteFlag(tokens)) {
+        notifyPreserved(ctx, "subagent-clear");
+        return;
+      }
+
       clearSubagentSessions(state);
       if (ctx.hasUI) {
-        ctx.ui.notify("Subagent sessions cleared", "info");
+        ctx.ui.notify("Subagent sessions deleted after explicit --delete", "info");
       }
     },
   });
@@ -51,9 +74,16 @@ export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState)
   });
 
   pi.registerCommand("subagent-cleanup", {
-    description: "Remove old subagent session files (default: older than 7 days or excess of 100)",
+    description:
+      "Preserve subagent sessions by default; pass --delete [maxAgeDays] [maxCount] to prune",
     handler: async (args, ctx) => {
-      const parsed = args.trim().split(/\s+/).filter(Boolean);
+      const tokens = parseCommandArgs(args);
+      if (!hasDeleteFlag(tokens)) {
+        notifyPreserved(ctx, "subagent-cleanup");
+        return;
+      }
+
+      const parsed = tokens.filter((token) => token !== "--delete");
       const maxAgeDays =
         parsed[0] !== undefined && /^\d+$/.test(parsed[0])
           ? parseInt(parsed[0], 10)
@@ -70,7 +100,7 @@ export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState)
 
       if (ctx.hasUI) {
         ctx.ui.notify(
-          `Cleaned ${result.removedSessions} sessions (${result.removedFiles} files), ${result.kept} remaining`,
+          `Deleted ${result.removedSessions} sessions (${result.removedFiles} files), ${result.kept} remaining after explicit --delete`,
           "info",
         );
       }

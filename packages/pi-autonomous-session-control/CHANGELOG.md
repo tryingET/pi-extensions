@@ -25,6 +25,8 @@ All notable changes to this project should be documented here.
 
 - `self` persists scoped memory after action writes so Level-4 handoff/dogfood checkpoints survive extension restarts.
 - `dispatch_subagent` now defaults child session traces to Pi's native `~/.pi/agent/sessions/--<encoded-cwd>--/` JSONL store, while keeping ASC status/lock sidecars for lifecycle metadata and preserving `PI_SUBAGENT_SESSIONS_DIR` as an explicit separate-store override.
+- `/subagent-clear` and `/subagent-cleanup` now preserve subagent traces by default and require an explicit `--delete` flag before deleting ASC-owned artifacts.
+- `PI_SUBAGENT_CLEAR_ON_SESSION_START=true` no longer deletes session traces by itself; startup deletion now also requires `PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP=true`.
 
 ## [0.1.5] - 2026-05-12
 

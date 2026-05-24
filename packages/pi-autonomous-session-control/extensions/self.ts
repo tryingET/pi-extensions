@@ -114,15 +114,19 @@ function resolveSelfMemoryPath(sessionsDir: string): string {
 
 export { DEFAULT_SUBAGENT_MODEL, resolveSubagentModel, resolveSubagentModelSelection };
 
+function envFlagEnabled(name: string): boolean {
+  return process.env[name]?.trim().toLowerCase() === "true";
+}
+
 function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentState): void {
   registerSubagentTool(pi, subagentState, (ctx) => resolveSubagentModelSelection(ctx));
 
   registerSubagentCommands(pi, subagentState);
   registerSubagentDashboard(pi, subagentState);
 
-  const clearOnSessionStart =
-    process.env.PI_SUBAGENT_CLEAR_ON_SESSION_START?.trim().toLowerCase() === "true";
-  if (clearOnSessionStart) {
+  const clearOnSessionStart = envFlagEnabled("PI_SUBAGENT_CLEAR_ON_SESSION_START");
+  const allowDestructiveCleanup = envFlagEnabled("PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP");
+  if (clearOnSessionStart && allowDestructiveCleanup) {
     pi.on("session_start", async (_event, ctx) => {
       const parentSessionKey = getContextSessionKey(ctx);
       if (!parentSessionKey) return;
