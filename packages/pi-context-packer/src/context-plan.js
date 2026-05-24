@@ -21,6 +21,16 @@ const MAX_SEEDS = 40;
 const MAX_SEED_VALUE_CHARS = 1_000;
 const MAX_SEED_NOTE_CHARS = 500;
 const MAX_WORKSPACE_PATH_CHARS = 4_096;
+export const CONTEXT_PLAN_SEED_KINDS = Object.freeze([
+  "path",
+  "symbol",
+  "task",
+  "fcos",
+  "ak",
+  "prompt",
+  "free_text",
+]);
+const CONTEXT_PLAN_SEED_KIND_SET = new Set(CONTEXT_PLAN_SEED_KINDS);
 const isMarkdownPath = (value) => /\.md$/i.test(value);
 
 const PROVIDER_AUTHORITY = {
@@ -35,13 +45,14 @@ const PROVIDER_AUTHORITY = {
   fcos: "FCOS read-only Layer-5 control-board orientation provider.",
 };
 
-const NON_AUTHORIZATIONS = [
+const NON_AUTHORIZATIONS = Object.freeze([
   "does not mutate files, git, AK, FCOS, Prompt Vault, SCI, ASC, peer tooling, or source-owner repos",
   "does not treat retrieved Markdown as higher authority than active instructions",
   "does not close FCOS items or create/update AK tasks",
   "does not call self, dispatch subagents, launch peers, send intercom messages, supervise workflows, fan in, persist, or authorize owner-surface movement",
   "does not apply patches or run validation commands",
-];
+]);
+const nonAuthorizations = () => [...NON_AUTHORIZATIONS];
 
 const PROVIDER_KEYWORDS = {
   sci: [
@@ -116,10 +127,15 @@ const positiveInteger = (value, fallback) => {
 const textBytes = (value) => Buffer.byteLength(typeof value === "string" ? value : "");
 const textTokens = (value) => Math.ceil(textBytes(value) / ESTIMATED_BYTES_PER_TOKEN);
 
+export const normalizeContextPlanSeedKind = (kind) => {
+  const value = coerceString(kind, "free_text");
+  return CONTEXT_PLAN_SEED_KIND_SET.has(value) ? value : "free_text";
+};
+
 const countSeedKinds = (seeds = []) => {
   const counts = Object.create(null);
   for (const seed of seeds) {
-    const kind = coerceString(seed?.kind, "unknown");
+    const kind = normalizeContextPlanSeedKind(seed?.kind);
     counts[kind] = (counts[kind] ?? 0) + 1;
   }
   return counts;
@@ -152,17 +168,17 @@ const normalizeSeeds = (seeds) => {
 
   for (const [index, seed] of seeds.entries()) {
     const raw = asObject(seed);
-    const kind = coerceString(raw.kind, "free_text");
+    const kind = normalizeContextPlanSeedKind(raw.kind);
+    const rawValue = coerceString(raw.value);
     if (index >= MAX_SEEDS) {
       omittedSeeds.push({
         kind,
-        provider: omittedSeedProvider({ kind, value: "" }),
+        provider: omittedSeedProvider({ kind, value: rawValue }),
         reason: `seed count exceeds compact input limit (${MAX_SEEDS})`,
       });
       continue;
     }
 
-    const rawValue = coerceString(raw.value);
     const value = rawValue.trim();
     if (!value) continue;
     if (rawValue.length > MAX_SEED_VALUE_CHARS) {
@@ -582,14 +598,14 @@ export const buildContextPlan = (input = {}, env = {}) => {
     return {
       ok: false,
       errors: ["objective is required"],
-      nonAuthorizations: NON_AUTHORIZATIONS,
+      nonAuthorizations: nonAuthorizations(),
     };
   }
   if (objective.length > MAX_OBJECTIVE_CHARS) {
     return {
       ok: false,
       errors: [`objective exceeds compact input limit (${MAX_OBJECTIVE_CHARS} characters)`],
-      nonAuthorizations: NON_AUTHORIZATIONS,
+      nonAuthorizations: nonAuthorizations(),
     };
   }
 
@@ -634,7 +650,7 @@ export const buildContextPlan = (input = {}, env = {}) => {
       omittedSeeds,
       workspaceRisks,
     }),
-    nonAuthorizations: NON_AUTHORIZATIONS,
+    nonAuthorizations: nonAuthorizations(),
   };
 };
 
@@ -661,7 +677,7 @@ export const compactContextPlanDetails = (plan) => {
         rawQueriesOmitted: true,
         rawSeedsOmitted: true,
       },
-      nonAuthorizations: plan.nonAuthorizations ?? NON_AUTHORIZATIONS,
+      nonAuthorizations: [...(plan.nonAuthorizations ?? NON_AUTHORIZATIONS)],
     };
   }
 
@@ -687,7 +703,7 @@ export const compactContextPlanDetails = (plan) => {
     })),
     omittedSeedCount: plan.omittedSeeds?.length ?? 0,
     omittedSeeds: (plan.omittedSeeds ?? []).map((seed) => ({
-      kind: seed.kind,
+      kind: normalizeContextPlanSeedKind(seed.kind),
       provider: seed.provider,
       reason: seed.reason,
     })),
@@ -700,7 +716,7 @@ export const compactContextPlanDetails = (plan) => {
       rawSeedsOmitted: true,
       rawSeedNotesOmitted: true,
     },
-    nonAuthorizations: plan.nonAuthorizations,
+    nonAuthorizations: [...plan.nonAuthorizations],
   };
 };
 
@@ -745,7 +761,7 @@ export const CONTEXT_PLAN_PARAMETERS = {
         properties: {
           kind: {
             type: "string",
-            enum: ["path", "symbol", "task", "fcos", "ak", "prompt", "free_text"],
+            enum: CONTEXT_PLAN_SEED_KINDS,
           },
           value: { type: "string", maxLength: MAX_SEED_VALUE_CHARS },
           note: { type: "string", maxLength: MAX_SEED_NOTE_CHARS },

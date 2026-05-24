@@ -67,6 +67,41 @@ test("compactContextPlanDetails omits raw objectives, paths, queries, and seeds"
   assert.equal(serializedDetails.includes("free-SENTINEL"), false);
 });
 
+test("compactContextPlanDetails normalizes labels and resists returned-array mutation", async () => {
+  const sentinel = "INVALID_KIND_DETAILS_SENTINEL";
+  const invalidPlan = buildContextPlan({
+    objective: "Review invalid kind projection",
+    seeds: [{ kind: sentinel, value: "x".repeat(1001) }],
+  });
+  const invalidDetails = compactContextPlanDetails(invalidPlan);
+
+  assert.equal(JSON.stringify(invalidDetails).includes(sentinel), false);
+  assert.deepEqual(invalidDetails.omittedSeeds, [
+    {
+      kind: "free_text",
+      provider: "context_plan",
+      reason: "seed value exceeds compact input limit (1000 characters)",
+    },
+  ]);
+
+  invalidDetails.nonAuthorizations.push("MUTATED AUTH BOUNDARY");
+  const nextPlan = buildContextPlan({ objective: "Fresh plan" });
+  const nextDetails = compactContextPlanDetails(nextPlan);
+  assert.equal(nextPlan.nonAuthorizations.includes("MUTATED AUTH BOUNDARY"), false);
+  assert.equal(nextDetails.nonAuthorizations.includes("MUTATED AUTH BOUNDARY"), false);
+
+  const packetResult = await contextPacketToolResult(
+    {
+      objective: "Read docs",
+      seeds: [{ kind: sentinel, value: "x".repeat(1001) }],
+      providers: { agents: "off", docs: "off", sci: "off", git: "off", session: "off" },
+    },
+    { cwd: process.cwd() },
+  );
+  assert.equal(packetResult.content[0].text.includes(sentinel), false);
+  assert.equal(JSON.stringify(packetResult.details).includes(sentinel), false);
+});
+
 test("contextPacketToolResult returns markdown content and compact details", async () => {
   const root = await makeWorkspace();
   const result = await contextPacketToolResult(

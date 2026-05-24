@@ -573,6 +573,24 @@ npm run release:check
 
 Outcome: compact `context_plan` details are now protected at the source wrapper and installed artifact boundaries without overstating runtime authority or handler execution coverage.
 
+## Receipt N — plan projection metadata hardening
+
+### Context
+
+A deep adversarial review found three metadata-boundary issues left after compact `context_plan` details: overflow Markdown seeds were classified as SCI omissions after their raw value was discarded, invalid core API seed kinds could leak through omitted-seed labels when Pi schema validation was bypassed, and compact details returned the plan non-authorization array by reference.
+
+### Slice
+
+Core seed intake now allowlists seed kinds inside `buildContextPlan`, overflow omitted-seed classification uses the raw coerced seed value, packet omission rendering normalizes seed-kind labels, and plan/detail non-authorizations are copy-on-return from a frozen constant. Tests cover Markdown overflow provider classification, invalid kind redaction in plan and packet projections, and returned-array mutation resistance.
+
+Validation:
+
+```text
+node --test tests/context-plan.test.js tests/tool-result.test.js
+```
+
+Outcome: context-plan projections now treat caller-controlled metadata labels and returned object references as part of the adversarial boundary, not harmless implementation details.
+
 ## Lessons for ranking and product bets
 
 - `context_plan` is useful as the cheap first membrane when the agent is not sure which providers matter, but plan-only output needs a later observed receipt if we claim churn reduction.

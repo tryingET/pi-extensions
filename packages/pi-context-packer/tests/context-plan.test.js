@@ -115,11 +115,33 @@ test("context_plan caps seed counts, seed values, and seed notes before provider
   assert.equal(routedDocsSeeds[0].note.length, 501);
   assert.equal(plan.omittedSeeds.length, 4);
   assert.ok(plan.omittedSeeds.some((seed) => seed.reason.includes("seed value exceeds")));
-  assert.equal(
-    plan.omittedSeeds.filter((seed) => seed.reason.includes("seed count exceeds")).length,
-    3,
+  const overflowSeeds = plan.omittedSeeds.filter((seed) =>
+    seed.reason.includes("seed count exceeds"),
+  );
+  assert.equal(overflowSeeds.length, 3);
+  assert.deepEqual(
+    overflowSeeds.map((seed) => seed.provider),
+    ["docs", "docs", "docs"],
   );
   assert.ok(plan.risks.some((risk) => risk.message.includes("compact input limit")));
+});
+
+test("context_plan normalizes invalid core seed kinds before projection", () => {
+  const sentinel = "INVALID_KIND_SECRET_SENTINEL";
+  const plan = buildContextPlan({
+    objective: "Read docs",
+    seeds: [{ kind: sentinel, value: "x".repeat(1001) }],
+  });
+
+  assert.equal(plan.ok, true);
+  assert.deepEqual(plan.omittedSeeds, [
+    {
+      kind: "free_text",
+      provider: "context_plan",
+      reason: "seed value exceeds compact input limit (1000 characters)",
+    },
+  ]);
+  assert.equal(JSON.stringify(plan).includes(sentinel), false);
 });
 
 test("context_plan honors provider required and off modes without creating mutation authority", () => {

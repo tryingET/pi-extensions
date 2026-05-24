@@ -4,7 +4,11 @@ import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { publicOmissionDetail, subprocessFailureDetail } from "./context-intake-safety.js";
 import { formatContextPacket, toolResultFromContextPacketResult } from "./context-pack-result.js";
-import { buildContextPlan, CONTEXT_PLAN_PARAMETERS } from "./context-plan.js";
+import {
+  buildContextPlan,
+  CONTEXT_PLAN_PARAMETERS,
+  normalizeContextPlanSeedKind,
+} from "./context-plan.js";
 import { discoverDocsSeeds } from "./docs-provider.js";
 import { buildSciSection } from "./sci-provider.js";
 import {
@@ -466,11 +470,14 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   const sessionAwareness = buildSessionAwareness({ ...env, cwd });
   const remainingBudget = { bytes: plan.budget.maxBytes, tokens: usablePacketTokens(plan.budget) };
   const providerBudgets = new Map();
-  const omissions = (plan.omittedSeeds ?? []).map((seed) => ({
-    provider: seed.provider ?? (seed.kind === "symbol" ? "sci" : "docs"),
-    reason: seed.kind === "symbol" ? "unsafe_symbol" : "unsafe_path",
-    detail: `${seed.kind} seed omitted during planning: ${seed.reason}`,
-  }));
+  const omissions = (plan.omittedSeeds ?? []).map((seed) => {
+    const seedKind = normalizeContextPlanSeedKind(seed.kind);
+    return {
+      provider: seed.provider ?? (seedKind === "symbol" ? "sci" : "docs"),
+      reason: seedKind === "symbol" ? "unsafe_symbol" : "unsafe_path",
+      detail: `${seedKind} seed omitted during planning: ${seed.reason}`,
+    };
+  });
   let docsSeeds = providerQuerySeeds(plan, "docs").filter(
     (seed) => seed.kind === "path" && isMarkdownPath(seed.value),
   );
