@@ -2536,11 +2536,38 @@ test("context_pack reports rendered Markdown overhead separately from selected c
   assert.ok(
     toolResult.details.renderedMarkdown.estimatedTokens > toolResult.details.totals.estimatedTokens,
   );
+  assert.equal(
+    toolResult.details.renderedMarkdown.estimatedTokens,
+    Math.ceil(toolResult.details.renderedMarkdown.bytes / 4),
+  );
   assert.match(
     toolResult.details.renderedMarkdown.budgetAccounting,
     /rendered Markdown includes packet scaffolding/,
   );
   assert.match(toolResult.content[0].text, /Budget accounting: packet totals count selected/);
+});
+
+test("context_pack estimates rendered Markdown tokens from bytes for multibyte content", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "unicode.md"),
+    "# Unicode\n\nContext with emoji 🚀 and kana カタカナ.\n",
+    "utf8",
+  );
+  const input = {
+    objective: "Unicode context 🚀 カタカナ",
+    cwd: root,
+    repoRoot: root,
+    seeds: [{ kind: "path", value: "docs/project/unicode.md" }],
+    providers: { agents: "off", git: "off", sci: "off", session: "off" },
+  };
+
+  const toolResult = await contextPacketToolResult(input, { cwd: root });
+
+  assert.equal(
+    toolResult.details.renderedMarkdown.estimatedTokens,
+    Math.ceil(toolResult.details.renderedMarkdown.bytes / 4),
+  );
 });
 
 test("context_pack emits measurement receipt for packet usefulness", async () => {

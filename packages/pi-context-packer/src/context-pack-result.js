@@ -139,8 +139,8 @@ export const compactContextPacketDetails = (result, renderedMarkdownText) => {
   const renderedMarkdown =
     typeof renderedMarkdownText === "string"
       ? {
-          estimatedTokens: Math.ceil(renderedMarkdownText.length / 4),
-          bytes: Buffer.byteLength(renderedMarkdownText),
+          estimatedTokens: textTokens(renderedMarkdownText),
+          bytes: textBytes(renderedMarkdownText),
           budgetAccounting:
             "rendered Markdown includes packet scaffolding; packet.totals and measurementReceipt count selected provider content only",
         }
