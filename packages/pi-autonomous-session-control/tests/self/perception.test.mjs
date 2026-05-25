@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { analyzeTouchedFileBudgets } from "../../extensions/self/file-budget.ts";
 import {
   analyzePatterns,
   createOperationLog,
@@ -103,6 +104,32 @@ test("self query: files touched includes mirror-only file budget cues", async ()
   } finally {
     await cleanup(tempDir);
     await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("self file-budget cues ignore touched paths outside cwd", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "self-file-budget-workspace-"));
+  const outside = await mkdtemp(join(tmpdir(), "self-file-budget-outside-"));
+
+  try {
+    await mkdir(join(outside, "src"), { recursive: true });
+    await writeFile(join(outside, "src", "large.ts"), `${"x\n".repeat(501)}`, "utf8");
+
+    assert.deepEqual(
+      analyzeTouchedFileBudgets([{ path: join(outside, "src", "large.ts"), netLinesDelta: 1 }], {
+        cwd: workspace,
+      }),
+      [],
+    );
+    assert.deepEqual(
+      analyzeTouchedFileBudgets([{ path: "../src/large.ts", netLinesDelta: 1 }], {
+        cwd: join(outside, "child"),
+      }),
+      [],
+    );
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
   }
 });
 

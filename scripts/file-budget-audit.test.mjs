@@ -78,6 +78,36 @@ test("file budget audit fails closed for missing roots", (t) => {
   assert.doesNotMatch(result.stdout + result.stderr, /file-budget: ok/);
 });
 
+test("file budget audit reports unreadable subtrees", (t) => {
+  if (typeof process.getuid === "function" && process.getuid() === 0) {
+    t.skip("root can read chmod 000 directories");
+    return;
+  }
+
+  const root = makeTempDir(t);
+  const secretDir = path.join(root, "src", "secret");
+  writeLines(path.join(secretDir, "large.ts"), 1000);
+  fs.chmodSync(secretDir, 0o000);
+
+  try {
+    const audit = auditFileBudgets({ root });
+    assert.equal(audit.violations.length, 0);
+    assert.equal(audit.errors.length, 1);
+    assert.equal(audit.errors[0].operation, "read_dir");
+    assert.equal(audit.errors[0].path, "src/secret");
+
+    const result = spawnSync(process.execPath, [SCRIPT_PATH, "--root", root, "--fail"], {
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /could not be audited/);
+    assert.match(result.stderr, /src\/secret/);
+    assert.doesNotMatch(result.stdout + result.stderr, /file-budget: ok/);
+  } finally {
+    fs.chmodSync(secretDir, 0o700);
+  }
+});
+
 test("file budget audit prints mode-correct fail guidance", (t) => {
   const root = makeTempDir(t);
   writeLines(path.join(root, "src", "large.ts"), 501);

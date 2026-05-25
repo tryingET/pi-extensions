@@ -1,5 +1,5 @@
 import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 
 export const SELF_FILE_BUDGETS = Object.freeze({
   code: Object.freeze({ lines: 500, bytes: 50 * 1024 }),
@@ -72,10 +72,16 @@ function lineCountFile(filePath: string): number {
   return lastByte === 10 ? lines : lines + 1;
 }
 
+function pathIsInside(root: string, candidate: string): boolean {
+  const relativePath = relative(root, candidate);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+}
+
 function resolveTouchedPath(cwd: string | undefined, filePath: string): string | null {
   if (!filePath.trim()) return null;
-  if (isAbsolute(filePath)) return resolve(filePath);
-  return resolve(cwd || process.cwd(), filePath);
+  const root = resolve(cwd || process.cwd());
+  const absolutePath = isAbsolute(filePath) ? resolve(filePath) : resolve(root, filePath);
+  return pathIsInside(root, absolutePath) ? absolutePath : null;
 }
 
 export function analyzeTouchedFileBudgets(

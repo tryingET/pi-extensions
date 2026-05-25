@@ -135,7 +135,12 @@ function lineCountFile(filePath) {
   return lastByte === 10 ? lines : lines + 1;
 }
 
-function collectFiles(root) {
+function auditPathLabel(root, filePath) {
+  const relativePath = normalizeRelative(path.relative(root, filePath));
+  return relativePath && !relativePath.startsWith("..") ? relativePath : filePath;
+}
+
+function collectFiles(root, auditErrors) {
   const files = [];
   const stack = [root];
   while (stack.length > 0) {
@@ -143,7 +148,12 @@ function collectFiles(root) {
     let entries;
     try {
       entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      auditErrors.push({
+        path: auditPathLabel(root, current),
+        operation: "read_dir",
+        message: error instanceof Error ? error.message : String(error),
+      });
       continue;
     }
     for (const entry of entries) {
@@ -168,8 +178,9 @@ export function auditFileBudgets(input = {}) {
   }
   const thresholds = input.thresholds ?? DEFAULT_THRESHOLDS;
   const violations = [];
+  const errors = [];
 
-  for (const filePath of collectFiles(root)) {
+  for (const filePath of collectFiles(root, errors)) {
     const relativePath = normalizeRelative(path.relative(root, filePath));
     const kind = classifyFile(relativePath);
     if (!kind) continue;
@@ -181,7 +192,12 @@ export function auditFileBudgets(input = {}) {
     try {
       stats = fs.statSync(filePath);
       lines = lineCountFile(filePath);
-    } catch {
+    } catch (error) {
+      errors.push({
+        path: relativePath,
+        operation: "read_file",
+        message: error instanceof Error ? error.message : String(error),
+      });
       continue;
     }
 
@@ -205,7 +221,7 @@ export function auditFileBudgets(input = {}) {
     return bScore - aScore || a.path.localeCompare(b.path);
   });
 
-  return { root, violations };
+  return { root, violations, errors };
 }
 
 function formatBytes(bytes) {
@@ -214,13 +230,35 @@ function formatBytes(bytes) {
 }
 
 function printReport(result, { maxWarnings, warnOnly }) {
-  if (result.violations.length === 0) {
+  const mode = warnOnly ? "warning" : "error";
+  if (result.violations.length === 0 && result.errors.length === 0) {
     console.log("file-budget: ok");
     return;
   }
 
+  if (result.errors.length > 0) {
+    console.error(
+      `file-budget: ${mode}: ${result.errors.length} path(s) could not be audited under ${result.root}`,
+    );
+    for (const item of result.errors.slice(0, maxWarnings)) {
+      console.error(`file-budget: ${item.path} (${item.operation}) ${item.message}`);
+    }
+    const hiddenErrors = result.errors.length - Math.min(result.errors.length, maxWarnings);
+    if (hiddenErrors > 0) {
+      console.error(`file-budget: ... ${hiddenErrors} more audit error(s) omitted`);
+    }
+  }
+
+  if (result.violations.length === 0) {
+    console.error(
+      warnOnly
+        ? "file-budget: current posture is warn-only; audit errors should be resolved before ratcheting to hard fail"
+        : "file-budget: hard-fail posture is active; resolve audit errors before retrying",
+    );
+    return;
+  }
+
   const shown = result.violations.slice(0, maxWarnings);
-  const mode = warnOnly ? "warning" : "error";
   console.error(
     `file-budget: ${mode}: ${result.violations.length} file(s) exceed brownfield readability budgets under ${result.root}`,
   );
@@ -247,7 +285,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const args = parseArgs(process.argv.slice(2));
     const result = auditFileBudgets({ root: args.root });
     printReport(result, args);
-    if (!args.warnOnly && result.violations.length > 0) process.exit(1);
+    if (!args.warnOnly && (result.violations.length > 0 || result.errors.length > 0)) process.exit(1);
   } catch (error) {
     console.error(`error: ${error instanceof Error ? error.message : String(error)}`);
     usage();
