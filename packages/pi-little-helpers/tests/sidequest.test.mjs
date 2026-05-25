@@ -43,6 +43,10 @@ function isAnyLocalSidequestGhosttyBin(path) {
   );
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function registerExtension(extension, { thinkingLevel = "medium" } = {}) {
   const commands = new Map();
   const tools = new Map();
@@ -781,7 +785,7 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, userMessages } = registerExtension(extension);
+    const { commands, events, userMessages } = registerExtension(extension);
     const repoRoot = `${stateHome}/repo`;
     const harness = createContext({ cwd: repoRoot });
     mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
@@ -811,6 +815,7 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
     assert.equal(config.loopCount, 3);
     assert.equal(config.cwd, repoRoot);
     assert.equal(config.reportBack, "manual");
+    assert.deepEqual(config.commitDelegation, { mode: "fork_peer", promptTemplate: "commit" });
     assert.equal(config.prompts.length, 4);
     assert.equal(config.prompts[0], "/deep-review");
     assert.equal(
@@ -829,6 +834,33 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
     assert.equal(userMessages.length, 1);
     assert.equal(userMessages[0].message, "EXPANDED DEEP REVIEW LOCAL_SENTINEL ");
+
+    const agentStart = events.get("agent_start")[0];
+    await agentStart({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    assert.equal(userMessages.length, 4);
+    assert.equal(
+      userMessages[1].message,
+      "proceed with nexus implementation until completion and verification",
+    );
+    assert.match(userMessages[2].message, /fix any bugs/);
+    assert.match(userMessages[3].message, /Nexus-loop commit delegation step/);
+    assert.match(userMessages[3].message, /fork_peer_spawn/);
+    assert.match(
+      userMessages[3].message,
+      /The configured `\/commit` prompt has already been resolved/,
+    );
+    assert.match(userMessages[3].message, /EXPANDED COMMIT LOCAL_SENTINEL/);
+    assert.match(userMessages[3].message, /"reportBack": "intercom"/);
+    assert.match(
+      userMessages[3].message,
+      /"parentPeerTarget": "session-019e10d2-15f5-705a-aea4-01ba49d2bbac"/,
+    );
+    assert.match(userMessages[3].message, /peer_watch/);
+    assert.match(userMessages[3].message, /visible_loop_child_complete/);
+    assert.match(userMessages[3].message, new RegExp(escapeRegExp(configPath)));
+    assert.doesNotMatch(userMessages[3].message, /Visible-loop internal completion checkpoint/);
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });

@@ -270,7 +270,9 @@ function printReport(result, { maxWarnings, warnOnly }) {
   const hidden = result.violations.length - shown.length;
   if (hidden > 0) {
     console.error(
-      `file-budget: ... ${hidden} more over-budget file(s) omitted; rerun with --max-warnings 0 for summary-only or a larger value for detail`,
+      maxWarnings === 0
+        ? `file-budget: ... ${hidden} over-budget file(s) omitted by summary-only output`
+        : `file-budget: ... ${hidden} more over-budget file(s) omitted; rerun with --max-warnings 0 for summary-only or a larger value for detail`,
     );
   }
   console.error(

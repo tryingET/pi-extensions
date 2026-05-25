@@ -1837,6 +1837,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         reportBack,
         parentPeerTarget,
         ...(prompts ? { prompts } : {}),
+        ...(commandName === NEXUS_LOOP_COMMAND
+          ? { commitDelegation: { mode: "fork_peer", promptTemplate: "commit" } as const }
+          : {}),
         runIdPrefix: commandName,
         title: titlePrefix,
       });

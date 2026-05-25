@@ -156,8 +156,14 @@ export interface VisibleLoopRunConfig {
   prompts: string[];
   reportBack: VisibleLoopReportBack;
   parentPeerTarget?: string;
+  commitDelegation?: VisibleLoopCommitDelegation;
   title?: string;
   createdAt: string;
+}
+
+export interface VisibleLoopCommitDelegation {
+  mode: "fork_peer";
+  promptTemplate: "commit";
 }
 
 type SendUserMessageOptions = { deliverAs?: "followUp" | "steer" };
@@ -332,6 +338,7 @@ export function createVisibleLoopRunConfig(input: {
   runId?: string;
   runIdPrefix?: string;
   title?: string;
+  commitDelegation?: VisibleLoopCommitDelegation;
 }): VisibleLoopRunConfig {
   const runIdPrefix = normalizeRunIdPrefix(input.runIdPrefix ?? "visible-loop");
   return {
@@ -342,6 +349,7 @@ export function createVisibleLoopRunConfig(input: {
     prompts: [...(input.prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS)],
     reportBack: input.reportBack,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
+    ...(input.commitDelegation ? { commitDelegation: input.commitDelegation } : {}),
     title: input.title ?? "Visible loop",
     createdAt: new Date().toISOString(),
   };
@@ -705,14 +713,16 @@ function queueVisibleLoopFollowups(
     iteration,
     promptCount: prompts.length,
   });
-  const followups = [...realFollowups, completionPrompt];
+  const delegatesCompletion = visibleLoopDelegatesCompletion(state.config, realFollowups);
+  const followups = delegatesCompletion ? [...realFollowups] : [...realFollowups, completionPrompt];
   appendVisibleLoopStatus(
     state.config,
     {
       event: "followups_queued",
       iteration,
       promptFollowupCount: realFollowups.length,
-      completionPromptQueued: true,
+      completionPromptQueued: !delegatesCompletion,
+      delegatedCompletion: delegatesCompletion,
       completionCommand: true,
     },
     env,
@@ -748,9 +758,129 @@ function queueVisibleLoopFollowups(
         );
         return;
       }
-      state.sendUserMessage(expandedPrompt.prompt, { deliverAs: "followUp" });
+      const deliveryPrompt = maybeRenderDelegatedVisibleLoopPrompt(
+        state,
+        ctx,
+        expandedPrompt,
+        iteration,
+        index + 2,
+        env,
+      );
+      if (!deliveryPrompt) return;
+      state.sendUserMessage(deliveryPrompt, { deliverAs: "followUp" });
     }, 150 * index);
   });
+}
+
+function visibleLoopDelegatesCompletion(
+  config: VisibleLoopRunConfig,
+  realFollowups: string[],
+): boolean {
+  const delegation = config.commitDelegation;
+  if (!delegation) return false;
+  const delegatedSlash = `/${delegation.promptTemplate}`;
+  return realFollowups.some((prompt) => prompt.trim().split(/\s+/u)[0] === delegatedSlash);
+}
+
+function maybeRenderDelegatedVisibleLoopPrompt(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext | undefined,
+  expansion: VisibleLoopPromptExpansion,
+  iteration: number,
+  promptIndex: number,
+  env: NodeJS.ProcessEnv,
+): string | null {
+  const delegation = state.config.commitDelegation;
+  if (
+    !delegation ||
+    delegation.mode !== "fork_peer" ||
+    expansion.templateName !== delegation.promptTemplate
+  ) {
+    return expansion.prompt;
+  }
+
+  const parentPeerTarget = ctx ? resolveParentPeerTarget(ctx) : undefined;
+  if (!parentPeerTarget) {
+    state.stopped = true;
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "commit_delegation_unavailable",
+        iteration,
+        promptIndex,
+        promptTemplate: expansion.templateName,
+        reason: "missing_child_session_id",
+      },
+      env,
+    );
+    ctx?.ui?.notify?.(
+      "visible-loop stopped: cannot delegate /commit to fork_peer_spawn without a child session id for intercom report-back",
+      "error",
+    );
+    return null;
+  }
+
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "commit_delegation_prompt_queued",
+      iteration,
+      promptIndex,
+      promptTemplate: expansion.templateName,
+      delegateTool: "fork_peer_spawn",
+      parentPeerTarget,
+    },
+    env,
+  );
+
+  return renderForkPeerCommitDelegationPrompt({
+    commitPrompt: expansion.prompt,
+    parentPeerTarget,
+    configPath: state.configPath,
+    iteration,
+    promptIndex,
+  });
+}
+
+function renderForkPeerCommitDelegationPrompt(input: {
+  commitPrompt: string;
+  parentPeerTarget: string;
+  configPath: string;
+  iteration: number;
+  promptIndex: number;
+}): string {
+  const forkPeerRequest = {
+    objective: input.commitPrompt,
+    reportBack: "intercom",
+    parentPeerTarget: input.parentPeerTarget,
+  };
+
+  return [
+    "Nexus-loop commit delegation step.",
+    "",
+    "Do not run the commit workflow in this visible-loop child session.",
+    "The configured `/commit` prompt has already been resolved through visible-loop prompt expansion. Do not send a literal `/commit` slash command to the fork peer.",
+    "",
+    "Call `fork_peer_spawn` exactly once with this request:",
+    "",
+    "```json",
+    JSON.stringify(forkPeerRequest, null, 2),
+    "```",
+    "",
+    "After the tool returns, read its `peerRunId` from the tool result details and supervise the fork peer through intercom:",
+    '1. Wait for ACK with `intercom({ action: "peer_watch", peerRunId: "<peerRunId>", waitFor: "ack", timeoutMs: 10000 })`.',
+    '2. Wait for final with `intercom({ action: "peer_watch", peerRunId: "<peerRunId>", waitFor: "final", timeoutMs: 0 })`.',
+    "3. If `fork_peer_spawn`, ACK, or FINAL fails/times out, stop and report the first failing command/status. Do not mark the loop iteration complete.",
+    "4. Only after `PEER_FINAL` reports successful commit workflow completion, call `visible_loop_child_complete` exactly once with:",
+    "",
+    "```json",
+    JSON.stringify({ configPath: input.configPath, iteration: input.iteration }, null, 2),
+    "```",
+    "",
+    "The ordinary completion checkpoint is intentionally not queued for this delegated commit step; this tool call is the completion gate.",
+    "",
+    `Context: delegated commit prompt for iteration ${input.iteration}, prompt index ${input.promptIndex}.`,
+  ].join("\n");
 }
 
 function renderVisibleLoopCompletionPrompt(input: {
@@ -1558,6 +1688,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   const reportBack = parseReportBack(String(record.reportBack ?? "manual"));
   if (!reportBack) throw new TypeError("reportBack must be intercom, manual, or none.");
   const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
+  const commitDelegation = parseCommitDelegation(record.commitDelegation);
   const title = normalizeOptionalString(record.title);
   const createdAt = requireNonEmptyString(record.createdAt, "createdAt");
 
@@ -1569,6 +1700,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     prompts,
     reportBack,
     ...(parentPeerTarget ? { parentPeerTarget } : {}),
+    ...(commitDelegation ? { commitDelegation } : {}),
     ...(title ? { title } : {}),
     createdAt,
   };
@@ -1588,6 +1720,18 @@ function parseLoopCount(value: string | undefined): number | undefined {
 function parseReportBack(value: string | undefined): VisibleLoopReportBack | undefined {
   if (value === "intercom" || value === "manual" || value === "none") return value;
   return undefined;
+}
+
+function parseCommitDelegation(value: unknown): VisibleLoopCommitDelegation | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("commitDelegation must be an object.");
+  }
+  const record = value as Record<string, unknown>;
+  if (record.mode !== "fork_peer" || record.promptTemplate !== "commit") {
+    throw new TypeError("commitDelegation must use mode=fork_peer and promptTemplate=commit.");
+  }
+  return { mode: "fork_peer", promptTemplate: "commit" };
 }
 
 function parseVisibleLoopCompletionArgs(

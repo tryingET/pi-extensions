@@ -121,3 +121,19 @@ test("file budget audit prints mode-correct fail guidance", (t) => {
   assert.match(result.stderr, /hard-fail posture is active/);
   assert.doesNotMatch(result.stderr, /current posture is warn-only/);
 });
+
+test("file budget audit does not suggest --max-warnings 0 while already summary-only", (t) => {
+  const root = makeTempDir(t);
+  writeLines(path.join(root, "src", "large-a.ts"), 501);
+  writeLines(path.join(root, "src", "large-b.ts"), 502);
+
+  const result = spawnSync(
+    process.execPath,
+    [SCRIPT_PATH, "--root", root, "--warn-only", "--max-warnings", "0"],
+    { encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 0);
+  assert.match(result.stderr, /summary-only output/);
+  assert.doesNotMatch(result.stderr, /rerun with --max-warnings 0/);
+});
