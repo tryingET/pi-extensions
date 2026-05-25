@@ -68,6 +68,8 @@ type CandidatePeerReportBack = SidequestReportBack;
 type ForkPeerSpawnRequest = {
   objective?: string;
   cwd?: string;
+  reportBack?: SidequestReportBack;
+  parentPeerTarget?: string;
 };
 
 type ModelLike = {
@@ -226,6 +228,10 @@ const forkPeerSpawnParameters = asPiToolParameters(
       Type.String({
         description: "Workspace cwd for the visible forked peer. Defaults to ctx.cwd.",
       }),
+    ),
+    reportBack: reportBackParameter,
+    parentPeerTarget: Type.Optional(
+      Type.String({ description: "Exact parent peer target/session id for intercom report-back." }),
     ),
   }),
 );
@@ -818,8 +824,20 @@ function normalizeSidequestRole(value: unknown): SidequestRole {
   return value === "reviewer" ? "reviewer" : "scout";
 }
 
-function createQuestId(prefix: "sidequest" | "scoutpeer" | "candidatepeer"): string {
+function createQuestId(prefix: "sidequest" | "forkpeer" | "scoutpeer" | "candidatepeer"): string {
   return `${prefix}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+}
+
+function normalizeForkPeerReportBack(request: ForkPeerSpawnRequest): SidequestReportBack {
+  if (
+    request.reportBack === "intercom" ||
+    request.reportBack === "manual" ||
+    request.reportBack === "none"
+  ) {
+    return request.reportBack;
+  }
+
+  return request.parentPeerTarget?.trim() ? "intercom" : "manual";
 }
 
 function normalizeReportBack(request: SidequestSpawnRequest): SidequestReportBack {
@@ -906,6 +924,50 @@ function buildBootProtocolInstructions({
     `Literal ACK call: \`intercom({ action: "send", to: "${target}", message: "PEER_ACK peer_run_id=${questId}: spawned ${peerLabel} started" })\``,
     "If the ACK send fails or intercom is unavailable, visibly report `ACK_FAILED` in this session and stop; do not continue task work silently.",
     "After ACK succeeds, continue with the objective and send exactly one `PEER_FINAL` as the final DoD report. After `PEER_FINAL`, stop unless the controller explicitly asks a new question or assigns new work.",
+  ].join("\n");
+}
+
+function buildForkPeerSpawnPrompt({
+  objective,
+  request,
+  reportBack,
+  questId,
+}: {
+  objective: string;
+  request: ForkPeerSpawnRequest;
+  reportBack: SidequestReportBack;
+  questId: string;
+}): string {
+  return [
+    "# Visible Fork Peer Prompt",
+    "",
+    "You are a visible fork peer launched from the controller's current Pi conversation/context. The inherited history is context, not identity: act as the spawned fork peer and report back according to this prompt. You are parallel cognition, not parallel authority.",
+    "",
+    "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
+    buildBootProtocolInstructions({
+      reportBack,
+      parentPeerTarget: request.parentPeerTarget,
+      questId,
+      peerLabel: "fork peer",
+    }),
+    "",
+    "## Quest Protocol",
+    `Peer run id: ${questId}`,
+    "Message budget: at most PEER_ACK and PEER_FINAL unless the controller explicitly asks a clarifying question or assigns new work. Legacy QUEST_ACK / QUEST_FINAL remains controller-compatible but is not preferred.",
+    "",
+    "## Objective",
+    objective,
+    "",
+    "## Report-Back Instructions",
+    buildReportBackInstructions({
+      reportBack,
+      parentPeerTarget: request.parentPeerTarget,
+      questId,
+      peerLabel: "fork peer",
+    }),
+    "",
+    "## Boundary",
+    "This fork peer intentionally inherits the current Pi context. Do not treat intercom messages as durable evidence, task authority, merge authority, or completion truth unless the controller records them through the owning surface.",
   ].join("\n");
 }
 
@@ -1969,15 +2031,23 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     async function executeForkPeerSpawn(toolName: string, params: unknown, ctx: PiToolContext) {
       const request = params as ForkPeerSpawnRequest;
       const objective = request.objective?.trim() ?? "";
+      const reportBack = normalizeForkPeerReportBack(request);
       const cwd = request.cwd?.trim() || ctx.cwd || process.cwd();
 
       if (!objective) {
         return errorToolResult(`${toolName} requires a non-empty objective.`, {
           ok: false,
           tool: toolName,
+          canonicalTool: "fork_peer_spawn",
           sessionMode: "fork",
+          reportBack,
           error: "blank_objective",
         });
+      }
+
+      if (reportBack === "intercom") {
+        const parentPeerTarget = validateParentPeerTarget(request.parentPeerTarget);
+        if (!parentPeerTarget.ok) return parentPeerTargetFailureResult(toolName, parentPeerTarget);
       }
 
       const sessionFile = ctx.sessionManager.getSessionFile();
@@ -1987,18 +2057,30 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           {
             ok: false,
             tool: toolName,
+            canonicalTool: "fork_peer_spawn",
             sessionMode: "fork",
+            reportBack,
             cwd,
             error: "missing_session_file",
           },
         );
       }
 
+      const questId = createQuestId("forkpeer");
+      const prompt =
+        reportBack === "manual" && !request.reportBack && !request.parentPeerTarget?.trim()
+          ? objective
+          : buildForkPeerSpawnPrompt({
+              objective,
+              request,
+              reportBack,
+              questId,
+            });
       const launch = await launchPiQuestSession({
         pi,
         ctx,
         options,
-        prompt: objective,
+        prompt,
         titlePrompt: objective,
         titlePrefix: "Forkpeer",
         cwd,
@@ -2017,12 +2099,24 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           titleBase: launch.titleBase,
           promptSummary: launch.promptSummary,
           launchNote: launch.launchNote,
+          reportBack,
+          parentPeerTarget: request.parentPeerTarget?.trim(),
+          peerRunId: questId,
+          expectedMessages: expectedPeerMessages(reportBack),
           error: "launch_failed",
         });
       }
 
       return successToolResult(
-        `Launched ${toolName} in ${launch.launchMode}: ${launch.promptSummary}\nSession mode: forked current context`,
+        peerLaunchResultMessage({
+          toolName,
+          launchMode: launch.launchMode,
+          promptSummary: launch.promptSummary,
+          peerRunId: questId,
+          reportBack,
+          peerLabel: "fork peer",
+          manualAction: "watch the visible fork peer tab/window",
+        }),
         {
           ok: true,
           tool: toolName,
@@ -2033,8 +2127,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           sourceSessionFile: launch.sourceSessionFile,
           titleBase: launch.titleBase,
           promptSummary: launch.promptSummary,
-          nextStep:
-            "Watch the visible fork peer tab/window; it inherits the current Pi conversation context.",
+          reportBack,
+          parentPeerTarget: request.parentPeerTarget?.trim(),
+          peerRunId: questId,
+          expectedMessages: expectedPeerMessages(reportBack),
+          nextStep: reportBackNextStep({
+            reportBack,
+            peerRunId: questId,
+            peerLabel: "fork peer",
+            manualAction: "watch the visible fork peer tab/window",
+          }),
           ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
         },
       );

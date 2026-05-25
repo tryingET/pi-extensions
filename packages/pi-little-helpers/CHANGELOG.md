@@ -15,6 +15,10 @@ All notable changes to this project should be documented here.
 
 ## Unreleased
 
+### Added
+
+- Add optional `reportBack` and `parentPeerTarget` support to `fork_peer_spawn`, allowing forked-context peers to use bounded intercom `PEER_ACK` / `PEER_FINAL` reporting when explicitly requested.
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.3.0...pi-little-helpers-v0.3.1) (2026-05-16)
 
 ### Fixed

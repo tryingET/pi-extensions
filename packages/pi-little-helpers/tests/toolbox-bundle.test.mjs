@@ -39,7 +39,7 @@ test("toolbox bundle registers the sidequest peer-spawn capability", () => {
       command: "sidequest",
       slash: "/sidequest",
       sessionMode: "forked-context",
-      reportBack: "manual-visible",
+      reportBack: "manual-visible-or-explicit-intercom",
     },
     {
       tool: "scout_peer_spawn",

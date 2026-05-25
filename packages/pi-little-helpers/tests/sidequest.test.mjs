@@ -612,6 +612,10 @@ test("sidequest defaults to slash commands, visible-loop, and standard peer-spaw
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
   assert.ok(tools.has("candidate_peer_cleanup"));
+
+  const forkPeerParameters = tools.get("fork_peer_spawn").parameters;
+  assert.ok(forkPeerParameters.properties.reportBack);
+  assert.ok(forkPeerParameters.properties.parentPeerTarget);
 });
 
 test("sidequest can suppress commands while registering toolbox peer tools", () => {
@@ -1482,6 +1486,89 @@ test("fork_peer_spawn launches a forked-context peer", async () => {
   assert.equal(piArgs.at(-1), "inherit this context");
   assert.equal(result.details.sessionMode, "fork");
   assert.equal(result.details.canonicalTool, "fork_peer_spawn");
+  assert.equal(result.details.reportBack, "manual");
+});
+
+test("fork_peer_spawn can request intercom report-back", async () => {
+  const execStub = createExecStub(({ args }) => {
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n" };
+    }
+    if (args[0]?.startsWith("--working-directory=")) {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const target = "session-019e10d2-15f5-705a-aea4-01ba49d2bbac";
+  const result = await tools.get("fork_peer_spawn").execute(
+    "tool-call-1",
+    {
+      objective: "commit this finished work",
+      reportBack: "intercom",
+      parentPeerTarget: target,
+    },
+    undefined,
+    undefined,
+    createContext().ctx,
+  );
+
+  const piArgs = extractPiArgs(execStub.calls[1].args);
+  assert.deepEqual(piArgs.slice(0, 3), ["pi", "--fork", "/sessions/main.jsonl"]);
+  const prompt = piArgs.at(-1);
+  assert.match(prompt, /# Visible Fork Peer Prompt/);
+  assert.match(prompt, /## Objective\ncommit this finished work/);
+  assertIntercomReportBackContract(prompt, { peerPrefix: "forkpeer", target });
+  assert.equal(result.details.reportBack, "intercom");
+  assert.equal(result.details.parentPeerTarget, target);
+  assert.deepEqual(result.details.expectedMessages, ["PEER_ACK", "PEER_FINAL"]);
+  assert.match(result.details.nextStep, /peer_watch/);
+});
+
+test("fork_peer_spawn requires exact parentPeerTarget for intercom report-back", async () => {
+  const execStub = createExecStub(() => {
+    throw new Error("Ghostty should not be called without an exact parent target");
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("fork_peer_spawn")
+    .execute(
+      "tool-call-1",
+      { objective: "report but no target", reportBack: "intercom" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  assert.equal(execStub.calls.length, 0);
+  assert.equal(result.isError, true);
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.error, "missing_parent_peer_target");
 });
 
 test("scout_peer_spawn launches a clean session even when the controller session has not been saved", async () => {

@@ -20,7 +20,7 @@ export const LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS = [
     command: "sidequest",
     slash: "/sidequest",
     sessionMode: "forked-context",
-    reportBack: "manual-visible",
+    reportBack: "manual-visible-or-explicit-intercom",
   },
   {
     tool: "scout_peer_spawn",
