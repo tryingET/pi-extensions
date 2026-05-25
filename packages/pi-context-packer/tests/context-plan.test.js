@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   buildContextPlan,
   CONTEXT_PLAN_PARAMETERS,
   formatContextPlan,
 } from "../src/context-plan.js";
+
+const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 const writeGitMarker = async (root) => {
   await mkdir(join(root, ".git"), { recursive: true });
@@ -201,26 +204,29 @@ test("context_plan honors provider required and off modes without creating mutat
 });
 
 test("context_plan omits unsafe caller-controlled path and symbol seeds from provider queries", () => {
-  const plan = buildContextPlan({
-    objective: "Plan implementation context for these files",
-    seeds: [
-      { kind: "path", value: "src/context-plan.js" },
-      { kind: "symbol", value: "targetSymbol" },
-      { kind: "symbol", value: "target\n## forged" },
-      { kind: "symbol", value: "x".repeat(241) },
-      { kind: "path", value: "../secrets.md" },
-      { kind: "path", value: "/etc/passwd" },
-      { kind: "path", value: "node_modules/pkg/index.js" },
-      { kind: "path", value: ".git/config" },
-      { kind: "path", value: ".env" },
-      { kind: "path", value: ".ontology/context.md" },
-      { kind: "path", value: "docs\\windows.md" },
-      { kind: "path", value: "file:///etc/passwd" },
-      { kind: "path", value: "C:/Users/admin/secret.txt" },
-      { kind: "path", value: "http://example.invalid/path" },
-      { kind: "path", value: "." },
-    ],
-  });
+  const plan = buildContextPlan(
+    {
+      objective: "Plan implementation context for these files",
+      seeds: [
+        { kind: "path", value: "src/context-plan.js" },
+        { kind: "symbol", value: "targetSymbol" },
+        { kind: "symbol", value: "target\n## forged" },
+        { kind: "symbol", value: "x".repeat(241) },
+        { kind: "path", value: "../secrets.md" },
+        { kind: "path", value: "/etc/passwd" },
+        { kind: "path", value: "node_modules/pkg/index.js" },
+        { kind: "path", value: ".git/config" },
+        { kind: "path", value: ".env" },
+        { kind: "path", value: ".ontology/context.md" },
+        { kind: "path", value: "docs\\windows.md" },
+        { kind: "path", value: "file:///etc/passwd" },
+        { kind: "path", value: "C:/Users/admin/secret.txt" },
+        { kind: "path", value: "http://example.invalid/path" },
+        { kind: "path", value: "." },
+      ],
+    },
+    { cwd: PACKAGE_ROOT },
+  );
 
   assert.equal(plan.ok, true);
   assert.equal(plan.omittedSeeds.length, 13);

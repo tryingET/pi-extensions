@@ -25,10 +25,12 @@ function writeLines(filePath, count) {
 
 const CLASSIFIER_CASES = [
   ["src/app.ts", "code"],
+  ["src/component.jsx", "code"],
   ["src/app.TSX", "code"],
   ["docs/guide.md", "markdown"],
   ["README.MDX", "markdown"],
   ["tests/app.test.mjs", "test"],
+  ["src/component.test.jsx", "test"],
   ["src/app.SPEC.CTS", "test"],
   ["src/UPPER.TEST.JS", "test"],
   ["src/generated.d.ts", null],
@@ -53,6 +55,7 @@ test("file budget classifiers stay in parity across advisory surfaces", () => {
 test("file budget audit applies defaults by file type", (t) => {
   const root = makeTempDir(t);
   writeLines(path.join(root, "src", "large.ts"), 501);
+  writeLines(path.join(root, "src", "large.jsx"), 501);
   writeLines(path.join(root, "tests", "large.test.mjs"), 1001);
   writeLines(path.join(root, "docs", "large.md"), 801);
   writeLines(path.join(root, "src", "small.ts"), 500);
@@ -67,6 +70,7 @@ test("file budget audit applies defaults by file type", (t) => {
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
     [
       ["docs/large.md", "markdown", 800],
+      ["src/large.jsx", "code", 500],
       ["src/large.ts", "code", 500],
       ["tests/large.test.mjs", "test", 1000],
     ],

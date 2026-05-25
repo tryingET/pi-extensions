@@ -7,7 +7,7 @@ export const SELF_FILE_BUDGETS = Object.freeze({
   markdown: Object.freeze({ lines: 800, bytes: 60 * 1024 }),
 });
 
-const CODE_EXTENSIONS = [".js", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"];
+const CODE_EXTENSIONS = [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"];
 const MARKDOWN_EXTENSIONS = [".md", ".mdx"];
 const EXCLUDED_DIRS = new Set([
   ".git",
