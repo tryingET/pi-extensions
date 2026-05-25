@@ -93,11 +93,13 @@ function isExcludedFile(filePath) {
   return EXCLUDED_FILE_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
 }
 
-function classifyFile(relativePath) {
-  const ext = path.extname(relativePath).toLowerCase();
+export function classifyFileBudgetPath(relativePath) {
+  const normalized = normalizeRelative(relativePath).toLowerCase();
+  if (normalized.split("/").some((segment) => EXCLUDED_DIRS.has(segment))) return null;
+  if (EXCLUDED_FILE_SUFFIXES.some((suffix) => normalized.endsWith(suffix))) return null;
+  const ext = path.extname(normalized).toLowerCase();
   if (MARKDOWN_EXTENSIONS.has(ext)) return "markdown";
   if (!CODE_EXTENSIONS.has(ext)) return null;
-  const normalized = normalizeRelative(relativePath).toLowerCase();
   const base = path.basename(normalized);
   if (
     normalized.includes("/tests/") ||
@@ -182,7 +184,7 @@ export function auditFileBudgets(input = {}) {
 
   for (const filePath of collectFiles(root, errors)) {
     const relativePath = normalizeRelative(path.relative(root, filePath));
-    const kind = classifyFile(relativePath);
+    const kind = classifyFileBudgetPath(relativePath);
     if (!kind) continue;
     const budget = thresholds[kind];
     if (!budget) continue;

@@ -127,6 +127,12 @@ test("self file-budget cues ignore touched paths outside cwd", async () => {
       }),
       [],
     );
+    assert.deepEqual(
+      analyzeTouchedFileBudgets([{ path: "node_modules/pkg/large.ts", netLinesDelta: 1 }], {
+        cwd: workspace,
+      }),
+      [],
+    );
   } finally {
     await rm(workspace, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });

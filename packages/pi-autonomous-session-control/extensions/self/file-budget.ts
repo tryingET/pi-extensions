@@ -9,6 +9,21 @@ export const SELF_FILE_BUDGETS = Object.freeze({
 
 const CODE_EXTENSIONS = [".js", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"];
 const MARKDOWN_EXTENSIONS = [".md", ".mdx"];
+const EXCLUDED_DIRS = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".turbo",
+  ".cache",
+  ".tmp",
+  "tmp",
+  "vendor",
+]);
 const EXCLUDED_SUFFIXES = [".d.ts", ".min.js", ".bundle.js", ".map"];
 
 export interface FileBudgetObservation {
@@ -30,8 +45,9 @@ interface TouchedFileLike {
 
 const toPosix = (value: string) => value.replace(/\\/g, "/");
 
-function fileKind(filePath: string): FileBudgetObservation["kind"] | null {
+export function fileBudgetKindForPath(filePath: string): FileBudgetObservation["kind"] | null {
   const normalized = toPosix(filePath).toLowerCase();
+  if (normalized.split("/").some((segment) => EXCLUDED_DIRS.has(segment))) return null;
   if (EXCLUDED_SUFFIXES.some((suffix) => normalized.endsWith(suffix))) return null;
   if (MARKDOWN_EXTENSIONS.some((extension) => normalized.endsWith(extension))) return "markdown";
   if (!CODE_EXTENSIONS.some((extension) => normalized.endsWith(extension))) return null;
@@ -90,7 +106,7 @@ export function analyzeTouchedFileBudgets(
 ): FileBudgetObservation[] {
   const observations: FileBudgetObservation[] = [];
   for (const file of files) {
-    const kind = fileKind(file.path);
+    const kind = fileBudgetKindForPath(file.path);
     if (!kind) continue;
     const absolutePath = resolveTouchedPath(options.cwd, file.path);
     if (!absolutePath) continue;

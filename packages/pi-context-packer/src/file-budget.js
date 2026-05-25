@@ -9,6 +9,21 @@ export const FILE_BUDGETS = Object.freeze({
 
 const CODE_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"]);
 const MARKDOWN_EXTENSIONS = new Set([".md", ".mdx"]);
+const EXCLUDED_DIRS = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".turbo",
+  ".cache",
+  ".tmp",
+  "tmp",
+  "vendor",
+]);
 const EXCLUDED_SUFFIXES = [".d.ts", ".min.js", ".bundle.js", ".map"];
 
 const toPosix = (value) => value.split(path.sep).join("/");
@@ -20,6 +35,7 @@ function pathIsInside(root, candidate) {
 
 export function fileBudgetKindForPath(relativePath) {
   const normalized = toPosix(relativePath).toLowerCase();
+  if (normalized.split("/").some((segment) => EXCLUDED_DIRS.has(segment))) return null;
   if (EXCLUDED_SUFFIXES.some((suffix) => normalized.endsWith(suffix))) return null;
   const ext = path.extname(normalized).toLowerCase();
   if (MARKDOWN_EXTENSIONS.has(ext)) return "markdown";

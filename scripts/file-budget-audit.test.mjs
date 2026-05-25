@@ -6,7 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { auditFileBudgets } from "./file-budget-audit.mjs";
+import { fileBudgetKindForPath as ascFileBudgetKindForPath } from "../packages/pi-autonomous-session-control/extensions/self/file-budget.ts";
+import { fileBudgetKindForPath as contextFileBudgetKindForPath } from "../packages/pi-context-packer/src/file-budget.js";
+import { auditFileBudgets, classifyFileBudgetPath } from "./file-budget-audit.mjs";
 
 const SCRIPT_PATH = fileURLToPath(new URL("./file-budget-audit.mjs", import.meta.url));
 
@@ -20,6 +22,33 @@ function writeLines(filePath, count) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, Array.from({ length: count }, (_, index) => `line ${index}`).join("\n"), "utf8");
 }
+
+const CLASSIFIER_CASES = [
+  ["src/app.ts", "code"],
+  ["src/app.TSX", "code"],
+  ["docs/guide.md", "markdown"],
+  ["README.MDX", "markdown"],
+  ["tests/app.test.mjs", "test"],
+  ["src/app.SPEC.CTS", "test"],
+  ["src/UPPER.TEST.JS", "test"],
+  ["src/generated.d.ts", null],
+  ["src/GENERATED.D.TS", null],
+  ["src/app.min.js", null],
+  ["src/app.bundle.js", null],
+  ["src/app.js.map", null],
+  ["node_modules/pkg/app.ts", null],
+  ["dist/app.ts", null],
+  ["vendor/pkg/app.ts", null],
+  ["assets/logo.svg", null],
+];
+
+test("file budget classifiers stay in parity across advisory surfaces", () => {
+  for (const [relativePath, expected] of CLASSIFIER_CASES) {
+    assert.equal(classifyFileBudgetPath(relativePath), expected, `root classifier: ${relativePath}`);
+    assert.equal(contextFileBudgetKindForPath(relativePath), expected, `context-packer classifier: ${relativePath}`);
+    assert.equal(ascFileBudgetKindForPath(relativePath), expected, `self classifier: ${relativePath}`);
+  }
+});
 
 test("file budget audit applies defaults by file type", (t) => {
   const root = makeTempDir(t);
