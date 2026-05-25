@@ -105,11 +105,13 @@ export function analyzeTouchedFileBudgets(
   options: { cwd?: string } = {},
 ): FileBudgetObservation[] {
   const observations: FileBudgetObservation[] = [];
+  const root = resolve(options.cwd || process.cwd());
   for (const file of files) {
-    const kind = fileBudgetKindForPath(file.path);
-    if (!kind) continue;
-    const absolutePath = resolveTouchedPath(options.cwd, file.path);
+    const absolutePath = resolveTouchedPath(root, file.path);
     if (!absolutePath) continue;
+    const displayPath = toPosix(relative(root, absolutePath));
+    const kind = fileBudgetKindForPath(displayPath);
+    if (!kind) continue;
 
     try {
       if (lstatSync(absolutePath).isSymbolicLink()) continue;
@@ -121,7 +123,7 @@ export function analyzeTouchedFileBudgets(
       if (lines <= budget.lines && bytes <= budget.bytes) continue;
       const growing = file.netLinesDelta > 0;
       observations.push({
-        path: file.path,
+        path: displayPath,
         kind,
         lines,
         bytes,
@@ -129,7 +131,7 @@ export function analyzeTouchedFileBudgets(
         maxBytes: budget.bytes,
         netLinesDelta: file.netLinesDelta,
         growing,
-        advisory: `${file.path} exceeds ${kind} budget (${lines}/${budget.lines} LOC, ${bytes}/${budget.bytes} bytes)${growing ? " and grew this session" : ""}; mirror-only cue: split, range-limit future reads, or record an explicit exception before closeout.`,
+        advisory: `${displayPath} exceeds ${kind} budget (${lines}/${budget.lines} LOC, ${bytes}/${budget.bytes} bytes)${growing ? " and grew this session" : ""}; mirror-only cue: split, range-limit future reads, or record an explicit exception before closeout.`,
       });
     } catch {
       // Mirror-only cue: ignore files that cannot be inspected from this runtime cwd.

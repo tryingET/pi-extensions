@@ -107,6 +107,26 @@ test("self query: files touched includes mirror-only file budget cues", async ()
   }
 });
 
+test("self file-budget cues classify absolute in-cwd paths relative to cwd", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "self-file-budget-absolute-"));
+
+  try {
+    await mkdir(join(workspace, "src"), { recursive: true });
+    const absolutePath = join(workspace, "src", "large.ts");
+    await writeFile(absolutePath, `${"x\n".repeat(501)}`, "utf8");
+
+    const observations = analyzeTouchedFileBudgets([{ path: absolutePath, netLinesDelta: 1 }], {
+      cwd: workspace,
+    });
+
+    assert.equal(observations.length, 1);
+    assert.equal(observations[0].path, "src/large.ts");
+    assert.equal(observations[0].kind, "code");
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("self file-budget cues ignore touched paths outside cwd", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "self-file-budget-workspace-"));
   const outside = await mkdtemp(join(tmpdir(), "self-file-budget-outside-"));
