@@ -52,6 +52,7 @@
     "src/capabilityManifest.ts",
     "src/toolboxBundle.ts",
     "src/visibleLoop.ts",
+    "src/visibleLoopPromptTemplates.ts",
     "prompts",
     "examples",
     "policy/security-policy.json",

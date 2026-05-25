@@ -1,150 +1,27 @@
 import { randomUUID } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import {
+  DEFAULT_VISIBLE_LOOP_PROMPTS,
+  expandVisibleLoopPromptTemplate,
+  renderVisibleLoopCompletionPrompt,
+  type VisibleLoopPromptExpansion,
+} from "./visibleLoopPromptTemplates.ts";
+
+export {
+  DEFAULT_NEXUS_LOOP_PROMPTS,
+  DEFAULT_VISIBLE_LOOP_PROMPTS,
+  listMissingVisibleLoopPromptTemplates,
+  type VisibleLoopPromptExpansion,
+} from "./visibleLoopPromptTemplates.ts";
 
 export const VISIBLE_LOOP_COMMAND = "visible-loop";
 export const NEXUS_LOOP_COMMAND = "nexus-loop";
 export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
 export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete";
-
-const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
-  "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
-  "1) Select the single best-matching template for this task.",
-  "- `vault_query(..., include_content:false)`",
-  "2) Retrieve that template's full content.",
-  "- `vault_retrieve(..., include_content:true)`",
-  "3) Before executing it, check dispatch posture.",
-  '- `vault_dispatch_check({ template_names: ["<name>"] })`',
-  "- If posture is `text_ok`, execute it as written.",
-  "- If posture requires orchestrator dispatch/gating, use that binding; do not bypass the gate with text-only interpretation.",
-  "4) Execution means: inspect the current repo/state, apply the needed bounded fixes, run verification, and only then report. Do not stop after retrieving the template, quoting it, or filling its output format with a plan.",
-  "5) If the template has an OUTPUT FORMAT, follow it exactly for the final answer, but make the fields reflect actual work performed, explicit deferrals, or hard blockers.",
-  "6) Do not reference unretrieved frameworks.",
-  "7) If vault is unavailable, continue best-effort and say so.",
-  "Use as many frameworks as necessary, and as few as possible.",
-  "Grounding (one line at end):",
-  "`grounding: template=<name>, vault_status=<ok|unavailable>`",
-].join("\n");
-
-const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
-  "Update @docs/project/product-posture.md before loop completion.",
-  "",
-  "Use the actual implementation, validation, docs, and bugfixes from this iteration.",
-  "Treat product-posture as the next-iteration frontier map, not a changelog.",
-  "",
-  "Make the smallest truthful update that records:",
-  "- what product maturity changed;",
-  "- what proof/validation now exists;",
-  "- what main gap remains;",
-  "- any authority/provenance/source-owner boundary that became clearer;",
-  "- what the next highest-leverage slice should understand before choosing work.",
-  "",
-  "If product-posture cannot be updated truthfully, stop and report the blocker.",
-  "Do not send/allow the visible-loop completion signal until this posture refresh is done.",
-  "Do not commit yet.",
-].join("\n");
-
-export const DEFAULT_NEXUS_LOOP_PROMPTS = [
-  "/deep-review",
-  "proceed with nexus implementation until completion and verification",
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
-  "/commit",
-] as const;
-
-export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
-  [
-    "read @docs/project/vision.md and @docs/project/product-posture.md.",
-    "",
-    "From current repo state, identify the next highest-impact slice.",
-    "Treat the apparent slice as a hypothesis until discovery confirms it.",
-    "Reason from first principles and consider multi-order effects.",
-    "",
-    "Before implementation, produce a compact design membrane:",
-    "",
-    "1. CURRENT STATE",
-    "- What exists now?",
-    "- What is broken, missing, stale, misleading, or under-proven?",
-    "- What evidence from files/tests/docs supports that?",
-    "",
-    "2. RECONSTRUCTED OBJECTIVE",
-    "- What should actually be improved?",
-    "- Why is this the highest-leverage next move?",
-    "- What would done mean in observable terms?",
-    "",
-    "3. OWNER / AUTHORITY BOUNDARIES",
-    "- What does this package/repo own?",
-    "- What must remain external?",
-    "- What would authority drift look like?",
-    "",
-    "4. DOMAIN / DATA / STATE MODEL",
-    "- What are the core entities and lifecycle states?",
-    "- What inputs, outputs, files, DBs, tools, subprocesses, or generated artifacts are involved?",
-    "- What is canonical truth vs projection/cache/receipt/packet?",
-    "",
-    "5. TRUST / SECURITY MODEL",
-    "- Which inputs are caller-controlled or untrusted?",
-    "- What paths/processes/network/DBs can be read or written?",
-    "- What path escape, symlink, TOCTOU, size/time, permission, stale-state, injection, or secret-leak risks exist?",
-    "- What must be redacted?",
-    "- What must fail closed?",
-    "",
-    "6. UX / AX / DX CONTRACT",
-    "- What should the operator see?",
-    "- What should the agent see?",
-    "- What wording could imply false authority, false provenance, or false completion?",
-    "- What exact next actions should be obvious?",
-    "",
-    "7. FAILURE / ROLLBACK MODEL",
-    "- What partial writes or artifacts can occur?",
-    "- How are failures surfaced?",
-    "- How is the change reverted?",
-    "- What is the point of no return?",
-    "",
-    "8. ADVERSARIAL TEST PLAN",
-    "- Name the negative/adversarial tests required before done.",
-    "- Include malicious input, missing/stale state, wrong owner surface, path escape, symlink/TOCTOU, huge input, permission failure, misleading provenance, and rollback/partial-write cases when relevant.",
-    "",
-    "Do not implement until the design membrane is explicit.",
-    "",
-    "Then implement the bounded complete change that satisfies the membrane.",
-    "Do not optimize for smallest diff. Optimize for bounded completeness:",
-    "- broad enough to satisfy the design membrane;",
-    "- narrow enough to avoid unrelated ownership drift;",
-    "- complete enough that known bugs/gaps are not left to later;",
-    "- structural enough to remove root causes when patching symptoms would compound debt.",
-    "",
-    "Verify with normal tests, adversarial/negative tests from the membrane, docs/artifact checks if behavior changed, and dogfooding where relevant.",
-    "",
-    "Proceed until completed and validated.",
-  ].join("\n"),
-  "proceed",
-  "proceed",
-  "proceed",
-  "/deep-review",
-  "proceed with nexus implementation until completion and verification",
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
-  DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
-  "/commit",
-] as const;
 
 export type VisibleLoopReportBack = "intercom" | "manual" | "none";
 
@@ -168,18 +45,6 @@ export interface VisibleLoopCommitDelegation {
 
 type SendUserMessageOptions = { deliverAs?: "followUp" | "steer" };
 type SendUserMessage = (message: string, options?: SendUserMessageOptions) => void;
-
-interface VisibleLoopPromptTemplate {
-  name: string;
-  content: string;
-}
-
-interface VisibleLoopPromptExpansion {
-  ok: boolean;
-  prompt: string;
-  templateName?: string;
-  error?: string;
-}
 
 export type ContinueVisibleLoopInNewSession = (input: {
   config: VisibleLoopRunConfig;
@@ -883,39 +748,6 @@ function renderForkPeerCommitDelegationPrompt(input: {
   ].join("\n");
 }
 
-function renderVisibleLoopCompletionPrompt(input: {
-  configPath: string;
-  iteration: number;
-  promptCount: number;
-}): string {
-  return [
-    "Visible-loop internal completion checkpoint.",
-    "All real prompts for this iteration have now been delivered as prior follow-up turns.",
-    "Do not do new implementation, review, or planning work in this checkpoint turn.",
-    "If and only if the immediately previous real prompt turn is complete, call the `visible_loop_child_complete` tool with exactly:",
-    `- configPath: ${JSON.stringify(input.configPath)}`,
-    `- iteration: ${input.iteration}`,
-    "Do not call the tool before the previous prompt turn is complete.",
-    "Do not call the tool if any configured product-posture refresh or /commit prompt failed, stopped for clarification, or left validation/commit incomplete.",
-    `Context: this checkpoint follows ${input.promptCount} real prompt(s) in the current visible-loop iteration.`,
-  ].join("\n");
-}
-
-function expandVisibleLoopPromptTemplate(prompt: string, cwd: string): VisibleLoopPromptExpansion {
-  const templateName = getVisibleLoopSlashTemplateName(prompt);
-  if (!templateName) return { ok: true, prompt };
-  const resolved = resolveVisibleLoopPromptTemplate(prompt, cwd);
-  if (!resolved) {
-    return {
-      ok: false,
-      prompt,
-      templateName,
-      error: `prompt template /${templateName} is not available to visible-loop expansion`,
-    };
-  }
-  return { ok: true, prompt: resolved.content, templateName: resolved.name };
-}
-
 function stopVisibleLoopForPromptExpansionFailure(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext | undefined,
@@ -940,134 +772,6 @@ function stopVisibleLoopForPromptExpansionFailure(
     env,
   );
   ctx?.ui?.notify?.(`visible-loop stopped: ${detail}`, "error");
-}
-
-export function listMissingVisibleLoopPromptTemplates(
-  prompts: readonly string[],
-  cwd: string,
-): string[] {
-  const templates = loadVisibleLoopPromptTemplates(cwd);
-  const templateNames = new Set(templates.map((template) => template.name));
-  return uniqueStrings(
-    prompts
-      .map((prompt) => getVisibleLoopSlashTemplateName(prompt))
-      .filter((name): name is string => name !== null)
-      .filter((name) => !templateNames.has(name)),
-  );
-}
-
-function resolveVisibleLoopPromptTemplate(
-  prompt: string,
-  cwd: string,
-): { name: string; content: string } | null {
-  const templateName = getVisibleLoopSlashTemplateName(prompt);
-  if (!templateName) return null;
-  const templates = loadVisibleLoopPromptTemplates(cwd);
-  if (templates.length === 0) return null;
-
-  const spaceIndex = prompt.indexOf(" ");
-  const argsString = spaceIndex === -1 ? "" : prompt.slice(spaceIndex + 1);
-  const template = templates.find((candidate) => candidate.name === templateName);
-  if (!template) return null;
-
-  return {
-    name: template.name,
-    content: substituteVisibleLoopPromptArgs(
-      template.content,
-      parseVisibleLoopPromptArgs(argsString),
-    ),
-  };
-}
-
-function getVisibleLoopSlashTemplateName(prompt: string): string | null {
-  if (!prompt.startsWith("/")) return null;
-  const spaceIndex = prompt.indexOf(" ");
-  const templateName = spaceIndex === -1 ? prompt.slice(1) : prompt.slice(1, spaceIndex);
-  return templateName.trim() || null;
-}
-
-function loadVisibleLoopPromptTemplates(cwd: string): VisibleLoopPromptTemplate[] {
-  // Extension-originated pi.sendUserMessage deliberately bypasses Pi command handling and
-  // prompt-template expansion. The public extension API does not expose the active package,
-  // settings, or CLI prompt-template list, so visible-loop performs the safe subset it can
-  // resolve itself: the default project and global prompt directories documented by Pi.
-  // Unresolved slash templates fail closed instead of being sent as misleading literal text.
-  const dirs = [join(cwd, ".pi", "prompts"), join(homedir(), ".pi", "agent", "prompts")];
-  const templates: VisibleLoopPromptTemplate[] = [];
-  const seen = new Set<string>();
-  for (const dir of dirs) {
-    try {
-      for (const entry of readdirSync(dir)) {
-        if (!entry.endsWith(".md")) continue;
-        const name = entry.replace(/\.md$/, "");
-        if (seen.has(name)) continue;
-        const path = join(dir, entry);
-        const stats = statSync(path);
-        if (!stats.isFile()) continue;
-        seen.add(name);
-        templates.push({
-          name,
-          content: stripVisibleLoopFrontmatter(readFileSync(path, "utf8")).trim(),
-        });
-      }
-    } catch {
-      // Prompt expansion is best-effort for ordinary visible-loop prompts.
-    }
-  }
-  return templates;
-}
-
-function uniqueStrings(values: readonly string[]): string[] {
-  return [...new Set(values)];
-}
-
-function stripVisibleLoopFrontmatter(content: string): string {
-  if (!content.startsWith("---\n")) return content;
-  const end = content.indexOf("\n---\n", 4);
-  return end === -1 ? content : content.slice(end + "\n---\n".length);
-}
-
-function parseVisibleLoopPromptArgs(argsString: string): string[] {
-  const args: string[] = [];
-  let current = "";
-  let quote: '"' | "'" | null = null;
-
-  for (const char of argsString) {
-    if (quote) {
-      if (char === quote) quote = null;
-      else current += char;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (/\s/.test(char)) {
-      if (current) {
-        args.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += char;
-  }
-
-  if (current) args.push(current);
-  return args;
-}
-
-function substituteVisibleLoopPromptArgs(content: string, args: string[]): string {
-  let result = content;
-  result = result.replace(/\$(\d+)/g, (_, num) => args[Number.parseInt(num, 10) - 1] ?? "");
-  result = result.replace(/\$\{@:(\d+)(?::(\d+))?\}/g, (_, startStr, lengthStr) => {
-    const start = Math.max(0, Number.parseInt(startStr, 10) - 1);
-    if (lengthStr) return args.slice(start, start + Number.parseInt(lengthStr, 10)).join(" ");
-    return args.slice(start).join(" ");
-  });
-  const allArgs = args.join(" ");
-  result = result.replace(/\$ARGUMENTS/g, allArgs);
-  result = result.replace(/\$@/g, allArgs);
-  return result;
 }
 
 function completeVisibleLoopIteration(
