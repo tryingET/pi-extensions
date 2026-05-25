@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, statSync } from "node:fs";
+import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 
 export const FILE_BUDGETS = Object.freeze({
@@ -19,7 +19,7 @@ function pathIsInside(root, candidate) {
 }
 
 export function fileBudgetKindForPath(relativePath) {
-  const normalized = toPosix(relativePath);
+  const normalized = toPosix(relativePath).toLowerCase();
   if (EXCLUDED_SUFFIXES.some((suffix) => normalized.endsWith(suffix))) return null;
   const ext = path.extname(normalized).toLowerCase();
   if (MARKDOWN_EXTENSIONS.has(ext)) return "markdown";
@@ -36,11 +36,29 @@ export function fileBudgetKindForPath(relativePath) {
   return "code";
 }
 
-function lineCount(buffer) {
-  if (buffer.length === 0) return 0;
-  let lines = 1;
-  for (const byte of buffer) if (byte === 10) lines += 1;
-  return buffer.at(-1) === 10 ? lines - 1 : lines;
+function lineCountFile(filePath) {
+  const fd = openSync(filePath, "r");
+  const buffer = Buffer.allocUnsafe(64 * 1024);
+  let bytesReadTotal = 0;
+  let lines = 0;
+  let lastByte;
+
+  try {
+    while (true) {
+      const bytesRead = readSync(fd, buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+      bytesReadTotal += bytesRead;
+      lastByte = buffer[bytesRead - 1];
+      for (let index = 0; index < bytesRead; index += 1) {
+        if (buffer[index] === 10) lines += 1;
+      }
+    }
+  } finally {
+    closeSync(fd);
+  }
+
+  if (bytesReadTotal === 0) return 0;
+  return lastByte === 10 ? lines : lines + 1;
 }
 
 export function analyzeFileBudgetForPath({ displayPath, absolutePath }) {
@@ -53,7 +71,7 @@ export function analyzeFileBudgetForPath({ displayPath, absolutePath }) {
     const stats = statSync(absolutePath);
     if (!stats.isFile()) return null;
     const bytes = stats.size;
-    const lines = lineCount(readFileSync(absolutePath));
+    const lines = lineCountFile(absolutePath);
     if (lines <= budget.lines && bytes <= budget.bytes) return null;
     return {
       path: toPosix(displayPath),

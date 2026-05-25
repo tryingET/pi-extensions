@@ -104,6 +104,7 @@ test("context_plan reports file-budget retrieval risks by file type", async () =
   await mkdir(join(repo, "tests"), { recursive: true });
   await mkdir(join(repo, "docs"), { recursive: true });
   await writeFile(join(repo, "src", "large.ts"), `${"x\n".repeat(501)}`, "utf8");
+  await writeFile(join(repo, "src", "UPPER.TEST.JS"), `${"x\n".repeat(501)}`, "utf8");
   await writeFile(join(repo, "tests", "large.test.js"), `${"x\n".repeat(1001)}`, "utf8");
   await writeFile(join(repo, "docs", "large.md"), `${"x\n".repeat(801)}`, "utf8");
 
@@ -114,6 +115,7 @@ test("context_plan reports file-budget retrieval risks by file type", async () =
       repoRoot: repo,
       seeds: [
         { kind: "path", value: "src/large.ts" },
+        { kind: "path", value: "src/UPPER.TEST.JS" },
         { kind: "path", value: "tests/large.test.js" },
         { kind: "path", value: "docs/large.md" },
       ],
@@ -127,6 +129,7 @@ test("context_plan reports file-budget retrieval risks by file type", async () =
   assert.ok(budgetRisks.some((risk) => risk.message.includes("src/large.ts exceeds code")));
   assert.ok(budgetRisks.some((risk) => risk.message.includes("tests/large.test.js exceeds test")));
   assert.ok(budgetRisks.some((risk) => risk.message.includes("docs/large.md exceeds markdown")));
+  assert.ok(!budgetRisks.some((risk) => risk.message.includes("src/UPPER.TEST.JS")));
   assert.match(formatContextPlan(plan), /prefer range\/symbol selection/);
 });
 

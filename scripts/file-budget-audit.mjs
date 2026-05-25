@@ -89,14 +89,15 @@ function normalizeRelative(filePath) {
 }
 
 function isExcludedFile(filePath) {
-  return EXCLUDED_FILE_SUFFIXES.some((suffix) => filePath.endsWith(suffix));
+  const normalized = filePath.toLowerCase();
+  return EXCLUDED_FILE_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
 }
 
 function classifyFile(relativePath) {
   const ext = path.extname(relativePath).toLowerCase();
   if (MARKDOWN_EXTENSIONS.has(ext)) return "markdown";
   if (!CODE_EXTENSIONS.has(ext)) return null;
-  const normalized = normalizeRelative(relativePath);
+  const normalized = normalizeRelative(relativePath).toLowerCase();
   const base = path.basename(normalized);
   if (
     normalized.includes("/tests/") ||
@@ -109,14 +110,29 @@ function classifyFile(relativePath) {
   return "code";
 }
 
-function lineCount(buffer) {
-  if (buffer.length === 0) return 0;
-  let lines = 1;
-  for (const byte of buffer) {
-    if (byte === 10) lines += 1;
+function lineCountFile(filePath) {
+  const fd = fs.openSync(filePath, "r");
+  const buffer = Buffer.allocUnsafe(64 * 1024);
+  let bytesReadTotal = 0;
+  let lines = 0;
+  let lastByte;
+
+  try {
+    while (true) {
+      const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+      bytesReadTotal += bytesRead;
+      lastByte = buffer[bytesRead - 1];
+      for (let index = 0; index < bytesRead; index += 1) {
+        if (buffer[index] === 10) lines += 1;
+      }
+    }
+  } finally {
+    fs.closeSync(fd);
   }
-  if (buffer.at(-1) === 10) lines -= 1;
-  return lines;
+
+  if (bytesReadTotal === 0) return 0;
+  return lastByte === 10 ? lines : lines + 1;
 }
 
 function collectFiles(root) {
@@ -146,6 +162,10 @@ function collectFiles(root) {
 
 export function auditFileBudgets(input = {}) {
   const root = path.resolve(input.root ?? process.cwd());
+  const rootStats = fs.statSync(root);
+  if (!rootStats.isDirectory()) {
+    throw new Error(`file-budget root is not a directory: ${root}`);
+  }
   const thresholds = input.thresholds ?? DEFAULT_THRESHOLDS;
   const violations = [];
 
@@ -157,15 +177,14 @@ export function auditFileBudgets(input = {}) {
     if (!budget) continue;
 
     let stats;
-    let content;
+    let lines;
     try {
       stats = fs.statSync(filePath);
-      content = fs.readFileSync(filePath);
+      lines = lineCountFile(filePath);
     } catch {
       continue;
     }
 
-    const lines = lineCount(content);
     const bytes = stats.size;
     if (lines <= budget.lines && bytes <= budget.bytes) continue;
     violations.push({
@@ -212,10 +231,14 @@ function printReport(result, { maxWarnings, warnOnly }) {
   }
   const hidden = result.violations.length - shown.length;
   if (hidden > 0) {
-    console.error(`file-budget: ... ${hidden} more over-budget file(s) omitted; rerun with --max-warnings 0 for summary-only or a larger value for detail`);
+    console.error(
+      `file-budget: ... ${hidden} more over-budget file(s) omitted; rerun with --max-warnings 0 for summary-only or a larger value for detail`,
+    );
   }
   console.error(
-    "file-budget: current posture is warn-only; split touched/growing oversized files or record an explicit exception before ratcheting to hard fail",
+    warnOnly
+      ? "file-budget: current posture is warn-only; split touched/growing oversized files or record an explicit exception before ratcheting to hard fail"
+      : "file-budget: hard-fail posture is active; split oversized files or record an explicit owner-scoped exception before retrying",
   );
 }
 

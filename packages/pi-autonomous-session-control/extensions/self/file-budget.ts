@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, statSync } from "node:fs";
+import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
 export const SELF_FILE_BUDGETS = Object.freeze({
@@ -47,11 +47,29 @@ function fileKind(filePath: string): FileBudgetObservation["kind"] | null {
   return "code";
 }
 
-function lineCount(content: Buffer): number {
-  if (content.length === 0) return 0;
-  let lines = 1;
-  for (const byte of content) if (byte === 10) lines += 1;
-  return content.at(-1) === 10 ? lines - 1 : lines;
+function lineCountFile(filePath: string): number {
+  const fd = openSync(filePath, "r");
+  const buffer = Buffer.allocUnsafe(64 * 1024);
+  let bytesReadTotal = 0;
+  let lines = 0;
+  let lastByte: number | undefined;
+
+  try {
+    while (true) {
+      const bytesRead = readSync(fd, buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+      bytesReadTotal += bytesRead;
+      lastByte = buffer[bytesRead - 1];
+      for (let index = 0; index < bytesRead; index += 1) {
+        if (buffer[index] === 10) lines += 1;
+      }
+    }
+  } finally {
+    closeSync(fd);
+  }
+
+  if (bytesReadTotal === 0) return 0;
+  return lastByte === 10 ? lines : lines + 1;
 }
 
 function resolveTouchedPath(cwd: string | undefined, filePath: string): string | null {
@@ -75,7 +93,7 @@ export function analyzeTouchedFileBudgets(
       if (lstatSync(absolutePath).isSymbolicLink()) continue;
       const stats = statSync(absolutePath);
       if (!stats.isFile()) continue;
-      const lines = lineCount(readFileSync(absolutePath));
+      const lines = lineCountFile(absolutePath);
       const bytes = stats.size;
       const budget = SELF_FILE_BUDGETS[kind];
       if (lines <= budget.lines && bytes <= budget.bytes) continue;
