@@ -1,30 +1,53 @@
 import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 
-export const FILE_BUDGETS = Object.freeze({
-  code: Object.freeze({ lines: 500, bytes: 50 * 1024 }),
-  test: Object.freeze({ lines: 1000, bytes: 80 * 1024 }),
-  markdown: Object.freeze({ lines: 800, bytes: 60 * 1024 }),
+export const FILE_BUDGET_POLICY = Object.freeze({
+  boundary: "package-local-runtime-copy/root-parity-test",
+  budgets: Object.freeze({
+    code: Object.freeze({ lines: 500, bytes: 50 * 1024 }),
+    test: Object.freeze({ lines: 1000, bytes: 80 * 1024 }),
+    markdown: Object.freeze({ lines: 800, bytes: 60 * 1024 }),
+  }),
+  codeExtensions: Object.freeze([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"]),
+  markdownExtensions: Object.freeze([".md", ".mdx"]),
+  excludedDirs: Object.freeze([
+    ".git",
+    ".hg",
+    ".svn",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".turbo",
+    ".cache",
+    ".tmp",
+    "tmp",
+    "vendor",
+  ]),
+  excludedFileSuffixes: Object.freeze([
+    ".d.ts",
+    ".min.js",
+    ".bundle.js",
+    ".map",
+    ".tgz",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".lock",
+  ]),
 });
 
-const CODE_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"]);
-const MARKDOWN_EXTENSIONS = new Set([".md", ".mdx"]);
-const EXCLUDED_DIRS = new Set([
-  ".git",
-  ".hg",
-  ".svn",
-  "node_modules",
-  "dist",
-  "build",
-  "coverage",
-  ".next",
-  ".turbo",
-  ".cache",
-  ".tmp",
-  "tmp",
-  "vendor",
-]);
-const EXCLUDED_SUFFIXES = [".d.ts", ".min.js", ".bundle.js", ".map"];
+export const FILE_BUDGETS = FILE_BUDGET_POLICY.budgets;
+
+const CODE_EXTENSIONS = new Set(FILE_BUDGET_POLICY.codeExtensions);
+const MARKDOWN_EXTENSIONS = new Set(FILE_BUDGET_POLICY.markdownExtensions);
+const EXCLUDED_DIRS = new Set(FILE_BUDGET_POLICY.excludedDirs);
+const EXCLUDED_SUFFIXES = FILE_BUDGET_POLICY.excludedFileSuffixes;
 
 const toPosix = (value) => value.split(path.sep).join("/");
 

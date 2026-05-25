@@ -6,9 +6,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { fileBudgetKindForPath as ascFileBudgetKindForPath } from "../packages/pi-autonomous-session-control/extensions/self/file-budget.ts";
-import { fileBudgetKindForPath as contextFileBudgetKindForPath } from "../packages/pi-context-packer/src/file-budget.js";
-import { auditFileBudgets, classifyFileBudgetPath } from "./file-budget-audit.mjs";
+import {
+  FILE_BUDGET_POLICY as ascFileBudgetPolicy,
+  fileBudgetKindForPath as ascFileBudgetKindForPath,
+} from "../packages/pi-autonomous-session-control/extensions/self/file-budget.ts";
+import {
+  FILE_BUDGET_POLICY as contextFileBudgetPolicy,
+  fileBudgetKindForPath as contextFileBudgetKindForPath,
+} from "../packages/pi-context-packer/src/file-budget.js";
+import { auditFileBudgets, classifyFileBudgetPath, FILE_BUDGET_POLICY } from "./file-budget-audit.mjs";
 
 const SCRIPT_PATH = fileURLToPath(new URL("./file-budget-audit.mjs", import.meta.url));
 
@@ -43,6 +49,12 @@ const CLASSIFIER_CASES = [
   ["vendor/pkg/app.ts", null],
   ["assets/logo.svg", null],
 ];
+
+test("file budget policy boundary stays package-local with root parity coverage", () => {
+  assert.equal(FILE_BUDGET_POLICY.boundary, "package-local-runtime-copy/root-parity-test");
+  assert.deepEqual(contextFileBudgetPolicy, FILE_BUDGET_POLICY);
+  assert.deepEqual(ascFileBudgetPolicy, FILE_BUDGET_POLICY);
+});
 
 test("file budget classifiers stay in parity across advisory surfaces", () => {
   for (const [relativePath, expected] of CLASSIFIER_CASES) {
