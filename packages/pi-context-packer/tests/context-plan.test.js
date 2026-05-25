@@ -242,7 +242,15 @@ test("context_plan omits unsafe caller-controlled path and symbol seeds from pro
   );
   assert.equal(
     plan.risks.filter((risk) => risk.kind === "path" && risk.severity === "blocked").length,
-    11,
+    6,
+  );
+  assert.ok(
+    plan.risks.some(
+      (risk) =>
+        risk.kind === "path" &&
+        risk.message.includes("URI or drive-letter") &&
+        risk.message.includes("3 seeds"),
+    ),
   );
   assert.equal(
     plan.risks.filter((risk) => risk.kind === "seed" && risk.severity === "blocked").length,
@@ -363,6 +371,36 @@ test("context_plan accepts a git repoRoot ancestor of the trusted package cwd", 
   assert.equal(plan.repoRoot, root);
   assert.equal(
     plan.risks.some((risk) => risk.message.includes("repoRoot omitted")),
+    false,
+  );
+});
+
+test("context_plan normalizes trusted absolute path seeds to repo-relative queries", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-context-plan-absolute-seed-"));
+  const packageCwd = join(root, "packages", "pkg");
+  const sourcePath = join(packageCwd, "src", "index.ts");
+  await writeGitMarker(root);
+  await mkdir(join(packageCwd, "src"), { recursive: true });
+  await writeFile(sourcePath, "export const value = 1;\n", "utf8");
+
+  const plan = buildContextPlan(
+    {
+      objective: "Plan implementation context",
+      cwd: packageCwd,
+      repoRoot: root,
+      seeds: [{ kind: "path", value: sourcePath }],
+    },
+    { cwd: packageCwd },
+  );
+
+  const sciPlan = plan.providerPlans.find((providerPlan) => providerPlan.provider === "sci");
+  assert.equal(plan.ok, true);
+  assert.equal(plan.omittedSeeds, undefined);
+  assert.deepEqual(sciPlan.proposedQueries[0].seeds, [
+    { kind: "path", value: "packages/pkg/src/index.ts" },
+  ]);
+  assert.equal(
+    plan.risks.some((risk) => risk.message.includes("absolute/home-relative path seed omitted")),
     false,
   );
 });

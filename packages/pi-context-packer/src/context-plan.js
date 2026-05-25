@@ -354,6 +354,21 @@ const pathExists = (value) => {
   }
 };
 
+const toPosixPath = (value) => value.split(path.sep).join("/");
+
+const normalizePathSeedDomains = ({ seeds, cwd, repoRoot }) => {
+  const workspaceRoot = repoRoot && path.isAbsolute(repoRoot) ? repoRoot : cwd;
+  if (!path.isAbsolute(workspaceRoot)) return seeds;
+
+  return seeds.map((seed) => {
+    if (seed.kind !== "path" || !path.isAbsolute(seed.value)) return seed;
+    const absoluteSeed = path.resolve(seed.value);
+    if (!pathIsInside(workspaceRoot, absoluteSeed)) return seed;
+    const relativeSeed = toPosixPath(path.relative(workspaceRoot, absoluteSeed));
+    return relativeSeed ? { ...seed, value: relativeSeed } : seed;
+  });
+};
+
 const rebasePathSeedsToRepoRoot = ({ seeds, cwd, repoRoot }) => {
   if (
     !repoRoot ||
@@ -557,11 +572,26 @@ const buildRisks = ({
   const risks = [...workspaceRisks];
   const selectedCount = providerPlans.filter((plan) => plan.posture === "selected").length;
 
+  const omittedSeedRiskCounts = new Map();
   for (const omittedSeed of omittedSeeds) {
-    risks.push({
+    const key = JSON.stringify({
       kind: omittedSeed.kind === "path" ? "path" : "seed",
+      reason: omittedSeed.reason,
+    });
+    const current = omittedSeedRiskCounts.get(key);
+    omittedSeedRiskCounts.set(key, {
+      kind: omittedSeed.kind === "path" ? "path" : "seed",
+      reason: omittedSeed.reason,
+      count: (current?.count ?? 0) + 1,
+    });
+  }
+
+  for (const omittedSeedRisk of omittedSeedRiskCounts.values()) {
+    const countSuffix = omittedSeedRisk.count > 1 ? ` (${omittedSeedRisk.count} seeds)` : "";
+    risks.push({
+      kind: omittedSeedRisk.kind,
       severity: "blocked",
-      message: `${omittedSeed.reason}; provider queries exclude the unsafe caller-controlled seed`,
+      message: `${omittedSeedRisk.reason}${countSuffix}; provider queries exclude unsafe caller-controlled seed(s)`,
     });
   }
 
@@ -623,8 +653,9 @@ export const buildContextPlan = (input = {}, env = {}) => {
   const { cwd, repoRoot, risks: workspaceRisks } = normalizeWorkspace(raw, env);
   const budget = normalizeBudget(raw.budget);
   const { seeds, omittedSeeds: intakeOmittedSeeds } = normalizeSeeds(raw.seeds);
+  const domainNormalizedSeeds = normalizePathSeedDomains({ seeds, cwd, repoRoot });
   const { safeSeeds: partitionedSafeSeeds, omittedSeeds: safetyOmittedSeeds } =
-    partitionSeeds(seeds);
+    partitionSeeds(domainNormalizedSeeds);
   const safeSeeds = rebasePathSeedsToRepoRoot({
     seeds: partitionedSafeSeeds,
     cwd,
