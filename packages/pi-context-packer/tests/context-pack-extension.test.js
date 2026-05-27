@@ -9,12 +9,29 @@ import contextPackerExtension from "../extensions/context-pack.ts";
 const createHarness = () => {
   const commands = new Map();
   const tools = new Map();
+  const sourceInfo = {
+    path: "/test/context-pack.ts",
+    source: "extension",
+    scope: "temporary",
+    origin: "test",
+  };
   const pi = {
     registerCommand(name, definition) {
-      commands.set(name, definition);
+      commands.set(name, { name, source: "extension", sourceInfo, ...definition });
     },
     registerTool(definition) {
       tools.set(definition.name, definition);
+    },
+    getAllTools() {
+      return [...tools.values()].map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+        sourceInfo,
+      }));
+    },
+    getCommands() {
+      return [...commands.values()];
     },
   };
   contextPackerExtension(pi);
@@ -25,6 +42,7 @@ test("context-packer extension registers command and all model-callable tools", 
   const { commands, tools } = createHarness();
 
   assert.equal(commands.has("context-pack"), true);
+  assert.equal(commands.has("context-packer-release-smoke"), true);
   assert.deepEqual(
     [...tools.keys()],
     ["context_plan", "context_pack", "context_dogfood_evaluate", "context_dogfood_summarize"],
@@ -72,6 +90,10 @@ test("context-packer extension registers command and all model-callable tools", 
   assert.match(result.content[0].text, /Activity type: validation/);
   assert.match(result.content[0].text, /Validation commands run: 0/);
   assert.equal(result.details.dogfoodObservationEvaluation.status, "matched");
+  assert.equal(
+    result.details.runtimeContract.registeredToolContract,
+    "context-packer-registered-tools-v1",
+  );
 
   const aggregate = await tools.get("context_dogfood_summarize").execute("tool-call-2", {
     evaluations: [result.details.dogfoodObservationEvaluation],
@@ -79,6 +101,10 @@ test("context-packer extension registers command and all model-callable tools", 
 
   assert.match(aggregate.content[0].text, /Context-pack dogfood aggregate evaluation/);
   assert.equal(aggregate.details.dogfoodAggregateEvaluation.validReceiptCount, 1);
+  assert.equal(
+    aggregate.details.runtimeContract.registeredToolContract,
+    "context-packer-registered-tools-v1",
+  );
   assert.equal(
     aggregate.details.dogfoodAggregateEvaluation.totals.validationCommandsRecordedCount,
     1,
@@ -88,6 +114,18 @@ test("context-packer extension registers command and all model-callable tools", 
     0,
   );
   assert.equal(aggregate.details.dogfoodAggregateEvaluation.activityTypeCounts.validation, 1);
+});
+
+test("context-packer release smoke command executes registered tool closures", async () => {
+  const { commands } = createHarness();
+  const command = commands.get("context-packer-release-smoke");
+
+  await command.handler("", {
+    cwd: process.cwd(),
+    hasUI: false,
+    getSystemPrompt: () => "",
+    getContextUsage: () => ({ usedTokens: 0, maxTokens: 100000 }),
+  });
 });
 
 test("context_plan extension returns compact redacted details", async () => {
@@ -124,6 +162,11 @@ test("context_plan extension returns compact redacted details", async () => {
   assert.equal(result.details.objective, undefined);
   assert.equal(result.details.cwd, undefined);
   assert.equal(result.details.repoRoot, undefined);
+  assert.equal(
+    result.details.runtimeContract.registeredToolContract,
+    "context-packer-registered-tools-v1",
+  );
+  assert.equal(result.details.runtimeContract.requiresCompactContextPlanDetails, true);
   assert.equal(result.details.redaction.rawObjectiveOmitted, true);
   assert.equal(result.details.redaction.rawQueriesOmitted, true);
   assert.equal(result.details.redaction.rawSeedsOmitted, true);
@@ -175,6 +218,10 @@ test("context_pack extension passes trusted SCI read-only env only from host con
     );
     assert.equal(blocked.details.omissions[0].detailOmitted, true);
     assert.equal(blocked.details.redaction.rawOmissionDetailsOmitted, true);
+    assert.equal(
+      blocked.details.runtimeContract.registeredToolContract,
+      "context-packer-registered-tools-v1",
+    );
 
     process.env.PI_CONTEXT_PACKER_SCI_READ_ONLY_SAFE = "true";
     const enabled = await tools
