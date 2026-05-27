@@ -53,6 +53,19 @@ Repo-local emphasis:
   - `nunjucks`
 - `build-graph-acceleration` is conditional only for measured monorepo build/test/package fan-out acceleration work; native npm/package scripts remain canonical unless a repo-local decision accepts an accelerator.
 
+## Repo loop validation
+
+pi-extensions adopts `repo-loop-validation-v1` for monorepo control-plane and package fan-out loop work. The machine-readable declaration lives in `policy/engineering-lane.json`.
+
+- `loop-doctor`: `just loop-doctor` (non-failing git/Node/npm/Just diagnostics)
+- `loop-verify-fast`: `just loop-verify-fast` (maps to `just check` / root quality gate)
+- `loop-impact-plan`: `just loop-impact-plan` (changed-file listing plus run/wide recommendation)
+- `loop-impact-run`: `just loop-impact-run` (maps to `just check`)
+- `loop-impact-wide`: `just loop-impact-wide` (maps to `just ci`)
+- `loop-landing-check`: `just loop-landing-check` (maps to the repo-declared `just ci` gate)
+
+These commands produce repo-local evidence for loop orchestration. They do not replace AK task/evidence/decision authority, live Pi extension activation/reload proof, package release approval, publication authority, merge approval, or downstream production activation authority.
+
 Practical rule:
 
 - Use root commands for monorepo-wide validation.

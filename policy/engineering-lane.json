@@ -18,6 +18,18 @@
       "build-graph-acceleration"
     ],
     "lane": "pi-ts",
-    "command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show pi-ts"
+    "command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show pi-ts",
+    "loop_validation": {
+      "version": "repo-loop-validation-v1",
+      "contract_doc": "docs/engineering.local.md#repo-loop-validation",
+      "commands": {
+        "loop-doctor": "just loop-doctor",
+        "loop-verify-fast": "just loop-verify-fast",
+        "loop-impact-plan": "just loop-impact-plan",
+        "loop-impact-run": "just loop-impact-run",
+        "loop-impact-wide": "just loop-impact-wide",
+        "loop-landing-check": "just loop-landing-check"
+      }
+    }
   }
 }

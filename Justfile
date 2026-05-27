@@ -40,4 +40,45 @@ doctor:
     ak --doctor
     ./scripts/rocs.sh --doctor
 
+# Non-failing repo-loop-validation-v1 diagnostics for orchestration loops.
+loop-doctor:
+    @echo "loop-doctor: pi-extensions diagnostics"
+    @git status --short -- . || true
+    @node --version || true
+    @npm --version || true
+    @just --version || true
+    @exit 0
+
+# Focused inner-loop validation for current changes.
+loop-verify-fast:
+    @just check
+
+# Classify changed-file risk for loop validation.
+loop-impact-plan:
+    @changed="$( { git diff --name-only -- .; git ls-files --others --exclude-standard .; } | sed '/^$/d' | sort -u )"; \
+    echo "loop-impact-plan: changed files"; \
+    if [ -n "$changed" ]; then printf '%s\n' "$changed"; else echo "(none)"; fi; \
+    if printf '%s\n' "$changed" | grep -Eq '^(package(-lock)?\.json$|Justfile$|scripts/|packages/|apps/|tools/|docs/project/engineering-review-surfaces\.md$)'; then \
+      echo "impact=wide"; \
+      echo "next=just loop-impact-wide"; \
+      echo "reason=monorepo runtime/package/script/review surface changed; use the full root CI gate"; \
+    else \
+      echo "impact=normal"; \
+      echo "next=just loop-impact-run"; \
+      echo "reason=docs/policy or localized non-runtime surface; use the normal root validation gate"; \
+    fi
+
+# Run bounded/expanded impact validation.
+loop-impact-run:
+    @just check
+
+# Run explicitly accepted wide validation.
+loop-impact-wide:
+    @echo "loop-impact-wide: explicit wide validation accepted; reason=${LOOP_WIDE_REASON:-not-provided}"
+    @just ci
+
+# Repo-declared landing/readiness gate.
+loop-landing-check:
+    @just ci
+
 # No build/run/dev target: this repo is a monorepo control plane rather than a single buildable or long-running app surface.
