@@ -64,6 +64,21 @@ for (const requiredPath of ["src/context-plan.js", "src/context-pack.js", "src/d
 console.log("installed artifact OK");
 NODE
 
+echo "== activate installed artifact path through isolated pi settings"
+node --input-type=module - "$PI_CODING_AGENT_DIR/settings.json" "$INSTALLED_PACKAGE_ROOT" <<'NODE'
+import fs from "node:fs";
+
+const [settingsPath, installedPackageRoot] = process.argv.slice(2);
+const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+const packages = Array.isArray(settings.packages) ? settings.packages : [];
+settings.packages = [
+  installedPackageRoot,
+  ...packages.filter((entry) => entry !== installedPackageRoot && entry?.source !== installedPackageRoot),
+];
+fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+console.log("installed artifact package path activated in isolated settings");
+NODE
+
 SMOKE_DIR=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" && -n "$SMOKE_DIR" && -d "$SMOKE_DIR" ]]; then
@@ -75,11 +90,14 @@ trap cleanup EXIT
 SMOKE_DIR="$(mktemp -d /tmp/pi-context-packer-release-smoke-XXXXXX)"
 SMOKE_OUTPUT="$SMOKE_DIR/pi-smoke.out"
 
-echo "== context-packer installed Pi runtime registration and registered tool closure smoke"
-PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" \
-  pi --offline --no-session --no-extensions --no-builtin-tools --no-skills --no-prompt-templates --no-context-files --no-themes \
-  -e "$INSTALLED_PACKAGE_ROOT" \
-  -p "/context-packer-release-smoke" >"$SMOKE_OUTPUT" 2>&1
+echo "== context-packer installed Pi runtime package-discovery registration and tool-closure smoke"
+(
+  cd "$SMOKE_DIR"
+  PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" \
+    NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" npm_config_prefix="$NPM_CONFIG_PREFIX" \
+    pi --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates --no-context-files --no-themes \
+    -p "/context-packer-release-smoke"
+) >"$SMOKE_OUTPUT" 2>&1
 cat "$SMOKE_OUTPUT"
 
 if ! grep -q "context-packer runtime registration and registered tool closure execution OK" "$SMOKE_OUTPUT"; then
@@ -87,4 +105,4 @@ if ! grep -q "context-packer runtime registration and registered tool closure ex
   exit 1
 fi
 
-echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC and verified context-packer command/tool registration plus registered tool closure execution through Pi runtime."
+echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC and verified context-packer package discovery, command/tool registration, and registered tool closure execution through Pi runtime."

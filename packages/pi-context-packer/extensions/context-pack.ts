@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import type {
   AgentToolResult,
   ExtensionAPI,
@@ -85,6 +85,11 @@ const contextPackerToolDefinition = (name: string) => {
   const definition = contextPackerToolDefinitionByName.get(name);
   assertSmoke(definition, `${name} tool definition missing from local registration table`);
   return definition;
+};
+
+const pathIsInsideOrEqual = (candidatePath: string, rootPath: string) => {
+  const relativePath = relative(resolve(rootPath), resolve(candidatePath));
+  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith(sep));
 };
 
 const contextPlanTool: ContextPackerToolDefinition = {
@@ -221,7 +226,7 @@ export async function runContextPackerRegisteredToolSmoke(
     assertSmoke(registeredTool.parameters, `${name} missing parameters`);
     if (expectedSourceRoot) {
       assertSmoke(
-        String(registeredTool.sourceInfo?.path ?? "").startsWith(expectedSourceRoot),
+        pathIsInsideOrEqual(String(registeredTool.sourceInfo?.path ?? ""), expectedSourceRoot),
         `${name} registered from ${registeredTool.sourceInfo?.path ?? "unknown"}, expected ${expectedSourceRoot}`,
       );
     }
@@ -236,7 +241,7 @@ export async function runContextPackerRegisteredToolSmoke(
     );
     if (expectedSourceRoot) {
       assertSmoke(
-        String(command.sourceInfo?.path ?? "").startsWith(expectedSourceRoot),
+        pathIsInsideOrEqual(String(command.sourceInfo?.path ?? ""), expectedSourceRoot),
         `${commandName} command registered from ${command.sourceInfo?.path ?? "unknown"}, expected ${expectedSourceRoot}`,
       );
     }
