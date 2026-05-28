@@ -20,16 +20,49 @@ fi
 
 PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
-GLOBAL_NODE_MODULES="$(NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" npm_config_prefix="$NPM_CONFIG_PREFIX" npm root -g)"
-INSTALLED_PACKAGE_ROOT="$GLOBAL_NODE_MODULES/$PACKAGE_NAME"
+LEGACY_NODE_MODULES="$(NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" npm_config_prefix="$NPM_CONFIG_PREFIX" npm root -g)"
+MANAGED_NODE_MODULES="$PI_CODING_AGENT_DIR/npm/node_modules"
+INSTALLED_PACKAGE_ROOT="$(node --input-type=module - "$PACKAGE_NAME" "$PACKAGE_VERSION" "$LEGACY_NODE_MODULES" "$MANAGED_NODE_MODULES" "$NPM_CONFIG_PREFIX" "$PI_CODING_AGENT_DIR" <<'NODE'
+import fs from "node:fs";
+import path from "node:path";
 
-case "$INSTALLED_PACKAGE_ROOT" in
-  "$NPM_CONFIG_PREFIX"/*) ;;
-  *)
-    echo "Installed package root escaped isolated npm prefix: $INSTALLED_PACKAGE_ROOT" >&2
-    exit 1
-    ;;
-esac
+const [packageName, packageVersion, legacyNodeModules, managedNodeModules, npmPrefix, agentDir] =
+  process.argv.slice(2);
+const allowedRoots = [npmPrefix, agentDir].map((root) => path.resolve(root));
+const candidates = [managedNodeModules, legacyNodeModules]
+  .filter(Boolean)
+  .map((nodeModulesRoot) => path.join(nodeModulesRoot, packageName));
+
+const isInsideAllowedRoot = (candidate) => {
+  const resolved = path.resolve(candidate);
+  return allowedRoots.some((root) => {
+    const relativePath = path.relative(root, resolved);
+    return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+  });
+};
+
+for (const candidate of candidates) {
+  if (!isInsideAllowedRoot(candidate)) continue;
+  const packageJsonPath = path.join(candidate, "package.json");
+  if (!fs.existsSync(packageJsonPath)) continue;
+  const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  if (pkg.name === packageName && pkg.version === packageVersion) {
+    console.log(path.resolve(candidate));
+    process.exit(0);
+  }
+}
+
+console.error(
+  `Installed package root not found for ${packageName}@${packageVersion}. Checked: ${candidates.join(", ")}`,
+);
+process.exit(1);
+NODE
+)"
+
+# Current Pi installs user npm packages under npm's global root; newer Pi installs under
+# $PI_CODING_AGENT_DIR/npm. Accept both so this smoke remains valid across the runtime
+# package-manager migration while still failing closed outside isolated roots.
+echo "Installed artifact root: $INSTALLED_PACKAGE_ROOT"
 
 echo "== context-packer installed artifact smoke"
 node --input-type=module - "$PI_CODING_AGENT_DIR/settings.json" "$PACKAGE_SPEC" "$INSTALLED_PACKAGE_ROOT" "$PACKAGE_NAME" "$PACKAGE_VERSION" <<'NODE'
