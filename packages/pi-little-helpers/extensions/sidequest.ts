@@ -1831,14 +1831,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         }
         return;
       }
+      const shouldDelegateCommit =
+        commandName === NEXUS_LOOP_COMMAND || parsed.delegateCommit === true;
       const config = createVisibleLoopRunConfig({
         loopCount: parsed.loopCount,
         cwd,
         reportBack,
         parentPeerTarget,
         ...(prompts ? { prompts } : {}),
-        ...(commandName === NEXUS_LOOP_COMMAND
-          ? { commitDelegation: { mode: "fork_peer", promptTemplate: "commit" } as const }
+        ...(shouldDelegateCommit
+          ? { commitDelegation: { mode: "dispatch_subagent", promptTemplate: "commit" } as const }
           : {}),
         runIdPrefix: commandName,
         title: titlePrefix,

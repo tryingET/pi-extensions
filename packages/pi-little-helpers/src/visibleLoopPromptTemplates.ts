@@ -21,6 +21,14 @@ const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "`grounding: template=<name>, vault_status=<ok|unavailable>`",
 ].join("\n");
 
+const DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT = [
+  "Repo loop validation guidance:",
+  "- If this repo exposes a repo-owned loop validation contract or loop-* commands, use them by phase instead of hardcoding repo-specific validation names.",
+  "- Typical phases: `loop-doctor` for non-failing diagnostics; `loop-verify-fast` for focused inner-loop checks; `loop-impact-plan` to classify changed-file risk; `loop-impact-run` for bounded/expanded impact checks; `loop-impact-wide` for wide/full-required impact plans (include a concise reason if the repo command supports it); `loop-landing-check` for the repo-declared landing/readiness gate.",
+  "- If a loop-* command is absent, use the closest repo-local equivalent and report the fallback.",
+  "- Treat loop commands as repo-owned evidence-producing diagnostics/checks, not authority. Do not claim validation authority, merge approval, production activation, AK task closure, or semantic completion from these checks alone.",
+].join("\n");
+
 const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Update @docs/project/product-posture.md before loop completion.",
   "",
@@ -41,7 +49,11 @@ const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
 
 export const DEFAULT_NEXUS_LOOP_PROMPTS = [
   "/deep-review",
-  "proceed with nexus implementation until completion and verification",
+  [
+    "proceed with nexus implementation until completion and verification",
+    "",
+    DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT,
+  ].join("\n"),
   [
     "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
     "",
@@ -113,6 +125,8 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "- structural enough to remove root causes when patching symptoms would compound debt.",
     "",
     "Verify with normal tests, adversarial/negative tests from the membrane, docs/artifact checks if behavior changed, and dogfooding where relevant.",
+    "",
+    DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT,
     "",
     "Proceed until completed and validated.",
   ].join("\n"),

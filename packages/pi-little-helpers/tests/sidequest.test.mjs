@@ -182,6 +182,24 @@ function assertIntercomReportBackContract(prompt, { peerPrefix, target }) {
   assert.equal(matchCount(prompt, /For the final message, use: `intercom\(/g), 1);
 }
 
+function assertLoopValidationGuidance(prompt) {
+  for (const command of [
+    "loop-doctor",
+    "loop-verify-fast",
+    "loop-impact-plan",
+    "loop-impact-run",
+    "loop-impact-wide",
+    "loop-landing-check",
+  ]) {
+    assert.match(prompt, new RegExp(command));
+  }
+  assert.match(prompt, /repo-owned/);
+  assert.match(prompt, /evidence-producing/);
+  assert.match(prompt, /not authority/);
+  assert.match(prompt, /report the fallback/);
+  assert.match(prompt, /Do not claim validation authority/);
+}
+
 test("getGhosttySurfaceId only accepts Ghostty surface id formats", () => {
   assert.equal(getGhosttySurfaceId({ GHOSTTY_SURFACE_ID: "17" }), "17");
   assert.equal(getGhosttySurfaceId({ GHOSTTY_SURFACE_ID: "0x2b2826e0" }), "0x2b2826e0");
@@ -725,6 +743,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.cwd, "/repo");
     assert.equal(config.reportBack, "intercom");
     assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
+    assert.equal(config.commitDelegation, undefined);
     assert.equal(config.prompts.length, 9);
     assert.match(
       config.prompts[0],
@@ -734,6 +753,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.match(config.prompts[0], /TRUST \/ SECURITY MODEL/);
     assert.match(config.prompts[0], /ADVERSARIAL TEST PLAN/);
     assert.match(config.prompts[0], /Do not optimize for smallest diff/);
+    assertLoopValidationGuidance(config.prompts[0]);
     assert.match(config.prompts[0], /Proceed until completed and validated\./);
     assert.doesNotMatch(config.prompts[0], /Prompt Vault/);
     assert.equal(config.prompts[1], "proceed");
@@ -815,13 +835,17 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
     assert.equal(config.loopCount, 3);
     assert.equal(config.cwd, repoRoot);
     assert.equal(config.reportBack, "manual");
-    assert.deepEqual(config.commitDelegation, { mode: "fork_peer", promptTemplate: "commit" });
+    assert.deepEqual(config.commitDelegation, {
+      mode: "dispatch_subagent",
+      promptTemplate: "commit",
+    });
     assert.equal(config.prompts.length, 4);
     assert.equal(config.prompts[0], "/deep-review");
-    assert.equal(
+    assert.match(
       config.prompts[1],
-      "proceed with nexus implementation until completion and verification",
+      /proceed with nexus implementation until completion and verification/,
     );
+    assertLoopValidationGuidance(config.prompts[1]);
     assert.match(config.prompts[2], /fix any bugs/);
     assert.match(config.prompts[2], /atomic-completion/);
     assert.match(config.prompts[2], /Prompt Vault/);
@@ -840,27 +864,139 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     assert.equal(userMessages.length, 4);
-    assert.equal(
+    assert.match(
       userMessages[1].message,
-      "proceed with nexus implementation until completion and verification",
+      /proceed with nexus implementation until completion and verification/,
     );
+    assertLoopValidationGuidance(userMessages[1].message);
     assert.match(userMessages[2].message, /fix any bugs/);
-    assert.match(userMessages[3].message, /Nexus-loop commit delegation step/);
-    assert.match(userMessages[3].message, /fork_peer_spawn/);
+    assert.match(userMessages[3].message, /Visible-loop commit delegation step/);
+    assert.match(userMessages[3].message, /dispatch_subagent/);
+    assert.match(
+      userMessages[3].message,
+      /Do not run the commit workflow in this visible-loop child session/,
+    );
+    assert.match(userMessages[3].message, /Call `dispatch_subagent` exactly once/);
     assert.match(
       userMessages[3].message,
       /The configured `\/commit` prompt has already been resolved/,
     );
     assert.match(userMessages[3].message, /EXPANDED COMMIT LOCAL_SENTINEL/);
-    assert.match(userMessages[3].message, /"reportBack": "intercom"/);
+    assert.match(userMessages[3].message, /"profile": "minimal"/);
+    assert.match(userMessages[3].message, /"tools": "read,bash"/);
+    assert.match(userMessages[3].message, /"prompt_name": "visible-loop-commit-delegation"/);
+    assert.match(userMessages[3].message, /"prompt_source": "pi-little-helpers"/);
+    assert.match(userMessages[3].message, /Visible-loop delegated commit workflow/);
+    assert.match(userMessages[3].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
     assert.match(
       userMessages[3].message,
-      /"parentPeerTarget": "session-019e10d2-15f5-705a-aea4-01ba49d2bbac"/,
+      new RegExp(escapeRegExp(`visible-loop run id: ${config.runId}`)),
     );
-    assert.match(userMessages[3].message, /peer_watch/);
+    assert.match(
+      userMessages[3].message,
+      /Do not perform new implementation work or broaden scope/,
+    );
+    assert.match(userMessages[3].message, /State validation commands run and results/);
+    assert.doesNotMatch(userMessages[3].message, /peer_watch/);
     assert.match(userMessages[3].message, /visible_loop_child_complete/);
     assert.match(userMessages[3].message, new RegExp(escapeRegExp(configPath)));
+    assert.doesNotMatch(userMessages[3].message, /^\/commit$/m);
     assert.doesNotMatch(userMessages[3].message, /Visible-loop internal completion checkpoint/);
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop can delegate commit with --delegate-commit", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-delegate-commit-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands, events, userMessages } = registerExtension(extension);
+    const repoRoot = `${stateHome}/repo`;
+    const harness = createContext({ cwd: repoRoot });
+    mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
+    writeFileSync(
+      `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
+      "EXPANDED DEEP REVIEW $ARGUMENTS\n",
+      "utf8",
+    );
+    writeFileSync(
+      `${harness.ctx.cwd}/.pi/prompts/commit.md`,
+      "EXPANDED COMMIT $ARGUMENTS\n",
+      "utf8",
+    );
+
+    await commands.get("visible-loop").handler("--count 2 --manual --delegate-commit", harness.ctx);
+
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.ok(ghosttyCall);
+    const configPath = extractPiArgs(ghosttyCall.args)
+      .at(-1)
+      .replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.match(config.runId, /^visible-loop-/);
+    assert.deepEqual(config.commitDelegation, {
+      mode: "dispatch_subagent",
+      promptTemplate: "commit",
+    });
+    assert.equal(config.prompts.length, 9);
+    assert.equal(config.prompts[8], "/commit");
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    const agentStart = events.get("agent_start")[0];
+    await agentStart({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    assert.equal(userMessages.length, 9);
+    assert.match(userMessages[7].message, /Update @docs\/project\/product-posture\.md/);
+    assert.match(userMessages[8].message, /Visible-loop commit delegation step/);
+    assert.match(userMessages[8].message, /dispatch_subagent/);
+    assert.match(userMessages[8].message, /EXPANDED COMMIT/);
+    assert.match(userMessages[8].message, /"profile": "minimal"/);
+    assert.match(userMessages[8].message, /"tools": "read,bash"/);
+    assert.match(userMessages[8].message, /"prompt_name": "visible-loop-commit-delegation"/);
+    assert.match(userMessages[8].message, /"prompt_source": "pi-little-helpers"/);
+    assert.match(userMessages[8].message, /Visible-loop delegated commit workflow/);
+    assert.match(userMessages[8].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
+    assert.match(
+      userMessages[8].message,
+      new RegExp(escapeRegExp(`visible-loop run id: ${config.runId}`)),
+    );
+    assert.match(
+      userMessages[8].message,
+      /Do not perform new implementation work or broaden scope/,
+    );
+    assert.match(userMessages[8].message, /State validation commands run and results/);
+    assert.doesNotMatch(userMessages[8].message, /peer_watch/);
+    assert.match(userMessages[8].message, /visible_loop_child_complete/);
+    assert.match(userMessages[8].message, new RegExp(escapeRegExp(configPath)));
+    assert.doesNotMatch(userMessages[8].message, /^\/commit$/m);
+    assert.doesNotMatch(userMessages[8].message, /Visible-loop internal completion checkpoint/);
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });

@@ -39,7 +39,7 @@ export interface VisibleLoopRunConfig {
 }
 
 export interface VisibleLoopCommitDelegation {
-  mode: "fork_peer";
+  mode: "dispatch_subagent";
   promptTemplate: "commit";
 }
 
@@ -102,18 +102,25 @@ const DEFAULT_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 10_000;
 const MAX_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 120_000;
 
 export type VisibleLoopCommandParseResult =
-  | { ok: true; loopCount: number; reportBack: VisibleLoopReportBack; parentPeerTarget?: string }
+  | {
+      ok: true;
+      loopCount: number;
+      reportBack: VisibleLoopReportBack;
+      parentPeerTarget?: string;
+      delegateCommit?: boolean;
+    }
   | { ok: false; error: string; usage: string };
 
 export function parseVisibleLoopCommandArgs(
   args: string | undefined,
   commandName = VISIBLE_LOOP_COMMAND,
 ): VisibleLoopCommandParseResult {
-  const usage = `Usage: /${commandName} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none]`;
+  const usage = `Usage: /${commandName} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none] [--delegate-commit]`;
   const tokens = tokenizeArgs(args ?? "");
   let loopCount: number | undefined;
   let parentPeerTarget: string | undefined;
   let reportBack: VisibleLoopReportBack | undefined;
+  let delegateCommit = false;
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -176,6 +183,11 @@ export function parseVisibleLoopCommandArgs(
       continue;
     }
 
+    if (token === "--delegate-commit" || token === "--delegateCommit") {
+      delegateCommit = true;
+      continue;
+    }
+
     if (!token.startsWith("-") && loopCount === undefined) {
       const parsed = parseLoopCount(token);
       if (!parsed) return { ok: false, error: `Invalid loop count: ${token}`, usage };
@@ -191,6 +203,7 @@ export function parseVisibleLoopCommandArgs(
     loopCount: loopCount ?? 1,
     reportBack: reportBack ?? "intercom",
     parentPeerTarget,
+    ...(delegateCommit ? { delegateCommit } : {}),
   };
 }
 
@@ -649,40 +662,15 @@ function visibleLoopDelegatesCompletion(
 
 function maybeRenderDelegatedVisibleLoopPrompt(
   state: ActiveVisibleLoopState,
-  ctx: VisibleLoopContext | undefined,
+  _ctx: VisibleLoopContext | undefined,
   expansion: VisibleLoopPromptExpansion,
   iteration: number,
   promptIndex: number,
   env: NodeJS.ProcessEnv,
 ): string | null {
   const delegation = state.config.commitDelegation;
-  if (
-    !delegation ||
-    delegation.mode !== "fork_peer" ||
-    expansion.templateName !== delegation.promptTemplate
-  ) {
+  if (!delegation || expansion.templateName !== delegation.promptTemplate) {
     return expansion.prompt;
-  }
-
-  const parentPeerTarget = ctx ? resolveParentPeerTarget(ctx) : undefined;
-  if (!parentPeerTarget) {
-    state.stopped = true;
-    appendVisibleLoopStatus(
-      state.config,
-      {
-        event: "commit_delegation_unavailable",
-        iteration,
-        promptIndex,
-        promptTemplate: expansion.templateName,
-        reason: "missing_child_session_id",
-      },
-      env,
-    );
-    ctx?.ui?.notify?.(
-      "visible-loop stopped: cannot delegate /commit to fork_peer_spawn without a child session id for intercom report-back",
-      "error",
-    );
-    return null;
   }
 
   appendVisibleLoopStatus(
@@ -692,60 +680,102 @@ function maybeRenderDelegatedVisibleLoopPrompt(
       iteration,
       promptIndex,
       promptTemplate: expansion.templateName,
-      delegateTool: "fork_peer_spawn",
-      parentPeerTarget,
+      delegateTool: "dispatch_subagent",
     },
     env,
   );
-
-  return renderForkPeerCommitDelegationPrompt({
+  return renderDispatchSubagentCommitDelegationPrompt({
     commitPrompt: expansion.prompt,
-    parentPeerTarget,
     configPath: state.configPath,
+    cwd: state.config.cwd,
+    runId: state.config.runId,
     iteration,
     promptIndex,
   });
 }
 
-function renderForkPeerCommitDelegationPrompt(input: {
+function renderDispatchSubagentCommitDelegationPrompt(input: {
   commitPrompt: string;
-  parentPeerTarget: string;
   configPath: string;
+  cwd: string;
+  runId: string;
   iteration: number;
   promptIndex: number;
 }): string {
-  const forkPeerRequest = {
-    objective: input.commitPrompt,
-    reportBack: "intercom",
-    parentPeerTarget: input.parentPeerTarget,
+  const dispatchRequest = {
+    profile: "minimal",
+    name: normalizeDelegatedCommitSubagentName(input.runId, input.iteration),
+    objective: renderDispatchSubagentCommitObjective(input),
+    tools: "read,bash",
+    timeout: 0,
+    prompt_name: "visible-loop-commit-delegation",
+    prompt_tags: ["visible-loop", "commit-delegation"],
+    prompt_source: "pi-little-helpers",
   };
 
   return [
-    "Nexus-loop commit delegation step.",
+    "Visible-loop commit delegation step.",
     "",
     "Do not run the commit workflow in this visible-loop child session.",
-    "The configured `/commit` prompt has already been resolved through visible-loop prompt expansion. Do not send a literal `/commit` slash command to the fork peer.",
+    "The configured `/commit` prompt has already been resolved through visible-loop prompt expansion. Do not send a literal `/commit` slash command to the delegated worker.",
     "",
-    "Call `fork_peer_spawn` exactly once with this request:",
+    "Call `dispatch_subagent` exactly once with this request:",
     "",
     "```json",
-    JSON.stringify(forkPeerRequest, null, 2),
+    JSON.stringify(dispatchRequest, null, 2),
     "```",
     "",
-    "After the tool returns, read its `peerRunId` from the tool result details and supervise the fork peer through intercom:",
-    '1. Wait for ACK with `intercom({ action: "peer_watch", peerRunId: "<peerRunId>", waitFor: "ack", timeoutMs: 10000 })`.',
-    '2. Wait for final with `intercom({ action: "peer_watch", peerRunId: "<peerRunId>", waitFor: "final", timeoutMs: 0 })`.',
-    "3. If `fork_peer_spawn`, ACK, or FINAL fails/times out, stop and report the first failing command/status. Do not mark the loop iteration complete.",
-    "4. Only after `PEER_FINAL` reports successful commit workflow completion, call `visible_loop_child_complete` exactly once with:",
+    "After `dispatch_subagent` returns, inspect its result:",
+    "1. If the subagent reports successful commit workflow completion, call `visible_loop_child_complete` exactly once with:",
     "",
     "```json",
     JSON.stringify({ configPath: input.configPath, iteration: input.iteration }, null, 2),
     "```",
     "",
+    "2. If dispatch fails, times out, or reports a blocker/failure, stop and report that status. Do not mark the loop iteration complete.",
+    "",
     "The ordinary completion checkpoint is intentionally not queued for this delegated commit step; this tool call is the completion gate.",
     "",
     `Context: delegated commit prompt for iteration ${input.iteration}, prompt index ${input.promptIndex}.`,
   ].join("\n");
+}
+
+function renderDispatchSubagentCommitObjective(input: {
+  commitPrompt: string;
+  cwd: string;
+  runId: string;
+  iteration: number;
+}): string {
+  return [
+    "Visible-loop delegated commit workflow.",
+    "",
+    "Context:",
+    `- cwd: ${input.cwd}`,
+    `- visible-loop run id: ${input.runId}`,
+    `- iteration: ${input.iteration}`,
+    "",
+    "Run the resolved commit prompt below in the current repo.",
+    "Do not perform new implementation work or broaden scope; this delegation is only for commit workflow completion.",
+    "If validation, staging, grouping, or provenance-note handling is ambiguous, stop and report the blocker without committing further.",
+    "",
+    "Success contract for the final response:",
+    "- List created commit sha(s) and subjects, or say clean/no-op if no commit was needed.",
+    "- State validation commands run and results.",
+    "- State provenance-note status when applicable.",
+    "",
+    "Resolved /commit prompt:",
+    "```md",
+    input.commitPrompt,
+    "```",
+  ].join("\n");
+}
+
+function normalizeDelegatedCommitSubagentName(runId: string, iteration: number): string {
+  const normalizedRunId = runId
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${normalizedRunId || "visible-loop"}-commit-${iteration}`;
 }
 
 function stopVisibleLoopForPromptExpansionFailure(
@@ -1432,10 +1462,12 @@ function parseCommitDelegation(value: unknown): VisibleLoopCommitDelegation | un
     throw new TypeError("commitDelegation must be an object.");
   }
   const record = value as Record<string, unknown>;
-  if (record.mode !== "fork_peer" || record.promptTemplate !== "commit") {
-    throw new TypeError("commitDelegation must use mode=fork_peer and promptTemplate=commit.");
+  if (record.mode !== "dispatch_subagent" || record.promptTemplate !== "commit") {
+    throw new TypeError(
+      "commitDelegation must use mode=dispatch_subagent and promptTemplate=commit.",
+    );
   }
-  return { mode: "fork_peer", promptTemplate: "commit" };
+  return { mode: "dispatch_subagent", promptTemplate: "commit" };
 }
 
 function parseVisibleLoopCompletionArgs(
