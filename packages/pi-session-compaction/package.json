@@ -38,7 +38,13 @@
     "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
     "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack",
     "release:check": "npm pack --dry-run --json",
-    "release:check:quick": "npm pack --dry-run --json"
+    "release:check:quick": "npm pack --dry-run --json",
+    "loop-doctor": "bash -lc 'node --version; npm --version; npm pkg get name version >/dev/null; git status --short -- . || true; exit 0'",
+    "loop-verify-fast": "npm run quality:pre-commit",
+    "loop-impact-plan": "bash -lc 'echo \"loop-impact-plan: package-local impact planner is coarse; run npm run loop-impact-run for the full package gate.\"; git status --short -- . || true'",
+    "loop-impact-run": "npm run check",
+    "loop-impact-wide": "npm run check",
+    "loop-landing-check": "npm run check"
   },
   "files": [
     "extensions",

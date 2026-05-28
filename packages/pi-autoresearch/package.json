@@ -46,7 +46,13 @@
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
     "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
-    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack",
+    "loop-doctor": "bash -lc 'node --version; npm --version; npm pkg get name version >/dev/null; git status --short -- . || true; exit 0'",
+    "loop-verify-fast": "npm run quality:pre-commit",
+    "loop-impact-plan": "bash -lc 'echo \"loop-impact-plan: package-local impact planner is coarse; run npm run loop-impact-run for the full package gate.\"; git status --short -- . || true'",
+    "loop-impact-run": "npm run check",
+    "loop-impact-wide": "npm run check",
+    "loop-landing-check": "npm run check"
   },
   "files": [
     "extensions/pi-autoresearch.ts",

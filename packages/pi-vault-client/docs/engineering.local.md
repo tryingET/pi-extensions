@@ -51,3 +51,16 @@ Repo-local emphasis:
   - `fast-check` for parser/rendering/selection invariants.
   - `@cucumber/cucumber` only when executable operator/workflow scenarios materially improve shared understanding.
   - `nunjucks` for reusable text/config/prompt/file templates when plain typed render functions are no longer enough.
+
+## Repo loop validation
+
+`@tryinget/pi-vault-client` adopts `repo-loop-validation-v1` for package-local loop prompt dogfooding. The policy declaration is in `policy/engineering-lane.json`.
+
+- `loop-doctor`: `npm run loop-doctor` (non-failing Node/npm/package/git diagnostics)
+- `loop-verify-fast`: `npm run loop-verify-fast` (maps to `quality:pre-commit`)
+- `loop-impact-plan`: `npm run loop-impact-plan` (coarse package impact note plus changed-file listing)
+- `loop-impact-run`: `npm run loop-impact-run` (maps to `npm run check`)
+- `loop-impact-wide`: `npm run loop-impact-wide` (explicit full package gate, also `npm run check`)
+- `loop-landing-check`: `npm run loop-landing-check` (maps to `npm run check`)
+
+These commands produce package-local evidence for orchestration prompts. They do not replace Pi runtime install/reload proof, release approval, or monorepo owner authority.

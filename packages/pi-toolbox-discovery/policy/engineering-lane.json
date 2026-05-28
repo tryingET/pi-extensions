@@ -17,6 +17,18 @@
       "dependency-governance",
       "specification-and-dsls",
       "engineering-reasoning"
-    ]
+    ],
+    "loop_validation": {
+      "version": "repo-loop-validation-v1",
+      "contract_doc": "docs/engineering.local.md#repo-loop-validation",
+      "commands": {
+        "loop-doctor": "npm run loop-doctor",
+        "loop-verify-fast": "npm run loop-verify-fast",
+        "loop-impact-plan": "npm run loop-impact-plan",
+        "loop-impact-run": "npm run loop-impact-run",
+        "loop-impact-wide": "npm run loop-impact-wide",
+        "loop-landing-check": "npm run loop-landing-check"
+      }
+    }
   }
 }

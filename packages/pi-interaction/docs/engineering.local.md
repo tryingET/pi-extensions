@@ -27,3 +27,16 @@ Repo-local emphasis:
 - Auto-fix workflow: `npm run fix` (before commit or when applying AI-generated diffs).
 - Keep lane metadata and pinning root-owned at the monorepo level; this reduced-form package-group surface keeps only the local release/validation notes that differ from the root stance.
 - Validate structural/docs invariants with `npm run check`.
+
+## Repo loop validation
+
+`pi-interaction-group` adopts `repo-loop-validation-v1` for package-local loop prompt dogfooding. The policy declaration is in `policy/engineering-lane.json`.
+
+- `loop-doctor`: `npm run loop-doctor` (non-failing Node/npm/package/git diagnostics)
+- `loop-verify-fast`: `npm run loop-verify-fast` (maps to `quality:pre-commit`)
+- `loop-impact-plan`: `npm run loop-impact-plan` (coarse package impact note plus changed-file listing)
+- `loop-impact-run`: `npm run loop-impact-run` (maps to `npm run check`)
+- `loop-impact-wide`: `npm run loop-impact-wide` (explicit full package gate, also `npm run check`)
+- `loop-landing-check`: `npm run loop-landing-check` (maps to `npm run check`)
+
+These commands produce package-local evidence for orchestration prompts. They do not replace Pi runtime install/reload proof, release approval, or monorepo owner authority.

@@ -13,6 +13,12 @@
     "check": "npm run quality:ci",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
-    "docs:list:json": "bash ./scripts/docs-list.sh --json"
+    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "loop-doctor": "bash -lc 'node --version; npm --version; npm pkg get name version >/dev/null; git status --short -- . || true; exit 0'",
+    "loop-verify-fast": "npm run quality:pre-commit",
+    "loop-impact-plan": "bash -lc 'echo \"loop-impact-plan: package-local impact planner is coarse; run npm run loop-impact-run for the full package gate.\"; git status --short -- . || true'",
+    "loop-impact-run": "npm run check",
+    "loop-impact-wide": "npm run check",
+    "loop-landing-check": "npm run check"
   }
 }
