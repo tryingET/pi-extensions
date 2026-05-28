@@ -74,9 +74,9 @@ test("package manifest exposes package-owned prompts through pi.prompts", () => 
 
   for (const fileName of [
     "extension-sop.md",
-    "implementation-planning.md",
+    "pi-autonomous-session-control-implementation-planning.md",
     "init-project-docs.md",
-    "security-review.md",
+    "pi-autonomous-session-control-security-review.md",
   ]) {
     assert.equal(
       existsSync(new URL(`../../prompts/${fileName}`, import.meta.url)),
