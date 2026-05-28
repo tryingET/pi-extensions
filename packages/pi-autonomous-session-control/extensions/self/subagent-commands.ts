@@ -2,7 +2,7 @@
  * Subagent commands registration.
  */
 
-import type { ExtensionAPI, RegisteredCommand } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
 import {
   cleanupOldSessions,
   clearSubagentSessions,

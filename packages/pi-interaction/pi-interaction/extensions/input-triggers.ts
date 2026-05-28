@@ -5,7 +5,7 @@
  * helpers for fuzzy interaction flows that other extensions can register.
  */
 
-import type { CustomEditor, ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { CustomEditor, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createEditorRegistry, TriggerEditor } from "@tryinget/pi-editor-registry";
 import {
   rankCandidatesFallback,

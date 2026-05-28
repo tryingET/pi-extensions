@@ -33,9 +33,9 @@ Prompt rows are consumed through these canonical fields:
 
 This package declares pi APIs as `peerDependencies`:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
-- `@mariozechner/pi-tui`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
+- `@earendil-works/pi-tui`
 
 The package keeps a narrow local seam over the shared interaction runtime packages (`@tryinget/pi-interaction-kit` and `@tryinget/pi-trigger-adapter`) without hand-maintaining a fork of their source.
 

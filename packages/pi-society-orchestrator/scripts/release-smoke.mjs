@@ -48,11 +48,18 @@ const bundledDependencies = [
   ...(Array.isArray(tarballPackage.bundleDependencies) ? tarballPackage.bundleDependencies : []),
   ...(Array.isArray(tarballPackage.bundledDependencies) ? tarballPackage.bundledDependencies : []),
 ].map(String);
-assert.deepEqual(
-  bundledDependencies.sort(),
-  [...bundledBridgeImportCase.expectedBundledDependencies].sort(),
-  `Bundled bridge case mismatch for ${bundledBridgeImportCase.id}`,
+const ascDependencySpec = String(
+  tarballPackage.dependencies?.["@tryinget/pi-autonomous-session-control"] || "",
 );
+const expectsBundledBridge =
+  ascDependencySpec.startsWith("file:") || bundledDependencies.length > 0;
+if (expectsBundledBridge) {
+  assert.deepEqual(
+    bundledDependencies.sort(),
+    [...bundledBridgeImportCase.expectedBundledDependencies].sort(),
+    `Bundled bridge case mismatch for ${bundledBridgeImportCase.id}`,
+  );
+}
 const packageName = String(tarballPackage.name || "").trim();
 assert.ok(packageName.length > 0, "Tarball package.json missing name");
 
@@ -90,67 +97,69 @@ linkInstalledRuntimeDependencies(
   isolatedNpmGlobalRoot,
   tarballPackage,
 );
-for (const relativePath of bundledBridgeImportCase.expectedImportFiles) {
-  const absolutePath = path.join(importablePackageDir, relativePath);
-  assert.ok(
-    fs.existsSync(absolutePath),
-    `Bundled bridge case '${bundledBridgeImportCase.id}' missing import fixture: ${relativePath}`,
-  );
+if (expectsBundledBridge) {
+  for (const relativePath of bundledBridgeImportCase.expectedImportFiles) {
+    const absolutePath = path.join(importablePackageDir, relativePath);
+    assert.ok(
+      fs.existsSync(absolutePath),
+      `Bundled bridge case '${bundledBridgeImportCase.id}' missing import fixture: ${relativePath}`,
+    );
+  }
 }
-linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-coding-agent", [
-  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-coding-agent"),
-  path.join(process.cwd(), "node_modules", "@mariozechner", "pi-coding-agent"),
+linkHostPeerPackage(importNodeModulesPath, "@earendil-works/pi-coding-agent", [
+  path.join(hostNpmGlobalRoot, "@earendil-works", "pi-coding-agent"),
+  path.join(process.cwd(), "node_modules", "@earendil-works", "pi-coding-agent"),
 ]);
-linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-tui", [
-  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-tui"),
+linkHostPeerPackage(importNodeModulesPath, "@earendil-works/pi-tui", [
+  path.join(hostNpmGlobalRoot, "@earendil-works", "pi-tui"),
   path.join(
     hostNpmGlobalRoot,
-    "@mariozechner",
+    "@earendil-works",
     "pi-coding-agent",
     "node_modules",
-    "@mariozechner",
+    "@earendil-works",
     "pi-tui",
   ),
-  path.join(process.cwd(), "node_modules", "@mariozechner", "pi-tui"),
+  path.join(process.cwd(), "node_modules", "@earendil-works", "pi-tui"),
   path.join(
     process.cwd(),
     "node_modules",
-    "@mariozechner",
+    "@earendil-works",
     "pi-coding-agent",
     "node_modules",
-    "@mariozechner",
+    "@earendil-works",
     "pi-tui",
   ),
 ]);
-linkHostPeerPackage(importNodeModulesPath, "@mariozechner/pi-ai", [
-  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-ai"),
+linkHostPeerPackage(importNodeModulesPath, "@earendil-works/pi-ai", [
+  path.join(hostNpmGlobalRoot, "@earendil-works", "pi-ai"),
   path.join(
     hostNpmGlobalRoot,
-    "@mariozechner",
+    "@earendil-works",
     "pi-coding-agent",
     "node_modules",
-    "@mariozechner",
+    "@earendil-works",
     "pi-ai",
   ),
-  path.join(process.cwd(), "node_modules", "@mariozechner", "pi-ai"),
+  path.join(process.cwd(), "node_modules", "@earendil-works", "pi-ai"),
   path.join(
     process.cwd(),
     "node_modules",
-    "@mariozechner",
+    "@earendil-works",
     "pi-coding-agent",
     "node_modules",
-    "@mariozechner",
+    "@earendil-works",
     "pi-ai",
   ),
 ]);
 linkHostPeerPackage(importNodeModulesPath, "typebox", [
   path.join(hostNpmGlobalRoot, "typebox"),
-  path.join(hostNpmGlobalRoot, "@mariozechner", "pi-coding-agent", "node_modules", "typebox"),
+  path.join(hostNpmGlobalRoot, "@earendil-works", "pi-coding-agent", "node_modules", "typebox"),
   path.join(process.cwd(), "node_modules", "typebox"),
   path.join(
     process.cwd(),
     "node_modules",
-    "@mariozechner",
+    "@earendil-works",
     "pi-coding-agent",
     "node_modules",
     "typebox",

@@ -24,7 +24,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
@@ -75,7 +75,7 @@
     "fast-xml-parser": "5.3.6"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-ai": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*"
   }
 }

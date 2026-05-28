@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const DEFAULT_PROMPT_SOURCE = "vault-client-live";
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const VAULT_CLIENT_RUNTIME_MODULES = ["typebox", "@mariozechner/pi-tui"];
+const VAULT_CLIENT_RUNTIME_MODULES = ["typebox", "@earendil-works/pi-tui"];
 
 function getLegacyVaultClientDir(): string {
   return join(homedir(), ".pi", "agent", "extensions", "vault-client");

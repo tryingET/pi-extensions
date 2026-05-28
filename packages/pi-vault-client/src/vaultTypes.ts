@@ -1,5 +1,5 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 
 export const PROMPT_VAULT_ROOT =
   process.env.PROMPT_VAULT_ROOT || "/home/tryinget/ai-society/core/prompt-vault";

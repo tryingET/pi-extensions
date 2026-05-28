@@ -43,9 +43,7 @@ All notable changes to this project should be documented here.
 - PTX now prefills the raw slash command only for direct `$$ /name` fallback when a prompt command cannot provide a readable template path or richer live transform cannot be built, avoiding empty-editor outcomes without weakening picker semantics.
 - PTX no-candidate warnings now distinguish prompt-command discovery failure, missing prompt-template commands, and non-prefillable prompt-template metadata drift, with actionable guidance that points operators to `/ptx-debug-commands [query]` in UI sessions when appropriate.
 - Package migrated into `pi-extensions` monorepo under `packages/pi-prompt-template-accelerator`.
-- Live trigger bridge now targets pi-interaction split package surfaces:
-  - primary: `@tryinget/pi-trigger-adapter`
-  - fallback: `@tryinget/pi-interaction`
+- Live trigger bridge now targets the split `@tryinget/pi-trigger-adapter` package surface directly instead of relying on the stale umbrella `@tryinget/pi-interaction` import.
 - `$$ /<partial>` now routes through the fuzzy selector path before template expansion.
 - Deprecated custom-editor autocomplete path removed entirely to eliminate `setEditorComponent` conflicts.
 - In non-UI mode, `$$` usage errors, malformed selector parse errors, and invalid selector invocations (including slash-only `$$ /`) now return deterministic `action: "transform"` error text instead of silent `handled` responses.

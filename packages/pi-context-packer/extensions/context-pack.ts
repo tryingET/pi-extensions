@@ -5,7 +5,7 @@ import type {
   AgentToolResult,
   ExtensionAPI,
   ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { CONTEXT_PACK_PARAMETERS, contextPacketToolResult } from "../src/context-pack.js";
 import {
   buildContextPlan,

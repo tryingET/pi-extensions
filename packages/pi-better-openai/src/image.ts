@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, isAbsolute, join, resolve, sep } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type Static, Type } from "typebox";
 import type { ResolvedConfig } from "./config.ts";
 import { isRecord } from "./config.ts";
 import { readCodexAuth } from "./usage.ts";
@@ -20,55 +21,50 @@ export type ImageSaveMode = (typeof IMAGE_SAVE_MODES)[number];
 export type ImageAction = (typeof IMAGE_ACTIONS)[number];
 export type ImageOutputFormat = (typeof IMAGE_OUTPUT_FORMATS)[number];
 
-const TOOL_PARAMS = {
-  type: "object",
-  properties: {
-    prompt: {
-      type: "string",
+const ToolImageAction = Type.Union(
+  [Type.Literal("auto"), Type.Literal("generate"), Type.Literal("edit")],
+  {
+    description:
+      "Whether to generate a new image, edit/reference provided images, or let the model decide.",
+  },
+);
+const ToolImageOutputFormat = Type.Union(
+  [Type.Literal("png"), Type.Literal("jpeg"), Type.Literal("webp")],
+  { description: "Generated image format." },
+);
+const ToolImageSaveMode = Type.Union(
+  [Type.Literal("none"), Type.Literal("project"), Type.Literal("global"), Type.Literal("custom")],
+  { description: "Where to save the generated image." },
+);
+
+const TOOL_PARAMS = Type.Object(
+  {
+    prompt: Type.String({
       description:
         "Image generation/editing prompt. Pass the user's wording verbatim unless they explicitly ask you to refine or expand it.",
-    },
-    action: {
-      type: "string",
-      enum: IMAGE_ACTIONS,
-      description:
-        "Whether to generate a new image, edit/reference provided images, or let the model decide.",
-    },
-    images: {
-      type: "array",
-      items: { type: "string" },
-      description: "Local image paths to use as edit targets or references.",
-    },
-    model: {
-      type: "string",
-      description:
-        "OpenAI Codex model to drive the hosted image_generation tool. Defaults to current openai-codex model or config default.",
-    },
-    outputFormat: {
-      type: "string",
-      enum: IMAGE_OUTPUT_FORMATS,
-      description: "Generated image format.",
-    },
-    save: {
-      type: "string",
-      enum: IMAGE_SAVE_MODES,
-      description: "Where to save the generated image.",
-    },
-    saveDir: { type: "string", description: "Directory to save image when save=custom." },
+    }),
+    action: Type.Optional(ToolImageAction),
+    images: Type.Optional(
+      Type.Array(Type.String(), {
+        description: "Local image paths to use as edit targets or references.",
+      }),
+    ),
+    model: Type.Optional(
+      Type.String({
+        description:
+          "OpenAI Codex model to drive the hosted image_generation tool. Defaults to current openai-codex model or config default.",
+      }),
+    ),
+    outputFormat: Type.Optional(ToolImageOutputFormat),
+    save: Type.Optional(ToolImageSaveMode),
+    saveDir: Type.Optional(
+      Type.String({ description: "Directory to save image when save=custom." }),
+    ),
   },
-  required: ["prompt"],
-  additionalProperties: false,
-} as const;
+  { additionalProperties: false },
+);
 
-type ToolParams = {
-  prompt: string;
-  action?: ImageAction;
-  images?: string[];
-  model?: string;
-  outputFormat?: ImageOutputFormat;
-  save?: ImageSaveMode;
-  saveDir?: string;
-};
+type ToolParams = Static<typeof TOOL_PARAMS>;
 
 type CodexImageCredentials = {
   accessToken: string;
@@ -552,7 +548,7 @@ export function registerOpenAIImage(
     };
   }
 
-  void import("@mariozechner/pi-tui")
+  void import("@earendil-works/pi-tui")
     .then(({ Box, Container, Image, Text }) => {
       pi.registerMessageRenderer<CodexImageResult>("openai-image", (message, _options, theme) => {
         const result = message.details;

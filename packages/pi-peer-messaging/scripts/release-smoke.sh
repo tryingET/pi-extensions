@@ -2,6 +2,7 @@
 set -euo pipefail
 
 : "${PI_CODING_AGENT_DIR:?PI_CODING_AGENT_DIR is required}"
+: "${NPM_CONFIG_PREFIX:?NPM_CONFIG_PREFIX is required so release smoke cannot touch global npm packages}"
 : "${PACKAGE_SPEC:?PACKAGE_SPEC is required}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,7 +10,8 @@ MONOREPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
-NPM_GLOBAL_ROOT="$(npm root -g)"
+LEGACY_NODE_MODULES="$(NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" npm_config_prefix="$NPM_CONFIG_PREFIX" npm root -g)"
+MANAGED_NODE_MODULES="$PI_CODING_AGENT_DIR/npm/node_modules"
 
 TSX_BIN=""
 for candidate in \
@@ -28,7 +30,7 @@ if [[ -z "$TSX_BIN" ]]; then
   exit 1
 fi
 
-PACKAGE_NAME="$PACKAGE_NAME" NPM_GLOBAL_ROOT="$NPM_GLOBAL_ROOT" "$TSX_BIN" --eval '
+PACKAGE_NAME="$PACKAGE_NAME" LEGACY_NODE_MODULES="$LEGACY_NODE_MODULES" MANAGED_NODE_MODULES="$MANAGED_NODE_MODULES" NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" "$TSX_BIN" --eval '
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -36,10 +38,24 @@ const { pathToFileURL } = require("node:url");
 
 (async () => {
   const packageName = process.env.PACKAGE_NAME;
-  const npmGlobalRoot = process.env.NPM_GLOBAL_ROOT;
-  const packageDir = path.join(npmGlobalRoot, ...String(packageName).split("/"));
+  const allowedRoots = [process.env.NPM_CONFIG_PREFIX, process.env.PI_CODING_AGENT_DIR]
+    .filter(Boolean)
+    .map((root) => path.resolve(root));
+  const candidates = [process.env.MANAGED_NODE_MODULES, process.env.LEGACY_NODE_MODULES]
+    .filter(Boolean)
+    .map((nodeModulesRoot) => path.join(nodeModulesRoot, packageName));
+  const isInsideAllowedRoot = (candidate) => {
+    const resolved = path.resolve(candidate);
+    return allowedRoots.some((root) => {
+      const relativePath = path.relative(root, resolved);
+      return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+    });
+  };
+  const packageDir = candidates.find((candidate) =>
+    isInsideAllowedRoot(candidate) && fs.existsSync(path.join(candidate, "package.json")),
+  );
+  assert.ok(packageDir, `Installed package root not found. Checked: ${candidates.join(", ")}`);
   const packageJsonPath = path.join(packageDir, "package.json");
-  assert.ok(fs.existsSync(packageJsonPath), `Installed package.json missing: ${packageJsonPath}`);
 
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
   const extensionEntry = pkg.pi?.extensions?.find((entry) => entry === "./extensions/intercom.ts");

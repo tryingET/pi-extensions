@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   AGENT_TEAMS,
   type AgentTeam,
@@ -379,18 +379,18 @@ export default function runtimeFooterExtension(pi: ExtensionAPI) {
   pi.registerCommand("runtime-status", {
     description: "Inspect runtime truth and routing status",
     handler: async (_args, ctx) => {
-      if (!ctx.hasUI) return;
-
       const toolsResult = await listCognitiveTools({ cwd: ctx.cwd });
       const snapshot = buildRuntimeSnapshot(ctx, toolsResult);
       const akCloseFrameStatus = await readAkCloseFrameStatus({
         cwd: ctx.cwd,
         societyDb: SOCIETY_DB,
       });
-      await ctx.ui.editor(
-        "Runtime Status",
-        `${formatRuntimeStatusReport(snapshot)}\n\n${formatAkCloseFrameStatusSection(akCloseFrameStatus)}`,
-      );
+      const output = `${formatRuntimeStatusReport(snapshot)}\n\n${formatAkCloseFrameStatusSection(akCloseFrameStatus)}`;
+      if (!ctx.hasUI) {
+        console.log(output);
+        return;
+      }
+      await ctx.ui.editor("Runtime Status", output);
     },
   });
 

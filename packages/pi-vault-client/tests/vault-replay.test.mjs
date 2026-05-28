@@ -10,10 +10,26 @@ import {
   PACKAGE_ROOT,
 } from "./helpers/transpiled-module-harness.mjs";
 
-const PROMPT_VAULT_SCHEMA = path.resolve(
-  PACKAGE_ROOT,
-  "../../../../../core/prompt-vault/schema/schema.sql",
-);
+function resolvePromptVaultSchema() {
+  const candidates = [
+    process.env.PROMPT_VAULT_SCHEMA,
+    path.resolve(PACKAGE_ROOT, "../../../../../core/prompt-vault/schema/schema.sql"),
+    path.join(os.homedir(), "ai-society/core/prompt-vault/schema/schema.sql"),
+  ].filter((candidate) => typeof candidate === "string" && candidate.length > 0);
+
+  for (const candidate of candidates) {
+    try {
+      readFileSync(candidate, "utf8");
+      return candidate;
+    } catch {
+      // Try the next known workspace topology.
+    }
+  }
+
+  throw new Error(`Could not locate prompt-vault schema.sql. Tried: ${candidates.join(", ")}`);
+}
+
+const PROMPT_VAULT_SCHEMA = resolvePromptVaultSchema();
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {

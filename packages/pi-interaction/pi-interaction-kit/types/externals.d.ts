@@ -1,8 +1,4 @@
-declare module "@mariozechner/pi-coding-agent" {
-  export const editorKey: (name: string) => string;
-}
-
-declare module "@mariozechner/pi-tui" {
+declare module "@earendil-works/pi-tui" {
   export const Container: new (...args: unknown[]) => { invalidate: () => void };
   export const Input: new () => {
     focused: boolean;
@@ -11,7 +7,10 @@ declare module "@mariozechner/pi-tui" {
     render: (width: number) => string[];
     invalidate: () => void;
   };
-  export const getEditorKeybindings: () => { matches: (data: string, keyName: string) => boolean };
+  export const getKeybindings: () => {
+    matches: (data: string, keyName: string) => boolean;
+    getKeys: (keyName: string) => string[];
+  };
   export const truncateToWidth: (text: unknown, width: number) => string;
   export const visibleWidth: (text: unknown) => number;
 }

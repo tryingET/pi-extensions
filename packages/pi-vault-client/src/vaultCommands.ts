@@ -1,4 +1,4 @@
-import type { Message, TextContent } from "@mariozechner/pi-ai";
+import type { Message, TextContent } from "@earendil-works/pi-ai";
 import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";
 import { runFzfProbe } from "./fuzzySelector.js";
 import {
@@ -691,7 +691,6 @@ export function registerVaultCommands(
   pi.registerCommand("vault-check", {
     description: "Show vault schema, company-context, and visibility health",
     handler: async (_args, ctx) => {
-      if (!ctx.hasUI) return;
       const companyContext = runtime.resolveCurrentCompanyContext(ctx.cwd);
       const schemaReport = runtime.checkSchemaCompatibilityDetailed();
       const doltEnvironment = resolveDoltExecutionEnvironmentSnapshot(runtime);
@@ -740,6 +739,10 @@ export function registerVaultCommands(
         `- meta-orchestration: ${metaOrchestration ? `visible (${runtime.facetLabel(metaOrchestration)})` : "not visible"}`,
         `- next-10-expert-suggestions: ${next10 ? `visible (${runtime.facetLabel(next10)})` : "not visible"}`,
       ].join("\n");
+      if (!ctx.hasUI) {
+        console.log(output);
+        return;
+      }
       await ctx.ui.editor("Vault Check", output);
       ctx.ui.notify(
         schemaOk ? "Vault check complete." : "Vault check found schema mismatch.",

@@ -57,8 +57,8 @@ See the root source-owner docs:
 
 This package expects pi host runtime APIs and declares them as `peerDependencies`:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
 
 When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
 

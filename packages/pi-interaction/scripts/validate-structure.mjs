@@ -56,7 +56,7 @@ function validatePackageJson() {
     }
   }
 
-  const requiredPeers = ["@mariozechner/pi-coding-agent", "@mariozechner/pi-ai"];
+  const requiredPeers = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai"];
   for (const peer of requiredPeers) {
     if (typeof p.peerDependencies?.[peer] !== "string") {
       fail(`package.json peerDependencies must include ${peer}`);
@@ -93,8 +93,8 @@ function validatePackageJson() {
     fail("package.json publishConfig.access must be 'public'");
   }
 
-  if (p.engines?.node !== ">=22") {
-    fail("package.json engines.node must be '>=22'");
+  if (p.engines?.node !== ">=22.19.0") {
+    fail("package.json engines.node must be '>=22.19.0'");
   }
 
   if (typeof p.repository?.directory !== "string" || p.repository.directory.length === 0) {

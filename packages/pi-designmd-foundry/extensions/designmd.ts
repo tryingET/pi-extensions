@@ -2,7 +2,8 @@ import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { StringEnum } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
@@ -211,12 +212,9 @@ const baseFields = {
 };
 
 const modeField = Type.Optional(
-  Type.Union(
-    MODE_VALUES.map((value) => Type.Literal(value)),
-    {
-      description: "Design operation mode. Allowed values: iterate, remix, expand, audit.",
-    },
-  ),
+  StringEnum(MODE_VALUES, {
+    description: "Design operation mode. Allowed values: iterate, remix, expand, audit.",
+  }),
 );
 
 function asPiToolParameters(schema: unknown): PiToolParameters {
@@ -275,7 +273,7 @@ export default function (pi: ExtensionAPI) {
             description: "DESIGN.md path relative to cwd, or absolute. Defaults to DESIGN.md.",
           }),
         ),
-        format: Type.Union(FORMAT_VALUES.map((value) => Type.Literal(value))),
+        format: StringEnum(FORMAT_VALUES),
         mode: modeField,
         objective: Type.Optional(
           Type.String({ description: "Optional objective for agent-prompt export." }),
@@ -497,12 +495,9 @@ export default function (pi: ExtensionAPI) {
         filePath: Type.String({
           description: ".fig or .pen path relative to cwd, or absolute.",
         }),
-        format: Type.Union(
-          OPENPENCIL_EXPORT_FORMAT_VALUES.map((value) => Type.Literal(value)),
-          {
-            description: "Verified OpenPencil export format. JSX is intentionally excluded.",
-          },
-        ),
+        format: StringEnum(OPENPENCIL_EXPORT_FORMAT_VALUES, {
+          description: "Verified OpenPencil export format. JSX is intentionally excluded.",
+        }),
         outputPath: Type.String({
           description:
             "Output artifact path relative to cwd, or absolute. The tool writes this requested file.",
@@ -1076,7 +1071,7 @@ export default function (pi: ExtensionAPI) {
           }),
         ),
         target: Type.Optional(
-          Type.Union([Type.Literal("sitegeist"), Type.Literal("manual-browser-agent")], {
+          StringEnum(["sitegeist", "manual-browser-agent"] as const, {
             description: "Optional browser-agent handoff target. Defaults to sitegeist.",
           }),
         ),

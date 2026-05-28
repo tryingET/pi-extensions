@@ -16,7 +16,7 @@ Use this after changing any of the following:
 - `packages/pi-interaction/pi-editor-registry`
 - `packages/pi-prompt-template-accelerator`
 - `packages/pi-context-overlay`
-- Pi host version / global `@mariozechner/pi-coding-agent`
+- Pi host version / global `@earendil-works/pi-coding-agent`
 
 ## Preconditions
 

@@ -1,4 +1,4 @@
-import { CustomEditor } from "@mariozechner/pi-coding-agent";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { wrapAutocompleteProviderForDollarPrefix } from "./ptxAutocompleteProvider.js";
 
 const PREVIEW_COMMAND = "/ptx-preview";

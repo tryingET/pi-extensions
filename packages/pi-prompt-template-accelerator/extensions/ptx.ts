@@ -3,11 +3,11 @@
  *
  * - Non-UI: deterministic `$$` transform pipeline (for tests/automation)
  * - UI: explicit `/ptx-select` picker command
- * - Live integration: registers `$$ /...` picker through pi-interaction trigger surfaces when available
+ * - Live integration: registers `$$ /...` picker through the split pi-trigger-adapter surface when available
  */
 
 import { readFile } from "node:fs/promises";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildTransformedCommand } from "../src/buildTransformedCommand.js";
 import { getCommandPath, isPromptCommand } from "../src/commandProvenance.js";
 import { runFzfProbe, selectFuzzyCandidate } from "../src/fuzzySelector.js";
@@ -372,15 +372,10 @@ async function inspectPromptCommands(commands: readonly PromptCommandLike[]) {
 
 async function loadTriggerSurface(): Promise<TriggerSurface | null> {
   try {
-    const interactionModuleName = "@tryinget/pi-interaction";
-    return (await import(interactionModuleName)) as TriggerSurface;
+    const triggerAdapterModuleName = "@tryinget/pi-trigger-adapter";
+    return (await import(triggerAdapterModuleName)) as TriggerSurface;
   } catch {
-    try {
-      const triggerAdapterModuleName = "@tryinget/pi-trigger-adapter";
-      return (await import(triggerAdapterModuleName)) as TriggerSurface;
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
@@ -546,8 +541,8 @@ export default function ptxExtension(pi: ExtensionAPI) {
     getModelLifecycleState: () => modelLifecycleState,
   });
 
-  // Optional live trigger registration through pi-interaction trigger surfaces.
-  // PTX remains fully functional in non-UI mode even when these packages are absent.
+  // Optional live trigger registration through the split pi-trigger-adapter surface.
+  // PTX remains fully functional in non-UI mode even when this package is absent.
   void maybeRegisterLiveTrigger({ pi }).then((result) => {
     if (!sessionActive) {
       result.unregister();
@@ -614,7 +609,7 @@ export default function ptxExtension(pi: ExtensionAPI) {
       return { action: "handled" as const };
     }
 
-    // In UI sessions with pi-interaction trigger surfaces loaded, live picker handles this before Enter.
+    // In UI sessions with pi-trigger-adapter trigger surfaces loaded, live picker handles this before Enter.
     // This path remains as deterministic fallback and as primary path in non-UI sessions.
     if (ctx.hasUI) {
       const selection = await pickTemplate({

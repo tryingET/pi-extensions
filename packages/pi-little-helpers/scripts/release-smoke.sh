@@ -37,16 +37,45 @@ const { pathToFileURL } = require("node:url");
 (async () => {
   const packageName = process.env.PACKAGE_NAME;
   const npmGlobalRoot = process.env.NPM_GLOBAL_ROOT;
-  const packageDir = path.join(npmGlobalRoot, ...String(packageName).split("/"));
+  const packageParts = String(packageName).split("/").filter(Boolean);
+  const candidatePackageDirs = [
+    process.env.PI_CODING_AGENT_DIR
+      ? path.join(process.env.PI_CODING_AGENT_DIR, "npm", "node_modules", ...packageParts)
+      : undefined,
+    path.join(process.cwd(), ".pi", "npm", "node_modules", ...packageParts),
+    npmGlobalRoot ? path.join(npmGlobalRoot, ...packageParts) : undefined,
+  ].filter(Boolean);
+  const packageDir = candidatePackageDirs.find((candidate) =>
+    fs.existsSync(path.join(candidate, "package.json")),
+  );
+  assert.ok(
+    packageDir,
+    `Installed package.json missing. Checked: ${candidatePackageDirs.join(", ")}`,
+  );
+
   const packageJsonPath = path.join(packageDir, "package.json");
-  assert.ok(fs.existsSync(packageJsonPath), `Installed package.json missing: ${packageJsonPath}`);
-
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  const sidequestEntry = pkg.pi?.extensions?.find((entry) => entry === "./extensions/sidequest.ts");
-  assert.equal(typeof sidequestEntry, "string", "Installed package missing ./extensions/sidequest.ts entry");
+  const expectedExtensionEntries = [
+    "./extensions/code-block-picker.ts",
+    "./extensions/html-output-browser.ts",
+    "./extensions/package-update-notify.ts",
+    "./extensions/session-presence.ts",
+    "./extensions/sidequest.ts",
+    "./extensions/stash.ts",
+  ];
+  for (const expectedEntry of expectedExtensionEntries) {
+    assert.ok(
+      pkg.pi?.extensions?.includes(expectedEntry),
+      `Installed package missing ${expectedEntry} entry`,
+    );
+    assert.ok(
+      fs.existsSync(path.join(packageDir, expectedEntry.replace(/^\.\//, ""))),
+      `Installed extension missing: ${expectedEntry}`,
+    );
+  }
 
+  const sidequestEntry = "./extensions/sidequest.ts";
   const sidequestPath = path.join(packageDir, sidequestEntry.replace(/^\.\//, ""));
-  assert.ok(fs.existsSync(sidequestPath), `Installed sidequest extension missing: ${sidequestPath}`);
 
   const module = await import(pathToFileURL(sidequestPath).href);
   assert.equal(typeof module.default, "function", "Installed sidequest extension missing default export");
@@ -57,6 +86,7 @@ const { pathToFileURL } = require("node:url");
   const execCalls = [];
   const notifications = [];
   const commands = new Map();
+  const tools = new Map();
 
   const extension = module.createSidequestExtension({
     env: {
@@ -86,10 +116,16 @@ const { pathToFileURL } = require("node:url");
     registerCommand(name, definition) {
       commands.set(name, definition);
     },
+    registerTool(definition) {
+      tools.set(definition.name, definition);
+    },
   });
 
   const sidequest = commands.get("sidequest");
   assert.equal(typeof sidequest?.handler, "function", "Installed sidequest command was not registered");
+  for (const expectedTool of ["fork_peer_spawn", "scout_peer_spawn", "candidate_peer_spawn"]) {
+    assert.equal(typeof tools.get(expectedTool)?.execute, "function", `Installed ${expectedTool} tool was not registered`);
+  }
 
   await sidequest.handler("release smoke", {
     cwd: "/repo",
@@ -116,7 +152,7 @@ const { pathToFileURL } = require("node:url");
     "Installed sidequest runtime did not follow the expected fallback path",
   );
   assert.equal(notifications.length, 1, "Installed sidequest runtime did not notify exactly once");
-  assert.equal(notifications[0].type, "success", "Installed sidequest runtime did not succeed");
+  assert.equal(notifications[0].type, "info", "Installed sidequest runtime did not report the expected launch notice");
   assert.match(notifications[0].message, /new Ghostty window/);
   assert.match(notifications[0].message, /does not support \+new-tab/);
   console.log("SUCCESS");

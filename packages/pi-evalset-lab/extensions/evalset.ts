@@ -7,8 +7,8 @@ import {
   complete,
   type Model,
   type Usage,
-} from "@mariozechner/pi-ai";
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-ai";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 const COMMAND_NAME = "evalset";
 const CUSTOM_MESSAGE_TYPE = "evalset";
@@ -662,6 +662,7 @@ async function evaluateVariant(args: {
   cases: EvalCaseDefinition[];
   variant: VariantDefinition;
   apiKey?: string;
+  headers?: Record<string, string>;
   temperature?: number;
 }): Promise<EvalRunReport> {
   const {
@@ -674,6 +675,7 @@ async function evaluateVariant(args: {
     cases,
     variant,
     apiKey,
+    headers,
     temperature,
   } = args;
   const runId = randomUUID();
@@ -709,6 +711,7 @@ async function evaluateVariant(args: {
       try {
         const response = await complete(model, context, {
           apiKey,
+          headers,
           temperature,
         });
 
@@ -833,6 +836,15 @@ function ensureActiveModel(ctx: ExtensionCommandContext): Model {
   return ctx.model;
 }
 
+async function resolveRequestAuth(
+  ctx: ExtensionCommandContext,
+  model: Model,
+): Promise<{ apiKey?: string; headers?: Record<string, string> }> {
+  const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+  if (!auth.ok) throw new Error(auth.error);
+  return { apiKey: auth.apiKey, headers: auth.headers };
+}
+
 async function handleInit(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext,
@@ -897,7 +909,7 @@ async function handleRun(
 ): Promise<void> {
   const config = parseRunCommand(tokens);
   const model = ensureActiveModel(ctx);
-  const apiKey = await ctx.modelRegistry.getApiKey(model);
+  const requestAuth = await resolveRequestAuth(ctx, model);
 
   const loaded = await loadDataset(ctx.cwd, config.datasetPath);
   const datasetName = loaded.dataset.name?.trim() || sanitizeSlug(config.datasetPath);
@@ -935,7 +947,7 @@ async function handleRun(
     casesHash,
     cases: datasetCases,
     variant,
-    apiKey,
+    ...requestAuth,
     temperature: config.temperature,
   });
 
@@ -974,7 +986,7 @@ async function handleCompare(
 ): Promise<void> {
   const config = parseCompareCommand(tokens);
   const model = ensureActiveModel(ctx);
-  const apiKey = await ctx.modelRegistry.getApiKey(model);
+  const requestAuth = await resolveRequestAuth(ctx, model);
 
   const loaded = await loadDataset(ctx.cwd, config.datasetPath);
   const datasetName = loaded.dataset.name?.trim() || sanitizeSlug(config.datasetPath);
@@ -1012,7 +1024,7 @@ async function handleCompare(
     casesHash,
     cases: datasetCases,
     variant: baselineVariant,
-    apiKey,
+    ...requestAuth,
     temperature: config.temperature,
   });
 
@@ -1025,7 +1037,7 @@ async function handleCompare(
     casesHash,
     cases: datasetCases,
     variant: candidateVariant,
-    apiKey,
+    ...requestAuth,
     temperature: config.temperature,
   });
 

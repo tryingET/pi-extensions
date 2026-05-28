@@ -53,9 +53,10 @@ That keeps the surface current-session-aware without depending on legacy `sessio
 
 This package expects Pi host runtime APIs and declares them as peer dependencies:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
-- `@mariozechner/pi-tui`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-agent-core`
+- `@earendil-works/pi-ai`
+- `@earendil-works/pi-tui`
 
 ## Verify
 

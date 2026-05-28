@@ -1,5 +1,5 @@
 /** Subagent dispatcher for the `dispatch_subagent` tool. */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { shapeToolResult } from "./edge-contract-kernel.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";

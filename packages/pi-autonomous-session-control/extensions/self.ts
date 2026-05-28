@@ -28,7 +28,7 @@ import type {
   ToolCallEvent,
   ToolResultEvent,
   TurnStartEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { createSelfMemoryLifecycle, type SelfMemoryLifecycle } from "./self/memory-lifecycle.ts";
 import { incrementTurn, trackCommand, trackError, trackFileOp } from "./self/perception.ts";

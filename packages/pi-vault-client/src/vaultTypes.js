@@ -1,4 +1,4 @@
-import { Text } from "@mariozechner/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 export const PROMPT_VAULT_ROOT = process.env.PROMPT_VAULT_ROOT || "/home/tryinget/ai-society/core/prompt-vault";
 export const VAULT_DIR = process.env.VAULT_DIR || `${PROMPT_VAULT_ROOT}/prompt-vault-db`;
 export const VLLM_ENDPOINT = process.env.VLLM_ENDPOINT || "http://localhost:8000";

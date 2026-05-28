@@ -3,10 +3,8 @@
  * Watches keystrokes and fires triggers when patterns match.
  */
 
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-import { CustomEditor } from "@mariozechner/pi-coding-agent";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
+import { SelectList } from "@earendil-works/pi-tui";
 import { getBroker } from "@tryinget/pi-trigger-adapter";
 
 /**
@@ -52,8 +50,7 @@ import { getBroker } from "@tryinget/pi-trigger-adapter";
  */
 
 const BaseCustomEditor = /** @type {any} */ (CustomEditor);
-/** @type {Promise<any>|undefined} */
-let selectListConstructorPromise;
+const SelectListConstructor = /** @type {any} */ (SelectList);
 let triggerEditorSessionCounter = 0;
 
 /** @param {any} editor */
@@ -83,23 +80,6 @@ function normalizeAutocompleteSuggestions(suggestions) {
     items: candidate.items,
     prefix: typeof candidate.prefix === "string" ? candidate.prefix : "",
   };
-}
-
-async function loadSelectListConstructor() {
-  if (!selectListConstructorPromise) {
-    selectListConstructorPromise = (async () => {
-      const piCodingAgentEntry = fileURLToPath(
-        import.meta.resolve("@mariozechner/pi-coding-agent"),
-      );
-      const piCodingAgentRoot = path.resolve(path.dirname(piCodingAgentEntry), "..");
-      const piScopeRoot = path.resolve(piCodingAgentRoot, "..");
-      const piTuiEntry = path.join(piScopeRoot, "pi-tui", "dist", "index.js");
-      const module = await import(pathToFileURL(piTuiEntry).href);
-      return module.SelectList;
-    })();
-  }
-
-  return selectListConstructorPromise;
 }
 
 export class TriggerEditor extends BaseCustomEditor {
@@ -296,9 +276,8 @@ export class TriggerEditor extends BaseCustomEditor {
    * @param {"regular"|"force"} mode
    */
   async applyAutocompleteSuggestions(suggestions, mode) {
-    const SelectList = await loadSelectListConstructor();
     this.autocompletePrefix = suggestions.prefix;
-    this.autocompleteList = new SelectList(
+    this.autocompleteList = new SelectListConstructor(
       suggestions.items,
       this.autocompleteMaxVisible,
       this.theme.selectList,

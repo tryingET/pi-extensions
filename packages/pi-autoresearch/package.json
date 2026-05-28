@@ -29,7 +29,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
@@ -82,8 +82,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "^0.65.0",
+    "@earendil-works/pi-ai": "^0.76.0",
+    "@earendil-works/pi-coding-agent": "^0.76.0",
     "@types/node": "^25.3.3",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "tsx": "^4.20.5",
@@ -94,8 +94,8 @@
     "fast-xml-parser": "5.3.6"
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
   }
 }

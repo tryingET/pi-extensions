@@ -26,8 +26,8 @@ Primary category fit: **Model & Prompt Management**, **Review & Quality Loops**,
 
 This package expects Pi host runtime APIs and declares them as `peerDependencies`:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
 
 The npm package uses a `files` whitelist so required runtime artifacts are explicitly included:
 

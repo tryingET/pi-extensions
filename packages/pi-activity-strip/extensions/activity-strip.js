@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-/** @typedef {import("@mariozechner/pi-coding-agent").ExtensionAPI} ExtensionAPI */
+/** @typedef {import("@earendil-works/pi-coding-agent").ExtensionAPI} ExtensionAPI */
 /** @typedef {import("../src/common/contracts.ts").BeforeAgentStartEventLike} BeforeAgentStartEventLike */
 /** @typedef {import("../src/common/contracts.ts").MessageUpdateEventLike} MessageUpdateEventLike */
 /** @typedef {import("../src/common/contracts.ts").SessionStartContextLike} SessionStartContextLike */

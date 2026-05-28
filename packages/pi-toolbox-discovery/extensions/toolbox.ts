@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { executeToolboxAction } from "../src/toolbox-actions.ts";
 import { CATALOG } from "../src/toolbox-catalog.ts";
 import { TOOLBOX_PARAMETERS } from "../src/toolbox-parameters.ts";

@@ -24,7 +24,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "fix": "bash ../../scripts/package-quality-gate.sh fix .",
@@ -67,15 +67,15 @@
     "./user-prompts": "./extensions/session-compaction/user-prompts.js"
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.65.2",
-    "@tryinget/pi-model-selection": "file:../pi-model-selection"
+    "@tryinget/pi-model-selection": "file:../pi-model-selection",
+    "@earendil-works/pi-ai": "^0.76.0"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "typebox": "*"
+    "typebox": "*",
+    "@earendil-works/pi-coding-agent": "*"
   },
   "peerDependenciesMeta": {
-    "@mariozechner/pi-coding-agent": {
+    "@earendil-works/pi-coding-agent": {
       "optional": true
     }
   },

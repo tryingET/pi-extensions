@@ -90,7 +90,7 @@ flowchart TD
 
     Cache -->|Yes| ReturnCache[Return cached result]
 
-    Cache -->|No| Import[Import @mariozechner/pi-coding-agent]
+    Cache -->|No| Import[Import @earendil-works/pi-coding-agent]
 
     Import --> TopLevel{Top-level<br/>prepareCompaction?}
 
@@ -120,7 +120,7 @@ flowchart TD
 ```mermaid
 graph TB
     subgraph "Primary Resolution"
-        A1["import '@mariozechner/pi-coding-agent'"]
+        A1["import '@earendil-works/pi-coding-agent'"]
         A2[Check .prepareCompaction property]
     end
 

@@ -93,8 +93,8 @@ Detailed setup note:
 
 This package expects Pi host runtime APIs and declares them as peer dependencies:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
 
 When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
 

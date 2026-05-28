@@ -32,7 +32,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "fix": "bash ../../scripts/package-quality-gate.sh fix . --mode simple-package",

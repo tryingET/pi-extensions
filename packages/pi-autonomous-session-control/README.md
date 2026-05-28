@@ -103,8 +103,8 @@ pi -e /path/to/pi-autonomous-session-control
 
 This extension expects pi host runtime APIs and declares them as `peerDependencies`:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
 
 For npm publishing, `package.json` uses a `files` whitelist so required runtime artifacts are explicit:
 

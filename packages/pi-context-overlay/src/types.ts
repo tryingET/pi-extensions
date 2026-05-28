@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { ContextUsage } from "@mariozechner/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { ContextUsage } from "@earendil-works/pi-coding-agent";
 
 export type ContextGroupId =
   | "system.base"

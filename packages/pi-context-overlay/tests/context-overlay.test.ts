@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { initTheme } from "@mariozechner/pi-coding-agent";
-import { visibleWidth } from "@mariozechner/pi-tui";
+import { initTheme } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import contextOverlayExtension from "../extensions/context-overlay.ts";
 import { buildGroups } from "../src/classifier.ts";
 import { ContextOverlayComponent } from "../src/context-overlay-component.ts";
@@ -189,7 +189,7 @@ test("context overlay extension registers /c and opens an overlay", async () => 
   assert.match(rendered, /Context Inspector/);
 });
 
-test("buildGroups splits AGENTS files out of project context payload", () => {
+test("buildGroups splits AGENTS files out of markdown project context payload", () => {
   const groups = buildGroups(
     [
       "System base",
@@ -198,6 +198,31 @@ test("buildGroups splits AGENTS files out of project context payload", () => {
       "Repo guidance",
       "## /repo/docs/notes.md",
       "Other note",
+    ].join("\n"),
+    [],
+    100,
+  );
+
+  const ids = groups.map((group) => group.id);
+  assert.ok(ids.includes("system.base"));
+  assert.ok(ids.includes("system.agents"));
+  assert.ok(ids.includes("system.otherFiles"));
+});
+
+test("buildGroups splits AGENTS files out of XML project context payload", () => {
+  const groups = buildGroups(
+    [
+      "System base",
+      "<project_context>",
+      "Project-specific instructions and guidelines:",
+      '<project_instructions path="/repo/AGENTS.md">',
+      "Repo guidance",
+      "</project_instructions>",
+      '<project_instructions path="/repo/docs/notes.md">',
+      "Other note",
+      "</project_instructions>",
+      "</project_context>",
+      "Current date: 2026-05-28",
     ].join("\n"),
     [],
     100,

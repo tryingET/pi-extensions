@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { estimateMessageTokens, estimateTokensFromText } from "./token-estimator.js";
 import type { ContextGroup, ContextGroupId, ContextItem } from "./types.js";
 
@@ -68,9 +68,61 @@ interface ContextFilePart {
   content: string;
 }
 
+const decodeXmlAttribute = (value: string): string =>
+  value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
+const bucketSystemFile = (
+  filePart: ContextFilePart,
+  agentsFiles: ContextFilePart[],
+  otherFiles: ContextFilePart[],
+): void => {
+  const bucket = /AGENTS\.md$|CLAUDE\.md$/i.test(filePart.path) ? agentsFiles : otherFiles;
+  bucket.push(filePart);
+};
+
+const extractXmlProjectContext = (
+  systemPrompt: string,
+): { base: string; agentsFiles: ContextFilePart[]; otherFiles: ContextFilePart[] } | undefined => {
+  const blockMatch = systemPrompt.match(/<project_context>\s*([\s\S]*?)\s*<\/project_context>/);
+  if (!blockMatch || blockMatch.index === undefined) return undefined;
+
+  const agentsFiles: ContextFilePart[] = [];
+  const otherFiles: ContextFilePart[] = [];
+  const blockStart = blockMatch.index;
+  const blockEnd = blockStart + blockMatch[0].length;
+  const base = `${systemPrompt.slice(0, blockStart).trimEnd()}\n${systemPrompt
+    .slice(blockEnd)
+    .trimStart()}`.trim();
+
+  const instructionPattern =
+    /<project_instructions\s+path=(['"])(.*?)\1>\n?([\s\S]*?)\n?<\/project_instructions>/g;
+  for (const match of blockMatch[1].matchAll(instructionPattern)) {
+    const filePath = decodeXmlAttribute(match[2] ?? "").trim();
+    if (!filePath) continue;
+    bucketSystemFile(
+      {
+        path: filePath,
+        content: (match[3] ?? "").trim(),
+      },
+      agentsFiles,
+      otherFiles,
+    );
+  }
+
+  return { base, agentsFiles, otherFiles };
+};
+
 const extractSystemParts = (
   systemPrompt: string,
 ): { base: string; agentsFiles: ContextFilePart[]; otherFiles: ContextFilePart[] } => {
+  const xmlProjectContext = extractXmlProjectContext(systemPrompt);
+  if (xmlProjectContext) return xmlProjectContext;
+
   const projectContextIdx = systemPrompt.indexOf("# Project Context");
   if (projectContextIdx < 0) {
     return { base: systemPrompt, agentsFiles: [], otherFiles: [] };
@@ -90,9 +142,7 @@ const extractSystemParts = (
     if (!currentHeader) return;
     const body = currentBuffer.join("\n").trim();
     const filePath = currentHeader.replace(/^##\s+/, "").trim();
-    const filePart: ContextFilePart = { path: filePath, content: body };
-    const bucket = /AGENTS\.md$|CLAUDE\.md$/i.test(filePath) ? agentsFiles : otherFiles;
-    bucket.push(filePart);
+    bucketSystemFile({ path: filePath, content: body }, agentsFiles, otherFiles);
     currentBuffer = [];
   };
 

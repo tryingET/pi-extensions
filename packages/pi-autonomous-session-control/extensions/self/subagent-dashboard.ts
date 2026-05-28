@@ -3,8 +3,8 @@ import type {
   ExtensionContext,
   Theme,
   ThemeColor,
-} from "@mariozechner/pi-coding-agent";
-import { type Component, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
 import {
   createSubagentDashboardSnapshot,

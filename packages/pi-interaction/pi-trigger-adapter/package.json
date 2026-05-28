@@ -33,7 +33,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "fix": "bash ../../../scripts/package-quality-gate.sh fix . --mode simple-package",
@@ -66,7 +66,7 @@
     "@biomejs/biome": "2.4.4",
     "@types/node": "22.14.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
-    "typebox": "^1.0.0",
+    "typebox": "1.1.38",
     "typescript": "5.9.2"
   },
   "overrides": {

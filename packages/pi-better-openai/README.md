@@ -24,8 +24,9 @@ Standalone Pi extension package extracted from `contrib/pi-better-openai` for tw
 
 This package expects pi host runtime APIs and declares them as `peerDependencies`:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
+- `@earendil-works/pi-tui`
 
 When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` so `pi -p` non-interactive runs stay stable.
 

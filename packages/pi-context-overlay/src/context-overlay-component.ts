@@ -1,7 +1,7 @@
 import { basename } from "node:path";
-import type { AppKeybinding, KeybindingsManager, Theme } from "@mariozechner/pi-coding-agent";
-import * as PiCodingAgent from "@mariozechner/pi-coding-agent";
-import { matchesKey, type TUI, truncateToWidth } from "@mariozechner/pi-tui";
+import type { AppKeybinding, KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
+import * as PiCodingAgent from "@earendil-works/pi-coding-agent";
+import { matchesKey, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import type { ContextSnapshot } from "./types.js";
 
 type OverlayBinding = AppKeybinding | "tui.select.cancel" | "app.tools.expand";

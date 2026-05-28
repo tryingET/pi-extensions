@@ -151,10 +151,10 @@ test("getCrossExtensionHarnessReadiness ignores non-runtime pi-coding-agent root
   try {
     await mkdir(join(vaultClientDir, "extensions"), { recursive: true });
     await mkdir(join(vaultClientDir, "node_modules", "typebox"), { recursive: true });
-    await mkdir(join(vaultClientDir, "node_modules", "@mariozechner", "pi-tui"), {
+    await mkdir(join(vaultClientDir, "node_modules", "@earendil-works", "pi-tui"), {
       recursive: true,
     });
-    await mkdir(join(vaultClientDir, "node_modules", "@mariozechner", "pi-coding-agent"), {
+    await mkdir(join(vaultClientDir, "node_modules", "@earendil-works", "pi-coding-agent"), {
       recursive: true,
     });
 
@@ -165,22 +165,22 @@ test("getCrossExtensionHarnessReadiness ignores non-runtime pi-coding-agent root
     );
     await writeFile(join(vaultClientDir, "node_modules", "typebox", "index.js"), "");
     await writeFile(
-      join(vaultClientDir, "node_modules", "@mariozechner", "pi-tui", "package.json"),
-      JSON.stringify({ name: "@mariozechner/pi-tui", main: "index.js" }),
+      join(vaultClientDir, "node_modules", "@earendil-works", "pi-tui", "package.json"),
+      JSON.stringify({ name: "@earendil-works/pi-tui", main: "index.js" }),
     );
     await writeFile(
-      join(vaultClientDir, "node_modules", "@mariozechner", "pi-tui", "index.js"),
+      join(vaultClientDir, "node_modules", "@earendil-works", "pi-tui", "index.js"),
       "",
     );
     await writeFile(
-      join(vaultClientDir, "node_modules", "@mariozechner", "pi-coding-agent", "package.json"),
+      join(vaultClientDir, "node_modules", "@earendil-works", "pi-coding-agent", "package.json"),
       JSON.stringify({
-        name: "@mariozechner/pi-coding-agent",
+        name: "@earendil-works/pi-coding-agent",
         exports: { "./extension": "./extension.js" },
       }),
     );
     await writeFile(
-      join(vaultClientDir, "node_modules", "@mariozechner", "pi-coding-agent", "extension.js"),
+      join(vaultClientDir, "node_modules", "@earendil-works", "pi-coding-agent", "extension.js"),
       "",
     );
 
@@ -190,7 +190,7 @@ test("getCrossExtensionHarnessReadiness ignores non-runtime pi-coding-agent root
     });
 
     assert.doesNotMatch(readiness.reasons.join("\n"), /runtime deps missing/);
-    assert.doesNotMatch(readiness.reasons.join("\n"), /@mariozechner\/pi-coding-agent/);
+    assert.doesNotMatch(readiness.reasons.join("\n"), /@earendil-works\/pi-coding-agent/);
   } finally {
     await rm(vaultClientDir, { recursive: true, force: true });
     await rm(vaultDir, { recursive: true, force: true });

@@ -10,7 +10,7 @@ import { lower, rankCandidatesFallback } from "./core.js";
 /** @typedef {{title:string,query?:string,maxOptions?:number,ui?:OverlayUI,onQueryChange?:(query:string)=>void}} OverlayOptions */
 
 /** @type {(name: string) => string} */
-let editorKey = (name) => name;
+let keybindingText = (name) => name;
 /** @type {new (...args: any[]) => { invalidate: () => void }} */
 let Container = class {
   invalidate() {}
@@ -157,11 +157,11 @@ function matchesBinding(keybindings, data, keyName) {
 
 /** @param {keyof typeof KEY_NAMES} keyName */
 function resolveEditorKeyLabel(keyName) {
-  return editorKey(KEY_NAMES[keyName]);
+  return keybindingText(KEY_NAMES[keyName]);
 }
 
 /** @type {() => EditorKeybindings} */
-let getEditorKeybindings = () => {
+let getInteractionKeybindings = () => {
   /** @type {Record<string, string[]>} */
   const keyMap = {
     "tui.select.up": ["\u001b[A"],
@@ -216,26 +216,26 @@ let getEditorKeybindings = () => {
 };
 
 try {
-  const codingAgent = /** @type {{ editorKey?: (name: string) => string }} */ (
-    await import("@mariozechner/pi-coding-agent")
-  );
-  if (typeof codingAgent.editorKey === "function") editorKey = codingAgent.editorKey;
-} catch (_error) {
-  // test runtime
-}
-
-try {
   const piTui = /** @type {{
    * Container?: new (...args: any[]) => { invalidate: () => void },
-   * getEditorKeybindings?: () => EditorKeybindings,
+   * getKeybindings?: () => EditorKeybindings & { getKeys?: (keyName: string) => string[] },
    * Input?: InputCtor,
    * truncateToWidth?: (text: unknown, width: number) => string,
    * visibleWidth?: (text: unknown) => number,
-   * }} */ (await import("@mariozechner/pi-tui"));
+   * }} */ (await import("@earendil-works/pi-tui"));
 
   if (typeof piTui.Container === "function") Container = piTui.Container;
-  if (typeof piTui.getEditorKeybindings === "function")
-    getEditorKeybindings = piTui.getEditorKeybindings;
+  if (typeof piTui.getKeybindings === "function") {
+    getInteractionKeybindings = piTui.getKeybindings;
+    keybindingText = (keyName) => {
+      try {
+        const keys = piTui.getKeybindings?.().getKeys?.(keyName) ?? [];
+        return keys.length > 0 ? keys.join("/") : keyName;
+      } catch {
+        return keyName;
+      }
+    };
+  }
   if (typeof piTui.Input === "function") Input = /** @type {InputCtor} */ (piTui.Input);
   if (typeof piTui.truncateToWidth === "function") truncateToWidth = piTui.truncateToWidth;
   if (typeof piTui.visibleWidth === "function") visibleWidth = piTui.visibleWidth;
@@ -314,7 +314,7 @@ class InteractiveFuzzySelector extends BaseContainer {
 
   /** @param {string} data */
   handleInput(data) {
-    const kb = getEditorKeybindings();
+    const kb = getInteractionKeybindings();
 
     if (matchesBinding(kb, data, "selectUp")) {
       if (this.filtered.length > 0)

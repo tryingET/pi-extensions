@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { getAgentDir } from "@mariozechner/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const PI_SESSION_DIR_ENV = "PI_CODING_AGENT_SESSION_DIR";
 const ASC_NATIVE_SUBAGENT_DIR = "asc-subagents";

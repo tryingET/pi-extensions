@@ -197,8 +197,8 @@ Current boundary:
 
 This package expects Pi host runtime APIs and declares them as `peerDependencies`:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
 - `typebox`
 
 Runtime YAML handling uses:

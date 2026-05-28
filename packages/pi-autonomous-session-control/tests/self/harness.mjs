@@ -52,7 +52,7 @@ export async function loadExtensionWithMocks() {
 
   // Replace import with mock
   source = source.replace(
-    /from\s+"@mariozechner\/pi-coding-agent"/g,
+    /from\s+"@earendil-works\/pi-coding-agent"/g,
     'from "./mock-pi-coding-agent.mjs"',
   );
 

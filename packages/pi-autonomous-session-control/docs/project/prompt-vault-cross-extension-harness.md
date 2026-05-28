@@ -64,10 +64,10 @@ The live cross-extension test (`tests/prompt-vault-cross-extension.live.mjs`) an
 2. **prompt-vault DB** at `~/ai-society/core/prompt-vault/prompt-vault-db/`
 3. **dolt** available in PATH
 4. **Runtime dependencies** used by the JavaScript vault-client entrypoint resolvable from vault-client context:
-   - `@mariozechner/pi-tui`
+   - `@earendil-works/pi-tui`
    - `typebox`
 
-`@mariozechner/pi-coding-agent` is a host/type-level dependency for vault-client source, but the ASC live harness does not treat package-root `ERR_PACKAGE_PATH_NOT_EXPORTED` as live runtime unavailability when the JavaScript extension entrypoint can be imported.
+`@earendil-works/pi-coding-agent` is a host/type-level dependency for vault-client source, but the ASC live harness does not treat package-root `ERR_PACKAGE_PATH_NOT_EXPORTED` as live runtime unavailability when the JavaScript extension entrypoint can be imported.
 
 ### Why the test skips
 

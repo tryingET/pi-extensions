@@ -1,4 +1,4 @@
-import { Text } from "@mariozechner/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { checkProjectionFreshness, classifyDispatchPosture, formatDispatchPosture, isOrchestratorGateRequired, } from "./dispatchPosture.js";
 import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";

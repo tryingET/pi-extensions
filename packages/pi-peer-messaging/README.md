@@ -199,8 +199,8 @@ QUEST_FINAL quest_id=<id>: final report
 
 This package expects Pi host runtime APIs and declares them as peer dependencies:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-ai`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-ai`
 
 ## Package checks
 

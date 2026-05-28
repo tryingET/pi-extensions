@@ -3,7 +3,7 @@
  * Helpers for describing, summarizing, and manipulating session entries.
  */
 
-import type { SessionEntry } from "@mariozechner/pi-coding-agent";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
 type TextBlock = { type: string; text?: string; name?: string };
 

@@ -4,7 +4,7 @@ import {
   buildSessionContext,
   type ExtensionAPI,
   type ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { ContextOverlayComponent } from "../src/context-overlay-component.js";
 import { ContextSnapshotStore } from "../src/snapshot-store.js";
 

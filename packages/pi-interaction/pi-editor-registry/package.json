@@ -33,7 +33,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "fix": "bash ../../../scripts/package-quality-gate.sh fix . --mode simple-package",
@@ -64,14 +64,16 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@mariozechner/pi-coding-agent": "^0.65.0",
+    "@earendil-works/pi-coding-agent": "^0.76.0",
+    "@earendil-works/pi-tui": "^0.76.0",
     "@types/node": "22.14.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "typebox": "^1.0.0",
     "typescript": "5.9.2"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
     "typebox": "*"
   }
 }
