@@ -29,8 +29,8 @@ required_files=(
   "scripts/validate-structure.sh"
   "scripts/validate-structure.mjs"
   "scripts/quality-gate.sh"
-  "prompts/implementation-planning.md"
-  "prompts/security-review.md"
+  "prompts/pi-interaction-implementation-planning.md"
+  "prompts/pi-interaction-security-review.md"
 )
 
 required_dirs=(

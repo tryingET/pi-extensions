@@ -1,0 +1,20 @@
+---
+summary: "Prompt template for security-focused review."
+read_when:
+  - "Using the package-provided security-review prompt."
+description: Review a pi-society-startup-context change for security risks and mitigations
+system4d:
+  container: "Prompt template for security-focused review."
+  compass: "Identify practical vulnerabilities before release."
+  engine: "Threats -> impact -> mitigations -> verification."
+  fog: "Partial context can hide exploit paths."
+---
+
+Review this pi-society-startup-context change for security concerns: $@
+
+Focus on:
+- Input validation and injection risk
+- Privilege boundaries and secret handling
+- Dependency and supply-chain risk
+- Safe failure modes and logging
+- Concrete remediations with priority
