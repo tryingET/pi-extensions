@@ -3,19 +3,17 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "6c3c72a911a289168ddf7b245a5770825f13613b"
-created_at: "2026-05-30T14:39:44Z"
-intent: "Forward provider/id model context to ASC subagent so child extension selection respects model-aware routing"
+created_at: "2026-05-30T14:44:05Z"
+intent: "Forward provider/id model context to ASC subagent"
 files:
-  - "packages/pi-society-orchestrator/src/runtime/subagent.ts"
-  - "packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs"
+  []
 validation:
   fast_gate:
     command: "npm run check"
     status: "pass"
   full_gate:
-    command: "pending"
-    status: "pending"
+    command: "just loop-impact-wide"
+    status: "pass"
 group:
   index: 1
   total: 3
-  rationale: "Code + test for model context forwarding to ASC subagent"
