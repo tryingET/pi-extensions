@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "db920051bb130cd04da79d62bd032c188644c2bb"
+created_at: "2026-05-30T15:11:20Z"
+intent: "Add remaining generated transcendent loop diary captures"
+files:
+  []
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-society-orchestrator run loop-verify-fast"
+    status: "pass"
+  full_gate:
+    command: "pending"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "Generated package-local KES diary captures"
