@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "7ab7ea1b670c3f327ba9b0981b5abe4ef0011288"
-created_at: "2026-05-30T15:09:56Z"
+created_at: "2026-05-30T15:14:29Z"
 intent: "Keep loop_execute in the toolbox always-active baseline and align docs/tests"
 files:
   - "packages/pi-toolbox-discovery/README.md"
@@ -15,8 +15,8 @@ validation:
     command: "npm --prefix packages/pi-toolbox-discovery run check"
     status: "pass"
   full_gate:
-    command: "pending"
-    status: "pending"
+    command: "just loop-impact-wide"
+    status: "pass"
 group:
   index: 1
   total: 2
