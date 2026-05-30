@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "575e51b33ea0fea04a2a40268d40e09c7ba231ea"
+created_at: "2026-05-30T14:40:52Z"
+intent: "Add transcendent closure-gate crystallization learning candidate for promotion review"
+files:
+  []
+validation:
+  fast_gate:
+    command: "npm run check"
+    status: "pass"
+  full_gate:
+    command: "pending"
+    status: "pending"
+group:
+  index: 3
+  total: 3
+  rationale: "KES learning candidate from transcendent loop sessions"
