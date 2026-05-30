@@ -6,6 +6,7 @@ import {
   type DispatchSubagentExecutionUpdate,
   type DispatchSubagentFailureKind,
   getDispatchSubagentDisplayOutput,
+  type SubagentModelContext,
   type SubagentSpawner,
   type SubagentState,
 } from "@tryinget/pi-autonomous-session-control/execution";
@@ -131,7 +132,7 @@ export function createOrchestratorSubagentExecutor(
           prompt_tags: params.promptTags,
           prompt_source: params.promptSource,
         },
-        { cwd: params.cwd },
+        buildAscExecutionContext(params.cwd, params.model),
         params.onUpdate,
         params.signal,
       );
@@ -156,6 +157,24 @@ export function toExecutionLike(
     assistantErrorMessage: result.details.assistantErrorMessage,
     executionState: result.details.executionState,
     failureKind: result.details.failureKind,
+  };
+}
+
+function buildAscExecutionContext(cwd: string, model: string): SubagentModelContext {
+  const parsedModel = parseProviderModel(model);
+  return parsedModel ? { cwd, model: parsedModel } : { cwd };
+}
+
+function parseProviderModel(model: string): { provider: string; id: string } | undefined {
+  const trimmed = model.trim();
+  const separatorIndex = trimmed.indexOf("/");
+  if (separatorIndex <= 0 || separatorIndex >= trimmed.length - 1) {
+    return undefined;
+  }
+
+  return {
+    provider: trimmed.slice(0, separatorIndex),
+    id: trimmed.slice(separatorIndex + 1),
   };
 }
 

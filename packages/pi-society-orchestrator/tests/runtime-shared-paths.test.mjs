@@ -495,6 +495,56 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
   }
 });
 
+test("createOrchestratorSubagentExecutor forwards model context for ASC child extension selection", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-asc-model-context-"));
+  const previous = process.env.PI_MULTI_PASS_EXTENSION;
+  const calls = [];
+
+  try {
+    const multiPassExtensionPath = path.join(tempDir, "multi-pass.ts");
+    fs.writeFileSync(multiPassExtensionPath, "export default function () {}\n");
+    process.env.PI_MULTI_PASS_EXTENSION = multiPassExtensionPath;
+
+    const executor = createOrchestratorSubagentExecutor({
+      sessionsDir: tempDir,
+      spawner: async (def, model, ctx, state, signal) => {
+        calls.push({ def, model, ctx, state, signal });
+        return {
+          output: "delegated answer",
+          exitCode: 0,
+          elapsed: 10,
+          status: "done",
+        };
+      },
+    });
+
+    const result = await executor.execute({
+      agentProfile: AGENT_PROFILES.scout,
+      cognitiveToolName: "first-principles",
+      cognitiveToolContent: "FRAMEWORK: reason from first principles",
+      objective: "Diagnose the test suite",
+      model: "openai-codex-2/gpt-5.5",
+      cwd: "/tmp/worktree",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].model, "openai-codex-2/gpt-5.5");
+    assert.deepEqual(calls[0].ctx.model, { provider: "openai-codex-2", id: "gpt-5.5" });
+    assert.deepEqual(calls[0].def.extensionSources, [multiPassExtensionPath]);
+    assert.equal(result.details.requestedModel, "openai-codex-2/gpt-5.5");
+    assert.equal(result.details.effectiveModel, "openai-codex-2/gpt-5.5");
+    assert.deepEqual(result.details.loadedExtensions, [multiPassExtensionPath]);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PI_MULTI_PASS_EXTENSION;
+    } else {
+      process.env.PI_MULTI_PASS_EXTENSION = previous;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("toExecutionLike preserves timeout fallback text from the ASC public runtime casebook", () => {
   const execution = toExecutionLike(timeoutEmptyOutputCase.dispatchResult);
 
