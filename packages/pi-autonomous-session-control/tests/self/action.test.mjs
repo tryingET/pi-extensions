@@ -166,6 +166,81 @@ test("self query: prefill preserves quoted command arguments", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: continue suggested next move sends user message for agent-actionable local move", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+
+  toolCallHandler({
+    toolName: "write",
+    toolCallId: "write-one-file",
+    input: { path: "src/one-file.ts", content: "export const value = 1;\n" },
+  });
+
+  const result = await tool.execute(
+    "tc-send-next-move",
+    { query: "continue suggested next move" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("User-message continuation sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.match(harness.sentUserMessages[0].text, /Continue with the self-suggested next move/);
+  assert.match(harness.sentUserMessages[0].text, /npm run check/);
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.prefill, false);
+
+  await cleanup(tempDir);
+});
+
+test("self query: continue suggested next move keeps operator-gated peer move as prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-continue-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-send-next-move-peer-gated",
+    { query: "continue suggested next move" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("prefilled"));
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.ok(editorText.startsWith("/scoutpeer "));
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_review_required");
+
+  await cleanup(tempDir);
+});
+
 test("self query: prefill suggested next move uses current handoff nextMove", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

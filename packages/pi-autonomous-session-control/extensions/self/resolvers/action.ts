@@ -27,6 +27,10 @@ export const ACTION_KEYWORDS = [
   "prefill",
   "suggest input",
   "prefill editor",
+  "continue suggested next move",
+  "send suggested next move",
+  "advance suggested next move",
+  "send user message",
 ];
 
 export function mapActionIntent(lower: string): string {
@@ -41,6 +45,14 @@ export function mapActionIntent(lower: string): string {
     return "list_action_state";
   }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
+  if (
+    lower.includes("continue suggested next move") ||
+    lower.includes("send suggested next move") ||
+    lower.includes("advance suggested next move") ||
+    lower.includes("send user message")
+  ) {
+    return "continue_suggested_next_move";
+  }
   if (lower.includes("prefill") || lower.includes("suggest input")) return "prefill_editor";
   if (
     lower.includes("followup") ||
@@ -69,6 +81,10 @@ export function resolveActionQuery(
 
     case "prefill_editor": {
       return handlePrefillEditor(query, state);
+    }
+
+    case "continue_suggested_next_move": {
+      return handleContinueSuggestedNextMove(state);
     }
 
     case "list_action_state": {
@@ -225,6 +241,47 @@ function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {
   };
 }
 
+function handleContinueSuggestedNextMove(state: SelfState): SelfResponse {
+  analyzePatterns(state.operations, state.patterns);
+  const handoff = queryHandoffSummary(state.operations, state.patterns);
+  const nextMove = handoff.nextMove;
+
+  if (!nextMove) {
+    return {
+      understood: true,
+      intent: "action",
+      answer:
+        "No suggested next move is visible from the current mirror state. Ask for a controller handoff summary or continue locally.",
+      data: { sendUserMessage: false, prefill: false },
+      suggestions: ["controller handoff summary", "prefill: local validation command"],
+    };
+  }
+
+  if (requiresOperatorReview(nextMove)) {
+    return buildPrefillResponse(nextMove.prefillText, {
+      nextMove,
+      sendUserMessage: false,
+      dispatchMode: "operator_review_required",
+      reason:
+        "Suggested move crosses a harness, peer, compaction, or high-severity recovery boundary; keep it as editor prefill for operator review.",
+    });
+  }
+
+  const text = buildContinuationMessage(nextMove);
+  return {
+    understood: true,
+    intent: "action",
+    answer: `User-message continuation suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
+    data: {
+      text,
+      nextMove,
+      sendUserMessage: true,
+      prefill: false,
+      dispatchMode: "agent_continuation",
+    },
+  };
+}
+
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {
   return {
     understood: true,
@@ -232,6 +289,35 @@ function buildPrefillResponse(text: string, extraData: Record<string, unknown> =
     answer: `Editor prefill suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
     data: { text, prefill: true, ...extraData },
   };
+}
+
+function requiresOperatorReview(nextMove: {
+  owner: string;
+  prefillText: string;
+  confidence?: string;
+  score?: number;
+}): boolean {
+  const text = nextMove.prefillText.trim();
+  return (
+    text.startsWith("/") ||
+    nextMove.owner === "peer-tools" ||
+    nextMove.owner === "pi-session-compaction" ||
+    (nextMove.confidence === "high" && (nextMove.score ?? 0) >= 90)
+  );
+}
+
+function buildContinuationMessage(nextMove: {
+  slice: string;
+  owner: string;
+  prefillText: string;
+  reason?: string;
+}): string {
+  return [
+    `Continue with the self-suggested next move (${nextMove.slice}, owner=${nextMove.owner}).`,
+    `Reason: ${nextMove.reason ?? "self mirror ranked this as the next local continuation."}`,
+    `Action: ${nextMove.prefillText}`,
+    "Keep owner boundaries explicit and do not treat this self suggestion as durable authority.",
+  ].join("\n");
 }
 
 function normalizePrefillText(value: string | undefined): string | undefined {

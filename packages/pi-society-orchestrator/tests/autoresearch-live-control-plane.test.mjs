@@ -2795,6 +2795,14 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       tool.parameters.properties.allowMeasureExportReview,
       "schema exposes Level-4 safe automation switch",
     );
+    assert.ok(
+      tool.parameters.properties.maxParallelCandidatePeers,
+      "schema exposes Level-4 whole-matrix concurrency limit",
+    );
+    writeFileSync(
+      path.join(cwd, "package.json"),
+      JSON.stringify({ scripts: { check: 'node -e "process.exit(0)"' } }),
+    );
 
     const baseRequest = {
       action: "level4_autoresearch_campaign_runner",
@@ -2810,6 +2818,7 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       parentPeerTarget: "controller-peer-1",
       runnerManifestPath: ".autoresearch/matrix-campaign/level4-runner.json",
       level4ReceiptPath: ".autoresearch/level4-test-receipts.jsonl",
+      maxParallelCandidatePeers: 2,
     };
 
     const blocked = await tool.execute(
@@ -2875,6 +2884,45 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.metric.value,
       0,
     );
+    const wholeMatrixExecutor =
+      blocked.details.level4CampaignRunner.promptRunnerBundle.wholeMatrixParallelExecutor;
+    assert.equal(wholeMatrixExecutor.kind, "autoresearch.level4_whole_matrix_parallel_executor.v1");
+    assert.equal(
+      wholeMatrixExecutor.execution,
+      "bounded_parallel_visible_tools_with_controller_verification",
+    );
+    assert.equal(wholeMatrixExecutor.concurrencyLimit, 2);
+    assert.equal(wholeMatrixExecutor.totalLaneCount, 1);
+    assert.equal(wholeMatrixExecutor.batchCount, 1);
+    assert.equal(
+      wholeMatrixExecutor.batches[0].lanes[0].launchCall.startsWith("candidate_peer_spawn("),
+      true,
+    );
+    assert.equal(
+      wholeMatrixExecutor.batches[0].lanes[0].ackWatchCall.startsWith("intercom("),
+      true,
+    );
+    assert.equal(
+      wholeMatrixExecutor.batches[0].lanes[0].finalWatchCall.startsWith("intercom("),
+      true,
+    );
+    assert.equal(wholeMatrixExecutor.ackFinalWatchContract.peerTextIsCommunicationOnly, true);
+    assert.equal(wholeMatrixExecutor.lineageVerificationGate.blocksMeasurementUntilSatisfied, true);
+    assert.equal(wholeMatrixExecutor.materializationPreflight.perLaneRequired, true);
+    assert.match(
+      wholeMatrixExecutor.materializationPreflight.defaultCommands.join("\n"),
+      /npm --prefix/,
+    );
+    assert.equal(wholeMatrixExecutor.materializationPreflight.blockerMetric.value, 0);
+    assert.equal(wholeMatrixExecutor.metric.name, "true_parallel_whole_matrix_executor_blockers");
+    assert.equal(wholeMatrixExecutor.metric.value, 0);
+    assert.deepEqual(wholeMatrixExecutor.safeAutomation.stoppedOwnerGates, [
+      "finalize_post_fanin",
+      "candidate_cleanup",
+      "ak_owner_write",
+      "promotion",
+      "merge",
+    ]);
     assert.equal(
       blocked.details.level4CampaignRunner.promptRunnerBundle.visibleLaunchWatchPlan.lanePlans[0]
         .launchSurface,

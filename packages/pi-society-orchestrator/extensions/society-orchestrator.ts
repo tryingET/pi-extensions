@@ -852,6 +852,25 @@ function formatAutoresearchLevel4CampaignRunnerReport(
         )
       : ["- blockers: none"]),
     "",
+    "Whole-matrix parallel executor:",
+    `- kind: ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.kind}`,
+    `- execution: ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.execution}`,
+    `- concurrency limit: ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.concurrencyLimit}`,
+    `- lanes: ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.totalLaneCount}; batches: ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.batchCount}`,
+    `- true_parallel_whole_matrix_executor_blockers: ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.metric.value} (target=${runner.promptRunnerBundle.wholeMatrixParallelExecutor.metric.target}, ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.metric.status})`,
+    `- matrix_materialization_preflight_blockers: ${runner.promptRunnerBundle.wholeMatrixParallelExecutor.materializationPreflight.blockerMetric.value} (${runner.promptRunnerBundle.wholeMatrixParallelExecutor.materializationPreflight.blockerMetric.status})`,
+    ...(runner.promptRunnerBundle.wholeMatrixParallelExecutor.batches.length > 0
+      ? runner.promptRunnerBundle.wholeMatrixParallelExecutor.batches.map(
+          (batch) =>
+            `- batch ${batch.batchIndex}: ${batch.lanes.map((lane) => `${lane.cellId}/${lane.laneId}`).join(", ")}`,
+        )
+      : ["- batches: none"]),
+    ...(runner.promptRunnerBundle.wholeMatrixParallelExecutor.metric.blockers.length > 0
+      ? runner.promptRunnerBundle.wholeMatrixParallelExecutor.metric.blockers.map(
+          (blocker) => `- blocker: ${blocker}`,
+        )
+      : ["- blockers: none"]),
+    "",
     "Controller lineage verification:",
     ...runner.promptRunnerBundle.controllerLineageVerification.checklist.map((item) => `- ${item}`),
     "",
@@ -2837,6 +2856,14 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           maximum: 25,
         }),
       ),
+      maxParallelCandidatePeers: Type.Optional(
+        Type.Number({
+          description:
+            "Level-4 whole-matrix executor visible candidate_peer_spawn concurrency limit (1-12, default 4).",
+          minimum: 1,
+          maximum: 12,
+        }),
+      ),
       allowMeasureExportReview: Type.Optional(
         Type.Boolean({
           description:
@@ -2985,6 +3012,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         level3Manifest,
         level4ReceiptPath,
         maxAutomatedActions,
+        maxParallelCandidatePeers,
         allowMeasureExportReview,
         allowReviewGeneration,
         allowAutomaticCleanupAfterIntegrationCloseout,
@@ -3079,6 +3107,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         level3Manifest?: Record<string, unknown>;
         level4ReceiptPath?: string;
         maxAutomatedActions?: number;
+        maxParallelCandidatePeers?: number;
         allowMeasureExportReview?: boolean;
         allowReviewGeneration?: boolean;
         allowAutomaticCleanupAfterIntegrationCloseout?: boolean;
@@ -3570,6 +3599,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             candidateBindings: level3CandidateBindings,
             level4ReceiptPath,
             maxAutomatedActions,
+            maxParallelCandidatePeers,
             allowMeasureExportReview,
             allowReviewGeneration,
             allowAutomaticCleanupAfterIntegrationCloseout,

@@ -292,6 +292,7 @@ export type ActionIntent =
   | "create_checkpoint"
   | "queue_followup"
   | "prefill_editor"
+  | "continue_suggested_next_move"
   | "list_action_state";
 
 export type MetaIntent = "list_capabilities";

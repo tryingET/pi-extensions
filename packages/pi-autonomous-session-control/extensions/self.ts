@@ -296,15 +296,26 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
           : undefined;
       const context = { ...(callerContext ?? {}), cwd: ctx.cwd || process.cwd() };
       const response = resolveQuery({ query: typedParams.query, context }, state);
-      const prefillData = response.data as { prefill?: unknown; text?: unknown } | undefined;
+      const actionData = response.data as
+        | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown }
+        | undefined;
       const didPrefill =
         response.intent === "action" &&
-        prefillData?.prefill === true &&
-        typeof prefillData.text === "string" &&
+        actionData?.prefill === true &&
+        typeof actionData.text === "string" &&
         ctx.hasUI;
+      const didSendUserMessage =
+        response.intent === "action" &&
+        actionData?.sendUserMessage === true &&
+        typeof actionData.text === "string" &&
+        typeof pi.sendUserMessage === "function";
 
       if (didPrefill) {
-        ctx.ui.setEditorText(prefillData.text as string);
+        ctx.ui.setEditorText(actionData.text as string);
+      }
+
+      if (didSendUserMessage) {
+        await pi.sendUserMessage(actionData.text as string, { deliverAs: "followUp" });
       }
 
       if (
@@ -327,7 +338,12 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
             text:
               (didPrefill
                 ? response.answer.replace("Editor prefill suggested", "Editor prefilled")
-                : response.answer) +
+                : didSendUserMessage
+                  ? response.answer.replace(
+                      "User-message continuation suggested",
+                      "User-message continuation sent",
+                    )
+                  : response.answer) +
               (response.suggestions?.length
                 ? `\n\nSuggestions: ${response.suggestions.join("; ")}`
                 : ""),

@@ -668,6 +668,7 @@ export interface AutoresearchLevel4CampaignRunnerRequest
   extends AutoresearchLevel3MatrixCellExecutorRequest {
   level4ReceiptPath?: string;
   maxAutomatedActions?: number;
+  maxParallelCandidatePeers?: number;
   allowMeasureExportReview?: boolean;
   allowReviewGeneration?: boolean;
   allowAutomaticCleanupAfterIntegrationCloseout?: boolean;
@@ -725,6 +726,75 @@ export interface AutoresearchLevel4VisibleLaunchWatchPlan {
     "promotion",
   ];
   forbiddenActions: readonly string[];
+  boundaries: readonly string[];
+  nextStep: string;
+}
+
+export interface AutoresearchLevel4WholeMatrixExecutorBatch {
+  batchIndex: number;
+  concurrencyLimit: number;
+  lanes: readonly {
+    cellId: string;
+    laneId: string;
+    launchCall: string;
+    ackWatchCall: string;
+    finalWatchCall: string;
+    materializationPreflight: readonly string[];
+    lineageVerificationCommands: readonly string[];
+    safeMeasurementExportReviewCalls: readonly string[];
+  }[];
+}
+
+export interface AutoresearchLevel4WholeMatrixExecutor {
+  kind: "autoresearch.level4_whole_matrix_parallel_executor.v1";
+  execution: "bounded_parallel_visible_tools_with_controller_verification";
+  concurrencyLimit: number;
+  totalLaneCount: number;
+  batchCount: number;
+  batches: readonly AutoresearchLevel4WholeMatrixExecutorBatch[];
+  ackFinalWatchContract: {
+    waitFor: "both";
+    peerTextIsCommunicationOnly: true;
+    requiredBeforeLineageCheckpoint: readonly ["PEER_ACK", "PEER_FINAL"];
+  };
+  lineageVerificationGate: {
+    requiredFacts: readonly ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"];
+    source: "controller_git_verification_not_peer_text";
+    blocksMeasurementUntilSatisfied: true;
+  };
+  materializationPreflight: {
+    perLaneRequired: true;
+    commandsAreControllerExecuted: true;
+    defaultCommands: readonly string[];
+    blockerMetric: {
+      name: "matrix_materialization_preflight_blockers";
+      direction: "lower";
+      target: 0;
+      value: number;
+      status: "target_met" | "blocked";
+      blockers: readonly string[];
+    };
+  };
+  safeAutomation: {
+    peerLaunch: "visible_candidate_peer_spawn_only";
+    bindRunExportReview: "after_ack_final_lineage_and_materialization";
+    matrixReview: "after_candidate_result_packets";
+    stoppedOwnerGates: readonly [
+      "finalize_post_fanin",
+      "candidate_cleanup",
+      "ak_owner_write",
+      "promotion",
+      "merge",
+    ];
+  };
+  metric: {
+    name: "true_parallel_whole_matrix_executor_blockers";
+    direction: "lower";
+    target: 0;
+    value: number;
+    status: "target_met" | "blocked";
+    blockers: readonly string[];
+  };
   boundaries: readonly string[];
   nextStep: string;
 }
@@ -922,6 +992,7 @@ export interface AutoresearchLevel4PromptRunnerBundle {
   visibleCandidatePeerSpawnCalls: readonly string[];
   peerWatchCalls: readonly string[];
   visibleLaunchWatchPlan: AutoresearchLevel4VisibleLaunchWatchPlan;
+  wholeMatrixParallelExecutor: AutoresearchLevel4WholeMatrixExecutor;
   candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket;
   controllerLineageVerification: {
     peerFinalIsCommunicationOnly: true;
@@ -6778,6 +6849,52 @@ function readCandidatePeerRegistrySidecar(input: {
   }
 }
 
+function resolveLevel4MaxParallelCandidatePeers(value: unknown): number {
+  if (value === undefined || value === null) return 4;
+  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 12) {
+    throw new Error("maxParallelCandidatePeers must be an integer from 1 to 12.");
+  }
+  return value as number;
+}
+
+function chunkArray<T>(values: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function buildLevel4MaterializationPreflightCommands(cwd: string): string[] {
+  const packageJsonPath = path.join(cwd, "package.json");
+  if (fs.existsSync(packageJsonPath)) {
+    return [
+      `npm --prefix ${shellQuote(cwd)} install`,
+      `npm --prefix ${shellQuote(cwd)} run check --if-present`,
+    ];
+  }
+  const rootPackageJsonPath = findNearestPackageJson(cwd);
+  if (rootPackageJsonPath) {
+    const packageRoot = path.dirname(rootPackageJsonPath);
+    return [
+      `npm --prefix ${shellQuote(packageRoot)} install`,
+      `npm --prefix ${shellQuote(packageRoot)} run check --if-present`,
+    ];
+  }
+  return [];
+}
+
+function findNearestPackageJson(cwd: string): string | null {
+  let current = path.resolve(cwd);
+  while (true) {
+    const candidate = path.join(current, "package.json");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
 function buildLevel4PromptRunnerBundle(
   input: AutoresearchLevel4CampaignRunnerRequest,
   executor: AutoresearchLevel3MatrixCellExecutor,
@@ -6935,6 +7052,99 @@ function buildLevel4PromptRunnerBundle(
         : state === "checkpoint_accepted_controller_sequence_ready"
           ? "Visible launch/watch lineage is checkpointed; proceed only with controller-verified bind/measure/export/review calls."
           : "Controller may execute the visible candidate_peer_spawn calls, watch ACK/FINAL, verify lineage, then proceed to bind/measure/export/review.",
+  };
+  const maxParallelCandidatePeers = resolveLevel4MaxParallelCandidatePeers(
+    input.maxParallelCandidatePeers,
+  );
+  const defaultMaterializationPreflight = buildLevel4MaterializationPreflightCommands(input.cwd);
+  const wholeMatrixExecutorBlockers = [
+    ...(visibleLaunchWatchPlan.metric.blockers ?? []),
+    ...(maxParallelCandidatePeers < 1 ? ["maxParallelCandidatePeers must be at least 1"] : []),
+    ...(promptBundle.length === 0
+      ? ["no visible candidate lanes available for whole-matrix execution"]
+      : []),
+    ...(defaultMaterializationPreflight.length === 0
+      ? [
+          "no dependency/materialization preflight command could be inferred for cwd; provide package hydration before measurement",
+        ]
+      : []),
+  ];
+  const wholeMatrixParallelExecutor: AutoresearchLevel4WholeMatrixExecutor = {
+    kind: "autoresearch.level4_whole_matrix_parallel_executor.v1",
+    execution: "bounded_parallel_visible_tools_with_controller_verification",
+    concurrencyLimit: maxParallelCandidatePeers,
+    totalLaneCount: promptBundle.length,
+    batchCount: Math.ceil(promptBundle.length / maxParallelCandidatePeers),
+    batches: chunkArray(promptBundle, maxParallelCandidatePeers).map((lanes, index) => ({
+      batchIndex: index + 1,
+      concurrencyLimit: maxParallelCandidatePeers,
+      lanes: lanes.map((lane) => ({
+        cellId: lane.cellId,
+        laneId: lane.laneId,
+        launchCall: lane.candidatePeerSpawnCall,
+        ackWatchCall: lane.peerAckWatchCall,
+        finalWatchCall: lane.peerFinalWatchCall,
+        materializationPreflight: defaultMaterializationPreflight,
+        lineageVerificationCommands: lane.lineageVerificationChecklist,
+        safeMeasurementExportReviewCalls: lane.postFinalControllerCalls,
+      })),
+    })),
+    ackFinalWatchContract: {
+      waitFor: "both",
+      peerTextIsCommunicationOnly: true,
+      requiredBeforeLineageCheckpoint: ["PEER_ACK", "PEER_FINAL"],
+    },
+    lineageVerificationGate: {
+      requiredFacts: ["worktree", "branch", "baseRef", "diffSummary", "filesChanged"],
+      source: "controller_git_verification_not_peer_text",
+      blocksMeasurementUntilSatisfied: true,
+    },
+    materializationPreflight: {
+      perLaneRequired: true,
+      commandsAreControllerExecuted: true,
+      defaultCommands: defaultMaterializationPreflight,
+      blockerMetric: {
+        name: "matrix_materialization_preflight_blockers",
+        direction: "lower",
+        target: 0,
+        value: defaultMaterializationPreflight.length === 0 ? 1 : 0,
+        status: defaultMaterializationPreflight.length === 0 ? "blocked" : "target_met",
+        blockers:
+          defaultMaterializationPreflight.length === 0
+            ? ["missing inferred package dependency/materialization preflight"]
+            : [],
+      },
+    },
+    safeAutomation: {
+      peerLaunch: "visible_candidate_peer_spawn_only",
+      bindRunExportReview: "after_ack_final_lineage_and_materialization",
+      matrixReview: "after_candidate_result_packets",
+      stoppedOwnerGates: [
+        "finalize_post_fanin",
+        "candidate_cleanup",
+        "ak_owner_write",
+        "promotion",
+        "merge",
+      ],
+    },
+    metric: {
+      name: "true_parallel_whole_matrix_executor_blockers",
+      direction: "lower",
+      target: 0,
+      value: wholeMatrixExecutorBlockers.length,
+      status: wholeMatrixExecutorBlockers.length === 0 ? "target_met" : "blocked",
+      blockers: wholeMatrixExecutorBlockers,
+    },
+    boundaries: [
+      "Whole-matrix execution is bounded into explicit parallel batches of visible candidate_peer_spawn calls; no hidden peer launch is allowed.",
+      "ACK/FINAL watches and candidate lineage verification gate every bind/measure/export/review call.",
+      "Dependency/materialization preflight is required per lane before measurement to avoid false failures from unhydrated candidate worktrees.",
+      "Candidate-result packets remain local projections; finalizer, cleanup, AK/KES/evidence writes, merge, release, and promotion stop at owner gates.",
+    ],
+    nextStep:
+      wholeMatrixExecutorBlockers.length === 0
+        ? "Execute each batch concurrently up to concurrencyLimit: launch visible peers, wait for ACK/FINAL, verify lineage and materialization, then run safe bind/measure/export/review calls; stop before owner gates."
+        : "Resolve whole-matrix executor blockers before treating this as executable parallel campaign choreography.",
   };
   const postFinalControllerSequence = checkpointAccepted
     ? executor.level3Runner.benchmarkExportReviewCalls
@@ -7335,6 +7545,7 @@ function buildLevel4PromptRunnerBundle(
   };
   const blockerValue = Math.max(
     visibleLaunchWatchPlan.metric.value,
+    wholeMatrixParallelExecutor.metric.value,
     candidateCloseoutPacket.metric.value,
   );
 
@@ -7357,6 +7568,7 @@ function buildLevel4PromptRunnerBundle(
       lane.peerFinalWatchCall,
     ]),
     visibleLaunchWatchPlan,
+    wholeMatrixParallelExecutor,
     candidateCloseoutPacket,
     controllerLineageVerification: {
       peerFinalIsCommunicationOnly: true,
