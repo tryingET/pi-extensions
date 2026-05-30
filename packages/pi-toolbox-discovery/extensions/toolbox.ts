@@ -41,7 +41,7 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
     description:
       "Discover, explain, activate, deactivate, or inspect pi-extension tool bundles while keeping heavyweight package tools off by default except standard peer-spawn and visible-loop checkpoint tools.",
     promptSnippet:
-      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, Prompt Vault read tools, context_plan, peer-spawn tools, and visible-loop checkpoint fallback active by default.",
+      "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, Prompt Vault read tools, context_plan, peer-spawn tools, visible-loop checkpoint fallback, and loop_execute active by default.",
     promptGuidelines: [
       "Use toolbox to discover domain-specific Pi tools before assuming a heavyweight custom tool is active.",
       "Use toolbox bundle agent_vent when repeated agent frustration, recurring bugs, tool failures, or workflow friction should be captured as local diagnostics.",

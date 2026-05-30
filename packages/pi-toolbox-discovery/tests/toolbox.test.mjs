@@ -21,6 +21,7 @@ const ALWAYS_ACTIVE_TOOLS = [
   "candidate_peer_spawn",
   "visible_loop_child_complete",
   "context_plan",
+  "loop_execute",
   "toolbox",
 ];
 
