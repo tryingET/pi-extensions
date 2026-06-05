@@ -100,7 +100,10 @@ async function executeToolbox(tool, params) {
 test("toolbox registers command and discovery tool", () => {
   const harness = createHarness();
   assert.equal(typeof harness.commands.get("toolbox")?.handler, "function");
-  assert.equal(typeof harness.tools.get("toolbox")?.execute, "function");
+  const toolbox = harness.tools.get("toolbox");
+  assert.equal(typeof toolbox?.execute, "function");
+  assert.match(toolbox.promptGuidelines.join("\n"), /self returns a diagnostic candidate/);
+  assert.match(toolbox.promptGuidelines.join("\n"), /action=preview before action=record/);
 });
 
 test("session start enforces standard active profile", async () => {
@@ -310,6 +313,8 @@ test("catalog includes agent_vent as diagnostic companion to ASC", async () => {
   assert.deepEqual(profile.tools, ["agent_vent"]);
   assert.equal(profile.risk, "diagnostic");
   assert.equal(profile.requiresExplicitUserIntent, false);
+  assert.match(profile.description, /use preview before record for self diagnostic candidates/);
+  assert.match(agentVent.ownerSemantics, /self diagnostic candidates/);
   assert.match(agentVent.ownerSemantics, /without moving vent state into self\/ASC/);
 
   const harness = createHarness();

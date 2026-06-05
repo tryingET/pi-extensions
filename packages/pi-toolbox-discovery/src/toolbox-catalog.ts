@@ -244,7 +244,7 @@ export const CATALOG: ToolboxBundle[] = [
       "Local-only agent frustration capture and recurrence summaries for surfacing repeated bugs, tool failures, and workflow friction.",
     ownerPackage: "packages/pi-agent-vent",
     ownerSemantics:
-      "pi-agent-vent owns the local JSONL vent store, redaction, recurrence grouping, and candidate-incident heuristics; toolbox activates the already-registered agent_vent tool without moving vent state into self/ASC or creating AK, GitHub, incident, evidence, or telemetry records.",
+      "pi-agent-vent owns the local JSONL vent store, preview anti-junk check, redaction, recurrence grouping, and candidate-incident heuristics; toolbox activates the already-registered agent_vent tool for self diagnostic candidates or recurring friction without moving vent state into self/ASC or creating AK, GitHub, incident, evidence, or telemetry records.",
     keywords: [
       "agent vent",
       "vent",
@@ -259,7 +259,7 @@ export const CATALOG: ToolboxBundle[] = [
       {
         id: "default",
         description:
-          "Local diagnostic vent capture plus summary/list/path inspection; may append local JSONL but does not mutate external or canonical owner surfaces.",
+          "Local diagnostic vent preview/capture plus summary/list/path inspection; use preview before record for self diagnostic candidates; may append local JSONL but does not mutate external or canonical owner surfaces.",
         tools: ["agent_vent"],
         risk: "diagnostic",
         defaultTtlTurns: 4,

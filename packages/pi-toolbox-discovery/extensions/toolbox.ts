@@ -44,7 +44,8 @@ export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
       "Discover and activate pi-extension capability bundles on demand; keep self, interview, dispatch_subagent, intercom, Prompt Vault read tools, context_plan, peer-spawn tools, visible-loop checkpoint fallback, and loop_execute active by default.",
     promptGuidelines: [
       "Use toolbox to discover domain-specific Pi tools before assuming a heavyweight custom tool is active.",
-      "Use toolbox bundle agent_vent when repeated agent frustration, recurring bugs, tool failures, or workflow friction should be captured as local diagnostics.",
+      "Use toolbox bundle agent_vent when self returns a diagnostic candidate, or when repeated agent frustration, recurring bugs, tool failures, or workflow friction should be captured as local diagnostics.",
+      "After activating agent_vent for a self diagnostic candidate, prefer agent_vent action=preview before action=record so low-signal payloads are checked without writing local diagnostic state.",
       "Do not activate mutating, external-mutation, or orchestrator-gated profiles without explicit user intent.",
     ],
     parameters: TOOLBOX_PARAMETERS,
