@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f1d5f16179dd61f70ace094a6ab6dd821c9f2f57"
+created_at: "2026-06-05T09:36:25Z"
+intent: "Fix pi-agent-vent reload failure after category alias schema change"
+files:
+  - "packages/pi-agent-vent/extensions/agent-vent.ts"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-agent-vent/tests/agent-vent-extension.test.js"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-agent-vent run check"
+    status: "pass"
+group:
+  rationale: "Avoid top-level Object.keys on extension-loaded alias import while preserving accepted category alias schema literals."
+links:
+  task_ids:
+    - 3470
+  evidence_ids:
+    - 3156
