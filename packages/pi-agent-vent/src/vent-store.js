@@ -249,6 +249,56 @@ function collectRedactionMetadata(fields) {
   return { redacted, redactionPatterns: [...redactionPatterns].sort() };
 }
 
+function hasDiagnosticAnchor(input = {}) {
+  return Boolean(
+    compactText(input?.frustration, 1200) ||
+      compactText(input?.evidence, 1600) ||
+      compactText(input?.expected, 800) ||
+      compactText(input?.actual, 800) ||
+      compactText(input?.reproduction, 1200) ||
+      compactText(input?.tool || input?.toolName, 160) ||
+      compactText(input?.packageName, 200) ||
+      compactText(input?.recurrenceKey, 200) ||
+      (Array.isArray(input?.tags) && input.tags.some((tag) => compactText(tag, 120))),
+  );
+}
+
+export function assessVentRecordQuality(input = {}, record = undefined) {
+  const summary = compactText(input?.summary ?? record?.summary, 600) || "";
+  const normalizedSummary = summary.toLowerCase();
+  const wordCount = normalizedSummary.split(/\s+/).filter(Boolean).length;
+  const anchored = hasDiagnosticAnchor(input);
+  const issues = [];
+  const warnings = [];
+
+  if (
+    /^(done|ok|okay|fixed|test|testing|progress|update|note|misc|bad|ugh)$/.test(normalizedSummary)
+  ) {
+    issues.push("summary is too generic for a diagnostic record");
+  }
+  if (summary.length < 12 && !anchored) {
+    issues.push("summary is too short without a diagnostic anchor");
+  }
+  if (wordCount < 4 && !anchored) {
+    warnings.push(
+      "add evidence, expected/actual, tool, package, tag, or recurrenceKey before recording",
+    );
+  }
+  if (normalizeCategory(input?.category ?? record?.category) === "other" && !anchored) {
+    warnings.push(
+      "category defaults to other; add a specific category or local diagnostic facet if known",
+    );
+  }
+
+  return {
+    recordable: issues.length === 0,
+    issues,
+    warnings,
+    boundary:
+      "Quality check is local anti-junk guidance only; it does not create AK evidence, tasks, issues, incidents, telemetry, owner routing, or ASC/self state.",
+  };
+}
+
 export function createVentRecord(input, context = {}) {
   const summary = sanitizeOptionalText(input?.summary, 600);
   if (!summary.value) {

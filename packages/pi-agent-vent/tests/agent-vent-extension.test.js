@@ -39,6 +39,7 @@ test("agent_vent tool schema stays aligned with retention candidate and compare 
   const schemaText = JSON.stringify(pi.tools.get("agent_vent").parameters);
 
   assert.match(schemaText, /"compare"/);
+  assert.match(schemaText, /"preview"/);
   assert.match(schemaText, /"workflow_friction"/);
   assert.match(schemaText, /"candidates"/);
   assert.match(schemaText, /"history"/);
@@ -528,6 +529,70 @@ test("agent_vent accepts category aliases for tool records and command filters",
     assert.doesNotMatch(messages[0], /category=workflow_friction/);
   } finally {
     console.log = oldLog;
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent preview runs anti-junk checks without writing records", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-preview-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  process.env.PI_AGENT_VENT_DIR = dir;
+  try {
+    const tool = pi.tools.get("agent_vent");
+    const preview = await tool.execute(
+      "tool-call-preview",
+      {
+        action: "preview",
+        summary: "Workflow friction alias should normalize before recording",
+        category: "workflow_friction",
+        tool: "self",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+
+    assert.equal(preview.details.wouldRecord, true);
+    assert.equal(preview.details.recordPreview.category, "workflow");
+    assert.match(preview.content[0].text, /No local diagnostic record was written/);
+    assert.equal(fs.existsSync(path.join(dir, "vents.jsonl")), false);
+
+    const junkPreview = await tool.execute(
+      "tool-call-preview-junk",
+      { action: "preview", summary: "done" },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.equal(junkPreview.details.wouldRecord, false);
+    assert.match(junkPreview.content[0].text, /not recordable/);
+
+    await assert.rejects(
+      () =>
+        tool.execute(
+          "tool-call-record-junk",
+          { action: "record", summary: "done" },
+          undefined,
+          undefined,
+          {
+            cwd: "/repo",
+            sessionManager: { getSessionFile: () => undefined },
+          },
+        ),
+      /anti-junk quality check/,
+    );
+    assert.equal(fs.existsSync(path.join(dir, "vents.jsonl")), false);
+  } finally {
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
     else process.env.PI_AGENT_VENT_DIR = oldDir;
     fs.rmSync(dir, { recursive: true, force: true });

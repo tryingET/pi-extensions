@@ -7,6 +7,7 @@ import {
   appendVentRecord,
   archiveRecurrenceGroup,
   assertCanCurateRecurrence,
+  assessVentRecordQuality,
   buildEscalationDraft,
   buildFacetSummary,
   buildLifecycleSnapshot,
@@ -60,6 +61,7 @@ import {
 
 const ACTIONS = [
   "record",
+  "preview",
   "summary",
   "list",
   "path",
@@ -250,11 +252,12 @@ export default function agentVentExtension(pi: ExtensionAPI) {
     name: "agent_vent",
     label: "Agent Vent",
     description:
-      "Record, review, and inspect local agent frustration events so recurring bugs, workflow friction, and missing affordances become visible.",
+      "Record, preview, review, and inspect local agent frustration events so recurring bugs, workflow friction, and missing affordances become visible.",
     promptSnippet:
-      "Record minimized local frustration events and review recurring patterns without creating incidents, tasks, issues, evidence records, or telemetry.",
+      "Preview or record minimized local frustration events and review recurring patterns without creating incidents, tasks, issues, evidence records, or telemetry.",
     promptGuidelines: [
       "Use agent_vent when you encounter recurring agent frustration, long-lived bugs, repeated tool/runtime failures, context-loss patterns, or missing affordances worth later human review.",
+      "Use action=preview before action=record when the diagnostic may be generic, low-signal, or copied from another tool; previews run the anti-junk quality check without writing the local store.",
       "Use action=review to inspect the local recurrence review queue; include recurrenceKey to inspect bounded representative samples for one local group; optionally filter review by local category, tag, tool, or package facets; use action=set_review to mark a recurrence group as new, acknowledged, dismissed, or escalation_drafted.",
       "Use action=outcomes for read-only post-review follow-up across local review-state buckets; outcome guidance is local diagnostic UX only, not owner routing or external completion.",
       "Use action=compare for a read-only cross-state review comparison before export, retention planning, or draft-only handoff; comparison output emits no archive/restore tokens and mutates nothing.",
@@ -290,13 +293,28 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         );
       }
 
-      if (action === "record") {
+      if (action === "preview" || action === "record") {
         const sessionFile = ctx.sessionManager.getSessionFile();
         const record = createVentRecord(params, {
           cwd: ctx.cwd,
           sessionFile: sessionFile ? path.basename(sessionFile) : undefined,
-          source: "agent_vent_tool",
+          source: action === "preview" ? "agent_vent_preview" : "agent_vent_tool",
         });
+        const quality = assessVentRecordQuality(params, record);
+        if (action === "preview") {
+          return textResult(formatRecordPreview(record, quality), {
+            action,
+            storePath,
+            recordPreview: record,
+            quality,
+            wouldRecord: quality.recordable,
+          });
+        }
+        if (!quality.recordable) {
+          throw new Error(
+            `agent_vent record rejected by anti-junk quality check: ${quality.issues.join("; ")}`,
+          );
+        }
         appendVentRecord(storePath, record);
         const state = loadDiagnosticState({
           storePath,
@@ -774,6 +792,7 @@ function handleCommand(args: string) {
     return [
       "agent_vent commands:",
       "  /agent_vent summary                                  Show recurrence groups and candidate incidents.",
+      "  LLM tool action=preview                              Preview a local diagnostic record and anti-junk quality check without writing the store.",
       "  /agent_vent list [limit]                             Show recent local vent records.",
       "  /agent_vent facets [limit]                           Show read-only local category/tag/tool/package facets.",
       "  /agent_vent review [state|all] [limit] [category=bug] [tag=reload] [tool=pi-reload] [package=tryinget-pi-agent-vent]",
@@ -1387,6 +1406,22 @@ function formatDiagnosticWarnings(state: Record<string, unknown>) {
   return warnings.length > 0
     ? `\nWarning: ignored local diagnostic entries (${warnings.join(", ")}).`
     : "";
+}
+
+function formatRecordPreview(
+  record: Record<string, unknown>,
+  quality: { recordable?: boolean; issues?: string[]; warnings?: string[]; boundary?: string },
+) {
+  const issues = quality.issues || [];
+  const warnings = quality.warnings || [];
+  return [
+    `Agent vent preview: ${quality.recordable ? "recordable" : "not recordable"} (${record.severity || "medium"}/${record.category || "other"}) under ${record.recurrenceKey || "unknown"}.`,
+    `Summary: ${record.summary || "(no summary)"}`,
+    issues.length ? `Issues: ${issues.join("; ")}` : "Issues: none",
+    warnings.length ? `Warnings: ${warnings.join("; ")}` : "Warnings: none",
+    "No local diagnostic record was written. Use action=record only if this is a recurring or review-worthy diagnostic, not an ordinary progress update.",
+    `Boundary: ${quality.boundary || "local diagnostic preview only"}`,
+  ].join("\n");
 }
 
 function textResult(text: string, details: Record<string, unknown>) {
