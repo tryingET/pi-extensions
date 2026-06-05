@@ -66,6 +66,7 @@
     "docs/project/product-posture.md",
     "docs/project/2026-05-21-agent-vent-design.md",
     "docs/project/2026-05-21-agent-vent-implementation-plan.md",
+    "docs/project/2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md",
     "docs/project/extension-sop.md",
     "docs/project/trusted-publishing.md",
     "docs/adr/2026-05-22-agent-vent-retention-delete-policy.md"

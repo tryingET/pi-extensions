@@ -95,7 +95,8 @@ The tool prompt and runtime validation both bias toward minimal summaries:
 
 Actions:
 
-- `record` — append a vent record.
+- `record` — append a vent record after the local anti-junk quality check accepts it.
+- `preview` — build the sanitized would-be record and anti-junk quality result without writing the local store.
 - `summary` — summarize recurrence groups and candidate incidents.
 - `list` — show recent records.
 - `path` — show local store path and data contract.
@@ -112,7 +113,8 @@ Actions:
 
 Important behavior:
 
-- `record` requires `summary`.
+- `record` requires `summary` and rejects low-signal generic payloads such as `done`.
+- `preview` returns `recordPreview`, `quality`, and `wouldRecord` without appending JSONL; use it before `record` when the candidate came from `self`, another tool, or a generic/friction-heavy moment.
 - `severity` defaults to `medium`.
 - `category` defaults to `other`.
 - `recurrenceKey` may be supplied by the agent; otherwise it is derived from category + summary.
@@ -164,11 +166,11 @@ This heuristic intentionally errs toward surfacing review candidates, not assert
 
 ## Cross-package integration
 
-`pi-agent-vent` remains separate from `pi-autonomous-session-control` by design:
+`pi-agent-vent` remains separate from `pi-autonomous-session-control` by design. The detailed handoff is documented in [Self, toolbox, and agent_vent diagnostic boundary](2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md):
 
-- ASC/`self` owns operational introspection, subagent/runtime control, and mirror-only handoff/progress summaries.
-- `pi-agent-vent` owns local diagnostic vent records, redaction, recurrence grouping, and advisory candidate-incident heuristics.
+- ASC/`self` owns operational introspection, subagent/runtime control, mirror-only handoff/progress summaries, and typed `self.diagnostic_candidate.v1` suggestions.
 - `pi-toolbox-discovery` owns discovery/activation of the already-registered `agent_vent` tool through the same-named `agent_vent` bundle; `agent-vent` is not a runtime alias.
+- `pi-agent-vent` owns local diagnostic vent records, preview quality checks, redaction, recurrence grouping, and advisory candidate-incident heuristics.
 
 This keeps vent persistence from becoming hidden ASC state while still making the capability discoverable during autonomous work.
 

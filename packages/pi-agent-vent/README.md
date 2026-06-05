@@ -45,11 +45,12 @@ Then in Pi:
 
 ## Tool behavior
 
-`agent_vent` supports fourteen actions:
+`agent_vent` supports fifteen actions:
 
 | Action | Purpose |
 |---|---|
-| `record` | Append a minimized vent record. Requires `summary`. |
+| `record` | Append a minimized vent record. Requires `summary` and must pass the local anti-junk quality check. |
+| `preview` | Build the sanitized would-be record and anti-junk quality result without writing the local store. |
 | `summary` | Show recurrence groups and advisory candidate incidents. |
 | `list` | Show recent local records. |
 | `path` | Show the store path and boundary contract. |
@@ -99,11 +100,14 @@ The runtime-facing name is intentionally singular: use `agent_vent` for the LLM 
 
 `pi-agent-vent` is a companion to `pi-autonomous-session-control`, not part of it. ASC/`self` remains the execution and operational-mirror owner; this package owns only local vent diagnostics.
 
+For the cross-package handoff between ASC `self` diagnostic candidates, toolbox activation, and `agent_vent` preview/record writes, see [Self, toolbox, and agent_vent diagnostic boundary](docs/project/2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md).
+
 When `pi-toolbox-discovery` is installed, it exposes the `agent_vent` bundle so agents can discover or activate the same-named `agent_vent` tool on demand:
 
 ```ts
 toolbox({ action: "search", query: "vent" })
 toolbox({ action: "activate", bundle: "agent_vent" })
+agent_vent({ action: "preview", summary: "...", category: "workflow", tool: "..." })
 ```
 
 The owner extension must still be installed/reloaded so the `agent_vent` tool is registered before toolbox can activate it.
@@ -157,6 +161,7 @@ Product docs:
 - [Vision](docs/project/vision.md)
 - [Product posture](docs/project/product-posture.md)
 - [Agent vent design](docs/project/2026-05-21-agent-vent-design.md)
+- [Self/toolbox/agent_vent diagnostic boundary](docs/project/2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md)
 - [Implementation plan](docs/project/2026-05-21-agent-vent-implementation-plan.md)
 
 ## Package checks

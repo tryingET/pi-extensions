@@ -35,7 +35,7 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 
 The package-owned production bundles are `vault`, `context-packer`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, `agent_vent`, and `peer-spawn`. Their tools must be registered by the owning package's Pi extension entry before toolbox activation; toolbox activation only changes the active set. The `context-packer` read profile includes packet planning, bounded packet assembly, and packet-local dogfood receipt evaluation; it does not make dogfood observations canonical evidence.
 
-`agent_vent` is intentionally a diagnostic/local-write bundle: activation can expose the same-named `agent_vent` tool, which may append local JSONL vent records, but it does not create AK tasks, GitHub issues, real incidents, canonical evidence, external telemetry, or ASC/self state.
+`agent_vent` is intentionally a diagnostic/local-write bundle: activation can expose the same-named `agent_vent` tool, which may preview or append local JSONL vent records, but it does not create AK tasks, GitHub issues, real incidents, canonical evidence, external telemetry, or ASC/self state. See [Self, toolbox, and agent_vent diagnostic boundary](../pi-agent-vent/docs/project/2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md) for the cross-package handoff contract.
 
 ## Standard startup contract
 
