@@ -50,7 +50,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - with `bind` or `bind current`, prepares a reviewable `autoresearch_candidate_bind({ ... })` call to inspect a candidate worktree and prepare the exact measurement run call
   - with `measure` or `measure current`, inspects the candidate worktree and prepares the exact reviewable `autoresearch_runtime_run({ ...candidate metadata... })` measurement call only when candidate intake readiness is `ready`; otherwise it falls back to the `autoresearch_candidate_bind({ ... })` intake review call
   - with `candidate`, `decision`, `keep`, `discard`, or `rewind`, prepares a reviewable `autoresearch_candidate_decision({ ... })` call for status or plan-only lifecycle decisions
-  - with `open candidates`, opens a read-only open candidate-review posture summary with counts, sample cell inventory, and the exact owner-review call; this does not keep/discard/finalize, merge/reset worktrees, or write evidence
+  - with `open candidates`, opens a read-only open candidate-review posture summary with counts, sample cell inventory, explicit discovered candidate-result packet paths, and the exact owner-review call seeded with those paths; this does not keep/discard/finalize, merge/reset worktrees, or write evidence
   - with `review` or `review keep|discard|rewind`, opens the final owner decision surface after measured packet inventory is complete; it shows a read-only candidate-decision overlay selector before the editor checklist when TUI overlays are available, and falls back to the editor otherwise
   - with `learning`, `learning export`, or `learning handoff`, prepares the exact `autoresearch_runtime_status({ action: "learning_export" })` call for review so the returned packet path can be handed to the owner-routed KES adapter
   - with `overlay` or `fullscreen`, opens a read-only live TUI dashboard overlay with periodic refresh and recent-run table
@@ -64,7 +64,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - replaces the editor text with the exact `autoresearch_campaign_start({ ... })` call selected by the operator
   - degrades safely when the optional interaction runtime is not installed
 - `$$ autoresearch next` / `$$ ar next`
-  - deterministically inserts the recommended next candidate call using the same read-only candidate-decision posture as the dashboard
+  - deterministically inserts open candidate-review posture with explicit candidate-result packet paths when matrix packet inventory is waiting; otherwise inserts the recommended next candidate call using the same read-only candidate-decision posture as the dashboard
   - remains review-first; no benchmark, worktree command, or durable promotion is executed automatically
 - `$$ autoresearch bind|measure [current|<worktree>]` / `$$ ar bind|measure [current|<worktree>]`
   - when the optional interaction runtime is loaded, opens a candidate-bind/measure picker that inserts either the exact `autoresearch_candidate_bind({ ... })` inspection call or the exact `autoresearch_runtime_run({ ...candidate metadata... })` measurement call selected by the operator

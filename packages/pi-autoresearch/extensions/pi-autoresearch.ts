@@ -3722,7 +3722,12 @@ function parseAutoresearchOpenCandidateReviewCommand(value: string): boolean {
 function buildAutoresearchOpenCandidateReviewEditorText(cwd: string): string {
   const summary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
   const posture = summary.openCandidateReview;
-  const reviewCall = `autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`;
+  const packetPaths = collectOpenCandidateReviewPacketPaths(summary.cells);
+  const reviewCall = buildAutoresearchOpenCandidateReviewCall({
+    cwd,
+    direction: summary.metricDirection ?? "lower",
+    packetPaths,
+  });
   const cells = summary.cells
     .filter((cell) => cell.packetInventory.length > 0 || cell.selectedPacketPath)
     .slice(0, 12)
@@ -3743,6 +3748,7 @@ function buildAutoresearchOpenCandidateReviewEditorText(cwd: string): string {
     `- measured/selectable unselected cells: ${posture.unselectedMeasuredCellCount}`,
     `- packet inventory references: ${posture.packetInventoryItemCount}`,
     `- unique exported packets: ${posture.uniqueExportedPacketCount}`,
+    `- explicit packet paths in review call: ${packetPaths.length}`,
     `- export visibility blockers: ${summary.exportVisibilityBlockers.value}`,
     "",
     "## Cell inventory sample",
@@ -3753,10 +3759,40 @@ function buildAutoresearchOpenCandidateReviewEditorText(cwd: string): string {
     reviewCall,
     "```",
     "",
+    "## Explicit candidate-result packet paths",
+    ...(packetPaths.length > 0
+      ? packetPaths.map((packetPath) => `- ${packetPath}`)
+      : ["- none discovered; the owner-review call will rely on default discovery"]),
+    "",
     "## Boundary",
     posture.boundary,
     "Do not keep, discard, finalize, merge, reset, or record AK/KES/evidence from packet counts alone. Candidate-result packets are review inventory until the owner-review surface decides.",
   ].join("\n");
+}
+
+function collectOpenCandidateReviewPacketPaths(
+  cells: ReturnType<typeof discoverAutoresearchMatrixCampaignArtifacts>["cells"],
+): string[] {
+  const packetPaths = new Set<string>();
+  for (const cell of cells) {
+    if (cell.selectedPacketPath) packetPaths.add(cell.selectedPacketPath);
+    for (const packetPath of cell.packetInventory) packetPaths.add(packetPath);
+  }
+  return [...packetPaths].sort((left, right) => left.localeCompare(right));
+}
+
+function buildAutoresearchOpenCandidateReviewCall(input: {
+  cwd: string;
+  direction: "lower" | "higher";
+  packetPaths: string[];
+}): string {
+  const packetPaths = input.packetPaths
+    .map((packetPath) => `    ${JSON.stringify(packetPath)}`)
+    .join(",\n");
+  const packetPathProperty = packetPaths
+    ? `,\n  candidateResultPacketPaths: [\n${packetPaths}\n  ]`
+    : "";
+  return `autoresearch_live_supervision({\n  action: "review_candidate_wave",\n  taskId: <ak-task-id>,\n  cwd: ${JSON.stringify(input.cwd)},\n  objective: "<candidate-wave-objective>",\n  direction: ${JSON.stringify(input.direction)}${packetPathProperty}\n})`;
 }
 
 function parseAutoresearchRunObjectiveCommand(value: string): string | null {

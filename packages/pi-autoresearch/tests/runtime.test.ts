@@ -2584,7 +2584,10 @@ test("/autoresearch open candidates opens read-only review posture", async () =>
     assert.match(editorText, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
     assert.match(editorText, /open review cells: 1/);
     assert.match(editorText, /packet inventory references: 1/);
+    assert.match(editorText, /explicit packet paths in review call: 1/);
     assert.match(editorText, /review_candidate_wave/);
+    assert.match(editorText, /candidateResultPacketPaths/);
+    assert.match(editorText, /candidate-01\.candidate-result\.json/);
     assert.match(
       editorText,
       /Do not keep, discard, finalize, merge, reset, or record AK\/KES\/evidence/,
@@ -2614,6 +2617,7 @@ test("$$ autoresearch open candidates prepares review posture text without mutat
     assert.match(result.text, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
     assert.match(result.text, /open review cells: 1/);
     assert.match(result.text, /review_candidate_wave/);
+    assert.match(result.text, /candidateResultPacketPaths/);
   });
 });
 
@@ -3373,6 +3377,7 @@ test("/autoresearch next prioritizes open candidate review posture", async () =>
     assert.match(editorText, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
     assert.match(editorText, /open review cells: 1/);
     assert.match(editorText, /review_candidate_wave/);
+    assert.match(editorText, /candidateResultPacketPaths/);
     assert.doesNotMatch(editorText, /autoresearch_candidate_bind/);
     assert.equal(notifications.length, 1);
 
@@ -3384,6 +3389,7 @@ test("/autoresearch next prioritizes open candidate review posture", async () =>
     assert.equal(dollarResult.action, "transform");
     assert.match(dollarResult.text, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
     assert.match(dollarResult.text, /review_candidate_wave/);
+    assert.match(dollarResult.text, /candidateResultPacketPaths/);
   });
 });
 
