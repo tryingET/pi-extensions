@@ -264,6 +264,7 @@ Examples:
 - self({ query: "Am I in a loop?" })
 - self({ query: "What progress have I made?" })
 - self({ query: "Give me a controller handoff summary" })
+- self({ query: "Create self-contained handoff prompt" })
 - self({ query: "Remember: [pattern discovered]" })
 - self({ query: "Remember ontology candidate: [missing term]" })
 - self({ query: "What ontology candidates have I crystallized?" })
@@ -277,7 +278,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
     promptGuidelines: [
       "Use self when you need to verify what work has actually happened before planning the next step.",
-      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, explicit remember/mark-trap directives, diagnostic-review queries, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
+      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, self-contained handoff prompt generation, explicit remember/mark-trap directives, diagnostic-review queries, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
     ],
     parameters: Type.Object({
       query: Type.String({

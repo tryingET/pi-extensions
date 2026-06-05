@@ -543,6 +543,7 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
 - "Queue followup: [task]" / "Remind me: [task]"
 - "Prefill: [text]"
 - "Prefill suggested next move" after a handoff summary exposes nextMove
+- "Create self-contained handoff prompt" / "Fresh session handoff prompt"
 - "Action summary" / "List checkpoints" / "List followups"
 
 **Diagnostic review** (mirror friction without recording it):
@@ -596,6 +597,7 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
               "Queue followup: X",
               "Prefill: Y",
               "Prefill suggested next move",
+              "Create self-contained handoff prompt",
               "Action summary",
             ],
           },

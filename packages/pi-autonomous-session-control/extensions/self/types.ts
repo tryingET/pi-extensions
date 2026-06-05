@@ -295,6 +295,7 @@ export type ActionIntent =
   | "continue_suggested_next_move"
   | "continue_diagnostic_review"
   | "prefill_diagnostic_record"
+  | "self_contained_handoff_prompt"
   | "list_action_state";
 
 export type MetaIntent = "list_capabilities" | "diagnostic_review";

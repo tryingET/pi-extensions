@@ -19,6 +19,15 @@ function recordBash(harness, id, command, { isError = false, text = "" } = {}) {
   });
 }
 
+function recordEdit(harness, id, path) {
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  toolCallHandler({
+    toolName: "edit",
+    toolCallId: id,
+    input: { path, edits: [{ oldText: "before\n", newText: "before\nafter\n" }] },
+  });
+}
+
 test("self query: create checkpoint", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -315,6 +324,107 @@ test("self query: durable diagnostic record stays editor-prefilled", async () =>
   assert.match(editorText, /self should not silently write durable diagnostic state/);
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_review_required");
+
+  await cleanup(tempDir);
+});
+
+test("self query: creates self-contained handoff prompt and prefills editor", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    cwd: "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  recordEdit(
+    harness,
+    "edit-handoff-action",
+    "packages/pi-autonomous-session-control/extensions/self/resolvers/action.ts",
+  );
+  recordBash(harness, "cmd-git-status", "git status --short");
+  recordBash(harness, "cmd-ak-claim", "ak task claim 3482 --agent pi");
+  recordBash(harness, "cmd-check", "npm --prefix packages/pi-autonomous-session-control run check");
+  recordBash(
+    harness,
+    "cmd-install",
+    "pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control",
+  );
+
+  const result = await tool.execute(
+    "tc-handoff-prompt-prefill",
+    { query: "create self-contained handoff prompt" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.ok(editorText.startsWith("You are a fresh, stateless Pi coding session."));
+  assert.match(
+    editorText,
+    /Work in:\n`\/home\/tryinget\/ai-society\/softwareco\/owned\/pi-extensions`/,
+  );
+  assert.match(editorText, /ASC self mirror-only; not canonical authority/);
+  assert.match(editorText, /Known AK task ids: 3482/);
+  assert.match(editorText, /git status was run, but ASC does not store stdout/);
+  assert.match(
+    editorText,
+    /packages\/pi-autonomous-session-control\/extensions\/self\/resolvers\/action\.ts/,
+  );
+  assert.match(editorText, /npm --prefix packages\/pi-autonomous-session-control run check/);
+  assert.match(editorText, /ask operator to \/reload/);
+  assert.match(editorText, /pi-session-compaction owns compaction summaries/);
+  assert.doesNotMatch(editorText, /remaining context budget: \d+/i);
+  assert.equal(result.details.data.prefill, true);
+  assert.equal(result.details.data.authority, "mirror_only");
+
+  await cleanup(tempDir);
+});
+
+test("self query: show fresh handoff prompt is truthful when mirror evidence is sparse", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext({
+    cwd: "/tmp/example-repo",
+    hasUI: true,
+    ui: {
+      setEditorText() {
+        throw new Error("show-only handoff prompt should not prefill");
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-handoff-prompt-show-sparse",
+    { query: "show fresh session handoff prompt" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.content[0].text, /Self-contained handoff prompt \(not prefilled\)/);
+  assert.match(result.content[0].text, /ASC mirror evidence is sparse/);
+  assert.match(result.content[0].text, /Exact token\/context-window telemetry: unavailable/);
+  assert.match(result.content[0].text, /Git status: unknown to ASC; run git status --short/);
+  assert.match(result.content[0].text, /Known AK task ids: none visible to ASC/);
+  assert.match(result.content[0].text, /Recent touched files: none tracked by ASC mirror/);
+  assert.match(result.content[0].text, /AK \+ society DB remain canonical/);
+  assert.equal(result.details.data.prefill, false);
+  assert.equal(result.details.data.dispatchMode, "show_only");
 
   await cleanup(tempDir);
 });
