@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "4412ffd853e26a959d4742f8d616660a798a7e94"
+created_at: "2026-06-05T15:12:28Z"
+intent: "Improve ASC self context-end handoff awareness with mirror-only heuristics"
+files:
+  - "packages/pi-autonomous-session-control/README.md"
+  - "packages/pi-autonomous-session-control/extensions/self/context-pressure.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/perception.ts"
+  - "packages/pi-autonomous-session-control/tests/self/context-pressure.test.mjs"
+  - "packages/pi-autonomous-session-control/tests/self/harness.mjs"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-autonomous-session-control/tests/self/context-pressure.test.mjs packages/pi-autonomous-session-control/tests/self/perception.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autonomous-session-control run check; npm --prefix packages/pi-autonomous-session-control run docs:list; node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict; git diff --check"
+    status: "pass"
+group:
+  rationale: "Package-local ASC self mirror change; no exact context-token telemetry claimed."
+links:
+  task_ids:
+    - 3475
+  evidence_ids:
+    - 3175
