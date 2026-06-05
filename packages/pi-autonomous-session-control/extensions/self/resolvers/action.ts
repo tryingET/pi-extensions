@@ -30,6 +30,15 @@ export const ACTION_KEYWORDS = [
   "continue suggested next move",
   "send suggested next move",
   "advance suggested next move",
+  "continue diagnostic review",
+  "continue self diagnostic",
+  "send diagnostic review",
+  "send diagnostic followup",
+  "send diagnostic follow-up",
+  "prefill diagnostic record",
+  "prefill agent_vent record",
+  "prefill vent record",
+  "record this friction",
   "send user message",
 ];
 
@@ -45,6 +54,23 @@ export function mapActionIntent(lower: string): string {
     return "list_action_state";
   }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
+  if (
+    lower.includes("prefill diagnostic record") ||
+    lower.includes("prefill agent_vent record") ||
+    lower.includes("prefill vent record") ||
+    lower.includes("record this friction")
+  ) {
+    return "prefill_diagnostic_record";
+  }
+  if (
+    lower.includes("continue diagnostic review") ||
+    lower.includes("continue self diagnostic") ||
+    lower.includes("send diagnostic review") ||
+    lower.includes("send diagnostic followup") ||
+    lower.includes("send diagnostic follow-up")
+  ) {
+    return "continue_diagnostic_review";
+  }
   if (
     lower.includes("continue suggested next move") ||
     lower.includes("send suggested next move") ||
@@ -85,6 +111,14 @@ export function resolveActionQuery(
 
     case "continue_suggested_next_move": {
       return handleContinueSuggestedNextMove(state);
+    }
+
+    case "continue_diagnostic_review": {
+      return handleContinueDiagnosticReview(query);
+    }
+
+    case "prefill_diagnostic_record": {
+      return handlePrefillDiagnosticRecord(query);
     }
 
     case "list_action_state": {
@@ -280,6 +314,77 @@ function handleContinueSuggestedNextMove(state: SelfState): SelfResponse {
       dispatchMode: "agent_continuation",
     },
   };
+}
+
+function handleContinueDiagnosticReview(query: SelfQuery): SelfResponse {
+  const candidate = buildDiagnosticCandidate(query);
+  const text = buildDiagnosticContinuationMessage(candidate);
+
+  return {
+    understood: true,
+    intent: "action",
+    answer: `Diagnostic-review continuation suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
+    data: {
+      text,
+      diagnosticCandidate: candidate,
+      sendUserMessage: true,
+      prefill: false,
+      dispatchMode: "agent_diagnostic_continuation",
+      boundary:
+        "Low-risk mirror-only continuation; durable agent_vent recording remains operator-reviewed.",
+    },
+  };
+}
+
+function handlePrefillDiagnosticRecord(query: SelfQuery): SelfResponse {
+  const candidate = buildDiagnosticCandidate(query);
+  const text = buildAgentVentRecordCommand(candidate);
+
+  return buildPrefillResponse(text, {
+    diagnosticCandidate: candidate,
+    sendUserMessage: false,
+    dispatchMode: "operator_review_required",
+    reason:
+      "Recording a durable local diagnostic writes agent_vent state, so self keeps the command as editor prefill for operator review.",
+  });
+}
+
+function buildDiagnosticCandidate(query: SelfQuery): Record<string, string> {
+  const context = normalizeInput(query.context);
+  const summary =
+    normalizeString(context.summary) ||
+    normalizeString(context.diagnosticSummary) ||
+    extractQuotedContent(query.query) ||
+    "self/operator diagnostic affordance needs review";
+  const category = normalizeString(context.category) || "missing_affordance";
+  const tool = normalizeString(context.tool) || "self";
+  const packageName = normalizeString(context.package) || "pi-autonomous-session-control";
+
+  return {
+    kind: "self.diagnostic_candidate.v1",
+    summary,
+    category,
+    tool,
+    package: packageName,
+    sourceQuery: query.query,
+    suggestedOwnerSurface: "agent_vent",
+    boundary:
+      "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
+  };
+}
+
+function buildDiagnosticContinuationMessage(candidate: Record<string, string>): string {
+  return [
+    "Continue the self diagnostic review as a mirror-only local improvement step.",
+    `Candidate: ${candidate.summary}`,
+    `Facet: category=${candidate.category}, tool=${candidate.tool}, package=${candidate.package}`,
+    "Allowed: inspect the candidate, improve self/tooling behavior, or ask the operator before durable capture.",
+    "Not allowed: do not write agent_vent records, AK tasks/evidence, issues, incidents, or telemetry unless explicitly requested through the owning surface.",
+  ].join("\n");
+}
+
+function buildAgentVentRecordCommand(candidate: Record<string, string>): string {
+  return `agent_vent({ action: "record", category: ${JSON.stringify(candidate.category)}, tool: ${JSON.stringify(candidate.tool)}, package: ${JSON.stringify(candidate.package)}, summary: ${JSON.stringify(candidate.summary)} })`;
 }
 
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {

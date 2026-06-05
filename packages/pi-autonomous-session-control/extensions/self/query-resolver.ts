@@ -481,6 +481,8 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
 **Diagnostic review** (mirror friction without recording it):
 - "Dogfood self" / "How can self improve?"
 - "What friction just happened?"
+- "Continue diagnostic review" for a low-risk follow-up user message
+- "Prefill agent_vent record" for an operator-reviewed durable local diagnostic write
 - Return a candidate diagnostic payload for explicit operator/toolbox/agent_vent follow-up, not a stored vent or authoritative issue.
 
 **2. toolbox/bundle discovery** (outside self):
@@ -533,7 +535,13 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
             name: "diagnostic review",
             description:
               "Mirror local self/tooling friction and prepare candidate diagnostics without recording vents or authority state.",
-            examples: ["Dogfood self", "How can self improve?", "What friction just happened?"],
+            examples: [
+              "Dogfood self",
+              "How can self improve?",
+              "What friction just happened?",
+              "Continue diagnostic review",
+              "Prefill agent_vent record",
+            ],
           },
         ],
         discoverySurfaces: [

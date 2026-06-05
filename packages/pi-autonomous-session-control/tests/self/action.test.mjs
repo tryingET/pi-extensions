@@ -241,6 +241,83 @@ test("self query: continue suggested next move keeps operator-gated peer move as
   await cleanup(tempDir);
 });
 
+test("self query: continue diagnostic review sends mirror-only follow-up", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-continue-diagnostic-review",
+    {
+      query: "continue diagnostic review",
+      context: {
+        summary: "self failed to turn diagnostic insight into a same-task continuation",
+        category: "missing_affordance",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Diagnostic-review continuation sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.match(harness.sentUserMessages[0].text, /Continue the self diagnostic review/);
+  assert.match(harness.sentUserMessages[0].text, /do not write agent_vent records/);
+  assert.equal(harness.sentUserMessages[0].options.deliverAs, "followUp");
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.prefill, false);
+  assert.equal(result.details.data.diagnosticCandidate.kind, "self.diagnostic_candidate.v1");
+
+  await cleanup(tempDir);
+});
+
+test("self query: durable diagnostic record stays editor-prefilled", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-prefill-diagnostic-record",
+    {
+      query: "prefill agent_vent record",
+      context: {
+        summary: "self should not silently write durable diagnostic state",
+        category: "authority_boundary",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.match(editorText, /^agent_vent\(\{ action: "record"/);
+  assert.match(editorText, /authority_boundary/);
+  assert.match(editorText, /self should not silently write durable diagnostic state/);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_review_required");
+
+  await cleanup(tempDir);
+});
+
 test("self query: prefill suggested next move uses current handoff nextMove", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

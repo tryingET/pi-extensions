@@ -340,10 +340,15 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
               (didPrefill
                 ? response.answer.replace("Editor prefill suggested", "Editor prefilled")
                 : didSendUserMessage
-                  ? response.answer.replace(
-                      "User-message continuation suggested",
-                      "User-message continuation sent",
-                    )
+                  ? response.answer
+                      .replace(
+                        "User-message continuation suggested",
+                        "User-message continuation sent",
+                      )
+                      .replace(
+                        "Diagnostic-review continuation suggested",
+                        "Diagnostic-review continuation sent",
+                      )
                   : response.answer) +
               (response.suggestions?.length
                 ? `\n\nSuggestions: ${response.suggestions.join("; ")}`
