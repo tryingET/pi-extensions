@@ -111,6 +111,30 @@ test("createVentRecord minimizes, redacts, and derives recurrence key", () => {
   assert.deepEqual(tagOnlySecret.privacy.redactionPatterns, ["assigned_secret"]);
 });
 
+test("category aliases normalize at record and review-filter boundaries", () => {
+  const workflow = createVentRecord({
+    summary: "Workflow alias should not degrade",
+    category: "workflow_friction",
+    recurrenceKey: "workflow alias",
+  });
+  const missing = createVentRecord({
+    summary: "Missing affordance alias should preserve meaning",
+    category: "missing_affordance",
+  });
+
+  assert.equal(workflow.category, "workflow");
+  assert.equal(workflow.recurrenceKey, "workflow:workflow-alias");
+  assert.equal(missing.category, "missing_capability");
+  assert.match(missing.recurrenceKey, /^missing_capability:/);
+
+  const queue = summarizeReviewQueue([workflow, missing], [], {
+    filters: { category: "workflow_friction" },
+  });
+  assert.equal(queue.filters.category, "workflow");
+  assert.equal(queue.matchingGroupCount, 1);
+  assert.equal(queue.items[0].recurrenceKey, workflow.recurrenceKey);
+});
+
 test("explicit recurrence keys are redacted before slugging", () => {
   const record = createVentRecord({
     summary: "Explicit key should not leak",

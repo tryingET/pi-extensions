@@ -22,6 +22,18 @@ export const CATEGORIES = [
   "workflow",
   "other",
 ];
+export const CATEGORY_ALIASES = Object.freeze({
+  workflow_friction: "workflow",
+  operator_friction: "workflow",
+  process_friction: "workflow",
+  missing_affordance: "missing_capability",
+  missing_feature: "missing_capability",
+  documentation_gap: "documentation",
+  docs_gap: "documentation",
+  context_window: "context_loss",
+  context_friction: "context_loss",
+  tooling_friction: "friction",
+});
 export const SEVERITIES = ["low", "medium", "high", "critical"];
 export const REVIEW_STATES = ["new", "acknowledged", "dismissed", "escalation_drafted"];
 export const CURATION_ACTIONS = ["merge", "rename", "remove"];
@@ -71,12 +83,22 @@ export function defaultBackupDir(env = process.env) {
   return path.join(defaultStoreDir(env), BACKUP_DIR_NAME);
 }
 
-export function normalizeCategory(value) {
-  const normalized = String(value || "other")
+export function normalizeCategoryToken(value) {
+  return String(value || "")
     .trim()
     .toLowerCase()
     .replaceAll("-", "_");
-  return CATEGORIES.includes(normalized) ? normalized : "other";
+}
+
+export function resolveCategoryFilter(value) {
+  const normalized = normalizeCategoryToken(value);
+  if (!normalized) return undefined;
+  const candidate = CATEGORY_ALIASES[normalized] || normalized;
+  return CATEGORIES.includes(candidate) ? candidate : undefined;
+}
+
+export function normalizeCategory(value) {
+  return resolveCategoryFilter(value || "other") || "other";
 }
 
 export function normalizeSeverity(value) {
@@ -2588,13 +2610,13 @@ function assertNoEmptyReviewFilterValues(input = {}) {
 
 function normalizeReviewFilterCategory(value) {
   if (value === undefined) return undefined;
-  const normalized = String(value).trim().toLowerCase().replaceAll("-", "_");
-  if (!CATEGORIES.includes(normalized)) {
+  const category = resolveCategoryFilter(value);
+  if (!category) {
     throw new Error(
       `invalid agent_vent review filter category: ${value}; expected one of ${CATEGORIES.join(", ")}`,
     );
   }
-  return normalized;
+  return category;
 }
 
 function sanitizeReviewFilterTags(value) {

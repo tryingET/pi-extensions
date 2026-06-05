@@ -39,6 +39,7 @@ test("agent_vent tool schema stays aligned with retention candidate and compare 
   const schemaText = JSON.stringify(pi.tools.get("agent_vent").parameters);
 
   assert.match(schemaText, /"compare"/);
+  assert.match(schemaText, /"workflow_friction"/);
   assert.match(schemaText, /"candidates"/);
   assert.match(schemaText, /"history"/);
   assert.match(schemaText, /retentionCandidateState/);
@@ -468,6 +469,65 @@ test("agent_vent records minimized local diagnostics without external authority 
     );
     assert.match(restoreResult.content[0].text, /Restored local diagnostic backup/);
   } finally {
+    if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
+    else process.env.PI_AGENT_VENT_DIR = oldDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("agent_vent accepts category aliases for tool records and command filters", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-alias-"));
+  const oldDir = process.env.PI_AGENT_VENT_DIR;
+  const oldLog = console.log;
+  const messages = [];
+  process.env.PI_AGENT_VENT_DIR = dir;
+  console.log = (message) => messages.push(String(message));
+  try {
+    const tool = pi.tools.get("agent_vent");
+    const result = await tool.execute(
+      "tool-call-category-alias",
+      {
+        action: "record",
+        summary: "Workflow friction alias should normalize",
+        category: "workflow_friction",
+        severity: "medium",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+
+    assert.equal(result.details.record.category, "workflow");
+    assert.equal(
+      result.details.record.recurrenceKey,
+      "workflow:workflow-friction-alias-should-normalize",
+    );
+
+    const reviewResult = await tool.execute(
+      "tool-call-category-alias-review",
+      { action: "review", category: "workflow_friction" },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.equal(reviewResult.details.reviewQueue.filters.category, "workflow");
+    assert.equal(reviewResult.details.reviewQueue.matchingGroupCount, 1);
+
+    await pi.commands.get("agent_vent").handler("review category=workflow_friction", {
+      hasUI: false,
+    });
+    assert.match(messages[0], /Filters: category=workflow/);
+    assert.doesNotMatch(messages[0], /category=workflow_friction/);
+  } finally {
+    console.log = oldLog;
     if (oldDir === undefined) delete process.env.PI_AGENT_VENT_DIR;
     else process.env.PI_AGENT_VENT_DIR = oldDir;
     fs.rmSync(dir, { recursive: true, force: true });

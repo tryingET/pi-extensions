@@ -17,6 +17,7 @@ import {
   buildReviewDetail,
   buildReviewOutcomes,
   CATEGORIES,
+  CATEGORY_ALIASES,
   CURATION_ACTIONS,
   clampLimit,
   createCurationEvent,
@@ -49,6 +50,7 @@ import {
   normalizeReviewState,
   RETENTION_ACTIONS,
   readRetentionEvents,
+  resolveCategoryFilter,
   resolveRecurrenceGroup,
   restoreRetentionBackup,
   SEVERITIES,
@@ -79,6 +81,7 @@ const REVIEW_STATES = Array.isArray(STORE_REVIEW_STATES)
   ? STORE_REVIEW_STATES
   : FALLBACK_REVIEW_STATES;
 const RETENTION_CANDIDATE_STATES = ["reviewed", "all", ...REVIEW_STATES] as const;
+const CATEGORY_INPUTS = [...CATEGORIES, ...Object.keys(CATEGORY_ALIASES)] as const;
 
 const AgentVentParams = Type.Object({
   action: Type.Optional(
@@ -92,9 +95,10 @@ const AgentVentParams = Type.Object({
   ),
   category: Type.Optional(
     Type.Union(
-      CATEGORIES.map((category) => Type.Literal(category)),
+      CATEGORY_INPUTS.map((category) => Type.Literal(category)),
       {
-        description: "Local category for the frustration pattern.",
+        description:
+          "Local category for the frustration pattern. Common aliases are accepted and normalized to canonical categories.",
       },
     ),
   ),
@@ -1084,8 +1088,8 @@ function parseReviewListTokens(tokens: string[], options: { allowReviewedState?:
           invalidFilters.push("category=");
           continue;
         }
-        const normalizedCategory = value.toLowerCase().replaceAll("-", "_");
-        if (CATEGORIES.includes(normalizedCategory)) filters.category = normalizedCategory;
+        const category = resolveCategoryFilter(value);
+        if (category) filters.category = category;
         else invalidFilters.push(`category=${value}`);
       } else if (key === "tool") {
         if (!value) {
