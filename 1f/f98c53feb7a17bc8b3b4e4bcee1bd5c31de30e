@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "1ff98c53feb7a17bc8b3b4e4bcee1bd5c31de30e"
-created_at: "2026-06-05T13:04:38Z"
+created_at: "2026-06-05T13:04:56Z"
 intent: "Add agent_vent record preview and anti-junk quality constraints"
 files:
   - "packages/pi-agent-vent/src/vent-store.js"
@@ -23,3 +23,4 @@ links:
     - 3465
   evidence_ids:
     - 3165
+    - 3166
