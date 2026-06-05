@@ -3,6 +3,7 @@
  * The LLM queries this to perceive its own behavior.
  */
 
+import { type ContextPressureResult, queryContextPressure } from "./context-pressure.ts";
 import type {
   CommandExecution,
   DetectedPattern,
@@ -478,6 +479,7 @@ export interface ProgressResult {
   isStalled: boolean;
   concern: "stall_with_progress_evidence" | "possible_stall" | "no_concern";
   progressEvidence: { recentSuccessfulProductiveCommands: number };
+  contextPressure: ContextPressureResult;
   summary: string;
 }
 
@@ -498,13 +500,17 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
       : "possible_stall"
     : "no_concern";
 
-  const summary = isStalled
+  const contextPressure = queryContextPressure(log);
+  const baseSummary = isStalled
     ? recentProductiveCommands > 0
       ? `Mirror-only advisory: possible stall with progress evidence. No tracked file change for ${log.turnsSinceMeaningfulChange} turns, but recent successful workflow command(s) suggest investigation, validation, or closeout may still be productive.`
       : `Mirror-only advisory: possible stall. No tracked meaningful file change for ${log.turnsSinceMeaningfulChange} turns.`
     : hasProgress
       ? `✅ Progress: ${filesTouched} files touched, ${log.fileOps.length} operations.`
       : `📊 No file progress yet: ${log.turnCount} turns, ${log.commands.length} commands.`;
+  const summary = contextPressure.shouldConsiderHandoff
+    ? `${baseSummary} ${contextPressure.summary}`
+    : baseSummary;
 
   return {
     hasProgress,
@@ -514,6 +520,7 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
     isStalled,
     concern,
     progressEvidence: { recentSuccessfulProductiveCommands: recentProductiveCommands },
+    contextPressure,
     summary,
   };
 }
@@ -548,6 +555,7 @@ export interface HandoffSummaryResult {
   errors: ErrorsResult["errors"];
   progress: ProgressResult;
   loops: LoopStatusResult;
+  contextPressure: ContextPressureResult;
   cues: string[];
   sliceCandidates: SliceCandidate[];
   nextMove?: SliceCandidate;
@@ -606,6 +614,11 @@ export function queryHandoffSummary(
         : "possible stall: no recent tracked meaningful file change",
     );
   }
+  if (progress.contextPressure.shouldConsiderHandoff) {
+    cues.push(
+      "Context-pressure heuristic suggests preparing a handoff (mirror-only; not token telemetry)",
+    );
+  }
   if (cues.length === 0) {
     cues.push("no tracked file, command, error, loop, or progress evidence yet");
   }
@@ -618,6 +631,7 @@ export function queryHandoffSummary(
     errors,
     progress,
     loops,
+    contextPressure: progress.contextPressure,
     cues,
     sliceCandidates,
     nextMove: sliceCandidates[0],
