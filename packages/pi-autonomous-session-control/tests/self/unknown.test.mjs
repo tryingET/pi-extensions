@@ -139,6 +139,55 @@ test("self query: diagnostic review uses provided context for candidate payload"
   await cleanup(tempDir);
 });
 
+test("self query: diagnostic review honors correction context before recent errors", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+
+  toolCallHandler({ toolName: "bash", toolCallId: "bad-cmd-context", input: { command: "false" } });
+  toolResultHandler({
+    toolName: "bash",
+    toolCallId: "bad-cmd-context",
+    isError: true,
+    content: [{ type: "text", text: "Command exited with code 1" }],
+  });
+
+  const result = await tool.execute(
+    "tc-diagnostic-review-correction-context",
+    {
+      query: "self-evolution",
+      context: {
+        correction:
+          "operator meant pi-autonomous-session-control continuation, not the latest workstation incident",
+        package: "pi-autonomous-session-control",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(
+    result.details.data.diagnosticCandidate.summary,
+    "operator meant pi-autonomous-session-control continuation, not the latest workstation incident",
+  );
+  assert.equal(result.details.data.diagnosticCandidate.category, "context_alignment");
+  assert.equal(result.details.data.diagnosticCandidate.tool, "self");
+  assert.equal(
+    result.details.data.diagnosticCandidate.mirrorEvidence.latestError.toolName,
+    "bash",
+    "recent error remains evidence, but no longer hijacks the candidate summary",
+  );
+
+  await cleanup(tempDir);
+});
+
 test("self query: diagnostic review falls back to recent mirror error evidence", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

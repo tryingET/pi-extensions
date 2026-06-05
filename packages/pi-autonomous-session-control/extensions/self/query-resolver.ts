@@ -381,11 +381,18 @@ function buildDiagnosticCandidate(
     .filter((command) => !command.success)
     .sort((a, b) => b.timestamp - a.timestamp)[0];
 
-  const summary =
+  const contextSummary =
     normalizeString(context.summary) ||
     normalizeString(context.diagnosticSummary) ||
+    normalizeString(context.correction) ||
     normalizeString(context.current_question) ||
-    normalizeString(context.observed_behavior) ||
+    normalizeString(context.objective) ||
+    normalizeString(context.task) ||
+    normalizeString(context.focus) ||
+    normalizeString(context.packageFocus) ||
+    normalizeString(context.observed_behavior);
+  const summary =
+    contextSummary ||
     (latestError
       ? `recent ${latestError.toolName} friction: ${latestError.signature}`
       : undefined) ||
@@ -395,8 +402,13 @@ function buildDiagnosticCandidate(
     "self did not have a crisp affordance for the operator's diagnostic or improvement query";
   const category =
     normalizeString(context.category) ||
-    (latestError || latestFailedCommand ? "tool_failure" : "missing_affordance");
-  const tool = normalizeString(context.tool) || latestError?.toolName || "self";
+    (contextSummary
+      ? "context_alignment"
+      : latestError || latestFailedCommand
+        ? "tool_failure"
+        : "missing_affordance");
+  const tool =
+    normalizeString(context.tool) || (contextSummary ? "self" : latestError?.toolName) || "self";
   const packageName = normalizeString(context.package) || "pi-autonomous-session-control";
   const agentVentPreviewCommand = `agent_vent({ action: "preview", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, package: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
   const agentVentRecordCommand = `agent_vent({ action: "record", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, package: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
