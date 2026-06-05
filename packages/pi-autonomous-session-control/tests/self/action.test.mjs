@@ -309,7 +309,8 @@ test("self query: durable diagnostic record stays editor-prefilled", async () =>
 
   assert.ok(result.content[0].text.includes("Editor prefilled"));
   assert.equal(harness.sentUserMessages.length, 0);
-  assert.match(editorText, /^agent_vent\(\{ action: "record"/);
+  assert.match(editorText, /^agent_vent\(\{ action: "preview"/);
+  assert.doesNotMatch(editorText, /action: "record"/);
   assert.match(editorText, /authority_boundary/);
   assert.match(editorText, /self should not silently write durable diagnostic state/);
   assert.equal(result.details.data.sendUserMessage, false);

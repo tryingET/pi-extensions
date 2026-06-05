@@ -338,14 +338,14 @@ function handleContinueDiagnosticReview(query: SelfQuery): SelfResponse {
 
 function handlePrefillDiagnosticRecord(query: SelfQuery): SelfResponse {
   const candidate = buildDiagnosticCandidate(query);
-  const text = buildAgentVentRecordCommand(candidate);
+  const text = buildAgentVentPreviewCommand(candidate);
 
   return buildPrefillResponse(text, {
     diagnosticCandidate: candidate,
     sendUserMessage: false,
     dispatchMode: "operator_review_required",
     reason:
-      "Recording a durable local diagnostic writes agent_vent state, so self keeps the command as editor prefill for operator review.",
+      "Durable local diagnostic recording writes agent_vent state, so self prefills an agent_vent preview first for operator review and anti-junk checking.",
   });
 }
 
@@ -383,8 +383,8 @@ function buildDiagnosticContinuationMessage(candidate: Record<string, string>): 
   ].join("\n");
 }
 
-function buildAgentVentRecordCommand(candidate: Record<string, string>): string {
-  return `agent_vent({ action: "record", category: ${JSON.stringify(candidate.category)}, tool: ${JSON.stringify(candidate.tool)}, package: ${JSON.stringify(candidate.package)}, summary: ${JSON.stringify(candidate.summary)} })`;
+function buildAgentVentPreviewCommand(candidate: Record<string, string>): string {
+  return `agent_vent({ action: "preview", category: ${JSON.stringify(candidate.category)}, tool: ${JSON.stringify(candidate.tool)}, package: ${JSON.stringify(candidate.package)}, summary: ${JSON.stringify(candidate.summary)} })`;
 }
 
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {

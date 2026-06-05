@@ -394,6 +394,7 @@ function buildDiagnosticCandidate(
     (latestError || latestFailedCommand ? "tool_failure" : "missing_affordance");
   const tool = normalizeString(context.tool) || latestError?.toolName || "self";
   const packageName = normalizeString(context.package) || "pi-autonomous-session-control";
+  const agentVentPreviewCommand = `agent_vent({ action: "preview", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, package: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
   const agentVentRecordCommand = `agent_vent({ action: "record", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, package: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
 
   return {
@@ -424,6 +425,7 @@ function buildDiagnosticCandidate(
     },
     copyableCommands: [
       'toolbox({ action: "activate", bundle: "agent_vent" })',
+      agentVentPreviewCommand,
       agentVentRecordCommand,
     ],
   };
@@ -475,7 +477,8 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
         diagnosticCandidate,
         allowedNextSurfaces: [
           "toolbox activation",
-          "agent_vent record by explicit operator/tool call",
+          "agent_vent preview by explicit operator/tool call",
+          "agent_vent record by explicit operator/tool call after preview/review",
         ],
         disallowedSelfActions: [
           "self must not write agent_vent records internally",
@@ -485,7 +488,7 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
       },
       suggestions: [
         'toolbox({ action: "activate", bundle: "agent_vent" })',
-        "agent_vent record only after reviewing the suggested payload",
+        "agent_vent preview before record for the suggested payload",
         "capability discovery",
       ],
     };

@@ -99,10 +99,12 @@ test("self query: diagnostic review uses provided context for candidate payload"
     "self failed to use sendUserMessage until the operator pushed twice",
   );
   assert.equal(result.details.data.diagnosticCandidate.category, "workflow_friction");
+  assert.match(result.details.data.diagnosticCandidate.copyableCommands[1], /action: "preview"/);
   assert.match(
     result.details.data.diagnosticCandidate.copyableCommands[1],
     /self failed to use sendUserMessage/,
   );
+  assert.match(result.details.data.diagnosticCandidate.copyableCommands[2], /action: "record"/);
 
   await cleanup(tempDir);
 });
