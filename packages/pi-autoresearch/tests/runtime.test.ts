@@ -3038,6 +3038,105 @@ test("/autoresearch widget on and off controls the persistent status widget", as
   assert.match(notifications.at(-1)?.message ?? "", /Disabled the pi-autoresearch status widget/);
 });
 
+test("/autoresearch widget distinguishes candidate, kept-final, and checks-failed counts", async () => {
+  const { commands } = registerHarness();
+
+  await withTempDir(async (cwd) => {
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "widget-counts",
+        metricName: "ux_blockers",
+        metricUnit: "blocker(s)",
+        direction: "lower",
+        benchmarkCommand: "node bench.mjs",
+        checksCommand: "node checks.mjs",
+        createdAt: 10,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "baseline",
+        metric: 2,
+        description: "baseline",
+        timestamp: 20,
+        iteration: 1,
+        confidence: null,
+        durationSeconds: 0.1,
+        exitCode: 0,
+        timedOut: false,
+        benchmarkCommand: "node bench.mjs",
+        checksCommand: "node checks.mjs",
+        checksPassed: true,
+        checksDurationSeconds: 0.1,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 0,
+        description: "successful candidate",
+        timestamp: 30,
+        iteration: 2,
+        confidence: null,
+        durationSeconds: 0.1,
+        exitCode: 0,
+        timedOut: false,
+        benchmarkCommand: "node bench.mjs",
+        checksCommand: "node checks.mjs",
+        checksPassed: true,
+        checksDurationSeconds: 0.1,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "checks_failed",
+        metric: 1,
+        description: "historical failed check",
+        timestamp: 40,
+        iteration: 3,
+        confidence: null,
+        durationSeconds: 0.1,
+        exitCode: 0,
+        timedOut: false,
+        benchmarkCommand: "node bench.mjs",
+        checksCommand: "node checks.mjs",
+        checksPassed: false,
+        checksDurationSeconds: 0.1,
+      }),
+    );
+
+    const widgets = new Map<string, unknown>();
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("widget on", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor() {},
+        notify() {},
+        setWidget(id: string, widget: unknown) {
+          if (widget === undefined) widgets.delete(id);
+          else widgets.set(id, widget);
+        },
+      },
+    });
+
+    const widgetFactory = [...widgets.values()][0] as (tui: { requestRender?: () => void }) => {
+      render(width: number): string[];
+      dispose?: () => void;
+    };
+    const widget = widgetFactory({ requestRender() {} });
+    const rendered = widget.render(140).join("\n");
+    assert.match(rendered, /1 candidate/);
+    assert.match(rendered, /0 kept\(final\)/);
+    assert.match(rendered, /1 checks-failed/);
+    assert.doesNotMatch(rendered, /0 kept(?!\()/);
+    widget.dispose?.();
+  });
+});
+
 test("$$ autoresearch input fallback prepares exact tool calls without PTX", async () => {
   const { eventHandlers } = registerHarness();
   const inputHandler = eventHandlers.get("input");

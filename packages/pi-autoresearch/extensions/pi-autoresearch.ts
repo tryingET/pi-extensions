@@ -4343,9 +4343,9 @@ function formatAutoresearchWidgetLines(cwd: string, width: number): string[] {
   const essential = [
     "🔬 autoresearch",
     `${segment.runCount} runs/${segment.successfulRunCount} ok`,
-    `${kept} kept`,
-    candidates > 0 ? `${candidates} candidate` : "",
-    failed > 0 ? `${failed} failed` : "",
+    candidates > 0 ? `${candidates} candidate${candidates === 1 ? "" : "s"}` : "",
+    kept > 0 ? `${kept} kept(final)` : candidates > 0 ? "0 kept(final)" : "",
+    failed > 0 ? `${failed} checks-failed` : "",
     `★ ${metricName}: ${best}`,
     improvement !== "—" ? improvement : "",
     confidence,
