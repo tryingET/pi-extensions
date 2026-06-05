@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "25ea93983fdec2ca2ecff0842994d59e7bb1fa61"
+created_at: "2026-06-05T14:20:58Z"
+intent: "Prefer agent_vent preview in ASC self diagnostic candidate handoff"
+files:
+  - "packages/pi-autonomous-session-control/README.md"
+  - "packages/pi-autonomous-session-control/extensions/self/query-resolver.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/resolvers/action.ts"
+  - "packages/pi-autonomous-session-control/tests/self/action.test.mjs"
+  - "packages/pi-autonomous-session-control/tests/self/unknown.test.mjs"
+validation:
+  fast_gate:
+    command: "git commit pre-commit hook (quality:pre-commit for pi-autonomous-session-control)"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autonomous-session-control run check; node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict; git diff --check"
+    status: "pass"
+group:
+  rationale: "Self diagnostic candidates should dogfood the new agent_vent anti-junk preview before any durable local write."
+links:
+  task_ids:
+    - 3473
+  evidence_ids:
+    - 3172
