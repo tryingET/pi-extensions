@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "675780edecf98b0edca11a2f442872294d4e7cb6"
+created_at: "2026-06-05T15:30:55Z"
+intent: "Recognize self-evolution as an ASC self diagnostic-review query"
+files:
+  - "packages/pi-autonomous-session-control/README.md"
+  - "packages/pi-autonomous-session-control/extensions/self.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/query-resolver.ts"
+  - "packages/pi-autonomous-session-control/tests/self/unknown.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-autonomous-session-control/tests/self/unknown.test.mjs; npm --prefix packages/pi-autonomous-session-control run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autonomous-session-control run check"
+    status: "fail"
+group:
+  rationale: "Package-local diagnostic keyword/docs/test change; full check failed only in unrelated timing-sensitive transport tests that passed focused rerun."
+links:
+  task_ids:
+    - 3477
+  evidence_ids:
+    - 3177
+    - 3178
