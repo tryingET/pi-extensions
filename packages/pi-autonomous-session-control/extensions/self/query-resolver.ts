@@ -10,6 +10,7 @@
  * - resolvers/action.ts (checkpoints, followups, prefills)
  */
 
+import { normalizeInput, normalizeString } from "./edge-contract-kernel.ts";
 import { ACTION_KEYWORDS, mapActionIntent, resolveActionQuery } from "./resolvers/action.ts";
 import {
   CRYSTALLIZATION_KEYWORDS,
@@ -325,7 +326,7 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
 
   switch (intent.domain) {
     case "meta":
-      return resolveMetaQuery(intent.intent, query);
+      return resolveMetaQuery(intent.intent, query, state);
     case "perception":
       return resolvePerceptionQuery(intent.intent, state, query);
     case "direction":
@@ -364,21 +365,66 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
 // UNKNOWN / META QUERIES (Capability + Diagnostic Discovery)
 // ============================================================================
 
-function buildDiagnosticCandidate(queryText: string): Record<string, unknown> {
+function buildDiagnosticCandidate(
+  query: SelfQuery | undefined,
+  state: SelfState,
+): Record<string, unknown> {
+  const context = normalizeInput(query?.context);
+  const latestError = [...state.operations.errors].sort(
+    (a, b) => (b.lastSeen ?? b.timestamp) - (a.lastSeen ?? a.timestamp),
+  )[0];
+  const latestFailedCommand = [...state.operations.commands]
+    .filter((command) => !command.success)
+    .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+  const summary =
+    normalizeString(context.summary) ||
+    normalizeString(context.diagnosticSummary) ||
+    normalizeString(context.current_question) ||
+    normalizeString(context.observed_behavior) ||
+    (latestError
+      ? `recent ${latestError.toolName} friction: ${latestError.signature}`
+      : undefined) ||
+    (latestFailedCommand
+      ? `recent failed command friction: ${latestFailedCommand.command}`
+      : undefined) ||
+    "self did not have a crisp affordance for the operator's diagnostic or improvement query";
+  const category =
+    normalizeString(context.category) ||
+    (latestError || latestFailedCommand ? "tool_failure" : "missing_affordance");
+  const tool = normalizeString(context.tool) || latestError?.toolName || "self";
+  const packageName = normalizeString(context.package) || "pi-autonomous-session-control";
+  const agentVentRecordCommand = `agent_vent({ action: "record", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, package: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
+
   return {
     kind: "self.diagnostic_candidate.v1",
-    summary:
-      "self did not have a crisp affordance for the operator's diagnostic or improvement query",
-    category: "missing_affordance",
-    tool: "self",
-    package: "pi-autonomous-session-control",
-    sourceQuery: queryText,
+    summary,
+    category,
+    tool,
+    package: packageName,
+    sourceQuery: query?.query ?? "diagnostic review requested",
     suggestedOwnerSurface: "agent_vent",
     boundary:
       "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
+    mirrorEvidence: {
+      latestError: latestError
+        ? {
+            toolName: latestError.toolName,
+            signature: latestError.signature,
+            count: latestError.count,
+            activeCount: latestError.activeCount,
+          }
+        : undefined,
+      latestFailedCommand: latestFailedCommand
+        ? {
+            command: latestFailedCommand.command,
+            timestamp: latestFailedCommand.timestamp,
+          }
+        : undefined,
+    },
     copyableCommands: [
       'toolbox({ action: "activate", bundle: "agent_vent" })',
-      'agent_vent({ action: "record", category: "missing_affordance", tool: "self", package: "pi-autonomous-session-control", summary: "self lacked a useful diagnostic/improvement affordance for a reasonable operator query" })',
+      agentVentRecordCommand,
     ],
   };
 }
@@ -405,11 +451,13 @@ function resolveUnknownQuery(query: SelfQuery): SelfResponse {
   };
 }
 
-function resolveMetaQuery(intent: string, query?: SelfQuery): SelfResponse {
+function resolveMetaQuery(
+  intent: string,
+  query: SelfQuery | undefined,
+  state: SelfState,
+): SelfResponse {
   if (intent === "diagnostic_review") {
-    const diagnosticCandidate = buildDiagnosticCandidate(
-      query?.query ?? "diagnostic review requested",
-    );
+    const diagnosticCandidate = buildDiagnosticCandidate(query, state);
     return {
       understood: true,
       intent: "meta",

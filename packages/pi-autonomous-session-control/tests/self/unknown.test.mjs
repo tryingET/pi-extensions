@@ -68,3 +68,76 @@ test("self query: diagnostic review recognizes self-improvement friction without
 
   await cleanup(tempDir);
 });
+
+test("self query: diagnostic review uses provided context for candidate payload", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-diagnostic-review-context",
+    {
+      query: "dogfood self",
+      context: {
+        summary: "self failed to use sendUserMessage until the operator pushed twice",
+        category: "workflow_friction",
+        tool: "self",
+        package: "pi-autonomous-session-control",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(
+    result.details.data.diagnosticCandidate.summary,
+    "self failed to use sendUserMessage until the operator pushed twice",
+  );
+  assert.equal(result.details.data.diagnosticCandidate.category, "workflow_friction");
+  assert.match(
+    result.details.data.diagnosticCandidate.copyableCommands[1],
+    /self failed to use sendUserMessage/,
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: diagnostic review falls back to recent mirror error evidence", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+
+  toolCallHandler({ toolName: "bash", toolCallId: "bad-cmd", input: { command: "false" } });
+  toolResultHandler({
+    toolName: "bash",
+    toolCallId: "bad-cmd",
+    isError: true,
+    content: [{ type: "text", text: "Command exited with code 1" }],
+  });
+
+  const result = await tool.execute(
+    "tc-diagnostic-review-evidence",
+    { query: "what friction just happened?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.details.data.diagnosticCandidate.summary, /recent bash friction/);
+  assert.equal(result.details.data.diagnosticCandidate.category, "tool_failure");
+  assert.equal(result.details.data.diagnosticCandidate.tool, "bash");
+  assert.equal(result.details.data.diagnosticCandidate.mirrorEvidence.latestError.toolName, "bash");
+
+  await cleanup(tempDir);
+});
