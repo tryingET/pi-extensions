@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "d10656558a1b972927311905713c86627dc8339e"
+created_at: "2026-06-05T08:13:00Z"
+intent: "Teach pi-agent-vent to normalize common diagnostic category aliases"
+files:
+  - "packages/pi-agent-vent/src/vent-store.js"
+  - "packages/pi-agent-vent/extensions/agent-vent.ts"
+  - "packages/pi-agent-vent/tests/vent-store.test.js"
+  - "packages/pi-agent-vent/tests/agent-vent-extension.test.js"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-agent-vent/tests/vent-store.test.js packages/pi-agent-vent/tests/agent-vent-extension.test.js"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-agent-vent run check"
+    status: "pass"
+group:
+  rationale: "Alias-aware normalizer preserves workflow_friction and related aliases at ingestion and command filter boundaries."
+links:
+  task_ids:
+    - 3470
+  evidence_ids:
+    - 3154
