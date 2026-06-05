@@ -3967,6 +3967,11 @@ function buildAutoresearchCandidateMeasureEditorCall(
 }
 
 function buildAutoresearchCandidateNextEditorCall(cwd: string): string {
+  const matrixSummary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
+  if (matrixSummary.openCandidateReview.status === "owner_review_required") {
+    return buildAutoresearchOpenCandidateReviewEditorText(cwd);
+  }
+
   const decision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
   switch (decision.recommendedDecision) {
     case "no_candidate_bound_yet":
@@ -4984,7 +4989,7 @@ function formatAutoresearchCommandNotification(
     `last=${status.currentSegment.lastRunStatus ?? "none"}`,
     `best=${status.currentSegment.bestMetric ?? "n/a"}${status.currentSegment.metricUnit}`,
     "front door: /autoresearch <objective> -> autoresearch_campaign_start",
-    "candidate next: /autoresearch next -> recommended candidate bind/measure/decision call",
+    "candidate next: /autoresearch next -> open candidate review posture when matrix packets are waiting, otherwise recommended candidate bind/measure/decision call",
     "candidate bind: /autoresearch bind [current|<worktree>] -> autoresearch_candidate_bind",
     "candidate measure: /autoresearch measure [current|<worktree>] -> autoresearch_runtime_run candidate call",
     "candidate decision: /autoresearch candidate|keep|discard|rewind -> autoresearch_candidate_decision",

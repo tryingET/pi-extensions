@@ -46,7 +46,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
 - `/autoresearch`
   - with no objective, opens/reports the bounded runtime overview
   - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate decision summary, candidate policy, and next legal surfaces
-  - with `next` or `candidate next`, inspects current candidate posture and prepares the recommended reviewable next call: bind when no candidate exists, plan keep/discard/rewind when evidence points there, or the next runtime/finalize call when more samples/rebaseline/finalize is needed
+  - with `next` or `candidate next`, first surfaces open matrix candidate-review posture when packet inventory is waiting for owner review; otherwise inspects current candidate posture and prepares the recommended reviewable next call: bind when no candidate exists, plan keep/discard/rewind when evidence points there, or the next runtime/finalize call when more samples/rebaseline/finalize is needed
   - with `bind` or `bind current`, prepares a reviewable `autoresearch_candidate_bind({ ... })` call to inspect a candidate worktree and prepare the exact measurement run call
   - with `measure` or `measure current`, inspects the candidate worktree and prepares the exact reviewable `autoresearch_runtime_run({ ...candidate metadata... })` measurement call only when candidate intake readiness is `ready`; otherwise it falls back to the `autoresearch_candidate_bind({ ... })` intake review call
   - with `candidate`, `decision`, `keep`, `discard`, or `rewind`, prepares a reviewable `autoresearch_candidate_decision({ ... })` call for status or plan-only lifecycle decisions

@@ -3341,6 +3341,52 @@ test("$$ autoresearch input fallback prepares exact tool calls without PTX", asy
   assert.equal(slashResult.action, "continue");
 });
 
+test("/autoresearch next prioritizes open candidate review posture", async () => {
+  await withTempDir(async (cwd) => {
+    const { commands, eventHandlers } = registerHarness();
+    const cellDir = path.join(cwd, ".autoresearch", "matrix-campaign", "cell-01-01");
+    mkdirSync(cellDir, { recursive: true });
+    writeFileSync(
+      path.join(cellDir, "candidate-01.candidate-result.json"),
+      JSON.stringify({ packetKind: "autoresearch.candidate_result.v1" }),
+    );
+
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("next", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /Next autoresearch candidate action/);
+    assert.match(editorText, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
+    assert.match(editorText, /open review cells: 1/);
+    assert.match(editorText, /review_candidate_wave/);
+    assert.doesNotMatch(editorText, /autoresearch_candidate_bind/);
+    assert.equal(notifications.length, 1);
+
+    const inputHandler = eventHandlers.get("input");
+    const dollarResult = (await inputHandler?.(
+      { source: "user", text: "$$ autoresearch next" },
+      { cwd },
+    )) as { action: string; text: string };
+    assert.equal(dollarResult.action, "transform");
+    assert.match(dollarResult.text, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
+    assert.match(dollarResult.text, /review_candidate_wave/);
+  });
+});
+
 test("/autoresearch next prepares the current recommended candidate call", async () => {
   await withTempDir(async (cwd) => {
     const { commands } = registerHarness();
