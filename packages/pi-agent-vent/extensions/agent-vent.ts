@@ -17,7 +17,6 @@ import {
   buildReviewDetail,
   buildReviewOutcomes,
   CATEGORIES,
-  CATEGORY_ALIASES,
   CURATION_ACTIONS,
   clampLimit,
   createCurationEvent,
@@ -81,7 +80,19 @@ const REVIEW_STATES = Array.isArray(STORE_REVIEW_STATES)
   ? STORE_REVIEW_STATES
   : FALLBACK_REVIEW_STATES;
 const RETENTION_CANDIDATE_STATES = ["reviewed", "all", ...REVIEW_STATES] as const;
-const CATEGORY_INPUTS = [...CATEGORIES, ...Object.keys(CATEGORY_ALIASES)] as const;
+const CATEGORY_ALIAS_INPUTS = [
+  "workflow_friction",
+  "operator_friction",
+  "process_friction",
+  "missing_affordance",
+  "missing_feature",
+  "documentation_gap",
+  "docs_gap",
+  "context_window",
+  "context_friction",
+  "tooling_friction",
+] as const;
+const CATEGORY_INPUTS = [...CATEGORIES, ...CATEGORY_ALIAS_INPUTS] as const;
 
 const AgentVentParams = Type.Object({
   action: Type.Optional(
