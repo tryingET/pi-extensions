@@ -269,13 +269,14 @@ Examples:
 - self({ query: "What ontology candidates have I crystallized?" })
 - self({ query: "I need help with [topic]" })
 - self({ query: "Mark as trap: [description]" })
+- self({ query: "Dogfood self: what friction just happened?" })
 
 This is a mirror, not a manager. You ask, you receive, you decide.`,
     promptSnippet:
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
     promptGuidelines: [
       "Use self when you need to verify what work has actually happened before planning the next step.",
-      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, explicit remember/mark-trap directives, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
+      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, explicit remember/mark-trap directives, diagnostic-review queries, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
     ],
     parameters: Type.Object({
       query: Type.String({

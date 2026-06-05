@@ -295,7 +295,7 @@ export type ActionIntent =
   | "continue_suggested_next_move"
   | "list_action_state";
 
-export type MetaIntent = "list_capabilities";
+export type MetaIntent = "list_capabilities" | "diagnostic_review";
 
 export type QueryIntent =
   | { domain: "perception"; intent: PerceptionIntent }

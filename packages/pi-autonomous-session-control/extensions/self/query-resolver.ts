@@ -68,6 +68,26 @@ const CAPABILITY_KEYWORDS = [
   "available queries",
 ];
 
+const DIAGNOSTIC_REVIEW_KEYWORDS = [
+  "dogfood self",
+  "improve self",
+  "improve the self",
+  "self improvement",
+  "self-improvement",
+  "how should self improve",
+  "how can self improve",
+  "how can you improve",
+  "what friction",
+  "friction just happened",
+  "tooling friction",
+  "workflow friction",
+  "missing affordance",
+  "this was annoying",
+  "that was annoying",
+  "record this friction",
+  "diagnostic candidate",
+];
+
 const SEMANTIC_PRESSURE_KEYWORDS = [
   "semantic pressure",
   "semantic pressures",
@@ -89,6 +109,10 @@ const SEMANTIC_PRESSURE_INTENTS = new Set<CrystallizationIntent>([
 
 function isSemanticPressureQuery(lower: string): boolean {
   return SEMANTIC_PRESSURE_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+function isDiagnosticReviewQuery(lower: string): boolean {
+  return DIAGNOSTIC_REVIEW_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
 function mapSemanticPressureIntent(lower: string): CrystallizationIntent {
@@ -260,6 +284,10 @@ export function classifyIntent(query: string): QueryIntent {
     }
   }
 
+  if (isDiagnosticReviewQuery(lower)) {
+    return { domain: "meta", intent: "diagnostic_review" };
+  }
+
   // Check capabilities after explicit domain requests (meta-query about the tool itself).
   for (const keyword of CAPABILITY_KEYWORDS) {
     if (lower.includes(keyword)) {
@@ -297,7 +325,7 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
 
   switch (intent.domain) {
     case "meta":
-      return resolveMetaQuery(intent.intent);
+      return resolveMetaQuery(intent.intent, query);
     case "perception":
       return resolvePerceptionQuery(intent.intent, state, query);
     case "direction":
@@ -328,26 +356,93 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
     case "action":
       return resolveActionQuery(intent.intent, query, state);
     default:
-      return {
-        understood: false,
-        intent: "unknown",
-        answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, semantic-pressure annotations, traps, or capability discovery.`,
-        suggestions: [
-          "What files have I touched?",
-          "Am I in a loop?",
-          "What progress have I made?",
-          "What semantic-pressure annotations have I recorded?",
-          "Capability discovery",
-        ],
-      };
+      return resolveUnknownQuery(query);
   }
 }
 
 // ============================================================================
-// META QUERIES (Capability Discovery)
+// UNKNOWN / META QUERIES (Capability + Diagnostic Discovery)
 // ============================================================================
 
-function resolveMetaQuery(intent: string): SelfResponse {
+function buildDiagnosticCandidate(queryText: string): Record<string, unknown> {
+  return {
+    kind: "self.diagnostic_candidate.v1",
+    summary:
+      "self did not have a crisp affordance for the operator's diagnostic or improvement query",
+    category: "missing_affordance",
+    tool: "self",
+    package: "pi-autonomous-session-control",
+    sourceQuery: queryText,
+    suggestedOwnerSurface: "agent_vent",
+    boundary:
+      "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
+    copyableCommands: [
+      'toolbox({ action: "activate", bundle: "agent_vent" })',
+      'agent_vent({ action: "record", category: "missing_affordance", tool: "self", package: "pi-autonomous-session-control", summary: "self lacked a useful diagnostic/improvement affordance for a reasonable operator query" })',
+    ],
+  };
+}
+
+function resolveUnknownQuery(query: SelfQuery): SelfResponse {
+  return {
+    understood: false,
+    intent: "unknown",
+    answer: `I don't understand the query: "${query.query}". Try asking about files, commands, errors, progress, loops, branches, learnings, semantic-pressure annotations, traps, diagnostic review, or capability discovery.`,
+    data: {
+      nearestIntents: [
+        "perception: current files/commands/errors/progress",
+        "action: checkpoint/followup/prefill/continue suggested next move",
+        "meta: capability discovery or diagnostic review",
+      ],
+    },
+    suggestions: [
+      "What files have I touched?",
+      "Am I in a loop?",
+      "What progress have I made?",
+      "Dogfood self: what friction just happened?",
+      "Capability discovery",
+    ],
+  };
+}
+
+function resolveMetaQuery(intent: string, query?: SelfQuery): SelfResponse {
+  if (intent === "diagnostic_review") {
+    const diagnosticCandidate = buildDiagnosticCandidate(
+      query?.query ?? "diagnostic review requested",
+    );
+    return {
+      understood: true,
+      intent: "meta",
+      answer: `Diagnostic review: self can notice local operator/tooling friction and propose a candidate diagnostic payload, but it remains mirror-only.
+
+Boundary:
+- self owns moment-level reflection: what just happened and what affordance was missing.
+- toolbox owns capability activation when a separate tool is needed.
+- agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic.
+
+Suggested candidate: ${diagnosticCandidate.summary}.
+
+No authority changed: no vent record, AK task, evidence, issue, incident, or external telemetry was created.`,
+      data: {
+        diagnosticCandidate,
+        allowedNextSurfaces: [
+          "toolbox activation",
+          "agent_vent record by explicit operator/tool call",
+        ],
+        disallowedSelfActions: [
+          "self must not write agent_vent records internally",
+          "self must not create AK tasks/evidence/incidents for diagnostics",
+          "self must not treat diagnostic candidates as canonical recurrence truth",
+        ],
+      },
+      suggestions: [
+        'toolbox({ action: "activate", bundle: "agent_vent" })',
+        "agent_vent record only after reviewing the suggested payload",
+        "capability discovery",
+      ],
+    };
+  }
+
   if (intent === "list_capabilities") {
     return {
       understood: true,
@@ -382,6 +477,11 @@ function resolveMetaQuery(intent: string): SelfResponse {
 - "Prefill: [text]"
 - "Prefill suggested next move" after a handoff summary exposes nextMove
 - "Action summary" / "List checkpoints" / "List followups"
+
+**Diagnostic review** (mirror friction without recording it):
+- "Dogfood self" / "How can self improve?"
+- "What friction just happened?"
+- Return a candidate diagnostic payload for explicit operator/toolbox/agent_vent follow-up, not a stored vent or authoritative issue.
 
 **2. toolbox/bundle discovery** (outside self):
 - Use the \`toolbox\` tool to search, explain, activate, deactivate, or inspect Pi extension bundles when you need extension-provided capabilities.
@@ -428,6 +528,12 @@ function resolveMetaQuery(intent: string): SelfResponse {
               "Prefill suggested next move",
               "Action summary",
             ],
+          },
+          {
+            name: "diagnostic review",
+            description:
+              "Mirror local self/tooling friction and prepare candidate diagnostics without recording vents or authority state.",
+            examples: ["Dogfood self", "How can self improve?", "What friction just happened?"],
           },
         ],
         discoverySurfaces: [
