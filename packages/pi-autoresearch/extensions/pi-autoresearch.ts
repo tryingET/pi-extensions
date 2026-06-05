@@ -61,6 +61,7 @@ import {
   buildAutoresearchResumePlan,
   buildAutoresearchRuntimeStatus,
   buildAutoresearchSegmentCloseout,
+  discoverAutoresearchMatrixCampaignArtifacts,
   executeAutoresearchCampaignStart,
   executeAutoresearchLoop,
   executeAutoresearchResumeApply,
@@ -3535,6 +3536,18 @@ async function openAutoresearchShell(
     return;
   }
 
+  if (parseAutoresearchOpenCandidateReviewCommand(normalizedArgs)) {
+    await ctx.ui.editor(
+      "Open autoresearch candidate review posture",
+      buildAutoresearchOpenCandidateReviewEditorText(ctx.cwd),
+    );
+    ctx.ui.notify(
+      "Opened read-only open candidate review posture. Use the exact owner-review call only after packet review.",
+      "info",
+    );
+    return;
+  }
+
   const runObjective = parseAutoresearchRunObjectiveCommand(normalizedArgs);
   if (runObjective) {
     await executeAutoresearchFirstRun(runObjective, ctx, options);
@@ -3635,6 +3648,9 @@ function transformAutoresearchDollarInput(text: string, cwd: string): string | n
   if (parseAutoresearchLearningHandoffCommand(raw)) {
     return buildAutoresearchLearningExportEditorCall(cwd);
   }
+  if (parseAutoresearchOpenCandidateReviewCommand(raw)) {
+    return buildAutoresearchOpenCandidateReviewEditorText(cwd);
+  }
   if (parseAutoresearchCandidateNextCommand(raw)) {
     return buildAutoresearchCandidateNextEditorCall(cwd);
   }
@@ -3686,6 +3702,61 @@ function parseAutoresearchLearningHandoffCommand(value: string): boolean {
 
 function buildAutoresearchLearningExportEditorCall(cwd: string): string {
   return `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "learning_export" })`;
+}
+
+function parseAutoresearchOpenCandidateReviewCommand(value: string): boolean {
+  switch (value.trim().toLowerCase()) {
+    case "open candidates":
+    case "open candidate review":
+    case "open candidate reviews":
+    case "candidate review posture":
+    case "candidate reviews":
+    case "review posture":
+    case "review candidates":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function buildAutoresearchOpenCandidateReviewEditorText(cwd: string): string {
+  const summary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
+  const posture = summary.openCandidateReview;
+  const reviewCall = `autoresearch_live_supervision({ action: "review_candidate_wave", taskId: <ak-task-id>, cwd: ${JSON.stringify(cwd)}, objective: "<candidate-wave-objective>", direction: "lower" })`;
+  const cells = summary.cells
+    .filter((cell) => cell.packetInventory.length > 0 || cell.selectedPacketPath)
+    .slice(0, 12)
+    .map(
+      (cell) =>
+        `- ${cell.cellId}: posture=${cell.posture}; selected=${cell.selectedLaneId ?? "none"}; packets=${cell.packetInventory.length}; next=${cell.nextLegalAction}`,
+    );
+
+  return [
+    "# PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE",
+    "",
+    posture.summary,
+    "",
+    "## Counts",
+    `- status: ${posture.status}`,
+    `- open review cells: ${posture.openCellCount}`,
+    `- selected review cells: ${posture.selectedReviewCellCount}`,
+    `- measured/selectable unselected cells: ${posture.unselectedMeasuredCellCount}`,
+    `- packet inventory references: ${posture.packetInventoryItemCount}`,
+    `- unique exported packets: ${posture.uniqueExportedPacketCount}`,
+    `- export visibility blockers: ${summary.exportVisibilityBlockers.value}`,
+    "",
+    "## Cell inventory sample",
+    ...(cells.length > 0 ? cells : ["- none discovered"]),
+    "",
+    "## Exact owner-review call to prepare",
+    "```ts",
+    reviewCall,
+    "```",
+    "",
+    "## Boundary",
+    posture.boundary,
+    "Do not keep, discard, finalize, merge, reset, or record AK/KES/evidence from packet counts alone. Candidate-result packets are review inventory until the owner-review surface decides.",
+  ].join("\n");
 }
 
 function parseAutoresearchRunObjectiveCommand(value: string): string | null {
@@ -4917,6 +4988,7 @@ function formatAutoresearchCommandNotification(
     "candidate bind: /autoresearch bind [current|<worktree>] -> autoresearch_candidate_bind",
     "candidate measure: /autoresearch measure [current|<worktree>] -> autoresearch_runtime_run candidate call",
     "candidate decision: /autoresearch candidate|keep|discard|rewind -> autoresearch_candidate_decision",
+    "open candidate review: /autoresearch open candidates -> read-only open candidate review posture and owner-review call",
     "resume: /autoresearch resume -> review, then stage only the exact foreground resume call",
     "learning: /autoresearch learning -> export autoresearch.learning.v1 for owner-routed adapter handoff",
     'dashboard: /autoresearch dashboard or autoresearch_runtime_status({ action: "dashboard" })',

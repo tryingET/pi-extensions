@@ -2552,6 +2552,71 @@ test("/autoresearch dashboard opens a read-only operator dashboard", async () =>
   assert.match(notifications[0]?.message ?? "", /Opened read-only pi-autoresearch dashboard/);
 });
 
+test("/autoresearch open candidates opens read-only review posture", async () => {
+  await withTempDir(async (cwd) => {
+    const { commands } = registerHarness();
+    const cellDir = path.join(cwd, ".autoresearch", "matrix-campaign", "cell-01-01");
+    mkdirSync(cellDir, { recursive: true });
+    writeFileSync(
+      path.join(cellDir, "candidate-01.candidate-result.json"),
+      JSON.stringify({ packetKind: "autoresearch.candidate_result.v1" }),
+    );
+
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("open candidates", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /Open autoresearch candidate review posture/);
+    assert.match(editorText, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
+    assert.match(editorText, /open review cells: 1/);
+    assert.match(editorText, /packet inventory references: 1/);
+    assert.match(editorText, /review_candidate_wave/);
+    assert.match(
+      editorText,
+      /Do not keep, discard, finalize, merge, reset, or record AK\/KES\/evidence/,
+    );
+    assert.equal(notifications.length, 1);
+    assert.match(notifications[0]?.message ?? "", /Opened read-only open candidate review posture/);
+  });
+});
+
+test("$$ autoresearch open candidates prepares review posture text without mutation", async () => {
+  await withTempDir(async (cwd) => {
+    const { eventHandlers } = registerHarness();
+    const inputHandler = eventHandlers.get("input");
+    const cellDir = path.join(cwd, ".autoresearch", "matrix-campaign", "cell-01-01");
+    mkdirSync(cellDir, { recursive: true });
+    writeFileSync(
+      path.join(cellDir, "candidate-01.candidate-result.json"),
+      JSON.stringify({ packetKind: "autoresearch.candidate_result.v1" }),
+    );
+
+    const result = (await inputHandler?.(
+      { source: "user", text: "$$ autoresearch open candidates" },
+      { cwd },
+    )) as { action: string; text: string };
+
+    assert.equal(result.action, "transform");
+    assert.match(result.text, /PI-AUTORESEARCH OPEN CANDIDATE REVIEW POSTURE/);
+    assert.match(result.text, /open review cells: 1/);
+    assert.match(result.text, /review_candidate_wave/);
+  });
+});
+
 test("/autoresearch review opens a candidate decision overlay before editor confirmation", async () => {
   const { commands } = registerHarness();
   let overlayText = "";
