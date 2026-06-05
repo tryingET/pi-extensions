@@ -3909,6 +3909,7 @@ function buildAutoresearchCandidateNextEditorCall(cwd: string): string {
     case "finalize":
     case "rebaseline":
     case "collect_more_samples":
+    case "rebind_candidate":
       return selectAutoresearchActionableNextCall(decision.exactNextCalls);
   }
 }

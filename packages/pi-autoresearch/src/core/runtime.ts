@@ -887,6 +887,7 @@ export type AutoresearchCandidateLifecycleDecision =
   | "rewind"
   | "rebaseline"
   | "collect_more_samples"
+  | "rebind_candidate"
   | "finalize"
   | "no_candidate_bound_yet";
 
@@ -896,6 +897,13 @@ export interface BuildAutoresearchCandidateDecisionInput {
   candidatePolicy?: AutoresearchCandidateLifecyclePolicyInput;
 }
 
+export type AutoresearchCandidateArtifactStatus =
+  | "available"
+  | "missing_worktree"
+  | "missing_branch"
+  | "missing_worktree_and_branch"
+  | "unknown";
+
 export interface AutoresearchCandidateDecisionSummary {
   source: AutoresearchCandidateBindingSource | null;
   worktreePath: string | null;
@@ -904,6 +912,9 @@ export interface AutoresearchCandidateDecisionSummary {
   diffSummary: string | null;
   filesChanged: string[];
   label: string;
+  worktreeExists: boolean | null;
+  branchExists: boolean | null;
+  artifactStatus: AutoresearchCandidateArtifactStatus;
 }
 
 export interface AutoresearchCandidateDecisionConfirmation {
@@ -4333,7 +4344,7 @@ export function buildAutoresearchCandidateDecisionWorkbench(
   const candidatePolicy = normalizeAutoresearchCandidateLifecyclePolicy(input.candidatePolicy);
   const candidateResult = buildAutoresearchCandidateResultPacket(cwd);
   const status = candidateResult.closeout.status;
-  const candidate = summarizeCandidateForDecision(candidateResult.candidate);
+  const candidate = summarizeCandidateForDecision(candidateResult.candidate, cwd);
   const candidateRun = candidateResult.candidateRun;
   const confidenceNoiseInterpretation = formatMetricInterpretation(
     status.currentSegment.metricInterpretation,
@@ -4411,6 +4422,9 @@ export function formatAutoresearchCandidateDecisionWorkbench(
         `- candidate worktree: ${result.candidate.worktreePath ?? "(unknown)"}`,
         `- candidate branch/ref: ${result.candidate.branch ?? "(unknown)"}`,
         `- candidate base ref: ${result.candidate.baseRef ?? "(unknown)"}`,
+        `- candidate artifact status: ${result.candidate.artifactStatus}`,
+        `- candidate worktree exists: ${formatNullableBoolean(result.candidate.worktreeExists)}`,
+        `- candidate branch exists: ${formatNullableBoolean(result.candidate.branchExists)}`,
         `- candidate files changed: ${formatTargetFiles(result.candidate.filesChanged)}`,
         `- candidate diff summary: ${result.candidate.diffSummary ?? "(unknown)"}`,
       ]
@@ -4505,6 +4519,7 @@ export function formatAutoresearchCandidateDecisionDashboardSummary(
       ];
   return [
     `- candidate: ${candidateLabel}`,
+    `- candidate artifact status: ${result.candidate?.artifactStatus ?? "unbound"}`,
     `- recommended decision: ${result.recommendedDecision}`,
     `- reason: ${result.recommendationReason}`,
     `- empirical posture: ${result.empirical.classification}; promotion ready: ${result.empirical.promotionReady ? "yes" : "no"}`,
@@ -9530,6 +9545,11 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
   if (required && !input.candidate) {
     blockedReasons.push("no controller-verified candidate is bound in the current segment");
   }
+  if (input.action === "plan_keep" && isAutoresearchCandidateArtifactMissing(input.candidate)) {
+    blockedReasons.push(
+      `candidate artifact status is ${input.candidate?.artifactStatus}; re-bind or re-measure before external keep/finalize decisions`,
+    );
+  }
   if (input.action === "plan_keep" && !input.status.empiricalPosture.promotionReady) {
     blockedReasons.push("requested keep, but empirical posture is not promotion-ready");
   }
@@ -9553,6 +9573,7 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
   const checklist = required
     ? [
         `candidate binding reviewed: ${candidateLabel}`,
+        `candidate artifact status reviewed: ${input.candidate?.artifactStatus ?? "unbound"}`,
         `empirical posture reviewed: ${input.status.empiricalPosture.classification}; promotion ready=${input.status.empiricalPosture.promotionReady ? "yes" : "no"}`,
         `metric threshold reviewed: ${describeMetricThresholdCaveat(input.status.currentSegment)}`,
         `metric readiness reviewed: ${input.metricReadiness.classification}; ${input.metricReadiness.summary}`,
@@ -9562,6 +9583,7 @@ function buildAutoresearchCandidateDecisionConfirmation(input: {
       ]
     : [
         "status inspection only; no lifecycle command is being planned",
+        `candidate artifact status: ${input.candidate?.artifactStatus ?? "unbound"}`,
         `metric threshold posture: ${describeMetricThresholdCaveat(input.status.currentSegment)}`,
         `metric readiness posture: ${input.metricReadiness.classification}; ${input.metricReadiness.summary}`,
         "use keep/discard/rewind only after reviewing candidate binding and empirical posture",
@@ -9685,6 +9707,7 @@ function describeMetricThresholdCaveat(segment: AutoresearchSegmentSummary): str
 
 function summarizeCandidateForDecision(
   binding: AutoresearchCandidateBinding | null,
+  cwd: string,
 ): AutoresearchCandidateDecisionSummary | null {
   if (!binding) return null;
   const label =
@@ -9693,6 +9716,12 @@ function summarizeCandidateForDecision(
     binding.diffSummary ??
     binding.source ??
     "bound candidate";
+  const worktreeExists = binding.worktreePath ? existsSync(binding.worktreePath) : null;
+  const branchExists = binding.branch ? gitLocalBranchExists(cwd, binding.branch) : null;
+  const artifactStatus = classifyAutoresearchCandidateArtifactStatus({
+    worktreeExists,
+    branchExists,
+  });
   return {
     source: binding.source,
     worktreePath: binding.worktreePath,
@@ -9701,7 +9730,41 @@ function summarizeCandidateForDecision(
     diffSummary: binding.diffSummary,
     filesChanged: [...binding.filesChanged],
     label,
+    worktreeExists,
+    branchExists,
+    artifactStatus,
   };
+}
+
+function gitLocalBranchExists(cwd: string, branch: string): boolean {
+  const result = spawnSync("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], {
+    cwd,
+    encoding: "utf8",
+  });
+  return result.status === 0;
+}
+
+function classifyAutoresearchCandidateArtifactStatus(input: {
+  worktreeExists: boolean | null;
+  branchExists: boolean | null;
+}): AutoresearchCandidateArtifactStatus {
+  if (input.worktreeExists === true || input.branchExists === true) return "available";
+  const worktreeMissing = input.worktreeExists === false;
+  const branchMissing = input.branchExists === false;
+  if (worktreeMissing && branchMissing) return "missing_worktree_and_branch";
+  if (worktreeMissing) return "missing_worktree";
+  if (branchMissing) return "missing_branch";
+  return "unknown";
+}
+
+function isAutoresearchCandidateArtifactMissing(
+  candidate: AutoresearchCandidateDecisionSummary | null,
+): boolean {
+  return Boolean(
+    candidate?.source === "candidate_peer_spawn" &&
+      candidate.artifactStatus !== "available" &&
+      candidate.artifactStatus !== "unknown",
+  );
 }
 
 function chooseAutoresearchCandidateLifecycleDecision(input: {
@@ -9710,14 +9773,15 @@ function chooseAutoresearchCandidateLifecycleDecision(input: {
   status: AutoresearchRuntimeStatus;
 }): AutoresearchCandidateLifecycleDecision {
   if (!input.candidate) return "no_candidate_bound_yet";
+  const artifactMissing = isAutoresearchCandidateArtifactMissing(input.candidate);
   if (input.action === "plan_discard") return "discard";
   if (input.action === "plan_rewind") return "rewind";
-  if (input.action === "plan_keep") return "keep";
+  if (input.action === "plan_keep") return artifactMissing ? "rebind_candidate" : "keep";
   if (
     input.status.runtimeProjection.state === "finalize_candidate" ||
     input.status.control.kind === "finalize"
   ) {
-    return "finalize";
+    return artifactMissing ? "rebind_candidate" : "finalize";
   }
 
   const posture = input.status.empiricalPosture.classification;
@@ -9737,9 +9801,10 @@ function chooseAutoresearchCandidateLifecycleDecision(input: {
     decision === "threshold_satisfied" ||
     decision === "threshold_preserved"
   ) {
-    return input.status.empiricalPosture.promotionReady ? "keep" : "collect_more_samples";
+    if (!input.status.empiricalPosture.promotionReady) return "collect_more_samples";
+    return artifactMissing ? "rebind_candidate" : "keep";
   }
-  if (posture === "candidate_review_ready") return "keep";
+  if (posture === "candidate_review_ready") return artifactMissing ? "rebind_candidate" : "keep";
   return "collect_more_samples";
 }
 
@@ -9751,6 +9816,9 @@ function explainAutoresearchCandidateLifecycleDecision(input: {
 }): string {
   if (!input.candidate) {
     return "No controller-verified candidate binding exists in the current segment; bind a candidate before keep/discard/rewind decisions.";
+  }
+  if (isAutoresearchCandidateArtifactMissing(input.candidate) && input.action !== "plan_discard") {
+    return `Candidate evidence exists, but live candidate artifacts are stale (${input.candidate.artifactStatus}); re-bind or re-measure a current worktree before keep/finalize/rewind guidance.`;
   }
   if (input.action === "plan_keep") {
     return input.status.empiricalPosture.promotionReady
@@ -9774,6 +9842,8 @@ function explainAutoresearchCandidateLifecycleDecision(input: {
       return "Baseline drift is suspected; rebaseline before deciding whether this candidate is a true improvement.";
     case "collect_more_samples":
       return "Candidate evidence exists but is under-sampled, noisy, calibration-only, or inconclusive.";
+    case "rebind_candidate":
+      return "Candidate receipt evidence exists, but live worktree/branch artifacts are missing; re-bind or re-measure before lifecycle action.";
     case "finalize":
       return "Candidate can move toward finalization through the explicit finalization owner surface.";
     case "no_candidate_bound_yet":
@@ -9821,7 +9891,11 @@ function buildAutoresearchCandidateDecisionNextCalls(input: {
     );
     return calls;
   }
-  if (input.decision === "keep") {
+  if (input.decision === "rebind_candidate") {
+    calls.push(
+      `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ cwd: ${cwdLiteral}, candidateWorktree: "<current-worktree>", candidateBaseRef: ${JSON.stringify(input.candidate?.baseRef ?? "<base-ref>")}, action: "plan_run" })`,
+    );
+  } else if (input.decision === "keep") {
     calls.push(
       `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${cwdLiteral}, action: "plan_keep" })`,
     );
@@ -9861,6 +9935,11 @@ function buildAutoresearchCandidateDecisionCommandPlan(input: {
 }): string[] {
   const candidate = input.candidate;
   if (!candidate) return [];
+  if (isAutoresearchCandidateArtifactMissing(candidate) && input.action === "plan_keep") {
+    return [
+      `# candidate artifact status is ${candidate.artifactStatus}; re-bind or re-measure a current candidate worktree before keep/finalize commands`,
+    ];
+  }
   const worktree = candidate.worktreePath;
   const baseRef = candidate.baseRef;
   if (input.action === "plan_keep") {
@@ -9882,6 +9961,11 @@ function buildAutoresearchCandidateDecisionCommandPlan(input: {
     }
     if (commands.length === 0 && input.candidatePolicy.discard === "suggest_cleanup") {
       commands.push("# no worktree/branch known; inspect candidate_result before cleanup");
+    }
+    if (candidate.artifactStatus !== "available" && candidate.artifactStatus !== "unknown") {
+      commands.push(
+        `# candidate artifact status is ${candidate.artifactStatus}; cleanup may already be complete`,
+      );
     }
     return commands;
   }

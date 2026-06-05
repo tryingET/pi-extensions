@@ -1834,6 +1834,61 @@ test("status builder treats preserved zero-blocker thresholds as review-ready ev
     assert.equal(candidateDecision.metricReadiness?.classification, "threshold_ready");
   }));
 
+test("candidate decision blocks keep/finalize guidance for stale missing artifacts", () =>
+  withTempDir((cwd) => {
+    const missingWorktree = path.join(cwd, "missing-candidate-worktree");
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "stale-candidate-artifacts",
+        metricName: "self_evolutionary_ux_blockers",
+        metricUnit: "blocker(s)",
+        direction: "lower",
+        metricThreshold: 0,
+        createdAt: 1,
+        benchmarkCommand: "bash autoresearch.sh",
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({ status: "baseline", metric: 0, description: "baseline", timestamp: 2 }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        empiricalDecisionClass: "threshold_preserved",
+        metric: 0,
+        description: "candidate packet whose worktree was later removed",
+        timestamp: 3,
+        experiment: {
+          candidate: {
+            source: "candidate_peer_spawn",
+            worktreePath: missingWorktree,
+            branch: "candidatepeer/missing-artifact",
+            baseRef: "main",
+            diffSummary: "stale candidate packet",
+            filesChanged: ["packages/pi-autoresearch/src/core/runtime.ts"],
+          },
+        },
+      }),
+    );
+
+    const decision = buildAutoresearchCandidateDecisionWorkbench({ cwd, action: "status" });
+    assert.equal(decision.candidate?.artifactStatus, "missing_worktree_and_branch");
+    assert.equal(decision.recommendedDecision, "rebind_candidate");
+    assert.match(decision.recommendationReason, /re-bind or re-measure/u);
+    assert.match(decision.exactNextCalls.join("\n"), /autoresearch_candidate_bind/u);
+
+    const keepPlan = buildAutoresearchCandidateDecisionWorkbench({ cwd, action: "plan_keep" });
+    assert.equal(keepPlan.recommendedDecision, "rebind_candidate");
+    assert.match(keepPlan.confirmation.blockedReasons.join("\n"), /candidate artifact status/u);
+    assert.match(
+      formatAutoresearchCandidateDecisionWorkbench(keepPlan),
+      /missing_worktree_and_branch/u,
+    );
+  }));
+
 test("segment closeout summarizes empirical decisions and candidate bindings", () =>
   withTempDir((cwd) => {
     appendReceipt(
