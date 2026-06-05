@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "d10656558a1b972927311905713c86627dc8339e"
-created_at: "2026-06-05T08:13:00Z"
+created_at: "2026-06-05T08:13:52Z"
 intent: "Teach pi-agent-vent to normalize common diagnostic category aliases"
 files:
   - "packages/pi-agent-vent/src/vent-store.js"
@@ -24,3 +24,4 @@ links:
     - 3470
   evidence_ids:
     - 3154
+    - 3155
