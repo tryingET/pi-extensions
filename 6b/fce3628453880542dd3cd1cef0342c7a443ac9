@@ -1,0 +1,28 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "6bfce3628453880542dd3cd1cef0342c7a443ac9"
+created_at: "2026-06-05T13:20:16Z"
+intent: "Document self/toolbox/agent_vent diagnostic boundary"
+files:
+  - "packages/pi-agent-vent/README.md"
+  - "packages/pi-agent-vent/docs/project/2026-05-21-agent-vent-design.md"
+  - "packages/pi-agent-vent/docs/project/2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md"
+  - "packages/pi-agent-vent/package.json"
+  - "packages/pi-autonomous-session-control/README.md"
+  - "packages/pi-toolbox-discovery/README.md"
+validation:
+  fast_gate:
+    command: "git commit pre-commit hook (quality:pre-commit for touched packages)"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-agent-vent run check; npm --prefix packages/pi-autonomous-session-control run check; npm --prefix packages/pi-toolbox-discovery run check; node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict; git diff --check"
+    status: "pass"
+group:
+  rationale: "Docs-only boundary clarification after agent_vent preview and ASC diagnostic candidates landed."
+links:
+  task_ids:
+    - 3464
+  evidence_ids:
+    - 3167
