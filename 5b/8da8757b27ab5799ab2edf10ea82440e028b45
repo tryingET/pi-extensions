@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "5b8da8757b27ab5799ab2edf10ea82440e028b45"
-created_at: "2026-06-05T05:54:30Z"
+created_at: "2026-06-05T06:06:57Z"
 intent: "Make self diagnostic candidates use query context and mirror evidence"
 files:
   - "packages/pi-autonomous-session-control/extensions/self/query-resolver.ts"
@@ -13,8 +13,8 @@ validation:
     command: "npm --prefix packages/pi-autonomous-session-control run check"
     status: "pass"
   full_gate:
-    command: "live reload verification pending"
-    status: "pending"
+    command: "live reload verification: contextual diagnostic review + prefill agent_vent record"
+    status: "pass"
 group:
   index: 1
   total: 1
@@ -24,3 +24,5 @@ links:
     - 3468
   evidence_ids:
     - 3151
+    - 3152
+    - 3153
