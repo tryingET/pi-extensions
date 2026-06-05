@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "9979c2281a6d684cc6ec208f8670c998401da9ca"
-created_at: "2026-06-05T19:40:31Z"
+created_at: "2026-06-05T19:41:04Z"
 intent: "Prevent pi-autoresearch candidate decision surfaces from treating stale visible candidate-peer receipts as keep/finalize-ready live artifacts"
 files:
   - "packages/pi-autoresearch/README.md"
@@ -15,10 +15,11 @@ validation:
     command: "npm --prefix packages/pi-autoresearch test -- tests/runtime.test.ts"
     status: "pass"
   full_gate:
-    command: "npm --prefix packages/pi-autoresearch run check && npm --prefix packages/pi-autoresearch run docs:list && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict && git diff --check -- scoped paths"
+    command: "npm --prefix packages/pi-autoresearch run check && npm --prefix packages/pi-autoresearch run docs:list && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict && pi install local pi-autoresearch package"
     status: "pass"
 links:
   task_ids:
     - 3481
   evidence_ids:
     - 3184
+    - 3185
