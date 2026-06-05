@@ -2895,6 +2895,12 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
     assert.equal(summary.completedCellCount, 1);
     assert.equal(summary.selectedCellCount, 1);
     assert.equal(summary.exportedPacketCount, 1);
+    assert.equal(summary.openCandidateReview.status, "owner_review_required");
+    assert.equal(summary.openCandidateReview.openCellCount, 1);
+    assert.equal(summary.openCandidateReview.selectedReviewCellCount, 1);
+    assert.equal(summary.openCandidateReview.unselectedMeasuredCellCount, 0);
+    assert.equal(summary.openCandidateReview.uniqueExportedPacketCount, 1);
+    assert.match(summary.openCandidateReview.summary, /Packet counts are review inventory/);
     assert.equal(summary.cells[0]?.cellId, "cell-01-01");
     assert.equal(summary.cells[0]?.selectedLaneId, "candidate-01");
     assert.equal(summary.chart.mode, "metric");
@@ -2907,6 +2913,8 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
     const textDashboard = formatAutoresearchDashboard(buildAutoresearchRuntimeStatus(cwd));
     assert.match(textDashboard, /mode: matrix_campaign/);
     assert.match(textDashboard, /## Matrix campaign progress/);
+    assert.match(textDashboard, /Open candidate review posture/);
+    assert.match(textDashboard, /open candidate next legal action/);
     assert.ok(
       textDashboard.indexOf("## Matrix campaign progress") <
         textDashboard.indexOf("## Local runtime segment snapshot"),
@@ -2930,6 +2938,9 @@ test("dashboard export discovers and renders matrix campaign artifacts", () =>
       html.indexOf("Matrix campaign progress") < html.indexOf("Local runtime segment snapshot"),
     );
     assert.match(html, /Measured packet inventory before owner review/);
+    assert.match(html, /Open candidate review posture/);
+    assert.match(html, /1 open review cell\(s\)/);
+    assert.match(html, /Packet counts are review inventory/);
     assert.match(html, /export_visibility_blockers=0/);
     assert.match(html, /cell-01-01/);
     assert.match(html, /ready_for_matrix_owner_review/);

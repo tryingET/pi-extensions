@@ -659,6 +659,19 @@ export interface AutoresearchMatrixCampaignDashboardChart {
   points: AutoresearchDashboardChartPoint[];
 }
 
+export interface AutoresearchOpenCandidateReviewPosture {
+  kind: "autoresearch.open_candidate_review_posture.v1";
+  status: "owner_review_required" | "no_open_candidate_review";
+  openCellCount: number;
+  selectedReviewCellCount: number;
+  unselectedMeasuredCellCount: number;
+  packetInventoryItemCount: number;
+  uniqueExportedPacketCount: number;
+  summary: string;
+  nextLegalAction: string;
+  boundary: string;
+}
+
 export interface AutoresearchMatrixCampaignArtifactSummary {
   kind: "autoresearch.matrix_campaign_artifact_summary.v1";
   cwd: string;
@@ -670,6 +683,7 @@ export interface AutoresearchMatrixCampaignArtifactSummary {
   selectedCellCount: number;
   candidateLaneCount: number;
   exportedPacketCount: number;
+  openCandidateReview: AutoresearchOpenCandidateReviewPosture;
   metricName: string | null;
   metricDirection: MetricDirection | null;
   metricTarget: number | null;
@@ -5462,6 +5476,10 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
     cellList.reduce((total, cell) => total + cell.packetInventory.length, 0),
   );
   const blockerValue = blockers.length;
+  const openCandidateReview = buildAutoresearchOpenCandidateReviewPosture({
+    cells: cellList,
+    exportedPacketCount: exportedPackets.size,
+  });
   const chart = buildMatrixCampaignDashboardChart({
     metricPoints: matrixChartMetricPoints,
     completedCellCount,
@@ -5481,6 +5499,7 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
     selectedCellCount,
     candidateLaneCount: resolvedCandidateLaneCount,
     exportedPacketCount: exportedPackets.size,
+    openCandidateReview,
     metricName,
     metricDirection,
     metricTarget,
@@ -5499,6 +5518,56 @@ export function discoverAutoresearchMatrixCampaignArtifacts(
     boundary:
       "Matrix campaign discovery is read-only: it parses local .autoresearch artifacts and never launches peers, runs benchmarks, exports packets, writes evidence, merges, or promotes.",
   };
+}
+
+function buildAutoresearchOpenCandidateReviewPosture(input: {
+  cells: AutoresearchMatrixCampaignCellSummary[];
+  exportedPacketCount: number;
+}): AutoresearchOpenCandidateReviewPosture {
+  const selectedReviewCells = input.cells.filter((cell) =>
+    isOpenCandidateReviewCell(cell, "selected"),
+  );
+  const unselectedMeasuredCells = input.cells.filter((cell) =>
+    isOpenCandidateReviewCell(cell, "unselected"),
+  );
+  const openCellCount = selectedReviewCells.length + unselectedMeasuredCells.length;
+  const packetInventoryItemCount = input.cells.reduce(
+    (total, cell) => total + cell.packetInventory.length,
+    0,
+  );
+  const status = openCellCount > 0 ? "owner_review_required" : "no_open_candidate_review";
+  const summary =
+    status === "owner_review_required"
+      ? `Open candidate review posture: ${openCellCount} cell(s) still need owner review; ${selectedReviewCells.length} selected cell(s), ${unselectedMeasuredCells.length} measured/selectable unselected cell(s), ${packetInventoryItemCount} packet inventory reference(s), ${input.exportedPacketCount} unique exported packet(s). Packet counts are review inventory, not live candidate promotion authority.`
+      : "Open candidate review posture: no measured candidate cells with packet inventory are waiting for owner review in discovered local artifacts.";
+
+  return {
+    kind: "autoresearch.open_candidate_review_posture.v1",
+    status,
+    openCellCount,
+    selectedReviewCellCount: selectedReviewCells.length,
+    unselectedMeasuredCellCount: unselectedMeasuredCells.length,
+    packetInventoryItemCount,
+    uniqueExportedPacketCount: input.exportedPacketCount,
+    summary,
+    nextLegalAction:
+      status === "owner_review_required"
+        ? "Run review_candidate_wave/review_matrix_campaign through the owning review surface after packet review; do not keep, discard, finalize, merge, or record evidence from packet counts alone."
+        : "No candidate review action is suggested from discovered local matrix artifacts.",
+    boundary:
+      "Read-only candidate-review posture: local candidate-result packets and packet inventories are projections until owner review decides keep/discard/finalize/evidence.",
+  };
+}
+
+function isOpenCandidateReviewCell(
+  cell: AutoresearchMatrixCampaignCellSummary,
+  mode: "selected" | "unselected",
+): boolean {
+  if (cell.packetInventory.length === 0 && !cell.selectedPacketPath) return false;
+  if (mode === "selected") {
+    return cell.selectedLaneId !== null || cell.posture === "ready_for_matrix_owner_review";
+  }
+  return cell.selectedLaneId === null && cell.posture === "measured_exported_selectable";
 }
 
 export function exportAutoresearchDashboardHtml(input: {
@@ -5569,6 +5638,8 @@ function formatAutoresearchMatrixCampaignSummaryLines(
 
   return [
     `- campaigns: ${summary.campaignCount}; cells: ${summary.completedCellCount}/${summary.cellCount}; selected: ${summary.selectedCellCount}; lanes: ${summary.candidateLaneCount}; exported packets: ${summary.exportedPacketCount}`,
+    `- ${summary.openCandidateReview.summary}`,
+    `- open candidate next legal action: ${summary.openCandidateReview.nextLegalAction}`,
     `- metric: ${summary.metricName ?? "(unknown)"} (${summary.metricDirection ?? "unknown"} is better; target=${summary.metricTarget ?? "none"})`,
     `- latest artifact: ${summary.latestArtifactPath ?? "(unknown)"}`,
     `- export_visibility_blockers: ${summary.exportVisibilityBlockers.value} (target=0; ${summary.exportVisibilityBlockers.status})`,
@@ -5821,6 +5892,7 @@ function renderAutoresearchDashboardHtml(
   const matrixProgressCards = `<div class="cards">
     <section class="card"><div class="card-label">Matrix cells</div><div class="card-value">${escapeHtml(`${matrixSummary.completedCellCount}/${matrixSummary.cellCount}`)}</div></section>
     <section class="card"><div class="card-label">Selected lanes</div><div class="card-value">${escapeHtml(String(matrixSummary.selectedCellCount))}</div></section>
+    <section class="card"><div class="card-label">Open review cells</div><div class="card-value ${matrixSummary.openCandidateReview.status === "owner_review_required" ? "warn" : "good"}">${escapeHtml(String(matrixSummary.openCandidateReview.openCellCount))}</div></section>
     <section class="card"><div class="card-label">Exported packets</div><div class="card-value">${escapeHtml(String(matrixSummary.exportedPacketCount))}</div></section>
     <section class="card"><div class="card-label">Visibility blockers</div><div class="card-value ${matrixSummary.exportVisibilityBlockers.status === "target_met" ? "good" : "warn"}">${escapeHtml(String(matrixSummary.exportVisibilityBlockers.value))}</div></section>
   </div>`;
@@ -5955,6 +6027,14 @@ code { color: #a5d6ff; }
   }
 
   <section class="card" style="margin-top:14px">
+    <div class="card-label">Open candidate review posture</div>
+    <div class="card-value ${matrixSummary.openCandidateReview.status === "owner_review_required" ? "warn" : "good"}" style="font-size:18px">${escapeHtml(String(matrixSummary.openCandidateReview.openCellCount))} open review cell(s)</div>
+    <div class="card-copy">${escapeHtml(matrixSummary.openCandidateReview.summary)}</div>
+    <div class="card-copy"><code>${escapeHtml(matrixSummary.openCandidateReview.nextLegalAction)}</code></div>
+    <div class="card-copy">${escapeHtml(matrixSummary.openCandidateReview.boundary)}</div>
+  </section>
+
+  <section class="card" style="margin-top:14px">
     <div class="card-label">Recommended next</div>
     <div class="card-value" style="font-size:18px; font-family:inherit">${escapeHtml(matrixMode ? (matrixSummary.nextLegalActions[0] ?? "Review matrix campaign artifacts before acting.") : status.empiricalPosture.recommendedNextAction)}</div>
     <div class="card-copy">${escapeHtml(matrixMode ? "Matrix-mode recommendation is derived from discovered local matrix artifacts; durable authority still requires owner review/evidence handoff." : status.empiricalPosture.summary)}</div>
@@ -6020,7 +6100,8 @@ code { color: #a5d6ff; }
   <section class="card" style="margin-top:14px">
     <div class="card-label">Measured packet inventory before owner review</div>
     <div class="card-value ${matrixSummary.exportVisibilityBlockers.status === "target_met" ? "good" : "warn"}" style="font-size:18px">export_visibility_blockers=${matrixSummary.exportVisibilityBlockers.value}</div>
-    <div class="card-copy">campaigns=${matrixSummary.campaignCount} · cells=${matrixSummary.completedCellCount}/${matrixSummary.cellCount} · selected=${matrixSummary.selectedCellCount} · lanes=${matrixSummary.candidateLaneCount} · exported packets=${matrixSummary.exportedPacketCount}</div>
+    <div class="card-copy">campaigns=${matrixSummary.campaignCount} · cells=${matrixSummary.completedCellCount}/${matrixSummary.cellCount} · selected=${matrixSummary.selectedCellCount} · open review cells=${matrixSummary.openCandidateReview.openCellCount} · lanes=${matrixSummary.candidateLaneCount} · exported packets=${matrixSummary.exportedPacketCount}</div>
+    <div class="card-copy">${escapeHtml(matrixSummary.openCandidateReview.summary)}</div>
     <div class="card-copy">metric=${escapeHtml(matrixSummary.metricName ?? "(unknown)")} (${escapeHtml(matrixSummary.metricDirection ?? "unknown")} is better; target=${escapeHtml(String(matrixSummary.metricTarget ?? "none"))}) · latest=${escapeHtml(matrixSummary.latestArtifactPath ?? "none")}</div>
     <div class="card-copy">${escapeHtml(matrixSummary.boundary)}</div>
     ${matrixNextLegalActions || '<div class="card-copy">No matrix next legal actions discovered yet.</div>'}
