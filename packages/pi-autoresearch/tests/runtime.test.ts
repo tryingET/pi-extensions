@@ -2621,6 +2621,54 @@ test("$$ autoresearch open candidates prepares review posture text without mutat
   });
 });
 
+test("/autoresearch integrate candidates prepares post-fan-in handoff without applying", async () => {
+  await withTempDir(async (cwd) => {
+    const { commands, eventHandlers } = registerHarness();
+    const cellDir = path.join(cwd, ".autoresearch", "matrix-campaign", "cell-01-01");
+    mkdirSync(cellDir, { recursive: true });
+    writeFileSync(
+      path.join(cellDir, "candidate-01.candidate-result.json"),
+      JSON.stringify({ packetKind: "autoresearch.candidate_result.v1" }),
+    );
+
+    let editorTitle = "";
+    let editorText = "";
+    const notifications: Array<{ message: string; level?: string }> = [];
+
+    await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("integrate candidates", {
+      cwd,
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitle = title;
+          editorText = text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.match(editorTitle, /Integrate useful autoresearch candidates/);
+    assert.match(editorText, /USEFUL CANDIDATE INTEGRATION HANDOFF/);
+    assert.match(editorText, /review_candidate_wave/);
+    assert.match(editorText, /post_fanin_finalizer/);
+    assert.match(editorText, /finalize_post_fanin/);
+    assert.match(editorText, /candidateResultPacketPaths/);
+    assert.match(editorText, /does not merge, apply patches/);
+    assert.equal(notifications.length, 1);
+
+    const inputHandler = eventHandlers.get("input");
+    const dollarResult = (await inputHandler?.(
+      { source: "user", text: "$$ autoresearch integrate candidates" },
+      { cwd },
+    )) as { action: string; text: string };
+    assert.equal(dollarResult.action, "transform");
+    assert.match(dollarResult.text, /post_fanin_finalizer/);
+    assert.match(dollarResult.text, /candidateResultPacketPaths/);
+  });
+});
+
 test("/autoresearch review opens a candidate decision overlay before editor confirmation", async () => {
   const { commands } = registerHarness();
   let overlayText = "";
