@@ -1,0 +1,30 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9794d45ed6c599f2f1964b2d38549b17b42c83f2"
+created_at: "2026-06-05T05:37:11Z"
+intent: "Add mirror-only self diagnostic review and unknown-query recovery cards"
+files:
+  - "packages/pi-autonomous-session-control/README.md"
+  - "packages/pi-autonomous-session-control/extensions/self.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/query-resolver.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/types.ts"
+  - "packages/pi-autonomous-session-control/tests/self/unknown.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-autonomous-session-control run check"
+    status: "pass"
+  full_gate:
+    command: "live reload verification: self diagnostic_review query"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "ASC self diagnostic-review source, docs, and tests"
+links:
+  task_ids:
+    - 3463
+  evidence_ids:
+    - 3145
+    - 3146
