@@ -15,15 +15,20 @@ import sessionCompactionExtension from "../extensions/session-compaction.js";
 function createPiRecorder() {
   const handlers = [];
   const commands = new Map();
+  const tools = new Map();
   return {
     commands,
     handlers,
+    tools,
     pi: {
       on(event, handler) {
         handlers.push({ event, handler });
       },
       registerCommand(name, definition) {
         commands.set(name, definition);
+      },
+      registerTool(definition) {
+        tools.set(definition.name, definition);
       },
     },
   };
@@ -198,8 +203,8 @@ describe("session compaction registration guard", () => {
     );
   });
 
-  it("live entrypoint registers input tracking, compaction, focus command, and startup visibility", async () => {
-    const { pi, handlers, commands } = createPiRecorder();
+  it("live entrypoint registers input tracking, compaction, handoff surfaces, and startup visibility", async () => {
+    const { pi, handlers, commands, tools } = createPiRecorder();
     const result = sessionCompactionExtension(pi);
 
     assert.equal(result.inputTracking.ok, true);
@@ -209,6 +214,8 @@ describe("session compaction registration guard", () => {
       ["input", SESSION_BEFORE_COMPACT_EVENT, "session_start"],
     );
     assert.equal(commands.has("compact-focus"), true);
+    assert.equal(commands.has("compact-handoff"), true);
+    assert.equal(tools.has("session_compaction_handoff"), true);
 
     const notices = [];
     await handlers[2].handler(
@@ -227,6 +234,73 @@ describe("session compaction registration guard", () => {
         level: "info",
       },
     ]);
+  });
+
+  it("live compact-handoff command prefills a fresh-session prompt", async () => {
+    const { pi, commands } = createPiRecorder();
+    sessionCompactionExtension(pi);
+
+    let editorText = "";
+    const notices = [];
+    const result = await commands.get("compact-handoff").handler("task 3483", {
+      cwd: "/repo/example",
+      hasUI: true,
+      ui: {
+        setEditorText(text) {
+          editorText = text;
+        },
+        notify(message, level) {
+          notices.push({ message, level });
+        },
+      },
+    });
+
+    assert.equal(result, "Fresh-session handoff prompt prefilled by pi-session-compaction.");
+    assert.match(editorText, /^You are a fresh, stateless Pi coding session\./);
+    assert.match(editorText, /Work in:\n`\/repo\/example`/);
+    assert.match(editorText, /pi-session-compaction owned/);
+    assert.match(editorText, /task 3483/);
+    assert.match(editorText, /Exact token\/context-window telemetry: unavailable/);
+    assert.deepEqual(notices, [
+      { message: "Fresh-session handoff prompt prefilled", level: "info" },
+    ]);
+  });
+
+  it("live handoff tool shows or prefills the owner-owned prompt", async () => {
+    const { pi, tools } = createPiRecorder();
+    sessionCompactionExtension(pi);
+
+    const show = await tools
+      .get("session_compaction_handoff")
+      .execute("tc-show", { mode: "show", cwd: "/repo/example", akTaskIds: ["3483"] }, null, null, {
+        cwd: "/fallback",
+        hasUI: false,
+      });
+    assert.match(show.content[0].text, /Known AK task ids: 3483/);
+    assert.equal(show.details.authority, "pi_session_compaction_owned");
+    assert.equal(show.details.prefill, false);
+
+    let editorText = "";
+    const prefill = await tools
+      .get("session_compaction_handoff")
+      .execute(
+        "tc-prefill",
+        { mode: "prefill", cwd: "/repo/example", gitStatusSummary: "clean" },
+        null,
+        null,
+        {
+          cwd: "/fallback",
+          hasUI: true,
+          ui: {
+            setEditorText(text) {
+              editorText = text;
+            },
+          },
+        },
+      );
+    assert.match(prefill.content[0].text, /prefilled by pi-session-compaction/);
+    assert.match(editorText, /Git status: clean/);
+    assert.equal(prefill.details.prefill, true);
   });
 
   it("live focus command opens a menu and starts compaction with selected instructions", async () => {

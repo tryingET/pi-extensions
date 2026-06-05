@@ -374,7 +374,7 @@ test("self query: creates self-contained handoff prompt and prefills editor", as
     editorText,
     /Work in:\n`\/home\/tryinget\/ai-society\/softwareco\/owned\/pi-extensions`/,
   );
-  assert.match(editorText, /ASC self mirror-only; not canonical authority/);
+  assert.match(editorText, /ASC self mirror-only; canonical prompt owner is pi-session-compaction/);
   assert.match(editorText, /Known AK task ids: 3482/);
   assert.match(editorText, /git status was run, but ASC does not store stdout/);
   assert.match(

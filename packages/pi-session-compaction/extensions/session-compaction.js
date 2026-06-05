@@ -1,3 +1,8 @@
+import { Type } from "typebox";
+import {
+  buildSessionCompactionHandoffToolResult,
+  parseCompactHandoffArgs,
+} from "./session-compaction/handoff-prompt.js";
 import { createSessionCompactionExtension } from "./session-compaction/registration.js";
 
 const LIVE_CUTOVER_PREFLIGHT = {
@@ -46,6 +51,19 @@ function messageCount(ctx) {
   return entries.filter((entry) => entry?.type === "message").length;
 }
 
+async function runCompactHandoff(args, ctx) {
+  const params = parseCompactHandoffArgs(args);
+  const result = buildSessionCompactionHandoffToolResult(params, ctx);
+
+  if (result.shouldPrefill && ctx.hasUI) {
+    ctx.ui.setEditorText(result.prompt);
+    ctx.ui.notify("Fresh-session handoff prompt prefilled", "info");
+    return "Fresh-session handoff prompt prefilled by pi-session-compaction.";
+  }
+
+  return result.prompt;
+}
+
 async function runFocusMenu(ctx) {
   if (!ctx.hasUI) {
     ctx.ui?.notify?.("/compact-focus requires interactive UI", "warning");
@@ -89,6 +107,80 @@ export default function sessionCompactionExtension(pi) {
     description: "Choose a guided compaction focus and compact the current session",
     handler: async (_args, ctx) => {
       await runFocusMenu(ctx);
+    },
+  });
+
+  pi.registerCommand("compact-handoff", {
+    description: "Prepare an operator-pasteable fresh-session handoff prompt",
+    handler: async (args, ctx) => runCompactHandoff(args, ctx),
+  });
+
+  pi.registerTool({
+    name: "session_compaction_handoff",
+    label: "Session Compaction Handoff Prompt",
+    description:
+      "Build a pi-session-compaction-owned fresh-session handoff prompt for proactive compaction/reload continuation.",
+    promptSnippet:
+      "Prepare an operator-pasteable fresh-session handoff prompt owned by pi-session-compaction.",
+    promptGuidelines: [
+      "Use session_compaction_handoff when context pressure is visible and the operator needs a copyable fresh-session prompt before compaction or reload.",
+      "Keep the prompt truthful: do not invent token telemetry, git status, AK task ids, validation, or candidate posture that was not supplied or verified.",
+      "Use pi-autoresearch owner surfaces for candidate lifecycle review; this handoff prompt must not promote, finalize, discard, or mutate candidates.",
+    ],
+    parameters: Type.Object({
+      mode: Type.Optional(
+        Type.Union([Type.Literal("prefill"), Type.Literal("show")], {
+          description:
+            "Whether to prefill the editor when UI is available or only show the prompt.",
+        }),
+      ),
+      cwd: Type.Optional(Type.String({ description: "Working directory for the fresh session." })),
+      note: Type.Optional(Type.String({ description: "Optional operator/task note to include." })),
+      gitStatusSummary: Type.Optional(
+        Type.String({ description: "Verified git status summary, if known." }),
+      ),
+      akTaskIds: Type.Optional(Type.Array(Type.String(), { description: "Known AK task ids." })),
+      touchedFiles: Type.Optional(
+        Type.Array(Type.String(), { description: "Recent touched files, if verified." }),
+      ),
+      recentCommands: Type.Optional(
+        Type.Array(Type.String(), { description: "Recent commands, if verified." }),
+      ),
+      validationReminder: Type.Optional(
+        Type.String({ description: "Validation/install/reload reminders, if known." }),
+      ),
+      nextSuggestedSlice: Type.Optional(
+        Type.String({ description: "Smallest truthful next slice, if known." }),
+      ),
+      evidencePosture: Type.Optional(
+        Type.String({ description: "Truthfulness caveat about the evidence source." }),
+      ),
+      openQuestions: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Open questions the fresh session should resolve.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const handoff = buildSessionCompactionHandoffToolResult(params, ctx);
+      const didPrefill = handoff.shouldPrefill && ctx.hasUI;
+      if (didPrefill) {
+        ctx.ui.setEditorText(handoff.prompt);
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: didPrefill
+              ? "Fresh-session handoff prompt prefilled by pi-session-compaction."
+              : handoff.prompt,
+          },
+        ],
+        details: {
+          ...handoff,
+          prefill: didPrefill,
+        },
+      };
     },
   });
 
