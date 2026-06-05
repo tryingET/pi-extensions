@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5c9e437e80a713ad1d1780f5f7f946bc142aea73"
+created_at: "2026-06-05T19:27:13Z"
+intent: "Make ASC self-evolution diagnostic review honor explicit correction/focus context before recent error fallback"
+files:
+  - "packages/pi-autonomous-session-control/README.md"
+  - "packages/pi-autonomous-session-control/extensions/self/query-resolver.ts"
+  - "packages/pi-autonomous-session-control/tests/self/unknown.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-autonomous-session-control test -- tests/self/unknown.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autonomous-session-control run check && npm --prefix packages/pi-autonomous-session-control run docs:list && node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict && git diff --check -- scoped paths"
+    status: "pass"
+links:
+  task_ids:
+    - 3480
+  evidence_ids:
+    - 3182
