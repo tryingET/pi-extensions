@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "7a010f8bc051b16786c88d639c11665ab4c04ee7"
+created_at: "2026-06-05T13:33:34Z"
+intent: "Improve toolbox agent_vent activation guidance for self diagnostic candidates"
+files:
+  - "packages/pi-toolbox-discovery/README.md"
+  - "packages/pi-toolbox-discovery/extensions/toolbox.ts"
+  - "packages/pi-toolbox-discovery/src/toolbox-catalog.ts"
+  - "packages/pi-toolbox-discovery/tests/toolbox.test.mjs"
+validation:
+  fast_gate:
+    command: "git commit pre-commit hook (quality:pre-commit for pi-toolbox-discovery)"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-toolbox-discovery run check; node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict; git diff --check"
+    status: "pass"
+group:
+  rationale: "Live toolbox prompt/catalog wording now routes self diagnostic candidates through agent_vent preview before record."
+links:
+  task_ids:
+    - 3466
+  evidence_ids:
+    - 3168
