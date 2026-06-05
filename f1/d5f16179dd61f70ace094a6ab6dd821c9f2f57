@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "f1d5f16179dd61f70ace094a6ab6dd821c9f2f57"
-created_at: "2026-06-05T09:36:25Z"
+created_at: "2026-06-05T09:36:39Z"
 intent: "Fix pi-agent-vent reload failure after category alias schema change"
 files:
   - "packages/pi-agent-vent/extensions/agent-vent.ts"
@@ -21,3 +21,4 @@ links:
     - 3470
   evidence_ids:
     - 3156
+    - 3157
