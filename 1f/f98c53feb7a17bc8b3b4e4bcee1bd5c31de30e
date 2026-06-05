@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "1ff98c53feb7a17bc8b3b4e4bcee1bd5c31de30e"
+created_at: "2026-06-05T13:04:38Z"
+intent: "Add agent_vent record preview and anti-junk quality constraints"
+files:
+  - "packages/pi-agent-vent/src/vent-store.js"
+  - "packages/pi-agent-vent/extensions/agent-vent.ts"
+  - "packages/pi-agent-vent/tests/agent-vent-extension.test.js"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-agent-vent/tests/agent-vent-extension.test.js packages/pi-agent-vent/tests/vent-store.test.js"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-agent-vent run check"
+    status: "pass"
+group:
+  rationale: "Preview lets self/toolbox candidates inspect sanitized diagnostics before writing; anti-junk blocks generic low-signal records."
+links:
+  task_ids:
+    - 3465
+  evidence_ids:
+    - 3165
