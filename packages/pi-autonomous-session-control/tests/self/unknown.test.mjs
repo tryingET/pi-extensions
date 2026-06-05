@@ -69,6 +69,36 @@ test("self query: diagnostic review recognizes self-improvement friction without
   await cleanup(tempDir);
 });
 
+test("self query: diagnostic review recognizes self-evolution phrasing", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-self-evolution",
+    { query: "self-evolution: improve the next diagnostic affordance" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.understood, true, "should understand self-evolution query");
+  assert.equal(result.details.intent, "meta");
+  assert.ok(result.content[0].text.includes("Diagnostic review"));
+  assert.equal(
+    result.details.data.diagnosticCandidate.sourceQuery,
+    "self-evolution: improve the next diagnostic affordance",
+  );
+  assert.equal(result.details.data.diagnosticCandidate.suggestedOwnerSurface, "agent_vent");
+  assert.equal(harness.sentUserMessages.length, 0, "should stay mirror-only");
+
+  await cleanup(tempDir);
+});
+
 test("self query: diagnostic review uses provided context for candidate payload", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

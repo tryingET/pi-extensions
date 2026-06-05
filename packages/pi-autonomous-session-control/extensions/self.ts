@@ -270,6 +270,7 @@ Examples:
 - self({ query: "I need help with [topic]" })
 - self({ query: "Mark as trap: [description]" })
 - self({ query: "Dogfood self: what friction just happened?" })
+- self({ query: "self-evolution" })
 
 This is a mirror, not a manager. You ask, you receive, you decide.`,
     promptSnippet:

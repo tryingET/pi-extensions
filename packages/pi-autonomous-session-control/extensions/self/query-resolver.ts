@@ -75,6 +75,10 @@ const DIAGNOSTIC_REVIEW_KEYWORDS = [
   "improve the self",
   "self improvement",
   "self-improvement",
+  "self evolution",
+  "self-evolution",
+  "self evolve",
+  "evolve self",
   "how should self improve",
   "how can self improve",
   "how can you improve",
@@ -531,6 +535,7 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
 
 **Diagnostic review** (mirror friction without recording it):
 - "Dogfood self" / "How can self improve?"
+- "Self-evolution" / "Evolve self"
 - "What friction just happened?"
 - "Continue diagnostic review" for a low-risk follow-up user message
 - "Prefill agent_vent record" for an operator-reviewed durable local diagnostic write
