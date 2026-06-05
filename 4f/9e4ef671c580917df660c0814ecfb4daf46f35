@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "4f9e4ef671c580917df660c0814ecfb4daf46f35"
+created_at: "2026-06-05T13:42:23Z"
+intent: "Clarify pi-autoresearch widget candidate and failed run semantics"
+files:
+  - "packages/pi-autoresearch/README.md"
+  - "packages/pi-autoresearch/extensions/pi-autoresearch.ts"
+  - "packages/pi-autoresearch/tests/runtime.test.ts"
+validation:
+  fast_gate:
+    command: "git commit pre-commit hook (quality:pre-commit for pi-autoresearch)"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autoresearch run check; node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --docs . --strict; git diff --check"
+    status: "pass"
+group:
+  rationale: "Operator confusion about 5 failed / 0 kept exposed that the compact widget conflated historical check failures and finalization state."
+links:
+  task_ids:
+    - 3472
+  evidence_ids:
+    - 3170
