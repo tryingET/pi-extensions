@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "dcf68e5fce1ad285a0f6795a1c5f3e68e54c1b45"
-created_at: "2026-06-05T05:46:43Z"
+created_at: "2026-06-05T05:50:50Z"
 intent: "Add self diagnostic-review continuation and operator-reviewed vent record prefill"
 files:
   - "packages/pi-autonomous-session-control/README.md"
@@ -17,8 +17,8 @@ validation:
     command: "npm --prefix packages/pi-autonomous-session-control run check"
     status: "pass"
   full_gate:
-    command: "live reload verification pending"
-    status: "pending"
+    command: "live reload verification: continue diagnostic review + prefill agent_vent record"
+    status: "pass"
 group:
   index: 1
   total: 1
@@ -28,3 +28,5 @@ links:
     - 3467
   evidence_ids:
     - 3148
+    - 3149
+    - 3150
