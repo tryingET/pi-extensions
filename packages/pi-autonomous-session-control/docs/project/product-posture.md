@@ -46,9 +46,9 @@ see the session; route the next move; keep authority elsewhere
 
 ## Current product maturity
 
-- maturity: `internal alpha / execution-seam and self-mirror proven`
-- current strategic line: self diagnostic clarity, guarded low-risk notifications, continuation/handoff quality, execution-runtime parity, and owner-boundary preservation
-- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload
+- maturity: `internal alpha / execution-seam and typed self-evolution mirror proven`
+- current strategic line: self diagnostic clarity, typed self-evolution candidates, guarded low-risk notifications, continuation/handoff quality, execution-runtime parity, and owner-boundary preservation
+- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, and explicit user-message routing with `self-evolution`/`checkpoint` words in the payload
 
 ## Current landed capability baseline
 
@@ -56,8 +56,8 @@ ASC currently owns:
 
 - `self` as a mirror for touched files, commands, errors, loop/stall cues, context-pressure heuristics, file-budget advisories, handoff summaries, and action-state summaries;
 - bounded memory for crystallized patterns, semantic-pressure candidates, traps, checkpoints, and followups;
-- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning candidate diagnostics without durable writes;
-- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills;
+- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1` and `self.evolution_candidate.v1` payloads without durable writes;
+- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
 - `dispatch_subagent` and the public `createAscExecutionRuntime` seam with prompt-envelope provenance, child extension/skill-profile policy, concurrency/session reservation, timeout/abort handling, and failure taxonomy;
 - rewind/recovery behavior and runtime invariants for Pi-side session control.
 
@@ -88,28 +88,30 @@ A self/ASC recommendation is trustworthy only when:
 
 Prioritize self-awareness that reduces operator feedback loops without broadening authority.
 
-The next self-evolution frontier is:
+The active self-evolution frontier is:
 
 ```text
-self.evolution_candidate.v1 -> falsifier + metric + owner -> visible-loop or measured campaign -> owner-routed learning/evidence
+self.evolution_candidate.v1 -> falsifier + metric + owner -> explicit action routing -> visible-loop or measured campaign -> owner-routed learning/evidence
 ```
 
-ASC should implement the candidate/mirror portion and route execution/evaluation through the owner map in [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md).
+ASC now implements the candidate/mirror portion and the first explicit action-routing guards. Execution/evaluation still routes through the owner map in [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md).
 That root spine also carries the DRY many-of-the-greats translation; ASC owns only the mirror, candidate, action-routing, and feedback parts of that model.
 
 ## Next product bets
 
-### Bet 1 — Typed self-evolution candidate
+### Bet 1 — Typed self-evolution candidate — landed first slice
 
-Add a stable `self.evolution_candidate.v1` diagnostic shape with friction, hypothesis, falsifier, metric, owner, autonomy level, next safe test, and non-authorizations.
+`self.evolution_candidate.v1` now appears in diagnostic-review details and text output with friction, hypothesis, falsifier, metric, owner, autonomy level, next safe test, non-authorizations, trace, critic lenses, and decision budget. It remains mirror-only and does not write owner surfaces.
 
 This is the first translation of the many-of-the-greats review: make self-improvement Popper-falsifiable, metric-bearing, owner-routed, and explicit about what ASC is not authorized to do.
 
-### Bet 2 — Intent-collision hardening
+### Bet 2 — Intent-collision hardening — landed first slice
 
-Diagnostic/self-evolution queries must not be hijacked by incidental action words such as `checkpoint`. Add regression coverage so dogfood/friction queries remain mirror-only unless the action directive is explicit.
+Diagnostic/self-evolution queries are no longer hijacked by incidental action words such as `checkpoint`. Regression coverage proves dogfood/friction queries remain mirror-only unless the action directive is explicit.
 
-### Bet 3 — PDCA/OODA trace for nontrivial recommendations
+The reciprocal action-routing guard also landed: explicit `notify operator` / `send user message:` directives win even when their payload mentions `self-evolution`, `checkpoint`, or other diagnostic/action words; risky directive and likely-secret gates still apply.
+
+### Bet 3 — PDCA/OODA trace for nontrivial recommendations — landed first slice
 
 Expose the compact trace behind self-improvement suggestions:
 
@@ -124,7 +126,7 @@ The trace should name the evidence seen, owner/boundary rule applied, chosen nex
 
 Add a small feedback path for self suggestions: helpful, stale, wrong-owner, unsafe, ignored. Keep it mirror/local unless deliberately recorded through `agent_vent` or another owner surface.
 
-### Bet 5 — Autonomy-level membrane
+### Bet 5 — Autonomy-level membrane — landed first slice
 
 Make the Brooks/subsumption layer explicit in self outputs:
 
@@ -134,7 +136,7 @@ observe -> suggest -> prefill -> low-risk notify -> visible-loop -> bounded camp
 
 ASC may observe, suggest, prefill, and send low-risk notifications. Visible loops, measured campaigns, durable writes, evidence, tasks, ontology, KES, and recurrence records stay with their owners.
 
-### Bet 6 — Specialist critic lenses
+### Bet 6 — Specialist critic lenses — landed first slice
 
 Add lightweight internal critic fields for high-impact diagnostic recommendations:
 
@@ -146,11 +148,13 @@ Add lightweight internal critic fields for high-impact diagnostic recommendation
 
 These are explanation lenses, not spawned peers by default. Escalate to `/scoutpeer`, `/visible-loop`, or `dispatch_subagent` only when the owner/risk/metric remains ambiguous and the operator or owning surface authorizes that path.
 
-### Bet 7 — Decision budget and reflection guard
+### Bet 7 — Decision budget and reflection guard — partial first slice landed
 
 For nontrivial self-analysis, include expected cost, uncertainty, reversibility, and a good-enough stop condition. Detect repeated self-analysis without external validation and route to a concrete check, scout/deep review, or stop instead of continuing philosophical reflection.
 
-### Bet 8 — Insight promotion cue
+The decision-budget fields are now present on `self.evolution_candidate.v1`; repeated-reflection detection remains a future slice.
+
+### Bet 8 — Insight promotion cue — partial first slice landed
 
 When self or a subagent produces valuable analysis that only exists in session history, ASC should surface that as a propagation risk:
 
