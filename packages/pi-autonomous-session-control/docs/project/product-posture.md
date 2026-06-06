@@ -56,7 +56,7 @@ ASC currently owns:
 
 - `self` as a mirror for touched files, commands, errors, loop/stall cues, context-pressure heuristics, file-budget advisories, handoff summaries, and action-state summaries;
 - bounded memory for crystallized patterns, semantic-pressure candidates, traps, checkpoints, and followups;
-- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1` and `self.evolution_candidate.v1` payloads without durable writes;
+- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1` and `self.evolution_candidate.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
 - exact/verbatim visible recall for crystallized patterns when stateless dogfood needs to verify full remembered content from text rather than hidden structured details;
 - guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;

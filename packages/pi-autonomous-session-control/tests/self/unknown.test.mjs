@@ -302,6 +302,59 @@ test("self query: diagnostic review uses provided context for candidate payload"
   await cleanup(tempDir);
 });
 
+test("self query: diagnostic review honors non-authorization against agent_vent suggestions", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-diagnostic-review-no-agent-vent",
+    {
+      query: "self-evolution diagnostic review; constraints say no agent_vent",
+      context: {
+        summary: "stateless dogfood found a wrong-owner diagnostic suggestion",
+        nonAuthorizations: ["no agent_vent", "no AK evidence writes"],
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.understood, true);
+  assert.equal(result.details.intent, "meta");
+  assert.equal(
+    result.details.data.diagnosticCandidate.suggestedOwnerSurface,
+    "self_diagnostic_review_only",
+  );
+  assert.equal(result.details.data.diagnosticCandidate.agentVentSuggestionAllowed, false);
+  assert.match(result.content[0].text, /ownerSurface=self_diagnostic_review_only/);
+  assert.match(result.content[0].text, /agentVentSuggestionAllowed=false/);
+  assert.doesNotMatch(
+    JSON.stringify(result.details.data.diagnosticCandidate.copyableCommands),
+    /agent_vent/,
+    "copyable commands should omit agent_vent when explicitly disallowed",
+  );
+  assert.doesNotMatch(
+    JSON.stringify(result.details.data.allowedNextSurfaces),
+    /agent_vent/,
+    "allowed next surfaces should omit agent_vent when explicitly disallowed",
+  );
+  assert.doesNotMatch(
+    result.content[0].text.split("Suggestions:")[1] ?? "",
+    /agent_vent/,
+    "visible suggestions should omit agent_vent when explicitly disallowed",
+  );
+  assert.match(result.content[0].text, /constraints disallow agent_vent suggestions/);
+  assert.equal(harness.sentUserMessages.length, 0, "should stay mirror-only");
+
+  await cleanup(tempDir);
+});
+
 test("self query: diagnostic review honors correction context before recent errors", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

@@ -9,11 +9,61 @@
 import { normalizeInput, normalizeString, normalizeStringArray } from "../edge-contract-kernel.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
 
+function collectConstraintText(query: SelfQuery | undefined): string[] {
+  const context = normalizeInput(query?.context);
+  const text: string[] = [];
+  const add = (value: unknown): void => {
+    const normalized = normalizeString(value);
+    if (normalized) text.push(normalized);
+  };
+  const addArray = (value: unknown): void => {
+    const normalized = normalizeStringArray(value);
+    if (normalized) text.push(...normalized);
+  };
+
+  add(query?.query);
+  add(context.constraints);
+  add(context.constraint);
+  add(context.nonAuthorizations);
+  add(context.non_authorizations);
+  add(context.nonAuthorisations);
+  add(context.disallowedSurfaces);
+  add(context.disallowed_self_actions);
+  add(context.disallowedSelfActions);
+  add(context.forbiddenSurfaces);
+  addArray(context.constraints);
+  addArray(context.nonAuthorizations);
+  addArray(context.non_authorizations);
+  addArray(context.nonAuthorisations);
+  addArray(context.disallowedSurfaces);
+  addArray(context.disallowed_self_actions);
+  addArray(context.disallowedSelfActions);
+  addArray(context.forbiddenSurfaces);
+
+  return text;
+}
+
+function disallowsAgentVentSuggestion(query: SelfQuery | undefined): boolean {
+  const text = collectConstraintText(query).join("\n").toLowerCase();
+  if (!/agent[_ -]?vent/.test(text)) return false;
+
+  return (
+    /\b(no|avoid|omit|exclude|disallow|forbid)\s+agent[_ -]?vent\b/.test(text) ||
+    /\b(do not|don't|dont|must not|not authorized to|not authorised to)\b[^\n.]{0,80}\bagent[_ -]?vent\b/.test(
+      text,
+    ) ||
+    /\bagent[_ -]?vent\b[^\n.]{0,80}\b(disallowed|forbidden|not authorized|not authorised|out of scope|off limits)\b/.test(
+      text,
+    )
+  );
+}
+
 function buildDiagnosticCandidate(
   query: SelfQuery | undefined,
   state: SelfState,
 ): Record<string, unknown> {
   const context = normalizeInput(query?.context);
+  const agentVentDisallowed = disallowsAgentVentSuggestion(query);
   const latestError = [...state.operations.errors].sort(
     (a, b) => (b.lastSeen ?? b.timestamp) - (a.lastSeen ?? a.timestamp),
   )[0];
@@ -63,9 +113,11 @@ function buildDiagnosticCandidate(
     tool,
     package: packageName,
     sourceQuery: query?.query ?? "diagnostic review requested",
-    suggestedOwnerSurface: "agent_vent",
-    boundary:
-      "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
+    suggestedOwnerSurface: agentVentDisallowed ? "self_diagnostic_review_only" : "agent_vent",
+    agentVentSuggestionAllowed: !agentVentDisallowed,
+    boundary: agentVentDisallowed
+      ? "candidate-only local diagnostic suggestion; current constraints disallow agent_vent suggestions, and self does not create AK/evidence/incident state"
+      : "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
     mirrorEvidence: {
       latestError: latestError
         ? {
@@ -82,11 +134,13 @@ function buildDiagnosticCandidate(
           }
         : undefined,
     },
-    copyableCommands: [
-      'toolbox({ action: "activate", bundle: "agent_vent" })',
-      agentVentPreviewCommand,
-      agentVentRecordCommand,
-    ],
+    copyableCommands: agentVentDisallowed
+      ? ["self feedback summary", "capability discovery"]
+      : [
+          'toolbox({ action: "activate", bundle: "agent_vent" })',
+          agentVentPreviewCommand,
+          agentVentRecordCommand,
+        ],
   };
 }
 
@@ -173,6 +227,31 @@ export function resolveDiagnosticReviewQuery(
 ): SelfResponse {
   const diagnosticCandidate = buildDiagnosticCandidate(query, state);
   const evolutionCandidate = buildEvolutionCandidate(query, diagnosticCandidate);
+  const agentVentSuggestionAllowed = diagnosticCandidate.agentVentSuggestionAllowed !== false;
+  const ownerBoundaryLine = agentVentSuggestionAllowed
+    ? "- agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic."
+    : "- current constraints disallow agent_vent suggestions; self omits agent_vent activation, preview, and record commands.";
+  const allowedNextSurfaces = agentVentSuggestionAllowed
+    ? [
+        "toolbox activation",
+        "agent_vent preview by explicit operator/tool call",
+        "agent_vent record by explicit operator/tool call after preview/review",
+        "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
+        "owner docs/task/evidence/learning surfaces only through their owners",
+      ]
+    : [
+        "self feedback summary",
+        "capability discovery",
+        "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
+        "owner docs/task/evidence/learning surfaces only through their owners",
+      ];
+  const suggestions = agentVentSuggestionAllowed
+    ? [
+        'toolbox({ action: "activate", bundle: "agent_vent" })',
+        "agent_vent preview before record for the suggested payload",
+        "capability discovery",
+      ]
+    : ["self feedback summary", "capability discovery"];
 
   return {
     understood: true,
@@ -182,23 +261,17 @@ export function resolveDiagnosticReviewQuery(
 Boundary:
 - self owns moment-level reflection: what just happened and what affordance was missing.
 - toolbox owns capability activation when a separate tool is needed.
-- agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic.
+${ownerBoundaryLine}
 - owner docs, visible-loop, autoresearch, AK/evidence, KES, Prompt Vault, and ontology remain separate owner surfaces.
 
-Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}.
+Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}; ownerSurface=${String(diagnosticCandidate.suggestedOwnerSurface)}; agentVentSuggestionAllowed=${String(diagnosticCandidate.agentVentSuggestionAllowed)}.
 Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
 
 No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, or external telemetry was created.`,
     data: {
       diagnosticCandidate,
       evolutionCandidate,
-      allowedNextSurfaces: [
-        "toolbox activation",
-        "agent_vent preview by explicit operator/tool call",
-        "agent_vent record by explicit operator/tool call after preview/review",
-        "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
-        "owner docs/task/evidence/learning surfaces only through their owners",
-      ],
+      allowedNextSurfaces,
       disallowedSelfActions: [
         "self must not write agent_vent records internally",
         "self must not create AK tasks/evidence/incidents for diagnostics",
@@ -207,10 +280,6 @@ No authority changed: no vent record, AK task, evidence, issue, incident, KES no
         "self must not treat session JSONL or compaction summaries as durable promotion by themselves",
       ],
     },
-    suggestions: [
-      'toolbox({ action: "activate", bundle: "agent_vent" })',
-      "agent_vent preview before record for the suggested payload",
-      "capability discovery",
-    ],
+    suggestions,
   };
 }
