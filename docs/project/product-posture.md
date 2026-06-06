@@ -55,6 +55,8 @@ Root does not own package-local code, package-local tests, package product promi
 `/visible-loop` defaults to reading this file and [vision.md](./vision.md) from the current working directory.
 From the monorepo root, that means the loop must treat root as a router/control plane, not as the owner of every package implementation.
 
+For live dogfood outside the current session, `pi -p` probes are useful but stateless. A `pi -p` prompt must include the repo path, package owner, exact objective, expected behavior, validation command, and non-authorizations; it cannot rely on this conversation or session memory. A fresh Ghostty tab can continue work with a new context window only when that prompt is self-contained.
+
 Use root `/visible-loop` only when the target is one of these:
 
 1. root-owned validation/release/compatibility/routing work;

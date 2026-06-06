@@ -81,7 +81,8 @@ A self/ASC recommendation is trustworthy only when:
 2. **Owner seam** — suggested actions name the owning package or authority surface.
 3. **Risk posture** — low-risk notifications may send; commands, peer launches, compaction, durable records, commits, and owner writes are prefilled or deferred.
 4. **Verification** — implementation changes still pass package checks and live reload dogfood when runtime behavior changes.
-5. **No hidden escalation** — diagnostic candidates do not create vent records, AK tasks/evidence, issues, incidents, KES notes, ontology entries, or telemetry.
+5. **Stateless dogfood prompt quality** — `pi -p` probes and fresh Ghostty continuation tabs must be prompted as stateless sessions with repo path, package owner, objective, expected behavior, validation, and non-authorizations included explicitly.
+6. **No hidden escalation** — diagnostic candidates do not create vent records, AK tasks/evidence, issues, incidents, KES notes, ontology entries, or telemetry.
 
 ## Current strategic line
 
