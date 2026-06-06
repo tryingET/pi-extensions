@@ -450,6 +450,34 @@ test("self query: diagnostic review fails closed on unresolved insight promotion
     /defer claim incomplete/,
   );
 
+  const deferredWithoutDestination = await tool.execute(
+    "tc-diagnostic-review-deferred-without-owner-target",
+    {
+      query: "dogfood self: incomplete explicit deferral destination",
+      context: {
+        promotionStatus: "explicitly_deferred",
+        promotionDeferReason: "will promote after owner review",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(
+    deferredWithoutDestination.details.data.evolutionCandidate.insightPromotionCue.status,
+    "explicitly_deferred",
+  );
+  assert.equal(
+    deferredWithoutDestination.details.data.evolutionCandidate.insightPromotionCue
+      .requiredBeforeCompletion,
+    true,
+  );
+  assert.match(
+    deferredWithoutDestination.details.data.evolutionCandidate.insightPromotionCue.risk,
+    /owner\/target and reason/,
+  );
+
   const unknownStatus = await tool.execute(
     "tc-diagnostic-review-unknown-promotion-status",
     {

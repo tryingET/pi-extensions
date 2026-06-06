@@ -75,7 +75,7 @@ The current routed ASC/self frontier is package-owned by [pi-autonomous-session-
 ```text
 session-only self/subagent insight
 -> typed self.insight_promotion_cue.v1 status
--> fail closed until promoted or explicitly deferred with reason
+-> fail closed until promoted or explicitly deferred with owner/target and reason
 ```
 
 Done means diagnostic/self-evolution responses name source artifact, typed promotion status, owner/target, required-before-completion, risk, next action, and non-authorizations; unresolved promotion stays required-before-completion even if caller context tries to suppress it; and ASC does not write owner docs, AK/evidence, incidents, visible-loop state, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.

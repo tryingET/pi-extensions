@@ -166,7 +166,7 @@ When self or a subagent produces valuable analysis that only exists in session h
 session-only insight -> owner surface? -> promoted | explicitly deferred | lost-risk
 ```
 
-The cue names source artifact, typed status, owner/target, required-before-completion, risk, next action, and non-authorizations. It defaults to `session_only_unpromoted` so loop closeout must promote the durable portion or explicitly defer it with owner/reason before claiming product-posture alignment. Explicit `promoted` context resolves only to a verification cue; explicit `explicitly_deferred` resolves only when a defer reason is present. Caller-provided completion overrides cannot downgrade unresolved promotion requirements, and caller-provided `nonAuthorizations` are merged with ASC's default guardrails instead of replacing them.
+The cue names source artifact, typed status, owner/target, required-before-completion, risk, next action, and non-authorizations. It defaults to `session_only_unpromoted` so loop closeout must promote the durable portion or explicitly defer it with owner/target and reason before claiming product-posture alignment. Explicit `promoted` context resolves only to a verification cue; explicit `explicitly_deferred` resolves only when a defer reason and explicit owner/target are present. Caller-provided completion overrides cannot downgrade unresolved promotion requirements, and caller-provided `nonAuthorizations` are merged with ASC's default guardrails instead of replacing them.
 
 ASC still does not write owner docs itself unless the operator asked for that mutation and the owner surface is in scope. It only makes the missing promotion visible before a loop declares docs alignment complete.
 

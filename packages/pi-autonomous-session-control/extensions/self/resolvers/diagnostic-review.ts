@@ -198,16 +198,23 @@ function buildInsightPromotionCue(
     normalizeString(context.source) ||
     normalizeString(context.sessionArtifact) ||
     "current Pi session mirror";
-  const promotionOwner =
-    normalizeString(context.promotionOwner) || normalizeString(context.sourceOwner) || owner;
-  const promotionTarget =
-    normalizeString(context.promotionTarget) || `${promotionOwner} owner surface`;
+  const explicitPromotionOwner =
+    normalizeString(context.promotionOwner) ||
+    normalizeString(context.sourceOwner) ||
+    normalizeString(context.owner) ||
+    normalizeString(context.packageName) ||
+    normalizeString(context.package);
+  const explicitPromotionTarget = normalizeString(context.promotionTarget);
+  const promotionOwner = explicitPromotionOwner || owner;
+  const promotionTarget = explicitPromotionTarget || `${promotionOwner} owner surface`;
   const status = normalizeInsightPromotionStatus(
     normalizeString(context.promotionStatus) || normalizeString(context.insightPromotionStatus),
   );
   const deferReason =
     normalizeString(context.promotionDeferReason) || normalizeString(context.deferReason);
-  const hasResolvedDeferral = status === "explicitly_deferred" && Boolean(deferReason);
+  const hasExplicitDeferralDestination = Boolean(explicitPromotionOwner || explicitPromotionTarget);
+  const hasResolvedDeferral =
+    status === "explicitly_deferred" && Boolean(deferReason) && hasExplicitDeferralDestination;
   const requiredBeforeCompletion = !(status === "promoted" || hasResolvedDeferral);
 
   const risk = (() => {
@@ -216,8 +223,8 @@ function buildInsightPromotionCue(
         return "low if the named owner surface really contains the durable summary";
       case "explicitly_deferred":
         return hasResolvedDeferral
-          ? "accepted only because the defer reason and owner are explicit in closeout"
-          : "defer claim incomplete: explicit deferral needs an owner and reason before completion";
+          ? "accepted only because the defer reason and owner/target are explicit in closeout"
+          : "defer claim incomplete: explicit deferral needs an owner/target and reason before completion";
       case "unknown":
         return "unknown promotion status risk: treat as unpromoted until the owner surface verifies it";
       case "session_only_unpromoted":
@@ -230,12 +237,12 @@ function buildInsightPromotionCue(
         return "verify the named owner surface before claiming completion";
       case "explicitly_deferred":
         return hasResolvedDeferral
-          ? `state the defer reason and owner before completion (${deferReason})`
-          : "add an explicit defer reason and owner, or promote the durable portion before completion";
+          ? `state the defer reason and owner/target before completion (${deferReason})`
+          : "add an explicit defer reason plus owner/target, or promote the durable portion before completion";
       case "unknown":
         return "normalize the promotion status to promoted, explicitly_deferred with reason, or session_only_unpromoted before completion";
       case "session_only_unpromoted":
-        return "promote the durable portion to the owning surface or explicitly defer with owner and reason before completion";
+        return "promote the durable portion to the owning surface or explicitly defer with owner/target and reason before completion";
     }
   })();
 
