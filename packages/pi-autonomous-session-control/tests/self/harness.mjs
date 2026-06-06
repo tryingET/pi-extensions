@@ -108,6 +108,9 @@ export async function loadExtensionWithMocks() {
   await mkdir(resolversDestDir, { recursive: true });
   const resolverFiles = [
     "helpers.ts",
+    "action-diagnostic.ts",
+    "action-handoff.ts",
+    "action-user-message.ts",
     "capabilities.ts",
     "perception.ts",
     "direction.ts",
