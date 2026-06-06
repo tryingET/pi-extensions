@@ -51,7 +51,10 @@ function buildDiagnosticCandidate(query: SelfQuery): Record<string, string> {
     "self/operator diagnostic affordance needs review";
   const category = normalizeString(context.category) || "missing_affordance";
   const tool = normalizeString(context.tool) || "self";
-  const packageName = normalizeString(context.package) || "pi-autonomous-session-control";
+  const packageName =
+    normalizeString(context.packageName) ||
+    normalizeString(context.package) ||
+    "pi-autonomous-session-control";
 
   return {
     kind: "self.diagnostic_candidate.v1",
@@ -77,7 +80,7 @@ function buildDiagnosticContinuationMessage(candidate: Record<string, string>): 
 }
 
 function buildAgentVentPreviewCommand(candidate: Record<string, string>): string {
-  return `agent_vent({ action: "preview", category: ${JSON.stringify(candidate.category)}, tool: ${JSON.stringify(candidate.tool)}, package: ${JSON.stringify(candidate.package)}, summary: ${JSON.stringify(candidate.summary)} })`;
+  return `agent_vent({ action: "preview", category: ${JSON.stringify(candidate.category)}, tool: ${JSON.stringify(candidate.tool)}, packageName: ${JSON.stringify(candidate.package)}, summary: ${JSON.stringify(candidate.summary)} })`;
 }
 
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {

@@ -70,14 +70,15 @@ For package implementation, prefer launching Pi from the owning package director
 The current high-leverage self-evolution frontier is described once in [visible-self-evolution-spine.md](./visible-self-evolution-spine.md) and package postures linked from it.
 That spine carries the DRY many-of-the-greats translation — cybernetic feedback, Popper falsifiers, PDCA/OODA traces, autonomy layers, specialist critics, decision budgets, and reflection guards — so package docs can link to one shared model instead of copying it.
 
-The next routed implementation slice is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md):
+The current routed ASC/self frontier is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md). The latest package-local slice is cross-package diagnostic-contract parity:
 
 ```text
-self.evolution_candidate.v1
-+ diagnostic/action intent-collision hardening
+ASC self diagnostic candidate
+-> operator-reviewed agent_vent action=preview prefill
+-> live agent_vent schema/toolbox route stays aligned
 ```
 
-Done means ASC can produce a typed self-evolution candidate with friction, hypothesis, falsifier, metric, owner, autonomy level, next safe test, and non-authorizations, and diagnostic queries cannot create checkpoints merely because they mention `checkpoint`.
+Done means ASC-generated `agent_vent action=preview` suggestions use the live `packageName` facet, JSON-quote caller-controlled values, stay preview-only, and do not write vent records, AK/evidence, incidents, visible-loop state, telemetry, or other owner surfaces.
 
 ## Trust gates
 

@@ -47,8 +47,8 @@ see the session; route the next move; keep authority elsewhere
 ## Current product maturity
 
 - maturity: `internal alpha / execution-seam and typed self-evolution mirror proven`
-- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, execution-runtime parity, and owner-boundary preservation
-- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, and explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content
+- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, execution-runtime parity, cross-package diagnostic-contract parity, and owner-boundary preservation
+- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content, and focused regression coverage for ASC-generated `agent_vent action=preview` prefills using the live `packageName` facet with JSON-quoted caller-controlled values
 
 ## Current landed capability baseline
 
@@ -59,7 +59,7 @@ ASC currently owns:
 - diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1` and `self.evolution_candidate.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
 - exact/verbatim visible recall for crystallized patterns when stateless dogfood needs to verify full remembered content from text rather than hidden structured details;
-- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
+- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills that use the live `packageName` tool facet and JSON-quote caller-controlled fields, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
 - `dispatch_subagent` and the public `createAscExecutionRuntime` seam with prompt-envelope provenance, child extension/skill-profile policy, concurrency/session reservation, timeout/abort handling, and failure taxonomy;
 - rewind/recovery behavior and runtime invariants for Pi-side session control.
 
@@ -168,6 +168,8 @@ session-only insight -> owner surface? -> promoted | explicitly deferred | lost-
 
 ASC should not write the owner docs itself unless the operator asked for that mutation and the owner surface is in scope. It should, however, make the missing promotion visible before a loop declares docs alignment complete.
 
-### Bet 9 — Cross-package diagnostic contract parity
+### Bet 9 — Cross-package diagnostic contract parity — landed first slice
 
-Keep ASC-generated `agent_vent action=preview` commands aligned with the live `agent_vent` schema and toolbox activation path without letting ASC write vent records internally.
+ASC-generated `agent_vent action=preview` commands now align with the live `agent_vent` schema by emitting `packageName` instead of the stale `package` facet. Focused regression coverage proves operator-reviewed diagnostic-record prefills stay preview-only, do not send hidden messages, omit `action: "record"`, avoid the legacy `package:` tool-call field, and JSON-quote caller-controlled summary/package values so copied commands do not become injection or schema-drift hazards.
+
+The boundary remains unchanged: ASC suggests or prefills candidate payloads only. Toolbox still owns capability activation, and `pi-agent-vent` still owns preview validation, durable local vent records, recurrence review, redaction, and retention.
