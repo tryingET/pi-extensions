@@ -1,0 +1,1 @@
+Cherry-picked stateless candidate peer fix for explicit ASC self directive classifier priority from candidatepeer/asc-crystallization-priority. Validation: focused node self tests 37/37 pass; npm --prefix packages/pi-autonomous-session-control run check 304/304 pass; docs-list strict pass; git diff --check pass. Candidate peer run: candidatepeer-mq21079y-49294204.
