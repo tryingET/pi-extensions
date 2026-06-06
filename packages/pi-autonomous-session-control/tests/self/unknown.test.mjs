@@ -63,8 +63,58 @@ test("self query: diagnostic review recognizes self-improvement friction without
     "self.diagnostic_candidate.v1",
     "should return typed candidate payload",
   );
+  assert.equal(
+    result.details.data.evolutionCandidate.kind,
+    "self.evolution_candidate.v1",
+    "should return typed self-evolution candidate payload",
+  );
+  assert.ok(result.details.data.evolutionCandidate.falsifier, "should name falsifier");
+  assert.ok(result.details.data.evolutionCandidate.metric, "should name metric");
+  assert.ok(result.details.data.evolutionCandidate.nextSafeTest, "should name next safe test");
+  assert.deepEqual(
+    result.details.data.evolutionCandidate.nonAuthorizations.includes(
+      "no action-state mutation from diagnostic/self-evolution queries",
+    ),
+    true,
+  );
   assert.equal(result.details.data.diagnosticCandidate.suggestedOwnerSurface, "agent_vent");
   assert.equal(harness.sentUserMessages.length, 0, "should not send a hidden continuation");
+
+  await cleanup(tempDir);
+});
+
+test("self query: diagnostic review with incidental action words remains mirror-only", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-diagnostic-action-collision",
+    { query: "Dogfood self: big-picture query created checkpoint" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.understood, true, "should understand diagnostic-review query");
+  assert.equal(result.details.intent, "meta");
+  assert.equal(result.details.data.evolutionCandidate.kind, "self.evolution_candidate.v1");
+  assert.match(result.content[0].text, /No authority changed/);
+
+  const actionSummary = await tool.execute(
+    "tc-diagnostic-action-collision-summary",
+    { query: "action summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(actionSummary.details.data.checkpoints.length, 0);
+  assert.match(actionSummary.content[0].text, /checkpoints=0/);
 
   await cleanup(tempDir);
 });
@@ -130,6 +180,8 @@ test("self query: diagnostic review uses provided context for candidate payload"
   );
   assert.equal(result.details.data.diagnosticCandidate.category, "workflow_friction");
   assert.match(result.details.data.diagnosticCandidate.copyableCommands[1], /action: "preview"/);
+  assert.match(result.details.data.diagnosticCandidate.copyableCommands[1], /packageName: /);
+  assert.doesNotMatch(result.details.data.diagnosticCandidate.copyableCommands[1], /package: /);
   assert.match(
     result.details.data.diagnosticCandidate.copyableCommands[1],
     /self failed to use sendUserMessage/,

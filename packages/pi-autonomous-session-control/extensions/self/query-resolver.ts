@@ -10,7 +10,7 @@
  * - resolvers/action.ts (checkpoints, followups, prefills)
  */
 
-import { normalizeInput, normalizeString } from "./edge-contract-kernel.ts";
+import { normalizeInput, normalizeString, normalizeStringArray } from "./edge-contract-kernel.ts";
 import { ACTION_KEYWORDS, mapActionIntent, resolveActionQuery } from "./resolvers/action.ts";
 import {
   CRYSTALLIZATION_KEYWORDS,
@@ -118,6 +118,20 @@ function isSemanticPressureQuery(lower: string): boolean {
 
 function isDiagnosticReviewQuery(lower: string): boolean {
   return DIAGNOSTIC_REVIEW_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+function isExplicitDiagnosticActionQuery(lower: string): boolean {
+  return (
+    lower.includes("continue diagnostic review") ||
+    lower.includes("continue self diagnostic") ||
+    lower.includes("send diagnostic review") ||
+    lower.includes("send diagnostic followup") ||
+    lower.includes("send diagnostic follow-up") ||
+    lower.includes("prefill diagnostic record") ||
+    lower.includes("prefill agent_vent record") ||
+    lower.includes("prefill vent record") ||
+    lower.trim().startsWith("record this friction")
+  );
 }
 
 function mapSemanticPressureIntent(lower: string): CrystallizationIntent {
@@ -259,6 +273,17 @@ function normalizeColonDirectiveContext(
 export function classifyIntent(query: string): QueryIntent {
   const lower = query.toLowerCase();
 
+  // Check diagnostic review before broad action keywords so incidental action words in
+  // self-evolution questions (for example "dogfood self: ... checkpoint ...") do not mutate
+  // action state. Explicit diagnostic action follow-ups are still handled as actions.
+  if (isExplicitDiagnosticActionQuery(lower)) {
+    return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
+  }
+
+  if (isDiagnosticReviewQuery(lower)) {
+    return { domain: "meta", intent: "diagnostic_review" };
+  }
+
   // Check explicit action/crystallization/protection requests before capability discovery so
   // content like "Remember: capability map stale" is stored instead of being hijacked as meta.
   for (const keyword of ACTION_KEYWORDS) {
@@ -287,10 +312,6 @@ export function classifyIntent(query: string): QueryIntent {
     if (lower.includes(keyword)) {
       return { domain: "protection", intent: mapProtectionIntent(lower) as ProtectionIntent };
     }
-  }
-
-  if (isDiagnosticReviewQuery(lower)) {
-    return { domain: "meta", intent: "diagnostic_review" };
   }
 
   // Check capabilities after explicit domain requests (meta-query about the tool itself).
@@ -409,9 +430,12 @@ function buildDiagnosticCandidate(
         : "missing_affordance");
   const tool =
     normalizeString(context.tool) || (contextSummary ? "self" : latestError?.toolName) || "self";
-  const packageName = normalizeString(context.package) || "pi-autonomous-session-control";
-  const agentVentPreviewCommand = `agent_vent({ action: "preview", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, package: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
-  const agentVentRecordCommand = `agent_vent({ action: "record", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, package: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
+  const packageName =
+    normalizeString(context.packageName) ||
+    normalizeString(context.package) ||
+    "pi-autonomous-session-control";
+  const agentVentPreviewCommand = `agent_vent({ action: "preview", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, packageName: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
+  const agentVentRecordCommand = `agent_vent({ action: "record", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, packageName: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
 
   return {
     kind: "self.diagnostic_candidate.v1",
@@ -447,6 +471,83 @@ function buildDiagnosticCandidate(
   };
 }
 
+function buildEvolutionCandidate(
+  query: SelfQuery | undefined,
+  diagnosticCandidate: Record<string, unknown>,
+): Record<string, unknown> {
+  const context = normalizeInput(query?.context);
+  const friction =
+    normalizeString(context.friction) ||
+    normalizeString(diagnosticCandidate.summary) ||
+    "self-evolution friction was observed, but the specific friction was not named";
+  const owner =
+    normalizeString(context.owner) ||
+    normalizeString(context.packageName) ||
+    normalizeString(context.package) ||
+    "pi-autonomous-session-control";
+  const metric =
+    normalizeString(context.metric) ||
+    "fewer wrong-owner or unsafe self suggestions; diagnostic query does not mutate action state";
+  const falsifier =
+    normalizeString(context.falsifier) ||
+    "the proposed fix is wrong if the same query still routes to an unsafe owner, lacks a metric, or mutates state without an explicit action directive";
+  const nextSafeTest =
+    normalizeString(context.nextSafeTest) ||
+    "add or run a focused regression that proves the diagnostic query remains mirror-only, then run the package check";
+  const autonomyLevel = normalizeString(context.autonomyLevel) || "suggest";
+  const sourceArtifact = normalizeString(context.sourceArtifact) || normalizeString(context.source);
+  const promotionStatus = normalizeString(context.promotionStatus) || "candidate_only_not_promoted";
+
+  return {
+    kind: "self.evolution_candidate.v1",
+    friction,
+    hypothesis:
+      normalizeString(context.hypothesis) ||
+      "self lacked an explicit typed promotion/evolution contract, so valuable session-only analysis could be narrowed into the next implementation slice and lose strategic rationale",
+    falsifier,
+    metric,
+    owner,
+    autonomyLevel,
+    nextSafeTest,
+    nonAuthorizations: normalizeStringArray(context.nonAuthorizations) ?? [
+      "no AK task/evidence/decision writes from self",
+      "no agent_vent record without explicit operator/tool action",
+      "no ontology/KES/Prompt Vault mutation from self",
+      "no visible-loop launch or measured campaign execution from self",
+      "no action-state mutation from diagnostic/self-evolution queries",
+    ],
+    sourceArtifact,
+    promotionStatus,
+    trace: {
+      observe: friction,
+      orient: `owner=${owner}; autonomyLevel=${autonomyLevel}; metric=${metric}`,
+      decide: "surface a typed candidate and route implementation/evidence to the owning surface",
+      act: "mirror-only suggestion unless an explicit action directive is provided",
+      check: nextSafeTest,
+    },
+    criticLenses: {
+      ownerBoundary: "does the suggested next step belong to self/ASC or another owner surface?",
+      evidenceSufficiency: "is there file, test, command, or session evidence beyond vibes?",
+      operatorFriction: "does this reduce avoidable operator correction loops?",
+      validation: "what focused regression or dogfood falsifies the change?",
+      routing:
+        "should this become agent_vent recurrence, visible-loop work, autoresearch campaign, or owner docs?",
+    },
+    decisionBudget: {
+      expectedCost:
+        normalizeString(context.expectedCost) ||
+        "small focused implementation or docs-routing slice",
+      uncertainty:
+        normalizeString(context.uncertainty) ||
+        "medium until regression/live dogfood confirms routing",
+      reversible: context.reversible !== false,
+      goodEnoughStop:
+        normalizeString(context.goodEnoughStop) ||
+        "stop after the focused regression and package check pass, then require owner review for broader durable mutation",
+    },
+  };
+}
+
 function resolveUnknownQuery(query: SelfQuery): SelfResponse {
   return {
     understood: false,
@@ -476,30 +577,38 @@ function resolveMetaQuery(
 ): SelfResponse {
   if (intent === "diagnostic_review") {
     const diagnosticCandidate = buildDiagnosticCandidate(query, state);
+    const evolutionCandidate = buildEvolutionCandidate(query, diagnosticCandidate);
     return {
       understood: true,
       intent: "meta",
-      answer: `Diagnostic review: self can notice local operator/tooling friction and propose a candidate diagnostic payload, but it remains mirror-only.
+      answer: `Diagnostic review: self can notice local operator/tooling friction and propose candidate payloads, but it remains mirror-only.
 
 Boundary:
 - self owns moment-level reflection: what just happened and what affordance was missing.
 - toolbox owns capability activation when a separate tool is needed.
 - agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic.
+- owner docs, visible-loop, autoresearch, AK/evidence, KES, Prompt Vault, and ontology remain separate owner surfaces.
 
-Suggested candidate: ${diagnosticCandidate.summary}.
+Suggested diagnostic candidate: ${diagnosticCandidate.summary}.
+Suggested self-evolution candidate: friction=${evolutionCandidate.friction}; owner=${evolutionCandidate.owner}; metric=${evolutionCandidate.metric}; nextSafeTest=${evolutionCandidate.nextSafeTest}.
 
-No authority changed: no vent record, AK task, evidence, issue, incident, or external telemetry was created.`,
+No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, or external telemetry was created.`,
       data: {
         diagnosticCandidate,
+        evolutionCandidate,
         allowedNextSurfaces: [
           "toolbox activation",
           "agent_vent preview by explicit operator/tool call",
           "agent_vent record by explicit operator/tool call after preview/review",
+          "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
+          "owner docs/task/evidence/learning surfaces only through their owners",
         ],
         disallowedSelfActions: [
           "self must not write agent_vent records internally",
           "self must not create AK tasks/evidence/incidents for diagnostics",
           "self must not treat diagnostic candidates as canonical recurrence truth",
+          "self must not launch visible-loop or measured campaigns from diagnostic review",
+          "self must not treat session JSONL or compaction summaries as durable promotion by themselves",
         ],
       },
       suggestions: [
