@@ -1,0 +1,28 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: "Add post-launch Ghostty window placement verification, split sidequest tests for node:test parallelism, expose test concurrency"
+files:
+  - packages/pi-little-helpers/extensions/session-presence.ts
+  - packages/pi-little-helpers/extensions/sidequest.ts
+  - packages/pi-little-helpers/docs/project/2026-04-16-sidequest-ghostty-launch-contract.md
+  - packages/pi-little-helpers/tests/session-presence.test.mjs
+  - packages/pi-little-helpers/tests/sidequest.test.mjs
+  - packages/pi-little-helpers/tests/candidate-peer.test.mjs
+  - packages/pi-little-helpers/tests/peer-spawn.test.mjs
+  - packages/pi-little-helpers/tests/sidequest-harness.mjs
+  - packages/pi-little-helpers/tests/visible-loop-child-checkpoint.test.mjs
+  - packages/pi-little-helpers/tests/visible-loop-child-progress.test.mjs
+  - packages/pi-little-helpers/tests/visible-loop-completion.test.mjs
+  - packages/pi-little-helpers/tests/visible-loop-launch.test.mjs
+  - scripts/package-quality-gate.sh
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run quality:pre-commit"
+    status: pass
+  full_gate:
+    command: "pending"
+    status: pending
+group:
+  index: 1
+  total: 1
+  rationale: "Single cohesive change: ghostty placement verification feature + test parallelism refactoring"
