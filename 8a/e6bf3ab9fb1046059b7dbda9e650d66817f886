@@ -1,0 +1,1 @@
+Implemented visible exact/verbatim crystallization recall for stateless ASC self dogfood after pi -p revealed text truncation blocked exact verification. Validation: focused node self tests 35/35 pass; npm --prefix packages/pi-autonomous-session-control run check 305/305 pass; docs-list strict pass; git diff --check pass; npm run quality:pre-commit pass.
