@@ -1,0 +1,1 @@
+Behavior-preserving ASC refactor: split capability discovery resolver out of query-resolver, bringing query-resolver under 500 LOC file-budget threshold. Validation: focused node self tests 54/54 pass; npm --prefix packages/pi-autonomous-session-control run check 305/305 pass; docs-list strict pass; git diff --check pass; npm run quality:pre-commit pass.
