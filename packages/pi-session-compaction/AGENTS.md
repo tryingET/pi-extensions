@@ -10,7 +10,7 @@ read_when:
 
 `packages/pi-session-compaction/` is the intended single owner for custom Pi `session_before_compact` summaries in this monorepo.
 
-This package is template-baseline-aligned with `../pi-extensions-template` and now exposes a live Pi compaction extension entrypoint behind the existing fail-closed registration guard. It may expose narrow operator commands that trigger this same compaction path (currently `/compact-focus`); do not add prompt bundles or enable any second custom `session_before_compact` owner.
+This package is template-baseline-aligned with `../pi-extensions-template` and now exposes a live Pi compaction extension entrypoint behind the existing fail-closed registration guard. It may expose narrow operator commands/tools that trigger or prepare this same compaction/handoff path (currently `/compact-focus`, `/compact-handoff`, and `session_compaction_handoff`); do not add prompt bundles or enable any second custom `session_before_compact` owner.
 
 ## Boundaries
 
@@ -21,7 +21,7 @@ This package is template-baseline-aligned with `../pi-extensions-template` and n
 
 ## Current implementation status
 
-The package has model-resolution, files-touched, user-prompt preservation, `session_before_compact` handler tests, a fail-closed registration guard, live extension entrypoint, `/compact-focus` operator menu, and non-live branch-tree augmentation helpers. The live entrypoint registers input tracking plus one `session_before_compact` handler only after the cutover preflight proves no other compaction override is installed.
+The package has model-resolution, files-touched, user-prompt preservation, `session_before_compact` handler tests, a fail-closed registration guard, live extension entrypoint, `/compact-focus` operator menu, `/compact-handoff` / `session_compaction_handoff` handoff surfaces, and non-live branch-tree augmentation helpers. The live entrypoint registers input tracking plus one `session_before_compact` handler only after the cutover preflight proves no other compaction override is installed.
 
 ## Template / scaffold policy
 

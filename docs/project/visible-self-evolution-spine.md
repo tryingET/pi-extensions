@@ -40,6 +40,7 @@ recursive improvement must be visible, empirical, and owner-routed
 |---|---|
 | Session mirror, self queries, diagnostics candidates, low-risk notifications, checkpoints/followups | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/vision.md) |
 | Visible child sessions, `/visible-loop`, `/nexus-loop`, `/sidequest`, `/scoutpeer`, `/parallelquest` | [pi-little-helpers visible capability contract](../../packages/pi-little-helpers/docs/project/2026-05-05-visible-peer-capability-contract.md) |
+| Canonical compaction summaries, `/compact-focus`, `/compact-handoff`, fresh-session handoff prompt shape | [pi-session-compaction](../../packages/pi-session-compaction/docs/project/vision.md) |
 | Repeated local agent-friction memory, recurrence review, draft-only escalation text | [pi-agent-vent](../../packages/pi-agent-vent/docs/project/vision.md) |
 | Measured candidate experiments, self-hosting evaluator locks, empirical closeout packets | [pi-autoresearch](../../packages/pi-autoresearch/docs/project/vision.md) |
 | Above-seam coordination, fan-in gates, evidence projection from verified artifacts | [pi-society-orchestrator](../../packages/pi-society-orchestrator/docs/project/vision.md) |

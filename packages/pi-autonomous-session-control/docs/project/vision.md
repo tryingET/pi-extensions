@@ -43,6 +43,7 @@ For the project-level concept map, see [Project foundation model](foundation.md)
 
 Related owner docs:
 
+- [product posture](./product-posture.md)
 - [self continuation harness suggestions](./self-continuation-harness-suggestions.md)
 - [self/toolbox/agent_vent diagnostic boundary](../../../pi-agent-vent/docs/project/2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md)
 - [pi-little-helpers visible peer capability contract](../../../pi-little-helpers/docs/project/2026-05-05-visible-peer-capability-contract.md)
