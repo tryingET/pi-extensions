@@ -8,6 +8,7 @@
 
 import { normalizeInput, normalizeString, normalizeStringArray } from "../edge-contract-kernel.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
+import { buildReflectionGuard } from "./reflection-guard.ts";
 
 function collectConstraintText(query: SelfQuery | undefined): string[] {
   const context = normalizeInput(query?.context);
@@ -290,6 +291,7 @@ function buildEvolutionCandidate(
     "add or run a focused regression that proves the diagnostic query remains mirror-only, then run the package check";
   const autonomyLevel = normalizeString(context.autonomyLevel) || "suggest";
   const insightPromotionCue = buildInsightPromotionCue(context, owner);
+  const reflectionGuard = buildReflectionGuard(query, context);
   const sourceArtifact = String(insightPromotionCue.sourceArtifact ?? "current Pi session mirror");
   const promotionStatus = String(insightPromotionCue.status ?? "session_only_unpromoted");
 
@@ -308,12 +310,16 @@ function buildEvolutionCandidate(
     sourceArtifact,
     promotionStatus,
     insightPromotionCue,
+    reflectionGuard,
     trace: {
       observe: friction,
       orient: `owner=${owner}; autonomyLevel=${autonomyLevel}; metric=${metric}`,
       decide: "surface a typed candidate and route implementation/evidence to the owning surface",
       act: "mirror-only suggestion unless an explicit action directive is provided",
-      check: nextSafeTest,
+      check:
+        reflectionGuard.requiresExternalCheck === true
+          ? String(reflectionGuard.nextAction)
+          : nextSafeTest,
     },
     criticLenses: {
       ownerBoundary: "does the suggested next step belong to self/ASC or another owner surface?",
@@ -384,6 +390,7 @@ ${ownerBoundaryLine}
 Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}; ownerSurface=${String(diagnosticCandidate.suggestedOwnerSurface)}; agentVentSuggestionAllowed=${String(diagnosticCandidate.agentVentSuggestionAllowed)}.
 Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
 Insight promotion cue (${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.kind)}): source=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.sourceArtifact)}; status=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.status)}; target=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.target)}; requiredBeforeCompletion=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.requiredBeforeCompletion)}.
+Reflection guard (${String((evolutionCandidate.reflectionGuard as Record<string, unknown> | undefined)?.kind)}): status=${String((evolutionCandidate.reflectionGuard as Record<string, unknown> | undefined)?.status)}; requiresExternalCheck=${String((evolutionCandidate.reflectionGuard as Record<string, unknown> | undefined)?.requiresExternalCheck)}; nextAction=${String((evolutionCandidate.reflectionGuard as Record<string, unknown> | undefined)?.nextAction)}.
 
 No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, owner-surface promotion, or external telemetry was created.`,
     data: {

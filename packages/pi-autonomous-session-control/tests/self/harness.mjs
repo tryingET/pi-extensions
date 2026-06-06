@@ -115,6 +115,7 @@ export async function loadExtensionWithMocks() {
     "perception.ts",
     "direction.ts",
     "diagnostic-review.ts",
+    "reflection-guard.ts",
     "crystallization.ts",
     "protection.ts",
     "action.ts",

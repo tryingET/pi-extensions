@@ -70,15 +70,15 @@ For package implementation, prefer launching Pi from the owning package director
 The current high-leverage self-evolution frontier is described once in [visible-self-evolution-spine.md](./visible-self-evolution-spine.md) and package postures linked from it.
 That spine carries the DRY many-of-the-greats translation — cybernetic feedback, Popper falsifiers, PDCA/OODA traces, autonomy layers, specialist critics, decision budgets, and reflection guards — so package docs can link to one shared model instead of copying it.
 
-The current routed ASC/self frontier is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md). The latest package-local slice is insight-promotion cue hardening:
+The current routed ASC/self frontier is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md). The latest package-local slice is repeated-reflection guard hardening:
 
 ```text
-session-only self/subagent insight
--> typed self.insight_promotion_cue.v1 status
--> fail closed until promoted or explicitly deferred with owner/target and reason
+repeated self-analysis without external check
+-> typed self.reflection_guard.v1 status
+-> fail closed until a concrete check/scout/deep-review/focused-regression signal is named
 ```
 
-Done means diagnostic/self-evolution responses name source artifact, typed promotion status, owner/target, required-before-completion, risk, next action, and non-authorizations; unresolved promotion stays required-before-completion even if caller context tries to suppress it; and ASC does not write owner docs, AK/evidence, incidents, visible-loop state, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
+Done means diagnostic/self-evolution responses keep the existing insight-promotion cue and also name typed reflection-guard status, whether an external check is required, the concrete next action, and non-authorizations; unresolved repeated reflection stays required-before-completion even if caller context tries to suppress it; and ASC does not launch peers/visible loops/campaigns or write owner docs, AK/evidence, incidents, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
 
 ## Trust gates
 

@@ -47,8 +47,8 @@ see the session; route the next move; keep authority elsewhere
 ## Current product maturity
 
 - maturity: `internal alpha / execution-seam and typed self-evolution mirror proven`
-- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, insight-promotion cues, execution-runtime parity, cross-package diagnostic-contract parity, and owner-boundary preservation
-- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content, focused regression coverage for ASC-generated `agent_vent action=preview` prefills using the live `packageName` facet with JSON-quoted caller-controlled values, and focused regression/live `pi -p` coverage for mirror-only `self.insight_promotion_cue.v1` output including typed status normalization, fail-closed unresolved-promotion behavior, default non-authorization preservation, and explicit owner/target requirements for resolved deferrals
+- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, insight-promotion cues, repeated-reflection guards, execution-runtime parity, cross-package diagnostic-contract parity, and owner-boundary preservation
+- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content, focused regression coverage for ASC-generated `agent_vent action=preview` prefills using the live `packageName` facet with JSON-quoted caller-controlled values, focused regression/live `pi -p` coverage for mirror-only `self.insight_promotion_cue.v1` output including typed status normalization, fail-closed unresolved-promotion behavior, default non-authorization preservation, and explicit owner/target requirements for resolved deferrals, and focused regression coverage for mirror-only `self.reflection_guard.v1` output that fails closed on repeated self-analysis until a concrete external check signal is present
 
 ## Current landed capability baseline
 
@@ -56,7 +56,7 @@ ASC currently owns:
 
 - `self` as a mirror for touched files, commands, errors, loop/stall cues, context-pressure heuristics, file-budget advisories, handoff summaries, and action-state summaries;
 - bounded memory for crystallized patterns, semantic-pressure candidates, traps, checkpoints, and followups;
-- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1`, `self.evolution_candidate.v1`, and mirror-only `self.insight_promotion_cue.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
+- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1`, `self.evolution_candidate.v1`, mirror-only `self.insight_promotion_cue.v1`, and mirror-only `self.reflection_guard.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
 - exact/verbatim visible recall for crystallized patterns when stateless dogfood needs to verify full remembered content from text rather than hidden structured details;
 - guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills that use the live `packageName` tool facet and JSON-quote caller-controlled fields, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
@@ -152,11 +152,11 @@ Add lightweight internal critic fields for high-impact diagnostic recommendation
 
 These are explanation lenses, not spawned peers by default. Escalate to `/scoutpeer`, `/visible-loop`, or `dispatch_subagent` only when the owner/risk/metric remains ambiguous and the operator or owning surface authorizes that path.
 
-### Bet 7 — Decision budget and reflection guard — partial first slice landed
+### Bet 7 — Decision budget and reflection guard — landed first slice
 
-For nontrivial self-analysis, include expected cost, uncertainty, reversibility, and a good-enough stop condition. Detect repeated self-analysis without external validation and route to a concrete check, scout/deep review, or stop instead of continuing philosophical reflection.
+For nontrivial self-analysis, include expected cost, uncertainty, reversibility, and a good-enough stop condition. Diagnostic/self-evolution responses now include mirror-only `self.reflection_guard.v1`: repeated self-analysis without a concrete external check signal stays `external_check_required`, routes to a concrete check, scout/deep review, focused regression, or stop, and ignores caller completion overrides. When an external check signal is explicitly present, the guard resolves to `external_check_observed` while still forbidding hidden peer/visible-loop/campaign launches and durable owner writes.
 
-The decision-budget fields are now present on `self.evolution_candidate.v1`; repeated-reflection detection remains a future slice.
+The decision-budget fields remain on `self.evolution_candidate.v1`; the reflection guard supplies the closeout brake when analysis risks becoming self-ratifying. Future slices may improve ergonomics or session-local detection signals, but unresolved repetition must stay required-before-completion until an external check is named.
 
 ### Bet 8 — Insight promotion cue — landed first slice
 
