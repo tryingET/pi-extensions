@@ -22,11 +22,18 @@ const ARRAY_ENTRY_LIMIT = 16;
 const REPEATED_REFLECTION_PATTERN =
   /\b(repeated|again|looping|circular|recursive|philosophical)\b[^\n]{0,80}\b(reflection|self-analysis|self analysis|self-evolution|diagnostic review)\b|\b(reflection|self-analysis|self analysis|self-evolution|diagnostic review)\b[^\n]{0,80}\b(repeated|again|looping|circular|recursive|philosophical)\b/u;
 
-const POSITIVE_CHECK_PATTERN =
-  /\b(external check|external validation|focused regression|package check|live dogfood|scout review|deep review|concrete check|validation signal)\b[^\n]{0,80}\b(passed|done|observed|present|complete|completed|available|ran|run)\b|\b(passed|done|observed|present|complete|completed|available|ran|run)\b[^\n]{0,80}\b(external check|external validation|focused regression|package check|live dogfood|scout review|deep review|concrete check|validation signal)\b/u;
+const CHECK_SIGNAL_WORDS =
+  "external check|external validation|focused regression|package check|live dogfood|scout review|deep review|concrete check|validation signal";
 
-const NEGATIVE_CHECK_PATTERN =
-  /\b(not|no|without|missing|absent|failed|fails|failing|required|needed|pending|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\b[^\n]{0,80}\b(external check|external validation|focused regression|package check|live dogfood|scout review|deep review|concrete check|validation signal)\b|\b(external check|external validation|focused regression|package check|live dogfood|scout review|deep review|concrete check|validation signal)\b[^\n]{0,80}\b(not|no|without|missing|absent|failed|fails|failing|required|needed|pending|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\b/u;
+const POSITIVE_CHECK_PATTERN = new RegExp(
+  `\\b(${CHECK_SIGNAL_WORDS})\\b[^\\n]{0,80}\\b(passed|pass|succeeded|successful|success|ok|green)\\b|\\b(passed|pass|succeeded|successful|success|ok|green)\\b[^\\n]{0,80}\\b(${CHECK_SIGNAL_WORDS})\\b`,
+  "u",
+);
+
+const NEGATIVE_CHECK_PATTERN = new RegExp(
+  `\\b(no|without)\\s+(${CHECK_SIGNAL_WORDS})\\b|\\b(not|missing|absent|failed|fails|failing|required|needed|pending|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\\b[^\\n]{0,80}\\b(${CHECK_SIGNAL_WORDS})\\b|\\b(${CHECK_SIGNAL_WORDS})\\b[^\\n]{0,80}\\b(not|without|missing|absent|failed|fails|failing|required|needed|pending|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\\b`,
+  "u",
+);
 
 function collectText(options: {
   query?: SelfQuery;
@@ -84,15 +91,35 @@ function normalizeExplicitExternalCheckStatus(value: unknown): ExternalCheckStat
   return undefined;
 }
 
-function normalizeExternalCheckStatus(context: Record<string, unknown>): ExternalCheckStatus {
-  const explicitStatus =
-    normalizeExplicitExternalCheckStatus(context.externalCheckStatus) ||
-    normalizeExplicitExternalCheckStatus(context.validationStatus) ||
-    normalizeExplicitExternalCheckStatus(context.checkStatus) ||
-    normalizeExplicitExternalCheckStatus(context.reflectionCheckStatus);
-  if (explicitStatus) return explicitStatus;
+function collectExternalCheckStatuses(
+  context: Record<string, unknown>,
+  keys: string[],
+): ExternalCheckStatus[] {
+  const statuses: ExternalCheckStatus[] = [];
+  const addStatus = (value: unknown): void => {
+    const status = normalizeExplicitExternalCheckStatus(value);
+    if (status) statuses.push(status);
+  };
 
-  for (const key of [
+  for (const key of keys) {
+    addStatus(context[key]);
+    const entries = normalizeStringArray(context[key]);
+    if (entries) {
+      for (const entry of entries.slice(0, ARRAY_ENTRY_LIMIT)) addStatus(entry);
+    }
+  }
+
+  return statuses;
+}
+
+function normalizeExternalCheckStatus(context: Record<string, unknown>): ExternalCheckStatus {
+  const explicitStatusKeys = [
+    "externalCheckStatus",
+    "validationStatus",
+    "checkStatus",
+    "reflectionCheckStatus",
+  ];
+  const signalKeys = [
     "externalCheck",
     "externalValidation",
     "validationSignal",
@@ -101,36 +128,38 @@ function normalizeExternalCheckStatus(context: Record<string, unknown>): Externa
     "deepReview",
     "focusedRegression",
     "liveDogfood",
-  ]) {
-    if (context[key] === true) return "observed";
-  }
+    "validationSignals",
+  ];
+  const explicitStatuses = collectExternalCheckStatuses(context, explicitStatusKeys);
+  const signalStatuses = collectExternalCheckStatuses(context, signalKeys).filter(
+    (status) => status !== "observed",
+  );
+  const statuses = [...explicitStatuses, ...signalStatuses];
 
   const checkText = collectText({
     context,
-    keys: [
-      "externalCheck",
-      "externalValidation",
-      "validationSignal",
-      "checkSignal",
-      "scoutReview",
-      "deepReview",
-      "focusedRegression",
-      "liveDogfood",
-      "validationSignals",
-    ],
+    keys: signalKeys,
   });
   const checkTextTrimmed = checkText.trim();
-  if (
-    /^(required|needed|pending|missing|absent|not_observed|not observed)$/u.test(checkTextTrimmed)
-  ) {
-    return "required";
-  }
-  if (/^(failed|fail|failing|blocked|not_passed|not passed|incomplete)$/u.test(checkTextTrimmed)) {
-    return "failed";
-  }
-  if (checkTextTrimmed === "unknown") return "unknown";
-  if (NEGATIVE_CHECK_PATTERN.test(checkText)) return "failed";
-  if (POSITIVE_CHECK_PATTERN.test(checkText)) return "observed";
+  const exactTextStatus = normalizeExplicitExternalCheckStatus(checkTextTrimmed);
+  const exactNonObservedTextStatus = exactTextStatus === "observed" ? undefined : exactTextStatus;
+  const hasNegativeText = NEGATIVE_CHECK_PATTERN.test(checkText);
+  const hasPositiveCheckSignal = POSITIVE_CHECK_PATTERN.test(checkText);
+  const hasExplicitObserved = explicitStatuses.includes("observed");
+  const hasObserved = hasExplicitObserved && hasPositiveCheckSignal;
+  const hasRequired = statuses.includes("required") || exactNonObservedTextStatus === "required";
+  const hasFailed =
+    statuses.includes("failed") || exactNonObservedTextStatus === "failed" || hasNegativeText;
+  const hasUnknown = statuses.includes("unknown") || exactNonObservedTextStatus === "unknown";
+
+  // Fail closed on contradictory caller-controlled check signals. Bare booleans,
+  // free-form positive check prose, and generic signal values such as "done" are
+  // intentionally insufficient: resolving the guard requires both an explicit
+  // observed status field and a named positive check signal.
+  if (hasFailed || (hasObserved && (hasRequired || hasUnknown))) return "failed";
+  if (hasRequired) return "required";
+  if (hasUnknown) return "unknown";
+  if (hasObserved) return "observed";
   return "unknown";
 }
 
