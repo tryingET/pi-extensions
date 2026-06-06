@@ -30,7 +30,10 @@ const DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT = [
 ].join("\n");
 
 const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
-  "Update @docs/project/product-posture.md before loop completion.",
+  "Update the owning product-posture.md before loop completion.",
+  "",
+  "Default target: @docs/project/product-posture.md in the current cwd.",
+  "If this loop routed implementation into a package/subdirectory, update that owning package's docs/project/product-posture.md instead; update root posture only when root routing/control-plane behavior changed.",
   "",
   "Use the actual implementation, validation, docs, and bugfixes from this iteration.",
   "Treat product-posture as the next-iteration frontier map, not a changelog.",
@@ -42,8 +45,8 @@ const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "- any authority/provenance/source-owner boundary that became clearer;",
   "- what the next highest-leverage slice should understand before choosing work.",
   "",
-  "If product-posture cannot be updated truthfully, stop and report the blocker.",
-  "Do not send/allow the visible-loop completion signal until this posture refresh is done.",
+  "If the owning product-posture file is missing or cannot be updated truthfully, stop and report the blocker.",
+  "Do not send/allow the visible-loop completion signal until the owning posture refresh is done.",
   "Do not commit yet.",
 ].join("\n");
 
@@ -65,6 +68,8 @@ export const DEFAULT_NEXUS_LOOP_PROMPTS = [
 export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
   [
     "read @docs/project/vision.md and @docs/project/product-posture.md.",
+    "Treat product-posture as an active work artifact: it should shape slice choice up front and be refreshed before completion, not treated as an optional changelog.",
+    "If you route work from a monorepo root into a package, identify the owning package's docs/project/product-posture.md as the posture target before implementation.",
     "",
     "From current repo state, identify the next highest-impact slice.",
     "Treat the apparent slice as a hypothesis until discovery confirms it.",
@@ -80,6 +85,7 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "2. RECONSTRUCTED OBJECTIVE",
     "- What should actually be improved?",
     "- Why is this the highest-leverage next move?",
+    "- Which product-posture file owns this loop's frontier update?",
     "- What would done mean in observable terms?",
     "",
     "3. OWNER / AUTHORITY BOUNDARIES",

@@ -75,10 +75,9 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     assert.match(userMessages[4].message, /DEEP REVIEW/);
     assert.match(userMessages[6].message, /Prompt Vault/);
     assert.match(userMessages[6].message, /Do not stop after retrieving the template/);
-    assert.match(
-      userMessages[7].message,
-      /Update @docs\/project\/product-posture\.md before loop completion/,
-    );
+    assert.match(userMessages[7].message, /Update the owning product-posture\.md/);
+    assert.match(userMessages[7].message, /Default target: @docs\/project\/product-posture\.md/);
+    assert.match(userMessages[7].message, /owning package's docs\/project\/product-posture\.md/);
     assert.match(userMessages[7].message, /next-iteration frontier map/);
     assert.notEqual(userMessages[8].message, "/commit");
     assert.match(userMessages[8].message, /commit orchestrator|EXPANDED COMMIT/i);

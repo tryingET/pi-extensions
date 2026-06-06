@@ -65,6 +65,9 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
       config.prompts[0],
       /^read @docs\/project\/vision\.md and @docs\/project\/product-posture\.md\./,
     );
+    assert.match(config.prompts[0], /Treat product-posture as an active work artifact/);
+    assert.match(config.prompts[0], /owning package's docs\/project\/product-posture\.md/);
+    assert.match(config.prompts[0], /Which product-posture file owns this loop's frontier update/);
     assert.match(config.prompts[0], /design membrane/);
     assert.match(config.prompts[0], /TRUST \/ SECURITY MODEL/);
     assert.match(config.prompts[0], /ADVERSARIAL TEST PLAN/);
@@ -81,10 +84,9 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
       /Execution means: inspect the current repo\/state, apply the needed bounded fixes, run verification/,
     );
     assert.match(config.prompts[6], /Do not stop after retrieving the template/);
-    assert.match(
-      config.prompts[7],
-      /Update @docs\/project\/product-posture\.md before loop completion/,
-    );
+    assert.match(config.prompts[7], /Update the owning product-posture\.md before loop completion/);
+    assert.match(config.prompts[7], /Default target: @docs\/project\/product-posture\.md/);
+    assert.match(config.prompts[7], /owning package's docs\/project\/product-posture\.md/);
     assert.match(config.prompts[7], /next-iteration frontier map/);
     assert.match(config.prompts[7], /Do not commit yet/);
     assert.equal(config.prompts[8], "/commit");
@@ -289,7 +291,7 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     assert.equal(userMessages.length, 9);
-    assert.match(userMessages[7].message, /Update @docs\/project\/product-posture\.md/);
+    assert.match(userMessages[7].message, /Update the owning product-posture\.md/);
     assert.match(userMessages[8].message, /Visible-loop commit delegation step/);
     assert.match(userMessages[8].message, /dispatch_subagent/);
     assert.match(userMessages[8].message, /EXPANDED COMMIT/);
