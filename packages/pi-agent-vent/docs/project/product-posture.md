@@ -114,7 +114,7 @@ The highest-leverage product line is:
 local vent capture -> operator review queue -> draft-only owner routing -> human-approved escalation
 ```
 
-For visible self-evolution work, keep `agent_vent` as recurrence memory and review queue only. The DRY routing map lives in [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md); orchestrator may project verified evidence, while AK/society owner surfaces retain durable authority.
+For visible self-evolution work, keep `agent_vent` as recurrence memory and review queue only. The DRY routing map lives in the root `docs/project/visible-self-evolution-spine.md` spine; orchestrator may project verified evidence, while AK/society owner surfaces retain durable authority.
 
 Do not add automatic GitHub/AK/incident writers. The local facet summary, fail-closed facet-filtered local review queue, per-state review outcome follow-up, read-only cross-state review comparison, explicit local decision posture, filter-preserving supported follow-up commands, record/state-scoped facet export, export-local-follow-up guidance, read-only retention-candidate planning, read-only retention-history receipt projection, advisory human-review hints, quoted state-aware next-action guidance, bounded review-detail samples, curation-aware recurrence resolution, facet-aware draft-only routing, retention archive/restore, and privacy membrane now have package validation; remaining product depth should refine operator comprehension only where it does not broaden authority. Hard-delete beyond backup-backed archive is decided out of v0.1: permanent removal remains operator-owned filesystem/data-lifecycle control unless a future decision accepts a narrower purge design.
 

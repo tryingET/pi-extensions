@@ -46,7 +46,7 @@ agent notices recurring friction
 
 For self-evolution loops, `agent_vent` is the recurrence-memory surface after ASC/self has produced a diagnostic candidate.
 It is not the loop executor, evaluator, or escalation authority.
-Use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) and the cross-package [self/toolbox/agent_vent diagnostic boundary](./2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md) for the DRY owner map.
+Use the root `docs/project/visible-self-evolution-spine.md` spine and the cross-package [self/toolbox/agent_vent diagnostic boundary](./2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md) for the DRY owner map.
 
 Near-term product work should make the review step better rather than broadening authority. Useful next surfaces include:
 
