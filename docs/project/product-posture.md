@@ -75,10 +75,10 @@ The current routed ASC/self frontier is package-owned by [pi-autonomous-session-
 ```text
 repeated self-analysis without external check
 -> typed self.reflection_guard.v1 status
--> fail closed until a concrete check/scout/deep-review/focused-regression signal is named
+-> fail closed until an explicit positive check/scout/deep-review/focused-regression signal is named
 ```
 
-Done means diagnostic/self-evolution responses keep the existing insight-promotion cue and also name typed reflection-guard status, whether an external check is required, the concrete next action, and non-authorizations; unresolved repeated reflection stays required-before-completion even if caller context tries to suppress it; and ASC does not launch peers/visible loops/campaigns or write owner docs, AK/evidence, incidents, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
+Done means diagnostic/self-evolution responses keep the existing insight-promotion cue and also name typed reflection-guard status, whether an external check is required, the concrete next action, and non-authorizations; unresolved repeated reflection stays required-before-completion even if caller context tries to suppress it; negated, required, failed, unknown, or query-only check prose does not count as observed; and ASC does not launch peers/visible loops/campaigns or write owner docs, AK/evidence, incidents, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
 
 ## Trust gates
 

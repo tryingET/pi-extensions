@@ -591,7 +591,7 @@ test("self query: diagnostic review requires external check for repeated self-an
   assert.equal(guard.kind, "self.reflection_guard.v1");
   assert.equal(guard.status, "external_check_required");
   assert.equal(guard.requiresExternalCheck, true);
-  assert.match(guard.reason, /without an external validation signal/);
+  assert.match(guard.reason, /without an explicit positive external validation signal/);
   assert.match(guard.nextAction, /concrete check/);
   assert.match(result.content[0].text, /Reflection guard/);
   assert.match(result.content[0].text, /requiresExternalCheck=true/);
@@ -649,6 +649,85 @@ test("self query: diagnostic review does not treat negated external-check text a
   assert.equal(guard.requiresExternalCheck, true);
   assert.match(guard.nextAction, /concrete check/);
   assert.equal(harness.sentUserMessages.length, 0, "negated check text remains mirror-only");
+
+  await cleanup(tempDir);
+});
+
+test("self query: diagnostic review does not treat required or failed check text as observed", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const required = await tool.execute(
+    "tc-diagnostic-review-reflection-guard-required-status-text",
+    {
+      query: "self-evolution repeated reflection",
+      context: {
+        repeatedReflection: true,
+        externalValidation: "required",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(
+    required.details.data.evolutionCandidate.reflectionGuard.status,
+    "external_check_required",
+  );
+  assert.equal(
+    required.details.data.evolutionCandidate.reflectionGuard.externalCheckStatus,
+    "unknown",
+  );
+  assert.equal(
+    required.details.data.evolutionCandidate.reflectionGuard.requiresExternalCheck,
+    true,
+  );
+
+  const failed = await tool.execute(
+    "tc-diagnostic-review-reflection-guard-failed-check-text",
+    {
+      query: "self-evolution repeated reflection external check not passed",
+      context: {
+        repeatedReflection: true,
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(
+    failed.details.data.evolutionCandidate.reflectionGuard.status,
+    "external_check_required",
+  );
+  assert.equal(failed.details.data.evolutionCandidate.reflectionGuard.requiresExternalCheck, true);
+
+  const queryOnly = await tool.execute(
+    "tc-diagnostic-review-reflection-guard-query-only-check-text",
+    {
+      query: "self-evolution repeated reflection package check passed",
+      context: {
+        repeatedReflection: true,
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(
+    queryOnly.details.data.evolutionCandidate.reflectionGuard.status,
+    "external_check_required",
+    "query prose alone must not satisfy the external-check guard",
+  );
+  assert.equal(
+    queryOnly.details.data.evolutionCandidate.reflectionGuard.requiresExternalCheck,
+    true,
+  );
+  assert.equal(harness.sentUserMessages.length, 0, "negative check states remain mirror-only");
 
   await cleanup(tempDir);
 });
