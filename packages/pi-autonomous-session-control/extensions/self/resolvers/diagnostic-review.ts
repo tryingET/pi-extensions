@@ -350,32 +350,60 @@ export function resolveDiagnosticReviewQuery(
 ): SelfResponse {
   const diagnosticCandidate = buildDiagnosticCandidate(query, state);
   const evolutionCandidate = buildEvolutionCandidate(query, diagnosticCandidate);
-  const agentVentSuggestionAllowed = diagnosticCandidate.agentVentSuggestionAllowed !== false;
-  const ownerBoundaryLine = agentVentSuggestionAllowed
-    ? "- agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic."
-    : "- current constraints disallow agent_vent suggestions; self omits agent_vent activation, preview, and record commands.";
-  const allowedNextSurfaces = agentVentSuggestionAllowed
-    ? [
-        "toolbox activation",
-        "agent_vent preview by explicit operator/tool call",
-        "agent_vent record by explicit operator/tool call after preview/review",
-        "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
-        "owner docs/task/evidence/learning surfaces only through their owners",
-      ]
-    : [
-        "self feedback summary",
-        "capability discovery",
-        "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
-        "owner docs/task/evidence/learning surfaces only through their owners",
-      ];
-  const suggestions = agentVentSuggestionAllowed
-    ? [
-        'toolbox({ action: "activate", bundle: "agent_vent" })',
-        "agent_vent preview before record for the suggested payload",
-        "capability discovery",
-      ]
-    : ["self feedback summary", "capability discovery"];
   const reflectionGuard = evolutionCandidate.reflectionGuard as Record<string, unknown> | undefined;
+  const reflectionRequiresExternalCheck = reflectionGuard?.requiresExternalCheck === true;
+
+  if (reflectionRequiresExternalCheck) {
+    diagnosticCandidate.suggestedOwnerSurface = "external_check_required";
+    diagnosticCandidate.agentVentSuggestionAllowed = false;
+    diagnosticCandidate.boundary =
+      "candidate-only local diagnostic suggestion; reflection guard requires an external check before recurrence-record suggestions, and self does not create AK/evidence/incident state";
+    diagnosticCandidate.copyableCommands = [
+      "run the named focused regression or package check",
+      "capability discovery",
+    ];
+  }
+
+  const agentVentSuggestionAllowed = diagnosticCandidate.agentVentSuggestionAllowed !== false;
+  const ownerBoundaryLine = reflectionRequiresExternalCheck
+    ? "- reflection guard requires an external check now; self omits agent_vent activation, preview, and record suggestions until the check is named."
+    : agentVentSuggestionAllowed
+      ? "- agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic."
+      : "- current constraints disallow agent_vent suggestions; self omits agent_vent activation, preview, and record commands.";
+  const allowedNextSurfaces = reflectionRequiresExternalCheck
+    ? [
+        "focused regression or package check named by the reflection guard",
+        "scout/deep review only when the concrete check remains ambiguous",
+        "stop recursive self-analysis until external check evidence exists",
+        "owner docs/task/evidence/learning surfaces only through their owners",
+      ]
+    : agentVentSuggestionAllowed
+      ? [
+          "toolbox activation",
+          "agent_vent preview by explicit operator/tool call",
+          "agent_vent record by explicit operator/tool call after preview/review",
+          "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
+          "owner docs/task/evidence/learning surfaces only through their owners",
+        ]
+      : [
+          "self feedback summary",
+          "capability discovery",
+          "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
+          "owner docs/task/evidence/learning surfaces only through their owners",
+        ];
+  const suggestions = reflectionRequiresExternalCheck
+    ? [
+        "run the named focused regression or package check",
+        "scout/deep review only if check target remains ambiguous",
+        "stop recursive self-analysis until check evidence exists",
+      ]
+    : agentVentSuggestionAllowed
+      ? [
+          'toolbox({ action: "activate", bundle: "agent_vent" })',
+          "agent_vent preview before record for the suggested payload",
+          "capability discovery",
+        ]
+      : ["self feedback summary", "capability discovery"];
   const externalCheckEvidence = reflectionGuard?.externalCheckEvidence as
     | Record<string, unknown>
     | undefined;

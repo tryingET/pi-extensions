@@ -40,6 +40,18 @@ test("self query: diagnostic review requires external check for repeated self-an
   assert.match(result.content[0].text, /Reflection guard/);
   assert.match(result.content[0].text, /externalCheckStatus=unknown/);
   assert.match(result.content[0].text, /requiresExternalCheck=true/);
+  assert.match(result.content[0].text, /reflection guard requires an external check now/);
+  assert.equal(
+    result.details.data.diagnosticCandidate.suggestedOwnerSurface,
+    "external_check_required",
+  );
+  assert.equal(result.details.data.diagnosticCandidate.agentVentSuggestionAllowed, false);
+  assert.doesNotMatch(
+    JSON.stringify(result.details.data.diagnosticCandidate.copyableCommands),
+    /agent_vent/,
+  );
+  assert.doesNotMatch(JSON.stringify(result.details.data.allowedNextSurfaces), /agent_vent/);
+  assert.doesNotMatch(result.content[0].text.split("Suggestions:")[1] ?? "", /agent_vent/);
   assert.equal(
     result.details.data.evolutionCandidate.trace.check,
     guard.nextAction,
