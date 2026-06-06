@@ -35,12 +35,14 @@ If the active Ghostty session cannot prove that, `/sidequest` must open a **new 
 10. If any hard prerequisite is missing, launch a new Ghostty window directly instead of attempting same-window tab attach.
 11. If a live `+new-tab` launch still fails, retry with a direct new Ghostty window launch in the same pass.
 12. Never report success before Ghostty returns a successful launch result.
+13. After a successful tab launch request, perform a brief best-effort placement check through `session-presence`: match the launched Pi session by cwd/title, compare the controller and child Ghostty ancestor PIDs, and warn when the child landed under a different Ghostty window/process. This check corrects the operator-facing message; it does not turn terminal placement into task/evidence authority.
 
 ## Non-goals
 
 - `/sidequest` does **not** talk to Niri directly.
 - `/sidequest` does **not** invent or recover a missing `GHOSTTY_SURFACE_ID`; it only forwards one when the environment already provides it and the active Ghostty build supports that action flag.
 - `/sidequest` does **not** claim tab success unless the chosen Ghostty command returns success for the `+new-tab` launch. If the sidequest wrapper is available and tab-capable, it may be the chosen command even when the ancestor Ghostty binary is older/stock.
+- The post-launch placement check is best-effort and local-only. If no matching `session-presence` sidecar appears before the short timeout, `/sidequest` leaves the original launch result intact instead of blocking the child session.
 
 ## Verification expectations
 

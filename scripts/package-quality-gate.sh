@@ -166,6 +166,21 @@ run_typecheck_target() {
   exit 1
 }
 
+resolve_node_test_concurrency() {
+  local configured="${NODE_TEST_CONCURRENCY:-}"
+  if [[ -n "$configured" ]]; then
+    printf '%s\n' "$configured"
+    return 0
+  fi
+
+  if command -v nproc >/dev/null 2>&1; then
+    nproc
+    return 0
+  fi
+
+  getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1\n'
+}
+
 run_tests_target() {
   local workdir="$1"
   if [[ ! -d "$workdir/tests" ]]; then
@@ -210,16 +225,19 @@ run_tests_target() {
     esac
   done
 
+  local test_concurrency
+  test_concurrency="$(resolve_node_test_concurrency)"
+
   if [[ "$needs_tsx" == "true" ]]; then
     if [[ ! -x "$workdir/node_modules/.bin/tsx" ]]; then
       echo "tests: TypeScript test files detected in $(relative_target "$workdir") but local tsx binary is unavailable." >&2
       exit 1
     fi
-    (cd "$workdir" && node --import tsx --test "${test_files[@]}")
+    (cd "$workdir" && node --import tsx --test --test-concurrency="$test_concurrency" "${test_files[@]}")
     return 0
   fi
 
-  (cd "$workdir" && node --test "${test_files[@]}")
+  (cd "$workdir" && node --test --test-concurrency="$test_concurrency" "${test_files[@]}")
 }
 
 should_run_structure_validation_target() {

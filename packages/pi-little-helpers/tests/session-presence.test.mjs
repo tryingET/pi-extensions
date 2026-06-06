@@ -11,6 +11,7 @@ const AMBIENT_SESSION_PRESENCE_ENV_KEYS = [
   "PI_SESSION_PRESENCE_PI_BIN",
   "PI_SESSION_PRESENCE_TITLE_BASE",
   "PI_SESSION_PRESENCE_TITLE_MODE",
+  "GHOSTTY_SURFACE_ID",
 ];
 
 // The live Pi process may set session-presence environment overrides for its own
@@ -108,12 +109,44 @@ test("session presence publishes exact session metadata and updates the title", 
     assert.equal(state.cwdLabel, "agent-kernel");
     assert.equal(state.sessionIdShort, "77bc82bb");
     assert.equal(state.windowTitle, "π - agent-kernel · 77bc82bb");
+    assert.equal(state.ghosttySurfaceId, undefined);
     assert.deepEqual(state.resumeArgv, [
       "pi",
       "--session",
       "/home/tryinget/.pi/agent/sessions/--home-tryinget-ai-society-softwareco-owned-agent-kernel--/2026-04-11T19-25-03-681Z_77bc82bb-21b8-4651-a058-8b6e4d50636c.jsonl",
     ]);
     assert.deepEqual(titles, ["π - agent-kernel · 77bc82bb"]);
+  } finally {
+    rmSync(presenceDir, { recursive: true, force: true });
+  }
+});
+
+test("session presence records a valid Ghostty surface id from the environment", async () => {
+  const presenceDir = createTempDir();
+
+  try {
+    const extension = createSessionPresenceExtension({
+      presenceDir,
+      processId: 434343,
+      now: () => "2026-04-12T02:30:30.000Z",
+      env: { GHOSTTY_SURFACE_ID: "0x1234" },
+    });
+
+    const { handlers } = registerExtension(extension);
+    const sessionStart = handlers.get("session_start");
+    assert.equal(typeof sessionStart, "function");
+
+    const { ctx } = createContext({
+      cwd: "/repo",
+      sessionId: "77bc82bb-21b8-4651-a058-8b6e4d50636c",
+      sessionFile: "/sessions/main.jsonl",
+      sessionName: undefined,
+    });
+
+    await sessionStart({}, ctx);
+
+    const state = JSON.parse(readFileSync(path.join(presenceDir, "434343.json"), "utf8"));
+    assert.equal(state.ghosttySurfaceId, "0x1234");
   } finally {
     rmSync(presenceDir, { recursive: true, force: true });
   }

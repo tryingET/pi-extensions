@@ -1,0 +1,252 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import test from "node:test";
+
+import { createSidequestExtension } from "../extensions/sidequest.ts";
+import {
+  createVisibleLoopRunConfig,
+  handleVisibleLoopAgentEnd,
+  startVisibleLoopChildCompleteRunner,
+  startVisibleLoopChildRunner,
+  writeVisibleLoopRunConfig,
+} from "../src/visibleLoop.ts";
+import {
+  createContext,
+  createExecStub,
+  extractPiArgs,
+  registerExtension,
+} from "./sidequest-harness.mjs";
+
+test("visible-loop waits for explicit checkpoint after nonsense prompts before launching next iteration", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-nonsense-state-`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: false,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands, events, userMessages } = registerExtension(extension);
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const config = createVisibleLoopRunConfig({
+      loopCount: 2,
+      cwd: harness.ctx.cwd,
+      reportBack: "manual",
+      runId: "visible-loop-nonsense-test",
+      prompts: [
+        "nonsense prompt alpha: count the purple spoons",
+        "nonsense prompt beta: report the imaginary aardvark",
+        "nonsense prompt gamma: close the banana loop",
+      ],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, {
+      ...process.env,
+      XDG_STATE_HOME: stateHome,
+    });
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    assert.deepEqual(
+      userMessages.map((entry) => entry.message),
+      ["nonsense prompt alpha: count the purple spoons"],
+    );
+
+    await events.get("agent_start")[0]({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    assert.deepEqual(
+      userMessages.map((entry) => entry.message),
+      [
+        "nonsense prompt alpha: count the purple spoons",
+        "nonsense prompt beta: report the imaginary aardvark",
+        "nonsense prompt gamma: close the banana loop",
+        userMessages[3].message,
+      ],
+    );
+    assert.match(userMessages[3].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[3].message, /visible_loop_child_complete/);
+    assert.deepEqual(
+      userMessages.slice(1).map((entry) => entry.options),
+      [{ deliverAs: "followUp" }, { deliverAs: "followUp" }, { deliverAs: "followUp" }],
+    );
+
+    let visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(
+      visibleLoopLaunches.length,
+      0,
+      "nonsense loop must not launch iteration 2 before explicit completion",
+    );
+
+    const agentEnd = events.get("agent_end")[0];
+    await agentEnd({}, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 360));
+
+    visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(
+      visibleLoopLaunches.length,
+      0,
+      "agent_end must not launch iteration 2 before the checkpoint command/tool completes",
+    );
+
+    await commands
+      .get("visible-loop-child-complete")
+      .handler(`${configPath} --iteration 1`, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 360));
+
+    visibleLoopLaunches = execStub.calls.filter(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.equal(visibleLoopLaunches.length, 1);
+    assert.match(extractPiArgs(visibleLoopLaunches[0].args).at(-1), /^\/visible-loop-child /);
+
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    const statusEntries = readFileSync(statusPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(
+      statusEntries.some(
+        (entry) =>
+          entry.event === "iteration_queued" &&
+          entry.iteration === 1 &&
+          entry.promptCount === 1 &&
+          entry.sourcePromptCount === 3 &&
+          entry.queuedFollowupCount === 3 &&
+          entry.completionMode === "explicit_completion_prompt",
+      ),
+    );
+    assert.ok(statusEntries.some((entry) => entry.event === "completion_prompt_queued"));
+    assert.ok(statusEntries.some((entry) => entry.event === "agent_end_observed"));
+    assert.ok(
+      statusEntries.some(
+        (entry) =>
+          entry.event === "iteration_completed" &&
+          entry.source === "completion_command" &&
+          entry.completedPromptCount === 1 &&
+          entry.completedIterations === 1,
+      ),
+    );
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop intercom timeout does not block prompt queue or next iteration", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-intercom-timeout-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const userMessages = [];
+    const notifications = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const ctx = {
+      ...harness.ctx,
+      ui: {
+        notify(message, type = "info") {
+          notifications.push({ message, type });
+        },
+        setStatus() {},
+      },
+    };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 2,
+      cwd: harness.ctx.cwd,
+      reportBack: "intercom",
+      parentPeerTarget: "session-parent-timeout-test",
+      runId: "visible-loop-intercom-timeout-test",
+      prompts: ["finish this turn"],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    let continuationCount = 0;
+    let disconnectCount = 0;
+
+    await startVisibleLoopChildRunner(configPath, pi, ctx, env, {
+      createPeerRuntime: () => ({
+        send: () => new Promise(() => {}),
+        disconnect: async () => {
+          disconnectCount += 1;
+          throw new Error("disconnect cleanup failed");
+        },
+      }),
+      continueInNewSession: () => {
+        continuationCount += 1;
+      },
+      intercomSendTimeoutMs: 15,
+    });
+
+    assert.deepEqual(
+      userMessages.map((entry) => entry.message),
+      ["finish this turn"],
+      "ACK report-back timeout must not prevent the child from receiving its first prompt",
+    );
+
+    handleVisibleLoopAgentEnd(pi, ctx, env);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    assert.equal(
+      continuationCount,
+      0,
+      "agent_end must not launch the next visible-loop iteration before explicit completion",
+    );
+
+    await startVisibleLoopChildCompleteRunner(`${configPath} --iteration 1`, pi, ctx, env);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    assert.equal(
+      continuationCount,
+      1,
+      "progress report timeout must not prevent launching the next visible-loop iteration after explicit completion",
+    );
+    assert.ok(disconnectCount >= 2);
+    assert.ok(
+      notifications.some((entry) => entry.message.includes("intercom send timed out")),
+      "operator should see bounded intercom timeout diagnostics",
+    );
+
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    const statusEntries = readFileSync(statusPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      statusEntries.filter((entry) => entry.event === "intercom_send_timed_out").length,
+      2,
+    );
+    assert.ok(
+      statusEntries.some(
+        (entry) =>
+          entry.event === "iteration_completed" &&
+          entry.source === "completion_command" &&
+          entry.completedIterations === 1,
+      ),
+    );
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});

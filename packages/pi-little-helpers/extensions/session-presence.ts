@@ -18,6 +18,7 @@ export interface SessionPresenceOptions {
   titleMode?: SessionPresenceTitleMode;
   titleBase?: string;
   titleRefreshDelaysMs?: number[];
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface SessionPresenceState {
@@ -33,6 +34,9 @@ export interface SessionPresenceState {
   tty?: string;
   piBin: string;
   resumeArgv?: string[];
+  ghosttyAncestorPid?: number;
+  ghosttyAncestorExe?: string;
+  ghosttySurfaceId?: string;
   windowTitleBase: string;
   windowTitle?: string;
   publishedAt: string;
@@ -92,6 +96,50 @@ function safeReadLink(candidate: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function safeReadFile(candidate: string): string | undefined {
+  try {
+    return fs.readFileSync(candidate, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function readProcParentPid(pid: number): number | undefined {
+  const value = safeReadFile(path.join("/proc", String(pid), "stat"));
+  if (!value) return undefined;
+  const lastParenIndex = value.lastIndexOf(")");
+  if (lastParenIndex === -1) return undefined;
+  const tail = value
+    .slice(lastParenIndex + 2)
+    .trim()
+    .split(/\s+/);
+  const ppid = Number.parseInt(tail[1] || "", 10);
+  return Number.isInteger(ppid) && ppid > 0 ? ppid : undefined;
+}
+
+function readProcCommand(pid: number): string | undefined {
+  return safeReadFile(path.join("/proc", String(pid), "comm"))?.trim();
+}
+
+function findGhosttyAncestor(processId: number): { pid: number; exe?: string } | undefined {
+  let pid = processId;
+  for (let depth = 0; depth < 12; depth += 1) {
+    pid = readProcParentPid(pid) ?? 0;
+    if (pid <= 0) return undefined;
+    const command = readProcCommand(pid)?.toLowerCase();
+    if (command === "ghostty") {
+      return { pid, exe: safeReadLink(path.join("/proc", String(pid), "exe")) };
+    }
+  }
+  return undefined;
+}
+
+function resolveGhosttySurfaceId(env: NodeJS.ProcessEnv): string | undefined {
+  const value = env.GHOSTTY_SURFACE_ID?.trim();
+  if (!value) return undefined;
+  return /^\d+$/.test(value) || /^0x[0-9a-f]+$/i.test(value) ? value : undefined;
 }
 
 function ensureDir(dirPath: string): void {
@@ -165,6 +213,8 @@ function buildSessionPresenceState(
   const titleMode = resolveTitleMode(options);
   const windowTitle = buildWindowTitle(windowTitleBase, sessionIdShort, titleMode);
   const piBin = resolvePiBin(options);
+  const ghosttyAncestor = findGhosttyAncestor(resolveProcessId(options));
+  const ghosttySurfaceId = resolveGhosttySurfaceId(options.env ?? process.env);
 
   return {
     schemaVersion: SESSION_PRESENCE_SCHEMA_VERSION,
@@ -179,6 +229,9 @@ function buildSessionPresenceState(
     tty: safeReadLink("/proc/self/fd/0"),
     piBin,
     resumeArgv: sessionFile ? [piBin, "--session", sessionFile] : undefined,
+    ghosttyAncestorPid: ghosttyAncestor?.pid,
+    ghosttyAncestorExe: ghosttyAncestor?.exe,
+    ghosttySurfaceId,
     windowTitleBase,
     windowTitle,
     publishedAt: (options.now ?? (() => new Date().toISOString()))(),

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -105,6 +105,9 @@ type SidequestOptions = {
   pathExists?: (path: string) => boolean;
   currentSessionGhosttyBin?: string;
   processId?: number;
+  presenceDir?: string;
+  placementVerificationTimeoutMs?: number;
+  currentGhosttyAncestor?: GhosttyAncestor;
   registerCommands?: boolean;
   registerTools?: boolean;
 };
@@ -436,21 +439,30 @@ function readProcCommand(pid: number): string | undefined {
   }
 }
 
-export function findGhosttyAncestorBin(processId = process.pid): string | undefined {
+type GhosttyAncestor = {
+  pid: number;
+  exe?: string;
+};
+
+function findGhosttyAncestor(processId = process.pid): GhosttyAncestor | undefined {
   let pid = processId;
-  for (let depth = 0; depth < 6; depth += 1) {
+  for (let depth = 0; depth < 12; depth += 1) {
     pid = readProcParentPid(pid) ?? 0;
     if (pid <= 0) return undefined;
     const command = readProcCommand(pid)?.toLowerCase();
     if (command === "ghostty") {
       try {
-        return readlinkSync(join("/proc", String(pid), "exe"));
+        return { pid, exe: readlinkSync(join("/proc", String(pid), "exe")) };
       } catch {
-        return undefined;
+        return { pid };
       }
     }
   }
   return undefined;
+}
+
+export function findGhosttyAncestorBin(processId = process.pid): string | undefined {
+  return findGhosttyAncestor(processId)?.exe;
 }
 
 export function resolveGhosttyBin({
@@ -677,6 +689,181 @@ function summarizeLaunchFailure(result: LaunchResult): string {
   return `${singleLine.slice(0, 179)}…`;
 }
 
+type SessionPresenceRecord = {
+  pid?: number;
+  cwd?: string;
+  windowTitleBase?: string;
+  publishedAt?: string;
+  ghosttyAncestorPid?: number;
+  ghosttyAncestorExe?: string;
+  ghosttySurfaceId?: string;
+};
+
+function resolvePresenceDir(env: NodeJS.ProcessEnv, options: SidequestOptions): string {
+  if (options.presenceDir) return options.presenceDir;
+  const override = env.PI_SESSION_PRESENCE_DIR?.trim();
+  if (override) return override;
+  const runtimeDir = env.XDG_RUNTIME_DIR?.trim();
+  if (runtimeDir) return join(runtimeDir, "pi-session-presence");
+  return join(homedir(), ".local", "state", "pi-session-presence");
+}
+
+function resolvePlacementVerificationTimeoutMs(
+  env: NodeJS.ProcessEnv,
+  options: SidequestOptions,
+): number {
+  if (typeof options.placementVerificationTimeoutMs === "number") {
+    return Math.max(0, options.placementVerificationTimeoutMs);
+  }
+  const raw = env.PI_SIDEQUEST_PLACEMENT_VERIFY_MS?.trim();
+  if (raw) {
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  }
+  return options.exec ? 0 : 1800;
+}
+
+function readSessionPresenceRecord(filePath: string): SessionPresenceRecord | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, "utf8")) as SessionPresenceRecord;
+    return parsed && typeof parsed === "object" ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function findMatchingPresenceRecord({
+  presenceDir,
+  cwd,
+  titleBase,
+  launchedAfterMs,
+  controllerPid,
+}: {
+  presenceDir: string;
+  cwd: string;
+  titleBase: string;
+  launchedAfterMs: number;
+  controllerPid: number;
+}): SessionPresenceRecord | undefined {
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(presenceDir);
+  } catch {
+    return undefined;
+  }
+
+  const candidates: { record: SessionPresenceRecord; publishedAtMs: number }[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const record = readSessionPresenceRecord(join(presenceDir, entry));
+    if (!record?.pid || record.pid === controllerPid) continue;
+    if (record.cwd !== cwd || record.windowTitleBase !== titleBase) continue;
+    if (!existsSync(join("/proc", String(record.pid)))) continue;
+    const publishedAtMs = record.publishedAt ? Date.parse(record.publishedAt) : Number.NaN;
+    if (Number.isFinite(publishedAtMs) && publishedAtMs < launchedAfterMs - 2000) continue;
+    candidates.push({ record, publishedAtMs: Number.isFinite(publishedAtMs) ? publishedAtMs : 0 });
+  }
+
+  candidates.sort((left, right) => right.publishedAtMs - left.publishedAtMs);
+  return candidates[0]?.record;
+}
+
+async function waitForMatchingPresenceRecord(options: {
+  env: NodeJS.ProcessEnv;
+  sidequestOptions: SidequestOptions;
+  cwd: string;
+  titleBase: string;
+  launchedAfterMs: number;
+  controllerPid: number;
+}): Promise<SessionPresenceRecord | undefined> {
+  const timeoutMs = resolvePlacementVerificationTimeoutMs(options.env, options.sidequestOptions);
+  if (timeoutMs <= 0) return undefined;
+  const presenceDir = resolvePresenceDir(options.env, options.sidequestOptions);
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const record = findMatchingPresenceRecord({
+      presenceDir,
+      cwd: options.cwd,
+      titleBase: options.titleBase,
+      launchedAfterMs: options.launchedAfterMs,
+      controllerPid: options.controllerPid,
+    });
+    if (record) return record;
+    await sleep(100);
+  } while (Date.now() < deadline);
+  return undefined;
+}
+
+function formatGhosttyPlacementMismatch({
+  controllerGhostty,
+  childRecord,
+  requestedSurfaceId,
+}: {
+  controllerGhostty: GhosttyAncestor;
+  childRecord: SessionPresenceRecord;
+  requestedSurfaceId?: string;
+}): string | undefined {
+  const childGhosttyPid = childRecord.ghosttyAncestorPid;
+  if (!childGhosttyPid || childGhosttyPid === controllerGhostty.pid) return undefined;
+  const details = [
+    `controller ghostty pid ${controllerGhostty.pid}`,
+    `child ghostty pid ${childGhosttyPid}`,
+    requestedSurfaceId ? `requested surface ${requestedSurfaceId}` : undefined,
+    childRecord.ghosttySurfaceId ? `child surface ${childRecord.ghosttySurfaceId}` : undefined,
+  ].filter((item): item is string => Boolean(item));
+  return `post-launch placement mismatch: opened in a different Ghostty window (${details.join(", ")})`;
+}
+
+function joinLaunchNotes(...notes: (string | undefined)[]): string | undefined {
+  const normalized = notes
+    .map((note) => note?.trim())
+    .filter((note): note is string => Boolean(note));
+  return normalized.length > 0 ? normalized.join("; ") : undefined;
+}
+
+function formatLaunchModeLabel(launchMode: LaunchMode, launchNote?: string): string {
+  if (launchMode === "window") return "new Ghostty window";
+  if (launchNote?.includes("post-launch placement mismatch")) {
+    return "different Ghostty window after current-tab request";
+  }
+  return "current Ghostty tab";
+}
+
+async function detectPostLaunchPlacementMismatch({
+  env,
+  options,
+  cwd,
+  titleBase,
+  launchMode,
+  launchedAfterMs,
+}: {
+  env: NodeJS.ProcessEnv;
+  options: SidequestOptions;
+  cwd: string;
+  titleBase: string;
+  launchMode: LaunchMode;
+  launchedAfterMs: number;
+}): Promise<string | undefined> {
+  if (launchMode !== "tab") return undefined;
+  const controllerPid = options.processId ?? process.pid;
+  const controllerGhostty = options.currentGhosttyAncestor ?? findGhosttyAncestor(controllerPid);
+  if (!controllerGhostty) return undefined;
+  const childRecord = await waitForMatchingPresenceRecord({
+    env,
+    sidequestOptions: options,
+    cwd,
+    titleBase,
+    launchedAfterMs,
+    controllerPid,
+  });
+  if (!childRecord) return undefined;
+  return formatGhosttyPlacementMismatch({
+    controllerGhostty,
+    childRecord,
+    requestedSurfaceId: getGhosttySurfaceId(env),
+  });
+}
+
 async function launchPiQuestSession({
   pi,
   ctx,
@@ -741,6 +928,7 @@ async function launchPiQuestSession({
     : [piBin, ...modelArgs, prompt];
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
   await waitForPeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
+  const launchedAfterMs = Date.now();
   let launchResult = await runGhosttyLaunch(
     execRunner,
     ghosttyBin,
@@ -778,6 +966,20 @@ async function launchPiQuestSession({
   }
 
   const promptSummary = summarizePrompt(titlePrompt);
+  if (launchResult.ok) {
+    launchNote = joinLaunchNotes(
+      launchNote,
+      await detectPostLaunchPlacementMismatch({
+        env,
+        options,
+        cwd,
+        titleBase: title,
+        launchMode,
+        launchedAfterMs,
+      }),
+    );
+  }
+
   if (!launchResult.ok) {
     return {
       ok: false,
@@ -1703,8 +1905,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       if (ctx.hasUI) {
-        const modeLabel =
-          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const modeLabel = formatLaunchModeLabel(launch.launchMode, launch.launchNote);
         const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
         ctx.ui.notify(
           `Opened ${commandName} in ${modeLabel}: ${summarizePrompt(prompt)}${suffix}`,
@@ -1755,8 +1956,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       if (ctx.hasUI) {
-        const modeLabel =
-          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const modeLabel = formatLaunchModeLabel(launch.launchMode, launch.launchNote);
         const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
         const reportBackNote =
           reportBack === "intercom"
@@ -1785,8 +1985,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           throw new Error(launch.failure);
         }
         if (ctx.hasUI) {
-          const modeLabel =
-            launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+          const modeLabel = formatLaunchModeLabel(launch.launchMode, launch.launchNote);
           const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
           ctx.ui.notify(
             `Opened ${titlePrefix.toLowerCase()} iteration ${nextIteration}/${config.loopCount} in ${modeLabel}${suffix}`,
@@ -1865,8 +2064,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       if (ctx.hasUI) {
-        const modeLabel =
-          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const modeLabel = formatLaunchModeLabel(launch.launchMode, launch.launchNote);
         const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
         const reportBackNote =
           reportBack === "intercom"
@@ -2022,8 +2220,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       if (ctx.hasUI) {
-        const modeLabel =
-          launch.launchMode === "tab" ? "current Ghostty tab" : "new Ghostty window";
+        const modeLabel = formatLaunchModeLabel(launch.launchMode, launch.launchNote);
         const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
         const registryNote = registryPath ? `; registry ${registryPath}` : "";
         ctx.ui.notify(
