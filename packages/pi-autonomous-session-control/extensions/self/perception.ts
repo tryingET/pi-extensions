@@ -4,22 +4,23 @@
  */
 
 import { type ContextPressureResult, queryContextPressure } from "./context-pressure.ts";
-import type {
-  CommandExecution,
-  DetectedPattern,
-  ErrorEncounter,
-  FileOperation,
-  OperationLog,
-  PatternDetector,
-} from "./types.ts";
+import {
+  activeErrorCount,
+  commandIsProductiveWorkflow,
+  extractErrorSignature,
+  isProductiveWorkflowCommand,
+  isRecoveryEvidenceCommand,
+  latestRecoveryEvidenceCommandIndex,
+  latestSuccessfulRecoveryEvidenceCommandAt,
+  normalizeCommand,
+  normalizeRawCommandForStorage,
+  recoveryEvidenceAppliesToError,
+} from "./perception-command-evidence.ts";
+import { rankSliceCandidates, type SliceCandidate } from "./perception-slices.ts";
+import type { DetectedPattern, FileOperation, OperationLog, PatternDetector } from "./types.ts";
 
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const LOOP_THRESHOLD = 3;
-const STALL_TURN_THRESHOLD = 5;
-const COMMAND_NORMALIZE_MAX_LEN = 100;
+export { analyzePatterns, createPatternDetector } from "./perception-patterns.ts";
+export { rankSliceCandidates } from "./perception-slices.ts";
 
 // ============================================================================
 // OPERATION LOG
@@ -50,7 +51,7 @@ export function trackCommand(log: OperationLog, rawCommand: string, success: boo
   const recoveryEvidence = success && isRecoveryEvidenceCommand(rawCommand);
   log.commands.push({
     command: normalized,
-    rawCommand: rawCommand.slice(0, COMMAND_NORMALIZE_MAX_LEN),
+    rawCommand: normalizeRawCommandForStorage(rawCommand),
     timestamp: now,
     success,
     productiveWorkflow: isProductiveWorkflowCommand(rawCommand),
@@ -113,239 +114,6 @@ function trimLog(log: OperationLog, maxSize = 500): void {
   if (log.errors.length > maxSize) {
     log.errors = log.errors.slice(-maxSize);
   }
-}
-
-// ============================================================================
-// COMMAND NORMALIZATION
-// ============================================================================
-
-function normalizeCommand(command: string): string {
-  return (
-    command
-      // Remove specific numbers (but keep structure)
-      .replace(/\b\d{2,}\b/g, "N")
-      // Remove timestamps
-      .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/g, "TS")
-      // Remove file paths (keep basename)
-      .replace(/\/[^\s]+\//g, "PATH/")
-      // Remove UUIDs
-      .replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi, "UUID")
-      // Collapse whitespace
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, COMMAND_NORMALIZE_MAX_LEN)
-  );
-}
-
-function extractErrorSignature(message: string): string {
-  return message
-    .slice(0, 80)
-    .replace(/\b\d+\b/g, "N")
-    .replace(/"[^"]*"/g, '"..."')
-    .replace(/'[^']*'/g, "'...'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-const PACKAGE_MANAGER_VALIDATION_SCRIPT =
-  "(?:test|check|lint|typecheck|quality(?::\\w+)?|ci|release:check(?::quick)?)";
-const PACKAGE_MANAGER_SCOPE_OPTION =
-  "(?:(?:--prefix|-c|--cwd|--workspace|-w|--filter|-F|-C)(?:\\s+|=)\\S+|--\\S+(?:=\\S+)?)";
-const PACKAGE_MANAGER_VALIDATION_PATTERNS = [
-  new RegExp(
-    `\\b(?:npm|pnpm|yarn)(?:\\s+${PACKAGE_MANAGER_SCOPE_OPTION})*\\s+(?:run\\s+)?${PACKAGE_MANAGER_VALIDATION_SCRIPT}\\b`,
-  ),
-  new RegExp(
-    `\\b(?:npm|pnpm|yarn)\\s+run(?:\\s+${PACKAGE_MANAGER_SCOPE_OPTION})*\\s+${PACKAGE_MANAGER_VALIDATION_SCRIPT}\\b`,
-  ),
-];
-
-function isValidationOrQualityCommand(lowerCommand: string): boolean {
-  return (
-    PACKAGE_MANAGER_VALIDATION_PATTERNS.some((pattern) => pattern.test(lowerCommand)) ||
-    /\b(?:node\s+--test|vitest|jest|tsc|biome\s+(?:check|ci|lint)|just\s+(?:test|check|lint|ci))\b/.test(
-      lowerCommand,
-    )
-  );
-}
-
-function isProductiveWorkflowCommand(command: string): boolean {
-  const lower = command.trim().toLowerCase();
-  return (
-    /\bprovenance[-_]?note\b|\bpi[-_]?provenance\b/.test(lower) ||
-    /^git\s+(?:commit|status|log|diff|show|rev-parse)\b/.test(lower) ||
-    /^ak\s+task\s+(?:complete|close|done|finish|update\b.*\b(?:done|completed))\b/.test(lower) ||
-    isValidationOrQualityCommand(lower)
-  );
-}
-
-function isRecoveryEvidenceCommand(command: string): boolean {
-  return isValidationOrQualityCommand(command.trim().toLowerCase());
-}
-
-function commandIsProductiveWorkflow(cmd: CommandExecution): boolean {
-  return cmd.productiveWorkflow ?? isProductiveWorkflowCommand(cmd.rawCommand);
-}
-
-function commandIsRecoveryEvidence(cmd: CommandExecution): boolean {
-  if (!cmd.success) return false;
-  if (typeof cmd.recoveryEvidence === "boolean") return cmd.recoveryEvidence;
-  return (
-    cmd.rawCommand.length < COMMAND_NORMALIZE_MAX_LEN && isRecoveryEvidenceCommand(cmd.rawCommand)
-  );
-}
-
-function latestSuccessfulRecoveryEvidenceCommandAt(log: OperationLog): number {
-  return log.commands.reduce(
-    (latest, cmd) => (commandIsRecoveryEvidence(cmd) ? Math.max(latest, cmd.timestamp) : latest),
-    0,
-  );
-}
-
-function latestRecoveryEvidenceCommandIndex(log: OperationLog): number {
-  let latestRecoveryEvidenceIndex = -1;
-  log.commands.forEach((cmd, index) => {
-    if (commandIsRecoveryEvidence(cmd)) {
-      latestRecoveryEvidenceIndex = index;
-    }
-  });
-  return latestRecoveryEvidenceIndex;
-}
-
-function recoveryEvidenceAppliesToError(error: ErrorEncounter): boolean {
-  return error.toolName === "bash";
-}
-
-function activeErrorCount(error: ErrorEncounter, latestRecoveryEvidenceAt: number): number {
-  const lastSeen = error.lastSeen ?? error.timestamp;
-  if (
-    recoveryEvidenceAppliesToError(error) &&
-    latestRecoveryEvidenceAt > 0 &&
-    lastSeen < latestRecoveryEvidenceAt
-  ) {
-    return 0;
-  }
-  return typeof error.activeCount === "number" ? error.activeCount : error.count;
-}
-
-// ============================================================================
-// PATTERN DETECTION
-// ============================================================================
-
-export function createPatternDetector(): PatternDetector {
-  return {
-    detected: [],
-    lastAnalysisAt: 0,
-  };
-}
-
-export function analyzePatterns(log: OperationLog, detector: PatternDetector): void {
-  const patterns: DetectedPattern[] = [];
-  const now = Date.now();
-
-  // Detect edit loops: same file edited 3+ times
-  const editCounts = new Map<string, number>();
-  for (const op of log.fileOps) {
-    if (op.type === "modify") {
-      editCounts.set(op.path, (editCounts.get(op.path) ?? 0) + 1);
-    }
-  }
-  for (const [path, count] of editCounts) {
-    if (count >= LOOP_THRESHOLD) {
-      patterns.push({
-        type: "edit_loop",
-        key: path,
-        count,
-        firstSeen: now,
-        lastSeen: now,
-        severity: count >= 5 ? "critical" : "warning",
-      });
-    }
-  }
-
-  // Detect command loops: same normalized command 3+ times.
-  // Repeated successful workflow commands are common validation/closeout, not stuckness.
-  const latestRecoveryEvidenceAt = latestSuccessfulRecoveryEvidenceCommandAt(log);
-  const latestRecoveryEvidenceIndex = latestRecoveryEvidenceCommandIndex(log);
-  const activeCommands = log.commands.filter((_, index) => index > latestRecoveryEvidenceIndex);
-  const commandCounts = new Map<
-    string,
-    { count: number; successes: number; productive: boolean }
-  >();
-  for (const cmd of activeCommands) {
-    const existing = commandCounts.get(cmd.command);
-    if (existing) {
-      existing.count++;
-      if (cmd.success) existing.successes++;
-      existing.productive = existing.productive || commandIsProductiveWorkflow(cmd);
-    } else {
-      commandCounts.set(cmd.command, {
-        count: 1,
-        successes: cmd.success ? 1 : 0,
-        productive: commandIsProductiveWorkflow(cmd),
-      });
-    }
-  }
-  for (const [command, data] of commandCounts) {
-    if (data.count >= LOOP_THRESHOLD) {
-      if (data.successes === data.count && data.productive) continue;
-      patterns.push({
-        type: "command_loop",
-        key: command,
-        count: data.count,
-        firstSeen: now,
-        lastSeen: now,
-        severity: data.successes === data.count ? "warning" : "critical",
-      });
-    }
-  }
-
-  // Detect error loops: same active error signature 3+ times. A later successful
-  // validation/check command is the active-signal boundary.
-  for (const error of log.errors) {
-    const activeCount = activeErrorCount(error, latestRecoveryEvidenceAt);
-    if (activeCount >= LOOP_THRESHOLD) {
-      patterns.push({
-        type: "error_loop",
-        key: `${error.toolName}:${error.signature}`,
-        count: activeCount,
-        firstSeen: error.recoveredAt ?? error.timestamp,
-        lastSeen: now,
-        severity: "critical",
-      });
-    }
-  }
-
-  // Detect stalls: no meaningful changes for 5+ turns
-  const turnsSinceChange = log.turnsSinceMeaningfulChange;
-  const isStalled = turnsSinceChange >= STALL_TURN_THRESHOLD;
-  if (isStalled) {
-    patterns.push({
-      type: "stall",
-      key: "session",
-      count: turnsSinceChange,
-      firstSeen: log.lastMeaningfulChangeAt,
-      lastSeen: now,
-      severity: turnsSinceChange >= 10 ? "critical" : "warning",
-    });
-  }
-
-  // Detect progress
-  if (log.fileOps.length > 0) {
-    const _filesTouched = new Set(log.fileOps.map((op) => op.path)).size;
-    const _totalLinesDelta = log.fileOps.reduce((sum, op) => sum + op.linesDelta, 0);
-    patterns.push({
-      type: "progress",
-      key: "session",
-      count: log.fileOps.length,
-      firstSeen: log.sessionStartAt,
-      lastSeen: now,
-      severity: "info",
-    });
-  }
-
-  detector.detected = patterns;
-  detector.lastAnalysisAt = now;
 }
 
 // ============================================================================
@@ -525,25 +293,6 @@ export function queryProgress(log: OperationLog, detector: PatternDetector): Pro
   };
 }
 
-export interface SuggestedHarnessMove {
-  slice: string;
-  owner: string;
-  prefillText: string;
-  score?: number;
-  confidence?: "low" | "medium" | "high";
-  reason?: string;
-  evidence?: string[];
-  nonAuthorizations?: string[];
-}
-
-export interface SliceCandidate extends SuggestedHarnessMove {
-  score: number;
-  confidence: "low" | "medium" | "high";
-  reason: string;
-  evidence: string[];
-  nonAuthorizations: string[];
-}
-
 export interface HandoffSummaryResult {
   files: FilesTouchedResult["files"];
   commands: Array<{
@@ -637,98 +386,4 @@ export function queryHandoffSummary(
     nextMove: sliceCandidates[0],
     authority: "mirror_only",
   };
-}
-
-export function rankSliceCandidates(input: {
-  files: FilesTouchedResult["files"];
-  commands: Array<{
-    command: string;
-    rawCommand: string;
-    success: boolean;
-    activeFailure?: boolean;
-  }>;
-  errors: ErrorsResult["errors"];
-  loops: LoopStatusResult;
-  progress: ProgressResult;
-}): SliceCandidate[] {
-  const candidates: SliceCandidate[] = [];
-  const failedCommands = input.commands.filter((cmd) => cmd.activeFailure ?? !cmd.success).length;
-  const activeErrorPatterns = input.errors.filter((error) => error.activeCount >= LOOP_THRESHOLD);
-  const failureRecoveryLoopPatterns = input.loops.patterns.filter(
-    (pattern) =>
-      pattern.type === "error_loop" ||
-      (pattern.type === "command_loop" && pattern.severity === "critical"),
-  );
-
-  if (
-    activeErrorPatterns.length > 0 ||
-    failureRecoveryLoopPatterns.length > 0 ||
-    failedCommands >= LOOP_THRESHOLD
-  ) {
-    candidates.push({
-      slice: "temporal + failure-recovery + source-owner + authority-risk",
-      owner: "peer-tools",
-      score: 95,
-      confidence: "high",
-      reason:
-        "Loop/error cues need a read-only recovery review before more mutation or authority claims.",
-      evidence: [
-        ...(failureRecoveryLoopPatterns.length > 0
-          ? [`${failureRecoveryLoopPatterns.length} failure-recovery loop pattern(s)`]
-          : []),
-        ...(activeErrorPatterns.length > 0
-          ? [`${activeErrorPatterns.length} active error loop(s)`]
-          : []),
-        ...(failedCommands > 0 ? [`${failedCommands} failed recent command(s)`] : []),
-      ],
-      nonAuthorizations: ["do not edit files", "do not claim task/evidence authority"],
-      prefillText:
-        "/scoutpeer Review the visible loop/error/failure-recovery cues and recommend the smallest safe next move without changing owner boundaries. Do not edit files or claim authority.",
-    });
-  }
-
-  if (input.progress.isStalled) {
-    candidates.push({
-      slice: "temporal + artifact/packet",
-      owner: "pi-session-compaction",
-      score: activeErrorPatterns.length > 0 || failureRecoveryLoopPatterns.length > 0 ? 70 : 90,
-      confidence: "high",
-      reason:
-        "A continuation or handoff should preserve session order, artifacts, and next action.",
-      evidence: [`${input.progress.turnsSinceChange} turn(s) since tracked meaningful change`],
-      nonAuthorizations: ["do not make ASC the compaction owner"],
-      prefillText:
-        "/compact-focus temporal + artifact/packet: preserve objective, recent validation, stall-with-progress context, dirty files, and next safe action; do not make ASC the compaction owner.",
-    });
-  }
-
-  if (input.files.length > 1) {
-    candidates.push({
-      slice: "horizontal + artifact/packet + source-owner",
-      owner: "pi-context-packer",
-      score: 65,
-      confidence: "medium",
-      reason: "Multiple touched files may need a cross-file packet before continuing.",
-      evidence: [`${input.files.length} touched file(s)`],
-      nonAuthorizations: ["do not treat context packets as task authority"],
-      prefillText:
-        "Use context_plan for a horizontal source-owner packet over the touched files, then continue only within the owning package boundaries.",
-    });
-  }
-
-  if (input.files.length === 1 && failedCommands === 0 && !input.progress.isStalled) {
-    candidates.push({
-      slice: "vertical + local-validation",
-      owner: "local-shell",
-      score: 55,
-      confidence: "medium",
-      reason:
-        "A single touched file with no visible failure usually wants the narrow validation path.",
-      evidence: [`1 touched file: ${input.files[0]?.path}`],
-      nonAuthorizations: ["do not broaden scope without a new signal"],
-      prefillText: "npm run check",
-    });
-  }
-
-  return candidates.sort((a, b) => b.score - a.score);
 }
