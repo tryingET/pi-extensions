@@ -119,6 +119,16 @@ function normalizeExternalCheckStatus(context: Record<string, unknown>): Externa
       "validationSignals",
     ],
   });
+  const checkTextTrimmed = checkText.trim();
+  if (
+    /^(required|needed|pending|missing|absent|not_observed|not observed)$/u.test(checkTextTrimmed)
+  ) {
+    return "required";
+  }
+  if (/^(failed|fail|failing|blocked|not_passed|not passed|incomplete)$/u.test(checkTextTrimmed)) {
+    return "failed";
+  }
+  if (checkTextTrimmed === "unknown") return "unknown";
   if (NEGATIVE_CHECK_PATTERN.test(checkText)) return "failed";
   if (POSITIVE_CHECK_PATTERN.test(checkText)) return "observed";
   return "unknown";

@@ -594,6 +594,7 @@ test("self query: diagnostic review requires external check for repeated self-an
   assert.match(guard.reason, /without an explicit positive external validation signal/);
   assert.match(guard.nextAction, /concrete check/);
   assert.match(result.content[0].text, /Reflection guard/);
+  assert.match(result.content[0].text, /externalCheckStatus=unknown/);
   assert.match(result.content[0].text, /requiresExternalCheck=true/);
   assert.equal(
     result.details.data.evolutionCandidate.trace.check,
@@ -681,7 +682,7 @@ test("self query: diagnostic review does not treat required or failed check text
   );
   assert.equal(
     required.details.data.evolutionCandidate.reflectionGuard.externalCheckStatus,
-    "unknown",
+    "required",
   );
   assert.equal(
     required.details.data.evolutionCandidate.reflectionGuard.requiresExternalCheck,
@@ -761,6 +762,7 @@ test("self query: diagnostic review resolves reflection guard only with concrete
   assert.equal(guard.requiresExternalCheck, false);
   assert.match(guard.nextAction, /state the concrete check signal/);
   assert.match(guard.boundary, /mirror-only reflection guard/);
+  assert.match(result.content[0].text, /externalCheckStatus=observed/);
   assert.match(result.content[0].text, /requiresExternalCheck=false/);
   assert.equal(harness.sentUserMessages.length, 0, "resolved guard remains mirror-only");
 
