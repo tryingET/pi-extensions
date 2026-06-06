@@ -144,6 +144,51 @@ function buildDiagnosticCandidate(
   };
 }
 
+type InsightPromotionStatus =
+  | "session_only_unpromoted"
+  | "promoted"
+  | "explicitly_deferred"
+  | "unknown";
+
+const DEFAULT_EVOLUTION_NON_AUTHORIZATIONS = [
+  "no AK task/evidence/decision writes from self",
+  "no agent_vent record without explicit operator/tool action",
+  "no ontology/KES/Prompt Vault mutation from self",
+  "no visible-loop launch or measured campaign execution from self",
+  "no action-state mutation from diagnostic/self-evolution queries",
+] as const;
+
+function normalizeInsightPromotionStatus(value: unknown): InsightPromotionStatus {
+  const normalized = normalizeString(value)?.toLowerCase();
+  if (!normalized) return "session_only_unpromoted";
+
+  if (normalized === "promoted") return "promoted";
+  if (normalized === "explicitly_deferred") return "explicitly_deferred";
+  if (
+    normalized === "session_only_unpromoted" ||
+    normalized === "candidate_only_not_promoted" ||
+    normalized === "not_promoted" ||
+    normalized === "unpromoted"
+  ) {
+    return "session_only_unpromoted";
+  }
+
+  return "unknown";
+}
+
+function combineNonAuthorizations(context: Record<string, unknown>): string[] {
+  const callerNonAuthorizations = normalizeStringArray(context.nonAuthorizations) ?? [];
+  const merged = [...callerNonAuthorizations];
+
+  for (const defaultNonAuthorization of DEFAULT_EVOLUTION_NON_AUTHORIZATIONS) {
+    if (!merged.includes(defaultNonAuthorization)) {
+      merged.push(defaultNonAuthorization);
+    }
+  }
+
+  return merged;
+}
+
 function buildInsightPromotionCue(
   context: Record<string, unknown>,
   owner: string,
@@ -157,27 +202,42 @@ function buildInsightPromotionCue(
     normalizeString(context.promotionOwner) || normalizeString(context.sourceOwner) || owner;
   const promotionTarget =
     normalizeString(context.promotionTarget) || `${promotionOwner} owner surface`;
-  const status =
-    normalizeString(context.promotionStatus) ||
-    normalizeString(context.insightPromotionStatus) ||
-    "session_only_unpromoted";
-  const statusLower = status.toLowerCase();
-  const explicitlyResolved = statusLower === "promoted" || statusLower === "explicitly_deferred";
-  const requiredBeforeCompletion =
-    context.promotionRequiredBeforeCompletion === false ? false : !explicitlyResolved;
+  const status = normalizeInsightPromotionStatus(
+    normalizeString(context.promotionStatus) || normalizeString(context.insightPromotionStatus),
+  );
   const deferReason =
     normalizeString(context.promotionDeferReason) || normalizeString(context.deferReason);
+  const hasResolvedDeferral = status === "explicitly_deferred" && Boolean(deferReason);
+  const requiredBeforeCompletion = !(status === "promoted" || hasResolvedDeferral);
 
-  const risk = statusLower.includes("promot")
-    ? "low if the named owner surface really contains the durable summary"
-    : statusLower.includes("defer")
-      ? "accepted only if the defer reason and owner are explicit in closeout"
-      : "lost rationale risk: session-only analysis can disappear before the owner surface sees it";
-  const nextAction = statusLower.includes("promot")
-    ? "verify the named owner surface before claiming completion"
-    : statusLower.includes("defer")
-      ? `state the defer reason and owner before completion${deferReason ? ` (${deferReason})` : ""}`
-      : "promote the durable portion to the owning surface or explicitly defer with owner and reason before completion";
+  const risk = (() => {
+    switch (status) {
+      case "promoted":
+        return "low if the named owner surface really contains the durable summary";
+      case "explicitly_deferred":
+        return hasResolvedDeferral
+          ? "accepted only because the defer reason and owner are explicit in closeout"
+          : "defer claim incomplete: explicit deferral needs an owner and reason before completion";
+      case "unknown":
+        return "unknown promotion status risk: treat as unpromoted until the owner surface verifies it";
+      case "session_only_unpromoted":
+        return "lost rationale risk: session-only analysis can disappear before the owner surface sees it";
+    }
+  })();
+  const nextAction = (() => {
+    switch (status) {
+      case "promoted":
+        return "verify the named owner surface before claiming completion";
+      case "explicitly_deferred":
+        return hasResolvedDeferral
+          ? `state the defer reason and owner before completion (${deferReason})`
+          : "add an explicit defer reason and owner, or promote the durable portion before completion";
+      case "unknown":
+        return "normalize the promotion status to promoted, explicitly_deferred with reason, or session_only_unpromoted before completion";
+      case "session_only_unpromoted":
+        return "promote the durable portion to the owning surface or explicitly defer with owner and reason before completion";
+    }
+  })();
 
   return {
     kind: "self.insight_promotion_cue.v1",
@@ -237,13 +297,7 @@ function buildEvolutionCandidate(
     owner,
     autonomyLevel,
     nextSafeTest,
-    nonAuthorizations: normalizeStringArray(context.nonAuthorizations) ?? [
-      "no AK task/evidence/decision writes from self",
-      "no agent_vent record without explicit operator/tool action",
-      "no ontology/KES/Prompt Vault mutation from self",
-      "no visible-loop launch or measured campaign execution from self",
-      "no action-state mutation from diagnostic/self-evolution queries",
-    ],
+    nonAuthorizations: combineNonAuthorizations(context),
     sourceArtifact,
     promotionStatus,
     insightPromotionCue,

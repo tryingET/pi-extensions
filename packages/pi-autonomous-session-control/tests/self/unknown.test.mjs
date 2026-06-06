@@ -87,6 +87,18 @@ test("self query: diagnostic review recognizes self-improvement friction without
     result.details.data.evolutionCandidate.insightPromotionCue.requiredBeforeCompletion,
     true,
   );
+  assert.match(
+    result.details.data.evolutionCandidate.insightPromotionCue.risk,
+    /lost rationale risk/,
+  );
+  assert.match(
+    result.details.data.evolutionCandidate.insightPromotionCue.nextAction,
+    /promote the durable portion/,
+  );
+  assert.doesNotMatch(
+    result.details.data.evolutionCandidate.insightPromotionCue.risk,
+    /low if the named owner surface/,
+  );
   assert.match(result.content[0].text, /Insight promotion cue/);
   assert.deepEqual(
     result.details.data.evolutionCandidate.nonAuthorizations.includes(
@@ -365,6 +377,106 @@ test("self query: diagnostic review surfaces explicit insight promotion status w
     ctx,
   );
   assert.equal(actionSummary.details.data.checkpoints.length, 0);
+
+  await cleanup(tempDir);
+});
+
+test("self query: diagnostic review fails closed on unresolved insight promotion overrides", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const unpromotedOverride = await tool.execute(
+    "tc-diagnostic-review-promotion-required-override",
+    {
+      query: "dogfood self: do not trust caller completion override",
+      context: {
+        promotionRequiredBeforeCompletion: false,
+        nonAuthorizations: [],
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(
+    unpromotedOverride.details.data.evolutionCandidate.insightPromotionCue.status,
+    "session_only_unpromoted",
+  );
+  assert.equal(
+    unpromotedOverride.details.data.evolutionCandidate.insightPromotionCue.requiredBeforeCompletion,
+    true,
+  );
+  assert.match(
+    unpromotedOverride.details.data.evolutionCandidate.insightPromotionCue.nextAction,
+    /promote the durable portion/,
+  );
+  assert.ok(
+    unpromotedOverride.details.data.evolutionCandidate.nonAuthorizations.includes(
+      "no AK task/evidence/decision writes from self",
+    ),
+    "empty caller nonAuthorizations must not erase default guardrails",
+  );
+
+  const deferredWithoutReason = await tool.execute(
+    "tc-diagnostic-review-deferred-without-reason",
+    {
+      query: "dogfood self: incomplete explicit deferral",
+      context: {
+        promotionStatus: "explicitly_deferred",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(
+    deferredWithoutReason.details.data.evolutionCandidate.insightPromotionCue.status,
+    "explicitly_deferred",
+  );
+  assert.equal(
+    deferredWithoutReason.details.data.evolutionCandidate.insightPromotionCue
+      .requiredBeforeCompletion,
+    true,
+  );
+  assert.match(
+    deferredWithoutReason.details.data.evolutionCandidate.insightPromotionCue.risk,
+    /defer claim incomplete/,
+  );
+
+  const unknownStatus = await tool.execute(
+    "tc-diagnostic-review-unknown-promotion-status",
+    {
+      query: "dogfood self: unrecognized promotion status must stay unresolved",
+      context: {
+        promotionStatus: "deferred_but_probably_promoted",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(unknownStatus.details.data.evolutionCandidate.insightPromotionCue.status, "unknown");
+  assert.equal(
+    unknownStatus.details.data.evolutionCandidate.insightPromotionCue.requiredBeforeCompletion,
+    true,
+  );
+  assert.match(
+    unknownStatus.details.data.evolutionCandidate.insightPromotionCue.nextAction,
+    /normalize the promotion status/,
+  );
+  assert.doesNotMatch(
+    unknownStatus.details.data.evolutionCandidate.insightPromotionCue.risk,
+    /low if the named owner surface/,
+  );
+  assert.equal(harness.sentUserMessages.length, 0, "should not send hidden messages");
 
   await cleanup(tempDir);
 });

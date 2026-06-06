@@ -48,7 +48,7 @@ see the session; route the next move; keep authority elsewhere
 
 - maturity: `internal alpha / execution-seam and typed self-evolution mirror proven`
 - current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, insight-promotion cues, execution-runtime parity, cross-package diagnostic-contract parity, and owner-boundary preservation
-- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content, focused regression coverage for ASC-generated `agent_vent action=preview` prefills using the live `packageName` facet with JSON-quoted caller-controlled values, and focused regression coverage for mirror-only `self.insight_promotion_cue.v1` output
+- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content, focused regression coverage for ASC-generated `agent_vent action=preview` prefills using the live `packageName` facet with JSON-quoted caller-controlled values, and focused regression coverage for mirror-only `self.insight_promotion_cue.v1` output including typed status normalization and fail-closed unresolved-promotion behavior
 
 ## Current landed capability baseline
 
@@ -166,7 +166,7 @@ When self or a subagent produces valuable analysis that only exists in session h
 session-only insight -> owner surface? -> promoted | explicitly deferred | lost-risk
 ```
 
-The cue names source artifact, status, owner/target, required-before-completion, risk, next action, and non-authorizations. It defaults to `session_only_unpromoted` so loop closeout must promote the durable portion or explicitly defer it with owner/reason before claiming product-posture alignment. Explicit `promoted` or `explicitly_deferred` context is reflected in the cue but remains mirror-only.
+The cue names source artifact, typed status, owner/target, required-before-completion, risk, next action, and non-authorizations. It defaults to `session_only_unpromoted` so loop closeout must promote the durable portion or explicitly defer it with owner/reason before claiming product-posture alignment. Explicit `promoted` context resolves only to a verification cue; explicit `explicitly_deferred` resolves only when a defer reason is present. Caller-provided completion overrides cannot downgrade unresolved promotion requirements, and caller-provided `nonAuthorizations` are merged with ASC's default guardrails instead of replacing them.
 
 ASC still does not write owner docs itself unless the operator asked for that mutation and the owner surface is in scope. It only makes the missing promotion visible before a loop declares docs alignment complete.
 
