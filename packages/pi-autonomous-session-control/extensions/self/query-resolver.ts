@@ -455,7 +455,7 @@ function resolveUnknownQuery(query: SelfQuery): SelfResponse {
     data: {
       nearestIntents: [
         "perception: current files/commands/errors/progress",
-        "action: checkpoint/followup/prefill/continue suggested next move",
+        "action: checkpoint/followup/prefill/notify operator/continue suggested next move",
         "meta: capability discovery or diagnostic review",
       ],
     },
@@ -542,6 +542,7 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
 - "Create checkpoint before [reason]"
 - "Queue followup: [task]" / "Remind me: [task]"
 - "Prefill: [text]"
+- "Notify operator: [message]" / "Send user message: [message]" for explicit low-risk follow-up notifications through pi.sendUserMessage
 - "Prefill suggested next move" after a handoff summary exposes nextMove
 - "Create self-contained handoff prompt" / "Fresh session handoff prompt"
 - "Action summary" / "List checkpoints" / "List followups"
@@ -597,6 +598,7 @@ No authority changed: no vent record, AK task, evidence, issue, incident, or ext
               "Queue followup: X",
               "Prefill: Y",
               "Prefill suggested next move",
+              "Notify operator: I finished validation and need /reload",
               "Create self-contained handoff prompt",
               "Action summary",
             ],

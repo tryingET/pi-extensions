@@ -40,6 +40,12 @@ export const ACTION_KEYWORDS = [
   "send diagnostic review",
   "send diagnostic followup",
   "send diagnostic follow-up",
+  "notify operator",
+  "notify user",
+  "message operator",
+  "send operator message",
+  "send usermessage",
+  "sendusermessage",
   "prefill diagnostic record",
   "prefill agent_vent record",
   "prefill vent record",
@@ -52,6 +58,18 @@ export const ACTION_KEYWORDS = [
   "handoff prompt",
   "send user message",
 ];
+
+function isDirectUserMessageQuery(lower: string): boolean {
+  return (
+    lower.includes("notify operator") ||
+    lower.includes("notify user") ||
+    lower.includes("message operator") ||
+    lower.includes("send operator message") ||
+    /send\s+user\s*message\s*:/u.test(lower) ||
+    /sendusermessage\s*:/u.test(lower) ||
+    lower.trim() === "sendusermessage"
+  );
+}
 
 export function mapActionIntent(lower: string): string {
   if (
@@ -84,6 +102,9 @@ export function mapActionIntent(lower: string): string {
     lower.includes("send diagnostic follow-up")
   ) {
     return "continue_diagnostic_review";
+  }
+  if (isDirectUserMessageQuery(lower)) {
+    return "send_user_message";
   }
   if (
     lower.includes("continue suggested next move") ||
@@ -125,6 +146,10 @@ export function resolveActionQuery(
 
     case "continue_suggested_next_move": {
       return handleContinueSuggestedNextMove(state);
+    }
+
+    case "send_user_message": {
+      return handleDirectUserMessage(query);
     }
 
     case "continue_diagnostic_review": {
@@ -291,6 +316,103 @@ function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {
       "prefill suggested next move",
     ],
   };
+}
+
+function handleDirectUserMessage(query: SelfQuery): SelfResponse {
+  const context = normalizeInput(query.context);
+  const text = extractDirectUserMessageText(query, context);
+
+  if (!text) {
+    return {
+      understood: true,
+      intent: "action",
+      answer:
+        "sendUserMessage is available through self, but I need explicit message text. Use `notify operator: <message>` or provide context.text/message.",
+      data: {
+        sendUserMessage: false,
+        prefill: false,
+        dispatchMode: "missing_message_text",
+        availableAction: "pi.sendUserMessage",
+      },
+      suggestions: [
+        "notify operator: I finished validation and need reload for live dogfood.",
+        "send user message: Continuing autonomously with the verified local slice.",
+      ],
+    };
+  }
+
+  if (messageLooksSensitive(text)) {
+    return {
+      understood: true,
+      intent: "action",
+      answer:
+        "User message was not sent because the text looks like it may contain secret material. Prefill or rewrite a sanitized notification instead.",
+      data: {
+        text,
+        sendUserMessage: false,
+        prefill: false,
+        dispatchMode: "blocked_sensitive_message",
+        boundary:
+          "self may send explicit low-risk operator notifications through pi.sendUserMessage, but it must not transmit likely secrets or raw credentials.",
+      },
+      suggestions: ["notify operator: Sanitized status summary without secrets"],
+    };
+  }
+
+  if (messageLooksActionDirective(text)) {
+    return buildPrefillResponse(text, {
+      sendUserMessage: false,
+      dispatchMode: "operator_review_required",
+      reason:
+        "Direct user-message text looks like an action directive or high-risk control-plane instruction; keep it as editor prefill instead of injecting it as a follow-up.",
+      boundary:
+        "Explicit sendUserMessage is for low-risk status/continuation notifications. Commands, peer/harness work, compaction, commits, deletes, durable records, and owner-surface writes require operator review.",
+    });
+  }
+
+  return {
+    understood: true,
+    intent: "action",
+    answer: `User-message dispatch suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
+    data: {
+      text,
+      sendUserMessage: true,
+      prefill: false,
+      dispatchMode: "operator_notification",
+      boundary:
+        "Explicit low-risk operator notification only; not AK evidence, not a decision, and not durable diagnostic recording.",
+    },
+  };
+}
+
+function extractDirectUserMessageText(query: SelfQuery, context: Record<string, unknown>): string {
+  const fromContext =
+    normalizeString(context.text) ||
+    normalizeString(context.message) ||
+    normalizeString(context.notification);
+  if (fromContext) return clampUserMessageText(fromContext);
+
+  const colonMatch = query.query.match(
+    /(?:notify\s+(?:operator|user)|message\s+operator|send\s+(?:operator\s+message|user\s*message|usermessage)|sendusermessage)\s*:\s*([\s\S]+)$/i,
+  );
+  const text = normalizePrefillText(colonMatch?.[1]) || extractQuotedContent(query.query);
+  return text ? clampUserMessageText(text) : "";
+}
+
+function clampUserMessageText(text: string): string {
+  return text.trim().slice(0, 2000);
+}
+
+function messageLooksSensitive(text: string): boolean {
+  return /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\bgh[pousr]_[A-Za-z0-9_]{20,}\b|\bsk-[A-Za-z0-9]{20,}\b/u.test(
+    text,
+  );
+}
+
+function messageLooksActionDirective(text: string): boolean {
+  return /(^|\n)\s*[/!$]{1,2}\S|\b(?:run|execute|spawn|launch|commit|merge|delete|remove|reset|compact|record|publish|promote)\b|\b(?:ak\s+task|agent_vent|scout_peer_spawn|candidate_peer_spawn|fork_peer_spawn|dispatch_subagent|toolbox\(|evidence_record|write\s+AK|write\s+KES|peer review|durable record|compaction)\b/iu.test(
+    text,
+  );
 }
 
 function handleContinueSuggestedNextMove(state: SelfState): SelfResponse {

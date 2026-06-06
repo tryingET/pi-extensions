@@ -293,6 +293,7 @@ export type ActionIntent =
   | "queue_followup"
   | "prefill_editor"
   | "continue_suggested_next_move"
+  | "send_user_message"
   | "continue_diagnostic_review"
   | "prefill_diagnostic_record"
   | "self_contained_handoff_prompt"

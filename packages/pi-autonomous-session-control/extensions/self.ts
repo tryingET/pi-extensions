@@ -272,13 +272,14 @@ Examples:
 - self({ query: "Mark as trap: [description]" })
 - self({ query: "Dogfood self: what friction just happened?" })
 - self({ query: "self-evolution" })
+- self({ query: "notify operator: I finished the verified slice and need a reload" })
 
 This is a mirror, not a manager. You ask, you receive, you decide.`,
     promptSnippet:
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
     promptGuidelines: [
       "Use self when you need to verify what work has actually happened before planning the next step.",
-      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, self-contained handoff prompt generation, explicit remember/mark-trap directives, diagnostic-review queries, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
+      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, self-contained handoff prompt generation, explicit remember/mark-trap directives, diagnostic-review queries, explicit low-risk operator notifications via notify operator/send user message, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
     ],
     parameters: Type.Object({
       query: Type.String({
@@ -347,6 +348,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
                         "User-message continuation suggested",
                         "User-message continuation sent",
                       )
+                      .replace("User-message dispatch suggested", "User-message dispatch sent")
                       .replace(
                         "Diagnostic-review continuation suggested",
                         "Diagnostic-review continuation sent",
