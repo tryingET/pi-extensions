@@ -125,6 +125,14 @@ function isDiagnosticReviewQuery(lower: string): boolean {
   return DIAGNOSTIC_REVIEW_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
+function isExplicitCrystallizationDirectiveQuery(lower: string): boolean {
+  return /^\s*remember\s*:/u.test(lower);
+}
+
+function isExplicitProtectionDirectiveQuery(lower: string): boolean {
+  return /^\s*mark\s+as\s+trap\s*:/u.test(lower);
+}
+
 function isExplicitUserMessageActionQuery(lower: string): boolean {
   return (
     lower.includes("notify operator") ||
@@ -296,6 +304,17 @@ export function classifyIntent(query: string): QueryIntent {
   // action state. Explicit diagnostic action follow-ups are still handled as actions.
   if (isExplicitDiagnosticActionQuery(lower)) {
     return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
+  }
+
+  // Explicit storage/protection directives own their payload, so diagnostic/self-evolution
+  // keywords inside the content do not hijack them into mirror-only diagnostic review.
+  // User-message/diagnostic action directives are checked above to preserve safe routing.
+  if (isExplicitCrystallizationDirectiveQuery(lower)) {
+    return { domain: "crystallization", intent: "remember_pattern" };
+  }
+
+  if (isExplicitProtectionDirectiveQuery(lower)) {
+    return { domain: "protection", intent: "mark_trap" };
   }
 
   if (isEvolutionFeedbackQuery(lower)) {

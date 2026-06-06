@@ -47,8 +47,8 @@ see the session; route the next move; keep authority elsewhere
 ## Current product maturity
 
 - maturity: `internal alpha / execution-seam and typed self-evolution mirror proven`
-- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, execution-runtime parity, and owner-boundary preservation
-- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, and explicit user-message routing with `self-evolution`/`checkpoint` words in the payload
+- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, execution-runtime parity, and owner-boundary preservation
+- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, and explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content
 
 ## Current landed capability baseline
 
@@ -110,7 +110,7 @@ This is the first translation of the many-of-the-greats review: make self-improv
 
 Diagnostic/self-evolution queries are no longer hijacked by incidental action words such as `checkpoint`. Regression coverage proves dogfood/friction queries remain mirror-only unless the action directive is explicit.
 
-The reciprocal action-routing guard also landed: explicit `notify operator` / `send user message:` directives win even when their payload mentions `self-evolution`, `checkpoint`, or other diagnostic/action words; risky directive and likely-secret gates still apply.
+Explicit crystallization/protection directives now also own their payload: `Remember:` and `Mark as trap:` win even when the remembered/trap text mentions `self-evolution`, `diagnostic_review`, or `checkpoint`. The reciprocal action-routing guard remains: explicit `notify operator` / `send user message:` directives win even when their payload mentions `self-evolution`, `checkpoint`, or other diagnostic/action words; risky directive and likely-secret gates still apply.
 
 ### Bet 3 — PDCA/OODA trace for nontrivial recommendations — landed first slice
 
