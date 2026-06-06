@@ -266,9 +266,17 @@ function buildInsightPromotionCue(
   };
 }
 
+function collectSessionValidationProvenance(state: SelfState): string[] {
+  return state.operations.commands
+    .filter((command) => command.success && command.recoveryEvidence === true)
+    .slice(-3)
+    .map((command) => `session validation command: ${command.rawCommand}`);
+}
+
 function buildEvolutionCandidate(
   query: SelfQuery | undefined,
   diagnosticCandidate: Record<string, unknown>,
+  state: SelfState,
 ): Record<string, unknown> {
   const context = normalizeInput(query?.context);
   const friction =
@@ -291,7 +299,9 @@ function buildEvolutionCandidate(
     "add or run a focused regression that proves the diagnostic query remains mirror-only, then run the package check";
   const autonomyLevel = normalizeString(context.autonomyLevel) || "suggest";
   const insightPromotionCue = buildInsightPromotionCue(context, owner);
-  const reflectionGuard = buildReflectionGuard(query, context);
+  const reflectionGuard = buildReflectionGuard(query, context, {
+    validationProvenance: collectSessionValidationProvenance(state),
+  });
   const sourceArtifact = String(insightPromotionCue.sourceArtifact ?? "current Pi session mirror");
   const promotionStatus = String(insightPromotionCue.status ?? "session_only_unpromoted");
 
@@ -349,7 +359,7 @@ export function resolveDiagnosticReviewQuery(
   state: SelfState,
 ): SelfResponse {
   const diagnosticCandidate = buildDiagnosticCandidate(query, state);
-  const evolutionCandidate = buildEvolutionCandidate(query, diagnosticCandidate);
+  const evolutionCandidate = buildEvolutionCandidate(query, diagnosticCandidate, state);
   const reflectionGuard = evolutionCandidate.reflectionGuard as Record<string, unknown> | undefined;
   const reflectionRequiresExternalCheck = reflectionGuard?.requiresExternalCheck === true;
 

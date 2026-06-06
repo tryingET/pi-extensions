@@ -6,6 +6,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
 
+function recordBash(harness, id, command, options = {}) {
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const toolResultHandler = harness.eventHandlers.get("tool_result");
+  toolCallHandler({ toolName: "bash", toolCallId: id, input: { command } });
+  toolResultHandler({
+    toolName: "bash",
+    toolCallId: id,
+    isError: options.isError ?? false,
+    content: [{ type: "text", text: options.text ?? "ok" }],
+  });
+}
+
 test("self query: diagnostic review requires external check for repeated self-analysis", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -372,6 +384,48 @@ test("self query: diagnostic review fails closed on boolean or conflicting check
     "observed check signals without command/artifact provenance should stay visible in closeout cues",
   );
   assert.equal(harness.sentUserMessages.length, 0, "reflection guard remains mirror-only");
+
+  await cleanup(tempDir);
+});
+
+test("self query: diagnostic review uses session validation command as reflection provenance", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  recordBash(
+    harness,
+    "cmd-reflection-session-validation",
+    "node --test packages/pi-autonomous-session-control/tests/self/reflection-guard.test.mjs",
+  );
+
+  const result = await tool.execute(
+    "tc-diagnostic-review-reflection-guard-session-validation-provenance",
+    {
+      query: "self-evolution repeated reflection after focused regression passed",
+      context: {
+        repeatedSelfAnalysis: "repeated",
+        externalCheckStatus: "observed",
+        externalValidation: "focused regression and package check passed",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const guard = result.details.data.evolutionCandidate.reflectionGuard;
+  assert.equal(guard.status, "external_check_observed");
+  assert.deepEqual(guard.externalCheckEvidence.provenance, [
+    "session validation command: node --test packages/pi-autonomous-session-control/tests/self/reflection-guard.test.mjs",
+  ]);
+  assert.equal(guard.externalCheckEvidence.missingProvenance, false);
+  assert.match(result.content[0].text, /provenanceCount=1/);
+  assert.equal(harness.sentUserMessages.length, 0, "session evidence remains mirror-only");
 
   await cleanup(tempDir);
 });

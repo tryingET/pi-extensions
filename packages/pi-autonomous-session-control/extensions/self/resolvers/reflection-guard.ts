@@ -15,6 +15,10 @@ type ReflectionGuardStatus =
 
 type ExternalCheckStatus = "observed" | "required" | "failed" | "unknown";
 
+interface ReflectionGuardSessionEvidence {
+  validationProvenance?: string[];
+}
+
 const TEXT_ENTRY_MAX_LENGTH = 300;
 const TEXT_TOTAL_MAX_LENGTH = 4000;
 const ARRAY_ENTRY_LIMIT = 16;
@@ -205,12 +209,17 @@ function normalizeExternalCheckStatus(context: Record<string, unknown>): Externa
 function buildExternalCheckEvidence(
   context: Record<string, unknown>,
   status: ReflectionGuardStatus,
+  sessionEvidence: ReflectionGuardSessionEvidence = {},
 ): Record<string, unknown> {
   const signalEntries = collectTextEntries(context, EXTERNAL_CHECK_SIGNAL_KEYS);
   const positiveSignal = signalEntries.find((entry) =>
     POSITIVE_CHECK_PATTERN.test(entry.toLowerCase()),
   );
-  const provenance = collectTextEntries(context, EXTERNAL_CHECK_PROVENANCE_KEYS);
+  const contextProvenance = collectTextEntries(context, EXTERNAL_CHECK_PROVENANCE_KEYS);
+  const sessionProvenance = (sessionEvidence.validationProvenance ?? [])
+    .map((entry) => normalizeString(entry, { maxLength: TEXT_ENTRY_MAX_LENGTH }))
+    .filter((entry): entry is string => typeof entry === "string");
+  const provenance = [...contextProvenance, ...sessionProvenance].slice(0, ARRAY_ENTRY_LIMIT);
   const missingProvenance = status === "external_check_observed" && provenance.length === 0;
 
   return {
@@ -226,6 +235,7 @@ function buildExternalCheckEvidence(
 export function buildReflectionGuard(
   query: SelfQuery | undefined,
   context: Record<string, unknown>,
+  sessionEvidence: ReflectionGuardSessionEvidence = {},
 ): Record<string, unknown> {
   const reflectionText = collectText({
     query,
@@ -270,7 +280,7 @@ export function buildReflectionGuard(
     }
   })();
 
-  const externalCheckEvidence = buildExternalCheckEvidence(context, status);
+  const externalCheckEvidence = buildExternalCheckEvidence(context, status, sessionEvidence);
 
   return {
     kind: "self.reflection_guard.v1",
