@@ -113,6 +113,7 @@ export async function loadExtensionWithMocks() {
     "crystallization.ts",
     "protection.ts",
     "action.ts",
+    "evolution-feedback.ts",
   ];
 
   for (const file of resolverFiles) {

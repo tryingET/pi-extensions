@@ -23,6 +23,11 @@ import {
   resolveDirectionQuery,
 } from "./resolvers/direction.ts";
 import {
+  isEvolutionFeedbackQuery,
+  mapEvolutionFeedbackIntent,
+  resolveEvolutionFeedbackQuery,
+} from "./resolvers/evolution-feedback.ts";
+import {
   mapPerceptionIntent,
   PERCEPTION_KEYWORDS,
   resolvePerceptionQuery,
@@ -291,6 +296,10 @@ export function classifyIntent(query: string): QueryIntent {
   // action state. Explicit diagnostic action follow-ups are still handled as actions.
   if (isExplicitDiagnosticActionQuery(lower)) {
     return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
+  }
+
+  if (isEvolutionFeedbackQuery(lower)) {
+    return { domain: "meta", intent: mapEvolutionFeedbackIntent(lower) };
   }
 
   if (isDiagnosticReviewQuery(lower)) {
@@ -588,6 +597,10 @@ function resolveMetaQuery(
   query: SelfQuery | undefined,
   state: SelfState,
 ): SelfResponse {
+  if ((intent === "record_feedback" || intent === "list_feedback") && query) {
+    return resolveEvolutionFeedbackQuery(intent, query, state);
+  }
+
   if (intent === "diagnostic_review") {
     const diagnosticCandidate = buildDiagnosticCandidate(query, state);
     const evolutionCandidate = buildEvolutionCandidate(query, diagnosticCandidate);
@@ -677,6 +690,12 @@ No authority changed: no vent record, AK task, evidence, issue, incident, KES no
 - "Prefill agent_vent record" for an operator-reviewed durable local diagnostic write
 - Return a candidate diagnostic payload for explicit operator/toolbox/agent_vent follow-up, not a stored vent or authoritative issue.
 
+**Self-evolution feedback** (session-local outcome mirror):
+- "self feedback: helpful — candidate routed the next slice correctly"
+- "self feedback: wrong-owner — suggestion belonged to another package"
+- "self feedback summary"
+- Records bounded local outcome labels only; does not write agent_vent, AK/evidence, KES, ontology, visible-loop, measured campaigns, issues, incidents, or telemetry.
+
 **2. toolbox/bundle discovery** (outside self):
 - Use the \`toolbox\` tool to search, explain, activate, deactivate, or inspect Pi extension bundles when you need extension-provided capabilities.
 - For recurring agent frustration, repeated bugs, tool failures, or workflow friction, use the separate \`agent_vent\` bundle/tool; do not store vent diagnostics in self/ASC state.
@@ -735,6 +754,16 @@ No authority changed: no vent record, AK task, evidence, issue, incident, KES no
               "What friction just happened?",
               "Continue diagnostic review",
               "Prefill agent_vent record",
+            ],
+          },
+          {
+            name: "self-evolution feedback",
+            description:
+              "Record bounded session-local outcome labels for self suggestions without writing durable owner surfaces.",
+            examples: [
+              "self feedback: helpful — suggestion reduced operator correction",
+              "self feedback: unsafe — suggestion would mutate durable state",
+              "self feedback summary",
             ],
           },
         ],

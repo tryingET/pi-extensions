@@ -193,6 +193,22 @@ export interface FollowupMessage {
   delivered: boolean;
 }
 
+export type SuggestionFeedbackOutcome = "helpful" | "ignored" | "stale" | "wrong-owner" | "unsafe";
+
+export interface SuggestionFeedback {
+  kind: "self.suggestion_feedback.v1";
+  id: string;
+  outcome: SuggestionFeedbackOutcome;
+  targetKind: string;
+  targetId?: string;
+  note: string;
+  owner: string;
+  sourceQuery: string;
+  recordedAt: number;
+  boundary: string;
+  nonAuthorizations: string[];
+}
+
 // ============================================================================
 // SELF STATE (Aggregate)
 // ============================================================================
@@ -215,6 +231,9 @@ export interface SelfState {
   // Actions
   checkpoints: Checkpoint[];
   followups: FollowupMessage[];
+
+  // Session-local self-evolution feedback mirror (not durable owner evidence)
+  suggestionFeedback: SuggestionFeedback[];
 
   // Configuration
   config: SelfConfig;
@@ -299,7 +318,11 @@ export type ActionIntent =
   | "self_contained_handoff_prompt"
   | "list_action_state";
 
-export type MetaIntent = "list_capabilities" | "diagnostic_review";
+export type MetaIntent =
+  | "list_capabilities"
+  | "diagnostic_review"
+  | "record_feedback"
+  | "list_feedback";
 
 export type QueryIntent =
   | { domain: "perception"; intent: PerceptionIntent }

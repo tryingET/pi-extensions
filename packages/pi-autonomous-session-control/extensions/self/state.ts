@@ -68,6 +68,7 @@ export function createSelfState(config: Partial<SelfConfig> = {}): SelfState {
     traps: createTrapRegistry(),
     checkpoints: [],
     followups: [],
+    suggestionFeedback: [],
     config: { ...DEFAULT_CONFIG, ...config },
   };
 }

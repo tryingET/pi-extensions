@@ -47,7 +47,7 @@ see the session; route the next move; keep authority elsewhere
 ## Current product maturity
 
 - maturity: `internal alpha / execution-seam and typed self-evolution mirror proven`
-- current strategic line: self diagnostic clarity, typed self-evolution candidates, guarded low-risk notifications, continuation/handoff quality, execution-runtime parity, and owner-boundary preservation
+- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, execution-runtime parity, and owner-boundary preservation
 - release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, and explicit user-message routing with `self-evolution`/`checkpoint` words in the payload
 
 ## Current landed capability baseline
@@ -57,6 +57,7 @@ ASC currently owns:
 - `self` as a mirror for touched files, commands, errors, loop/stall cues, context-pressure heuristics, file-budget advisories, handoff summaries, and action-state summaries;
 - bounded memory for crystallized patterns, semantic-pressure candidates, traps, checkpoints, and followups;
 - diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1` and `self.evolution_candidate.v1` payloads without durable writes;
+- session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
 - guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
 - `dispatch_subagent` and the public `createAscExecutionRuntime` seam with prompt-envelope provenance, child extension/skill-profile policy, concurrency/session reservation, timeout/abort handling, and failure taxonomy;
 - rewind/recovery behavior and runtime invariants for Pi-side session control.
@@ -122,9 +123,11 @@ plan -> do -> check -> act/adopt/reject
 
 The trace should name the evidence seen, owner/boundary rule applied, chosen next move, action level, and check signal without turning ASC into a visible-loop launcher, evaluator, or durable authority.
 
-### Bet 4 — Outcome feedback
+### Bet 4 — Outcome feedback — landed first slice
 
-Add a small feedback path for self suggestions: helpful, stale, wrong-owner, unsafe, ignored. Keep it mirror/local unless deliberately recorded through `agent_vent` or another owner surface.
+ASC now has a bounded session-local feedback ledger for self suggestions: helpful, ignored, stale, wrong-owner, unsafe. Feedback returns `self.suggestion_feedback.v1`, exposes counts through `self feedback summary`, and explicitly states that no `agent_vent`, AK/evidence, KES, ontology, Prompt Vault, visible-loop, measured-campaign, issue, incident, or telemetry state was written.
+
+This is intentionally lighter than durable recurrence memory: if repeated feedback becomes useful enough to preserve, route it through `agent_vent` preview/record or the owning evidence/learning surface explicitly.
 
 ### Bet 5 — Autonomy-level membrane — landed first slice
 
