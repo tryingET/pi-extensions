@@ -133,6 +133,31 @@ test("self query: diagnostic review does not treat required or failed check text
     true,
   );
 
+  const requiredWithNamedCheck = await tool.execute(
+    "tc-diagnostic-review-reflection-guard-required-named-check-text",
+    {
+      query: "self-evolution repeated reflection",
+      context: {
+        repeatedReflection: true,
+        externalCheckStatus: "required",
+        externalCheck: "package check required before completion",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(
+    requiredWithNamedCheck.details.data.evolutionCandidate.reflectionGuard.status,
+    "external_check_required",
+  );
+  assert.equal(
+    requiredWithNamedCheck.details.data.evolutionCandidate.reflectionGuard.externalCheckStatus,
+    "required",
+    "required/pending named-check text should remain required, not be classified as failed",
+  );
+  assert.match(requiredWithNamedCheck.content[0].text, /externalCheckStatus=required/);
+
   const failed = await tool.execute(
     "tc-diagnostic-review-reflection-guard-failed-check-text",
     {

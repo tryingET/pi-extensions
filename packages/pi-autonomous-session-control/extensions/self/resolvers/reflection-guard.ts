@@ -30,8 +30,13 @@ const POSITIVE_CHECK_PATTERN = new RegExp(
   "u",
 );
 
-const NEGATIVE_CHECK_PATTERN = new RegExp(
-  `\\b(no|without)\\s+(${CHECK_SIGNAL_WORDS})\\b|\\b(not|missing|absent|failed|fails|failing|required|needed|pending|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\\b[^\\n]{0,80}\\b(${CHECK_SIGNAL_WORDS})\\b|\\b(${CHECK_SIGNAL_WORDS})\\b[^\\n]{0,80}\\b(not|without|missing|absent|failed|fails|failing|required|needed|pending|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\\b`,
+const REQUIRED_CHECK_PATTERN = new RegExp(
+  `\\b(no|without)\\s+(${CHECK_SIGNAL_WORDS})\\b|\\b(missing|absent|required|needed|pending)\\b[^\\n]{0,80}\\b(${CHECK_SIGNAL_WORDS})\\b|\\b(${CHECK_SIGNAL_WORDS})\\b[^\\n]{0,80}\\b(without|missing|absent|required|needed|pending)\\b`,
+  "u",
+);
+
+const FAILED_CHECK_PATTERN = new RegExp(
+  `\\b(not|failed|fails|failing|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\\b[^\\n]{0,80}\\b(${CHECK_SIGNAL_WORDS})\\b|\\b(${CHECK_SIGNAL_WORDS})\\b[^\\n]{0,80}\\b(not|failed|fails|failing|blocked|incomplete|not complete|not completed|not passed|did not pass|has not passed)\\b`,
   "u",
 );
 
@@ -143,13 +148,15 @@ function normalizeExternalCheckStatus(context: Record<string, unknown>): Externa
   const checkTextTrimmed = checkText.trim();
   const exactTextStatus = normalizeExplicitExternalCheckStatus(checkTextTrimmed);
   const exactNonObservedTextStatus = exactTextStatus === "observed" ? undefined : exactTextStatus;
-  const hasNegativeText = NEGATIVE_CHECK_PATTERN.test(checkText);
+  const hasRequiredText = REQUIRED_CHECK_PATTERN.test(checkText);
+  const hasFailedText = FAILED_CHECK_PATTERN.test(checkText);
   const hasPositiveCheckSignal = POSITIVE_CHECK_PATTERN.test(checkText);
   const hasExplicitObserved = explicitStatuses.includes("observed");
   const hasObserved = hasExplicitObserved && hasPositiveCheckSignal;
-  const hasRequired = statuses.includes("required") || exactNonObservedTextStatus === "required";
+  const hasRequired =
+    statuses.includes("required") || exactNonObservedTextStatus === "required" || hasRequiredText;
   const hasFailed =
-    statuses.includes("failed") || exactNonObservedTextStatus === "failed" || hasNegativeText;
+    statuses.includes("failed") || exactNonObservedTextStatus === "failed" || hasFailedText;
   const hasUnknown = statuses.includes("unknown") || exactNonObservedTextStatus === "unknown";
 
   // Fail closed on contradictory caller-controlled check signals. Bare booleans,
