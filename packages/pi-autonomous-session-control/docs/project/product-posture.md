@@ -58,6 +58,7 @@ ASC currently owns:
 - bounded memory for crystallized patterns, semantic-pressure candidates, traps, checkpoints, and followups;
 - diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1` and `self.evolution_candidate.v1` payloads without durable writes;
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
+- exact/verbatim visible recall for crystallized patterns when stateless dogfood needs to verify full remembered content from text rather than hidden structured details;
 - guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
 - `dispatch_subagent` and the public `createAscExecutionRuntime` seam with prompt-envelope provenance, child extension/skill-profile policy, concurrency/session reservation, timeout/abort handling, and failure taxonomy;
 - rewind/recovery behavior and runtime invariants for Pi-side session control.
@@ -110,7 +111,7 @@ This is the first translation of the many-of-the-greats review: make self-improv
 
 Diagnostic/self-evolution queries are no longer hijacked by incidental action words such as `checkpoint`. Regression coverage proves dogfood/friction queries remain mirror-only unless the action directive is explicit.
 
-Explicit crystallization/protection directives now also own their payload: `Remember:` and `Mark as trap:` win even when the remembered/trap text mentions `self-evolution`, `diagnostic_review`, or `checkpoint`. The reciprocal action-routing guard remains: explicit `notify operator` / `send user message:` directives win even when their payload mentions `self-evolution`, `checkpoint`, or other diagnostic/action words; risky directive and likely-secret gates still apply.
+Explicit crystallization/protection directives now also own their payload: `Remember:` and `Mark as trap:` win even when the remembered/trap text mentions `self-evolution`, `diagnostic_review`, or `checkpoint`. Exact/verbatim recall is available for stateless dogfood prompts that must verify stored memory from visible text. The reciprocal action-routing guard remains: explicit `notify operator` / `send user message:` directives win even when their payload mentions `self-evolution`, `checkpoint`, or other diagnostic/action words; risky directive and likely-secret gates still apply.
 
 ### Bet 3 — PDCA/OODA trace for nontrivial recommendations — landed first slice
 

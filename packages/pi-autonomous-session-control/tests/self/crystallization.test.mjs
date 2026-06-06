@@ -93,3 +93,53 @@ test("self query: recall patterns", async () => {
 
   await cleanup(tempDir);
 });
+
+test("self query: exact recall exposes verbatim pattern text for stateless dogfood", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+  const pattern =
+    "stateless pi-p structured dogfood needs visible exact recall for self-evolution feedback checkpoint diagnostic_review words";
+
+  await tool.execute(
+    "tc-exact-recall-remember",
+    { query: `Remember: ${pattern}`, context: { topic: "stateless-dogfood" } },
+    null,
+    null,
+    ctx,
+  );
+
+  const result = await tool.execute(
+    "tc-exact-recall",
+    { query: "recall exact patterns", context: { topic: "stateless-dogfood" } },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.intent, "crystallization");
+  assert.equal(result.details.data.exactRecall, true);
+  assert.ok(result.content[0].text.includes("verbatim visible recall"));
+  assert.ok(result.content[0].text.includes(JSON.stringify(pattern)));
+  assert.doesNotMatch(
+    result.content[0].text,
+    /structured dogfood needs visible exact recall.*\.\.\./,
+  );
+
+  const actionSummary = await tool.execute(
+    "tc-exact-recall-action-summary",
+    { query: "action summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(actionSummary.details.data.checkpoints.length, 0);
+  assert.equal(harness.sentUserMessages.length, 0);
+
+  await cleanup(tempDir);
+});

@@ -164,9 +164,37 @@ function handleRememberPattern(query: SelfQuery, state: SelfState): SelfResponse
   };
 }
 
+function isExactRecallQuery(query: SelfQuery): boolean {
+  const normalizedContext = normalizeInput(query.context);
+  const lower = query.query.toLowerCase();
+  return (
+    normalizedContext.exact === true ||
+    normalizedContext.verbatim === true ||
+    lower.includes("exact") ||
+    lower.includes("verbatim") ||
+    lower.includes("untruncated") ||
+    lower.includes("full pattern") ||
+    lower.includes("full patterns")
+  );
+}
+
+function formatPatternForRecall(content: string, exactRecall: boolean): string {
+  if (!exactRecall) {
+    return `"${content.slice(0, 50)}..."`;
+  }
+
+  const maxExactChars = 1000;
+  if (content.length <= maxExactChars) {
+    return JSON.stringify(content);
+  }
+
+  return `${JSON.stringify(content.slice(0, maxExactChars))}... [truncated above ${maxExactChars} chars]`;
+}
+
 function handleRecallPatterns(query: SelfQuery, state: SelfState): SelfResponse {
   const normalizedContext = normalizeInput(query.context);
   const topic = normalizeString(normalizedContext.topic);
+  const exactRecall = isExactRecallQuery(query);
 
   let patterns = Array.from(state.learnings.patterns.values());
   if (topic) {
@@ -189,17 +217,18 @@ function handleRecallPatterns(query: SelfQuery, state: SelfState): SelfResponse 
     p.accessCount++;
   }
 
+  const visiblePatterns = patterns.slice(0, exactRecall ? 3 : 5);
+
   return {
     understood: true,
     intent: "crystallization",
     answer:
       patterns.length > 0
-        ? `${patterns.length} pattern(s) crystallized${topic ? ` for topic "${topic}"` : ""}: ${patterns
-            .slice(0, 5)
-            .map((p) => `"${p.content.slice(0, 50)}..."`)
+        ? `${patterns.length} pattern(s) crystallized${topic ? ` for topic "${topic}"` : ""}${exactRecall ? " (verbatim visible recall, capped at 1000 chars each)" : ""}: ${visiblePatterns
+            .map((p) => formatPatternForRecall(p.content, exactRecall))
             .join("; ")}`
         : "No patterns crystallized yet.",
-    data: { patterns: patterns.slice(0, 10), count: patterns.length },
+    data: { patterns: patterns.slice(0, 10), count: patterns.length, exactRecall },
   };
 }
 
