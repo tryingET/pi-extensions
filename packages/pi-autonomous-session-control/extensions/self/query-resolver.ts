@@ -589,8 +589,8 @@ Boundary:
 - agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic.
 - owner docs, visible-loop, autoresearch, AK/evidence, KES, Prompt Vault, and ontology remain separate owner surfaces.
 
-Suggested diagnostic candidate: ${diagnosticCandidate.summary}.
-Suggested self-evolution candidate: friction=${evolutionCandidate.friction}; owner=${evolutionCandidate.owner}; metric=${evolutionCandidate.metric}; nextSafeTest=${evolutionCandidate.nextSafeTest}.
+Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}.
+Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
 
 No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, or external telemetry was created.`,
       data: {

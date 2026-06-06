@@ -57,6 +57,10 @@ test("self query: diagnostic review recognizes self-improvement friction without
   assert.equal(result.details.understood, true, "should understand diagnostic-review query");
   assert.equal(result.details.intent, "meta");
   assert.ok(result.content[0].text.includes("Diagnostic review"), "should return review text");
+  assert.ok(
+    result.content[0].text.includes("self.evolution_candidate.v1"),
+    "text response should expose typed evolution candidate kind for stateless probes",
+  );
   assert.ok(result.content[0].text.includes("No authority changed"), "should state boundary");
   assert.equal(
     result.details.data.diagnosticCandidate.kind,
