@@ -135,6 +135,12 @@ The intended path to fuller auto-research is staged.
 
 The ladder does not include hidden daemonized self-improvement, automatic whole-repo mutation, direct AK/KES/Oracle Postgres writes from the package runtime, package-local self-promotion, or treating generated DSPy output as external promotion authority.
 
+## Visible self-evolution relationship
+
+Self-evolution work should use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) for owner routing.
+`pi-autoresearch` owns the measured candidate/evaluator portion of that spine: bounded experiments, self-hosting evaluator locks, empirical interpretation, and closeout packets.
+It does not own ASC/self diagnostic candidates, `/visible-loop` execution, agent_vent recurrence memory, orchestrator evidence projection, or durable promotion authority.
+
 ## Stack-level horizon contribution
 
 Longer-horizon v5/v6 ideas such as cross-campaign portfolio intelligence or an institutional research intelligence substrate belong in stack/convergence architecture, not as package-owned autonomy. `pi-autoresearch` contributes by producing bounded, provenance-rich, Oracle-readable experiment evidence that those higher layers can consume while AK remains authority and DSPx Oracle remains empirical memory. Use `~/ai-society/holdingco/governance-kernel/docs/core/definitions/ai-society-stack-map.md` and `~/ai-society/softwareco/owned/agent-kernel/docs/project/ai-society-convergence-architecture.md` for stack-level placement.

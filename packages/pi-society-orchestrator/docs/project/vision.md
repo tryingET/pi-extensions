@@ -121,6 +121,12 @@ pi-society-orchestrator reports verified references; it does not make Oracle mem
 
 Avoid ambiguous wording like “the orchestrator used DSPy,” “DSPx output was accepted,” or “Oracle decided the winner” when the important fact is that generated DSPy planner output and Oracle analysis are lower-plane empirical artifacts validated or projected through explicit owner seams.
 
+## Visible self-evolution relationship
+
+Self-evolution campaigns should use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) for DRY owner routing.
+`pi-society-orchestrator` fits only above the seam: coordinate visible-loop or autoresearch artifacts, gate fan-in, and project verified evidence when exact owner context allows it.
+It must not become the self mirror, visible-loop launcher, empirical evaluator, vent store, or promotion authority.
+
 ## Non-goals
 
 `pi-society-orchestrator` must not become:

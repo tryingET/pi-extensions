@@ -9,9 +9,25 @@ system4d:
   fog: "Real user workflows may reshape priorities."
 ---
 
-# Vision
+# Vision — `pi-little-helpers`
 
-Deliver a dependable extension package that is easy to understand, validate, and evolve.
+## North star
+
+`pi-little-helpers` should make visible helper work easy to launch, inspect, and clean up while preserving controller verification.
+
+Short form:
+
+```text
+make helper work visible; keep authority with the controller
+```
+
+## Visible-loop role
+
+This package owns the operator-visible slash surfaces for peer and loop helpers, including `/visible-loop` and `/nexus-loop`.
+Those loops are execution harnesses, not evidence or promotion authority.
+For recursive-improvement work, use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) and the package [visible peer capability contract](./2026-05-05-visible-peer-capability-contract.md) instead of duplicating the owner map here.
+
+## Product boundaries
 
 Project purpose for this repository is scoped to extension delivery and maintenance.
 It aligns with, but is distinct from, organization purpose documented in [Organization operating model](../org/operating_model.md).

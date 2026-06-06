@@ -50,6 +50,11 @@ Current repo truth says the next high-value root concern is to finish the **redu
 - package/template outputs shrink toward smaller local override surfaces
 - root docs and AK need to represent that active wave explicitly
 
+## Visible self-evolution routing
+
+Root docs should keep recursive-improvement direction DRY by linking to [visible self-evolution spine](./visible-self-evolution-spine.md).
+That spine routes self-awareness and `/visible-loop` work across ASC/self, pi-little-helpers, pi-agent-vent, pi-autoresearch, and pi-society-orchestrator without making the monorepo root a runtime owner.
+
 ## Strategic selection rule
 
 When choosing the next major bets from this vision:

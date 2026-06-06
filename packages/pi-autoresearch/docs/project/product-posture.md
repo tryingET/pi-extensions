@@ -129,6 +129,8 @@ Stop adding packet families by default.
 
 The manifest-campaign follow-on above this package is now proven externally in `pi-society-orchestrator`; do not read that as permission to widen `pi-autoresearch` into a hidden unbounded daemon, AK lifecycle writer, or adapter platform. The package should own bounded supervised campaign mode, but execution depth must remain explicit through `runMode`, budgets, machine gates, and reviewable next tool calls.
 
+For visible self-evolution work, this package owns measured candidate/evaluator proof only. Use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) for the DRY owner map before using `/visible-loop` or a self-hosting campaign.
+
 Prioritize:
 
 1. harden the dogfooded `/autoresearch <objective>` + `autoresearch_campaign_start` front door around the issues real traversal exposed;

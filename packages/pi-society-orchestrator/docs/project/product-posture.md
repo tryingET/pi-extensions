@@ -120,6 +120,8 @@ The highest-leverage line is:
 managed candidate-wave fan-in -> measured matrix cell as managed wave -> implementation-wave dogfood substrate -> exact post-integration cleanup handoff
 ```
 
+For visible self-evolution work, orchestrator should coordinate only after the owning package seams are clear. Use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) instead of restating the owner map here.
+
 This order matters. Matrix campaigns multiply unmanaged parallelism unless one candidate wave already has explicit plan, launch, final-only measurement, missing-lane gates, aggregate review, and non-selected-lane stop/cancel guidance. Cleanup must remain after successful integration closeout and must consume exact registry sidecars rather than peer text or fuzzy tab names.
 
 ## Next product bets
