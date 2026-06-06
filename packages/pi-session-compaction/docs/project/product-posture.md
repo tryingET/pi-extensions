@@ -108,7 +108,13 @@ Ensure `/compact-handoff` and `session_compaction_handoff` preserve typed self-e
 
 When `/visible-loop` or `/nexus-loop` work is active, preserve visible-loop run id, iteration, prompt queue posture, checkpoint/completion state, child report-back posture, and exact non-authorizations.
 
-### Bet 3 — Drift checks against ASC/self
+### Bet 3 — Valuable session-output preservation
+
+Compaction and handoff summaries should distinguish ordinary transcript detail from strategic session-only insight that must survive reload: subagent findings, deep-review conclusions, many-of-the-greats lenses, operator corrections, falsifiers, metrics, owner routes, and non-authorizations.
+
+The summary should say whether those insights were promoted into an owner surface, still need promotion, or were intentionally deferred. It must not imply that JSONL or compaction text is durable authority by itself.
+
+### Bet 4 — Drift checks against ASC/self
 
 Keep ASC/self handoff convenience text and compaction-owned handoff prompt shape aligned through docs/tests, while preserving the boundary that compaction owns canonical summary shape.
 

@@ -94,6 +94,7 @@ self.evolution_candidate.v1 -> falsifier + metric + owner -> visible-loop or mea
 ```
 
 ASC should implement the candidate/mirror portion and route execution/evaluation through the owner map in [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md).
+That root spine also carries the DRY many-of-the-greats translation; ASC owns only the mirror, candidate, action-routing, and feedback parts of that model.
 
 ## Next product bets
 
@@ -101,14 +102,63 @@ ASC should implement the candidate/mirror portion and route execution/evaluation
 
 Add a stable `self.evolution_candidate.v1` diagnostic shape with friction, hypothesis, falsifier, metric, owner, autonomy level, next safe test, and non-authorizations.
 
+This is the first translation of the many-of-the-greats review: make self-improvement Popper-falsifiable, metric-bearing, owner-routed, and explicit about what ASC is not authorized to do.
+
 ### Bet 2 — Intent-collision hardening
 
 Diagnostic/self-evolution queries must not be hijacked by incidental action words such as `checkpoint`. Add regression coverage so dogfood/friction queries remain mirror-only unless the action directive is explicit.
 
-### Bet 3 — Outcome feedback
+### Bet 3 — PDCA/OODA trace for nontrivial recommendations
+
+Expose the compact trace behind self-improvement suggestions:
+
+```text
+observe -> orient -> decide -> act/defer -> check
+plan -> do -> check -> act/adopt/reject
+```
+
+The trace should name the evidence seen, owner/boundary rule applied, chosen next move, action level, and check signal without turning ASC into a visible-loop launcher, evaluator, or durable authority.
+
+### Bet 4 — Outcome feedback
 
 Add a small feedback path for self suggestions: helpful, stale, wrong-owner, unsafe, ignored. Keep it mirror/local unless deliberately recorded through `agent_vent` or another owner surface.
 
-### Bet 4 — Cross-package diagnostic contract parity
+### Bet 5 — Autonomy-level membrane
+
+Make the Brooks/subsumption layer explicit in self outputs:
+
+```text
+observe -> suggest -> prefill -> low-risk notify -> visible-loop -> bounded campaign -> durable owner mutation
+```
+
+ASC may observe, suggest, prefill, and send low-risk notifications. Visible loops, measured campaigns, durable writes, evidence, tasks, ontology, KES, and recurrence records stay with their owners.
+
+### Bet 6 — Specialist critic lenses
+
+Add lightweight internal critic fields for high-impact diagnostic recommendations:
+
+- owner-boundary critic;
+- evidence sufficiency critic;
+- operator-friction critic;
+- validation critic;
+- owner-routing critic.
+
+These are explanation lenses, not spawned peers by default. Escalate to `/scoutpeer`, `/visible-loop`, or `dispatch_subagent` only when the owner/risk/metric remains ambiguous and the operator or owning surface authorizes that path.
+
+### Bet 7 — Decision budget and reflection guard
+
+For nontrivial self-analysis, include expected cost, uncertainty, reversibility, and a good-enough stop condition. Detect repeated self-analysis without external validation and route to a concrete check, scout/deep review, or stop instead of continuing philosophical reflection.
+
+### Bet 8 — Insight promotion cue
+
+When self or a subagent produces valuable analysis that only exists in session history, ASC should surface that as a propagation risk:
+
+```text
+session-only insight -> owner surface? -> promoted | explicitly deferred | lost-risk
+```
+
+ASC should not write the owner docs itself unless the operator asked for that mutation and the owner surface is in scope. It should, however, make the missing promotion visible before a loop declares docs alignment complete.
+
+### Bet 9 — Cross-package diagnostic contract parity
 
 Keep ASC-generated `agent_vent action=preview` commands aligned with the live `agent_vent` schema and toolbox activation path without letting ASC write vent records internally.

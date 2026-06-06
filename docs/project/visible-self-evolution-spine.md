@@ -64,6 +64,41 @@ A useful self-evolution candidate should name:
 
 This keeps self-evolution Popper-falsifiable, Deming/PDCA-checkable, OODA-visible, and cybernetic: the loop has a feedback signal rather than vibes.
 
+## Many-of-the-greats translation
+
+The prior many-of-the-greats review should be carried as design pressure, not copied into every package file.
+Translate it through this DRY owner map:
+
+| Lens / component | Root translation | Primary owner |
+|---|---|---|
+| Cybernetics / control loops | Record observation, desired state, error signal, suggested action, feedback signal, and open/closed outcome for self-improvement candidates. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md), with durable recurrence only through [pi-agent-vent](../../packages/pi-agent-vent/docs/project/product-posture.md) |
+| Popper / falsifiability | Every self-improvement claim names a falsifier before implementation or durable follow-up. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md) |
+| Deming / PDCA | Candidate flow is plan -> low-risk try -> validation/live dogfood check -> adopt/reject/route learning. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md), [pi-autoresearch](../../packages/pi-autoresearch/docs/project/product-posture.md) for measured campaigns |
+| OODA / Boyd | Nontrivial self recommendations expose observed, oriented, decided, acted/deferred, and check signal. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md) |
+| Minsky / specialist critics | Use lightweight boundary, evidence, UX-friction, validation, and owner-routing critics before escalation; spawn peers only when ambiguity remains. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md), [pi-little-helpers](../../packages/pi-little-helpers/docs/project/vision.md) for visible peer surfaces |
+| Brooks / subsumption | Output autonomy level explicitly: observe, suggest, prefill, low-risk notify, visible-loop, bounded campaign, durable owner mutation. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md) |
+| Simon / bounded rationality | Recommendations include cost, uncertainty, reversibility, and a good-enough stop condition when nontrivial. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md) |
+| Hofstadter / reflection guard | Detect repeated self-analysis without external check and route to validation, scout/deep review, or stop. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md), [pi-little-helpers](../../packages/pi-little-helpers/docs/project/vision.md) for scout/visible execution |
+| Outcome feedback | Mark suggestions helped, ignored, stale, wrong-owner, or unsafe so future ranking can improve. | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/product-posture.md), with recurring pain retained by [pi-agent-vent](../../packages/pi-agent-vent/docs/project/product-posture.md) |
+
+Package vision and posture files should link here and keep only the local commitments they own.
+
+## Session-to-doc propagation gate
+
+Self-evolution work often starts as session-only analysis: subagent reports, deep-review findings, compaction summaries, or operator corrections.
+Before claiming a visible-loop-ready docs alignment, check whether any valuable session-only insight must be promoted into an owner surface.
+
+Use this rule:
+
+```text
+valuable session-only insight
+-> classify owner
+-> promote the durable portion into that owner's vision/product-posture/runbook/task surface
+-> leave raw session JSONL as historical capture only
+```
+
+A docs alignment is incomplete when it preserves the next implementation slice but loses the design rationale, falsifier, metric, owner map, or non-authorizations that make the slice safe to run in `/visible-loop`.
+
 ## Visible-loop role
 
 `/visible-loop` is the operator-visible execution harness for bounded implementation/review loops.
