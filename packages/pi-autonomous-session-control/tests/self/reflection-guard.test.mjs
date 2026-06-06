@@ -353,6 +353,12 @@ test("self query: diagnostic review fails closed on boolean or conflicting check
     noRegressions.details.data.evolutionCandidate.reflectionGuard.externalCheckStatus,
     "observed",
   );
+  assert.equal(
+    noRegressions.details.data.evolutionCandidate.reflectionGuard.externalCheckEvidence
+      .missingProvenance,
+    true,
+    "observed check signals without command/artifact provenance should stay visible in closeout cues",
+  );
   assert.equal(harness.sentUserMessages.length, 0, "reflection guard remains mirror-only");
 
   await cleanup(tempDir);
@@ -375,6 +381,8 @@ test("self query: diagnostic review resolves reflection guard only with concrete
         repeatedSelfAnalysis: "repeated",
         externalCheckStatus: "observed",
         externalValidation: "focused regression and package check passed",
+        validationCommand:
+          "node --test packages/pi-autonomous-session-control/tests/self/reflection-guard.test.mjs",
       },
     },
     null,
@@ -388,7 +396,20 @@ test("self query: diagnostic review resolves reflection guard only with concrete
   assert.equal(guard.requiresExternalCheck, false);
   assert.match(guard.nextAction, /state the concrete check signal/);
   assert.match(guard.boundary, /mirror-only reflection guard/);
+  assert.equal(
+    guard.externalCheckEvidence.positiveSignal,
+    "focused regression and package check passed",
+  );
+  assert.deepEqual(guard.externalCheckEvidence.provenance, [
+    "node --test packages/pi-autonomous-session-control/tests/self/reflection-guard.test.mjs",
+  ]);
+  assert.equal(guard.externalCheckEvidence.missingProvenance, false);
   assert.match(result.content[0].text, /externalCheckStatus=observed/);
+  assert.match(
+    result.content[0].text,
+    /positiveCheckSignal=focused regression and package check passed/,
+  );
+  assert.match(result.content[0].text, /provenanceCount=1/);
   assert.match(result.content[0].text, /requiresExternalCheck=false/);
   assert.equal(harness.sentUserMessages.length, 0, "resolved guard remains mirror-only");
 

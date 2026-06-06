@@ -25,6 +25,37 @@ const REPEATED_REFLECTION_PATTERN =
 const CHECK_SIGNAL_WORDS =
   "external check|external validation|focused regression|package check|live dogfood|scout review|deep review|concrete check|validation signal";
 
+const EXTERNAL_CHECK_STATUS_KEYS = [
+  "externalCheckStatus",
+  "validationStatus",
+  "checkStatus",
+  "reflectionCheckStatus",
+] as const;
+
+const EXTERNAL_CHECK_SIGNAL_KEYS = [
+  "externalCheck",
+  "externalValidation",
+  "validationSignal",
+  "checkSignal",
+  "scoutReview",
+  "deepReview",
+  "focusedRegression",
+  "liveDogfood",
+  "validationSignals",
+] as const;
+
+const EXTERNAL_CHECK_PROVENANCE_KEYS = [
+  "externalCheckCommand",
+  "validationCommand",
+  "checkCommand",
+  "externalCheckArtifact",
+  "validationArtifact",
+  "checkArtifact",
+  "externalCheckEvidence",
+  "validationEvidence",
+  "checkEvidence",
+] as const;
+
 const POSITIVE_CHECK_PATTERN = new RegExp(
   `\\b(${CHECK_SIGNAL_WORDS})\\b[^\\n]{0,80}\\b(passed|pass|succeeded|successful|success|ok|green)\\b|\\b(passed|pass|succeeded|successful|success|ok|green)\\b[^\\n]{0,80}\\b(${CHECK_SIGNAL_WORDS})\\b`,
   "u",
@@ -96,9 +127,27 @@ function normalizeExplicitExternalCheckStatus(value: unknown): ExternalCheckStat
   return undefined;
 }
 
+function collectTextEntries(context: Record<string, unknown>, keys: readonly string[]): string[] {
+  const text: string[] = [];
+  const add = (value: unknown): void => {
+    const normalized = normalizeString(value, { maxLength: TEXT_ENTRY_MAX_LENGTH });
+    if (normalized) text.push(normalized);
+  };
+
+  for (const key of keys) {
+    add(context[key]);
+    const entries = normalizeStringArray(context[key]);
+    if (entries) {
+      for (const entry of entries.slice(0, ARRAY_ENTRY_LIMIT)) add(entry);
+    }
+  }
+
+  return text.slice(0, ARRAY_ENTRY_LIMIT);
+}
+
 function collectExternalCheckStatuses(
   context: Record<string, unknown>,
-  keys: string[],
+  keys: readonly string[],
 ): ExternalCheckStatus[] {
   const statuses: ExternalCheckStatus[] = [];
   const addStatus = (value: unknown): void => {
@@ -118,32 +167,15 @@ function collectExternalCheckStatuses(
 }
 
 function normalizeExternalCheckStatus(context: Record<string, unknown>): ExternalCheckStatus {
-  const explicitStatusKeys = [
-    "externalCheckStatus",
-    "validationStatus",
-    "checkStatus",
-    "reflectionCheckStatus",
-  ];
-  const signalKeys = [
-    "externalCheck",
-    "externalValidation",
-    "validationSignal",
-    "checkSignal",
-    "scoutReview",
-    "deepReview",
-    "focusedRegression",
-    "liveDogfood",
-    "validationSignals",
-  ];
-  const explicitStatuses = collectExternalCheckStatuses(context, explicitStatusKeys);
-  const signalStatuses = collectExternalCheckStatuses(context, signalKeys).filter(
+  const explicitStatuses = collectExternalCheckStatuses(context, EXTERNAL_CHECK_STATUS_KEYS);
+  const signalStatuses = collectExternalCheckStatuses(context, EXTERNAL_CHECK_SIGNAL_KEYS).filter(
     (status) => status !== "observed",
   );
   const statuses = [...explicitStatuses, ...signalStatuses];
 
   const checkText = collectText({
     context,
-    keys: signalKeys,
+    keys: [...EXTERNAL_CHECK_SIGNAL_KEYS],
   });
   const checkTextTrimmed = checkText.trim();
   const exactTextStatus = normalizeExplicitExternalCheckStatus(checkTextTrimmed);
@@ -168,6 +200,27 @@ function normalizeExternalCheckStatus(context: Record<string, unknown>): Externa
   if (hasUnknown) return "unknown";
   if (hasObserved) return "observed";
   return "unknown";
+}
+
+function buildExternalCheckEvidence(
+  context: Record<string, unknown>,
+  status: ReflectionGuardStatus,
+): Record<string, unknown> {
+  const signalEntries = collectTextEntries(context, EXTERNAL_CHECK_SIGNAL_KEYS);
+  const positiveSignal = signalEntries.find((entry) =>
+    POSITIVE_CHECK_PATTERN.test(entry.toLowerCase()),
+  );
+  const provenance = collectTextEntries(context, EXTERNAL_CHECK_PROVENANCE_KEYS);
+  const missingProvenance = status === "external_check_observed" && provenance.length === 0;
+
+  return {
+    positiveSignal,
+    provenance,
+    missingProvenance,
+    closeoutInstruction: missingProvenance
+      ? "name the owner-appropriate check command/artifact in closeout; do not rely on reflective status alone"
+      : "cite the named positive check signal and any command/artifact provenance in closeout",
+  };
 }
 
 export function buildReflectionGuard(
@@ -217,6 +270,8 @@ export function buildReflectionGuard(
     }
   })();
 
+  const externalCheckEvidence = buildExternalCheckEvidence(context, status);
+
   return {
     kind: "self.reflection_guard.v1",
     status,
@@ -224,6 +279,7 @@ export function buildReflectionGuard(
     requiresExternalCheck,
     reason,
     nextAction,
+    externalCheckEvidence,
     boundary:
       "mirror-only reflection guard; ASC/self does not launch peers, visible loops, measured campaigns, or write durable owner surfaces",
     nonAuthorizations: [
