@@ -20,8 +20,8 @@ validation:
     command: "npm --prefix packages/pi-little-helpers run quality:pre-commit"
     status: pass
   full_gate:
-    command: "pending"
-    status: pending
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: pass
 group:
   index: 1
   total: 1
