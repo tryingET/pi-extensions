@@ -1,0 +1,1 @@
+Behavior-preserving ASC refactor: split diagnostic review candidate/result construction out of query-resolver into resolvers/diagnostic-review.ts after self-evolution work increased file pressure. Validation: focused node self tests 35/35 pass; npm --prefix packages/pi-autonomous-session-control run check 305/305 pass; git diff --check pass; npm run quality:pre-commit pass.
