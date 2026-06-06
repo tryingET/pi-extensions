@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "36e615fe1a9ba6852d1e214b2850d4317a383cc1"
+created_at: "2026-06-06T04:58:56Z"
+intent: "Codify root/package self-evolution posture and session-output promotion gate"
+files:
+  - "docs/project/product-posture.md"
+  - "docs/project/visible-self-evolution-spine.md"
+  - "packages/pi-autonomous-session-control/docs/project/product-posture.md"
+  - "packages/pi-session-compaction/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 3
+  rationale: "Docs/root and package posture before runtime candidate implementation"
