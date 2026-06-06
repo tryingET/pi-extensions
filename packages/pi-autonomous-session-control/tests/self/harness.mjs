@@ -116,6 +116,7 @@ export async function loadExtensionWithMocks() {
     "protection.ts",
     "action.ts",
     "evolution-feedback.ts",
+    "ontology-candidates.ts",
   ];
 
   for (const file of resolverFiles) {
