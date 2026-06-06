@@ -705,10 +705,12 @@ test("self query: action summary lists checkpoints and pending followups", async
   const result = await tool.execute("tc-summary", { query: "action summary" }, null, null, ctx);
 
   assert.ok(result.content[0].text.includes("Action summary"));
+  assert.ok(result.content[0].text.includes("totals, not per-query mutation delta"));
   assert.ok(result.content[0].text.includes("before level-4 dogfood"));
   assert.ok(result.content[0].text.includes("verify level-4 closeout"));
   assert.equal(result.details.data.checkpoints.length, 1);
   assert.equal(result.details.data.pendingFollowups.length, 1);
+  assert.equal(result.details.data.summaryScope, "totals_not_per_query_delta");
 
   await cleanup(tempDir);
 });

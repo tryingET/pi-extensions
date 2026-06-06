@@ -271,11 +271,12 @@ function handleListActionState(state: SelfState): SelfResponse {
   return {
     understood: true,
     intent: "action",
-    answer: `Action summary: checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}`,
+    answer: `Action summary (totals, not per-query mutation delta): checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}`,
     data: {
       checkpoints: [...state.checkpoints],
       followups: [...state.followups],
       pendingFollowups,
+      summaryScope: "totals_not_per_query_delta",
     },
   };
 }
