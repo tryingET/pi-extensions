@@ -44,6 +44,7 @@ import {
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
   AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
   AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR,
   AUTORESEARCH_COMMAND_NAME,
@@ -5919,6 +5920,136 @@ test("autoresearch_runtime_status can request closeout, setup, and finalize pack
   });
 });
 
+test("autoresearch_runtime_status plans and applies candidate inventory cleanup", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const tool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
+    assert.ok(tool);
+
+    appendReceipt(
+      cwd,
+      createConfigReceipt({
+        name: "cleanup-candidates",
+        metricName: "total_ms",
+        metricUnit: "ms",
+        direction: "lower",
+        createdAt: 1,
+      }),
+    );
+    appendReceipt(
+      cwd,
+      createRunReceipt({
+        status: "candidate",
+        metric: 90,
+        description: "stale candidate",
+        timestamp: 2,
+      }),
+    );
+    const matrixCellDir = path.join(cwd, ".autoresearch", "matrix-campaign", "cell-01-01");
+    mkdirSync(matrixCellDir, { recursive: true });
+    writeFileSync(
+      path.join(matrixCellDir, "candidate-01.candidate-result.json"),
+      JSON.stringify({ packetKind: "autoresearch.candidate_result.v1" }),
+    );
+    writeFileSync(path.join(cwd, ".autoresearch", "autoresearch-dashboard.html"), "<html />");
+
+    const plan = await tool?.execute(
+      "cleanup-plan",
+      { cwd, action: "candidate_inventory_cleanup_plan", archiveLabel: "cleanup-test" },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    assert.match(plan?.content[0]?.text ?? "", /CANDIDATE INVENTORY CLEANUP/);
+    assert.match(plan?.content[0]?.text ?? "", /Would archive paths/);
+    const planDetails = plan?.details as {
+      before?: { candidateRunCount?: number };
+      archivedPaths?: string[];
+      skippedMissingPaths?: string[];
+    };
+    assert.equal(planDetails.before?.candidateRunCount, 1);
+    assert.deepEqual(planDetails.archivedPaths?.sort(), [
+      ".autoresearch/autoresearch-dashboard.html",
+      ".autoresearch/matrix-campaign",
+      "autoresearch.jsonl",
+    ]);
+    assert.ok(planDetails.skippedMissingPaths?.includes(".autoresearch/campaigns"));
+
+    await assert.rejects(
+      () =>
+        tool?.execute(
+          "cleanup-apply-blocked",
+          { cwd, action: "candidate_inventory_cleanup_apply", archiveLabel: "cleanup-test" },
+          undefined,
+          undefined,
+          { cwd },
+        ),
+      /requires operatorConfirmation/,
+    );
+    await assert.rejects(
+      () =>
+        tool?.execute(
+          "cleanup-plan-unsafe-label",
+          { cwd, action: "candidate_inventory_cleanup_plan", archiveLabel: "../escape" },
+          undefined,
+          undefined,
+          { cwd },
+        ),
+      /archiveLabel must be a safe local slug/,
+    );
+
+    const applied = await tool?.execute(
+      "cleanup-apply",
+      {
+        cwd,
+        action: "candidate_inventory_cleanup_apply",
+        archiveLabel: "cleanup-test",
+        operatorConfirmation: AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    const details = applied?.details as {
+      mode?: string;
+      before?: { candidateRunCount?: number; openCandidateReviewCellCount?: number };
+      after?: { candidateRunCount?: number; openCandidateReviewCellCount?: number };
+    };
+    assert.equal(details.mode, "applied");
+    assert.equal(details.before?.candidateRunCount, 1);
+    assert.equal(details.before?.openCandidateReviewCellCount, 1);
+    assert.equal(details.after?.candidateRunCount, 0);
+    assert.equal(details.after?.openCandidateReviewCellCount, 0);
+    assert.equal(existsSync(path.join(cwd, "autoresearch.jsonl")), false);
+    assert.equal(
+      existsSync(
+        path.join(cwd, ".autoresearch", "closed-candidates", "cleanup-test", "autoresearch.jsonl"),
+      ),
+      true,
+    );
+    assert.equal(
+      discoverAutoresearchMatrixCampaignArtifacts(cwd).openCandidateReview.openCellCount,
+      0,
+    );
+    await assert.rejects(
+      () =>
+        tool?.execute(
+          "cleanup-apply-collision",
+          {
+            cwd,
+            action: "candidate_inventory_cleanup_apply",
+            archiveLabel: "cleanup-test",
+            operatorConfirmation: AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
+          },
+          undefined,
+          undefined,
+          { cwd },
+        ),
+      /archive already exists/,
+    );
+  });
+});
+
 test("autoresearch_runtime_status read profile rejects local packet export writes", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness({ effectProfile: "read" });
@@ -5944,6 +6075,23 @@ test("autoresearch_runtime_status read profile rejects local packet export write
           tool.execute(
             "read-learning-export",
             { cwd, action: "learning_export" },
+            undefined,
+            undefined,
+            { cwd },
+          ),
+        ),
+      /read profile/u,
+    );
+    await assert.rejects(
+      () =>
+        Promise.resolve(
+          tool.execute(
+            "read-cleanup-apply",
+            {
+              cwd,
+              action: "candidate_inventory_cleanup_apply",
+              operatorConfirmation: AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
+            },
             undefined,
             undefined,
             { cwd },

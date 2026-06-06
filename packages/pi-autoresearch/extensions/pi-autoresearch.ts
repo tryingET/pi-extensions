@@ -38,6 +38,7 @@ import {
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
   AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -48,11 +49,13 @@ import {
   AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
   type AutoresearchLoopProgressEvent,
+  applyAutoresearchCandidateInventoryCleanup,
   buildAutoresearchAdapterContractCatalog,
   buildAutoresearchAkEvidencePacket,
   buildAutoresearchAutoplan,
   buildAutoresearchCandidateBindPlan,
   buildAutoresearchCandidateDecisionWorkbench,
+  buildAutoresearchCandidateInventoryCleanupPlan,
   buildAutoresearchCandidateResultPacket,
   buildAutoresearchKnowledgeExportPacket,
   buildAutoresearchOracleEvidencePacket,
@@ -76,6 +79,7 @@ import {
   formatAutoresearchCampaignStartResult,
   formatAutoresearchCandidateBindPlan,
   formatAutoresearchCandidateDecisionWorkbench,
+  formatAutoresearchCandidateInventoryCleanupPlan,
   formatAutoresearchCandidateResultExportResult,
   formatAutoresearchCandidateResultPacket,
   formatAutoresearchControlResult,
@@ -334,6 +338,8 @@ const statusActionSchema = Type.Union(
     Type.Literal("learning_export"),
     Type.Literal("candidate_result"),
     Type.Literal("candidate_result_export"),
+    Type.Literal("candidate_inventory_cleanup_plan"),
+    Type.Literal("candidate_inventory_cleanup_apply"),
     Type.Literal("resume_plan"),
     Type.Literal("resume_apply_plan"),
     Type.Literal("campaign_goal"),
@@ -359,6 +365,17 @@ const statusSchema = Type.Object({
     Type.Boolean({
       description:
         "Required as true for action=oracle_evidence_export, action=learning_export, or action=candidate_result_export when the target JSON file already exists.",
+    }),
+  ),
+  archiveLabel: Type.Optional(
+    Type.String({
+      description:
+        "Optional archive label for candidate_inventory_cleanup_plan/apply. Defaults to a timestamp under cwd/.autoresearch/closed-candidates/.",
+    }),
+  ),
+  operatorConfirmation: Type.Optional(
+    Type.String({
+      description: `Required for candidate_inventory_cleanup_apply; must equal ${AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION}.`,
     }),
   ),
   optimizationObjective: Type.Optional(
@@ -1652,6 +1669,8 @@ export function registerPiAutoresearchExtension(
           | "learning_export"
           | "candidate_result"
           | "candidate_result_export"
+          | "candidate_inventory_cleanup_plan"
+          | "candidate_inventory_cleanup_apply"
           | "resume_plan"
           | "resume_apply_plan"
           | "campaign_goal"
@@ -1660,6 +1679,8 @@ export function registerPiAutoresearchExtension(
         cwd?: string;
         outPath?: string;
         overwrite?: boolean;
+        archiveLabel?: string;
+        operatorConfirmation?: string;
         packet?: unknown;
         optimizationObjective?: string;
         repoContext?: string[];
@@ -1694,6 +1715,7 @@ export function registerPiAutoresearchExtension(
           "oracle_evidence",
           "learning",
           "candidate_result",
+          "candidate_inventory_cleanup_plan",
           "resume_plan",
           "resume_apply_plan",
           "campaign_goal",
@@ -1848,6 +1870,33 @@ export function registerPiAutoresearchExtension(
         });
         return {
           content: [{ type: "text", text: formatAutoresearchCandidateResultExportResult(result) }],
+          details: result,
+        };
+      }
+
+      if (action === "candidate_inventory_cleanup_plan") {
+        const result = buildAutoresearchCandidateInventoryCleanupPlan({
+          cwd,
+          archiveLabel: request.archiveLabel,
+        });
+        return {
+          content: [
+            { type: "text", text: formatAutoresearchCandidateInventoryCleanupPlan(result) },
+          ],
+          details: result,
+        };
+      }
+
+      if (action === "candidate_inventory_cleanup_apply") {
+        const result = applyAutoresearchCandidateInventoryCleanup({
+          cwd,
+          archiveLabel: request.archiveLabel,
+          operatorConfirmation: request.operatorConfirmation,
+        });
+        return {
+          content: [
+            { type: "text", text: formatAutoresearchCandidateInventoryCleanupPlan(result) },
+          ],
           details: result,
         };
       }
