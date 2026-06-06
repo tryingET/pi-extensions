@@ -82,6 +82,9 @@ export function mapActionIntent(lower: string): string {
   ) {
     return "list_action_state";
   }
+  if (isDirectUserMessageQuery(lower)) {
+    return "send_user_message";
+  }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
   if (
     lower.includes("prefill diagnostic record") ||
@@ -102,9 +105,6 @@ export function mapActionIntent(lower: string): string {
     lower.includes("send diagnostic follow-up")
   ) {
     return "continue_diagnostic_review";
-  }
-  if (isDirectUserMessageQuery(lower)) {
-    return "send_user_message";
   }
   if (
     lower.includes("continue suggested next move") ||

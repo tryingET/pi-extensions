@@ -239,6 +239,44 @@ test("self query: direct operator notification sends user message", async () => 
   await cleanup(tempDir);
 });
 
+test("self query: explicit operator notification wins over diagnostic and checkpoint words", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-notify-operator-diagnostic-words",
+    { query: "notify operator: self-evolution checkpoint collision dogfood is live" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("User-message dispatch sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.equal(
+    harness.sentUserMessages[0].text,
+    "self-evolution checkpoint collision dogfood is live",
+  );
+  assert.equal(result.details.intent, "action");
+  assert.equal(result.details.data.sendUserMessage, true);
+
+  const actionSummary = await tool.execute(
+    "tc-notify-operator-diagnostic-words-summary",
+    { query: "action summary" },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(actionSummary.details.data.checkpoints.length, 0);
+
+  await cleanup(tempDir);
+});
+
 test("self query: legacy send user message alias still continues suggested next move", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

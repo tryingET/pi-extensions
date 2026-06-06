@@ -120,8 +120,21 @@ function isDiagnosticReviewQuery(lower: string): boolean {
   return DIAGNOSTIC_REVIEW_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
+function isExplicitUserMessageActionQuery(lower: string): boolean {
+  return (
+    lower.includes("notify operator") ||
+    lower.includes("notify user") ||
+    lower.includes("message operator") ||
+    lower.includes("send operator message") ||
+    /send\s+user\s*message\s*:/u.test(lower) ||
+    /sendusermessage\s*:/u.test(lower) ||
+    lower.trim() === "sendusermessage"
+  );
+}
+
 function isExplicitDiagnosticActionQuery(lower: string): boolean {
   return (
+    isExplicitUserMessageActionQuery(lower) ||
     lower.includes("continue diagnostic review") ||
     lower.includes("continue self diagnostic") ||
     lower.includes("send diagnostic review") ||
