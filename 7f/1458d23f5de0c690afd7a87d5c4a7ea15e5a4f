@@ -1,0 +1,1 @@
+Clarified ASC action summary as totals, not per-query mutation delta, after stateless dogfood friction. Validation: focused action/unknown node tests 31/31 pass; npm --prefix packages/pi-autonomous-session-control run check 305/305 pass; docs-list strict pass; git diff --check pass; npm run quality:pre-commit pass.
