@@ -75,6 +75,19 @@ test("self query: diagnostic review recognizes self-improvement friction without
   assert.ok(result.details.data.evolutionCandidate.falsifier, "should name falsifier");
   assert.ok(result.details.data.evolutionCandidate.metric, "should name metric");
   assert.ok(result.details.data.evolutionCandidate.nextSafeTest, "should name next safe test");
+  assert.equal(
+    result.details.data.evolutionCandidate.insightPromotionCue.kind,
+    "self.insight_promotion_cue.v1",
+  );
+  assert.equal(
+    result.details.data.evolutionCandidate.insightPromotionCue.status,
+    "session_only_unpromoted",
+  );
+  assert.equal(
+    result.details.data.evolutionCandidate.insightPromotionCue.requiredBeforeCompletion,
+    true,
+  );
+  assert.match(result.content[0].text, /Insight promotion cue/);
   assert.deepEqual(
     result.details.data.evolutionCandidate.nonAuthorizations.includes(
       "no action-state mutation from diagnostic/self-evolution queries",
@@ -298,6 +311,60 @@ test("self query: diagnostic review uses provided context for candidate payload"
     /self failed to use sendUserMessage/,
   );
   assert.match(result.details.data.diagnosticCandidate.copyableCommands[2], /action: "record"/);
+
+  await cleanup(tempDir);
+});
+
+test("self query: diagnostic review surfaces explicit insight promotion status without owner writes", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-diagnostic-review-promotion-cue",
+    {
+      query: "dogfood self: promote session-only insight cue",
+      context: {
+        summary: "subagent review found a durable routing rationale",
+        sourceArtifact: "subagent deep-review summary",
+        promotionStatus: "explicitly_deferred",
+        promotionTarget: "packages/pi-autonomous-session-control/docs/project/product-posture.md",
+        promotionDeferReason: "owner doc will be updated after focused regression",
+        owner: "pi-autonomous-session-control",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const cue = result.details.data.evolutionCandidate.insightPromotionCue;
+  assert.equal(cue.kind, "self.insight_promotion_cue.v1");
+  assert.equal(cue.sourceArtifact, "subagent deep-review summary");
+  assert.equal(cue.status, "explicitly_deferred");
+  assert.equal(
+    cue.target,
+    "packages/pi-autonomous-session-control/docs/project/product-posture.md",
+  );
+  assert.equal(cue.requiredBeforeCompletion, false);
+  assert.match(cue.nextAction, /owner doc will be updated after focused regression/);
+  assert.match(cue.boundary, /mirror-only promotion cue/);
+  assert.match(result.content[0].text, /requiredBeforeCompletion=false/);
+  assert.match(result.content[0].text, /No authority changed/);
+  assert.equal(harness.sentUserMessages.length, 0, "should not send hidden messages");
+
+  const actionSummary = await tool.execute(
+    "tc-diagnostic-review-promotion-cue-action-summary",
+    { query: "action summary" },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(actionSummary.details.data.checkpoints.length, 0);
 
   await cleanup(tempDir);
 });

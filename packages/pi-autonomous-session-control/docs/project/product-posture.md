@@ -47,8 +47,8 @@ see the session; route the next move; keep authority elsewhere
 ## Current product maturity
 
 - maturity: `internal alpha / execution-seam and typed self-evolution mirror proven`
-- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, execution-runtime parity, cross-package diagnostic-contract parity, and owner-boundary preservation
-- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content, and focused regression coverage for ASC-generated `agent_vent action=preview` prefills using the live `packageName` facet with JSON-quoted caller-controlled values
+- current strategic line: self diagnostic clarity, typed self-evolution candidates, session-local outcome feedback, guarded low-risk notifications, continuation/handoff quality, classifier-priority hardening, insight-promotion cues, execution-runtime parity, cross-package diagnostic-contract parity, and owner-boundary preservation
+- release posture: package checks pass; live behavior has dogfooded direct `self -> pi.sendUserMessage` notification after reload, stateless `pi -p` diagnostic probe text visibility, explicit user-message routing with `self-evolution`/`checkpoint` words in the payload, explicit `Remember:` / `Mark as trap:` directives winning over diagnostic/self-evolution keywords in their content, focused regression coverage for ASC-generated `agent_vent action=preview` prefills using the live `packageName` facet with JSON-quoted caller-controlled values, and focused regression coverage for mirror-only `self.insight_promotion_cue.v1` output
 
 ## Current landed capability baseline
 
@@ -56,7 +56,7 @@ ASC currently owns:
 
 - `self` as a mirror for touched files, commands, errors, loop/stall cues, context-pressure heuristics, file-budget advisories, handoff summaries, and action-state summaries;
 - bounded memory for crystallized patterns, semantic-pressure candidates, traps, checkpoints, and followups;
-- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1` and `self.evolution_candidate.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
+- diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1`, `self.evolution_candidate.v1`, and mirror-only `self.insight_promotion_cue.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
 - exact/verbatim visible recall for crystallized patterns when stateless dogfood needs to verify full remembered content from text rather than hidden structured details;
 - guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, and operator-reviewed `agent_vent action=preview` prefills that use the live `packageName` tool facet and JSON-quote caller-controlled fields, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
@@ -158,15 +158,17 @@ For nontrivial self-analysis, include expected cost, uncertainty, reversibility,
 
 The decision-budget fields are now present on `self.evolution_candidate.v1`; repeated-reflection detection remains a future slice.
 
-### Bet 8 — Insight promotion cue — partial first slice landed
+### Bet 8 — Insight promotion cue — landed first slice
 
-When self or a subagent produces valuable analysis that only exists in session history, ASC should surface that as a propagation risk:
+When self or a subagent produces valuable analysis that only exists in session history, ASC now surfaces that as a propagation risk through `self.insight_promotion_cue.v1` inside diagnostic/self-evolution responses:
 
 ```text
 session-only insight -> owner surface? -> promoted | explicitly deferred | lost-risk
 ```
 
-ASC should not write the owner docs itself unless the operator asked for that mutation and the owner surface is in scope. It should, however, make the missing promotion visible before a loop declares docs alignment complete.
+The cue names source artifact, status, owner/target, required-before-completion, risk, next action, and non-authorizations. It defaults to `session_only_unpromoted` so loop closeout must promote the durable portion or explicitly defer it with owner/reason before claiming product-posture alignment. Explicit `promoted` or `explicitly_deferred` context is reflected in the cue but remains mirror-only.
+
+ASC still does not write owner docs itself unless the operator asked for that mutation and the owner surface is in scope. It only makes the missing promotion visible before a loop declares docs alignment complete.
 
 ### Bet 9 — Cross-package diagnostic contract parity — landed first slice
 

@@ -144,6 +144,60 @@ function buildDiagnosticCandidate(
   };
 }
 
+function buildInsightPromotionCue(
+  context: Record<string, unknown>,
+  owner: string,
+): Record<string, unknown> {
+  const sourceArtifact =
+    normalizeString(context.sourceArtifact) ||
+    normalizeString(context.source) ||
+    normalizeString(context.sessionArtifact) ||
+    "current Pi session mirror";
+  const promotionOwner =
+    normalizeString(context.promotionOwner) || normalizeString(context.sourceOwner) || owner;
+  const promotionTarget =
+    normalizeString(context.promotionTarget) || `${promotionOwner} owner surface`;
+  const status =
+    normalizeString(context.promotionStatus) ||
+    normalizeString(context.insightPromotionStatus) ||
+    "session_only_unpromoted";
+  const statusLower = status.toLowerCase();
+  const explicitlyResolved = statusLower === "promoted" || statusLower === "explicitly_deferred";
+  const requiredBeforeCompletion =
+    context.promotionRequiredBeforeCompletion === false ? false : !explicitlyResolved;
+  const deferReason =
+    normalizeString(context.promotionDeferReason) || normalizeString(context.deferReason);
+
+  const risk = statusLower.includes("promot")
+    ? "low if the named owner surface really contains the durable summary"
+    : statusLower.includes("defer")
+      ? "accepted only if the defer reason and owner are explicit in closeout"
+      : "lost rationale risk: session-only analysis can disappear before the owner surface sees it";
+  const nextAction = statusLower.includes("promot")
+    ? "verify the named owner surface before claiming completion"
+    : statusLower.includes("defer")
+      ? `state the defer reason and owner before completion${deferReason ? ` (${deferReason})` : ""}`
+      : "promote the durable portion to the owning surface or explicitly defer with owner and reason before completion";
+
+  return {
+    kind: "self.insight_promotion_cue.v1",
+    sourceArtifact,
+    status,
+    owner: promotionOwner,
+    target: promotionTarget,
+    requiredBeforeCompletion,
+    risk,
+    nextAction,
+    boundary:
+      "mirror-only promotion cue; ASC/self does not write owner docs, AK/evidence, KES, ontology, Prompt Vault, agent_vent, visible-loop, issues, incidents, or telemetry",
+    nonAuthorizations: [
+      "no owner-surface write from insight promotion cue",
+      "no claim that session JSONL, subagent output, or compaction text is durable promotion by itself",
+      "no AK/evidence/KES/ontology/Prompt Vault/agent_vent/visible-loop mutation from this cue",
+    ],
+  };
+}
+
 function buildEvolutionCandidate(
   query: SelfQuery | undefined,
   diagnosticCandidate: Record<string, unknown>,
@@ -168,8 +222,9 @@ function buildEvolutionCandidate(
     normalizeString(context.nextSafeTest) ||
     "add or run a focused regression that proves the diagnostic query remains mirror-only, then run the package check";
   const autonomyLevel = normalizeString(context.autonomyLevel) || "suggest";
-  const sourceArtifact = normalizeString(context.sourceArtifact) || normalizeString(context.source);
-  const promotionStatus = normalizeString(context.promotionStatus) || "candidate_only_not_promoted";
+  const insightPromotionCue = buildInsightPromotionCue(context, owner);
+  const sourceArtifact = String(insightPromotionCue.sourceArtifact ?? "current Pi session mirror");
+  const promotionStatus = String(insightPromotionCue.status ?? "session_only_unpromoted");
 
   return {
     kind: "self.evolution_candidate.v1",
@@ -191,6 +246,7 @@ function buildEvolutionCandidate(
     ],
     sourceArtifact,
     promotionStatus,
+    insightPromotionCue,
     trace: {
       observe: friction,
       orient: `owner=${owner}; autonomyLevel=${autonomyLevel}; metric=${metric}`,
@@ -266,8 +322,9 @@ ${ownerBoundaryLine}
 
 Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}; ownerSurface=${String(diagnosticCandidate.suggestedOwnerSurface)}; agentVentSuggestionAllowed=${String(diagnosticCandidate.agentVentSuggestionAllowed)}.
 Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
+Insight promotion cue (${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.kind)}): source=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.sourceArtifact)}; status=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.status)}; target=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.target)}; requiredBeforeCompletion=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.requiredBeforeCompletion)}.
 
-No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, or external telemetry was created.`,
+No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, owner-surface promotion, or external telemetry was created.`,
     data: {
       diagnosticCandidate,
       evolutionCandidate,
