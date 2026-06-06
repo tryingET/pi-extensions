@@ -1,6 +1,9 @@
 .pi-subagent-sessions/
 .pi-subagent-sessions.self-memory.json
 
+# Local Obsidian workspace settings
+.obsidian/
+
 # Local pi-autoresearch runtime artifacts (regenerated; not source truth)
 /.autoresearch/
 /autoresearch.events.jsonl
