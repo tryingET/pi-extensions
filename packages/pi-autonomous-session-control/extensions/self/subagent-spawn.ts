@@ -1,405 +1,33 @@
 import type { ChildProcessByStdio } from "node:child_process";
 import { spawn } from "node:child_process";
-import { join } from "node:path";
 import type { Readable } from "node:stream";
-import { fileURLToPath } from "node:url";
-import type { InvariantIssue } from "./edge-contract-kernel.ts";
+import type { SubagentState } from "./subagent-session.ts";
+import { createSubagentProtocolArgs } from "./subagent-spawn-args.ts";
+import { assertSafeSubagentRequestEnv } from "./subagent-spawn-env.ts";
 import {
-  getProcessStartTicks,
-  type SubagentState,
-  writeSessionStatus,
-} from "./subagent-session.ts";
+  consumeSubagentEventLine,
+  createExecutionState,
+  formatTimeoutDuration,
+  getAssistantProtocolFallbackOutput,
+  getSemanticExitCode,
+  getSemanticStatus,
+} from "./subagent-spawn-events.ts";
+import {
+  writeCompletedSubagentStatus,
+  writeRunningSubagentStatus,
+} from "./subagent-spawn-status.ts";
+import type { AssistantStopReason, SubagentDef, SubagentResult } from "./subagent-spawn-types.ts";
+import { appendBoundedString, readNonNegativeIntEnv } from "./subagent-spawn-utils.ts";
 
-export interface SubagentDef {
-  name: string;
-  objective: string;
-  tools: string;
-  systemPrompt?: string;
-  profile?: string;
-  sessionFile: string | null;
-  timeout?: number; // milliseconds, 0 = no timeout
-  env?: Record<string, string>;
-  noSkills?: boolean;
-  skillSources?: string[];
-  executionSlotReserved?: boolean;
-  parentSessionKey?: string;
-  parentRepoRoot?: string;
-  extensionSources?: string[];
-}
-
-export const ASSISTANT_STOP_REASONS = ["stop", "length", "toolUse", "error", "aborted"] as const;
-
-export type AssistantStopReason = (typeof ASSISTANT_STOP_REASONS)[number];
-export type SubagentStatus = "done" | "error" | "timeout" | "aborted";
-
-export interface TransportExecutionState {
-  kind: "transport";
-  exitCode: number;
-  aborted: boolean;
-  timedOut: boolean;
-  rawChildPid?: number;
-}
-
-export interface AssistantProtocolExecutionState {
-  kind: "assistant_protocol";
-  stopReason: AssistantStopReason;
-  errorMessage?: string;
-}
-
-export interface AssistantProtocolParseErrorState {
-  kind: "assistant_protocol_parse_error";
-  errorMessage: string;
-}
-
-export type ProtocolExecutionState =
-  | AssistantProtocolExecutionState
-  | AssistantProtocolParseErrorState;
-
-export interface ExecutionState {
-  transport: TransportExecutionState;
-  protocol?: ProtocolExecutionState;
-}
-
-export interface SubagentResult {
-  output: string;
-  exitCode: number;
-  elapsed: number;
-  status: SubagentStatus;
-  stderr?: string;
-  outputTruncated?: boolean;
-  timedOut?: boolean;
-  aborted?: boolean;
-  assistantStopReason?: AssistantStopReason;
-  assistantErrorMessage?: string;
-  executionState?: ExecutionState;
-}
-
-export type SubagentSpawner = (
-  def: SubagentDef,
-  model: string,
-  ctx: { cwd: string },
-  state: SubagentState,
-  signal?: AbortSignal,
-) => Promise<SubagentResult>;
+export * from "./subagent-spawn-env.ts";
+export * from "./subagent-spawn-types.ts";
 
 const DEFAULT_SUBAGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_SUBAGENT_OUTPUT_CHARS = 64_000;
 const DEFAULT_SUBAGENT_EVENT_BUFFER_BYTES = 256 * 1024;
-const DEFAULT_STATUS_RESULT_PREVIEW_CHARS = 280;
 const SUBAGENT_CLOSE_GRACE_MS = 250;
 const SUBAGENT_STOP_REQUESTED_CLOSE_GRACE_MS = 25;
 const SUBAGENT_FORCE_KILL_GRACE_MS = 500;
-const ASSISTANT_ERROR_EXIT_CODE = 1;
-const ASSISTANT_ABORT_EXIT_CODE = 130;
-const SUBAGENT_REQUEST_ENV_ALLOWED_PATTERN = /^PI_PROVENANCE_[A-Z0-9_]+$/u;
-const SUBAGENT_REQUEST_ENV_POLICY_SUMMARY =
-  "DispatchSubagentRequest.env only allows PI_PROVENANCE_* keys; control-plane environment such as PATH, NODE_OPTIONS, and PI_CODING_AGENT_DIR is inherited from the parent runtime and cannot be overridden by request env.";
-const SUBAGENT_PROTOCOL_HELPER_PATH = fileURLToPath(
-  new URL("./subagent-pi-json-filter.ts", import.meta.url),
-);
-
-export interface SubagentEnvPolicyIssue extends InvariantIssue {
-  key: string;
-}
-
-export interface SubagentEnvPolicyResult {
-  ok: boolean;
-  env?: Record<string, string>;
-  issues: SubagentEnvPolicyIssue[];
-}
-
-export class SubagentEnvPolicyError extends Error {
-  readonly issues: SubagentEnvPolicyIssue[];
-
-  constructor(issues: SubagentEnvPolicyIssue[]) {
-    super(formatSubagentEnvPolicyIssues(issues));
-    this.name = "SubagentEnvPolicyError";
-    this.issues = issues;
-  }
-}
-
-export function validateSubagentRequestEnv(
-  env: Record<string, string> | undefined,
-): SubagentEnvPolicyResult {
-  if (!env) {
-    return { ok: true, issues: [] };
-  }
-
-  const issues: SubagentEnvPolicyIssue[] = [];
-  const safeEnv: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(env)) {
-    if (!SUBAGENT_REQUEST_ENV_ALLOWED_PATTERN.test(key)) {
-      issues.push({
-        id: "dispatch.env.key_not_allowed",
-        key,
-        message: `${SUBAGENT_REQUEST_ENV_POLICY_SUMMARY} Rejected request env key: ${key}.`,
-        level: "error",
-      });
-      continue;
-    }
-
-    safeEnv[key] = value;
-  }
-
-  if (issues.length > 0) {
-    return { ok: false, issues };
-  }
-
-  return {
-    ok: true,
-    env: Object.keys(safeEnv).length > 0 ? safeEnv : undefined,
-    issues: [],
-  };
-}
-
-export function formatSubagentEnvPolicyIssues(issues: SubagentEnvPolicyIssue[]): string {
-  return `Invalid dispatch_subagent env: ${issues.map((issue) => `${issue.id} (${issue.message})`).join("; ")}`;
-}
-
-export function assertSafeSubagentRequestEnv(
-  env: Record<string, string> | undefined,
-): Record<string, string> | undefined {
-  const result = validateSubagentRequestEnv(env);
-  if (!result.ok) {
-    throw new SubagentEnvPolicyError(result.issues);
-  }
-  return result.env;
-}
-
-function isAssistantStopReason(value: unknown): value is AssistantStopReason {
-  return (
-    typeof value === "string" && ASSISTANT_STOP_REASONS.some((candidate) => candidate === value)
-  );
-}
-
-function toStatusResultPreview(value: string | undefined): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length === 0) {
-    return undefined;
-  }
-
-  return normalized.length > DEFAULT_STATUS_RESULT_PREVIEW_CHARS
-    ? `${normalized.slice(0, DEFAULT_STATUS_RESULT_PREVIEW_CHARS - 1)}…`
-    : normalized;
-}
-
-function formatTimeoutDuration(timeoutMs: number): string {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return "0ms";
-  }
-
-  if (timeoutMs < 1000) {
-    return `${Math.max(1, Math.round(timeoutMs))}ms`;
-  }
-
-  if (timeoutMs % 1000 === 0) {
-    return `${timeoutMs / 1000}s`;
-  }
-
-  return `${(timeoutMs / 1000).toFixed(1).replace(/\.0$/, "")}s`;
-}
-
-function consumeSubagentEventLine(params: {
-  line: string;
-  appendTextDelta: (value: string) => void;
-  setFinalAssistantText: (value: string) => void;
-  markAssistantOutputTruncated: () => void;
-  setFinalAssistantState: (state: {
-    stopReason?: AssistantStopReason;
-    errorMessage?: string;
-  }) => void;
-  markTransportReady: (rawChildPid?: number) => void;
-}): { parseError?: string; protocolError?: string; stdoutNoiseLine?: string } {
-  const trimmed = params.line.trim();
-  if (!trimmed) {
-    return {};
-  }
-
-  if (!trimmed.startsWith("{")) {
-    return {
-      parseError: `Non-JSON stdout while parsing the subagent protocol: ${trimmed.slice(0, 200)}`,
-    };
-  }
-
-  try {
-    const event = JSON.parse(trimmed);
-
-    if (event.type === "transport_ready") {
-      params.markTransportReady(
-        typeof event.rawChildPid === "number" && event.rawChildPid > 0
-          ? event.rawChildPid
-          : undefined,
-      );
-      return {};
-    }
-
-    if (event.type === "assistant_text_delta") {
-      params.markTransportReady();
-      params.appendTextDelta(typeof event.delta === "string" ? event.delta : "");
-      return {};
-    }
-
-    if (event.type === "assistant_message_end") {
-      params.markTransportReady();
-      const rawStopReason = event.stopReason;
-      const stopReason =
-        rawStopReason === undefined
-          ? undefined
-          : isAssistantStopReason(rawStopReason)
-            ? rawStopReason
-            : null;
-
-      if (typeof event.text === "string" && event.text.length > 0) {
-        params.setFinalAssistantText(event.text);
-      }
-      if (event.textTruncated === true) {
-        params.markAssistantOutputTruncated();
-      }
-
-      if (stopReason === null) {
-        return {
-          parseError: `Unknown assistant stop reason from subagent protocol: ${String(rawStopReason)}`,
-        };
-      }
-
-      params.setFinalAssistantState({
-        stopReason,
-        errorMessage: typeof event.errorMessage === "string" ? event.errorMessage : undefined,
-      });
-      return {};
-    }
-
-    if (event.type === "stdout_noise") {
-      params.markTransportReady();
-      return { stdoutNoiseLine: typeof event.line === "string" ? event.line : "" };
-    }
-
-    if (event.type === "protocol_error") {
-      params.markTransportReady();
-      return {
-        protocolError:
-          typeof event.errorMessage === "string"
-            ? event.errorMessage
-            : "Subagent protocol reported an unspecified error.",
-      };
-    }
-
-    return {
-      parseError: `Unexpected subagent protocol event type: ${typeof event.type === "string" ? event.type : "unknown"}`,
-    };
-  } catch (error) {
-    return {
-      parseError: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-function getAssistantProtocolFallbackOutput(params: {
-  stopReason?: AssistantStopReason;
-  errorMessage?: string;
-  combinedStderr: string;
-  transportExitCode: number;
-}): string {
-  switch (params.stopReason) {
-    case "error":
-      return (
-        params.errorMessage ||
-        params.combinedStderr ||
-        "Assistant reported an error before producing a final response."
-      );
-    case "aborted":
-      return params.errorMessage || "Assistant aborted execution.";
-    case "length":
-      return (
-        params.errorMessage ||
-        "Assistant stopped because it hit its response length limit before producing a final response."
-      );
-    case "toolUse":
-      return (
-        params.errorMessage || "Assistant stopped for tool use before producing a final response."
-      );
-    case "stop":
-    case undefined:
-      return params.combinedStderr || `pi exited with code ${params.transportExitCode}`;
-    default: {
-      const exhaustive: never = params.stopReason;
-      return exhaustive;
-    }
-  }
-}
-
-function getSemanticStatus(params: {
-  transportExitCode: number;
-  aborted: boolean;
-  timedOut: boolean;
-  protocolFailed: boolean;
-  assistantStopReason?: AssistantStopReason;
-}): SubagentStatus {
-  if (params.aborted || params.assistantStopReason === "aborted") {
-    return "aborted";
-  }
-  if (params.timedOut) {
-    return "timeout";
-  }
-  if (params.protocolFailed) {
-    return "error";
-  }
-  switch (params.assistantStopReason) {
-    case "error":
-    case "length":
-    case "toolUse":
-      return "error";
-    case "stop":
-      // Once the assistant protocol emits a final stop message, treat that as the semantic truth
-      // even if the transport exits non-zero afterward. Preserve the transport exit code separately
-      // in executionState so diagnostics can still explain the drift.
-      return "done";
-    case undefined:
-      return params.transportExitCode === 0 ? "done" : "error";
-    default: {
-      const exhaustive: never = params.assistantStopReason;
-      return exhaustive;
-    }
-  }
-}
-
-function getSemanticExitCode(params: {
-  transportExitCode: number;
-  aborted: boolean;
-  timedOut: boolean;
-  protocolFailed: boolean;
-  assistantStopReason?: AssistantStopReason;
-}): number {
-  if (params.aborted || params.assistantStopReason === "aborted") {
-    return ASSISTANT_ABORT_EXIT_CODE;
-  }
-  if (params.timedOut) {
-    return 124;
-  }
-  if (params.protocolFailed) {
-    return ASSISTANT_ERROR_EXIT_CODE;
-  }
-  switch (params.assistantStopReason) {
-    case "error":
-      return ASSISTANT_ERROR_EXIT_CODE;
-    case "stop":
-      return 0;
-    case "length":
-    case "toolUse":
-    case undefined:
-      return params.transportExitCode;
-    default: {
-      const exhaustive: never = params.assistantStopReason;
-      return exhaustive;
-    }
-  }
-}
-
 export function spawnSubagentWithSpawn(
   def: SubagentDef,
   model: string,
@@ -419,39 +47,12 @@ export function spawnSubagentWithSpawn(
     DEFAULT_SUBAGENT_EVENT_BUFFER_BYTES,
   );
 
-  const args = [
-    SUBAGENT_PROTOCOL_HELPER_PATH,
-    "--cwd",
-    ctx.cwd || process.cwd(),
-    "--model",
+  const args = createSubagentProtocolArgs({
+    def,
     model,
-    "--tools",
-    def.tools,
-    "--session-file",
-    def.sessionFile || join(state.sessionsDir, `${def.name}.jsonl`),
-    "--objective",
-    def.objective,
-  ];
-
-  for (const extensionSource of def.extensionSources ?? []) {
-    if (typeof extensionSource === "string" && extensionSource.trim().length > 0) {
-      args.push("--extension", extensionSource);
-    }
-  }
-
-  if (def.noSkills) {
-    args.push("--no-skills", "true");
-  }
-
-  for (const skillSource of def.skillSources ?? []) {
-    if (typeof skillSource === "string" && skillSource.trim().length > 0) {
-      args.push("--skill", skillSource);
-    }
-  }
-
-  if (def.systemPrompt) {
-    args.push("--system-prompt", def.systemPrompt);
-  }
+    cwd: ctx.cwd,
+    state,
+  });
 
   return new Promise((resolve) => {
     const createdAt = new Date().toISOString();
@@ -609,23 +210,13 @@ export function spawnSubagentWithSpawn(
       settled = true;
       clearTimers();
       removeAbortListener();
-      writeSessionStatus(state.sessionsDir, def.name, {
-        status: result.status,
-        pid: proc?.pid ?? process.pid,
-        ppid: process.pid,
+      writeCompletedSubagentStatus({
+        state,
+        def,
+        result,
         createdAt,
-        pidStartedAt: getProcessStartTicks(proc?.pid ?? process.pid) ?? undefined,
-        objective: def.objective,
-        exitCode: result.exitCode,
-        elapsed: result.elapsed,
-        parentSessionKey: def.parentSessionKey,
-        parentRepoRoot: def.parentRepoRoot,
-        resultPreview: toStatusResultPreview(result.output),
-        sessionKind: "subagent",
-        sessionFile: def.sessionFile || join(state.sessionsDir, `${def.name}.jsonl`),
-        profile: def.profile,
+        pid: proc?.pid ?? process.pid,
         model,
-        tools: def.tools,
       });
       if (managesExecutionSlot) {
         state.activeCount = Math.max(0, state.activeCount - 1);
@@ -662,8 +253,7 @@ export function spawnSubagentWithSpawn(
 
     const finalizeFromExitCode = (exitCode: number | null) => {
       consumeBufferedLine();
-      const transportExitCode =
-        exitCode ?? (aborted ? ASSISTANT_ABORT_EXIT_CODE : timedOut ? 124 : 1);
+      const transportExitCode = exitCode ?? (aborted ? 130 : timedOut ? 124 : 1);
       const parseErrorSummary =
         parseErrors.length > 0
           ? `Failed to parse ${parseErrors.length} subagent protocol event line(s).`
@@ -731,28 +321,16 @@ export function spawnSubagentWithSpawn(
         protocolFailed,
         assistantStopReason: finalAssistantStopReason,
       });
-      const executionState: ExecutionState = {
-        transport: {
-          kind: "transport",
-          exitCode: transportExitCode,
-          aborted,
-          timedOut,
-          ...(typeof rawChildPid === "number" ? { rawChildPid } : {}),
-        },
-        protocol: protocolFailed
-          ? {
-              kind: "assistant_protocol_parse_error",
-              errorMessage:
-                protocolFailureOutput || "Failed to parse the subagent protocol event stream.",
-            }
-          : finalAssistantStopReason
-            ? {
-                kind: "assistant_protocol",
-                stopReason: finalAssistantStopReason,
-                errorMessage: finalAssistantErrorMessage,
-              }
-            : undefined,
-      };
+      const executionState = createExecutionState({
+        transportExitCode,
+        aborted,
+        timedOut,
+        rawChildPid,
+        protocolFailed,
+        protocolFailureOutput,
+        finalAssistantStopReason,
+        finalAssistantErrorMessage,
+      });
 
       finalize({
         output,
@@ -783,22 +361,12 @@ export function spawnSubagentWithSpawn(
         cwd: ctx.cwd || process.cwd(),
       });
       const childPid = proc.pid ?? process.pid;
-      const pidStartedAt = getProcessStartTicks(childPid);
-      writeSessionStatus(state.sessionsDir, def.name, {
-        status: "running",
-        pid: childPid,
-        ppid: process.pid,
+      writeRunningSubagentStatus({
+        state,
+        def,
         createdAt,
-        pidStartedAt: pidStartedAt ?? undefined,
-        pidIdentity: pidStartedAt === null ? "unsupported" : "proc-start-ticks",
-        objective: def.objective,
-        parentSessionKey: def.parentSessionKey,
-        parentRepoRoot: def.parentRepoRoot,
-        sessionKind: "subagent",
-        sessionFile: def.sessionFile || join(state.sessionsDir, `${def.name}.jsonl`),
-        profile: def.profile,
+        childPid,
         model,
-        tools: def.tools,
       });
       if (managesExecutionSlot) {
         state.activeCount++;
@@ -917,44 +485,4 @@ export function spawnSubagent(
   signal?: AbortSignal,
 ): Promise<SubagentResult> {
   return spawnSubagentWithSpawn(def, model, ctx, state, spawn, signal);
-}
-
-function appendBoundedString(
-  current: string,
-  addition: string,
-  maxChars: number,
-): { value: string; truncated: boolean } {
-  if (maxChars <= 0) {
-    return { value: "", truncated: current.length > 0 || addition.length > 0 };
-  }
-
-  if (current.length >= maxChars) {
-    return { value: current, truncated: addition.length > 0 };
-  }
-
-  const remaining = maxChars - current.length;
-  if (addition.length <= remaining) {
-    return { value: current + addition, truncated: false };
-  }
-
-  return {
-    value: current + addition.slice(0, remaining),
-    truncated: true,
-  };
-}
-
-function readNonNegativeIntEnv(names: string[], fallback: number): number {
-  for (const name of names) {
-    const raw = process.env[name]?.trim();
-    if (!raw) {
-      continue;
-    }
-
-    const parsed = Number.parseInt(raw, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
-
-  return fallback;
 }

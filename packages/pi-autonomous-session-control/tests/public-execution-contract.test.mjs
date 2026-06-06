@@ -296,6 +296,12 @@ test("execution entrypoint stays headless-importable without package-local node_
     "extensions/self/subagent-session-name.ts",
     "extensions/self/subagent-session.ts",
     "extensions/self/subagent-skill-selection.ts",
+    "extensions/self/subagent-spawn-args.ts",
+    "extensions/self/subagent-spawn-env.ts",
+    "extensions/self/subagent-spawn-events.ts",
+    "extensions/self/subagent-spawn-status.ts",
+    "extensions/self/subagent-spawn-types.ts",
+    "extensions/self/subagent-spawn-utils.ts",
     "extensions/self/subagent-spawn.ts",
   ];
 
