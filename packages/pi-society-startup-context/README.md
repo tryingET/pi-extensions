@@ -31,12 +31,23 @@ Outside `~/ai-society`:
 - it does not run AK or git probes
 - no context is injected unless `PI_SOCIETY_CONTEXT_INJECT_OUTSIDE=1` is set
 
-Inside `~/ai-society`, it gathers a compact packet with:
+Inside `~/ai-society`, startup is two-tiered:
+
+1. `session_start` builds a fast/minimal packet immediately from path-local facts and starts the full refresh in the background.
+2. `before_agent_start` uses the full packet if ready; otherwise it waits only `PI_SOCIETY_CONTEXT_FULL_WAIT_MS` and injects the explicitly labeled fast packet.
+
+The fast packet includes:
+- cwd and path-inferred repo identity
+- authority orientation reminders
+- existing capability-map and read-first file pointers
+- explicit warnings that AK, git dirty state, direction, task, and decision posture are pending full refresh
+
+The background full packet gathers the richer compact packet with:
 - cwd, git repo root, and path-derived company/lane/repo identity
 - read-only dirty git posture from `git status --short`
 - AK health/repo posture from bounded machine/json surfaces
 - direction export/check posture
-- ready task posture and task status counts
+- ready task posture plus filtered claimed/running/blocked task posture
 - active decision warnings and bounded passport summaries when active decisions are found
 - capability-map and read-first file pointers, without pasting those docs
 - bounded warnings for unavailable tools, unregistered repos, timeouts, or missing machine surfaces
@@ -67,7 +78,9 @@ The implementation enforces this by only using no-shell read commands:
 - `ak direction export --repo <repo> --machine`
 - `ak direction check --repo <repo> --machine`
 - `ak task ready --repo <repo> --machine`
-- `ak task list --repo <repo> --machine`
+- `ak task list --repo <repo> --status claimed --machine`
+- `ak task list --repo <repo> --status running --machine`
+- `ak task list --repo <repo> --status blocked --machine`
 - `ak decision list --machine --limit 10`
 - `ak decision passport <id> --machine` only for a small number of active relevant decisions
 
@@ -76,13 +89,14 @@ All commands are timeout-bounded and parsed as JSON/machine output when availabl
 ## Failure and degraded mode
 
 Failures degrade into warnings in the packet:
+- full refresh pending -> fast packet says AK/git/direction/task/decision posture is not checked yet
 - AK missing or timing out -> AK sections say unavailable and include a bounded warning
 - repo not registered -> repo registration is unknown/not registered; no bootstrap is attempted
 - unsupported machine/json surface -> warning, no invented truth
 - git unavailable -> dirty state says unavailable
 - direction drift -> reported only; no repair or rebaseline is attempted
 
-The packet never presents stale or incomplete data as canonical truth. Each packet includes `captured_at` so the model can see that it is a startup snapshot.
+The packet never presents stale or incomplete data as canonical truth. Fast packets are labeled `packet_tier: fast/minimal` and `full_refresh_status: pending|failed`; full packets are labeled `packet_tier: full` / `full_refresh_status: complete`. Each packet includes `captured_at` so the model can see that it is a snapshot.
 
 ## Configuration
 
@@ -91,7 +105,8 @@ Environment variables:
 | Variable | Default | Meaning |
 |---|---:|---|
 | `PI_SOCIETY_STARTUP_CONTEXT` | `1` | Set to `0`/`false`/`off` to disable all startup probing/injection. |
-| `PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS` | `4000` | Timeout for each git/AK command. |
+| `PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS` | `4000` | Timeout for each git/AK command in the full refresh. |
+| `PI_SOCIETY_CONTEXT_FULL_WAIT_MS` | `250` | Bounded wait in `before_agent_start` for a background full packet before falling back to the fast packet. |
 | `PI_SOCIETY_CONTEXT_MAX_TASKS` | `5` | Ready-task sample size shown in the packet. |
 | `PI_SOCIETY_CONTEXT_MAX_GIT_LINES` | `12` | Dirty git sample size shown in the packet. |
 | `PI_SOCIETY_CONTEXT_MAX_WARNINGS` | `10` | Warning count included in the packet. |

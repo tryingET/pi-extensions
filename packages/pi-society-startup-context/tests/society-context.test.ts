@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import societyStartupContextExtension, {
+  createFastStartupContextPacket,
   isInsideAiSocietyPath,
   renderStartupContextPacket,
 } from "../extensions/society-context.ts";
@@ -17,12 +18,15 @@ test("renders not-applicable startup packet without AK/git probes", () => {
   const rendered = renderStartupContextPacket({
     applicable: false,
     disabled: false,
+    packetTier: "fast",
+    fullRefreshStatus: "not_applicable",
     capturedAt: "2026-04-24T00:00:00.000Z",
     cwd: "/tmp/outside",
     aiSocietyRoot: "/tmp/home/ai-society",
     authoritativeRuntime: [],
     readyTasks: [],
-    taskStatusCounts: {},
+    activeTasks: [],
+    blockedTasks: [],
     activeDecisions: [],
     decisionPassports: [],
     readFirstHints: [],
@@ -41,6 +45,8 @@ test("renders compact semantic summary instead of raw machine JSON", () => {
   const rendered = renderStartupContextPacket({
     applicable: true,
     disabled: false,
+    packetTier: "full",
+    fullRefreshStatus: "complete",
     capturedAt: "2026-04-24T00:00:00.000Z",
     cwd: "/home/me/ai-society/softwareco/owned/pi-extensions/packages/example",
     aiSocietyRoot: "/home/me/ai-society",
@@ -76,7 +82,12 @@ test("renders compact semantic summary instead of raw machine JSON", () => {
     },
     readyTasks: [{ id: 42, title: "Bounded task", status: "pending", priority: 2 }],
     readyTaskCount: 1,
-    taskStatusCounts: { pending: 1, done: 2 },
+    activeTasks: [
+      { id: 43, title: "Claimed bounded task", status: "claimed", priority: 1, claimedBy: "pi" },
+    ],
+    activeTaskCount: 1,
+    blockedTasks: [],
+    blockedTaskCount: 0,
     activeDecisions: [{ id: 7, title: "Open architecture decision", state: "in_review" }],
     decisionPassports: ["#7 Open architecture decision: passport readable"],
     readFirstHints: ["/home/me/ai-society/softwareco/owned/pi-extensions/AGENTS.md"],
@@ -88,9 +99,31 @@ test("renders compact semantic summary instead of raw machine JSON", () => {
   assert.match(rendered, /AI Society startup context \(read-only\)/);
   assert.match(rendered, /dirty \(2 changed paths\)/);
   assert.match(rendered, /ready queue: 1/);
+  assert.match(rendered, /active execution tasks: 1/);
+  assert.match(rendered, /Claimed bounded task/);
   assert.match(rendered, /Open architecture decision/);
   assert.doesNotMatch(rendered, /"payload"/);
   assert.doesNotMatch(rendered, /"tasks"/);
+});
+
+test("renders fast startup packet with explicit pending warning and no posture claims", () => {
+  const packet = createFastStartupContextPacket(
+    "/tmp/home/ai-society/softwareco/owned/pi-extensions/packages/example",
+    "/tmp/home",
+  );
+  const rendered = renderStartupContextPacket(packet);
+
+  assert.equal(packet.packetTier, "fast");
+  assert.equal(packet.fullRefreshStatus, "pending");
+  assert.match(rendered, /fast\/minimal/);
+  assert.match(rendered, /full_refresh_status: pending/);
+  assert.match(
+    rendered,
+    /AK, git dirty state, direction, task, and decision surfaces were not checked/,
+  );
+  assert.match(rendered, /no absence-of-blockers claim is made/);
+  assert.doesNotMatch(rendered, /ready queue: 0/);
+  assert.doesNotMatch(rendered, /no active repo-scoped decision blockers found/);
 });
 
 test("extension registers startup, prompt injection, and manual context command", () => {

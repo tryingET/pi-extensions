@@ -38,13 +38,16 @@ The extension uses two Pi lifecycle hooks:
 
 1. `session_start`
    - detects whether `ctx.cwd` is under `~/ai-society`
-   - gathers the read-only snapshot into process memory
+   - creates a fast/minimal path-inferred packet without AK/git probes
+   - starts the full read-only snapshot refresh in the background
    - may show a terse UI status/notification
 2. `before_agent_start`
+   - uses the full packet when it is ready
+   - otherwise performs a bounded wait (`PI_SOCIETY_CONTEXT_FULL_WAIT_MS`, default `250`)
    - appends the rendered markdown packet to the system prompt for the next LLM turn
    - does not persist the packet into AK
 
-The manual `/society-context [refresh]` command reruns the same read-only probes and opens the rendered packet in the Pi editor.
+The manual `/society-context refresh` command reruns the full read-only probes and opens the rendered packet in the Pi editor.
 
 ## Authority model
 
@@ -72,7 +75,9 @@ The automatic path may run only bounded read commands:
 | Direction export | `ak direction export --repo <repo> --machine` | active/next direction nodes |
 | Direction check | `ak direction check --repo <repo> --machine` | drift/stale warnings in the standardized AK machine envelope |
 | Ready tasks | `ak task ready --repo <repo> --machine` | ready queue count and sample |
-| Task list | `ak task list --repo <repo> --machine` | status-count posture |
+| Claimed tasks | `ak task list --repo <repo> --status claimed --machine` | bounded active execution posture |
+| Running tasks | `ak task list --repo <repo> --status running --machine` | bounded active execution posture |
+| Blocked tasks | `ak task list --repo <repo> --status blocked --machine` | bounded blocked-work posture |
 | Decisions | `ak decision list --machine --limit 10` | relevant active decision warnings |
 | Decision passport | `ak decision passport <id> --machine` | only for a small number of active relevant decisions |
 
@@ -111,6 +116,7 @@ Future mutation commands such as `/society-rebaseline` must be explicit operator
 The packet degrades fail-open for orientation but fail-closed for authority claims:
 
 - outside `~/ai-society`: quiet by default; no AK/git probes
+- full refresh pending: fast packet is explicit that AK/git/direction/task/decision posture is not checked
 - AK missing or timed out: warning plus unavailable AK section
 - repo not registered: warning; no bootstrap
 - machine surface unavailable: warning; no human-output parsing fallback
