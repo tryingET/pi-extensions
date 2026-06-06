@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "c8b5f2fd1d7953cd11587e11179ee7483d5f2526"
+created_at: "2026-06-06T07:04:56Z"
+intent: "Prioritize explicit self sendUserMessage/notify actions even when payload mentions self-evolution or checkpoint"
+files:
+  - "packages/pi-autonomous-session-control/extensions/self/query-resolver.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/resolvers/action.ts"
+  - "packages/pi-autonomous-session-control/tests/self/action.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-autonomous-session-control run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Live attempt to drive with sendUserMessage exposed explicit-action vs diagnostic classifier collision"
