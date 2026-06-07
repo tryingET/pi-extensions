@@ -3,18 +3,18 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "d5d402ce97109ce75aab73661c4e32acb73db76c"
-created_at: "2026-06-07T07:55:59Z"
-intent: "Add .obsidian to gitignore for local editor workspace metadata"
+created_at: "2026-06-07T07:56:30Z"
+intent: "see group note"
 files:
-  - ".gitignore"
+  []
 validation:
   fast_gate:
     command: "pre-commit hook"
     status: "pass"
   full_gate:
-    command: "pending"
-    status: "pending"
+    command: "npm --prefix packages/pi-little-helpers run loop-landing-check && npm --prefix packages/pi-society-orchestrator run loop-landing-check"
+    status: "pass"
 group:
-  index: 4
+  index: 0
   total: 4
-  rationale: "gitignore housekeeping"
+  rationale: "updated with final gate result"
