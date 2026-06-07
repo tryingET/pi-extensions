@@ -119,51 +119,16 @@ function printOperatorCheckpointSummary({
   decision,
   blockers,
 }) {
-  const selectedLanes = matrixReview.cells
-    .map((cell) => cell.cellId + ":" + cell.selectedLaneId)
-    .join(", ");
-  const boundarySummary = [
-    "peer launch off",
-    "candidate lifecycle plan-only",
-    "no merge/promotion",
-    "AK/KES handoff packets only",
-  ].join("; ");
+  const selectedLanes = matrixReview.cells.map((cell) => cell.cellId + ":" + cell.selectedLaneId).join(", ");
+  const boundarySummary = ["peer launch off", "candidate lifecycle plan-only", "no merge/promotion", "AK/KES handoff packets only"].join("; ");
 
   console.log("LONG SUPERVISED CAMPAIGN CHECKPOINTS");
   console.log("1. campaign_start: " + (campaign.loopResult?.completedIterations ?? 0) + " iteration(s), metric trail " + formatMetricTrail(firstMetrics));
-  console.log(
-    "2. resume gate: " +
-      (resumePlan.planReady ? "ready" : "blocked") +
-      ", executor confirmation " +
-      (resumePlan.futureForegroundCall?.includes('operatorConfirmation: "RUN FOREGROUND RESUME"') ? "present" : "missing"),
-  );
+  console.log("2. resume gate: " + (resumePlan.planReady ? "ready" : "blocked") + ", executor confirmation " + (resumePlan.futureForegroundCall?.includes('operatorConfirmation: "RUN FOREGROUND RESUME"') ? "present" : "missing"));
   console.log("3. foreground resume: " + (resumeApply?.loopResult.completedIterations ?? 0) + " iteration(s), metric trail " + formatMetricTrail(resumeMetrics));
-  console.log(
-    "4. final controller posture: " +
-      postResumeStatus.currentSegment.runCount +
-      " run(s), best " +
-      postResumeStatus.currentSegment.bestMetric,
-  );
-  console.log(
-    "5. candidate matrix: " +
-      matrixPlan.cells.length +
-      " cell(s), " +
-      packetPaths.length +
-      " candidate-result packet(s), selected " +
-      selectedLanes,
-  );
-  console.log(
-    "6. closeout handoff: " +
-      matrixReview.closeout.posture +
-      ", evidence projection " +
-      matrixReview.closeout.evidenceProjection.posture +
-      ", learning " +
-      learning.packetKind +
-      ", AK evidence " +
-      akEvidence.packetKind +
-      ", owner decision " +
-      decision.recommendedDecision,
-  );
+  console.log("4. final controller posture: " + postResumeStatus.currentSegment.runCount + " run(s), best " + postResumeStatus.currentSegment.bestMetric);
+  console.log("5. candidate matrix: " + matrixPlan.cells.length + " cell(s), " + packetPaths.length + " candidate-result packet(s), selected " + selectedLanes);
+  console.log("6. closeout handoff: " + matrixReview.closeout.posture + ", evidence projection " + matrixReview.closeout.evidenceProjection.posture + ", learning " + learning.packetKind + ", AK evidence " + akEvidence.packetKind + ", owner decision " + decision.recommendedDecision);
   console.log("7. closeout history: " + closeout.runs.length + " total measured run(s); " + boundarySummary);
   console.log("Result: unresolved_long_supervised_campaign_blockers=" + blockers.length);
 }
