@@ -12,26 +12,18 @@ import {
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import type { CampaignMachineInput } from "../machine/campaign.ts";
 import {
   canCampaignMachineStartBoundedRun,
   isCampaignMachineAwaitingOperatorChoice,
   isCampaignMachineTerminalState,
 } from "../machine/campaign.ts";
-import { type CampaignSegmentConfig, campaignEvents } from "../machine/events.ts";
-import {
-  type AutoresearchAutoContinuationSessionGate,
-  buildAutoresearchAutoContinuationDecision,
-  buildAutoresearchAutoContinuationSessionGateFromEnv,
-  formatAutoresearchAutoContinuationGateLines,
-} from "./autoContinuation.ts";
+import { campaignEvents } from "../machine/events.ts";
+import { formatAutoresearchAutoContinuationGateLines } from "./autoContinuation.ts";
 import {
   AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
-  type FinalizeDecisionPacket,
   mapNextHypothesisOutcomeToCampaignDecision,
   type NextHypothesisDecisionOutcome,
   type NextHypothesisDecisionPacket,
-  type SetupDecisionPacket,
 } from "./decisions.ts";
 import {
   beginAutoresearchCampaignGoal,
@@ -40,28 +32,19 @@ import {
 } from "./goal.ts";
 import {
   AUTORESEARCH_EVENT_LEDGER_FILE,
-  type AutoresearchLedgerEventEntry,
   appendLedgerEvent,
   createLedgerEventEntry,
-  loadAutoresearchLedger,
-  projectAutoresearchLedger,
-  projectAutoresearchLedgerEntries,
-  resolveAutoresearchLedgerPath,
 } from "./ledger.ts";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
-  loadLlamacppCampaignProjectionState,
 } from "./llamacppCampaign.ts";
 import {
   AUTORESEARCH_OPERATOR_ACTIONS,
   AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
   type AutoresearchControlStateV1,
   type AutoresearchOperatorAction,
-  type AutoresearchRuntimeSnapshotInput,
-  deriveAutoresearchControlState,
   formatAutoresearchRuntimeSnapshotReuse,
-  loadAutoresearchRuntimeControlState,
   persistAutoresearchRuntimeSnapshot,
 } from "./resume.ts";
 import { joinOutput, runProcessCommand, runShellCommand } from "./runtime-command.ts";
@@ -74,7 +57,6 @@ import {
   AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
   AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
   AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR,
-  AUTORESEARCH_COMMAND_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_DASHBOARD_EXPORT_FILE,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -83,13 +65,10 @@ import {
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
   AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
-  AUTORESEARCH_PHASE,
   AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
-  BLOCKED_PROMPT_VAULT_TEMPLATES,
-  READY_PROMPT_VAULT_TEMPLATES,
 } from "./runtime-constants.ts";
 import {
   formatConfidenceValue,
@@ -109,10 +88,7 @@ import {
   discoverAutoresearchMatrixCampaignArtifacts,
 } from "./runtime-matrix.ts";
 import {
-  classifyLatestEmpiricalDecision,
   classifyRunEmpiricalDecision,
-  computeConfidence,
-  interpretMetricNoise,
   isBetter,
   isDurationMetric,
   isSuccessfulMetricRun,
@@ -146,11 +122,8 @@ import type {
   AutoresearchDspxAdvisoryProposal,
   AutoresearchDspxProgramGenPlan,
   AutoresearchEmpiricalDecisionClass,
-  AutoresearchEmpiricalPosture,
   AutoresearchKnowledgeExportPacket,
   AutoresearchLearningExportResult,
-  AutoresearchLlamacppCampaignProjectionAvailability,
-  AutoresearchLlamacppCampaignProjectionStatus,
   AutoresearchLoopPeerHandoff,
   AutoresearchLoopPeerMode,
   AutoresearchLoopProgressEvent,
@@ -163,14 +136,11 @@ import type {
   AutoresearchOraclePublicationPreflightSummary,
   AutoresearchPeerAssistLane,
   AutoresearchPeerAssistPlan,
-  AutoresearchPromptVaultDecisionAvailability,
-  AutoresearchPromptVaultDecisionStatus,
   AutoresearchReceipt,
   AutoresearchResumeApplyPlan,
   AutoresearchResumePlan,
   AutoresearchRunDecisionSummary,
   AutoresearchRunReceipt,
-  AutoresearchRuntimeProjection,
   AutoresearchRuntimeStatus,
   AutoresearchSegmentCloseout,
   AutoresearchSegmentCloseoutRun,
@@ -212,6 +182,27 @@ import {
   parseMetricLines,
   resolveAutoresearchPaths,
 } from "./runtime-receipts.ts";
+import {
+  buildAutoresearchRuntimeStatus,
+  buildAutoresearchRuntimeStatusFromEntries,
+  createCampaignSegmentConfigFromReceipt,
+  createConfigFromInput,
+  createRuntimeSnapshotInput,
+  decorateRunDescription,
+  defaultBenchmarkCommand,
+  describeBenchmarkFailure,
+  determineRunStatus,
+  enrichFinalizeDecisionPacket,
+  enrichSetupDecisionPacket,
+  ensureEventLedgerInitializedFromReceipts,
+  ensureMachineReadyForBoundedRun,
+  formatLastPostRunDecision,
+  formatLlamacppCampaignProjectionAvailability,
+  formatLlamacppCampaignProjectionLabel,
+  formatPromptVaultDecisionAvailability,
+  getCurrentSegment,
+  resolveChecksCommand,
+} from "./runtime-status.ts";
 import {
   describeAutoresearchBaselineDriftRisk,
   describeChecksState,
@@ -276,15 +267,11 @@ export {
   resolveAutoresearchPaths,
   serializeReceipt,
 } from "./runtime-receipts.ts";
+export { buildAutoresearchRuntimeStatus } from "./runtime-status.ts";
 
 const DEFAULT_BENCHMARK_TIMEOUT_SECONDS = 600;
 const DEFAULT_CHECKS_TIMEOUT_SECONDS = 300;
 const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
-interface CurrentSegmentView {
-  config: AutoresearchConfigReceipt | null;
-  runs: AutoresearchRunReceipt[];
-}
-
 export function buildAutoresearchAutoplan(
   input: BuildAutoresearchAutoplanInput,
 ): AutoresearchAutoplanResult {
@@ -2130,23 +2117,6 @@ function normalizeOptionalString(value: string | null | undefined): string | nul
   if (value === null) return null;
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
-}
-
-export function buildAutoresearchRuntimeStatus(
-  cwd?: string,
-  options: {
-    persistSnapshot?: boolean;
-    autoContinuationSession?: AutoresearchAutoContinuationSessionGate;
-  } = {},
-): AutoresearchRuntimeStatus {
-  const paths = cwd ? resolveAutoresearchPaths(cwd) : null;
-  const { entries, invalidLineCount } = cwd
-    ? loadReceiptLog(cwd)
-    : { entries: [], invalidLineCount: 0 };
-  return buildAutoresearchRuntimeStatusFromEntries(cwd, paths, entries, invalidLineCount, {
-    persistSnapshot: options.persistSnapshot ?? false,
-    autoContinuationSession: options.autoContinuationSession,
-  });
 }
 
 function stableAutoresearchOracleRecordId(input: unknown): string {
@@ -5882,1014 +5852,6 @@ function formatRunDecisionLedgerReason(summary: AutoresearchRunDecisionSummary):
   }
 
   return `Prompt Vault next_hypothesis -> ${summary.status}: ${summary.nextHypothesis ?? summary.stateRead ?? "decision recorded"}`;
-}
-
-function buildPromptVaultDecisionStatus(
-  runs: readonly AutoresearchRunReceipt[],
-): AutoresearchPromptVaultDecisionStatus {
-  const lastPostRunDecision = findLastPostRunDecision(runs);
-  return {
-    availability:
-      lastPostRunDecision === null
-        ? "available_not_yet_used"
-        : lastPostRunDecision.status === "blocked"
-          ? "available_last_used_blocked"
-          : "available_last_used_successfully",
-    lastPostRunDecision,
-  };
-}
-
-function buildAutoresearchLlamacppCampaignProjectionStatus(
-  cwd: string | undefined,
-): AutoresearchLlamacppCampaignProjectionStatus {
-  if (!cwd) {
-    return {
-      availability: "not_projected",
-      projectionPath: null,
-      manifestPath: null,
-      campaignId: null,
-      manifestKey: null,
-      receiptRootPath: null,
-      overallState: null,
-      staleReason: null,
-      updatedAt: null,
-    };
-  }
-
-  const projectionState = loadLlamacppCampaignProjectionState({ cwd });
-  return {
-    availability: projectionState.availability,
-    projectionPath: projectionState.path,
-    manifestPath: projectionState.projection?.manifest.path ?? null,
-    campaignId: projectionState.projection?.manifest.campaignId ?? null,
-    manifestKey: projectionState.projection?.manifest.manifestKey ?? null,
-    receiptRootPath: projectionState.projection?.manifest.receiptRootPath ?? null,
-    overallState: projectionState.projection?.status.overallState ?? null,
-    staleReason: projectionState.staleReason,
-    updatedAt: projectionState.projection?.updatedAt ?? null,
-  };
-}
-
-function findLastPostRunDecision(
-  runs: readonly AutoresearchRunReceipt[],
-): AutoresearchRunDecisionSummary | null {
-  for (let index = runs.length - 1; index >= 0; index -= 1) {
-    const decision = runs[index]?.decision;
-    if (decision) {
-      return decision;
-    }
-  }
-
-  return null;
-}
-
-function enrichSetupDecisionPacket(cwd: string, packet: SetupDecisionPacket): SetupDecisionPacket {
-  const status = buildAutoresearchRuntimeStatus(cwd);
-  const repoContext =
-    packet.repoContext.length > 0
-      ? [...packet.repoContext]
-      : [
-          `cwd: ${cwd}`,
-          `phase: ${AUTORESEARCH_PHASE}`,
-          `machine state: ${status.runtimeProjection.state}`,
-        ];
-  const benchmarkSurfaces =
-    packet.benchmarkSurfaces.length > 0
-      ? [...packet.benchmarkSurfaces]
-      : [
-          status.currentSegment.benchmarkCommand
-            ? `benchmark command: ${status.currentSegment.benchmarkCommand}`
-            : "benchmark command: (unset)",
-          `checks command: ${status.currentSegment.checksCommand ?? "(none)"}`,
-        ];
-  const existingArtifacts =
-    packet.existingArtifacts.length > 0
-      ? [...packet.existingArtifacts]
-      : AUTORESEARCH_LOCAL_ARTIFACTS.filter((artifact) => existsSync(path.join(cwd, artifact)));
-
-  return {
-    ...packet,
-    repoContext,
-    benchmarkSurfaces,
-    existingArtifacts,
-  };
-}
-
-function enrichFinalizeDecisionPacket(
-  cwd: string,
-  packet: FinalizeDecisionPacket,
-): FinalizeDecisionPacket {
-  const status = buildAutoresearchRuntimeStatus(cwd);
-  return {
-    ...packet,
-    campaignContext:
-      packet.campaignContext.length > 0
-        ? [...packet.campaignContext]
-        : [
-            `campaign: ${status.currentSegment.name ?? "(unnamed)"}`,
-            `machine state: ${status.runtimeProjection.state}`,
-            `baseline: ${formatMetricValue(status.currentSegment.baselineMetric, status.currentSegment.metricUnit)}`,
-            `best: ${formatMetricValue(status.currentSegment.bestMetric, status.currentSegment.metricUnit)}`,
-          ],
-  };
-}
-
-function createConfigFromInput(
-  input: ExecuteAutoresearchRunInput,
-  paths: AutoresearchPaths,
-): AutoresearchConfigReceipt {
-  const name = input.name?.trim();
-  const metricName = input.metricName?.trim();
-  if (!name) {
-    throw new Error("name is required when bootstrapping or reconfiguring the bounded runtime");
-  }
-  if (!metricName) {
-    throw new Error(
-      "metricName is required when bootstrapping or reconfiguring the bounded runtime",
-    );
-  }
-
-  const benchmarkCommand = input.benchmarkCommand ?? defaultBenchmarkCommand(paths);
-  if (!benchmarkCommand) {
-    throw new Error(
-      "benchmarkCommand is required when no config receipt exists and autoresearch.sh is missing",
-    );
-  }
-
-  const checksCommand = resolveChecksCommand(input.checksCommand, undefined, paths);
-  return createConfigReceipt({
-    name,
-    metricName,
-    metricUnit: input.metricUnit ?? "",
-    direction: input.direction ?? "lower",
-    metricThreshold: input.metricThreshold,
-    benchmarkCommand,
-    checksCommand,
-  });
-}
-
-function resolveChecksCommand(
-  requestedChecksCommand: string | null | undefined,
-  configuredChecksCommand: string | null | undefined,
-  paths: AutoresearchPaths,
-): string | null {
-  if (requestedChecksCommand === null) return null;
-  return requestedChecksCommand ?? configuredChecksCommand ?? defaultChecksCommand(paths);
-}
-
-function defaultBenchmarkCommand(paths: AutoresearchPaths): string | null {
-  return existsSync(paths.benchmarkScriptPath) ? "bash autoresearch.sh" : null;
-}
-
-function defaultChecksCommand(paths: AutoresearchPaths): string | null {
-  return existsSync(paths.checksScriptPath) ? "bash autoresearch.checks.sh" : null;
-}
-
-function determineRunStatus(input: {
-  currentSegment: CurrentSegmentView;
-  benchmarkSucceeded: boolean;
-  metricContractFailed: boolean;
-  checksPassed: boolean | null;
-}): RunStatus {
-  if (!input.benchmarkSucceeded || input.metricContractFailed) {
-    return "crash";
-  }
-  if (input.checksPassed === false) {
-    return "checks_failed";
-  }
-  const hasSuccessfulRun = input.currentSegment.runs.some(isSuccessfulMetricRun);
-  return hasSuccessfulRun ? "candidate" : "baseline";
-}
-
-function decorateRunDescription(
-  description: string,
-  benchmarkSucceeded: boolean,
-  metricContractFailed: boolean,
-  checksPassed: boolean | null,
-): string {
-  if (!benchmarkSucceeded) {
-    return `${description} (benchmark failed or timed out)`;
-  }
-  if (metricContractFailed) {
-    return `${description} (primary metric missing)`;
-  }
-  if (checksPassed === false) {
-    return `${description} (checks failed)`;
-  }
-  return description;
-}
-
-function reconstructOriginalRunDescription(description: string): string {
-  return description
-    .replace(/ \(benchmark failed or timed out\)$/u, "")
-    .replace(/ \(primary metric missing\)$/u, "")
-    .replace(/ \(checks failed\)$/u, "");
-}
-
-function buildAutoresearchRuntimeStatusFromEntries(
-  cwd: string | undefined,
-  paths: AutoresearchPaths | null,
-  entries: AutoresearchReceipt[],
-  invalidLineCount: number,
-  options: {
-    persistSnapshot?: boolean;
-    autoContinuationSession?: AutoresearchAutoContinuationSessionGate;
-  } = {},
-): AutoresearchRuntimeStatus {
-  const currentSegmentView = getCurrentSegment(entries);
-  const currentSegment = summarizeCurrentSegment(currentSegmentView);
-  const empiricalPosture = buildAutoresearchEmpiricalPosture(
-    currentSegment,
-    currentSegmentView.runs,
-  );
-  const promptVaultDecisions = buildPromptVaultDecisionStatus(currentSegmentView.runs);
-  const runtimeProjection = buildRuntimeProjection(
-    cwd,
-    currentSegment,
-    promptVaultDecisions.lastPostRunDecision,
-  );
-  const defaultControl = deriveAutoresearchControlState({
-    machineState: runtimeProjection.state,
-    blockedReason: runtimeProjection.blockedReason,
-    completionReason: runtimeProjection.completionReason,
-  });
-  const llamacppCampaignProjection = buildAutoresearchLlamacppCampaignProjectionStatus(cwd);
-  const campaignGoal = cwd
-    ? buildAutoresearchCampaignGoalStatus(cwd)
-    : buildAutoresearchCampaignGoalStatus(process.cwd());
-  const snapshotInput =
-    cwd !== undefined
-      ? createRuntimeSnapshotInput(cwd, currentSegment, runtimeProjection, promptVaultDecisions)
-      : null;
-  const loadedControl =
-    cwd !== undefined && snapshotInput
-      ? loadAutoresearchRuntimeControlState({ cwd, current: snapshotInput })
-      : null;
-  const control = loadedControl?.control ?? defaultControl;
-  const autoContinuation = buildAutoresearchAutoContinuationDecision({
-    cwd: cwd ?? process.cwd(),
-    campaignGoal,
-    runtime: {
-      machineState: runtimeProjection.state,
-      controlKind: control.kind,
-      blockedReason: runtimeProjection.blockedReason,
-      completionReason: runtimeProjection.completionReason,
-    },
-    session:
-      options.autoContinuationSession ?? buildAutoresearchAutoContinuationSessionGateFromEnv(),
-  });
-
-  if (options.persistSnapshot !== false && cwd && snapshotInput && existsSync(cwd)) {
-    persistAutoresearchRuntimeSnapshot({
-      cwd,
-      current: snapshotInput,
-      control: loadedControl?.control ?? defaultControl,
-    });
-  }
-
-  return {
-    phase: AUTORESEARCH_PHASE,
-    cwd,
-    commandName: AUTORESEARCH_COMMAND_NAME,
-    toolNames: [
-      AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
-      AUTORESEARCH_STATUS_TOOL_NAME,
-      AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
-      AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
-      AUTORESEARCH_RUN_TOOL_NAME,
-      AUTORESEARCH_CONTROL_TOOL_NAME,
-      AUTORESEARCH_FINALIZE_TOOL_NAME,
-      AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
-      AUTORESEARCH_LOOP_TOOL_NAME,
-      AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
-      AUTORESEARCH_AUTOPLAN_TOOL_NAME,
-      AUTORESEARCH_SETUP_TOOL_NAME,
-      AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
-      AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
-      AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
-    ],
-    localArtifacts: [...AUTORESEARCH_LOCAL_ARTIFACTS],
-    receiptEntryTypes: ["config", "run"],
-    readyPromptVaultTemplates: [...READY_PROMPT_VAULT_TEMPLATES],
-    blockedPromptVaultTemplates: [...BLOCKED_PROMPT_VAULT_TEMPLATES],
-    receiptPath: paths?.jsonlPath,
-    hasReceiptLog: paths ? existsSync(paths.jsonlPath) : false,
-    hasBenchmarkScript: paths ? existsSync(paths.benchmarkScriptPath) : false,
-    hasChecksScript: paths ? existsSync(paths.checksScriptPath) : false,
-    invalidReceiptLines: invalidLineCount,
-    currentSegment,
-    empiricalPosture,
-    runtimeProjection,
-    runtimeSnapshot: loadedControl?.snapshotStatus ?? {
-      exists: false,
-      reuse: "unavailable",
-      discardedReason: null,
-      segmentKey: null,
-      runtimeKey: null,
-    },
-    control,
-    campaignGoal,
-    autoContinuation,
-    promptVaultDecisions,
-    llamacppCampaignProjection,
-    nextSlices: [],
-  };
-}
-
-function buildRuntimeProjection(
-  cwd: string | undefined,
-  currentSegment: AutoresearchSegmentSummary,
-  lastPostRunDecision: AutoresearchRunDecisionSummary | null,
-): AutoresearchRuntimeProjection {
-  if (!cwd) {
-    return createReceiptFallbackProjection(currentSegment, lastPostRunDecision);
-  }
-
-  const loadResult = loadAutoresearchLedger(cwd);
-  const hasLedger = existsSync(resolveAutoresearchLedgerPath(cwd));
-  if (hasLedger || loadResult.invalidLineCount > 0 || loadResult.entries.length > 0) {
-    const projection = projectAutoresearchLedger(cwd);
-    if (projectionMatchesCurrentSegment(projection, currentSegment)) {
-      return {
-        state: projection.state,
-        resumeState: projection.context.resumeState,
-        blockedReason: projection.context.blockedReason,
-        completionReason: projection.context.completionReason,
-        source: "ledger",
-        ledgerPath: projection.ledgerPath,
-        hasLedger: projection.hasLedger,
-        invalidLedgerLines: projection.invalidLineCount,
-        eventCount: projection.eventCount,
-        replayedEventCount: projection.replayedEventCount,
-        rejectedEvents: projection.rejectedEvents,
-        syncIssues: [],
-      };
-    }
-
-    const fallback = createReceiptFallbackProjection(
-      currentSegment,
-      lastPostRunDecision,
-      projection.ledgerPath,
-    );
-    return {
-      ...fallback,
-      hasLedger: projection.hasLedger,
-      invalidLedgerLines: projection.invalidLineCount,
-      eventCount: projection.eventCount,
-      replayedEventCount: projection.replayedEventCount,
-      rejectedEvents: projection.rejectedEvents,
-      syncIssues: [describeRuntimeProjectionSyncIssue(projection, currentSegment)],
-    };
-  }
-
-  return createReceiptFallbackProjection(
-    currentSegment,
-    lastPostRunDecision,
-    resolveAutoresearchLedgerPath(cwd),
-  );
-}
-
-function createRuntimeSnapshotInput(
-  cwd: string,
-  currentSegment: AutoresearchSegmentSummary,
-  runtimeProjection: AutoresearchRuntimeProjection,
-  promptVaultDecisions: AutoresearchPromptVaultDecisionStatus,
-): AutoresearchRuntimeSnapshotInput {
-  return {
-    cwd,
-    phase: AUTORESEARCH_PHASE,
-    projectionSource: runtimeProjection.source,
-    machine: {
-      state: runtimeProjection.state,
-      resumeState: runtimeProjection.resumeState,
-      blockedReason: runtimeProjection.blockedReason,
-      completionReason: runtimeProjection.completionReason,
-    },
-    segment: {
-      name: currentSegment.name,
-      metricName: currentSegment.metricName,
-      metricUnit: currentSegment.metricUnit,
-      direction: currentSegment.direction,
-      metricThreshold: currentSegment.metricThreshold,
-      benchmarkCommand: currentSegment.benchmarkCommand,
-      checksCommand: currentSegment.checksCommand,
-      runCount: currentSegment.runCount,
-      successfulRunCount: currentSegment.successfulRunCount,
-      baselineMetric: currentSegment.baselineMetric,
-      bestMetric: currentSegment.bestMetric,
-      lastRunStatus: currentSegment.lastRunStatus,
-      lastRunMetric: currentSegment.lastRunMetric,
-    },
-    decision: {
-      availability: promptVaultDecisions.availability,
-      lastPostRunDecision: promptVaultDecisions.lastPostRunDecision,
-    },
-  };
-}
-
-function createReceiptFallbackProjection(
-  currentSegment: AutoresearchSegmentSummary,
-  lastPostRunDecision: AutoresearchRunDecisionSummary | null,
-  ledgerPath?: string,
-): AutoresearchRuntimeProjection {
-  const projection = projectAutoresearchLedgerEntries(
-    [],
-    createFallbackMachineInput(currentSegment, lastPostRunDecision),
-  );
-  return {
-    state: projection.state,
-    resumeState: projection.context.resumeState,
-    blockedReason: projection.context.blockedReason,
-    completionReason: projection.context.completionReason,
-    source: "receipt_fallback",
-    ledgerPath,
-    hasLedger: false,
-    invalidLedgerLines: 0,
-    eventCount: projection.eventCount,
-    replayedEventCount: projection.replayedEventCount,
-    rejectedEvents: projection.rejectedEvents,
-    syncIssues: ledgerPath ? ["event ledger missing or stale; projected from receipt log"] : [],
-  };
-}
-
-function projectionMatchesCurrentSegment(
-  projection: ReturnType<typeof projectAutoresearchLedger>,
-  currentSegment: AutoresearchSegmentSummary,
-): boolean {
-  if (currentSegment.configured !== (projection.context.segment !== null)) {
-    return false;
-  }
-  if (!currentSegment.configured) {
-    return projection.context.runCount === 0;
-  }
-
-  return (
-    projection.context.segment?.name === currentSegment.name &&
-    projection.context.segment?.metricName === currentSegment.metricName &&
-    projection.context.segment?.metricUnit === currentSegment.metricUnit &&
-    projection.context.segment?.direction === currentSegment.direction &&
-    (projection.context.segment?.metricThreshold ?? null) === currentSegment.metricThreshold &&
-    projection.context.segment?.benchmarkCommand === currentSegment.benchmarkCommand &&
-    projection.context.segment?.checksCommand === currentSegment.checksCommand &&
-    projection.context.runCount === currentSegment.runCount &&
-    projection.context.successfulRunCount === currentSegment.successfulRunCount &&
-    projection.context.baselineMetric === currentSegment.baselineMetric &&
-    projection.context.bestMetric === currentSegment.bestMetric &&
-    projection.context.lastRunStatus === currentSegment.lastRunStatus &&
-    projection.context.lastRunMetric === currentSegment.lastRunMetric
-  );
-}
-
-function describeRuntimeProjectionSyncIssue(
-  projection: ReturnType<typeof projectAutoresearchLedger>,
-  currentSegment: AutoresearchSegmentSummary,
-): string {
-  return [
-    `ledger state ${projection.state}`,
-    `ledger run count ${projection.context.runCount}`,
-    `receipt run count ${currentSegment.runCount}`,
-  ].join("; ");
-}
-
-function createFallbackMachineInput(
-  currentSegment: AutoresearchSegmentSummary,
-  lastPostRunDecision: AutoresearchRunDecisionSummary | null,
-): CampaignMachineInput | undefined {
-  if (!currentSegment.configured) {
-    return undefined;
-  }
-
-  return {
-    segment: {
-      name: currentSegment.name ?? "(unnamed)",
-      metricName: currentSegment.metricName ?? "(unset)",
-      metricUnit: currentSegment.metricUnit,
-      direction: currentSegment.direction ?? "lower",
-      metricThreshold: currentSegment.metricThreshold,
-      benchmarkCommand: currentSegment.benchmarkCommand ?? "",
-      checksCommand: currentSegment.checksCommand,
-    },
-    runCount: currentSegment.runCount,
-    successfulRunCount: currentSegment.successfulRunCount,
-    baselineMetric: currentSegment.baselineMetric,
-    bestMetric: currentSegment.bestMetric,
-    lastRunStatus: currentSegment.lastRunStatus,
-    lastRunMetric: currentSegment.lastRunMetric,
-    awaitingDecision: false,
-    blockedReason:
-      lastPostRunDecision?.mappedDecision === "block"
-        ? (lastPostRunDecision.blockingReason ?? "campaign blocked pending operator action")
-        : null,
-    resumeState:
-      lastPostRunDecision?.mappedDecision === "rebaseline"
-        ? "rebaseline_needed"
-        : lastPostRunDecision?.mappedDecision === "finalize"
-          ? "finalize_candidate"
-          : null,
-  };
-}
-
-function ensureEventLedgerInitializedFromReceipts(
-  cwd: string,
-  entries: AutoresearchReceipt[],
-): void {
-  if (entries.length === 0) {
-    return;
-  }
-
-  const currentSegmentView = getCurrentSegment(entries);
-  const currentSegment = summarizeCurrentSegment(currentSegmentView);
-  const reconstructedEntries = reconstructLedgerEntriesForCurrentSegment(currentSegmentView);
-  const loadResult = loadAutoresearchLedger(cwd);
-  if (loadResult.entries.length === 0 && loadResult.invalidLineCount === 0) {
-    appendLedgerEntries(cwd, reconstructedEntries);
-    return;
-  }
-
-  const projection = projectAutoresearchLedger(cwd);
-  if (!projectionMatchesCurrentSegment(projection, currentSegment)) {
-    appendLedgerEntries(cwd, reconstructedEntries);
-  }
-}
-
-function appendLedgerEntries(cwd: string, entries: AutoresearchLedgerEventEntry[]): void {
-  for (const entry of entries) {
-    appendLedgerEvent(cwd, entry);
-  }
-}
-
-function reconstructLedgerEntriesForCurrentSegment(
-  currentSegment: CurrentSegmentView,
-): AutoresearchLedgerEventEntry[] {
-  if (!currentSegment.config) {
-    return [];
-  }
-
-  const config = currentSegment.config;
-  return [
-    createLedgerEventEntry(
-      campaignEvents.configureSegment(createCampaignSegmentConfigFromReceipt(config)),
-      config.createdAt,
-    ),
-    ...currentSegment.runs.flatMap((run) => reconstructLedgerEntriesForRun(run, config)),
-  ];
-}
-
-function reconstructLedgerEntriesForRun(
-  run: AutoresearchRunReceipt,
-  config: AutoresearchConfigReceipt,
-): AutoresearchLedgerEventEntry[] {
-  const benchmarkCommand =
-    run.benchmarkCommand ?? config.benchmarkCommand ?? "bash autoresearch.sh";
-  const checksCommand = run.checksCommand ?? config.checksCommand ?? null;
-  const entries: AutoresearchLedgerEventEntry[] = [
-    createLedgerEventEntry(
-      campaignEvents.startRun({
-        description: reconstructOriginalRunDescription(run.description),
-        benchmarkCommand,
-        checksCommand,
-      }),
-      run.timestamp,
-    ),
-  ];
-
-  if (run.status === "crash") {
-    entries.push(
-      createLedgerEventEntry(
-        campaignEvents.benchmarkFailed("reconstructed crash receipt"),
-        run.timestamp,
-      ),
-    );
-  } else {
-    entries.push(
-      createLedgerEventEntry(
-        campaignEvents.benchmarkSucceeded({
-          metric: run.metric,
-          requiresChecks: checksCommand !== null,
-        }),
-        run.timestamp,
-      ),
-    );
-
-    if (checksCommand !== null) {
-      entries.push(
-        createLedgerEventEntry(
-          run.status === "checks_failed" || run.checksPassed === false
-            ? campaignEvents.checksFailed("reconstructed checks failure receipt")
-            : campaignEvents.checksSucceeded(),
-          run.timestamp,
-        ),
-      );
-    }
-  }
-
-  entries.push(
-    createLedgerEventEntry(
-      campaignEvents.receiptRecorded({
-        status: run.status,
-        metric: run.metric,
-      }),
-      run.timestamp,
-    ),
-    createLedgerEventEntry(
-      campaignEvents.decideNextAction(
-        run.decision?.mappedDecision ?? "iterate",
-        run.decision
-          ? formatRunDecisionLedgerReason(run.decision)
-          : "reconstructed from receipt history",
-      ),
-      run.timestamp,
-    ),
-  );
-
-  return entries;
-}
-
-function ensureMachineReadyForBoundedRun(
-  cwd: string,
-  options: { allowBootstrapConfig?: boolean; allowRebaselineReconfigure?: boolean } = {},
-): void {
-  let status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
-
-  if (status.control.kind === "continue") {
-    consumeAutoresearchContinueControl(cwd, status);
-    status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false });
-  }
-
-  if (status.control.kind === "awaiting_operator") {
-    throw new Error(
-      `Cannot start a bounded autoresearch run while control state awaiting_operator requires one of: ${formatAllowedActions(status.control.allowedActions)}`,
-    );
-  }
-
-  if (status.control.kind === "rebaseline" && options.allowRebaselineReconfigure === true) {
-    return;
-  }
-
-  if (
-    status.control.kind === "rebaseline" ||
-    status.control.kind === "finalize" ||
-    status.control.kind === "stop"
-  ) {
-    throw new Error(
-      `Cannot start a bounded autoresearch run while control state ${status.control.kind} is selected`,
-    );
-  }
-
-  if (!canCampaignMachineStartBoundedRun(status.runtimeProjection.state)) {
-    if (
-      options.allowBootstrapConfig === true &&
-      status.runtimeProjection.state === "segment_unconfigured"
-    ) {
-      return;
-    }
-    throw new Error(
-      `Cannot start a bounded autoresearch run while the machine is in state ${status.runtimeProjection.state}`,
-    );
-  }
-}
-
-function consumeAutoresearchContinueControl(cwd: string, status: AutoresearchRuntimeStatus): void {
-  switch (status.runtimeProjection.state) {
-    case "awaiting_decision":
-      appendLedgerEvent(
-        cwd,
-        createLedgerEventEntry(
-          campaignEvents.decideNextAction(
-            "iterate",
-            "operator selected continue through autoresearch_runtime_control",
-          ),
-        ),
-      );
-      return;
-    case "finalize_candidate":
-      appendLedgerEvent(cwd, createLedgerEventEntry(campaignEvents.rejectFinalize()));
-      return;
-    default:
-      return;
-  }
-}
-
-function createCampaignSegmentConfigFromReceipt(
-  receipt: AutoresearchConfigReceipt,
-): CampaignSegmentConfig {
-  return {
-    name: receipt.name,
-    metricName: receipt.metricName,
-    metricUnit: receipt.metricUnit,
-    direction: receipt.direction,
-    ...(receipt.metricThreshold === undefined ? {} : { metricThreshold: receipt.metricThreshold }),
-    benchmarkCommand: receipt.benchmarkCommand ?? "bash autoresearch.sh",
-    checksCommand: receipt.checksCommand ?? null,
-  };
-}
-
-function describeBenchmarkFailure(
-  benchmark: CommandExecutionSummary,
-  metricContractFailed: boolean,
-): string {
-  if (metricContractFailed) {
-    return "primary metric missing from benchmark output";
-  }
-  if (benchmark.timedOut) {
-    return "benchmark timed out";
-  }
-  if (benchmark.exitCode === null) {
-    return "benchmark ended with a signal or process error";
-  }
-  return `benchmark exited with code ${benchmark.exitCode}`;
-}
-
-function summarizeCurrentSegment(currentSegment: CurrentSegmentView): AutoresearchSegmentSummary {
-  const successfulRuns = currentSegment.runs.filter(isSuccessfulMetricRun);
-  const optimizationRuns = successfulRuns.filter(
-    (run) => (run.runKind ?? "ordinary") !== "calibration",
-  );
-  const baselineMetric = successfulRuns[0]?.metric ?? null;
-  const metricInterpretation = currentSegment.config
-    ? interpretMetricNoise(successfulRuns, currentSegment.config)
-    : null;
-  let bestMetric = optimizationRuns[0]?.metric ?? baselineMetric;
-
-  if (currentSegment.config) {
-    for (const run of optimizationRuns) {
-      if (
-        bestMetric === null ||
-        isBetter(run.metric, bestMetric, currentSegment.config.direction)
-      ) {
-        bestMetric = run.metric;
-      }
-    }
-  }
-
-  return {
-    configured: currentSegment.config !== null,
-    name: currentSegment.config?.name ?? null,
-    metricName: currentSegment.config?.metricName ?? null,
-    metricUnit: currentSegment.config?.metricUnit ?? "",
-    direction: currentSegment.config?.direction ?? null,
-    metricThreshold: currentSegment.config?.metricThreshold ?? null,
-    benchmarkCommand: currentSegment.config?.benchmarkCommand ?? null,
-    checksCommand: currentSegment.config?.checksCommand ?? null,
-    runCount: currentSegment.runs.length,
-    successfulRunCount: successfulRuns.length,
-    baselineMetric,
-    bestMetric,
-    confidence:
-      currentSegment.config && optimizationRuns.length > 0
-        ? computeConfidence(optimizationRuns, currentSegment.config.direction)
-        : null,
-    metricInterpretation,
-    empiricalDecisionClass: classifyLatestEmpiricalDecision(
-      currentSegment.runs,
-      successfulRuns,
-      currentSegment.config,
-      metricInterpretation,
-    ),
-    lastRunStatus: currentSegment.runs.at(-1)?.status ?? null,
-    lastRunKind: currentSegment.runs.at(-1)?.runKind ?? null,
-    lastRunMetric: currentSegment.runs.at(-1)?.metric ?? null,
-  };
-}
-
-function buildAutoresearchEmpiricalPosture(
-  segment: AutoresearchSegmentSummary,
-  runs: readonly AutoresearchRunReceipt[],
-): AutoresearchEmpiricalPosture {
-  const ordinaryCandidateRuns = runs.filter(
-    (run) =>
-      run.status === "candidate" &&
-      (run.runKind ?? "ordinary") !== "calibration" &&
-      isSuccessfulMetricRun(run),
-  );
-  const calibrationRuns = runs.filter(
-    (run) => (run.runKind ?? "ordinary") === "calibration" && isSuccessfulMetricRun(run),
-  );
-  if (!segment.configured) {
-    return {
-      classification: "unconfigured",
-      summary: `no campaign configured yet`,
-      promotionReady: false,
-      recommendedNextAction: "configure a bounded segment before collecting evidence",
-    };
-  }
-
-  if (segment.runCount === 0) {
-    return {
-      classification: "no_runs",
-      summary: `configured but no baseline or run evidence exists yet`,
-      promotionReady: false,
-      recommendedNextAction: "run a baseline before interpreting candidate evidence",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "measurement_invalid") {
-    return {
-      classification: "measurement_invalid",
-      summary: `measurement is invalid; no promotion-ready evidence exists`,
-      promotionReady: false,
-      recommendedNextAction: "fix the benchmark or metric contract before another optimization run",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "checks_failed") {
-    return {
-      classification: "checks_failed",
-      summary: `checks failed; candidate evidence is blocked`,
-      promotionReady: false,
-      recommendedNextAction:
-        "diagnose the check failure before promotion or another optimization claim",
-    };
-  }
-
-  if (segment.successfulRunCount === 0 || segment.baselineMetric === null) {
-    return {
-      classification: "measurement_invalid",
-      summary: `no successful metric baseline is available`,
-      promotionReady: false,
-      recommendedNextAction: "collect a successful baseline metric before interpreting the segment",
-    };
-  }
-
-  if (ordinaryCandidateRuns.length === 0) {
-    if (calibrationRuns.length > 0 || segment.empiricalDecisionClass === "calibration_signal") {
-      return {
-        classification: "calibration_only",
-        summary: `calibration-only; no ordinary candidate evidence yet`,
-        promotionReady: false,
-        recommendedNextAction: "run an ordinary candidate before claiming improvement",
-      };
-    }
-    return {
-      classification: "baseline_only",
-      summary: `baseline-only; no candidate evidence yet`,
-      promotionReady: false,
-      recommendedNextAction: "collect calibration samples or bind one ordinary candidate run",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "baseline_drift") {
-    return {
-      classification: "baseline_drift_suspected",
-      summary: `baseline drift suspected; candidate result is not promotion-ready`,
-      promotionReady: false,
-      recommendedNextAction: "rebaseline or collect more candidate samples before promotion",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "insufficient_samples") {
-    return {
-      classification: "under_sampled",
-      summary: `under-sampled; candidate result is not promotion-ready`,
-      promotionReady: false,
-      recommendedNextAction: "collect enough successful samples to separate effect from noise",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "candidate_improvement") {
-    return {
-      classification: "candidate_review_ready",
-      summary: `ordinary candidate evidence exists and is review-ready`,
-      promotionReady: true,
-      recommendedNextAction:
-        "generate closeout and promote evidence through the owning review/evidence surface",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "threshold_satisfied") {
-    return {
-      classification: "threshold_satisfied",
-      summary: `candidate satisfies the primary threshold-style success condition`,
-      promotionReady: true,
-      recommendedNextAction:
-        "generate closeout and promote threshold-satisfied evidence through the owning review/evidence surface",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "threshold_preserved") {
-    return {
-      classification: "threshold_preserved",
-      summary: `candidate preserves the primary threshold-style success condition`,
-      promotionReady: true,
-      recommendedNextAction:
-        "generate closeout and promote threshold-preserved evidence through the owning review/evidence surface",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "threshold_regressed") {
-    return {
-      classification: "threshold_regressed",
-      summary: `candidate regressed the primary threshold-style success condition`,
-      promotionReady: false,
-      recommendedNextAction: "discard or revise the candidate before another measured run",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "threshold_not_met") {
-    return {
-      classification: "threshold_not_met",
-      summary: `candidate has not satisfied the primary threshold-style success condition`,
-      promotionReady: false,
-      recommendedNextAction:
-        "continue measuring or revise the candidate until the explicit threshold is satisfied",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "candidate_regression") {
-    return {
-      classification: "candidate_regression",
-      summary: `candidate regression; do not promote this result`,
-      promotionReady: false,
-      recommendedNextAction: "discard or revise the candidate before another measured run",
-    };
-  }
-
-  if (segment.empiricalDecisionClass === "candidate_neutral") {
-    return {
-      classification: "candidate_neutral",
-      summary: `candidate appears neutral on the primary metric`,
-      promotionReady: false,
-      recommendedNextAction:
-        "promote only with separate non-metric justification; otherwise try another candidate",
-    };
-  }
-
-  return {
-    classification: "inconclusive",
-    summary: `result is inconclusive; no promotion-ready candidate evidence yet`,
-    promotionReady: false,
-    recommendedNextAction:
-      "collect more samples, rebaseline, or bind a clearer candidate hypothesis",
-  };
-}
-
-function getCurrentSegment(entries: AutoresearchReceipt[]): CurrentSegmentView {
-  let config: AutoresearchConfigReceipt | null = null;
-  let runs: AutoresearchRunReceipt[] = [];
-
-  for (const entry of entries) {
-    if (entry.type === "config") {
-      config = entry;
-      runs = [];
-      continue;
-    }
-    if (config) {
-      runs.push(entry);
-    }
-  }
-
-  return { config, runs };
-}
-
-function formatPromptVaultDecisionAvailability(
-  value: AutoresearchPromptVaultDecisionAvailability,
-): string {
-  switch (value) {
-    case "available_not_yet_used":
-      return "available (not used yet)";
-    case "available_last_used_successfully":
-      return "available (last used successfully)";
-    case "available_last_used_blocked":
-      return "available (last use blocked)";
-  }
-}
-
-function formatLastPostRunDecision(value: AutoresearchRunDecisionSummary | null): string {
-  if (!value) {
-    return "(none)";
-  }
-
-  const summary =
-    value.blockingReason ?? value.nextHypothesis ?? value.stateRead ?? "decision recorded";
-  return `${value.status} -> ${value.mappedDecision} (${summary})`;
-}
-
-function formatLlamacppCampaignProjectionAvailability(
-  value: AutoresearchLlamacppCampaignProjectionAvailability,
-): string {
-  switch (value) {
-    case "current":
-      return "current";
-    case "stale":
-      return "stale";
-    default:
-      return "not projected";
-  }
-}
-
-function formatLlamacppCampaignProjectionLabel(
-  value: AutoresearchLlamacppCampaignProjectionStatus,
-): string {
-  if (!value.campaignId && !value.manifestPath) {
-    return "(none)";
-  }
-  if (!value.campaignId) {
-    return value.manifestPath ?? "(none)";
-  }
-  if (!value.manifestPath) {
-    return value.campaignId;
-  }
-  return `${value.campaignId} (${value.manifestPath})`;
 }
 
 function formatAllowedActions(actions: readonly string[]): string {
