@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { AUTORESEARCH_EVENT_LEDGER_FILE } from "./ledger.ts";
 import { AUTORESEARCH_RUNTIME_SNAPSHOT_FILE } from "./resume.ts";
-import { buildAutoresearchSegmentCloseout } from "./runtime.ts";
+import { buildAutoresearchSegmentCloseout } from "./runtime-closeout.ts";
 import {
   AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
   AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,

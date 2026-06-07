@@ -45,6 +45,7 @@ import {
   shellSingleQuote,
   slugAutoresearchName,
 } from "./runtime-autoplan.ts";
+import { buildAutoresearchSegmentCloseout } from "./runtime-closeout.ts";
 import { joinOutput, runProcessCommand, runShellCommand } from "./runtime-command.ts";
 import { normalizeArray, stringOrNull } from "./runtime-common.ts";
 import {
@@ -84,15 +85,11 @@ import {
   buildAutoresearchMetricReadinessReview,
   describeMetricThresholdCaveat,
 } from "./runtime-metric-readiness.ts";
-import { classifyRunEmpiricalDecision, isSuccessfulMetricRun } from "./runtime-metrics.ts";
+import { isSuccessfulMetricRun } from "./runtime-metrics.ts";
 import type {
   AutoresearchAkEvidencePacket,
   AutoresearchCandidateArtifactStatus,
-  AutoresearchCandidateBindInspection,
   AutoresearchCandidateBinding,
-  AutoresearchCandidateBindingSource,
-  AutoresearchCandidateBindPlan,
-  AutoresearchCandidateBindReadiness,
   AutoresearchCandidateDecisionAction,
   AutoresearchCandidateDecisionConfirmation,
   AutoresearchCandidateDecisionSummary,
@@ -102,7 +99,6 @@ import type {
   AutoresearchCandidateLifecyclePolicyInput,
   AutoresearchCandidateResultExportResult,
   AutoresearchCandidateResultPacket,
-  AutoresearchEmpiricalDecisionClass,
   AutoresearchKnowledgeExportPacket,
   AutoresearchLearningExportResult,
   AutoresearchLoopPeerHandoff,
@@ -111,7 +107,6 @@ import type {
   AutoresearchMetricReadinessReview,
   AutoresearchOracleEvidenceExportResult,
   AutoresearchOracleEvidencePacket,
-  AutoresearchOracleEvidenceReadiness,
   AutoresearchOracleEvidenceRecord,
   AutoresearchOraclePublicationPreflightSummary,
   AutoresearchPeerAssistLane,
@@ -123,7 +118,6 @@ import type {
   AutoresearchSegmentCloseout,
   AutoresearchSegmentCloseoutRun,
   AutoresearchSegmentSummary,
-  BuildAutoresearchCandidateBindInput,
   BuildAutoresearchCandidateDecisionInput,
   BuildAutoresearchPeerAssistInput,
   CommandExecutionSummary,
@@ -222,11 +216,16 @@ export {
 } from "./runtime-adapter-format.ts";
 export { buildAutoresearchAutoplan, formatAutoresearchAutoplanResult } from "./runtime-autoplan.ts";
 export {
+  buildAutoresearchCandidateBindPlan,
+  formatAutoresearchCandidateBindPlan,
+} from "./runtime-candidate-bind.ts";
+export {
   applyAutoresearchCandidateInventoryCleanup,
   buildAutoresearchCandidateInventoryCleanupPlan,
   formatAutoresearchCandidateInventoryCleanupPlan,
 } from "./runtime-candidate-cleanup.ts";
 export * from "./runtime-constants.ts";
+export { buildAutoresearchSegmentCloseout };
 export { formatAutoresearchDashboard };
 export { exportAutoresearchDashboardHtml } from "./runtime-dashboard-export.ts";
 export type {
@@ -864,21 +863,6 @@ function buildAutoresearchOraclePublicationPreflightSummary(
   };
 }
 
-function summarizeAutoresearchOracleEvidenceReadiness(
-  closeout: Omit<AutoresearchSegmentCloseout, "oracleReadyEvidence">,
-): AutoresearchOracleEvidenceReadiness {
-  const recordCount = closeout.runs.length;
-  const preflight = buildAutoresearchOraclePublicationPreflightSummary(recordCount);
-  return {
-    packetKind: "autoresearch.oracle_evidence.v1",
-    recordCount,
-    preflightStatus: preflight.status,
-    target: preflight.target,
-    authorityBoundary:
-      "Oracle-ready evidence is empirical memory input only; DSPx owns publication preflight/shared Oracle writes and AK/society.v2.db remains canonical authority.",
-  };
-}
-
 export function buildAutoresearchOracleEvidencePacket(
   cwd: string,
 ): AutoresearchOracleEvidencePacket {
@@ -1457,85 +1441,6 @@ export function formatAutoresearchCandidateDecisionDashboardSummary(
   ].join("\n");
 }
 
-export function buildAutoresearchCandidateBindPlan(
-  input: BuildAutoresearchCandidateBindInput,
-): AutoresearchCandidateBindPlan {
-  const cwd = path.resolve(input.cwd);
-  const candidateWorktree = path.resolve(cwd, input.candidateWorktree ?? cwd);
-  const candidateSource = input.candidateSource ?? "manual";
-  const inspection = inspectAutoresearchCandidateWorktree({
-    cwd,
-    candidateWorktree,
-    candidateBranch: input.candidateBranch,
-    candidateBaseRef: input.candidateBaseRef,
-  });
-  const description =
-    stringOrNull(input.description) ??
-    `Measure bound candidate ${inspection.branch ?? path.basename(candidateWorktree)}`;
-  const exactNextCalls = buildAutoresearchCandidateBindNextCalls({
-    cwd,
-    description,
-    candidateSource,
-    inspection,
-  });
-  const plannedCommands = buildAutoresearchCandidateBindCommandPlan({ cwd, inspection });
-
-  return {
-    cwd,
-    action: input.action ?? "plan_run",
-    candidateSource,
-    description,
-    inspection,
-    exactNextCalls,
-    plannedCommands,
-    boundaryWarnings: [...AUTORESEARCH_CANDIDATE_BIND_BOUNDARY_WARNINGS],
-    status: buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: false }),
-  };
-}
-
-export function formatAutoresearchCandidateBindPlan(result: AutoresearchCandidateBindPlan): string {
-  return [
-    "# PI-AUTORESEARCH CANDIDATE BIND PLAN",
-    "",
-    "Read-only / plan-only candidate intake surface. It inspects a controller-verified worktree/branch and prepares the exact measurement call; it does not run benchmarks, merge, delete worktrees, reset worktrees, spawn peers, write AK/KES/evidence, or promote results.",
-    "",
-    `- cwd: ${result.cwd}`,
-    `- action: ${result.action}`,
-    `- candidate source: ${result.candidateSource}`,
-    `- measurement description: ${result.description}`,
-    "",
-    "## Candidate inspection",
-    `- candidate worktree: ${result.inspection.candidateWorktree}`,
-    `- exists: ${result.inspection.exists ? "yes" : "no"}`,
-    `- git worktree: ${result.inspection.isGitWorktree ? "yes" : "no"}`,
-    `- same repository as cwd: ${formatNullableBoolean(result.inspection.sameRepository)}`,
-    `- repository root: ${result.inspection.repositoryRoot ?? "(unknown)"}`,
-    `- branch/ref: ${result.inspection.branch ?? "(unknown)"}`,
-    `- head: ${result.inspection.head ?? "(unknown)"}`,
-    `- base ref: ${result.inspection.baseRef ?? "(not supplied; provide candidateBaseRef for base-relative diffs and rewind plans)"}`,
-    `- base ref source: ${result.inspection.baseRefSource ?? "(none)"}`,
-    `- base resolved: ${result.inspection.baseResolved ? "yes" : "no"}`,
-    `- files changed: ${formatTargetFiles(result.inspection.filesChanged)}`,
-    `- diff summary: ${result.inspection.diffSummary}`,
-    `- intake readiness: ${result.inspection.readiness}`,
-    `- readiness reasons: ${result.inspection.readinessReasons.length > 0 ? result.inspection.readinessReasons.join("; ") : "none"}`,
-    "",
-    "## Read-only inspection commands",
-    ...result.plannedCommands.map((command) => `- ${command}`),
-    "",
-    "## Exact next calls",
-    ...result.exactNextCalls.map((call) => `- ${call}`),
-    "",
-    "## Warnings",
-    ...(result.inspection.warnings.length > 0
-      ? result.inspection.warnings.map((warning) => `- ${warning}`)
-      : ["- none"]),
-    "",
-    "## Boundary warnings",
-    ...result.boundaryWarnings.map((warning) => `- ${warning}`),
-  ].join("\n");
-}
-
 export function buildAutoresearchKnowledgeExportPacket(
   cwd: string,
 ): AutoresearchKnowledgeExportPacket {
@@ -1577,82 +1482,6 @@ export function buildAutoresearchAkEvidencePacket(input: {
     suggestedToolCall: `evidence_record({ task_id: ${input.taskId}, check_type: "autoresearch:segment_closeout", result: ${JSON.stringify(result)} })`,
     adapterBoundary,
     evidenceBoundary: adapterBoundary,
-  };
-}
-
-export function buildAutoresearchSegmentCloseout(cwd: string): AutoresearchSegmentCloseout {
-  const resolvedCwd = path.resolve(cwd);
-  const paths = resolveAutoresearchPaths(resolvedCwd);
-  const { entries, invalidLineCount } = loadReceiptLog(resolvedCwd);
-  const status = buildAutoresearchRuntimeStatusFromEntries(
-    resolvedCwd,
-    paths,
-    entries,
-    invalidLineCount,
-    { persistSnapshot: false },
-  );
-  const currentSegment = getCurrentSegment(entries);
-  const successfulRuns = currentSegment.runs.filter(isSuccessfulMetricRun);
-  const candidateBindings = currentSegment.runs
-    .map((run) => run.experiment?.candidate)
-    .filter((binding): binding is AutoresearchCandidateBinding => Boolean(binding));
-
-  const adapterBoundary =
-    "Segment closeout is package-local empirical evidence only; promote to AK evidence, KES learning, DSPx Oracle empirical memory, or another target through an explicit adapter or owner surface.";
-
-  const closeoutWithoutOracle = {
-    packetKind: "autoresearch.closeout.v1" as const,
-    adapterContractVersion: 1 as const,
-    targetKinds: [
-      "adapter_source",
-      "evidence",
-      "learning",
-      "task_system",
-      "knowledge_base",
-      "dspx_oracle",
-      "empirical_memory",
-    ],
-    cwd: resolvedCwd,
-    receiptPath: paths.jsonlPath,
-    status,
-    campaign: status.currentSegment.name,
-    metricName: status.currentSegment.metricName,
-    metricUnit: status.currentSegment.metricUnit,
-    direction: status.currentSegment.direction,
-    runCount: status.currentSegment.runCount,
-    successfulRunCount: status.currentSegment.successfulRunCount,
-    baselineMetric: status.currentSegment.baselineMetric,
-    bestMetric: status.currentSegment.bestMetric,
-    empiricalDecisionClass: status.currentSegment.empiricalDecisionClass,
-    timingInterpretation: status.currentSegment.metricInterpretation,
-    empiricalPosture: status.empiricalPosture,
-    runs: currentSegment.runs.map((run) => ({
-      iteration: run.iteration ?? null,
-      status: run.status,
-      runKind: run.runKind ?? "ordinary",
-      empiricalDecisionClass:
-        run.empiricalDecisionClass ??
-        classifyRunEmpiricalDecision(
-          run,
-          successfulRuns,
-          currentSegment.config,
-          status.currentSegment.metricInterpretation,
-        ),
-      metric: run.metric,
-      description: run.description,
-      timestamp: run.timestamp,
-      checks: describeChecksState(run),
-      experiment: run.experiment ?? null,
-    })),
-    candidateBindings,
-    recommendedAction: recommendSegmentCloseoutAction(status.currentSegment.empiricalDecisionClass),
-    adapterBoundary,
-    evidenceBoundary: adapterBoundary,
-  };
-
-  return {
-    ...closeoutWithoutOracle,
-    oracleReadyEvidence: summarizeAutoresearchOracleEvidenceReadiness(closeoutWithoutOracle),
   };
 }
 
@@ -3459,46 +3288,12 @@ function renderAutoresearchAkEvidenceResult(closeout: AutoresearchSegmentCloseou
   ].join("\n");
 }
 
-function recommendSegmentCloseoutAction(decisionClass: AutoresearchEmpiricalDecisionClass): string {
-  switch (decisionClass) {
-    case "candidate_improvement":
-    case "threshold_satisfied":
-    case "threshold_preserved":
-      return "verify or finalize the candidate through explicit review/evidence promotion";
-    case "candidate_regression":
-    case "threshold_regressed":
-    case "checks_failed":
-    case "measurement_invalid":
-      return "discard the candidate or diagnose the measurement/check failure before another optimization run";
-    case "calibration_signal":
-    case "insufficient_samples":
-    case "possible_noise":
-    case "threshold_not_met":
-      return "collect more evidence or rebaseline before treating the segment as an improvement";
-    case "baseline_drift":
-      return "investigate environment drift and consider an explicit rebaseline";
-    case "candidate_neutral":
-      return "treat as neutral; keep only if there is a non-metric reason and record that separately";
-    case "baseline":
-      return "run a scoped candidate or calibration sample before finalizing";
-    case "not_evaluated":
-      return "configure and run a bounded segment before closeout";
-  }
-}
-
 const AUTORESEARCH_CANDIDATE_DECISION_BOUNDARY_WARNINGS = [
   "worktree lifecycle is the candidate keep/discard/rewind primitive; this workbench only plans commands",
   "Replay Fabric is observer/history/recovery-clue only and does not accept, discard, or rewind candidates",
   "ASC rewind is live Pi/session recovery only, not candidate lifecycle authority",
   "durable promotion belongs to external owner surfaces such as AK/KES/adapters after explicit review",
   "this surface does not merge, delete worktrees, reset worktrees, spawn peers, write evidence, or promote",
-] as const;
-
-const AUTORESEARCH_CANDIDATE_BIND_BOUNDARY_WARNINGS = [
-  "candidate bind is intake only; it prepares measurement metadata and does not execute the benchmark",
-  "controller verification remains required for candidate source, base ref, diff summary, and changed files",
-  "worktree lifecycle remains the keep/discard/rewind primitive; bind does not merge, delete, reset, or promote",
-  "durable promotion and evidence writes remain external owner-surface actions after explicit review",
 ] as const;
 
 function buildAutoresearchCandidateDecisionConfirmation(input: {
@@ -3866,405 +3661,4 @@ function buildAutoresearchCandidateDecisionCommandPlan(input: {
         ];
   }
   return [];
-}
-
-function inspectAutoresearchCandidateWorktree(input: {
-  cwd: string;
-  candidateWorktree: string;
-  candidateBranch?: string | null;
-  candidateBaseRef?: string | null;
-}): AutoresearchCandidateBindInspection {
-  const warnings: string[] = [];
-  const exists = existsSync(input.candidateWorktree);
-  if (!exists) {
-    warnings.push(
-      "candidate worktree path does not exist; create/select a worktree before measurement",
-    );
-    return {
-      candidateWorktree: input.candidateWorktree,
-      exists,
-      isGitWorktree: false,
-      sameRepository: null,
-      repositoryRoot: null,
-      branch: stringOrNull(input.candidateBranch),
-      head: null,
-      baseRef: stringOrNull(input.candidateBaseRef),
-      baseRefSource: stringOrNull(input.candidateBaseRef) ? "supplied" : null,
-      baseResolved: false,
-      statusShort: [],
-      filesChanged: [],
-      diffSummary: "candidate worktree is unavailable",
-      readiness: "blocked",
-      readinessReasons: ["candidate worktree path does not exist"],
-      warnings,
-    };
-  }
-
-  const inside = runGitForCandidateBind(input.candidateWorktree, [
-    "rev-parse",
-    "--is-inside-work-tree",
-  ]);
-  const isGitWorktree = inside.ok && inside.stdout.trim() === "true";
-  if (!isGitWorktree) {
-    warnings.push("candidate path exists but is not a git worktree");
-  }
-
-  const repositoryRoot = isGitWorktree
-    ? nullIfEmpty(
-        runGitForCandidateBind(input.candidateWorktree, ["rev-parse", "--show-toplevel"]).stdout,
-      )
-    : null;
-  const cwdCommonDir = runGitForCandidateBind(input.cwd, ["rev-parse", "--git-common-dir"]);
-  const candidateCommonDir = runGitForCandidateBind(input.candidateWorktree, [
-    "rev-parse",
-    "--git-common-dir",
-  ]);
-  const sameRepository =
-    cwdCommonDir.ok && candidateCommonDir.ok
-      ? path.resolve(input.cwd, cwdCommonDir.stdout.trim()) ===
-        path.resolve(input.candidateWorktree, candidateCommonDir.stdout.trim())
-      : null;
-  if (sameRepository === false) {
-    warnings.push("candidate worktree does not appear to belong to the same git repository as cwd");
-  }
-
-  const detectedBranch = isGitWorktree
-    ? nullIfEmpty(
-        runGitForCandidateBind(input.candidateWorktree, ["branch", "--show-current"]).stdout,
-      )
-    : null;
-  const head = isGitWorktree
-    ? nullIfEmpty(
-        runGitForCandidateBind(input.candidateWorktree, ["rev-parse", "--short", "HEAD"]).stdout,
-      )
-    : null;
-  const suppliedBaseRef = stringOrNull(input.candidateBaseRef);
-  const inferredBaseRef = suppliedBaseRef
-    ? null
-    : inferAutoresearchCandidateBindBaseRef(input.candidateWorktree);
-  const baseRef = suppliedBaseRef ?? inferredBaseRef?.baseRef ?? null;
-  const baseRefSource = suppliedBaseRef ? "supplied" : (inferredBaseRef?.source ?? null);
-  const baseCheck = baseRef
-    ? runGitForCandidateBind(input.candidateWorktree, [
-        "rev-parse",
-        "--verify",
-        `${baseRef}^{commit}`,
-      ])
-    : null;
-  const baseResolved = Boolean(baseCheck?.ok);
-  if (suppliedBaseRef && !baseResolved) {
-    warnings.push(
-      `candidateBaseRef ${JSON.stringify(suppliedBaseRef)} did not resolve in the candidate worktree`,
-    );
-  }
-  if (!suppliedBaseRef && inferredBaseRef) {
-    warnings.push(
-      `candidateBaseRef was inferred from ${inferredBaseRef.source}; verify before destructive rewind planning`,
-    );
-  }
-  if (!baseRef) {
-    warnings.push(
-      "candidateBaseRef was not supplied and could not be inferred; diff summary falls back to working-tree status and rewind plans cannot be complete",
-    );
-  }
-
-  const statusShort = isGitWorktree
-    ? splitNonEmptyStatusLines(
-        runGitForCandidateBind(input.candidateWorktree, [
-          "status",
-          "--short",
-          "--untracked-files=all",
-        ]).stdout,
-      )
-    : [];
-  const filesChanged = isGitWorktree
-    ? deriveCandidateBindFilesChanged({
-        worktree: input.candidateWorktree,
-        baseRef,
-        baseResolved,
-        statusShort,
-      })
-    : [];
-  const diffSummary = isGitWorktree
-    ? deriveCandidateBindDiffSummary({
-        worktree: input.candidateWorktree,
-        baseRef,
-        baseResolved,
-        statusShort,
-        filesChanged,
-      })
-    : "candidate path is not a git worktree";
-  const branch = stringOrNull(input.candidateBranch) ?? detectedBranch;
-  const readiness = deriveAutoresearchCandidateBindReadiness({
-    cwd: input.cwd,
-    candidateWorktree: input.candidateWorktree,
-    exists,
-    isGitWorktree,
-    sameRepository,
-    branch,
-    baseResolved,
-    filesChanged,
-  });
-
-  return {
-    candidateWorktree: input.candidateWorktree,
-    exists,
-    isGitWorktree,
-    sameRepository,
-    repositoryRoot,
-    branch,
-    head,
-    baseRef,
-    baseRefSource,
-    baseResolved,
-    statusShort,
-    filesChanged,
-    diffSummary,
-    readiness: readiness.readiness,
-    readinessReasons: readiness.reasons,
-    warnings,
-  };
-}
-
-function deriveAutoresearchCandidateBindReadiness(input: {
-  cwd: string;
-  candidateWorktree: string;
-  exists: boolean;
-  isGitWorktree: boolean;
-  sameRepository: boolean | null;
-  branch: string | null;
-  baseResolved: boolean;
-  filesChanged: string[];
-}): { readiness: AutoresearchCandidateBindReadiness; reasons: string[] } {
-  const blockedReasons: string[] = [];
-  const reviewReasons: string[] = [];
-  if (!input.exists) blockedReasons.push("candidate worktree path does not exist");
-  if (!input.isGitWorktree) blockedReasons.push("candidate path is not a git worktree");
-  if (input.sameRepository === false) {
-    blockedReasons.push("candidate worktree is not in the same git repository as cwd");
-  }
-  if (blockedReasons.length > 0) return { readiness: "blocked", reasons: blockedReasons };
-
-  if (!input.baseResolved) {
-    reviewReasons.push("base ref is missing or unresolved; verify before measurement/rewind");
-  }
-  if (input.filesChanged.length === 0) {
-    reviewReasons.push("no candidate files were detected relative to the selected base/status");
-  }
-  if (input.branch === "main" || input.branch === "master") {
-    reviewReasons.push(
-      "candidate appears to be on a trunk branch; prefer an isolated candidate branch/worktree",
-    );
-  }
-  if (path.resolve(input.cwd) === path.resolve(input.candidateWorktree)) {
-    reviewReasons.push(
-      "candidate worktree is the controller cwd; prefer an isolated candidate worktree when possible",
-    );
-  }
-  if (input.filesChanged.length > 25) {
-    reviewReasons.push("candidate touches many files; verify scope before measurement");
-  }
-
-  return reviewReasons.length > 0
-    ? { readiness: "needs_review", reasons: reviewReasons }
-    : { readiness: "ready", reasons: [] };
-}
-
-function buildAutoresearchCandidateBindNextCalls(input: {
-  cwd: string;
-  description: string;
-  candidateSource: AutoresearchCandidateBindingSource;
-  inspection: AutoresearchCandidateBindInspection;
-}): string[] {
-  const decisionStatusCall = `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(input.cwd)}, action: "status" })`;
-  if (input.inspection.readiness !== "ready") {
-    const reviewFields = [
-      `cwd: ${JSON.stringify(input.cwd)}`,
-      `action: "plan_run"`,
-      `candidateSource: ${JSON.stringify(input.candidateSource)}`,
-      `candidateWorktree: ${JSON.stringify(input.inspection.candidateWorktree)}`,
-      `description: ${JSON.stringify(input.description)}`,
-    ];
-    if (input.inspection.branch) {
-      reviewFields.push(`candidateBranch: ${JSON.stringify(input.inspection.branch)}`);
-    }
-    if (input.inspection.baseRef) {
-      reviewFields.push(`candidateBaseRef: ${JSON.stringify(input.inspection.baseRef)}`);
-    }
-    return [
-      `${AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME}({ ${reviewFields.join(", ")} })`,
-      decisionStatusCall,
-    ];
-  }
-
-  const runFields = [
-    `cwd: ${JSON.stringify(input.cwd)}`,
-    `description: ${JSON.stringify(input.description)}`,
-    `candidateSource: ${JSON.stringify(input.candidateSource)}`,
-    `candidateWorktree: ${JSON.stringify(input.inspection.candidateWorktree)}`,
-    `candidateBaseRef: ${JSON.stringify(input.inspection.baseRef)}`,
-    `candidateDiffSummary: ${JSON.stringify(input.inspection.diffSummary)}`,
-    `candidateFilesChanged: ${JSON.stringify(input.inspection.filesChanged)}`,
-  ];
-  if (input.inspection.branch) {
-    runFields.splice(4, 0, `candidateBranch: ${JSON.stringify(input.inspection.branch)}`);
-  }
-  return [`${AUTORESEARCH_RUN_TOOL_NAME}({ ${runFields.join(", ")} })`, decisionStatusCall];
-}
-
-function buildAutoresearchCandidateBindCommandPlan(input: {
-  cwd: string;
-  inspection: AutoresearchCandidateBindInspection;
-}): string[] {
-  const worktree = input.inspection.candidateWorktree;
-  const commands = [
-    `git -C ${shellSingleQuote(worktree)} status --short --untracked-files=all # read-only candidate preflight`,
-  ];
-  if (input.inspection.baseRef) {
-    commands.push(
-      `git -C ${shellSingleQuote(worktree)} diff --stat --compact-summary ${shellSingleQuote(input.inspection.baseRef)}...HEAD # read-only base-relative summary`,
-    );
-    commands.push(
-      `git -C ${shellSingleQuote(worktree)} diff --name-only ${shellSingleQuote(input.inspection.baseRef)}...HEAD # read-only candidate files`,
-    );
-  } else {
-    commands.push(
-      `git -C ${shellSingleQuote(input.cwd)} worktree list --porcelain # read-only; choose candidate worktree and base ref`,
-    );
-  }
-  return commands;
-}
-
-function inferAutoresearchCandidateBindBaseRef(
-  worktree: string,
-): { baseRef: string; source: string } | null {
-  const upstream = nullIfEmpty(
-    runGitForCandidateBind(worktree, [
-      "rev-parse",
-      "--abbrev-ref",
-      "--symbolic-full-name",
-      "@{upstream}",
-    ]).stdout,
-  );
-  const candidates = uniqueStrings(
-    [upstream, "origin/main", "main", "origin/master", "master"].filter(isNonEmptyString),
-  );
-  for (const candidate of candidates) {
-    const refCheck = runGitForCandidateBind(worktree, [
-      "rev-parse",
-      "--verify",
-      `${candidate}^{commit}`,
-    ]);
-    if (!refCheck.ok) continue;
-    const mergeBase = nullIfEmpty(
-      runGitForCandidateBind(worktree, ["merge-base", "HEAD", candidate]).stdout,
-    );
-    if (mergeBase) return { baseRef: mergeBase, source: `merge-base(HEAD, ${candidate})` };
-  }
-  return null;
-}
-
-function deriveCandidateBindFilesChanged(input: {
-  worktree: string;
-  baseRef: string | null;
-  baseResolved: boolean;
-  statusShort: string[];
-}): string[] {
-  if (input.baseRef && input.baseResolved) {
-    const baseFiles = splitNonEmptyLines(
-      runGitForCandidateBind(input.worktree, ["diff", "--name-only", `${input.baseRef}...HEAD`])
-        .stdout,
-    );
-    const statusFiles = input.statusShort.map(parseGitStatusPath).filter(isNonEmptyString);
-    return filterAutoresearchLocalArtifactPaths(uniqueStrings([...baseFiles, ...statusFiles]));
-  }
-  return filterAutoresearchLocalArtifactPaths(
-    uniqueStrings(input.statusShort.map(parseGitStatusPath).filter(isNonEmptyString)),
-  );
-}
-
-function deriveCandidateBindDiffSummary(input: {
-  worktree: string;
-  baseRef: string | null;
-  baseResolved: boolean;
-  statusShort: string[];
-  filesChanged: string[];
-}): string {
-  if (input.baseRef && input.baseResolved) {
-    const summary = splitNonEmptyLines(
-      runGitForCandidateBind(input.worktree, [
-        "diff",
-        "--stat",
-        "--compact-summary",
-        `${input.baseRef}...HEAD`,
-      ]).stdout,
-    ).join("; ");
-    return (
-      summary ||
-      `base-relative diff is empty; ${input.statusShort.length} working-tree status line(s)`
-    );
-  }
-  return `${input.filesChanged.length} changed path(s) from working-tree status; provide candidateBaseRef for base-relative diff summary`;
-}
-
-function runGitForCandidateBind(
-  cwd: string,
-  args: string[],
-): { ok: boolean; stdout: string; stderr: string } {
-  const result = spawnSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    timeout: 5000,
-    maxBuffer: 1024 * 1024,
-  });
-  return {
-    ok: result.status === 0,
-    stdout: String(result.stdout ?? ""),
-    stderr: String(result.stderr ?? ""),
-  };
-}
-
-function filterAutoresearchLocalArtifactPaths(files: string[]): string[] {
-  return files.filter((file) => !isAutoresearchLocalArtifactPath(file));
-}
-
-function isAutoresearchLocalArtifactPath(file: string): boolean {
-  const normalized = file.replaceAll("\\", "/");
-  if (normalized.startsWith(".autoresearch/")) return true;
-  return AUTORESEARCH_LOCAL_ARTIFACTS.some(
-    (artifact) => normalized === artifact || normalized.startsWith(`${artifact}/`),
-  );
-}
-
-function parseGitStatusPath(line: string): string | null {
-  const raw = line.length >= 3 ? line.slice(3).trim() : line.trim();
-  if (!raw) return null;
-  const renameMarker = " -> ";
-  return raw.includes(renameMarker)
-    ? raw.slice(raw.lastIndexOf(renameMarker) + renameMarker.length)
-    : raw;
-}
-
-function splitNonEmptyLines(value: string): string[] {
-  return value
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(isNonEmptyString);
-}
-
-function splitNonEmptyStatusLines(value: string): string[] {
-  return value.split(/\r?\n/u).filter((line) => line.trim().length > 0);
-}
-
-function isNonEmptyString(value: string | null): value is string {
-  return Boolean(value && value.trim().length > 0);
-}
-
-function uniqueStrings(values: string[]): string[] {
-  return [...new Set(values)];
-}
-
-function nullIfEmpty(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
 }

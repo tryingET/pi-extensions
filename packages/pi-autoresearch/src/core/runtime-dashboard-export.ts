@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { buildAutoresearchSegmentCloseout } from "./runtime.ts";
+import { buildAutoresearchSegmentCloseout } from "./runtime-closeout.ts";
 import { AUTORESEARCH_DASHBOARD_EXPORT_FILE } from "./runtime-constants.ts";
 import { renderAutoresearchDashboardHtml } from "./runtime-dashboard-html.ts";
 import { discoverAutoresearchMatrixCampaignArtifacts } from "./runtime-matrix.ts";
