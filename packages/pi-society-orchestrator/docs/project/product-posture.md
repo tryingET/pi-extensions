@@ -79,7 +79,7 @@ The package currently owns:
 - `autoresearch_manifest_campaign_supervision` for exact manifest observation and evidence-only AK projection;
 - `autoresearch_self_hosting_supervision` for exact self-hosting artifact observation and evidence-only projection;
 - owner-routed `autoresearch_learning_kes_adapter` for KES diary/learning-candidate materialization from `pi-autoresearch` learning packets;
-- workflow/loop surfaces over the public ASC seam;
+- workflow/loop surfaces over the public ASC seam, specifically cognitive/control-plane loops rather than visible Ghostty child-session loops;
 - package-owned KES materialization for loop outputs;
 - read-only runtime/status, AK close-frame, and boundary-inspection UX.
 
@@ -120,7 +120,7 @@ The highest-leverage line is:
 managed candidate-wave fan-in -> measured matrix cell as managed wave -> implementation-wave dogfood substrate -> exact post-integration cleanup handoff
 ```
 
-For visible self-evolution work, orchestrator should coordinate only after the owning package seams are clear. Use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) instead of restating the owner map here.
+For visible self-evolution work, orchestrator should coordinate only after the owning package seams are clear. Use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md) and [loop taxonomy boundary contract](../../../../docs/project/loop-taxonomy-boundary-contract.md) instead of restating the owner map here.
 
 This order matters. Matrix campaigns multiply unmanaged parallelism unless one candidate wave already has explicit plan, launch, final-only measurement, missing-lane gates, aggregate review, and non-selected-lane stop/cancel guidance. Cleanup must remain after successful integration closeout and must consume exact registry sidecars rather than peer text or fuzzy tab names.
 
@@ -182,7 +182,7 @@ The finalizer/cleanup path is intentionally not a hidden executor: no peer launc
 |---|---|
 | Experiment runtime, receipts, empirical interpretation, candidate-result packets | `packages/pi-autoresearch` |
 | Above-seam workflow, fan-in gates, supervision, evidence projection explanation | `packages/pi-society-orchestrator` |
-| Visible peer launch and isolated candidate worktrees | `packages/pi-little-helpers` / peer tooling |
+| Visible peer launch, `/visible-loop`, `/nexus-loop`, and isolated candidate worktrees | `packages/pi-little-helpers` / peer tooling |
 | Execution substrate and subagent execution taxonomy | `packages/pi-autonomous-session-control` |
 | Durable task/evidence/direction truth | AK / society authority surfaces |
 | Governed procedures | Prompt Vault |
@@ -198,3 +198,4 @@ The finalizer/cleanup path is intentionally not a hidden executor: no peer launc
 - Post-fan-in finalizer governance: [2026-05-14-post-fan-in-finalizer-governance-contract.md](./2026-05-14-post-fan-in-finalizer-governance-contract.md)
 - Manifest campaign supervision contract: [pi-autoresearch-manifest-campaign-supervision-contract.md](./pi-autoresearch-manifest-campaign-supervision-contract.md)
 - Self-hosting supervision contract: [pi-autoresearch-self-hosting-supervision-contract.md](./pi-autoresearch-self-hosting-supervision-contract.md)
+- Cross-package loop boundary: [loop taxonomy boundary contract](../../../../docs/project/loop-taxonomy-boundary-contract.md)
