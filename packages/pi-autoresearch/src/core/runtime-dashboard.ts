@@ -1,7 +1,5 @@
-import {
-  buildAutoresearchCandidateDecisionWorkbench,
-  formatAutoresearchCandidateDecisionDashboardSummary,
-} from "./runtime.ts";
+import { buildAutoresearchCandidateDecisionWorkbench } from "./runtime-candidate-decision.ts";
+import { formatAutoresearchCandidateDecisionDashboardSummary } from "./runtime-candidate-decision-format.ts";
 import {
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { buildAutoresearchCandidateDecisionWorkbench } from "./runtime.ts";
+import { buildAutoresearchCandidateDecisionWorkbench } from "./runtime-candidate-decision.ts";
 import {
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
