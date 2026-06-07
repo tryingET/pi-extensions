@@ -90,6 +90,8 @@ export async function loadExtensionWithMocks() {
     "prompt-vault-compat.ts",
     "edge-contract-kernel.ts",
     "memory.ts",
+    "memory-lifecycle-codec.ts",
+    "memory-lifecycle-state.ts",
     "memory-lifecycle.ts",
   ];
 
