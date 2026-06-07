@@ -5,11 +5,43 @@ import path from "node:path";
 import { campaignEvents } from "../machine/events.ts";
 import {
   AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
-  type AutoresearchDecisionRuntime,
   type FinalizeDecisionOutcome,
   type FinalizeDecisionPacket,
   type FinalizeDecisionResult,
 } from "./decisions.ts";
+import {
+  normalizeBranchRef,
+  normalizeGoalSlug,
+  parseAutoresearchFinalizationPlan,
+  parseFinalizationGroupsJsonDraft,
+} from "./finalize-codec.ts";
+import {
+  type ApproveAutoresearchFinalizationPlanInput,
+  type ApproveAutoresearchFinalizationPlanResult,
+  AUTORESEARCH_FINALIZATION_PLAN_FILE,
+  type AutoresearchFinalizationContext,
+  type AutoresearchFinalizationGitContext,
+  type AutoresearchFinalizationGroupDraftV1,
+  type AutoresearchFinalizationGroupsJsonDraftV1,
+  type AutoresearchFinalizationGroupV1,
+  type AutoresearchFinalizationPlanReuse,
+  type AutoresearchFinalizationPlanStatus,
+  type AutoresearchFinalizationPlanV1,
+  type AutoresearchFinalizationVerificationResult,
+  type AutoresearchKeptRunContext,
+  type CreateAutoresearchFinalizationContextInput,
+  type ExecuteAutoresearchFinalizationInput,
+  type ExecuteAutoresearchFinalizationResult,
+  type InspectAutoresearchFinalizationResult,
+  type LoadAutoresearchFinalizationPlanStateInput,
+  type LoadAutoresearchFinalizationPlanStateResult,
+  type MaterializeAutoresearchFinalizationPlanInput,
+  type MaterializeAutoresearchFinalizationPlanResult,
+  type PlanAutoresearchFinalizationFromDecisionInput,
+  type PlanAutoresearchFinalizationFromDecisionResult,
+  type RequestAutoresearchFinalizationPlanInput,
+  type RequestAutoresearchFinalizationPlanResult,
+} from "./finalize-model.ts";
 import { appendLedgerEvent, createLedgerEventEntry } from "./ledger.ts";
 import {
   AUTORESEARCH_FINALIZE_TOOL_NAME,
@@ -23,272 +55,39 @@ import {
   requestAutoresearchFinalizeDecision,
 } from "./runtime.ts";
 
-export const AUTORESEARCH_FINALIZATION_PLAN_FILE = "autoresearch.finalization.json" as const;
-
-export type AutoresearchFinalizationApprovalState =
-  | "pending"
-  | "approved"
-  | "materialized"
-  | "superseded";
-export type AutoresearchFinalizationMaterializationStatus = "not_started" | "succeeded" | "failed";
-export type AutoresearchFinalizationPlanReuse =
-  | "unavailable"
-  | "missing"
-  | "reused"
-  | "parse_failed"
-  | "cwd_mismatch"
-  | "source_branch_mismatch"
-  | "trunk_mismatch"
-  | "base_mismatch"
-  | "final_tree_mismatch"
-  | "runtime_mismatch";
-
-export interface AutoresearchFinalizationGroupDraftV1 {
-  title: string;
-  body: string;
-  last_commit: string;
-  slug: string;
-}
-
-export interface AutoresearchFinalizationGroupsJsonDraftV1 {
-  base: string;
-  trunk: string;
-  final_tree: string;
-  goal: string;
-  groups: AutoresearchFinalizationGroupDraftV1[];
-}
-
-export interface AutoresearchFinalizationGroupV1 {
-  index: number;
-  title: string;
-  slug: string;
-  branchName: string;
-  lastCommit: string;
-  commits: string[];
-  files: string[];
-  metricEffect: string;
-  dependencyNotes: string[];
-  body: string;
-}
-
-export interface AutoresearchFinalizationPlanV1 {
-  type: "finalization_plan";
-  version: 1;
-  phase: typeof AUTORESEARCH_PHASE;
-  cwd: string;
-  sourceBranch: string;
-  trunkRef: string;
-  baseRef: string;
-  finalTree: string;
-  goalSlug: string;
-  segmentKey: string | null;
-  runtimeKey: string | null;
-  projectionSource: "ledger" | "receipt_fallback";
-  createdAt: number;
-  decision: {
-    templateName: typeof AUTORESEARCH_FINALIZE_TEMPLATE_NAME;
-    overallResult: string;
-    groupingRationale: string[];
-    riskNotes: string[];
-    cleanupHints: string[];
-  };
-  groups: AutoresearchFinalizationGroupV1[];
-  groupsJsonDraft: AutoresearchFinalizationGroupsJsonDraftV1;
-  approval: {
-    required: true;
-    state: AutoresearchFinalizationApprovalState;
-    reason: string | null;
-    approvedAt: number | null;
-  };
-  materialization: {
-    status: AutoresearchFinalizationMaterializationStatus;
-    createdBranches: string[];
-    verifiedAt: number | null;
-    failureReason: string | null;
-  };
-}
-
-export interface AutoresearchFinalizationPlanStatus {
-  path?: string;
-  exists: boolean;
-  reuse: AutoresearchFinalizationPlanReuse;
-  discardedReason: string | null;
-  sourceBranch: string | null;
-  trunkRef: string | null;
-  baseRef: string | null;
-  finalTree: string | null;
-  runtimeKey: string | null;
-}
-
-export interface AutoresearchFinalizationGitContext {
-  sourceBranch: string;
-  trunkRef: string;
-  baseRef: string;
-  finalTree: string;
-}
-
-export interface AutoresearchKeptRunContext {
-  receipt: AutoresearchRunReceipt;
-  fullCommit: string;
-  summary: string;
-}
-
-export interface AutoresearchFinalizationContext {
-  cwd: string;
-  status: AutoresearchRuntimeStatus;
-  git: AutoresearchFinalizationGitContext;
-  goalSlug: string;
-  config: AutoresearchConfigReceipt;
-  keptRuns: AutoresearchKeptRunContext[];
-  packet: FinalizeDecisionPacket;
-}
-
-export interface CreateAutoresearchFinalizationContextInput {
-  cwd: string;
-  status?: AutoresearchRuntimeStatus;
-  trunkRef?: string;
-}
-
-export interface PlanAutoresearchFinalizationFromDecisionInput {
-  cwd: string;
-  decision: FinalizeDecisionResult;
-  status?: AutoresearchRuntimeStatus;
-  trunkRef?: string;
-  createdAt?: number;
-}
-
-export interface PlanAutoresearchFinalizationFromDecisionResult {
-  cwd: string;
-  status: AutoresearchRuntimeStatus;
-  context: AutoresearchFinalizationContext;
-  plan: AutoresearchFinalizationPlanV1;
-  planPath: string;
-}
-
-export interface RequestAutoresearchFinalizationPlanInput {
-  cwd: string;
-  runtime: AutoresearchDecisionRuntime;
-  currentCompany?: string;
-  model?: string;
-  signal?: AbortSignal;
-  status?: AutoresearchRuntimeStatus;
-  trunkRef?: string;
-  createdAt?: number;
-}
-
-export interface RequestAutoresearchFinalizationPlanResult {
-  cwd: string;
-  packet: FinalizeDecisionPacket;
-  decision: FinalizeDecisionResult;
-  status: AutoresearchRuntimeStatus;
-  plan: AutoresearchFinalizationPlanV1;
-  planPath: string;
-}
-
-export interface LoadAutoresearchFinalizationPlanStateInput {
-  cwd: string;
-  status?: AutoresearchRuntimeStatus;
-  trunkRef?: string;
-}
-
-export interface LoadAutoresearchFinalizationPlanStateResult {
-  plan: AutoresearchFinalizationPlanV1 | null;
-  planStatus: AutoresearchFinalizationPlanStatus;
-  status: AutoresearchRuntimeStatus;
-  git: AutoresearchFinalizationGitContext | null;
-}
-
-export type AutoresearchFinalizationAction = "status" | "plan" | "approve" | "materialize";
-export type AutoresearchFinalizationDisposition =
-  | "status"
-  | "reused"
-  | "planned"
-  | "approved"
-  | "materialized";
-
-export interface AutoresearchFinalizationVerificationResult {
-  ok: boolean;
-  unionMatchesFinalTree: boolean;
-  missingFinalTreeFiles: string[];
-  unexpectedFinalTreeFiles: string[];
-  blobMismatches: string[];
-  branchFileMismatches: string[];
-  nonIndependentBranches: string[];
-  sessionArtifactLeaks: string[];
-  emptyBranches: string[];
-}
-
-export interface InspectAutoresearchFinalizationResult {
-  cwd: string;
-  status: AutoresearchRuntimeStatus;
-  plan: AutoresearchFinalizationPlanV1 | null;
-  planStatus: AutoresearchFinalizationPlanStatus;
-  git: AutoresearchFinalizationGitContext | null;
-  planPath: string;
-  nextStep: string;
-}
-
-export interface ApproveAutoresearchFinalizationPlanInput {
-  cwd: string;
-  reason?: string;
-  approvedAt?: number;
-  status?: AutoresearchRuntimeStatus;
-  trunkRef?: string;
-}
-
-export interface ApproveAutoresearchFinalizationPlanResult
-  extends InspectAutoresearchFinalizationResult {
-  approvalState: AutoresearchFinalizationApprovalState;
-}
-
-export interface MaterializeAutoresearchFinalizationTestHooks {
-  beforeCreateGroup?(group: AutoresearchFinalizationGroupV1): void;
-  beforeVerify?(input: {
-    cwd: string;
-    plan: AutoresearchFinalizationPlanV1;
-    createdBranches: string[];
-    sourceBranch: string;
-  }): void;
-}
-
-export interface MaterializeAutoresearchFinalizationPlanInput {
-  cwd: string;
-  reason?: string;
-  materializedAt?: number;
-  status?: AutoresearchRuntimeStatus;
-  trunkRef?: string;
-  testHooks?: MaterializeAutoresearchFinalizationTestHooks;
-}
-
-export interface MaterializeAutoresearchFinalizationPlanResult
-  extends InspectAutoresearchFinalizationResult {
-  createdBranches: string[];
-  verification: AutoresearchFinalizationVerificationResult;
-}
-
-export interface ExecuteAutoresearchFinalizationInput {
-  cwd: string;
-  action?: AutoresearchFinalizationAction;
-  reason?: string;
-  runtime?: AutoresearchDecisionRuntime;
-  currentCompany?: string;
-  model?: string;
-  signal?: AbortSignal;
-  status?: AutoresearchRuntimeStatus;
-  trunkRef?: string;
-  createdAt?: number;
-  approvedAt?: number;
-  materializedAt?: number;
-  testHooks?: MaterializeAutoresearchFinalizationTestHooks;
-}
-
-export interface ExecuteAutoresearchFinalizationResult
-  extends InspectAutoresearchFinalizationResult {
-  action: AutoresearchFinalizationAction;
-  disposition: AutoresearchFinalizationDisposition;
-  createdBranches: string[];
-  verification: AutoresearchFinalizationVerificationResult | null;
-}
+export { parseAutoresearchFinalizationPlan } from "./finalize-codec.ts";
+export type {
+  ApproveAutoresearchFinalizationPlanInput,
+  ApproveAutoresearchFinalizationPlanResult,
+  AutoresearchFinalizationAction,
+  AutoresearchFinalizationApprovalState,
+  AutoresearchFinalizationContext,
+  AutoresearchFinalizationDisposition,
+  AutoresearchFinalizationGitContext,
+  AutoresearchFinalizationGroupDraftV1,
+  AutoresearchFinalizationGroupsJsonDraftV1,
+  AutoresearchFinalizationGroupV1,
+  AutoresearchFinalizationMaterializationStatus,
+  AutoresearchFinalizationPlanReuse,
+  AutoresearchFinalizationPlanStatus,
+  AutoresearchFinalizationPlanV1,
+  AutoresearchFinalizationVerificationResult,
+  AutoresearchKeptRunContext,
+  CreateAutoresearchFinalizationContextInput,
+  ExecuteAutoresearchFinalizationInput,
+  ExecuteAutoresearchFinalizationResult,
+  InspectAutoresearchFinalizationResult,
+  LoadAutoresearchFinalizationPlanStateInput,
+  LoadAutoresearchFinalizationPlanStateResult,
+  MaterializeAutoresearchFinalizationPlanInput,
+  MaterializeAutoresearchFinalizationPlanResult,
+  MaterializeAutoresearchFinalizationTestHooks,
+  PlanAutoresearchFinalizationFromDecisionInput,
+  PlanAutoresearchFinalizationFromDecisionResult,
+  RequestAutoresearchFinalizationPlanInput,
+  RequestAutoresearchFinalizationPlanResult,
+} from "./finalize-model.ts";
+export { AUTORESEARCH_FINALIZATION_PLAN_FILE } from "./finalize-model.ts";
 
 export function resolveAutoresearchFinalizationPlanPath(cwd: string): string {
   return path.join(path.resolve(cwd), AUTORESEARCH_FINALIZATION_PLAN_FILE);
@@ -520,43 +319,6 @@ export async function requestAutoresearchFinalizationPlan(
     status: result.status,
     plan,
     planPath,
-  };
-}
-
-export function parseAutoresearchFinalizationPlan(text: string): AutoresearchFinalizationPlanV1 {
-  const parsed = JSON.parse(text) as unknown;
-  if (!isRecord(parsed)) {
-    throw new Error("Finalization plan must decode to an object");
-  }
-  if (parsed.type !== "finalization_plan") {
-    throw new Error(`Unsupported finalization plan type: ${String(parsed.type)}`);
-  }
-  if (parsed.version !== 1) {
-    throw new Error(`Unsupported finalization plan version: ${String(parsed.version)}`);
-  }
-  if (parsed.phase !== AUTORESEARCH_PHASE) {
-    throw new Error(`Unsupported finalization plan phase: ${String(parsed.phase)}`);
-  }
-
-  return {
-    type: "finalization_plan",
-    version: 1,
-    phase: AUTORESEARCH_PHASE,
-    cwd: coerceString(parsed.cwd, "cwd"),
-    sourceBranch: coerceString(parsed.sourceBranch, "sourceBranch"),
-    trunkRef: normalizeBranchRef(coerceString(parsed.trunkRef, "trunkRef")),
-    baseRef: coerceString(parsed.baseRef, "baseRef"),
-    finalTree: coerceString(parsed.finalTree, "finalTree"),
-    goalSlug: normalizeGoalSlug(coerceString(parsed.goalSlug, "goalSlug")),
-    segmentKey: parseNullableString(parsed.segmentKey, "segmentKey"),
-    runtimeKey: parseNullableString(parsed.runtimeKey, "runtimeKey"),
-    projectionSource: parseProjectionSource(parsed.projectionSource),
-    createdAt: coerceNumber(parsed.createdAt, "createdAt"),
-    decision: parseFinalizationDecisionSummary(parsed.decision),
-    groups: parseFinalizationGroups(parsed.groups),
-    groupsJsonDraft: parseFinalizationGroupsJsonDraft(parsed.groupsJsonDraft),
-    approval: parseFinalizationApproval(parsed.approval),
-    materialization: parseFinalizationMaterialization(parsed.materialization),
   };
 }
 
@@ -1822,122 +1584,6 @@ function ensureCommitDescendsFrom(
   throw new Error(`${label} does not descend from the prior finalization point ${previousCommit}.`);
 }
 
-function parseFinalizationDecisionSummary(
-  value: unknown,
-): AutoresearchFinalizationPlanV1["decision"] {
-  if (!isRecord(value)) {
-    throw new Error("decision must be an object");
-  }
-  if (value.templateName !== AUTORESEARCH_FINALIZE_TEMPLATE_NAME) {
-    throw new Error(`Unsupported decision template: ${String(value.templateName)}`);
-  }
-  return {
-    templateName: AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
-    overallResult: coerceString(value.overallResult, "decision.overallResult"),
-    groupingRationale: parseStringArray(value.groupingRationale, "decision.groupingRationale"),
-    riskNotes: parseStringArray(value.riskNotes, "decision.riskNotes"),
-    cleanupHints: parseStringArray(value.cleanupHints, "decision.cleanupHints"),
-  };
-}
-
-function parseFinalizationGroups(value: unknown): AutoresearchFinalizationGroupV1[] {
-  if (!Array.isArray(value)) {
-    throw new Error("groups must be an array");
-  }
-  return value.map((group, index) => parseFinalizationGroup(group, index));
-}
-
-function parseFinalizationGroup(value: unknown, index: number): AutoresearchFinalizationGroupV1 {
-  if (!isRecord(value)) {
-    throw new Error(`groups[${index}] must be an object`);
-  }
-  return {
-    index: coerceNumber(value.index, `groups[${index}].index`),
-    title: coerceString(value.title, `groups[${index}].title`),
-    slug: normalizeGoalSlug(coerceString(value.slug, `groups[${index}].slug`)),
-    branchName: coerceString(value.branchName, `groups[${index}].branchName`),
-    lastCommit: coerceString(value.lastCommit, `groups[${index}].lastCommit`),
-    commits: parseStringArray(value.commits, `groups[${index}].commits`),
-    files: parseStringArray(value.files, `groups[${index}].files`),
-    metricEffect: coerceString(value.metricEffect, `groups[${index}].metricEffect`),
-    dependencyNotes: parseStringArray(value.dependencyNotes, `groups[${index}].dependencyNotes`),
-    body: coerceString(value.body, `groups[${index}].body`),
-  };
-}
-
-function parseFinalizationGroupsJsonDraft(
-  value: unknown,
-): AutoresearchFinalizationGroupsJsonDraftV1 {
-  if (!isRecord(value)) {
-    throw new Error("groupsJsonDraft must be an object");
-  }
-  const groupsValue = value.groups;
-  if (!Array.isArray(groupsValue) || groupsValue.length === 0) {
-    throw new Error("groupsJsonDraft.groups must be a non-empty array");
-  }
-  return {
-    base: coerceString(value.base, "groupsJsonDraft.base"),
-    trunk: normalizeBranchRef(coerceString(value.trunk, "groupsJsonDraft.trunk")),
-    final_tree: coerceString(value.final_tree, "groupsJsonDraft.final_tree"),
-    goal: normalizeGoalSlug(coerceString(value.goal, "groupsJsonDraft.goal")),
-    groups: groupsValue.map((group, index) => parseFinalizationGroupDraft(group, index)),
-  };
-}
-
-function parseFinalizationGroupDraft(
-  value: unknown,
-  index: number,
-): AutoresearchFinalizationGroupDraftV1 {
-  if (!isRecord(value)) {
-    throw new Error(`groupsJsonDraft.groups[${index}] must be an object`);
-  }
-  return {
-    title: coerceString(value.title, `groupsJsonDraft.groups[${index}].title`),
-    body: coerceString(value.body, `groupsJsonDraft.groups[${index}].body`),
-    last_commit: coerceString(value.last_commit, `groupsJsonDraft.groups[${index}].last_commit`),
-    slug: normalizeGoalSlug(coerceString(value.slug, `groupsJsonDraft.groups[${index}].slug`)),
-  };
-}
-
-function parseFinalizationApproval(value: unknown): AutoresearchFinalizationPlanV1["approval"] {
-  if (!isRecord(value)) {
-    throw new Error("approval must be an object");
-  }
-  const state = coerceString(value.state, "approval.state");
-  if (
-    state !== "pending" &&
-    state !== "approved" &&
-    state !== "materialized" &&
-    state !== "superseded"
-  ) {
-    throw new Error(`Unsupported approval state: ${state}`);
-  }
-  return {
-    required: true,
-    state,
-    reason: parseNullableString(value.reason, "approval.reason"),
-    approvedAt: parseNullableNumber(value.approvedAt, "approval.approvedAt"),
-  };
-}
-
-function parseFinalizationMaterialization(
-  value: unknown,
-): AutoresearchFinalizationPlanV1["materialization"] {
-  if (!isRecord(value)) {
-    throw new Error("materialization must be an object");
-  }
-  const status = coerceString(value.status, "materialization.status");
-  if (status !== "not_started" && status !== "succeeded" && status !== "failed") {
-    throw new Error(`Unsupported materialization status: ${status}`);
-  }
-  return {
-    status,
-    createdBranches: parseStringArray(value.createdBranches, "materialization.createdBranches"),
-    verifiedAt: parseNullableNumber(value.verifiedAt, "materialization.verifiedAt"),
-    failureReason: parseNullableString(value.failureReason, "materialization.failureReason"),
-  };
-}
-
 function getCurrentSegment(entries: readonly AutoresearchReceipt[]): {
   config: AutoresearchConfigReceipt | null;
   runs: AutoresearchRunReceipt[];
@@ -1959,13 +1605,6 @@ function getCurrentSegment(entries: readonly AutoresearchReceipt[]): {
   return { config, runs };
 }
 
-function parseProjectionSource(value: unknown): "ledger" | "receipt_fallback" {
-  if (value === "ledger" || value === "receipt_fallback") {
-    return value;
-  }
-  throw new Error(`Unsupported projection source: ${String(value)}`);
-}
-
 function normalizeCommitRef(cwd: string, ref: string, field: string): string {
   const normalized = ref.trim();
   if (!normalized) {
@@ -1976,62 +1615,6 @@ function normalizeCommitRef(cwd: string, ref: string, field: string): string {
 
 function normalizeComparableText(value: string): string {
   return value.trim().replace(/\s+/gu, " ").toLowerCase();
-}
-
-function normalizeGoalSlug(value: string): string {
-  const slug = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "")
-    .replace(/-{2,}/gu, "-");
-  if (!slug) {
-    throw new Error(`Cannot derive a non-empty slug from ${JSON.stringify(value)}.`);
-  }
-  return slug;
-}
-
-function normalizeBranchRef(value: string): string {
-  return value.trim().replace(/^refs\/heads\//u, "") || "main";
-}
-
-function coerceString(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${field} must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function coerceNumber(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${field} must be a finite number`);
-  }
-  return value;
-}
-
-function parseNullableString(value: unknown, field: string): string | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  return coerceString(value, field);
-}
-
-function parseNullableNumber(value: unknown, field: string): number | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  return coerceNumber(value, field);
-}
-
-function parseStringArray(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`${field} must be an array`);
-  }
-  return value.map((entry, index) => coerceString(entry, `${field}[${index}]`));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
