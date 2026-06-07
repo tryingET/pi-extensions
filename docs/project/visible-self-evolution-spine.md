@@ -17,6 +17,7 @@ system4d:
 
 This note is the DRY root reference for turning agent self-awareness into safe self-evolution work.
 Package vision and product-posture files should link here instead of copying the whole model.
+When a self-evolution task uses the word `loop` ambiguously, classify it through the [loop taxonomy boundary contract](./loop-taxonomy-boundary-contract.md) before moving ownership or sharing abstractions.
 
 The target shape is:
 
@@ -39,7 +40,7 @@ recursive improvement must be visible, empirical, and owner-routed
 | Concern | Owner |
 |---|---|
 | Session mirror, self queries, diagnostics candidates, low-risk notifications, checkpoints/followups | [ASC/self](../../packages/pi-autonomous-session-control/docs/project/vision.md) |
-| Visible child sessions, `/visible-loop`, `/nexus-loop`, `/sidequest`, `/scoutpeer`, `/parallelquest` | [pi-little-helpers product posture](../../packages/pi-little-helpers/docs/project/product-posture.md) and [visible capability contract](../../packages/pi-little-helpers/docs/project/2026-05-05-visible-peer-capability-contract.md) |
+| Visible child sessions, `/visible-loop`, `/nexus-loop`, `/sidequest`, `/scoutpeer`, `/parallelquest` | [pi-little-helpers product posture](../../packages/pi-little-helpers/docs/project/product-posture.md), [visible capability contract](../../packages/pi-little-helpers/docs/project/2026-05-05-visible-peer-capability-contract.md), and [loop taxonomy boundary contract](./loop-taxonomy-boundary-contract.md) |
 | Canonical compaction summaries, `/compact-focus`, `/compact-handoff`, fresh-session handoff prompt shape | [pi-session-compaction](../../packages/pi-session-compaction/docs/project/vision.md) |
 | Repeated local agent-friction memory, recurrence review, draft-only escalation text | [pi-agent-vent](../../packages/pi-agent-vent/docs/project/vision.md) |
 | Measured candidate experiments, self-hosting evaluator locks, empirical closeout packets | [pi-autoresearch](../../packages/pi-autoresearch/docs/project/vision.md) |
