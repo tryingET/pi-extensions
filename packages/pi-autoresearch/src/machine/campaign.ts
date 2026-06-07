@@ -1,127 +1,17 @@
 import { assign, setup } from "xstate";
+import { campaignMachineGuards } from "./campaign-guards.ts";
+import {
+  createInitialContext,
+  isSuccessfulRecordedRun,
+  normalizeMetric,
+  normalizeSegment,
+  pickBestMetric,
+} from "./campaign-helpers.ts";
+import type { CampaignMachineContext, CampaignMachineInput } from "./campaign-model.ts";
 
-import type { AutoresearchRuntimeStatus, MetricDirection, RunStatus } from "../core/runtime.ts";
-import type { CampaignDecision, CampaignEvent, CampaignSegmentConfig } from "./events.ts";
+export * from "./campaign-model.ts";
 
-export const CAMPAIGN_MACHINE_STATES = [
-  "idle",
-  "segment_unconfigured",
-  "ready",
-  "running_benchmark",
-  "running_checks",
-  "recording_receipt",
-  "awaiting_decision",
-  "rebaseline_needed",
-  "finalize_candidate",
-  "blocked",
-  "completed",
-] as const;
-
-export type CampaignMachineStateValue = (typeof CAMPAIGN_MACHINE_STATES)[number];
-export type CampaignMachineResumeState = Exclude<
-  CampaignMachineStateValue,
-  "idle" | "blocked" | "completed"
->;
-
-export interface CampaignMachineInput {
-  segment?: CampaignSegmentConfig | null;
-  runCount?: number;
-  successfulRunCount?: number;
-  baselineMetric?: number | null;
-  bestMetric?: number | null;
-  lastRunStatus?: RunStatus | null;
-  lastRunMetric?: number | null;
-  awaitingDecision?: boolean;
-  blockedReason?: string | null;
-  completionReason?: string | null;
-  resumeState?: CampaignMachineResumeState | null;
-}
-
-export interface CampaignActiveRun {
-  description: string;
-  benchmarkCommand: string;
-  checksCommand: string | null;
-  metric: number | null;
-  requiresChecks: boolean;
-  checksPassed: boolean | null;
-  failureReason: string | null;
-}
-
-export interface CampaignMachineContext {
-  segment: CampaignSegmentConfig | null;
-  runCount: number;
-  successfulRunCount: number;
-  baselineMetric: number | null;
-  bestMetric: number | null;
-  lastRunStatus: RunStatus | null;
-  lastRunMetric: number | null;
-  awaitingDecision: boolean;
-  blockedReason: string | null;
-  completionReason: string | null;
-  lastDecision: CampaignDecision | null;
-  activeRun: CampaignActiveRun | null;
-  resumeState: CampaignMachineResumeState | null;
-}
-
-export function isCampaignMachineAwaitingOperatorChoice(state: CampaignMachineStateValue): boolean {
-  return (
-    state === "awaiting_decision" ||
-    state === "rebaseline_needed" ||
-    state === "finalize_candidate" ||
-    state === "blocked"
-  );
-}
-
-export function canCampaignMachineStartBoundedRun(state: CampaignMachineStateValue): boolean {
-  return state === "ready";
-}
-
-export function isCampaignMachineTerminalState(state: CampaignMachineStateValue): boolean {
-  return state === "completed";
-}
-
-export function createCampaignMachineInputFromRuntimeStatus(
-  status: AutoresearchRuntimeStatus,
-  overrides: Partial<
-    Pick<CampaignMachineInput, "awaitingDecision" | "blockedReason" | "completionReason">
-  > = {},
-): CampaignMachineInput {
-  const segment = status.currentSegment.configured
-    ? {
-        name: status.currentSegment.name ?? "(unnamed)",
-        metricName: status.currentSegment.metricName ?? "(unset)",
-        metricUnit: status.currentSegment.metricUnit,
-        direction: status.currentSegment.direction ?? "lower",
-        metricThreshold: status.currentSegment.metricThreshold,
-        benchmarkCommand: status.currentSegment.benchmarkCommand ?? "",
-        checksCommand: status.currentSegment.checksCommand,
-      }
-    : null;
-  const projectionState = status.runtimeProjection.state;
-
-  return {
-    segment,
-    runCount: status.currentSegment.runCount,
-    successfulRunCount: status.currentSegment.successfulRunCount,
-    baselineMetric: status.currentSegment.baselineMetric,
-    bestMetric: status.currentSegment.bestMetric,
-    lastRunStatus: status.currentSegment.lastRunStatus,
-    lastRunMetric: status.currentSegment.lastRunMetric,
-    awaitingDecision: overrides.awaitingDecision ?? projectionState === "awaiting_decision",
-    blockedReason:
-      overrides.blockedReason ??
-      (projectionState === "blocked"
-        ? (status.promptVaultDecisions.lastPostRunDecision?.blockingReason ??
-          "campaign blocked pending operator action")
-        : null),
-    completionReason:
-      overrides.completionReason ?? (projectionState === "completed" ? "campaign completed" : null),
-    resumeState:
-      projectionState === "rebaseline_needed" || projectionState === "finalize_candidate"
-        ? projectionState
-        : null,
-  };
-}
+import type { CampaignEvent } from "./events.ts";
 
 export const campaignMachine = setup({
   types: {
@@ -129,30 +19,7 @@ export const campaignMachine = setup({
     events: {} as CampaignEvent,
     input: {} as CampaignMachineInput | undefined,
   },
-  guards: {
-    isCompleted: ({ context }) => context.completionReason !== null,
-    isBlocked: ({ context }) => context.blockedReason !== null,
-    needsConfiguration: ({ context }) => context.segment === null,
-    isAwaitingDecision: ({ context }) => context.awaitingDecision,
-    benchmarkRequiresChecks: ({ event }) =>
-      event.type === "BENCHMARK_SUCCEEDED" && event.requiresChecks,
-    decisionIsIterate: ({ event }) =>
-      event.type === "DECIDE_NEXT_ACTION" && event.decision === "iterate",
-    decisionIsRebaseline: ({ event }) =>
-      event.type === "DECIDE_NEXT_ACTION" && event.decision === "rebaseline",
-    decisionIsFinalize: ({ event }) =>
-      event.type === "DECIDE_NEXT_ACTION" && event.decision === "finalize",
-    decisionIsBlock: ({ event }) =>
-      event.type === "DECIDE_NEXT_ACTION" && event.decision === "block",
-    resumeToSegmentUnconfigured: ({ context }) => context.resumeState === "segment_unconfigured",
-    resumeToReady: ({ context }) => context.resumeState === "ready",
-    resumeToRunningBenchmark: ({ context }) => context.resumeState === "running_benchmark",
-    resumeToRunningChecks: ({ context }) => context.resumeState === "running_checks",
-    resumeToRecordingReceipt: ({ context }) => context.resumeState === "recording_receipt",
-    resumeToAwaitingDecision: ({ context }) => context.resumeState === "awaiting_decision",
-    resumeToRebaselineNeeded: ({ context }) => context.resumeState === "rebaseline_needed",
-    resumeToFinalizeCandidate: ({ context }) => context.resumeState === "finalize_candidate",
-  },
+  guards: campaignMachineGuards,
   actions: {
     applySegmentConfig: assign(({ event }) => {
       if (event.type !== "CONFIGURE_SEGMENT") {
@@ -613,58 +480,3 @@ export const campaignMachine = setup({
     },
   },
 });
-
-function createInitialContext(input: CampaignMachineInput | undefined): CampaignMachineContext {
-  return {
-    segment: input?.segment ? normalizeSegment(input.segment) : null,
-    runCount: input?.runCount ?? 0,
-    successfulRunCount: input?.successfulRunCount ?? 0,
-    baselineMetric: normalizeMetric(input?.baselineMetric),
-    bestMetric: normalizeMetric(input?.bestMetric),
-    lastRunStatus: input?.lastRunStatus ?? null,
-    lastRunMetric: normalizeMetric(input?.lastRunMetric),
-    awaitingDecision: input?.awaitingDecision ?? false,
-    blockedReason: input?.blockedReason ?? null,
-    completionReason: input?.completionReason ?? null,
-    lastDecision: null,
-    activeRun: null,
-    resumeState: input?.resumeState ?? null,
-  };
-}
-
-function normalizeSegment(segment: CampaignSegmentConfig): CampaignSegmentConfig {
-  const metricThreshold = normalizeMetric(segment.metricThreshold);
-  return {
-    name: segment.name,
-    metricName: segment.metricName,
-    metricUnit: segment.metricUnit,
-    direction: segment.direction,
-    ...(metricThreshold === null ? {} : { metricThreshold }),
-    benchmarkCommand: segment.benchmarkCommand,
-    checksCommand: segment.checksCommand,
-  };
-}
-
-function normalizeMetric(value: number | null | undefined): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function isSuccessfulRecordedRun(status: RunStatus): boolean {
-  return status !== "crash" && status !== "checks_failed";
-}
-
-function pickBestMetric(
-  candidateMetric: number,
-  currentBestMetric: number | null,
-  direction: MetricDirection,
-): number {
-  if (currentBestMetric === null) {
-    return candidateMetric;
-  }
-
-  if (direction === "lower") {
-    return candidateMetric < currentBestMetric ? candidateMetric : currentBestMetric;
-  }
-
-  return candidateMetric > currentBestMetric ? candidateMetric : currentBestMetric;
-}
