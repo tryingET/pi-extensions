@@ -12,46 +12,28 @@ import {
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import type {
-  CampaignMachineInput,
-  CampaignMachineResumeState,
-  CampaignMachineStateValue,
-} from "../machine/campaign.ts";
+import type { CampaignMachineInput } from "../machine/campaign.ts";
 import {
   canCampaignMachineStartBoundedRun,
   isCampaignMachineAwaitingOperatorChoice,
   isCampaignMachineTerminalState,
 } from "../machine/campaign.ts";
+import { type CampaignSegmentConfig, campaignEvents } from "../machine/events.ts";
 import {
-  type CampaignDecision,
-  type CampaignSegmentConfig,
-  campaignEvents,
-} from "../machine/events.ts";
-import {
-  type AutoresearchAutoContinuationDecision,
   type AutoresearchAutoContinuationSessionGate,
   buildAutoresearchAutoContinuationDecision,
   buildAutoresearchAutoContinuationSessionGateFromEnv,
   formatAutoresearchAutoContinuationGateLines,
 } from "./autoContinuation.ts";
 import {
-  AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
   AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
-  AUTORESEARCH_SETUP_TEMPLATE_NAME,
-  type AutoresearchDecisionFailureStage,
-  type AutoresearchDecisionRuntime,
-  type FinalizeDecisionOutcome,
   type FinalizeDecisionPacket,
   mapNextHypothesisOutcomeToCampaignDecision,
   type NextHypothesisDecisionOutcome,
   type NextHypothesisDecisionPacket,
-  type NextHypothesisDecisionStatus,
-  type SetupDecisionOutcome,
   type SetupDecisionPacket,
 } from "./decisions.ts";
 import {
-  AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE,
-  type AutoresearchCampaignGoalStatusView,
   beginAutoresearchCampaignGoal,
   buildAutoresearchCampaignGoalStatus,
   recordAutoresearchCampaignGoalSegment,
@@ -59,7 +41,6 @@ import {
 import {
   AUTORESEARCH_EVENT_LEDGER_FILE,
   type AutoresearchLedgerEventEntry,
-  type AutoresearchLedgerReplayIssue,
   appendLedgerEvent,
   createLedgerEventEntry,
   loadAutoresearchLedger,
@@ -69,9 +50,7 @@ import {
 } from "./ledger.ts";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
-  AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
-  type LlamacppCampaignProjectionOverallState,
   loadLlamacppCampaignProjectionState,
 } from "./llamacppCampaign.ts";
 import {
@@ -80,7 +59,6 @@ import {
   type AutoresearchControlStateV1,
   type AutoresearchOperatorAction,
   type AutoresearchRuntimeSnapshotInput,
-  type AutoresearchRuntimeSnapshotStatus,
   deriveAutoresearchControlState,
   formatAutoresearchRuntimeSnapshotReuse,
   loadAutoresearchRuntimeControlState,
@@ -88,6 +66,31 @@ import {
 } from "./resume.ts";
 import { joinOutput, runProcessCommand, runShellCommand } from "./runtime-command.ts";
 import { isRecord, normalizeArray, stringOrNull } from "./runtime-common.ts";
+import {
+  AUTORESEARCH_AUTOPLAN_TOOL_NAME,
+  AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION,
+  AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
+  AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR,
+  AUTORESEARCH_COMMAND_NAME,
+  AUTORESEARCH_CONTROL_TOOL_NAME,
+  AUTORESEARCH_DASHBOARD_EXPORT_FILE,
+  AUTORESEARCH_FINALIZE_TOOL_NAME,
+  AUTORESEARCH_LEARNING_EXPORT_FILE,
+  AUTORESEARCH_LOCAL_ARTIFACTS,
+  AUTORESEARCH_LOOP_TOOL_NAME,
+  AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
+  AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
+  AUTORESEARCH_PHASE,
+  AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
+  AUTORESEARCH_RUN_TOOL_NAME,
+  AUTORESEARCH_SETUP_TOOL_NAME,
+  AUTORESEARCH_STATUS_TOOL_NAME,
+  BLOCKED_PROMPT_VAULT_TEMPLATES,
+  READY_PROMPT_VAULT_TEMPLATES,
+} from "./runtime-constants.ts";
 import {
   formatConfidenceValue,
   formatEmpiricalPosture,
@@ -115,6 +118,91 @@ import {
   isSuccessfulMetricRun,
   isZeroThresholdMetric,
 } from "./runtime-metrics.ts";
+import type {
+  AutoresearchAkEvidencePacket,
+  AutoresearchAutoplanResult,
+  AutoresearchBenchmarkScriptProposal,
+  AutoresearchCampaignStartRunMode,
+  AutoresearchCampaignStartSetupMode,
+  AutoresearchCandidateArtifactStatus,
+  AutoresearchCandidateBindInspection,
+  AutoresearchCandidateBinding,
+  AutoresearchCandidateBindingSource,
+  AutoresearchCandidateBindPlan,
+  AutoresearchCandidateBindReadiness,
+  AutoresearchCandidateDecisionAction,
+  AutoresearchCandidateDecisionConfirmation,
+  AutoresearchCandidateDecisionSummary,
+  AutoresearchCandidateDecisionWorkbench,
+  AutoresearchCandidateInventoryCleanupPlan,
+  AutoresearchCandidateLifecycleDecision,
+  AutoresearchCandidateLifecyclePolicy,
+  AutoresearchCandidateLifecyclePolicyInput,
+  AutoresearchCandidateResultExportResult,
+  AutoresearchCandidateResultPacket,
+  AutoresearchConfigReceipt,
+  AutoresearchDashboardExportResult,
+  AutoresearchDspxAdvisory,
+  AutoresearchDspxAdvisoryProposal,
+  AutoresearchDspxProgramGenPlan,
+  AutoresearchEmpiricalDecisionClass,
+  AutoresearchEmpiricalPosture,
+  AutoresearchKnowledgeExportPacket,
+  AutoresearchLearningExportResult,
+  AutoresearchLlamacppCampaignProjectionAvailability,
+  AutoresearchLlamacppCampaignProjectionStatus,
+  AutoresearchLoopPeerHandoff,
+  AutoresearchLoopPeerMode,
+  AutoresearchLoopProgressEvent,
+  AutoresearchMeasurementContract,
+  AutoresearchMetricReadinessReview,
+  AutoresearchOracleEvidenceExportResult,
+  AutoresearchOracleEvidencePacket,
+  AutoresearchOracleEvidenceReadiness,
+  AutoresearchOracleEvidenceRecord,
+  AutoresearchOraclePublicationPreflightSummary,
+  AutoresearchPeerAssistLane,
+  AutoresearchPeerAssistPlan,
+  AutoresearchPromptVaultDecisionAvailability,
+  AutoresearchPromptVaultDecisionStatus,
+  AutoresearchReceipt,
+  AutoresearchResumeApplyPlan,
+  AutoresearchResumePlan,
+  AutoresearchRunDecisionSummary,
+  AutoresearchRunReceipt,
+  AutoresearchRuntimeProjection,
+  AutoresearchRuntimeStatus,
+  AutoresearchSegmentCloseout,
+  AutoresearchSegmentCloseoutRun,
+  AutoresearchSegmentSummary,
+  AutoresearchSetupAction,
+  BuildAutoresearchAutoplanInput,
+  BuildAutoresearchCandidateBindInput,
+  BuildAutoresearchCandidateDecisionInput,
+  BuildAutoresearchPeerAssistInput,
+  CommandExecutionSummary,
+  ExecuteAutoresearchCampaignStartInput,
+  ExecuteAutoresearchCampaignStartResult,
+  ExecuteAutoresearchFinalizeDecisionInput,
+  ExecuteAutoresearchFinalizeDecisionResult,
+  ExecuteAutoresearchLoopInput,
+  ExecuteAutoresearchLoopResult,
+  ExecuteAutoresearchResumeApplyInput,
+  ExecuteAutoresearchResumeApplyResult,
+  ExecuteAutoresearchRunInput,
+  ExecuteAutoresearchRunLiveDecisionInput,
+  ExecuteAutoresearchRunResult,
+  ExecuteAutoresearchSetupDecisionInput,
+  ExecuteAutoresearchSetupDecisionResult,
+  ExecuteAutoresearchSetupInput,
+  ExecuteAutoresearchSetupResult,
+  InspectAutoresearchRuntimeControlResult,
+  MetricDirection,
+  RunStatus,
+  SetAutoresearchRuntimeControlInput,
+  SetAutoresearchRuntimeControlResult,
+} from "./runtime-model.ts";
+import { DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY } from "./runtime-model.ts";
 import {
   type AutoresearchPaths,
   appendReceipt,
@@ -163,6 +251,7 @@ export {
   formatAutoresearchAdapterPacketValidationResult,
 } from "./runtime-adapter-format.ts";
 
+export * from "./runtime-constants.ts";
 export type {
   AutoresearchDashboardChartPoint,
   AutoresearchMatrixCampaignArtifactKind,
@@ -172,11 +261,11 @@ export type {
   AutoresearchMatrixCampaignDashboardChart,
   AutoresearchOpenCandidateReviewPosture,
 } from "./runtime-matrix.ts";
-
 export {
   AUTORESEARCH_MATRIX_CAMPAIGN_ARTIFACT_ROOTS,
   discoverAutoresearchMatrixCampaignArtifacts,
 } from "./runtime-matrix.ts";
+export * from "./runtime-model.ts";
 export {
   appendReceipt,
   createConfigReceipt,
@@ -188,1194 +277,9 @@ export {
   serializeReceipt,
 } from "./runtime-receipts.ts";
 
-export const AUTORESEARCH_COMMAND_NAME = "autoresearch";
-export const AUTORESEARCH_STATUS_TOOL_NAME = "autoresearch_runtime_status";
-export const AUTORESEARCH_RUN_TOOL_NAME = "autoresearch_runtime_run";
-export const AUTORESEARCH_CONTROL_TOOL_NAME = "autoresearch_runtime_control";
-export const AUTORESEARCH_FINALIZE_TOOL_NAME = "autoresearch_runtime_finalize";
-export const AUTORESEARCH_PEER_ASSIST_TOOL_NAME = "autoresearch_runtime_peer_assist";
-export const AUTORESEARCH_LOOP_TOOL_NAME = "autoresearch_runtime_loop";
-export const AUTORESEARCH_RESUME_APPLY_TOOL_NAME = "autoresearch_runtime_resume_apply";
-export const AUTORESEARCH_AUTOPLAN_TOOL_NAME = "autoresearch_runtime_autoplan";
-export const AUTORESEARCH_SETUP_TOOL_NAME = "autoresearch_runtime_setup";
-export const AUTORESEARCH_CAMPAIGN_START_TOOL_NAME = "autoresearch_campaign_start";
-export const AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME = "autoresearch_candidate_bind";
-export const AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME = "autoresearch_candidate_decision";
-export const AUTORESEARCH_PHASE = "bounded_runtime_kernel" as const;
-export const AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE = ".autoresearch/oracle_evidence.json";
-export const AUTORESEARCH_LEARNING_EXPORT_FILE = ".autoresearch/learning.json";
-export const AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE = ".autoresearch/candidate-result.json";
-export const AUTORESEARCH_CANDIDATE_WAVE_RESULT_EXPORT_DIR = ".autoresearch/candidate-wave";
-export const AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION =
-  "ARCHIVE STALE AUTORESEARCH CANDIDATES";
-
-export const AUTORESEARCH_LOCAL_ARTIFACTS = [
-  "autoresearch.jsonl",
-  AUTORESEARCH_EVENT_LEDGER_FILE,
-  AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE,
-  AUTORESEARCH_RUNTIME_SNAPSHOT_FILE,
-  "autoresearch.finalization.json",
-  AUTORESEARCH_LLAMACPP_CAMPAIGN_PROJECTION_FILE,
-  "autoresearch.md",
-  "autoresearch.sh",
-  "autoresearch.checks.sh",
-  "autoresearch.ideas.md",
-  AUTORESEARCH_ORACLE_EVIDENCE_EXPORT_FILE,
-  AUTORESEARCH_LEARNING_EXPORT_FILE,
-  AUTORESEARCH_CANDIDATE_RESULT_EXPORT_FILE,
-] as const;
-
-export const AUTORESEARCH_DASHBOARD_EXPORT_FILE = ".autoresearch/autoresearch-dashboard.html";
-
-export const READY_PROMPT_VAULT_TEMPLATES = [
-  AUTORESEARCH_SETUP_TEMPLATE_NAME,
-  AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
-  AUTORESEARCH_FINALIZE_TEMPLATE_NAME,
-] as const;
-
-export const BLOCKED_PROMPT_VAULT_TEMPLATES = ["pi-autoresearch-state-router"] as const;
-
 const DEFAULT_BENCHMARK_TIMEOUT_SECONDS = 600;
 const DEFAULT_CHECKS_TIMEOUT_SECONDS = 300;
 const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
-export type MetricDirection = "lower" | "higher";
-export type RunStatus = "baseline" | "candidate" | "keep" | "discard" | "crash" | "checks_failed";
-export type AutoresearchRunKind = "ordinary" | "calibration";
-export type AutoresearchEmpiricalDecisionClass =
-  | "not_evaluated"
-  | "measurement_invalid"
-  | "checks_failed"
-  | "baseline"
-  | "insufficient_samples"
-  | "possible_noise"
-  | "calibration_signal"
-  | "candidate_improvement"
-  | "candidate_regression"
-  | "candidate_neutral"
-  | "threshold_satisfied"
-  | "threshold_preserved"
-  | "threshold_regressed"
-  | "threshold_not_met"
-  | "baseline_drift";
-export type MetricMap = Record<string, number>;
-
-export interface AutoresearchRunDecisionSummary {
-  kind: "next_hypothesis";
-  templateName: typeof AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME;
-  status: NextHypothesisDecisionStatus;
-  mappedDecision: CampaignDecision;
-  blockingReason: string | null;
-  failureStage: AutoresearchDecisionFailureStage | null;
-  stateRead: string | null;
-  nextHypothesis: string | null;
-  targetFiles: string[];
-  expectedPrimaryEffect: string | null;
-  timestamp: number;
-}
-
-export type AutoresearchPromptVaultDecisionAvailability =
-  | "available_not_yet_used"
-  | "available_last_used_successfully"
-  | "available_last_used_blocked";
-
-export interface AutoresearchPromptVaultDecisionStatus {
-  availability: AutoresearchPromptVaultDecisionAvailability;
-  lastPostRunDecision: AutoresearchRunDecisionSummary | null;
-}
-
-export type AutoresearchLlamacppCampaignProjectionAvailability =
-  | "not_projected"
-  | "current"
-  | "stale";
-
-export interface AutoresearchLlamacppCampaignProjectionStatus {
-  availability: AutoresearchLlamacppCampaignProjectionAvailability;
-  projectionPath: string | null;
-  manifestPath: string | null;
-  campaignId: string | null;
-  manifestKey: string | null;
-  receiptRootPath: string | null;
-  overallState: LlamacppCampaignProjectionOverallState | null;
-  staleReason: string | null;
-  updatedAt: number | null;
-}
-
-export interface AutoresearchConfigReceipt {
-  type: "config";
-  version: 1;
-  name: string;
-  metricName: string;
-  metricUnit: string;
-  direction: MetricDirection;
-  metricThreshold?: number;
-  createdAt: number;
-  benchmarkCommand?: string;
-  checksCommand?: string | null;
-}
-
-export type AutoresearchCandidateBindingSource = "candidate_peer_spawn" | "manual";
-
-export interface AutoresearchCandidateBinding {
-  source: AutoresearchCandidateBindingSource | null;
-  worktreePath: string | null;
-  branch: string | null;
-  baseRef: string | null;
-  diffSummary: string | null;
-  filesChanged: string[];
-}
-
-export interface AutoresearchCandidateBindingInput {
-  source?: AutoresearchCandidateBindingSource | null;
-  worktreePath?: string | null;
-  branch?: string | null;
-  baseRef?: string | null;
-  diffSummary?: string | null;
-  filesChanged?: readonly string[];
-}
-
-export interface AutoresearchExperimentLineage {
-  hypothesisId: string | null;
-  hypothesis: string | null;
-  interventionSummary: string | null;
-  expectedPrimaryEffect: string | null;
-  targetFiles: string[];
-  risk: string | null;
-  candidate?: AutoresearchCandidateBinding;
-}
-
-export interface AutoresearchExperimentLineageInput {
-  hypothesisId?: string | null;
-  hypothesis?: string | null;
-  interventionSummary?: string | null;
-  expectedPrimaryEffect?: string | null;
-  targetFiles?: readonly string[];
-  risk?: string | null;
-  candidate?: AutoresearchCandidateBindingInput | null;
-}
-
-export interface AutoresearchRunReceipt {
-  type: "run";
-  version: 1;
-  status: RunStatus;
-  runKind?: AutoresearchRunKind;
-  experiment?: AutoresearchExperimentLineage;
-  empiricalDecisionClass?: AutoresearchEmpiricalDecisionClass;
-  metric: number;
-  metrics: MetricMap;
-  description: string;
-  timestamp: number;
-  commit?: string;
-  iteration?: number;
-  confidence?: number | null;
-  durationSeconds?: number;
-  exitCode?: number | null;
-  timedOut?: boolean;
-  benchmarkCommand?: string;
-  checksCommand?: string | null;
-  checksPassed?: boolean | null;
-  checksDurationSeconds?: number | null;
-  decision?: AutoresearchRunDecisionSummary | null;
-}
-
-export type AutoresearchReceipt = AutoresearchConfigReceipt | AutoresearchRunReceipt;
-
-export type AutoresearchMetricInterpretationVerdict =
-  | "not_applicable"
-  | "insufficient_samples"
-  | "possible_noise"
-  | "calibration_signal"
-  | "baseline_drift"
-  | "meaningful_improvement"
-  | "regression";
-
-export interface AutoresearchMetricInterpretation {
-  verdict: AutoresearchMetricInterpretationVerdict;
-  sampleCount: number;
-  baselineMetric: number;
-  bestMetric: number;
-  latestMetric: number;
-  minMetric: number;
-  medianMetric: number;
-  maxMetric: number;
-  noiseBand: number;
-  bestDelta: number;
-  latestDelta: number;
-  bestDeltaPercent: number;
-  latestDeltaPercent: number;
-  reason: string;
-}
-
-export type AutoresearchEmpiricalPostureClassification =
-  | "unconfigured"
-  | "no_runs"
-  | "baseline_only"
-  | "calibration_only"
-  | "under_sampled"
-  | "baseline_drift_suspected"
-  | "candidate_review_ready"
-  | "candidate_regression"
-  | "candidate_neutral"
-  | "threshold_satisfied"
-  | "threshold_preserved"
-  | "threshold_regressed"
-  | "threshold_not_met"
-  | "checks_failed"
-  | "measurement_invalid"
-  | "inconclusive";
-
-export interface AutoresearchEmpiricalPosture {
-  classification: AutoresearchEmpiricalPostureClassification;
-  summary: string;
-  promotionReady: boolean;
-  recommendedNextAction: string;
-}
-
-export interface AutoresearchSegmentSummary {
-  configured: boolean;
-  name: string | null;
-  metricName: string | null;
-  metricUnit: string;
-  direction: MetricDirection | null;
-  metricThreshold: number | null;
-  benchmarkCommand: string | null;
-  checksCommand: string | null;
-  runCount: number;
-  successfulRunCount: number;
-  baselineMetric: number | null;
-  bestMetric: number | null;
-  confidence: number | null;
-  metricInterpretation: AutoresearchMetricInterpretation | null;
-  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
-  lastRunStatus: RunStatus | null;
-  lastRunKind: AutoresearchRunKind | null;
-  lastRunMetric: number | null;
-}
-
-export interface AutoresearchRuntimeProjection {
-  state: CampaignMachineStateValue;
-  resumeState: CampaignMachineResumeState | null;
-  blockedReason: string | null;
-  completionReason: string | null;
-  source: "ledger" | "receipt_fallback";
-  ledgerPath?: string;
-  hasLedger: boolean;
-  invalidLedgerLines: number;
-  eventCount: number;
-  replayedEventCount: number;
-  rejectedEvents: readonly AutoresearchLedgerReplayIssue[];
-  syncIssues: readonly string[];
-}
-
-export interface AutoresearchSegmentCloseoutRun {
-  iteration: number | null;
-  status: RunStatus;
-  runKind: AutoresearchRunKind;
-  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
-  metric: number;
-  description: string;
-  timestamp: number;
-  checks: string;
-  experiment: AutoresearchExperimentLineage | null;
-}
-
-export interface AutoresearchAkEvidencePacket {
-  packetKind: "autoresearch.ak_evidence.v1";
-  adapterContractVersion: 1;
-  targetKinds: string[];
-  taskId: number;
-  checkType: "autoresearch:segment_closeout";
-  result: string;
-  closeout: AutoresearchSegmentCloseout;
-  suggestedToolCall: string;
-  adapterBoundary: string;
-  evidenceBoundary: string;
-}
-
-export interface AutoresearchOracleEvidenceRecord {
-  recordKind: "autoresearch.campaign_run.oracle_evidence.v1";
-  recordId: string;
-  campaign: string | null;
-  metricName: string | null;
-  metricUnit: string;
-  direction: MetricDirection | null;
-  runStatus: RunStatus;
-  runKind: AutoresearchRunKind;
-  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
-  metric: number;
-  timestamp: number;
-  description: string;
-  checks: string;
-  hypothesisId: string | null;
-  hypothesis: string | null;
-  interventionSummary: string | null;
-  candidate: AutoresearchCandidateBinding | null;
-  oracleText: string;
-  sourceRefs: {
-    receiptPath: string;
-    closeoutPacketKind: "autoresearch.closeout.v1";
-    runIteration: number | null;
-    runTimestamp: number;
-  };
-  nonAuthority: true;
-}
-
-export interface AutoresearchOraclePublicationPreflightSummary {
-  status: "ready_for_dspx_owner_review" | "blocked_no_campaign_evidence";
-  target: "dspx_oracle_postgres_pgvector";
-  publicationLabel: "retained_behavior_memory_candidate";
-  sharedOracleMutated: false;
-  localCoordinatesDbMigrated: false;
-  canonicalAuthorityMutated: false;
-  blockedReasons: string[];
-  suggestedDspxOwnerAction: string;
-  suggestedDspxPreflightCommandTemplate: string;
-}
-
-export interface AutoresearchOracleEvidenceReadiness {
-  packetKind: "autoresearch.oracle_evidence.v1";
-  recordCount: number;
-  preflightStatus: AutoresearchOraclePublicationPreflightSummary["status"];
-  target: AutoresearchOraclePublicationPreflightSummary["target"];
-  authorityBoundary: string;
-}
-
-export interface AutoresearchOracleEvidencePacket {
-  packetKind: "autoresearch.oracle_evidence.v1";
-  adapterContractVersion: 1;
-  targetKinds: string[];
-  cwd: string;
-  campaign: string | null;
-  sourceArtifacts: {
-    closeoutPacketKind: "autoresearch.closeout.v1";
-    receiptPath: string;
-  };
-  records: AutoresearchOracleEvidenceRecord[];
-  publicationPreflight: AutoresearchOraclePublicationPreflightSummary;
-  adapterBoundary: string;
-  evidenceBoundary: string;
-  authorityBoundary: string;
-}
-
-export interface AutoresearchOracleEvidenceExportResult {
-  exportKind: "autoresearch.oracle_evidence_export.v1";
-  path: string;
-  packet: AutoresearchOracleEvidencePacket;
-  suggestedDspxPreflightCommand: string;
-  suggestedDspxPreflightArgv: string[];
-  effect: {
-    localFileWritten: true;
-    sharedOracleMutated: false;
-    localCoordinatesDbMigrated: false;
-    canonicalAuthorityMutated: false;
-    akCalled: false;
-    kesWritten: false;
-  };
-  authorityBoundary: string;
-}
-
-export interface AutoresearchKnowledgeExportPacket {
-  packetKind: "autoresearch.learning.v1";
-  adapterContractVersion: 1;
-  targetKinds: string[];
-  suggestedPath: string;
-  title: string;
-  markdown: string;
-  closeout: AutoresearchSegmentCloseout;
-  adapterBoundary: string;
-}
-
-export interface AutoresearchLearningExportResult {
-  exportKind: "autoresearch.learning_export.v1";
-  path: string;
-  packet: AutoresearchKnowledgeExportPacket;
-  suggestedKesAdapterCall: string;
-  effect: {
-    localFileWritten: true;
-    akCalled: false;
-    kesWritten: false;
-    externalAuthorityMutated: false;
-    promotionStateChanged: false;
-  };
-  authorityBoundary: string;
-}
-
-export interface AutoresearchCandidateResultPacket {
-  packetKind: "autoresearch.candidate_result.v1";
-  adapterContractVersion: 1;
-  targetKinds: string[];
-  cwd: string;
-  campaign: string | null;
-  candidate: AutoresearchCandidateBinding | null;
-  candidateRun: AutoresearchSegmentCloseoutRun | null;
-  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
-  recommendedAction: string;
-  resultSummary: string;
-  closeout: AutoresearchSegmentCloseout;
-  adapterBoundary: string;
-}
-
-export interface AutoresearchCandidateResultExportResult {
-  exportKind: "autoresearch.candidate_result_export.v1";
-  path: string;
-  packet: AutoresearchCandidateResultPacket;
-  suggestedReviewCall: string;
-  suggestedAggregateReviewCall: string | null;
-  effect: {
-    localFileWritten: true;
-    candidateLifecycleMutated: false;
-    worktreeMutated: false;
-    akCalled: false;
-    kesWritten: false;
-    promotionStateChanged: false;
-  };
-  authorityBoundary: string;
-}
-
-export interface AutoresearchSegmentCloseout {
-  packetKind: "autoresearch.closeout.v1";
-  adapterContractVersion: 1;
-  targetKinds: string[];
-  cwd: string;
-  receiptPath: string;
-  status: AutoresearchRuntimeStatus;
-  campaign: string | null;
-  metricName: string | null;
-  metricUnit: string;
-  direction: MetricDirection | null;
-  runCount: number;
-  successfulRunCount: number;
-  baselineMetric: number | null;
-  bestMetric: number | null;
-  empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
-  timingInterpretation: AutoresearchMetricInterpretation | null;
-  empiricalPosture: AutoresearchEmpiricalPosture;
-  runs: AutoresearchSegmentCloseoutRun[];
-  candidateBindings: AutoresearchCandidateBinding[];
-  recommendedAction: string;
-  oracleReadyEvidence: AutoresearchOracleEvidenceReadiness;
-  adapterBoundary: string;
-  evidenceBoundary: string;
-}
-
-export interface AutoresearchDashboardExportResult {
-  cwd: string;
-  path: string;
-  fileUrl: string;
-  refreshedAt: number;
-  status: AutoresearchRuntimeStatus;
-}
-
-export interface AutoresearchCandidateInventoryCleanupPlan {
-  kind: "autoresearch.candidate_inventory_cleanup_plan.v1";
-  cwd: string;
-  mode: "plan" | "applied";
-  archiveDir: string;
-  confirmationRequired: typeof AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION;
-  before: {
-    runCount: number;
-    successfulRunCount: number;
-    candidateRunCount: number;
-    checksFailedOrCrashCount: number;
-    openCandidateReviewCellCount: number;
-    candidatePacketInventoryCount: number;
-  };
-  archivedPaths: string[];
-  skippedMissingPaths: string[];
-  rootCause: string;
-  multiOrderEffect: string;
-  boundary: string;
-  after?: {
-    runCount: number;
-    successfulRunCount: number;
-    candidateRunCount: number;
-    openCandidateReviewCellCount: number;
-    candidatePacketInventoryCount: number;
-  };
-}
-
-export interface AutoresearchResumePlan {
-  packetKind: "autoresearch.resume_plan.v1";
-  cwd: string;
-  campaign: string | null;
-  segmentKey: string | null;
-  runtimeKey: string | null;
-  snapshotReuse: string;
-  reusable: boolean;
-  machineState: string;
-  controlState: string;
-  allowedControlActions: string[];
-  lastStopReason: string;
-  remainingBudget: "operator_required";
-  wouldRun: string | null;
-  blockingReasons: string[];
-  authorityWarnings: string[];
-}
-
-export interface AutoresearchResumeApplyPlan {
-  packetKind: "autoresearch.resume_apply_plan.v1";
-  cwd: string;
-  action: "plan_only";
-  planReady: boolean;
-  executionAuthorized: false;
-  executorAvailable: boolean;
-  resumePlan: AutoresearchResumePlan;
-  requiredOperatorInputs: string[];
-  preflightChecks: string[];
-  futureExecutorContract: string;
-  futureForegroundCall: string | null;
-  blockedReasons: string[];
-  authorityWarnings: string[];
-}
-
-export interface ExecuteAutoresearchResumeApplyInput {
-  cwd: string;
-  segmentKey: string;
-  runtimeKey: string;
-  maxIterations: number;
-  maxWallClockMinutes: number;
-  operatorConfirmation: string;
-  description?: string;
-  timeoutSeconds?: number;
-  checksTimeoutSeconds?: number;
-  postureCommand?: string;
-  postureTimeoutSeconds?: number;
-  signal?: AbortSignal;
-  onProgress?: (event: AutoresearchLoopProgressEvent) => void;
-}
-
-export interface ExecuteAutoresearchResumeApplyResult {
-  cwd: string;
-  action: "resume_apply";
-  executionAuthorized: true;
-  applyPlan: AutoresearchResumeApplyPlan;
-  loopResult: ExecuteAutoresearchLoopResult;
-  authorityWarnings: string[];
-}
-
-export interface AutoresearchRuntimeStatus {
-  phase: typeof AUTORESEARCH_PHASE;
-  cwd?: string;
-  commandName: typeof AUTORESEARCH_COMMAND_NAME;
-  toolNames: readonly string[];
-  localArtifacts: readonly string[];
-  receiptEntryTypes: readonly ["config", "run"];
-  readyPromptVaultTemplates: readonly string[];
-  blockedPromptVaultTemplates: readonly string[];
-  receiptPath?: string;
-  hasReceiptLog: boolean;
-  hasBenchmarkScript: boolean;
-  hasChecksScript: boolean;
-  invalidReceiptLines: number;
-  currentSegment: AutoresearchSegmentSummary;
-  empiricalPosture: AutoresearchEmpiricalPosture;
-  runtimeProjection: AutoresearchRuntimeProjection;
-  runtimeSnapshot: AutoresearchRuntimeSnapshotStatus;
-  control: AutoresearchControlStateV1;
-  campaignGoal: AutoresearchCampaignGoalStatusView;
-  autoContinuation: AutoresearchAutoContinuationDecision;
-  promptVaultDecisions: AutoresearchPromptVaultDecisionStatus;
-  llamacppCampaignProjection: AutoresearchLlamacppCampaignProjectionStatus;
-  nextSlices: readonly string[];
-}
-
-export interface CommandExecutionSummary {
-  command: string;
-  exitCode: number | null;
-  timedOut: boolean;
-  aborted: boolean;
-  durationSeconds: number;
-  stdout: string;
-  stderr: string;
-  outputTail: string;
-}
-
-export interface ExecuteAutoresearchRunLiveDecisionInput {
-  runtime: AutoresearchDecisionRuntime;
-  goal: string;
-  constraints?: readonly string[];
-  filesInScope?: readonly string[];
-  offLimits?: readonly string[];
-  ideasBacklog?: readonly string[];
-  asiNotes?: readonly string[];
-  deadEndMemory?: readonly string[];
-  currentCompany?: string;
-  model?: string;
-}
-
-export interface ExecuteAutoresearchRunInput {
-  cwd: string;
-  description: string;
-  runKind?: AutoresearchRunKind;
-  experiment?: AutoresearchExperimentLineageInput;
-  name?: string;
-  metricName?: string;
-  metricUnit?: string;
-  direction?: MetricDirection;
-  metricThreshold?: number;
-  benchmarkCommand?: string;
-  checksCommand?: string | null;
-  timeoutSeconds?: number;
-  checksTimeoutSeconds?: number;
-  reconfigure?: boolean;
-  postureCommand?: string;
-  postureTimeoutSeconds?: number;
-  liveDecision?: ExecuteAutoresearchRunLiveDecisionInput;
-  signal?: AbortSignal;
-}
-
-export interface ExecuteAutoresearchRunResult {
-  cwd: string;
-  receiptPath: string;
-  createdConfig: boolean;
-  configReceipt: AutoresearchConfigReceipt;
-  runReceipt: AutoresearchRunReceipt;
-  benchmark: CommandExecutionSummary;
-  checks: CommandExecutionSummary | null;
-  parsedMetrics: MetricMap;
-  primaryMetricName: string;
-  primaryMetric: number;
-  decisionSummary: AutoresearchRunDecisionSummary | null;
-  status: AutoresearchRuntimeStatus;
-}
-
-export type AutoresearchAutoplanPlanner = "heuristic" | "dspx_program";
-export type AutoresearchSetupAction = "plan" | "apply" | "baseline";
-export type AutoresearchCampaignStartSetupMode = "autoplan" | "prompt_vault_setup";
-export type AutoresearchCampaignStartRunMode = "plan_only" | "baseline" | "bounded_loop";
-export type AutoresearchCandidateLifecycleMode = "worktree";
-export type AutoresearchCandidateKeepAction = "preserve_branch" | "plan_review_branch";
-export type AutoresearchCandidateDiscardAction =
-  | "suggest_cleanup"
-  | "delete_worktree_after_confirm";
-export type AutoresearchCandidateRewindAction =
-  | "reset_worktree_to_base"
-  | "recreate_worktree_from_base";
-
-export interface AutoresearchCandidateLifecyclePolicyInput {
-  mode?: AutoresearchCandidateLifecycleMode;
-  keep?: AutoresearchCandidateKeepAction;
-  discard?: AutoresearchCandidateDiscardAction;
-  rewind?: AutoresearchCandidateRewindAction;
-}
-
-export interface AutoresearchCandidateLifecyclePolicy {
-  mode: AutoresearchCandidateLifecycleMode;
-  keep: AutoresearchCandidateKeepAction;
-  discard: AutoresearchCandidateDiscardAction;
-  rewind: AutoresearchCandidateRewindAction;
-  authority: "policy_only_no_mutation";
-  worktreeRole: string;
-  replayFabricRole: string;
-  ascRewindRole: string;
-}
-
-export const DEFAULT_AUTORESEARCH_CANDIDATE_LIFECYCLE_POLICY: AutoresearchCandidateLifecyclePolicy =
-  {
-    mode: "worktree",
-    keep: "preserve_branch",
-    discard: "suggest_cleanup",
-    rewind: "reset_worktree_to_base",
-    authority: "policy_only_no_mutation",
-    worktreeRole: "primary candidate accept/keep/discard/rewind primitive",
-    replayFabricRole: "observer/history/recovery-clue projection only; not the executor",
-    ascRewindRole: "live Pi/session recovery only; not candidate accept/discard authority",
-  };
-
-export type AutoresearchCandidateDecisionAction =
-  | "status"
-  | "plan_keep"
-  | "plan_discard"
-  | "plan_rewind";
-export type AutoresearchCandidateLifecycleDecision =
-  | "keep"
-  | "discard"
-  | "rewind"
-  | "rebaseline"
-  | "collect_more_samples"
-  | "rebind_candidate"
-  | "finalize"
-  | "no_candidate_bound_yet";
-
-export interface BuildAutoresearchCandidateDecisionInput {
-  cwd: string;
-  action?: AutoresearchCandidateDecisionAction;
-  candidatePolicy?: AutoresearchCandidateLifecyclePolicyInput;
-}
-
-export type AutoresearchCandidateArtifactStatus =
-  | "available"
-  | "missing_worktree"
-  | "missing_branch"
-  | "missing_worktree_and_branch"
-  | "unknown";
-
-export interface AutoresearchCandidateDecisionSummary {
-  source: AutoresearchCandidateBindingSource | null;
-  worktreePath: string | null;
-  branch: string | null;
-  baseRef: string | null;
-  diffSummary: string | null;
-  filesChanged: string[];
-  label: string;
-  worktreeExists: boolean | null;
-  branchExists: boolean | null;
-  artifactStatus: AutoresearchCandidateArtifactStatus;
-}
-
-export interface AutoresearchCandidateDecisionConfirmation {
-  required: boolean;
-  riskLevel: "none" | "review_gate" | "destructive_external";
-  exactConfirmationPhrase: string;
-  checklist: string[];
-  blockedReasons: string[];
-  nextHumanAction: string;
-}
-
-export type AutoresearchMetricReadinessClassification =
-  | "unconfigured"
-  | "threshold_ready"
-  | "duration_under_sampled"
-  | "duration_baseline_drift"
-  | "duration_review_ready"
-  | "generic_review";
-
-export interface AutoresearchMetricReadinessReview {
-  classification: AutoresearchMetricReadinessClassification;
-  summary: string;
-  checklist: string[];
-  blockedReasons: string[];
-}
-
-export interface AutoresearchCandidateDecisionWorkbench {
-  cwd: string;
-  action: AutoresearchCandidateDecisionAction;
-  candidatePolicy: AutoresearchCandidateLifecyclePolicy;
-  candidate: AutoresearchCandidateDecisionSummary | null;
-  empirical: {
-    classification: AutoresearchEmpiricalPostureClassification;
-    empiricalDecisionClass: AutoresearchEmpiricalDecisionClass;
-    promotionReady: boolean;
-    confidence: number | null;
-    confidenceNoiseInterpretation: string;
-    checksStatus: string;
-    baselineDriftRisk: string;
-  };
-  metricReadiness?: AutoresearchMetricReadinessReview;
-  recommendedDecision: AutoresearchCandidateLifecycleDecision;
-  recommendationReason: string;
-  confirmation: AutoresearchCandidateDecisionConfirmation;
-  exactNextCalls: string[];
-  plannedCommands: string[];
-  boundaryWarnings: string[];
-  status: AutoresearchRuntimeStatus;
-  candidateResult: AutoresearchCandidateResultPacket;
-}
-
-export type AutoresearchCandidateBindAction = "status" | "plan_run";
-export type AutoresearchCandidateBindReadiness = "ready" | "needs_review" | "blocked";
-
-export interface BuildAutoresearchCandidateBindInput {
-  cwd: string;
-  action?: AutoresearchCandidateBindAction;
-  candidateWorktree?: string | null;
-  candidateSource?: AutoresearchCandidateBindingSource;
-  candidateBranch?: string | null;
-  candidateBaseRef?: string | null;
-  description?: string | null;
-}
-
-export interface AutoresearchCandidateBindInspection {
-  candidateWorktree: string;
-  exists: boolean;
-  isGitWorktree: boolean;
-  sameRepository: boolean | null;
-  repositoryRoot: string | null;
-  branch: string | null;
-  head: string | null;
-  baseRef: string | null;
-  baseRefSource: string | null;
-  baseResolved: boolean;
-  statusShort: string[];
-  filesChanged: string[];
-  diffSummary: string;
-  readiness: AutoresearchCandidateBindReadiness;
-  readinessReasons: string[];
-  warnings: string[];
-}
-
-export interface AutoresearchCandidateBindPlan {
-  cwd: string;
-  action: AutoresearchCandidateBindAction;
-  candidateSource: AutoresearchCandidateBindingSource;
-  description: string;
-  inspection: AutoresearchCandidateBindInspection;
-  exactNextCalls: string[];
-  plannedCommands: string[];
-  boundaryWarnings: string[];
-  status: AutoresearchRuntimeStatus;
-}
-
-export interface AutoresearchSetupConfigInput {
-  name: string;
-  metricName: string;
-  metricUnit?: string;
-  direction: MetricDirection;
-  metricThreshold?: number;
-  benchmarkCommand?: string;
-  checksCommand?: string | null;
-}
-
-export interface BuildAutoresearchAutoplanInput {
-  cwd: string;
-  objective: string;
-  planner?: AutoresearchAutoplanPlanner;
-  filesInScope?: readonly string[];
-  offLimits?: readonly string[];
-  constraints?: readonly string[];
-  benchmarkCommand?: string;
-  checksCommand?: string | null;
-  metricName?: string;
-  metricUnit?: string;
-  direction?: MetricDirection;
-  metricThreshold?: number;
-  materializeDspxIntent?: boolean;
-  dspxIntentPath?: string;
-  dspxOutdir?: string;
-  dspxBehaviorPath?: string;
-}
-
-export interface AutoresearchDspxAdvisoryProposal {
-  campaignName: string | null;
-  metricName: string | null;
-  metricUnit: string;
-  direction: MetricDirection | null;
-  metricThreshold: number | null;
-  benchmarkCommand: string | null;
-  checksCommand: string | null;
-  risks: string | null;
-  nextAction: string | null;
-}
-
-export interface AutoresearchMeasurementContract {
-  metricName: string;
-  generatedBy: string;
-  freshness: "run_generated" | "static_existing_artifact";
-  causalLink:
-    | "benchmark_command_declares_metric"
-    | "wraps_current_benchmark_command"
-    | "reads_prior_advisory_artifact";
-  optimizationAuthority: "baseline_allowed" | "advisory_only";
-  reason: string;
-}
-
-export interface AutoresearchBenchmarkScriptProposal {
-  benchmarkCommand: "bash autoresearch.sh";
-  benchmarkScript: string;
-  allowOverwriteScripts: false;
-  reason: string;
-  source: "duration_wrapper" | "dspx_behavior_score";
-  measurementContract: AutoresearchMeasurementContract;
-}
-
-export interface AutoresearchDspxAdvisory {
-  authority: "evidence_only_non_authoritative" | "validated_generated_dspy_planner_output";
-  behaviorPath: string;
-  available: boolean;
-  status: string | null;
-  total: number;
-  passed: number;
-  failed: number;
-  error: number;
-  matchedObjective: boolean;
-  selectedExampleIndex: number | null;
-  selectedExampleStatus: string | null;
-  proposal: AutoresearchDspxAdvisoryProposal | null;
-  benchmarkScriptProposal: AutoresearchBenchmarkScriptProposal | null;
-  warnings: string[];
-  nextToolCall: string | null;
-}
-
-export interface AutoresearchDspxProgramGenPlan {
-  enabled: boolean;
-  intentPath: string;
-  outdir: string;
-  command: string;
-  argv: string[];
-  materialized: boolean;
-  note: string;
-}
-
-export interface AutoresearchAutoplanResult {
-  cwd: string;
-  objective: string;
-  planner: AutoresearchAutoplanPlanner;
-  config: AutoresearchConfigReceipt;
-  benchmarkCommand: string | null;
-  checksCommand: string | null;
-  benchmarkScriptPresent: boolean;
-  checksScriptPresent: boolean;
-  measurementContract: AutoresearchMeasurementContract | null;
-  benchmarkScriptProposal: AutoresearchBenchmarkScriptProposal | null;
-  packageScripts: Record<string, string>;
-  justRecipes: string[];
-  filesInScope: string[];
-  offLimits: string[];
-  constraints: string[];
-  confidence: number;
-  risks: string[];
-  nextToolCall: string;
-  dspxProgramGen: AutoresearchDspxProgramGenPlan | null;
-  dspxAdvisory: AutoresearchDspxAdvisory | null;
-  status: AutoresearchRuntimeStatus;
-}
-
-export interface ExecuteAutoresearchSetupInput extends AutoresearchSetupConfigInput {
-  cwd: string;
-  action?: AutoresearchSetupAction;
-  reconfigure?: boolean;
-  description?: string;
-  benchmarkScript?: string;
-  checksScript?: string | null;
-  allowOverwriteScripts?: boolean;
-  postureCommand?: string;
-  postureTimeoutSeconds?: number;
-  timeoutSeconds?: number;
-  checksTimeoutSeconds?: number;
-  signal?: AbortSignal;
-}
-
-export interface ExecuteAutoresearchSetupResult {
-  cwd: string;
-  action: AutoresearchSetupAction;
-  plannedConfig: AutoresearchConfigReceipt;
-  appliedConfig: boolean;
-  wroteBenchmarkScript: boolean;
-  wroteChecksScript: boolean;
-  run: ExecuteAutoresearchRunResult | null;
-  status: AutoresearchRuntimeStatus;
-  nextToolCall: string;
-}
-
-export interface ExecuteAutoresearchCampaignStartInput extends BuildAutoresearchAutoplanInput {
-  setupMode?: AutoresearchCampaignStartSetupMode;
-  runMode?: AutoresearchCampaignStartRunMode;
-  maxIterations?: number;
-  maxWallClockMinutes?: number;
-  runDspxProgramGen?: boolean;
-  dspxProgramGenTimeoutSeconds?: number;
-  description?: string;
-  allowOverwriteScripts?: boolean;
-  reconfigure?: boolean;
-  timeoutSeconds?: number;
-  checksTimeoutSeconds?: number;
-  postureCommand?: string;
-  postureTimeoutSeconds?: number;
-  decisionRuntime?: AutoresearchDecisionRuntime;
-  decisionGoal?: string;
-  decisionConstraints?: readonly string[];
-  decisionFilesInScope?: readonly string[];
-  decisionOffLimits?: readonly string[];
-  decisionIdeasBacklog?: readonly string[];
-  decisionAsiNotes?: readonly string[];
-  decisionDeadEndMemory?: readonly string[];
-  model?: string;
-  stopOn?: readonly (RunStatus | "blocked" | "rebaseline" | "finalize")[];
-  peerMode?: AutoresearchLoopPeerMode;
-  candidatePolicy?: AutoresearchCandidateLifecyclePolicyInput;
-  campaignGoalId?: string;
-  campaignGoalIterationBudget?: number;
-  campaignGoalWallClockMinutesBudget?: number;
-  campaignGoalTokenBudget?: number;
-  campaignGoalAutoContinue?: boolean;
-  signal?: AbortSignal;
-  onProgress?: (event: AutoresearchLoopProgressEvent) => void;
-}
-
-export interface ExecuteAutoresearchCampaignStartResult {
-  cwd: string;
-  objective: string;
-  setupMode: AutoresearchCampaignStartSetupMode;
-  runMode: AutoresearchCampaignStartRunMode;
-  maxIterations: number;
-  autoplan: AutoresearchAutoplanResult;
-  setupDecision: ExecuteAutoresearchSetupDecisionResult | null;
-  setupResult: ExecuteAutoresearchSetupResult | null;
-  loopResult: ExecuteAutoresearchLoopResult | null;
-  dspxProgramGenRun: CommandExecutionSummary | null;
-  candidatePolicy: AutoresearchCandidateLifecyclePolicy;
-  status: AutoresearchRuntimeStatus;
-  nextToolCall: string;
-  warnings: string[];
-}
-export type AutoresearchPeerAssistLane = "none" | "scout" | "candidate" | "fork";
-export type AutoresearchPeerAssistReportBack = "intercom" | "manual" | "none";
-export type AutoresearchLoopPeerMode =
-  | "off"
-  | "plan"
-  | "launch_scout"
-  | "launch_candidate"
-  | "launch_fork";
-export type AutoresearchLoopProgressPhase =
-  | "loop_start"
-  | "iteration_start"
-  | "iteration_complete"
-  | "loop_stop"
-  | "loop_complete";
-
-export interface BuildAutoresearchPeerAssistInput {
-  cwd: string;
-  lane?: AutoresearchPeerAssistLane | "auto";
-  objective?: string;
-  targetFiles?: readonly string[];
-  offLimits?: readonly string[];
-  constraints?: readonly string[];
-  reportBack?: AutoresearchPeerAssistReportBack;
-  parentPeerTarget?: string;
-}
-
-export interface AutoresearchPeerAssistPlan {
-  cwd: string;
-  lane: AutoresearchPeerAssistLane;
-  reason: string;
-  objective: string;
-  toolName: string | null;
-  toolCall: string | null;
-  reportBack: AutoresearchPeerAssistReportBack;
-  parentPeerTargetRequired: boolean;
-  status: AutoresearchRuntimeStatus;
-  evidenceWarning: string;
-}
-
-export interface AutoresearchLoopPeerHandoff {
-  mode: AutoresearchLoopPeerMode;
-  requested: boolean;
-  status: "not_requested" | "handoff_required" | "unavailable";
-  toolName: string | null;
-  toolCall: string | null;
-  note: string;
-}
-
-export interface AutoresearchLoopProgressEvent {
-  phase: AutoresearchLoopProgressPhase;
-  cwd: string;
-  goal: string;
-  iteration: number | null;
-  maxIterations: number;
-  elapsedSeconds: number;
-  stopReason?: string;
-  runStatus?: RunStatus;
-  primaryMetricName?: string;
-  primaryMetric?: number;
-  bestMetric?: number | null;
-  nextHypothesis?: string | null;
-  peerLane?: AutoresearchPeerAssistLane;
-  message: string;
-}
-
-export interface ExecuteAutoresearchLoopInput {
-  cwd: string;
-  goal: string;
-  maxIterations: number;
-  maxWallClockMinutes?: number;
-  description?: string;
-  name?: string;
-  metricName?: string;
-  metricUnit?: string;
-  direction?: MetricDirection;
-  metricThreshold?: number;
-  benchmarkCommand?: string;
-  checksCommand?: string | null;
-  timeoutSeconds?: number;
-  checksTimeoutSeconds?: number;
-  reconfigure?: boolean;
-  postureCommand?: string;
-  postureTimeoutSeconds?: number;
-  decisionGoal?: string;
-  decisionRuntime?: AutoresearchDecisionRuntime;
-  decisionConstraints?: readonly string[];
-  decisionFilesInScope?: readonly string[];
-  decisionOffLimits?: readonly string[];
-  decisionIdeasBacklog?: readonly string[];
-  decisionAsiNotes?: readonly string[];
-  decisionDeadEndMemory?: readonly string[];
-  model?: string;
-  stopOn?: readonly (RunStatus | "blocked" | "rebaseline" | "finalize")[];
-  peerMode?: AutoresearchLoopPeerMode;
-  campaignGoalId?: string;
-  campaignGoalIterationBudget?: number;
-  campaignGoalWallClockMinutesBudget?: number;
-  campaignGoalTokenBudget?: number;
-  campaignGoalAutoContinue?: boolean;
-  signal?: AbortSignal;
-  onProgress?: (event: AutoresearchLoopProgressEvent) => void;
-}
-
-export interface ExecuteAutoresearchLoopResult {
-  cwd: string;
-  goal: string;
-  requestedIterations: number;
-  completedIterations: number;
-  stopReason: string;
-  elapsedSeconds: number;
-  runs: ExecuteAutoresearchRunResult[];
-  peerMode: AutoresearchLoopPeerMode;
-  peerAssist: AutoresearchPeerAssistPlan;
-  peerLaunchHandoff: AutoresearchLoopPeerHandoff;
-  campaignGoal: AutoresearchCampaignGoalStatusView;
-  status: AutoresearchRuntimeStatus;
-}
-
-export interface InspectAutoresearchRuntimeControlResult {
-  cwd: string;
-  status: AutoresearchRuntimeStatus;
-  nextStep: string;
-}
-
-export interface SetAutoresearchRuntimeControlInput {
-  cwd: string;
-  decision: AutoresearchOperatorAction;
-  reason?: string;
-  selectedAt?: number;
-}
-
-export interface SetAutoresearchRuntimeControlResult {
-  cwd: string;
-  decision: AutoresearchOperatorAction;
-  previousControl: AutoresearchControlStateV1;
-  status: AutoresearchRuntimeStatus;
-  nextStep: string;
-}
-
-export interface ExecuteAutoresearchSetupDecisionInput {
-  cwd: string;
-  packet: SetupDecisionPacket;
-  runtime: AutoresearchDecisionRuntime;
-  currentCompany?: string;
-  model?: string;
-  signal?: AbortSignal;
-}
-
-export interface ExecuteAutoresearchSetupDecisionResult {
-  cwd: string;
-  outcome: SetupDecisionOutcome;
-  status: AutoresearchRuntimeStatus;
-}
-
-export interface ExecuteAutoresearchFinalizeDecisionInput {
-  cwd: string;
-  packet: FinalizeDecisionPacket;
-  runtime: AutoresearchDecisionRuntime;
-  currentCompany?: string;
-  model?: string;
-  signal?: AbortSignal;
-}
-
-export interface ExecuteAutoresearchFinalizeDecisionResult {
-  cwd: string;
-  outcome: FinalizeDecisionOutcome;
-  status: AutoresearchRuntimeStatus;
-}
-
 interface CurrentSegmentView {
   config: AutoresearchConfigReceipt | null;
   runs: AutoresearchRunReceipt[];
