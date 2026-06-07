@@ -3,19 +3,18 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "c7260f46b0afd5fe16d0c15efcb06abb6413069f"
-created_at: "2026-06-07T07:55:16Z"
-intent: "Add loop taxonomy boundary contract and reference it from visible self-evolution spine"
+created_at: "2026-06-07T07:56:30Z"
+intent: "see group note"
 files:
-  - "docs/project/loop-taxonomy-boundary-contract.md"
-  - "docs/project/visible-self-evolution-spine.md"
+  []
 validation:
   fast_gate:
     command: "pre-commit hook"
     status: "pass"
   full_gate:
-    command: "pending"
-    status: "pending"
+    command: "npm --prefix packages/pi-little-helpers run loop-landing-check && npm --prefix packages/pi-society-orchestrator run loop-landing-check"
+    status: "pass"
 group:
-  index: 2
+  index: 0
   total: 4
-  rationale: "Root docs: loop taxonomy boundary contract"
+  rationale: "updated with final gate result"
