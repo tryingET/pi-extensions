@@ -23,6 +23,7 @@ const files = {
   resumeDesign: readRelative("docs/project/longer-bounded-campaign-resume-interrupt-design.md"),
   runtime: readRelative("src/core/runtime.ts"),
   runtimeTest: readRelative("tests/runtime.test.ts"),
+  candidateCampaignTest: readRelative("tests/runtime-candidate-campaign.test.ts"),
   resumeTest: readRelative("tests/runtime-resume.test.ts"),
   toolboxBundle: readRelative("src/toolboxBundle.ts"),
   extension: readRelative("extensions/pi-autoresearch.ts"),
@@ -85,7 +86,7 @@ const checks = [
     id: "plan-next-call-regression-test",
     description:
       "runtime tests cover the configured-segment plan-only -> baseline reconfigure next call",
-    ok: includesAll(files.runtimeTest, [
+    ok: includesAll(files.candidateCampaignTest, [
       "appendReceipt(\n      cwd,",
       "configuredDetails.nextToolCall",
       "reconfigure: true",
