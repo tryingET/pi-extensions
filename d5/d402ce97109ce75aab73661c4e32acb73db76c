@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "d5d402ce97109ce75aab73661c4e32acb73db76c"
+created_at: "2026-06-07T07:55:59Z"
+intent: "Add .obsidian to gitignore for local editor workspace metadata"
+files:
+  - ".gitignore"
+validation:
+  fast_gate:
+    command: "pre-commit hook"
+    status: "pass"
+  full_gate:
+    command: "pending"
+    status: "pending"
+group:
+  index: 4
+  total: 4
+  rationale: "gitignore housekeeping"
