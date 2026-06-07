@@ -1,0 +1,31 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3f7da62e04100e31cdcb15367d85e439c1fd51e6"
+created_at: "2026-06-07T07:54:50Z"
+intent: "Refactor visible-loop into sub-modules with command-aware profiles for /visible-loop and /nexus-loop"
+files:
+  - "packages/pi-little-helpers/docs/project/product-posture.md"
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/package.json"
+  - "packages/pi-little-helpers/src/visibleLoop.ts"
+  - "packages/pi-little-helpers/src/visibleLoopArgs.ts"
+  - "packages/pi-little-helpers/src/visibleLoopProfiles.ts"
+  - "packages/pi-little-helpers/src/visibleLoopPromptTemplates.ts"
+  - "packages/pi-little-helpers/src/visibleLoopState.ts"
+  - "packages/pi-little-helpers/src/visibleLoopTypes.ts"
+  - "packages/pi-little-helpers/tests/sidequest-harness.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-child-progress.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-launch.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+  full_gate:
+    command: "pending"
+    status: "pending"
+group:
+  index: 1
+  total: 4
+  rationale: "pi-little-helpers visible-loop refactor + command-aware profiles"
