@@ -7,3 +7,6 @@
 /autoresearch.goal.json
 /autoresearch.jsonl
 /autoresearch.runtime.json
+
+# Local editor/workspace metadata
+/.obsidian/
