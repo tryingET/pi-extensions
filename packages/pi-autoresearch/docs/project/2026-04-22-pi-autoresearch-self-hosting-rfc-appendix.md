@@ -1,5 +1,9 @@
 ---
 summary: "Appendix for the pi-autoresearch supervised self-hosting RFC: worked examples, first implementation slices, and open questions."
+read_when:
+  - "You are changing the pi-autoresearch supervised self-hosting RFC examples, implementation slices, or open questions."
+  - "You need worked examples for self-hosting applicability classification before changing self-hosting behavior."
+type: "reference"
 ---
 
 # Appendix — supervised self-hosting RFC
