@@ -2,129 +2,32 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { AutoresearchAutoContinuationDecision } from "./autoContinuation.ts";
-import { formatAutoresearchAutoContinuationGateLines } from "./autoContinuation.ts";
+import {
+  AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE,
+  AUTORESEARCH_CAMPAIGN_GOAL_STATUSES,
+  type AutoresearchCampaignGoalBudget,
+  type AutoresearchCampaignGoalLedgerV1,
+  type AutoresearchCampaignGoalSegment,
+  type AutoresearchCampaignGoalStatus,
+  type AutoresearchCampaignGoalStatusView,
+  type AutoresearchCampaignGoalUsage,
+  type BeginAutoresearchCampaignGoalInput,
+  EMPTY_BUDGET,
+  EMPTY_USAGE,
+  GOAL_AUTHORITY_WARNINGS,
+  type RecordAutoresearchCampaignGoalSegmentInput,
+  type SetAutoresearchCampaignGoalControlInput,
+} from "./goal-model.ts";
+import {
+  normalizeNonnegativeInteger,
+  normalizeNonnegativeNumber,
+  normalizeOptionalPositiveInteger,
+  normalizeOptionalPositiveNumber,
+  parseNullableNumber,
+} from "./goal-numbers.ts";
 
-export const AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE = "autoresearch.goal.json" as const;
-
-export const AUTORESEARCH_CAMPAIGN_GOAL_STATUSES = [
-  "active",
-  "paused",
-  "budget_limited",
-  "complete",
-] as const;
-
-export type AutoresearchCampaignGoalStatus = (typeof AUTORESEARCH_CAMPAIGN_GOAL_STATUSES)[number];
-
-export interface AutoresearchCampaignGoalBudget {
-  iterations: number | null;
-  wallClockSeconds: number | null;
-  tokenLikeUnits: number | null;
-}
-
-export interface AutoresearchCampaignGoalUsage {
-  foregroundSegments: number;
-  completedIterations: number;
-  elapsedSeconds: number;
-  tokenLikeUnits: number;
-}
-
-export interface AutoresearchCampaignGoalSegment {
-  segmentIndex: number;
-  startedAt: number;
-  completedAt: number;
-  foreground: true;
-  requestedIterations: number;
-  completedIterations: number;
-  elapsedSeconds: number;
-  stopReason: string;
-  toolName: string;
-  toolCall: string;
-}
-
-export interface AutoresearchCampaignGoalLedgerV1 {
-  type: "campaign_goal_ledger";
-  version: 1;
-  goalId: string;
-  objective: string;
-  status: AutoresearchCampaignGoalStatus;
-  createdAt: number;
-  updatedAt: number;
-  budget: AutoresearchCampaignGoalBudget;
-  usage: AutoresearchCampaignGoalUsage;
-  lastStatusReason: string;
-  segments: AutoresearchCampaignGoalSegment[];
-  nextContinuationCall: string | null;
-  exactControlActions: Record<"pause" | "resume" | "complete", string>;
-  authorityWarnings: string[];
-}
-
-export interface AutoresearchCampaignGoalStatusView {
-  exists: boolean;
-  path: string;
-  goalId: string | null;
-  objective: string | null;
-  status: AutoresearchCampaignGoalStatus | "missing" | "invalid";
-  budget: AutoresearchCampaignGoalBudget;
-  usage: AutoresearchCampaignGoalUsage;
-  remainingBudget: AutoresearchCampaignGoalBudget;
-  nextContinuationCall: string | null;
-  exactControlActions: Record<"pause" | "resume" | "complete", string>;
-  authorityWarnings: string[];
-  parseError: string | null;
-}
-
-export interface BeginAutoresearchCampaignGoalInput {
-  cwd: string;
-  objective: string;
-  goalId?: string;
-  iterationBudget?: number;
-  wallClockMinutesBudget?: number;
-  tokenLikeBudget?: number;
-  autoContinue?: boolean;
-  now?: number;
-}
-
-export interface RecordAutoresearchCampaignGoalSegmentInput {
-  cwd: string;
-  goalId: string;
-  requestedIterations: number;
-  completedIterations: number;
-  elapsedSeconds: number;
-  stopReason: string;
-  toolName: string;
-  toolCall: string;
-  tokenLikeUnits?: number;
-  autoContinue?: boolean;
-  startedAt?: number;
-  completedAt?: number;
-}
-
-export interface SetAutoresearchCampaignGoalControlInput {
-  cwd: string;
-  action: "pause" | "resume" | "complete";
-  reason?: string;
-  now?: number;
-}
-
-const EMPTY_BUDGET: AutoresearchCampaignGoalBudget = {
-  iterations: null,
-  wallClockSeconds: null,
-  tokenLikeUnits: null,
-};
-
-const EMPTY_USAGE: AutoresearchCampaignGoalUsage = {
-  foregroundSegments: 0,
-  completedIterations: 0,
-  elapsedSeconds: 0,
-  tokenLikeUnits: 0,
-};
-
-const GOAL_AUTHORITY_WARNINGS = [
-  "campaign_goal_ledger is package-local continuity state, not AK task/evidence authority",
-  "foreground segments run only when an explicit tool call is made; no daemon or scheduler is installed",
-  "AK/KES/Oracle/candidate promotion remains external to this package-local goal ledger",
-] as const;
+export { formatAutoresearchCampaignGoalStatus } from "./goal-format.ts";
+export * from "./goal-model.ts";
 
 export function resolveAutoresearchCampaignGoalLedgerPath(cwd: string): string {
   return path.join(path.resolve(cwd), AUTORESEARCH_CAMPAIGN_GOAL_LEDGER_FILE);
@@ -318,56 +221,6 @@ export function setAutoresearchCampaignGoalControl(
   };
   writeGoalLedger(ledgerPath, ledger);
   return ledger;
-}
-
-export function formatAutoresearchCampaignGoalStatus(
-  status: AutoresearchCampaignGoalStatusView,
-  options: { autoContinuation?: AutoresearchAutoContinuationDecision } = {},
-): string {
-  const autoContinuationLines = options.autoContinuation
-    ? [
-        "",
-        "## Auto-continuation eligibility",
-        `- eligible: ${options.autoContinuation.eligible ? "yes" : "no"}`,
-        `- follow-up: ${options.autoContinuation.eligible ? "will be sent after settle window" : "will not be sent"}`,
-        `- blockers: ${options.autoContinuation.blockedReasons.length > 0 ? options.autoContinuation.blockedReasons.join(", ") : "(none)"}`,
-        ...formatAutoresearchAutoContinuationGateLines(options.autoContinuation),
-      ]
-    : [
-        "",
-        "## Auto-continuation eligibility",
-        "- status: not evaluated on this formatter call",
-        "- note: use autoresearch_runtime_status for the current PI_AUTORESEARCH_AUTO_CONTINUE env/session gate decision",
-      ];
-  return [
-    "# PI-AUTORESEARCH CAMPAIGN GOAL",
-    "",
-    `- path: ${status.path}`,
-    `- exists: ${status.exists ? "yes" : "no"}`,
-    `- goal id: ${status.goalId ?? "(none)"}`,
-    `- objective: ${status.objective ?? "(none)"}`,
-    `- status: ${status.status}`,
-    `- budget iterations: ${formatNullableNumber(status.budget.iterations)}`,
-    `- usage iterations: ${status.usage.completedIterations}`,
-    `- remaining iterations: ${formatNullableNumber(status.remainingBudget.iterations)}`,
-    `- budget wall clock seconds: ${formatNullableNumber(status.budget.wallClockSeconds)}`,
-    `- usage wall clock seconds: ${status.usage.elapsedSeconds.toFixed(2)}`,
-    `- remaining wall clock seconds: ${formatNullableNumber(status.remainingBudget.wallClockSeconds)}`,
-    `- budget token-like units: ${formatNullableNumber(status.budget.tokenLikeUnits)}`,
-    `- usage token-like units: ${status.usage.tokenLikeUnits}`,
-    `- foreground segments: ${status.usage.foregroundSegments}`,
-    `- next continuation: ${status.nextContinuationCall ?? "(none)"}`,
-    `- parse error: ${status.parseError ?? "(none)"}`,
-    "",
-    "## Explicit control actions",
-    `- pause: ${status.exactControlActions.pause}`,
-    `- resume: ${status.exactControlActions.resume}`,
-    `- complete: ${status.exactControlActions.complete}`,
-    "",
-    "## Authority warnings",
-    ...status.authorityWarnings.map((warning) => `- ${warning}`),
-    ...autoContinuationLines,
-  ].join("\n");
 }
 
 function parseAutoresearchCampaignGoalLedger(raw: string): AutoresearchCampaignGoalLedgerV1 {
@@ -639,38 +492,4 @@ function requireNumber(value: unknown, field: string): number {
     throw new Error(`${field} must be a finite number`);
   }
   return value;
-}
-
-function parseNullableNumber(value: unknown): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return value;
-}
-
-function normalizeOptionalPositiveInteger(value: number | undefined, field: string): number | null {
-  if (value === undefined) return null;
-  if (!Number.isInteger(value) || value < 1) throw new Error(`${field} must be a positive integer`);
-  return value;
-}
-
-function normalizeOptionalPositiveNumber(value: number | undefined, field: string): number {
-  if (value === undefined) throw new Error(`${field} is required`);
-  if (!Number.isFinite(value) || value <= 0) throw new Error(`${field} must be positive`);
-  return value;
-}
-
-function normalizeNonnegativeInteger(value: number, field: string): number {
-  if (!Number.isInteger(value) || value < 0)
-    throw new Error(`${field} must be a nonnegative integer`);
-  return value;
-}
-
-function normalizeNonnegativeNumber(value: number, field: string): number {
-  if (!Number.isFinite(value) || value < 0)
-    throw new Error(`${field} must be a nonnegative number`);
-  return value;
-}
-
-function formatNullableNumber(value: number | null): string {
-  return value === null ? "(unbounded)" : String(value);
 }
