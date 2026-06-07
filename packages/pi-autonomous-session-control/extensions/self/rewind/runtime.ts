@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import type {
   AgentEndEvent,
   ExtensionAPI,
@@ -6,7 +5,6 @@ import type {
   SessionBeforeForkEvent,
   SessionBeforeTreeEvent,
   SessionCompactEvent,
-  SessionEntry,
   SessionStartEvent,
   SessionTreeEvent,
   TurnEndEvent,
@@ -20,244 +18,28 @@ import {
   ensureSnapshotForCurrentWorktree,
   getCommitTreeSha,
 } from "./git-snapshot.ts";
+import { readPendingForkState } from "./runtime-fork-pending.ts";
 import {
-  buildRewindCheckpointRef,
-  projectRecoveryMilestoneIfConfigured,
-} from "./replay-fabric-projection.ts";
-import type { AscRewindForkPendingData, AscRewindOpData } from "./session-ledger.ts";
+  appendForkPendingState,
+  appendRewindOp,
+  applyCurrentExactState,
+  createRewindRuntimeState,
+  finalizePromptCollector,
+  isRoleEntry,
+  notify,
+  REWIND_LEDGER_VERSION,
+  REWIND_STATUS_KEY,
+  type RewindRuntimeState,
+  reconstructStateFromSession,
+  updateStatus,
+} from "./runtime-state.ts";
 import {
-  ASC_REWIND_FORK_PENDING_CUSTOM_TYPE,
-  ASC_REWIND_OP_CUSTOM_TYPE,
-  ASC_REWIND_TURN_CUSTOM_TYPE,
-  applyRewindBindings,
-  getCommitFromRewindOp,
-  isAscRewindForkPendingData,
-  isAscRewindOpData,
-  isAscRewindTurnData,
-} from "./session-ledger.ts";
-import type { BindingTuple, GitRunner, SnapshotRef } from "./types.ts";
-
-const REWIND_STATUS_KEY = "asc-rewind";
-const REWIND_LEDGER_VERSION = 1;
-const TREE_KEEP_CURRENT_FILES = "Keep current files";
-const TREE_REWIND_TO_POINT = "Rewind files to that point";
-const TREE_UNDO_LAST_REWIND = "Undo last file rewind";
-const TREE_CANCEL_NAVIGATION = "Cancel navigation";
-
-type SessionLikeMessageEntry = Extract<SessionEntry, { type: "message" }> & {
-  message: {
-    role?: string;
-  };
-};
-
-interface PendingPromptCollector {
-  snapshots: string[];
-  bindings: BindingTuple[];
-}
-
-interface PendingResultingState {
-  currentCommitSha: string;
-  undoCommitSha?: string;
-}
-
-interface RewindRuntimeState {
-  entryToCommit: Map<string, string>;
-  git: GitRunner | null;
-  isGitRepo: boolean;
-  lastExact: SnapshotRef | null;
-  currentCommitSha?: string;
-  undoCommitSha?: string;
-  promptCollector: PendingPromptCollector | null;
-  pendingTreeState: PendingResultingState | null;
-}
-
-interface ParsedCustomEntryLike {
-  type?: string;
-  customType?: string;
-  data?: unknown;
-}
-
-function createRewindRuntimeState(): RewindRuntimeState {
-  return {
-    entryToCommit: new Map(),
-    git: null,
-    isGitRepo: false,
-    lastExact: null,
-    currentCommitSha: undefined,
-    undoCommitSha: undefined,
-    promptCollector: null,
-    pendingTreeState: null,
-  };
-}
-
-function isMessageEntry(entry: SessionEntry | undefined): entry is SessionLikeMessageEntry {
-  return entry?.type === "message";
-}
-
-function isRoleEntry(
-  entry: SessionEntry | undefined,
-  role: "user" | "assistant",
-): entry is SessionLikeMessageEntry {
-  return isMessageEntry(entry) && entry.message?.role === role;
-}
-
-function notify(
-  ctx: ExtensionContext,
-  message: string,
-  level: "info" | "warning" | "error" = "info",
-): void {
-  if (!ctx.hasUI) {
-    return;
-  }
-
-  ctx.ui.notify(message, level);
-}
-
-function updateStatus(ctx: ExtensionContext, state: RewindRuntimeState): void {
-  if (!ctx.hasUI) {
-    return;
-  }
-
-  if (!state.isGitRepo) {
-    ctx.ui.setStatus(REWIND_STATUS_KEY, undefined);
-    return;
-  }
-
-  const uniqueSnapshots = new Set(state.entryToCommit.values()).size;
-  const theme = ctx.ui.theme;
-  ctx.ui.setStatus(
-    REWIND_STATUS_KEY,
-    theme.fg("dim", "◆ ") +
-      theme.fg("muted", `${state.entryToCommit.size} rewind points / ${uniqueSnapshots} snapshots`),
-  );
-}
-
-function applyCurrentExactState(
-  state: RewindRuntimeState,
-  commitSha: string,
-  treeSha: string,
-): void {
-  state.currentCommitSha = commitSha;
-  state.lastExact = {
-    commitSha,
-    treeSha,
-  };
-}
-
-function appendRewindOp(pi: ExtensionAPI, state: RewindRuntimeState, data: AscRewindOpData): void {
-  const hasBindings = Boolean(data.bindings?.length);
-  const hasCurrent = typeof data.current === "number";
-  const hasUndo = typeof data.undo === "number";
-  if (!hasBindings && !hasCurrent && !hasUndo) {
-    return;
-  }
-
-  pi.appendEntry(ASC_REWIND_OP_CUSTOM_TYPE, data);
-  applyRewindBindings(state.entryToCommit, data.snapshots, data.bindings ?? []);
-
-  const currentCommitSha = getCommitFromRewindOp(data, "current");
-  if (currentCommitSha) {
-    state.currentCommitSha = currentCommitSha;
-  }
-
-  const undoCommitSha = getCommitFromRewindOp(data, "undo");
-  if (undoCommitSha) {
-    state.undoCommitSha = undoCommitSha;
-  }
-}
-
-function appendForkPendingState(pi: ExtensionAPI, nextState: PendingResultingState): void {
-  const data: AscRewindForkPendingData = {
-    v: REWIND_LEDGER_VERSION,
-    current: nextState.currentCommitSha,
-  };
-
-  if (nextState.undoCommitSha) {
-    data.undo = nextState.undoCommitSha;
-  }
-
-  pi.appendEntry(ASC_REWIND_FORK_PENDING_CUSTOM_TYPE, data);
-}
-
-function reconstructStateFromSession(ctx: ExtensionContext, state: RewindRuntimeState): void {
-  state.entryToCommit.clear();
-  state.currentCommitSha = undefined;
-  state.undoCommitSha = undefined;
-
-  let latestVisibleBindingCommitSha: string | undefined;
-
-  for (const entry of ctx.sessionManager.getEntries()) {
-    if (entry.type === "custom" && entry.customType === ASC_REWIND_TURN_CUSTOM_TYPE) {
-      if (!isAscRewindTurnData(entry.data)) {
-        continue;
-      }
-
-      applyRewindBindings(state.entryToCommit, entry.data.snapshots, entry.data.bindings);
-      const latestBinding = entry.data.bindings.at(-1);
-      if (latestBinding) {
-        latestVisibleBindingCommitSha = entry.data.snapshots[latestBinding[1]];
-      }
-      continue;
-    }
-
-    if (entry.type === "custom" && entry.customType === ASC_REWIND_OP_CUSTOM_TYPE) {
-      if (!isAscRewindOpData(entry.data)) {
-        continue;
-      }
-
-      applyRewindBindings(state.entryToCommit, entry.data.snapshots, entry.data.bindings ?? []);
-      const currentCommitSha = getCommitFromRewindOp(entry.data, "current");
-      if (currentCommitSha) {
-        state.currentCommitSha = currentCommitSha;
-      }
-      const undoCommitSha = getCommitFromRewindOp(entry.data, "undo");
-      if (undoCommitSha) {
-        state.undoCommitSha = undoCommitSha;
-      }
-    }
-  }
-
-  if (!state.currentCommitSha) {
-    state.currentCommitSha = latestVisibleBindingCommitSha;
-  }
-}
-
-async function readPendingForkState(
-  sessionFile: string,
-): Promise<AscRewindForkPendingData | undefined> {
-  try {
-    const content = await readFile(sessionFile, "utf8");
-    let latestPending: AscRewindForkPendingData | undefined;
-
-    for (const line of content.split("\n")) {
-      if (!line.trim()) {
-        continue;
-      }
-
-      let parsed: ParsedCustomEntryLike | null = null;
-      try {
-        const candidate = JSON.parse(line);
-        if (candidate && typeof candidate === "object") {
-          parsed = candidate as ParsedCustomEntryLike;
-        }
-      } catch {
-        continue;
-      }
-
-      if (
-        parsed?.type === "custom" &&
-        parsed.customType === ASC_REWIND_FORK_PENDING_CUSTOM_TYPE &&
-        isAscRewindForkPendingData(parsed.data)
-      ) {
-        latestPending = parsed.data;
-      }
-    }
-
-    return latestPending;
-  } catch {
-    return undefined;
-  }
-}
+  ensureCurrentCommitSha,
+  projectRecoveryMilestoneBestEffort,
+  resolveTargetCommitSha,
+} from "./runtime-support.ts";
+import { handleSessionBeforeTree, handleSessionTree } from "./runtime-tree.ts";
+import type { AscRewindOpData } from "./session-ledger.ts";
 
 async function initializeSession(ctx: ExtensionContext, state: RewindRuntimeState): Promise<void> {
   if (typeof ctx.cwd !== "string" || !ctx.sessionManager) {
@@ -305,84 +87,6 @@ async function initializeSession(ctx: ExtensionContext, state: RewindRuntimeStat
   }
 
   updateStatus(ctx, state);
-}
-
-async function ensureCurrentCommitSha(state: RewindRuntimeState): Promise<string> {
-  if (!state.git) {
-    throw new Error("rewind runtime is not initialized");
-  }
-
-  if (state.lastExact) {
-    state.currentCommitSha = state.lastExact.commitSha;
-    return state.lastExact.commitSha;
-  }
-
-  const snapshot = await ensureSnapshotForCurrentWorktree(state.git, {
-    lastExact: state.lastExact,
-  });
-  state.lastExact = snapshot.snapshot;
-  state.currentCommitSha = snapshot.snapshot.commitSha;
-  return snapshot.snapshot.commitSha;
-}
-
-async function projectRecoveryMilestoneBestEffort(
-  ctx: ExtensionContext,
-  state: RewindRuntimeState,
-  options: {
-    eventKind: "restore.started" | "restore.completed" | "restore.failed" | "restore.undo";
-    mode: string;
-    targetEntryId?: string;
-    targetCommitSha?: string;
-    undoCommitSha?: string;
-    status?: "success" | "failure";
-    failureReason?: string;
-  },
-): Promise<void> {
-  if (!state.git) {
-    return;
-  }
-
-  try {
-    await projectRecoveryMilestoneIfConfigured({
-      git: state.git,
-      eventKind: options.eventKind,
-      sessionId: ctx.sessionManager.getSessionId(),
-      checkpointRef: buildRewindCheckpointRef({
-        sessionId: ctx.sessionManager.getSessionId(),
-        targetEntryId: options.targetEntryId,
-        targetCommitSha: options.targetCommitSha,
-        mode: options.mode,
-      }),
-      restoreMode: options.mode,
-      status: options.status,
-      targetEntryId: options.targetEntryId,
-      targetCommitSha: options.targetCommitSha,
-      undoCommitSha: options.undoCommitSha,
-      failureReason: options.failureReason,
-    });
-  } catch (error) {
-    notify(
-      ctx,
-      `ASC rewind: failed to project recovery milestone (${error instanceof Error ? error.message : String(error)})`,
-      "warning",
-    );
-  }
-}
-
-async function resolveTargetCommitSha(
-  state: RewindRuntimeState,
-  entryId: string,
-): Promise<string | undefined> {
-  if (!state.git) {
-    return undefined;
-  }
-
-  const commitSha = state.entryToCommit.get(entryId);
-  if (!commitSha) {
-    return undefined;
-  }
-
-  return (await commitExists(state.git, commitSha)) ? commitSha : undefined;
 }
 
 async function initializeForkPendingState(
@@ -500,36 +204,6 @@ async function handleTurnEnd(
       "warning",
     );
   }
-}
-
-function finalizePromptCollector(
-  ctx: ExtensionContext,
-  pi: ExtensionAPI,
-  state: RewindRuntimeState,
-): void {
-  const collector = state.promptCollector;
-  state.promptCollector = null;
-  if (!collector || collector.bindings.length === 0) {
-    updateStatus(ctx, state);
-    return;
-  }
-
-  pi.appendEntry(ASC_REWIND_TURN_CUSTOM_TYPE, {
-    v: REWIND_LEDGER_VERSION,
-    snapshots: collector.snapshots,
-    bindings: collector.bindings,
-  });
-  applyRewindBindings(state.entryToCommit, collector.snapshots, collector.bindings);
-
-  const latestBinding = collector.bindings.at(-1);
-  if (latestBinding) {
-    const latestCommitSha = collector.snapshots[latestBinding[1]];
-    if (latestCommitSha) {
-      state.currentCommitSha = latestCommitSha;
-    }
-  }
-
-  updateStatus(ctx, state);
 }
 
 async function handleAgentEnd(
@@ -720,209 +394,8 @@ async function handleSessionBeforeFork(
   }
 }
 
-async function handleSessionBeforeTree(
-  event: SessionBeforeTreeEvent,
-  ctx: ExtensionContext,
-  pi: ExtensionAPI,
-  state: RewindRuntimeState,
-) {
-  if (!ctx.hasUI) {
-    return;
-  }
-
-  try {
-    if (!state.isGitRepo || !state.git) {
-      const choice = await ctx.ui.select("Restore Options", [
-        TREE_KEEP_CURRENT_FILES,
-        TREE_REWIND_TO_POINT,
-        TREE_CANCEL_NAVIGATION,
-      ]);
-      if (!choice || choice === TREE_CANCEL_NAVIGATION) {
-        notify(ctx, "ASC rewind: navigation cancelled", "info");
-        return { cancel: true };
-      }
-      if (choice === TREE_REWIND_TO_POINT) {
-        notify(
-          ctx,
-          "ASC rewind: file rewind is unavailable because this session is not in an initialized git worktree. Choose Keep current files to navigate conversation only, or restart Pi from a git worktree after installing/reloading ASC.",
-          "error",
-        );
-        return { cancel: true };
-      }
-      return;
-    }
-
-    const targetCommitSha = await resolveTargetCommitSha(state, event.preparation.targetId);
-    const hasUndo = Boolean(
-      state.undoCommitSha && (await commitExists(state.git, state.undoCommitSha)),
-    );
-
-    const options = [TREE_KEEP_CURRENT_FILES, TREE_REWIND_TO_POINT];
-    if (hasUndo) {
-      options.push(TREE_UNDO_LAST_REWIND);
-    }
-    options.push(TREE_CANCEL_NAVIGATION);
-
-    const choice = await ctx.ui.select("Restore Options", options);
-    if (!choice || choice === TREE_CANCEL_NAVIGATION) {
-      notify(ctx, "ASC rewind: navigation cancelled", "info");
-      return { cancel: true };
-    }
-
-    if (choice === TREE_UNDO_LAST_REWIND) {
-      if (!state.undoCommitSha) {
-        return { cancel: true };
-      }
-
-      await projectRecoveryMilestoneBestEffort(ctx, state, {
-        eventKind: "restore.started",
-        mode: "tree-undo-last-rewind",
-        targetCommitSha: state.undoCommitSha,
-      });
-
-      try {
-        const restore = await restoreCommitExactly(state.git, state.undoCommitSha, {
-          lastExact: state.lastExact,
-        });
-        applyCurrentExactState(state, state.undoCommitSha, restore.targetTreeSha);
-
-        const snapshots = [state.undoCommitSha];
-        const data: AscRewindOpData = {
-          v: REWIND_LEDGER_VERSION,
-          snapshots,
-          current: 0,
-        };
-        if (restore.undoCommitSha) {
-          data.snapshots.push(restore.undoCommitSha);
-          data.undo = 1;
-        }
-
-        appendRewindOp(pi, state, data);
-        updateStatus(ctx, state);
-        await projectRecoveryMilestoneBestEffort(ctx, state, {
-          eventKind: "restore.undo",
-          mode: "tree-undo-last-rewind",
-          targetCommitSha: state.undoCommitSha,
-          undoCommitSha: restore.undoCommitSha,
-          status: "success",
-        });
-        notify(ctx, "ASC rewind: files restored to before last rewind", "info");
-        return { cancel: true };
-      } catch (error) {
-        await projectRecoveryMilestoneBestEffort(ctx, state, {
-          eventKind: "restore.failed",
-          mode: "tree-undo-last-rewind",
-          targetCommitSha: state.undoCommitSha,
-          status: "failure",
-          failureReason: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      }
-    }
-
-    if (choice === TREE_KEEP_CURRENT_FILES) {
-      const currentCommitSha = await ensureCurrentCommitSha(state);
-      state.pendingTreeState = { currentCommitSha };
-      return;
-    }
-
-    if (!targetCommitSha) {
-      notify(
-        ctx,
-        "ASC rewind: no exact rewind point for the selected tree node. Choose Keep current files, or continue the session for one turn so ASC can capture a rewind snapshot before trying again.",
-        "error",
-      );
-      return { cancel: true };
-    }
-
-    await projectRecoveryMilestoneBestEffort(ctx, state, {
-      eventKind: "restore.started",
-      mode: "tree-restore",
-      targetEntryId: event.preparation.targetId,
-      targetCommitSha,
-    });
-
-    try {
-      const restore = await restoreCommitExactly(state.git, targetCommitSha, {
-        lastExact: state.lastExact,
-      });
-      applyCurrentExactState(state, targetCommitSha, restore.targetTreeSha);
-      state.pendingTreeState = {
-        currentCommitSha: targetCommitSha,
-        undoCommitSha: restore.undoCommitSha,
-      };
-      await projectRecoveryMilestoneBestEffort(ctx, state, {
-        eventKind: "restore.completed",
-        mode: "tree-restore",
-        targetEntryId: event.preparation.targetId,
-        targetCommitSha,
-        undoCommitSha: restore.undoCommitSha,
-        status: "success",
-      });
-      notify(ctx, "ASC rewind: files restored to rewind point", "info");
-    } catch (error) {
-      await projectRecoveryMilestoneBestEffort(ctx, state, {
-        eventKind: "restore.failed",
-        mode: "tree-restore",
-        targetEntryId: event.preparation.targetId,
-        targetCommitSha,
-        status: "failure",
-        failureReason: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  } catch (error) {
-    state.pendingTreeState = null;
-    notify(
-      ctx,
-      `ASC rewind failed before tree navigation: ${error instanceof Error ? error.message : String(error)}`,
-      "error",
-    );
-    return { cancel: true };
-  }
-}
-
-function handleSessionTree(
-  event: SessionTreeEvent,
-  ctx: ExtensionContext,
-  pi: ExtensionAPI,
-  state: RewindRuntimeState,
-): void {
-  if (!state.isGitRepo) {
-    return;
-  }
-
-  if (!state.pendingTreeState) {
-    reconstructStateFromSession(ctx, state);
-    updateStatus(ctx, state);
-    return;
-  }
-
-  const snapshots = [state.pendingTreeState.currentCommitSha];
-  const data: AscRewindOpData = {
-    v: REWIND_LEDGER_VERSION,
-    snapshots,
-    current: 0,
-  };
-
-  if (state.pendingTreeState.undoCommitSha) {
-    data.snapshots.push(state.pendingTreeState.undoCommitSha);
-    data.undo = 1;
-  }
-
-  if (event.summaryEntry?.id) {
-    data.bindings = [[event.summaryEntry.id, 0]];
-  }
-
-  appendRewindOp(pi, state, data);
-  state.pendingTreeState = null;
-  reconstructStateFromSession(ctx, state);
-  updateStatus(ctx, state);
-}
-
 export function registerRewindRuntime(pi: ExtensionAPI): void {
   const state = createRewindRuntimeState();
-
   pi.registerCommand("asc-rewind-status", {
     description: "Show ASC rewind runtime status for /tree and /fork restore diagnostics",
     handler: async (_args, ctx) => {
