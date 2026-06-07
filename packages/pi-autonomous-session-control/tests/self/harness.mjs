@@ -77,6 +77,7 @@ export async function loadExtensionWithMocks() {
   await mkdir(rewindModuleDir, { recursive: true });
   const moduleFiles = [
     "types.ts",
+    "event-handlers.ts",
     "context-pressure.ts",
     "perception.ts",
     "perception-command-evidence.ts",
