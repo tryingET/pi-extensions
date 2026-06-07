@@ -22,12 +22,18 @@ const files = {
   posture: readRelative("docs/project/product-posture.md"),
   resumeDesign: readRelative("docs/project/longer-bounded-campaign-resume-interrupt-design.md"),
   runtime: readRelative("src/core/runtime.ts"),
+  runtimeAutoplan: readRelative("src/core/runtime-autoplan.ts"),
+  runtimeAutoplanSetup: readRelative("src/core/runtime-autoplan-setup.ts"),
   runtimeTest: readRelative("tests/runtime.test.ts"),
   candidateCampaignTest: readRelative("tests/runtime-candidate-campaign.test.ts"),
   resumeTest: readRelative("tests/runtime-resume.test.ts"),
   toolboxBundle: readRelative("src/toolboxBundle.ts"),
   extension: readRelative("extensions/pi-autoresearch.ts"),
 };
+
+const runtimeAndAutoplan = [files.runtime, files.runtimeAutoplan, files.runtimeAutoplanSetup]
+  .filter(Boolean)
+  .join("\n");
 
 const checks = [
   {
@@ -75,7 +81,7 @@ const checks = [
     id: "plan-next-call-reconfigure",
     description:
       "campaign-start plan-only next call carries reconfigure=true when a configured segment needs a new baseline",
-    ok: includesAll(files.runtime, [
+    ok: includesAll(runtimeAndAutoplan, [
       "reconfigure: input.reconfigure === true || autoplan.status.currentSegment.configured",
       "const reconfigureField =",
       'nextRunMode === "baseline"',
