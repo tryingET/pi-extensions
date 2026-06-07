@@ -24,6 +24,7 @@ const files = {
   runtime: readRelative("src/core/runtime.ts"),
   runtimeAutoplan: readRelative("src/core/runtime-autoplan.ts"),
   runtimeAutoplanSetup: readRelative("src/core/runtime-autoplan-setup.ts"),
+  runtimeResumePlan: readRelative("src/core/runtime-resume-plan.ts"),
   runtimeTest: readRelative("tests/runtime.test.ts"),
   candidateCampaignTest: readRelative("tests/runtime-candidate-campaign.test.ts"),
   resumeTest: readRelative("tests/runtime-resume.test.ts"),
@@ -34,6 +35,7 @@ const files = {
 const runtimeAndAutoplan = [files.runtime, files.runtimeAutoplan, files.runtimeAutoplanSetup]
   .filter(Boolean)
   .join("\n");
+const runtimeAndResumePlan = [files.runtime, files.runtimeResumePlan].filter(Boolean).join("\n");
 
 const checks = [
   {
@@ -113,7 +115,7 @@ const checks = [
         "package-local promotion",
         "external evidence/learning writes",
       ]) &&
-      includesAll(files.runtime, [
+      includesAll(runtimeAndResumePlan, [
         "AUTORESEARCH_RESUME_APPLY_TOOL_NAME",
         "operatorConfirmation=RUN FOREGROUND RESUME",
         'input.operatorConfirmation !== "RUN FOREGROUND RESUME"',
