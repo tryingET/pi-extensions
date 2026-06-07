@@ -23,6 +23,7 @@ const files = {
   resumeDesign: readRelative("docs/project/longer-bounded-campaign-resume-interrupt-design.md"),
   runtime: readRelative("src/core/runtime.ts"),
   runtimeTest: readRelative("tests/runtime.test.ts"),
+  resumeTest: readRelative("tests/runtime-resume.test.ts"),
   toolboxBundle: readRelative("src/toolboxBundle.ts"),
   extension: readRelative("extensions/pi-autoresearch.ts"),
 };
@@ -124,7 +125,7 @@ const checks = [
         "Exact runtimeKey from resume_apply_plan.",
         'Must exactly equal "RUN FOREGROUND RESUME".',
       ]) &&
-      includesAll(files.runtimeTest, [
+      includesAll(files.resumeTest, [
         'operatorConfirmation: "RUN FOREGROUND RESUME"',
         "maxIterations must be a positive integer",
         "maxWallClockMinutes must be a positive number",
