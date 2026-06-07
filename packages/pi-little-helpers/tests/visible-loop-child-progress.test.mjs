@@ -153,6 +153,69 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
   }
 });
 
+test("nexus-loop child uses nexus-loop labels for intercom progress", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-label-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const userMessages = [];
+    const sentMessages = [];
+    const statusUpdates = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const ctx = {
+      ...harness.ctx,
+      ui: {
+        notify() {},
+        setStatus(key, value) {
+          statusUpdates.push({ key, value });
+        },
+      },
+    };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "intercom",
+      parentPeerTarget: "session-parent-nexus-label-test",
+      runId: "nexus-loop-label-test",
+      runIdPrefix: "nexus-loop",
+      commandName: "nexus-loop",
+      title: "Nexus loop",
+      prompts: ["finish this nexus turn"],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+
+    await startVisibleLoopChildRunner(configPath, pi, ctx, env, {
+      createPeerRuntime: () => ({
+        async send(request) {
+          sentMessages.push(request.message.content.text);
+          return { delivered: true };
+        },
+      }),
+    });
+
+    assert.deepEqual(
+      userMessages.map((entry) => entry.message),
+      ["finish this nexus turn"],
+    );
+
+    await startVisibleLoopChildCompleteRunner(`${configPath} --iteration 1`, pi, ctx, env);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    assert.deepEqual(sentMessages, [
+      "PEER_ACK peer_run_id=nexus-loop-label-test: nexus-loop started (1 iteration(s), 1 prompt(s) each)",
+      "NEXUS_LOOP_ITERATION peer_run_id=nexus-loop-label-test: completed iteration 1/1",
+      "PEER_FINAL peer_run_id=nexus-loop-label-test: nexus-loop complete after 1/1 iteration(s)",
+    ]);
+    assert.ok(statusUpdates.some((entry) => entry.key === "nexus-loop"));
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("visible-loop intercom timeout does not block prompt queue or next iteration", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-intercom-timeout-state-`);
   try {

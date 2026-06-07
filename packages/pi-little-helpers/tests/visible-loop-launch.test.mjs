@@ -77,6 +77,11 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.doesNotMatch(config.prompts[0], /Prompt Vault/);
     assert.equal(config.prompts[1], "proceed");
     assert.equal(config.prompts[4], "/deep-review");
+    assert.match(
+      config.prompts[5],
+      /proceed with nexus implementation until completion and verification/,
+    );
+    assertLoopValidationGuidance(config.prompts[5]);
     assert.match(config.prompts[6], /fix any bugs/);
     assert.match(config.prompts[6], /Prompt Vault/);
     assert.match(
@@ -97,7 +102,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
   }
 });
 
-test("nexus-loop writes a focused visible-loop config and launches the shared child runner", async () => {
+test("nexus-loop writes a focused command-aware config and launches the shared child runner", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
@@ -157,7 +162,8 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
       mode: "dispatch_subagent",
       promptTemplate: "commit",
     });
-    assert.equal(config.prompts.length, 4);
+    assert.equal(config.commandName, "nexus-loop");
+    assert.equal(config.prompts.length, 5);
     assert.equal(config.prompts[0], "/deep-review");
     assert.match(
       config.prompts[1],
@@ -170,7 +176,9 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
     assert.match(config.prompts[2], /vault_query\(\.\.\., include_content:false\)/);
     assert.match(config.prompts[2], /vault_retrieve\(\.\.\., include_content:true\)/);
     assert.match(config.prompts[2], /vault_dispatch_check/);
-    assert.equal(config.prompts[3], "/commit");
+    assert.match(config.prompts[3], /Update the owning product-posture\.md before loop completion/);
+    assert.match(config.prompts[3], /Do not commit yet/);
+    assert.equal(config.prompts[4], "/commit");
     assert.match(harness.notifications.at(-1).message, /Opened nexus-loop/);
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
@@ -181,45 +189,47 @@ test("nexus-loop writes a focused visible-loop config and launches the shared ch
     await agentStart({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 800));
 
-    assert.equal(userMessages.length, 4);
+    assert.equal(userMessages.length, 5);
     assert.match(
       userMessages[1].message,
       /proceed with nexus implementation until completion and verification/,
     );
     assertLoopValidationGuidance(userMessages[1].message);
     assert.match(userMessages[2].message, /fix any bugs/);
-    assert.match(userMessages[3].message, /Visible-loop commit delegation step/);
-    assert.match(userMessages[3].message, /dispatch_subagent/);
+    assert.match(userMessages[3].message, /Update the owning product-posture\.md/);
+    assert.match(userMessages[4].message, /Nexus loop commit delegation step/);
+    assert.match(userMessages[4].message, /dispatch_subagent/);
     assert.match(
-      userMessages[3].message,
-      /Do not run the commit workflow in this visible-loop child session/,
+      userMessages[4].message,
+      /Do not run the commit workflow in this loop child session/,
     );
-    assert.match(userMessages[3].message, /Call `dispatch_subagent` exactly once/);
+    assert.match(userMessages[4].message, /Call `dispatch_subagent` exactly once/);
     assert.match(
-      userMessages[3].message,
+      userMessages[4].message,
       /The configured `\/commit` prompt has already been resolved/,
     );
-    assert.match(userMessages[3].message, /EXPANDED COMMIT LOCAL_SENTINEL/);
-    assert.match(userMessages[3].message, /"profile": "minimal"/);
-    assert.match(userMessages[3].message, /"tools": "read,bash"/);
-    assert.match(userMessages[3].message, /"prompt_name": "visible-loop-commit-delegation"/);
-    assert.match(userMessages[3].message, /"prompt_source": "pi-little-helpers"/);
-    assert.match(userMessages[3].message, /Visible-loop delegated commit workflow/);
-    assert.match(userMessages[3].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
+    assert.match(userMessages[4].message, /EXPANDED COMMIT LOCAL_SENTINEL/);
+    assert.match(userMessages[4].message, /"profile": "minimal"/);
+    assert.match(userMessages[4].message, /"tools": "read,bash"/);
+    assert.match(userMessages[4].message, /"prompt_name": "nexus-loop-commit-delegation"/);
+    assert.match(userMessages[4].message, /"prompt_source": "pi-little-helpers"/);
+    assert.match(userMessages[4].message, /Nexus loop delegated commit workflow/);
+    assertLoopValidationGuidance(userMessages[4].message);
+    assert.match(userMessages[4].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
     assert.match(
-      userMessages[3].message,
-      new RegExp(escapeRegExp(`visible-loop run id: ${config.runId}`)),
+      userMessages[4].message,
+      new RegExp(escapeRegExp(`nexus-loop run id: ${config.runId}`)),
     );
     assert.match(
-      userMessages[3].message,
+      userMessages[4].message,
       /Do not perform new implementation work or broaden scope/,
     );
-    assert.match(userMessages[3].message, /State validation commands run and results/);
-    assert.doesNotMatch(userMessages[3].message, /peer_watch/);
-    assert.match(userMessages[3].message, /visible_loop_child_complete/);
-    assert.match(userMessages[3].message, new RegExp(escapeRegExp(configPath)));
-    assert.doesNotMatch(userMessages[3].message, /^\/commit$/m);
-    assert.doesNotMatch(userMessages[3].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[4].message, /State validation commands run and results/);
+    assert.doesNotMatch(userMessages[4].message, /peer_watch/);
+    assert.match(userMessages[4].message, /visible_loop_child_complete/);
+    assert.match(userMessages[4].message, new RegExp(escapeRegExp(configPath)));
+    assert.doesNotMatch(userMessages[4].message, /^\/commit$/m);
+    assert.doesNotMatch(userMessages[4].message, /Visible-loop internal completion checkpoint/);
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
@@ -292,14 +302,15 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
 
     assert.equal(userMessages.length, 9);
     assert.match(userMessages[7].message, /Update the owning product-posture\.md/);
-    assert.match(userMessages[8].message, /Visible-loop commit delegation step/);
+    assert.match(userMessages[8].message, /Visible loop commit delegation step/);
     assert.match(userMessages[8].message, /dispatch_subagent/);
     assert.match(userMessages[8].message, /EXPANDED COMMIT/);
     assert.match(userMessages[8].message, /"profile": "minimal"/);
     assert.match(userMessages[8].message, /"tools": "read,bash"/);
     assert.match(userMessages[8].message, /"prompt_name": "visible-loop-commit-delegation"/);
     assert.match(userMessages[8].message, /"prompt_source": "pi-little-helpers"/);
-    assert.match(userMessages[8].message, /Visible-loop delegated commit workflow/);
+    assert.match(userMessages[8].message, /Visible loop delegated commit workflow/);
+    assertLoopValidationGuidance(userMessages[8].message);
     assert.match(userMessages[8].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
     assert.match(
       userMessages[8].message,

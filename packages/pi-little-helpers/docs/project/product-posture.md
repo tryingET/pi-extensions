@@ -25,7 +25,7 @@ system4d:
 
 The package north star lives in [vision.md](./vision.md). This posture file states the current product promise, boundaries, visible-loop behavior, and next bets for `pi-little-helpers`.
 
-For recursive-improvement routing across packages, use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md). For capability registration and runtime compatibility, use the [visible peer capability contract](./2026-05-05-visible-peer-capability-contract.md).
+For recursive-improvement routing across packages, use the root [visible self-evolution spine](../../../../docs/project/visible-self-evolution-spine.md). For loop category and owner boundaries, use the root [loop taxonomy boundary contract](../../../../docs/project/loop-taxonomy-boundary-contract.md). For capability registration and runtime compatibility, use the [visible peer capability contract](./2026-05-05-visible-peer-capability-contract.md).
 
 ## Product promise
 
@@ -42,6 +42,7 @@ launch visible helper work; do not make helper output authority
 - maturity: `internal alpha / visible peer and visible-loop harness operational`
 - current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as execution harnesses, not evaluators or evidence stores, while making product-posture refresh unavoidable before completion
 - release posture: package has local loop validation scripts and tests for prompt expansion, checkpointing, completion, commit delegation, and visible peer capability registration
+- latest loop-prompt/profile hardening: repo-loop-validation guidance now reaches the initial visible-loop membrane, the later nexus continuation phase, and delegated commit objectives; `/nexus-loop` now carries the same required product-posture refresh before delegated commit and uses command-aware labels instead of generic visible-loop report-back wording; the root loop taxonomy now names visible execution loops separately from orchestrator cognitive/workflow loops and repo validation phases
 
 ## Current landed capability baseline
 
@@ -51,8 +52,9 @@ launch visible helper work; do not make helper output authority
 - model-callable visible peer spawn tools for bounded peer launch surfaces;
 - visible-loop state files, visible child launch, prompt queue delivery, intercom report-back, and explicit completion checkpointing;
 - deterministic expansion of configured slash prompt templates such as `/deep-review` and `/commit` from repo-local and global prompt directories;
-- commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion;
-- default visible-loop prompts that read `docs/project/vision.md` and `docs/project/product-posture.md`, implement a bounded slice, run review/fixup/validation, refresh product posture, and only then commit/complete.
+- commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion, with command-aware delegation prompt names and run-id wording;
+- default visible-loop prompts that read `docs/project/vision.md` and `docs/project/product-posture.md`, implement a bounded slice, run review/fixup/validation, refresh product posture, and only then commit/complete;
+- package-local implementation of the visible execution loop category defined by the root loop taxonomy boundary contract.
 
 ## Product non-goals
 
@@ -67,7 +69,7 @@ launch visible helper work; do not make helper output authority
 
 ## Visible-loop posture
 
-`/visible-loop` is an operator-visible execution harness. It should drive a child session through:
+`/visible-loop` is an operator-visible execution harness in the sense defined by the root [loop taxonomy boundary contract](../../../../docs/project/loop-taxonomy-boundary-contract.md). It should drive a child session through:
 
 ```text
 read vision/product-posture
@@ -107,3 +109,9 @@ Improve prompt wording and tests so root-launched loops route posture updates to
 ### Bet 3 — Completion safety clarity
 
 Keep completion checkpoint wording aligned with the actual prompt queue so child sessions know not to mark a loop complete when product-posture refresh, validation, or commit/delegated commit failed.
+
+Recent proof: the model-facing `visible_loop_child_complete` description now matches the checkpointed completion flow instead of implying ordinary `agent_end` completion.
+
+### Bet 4 — Readability ratchet for visible-loop internals
+
+`src/visibleLoop.ts` remains over the brownfield LOC budget, but delegated commit prompt rendering has been moved into `src/visibleLoopPromptTemplates.ts`; command profiles/labels live in `src/visibleLoopProfiles.ts`; state/config/status sidecar helpers live in `src/visibleLoopState.ts`; and argument/type contracts live in `src/visibleLoopArgs.ts` / `src/visibleLoopTypes.ts`, so the state-machine file owns less prompt, persistence, command-profile, and parsing plumbing. Next refactor should split more launch and completion state transitions without changing runtime behavior.

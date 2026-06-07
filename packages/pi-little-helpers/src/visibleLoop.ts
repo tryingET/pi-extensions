@@ -1,47 +1,69 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { normalizeOptionalString, parseVisibleLoopCompletionArgs } from "./visibleLoopArgs.ts";
+import {
+  getVisibleLoopCommandName,
+  getVisibleLoopHumanLabel,
+  getVisibleLoopIntercomEventPrefix,
+  getVisibleLoopTitle,
+  normalizeVisibleLoopCommandName,
+} from "./visibleLoopProfiles.ts";
 import {
   DEFAULT_VISIBLE_LOOP_PROMPTS,
   expandVisibleLoopPromptTemplate,
+  renderVisibleLoopCommitDelegationPrompt,
   renderVisibleLoopCompletionPrompt,
   type VisibleLoopPromptExpansion,
 } from "./visibleLoopPromptTemplates.ts";
+import {
+  appendVisibleLoopStatus,
+  getVisibleLoopStateDir,
+  hasVisibleLoopAlreadyCompleted,
+  loadVisibleLoopRunConfig,
+  readCompletedVisibleLoopIterations,
+} from "./visibleLoopState.ts";
+import {
+  VISIBLE_LOOP_CHILD_COMMAND,
+  type VisibleLoopCommitDelegation,
+  type VisibleLoopReportBack,
+  type VisibleLoopRunConfig,
+} from "./visibleLoopTypes.ts";
 
+export { parseVisibleLoopCommandArgs } from "./visibleLoopArgs.ts";
+export {
+  DEFAULT_NEXUS_LOOP_PROFILE,
+  DEFAULT_VISIBLE_LOOP_PROFILE,
+  getVisibleLoopCommandName,
+  getVisibleLoopHumanLabel,
+  getVisibleLoopIntercomEventPrefix,
+  getVisibleLoopTitle,
+  type VisibleLoopCommandProfile,
+} from "./visibleLoopProfiles.ts";
 export {
   DEFAULT_NEXUS_LOOP_PROMPTS,
+  DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   DEFAULT_VISIBLE_LOOP_PROMPTS,
   listMissingVisibleLoopPromptTemplates,
   type VisibleLoopPromptExpansion,
 } from "./visibleLoopPromptTemplates.ts";
-
-export const VISIBLE_LOOP_COMMAND = "visible-loop";
-export const NEXUS_LOOP_COMMAND = "nexus-loop";
-export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
-export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete";
-
-export type VisibleLoopReportBack = "intercom" | "manual" | "none";
-
-export interface VisibleLoopRunConfig {
-  schemaVersion: 1;
-  runId: string;
-  loopCount: number;
-  cwd: string;
-  prompts: string[];
-  reportBack: VisibleLoopReportBack;
-  parentPeerTarget?: string;
-  commitDelegation?: VisibleLoopCommitDelegation;
-  title?: string;
-  createdAt: string;
-}
-
-export interface VisibleLoopCommitDelegation {
-  mode: "dispatch_subagent";
-  promptTemplate: "commit";
-}
+export {
+  getVisibleLoopStateDir,
+  getVisibleLoopStatusPath,
+  writeVisibleLoopRunConfig,
+} from "./visibleLoopState.ts";
+export {
+  NEXUS_LOOP_COMMAND,
+  VISIBLE_LOOP_CHILD_COMMAND,
+  VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
+  VISIBLE_LOOP_COMMAND,
+  type VisibleLoopCommandParseResult,
+  type VisibleLoopCommitDelegation,
+  type VisibleLoopReportBack,
+  type VisibleLoopRunConfig,
+} from "./visibleLoopTypes.ts";
 
 type SendUserMessageOptions = { deliverAs?: "followUp" | "steer" };
 type SendUserMessage = (message: string, options?: SendUserMessageOptions) => void;
@@ -101,129 +123,26 @@ type CreateVisibleLoopPeerRuntime = (
 const DEFAULT_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 10_000;
 const MAX_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 120_000;
 
-export type VisibleLoopCommandParseResult =
-  | {
-      ok: true;
-      loopCount: number;
-      reportBack: VisibleLoopReportBack;
-      parentPeerTarget?: string;
-      delegateCommit?: boolean;
-    }
-  | { ok: false; error: string; usage: string };
-
-export function parseVisibleLoopCommandArgs(
-  args: string | undefined,
-  commandName = VISIBLE_LOOP_COMMAND,
-): VisibleLoopCommandParseResult {
-  const usage = `Usage: /${commandName} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none] [--delegate-commit]`;
-  const tokens = tokenizeArgs(args ?? "");
-  let loopCount: number | undefined;
-  let parentPeerTarget: string | undefined;
-  let reportBack: VisibleLoopReportBack | undefined;
-  let delegateCommit = false;
-
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
-    if (!token) continue;
-
-    if (token === "--count" || token === "-n") {
-      index += 1;
-      const value = tokens[index];
-      const parsed = parseLoopCount(value);
-      if (!parsed) return { ok: false, error: `Invalid loop count: ${value ?? ""}`, usage };
-      loopCount = parsed;
-      continue;
-    }
-
-    if (token.startsWith("--count=")) {
-      const parsed = parseLoopCount(token.slice("--count=".length));
-      if (!parsed) return { ok: false, error: `Invalid loop count: ${token}`, usage };
-      loopCount = parsed;
-      continue;
-    }
-
-    if (token === "--parentPeerTarget" || token === "--parent" || token === "--to") {
-      index += 1;
-      parentPeerTarget = normalizeOptionalString(tokens[index]);
-      if (!parentPeerTarget) return { ok: false, error: "Missing parent peer target.", usage };
-      continue;
-    }
-
-    if (token.startsWith("--parentPeerTarget=")) {
-      parentPeerTarget = normalizeOptionalString(token.slice("--parentPeerTarget=".length));
-      if (!parentPeerTarget) return { ok: false, error: "Missing parent peer target.", usage };
-      continue;
-    }
-
-    if (token === "--reportBack" || token === "--report-back") {
-      index += 1;
-      const parsed = parseReportBack(tokens[index]);
-      if (!parsed) return { ok: false, error: `Invalid reportBack: ${tokens[index] ?? ""}`, usage };
-      reportBack = parsed;
-      continue;
-    }
-
-    if (token.startsWith("--reportBack=") || token.startsWith("--report-back=")) {
-      const raw = token.includes("--reportBack=")
-        ? token.slice("--reportBack=".length)
-        : token.slice("--report-back=".length);
-      const parsed = parseReportBack(raw);
-      if (!parsed) return { ok: false, error: `Invalid reportBack: ${raw}`, usage };
-      reportBack = parsed;
-      continue;
-    }
-
-    if (token === "--manual") {
-      reportBack = "manual";
-      continue;
-    }
-
-    if (token === "--none") {
-      reportBack = "none";
-      continue;
-    }
-
-    if (token === "--delegate-commit" || token === "--delegateCommit") {
-      delegateCommit = true;
-      continue;
-    }
-
-    if (!token.startsWith("-") && loopCount === undefined) {
-      const parsed = parseLoopCount(token);
-      if (!parsed) return { ok: false, error: `Invalid loop count: ${token}`, usage };
-      loopCount = parsed;
-      continue;
-    }
-
-    return { ok: false, error: `Unknown argument: ${token}`, usage };
-  }
-
-  return {
-    ok: true,
-    loopCount: loopCount ?? 1,
-    reportBack: reportBack ?? "intercom",
-    parentPeerTarget,
-    ...(delegateCommit ? { delegateCommit } : {}),
-  };
-}
-
 export function createVisibleLoopRunConfig(input: {
   loopCount: number;
   cwd: string;
   reportBack: VisibleLoopReportBack;
   parentPeerTarget?: string;
+  commandName?: string;
   prompts?: readonly string[];
   runId?: string;
   runIdPrefix?: string;
   title?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
 }): VisibleLoopRunConfig {
-  const runIdPrefix = normalizeRunIdPrefix(input.runIdPrefix ?? "visible-loop");
+  const commandName = normalizeVisibleLoopCommandName(input.commandName ?? input.runIdPrefix);
+  const runIdPrefix = normalizeRunIdPrefix(input.runIdPrefix ?? commandName ?? "visible-loop");
   return {
     schemaVersion: 1,
     runId: input.runId ?? `${runIdPrefix}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
     loopCount: input.loopCount,
     cwd: input.cwd,
+    ...(commandName ? { commandName } : {}),
     prompts: [...(input.prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS)],
     reportBack: input.reportBack,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
@@ -239,22 +158,6 @@ function normalizeRunIdPrefix(value: string): string {
     .replace(/[^a-zA-Z0-9-]/g, "-")
     .replace(/^-+|-+$/g, "");
   return normalized || "visible-loop";
-}
-
-export function getVisibleLoopStateDir(env: NodeJS.ProcessEnv = process.env): string {
-  const stateHome = env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
-  return join(stateHome, "pi-little-helpers", "visible-loop");
-}
-
-export function writeVisibleLoopRunConfig(
-  config: VisibleLoopRunConfig,
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  const dir = getVisibleLoopStateDir(env);
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, `${config.runId}.json`);
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-  return path;
 }
 
 export function resolveParentPeerTarget(ctx: VisibleLoopContext): string | undefined {
@@ -322,9 +225,11 @@ export async function startVisibleLoopChildRunner(
   persistActiveVisibleLoopState(state, ctx, env);
 
   activeVisibleLoop = state;
-  ctx.ui?.setStatus?.("visible-loop", `loop ${restoredIterations}/${config.loopCount}`);
+  const statusKey = getVisibleLoopCommandName(config);
+  const loopLabel = getVisibleLoopHumanLabel(config);
+  ctx.ui?.setStatus?.(statusKey, `loop ${restoredIterations}/${config.loopCount}`);
   ctx.ui?.notify?.(
-    `visible-loop started: iteration ${restoredIterations + 1}/${config.loopCount} (${config.prompts.length} prompt(s))`,
+    `${loopLabel} started: iteration ${restoredIterations + 1}/${config.loopCount} (${config.prompts.length} prompt(s))`,
     "info",
   );
 
@@ -332,7 +237,7 @@ export async function startVisibleLoopChildRunner(
     await sendVisibleLoopIntercom(
       state,
       ctx,
-      `PEER_ACK peer_run_id=${config.runId}: visible-loop started (${config.loopCount} iteration(s), ${config.prompts.length} prompt(s) each)`,
+      `PEER_ACK peer_run_id=${config.runId}: ${loopLabel} started (${config.loopCount} iteration(s), ${config.prompts.length} prompt(s) each)`,
       env,
     );
   }
@@ -529,7 +434,7 @@ function queueVisibleLoopIteration(
 
   const iteration = state.completedIterations + 1;
   ctx.ui?.notify?.(
-    `visible-loop queueing iteration ${iteration}/${state.config.loopCount}`,
+    `${getVisibleLoopHumanLabel(state.config)} queueing iteration ${iteration}/${state.config.loopCount}`,
     "info",
   );
   appendVisibleLoopStatus(
@@ -684,98 +589,16 @@ function maybeRenderDelegatedVisibleLoopPrompt(
     },
     env,
   );
-  return renderDispatchSubagentCommitDelegationPrompt({
+  return renderVisibleLoopCommitDelegationPrompt({
     commitPrompt: expansion.prompt,
     configPath: state.configPath,
     cwd: state.config.cwd,
     runId: state.config.runId,
     iteration,
     promptIndex,
+    commandName: getVisibleLoopCommandName(state.config),
+    title: getVisibleLoopTitle(state.config),
   });
-}
-
-function renderDispatchSubagentCommitDelegationPrompt(input: {
-  commitPrompt: string;
-  configPath: string;
-  cwd: string;
-  runId: string;
-  iteration: number;
-  promptIndex: number;
-}): string {
-  const dispatchRequest = {
-    profile: "minimal",
-    name: normalizeDelegatedCommitSubagentName(input.runId, input.iteration),
-    objective: renderDispatchSubagentCommitObjective(input),
-    tools: "read,bash",
-    timeout: 0,
-    prompt_name: "visible-loop-commit-delegation",
-    prompt_tags: ["visible-loop", "commit-delegation"],
-    prompt_source: "pi-little-helpers",
-  };
-
-  return [
-    "Visible-loop commit delegation step.",
-    "",
-    "Do not run the commit workflow in this visible-loop child session.",
-    "The configured `/commit` prompt has already been resolved through visible-loop prompt expansion. Do not send a literal `/commit` slash command to the delegated worker.",
-    "",
-    "Call `dispatch_subagent` exactly once with this request:",
-    "",
-    "```json",
-    JSON.stringify(dispatchRequest, null, 2),
-    "```",
-    "",
-    "After `dispatch_subagent` returns, inspect its result:",
-    "1. If the subagent reports successful commit workflow completion, call `visible_loop_child_complete` exactly once with:",
-    "",
-    "```json",
-    JSON.stringify({ configPath: input.configPath, iteration: input.iteration }, null, 2),
-    "```",
-    "",
-    "2. If dispatch fails, times out, or reports a blocker/failure, stop and report that status. Do not mark the loop iteration complete.",
-    "",
-    "The ordinary completion checkpoint is intentionally not queued for this delegated commit step; this tool call is the completion gate.",
-    "",
-    `Context: delegated commit prompt for iteration ${input.iteration}, prompt index ${input.promptIndex}.`,
-  ].join("\n");
-}
-
-function renderDispatchSubagentCommitObjective(input: {
-  commitPrompt: string;
-  cwd: string;
-  runId: string;
-  iteration: number;
-}): string {
-  return [
-    "Visible-loop delegated commit workflow.",
-    "",
-    "Context:",
-    `- cwd: ${input.cwd}`,
-    `- visible-loop run id: ${input.runId}`,
-    `- iteration: ${input.iteration}`,
-    "",
-    "Run the resolved commit prompt below in the current repo.",
-    "Do not perform new implementation work or broaden scope; this delegation is only for commit workflow completion.",
-    "If validation, staging, grouping, or provenance-note handling is ambiguous, stop and report the blocker without committing further.",
-    "",
-    "Success contract for the final response:",
-    "- List created commit sha(s) and subjects, or say clean/no-op if no commit was needed.",
-    "- State validation commands run and results.",
-    "- State provenance-note status when applicable.",
-    "",
-    "Resolved /commit prompt:",
-    "```md",
-    input.commitPrompt,
-    "```",
-  ].join("\n");
-}
-
-function normalizeDelegatedCommitSubagentName(runId: string, iteration: number): string {
-  const normalizedRunId = runId
-    .trim()
-    .replace(/[^a-zA-Z0-9-]/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${normalizedRunId || "visible-loop"}-commit-${iteration}`;
 }
 
 function stopVisibleLoopForPromptExpansionFailure(
@@ -801,7 +624,7 @@ function stopVisibleLoopForPromptExpansionFailure(
     },
     env,
   );
-  ctx?.ui?.notify?.(`visible-loop stopped: ${detail}`, "error");
+  ctx?.ui?.notify?.(`${getVisibleLoopHumanLabel(state.config)} stopped: ${detail}`, "error");
 }
 
 function completeVisibleLoopIteration(
@@ -857,14 +680,14 @@ function completeVisibleLoopIteration(
     env,
   );
   ctx.ui?.setStatus?.(
-    "visible-loop",
+    getVisibleLoopCommandName(state.config),
     `loop ${state.completedIterations}/${state.config.loopCount}`,
   );
 
   const progressReport = enqueueVisibleLoopIntercom(
     state,
     ctx,
-    `VISIBLE_LOOP_ITERATION peer_run_id=${state.config.runId}: completed iteration ${state.completedIterations}/${state.config.loopCount}`,
+    `${getVisibleLoopIntercomEventPrefix(state.config)}_ITERATION peer_run_id=${state.config.runId}: completed iteration ${state.completedIterations}/${state.config.loopCount}`,
     env,
   );
 
@@ -886,7 +709,7 @@ function completeVisibleLoopIteration(
         enqueueVisibleLoopIntercom(
           state,
           ctx,
-          `PEER_FINAL peer_run_id=${state.config.runId}: visible-loop complete after ${state.completedIterations}/${state.config.loopCount} iteration(s)`,
+          `PEER_FINAL peer_run_id=${state.config.runId}: ${getVisibleLoopHumanLabel(state.config)} complete after ${state.completedIterations}/${state.config.loopCount} iteration(s)`,
           env,
         ),
       )
@@ -894,7 +717,7 @@ function completeVisibleLoopIteration(
         await disconnectVisibleLoopPeerRuntime(state.peerRuntime);
         removeActiveVisibleLoopState(ctx, env);
         if (activeVisibleLoop === state) activeVisibleLoop = null;
-        ctx.ui?.setStatus?.("visible-loop", undefined);
+        ctx.ui?.setStatus?.(getVisibleLoopCommandName(state.config), undefined);
       });
     return;
   }
@@ -929,7 +752,7 @@ function completeVisibleLoopIteration(
         );
         removeActiveVisibleLoopState(ctx, env);
         if (activeVisibleLoop === state) activeVisibleLoop = null;
-        ctx.ui?.setStatus?.("visible-loop", undefined);
+        ctx.ui?.setStatus?.(getVisibleLoopCommandName(state.config), undefined);
       })
       .catch((error) => {
         state.stopped = false;
@@ -944,7 +767,7 @@ function completeVisibleLoopIteration(
           env,
         );
         ctx.ui?.notify?.(
-          `visible-loop failed to launch iteration ${nextIteration}/${state.config.loopCount}: ${
+          `${getVisibleLoopHumanLabel(state.config)} failed to launch iteration ${nextIteration}/${state.config.loopCount}: ${
             error instanceof Error ? error.message : String(error)
           }`,
           "error",
@@ -1168,7 +991,7 @@ async function createVisibleLoopPeerRuntime(
   const module = await loadPeerMessagingModule();
   return module.createPeerMessagingRuntime({
     id: config.runId,
-    name: "visible-loop",
+    name: getVisibleLoopCommandName(config),
     cwd: config.cwd || ctx.cwd || process.cwd(),
     model: ctx.model?.id?.trim() || "unknown",
   });
@@ -1195,35 +1018,6 @@ async function loadPeerMessagingModule(): Promise<PeerMessagingModule> {
   }
 
   throw new Error(errors.join("; "));
-}
-
-export function getVisibleLoopStatusPath(
-  configOrRunId: Pick<VisibleLoopRunConfig, "runId"> | string,
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  const runId = typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId;
-  return join(getVisibleLoopStateDir(env), `${runId}.status.jsonl`);
-}
-
-function appendVisibleLoopStatus(
-  config: VisibleLoopRunConfig,
-  event: Record<string, unknown>,
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  try {
-    mkdirSync(getVisibleLoopStateDir(env), { recursive: true });
-    const entry = {
-      timestamp: new Date().toISOString(),
-      runId: config.runId,
-      ...event,
-    };
-    writeFileSync(getVisibleLoopStatusPath(config, env), `${JSON.stringify(entry)}\n`, {
-      encoding: "utf8",
-      flag: "a",
-    });
-  } catch {
-    // Status sidecar is diagnostic only. Never break the visible loop for it.
-  }
 }
 
 export async function startVisibleLoopChildCompleteRunner(
@@ -1334,234 +1128,7 @@ export async function startVisibleLoopChildCompleteRunner(
   );
 }
 
-function loadVisibleLoopRunConfig(
-  configPath: string,
-  env: NodeJS.ProcessEnv,
-): { ok: true; config: VisibleLoopRunConfig } | { ok: false; error: string } {
-  const resolvedPath = resolve(configPath);
-  const stateDir = resolve(getVisibleLoopStateDir(env));
-  if (!isPathInsideOrEqual(stateDir, resolvedPath)) {
-    return { ok: false, error: "config path is outside visible-loop state directory" };
-  }
-
-  if (!existsSync(resolvedPath)) {
-    return { ok: false, error: "config file does not exist" };
-  }
-
-  try {
-    const parsed = JSON.parse(readFileSync(resolvedPath, "utf8")) as unknown;
-    return { ok: true, config: assertVisibleLoopRunConfig(parsed) };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-function hasVisibleLoopAlreadyCompleted(
-  config: VisibleLoopRunConfig,
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  const statusPath = getVisibleLoopStatusPath(config, env);
-  if (!existsSync(statusPath)) return false;
-  try {
-    return readFileSync(statusPath, "utf8")
-      .split("\n")
-      .some((line) => {
-        if (!line.trim()) return false;
-        try {
-          const entry = JSON.parse(line) as { event?: unknown };
-          return entry.event === "loop_completed";
-        } catch {
-          return false;
-        }
-      });
-  } catch {
-    return false;
-  }
-}
-
-function readCompletedVisibleLoopIterations(
-  config: VisibleLoopRunConfig,
-  env: NodeJS.ProcessEnv = process.env,
-): number {
-  const statusPath = getVisibleLoopStatusPath(config, env);
-  if (!existsSync(statusPath)) return 0;
-  try {
-    return readFileSync(statusPath, "utf8")
-      .split("\n")
-      .reduce((maxCompleted, line) => {
-        if (!line.trim()) return maxCompleted;
-        try {
-          const entry = JSON.parse(line) as { event?: unknown; completedIterations?: unknown };
-          if (entry.event !== "iteration_completed" && entry.event !== "loop_completed") {
-            return maxCompleted;
-          }
-          const completed = Number(entry.completedIterations);
-          return Number.isInteger(completed) && completed > maxCompleted ? completed : maxCompleted;
-        } catch {
-          return maxCompleted;
-        }
-      }, 0);
-  } catch {
-    return 0;
-  }
-}
-
-function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError("VisibleLoopRunConfig must be an object.");
-  }
-  const record = value as Record<string, unknown>;
-  if (record.schemaVersion !== 1) throw new TypeError("Unsupported visible-loop schemaVersion.");
-  const runId = requireNonEmptyString(record.runId, "runId");
-  const loopCount = requirePositiveInteger(record.loopCount, "loopCount");
-  const cwd = requireNonEmptyString(record.cwd, "cwd");
-  const prompts = Array.isArray(record.prompts)
-    ? record.prompts.map((prompt, index) => requireNonEmptyString(prompt, `prompts[${index}]`))
-    : undefined;
-  if (!prompts || prompts.length === 0) throw new TypeError("prompts must be a non-empty array.");
-  const reportBack = parseReportBack(String(record.reportBack ?? "manual"));
-  if (!reportBack) throw new TypeError("reportBack must be intercom, manual, or none.");
-  const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
-  const commitDelegation = parseCommitDelegation(record.commitDelegation);
-  const title = normalizeOptionalString(record.title);
-  const createdAt = requireNonEmptyString(record.createdAt, "createdAt");
-
-  return {
-    schemaVersion: 1,
-    runId,
-    loopCount,
-    cwd,
-    prompts,
-    reportBack,
-    ...(parentPeerTarget ? { parentPeerTarget } : {}),
-    ...(commitDelegation ? { commitDelegation } : {}),
-    ...(title ? { title } : {}),
-    createdAt,
-  };
-}
-
 function getSendUserMessage(pi: ExtensionAPI): SendUserMessage | undefined {
   const candidate = (pi as unknown as { sendUserMessage?: SendUserMessage }).sendUserMessage;
   return typeof candidate === "function" ? candidate.bind(pi) : undefined;
-}
-
-function parseLoopCount(value: string | undefined): number | undefined {
-  const numberValue = Number(value);
-  if (!Number.isInteger(numberValue) || numberValue < 1 || numberValue > 100) return undefined;
-  return numberValue;
-}
-
-function parseReportBack(value: string | undefined): VisibleLoopReportBack | undefined {
-  if (value === "intercom" || value === "manual" || value === "none") return value;
-  return undefined;
-}
-
-function parseCommitDelegation(value: unknown): VisibleLoopCommitDelegation | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== "object" || Array.isArray(value)) {
-    throw new TypeError("commitDelegation must be an object.");
-  }
-  const record = value as Record<string, unknown>;
-  if (record.mode !== "dispatch_subagent" || record.promptTemplate !== "commit") {
-    throw new TypeError(
-      "commitDelegation must use mode=dispatch_subagent and promptTemplate=commit.",
-    );
-  }
-  return { mode: "dispatch_subagent", promptTemplate: "commit" };
-}
-
-function parseVisibleLoopCompletionArgs(
-  args: string | undefined,
-): { ok: true; configPath?: string; iteration?: number } | { ok: false; error: string } {
-  const tokens = tokenizeArgs(args ?? "");
-  let configPath: string | undefined;
-  let iteration: number | undefined;
-
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
-    if (token === "--iteration") {
-      index += 1;
-      iteration = parseLoopCount(tokens[index]);
-      if (!iteration) return { ok: false, error: `invalid iteration: ${tokens[index] ?? ""}` };
-      continue;
-    }
-    if (token?.startsWith("--iteration=")) {
-      iteration = parseLoopCount(token.slice("--iteration=".length));
-      if (!iteration) return { ok: false, error: `invalid iteration: ${token}` };
-      continue;
-    }
-    if (!token?.startsWith("-") && !configPath) {
-      configPath = normalizeOptionalString(token);
-      continue;
-    }
-    return { ok: false, error: `unknown argument: ${token ?? ""}` };
-  }
-
-  return { ok: true, ...(configPath ? { configPath } : {}), ...(iteration ? { iteration } : {}) };
-}
-
-function normalizeOptionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function requireNonEmptyString(value: unknown, label: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new TypeError(`${label} must be a non-empty string.`);
-  }
-  return value.trim();
-}
-
-function requirePositiveInteger(value: unknown, label: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 100) {
-    throw new TypeError(`${label} must be an integer between 1 and 100.`);
-  }
-  return value;
-}
-
-function tokenizeArgs(input: string): string[] {
-  const tokens: string[] = [];
-  let current = "";
-  let quote: '"' | "'" | null = null;
-  let escaping = false;
-
-  for (const char of input) {
-    if (escaping) {
-      current += char;
-      escaping = false;
-      continue;
-    }
-    if (char === "\\") {
-      escaping = true;
-      continue;
-    }
-    if (quote) {
-      if (char === quote) quote = null;
-      else current += char;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (/\s/.test(char)) {
-      if (current) {
-        tokens.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += char;
-  }
-
-  if (escaping) current += "\\";
-  if (current) tokens.push(current);
-  return tokens;
-}
-
-function isPathInsideOrEqual(parent: string, child: string): boolean {
-  const normalizedParent = resolve(parent);
-  const normalizedChild = resolve(child);
-  if (normalizedParent === normalizedChild) return true;
-  const rel = relative(normalizedParent, normalizedChild);
-  return Boolean(rel) && !rel.startsWith("..") && !rel.includes(`..${sep}`) && !isAbsolute(rel);
 }

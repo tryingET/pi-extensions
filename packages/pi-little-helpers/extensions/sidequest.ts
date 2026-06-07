@@ -19,8 +19,8 @@ import {
 import {
   type ContinueVisibleLoopInNewSession,
   createVisibleLoopRunConfig,
-  DEFAULT_NEXUS_LOOP_PROMPTS,
-  DEFAULT_VISIBLE_LOOP_PROMPTS,
+  DEFAULT_NEXUS_LOOP_PROFILE,
+  DEFAULT_VISIBLE_LOOP_PROFILE,
   getVisibleLoopStatusPath,
   handleVisibleLoopAgentEnd,
   handleVisibleLoopAgentStart,
@@ -33,6 +33,7 @@ import {
   VISIBLE_LOOP_CHILD_COMMAND,
   VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
   VISIBLE_LOOP_COMMAND,
+  type VisibleLoopCommandProfile,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
 
@@ -1998,10 +1999,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     async function runVisibleLoopCommand(
       args: string | undefined,
       ctx: PiCommandContext,
-      commandName = VISIBLE_LOOP_COMMAND,
-      titlePrefix = "Visible loop",
-      prompts?: readonly string[],
+      profile: VisibleLoopCommandProfile = DEFAULT_VISIBLE_LOOP_PROFILE,
     ) {
+      const { commandName, titlePrefix, prompts } = profile;
       const parsed = parseVisibleLoopCommandArgs(args, commandName);
       if (!parsed.ok) {
         if (ctx.hasUI) ctx.ui.notify(`${parsed.error}\n${parsed.usage}`, "warning");
@@ -2012,8 +2012,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const parentPeerTarget = parsed.parentPeerTarget ?? resolveParentPeerTarget(ctx);
       const reportBack =
         parsed.reportBack === "intercom" && !parentPeerTarget ? "manual" : parsed.reportBack;
-      const effectivePrompts = prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS;
-      const missingPromptTemplates = listMissingVisibleLoopPromptTemplates(effectivePrompts, cwd);
+      const missingPromptTemplates = listMissingVisibleLoopPromptTemplates(prompts, cwd);
       if (missingPromptTemplates.length > 0) {
         if (ctx.hasUI) {
           ctx.ui.notify(
@@ -2031,13 +2030,14 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         return;
       }
       const shouldDelegateCommit =
-        commandName === NEXUS_LOOP_COMMAND || parsed.delegateCommit === true;
+        profile.delegateCommitByDefault === true || parsed.delegateCommit === true;
       const config = createVisibleLoopRunConfig({
         loopCount: parsed.loopCount,
         cwd,
         reportBack,
         parentPeerTarget,
-        ...(prompts ? { prompts } : {}),
+        commandName,
+        prompts,
         ...(shouldDelegateCommit
           ? { commitDelegation: { mode: "dispatch_subagent", promptTemplate: "commit" } as const }
           : {}),
@@ -2859,14 +2859,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       pi.registerCommand(NEXUS_LOOP_COMMAND, {
         description:
           "Launch a visible Ghostty Pi tab that loops deep-review, nexus implementation, atomic-completion, and commit",
-        handler: (args, ctx) =>
-          runVisibleLoopCommand(
-            args,
-            ctx,
-            NEXUS_LOOP_COMMAND,
-            "Nexus loop",
-            DEFAULT_NEXUS_LOOP_PROMPTS,
-          ),
+        handler: (args, ctx) => runVisibleLoopCommand(args, ctx, DEFAULT_NEXUS_LOOP_PROFILE),
       });
 
       pi.registerCommand(VISIBLE_LOOP_CHILD_COMMAND, {
@@ -2907,7 +2900,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         name: "visible_loop_child_complete",
         label: "Visible Loop Child Complete",
         description:
-          "Internal fallback tool for visible-loop child sessions to mark an iteration complete. Ordinary visible-loop runs complete from agent_end after the final prompt; do not call from ordinary work.",
+          "Internal checkpoint tool for visible-loop child sessions to mark an iteration complete after the queued prompt sequence and completion gate have succeeded; do not call from ordinary work.",
         promptSnippet:
           "Internal visible-loop completion fallback tool. Use only when explicitly asked to mark visible-loop completion with configPath and iteration.",
         parameters: visibleLoopChildCompleteToolParameters,

@@ -21,15 +21,16 @@ const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "`grounding: template=<name>, vault_status=<ok|unavailable>`",
 ].join("\n");
 
-const DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT = [
+export const DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT = [
   "Repo loop validation guidance:",
-  "- If this repo exposes a repo-owned loop validation contract or loop-* commands, use them by phase instead of hardcoding repo-specific validation names.",
+  "- If this repo exposes a repo-owned loop validation contract or loop-* aliases, use the repo-declared invocation by phase instead of hardcoding repo-specific validation names.",
   "- Typical phases: `loop-doctor` for non-failing diagnostics; `loop-verify-fast` for focused inner-loop checks; `loop-impact-plan` to classify changed-file risk; `loop-impact-run` for bounded/expanded impact checks; `loop-impact-wide` for wide/full-required impact plans (include a concise reason if the repo command supports it); `loop-landing-check` for the repo-declared landing/readiness gate.",
+  "- Run those phases through the form documented by the repo (`just loop-*`, `npm run loop-*`, or another repo-owned wrapper) rather than assuming bare commands are on PATH.",
   "- If a loop-* command is absent, use the closest repo-local equivalent and report the fallback.",
   "- Treat loop commands as repo-owned evidence-producing diagnostics/checks, not authority. Do not claim validation authority, merge approval, production activation, AK task closure, or semantic completion from these checks alone.",
 ].join("\n");
 
-const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
+export const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Update the owning product-posture.md before loop completion.",
   "",
   "Default target: @docs/project/product-posture.md in the current cwd.",
@@ -62,6 +63,7 @@ export const DEFAULT_NEXUS_LOOP_PROMPTS = [
     "",
     DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
   ].join("\n"),
+  DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   "/commit",
 ] as const;
 
@@ -140,7 +142,11 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
   "proceed",
   "proceed",
   "/deep-review",
-  "proceed with nexus implementation until completion and verification",
+  [
+    "proceed with nexus implementation until completion and verification",
+    "",
+    DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT,
+  ].join("\n"),
   [
     "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
     "",
@@ -160,6 +166,122 @@ export interface VisibleLoopPromptExpansion {
   prompt: string;
   templateName?: string;
   error?: string;
+}
+
+export function renderVisibleLoopCommitDelegationPrompt(input: {
+  commitPrompt: string;
+  configPath: string;
+  cwd: string;
+  runId: string;
+  iteration: number;
+  promptIndex: number;
+  commandName?: string;
+  title?: string;
+}): string {
+  const loopCommandName = normalizeLoopCommandName(input.commandName);
+  const loopTitle = normalizeLoopTitle(input.title, loopCommandName);
+  const dispatchRequest = {
+    profile: "minimal",
+    name: normalizeDelegatedCommitSubagentName(input.runId, input.iteration),
+    objective: renderVisibleLoopCommitObjective(input),
+    tools: "read,bash",
+    timeout: 0,
+    prompt_name: `${loopCommandName}-commit-delegation`,
+    prompt_tags: [loopCommandName, "visible-loop", "commit-delegation"],
+    prompt_source: "pi-little-helpers",
+  };
+
+  return [
+    `${loopTitle} commit delegation step.`,
+    "",
+    "Do not run the commit workflow in this loop child session.",
+    "The configured `/commit` prompt has already been resolved through visible-loop prompt expansion. Do not send a literal `/commit` slash command to the delegated worker.",
+    "",
+    "Call `dispatch_subagent` exactly once with this request:",
+    "",
+    "```json",
+    JSON.stringify(dispatchRequest, null, 2),
+    "```",
+    "",
+    "After `dispatch_subagent` returns, inspect its result:",
+    "1. If the subagent reports successful commit workflow completion, call `visible_loop_child_complete` exactly once with:",
+    "",
+    "```json",
+    JSON.stringify({ configPath: input.configPath, iteration: input.iteration }, null, 2),
+    "```",
+    "",
+    "2. If dispatch fails, times out, or reports a blocker/failure, stop and report that status. Do not mark the loop iteration complete.",
+    "",
+    "The ordinary completion checkpoint is intentionally not queued for this delegated commit step; this tool call is the completion gate.",
+    "",
+    `Context: delegated commit prompt for iteration ${input.iteration}, prompt index ${input.promptIndex}.`,
+  ].join("\n");
+}
+
+function renderVisibleLoopCommitObjective(input: {
+  commitPrompt: string;
+  cwd: string;
+  runId: string;
+  iteration: number;
+  commandName?: string;
+  title?: string;
+}): string {
+  const loopCommandName = normalizeLoopCommandName(input.commandName);
+  const loopTitle = normalizeLoopTitle(input.title, loopCommandName);
+  return [
+    `${loopTitle} delegated commit workflow.`,
+    "",
+    "Context:",
+    `- cwd: ${input.cwd}`,
+    `- ${loopCommandName} run id: ${input.runId}`,
+    `- iteration: ${input.iteration}`,
+    "",
+    "Run the resolved commit prompt below in the current repo.",
+    "Do not perform new implementation work or broaden scope; this delegation is only for commit workflow completion.",
+    "Use the repo loop validation guidance below when selecting validation commands for the commit workflow.",
+    "",
+    DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT,
+    "",
+    "If validation, staging, grouping, or provenance-note handling is ambiguous, stop and report the blocker without committing further.",
+    "",
+    "Success contract for the final response:",
+    "- List created commit sha(s) and subjects, or say clean/no-op if no commit was needed.",
+    "- State validation commands run and results.",
+    "- State provenance-note status when applicable.",
+    "",
+    "Resolved /commit prompt:",
+    "```md",
+    input.commitPrompt,
+    "```",
+  ].join("\n");
+}
+
+function normalizeLoopCommandName(value: string | undefined): string {
+  return (
+    value
+      ?.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "") || "visible-loop"
+  );
+}
+
+function normalizeLoopTitle(value: string | undefined, commandName: string): string {
+  if (value?.trim()) return value.trim();
+  return commandName
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function normalizeDelegatedCommitSubagentName(runId: string, iteration: number): string {
+  const normalizedRunId = runId
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${normalizedRunId || "visible-loop"}-commit-${iteration}`;
 }
 
 export function renderVisibleLoopCompletionPrompt(input: {

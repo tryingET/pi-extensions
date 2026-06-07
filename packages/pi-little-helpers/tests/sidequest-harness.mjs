@@ -177,6 +177,8 @@ export function assertLoopValidationGuidance(prompt) {
     assert.match(prompt, new RegExp(command));
   }
   assert.match(prompt, /repo-owned/);
+  assert.match(prompt, /repo-declared invocation/);
+  assert.match(prompt, /npm run loop-/);
   assert.match(prompt, /evidence-producing/);
   assert.match(prompt, /not authority/);
   assert.match(prompt, /report the fallback/);
