@@ -31,6 +31,7 @@ const files = {
   resumeTest: readRelative("tests/runtime-resume.test.ts"),
   toolboxBundle: readRelative("src/toolboxBundle.ts"),
   extension: readRelative("extensions/pi-autoresearch.ts"),
+  extensionCampaignSchemas: readRelative("extensions/pi-autoresearch/schemas-campaign-start.ts"),
 };
 
 const runtimeAndAutoplan = [files.runtime, files.runtimeAutoplan, files.runtimeAutoplanSetup]
@@ -131,7 +132,7 @@ const checks = [
         "package-local promotion",
         "external evidence/learning write",
       ]) &&
-      includesAll(files.extension, [
+      includesAll([files.extension, files.extensionCampaignSchemas].filter(Boolean).join("\n"), [
         "Run an explicit foreground pi-autoresearch resume",
         "Exact segmentKey from resume_apply_plan.",
         "Exact runtimeKey from resume_apply_plan.",

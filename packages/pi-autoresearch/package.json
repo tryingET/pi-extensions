@@ -56,6 +56,7 @@
   },
   "files": [
     "extensions/pi-autoresearch.ts",
+    "extensions/pi-autoresearch",
     "src",
     "prompts",
     "examples",
