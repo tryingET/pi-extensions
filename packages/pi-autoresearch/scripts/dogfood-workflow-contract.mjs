@@ -25,6 +25,7 @@ const files = {
   runtimeAutoplan: readRelative("src/core/runtime-autoplan.ts"),
   runtimeAutoplanSetup: readRelative("src/core/runtime-autoplan-setup.ts"),
   runtimeResumePlan: readRelative("src/core/runtime-resume-plan.ts"),
+  runtimeResumeApply: readRelative("src/core/runtime-resume-apply.ts"),
   runtimeTest: readRelative("tests/runtime.test.ts"),
   candidateCampaignTest: readRelative("tests/runtime-candidate-campaign.test.ts"),
   resumeTest: readRelative("tests/runtime-resume.test.ts"),
@@ -35,7 +36,9 @@ const files = {
 const runtimeAndAutoplan = [files.runtime, files.runtimeAutoplan, files.runtimeAutoplanSetup]
   .filter(Boolean)
   .join("\n");
-const runtimeAndResumePlan = [files.runtime, files.runtimeResumePlan].filter(Boolean).join("\n");
+const runtimeAndResumePlan = [files.runtime, files.runtimeResumePlan, files.runtimeResumeApply]
+  .filter(Boolean)
+  .join("\n");
 
 const checks = [
   {
