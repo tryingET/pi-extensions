@@ -595,7 +595,13 @@ test("self query: creates self-contained handoff prompt and prefills editor", as
 
   const result = await tool.execute(
     "tc-handoff-prompt-prefill",
-    { query: "create self-contained handoff prompt" },
+    {
+      query: "create self-contained handoff prompt",
+      context: {
+        latestUserIntent: "Continue other autonomy-harness suggestions.",
+        currentObjective: "Bridge ASC handoff cues into pi-session-compaction schema.",
+      },
+    },
     null,
     null,
     ctx,
@@ -616,6 +622,10 @@ test("self query: creates self-contained handoff prompt and prefills editor", as
   );
   assert.match(editorText, /npm --prefix packages\/pi-autonomous-session-control run check/);
   assert.match(editorText, /ask operator to \/reload/);
+  assert.match(editorText, /Compaction-owned handoff option/);
+  assert.match(editorText, /session_compaction_handoff/);
+  assert.match(editorText, /Bridge ASC handoff cues into pi-session-compaction schema/);
+  assert.match(editorText, /Do not treat ASC latest-intent text as task authority/);
   assert.match(editorText, /pi-session-compaction owns compaction summaries/);
   assert.doesNotMatch(editorText, /remaining context budget: \d+/i);
   assert.equal(result.details.data.prefill, true);

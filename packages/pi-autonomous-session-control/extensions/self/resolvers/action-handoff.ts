@@ -48,6 +48,18 @@ function buildSelfContainedHandoffPrompt(
   const sparseEvidence =
     handoff.files.length === 0 && handoff.commands.length === 0 && handoff.errors.length === 0;
   const nextMove = handoff.nextMove;
+  const validationReminder = buildValidationReminder(
+    touchedPackages,
+    handoff.commands.map((command) => command.rawCommand),
+  );
+  const compactionHandoffCall = buildSessionCompactionHandoffCall({
+    context,
+    cwd,
+    gitStatus,
+    taskIds,
+    handoff,
+    validationReminder,
+  });
 
   return [
     "You are a fresh, stateless Pi coding session.",
@@ -66,11 +78,14 @@ function buildSelfContainedHandoffPrompt(
     `- Recent touched files: ${formatTouchedFiles(handoff.files)}`,
     `- Recent commands: ${formatRecentCommands(handoff.commands)}`,
     `- Recent visible errors: ${formatErrors(handoff.errors)}`,
-    `- Validation/install/reload reminders: ${buildValidationReminder(
-      touchedPackages,
-      handoff.commands.map((command) => command.rawCommand),
-    )}`,
+    `- Validation/install/reload reminders: ${validationReminder}`,
     `- Next suggested slice: ${nextMove ? `${nextMove.slice} via ${nextMove.owner} — ${nextMove.reason}. Suggested action: ${nextMove.prefillText}` : "none from ASC mirror; inspect git/AK/task state and choose the smallest truthful next step."}`,
+    "",
+    "Compaction-owned handoff option",
+    "- For canonical fresh-session handoff shape, prefer the pi-session-compaction-owned tool below when available. ASC is only supplying mirror cues.",
+    "```ts",
+    compactionHandoffCall,
+    "```",
     "",
     "Authority boundaries",
     "- AK + society DB remain canonical for tasks/evidence/decisions; ASC/self is a mirror only.",
@@ -100,6 +115,105 @@ export function isSelfContainedHandoffPromptQuery(lower: string): boolean {
 
 function isShowOnlyHandoffPromptQuery(lower: string): boolean {
   return lower.includes("show") || lower.includes("no prefill") || lower.includes("do not prefill");
+}
+
+function buildSessionCompactionHandoffCall(input: {
+  context: Record<string, unknown>;
+  cwd: string;
+  gitStatus?: string;
+  taskIds: string[];
+  handoff: ReturnType<typeof queryHandoffSummary>;
+  validationReminder: string;
+}): string {
+  const nextMove = input.handoff.nextMove;
+  const sessionIntent = normalizeSessionIntent(input.context.sessionIntent);
+  const params = {
+    mode: "show",
+    cwd: input.cwd,
+    evidencePosture:
+      "ASC mirror-only cues supplied for a pi-session-compaction-owned handoff prompt; verify with git, AK, transcript, and owner surfaces before acting.",
+    ...(input.gitStatus ? { gitStatusSummary: input.gitStatus } : {}),
+    ...(input.taskIds.length > 0 ? { akTaskIds: input.taskIds } : {}),
+    touchedFiles: input.handoff.files.slice(0, 12).map((file) => file.path),
+    recentCommands: input.handoff.commands.slice(0, 12).map((command) => command.rawCommand),
+    validationReminder: input.validationReminder,
+    ...(nextMove
+      ? {
+          nextSuggestedSlice: `${nextMove.slice} via ${nextMove.owner} — ${nextMove.reason}. Suggested action: ${nextMove.prefillText}`,
+        }
+      : {}),
+    discoveryRecords: buildDiscoveryRecords(input.context, sessionIntent),
+    nonAuthorizations: [
+      "This handoff does not authorize AK/KES/evidence writes, candidate promotion, ontology changes, visible-loop launch, peer launch, commits, or durable diagnostic records.",
+    ],
+  };
+
+  return `session_compaction_handoff(${JSON.stringify(params, null, 2)})`;
+}
+
+function normalizeSessionIntent(value: unknown): {
+  latestUserIntent?: string;
+  currentObjective?: string;
+  source?: string;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  return {
+    ...(normalizeString(record.latestUserIntent, { maxLength: 500 })
+      ? { latestUserIntent: normalizeString(record.latestUserIntent, { maxLength: 500 }) }
+      : {}),
+    ...(normalizeString(record.currentObjective, { maxLength: 500 })
+      ? { currentObjective: normalizeString(record.currentObjective, { maxLength: 500 }) }
+      : {}),
+    ...(normalizeString(record.source, { maxLength: 80 })
+      ? { source: normalizeString(record.source, { maxLength: 80 }) }
+      : {}),
+  };
+}
+
+function buildDiscoveryRecords(
+  context: Record<string, unknown>,
+  sessionIntent: ReturnType<typeof normalizeSessionIntent>,
+): Array<Record<string, string>> {
+  const supplied = normalizeDiscoveryRecords(context.discoveryRecords);
+  const records = [...supplied];
+  if (sessionIntent.latestUserIntent || sessionIntent.currentObjective) {
+    records.unshift({
+      discovery: `Latest caller intent/objective cue: ${sessionIntent.latestUserIntent ?? "unavailable"}${sessionIntent.currentObjective ? `; objective: ${sessionIntent.currentObjective}` : ""}`,
+      source: sessionIntent.source ?? "caller_context",
+      ownerSurface: "transcript/operator request; verify through git/AK/package owner surfaces",
+      promotionStatus: "mirror cue only",
+      nextPromotionAction:
+        "Fresh session should verify this intent against the transcript/operator request before acting.",
+      nonAuthorization: "Do not treat ASC latest-intent text as task authority.",
+    });
+  }
+  return records.slice(0, 8);
+}
+
+function normalizeDiscoveryRecords(value: unknown): Array<Record<string, string>> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+      const record = item as Record<string, unknown>;
+      const normalized = Object.fromEntries(
+        [
+          "discovery",
+          "source",
+          "ownerSurface",
+          "promotionStatus",
+          "nextPromotionAction",
+          "metric",
+          "falsifier",
+          "nonAuthorization",
+        ]
+          .map((key) => [key, normalizeString(record[key], { maxLength: 500 })])
+          .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      );
+      return Object.keys(normalized).length > 0 ? normalized : undefined;
+    })
+    .filter((item): item is Record<string, string> => Boolean(item));
 }
 
 function collectKnownTaskIds(context: Record<string, unknown>, commands: string[]): string[] {
