@@ -8,6 +8,12 @@ import type {
   PeerPresence,
   PeerRuntimeStatus,
 } from "./contracts.ts";
+import {
+  formatPendingInboundLine,
+  formatPendingInboundSummary,
+  type PendingInboundMessage,
+  pendingInboundDetails,
+} from "./intercom-pending-inbox.ts";
 
 export const INTERCOM_TOOL_NAME = "intercom";
 const PENDING_PREVIEW_LENGTH = 80;
@@ -40,12 +46,6 @@ export interface IntercomToolResponse {
 export interface IntercomAdapterOptions {
   now?: () => number;
   onIncomingMessage?: (entry: IntercomIncomingMessage) => void;
-}
-
-interface PendingInboundMessage {
-  from: PeerPresence;
-  message: PeerMessage;
-  receivedAt: number;
 }
 
 type PeerProtocolKind =
@@ -646,7 +646,8 @@ export class IntercomCompatibleAdapter {
       const peers = await runtime.listPeers();
       const duplicateNames = duplicateSessionNames(peers);
       const now = this.now();
-      const pendingCount = this.replyTracker.listPending().length;
+      const pendingMessages = this.replyTracker.listPending();
+      const pendingSummary = formatPendingInboundSummary(pendingMessages, now);
 
       if (status.selfId) {
         const currentSession = peers.find((peer) => peer.id === status.selfId);
@@ -680,9 +681,12 @@ export class IntercomCompatibleAdapter {
                 )
                 .join("\n")}`;
 
-        return textResult(
-          `${currentSection}\n\n${otherSection}\n\nPending inbound messages: ${pendingCount}`,
-        );
+        return textResult(`${currentSection}\n\n${otherSection}\n\n${pendingSummary}`, {
+          details: {
+            pendingInboundCount: pendingMessages.length,
+            pendingInboundMessages: pendingInboundDetails(pendingMessages, now),
+          },
+        });
       }
 
       if (peers.length === 0) {
@@ -842,15 +846,14 @@ export class IntercomCompatibleAdapter {
     }
 
     const now = this.now();
-    const lines = pendingMessages.map((entry) => {
-      const preview = entry.message.content.text
-        .replace(/\s+/g, " ")
-        .slice(0, PENDING_PREVIEW_LENGTH);
-      const elapsedSeconds = Math.max(0, Math.floor((now - entry.receivedAt) / 1000));
-      return `- ${formatPeerTarget(entry.from)} · ${entry.message.id} · ${elapsedSeconds}s ago · ${preview}`;
-    });
+    const lines = pendingMessages.map((entry) => `- ${formatPendingInboundLine(entry, now)}`);
 
-    return textResult(`**Pending inbound messages:**\n${lines.join("\n")}`);
+    return textResult(`**Pending inbound messages:**\n${lines.join("\n")}`, {
+      details: {
+        pendingInboundCount: pendingMessages.length,
+        pendingInboundMessages: pendingInboundDetails(pendingMessages, now),
+      },
+    });
   }
 
   private async status(runtime: PeerMessagingRuntime): Promise<IntercomToolResponse> {
@@ -858,12 +861,14 @@ export class IntercomCompatibleAdapter {
       const status = await runtime.status();
       const peers = await runtime.listPeers();
       const identityProof = this.buildIdentityProof(status, peers);
-      const pendingInboundCount = this.replyTracker.listPending().length;
-      return textResult(this.formatStatus(status, identityProof, pendingInboundCount), {
+      const now = this.now();
+      const pendingMessages = this.replyTracker.listPending();
+      return textResult(this.formatStatus(status, identityProof, pendingMessages, now), {
         details: {
           ...status,
           identityProof,
-          pendingInboundCount,
+          pendingInboundCount: pendingMessages.length,
+          pendingInboundMessages: pendingInboundDetails(pendingMessages, now),
         },
       });
     } catch (error) {
@@ -898,7 +903,8 @@ export class IntercomCompatibleAdapter {
   private formatStatus(
     status: PeerRuntimeStatus,
     identityProof: IntercomIdentityProof,
-    pendingInboundCount: number,
+    pendingMessages: PendingInboundMessage[],
+    now: number,
   ): string {
     const selfPresence = identityProof.selfPresence;
     const selfPresenceLine = selfPresence
@@ -910,7 +916,7 @@ export class IntercomCompatibleAdapter {
       `Connected: ${status.connected ? "Yes" : "No"}`,
       `Session ID: ${status.selfId ?? "unavailable"}`,
       `Active sessions: ${status.activePeerCount}`,
-      `Pending inbound messages: ${pendingInboundCount}`,
+      formatPendingInboundSummary(pendingMessages, now),
       `Identity proof: ${identityProof.status}`,
       `Exact peer target: ${identityProof.exactPeerTarget ?? "unavailable"}`,
       selfPresenceLine,

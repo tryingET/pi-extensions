@@ -187,6 +187,17 @@ test("adapter tracks inbound messages for pending and reply compatibility", asyn
   assert.equal(pending.isError, undefined);
   assert.match(pending.content[0]?.text ?? "", /Pending inbound messages/);
   assert.match(pending.content[0]?.text ?? "", /Need your review\./);
+  assert.equal(pending.details?.pendingInboundCount, 1);
+  assert.deepEqual(pending.details?.pendingInboundMessages, [
+    {
+      fromId: WORKER_A.id,
+      fromLabel: "worker",
+      messageId: "ask-1",
+      receivedAt: 2_000,
+      ageMs: 0,
+      preview: "Need your review.",
+    },
+  ]);
 
   const reply = await adapter.execute(runtime, {
     action: "reply",
@@ -217,7 +228,39 @@ test("adapter lists current and other sessions with freshness and pending visibi
   assert.match(result.content[0]?.text ?? "", /worker/);
   assert.match(result.content[0]?.text ?? "", /last seen 2s ago/);
   assert.match(result.content[0]?.text ?? "", /Pending inbound messages: 1/);
+  assert.match(result.content[0]?.text ?? "", /pending-list-1/);
+  assert.match(result.content[0]?.text ?? "", /Need review\./);
   assert.match(result.content[0]?.text ?? "", /id: worker-session-aaaaaaaa/);
+  assert.equal(result.details?.pendingInboundCount, 1);
+});
+
+test("adapter status includes pending inbound preview details", async () => {
+  const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2_500 });
+  adapter.handleIncomingMessage(
+    WORKER_A,
+    createMessage("Please check the stale candidate before continuing.", {
+      id: "pending-status-1",
+    }),
+  );
+
+  const result = await adapter.execute(runtime, { action: "status" });
+
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0]?.text ?? "", /Pending inbound messages: 1/);
+  assert.match(result.content[0]?.text ?? "", /pending-status-1/);
+  assert.match(result.content[0]?.text ?? "", /Please check the stale candidate/);
+  assert.equal(result.details?.pendingInboundCount, 1);
+  assert.deepEqual(result.details?.pendingInboundMessages, [
+    {
+      fromId: WORKER_A.id,
+      fromLabel: "worker",
+      messageId: "pending-status-1",
+      receivedAt: 2_500,
+      ageMs: 0,
+      preview: "Please check the stale candidate before continuing.",
+    },
+  ]);
 });
 
 test("adapter status returns verifiable active peer identity proof", async () => {

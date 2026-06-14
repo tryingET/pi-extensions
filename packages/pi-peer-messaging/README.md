@@ -65,7 +65,7 @@ The first public adapter is the package-local `intercom` tool surface exposed by
 It is useful on purpose, but it is still only an adapter.
 It does **not** redefine the authority model.
 
-For controller-spawned visible peer agents, the adapter can classify and watch the bounded `PEER_ACK` / `PEER_FINAL` message protocol by canonical `peerRunId` without depending on unresolved pending replies. The legacy `QUEST_ACK` / `QUEST_FINAL` protocol by `questId` remains supported as a compatibility alias. `list`/`status` expose pending inbound counts and last-seen freshness cues so stale or waiting peers are visible before targeting them. This is supervision of communication state only; it does not make peer messages durable evidence, merge authority, or completion truth by itself.
+For controller-spawned visible peer agents, the adapter can classify and watch the bounded `PEER_ACK` / `PEER_FINAL` message protocol by canonical `peerRunId` without depending on unresolved pending replies. The legacy `QUEST_ACK` / `QUEST_FINAL` protocol by `questId` remains supported as a compatibility alias. `list`/`status` expose pending inbound counts, latest pending-message previews, and last-seen freshness cues so stale or waiting peers are visible before targeting them. This is supervision of communication state only; it does not make peer messages durable evidence, merge authority, or completion truth by itself.
 
 Supported actions:
 
