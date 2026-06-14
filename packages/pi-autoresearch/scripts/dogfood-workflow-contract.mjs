@@ -30,7 +30,14 @@ const files = {
   candidateCampaignTest: readRelative("tests/runtime-candidate-campaign.test.ts"),
   resumeTest: readRelative("tests/runtime-resume.test.ts"),
   toolboxBundle: readRelative("src/toolboxBundle.ts"),
-  extension: readRelative("extensions/pi-autoresearch.ts"),
+  extension: [
+    readRelative("extensions/pi-autoresearch.ts"),
+    readRelative("extensions/pi-autoresearch/readProfile.ts"),
+    readRelative("extensions/pi-autoresearch/toolPlanning.ts"),
+    readRelative("extensions/pi-autoresearch/toolStatusControl.ts"),
+  ]
+    .filter(Boolean)
+    .join("\n"),
   extensionCampaignSchemas: readRelative("extensions/pi-autoresearch/schemas-campaign-start.ts"),
 };
 

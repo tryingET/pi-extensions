@@ -1,14 +1,5 @@
 import { existsSync } from "node:fs";
-import { complete } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import {
-  type AutoresearchDecisionRuntime,
-  createAutoresearchDecisionRuntime,
-} from "../src/core/decisions.ts";
-import {
-  executeAutoresearchFinalization,
-  formatAutoresearchFinalizationResult,
-} from "../src/core/finalize.ts";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
@@ -29,74 +20,29 @@ import {
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
-  AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
-  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
   AUTORESEARCH_COMMAND_NAME,
-  AUTORESEARCH_CONTROL_TOOL_NAME,
-  AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
   AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_SETUP_TOOL_NAME,
-  AUTORESEARCH_STATUS_TOOL_NAME,
   type AutoresearchLoopProgressEvent,
-  applyAutoresearchCandidateInventoryCleanup,
-  buildAutoresearchAdapterContractCatalog,
-  buildAutoresearchAkEvidencePacket,
   buildAutoresearchAutoplan,
-  buildAutoresearchCandidateBindPlan,
-  buildAutoresearchCandidateDecisionWorkbench,
-  buildAutoresearchCandidateInventoryCleanupPlan,
-  buildAutoresearchCandidateResultPacket,
-  buildAutoresearchKnowledgeExportPacket,
-  buildAutoresearchOracleEvidencePacket,
   buildAutoresearchPeerAssistPlan,
-  buildAutoresearchResumeApplyPlan,
-  buildAutoresearchResumePlan,
   buildAutoresearchRuntimeStatus,
-  buildAutoresearchSegmentCloseout,
   executeAutoresearchCampaignStart,
   executeAutoresearchLoop,
   executeAutoresearchResumeApply,
   executeAutoresearchRun,
   executeAutoresearchSetup,
-  formatAutoresearchAdapterContractCatalog,
-  formatAutoresearchAdapterPacketValidationResult,
-  formatAutoresearchAkEvidencePacket,
   formatAutoresearchAutoplanResult,
-  formatAutoresearchCampaignGoalStatus,
   formatAutoresearchCampaignStartResult,
-  formatAutoresearchCandidateBindPlan,
-  formatAutoresearchCandidateDecisionWorkbench,
-  formatAutoresearchCandidateInventoryCleanupPlan,
-  formatAutoresearchCandidateResultExportResult,
-  formatAutoresearchCandidateResultPacket,
-  formatAutoresearchControlResult,
   formatAutoresearchDashboard,
-  formatAutoresearchDecisionResult,
-  formatAutoresearchKnowledgeExportPacket,
-  formatAutoresearchLearningExportResult,
   formatAutoresearchLoopResult,
-  formatAutoresearchOracleEvidenceExportResult,
-  formatAutoresearchOracleEvidencePacket,
   formatAutoresearchPeerAssistPlan,
-  formatAutoresearchResumeApplyPlan,
   formatAutoresearchResumeApplyResult,
-  formatAutoresearchResumePlan,
   formatAutoresearchRunResult,
-  formatAutoresearchSegmentCloseout,
   formatAutoresearchSetupResult,
-  formatAutoresearchStatusText,
-  inspectAutoresearchRuntimeControl,
-  requestAutoresearchFinalizeDecision,
-  requestAutoresearchSetupDecision,
-  setAutoresearchCampaignGoalControl,
-  setAutoresearchRuntimeControl,
-  validateAutoresearchAdapterPacket,
-  writeAutoresearchCandidateResultPacket,
-  writeAutoresearchKnowledgeExportPacket,
-  writeAutoresearchOracleEvidencePacket,
 } from "../src/core/runtime.ts";
 import {
   AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
@@ -111,31 +57,27 @@ import {
   recordAutoresearchSelfHostingRollback,
   resolveAutoresearchSelfHostingPromotionRecordPath,
 } from "../src/core/selfHosting.ts";
-import {
-  AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
-  buildVllmAutoresearchCampaignPlan,
-  formatVllmAutoresearchCampaignPlan,
-} from "../src/core/vllmCampaignCockpit.ts";
-
 import { transformAutoresearchDollarInput } from "./pi-autoresearch/commandText.ts";
 import { registerAutoresearchWidget } from "./pi-autoresearch/dashboardUi.ts";
 import {
-  buildAutoresearchAutoContinuationSessionGateForCwd,
   cancelAutoresearchAutoContinuationFollowUp,
   scheduleAutoresearchAutoContinuationFollowUp,
 } from "./pi-autoresearch/extensionAutoContinuation.ts";
+import {
+  type PiAutoresearchExtensionOptions,
+  resolveDecisionRuntime,
+} from "./pi-autoresearch/extensionOptions.ts";
 import type { AutoresearchWidgetContext } from "./pi-autoresearch/extensionUiTypes.ts";
 import {
-  type AutoresearchExtensionEffectProfile,
   assertReadProfileAllowsAction,
   assertReadProfileRejectsTool,
 } from "./pi-autoresearch/readProfile.ts";
 import { openAutoresearchShell } from "./pi-autoresearch/shellCommand.ts";
-import {
-  type AutoresearchTriggerSurface,
-  maybeRegisterAutoresearchLiveTrigger,
-} from "./pi-autoresearch/triggerPicker.ts";
+import { registerAutoresearchPlanningTools } from "./pi-autoresearch/toolPlanning.ts";
+import { registerAutoresearchStatusControlTools } from "./pi-autoresearch/toolStatusControl.ts";
+import { maybeRegisterAutoresearchLiveTrigger } from "./pi-autoresearch/triggerPicker.ts";
 
+export type { PiAutoresearchExtensionOptions } from "./pi-autoresearch/extensionOptions.ts";
 export type { AutoresearchExtensionEffectProfile } from "./pi-autoresearch/readProfile.ts";
 
 import {
@@ -144,18 +86,12 @@ import {
   campaignControlSchema,
   campaignSchema,
   campaignStartSchema,
-  candidateBindSchema,
-  candidateDecisionSchema,
-  controlSchema,
-  finalizeSchema,
   loopSchema,
   peerAssistSchema,
   resumeApplySchema,
   runSchema,
   selfHostingSchema,
   setupSchema,
-  statusSchema,
-  vllmCampaignSchema,
 } from "./pi-autoresearch/schemas.ts";
 import {
   emitAutoresearchSelfHostingUpdate,
@@ -168,15 +104,6 @@ import {
   normalizeAutoresearchSelfHostingCommand,
   normalizeAutoresearchSelfHostingRegressionPercents,
 } from "./pi-autoresearch/selfHostingFormat.ts";
-
-export interface PiAutoresearchExtensionOptions {
-  createDecisionRuntime?: (
-    ctx: ExtensionContext,
-    signal: AbortSignal | undefined,
-  ) => AutoresearchDecisionRuntime;
-  effectProfile?: AutoresearchExtensionEffectProfile;
-  triggerSurface?: AutoresearchTriggerSurface | null;
-}
 
 function shouldPersistLlamacppProjection(input: {
   apply?: boolean;
@@ -272,563 +199,8 @@ export function registerPiAutoresearchExtension(
     });
   }
 
-  pi.registerTool({
-    name: AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
-    label: "Autoresearch Candidate Bind",
-    description:
-      "Inspect a controller-verified candidate worktree/branch and prepare the exact pi-autoresearch measurement call without running or mutating anything.",
-    promptSnippet:
-      "Plan candidate intake for pi-autoresearch. Read-only: inspect candidate worktree/branch/base ref, summarize changed files/diff posture, and return the exact autoresearch_runtime_run call needed to bind and measure the candidate.",
-    parameters: asPiToolParameters(candidateBindSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const request = params as {
-        cwd?: string;
-        action?: "status" | "plan_run";
-        candidateSource?: "candidate_peer_spawn" | "manual";
-        candidateWorktree?: string;
-        candidateBranch?: string;
-        candidateBaseRef?: string;
-        description?: string;
-      };
-      const action = request.action ?? "status";
-      assertReadProfileAllowsAction(options, {
-        toolName: AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
-        action,
-        allowedActions: ["status", "plan_run"],
-      });
-      const result = buildAutoresearchCandidateBindPlan({
-        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
-        action: request.action,
-        candidateSource: request.candidateSource,
-        candidateWorktree: request.candidateWorktree,
-        candidateBranch: request.candidateBranch,
-        candidateBaseRef: request.candidateBaseRef,
-        description: request.description,
-      });
-      return {
-        content: [{ type: "text", text: formatAutoresearchCandidateBindPlan(result) }],
-        details: result,
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
-    label: "Autoresearch Candidate Decision",
-    description:
-      "Plan current pi-autoresearch candidate keep/discard/rewind decisions from runtime status, closeout, and candidate-result evidence without mutating worktrees or promoting.",
-    promptSnippet:
-      "Inspect or plan the current pi-autoresearch candidate lifecycle decision. Read-only: status, plan_keep, plan_discard, or plan_rewind. It consumes runtime receipts/closeout/candidate-result posture and returns exact next calls/commands without applying them.",
-    parameters: asPiToolParameters(candidateDecisionSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const request = params as {
-        action?: "status" | "plan_keep" | "plan_discard" | "plan_rewind";
-        cwd?: string;
-        candidatePolicy?: {
-          mode?: "worktree";
-          keep?: "preserve_branch" | "plan_review_branch";
-          discard?: "suggest_cleanup" | "delete_worktree_after_confirm";
-          rewind?: "reset_worktree_to_base" | "recreate_worktree_from_base";
-        };
-      };
-      const action = request.action ?? "status";
-      assertReadProfileAllowsAction(options, {
-        toolName: AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
-        action,
-        allowedActions: ["status", "plan_keep", "plan_discard", "plan_rewind"],
-      });
-      const result = buildAutoresearchCandidateDecisionWorkbench({
-        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
-        action: request.action,
-        candidatePolicy: request.candidatePolicy,
-      });
-      return {
-        content: [{ type: "text", text: formatAutoresearchCandidateDecisionWorkbench(result) }],
-        details: result,
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
-    label: "vLLM Autoresearch Campaign Cockpit",
-    description:
-      "Inspect and plan a bounded, multi-matrix workstation vLLM autoresearch campaign for local model speed optimization without hidden daemonization or direct service promotion.",
-    promptSnippet:
-      "Use the vLLM autoresearch campaign cockpit to inspect workstation GPU/lane/benchmark readiness, plan matrix axes, produce exact bounded autoresearch next calls, and generate a fresh-session handoff prompt. This surface is plan/read-only; execution still happens through bounded autoresearch/workstation owner seams.",
-    parameters: asPiToolParameters(vllmCampaignSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const request = params as {
-        action?: "status" | "plan" | "run_segment_plan" | "handoff_prompt";
-        cwd?: string;
-        modelPath?: string;
-        hardware?: string;
-        knowledgeBase?: string;
-        objective?: string;
-        maxWallClockMinutes?: number;
-        maxIterations?: number;
-        maxCellsPerSegment?: number;
-        targets?: string[];
-        matrixAxes?: Record<string, string[]>;
-        benchmarkProfile?: "smoke" | "longcot" | "throughput";
-      };
-      const action = request.action ?? "status";
-      assertReadProfileAllowsAction(options, {
-        toolName: AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
-        action,
-        allowedActions: ["status", "plan", "run_segment_plan", "handoff_prompt"],
-      });
-      const result = buildVllmAutoresearchCampaignPlan({
-        ...request,
-        action,
-        cwd: request.cwd ?? ctx.cwd,
-      });
-      return {
-        content: [{ type: "text", text: formatVllmAutoresearchCampaignPlan(result) }],
-        details: result,
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: AUTORESEARCH_STATUS_TOOL_NAME,
-    label: "Autoresearch Runtime Status",
-    description:
-      "Inspect the current pi-autoresearch bounded runtime, build package-local closeout/evidence/Oracle-ready/learning/candidate-result packets, export Oracle-ready evidence JSON, learning JSON, or candidate-result JSON for owner-routed handoff, list adapter packet contracts, validate adapter packets, or request a governed setup/finalize packet through the existing runtime surface.",
-    promptSnippet:
-      "Inspect the current pi-autoresearch bounded runtime, machine projection, receipt log, event ledger, optionally build a segment closeout, Oracle-ready evidence packet, local Oracle-ready evidence JSON export for DSPx preflight, exact-task AK evidence packet, adapter-ready learning packet, local learning JSON export for owner-routed KES handoff, candidate-result packet/export, adapter contract catalog, or adapter packet validation, and optionally request a governed setup/finalize packet.",
-    parameters: asPiToolParameters(statusSchema),
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const request = params as {
-        action?:
-          | "status"
-          | "dashboard"
-          | "setup"
-          | "finalize"
-          | "closeout"
-          | "ak_evidence"
-          | "oracle_evidence"
-          | "oracle_evidence_export"
-          | "learning"
-          | "learning_export"
-          | "candidate_result"
-          | "candidate_result_export"
-          | "candidate_inventory_cleanup_plan"
-          | "candidate_inventory_cleanup_apply"
-          | "resume_plan"
-          | "resume_apply_plan"
-          | "campaign_goal"
-          | "adapter_contracts"
-          | "validate_packet";
-        cwd?: string;
-        outPath?: string;
-        overwrite?: boolean;
-        archiveLabel?: string;
-        operatorConfirmation?: string;
-        packet?: unknown;
-        optimizationObjective?: string;
-        repoContext?: string[];
-        filesInScope?: string[];
-        offLimits?: string[];
-        benchmarkSurfaces?: string[];
-        existingArtifacts?: string[];
-        hardConstraints?: string[];
-        blockers?: string[];
-        akTaskId?: number;
-        akScopeSummary?: string[];
-        akAllowedPaths?: string[];
-        akRequiredPaths?: string[];
-        keptRuns?: string[];
-        campaignContext?: string[];
-        mergeBase?: string | null;
-        trunkTarget?: string | null;
-        commitSummaries?: string[];
-        dependencyNotes?: string[];
-        ideasToLeaveOut?: string[];
-      };
-      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
-      const action = request.action ?? "status";
-      assertReadProfileAllowsAction(options, {
-        toolName: AUTORESEARCH_STATUS_TOOL_NAME,
-        action,
-        allowedActions: [
-          "status",
-          "dashboard",
-          "closeout",
-          "ak_evidence",
-          "oracle_evidence",
-          "learning",
-          "candidate_result",
-          "candidate_inventory_cleanup_plan",
-          "resume_plan",
-          "resume_apply_plan",
-          "campaign_goal",
-          "adapter_contracts",
-          "validate_packet",
-        ],
-      });
-
-      if (action === "dashboard") {
-        const status = buildAutoresearchRuntimeStatus(cwd, {
-          persistSnapshot: false,
-          autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
-            cwd,
-            autoContinuationCounts,
-          ),
-        });
-        return {
-          content: [{ type: "text", text: formatAutoresearchDashboard(status) }],
-          details: status,
-        };
-      }
-
-      if (action === "setup") {
-        const result = await requestAutoresearchSetupDecision({
-          cwd,
-          packet: {
-            optimizationObjective: request.optimizationObjective ?? "",
-            repoContext: request.repoContext ?? [],
-            filesInScope: request.filesInScope ?? [],
-            offLimits: request.offLimits ?? [],
-            benchmarkSurfaces: request.benchmarkSurfaces ?? [],
-            existingArtifacts: request.existingArtifacts ?? [],
-            hardConstraints: request.hardConstraints ?? [],
-            blockers: request.blockers ?? [],
-            akTask:
-              request.akTaskId !== undefined ||
-              request.akScopeSummary !== undefined ||
-              request.akAllowedPaths !== undefined ||
-              request.akRequiredPaths !== undefined
-                ? {
-                    id: request.akTaskId,
-                    scopeSummary: request.akScopeSummary ?? [],
-                    allowedPaths: request.akAllowedPaths ?? [],
-                    requiredPaths: request.akRequiredPaths ?? [],
-                  }
-                : null,
-          },
-          runtime: resolveDecisionRuntime(ctx, signal, options),
-          model: ctx.model?.id,
-          signal,
-        });
-
-        return {
-          content: [{ type: "text", text: formatAutoresearchDecisionResult(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "adapter_contracts") {
-        const result = buildAutoresearchAdapterContractCatalog();
-        return {
-          content: [{ type: "text", text: formatAutoresearchAdapterContractCatalog(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "validate_packet") {
-        if (request.packet === undefined) {
-          throw new Error("action=validate_packet requires a packet object.");
-        }
-        const result = validateAutoresearchAdapterPacket(request.packet);
-        return {
-          content: [
-            { type: "text", text: formatAutoresearchAdapterPacketValidationResult(result) },
-          ],
-          details: result,
-        };
-      }
-
-      if (action === "closeout") {
-        const result = buildAutoresearchSegmentCloseout(cwd);
-        return {
-          content: [{ type: "text", text: formatAutoresearchSegmentCloseout(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "ak_evidence") {
-        if (request.akTaskId === undefined) {
-          throw new Error("action=ak_evidence requires an exact akTaskId.");
-        }
-        const result = buildAutoresearchAkEvidencePacket({ cwd, taskId: request.akTaskId });
-        return {
-          content: [{ type: "text", text: formatAutoresearchAkEvidencePacket(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "oracle_evidence") {
-        const result = buildAutoresearchOracleEvidencePacket(cwd);
-        return {
-          content: [{ type: "text", text: formatAutoresearchOracleEvidencePacket(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "oracle_evidence_export") {
-        const result = writeAutoresearchOracleEvidencePacket({
-          cwd,
-          outPath: request.outPath,
-          overwrite: request.overwrite,
-        });
-        return {
-          content: [{ type: "text", text: formatAutoresearchOracleEvidenceExportResult(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "learning") {
-        const result = buildAutoresearchKnowledgeExportPacket(cwd);
-        return {
-          content: [{ type: "text", text: formatAutoresearchKnowledgeExportPacket(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "learning_export") {
-        const result = writeAutoresearchKnowledgeExportPacket({
-          cwd,
-          outPath: request.outPath,
-          overwrite: request.overwrite,
-        });
-        return {
-          content: [{ type: "text", text: formatAutoresearchLearningExportResult(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "candidate_result") {
-        const result = buildAutoresearchCandidateResultPacket(cwd);
-        return {
-          content: [{ type: "text", text: formatAutoresearchCandidateResultPacket(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "candidate_result_export") {
-        const result = writeAutoresearchCandidateResultPacket({
-          cwd,
-          outPath: request.outPath,
-          overwrite: request.overwrite,
-        });
-        return {
-          content: [{ type: "text", text: formatAutoresearchCandidateResultExportResult(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "candidate_inventory_cleanup_plan") {
-        const result = buildAutoresearchCandidateInventoryCleanupPlan({
-          cwd,
-          archiveLabel: request.archiveLabel,
-        });
-        return {
-          content: [
-            { type: "text", text: formatAutoresearchCandidateInventoryCleanupPlan(result) },
-          ],
-          details: result,
-        };
-      }
-
-      if (action === "candidate_inventory_cleanup_apply") {
-        const result = applyAutoresearchCandidateInventoryCleanup({
-          cwd,
-          archiveLabel: request.archiveLabel,
-          operatorConfirmation: request.operatorConfirmation,
-        });
-        return {
-          content: [
-            { type: "text", text: formatAutoresearchCandidateInventoryCleanupPlan(result) },
-          ],
-          details: result,
-        };
-      }
-
-      if (action === "resume_plan") {
-        const result = buildAutoresearchResumePlan(cwd);
-        return {
-          content: [{ type: "text", text: formatAutoresearchResumePlan(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "resume_apply_plan") {
-        const result = buildAutoresearchResumeApplyPlan(cwd);
-        return {
-          content: [{ type: "text", text: formatAutoresearchResumeApplyPlan(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "campaign_goal") {
-        const status = buildAutoresearchRuntimeStatus(cwd, {
-          persistSnapshot: false,
-          autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
-            cwd,
-            autoContinuationCounts,
-          ),
-        });
-        return {
-          content: [
-            {
-              type: "text",
-              text: formatAutoresearchCampaignGoalStatus(status.campaignGoal, {
-                autoContinuation: status.autoContinuation,
-              }),
-            },
-          ],
-          details: status.campaignGoal,
-        };
-      }
-
-      if (action === "finalize") {
-        const result = await requestAutoresearchFinalizeDecision({
-          cwd,
-          packet: {
-            keptRuns: request.keptRuns ?? [],
-            campaignContext: request.campaignContext ?? [],
-            mergeBase: request.mergeBase ?? null,
-            trunkTarget: request.trunkTarget ?? null,
-            commitSummaries: request.commitSummaries ?? [],
-            dependencyNotes: request.dependencyNotes ?? [],
-            ideasToLeaveOut: request.ideasToLeaveOut ?? [],
-          },
-          runtime: resolveDecisionRuntime(ctx, signal, options),
-          model: ctx.model?.id,
-          signal,
-        });
-
-        return {
-          content: [{ type: "text", text: formatAutoresearchDecisionResult(result) }],
-          details: result,
-        };
-      }
-
-      const status = buildAutoresearchRuntimeStatus(cwd, {
-        persistSnapshot: false,
-        autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
-          cwd,
-          autoContinuationCounts,
-        ),
-      });
-      return {
-        content: [{ type: "text", text: formatAutoresearchStatusText(status) }],
-        details: status,
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: AUTORESEARCH_CONTROL_TOOL_NAME,
-    label: "Autoresearch Runtime Control",
-    description:
-      "Inspect or set the explicit pi-autoresearch operator control overlay for continue/rebaseline/finalize/stop.",
-    promptSnippet:
-      "Inspect or set the explicit pi-autoresearch operator control overlay and report the truthful next bounded step.",
-    parameters: asPiToolParameters(controlSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const request = params as {
-        action?: "status" | "set" | "goal_pause" | "goal_resume" | "goal_complete";
-        cwd?: string;
-        decision?: "continue" | "rebaseline" | "finalize" | "stop";
-        reason?: string;
-      };
-      const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
-      const action = request.action ?? "status";
-      assertReadProfileAllowsAction(options, {
-        toolName: AUTORESEARCH_CONTROL_TOOL_NAME,
-        action,
-        allowedActions: ["status"],
-      });
-
-      if (action === "set") {
-        if (!request.decision) {
-          throw new Error("decision is required when action=set for autoresearch_runtime_control");
-        }
-
-        const result = setAutoresearchRuntimeControl({
-          cwd,
-          decision: request.decision,
-          reason: request.reason,
-        });
-        return {
-          content: [{ type: "text", text: formatAutoresearchControlResult(result) }],
-          details: result,
-        };
-      }
-
-      if (action === "goal_pause" || action === "goal_resume" || action === "goal_complete") {
-        const result = setAutoresearchCampaignGoalControl({
-          cwd,
-          action:
-            action === "goal_pause" ? "pause" : action === "goal_resume" ? "resume" : "complete",
-          reason: request.reason,
-        });
-        const status = buildAutoresearchRuntimeStatus(cwd, {
-          persistSnapshot: false,
-          autoContinuationSession: buildAutoresearchAutoContinuationSessionGateForCwd(
-            cwd,
-            autoContinuationCounts,
-          ),
-        });
-        return {
-          content: [
-            {
-              type: "text",
-              text: formatAutoresearchCampaignGoalStatus(status.campaignGoal, {
-                autoContinuation: status.autoContinuation,
-              }),
-            },
-          ],
-          details: result,
-        };
-      }
-
-      const result = inspectAutoresearchRuntimeControl(cwd);
-      return {
-        content: [{ type: "text", text: formatAutoresearchControlResult(result) }],
-        details: result,
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: AUTORESEARCH_FINALIZE_TOOL_NAME,
-    label: "Autoresearch Runtime Finalize",
-    description:
-      "Inspect, plan, approve, and materialize the bounded pi-autoresearch finalization workflow.",
-    promptSnippet:
-      "Inspect or advance the bounded pi-autoresearch finalization workflow through status, plan, approve, or materialize.",
-    parameters: asPiToolParameters(finalizeSchema),
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const request = params as {
-        action?: "status" | "plan" | "approve" | "materialize";
-        cwd?: string;
-        reason?: string;
-      };
-      const action = request.action ?? "status";
-      assertReadProfileAllowsAction(options, {
-        toolName: AUTORESEARCH_FINALIZE_TOOL_NAME,
-        action,
-        allowedActions: ["status"],
-      });
-      const result = await executeAutoresearchFinalization({
-        cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
-        action: request.action,
-        reason: request.reason,
-        runtime:
-          request.action === "plan" ? resolveDecisionRuntime(ctx, signal, options) : undefined,
-        model: ctx.model?.id,
-        signal,
-      });
-
-      return {
-        content: [{ type: "text", text: formatAutoresearchFinalizationResult(result) }],
-        details: result,
-      };
-    },
-  });
+  registerAutoresearchPlanningTools(pi, options);
+  registerAutoresearchStatusControlTools({ pi, options, autoContinuationCounts });
 
   pi.registerTool({
     name: AUTORESEARCH_RUN_TOOL_NAME,
@@ -1937,70 +1309,6 @@ function emitAutoresearchLoopUpdate(onUpdate: unknown, event: AutoresearchLoopPr
       tool: AUTORESEARCH_LOOP_TOOL_NAME,
       dashboard: formatAutoresearchDashboard(status),
       ...event,
-    },
-  });
-}
-
-function resolveDecisionRuntime(
-  ctx: ExtensionContext,
-  signal: AbortSignal | undefined,
-  options: PiAutoresearchExtensionOptions,
-): AutoresearchDecisionRuntime {
-  return options.createDecisionRuntime?.(ctx, signal) ?? createDefaultDecisionRuntime(ctx, signal);
-}
-
-function createDefaultDecisionRuntime(
-  ctx: ExtensionContext,
-  signal: AbortSignal | undefined,
-): AutoresearchDecisionRuntime {
-  return createAutoresearchDecisionRuntime({
-    executePreparedPrompt: async (input) => {
-      if (!ctx.model) {
-        throw new Error(
-          "No model selected for live pi-autoresearch Prompt Vault decisions in this session.",
-        );
-      }
-
-      const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
-      if (!auth.ok || !auth.apiKey) {
-        throw new Error(auth.ok ? `No API key for ${ctx.model.provider}` : auth.error);
-      }
-
-      const response = await complete(
-        ctx.model,
-        {
-          messages: [
-            {
-              role: "user",
-              content: [{ type: "text", text: input.preparedText }],
-              timestamp: Date.now(),
-            },
-          ],
-        },
-        {
-          apiKey: auth.apiKey,
-          headers: auth.headers,
-          signal: input.signal ?? signal,
-        },
-      );
-
-      if (response.stopReason === "aborted") {
-        throw new Error("Prompt Vault decision execution aborted.");
-      }
-
-      const outputText = response.content
-        .filter((content): content is { type: "text"; text: string } => content.type === "text")
-        .map((content) => content.text)
-        .join("\n")
-        .trim();
-      if (outputText.length === 0) {
-        throw new Error("Prompt Vault decision execution returned no text output.");
-      }
-
-      return {
-        outputText,
-        model: ctx.model.id,
-      };
     },
   });
 }
