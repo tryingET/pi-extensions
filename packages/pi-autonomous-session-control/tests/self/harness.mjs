@@ -126,6 +126,7 @@ export async function loadExtensionWithMocks() {
     "protection.ts",
     "action.ts",
     "evolution-feedback.ts",
+    "memory-lifecycle-status.ts",
     "ontology-candidates.ts",
   ];
 

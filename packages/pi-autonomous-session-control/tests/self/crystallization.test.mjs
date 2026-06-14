@@ -35,6 +35,67 @@ test("self query: remember pattern", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: remember memory status content is not hijacked by memory lifecycle status", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-memory-status-remember",
+    { query: "Remember: memory lifecycle status can be stale after reload" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.intent, "crystallization");
+  assert.ok(
+    result.content[0].text.includes("Pattern crystallized"),
+    "should remember memory-status content as a pattern",
+  );
+  assert.ok(result.details.data.patternId, "should return pattern ID");
+
+  await cleanup(tempDir);
+});
+
+test("self query: forget memory status content is not hijacked by memory lifecycle status", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const remembered = await tool.execute(
+    "tc-memory-status-forget-seed",
+    { query: "Remember: memory status pattern for forgetting" },
+    null,
+    null,
+    ctx,
+  );
+
+  const forgotten = await tool.execute(
+    "tc-memory-status-forget",
+    {
+      query: "Forget memory lifecycle status pattern",
+      context: { patternId: remembered.details.data.patternId },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(forgotten.details.intent, "crystallization");
+  assert.ok(forgotten.content[0].text.includes("Pattern forgotten"));
+
+  await cleanup(tempDir);
+});
+
 test("self query: remember capability-map content is not hijacked by capability discovery", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

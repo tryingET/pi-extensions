@@ -28,6 +28,7 @@ import {
   mapEvolutionFeedbackIntent,
   resolveEvolutionFeedbackQuery,
 } from "./resolvers/evolution-feedback.ts";
+import { resolveMemoryLifecycleStatus } from "./resolvers/memory-lifecycle-status.ts";
 import {
   mapPerceptionIntent,
   PERCEPTION_KEYWORDS,
@@ -124,6 +125,16 @@ function isSemanticPressureQuery(lower: string): boolean {
 
 function isDiagnosticReviewQuery(lower: string): boolean {
   return DIAGNOSTIC_REVIEW_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+function isMemoryLifecycleStatusQuery(lower: string): boolean {
+  return (
+    lower.includes("memory lifecycle") ||
+    lower.includes("memory status") ||
+    lower.includes("self memory status") ||
+    lower.includes("memory persistence status") ||
+    lower.includes("memory load status")
+  );
 }
 
 function isExplicitCrystallizationDirectiveQuery(lower: string): boolean {
@@ -356,6 +367,10 @@ export function classifyIntent(query: string): QueryIntent {
     }
   }
 
+  if (isMemoryLifecycleStatusQuery(lower)) {
+    return { domain: "meta", intent: "memory_lifecycle_status" };
+  }
+
   // Check capabilities after explicit domain requests (meta-query about the tool itself).
   for (const keyword of CAPABILITY_KEYWORDS) {
     if (lower.includes(keyword)) {
@@ -469,6 +484,10 @@ function resolveMetaQuery(
 
   if (intent === "list_capabilities") {
     return resolveCapabilityQuery();
+  }
+
+  if (intent === "memory_lifecycle_status") {
+    return resolveMemoryLifecycleStatus(query, state);
   }
 
   return {

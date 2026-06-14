@@ -141,6 +141,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         ...(callerContext ?? {}),
         cwd: ctx.cwd || process.cwd(),
         sessionIntent: collectSessionIntentSnapshot(ctx, callerContext),
+        memoryLoadResult: memoryLifecycle.getLoadResult(),
       };
       const response = resolveQuery({ query: typedParams.query, context }, state);
       const actionData = response.data as

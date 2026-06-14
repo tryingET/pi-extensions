@@ -388,6 +388,39 @@ test("self memory loads valid entries and discards invalid snapshot entries dete
       assert.equal(traps.details.data.count, 1);
       assert.equal(traps.details.data.traps[0].id, "mem-valid-trap");
 
+      const status = await selfTool.execute(
+        "tc-memory-lifecycle-status",
+        { query: "self memory status" },
+        null,
+        null,
+        context,
+      );
+      assert.match(status.content[0].text, /Self memory lifecycle status/);
+      assert.equal(status.details.data.kind, "self.memory_lifecycle_status.v1");
+      assert.equal(status.details.data.loadResult.status, "loaded");
+      assert.equal(status.details.data.loadResult.loaded, 2);
+      assert.equal(status.details.data.loadResult.discarded, 3);
+      assert.equal(status.details.data.counts.patterns, 1);
+      assert.equal(status.details.data.counts.traps, 1);
+      assert.equal(status.details.data.counts.totalScoped, 2);
+      assert.match(status.content[0].text, /not AK\/KES\/evidence\/ontology\/agent_vent truth/);
+
+      const spoofedStatus = await selfTool.execute(
+        "tc-memory-lifecycle-status-spoof",
+        {
+          query: "memory lifecycle status",
+          context: {
+            memoryLoadResult: { status: "invalid", loaded: 999, discarded: 999 },
+          },
+        },
+        null,
+        null,
+        context,
+      );
+      assert.equal(spoofedStatus.details.data.loadResult.status, "loaded");
+      assert.equal(spoofedStatus.details.data.loadResult.loaded, 2);
+      assert.equal(spoofedStatus.details.data.loadResult.discarded, 3);
+
       await selfTool.execute(
         "tc-mixed-persist",
         {

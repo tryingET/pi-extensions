@@ -54,6 +54,11 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Prefill agent_vent record" for an operator-reviewed durable local diagnostic write
 - Return a candidate diagnostic payload for explicit operator/toolbox/agent_vent follow-up, not a stored vent or authoritative issue.
 
+**Memory lifecycle status** (self-memory mirror, not owner truth):
+- "Self memory status" / "Memory lifecycle status"
+- Reports persisted-memory load status plus scoped counts for patterns, semantic-pressure annotations, traps, checkpoints, and follow-ups.
+- Does not promote ontology, write evidence, record vents, launch loops, or create durable owner truth.
+
 **Self-evolution feedback** (session-local outcome mirror):
 - "self feedback: helpful — candidate routed the next slice correctly"
 - "self feedback: wrong-owner — suggestion belonged to another package"
@@ -122,6 +127,12 @@ export function resolveCapabilityQuery(): SelfResponse {
             "Continue diagnostic review",
             "Prefill agent_vent record",
           ],
+        },
+        {
+          name: "memory lifecycle status",
+          description:
+            "Report self-memory load status and scoped in-memory counts without promoting or writing owner-surface truth.",
+          examples: ["Self memory status", "Memory lifecycle status"],
         },
         {
           name: "self-evolution feedback",
