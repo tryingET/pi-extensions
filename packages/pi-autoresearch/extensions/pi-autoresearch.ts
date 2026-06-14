@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { complete } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -67,7 +66,6 @@ import {
   executeAutoresearchResumeApply,
   executeAutoresearchRun,
   executeAutoresearchSetup,
-  exportAutoresearchDashboardHtml,
   formatAutoresearchAdapterContractCatalog,
   formatAutoresearchAdapterPacketValidationResult,
   formatAutoresearchAkEvidencePacket,
@@ -133,13 +131,6 @@ type AutoresearchTriggerCandidate = {
   maxIterations: number;
 };
 
-type AutoresearchCandidateDecisionTriggerCandidate = {
-  id: string;
-  label: string;
-  detail: string;
-  action: AutoresearchCandidateDecisionTriggerAction;
-};
-
 type AutoresearchCandidateBindTriggerCandidate = {
   id: string;
   label: string;
@@ -178,48 +169,9 @@ type AutoresearchTriggerContext = {
   cwd?: string;
 };
 
-type AutoresearchWidgetUi = {
-  setWidget?: (id: string, widget: unknown, options?: unknown) => void;
-  notify?: (message: string, level?: "info" | "warning" | "error") => void;
-  editor?: (title: string, text: string) => Promise<void> | void;
-  custom?: <T>(factory: AutoresearchCustomFactory<T>, options?: unknown) => Promise<T>;
-};
-
-type AutoresearchWidgetContext = {
-  cwd: string;
-  hasUI: boolean;
-  ui: AutoresearchWidgetUi;
-};
-
-type AutoresearchWidgetTui = {
-  requestRender?: () => void;
-};
-
-type AutoresearchCustomFactory<T> = (
-  tui: AutoresearchWidgetTui,
-  theme: unknown,
-  keybindings: unknown,
-  done: (result: T) => void,
-) => unknown;
-
-type AutoresearchOverlayComponent = {
-  render(width: number): string[];
-  handleInput(data: string): void;
-  invalidate(): void;
-  dispose?: () => void;
-};
-
-type AutoresearchCandidateDecisionReviewComponent = AutoresearchOverlayComponent;
-
-type AutoresearchBrowserOpenCommand = {
-  command: string;
-  args: string[];
-};
-
 const AUTORESEARCH_LIVE_TRIGGER_ID = "autoresearch-campaign-start-picker";
 const AUTORESEARCH_CANDIDATE_BIND_TRIGGER_ID = "autoresearch-candidate-bind-picker";
 const AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_ID = "autoresearch-candidate-decision-picker";
-const AUTORESEARCH_WIDGET_ID = "pi-autoresearch-status-widget";
 const AUTORESEARCH_TRIGGER_CANDIDATES: AutoresearchTriggerCandidate[] = [
   {
     id: "plan-only",
@@ -263,41 +215,15 @@ const AUTORESEARCH_CANDIDATE_BIND_TRIGGER_CANDIDATES: AutoresearchCandidateBindT
         "Inspect the selected worktree/branch and insert autoresearch_candidate_bind; no run or mutation is applied.",
     },
   ];
-const AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES: AutoresearchCandidateDecisionTriggerCandidate[] =
-  [
-    {
-      id: "status",
-      label: "Candidate status",
-      detail:
-        "Inspect current candidate posture and recommended lifecycle decision without planning a worktree command.",
-      action: "status",
-    },
-    {
-      id: "keep",
-      label: "Plan keep",
-      detail:
-        "Plan a safe keep/review path; no merge, branch materialization, evidence write, or promotion is automatic.",
-      action: "plan_keep",
-    },
-    {
-      id: "discard",
-      label: "Plan discard",
-      detail:
-        "Plan cleanup guidance only; worktree removal and branch deletion require explicit operator confirmation.",
-      action: "plan_discard",
-    },
-    {
-      id: "rewind",
-      label: "Plan rewind",
-      detail:
-        "Plan reset/recreate guidance only; no destructive worktree command is applied by pi-autoresearch.",
-      action: "plan_rewind",
-    },
-  ];
 
+import {
+  AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES,
+  type AutoresearchCandidateDecisionTriggerCandidate,
+  buildAutoresearchCandidateDecisionTriggerCandidates,
+  openAutoresearchCandidateDecisionReview,
+} from "./pi-autoresearch/candidateDecisionUi.ts";
 import type {
   AutoresearchCandidateBindTriggerMode,
-  AutoresearchCandidateDecisionReviewParsedInput,
   AutoresearchCandidateDecisionTriggerAction,
   AutoresearchTriggerRunMode,
   AutoresearchTriggerSetupMode,
@@ -330,6 +256,14 @@ import {
   parseAutoresearchCandidateNextCommand,
   parseAutoresearchOpenCandidateReviewCommand,
 } from "./pi-autoresearch/commandTextCandidates.ts";
+import {
+  clearAutoresearchWidget,
+  exportAutoresearchDashboardToBrowser,
+  openAutoresearchDashboardOverlay,
+  registerAutoresearchWidget,
+  stopAutoresearchDashboardBrowserExport,
+} from "./pi-autoresearch/dashboardUi.ts";
+import type { AutoresearchWidgetContext } from "./pi-autoresearch/extensionUiTypes.ts";
 import {
   asPiToolParameters,
   autoplanSchema,
@@ -2489,218 +2423,6 @@ async function openAutoresearchResumeReview(ctx: ExtensionContext): Promise<void
   );
 }
 
-async function openAutoresearchCandidateDecisionReview(
-  ctx: AutoresearchWidgetContext,
-  parsed: AutoresearchCandidateDecisionReviewParsedInput,
-): Promise<void> {
-  const candidates = buildAutoresearchCandidateDecisionTriggerCandidates({
-    cwd: ctx.cwd,
-    directAction: parsed.directAction,
-  });
-  const fallbackAction = candidates[0]?.action ?? parsed.directAction ?? "status";
-  if (!ctx.hasUI || typeof ctx.ui.custom !== "function") {
-    await ctx.ui.editor?.(
-      "Review autoresearch candidate decision",
-      buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, fallbackAction),
-    );
-    ctx.ui.notify?.(
-      "Candidate decision review overlay unavailable; opened the plan-only confirmation in the editor.",
-      "warning",
-    );
-    return;
-  }
-
-  const selectedAction = await ctx.ui.custom<AutoresearchCandidateDecisionTriggerAction | null>(
-    (tui, _theme, _keybindings, done) =>
-      createAutoresearchCandidateDecisionReviewOverlay({
-        cwd: ctx.cwd,
-        candidates,
-        tui,
-        done,
-      }),
-    {
-      overlay: true,
-      overlayOptions: {
-        anchor: "center",
-        width: "82%",
-        maxHeight: "75%",
-        margin: 1,
-        visible: (termWidth: number, termHeight: number) => termWidth >= 70 && termHeight >= 16,
-      },
-    },
-  );
-
-  if (!selectedAction) {
-    ctx.ui.notify?.(
-      "Canceled autoresearch candidate decision review; no action was applied.",
-      "info",
-    );
-    return;
-  }
-
-  await ctx.ui.editor?.(
-    "Review autoresearch candidate decision",
-    buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, selectedAction),
-  );
-  ctx.ui.notify?.(
-    `Prepared autoresearch_candidate_decision ${selectedAction} confirmation. Review the checklist before any external worktree action.`,
-    "info",
-  );
-}
-
-function createAutoresearchCandidateDecisionReviewOverlay(input: {
-  cwd: string;
-  candidates: readonly AutoresearchCandidateDecisionTriggerCandidate[];
-  tui: AutoresearchWidgetTui;
-  done: (result: AutoresearchCandidateDecisionTriggerAction | null) => void;
-}): AutoresearchCandidateDecisionReviewComponent {
-  const candidates = input.candidates.length > 0 ? [...input.candidates] : [];
-  let selectedIndex = 0;
-  let closed = false;
-  const close = (result: AutoresearchCandidateDecisionTriggerAction | null) => {
-    if (closed) return;
-    closed = true;
-    input.done(result);
-  };
-  const move = (delta: number) => {
-    if (candidates.length === 0) return;
-    selectedIndex = (selectedIndex + delta + candidates.length) % candidates.length;
-    input.tui.requestRender?.();
-  };
-
-  return {
-    render(width: number): string[] {
-      return formatAutoresearchCandidateDecisionReviewOverlayLines({
-        cwd: input.cwd,
-        candidates,
-        selectedIndex,
-        width: Math.max(40, width),
-      });
-    },
-    handleInput(data: string): void {
-      if (data === "q" || data === "Q" || data === "\u001b" || data === "\u0003") {
-        close(null);
-        return;
-      }
-      if (data === "j" || data === "\u001b[B") {
-        move(1);
-        return;
-      }
-      if (data === "k" || data === "\u001b[A") {
-        move(-1);
-        return;
-      }
-      const digit = /^[1-4]$/u.exec(data)?.[0];
-      if (digit) {
-        const index = Number(digit) - 1;
-        if (candidates[index]) {
-          selectedIndex = index;
-          close(candidates[index].action);
-        }
-        return;
-      }
-      if (data === "\r" || data === "\n") {
-        close(candidates[selectedIndex]?.action ?? null);
-      }
-    },
-    invalidate(): void {},
-  };
-}
-
-function formatAutoresearchCandidateDecisionReviewOverlayLines(input: {
-  cwd: string;
-  candidates: readonly AutoresearchCandidateDecisionTriggerCandidate[];
-  selectedIndex: number;
-  width: number;
-}): string[] {
-  const innerWidth = Math.max(20, input.width - 2);
-  const rows = input.candidates.map((candidate, index) => {
-    const pointer = index === input.selectedIndex ? "▶" : " ";
-    const number = `${index + 1}.`;
-    const badges = [
-      candidate.detail.includes("direct") ? "direct" : null,
-      candidate.detail.includes("recommended") ? "recommended" : null,
-    ].filter(Boolean);
-    const label = badges.length > 0 ? `${candidate.label} [${badges.join(", ")}]` : candidate.label;
-    const line = `${pointer} ${number} ${label} — ${candidate.detail}`;
-    return borderedLine(truncatePlainLine(line, innerWidth), innerWidth);
-  });
-  const body = [
-    borderLine("┌", "─", "┐", innerWidth),
-    borderedLine("🔬 Review autoresearch candidate decision", innerWidth),
-    borderedLine(
-      "final owner decision after complete packet inventory • Enter choose • q/Esc cancel",
-      innerWidth,
-    ),
-    borderLine("├", "─", "┤", innerWidth),
-    borderedLine(`cwd: ${input.cwd}`, innerWidth),
-    borderedLine(
-      "No worktree, AK/KES/evidence, peer, merge, or promotion action is applied here.",
-      innerWidth,
-    ),
-    borderLine("├", "─", "┤", innerWidth),
-    ...rows,
-    borderLine("└", "─", "┘", innerWidth),
-  ];
-  return body.map((line) => truncatePlainLine(line, input.width));
-}
-
-function buildAutoresearchCandidateDecisionTriggerCandidates(input: {
-  cwd: string;
-  directAction: AutoresearchCandidateDecisionTriggerAction | null;
-}): AutoresearchCandidateDecisionTriggerCandidate[] {
-  let recommendation: ReturnType<typeof buildAutoresearchCandidateDecisionWorkbench> | null = null;
-  try {
-    recommendation = buildAutoresearchCandidateDecisionWorkbench({ cwd: input.cwd });
-  } catch {
-    recommendation = null;
-  }
-
-  const decorated = AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES.map((candidate) => {
-    const badges: string[] = [];
-    if (input.directAction === candidate.action) badges.push("direct");
-    if (
-      recommendation &&
-      candidateActionMatchesLifecycleDecision(candidate.action, recommendation.recommendedDecision)
-    ) {
-      badges.push("recommended");
-    }
-    return {
-      ...candidate,
-      detail: badges.length > 0 ? `${candidate.detail} (${badges.join(", ")})` : candidate.detail,
-    };
-  });
-
-  return decorated.sort((left, right) => {
-    const leftDirect = input.directAction === left.action ? 1 : 0;
-    const rightDirect = input.directAction === right.action ? 1 : 0;
-    if (leftDirect !== rightDirect) return rightDirect - leftDirect;
-    const leftRecommended =
-      recommendation &&
-      candidateActionMatchesLifecycleDecision(left.action, recommendation.recommendedDecision)
-        ? 1
-        : 0;
-    const rightRecommended =
-      recommendation &&
-      candidateActionMatchesLifecycleDecision(right.action, recommendation.recommendedDecision)
-        ? 1
-        : 0;
-    return rightRecommended - leftRecommended;
-  });
-}
-
-function candidateActionMatchesLifecycleDecision(
-  action: AutoresearchCandidateDecisionTriggerAction,
-  decision: string,
-): boolean {
-  return (
-    (action === "status" && decision === "no_candidate_bound_yet") ||
-    (action === "plan_keep" && (decision === "keep" || decision === "finalize")) ||
-    (action === "plan_discard" && decision === "discard") ||
-    (action === "plan_rewind" && decision === "rewind")
-  );
-}
-
 function scheduleAutoresearchAutoContinuationFollowUp(
   pi: ExtensionAPI,
   ctx: AutoresearchWidgetContext,
@@ -2772,370 +2494,6 @@ function buildAutoresearchAutoContinuationSessionGateForCwd(
 function getAutoresearchAutoContinuationSettleDelayMs(): number {
   const parsed = Number(process.env.PI_AUTORESEARCH_AUTO_CONTINUE_SETTLE_MS ?? "1500");
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 1500;
-}
-
-function registerAutoresearchWidget(ctx: AutoresearchWidgetContext): void {
-  if (!ctx.hasUI || typeof ctx.ui.setWidget !== "function") return;
-
-  ctx.ui.setWidget(AUTORESEARCH_WIDGET_ID, (tui: AutoresearchWidgetTui) => {
-    const interval = setInterval(() => tui.requestRender?.(), 2000);
-    interval.unref?.();
-    return {
-      render(width: number): string[] {
-        return formatAutoresearchWidgetLines(ctx.cwd, width);
-      },
-      invalidate() {},
-      dispose() {
-        clearInterval(interval);
-      },
-    };
-  });
-}
-
-function clearAutoresearchWidget(ctx: AutoresearchWidgetContext): void {
-  if (typeof ctx.ui.setWidget !== "function") return;
-  ctx.ui.setWidget(AUTORESEARCH_WIDGET_ID, undefined);
-}
-
-function formatAutoresearchWidgetLines(cwd: string, width: number): string[] {
-  const status = buildAutoresearchRuntimeStatus(cwd);
-  const closeout = buildAutoresearchSegmentCloseout(cwd);
-  const segment = status.currentSegment;
-  const metricName = segment.metricName ?? "metric";
-  const unit = segment.metricUnit ?? "";
-  const best = formatAutoresearchTuiMetric(segment.bestMetric, unit);
-  const kept = closeout.runs.filter((run) => run.status === "keep").length;
-  const candidates = closeout.runs.filter((run) => run.status === "candidate").length;
-  const failed = closeout.runs.filter(
-    (run) => run.status === "crash" || run.status === "checks_failed",
-  ).length;
-  const confidence =
-    segment.confidence === null ? "conf —" : `conf ${segment.confidence.toFixed(1)}×`;
-  const improvement = formatAutoresearchTuiImprovement(
-    segment.baselineMetric,
-    segment.bestMetric,
-    segment.direction,
-  );
-  const readiness = status.empiricalPosture.promotionReady ? "ready" : "not-ready";
-  const essential = [
-    "🔬 autoresearch",
-    `${segment.runCount} runs/${segment.successfulRunCount} ok`,
-    candidates > 0 ? `${candidates} candidate${candidates === 1 ? "" : "s"}` : "",
-    kept > 0 ? `${kept} kept(final)` : candidates > 0 ? "0 kept(final)" : "",
-    failed > 0 ? `${failed} checks-failed` : "",
-    `★ ${metricName}: ${best}`,
-    improvement !== "—" ? improvement : "",
-    confidence,
-    `${status.empiricalPosture.classification}/${readiness}`,
-  ].filter(Boolean);
-  const hint =
-    width >= 96
-      ? "ctrl+shift+t expand • ctrl+shift+f fullscreen"
-      : "overlay: /autoresearch overlay";
-  return [truncatePlainLine(joinAutoresearchTuiParts(essential, hint, width), Math.max(20, width))];
-}
-
-function truncatePlainLine(line: string, width: number): string {
-  if (line.length <= width) return line;
-  if (width <= 1) return line.slice(0, Math.max(0, width));
-  return `${line.slice(0, Math.max(0, width - 1))}…`;
-}
-
-function joinAutoresearchTuiParts(leftParts: string[], rightHint: string, width: number): string {
-  const left = leftParts.join(" │ ");
-  if (width < 80) return left;
-  const gap = width - left.length - rightHint.length;
-  if (gap < 3) return left;
-  return `${left}${" ".repeat(gap)}${rightHint}`;
-}
-
-function formatAutoresearchTuiMetric(value: number | null, unit: string): string {
-  if (value === null || !Number.isFinite(value)) return "—";
-  const formatted =
-    Math.abs(value) >= 100
-      ? value.toFixed(0)
-      : Number.isInteger(value)
-        ? String(value)
-        : value.toFixed(2);
-  return `${formatted}${unit}`;
-}
-
-function formatAutoresearchTuiImprovement(
-  baseline: number | null,
-  best: number | null,
-  direction: string | null,
-): string {
-  if (
-    baseline === null ||
-    best === null ||
-    baseline === 0 ||
-    !Number.isFinite(baseline) ||
-    !Number.isFinite(best)
-  ) {
-    return "—";
-  }
-  const raw = ((best - baseline) / baseline) * 100;
-  const improved =
-    direction === "lower" ? best < baseline : direction === "higher" ? best > baseline : false;
-  const sign = raw > 0 ? "+" : "";
-  const arrow = improved ? "↗" : raw === 0 ? "→" : "↘";
-  return `${arrow} ${sign}${raw.toFixed(1)}%`;
-}
-
-async function exportAutoresearchDashboardToBrowser(
-  ctx: AutoresearchWidgetContext,
-  dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
-): Promise<void> {
-  const result = exportAutoresearchDashboardHtml({ cwd: ctx.cwd });
-  startAutoresearchDashboardBrowserRefresh(ctx.cwd, dashboardExportIntervals);
-  try {
-    await openAutoresearchFileUrl(result.fileUrl);
-    ctx.ui.notify?.(
-      `Opened pi-autoresearch measured packet inventory dashboard: ${result.path}`,
-      "info",
-    );
-  } catch (error) {
-    ctx.ui.notify?.(
-      `Browser dashboard exported to ${result.path}, but auto-open failed: ${error instanceof Error ? error.message : String(error)}`,
-      "warning",
-    );
-  }
-}
-
-function startAutoresearchDashboardBrowserRefresh(
-  cwd: string,
-  dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
-): void {
-  const existing = dashboardExportIntervals.get(cwd);
-  if (existing) clearInterval(existing);
-  const interval = setInterval(() => {
-    try {
-      exportAutoresearchDashboardHtml({ cwd });
-    } catch {
-      // Browser export is best-effort read-only UI; status/tool surfaces remain authoritative.
-    }
-  }, 2000);
-  interval.unref?.();
-  dashboardExportIntervals.set(cwd, interval);
-}
-
-function stopAutoresearchDashboardBrowserExport(
-  cwd: string,
-  dashboardExportIntervals: Map<string, ReturnType<typeof setInterval>>,
-): void {
-  const existing = dashboardExportIntervals.get(cwd);
-  if (existing) clearInterval(existing);
-  dashboardExportIntervals.delete(cwd);
-}
-
-async function openAutoresearchFileUrl(fileUrl: string): Promise<void> {
-  const { command, args } = getAutoresearchBrowserOpenCommand(fileUrl);
-  await new Promise<void>((resolvePromise, rejectPromise) => {
-    try {
-      const child = spawn(command, args, { detached: true, stdio: "ignore" });
-      let settled = false;
-      const settle = (callback: (value?: unknown) => void) => (value?: unknown) => {
-        if (settled) return;
-        settled = true;
-        callback(value);
-      };
-      child.once(
-        "error",
-        settle((error) => rejectPromise(error instanceof Error ? error : new Error(String(error)))),
-      );
-      child.once(
-        "spawn",
-        settle(() => {
-          child.unref();
-          resolvePromise();
-        }),
-      );
-    } catch (error) {
-      rejectPromise(error instanceof Error ? error : new Error(String(error)));
-    }
-  });
-}
-
-function getAutoresearchBrowserOpenCommand(fileUrl: string): AutoresearchBrowserOpenCommand {
-  if (process.platform === "darwin") return { command: "open", args: [fileUrl] };
-  if (process.platform === "win32") return { command: "cmd", args: ["/c", "start", "", fileUrl] };
-  return { command: "xdg-open", args: [fileUrl] };
-}
-
-async function openAutoresearchDashboardOverlay(ctx: AutoresearchWidgetContext): Promise<void> {
-  if (!ctx.hasUI) return;
-  if (typeof ctx.ui.custom !== "function") {
-    await ctx.ui.editor?.(
-      "Pi-autoresearch dashboard",
-      formatAutoresearchDashboard(buildAutoresearchRuntimeStatus(ctx.cwd)),
-    );
-    ctx.ui.notify?.(
-      "TUI overlay unavailable; opened read-only dashboard in the editor.",
-      "warning",
-    );
-    return;
-  }
-
-  await ctx.ui.custom<void>(
-    (tui, _theme, _keybindings, done) => createAutoresearchDashboardOverlay(ctx.cwd, tui, done),
-    {
-      overlay: true,
-      overlayOptions: {
-        anchor: "center",
-        width: "92%",
-        maxHeight: "85%",
-        margin: 1,
-        visible: (termWidth: number, termHeight: number) => termWidth >= 70 && termHeight >= 18,
-      },
-    },
-  );
-}
-
-function createAutoresearchDashboardOverlay(
-  cwd: string,
-  tui: AutoresearchWidgetTui,
-  done: () => void,
-): AutoresearchOverlayComponent {
-  let offset = 0;
-  let closed = false;
-  const interval = setInterval(() => tui.requestRender?.(), 2000);
-  interval.unref?.();
-
-  const close = () => {
-    if (closed) return;
-    closed = true;
-    clearInterval(interval);
-    done();
-  };
-
-  return {
-    render(width: number): string[] {
-      return formatAutoresearchOverlayLines(cwd, Math.max(40, width), offset);
-    },
-    handleInput(data: string): void {
-      if (data === "q" || data === "Q" || data === "\u001b" || data === "\u0003") {
-        close();
-        return;
-      }
-      if (data === "j" || data === "\u001b[B") offset += 1;
-      if (data === "k" || data === "\u001b[A") offset = Math.max(0, offset - 1);
-      if (data === "d" || data === "\u001b[6~") offset += 10;
-      if (data === "u" || data === "\u001b[5~") offset = Math.max(0, offset - 10);
-      tui.requestRender?.();
-    },
-    invalidate() {},
-    dispose() {
-      clearInterval(interval);
-    },
-  };
-}
-
-function formatAutoresearchOverlayLines(cwd: string, width: number, offset: number): string[] {
-  const innerWidth = Math.max(20, width - 2);
-  const body = buildAutoresearchOverlayBody(cwd, innerWidth);
-  const visibleBody = body.slice(offset, offset + 22);
-
-  const lines = [
-    borderLine("┌", "─", "┐", innerWidth),
-    borderedLine("🔬 pi-autoresearch live dashboard", innerWidth),
-    borderedLine("q/Esc close • j/k scroll • ctrl+shift+t widget • read-only", innerWidth),
-    borderLine("├", "─", "┤", innerWidth),
-    ...visibleBody.map((line) => borderedLine(line, innerWidth)),
-    borderLine("└", "─", "┘", innerWidth),
-  ];
-  return lines.map((line) => truncatePlainLine(line, width));
-}
-
-function buildAutoresearchOverlayBody(cwd: string, width: number): string[] {
-  const status = buildAutoresearchRuntimeStatus(cwd);
-  const closeout = buildAutoresearchSegmentCloseout(cwd);
-  const segment = status.currentSegment;
-  const candidateDecision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
-  const metricName = segment.metricName ?? "metric";
-  const unit = segment.metricUnit ?? "";
-  const baseline = formatAutoresearchTuiMetric(segment.baselineMetric, unit);
-  const best = formatAutoresearchTuiMetric(segment.bestMetric, unit);
-  const improvement = formatAutoresearchTuiImprovement(
-    segment.baselineMetric,
-    segment.bestMetric,
-    segment.direction,
-  );
-  const confidence = segment.confidence === null ? "—" : `${segment.confidence.toFixed(1)}×`;
-  const recentRuns = closeout.runs.slice(-10).reverse();
-  const tableRows =
-    recentRuns.length > 0
-      ? recentRuns.map((run) => formatAutoresearchOverlayRunRow(run, metricName, unit, width))
-      : ["  (no runs recorded yet)"];
-
-  return [
-    `cwd: ${cwd}`,
-    `machine: ${status.runtimeProjection.state}  control: ${status.control.kind}  posture: ${status.empiricalPosture.classification}`,
-    `promotion: ${status.empiricalPosture.promotionReady ? "ready" : "not ready"}  next: ${status.empiricalPosture.recommendedNextAction}`,
-    "",
-    `Baseline → Best: ${baseline} → ${best}`,
-    `Improvement: ${improvement}  Runs: ${segment.runCount} total / ${segment.successfulRunCount} ok  Confidence: ${confidence}`,
-    `Metric: ★ ${metricName} ${segment.direction ?? ""} ${unit ? `(${unit})` : ""}`,
-    `Success threshold: ${formatAutoresearchOverlayThreshold(segment.metricThreshold, unit)}`,
-    `Benchmark: ${segment.benchmarkCommand ?? "(unset)"}`,
-    `Checks: ${segment.checksCommand ?? "(none)"}`,
-    "",
-    "Metric trajectory / recent runs",
-    formatAutoresearchOverlayRunHeader(metricName, width),
-    `  ${"─".repeat(Math.max(0, Math.min(width - 4, 96)))}`,
-    ...tableRows,
-    "",
-    "Candidate decision",
-    `candidate: ${candidateDecision.candidate?.label ?? "no candidate bound yet"}`,
-    `decision: ${candidateDecision.recommendedDecision}  checks=${candidateDecision.empirical.checksStatus}`,
-    `next surface: ${candidateDecision.exactNextCalls[0] ?? `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "status" })`}`,
-    "",
-    "Candidate policy",
-    "mode=worktree • keep=preserve_branch • discard=suggest_cleanup • rewind=reset_worktree_to_base",
-    "Replay Fabric observes history; ASC rewind is live session recovery; durable promotion remains external.",
-    "Browser export has the upstream-style card/chart/table view: /autoresearch export",
-  ];
-}
-
-function formatAutoresearchOverlayThreshold(value: number | null, unit: string): string {
-  return value === null ? "not set; zero-target inference may apply" : `${value}${unit}`;
-}
-
-function formatAutoresearchOverlayRunHeader(metricName: string, width: number): string {
-  const metric = truncatePlainLine(`★ ${metricName}`, width >= 100 ? 22 : 14);
-  return `  ${"#".padEnd(4)}${"status".padEnd(17)}${metric.padEnd(width >= 100 ? 24 : 16)}${"decision".padEnd(24)}description`;
-}
-
-function formatAutoresearchOverlayRunRow(
-  run: {
-    iteration: number | null;
-    status: string;
-    runKind: string;
-    metric: number;
-    empiricalDecisionClass: string;
-    description: string;
-  },
-  _metricName: string,
-  unit: string,
-  width: number,
-): string {
-  const metricWidth = width >= 100 ? 24 : 16;
-  const idx = String(run.iteration ?? "-").padEnd(4);
-  const status = truncatePlainLine(`${run.status}/${run.runKind}`, 16).padEnd(17);
-  const metric = formatAutoresearchTuiMetric(run.metric, unit).padEnd(metricWidth);
-  const decision = truncatePlainLine(run.empiricalDecisionClass, 23).padEnd(24);
-  return truncatePlainLine(
-    `  ${idx}${status}${metric}${decision}${run.description}`,
-    Math.max(20, width - 2),
-  );
-}
-
-function borderedLine(text: string, innerWidth: number): string {
-  const truncated = truncatePlainLine(text, innerWidth);
-  return `│${truncated}${" ".repeat(Math.max(0, innerWidth - truncated.length))}│`;
-}
-
-function borderLine(left: string, fill: string, right: string, innerWidth: number): string {
-  return `${left}${fill.repeat(innerWidth)}${right}`;
 }
 
 async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
