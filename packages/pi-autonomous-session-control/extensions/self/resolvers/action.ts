@@ -180,7 +180,7 @@ export function resolveActionQuery(
     }
 
     case "list_action_state": {
-      return handleListActionState(state);
+      return handleListActionState(query, state);
     }
 
     default:
@@ -268,8 +268,21 @@ function handleQueueFollowup(query: SelfQuery, state: SelfState): SelfResponse {
   };
 }
 
-function handleListActionState(state: SelfState): SelfResponse {
+function handleListActionState(query: SelfQuery, state: SelfState): SelfResponse {
   const pendingFollowups = state.followups.filter((followup) => !followup.delivered);
+  const now = Date.now();
+  const cwd = normalizeCurrentCwd(query);
+  const freshContinuationCandidates = state.continuationCandidates.filter(
+    (candidate) => candidate.expiresAt > now,
+  );
+  const currentCwdFreshContinuationCandidates = freshContinuationCandidates.filter(
+    (candidate) => candidate.cwd === cwd,
+  );
+  const expiredContinuationCandidateCount = state.continuationCandidates.filter(
+    (candidate) => candidate.expiresAt <= now,
+  ).length;
+  const crossCwdFreshContinuationCandidateCount =
+    freshContinuationCandidates.length - currentCwdFreshContinuationCandidates.length;
   const checkpointText = state.checkpoints
     .slice(-5)
     .map((checkpoint) => `${checkpoint.label}: ${checkpoint.reason}`)
@@ -278,16 +291,30 @@ function handleListActionState(state: SelfState): SelfResponse {
     .slice(-5)
     .map((followup) => `${followup.id}: ${followup.text}`)
     .join("; ");
+  const continuationText = currentCwdFreshContinuationCandidates
+    .slice(0, 3)
+    .map((candidate) => `${candidate.id}: ${candidate.slice} via ${candidate.owner}`)
+    .join("; ");
 
   return {
     understood: true,
     intent: "action",
-    answer: `Action summary (totals, not per-query mutation delta): checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}`,
+    answer: `Action summary (totals, not per-query mutation delta): checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}; continuation candidates=${state.continuationCandidates.length}; current-cwd fresh mirror-only candidates=${currentCwdFreshContinuationCandidates.length}${continuationText ? ` (${continuationText})` : ""}; cross-cwd fresh candidates=${crossCwdFreshContinuationCandidateCount}; expired candidates=${expiredContinuationCandidateCount}. Continuation candidates are mirror-only routing hints, not authority.`,
     data: {
       checkpoints: [...state.checkpoints],
       followups: [...state.followups],
       pendingFollowups,
-      summaryScope: "totals_not_per_query_delta",
+      continuationCandidates: [...state.continuationCandidates],
+      freshContinuationCandidates,
+      currentCwdFreshContinuationCandidates,
+      currentCwd: cwd,
+      crossCwdFreshContinuationCandidateCount,
+      expiredContinuationCandidateCount,
+      summaryScope: "totals_not_per_query_mutation_delta_current_cwd_candidates_separated",
+      authority: "mirror_only",
+      nonAuthorizations: [
+        "Continuation candidates do not authorize peer launch, visible-loop launch, campaign run, durable owner writes, commit, merge, push, release, or evidence projection.",
+      ],
     },
   };
 }

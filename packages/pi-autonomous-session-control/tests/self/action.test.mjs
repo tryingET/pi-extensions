@@ -828,7 +828,105 @@ test("self query: action summary lists checkpoints and pending followups", async
   assert.ok(result.content[0].text.includes("verify level-4 closeout"));
   assert.equal(result.details.data.checkpoints.length, 1);
   assert.equal(result.details.data.pendingFollowups.length, 1);
-  assert.equal(result.details.data.summaryScope, "totals_not_per_query_delta");
+  assert.equal(result.details.data.continuationCandidates.length, 0);
+  assert.equal(result.details.data.freshContinuationCandidates.length, 0);
+  assert.equal(result.details.data.currentCwdFreshContinuationCandidates.length, 0);
+  assert.equal(
+    result.details.data.summaryScope,
+    "totals_not_per_query_mutation_delta_current_cwd_candidates_separated",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: action summary lists continuation candidates as mirror-only", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext({ cwd: "/repo/continuation-summary" });
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+
+  toolCallHandler({
+    toolName: "write",
+    toolCallId: "write-continuation-summary",
+    input: { path: "src/continuation-summary.ts", content: "export const value = 1;\n" },
+  });
+
+  await tool.execute(
+    "tc-record-continuation",
+    { query: "controller handoff summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  const result = await tool.execute(
+    "tc-action-summary-continuation",
+    { query: "action summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.content[0].text, /continuation candidates=1/);
+  assert.match(result.content[0].text, /current-cwd fresh mirror-only candidates=1/);
+  assert.match(result.content[0].text, /cross-cwd fresh candidates=0/);
+  assert.match(
+    result.content[0].text,
+    /Continuation candidates are mirror-only routing hints, not authority/,
+  );
+  assert.match(result.content[0].text, /vertical \+ local-validation via local-shell/);
+  assert.equal(result.details.data.continuationCandidates.length, 1);
+  assert.equal(result.details.data.freshContinuationCandidates.length, 1);
+  assert.equal(result.details.data.currentCwdFreshContinuationCandidates.length, 1);
+  assert.equal(result.details.data.crossCwdFreshContinuationCandidateCount, 0);
+  assert.equal(result.details.data.authority, "mirror_only");
+  assert.match(result.details.data.nonAuthorizations[0], /durable owner writes/);
+
+  await cleanup(tempDir);
+});
+
+test("self query: action summary separates cross-cwd continuation candidates", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  const firstCtx = createMockContext({ cwd: "/repo/first" });
+  const secondCtx = createMockContext({ cwd: "/repo/second" });
+
+  toolCallHandler({
+    toolName: "write",
+    toolCallId: "write-cross-cwd-continuation",
+    input: { path: "src/cross-cwd.ts", content: "export const value = 1;\n" },
+  });
+
+  await tool.execute(
+    "tc-cross-cwd-record",
+    { query: "controller handoff summary" },
+    null,
+    null,
+    firstCtx,
+  );
+
+  const result = await tool.execute(
+    "tc-cross-cwd-summary",
+    { query: "action summary" },
+    null,
+    null,
+    secondCtx,
+  );
+
+  assert.match(result.content[0].text, /continuation candidates=1/);
+  assert.match(result.content[0].text, /current-cwd fresh mirror-only candidates=0/);
+  assert.match(result.content[0].text, /cross-cwd fresh candidates=1/);
+  assert.equal(result.details.data.currentCwdFreshContinuationCandidates.length, 0);
+  assert.equal(result.details.data.crossCwdFreshContinuationCandidateCount, 1);
 
   await cleanup(tempDir);
 });

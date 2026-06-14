@@ -44,7 +44,7 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Prefill suggested next move" after a handoff summary exposes nextMove
 - "Continue safely" / "Next autonomous step" to advance the same guarded nextMove seam: low-risk local work becomes a follow-up user message; peer/harness/compaction/high-severity moves stay prefilled. When the current mirror is sparse after reload, a fresh same-cwd mirror-only continuation candidate may be reused.
 - "Create self-contained handoff prompt" / "Fresh session handoff prompt"
-- "Action summary" / "List checkpoints" / "List followups"
+- "Action summary" / "List checkpoints" / "List followups" to inspect checkpoints, follow-ups, and mirror-only continuation candidates
 
 **Diagnostic review** (mirror friction without recording it):
 - "Dogfood self" / "How can self improve?"
