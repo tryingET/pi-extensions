@@ -195,6 +195,21 @@ export function registerSubagentTool(pi, state) {
   if (typeof ctx?.sessionManager?.getSessionId === "function") return ctx.sessionManager.getSessionId();
   return undefined;
 }
+
+export function collectSessionIntentSnapshot(_ctx, callerContext) {
+  if (typeof callerContext?.latestUserIntent === "string" || typeof callerContext?.currentObjective === "string") {
+    return {
+      latestUserIntent: callerContext.latestUserIntent,
+      currentObjective: callerContext.currentObjective,
+      source: "caller_context",
+      boundary: "Mirror-only latest-intent cue. Verify with transcript, operator request, git, AK, and owner surfaces before treating it as authority.",
+    };
+  }
+  return {
+    source: "unavailable",
+    boundary: "Mirror-only latest-intent cue unavailable. Verify with transcript, operator request, git, AK, and owner surfaces before treating it as authority.",
+  };
+}
 `,
   );
 

@@ -8,6 +8,13 @@ export interface SessionScopedContext {
   sessionId?: unknown;
 }
 
+export interface SessionIntentSnapshot {
+  latestUserIntent?: string;
+  currentObjective?: string;
+  source: "caller_context" | "unavailable";
+  boundary: string;
+}
+
 export function getContextSessionKey(ctx: SessionScopedContext | undefined): string | undefined {
   const candidates = [
     ctx?.sessionKey,
@@ -30,6 +37,25 @@ export function getContextSessionKey(ctx: SessionScopedContext | undefined): str
   }
 
   return undefined;
+}
+
+export function collectSessionIntentSnapshot(
+  ctx: SessionScopedContext | undefined,
+  callerContext?: Record<string, unknown>,
+): SessionIntentSnapshot {
+  const callerLatest = normalizeIntentText(callerContext?.latestUserIntent);
+  const callerObjective = normalizeIntentText(callerContext?.currentObjective);
+  if (callerLatest || callerObjective) {
+    return {
+      ...(callerLatest ? { latestUserIntent: callerLatest } : {}),
+      ...(callerObjective ? { currentObjective: callerObjective } : {}),
+      source: "caller_context",
+      boundary: SESSION_INTENT_BOUNDARY,
+    };
+  }
+
+  void ctx;
+  return { source: "unavailable", boundary: SESSION_INTENT_BOUNDARY };
 }
 
 export function getContextRepoRoot(ctx: SessionScopedContext | undefined): string | undefined {
@@ -73,6 +99,15 @@ function getSessionManagerMethod(
   } catch {
     return undefined;
   }
+}
+
+const SESSION_INTENT_BOUNDARY =
+  "Mirror-only latest-intent cue. Verify with transcript, operator request, git, AK, and owner surfaces before treating it as authority.";
+
+function normalizeIntentText(value: unknown): string | undefined {
+  const raw = (typeof value === "string" ? value : "").trim().replace(/\s+/gu, " ");
+  if (!raw) return undefined;
+  return raw.length > 500 ? `${raw.slice(0, 497)}...` : raw;
 }
 
 function findRepoRoot(cwd: string): string {

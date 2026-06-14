@@ -148,6 +148,64 @@ test("self file-budget cues ignore touched paths outside cwd", async () => {
   }
 });
 
+test("self query: current objective mirrors caller-provided latest intent", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const result = await harness.tools.get("self").execute(
+    "tc-current-objective",
+    {
+      query: "what is my current objective?",
+      context: {
+        latestUserIntent: "Proceed with other suggestions.",
+        currentObjective: "Improve autonomous self and Pi harness affordances.",
+      },
+    },
+    null,
+    null,
+    createMockContext(),
+  );
+
+  assert.match(result.content[0].text, /Mirror-only session intent/);
+  assert.match(result.content[0].text, /Proceed with other suggestions/);
+  assert.equal(result.details.data.sessionIntent.source, "caller_context");
+  assert.equal(
+    result.details.data.sessionIntent.currentObjective,
+    "Improve autonomous self and Pi harness affordances.",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self handoff summary includes latest intent as mirror-only context", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const result = await harness.tools.get("self").execute(
+    "tc-handoff-intent",
+    {
+      query: "controller handoff summary",
+      context: {
+        latestUserIntent: "Continue ASC self-awareness slice.",
+        currentObjective: "Expose latest operator intent in self handoffs.",
+      },
+    },
+    null,
+    null,
+    createMockContext(),
+  );
+
+  assert.match(result.content[0].text, /latestUserIntent=Continue ASC self-awareness slice/);
+  assert.match(result.content[0].text, /currentObjective=Expose latest operator intent/);
+  assert.equal(result.details.data.sessionIntent.source, "caller_context");
+
+  await cleanup(tempDir);
+});
+
 test("self query: validation success does not recover unrelated provider errors", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

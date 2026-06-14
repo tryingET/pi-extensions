@@ -37,6 +37,7 @@ import {
   evaluateRuntimeInvariants,
   formatRuntimeInvariantReport,
 } from "./self/runtime-invariants.ts";
+import { collectSessionIntentSnapshot } from "./self/session-context.ts";
 import { createSelfState } from "./self/state.ts";
 import {
   createSubagentState,
@@ -136,7 +137,11 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         !Array.isArray(typedParams.context)
           ? typedParams.context
           : undefined;
-      const context = { ...(callerContext ?? {}), cwd: ctx.cwd || process.cwd() };
+      const context = {
+        ...(callerContext ?? {}),
+        cwd: ctx.cwd || process.cwd(),
+        sessionIntent: collectSessionIntentSnapshot(ctx, callerContext),
+      };
       const response = resolveQuery({ query: typedParams.query, context }, state);
       const actionData = response.data as
         | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown }

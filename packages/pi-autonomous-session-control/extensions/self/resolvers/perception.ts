@@ -48,9 +48,21 @@ export const PERCEPTION_KEYWORDS = [
   "failure-recovery cues",
   "smallest safe next action",
   "recent failed commands",
+  "current objective",
+  "latest user intent",
+  "latest request",
+  "what is my objective",
 ];
 
 export function mapPerceptionIntent(lower: string): string {
+  if (
+    lower.includes("current objective") ||
+    lower.includes("latest user intent") ||
+    lower.includes("latest request") ||
+    lower.includes("what is my objective")
+  ) {
+    return "session_intent";
+  }
   if (
     lower.includes("handoff") ||
     lower.includes("closeout") ||
@@ -189,6 +201,16 @@ export function resolvePerceptionQuery(
       };
     }
 
+    case "session_intent": {
+      const snapshot = sessionIntentFromQuery(query);
+      return {
+        understood: true,
+        intent: "perception",
+        answer: `Mirror-only session intent: latestUserIntent=${snapshot.latestUserIntent ?? "unavailable"}; currentObjective=${snapshot.currentObjective ?? "unavailable"}; source=${snapshot.source}. ${snapshot.boundary}`,
+        data: { sessionIntent: snapshot },
+      };
+    }
+
     case "handoff_summary": {
       const result = queryHandoffSummary(state.operations, state.patterns);
       const fileBudgetObservations = analyzeTouchedFileBudgets(result.files, {
@@ -224,11 +246,16 @@ export function resolvePerceptionQuery(
         ? `; file-budget cues=${fileBudgetObservations.map((item) => item.advisory).join(" | ")}`
         : "";
 
+      const sessionIntent = sessionIntentFromQuery(query);
+      const intentText =
+        sessionIntent.source !== "unavailable"
+          ? `; latestUserIntent=${sessionIntent.latestUserIntent ?? "unavailable"}; currentObjective=${sessionIntent.currentObjective ?? "unavailable"}; intentSource=${sessionIntent.source}`
+          : "; latestUserIntent=unavailable";
       return {
         understood: true,
         intent: "perception",
-        answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}${budgetText}${nextMoveText}`,
-        data: { ...result, fileBudgetObservations },
+        answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}${budgetText}${nextMoveText}${intentText}`,
+        data: { ...result, fileBudgetObservations, sessionIntent },
       };
     }
 
@@ -262,6 +289,45 @@ export function resolvePerceptionQuery(
 function currentCwdFromQuery(query?: SelfQuery): string | undefined {
   const cwd = query?.context?.cwd;
   return typeof cwd === "string" && cwd.trim() ? cwd : undefined;
+}
+
+function sessionIntentFromQuery(query?: SelfQuery): {
+  latestUserIntent?: string;
+  currentObjective?: string;
+  source: string;
+  boundary: string;
+} {
+  const value = query?.context?.sessionIntent;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return unavailableSessionIntent();
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    ...(typeof record.latestUserIntent === "string" && record.latestUserIntent.trim()
+      ? { latestUserIntent: record.latestUserIntent.trim() }
+      : {}),
+    ...(typeof record.currentObjective === "string" && record.currentObjective.trim()
+      ? { currentObjective: record.currentObjective.trim() }
+      : {}),
+    source: typeof record.source === "string" ? record.source : "unknown",
+    boundary:
+      typeof record.boundary === "string" && record.boundary.trim()
+        ? record.boundary.trim()
+        : unavailableSessionIntent().boundary,
+  };
+}
+
+function unavailableSessionIntent(): {
+  latestUserIntent?: string;
+  currentObjective?: string;
+  source: string;
+  boundary: string;
+} {
+  return {
+    source: "unavailable",
+    boundary:
+      "Mirror-only latest-intent cue unavailable. Verify with transcript, operator request, git, AK, and owner surfaces before treating it as authority.",
+  };
 }
 
 function resolveSessionSummary(state: SelfState): SelfResponse {

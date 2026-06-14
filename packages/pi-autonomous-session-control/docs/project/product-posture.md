@@ -54,7 +54,7 @@ see the session; route the next move; keep authority elsewhere
 
 ASC currently owns:
 
-- `self` as a mirror for touched files, commands, errors, loop/stall cues, context-pressure heuristics, file-budget advisories, handoff summaries, and action-state summaries;
+- `self` as a mirror for touched files, commands, errors, latest operator intent/current objective cues, loop/stall cues, context-pressure heuristics, file-budget advisories, handoff summaries, and action-state summaries;
 - bounded memory for crystallized patterns, semantic-pressure candidates, traps, checkpoints, and followups;
 - diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1`, `self.evolution_candidate.v1`, mirror-only `self.insight_promotion_cue.v1`, and mirror-only `self.reflection_guard.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
@@ -175,3 +175,7 @@ ASC still does not write owner docs itself unless the operator asked for that mu
 ASC-generated `agent_vent action=preview` commands now align with the live `agent_vent` schema by emitting `packageName` instead of the stale `package` facet. Focused regression coverage proves operator-reviewed diagnostic-record prefills stay preview-only, do not send hidden messages, omit `action: "record"`, avoid the legacy `package:` tool-call field, and JSON-quote caller-controlled summary/package values so copied commands do not become injection or schema-drift hazards.
 
 The boundary remains unchanged: ASC suggests or prefills candidate payloads only. Toolbox still owns capability activation, and `pi-agent-vent` still owns preview validation, durable local vent records, recurrence review, redaction, and retention.
+
+### Bet 10 — Latest-intent mirror — landed first slice
+
+`self` handoff and current-objective queries now include a mirror-only latest operator intent/current objective cue when supplied by caller context. This reduces stale handoffs and wrong-slice continuation without making ASC the task authority. The cue explicitly remains non-authoritative: fresh sessions must still verify transcript, git, AK, and owner surfaces before acting. Direct session-history inference stays deferred until Pi exposes a branch-current operator-intent surface that cannot confuse abandoned branches or extension-injected custom messages with user intent.
