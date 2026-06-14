@@ -37,6 +37,9 @@ export const ACTION_KEYWORDS = [
   "suggest input",
   "prefill editor",
   "continue suggested next move",
+  "continue safely",
+  "next autonomous step",
+  "next safe step",
   "send suggested next move",
   "advance suggested next move",
   "continue diagnostic review",
@@ -112,6 +115,9 @@ export function mapActionIntent(lower: string): string {
   }
   if (
     lower.includes("continue suggested next move") ||
+    lower.includes("continue safely") ||
+    lower.includes("next autonomous step") ||
+    lower.includes("next safe step") ||
     lower.includes("send suggested next move") ||
     lower.includes("advance suggested next move") ||
     lower.includes("send user message")

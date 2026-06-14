@@ -42,6 +42,7 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Prefill: [text]"
 - "Notify operator: [message]" / "Send user message: [message]" for explicit low-risk follow-up notifications through pi.sendUserMessage
 - "Prefill suggested next move" after a handoff summary exposes nextMove
+- "Continue safely" / "Next autonomous step" to advance the same guarded nextMove seam: low-risk local work becomes a follow-up user message; peer/harness/compaction/high-severity moves stay prefilled
 - "Create self-contained handoff prompt" / "Fresh session handoff prompt"
 - "Action summary" / "List checkpoints" / "List followups"
 
@@ -103,6 +104,8 @@ export function resolveCapabilityQuery(): SelfResponse {
             "Queue followup: X",
             "Prefill: Y",
             "Prefill suggested next move",
+            "Continue safely",
+            "Next autonomous step",
             "Notify operator: I finished validation and need /reload",
             "Create self-contained handoff prompt",
             "Action summary",

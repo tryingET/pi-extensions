@@ -209,6 +209,65 @@ test("self query: continue suggested next move sends user message for agent-acti
   await cleanup(tempDir);
 });
 
+test("self query: next autonomous step aliases the guarded continuation seam", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+
+  toolCallHandler({
+    toolName: "write",
+    toolCallId: "write-one-file-autonomous-step",
+    input: { path: "src/autonomous-step.ts", content: "export const value = 1;\n" },
+  });
+
+  const result = await tool.execute(
+    "tc-next-autonomous-step",
+    { query: "next autonomous step" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("User-message continuation sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.match(harness.sentUserMessages[0].text, /Continue with the self-suggested next move/);
+  assert.match(harness.sentUserMessages[0].text, /Keep owner boundaries explicit/);
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.dispatchMode, "agent_continuation");
+
+  await cleanup(tempDir);
+});
+
+test("self query: continue safely stays bounded when no next move is visible", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-continue-safely-empty",
+    { query: "continue safely" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.content[0].text, /No suggested next move is visible/);
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.prefill, false);
+
+  await cleanup(tempDir);
+});
+
 test("self query: direct operator notification sends user message", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
