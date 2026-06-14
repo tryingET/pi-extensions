@@ -624,7 +624,7 @@ function collectCapabilityHints(aiSocietyRoot: string, identity?: RepoIdentity):
   return collectExistingPaths(candidates);
 }
 
-function collectReadFirstHints(repoRoot: string, cwd: string): string[] {
+export function collectReadFirstHints(repoRoot: string, cwd: string): string[] {
   const repoCandidates = [
     "AGENTS.md",
     "README.md",
@@ -641,7 +641,12 @@ function collectReadFirstHints(repoRoot: string, cwd: string): string[] {
   let current = normalizeExistingPath(cwd);
   const normalizedRepo = normalizeExistingPath(repoRoot);
   while (current.startsWith(normalizedRepo)) {
-    packageCandidates.push(path.join(current, "AGENTS.md"), path.join(current, "README.md"));
+    packageCandidates.push(
+      path.join(current, "AGENTS.md"),
+      path.join(current, "README.md"),
+      path.join(current, "docs", "project", "product-posture.md"),
+      path.join(current, "docs", "project", "vision.md"),
+    );
     if (current === normalizedRepo) break;
     const parent = path.dirname(current);
     if (parent === current) break;

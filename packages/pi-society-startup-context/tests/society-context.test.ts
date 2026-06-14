@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import societyStartupContextExtension, {
+  collectReadFirstHints,
   createFastStartupContextPacket,
   isInsideAiSocietyPath,
   renderStartupContextPacket,
@@ -104,6 +108,36 @@ test("renders compact semantic summary instead of raw machine JSON", () => {
   assert.match(rendered, /Open architecture decision/);
   assert.doesNotMatch(rendered, /"payload"/);
   assert.doesNotMatch(rendered, /"tasks"/);
+});
+
+test("read-first hints include package product posture and vision pointers", () => {
+  const root = mkdtempSync(join(tmpdir(), "society-context-read-first-"));
+  try {
+    const repoRoot = join(root, "repo");
+    const packageRoot = join(repoRoot, "packages", "example");
+    mkdirSync(join(packageRoot, "docs", "project"), { recursive: true });
+    writeFileSync(join(repoRoot, "AGENTS.md"), "# repo agents\n", "utf8");
+    writeFileSync(join(packageRoot, "AGENTS.md"), "# package agents\n", "utf8");
+    writeFileSync(join(packageRoot, "README.md"), "# package readme\n", "utf8");
+    writeFileSync(
+      join(packageRoot, "docs", "project", "product-posture.md"),
+      "# posture\n",
+      "utf8",
+    );
+    writeFileSync(join(packageRoot, "docs", "project", "vision.md"), "# vision\n", "utf8");
+
+    const hints = collectReadFirstHints(repoRoot, packageRoot);
+
+    assert.deepEqual(hints.slice(0, 4), [
+      join(packageRoot, "AGENTS.md"),
+      join(packageRoot, "README.md"),
+      join(packageRoot, "docs", "project", "product-posture.md"),
+      join(packageRoot, "docs", "project", "vision.md"),
+    ]);
+    assert.ok(hints.includes(join(repoRoot, "AGENTS.md")));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("renders fast startup packet with explicit pending warning and no posture claims", () => {

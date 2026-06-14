@@ -91,6 +91,7 @@ The extension parses machine/json output and emits semantic markdown bullets:
 - counts, not full collections
 - short task/decision samples, not raw payloads
 - file pointers, not pasted docs
+- package-local `docs/project/product-posture.md` and `docs/project/vision.md` pointers when cwd is inside a package that owns them
 - bounded warnings, not full stderr dumps
 
 If parsing fails, the packet reports a warning and omits that surface's canonical claims.
