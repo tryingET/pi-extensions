@@ -30,7 +30,7 @@ This package is designed for the exact workflow you asked for:
   - current phase
   - current tool or target
   - fine-grained detail text
-  - elapsed time
+  - elapsed time plus last-seen freshness
   - state color (`thinking`, `tool`, `waiting`, `done`, `error`)
 - keeps a local broker so multiple Pi processes can report into one strip
 

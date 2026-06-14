@@ -289,12 +289,20 @@ export function createStripHtml({ interactive = false } = {}) {
         });
       }
 
-      function formatElapsed(session) {
-        const anchor = Number(session.agentStartedAt || session.startedAt || snapshot.generatedAt || Date.now());
-        const totalSeconds = Math.max(0, Math.floor((Date.now() - anchor) / 1000));
+      function formatDuration(totalSeconds) {
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         return String(minutes) + ":" + String(seconds).padStart(2, "0");
+      }
+
+      function formatElapsed(session) {
+        const anchor = Number(session.agentStartedAt || session.startedAt || snapshot.generatedAt || Date.now());
+        return formatDuration(Math.max(0, Math.floor((Date.now() - anchor) / 1000)));
+      }
+
+      function formatLastSeen(session) {
+        const anchor = Number(session.updatedAt || snapshot.generatedAt || Date.now());
+        return formatDuration(Math.max(0, Math.floor((Date.now() - anchor) / 1000)));
       }
 
       function placeholderHtml() {
@@ -316,6 +324,7 @@ export function createStripHtml({ interactive = false } = {}) {
         const detail = escapeHtml(session.detail || session.assistantPreview || "Ready");
         const tool = escapeHtml(session.toolName || session.toolTarget || "monitoring");
         const elapsed = escapeHtml(formatElapsed(session));
+        const lastSeen = escapeHtml(formatLastSeen(session));
 
         return [
           '<article class="card" style="--state-color:' + stateColor + '">',
@@ -332,7 +341,7 @@ export function createStripHtml({ interactive = false } = {}) {
           '</div>',
           '<footer class="card__footer">',
           '<div class="tool">' + tool + '</div>',
-          '<div class="elapsed">' + elapsed + '</div>',
+          '<div class="elapsed">' + elapsed + ' · seen ' + lastSeen + '</div>',
           '</footer>',
           '</article>',
         ].join("");
