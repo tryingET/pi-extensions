@@ -83,6 +83,30 @@ export async function executeToolboxAction(
     return textResult(formatBundle(bundle), { bundle });
   }
 
+  if (action === "recommend") {
+    const recommendations = recommendToolboxProfiles(pi, params.query);
+    if (recommendations.length === 0) {
+      return textResult(
+        'No toolbox recommendation matched. Try toolbox({ action: "search", query: "<capability>" }) or inspect toolbox({ action: "doctor" }).',
+        { ok: true, recommendations: [] },
+      );
+    }
+    return textResult(formatRecommendations(recommendations), {
+      ok: true,
+      recommendations: recommendations.map((item) => ({
+        bundle: item.bundle.id,
+        profile: item.profile.id,
+        risk: item.profile.risk,
+        score: item.score,
+        registered: item.registeredTools,
+        missing: item.missingTools,
+        active: item.activeTools,
+        activation: item.activation,
+      })),
+      mutatesActiveSet: false,
+    });
+  }
+
   if (action === "activate") {
     const plan = planActivation(params);
     if (plan.errors.length > 0) {
@@ -201,4 +225,151 @@ export async function executeToolboxAction(
   }
 
   return textResult(`Unknown toolbox action: ${action}`, { ok: false });
+}
+
+interface ToolboxRecommendation {
+  bundle: (typeof CATALOG)[number];
+  profile: (typeof CATALOG)[number]["profiles"][number];
+  score: number;
+  reason: string;
+  registeredTools: string[];
+  missingTools: string[];
+  activeTools: string[];
+  activation: string;
+}
+
+function recommendToolboxProfiles(
+  pi: ExtensionAPI,
+  query: string | undefined,
+): ToolboxRecommendation[] {
+  const normalizedQuery = normalizeRecommendationText(query);
+  const terms = normalizedQuery
+    .split(/\s+/u)
+    .filter((term) => term.length >= 3 && !RECOMMENDATION_STOPWORDS.has(term));
+  const registered = getKnownToolNames(pi);
+  const active = new Set(pi.getActiveTools());
+
+  return CATALOG.flatMap((bundle) =>
+    bundle.profiles.map((profile) => {
+      const haystack = normalizeRecommendationText(
+        [
+          bundle.id,
+          bundle.title,
+          bundle.description,
+          bundle.ownerPackage,
+          bundle.ownerSemantics,
+          ...bundle.keywords,
+          profile.id,
+          profile.description,
+          profile.risk,
+          ...profile.tools,
+        ].join(" "),
+      );
+      const queryScore = normalizedQuery
+        ? terms.reduce((score, term) => score + (haystack.includes(term) ? 2 : 0), 0) +
+          (terms.length > 0 && haystack.includes(normalizedQuery) ? 4 : 0)
+        : 1;
+      const queryMatched = !normalizedQuery || queryScore > 0;
+      const registeredTools = profile.tools.filter((tool) => registered.has(tool));
+      const missingTools = profile.tools.filter((tool) => !registered.has(tool));
+      const activeTools = registeredTools.filter((tool) => active.has(tool));
+      const availabilityScore = registeredTools.length > 0 ? 2 : -2;
+      const safetyScore = profile.requiresExplicitUserIntent ? -1 : 1;
+      const score = queryMatched ? queryScore + availabilityScore + safetyScore : 0;
+      return {
+        bundle,
+        profile,
+        score,
+        reason: buildRecommendationReason(normalizedQuery, registeredTools, missingTools),
+        registeredTools,
+        missingTools,
+        activeTools,
+        activation: buildActivationSuggestion(
+          bundle.id,
+          profile.id,
+          profile.requiresExplicitUserIntent,
+        ),
+      };
+    }),
+  )
+    .filter((item) => item.score > 0)
+    .sort(
+      (left, right) => right.score - left.score || left.bundle.id.localeCompare(right.bundle.id),
+    )
+    .slice(0, 5);
+}
+
+function formatRecommendations(recommendations: ToolboxRecommendation[]): string {
+  return [
+    "Toolbox recommendations (read-only; active tool set unchanged):",
+    ...recommendations.map((item, index) =>
+      [
+        `${index + 1}. ${item.bundle.id}/${item.profile.id} (${item.profile.risk}) — ${item.bundle.title}`,
+        `   why: ${item.reason}`,
+        `   registered: ${item.registeredTools.join(", ") || "none"}`,
+        item.missingTools.length > 0 ? `   missing: ${item.missingTools.join(", ")}` : undefined,
+        `   next: ${item.activation}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    ),
+    "Activation remains explicit; mutating, external-mutation, and orchestrator-gated profiles still require riskAcknowledged and riskJustification.",
+  ].join("\n");
+}
+
+function buildRecommendationReason(
+  normalizedQuery: string,
+  registeredTools: string[],
+  missingTools: string[],
+): string {
+  const queryNote = normalizedQuery
+    ? `matches task text '${normalizedQuery}'`
+    : "general catalog default";
+  const availability =
+    registeredTools.length > 0
+      ? `${registeredTools.length} requested tool(s) registered in this Pi runtime`
+      : "owner tools are not registered in this Pi runtime";
+  const missing =
+    missingTools.length > 0 ? `; ${missingTools.length} missing until owner package reload` : "";
+  return `${queryNote}; ${availability}${missing}`;
+}
+
+function buildActivationSuggestion(
+  bundleId: string,
+  profileId: string,
+  requiresAcknowledgement: boolean,
+): string {
+  const base = `toolbox({ action: "activate", bundle: "${bundleId}", profile: "${profileId}"`;
+  return requiresAcknowledgement
+    ? `${base}, riskAcknowledged: true, riskJustification: "<explicit user intent>" })`
+    : `${base} })`;
+}
+
+const RECOMMENDATION_STOPWORDS = new Set([
+  "what",
+  "which",
+  "should",
+  "would",
+  "could",
+  "tool",
+  "tools",
+  "bundle",
+  "bundles",
+  "use",
+  "using",
+  "need",
+  "needs",
+  "needed",
+  "please",
+  "help",
+  "with",
+  "for",
+  "the",
+  "and",
+  "that",
+  "this",
+]);
+
+function normalizeRecommendationText(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/[_-]+/gu, " ").replace(/\s+/gu, " ");
 }

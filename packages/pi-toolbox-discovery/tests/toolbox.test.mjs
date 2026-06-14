@@ -113,6 +113,37 @@ test("session start enforces standard active profile", async () => {
   assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
 });
 
+test("recommend suggests matching bundles without changing active tools", async () => {
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "recommend",
+    query: "need ontology inspection",
+  });
+
+  assert.match(result.content[0].text, /Toolbox recommendations/);
+  assert.match(result.content[0].text, /ontology\/read/);
+  assert.match(result.content[0].text, /active tool set unchanged/);
+  assert.match(
+    result.content[0].text,
+    /toolbox\(\{ action: "activate", bundle: "ontology", profile: "read" \}\)/,
+  );
+  assert.equal(result.details.mutatesActiveSet, false);
+  assert.equal(result.details.recommendations[0].bundle, "ontology");
+  assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+});
+
+test("recommend returns no match for unrelated task text", async () => {
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "recommend",
+    query: "what tool should I use for banana submarine unrelated frobnicate",
+  });
+
+  assert.match(result.content[0].text, /No toolbox recommendation matched/);
+  assert.deepEqual(result.details.recommendations, []);
+  assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+});
+
 test("search does not change active tools", async () => {
   const harness = createHarness();
   const result = await executeToolbox(harness.tools.get("toolbox"), {

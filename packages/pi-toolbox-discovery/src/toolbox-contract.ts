@@ -5,7 +5,8 @@ export type ToolboxAction =
   | "status"
   | "doctor"
   | "plan"
-  | "explain";
+  | "explain"
+  | "recommend";
 export type ToolboxRisk =
   | "safe"
   | "read"

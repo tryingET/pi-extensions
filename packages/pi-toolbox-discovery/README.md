@@ -23,7 +23,7 @@ The package registers:
 The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), the lightweight context planning tool (`context_plan`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), the visible-loop checkpoint fallback (`visible_loop_child_complete`), the orchestrator loop dispatcher (`loop_execute`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
 - enforces the standard active tool set on `session_start`
-- searches/explains catalog metadata and plans activation without importing owner packages
+- searches/explains catalog metadata, recommends next-best matching bundle/profile choices, and plans activation without importing owner packages
 - plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
 - activates already-registered bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement plus `riskJustification`
 - queues an extension-origin same-task continuation after activation changes the active tool set, unless `autoContinue: false` is passed
@@ -45,6 +45,8 @@ After a clean `/reload`, the expected healthy baseline is:
 active tools (19): read, bash, edit, write, self, interview, dispatch_subagent, intercom, vault_query, vault_retrieve, vault_vocabulary, vault_dispatch_check, fork_peer_spawn, scout_peer_spawn, candidate_peer_spawn, visible_loop_child_complete, context_plan, loop_execute, toolbox
 missing catalog registrations (0): none
 ```
+
+Use `toolbox({ action: "recommend", query: "<task/capability>" })` when you know the task but not the package-owned tool bundle. Recommendations are read-only and never activate tools; activation remains an explicit follow-up.
 
 Use the model-callable doctor when validating settings or package changes:
 

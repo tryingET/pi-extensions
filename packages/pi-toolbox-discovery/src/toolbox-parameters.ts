@@ -4,10 +4,22 @@ export const TOOLBOX_PARAMETERS = {
   properties: {
     action: {
       type: "string",
-      enum: ["search", "activate", "deactivate", "status", "doctor", "plan", "explain"],
+      enum: [
+        "search",
+        "activate",
+        "deactivate",
+        "status",
+        "doctor",
+        "plan",
+        "explain",
+        "recommend",
+      ],
       description: "Toolbox operation to perform. Defaults to status.",
     },
-    query: { type: "string", description: "Search text for action=search." },
+    query: {
+      type: "string",
+      description: "Search/recommendation text for action=search or action=recommend.",
+    },
     bundle: {
       type: "string",
       description:
