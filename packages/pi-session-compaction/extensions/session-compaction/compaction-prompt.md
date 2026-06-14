@@ -52,6 +52,13 @@ Use these section headings exactly. Omit a section only if it is truly empty. Pr
 - Unverified claims
 - Inferences vs facts
 
+## Valuable discoveries and promotion status
+- Strategic session-only insights that must survive reload, such as subagent findings, deep-review conclusions, many-of-the-greats lenses, operator corrections, owner routes, metrics, falsifiers, and non-authorizations
+- Source for each insight when useful: operator, subagent, deep-review, ASC/self mirror, visible-loop, pi-autoresearch, or other observed runtime surface
+- Owner surface for promotion
+- Whether each insight was promoted, intentionally deferred, or still needs exact promotion action
+- Do not imply this summary or JSONL is durable authority by itself
+
 ## Open issues and uncertainties
 - Known unknowns
 - Questions for the operator

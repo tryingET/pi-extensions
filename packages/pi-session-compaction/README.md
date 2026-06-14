@@ -16,7 +16,7 @@ This package is now the local live owner for custom `session_before_compact` sum
 - registers input tracking for preserving slash-command prompts
 - registers exactly one `session_before_compact` handler through the fail-closed registration guard
 - exposes `/compact-focus`, a guided operator menu that calls the same compaction path with selected custom instructions
-- exposes `/compact-handoff` and the `session_compaction_handoff` tool for owner-owned, operator-pasteable fresh-session handoff prompts before compaction/reload
+- exposes `/compact-handoff` and the `session_compaction_handoff` tool for owner-owned, operator-pasteable fresh-session handoff prompts before compaction/reload; the tool accepts structured discovery/promotion-status records for insights that still need owner-surface promotion
 - does not expose prompt bundles or `package.json#pi.prompts`
 - falls back to stock compaction when the custom summarizer cannot be resolved, except explicit malformed/preset-directed paths that intentionally cancel rather than silently producing the wrong preset summary
 
@@ -48,7 +48,7 @@ This package currently implements the compaction-facing foundations and a tested
 - `extensions/session-compaction/registration.js` guard for hook activation, including default-disabled registration, explicit handler-test confirmation, explicit no-double-compaction preflight, existing-handler zero-count proof, duplicate package-registration blocking, and optional input tracking for slash-command preservation without slash-command registration
 - live `extensions/session-compaction.js` entrypoint, which enables input tracking, guarded `session_before_compact` registration, and `/compact-focus` without adding prompt bundles
 - non-live `extensions/session-compaction/branch-summary.js` helpers for optional `session_before_tree` augmentation, including prompt-contract loading, files-touched instructions, focus text preservation, and safe undefined-on-failure behavior
-- `extensions/session-compaction/handoff-prompt.js` for the canonical fresh-session prompt affordance; ASC/self may route or provide mirror-only cues, but this package owns compaction/handoff prompt shape
+- `extensions/session-compaction/handoff-prompt.js` for the canonical fresh-session prompt affordance, including linked discovery records with valuable-discovery, source, promotion-status, owner-surface, metric, falsifier, and non-authorization fields; ASC/self may route or provide mirror-only cues, but this package owns compaction/handoff prompt shape
 - clear failure messages for missing models, ambiguous matches, unsupported reasoning, and incompatible registries
 
 The live hook should remain the only custom compaction override. If another compaction owner is installed later, remove or disable one before reloading Pi.
@@ -78,7 +78,13 @@ This package was reconciled through `../pi-extensions-template` in `simple-packa
 - Unverified
 - Blocked
 
-## Open issues & uncertainties
+## Valuable discoveries and promotion status
+- Strategic session-only insights that must survive reload
+- Source and owner surface for promotion
+- Promoted, deferred, or still needs exact promotion action
+- Metrics, falsifiers, and non-authorizations
+
+## Open issues and uncertainties
 - Facts vs inferences
 
 ## Immediate next steps

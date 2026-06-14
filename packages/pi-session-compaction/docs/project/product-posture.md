@@ -59,7 +59,8 @@ The package currently owns:
 - model and preset resolution for custom summaries;
 - files-touched manifests and essential prompt preservation;
 - `/compact-focus` for selected compaction intent;
-- `/compact-handoff` and `session_compaction_handoff` as the canonical fresh-session handoff prompt shape;
+- `/compact-handoff` as the canonical fresh-session prompt affordance with an explicit discovery/promotion section;
+- `session_compaction_handoff` as the typed handoff schema surface, with linked valuable-discovery, source, promotion-status, owner-surface, metric, falsifier, and non-authorization records;
 - fallback/cancel behavior when custom summarization cannot legally proceed;
 - non-live branch-tree summary augmentation helpers.
 
@@ -102,7 +103,7 @@ It should not execute that next action itself.
 
 ### Bet 1 — Self-evolution handoff clarity
 
-Ensure `/compact-handoff` and `session_compaction_handoff` preserve typed self-evolution candidates, owner seams, falsifiers, metrics, validation status, and next safe test without making ASC or compaction the authority.
+Ensure `/compact-handoff` keeps an explicit hand-editable discovery/promotion section and `session_compaction_handoff` preserves typed self-evolution candidates, owner seams, falsifiers, metrics, validation status, and next safe test without making ASC or compaction the authority.
 
 ### Bet 2 — Visible-loop continuity packet
 
@@ -110,9 +111,9 @@ When `/visible-loop` or `/nexus-loop` work is active, preserve visible-loop run 
 
 ### Bet 3 — Valuable session-output preservation
 
-Compaction and handoff summaries should distinguish ordinary transcript detail from strategic session-only insight that must survive reload: subagent findings, deep-review conclusions, many-of-the-greats lenses, operator corrections, falsifiers, metrics, owner routes, and non-authorizations.
+Compaction and handoff summaries now include an explicit place for strategic session-only insight that must survive reload: subagent findings, deep-review conclusions, many-of-the-greats lenses, operator corrections, falsifiers, metrics, owner routes, and non-authorizations. The tool path can keep those details linked per discovery record.
 
-The summary should say whether those insights were promoted into an owner surface, still need promotion, or were intentionally deferred. It must not imply that JSONL or compaction text is durable authority by itself.
+The summary should say whether those insights were promoted into an owner surface, still need promotion, or were intentionally deferred. It must not imply that JSONL or compaction text is durable authority by itself. Next improvement: teach ASC/self and visible-loop to feed this compaction-owned schema rather than inventing parallel handoff text.
 
 ### Bet 4 — Drift checks against ASC/self
 

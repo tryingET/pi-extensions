@@ -270,13 +270,44 @@ describe("session compaction registration guard", () => {
     const { pi, tools } = createPiRecorder();
     sessionCompactionExtension(pi);
 
-    const show = await tools
-      .get("session_compaction_handoff")
-      .execute("tc-show", { mode: "show", cwd: "/repo/example", akTaskIds: ["3483"] }, null, null, {
+    const show = await tools.get("session_compaction_handoff").execute(
+      "tc-show",
+      {
+        mode: "show",
+        cwd: "/repo/example",
+        akTaskIds: ["3483"],
+        discoveryRecords: [
+          {
+            discovery:
+              "Deep-review found ASC/self should pass mirror cues, not own compaction shape.",
+            source: "deep-review",
+            ownerSurface: "packages/pi-session-compaction",
+            promotionStatus: "Deferred",
+            nextPromotionAction: "Promote through pi-session-compaction handoff schema.",
+            metric: "Fresh-session prompt names discovery owner and next promotion action.",
+            falsifier:
+              "Prompt omits supplied discovery or implies compaction text is durable authority.",
+            nonAuthorization: "Do not mutate AK/KES/evidence from this handoff.",
+          },
+        ],
+      },
+      null,
+      null,
+      {
         cwd: "/fallback",
         hasUI: false,
-      });
+      },
+    );
     assert.match(show.content[0].text, /Known AK task ids: 3483/);
+    assert.match(show.content[0].text, /Valuable discoveries \/ promotion status/);
+    assert.match(show.content[0].text, /Deep-review found ASC\/self should pass mirror cues/);
+    assert.match(show.content[0].text, /Source: deep-review/);
+    assert.match(show.content[0].text, /Promotion status: Deferred/);
+    assert.match(
+      show.content[0].text,
+      /Next promotion action: Promote through pi-session-compaction/,
+    );
+    assert.match(show.content[0].text, /Do not mutate AK\/KES\/evidence from this handoff/);
     assert.equal(show.details.authority, "pi_session_compaction_owned");
     assert.equal(show.details.prefill, false);
 

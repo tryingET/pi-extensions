@@ -160,6 +160,59 @@ export default function sessionCompactionExtension(pi) {
           description: "Open questions the fresh session should resolve.",
         }),
       ),
+      discoveryRecords: Type.Optional(
+        Type.Array(
+          Type.Object({
+            discovery: Type.Optional(Type.String()),
+            source: Type.Optional(Type.String()),
+            ownerSurface: Type.Optional(Type.String()),
+            promotionStatus: Type.Optional(Type.String()),
+            nextPromotionAction: Type.Optional(Type.String()),
+            metric: Type.Optional(Type.String()),
+            falsifier: Type.Optional(Type.String()),
+            nonAuthorization: Type.Optional(Type.String()),
+          }),
+          {
+            description:
+              "Structured discovery records that keep each insight linked to its source, owner, promotion status, metric, falsifier, and non-authorization.",
+          },
+        ),
+      ),
+      valuableDiscoveries: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Legacy/convenience list of strategic session-only insights that should survive reload, such as subagent findings, deep-review conclusions, operator corrections, owner routes, or many-of-the-greats lenses.",
+        }),
+      ),
+      promotionStatus: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Whether supplied discoveries were promoted to owner surfaces, intentionally deferred, or still need exact promotion action.",
+        }),
+      ),
+      ownerSurfaces: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Owner surfaces for the discoveries, for example ASC/self, pi-session-compaction, Prompt Vault, ROCS, AK, or package docs.",
+        }),
+      ),
+      metrics: Type.Optional(
+        Type.Array(Type.String(), {
+          description: "Metrics that would make the handoff's next action measurable.",
+        }),
+      ),
+      falsifiers: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Conditions that would prove the suggested continuation or discovery interpretation wrong.",
+        }),
+      ),
+      nonAuthorizations: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Actions this handoff explicitly does not authorize, such as AK/KES/evidence writes, candidate promotion, ontology changes, or commits.",
+        }),
+      ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const handoff = buildSessionCompactionHandoffToolResult(params, ctx);

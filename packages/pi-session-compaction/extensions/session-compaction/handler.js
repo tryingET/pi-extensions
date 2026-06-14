@@ -48,7 +48,14 @@ Use these section headings exactly. Omit a section only if it is truly empty. Pr
 - Unverified
 - Blocked
 
-## Open issues & uncertainties
+## Valuable discoveries and promotion status
+- Strategic session-only insights that must survive reload, such as subagent findings, deep-review conclusions, operator corrections, owner routes, metrics, falsifiers, and non-authorizations
+- Source for each insight when useful
+- Owner surface for promotion
+- Promoted, intentionally deferred, or still needs exact promotion action
+- Do not imply this summary or JSONL is durable authority by itself
+
+## Open issues and uncertainties
 - Facts vs inferences
 
 ## Immediate next steps

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
   buildSummaryUserPrompt,
+  DEFAULT_COMPACTION_PROMPT_CONTRACT,
   DEFAULT_CONFIG,
   deriveSummaryEntrySpans,
   parseCompactInstructions,
@@ -263,6 +265,27 @@ describe("session compaction handler parsing and config", () => {
     assert.match(prompt, /## Preserve exactly: essential user prompts and commands/);
     assert.match(prompt, /## Authoritative files touched for this summarized span/);
     assert.match(prompt, /## Serialized conversation/);
+  });
+
+  it("keeps a typed valuable-discovery promotion section in prompt contracts", () => {
+    assert.match(
+      DEFAULT_COMPACTION_PROMPT_CONTRACT,
+      /## Valuable discoveries and promotion status/,
+    );
+    assert.match(DEFAULT_COMPACTION_PROMPT_CONTRACT, /Source for each insight/);
+    assert.match(DEFAULT_COMPACTION_PROMPT_CONTRACT, /Owner surface for promotion/);
+    assert.match(
+      DEFAULT_COMPACTION_PROMPT_CONTRACT,
+      /Do not imply this summary or JSONL is durable authority/,
+    );
+
+    const liveContract = readFileSync(
+      new URL("../extensions/session-compaction/compaction-prompt.md", import.meta.url),
+      "utf8",
+    );
+    assert.match(liveContract, /## Valuable discoveries and promotion status/);
+    assert.match(liveContract, /Source for each insight/);
+    assert.match(liveContract, /Do not imply this summary or JSONL is durable authority/);
   });
 
   it("strips stale previous managed prompt and files-touched blocks", () => {
