@@ -60,6 +60,39 @@ test("self query: remember and recall ontology candidate", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: ontology candidate with self-evolving text is not hijacked by autonomy status", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const remember = await tool.execute(
+    "tc-autonomy-ontology-candidate",
+    {
+      query: "Remember ontology candidate: self-evolving autonomy ladder",
+      context: {
+        candidateKind: "concept",
+        proposedScopeHint: "repo",
+        description: "A named ladder for bounded self-evolving autonomy levels.",
+        labelHints: ["self-evolving autonomy ladder"],
+        confidence: 0.76,
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(remember.details.intent, "crystallization");
+  assert.ok(remember.content[0].text.includes("Ontology candidate crystallized"));
+  assert.ok(remember.details.data.candidateId);
+
+  await cleanup(tempDir);
+});
+
 test("self query: reject ontology candidate persists across registrations", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const firstHarness = createPiHarness();

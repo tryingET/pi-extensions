@@ -410,6 +410,37 @@ test("self query: session summary", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: autonomy status explains safe self-driving levels", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-autonomy-status",
+    { query: "what level of autonomy is needed for you to be self-evolving?" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.intent, "meta");
+  assert.match(result.content[0].text, /Autonomy status/);
+  assert.match(result.content[0].text, /Level 3/);
+  assert.match(result.content[0].text, /Level 4/);
+  assert.match(result.content[0].text, /Level 5/);
+  assert.match(result.content[0].text, /Level 6 durable owner-surface mutation/);
+  assert.equal(result.details.data.kind, "self.autonomy_status.v1");
+  assert.equal(result.details.data.currentSafeDefaultLevel, 3);
+  assert.deepEqual(result.details.data.neededForSelfEvolution, [3, 4, 5]);
+  assert.match(result.details.data.nonAuthorizations[0], /hidden infinite loops/);
+
+  await cleanup(tempDir);
+});
+
 test("self query: capability discovery", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

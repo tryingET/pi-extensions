@@ -11,6 +11,7 @@
  */
 
 import { ACTION_KEYWORDS, mapActionIntent, resolveActionQuery } from "./resolvers/action.ts";
+import { isAutonomyStatusQuery, resolveAutonomyStatusQuery } from "./resolvers/autonomy-status.ts";
 import { resolveCapabilityQuery } from "./resolvers/capabilities.ts";
 import {
   CRYSTALLIZATION_KEYWORDS,
@@ -51,7 +52,6 @@ import type {
   SelfState,
 } from "./types.ts";
 
-// Re-export for consumers that need direct access
 export {
   resolveActionQuery,
   resolveCrystallizationQuery,
@@ -304,10 +304,6 @@ function normalizeColonDirectiveContext(
   };
 }
 
-// ============================================================================
-// INTENT CLASSIFICATION
-// ============================================================================
-
 export function classifyIntent(query: string): QueryIntent {
   const lower = query.toLowerCase();
 
@@ -367,6 +363,10 @@ export function classifyIntent(query: string): QueryIntent {
     }
   }
 
+  if (isAutonomyStatusQuery(lower)) {
+    return { domain: "meta", intent: "autonomy_status" };
+  }
+
   if (isMemoryLifecycleStatusQuery(lower)) {
     return { domain: "meta", intent: "memory_lifecycle_status" };
   }
@@ -398,10 +398,6 @@ export function classifyIntent(query: string): QueryIntent {
 
   return { domain: "unknown", intent: lower.slice(0, 50) };
 }
-
-// ============================================================================
-// QUERY RESOLUTION
-// ============================================================================
 
 export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
   const intent = classifyIntent(query.query);
@@ -442,10 +438,6 @@ export function resolveQuery(query: SelfQuery, state: SelfState): SelfResponse {
       return resolveUnknownQuery(query);
   }
 }
-
-// ============================================================================
-// UNKNOWN / META QUERIES (Capability + Diagnostic Discovery)
-// ============================================================================
 
 function resolveUnknownQuery(query: SelfQuery): SelfResponse {
   return {
@@ -488,6 +480,10 @@ function resolveMetaQuery(
 
   if (intent === "memory_lifecycle_status") {
     return resolveMemoryLifecycleStatus(query, state);
+  }
+
+  if (intent === "autonomy_status") {
+    return resolveAutonomyStatusQuery(query);
   }
 
   return {

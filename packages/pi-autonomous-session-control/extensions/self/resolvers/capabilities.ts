@@ -59,6 +59,11 @@ export function resolveCapabilityQuery(): SelfResponse {
 - Reports persisted-memory load status plus scoped counts for patterns, semantic-pressure annotations, traps, checkpoints, and follow-ups.
 - Does not promote ontology, write evidence, record vents, launch loops, or create durable owner truth.
 
+**Autonomy status** (self-driving envelope, not permission by itself):
+- "Autonomy status" / "What level of autonomy is needed?" / "Why don't you drive yourself?"
+- Explains the ladder from mirror-only to supervised peers, visible-loop campaigns, measured campaigns, and durable owner mutation gates.
+- Does not authorize hidden infinite loops, unbounded peer launch, candidate merge, owner writes, releases, or publication.
+
 **Self-evolution feedback** (session-local outcome mirror):
 - "self feedback: helpful — candidate routed the next slice correctly"
 - "self feedback: wrong-owner — suggestion belonged to another package"
@@ -133,6 +138,12 @@ export function resolveCapabilityQuery(): SelfResponse {
           description:
             "Report self-memory load status and scoped in-memory counts without promoting or writing owner-surface truth.",
           examples: ["Self memory status", "Memory lifecycle status"],
+        },
+        {
+          name: "autonomy status",
+          description:
+            "Explain the safe autonomy ladder and which owner surface must run each higher-autonomy mode.",
+          examples: ["Autonomy status", "What level of autonomy is needed?"],
         },
         {
           name: "self-evolution feedback",
