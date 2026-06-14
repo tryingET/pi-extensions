@@ -260,6 +260,80 @@ test("self memory persists fresh same-cwd continuation candidate across reload",
   }
 });
 
+test("controller handoff summary persists continuation candidate for reload fallback", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "self-memory-handoff-continuation-"));
+  const sessionsDir = join(tempRoot, "sessions");
+  const memoryPath = join(tempRoot, "persist", "self-memory.json");
+
+  try {
+    await withMemoryPath(memoryPath, async () => {
+      const firstHarness = createPiHarness();
+      createExtension(sessionsDir)(firstHarness.pi);
+      const firstSelf = firstHarness.tools.get("self");
+      const context = createMockContext({ cwd: "/repo/handoff-continuation" });
+
+      recordWrite(firstHarness, "write-handoff-continuation-candidate", "src/handoff.ts");
+
+      const handoff = await firstSelf.execute(
+        "tc-handoff-continuation-record",
+        { query: "controller handoff summary" },
+        null,
+        null,
+        context,
+      );
+      assert.equal(
+        handoff.details.data.continuationCandidate.kind,
+        "self.continuation_candidate.v1",
+      );
+      assert.match(handoff.content[0].text, /continuation candidate=/);
+
+      const secondHarness = createPiHarness();
+      createExtension(sessionsDir)(secondHarness.pi);
+      const secondSelf = secondHarness.tools.get("self");
+
+      const resumed = await secondSelf.execute(
+        "tc-handoff-continuation-resume",
+        { query: "next autonomous step" },
+        null,
+        null,
+        context,
+      );
+      assert.equal(resumed.details.data.usedPersistedContinuationCandidate, true);
+      assert.equal(resumed.details.data.nextMove.owner, "local-shell");
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("controller handoff summary without nextMove does not create scoped memory file", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "self-memory-empty-handoff-"));
+  const sessionsDir = join(tempRoot, "sessions");
+  const memoryPath = join(tempRoot, "persist", "self-memory.json");
+
+  try {
+    await withMemoryPath(memoryPath, async () => {
+      const harness = createPiHarness();
+      createExtension(sessionsDir)(harness.pi);
+      const selfTool = harness.tools.get("self");
+      const context = createMockContext({ cwd: "/repo/empty-handoff" });
+
+      const handoff = await selfTool.execute(
+        "tc-empty-handoff-no-continuation",
+        { query: "controller handoff summary" },
+        null,
+        null,
+        context,
+      );
+      assert.equal(handoff.details.data.continuationCandidate, undefined);
+
+      await assert.rejects(readFile(memoryPath, "utf8"), { code: "ENOENT" });
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("self memory handles malformed persisted payload with safe fallback", async () => {
   const tempRoot = await mkdtemp(join(tmpdir(), "self-memory-malformed-"));
   const sessionsDir = join(tempRoot, "sessions");

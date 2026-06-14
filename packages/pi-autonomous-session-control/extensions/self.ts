@@ -166,11 +166,13 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         await pi.sendUserMessage(actionData.text as string, { deliverAs: "followUp" });
       }
 
-      if (
+      const shouldPersistScopedDomains =
         response.intent === "crystallization" ||
         response.intent === "protection" ||
-        response.intent === "action"
-      ) {
+        response.intent === "action" ||
+        responseHasContinuationCandidate(response.data);
+
+      if (shouldPersistScopedDomains) {
         try {
           await memoryLifecycle.persistScopedDomains();
         } catch (error) {
@@ -213,6 +215,20 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
   };
 
   pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
+}
+
+function responseHasContinuationCandidate(data: unknown): boolean {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return false;
+  }
+
+  const candidate = (data as Record<string, unknown>).continuationCandidate;
+  return (
+    typeof candidate === "object" &&
+    candidate !== null &&
+    !Array.isArray(candidate) &&
+    (candidate as Record<string, unknown>).kind === "self.continuation_candidate.v1"
+  );
 }
 
 // ============================================================================

@@ -2,6 +2,7 @@
  * Perception domain resolver - queries about session state and operations.
  */
 
+import { recordContinuationCandidate } from "../continuation-candidate.ts";
 import { analyzeTouchedFileBudgets } from "../file-budget.ts";
 import {
   analyzePatterns,
@@ -238,8 +239,15 @@ export function resolvePerceptionQuery(
               .map((error) => `${error.tool}:${error.signature} (${error.count}x)`)
               .join("; ")
           : "none tracked";
+      const continuationCandidate = result.nextMove
+        ? recordContinuationCandidate(
+            state,
+            result.nextMove,
+            currentCwdFromQuery(query) ?? process.cwd(),
+          )
+        : undefined;
       const nextMoveText = result.nextMove
-        ? `; next suggested move=${result.nextMove.slice} via ${result.nextMove.owner}`
+        ? `; next suggested move=${result.nextMove.slice} via ${result.nextMove.owner}; continuation candidate=${continuationCandidate?.id}`
         : "";
 
       const budgetText = fileBudgetObservations.length
@@ -255,7 +263,12 @@ export function resolvePerceptionQuery(
         understood: true,
         intent: "perception",
         answer: `Mirror-only handoff summary: files=${fileText}; recent commands=${commandText}; errors=${errorText}; progress=${result.progress.summary}; loops=${result.loops.summary}; cues=${result.cues.join(" | ")}${budgetText}${nextMoveText}${intentText}`,
-        data: { ...result, fileBudgetObservations, sessionIntent },
+        data: {
+          ...result,
+          fileBudgetObservations,
+          sessionIntent,
+          ...(continuationCandidate ? { continuationCandidate } : {}),
+        },
       };
     }
 
