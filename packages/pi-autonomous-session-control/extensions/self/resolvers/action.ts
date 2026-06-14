@@ -2,6 +2,11 @@
  * Action domain resolver - checkpoints, followups, and editor prefills.
  */
 
+import {
+  candidateToSliceCandidate,
+  latestFreshContinuationCandidate,
+  recordContinuationCandidate,
+} from "../continuation-candidate.ts";
 import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
 import { analyzePatterns, queryHandoffSummary } from "../perception.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
@@ -155,7 +160,7 @@ export function resolveActionQuery(
     }
 
     case "continue_suggested_next_move": {
-      return handleContinueSuggestedNextMove(state);
+      return handleContinueSuggestedNextMove(query, state);
     }
 
     case "send_user_message": {
@@ -305,7 +310,24 @@ function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {
     analyzePatterns(state.operations, state.patterns);
     const handoff = queryHandoffSummary(state.operations, state.patterns);
     if (handoff.nextMove) {
-      return buildPrefillResponse(handoff.nextMove.prefillText, { nextMove: handoff.nextMove });
+      const candidate = recordContinuationCandidate(
+        state,
+        handoff.nextMove,
+        normalizeCurrentCwd(query),
+      );
+      return buildPrefillResponse(handoff.nextMove.prefillText, {
+        nextMove: handoff.nextMove,
+        continuationCandidate: candidate,
+      });
+    }
+    const persisted = latestFreshContinuationCandidate(state, normalizeCurrentCwd(query));
+    if (persisted) {
+      const nextMove = candidateToSliceCandidate(persisted);
+      return buildPrefillResponse(nextMove.prefillText, {
+        nextMove,
+        continuationCandidate: persisted,
+        usedPersistedContinuationCandidate: true,
+      });
     }
     return {
       understood: true,
@@ -329,17 +351,23 @@ function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {
   };
 }
 
-function handleContinueSuggestedNextMove(state: SelfState): SelfResponse {
+function handleContinueSuggestedNextMove(query: SelfQuery, state: SelfState): SelfResponse {
   analyzePatterns(state.operations, state.patterns);
   const handoff = queryHandoffSummary(state.operations, state.patterns);
-  const nextMove = handoff.nextMove;
+  const cwd = normalizeCurrentCwd(query);
+  const candidate = handoff.nextMove
+    ? recordContinuationCandidate(state, handoff.nextMove, cwd)
+    : latestFreshContinuationCandidate(state, cwd);
+  const nextMove =
+    handoff.nextMove ?? (candidate ? candidateToSliceCandidate(candidate) : undefined);
+  const usedPersistedContinuationCandidate = !handoff.nextMove && Boolean(candidate);
 
   if (!nextMove) {
     return {
       understood: true,
       intent: "action",
       answer:
-        "No suggested next move is visible from the current mirror state. Ask for a controller handoff summary or continue locally.",
+        "No suggested next move is visible from the current mirror state and no fresh same-cwd continuation candidate is available. Ask for a controller handoff summary or continue locally.",
       data: { sendUserMessage: false, prefill: false },
       suggestions: ["controller handoff summary", "prefill: local validation command"],
     };
@@ -348,6 +376,8 @@ function handleContinueSuggestedNextMove(state: SelfState): SelfResponse {
   if (requiresOperatorReview(nextMove)) {
     return buildPrefillResponse(nextMove.prefillText, {
       nextMove,
+      continuationCandidate: candidate,
+      usedPersistedContinuationCandidate,
       sendUserMessage: false,
       dispatchMode: "operator_review_required",
       reason:
@@ -363,6 +393,8 @@ function handleContinueSuggestedNextMove(state: SelfState): SelfResponse {
     data: {
       text,
       nextMove,
+      continuationCandidate: candidate,
+      usedPersistedContinuationCandidate,
       sendUserMessage: true,
       prefill: false,
       dispatchMode: "agent_continuation",
@@ -386,12 +418,29 @@ function requiresOperatorReview(nextMove: {
   score?: number;
 }): boolean {
   const text = nextMove.prefillText.trim();
+  const lower = text.toLowerCase();
+  const riskyOwner = [
+    "peer-tools",
+    "pi-session-compaction",
+    "pi-little-helpers",
+    "pi-autoresearch",
+    "pi-society-orchestrator",
+  ].includes(nextMove.owner);
+  const riskyDirective =
+    /\b(commit|merge|push|release|publish|delete|remove|rm\s+-rf|ak\s+evidence|ak\s+task|agent_vent|visible-loop|autoresearch|orchestrator|pi\s+install|reload)\b/u.test(
+      lower,
+    );
   return (
     text.startsWith("/") ||
-    nextMove.owner === "peer-tools" ||
-    nextMove.owner === "pi-session-compaction" ||
+    riskyOwner ||
+    riskyDirective ||
     (nextMove.confidence === "high" && (nextMove.score ?? 0) >= 90)
   );
+}
+
+function normalizeCurrentCwd(query: SelfQuery): string {
+  const context = normalizeInput(query.context);
+  return normalizeString(context.cwd) || process.cwd();
 }
 
 function buildContinuationMessage(nextMove: {

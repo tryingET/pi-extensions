@@ -42,7 +42,7 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Prefill: [text]"
 - "Notify operator: [message]" / "Send user message: [message]" for explicit low-risk follow-up notifications through pi.sendUserMessage
 - "Prefill suggested next move" after a handoff summary exposes nextMove
-- "Continue safely" / "Next autonomous step" to advance the same guarded nextMove seam: low-risk local work becomes a follow-up user message; peer/harness/compaction/high-severity moves stay prefilled
+- "Continue safely" / "Next autonomous step" to advance the same guarded nextMove seam: low-risk local work becomes a follow-up user message; peer/harness/compaction/high-severity moves stay prefilled. When the current mirror is sparse after reload, a fresh same-cwd mirror-only continuation candidate may be reused.
 - "Create self-contained handoff prompt" / "Fresh session handoff prompt"
 - "Action summary" / "List checkpoints" / "List followups"
 
@@ -56,7 +56,7 @@ export function resolveCapabilityQuery(): SelfResponse {
 
 **Memory lifecycle status** (self-memory mirror, not owner truth):
 - "Self memory status" / "Memory lifecycle status"
-- Reports persisted-memory load status plus scoped counts for patterns, semantic-pressure annotations, traps, checkpoints, and follow-ups.
+- Reports persisted-memory load status plus scoped counts for patterns, semantic-pressure annotations, traps, checkpoints, follow-ups, and continuation candidates.
 - Does not promote ontology, write evidence, record vents, launch loops, or create durable owner truth.
 
 **Autonomy status** (self-driving envelope, not permission by itself):

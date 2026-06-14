@@ -9,6 +9,7 @@ export const SCOPED_MEMORY_TYPES = new Set<MemoryType>([
   "trap",
   "checkpoint",
   "followup",
+  "continuation_candidate",
 ]);
 export const VALID_LAYERS: MemoryLayer[] = ["ephemeral", "session", "recent", "longterm"];
 
@@ -19,6 +20,7 @@ const VALID_TYPES: MemoryType[] = [
   "ontology_candidate",
   "checkpoint",
   "followup",
+  "continuation_candidate",
   "decision",
   "context",
   "error",

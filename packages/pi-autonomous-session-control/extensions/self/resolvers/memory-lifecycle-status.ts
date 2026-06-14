@@ -12,19 +12,21 @@ export function resolveMemoryLifecycleStatus(
     checkpoints: state.checkpoints.length,
     followups: state.followups.length,
     pendingFollowups: state.followups.filter((followup) => !followup.delivered).length,
+    continuationCandidates: state.continuationCandidates.length,
   };
   const totalScoped =
     counts.patterns +
     counts.semanticPressureAnnotations +
     counts.traps +
     counts.checkpoints +
-    counts.followups;
+    counts.followups +
+    counts.continuationCandidates;
   const reason = loadResult.reason ? `; reason=${loadResult.reason}` : "";
 
   return {
     understood: true,
     intent: "meta",
-    answer: `Self memory lifecycle status (mirror-only): load=${loadResult.status}; loaded=${loadResult.loaded}; discarded=${loadResult.discarded}${reason}; scoped memories=${totalScoped} (patterns=${counts.patterns}, semantic-pressure annotations=${counts.semanticPressureAnnotations}, traps=${counts.traps}, checkpoints=${counts.checkpoints}, followups=${counts.followups}, pending followups=${counts.pendingFollowups}). Persistence is scoped to self memory only and is not AK/KES/evidence/ontology/agent_vent truth.`,
+    answer: `Self memory lifecycle status (mirror-only): load=${loadResult.status}; loaded=${loadResult.loaded}; discarded=${loadResult.discarded}${reason}; scoped memories=${totalScoped} (patterns=${counts.patterns}, semantic-pressure annotations=${counts.semanticPressureAnnotations}, traps=${counts.traps}, checkpoints=${counts.checkpoints}, followups=${counts.followups}, pending followups=${counts.pendingFollowups}, continuation candidates=${counts.continuationCandidates}). Persistence is scoped to self memory only and is not AK/KES/evidence/ontology/agent_vent truth.`,
     data: {
       kind: "self.memory_lifecycle_status.v1",
       authority: "mirror_only",

@@ -41,6 +41,7 @@ export type MemoryType =
   | "ontology_candidate" // Candidate-only semantic gap memory
   | "checkpoint" // Self-action checkpoint that should survive session restart
   | "followup" // Self-action follow-up reminder that should survive session restart
+  | "continuation_candidate" // Mirror-only suggested next move that can survive restart briefly
   | "decision" // A decision made with reasoning
   | "context" // Context about the project/session
   | "error" // An error and its resolution
@@ -382,6 +383,7 @@ export class InMemoryStore implements MemoryStore {
       ontology_candidate: 0,
       checkpoint: 0,
       followup: 0,
+      continuation_candidate: 0,
       decision: 0,
       context: 0,
       error: 0,

@@ -11,7 +11,7 @@ import {
   toStringArray,
   VALID_LAYERS,
 } from "./memory-lifecycle-codec.ts";
-import type { OntologyCandidateMemory, SelfState } from "./types.ts";
+import type { ContinuationCandidate, OntologyCandidateMemory, SelfState } from "./types.ts";
 
 export async function clearScopedMemories(store: MemoryStore): Promise<void> {
   for (const layer of VALID_LAYERS) {
@@ -108,6 +108,35 @@ function actionFollowupMemoryFromState(state: SelfState): Memory[] {
   }));
 }
 
+function continuationCandidateMemoryFromState(state: SelfState): Memory[] {
+  return state.continuationCandidates.map((candidate) => ({
+    id: candidate.id,
+    type: "continuation_candidate",
+    content: candidate.prefillText,
+    context: candidate.reason,
+    topic: "continuation_candidate",
+    topics: ["continuation_candidate", candidate.cwd, candidate.owner, candidate.slice],
+    strength: 1,
+    createdAt: candidate.createdAt,
+    lastAccessedAt: candidate.createdAt,
+    accessCount: 0,
+    source: "session",
+    metadata: {
+      kind: candidate.kind,
+      cwd: candidate.cwd,
+      slice: candidate.slice,
+      owner: candidate.owner,
+      reason: candidate.reason,
+      evidence: [...candidate.evidence],
+      nonAuthorizations: [...candidate.nonAuthorizations],
+      score: candidate.score,
+      confidence: candidate.confidence,
+      source: candidate.source,
+      expiresAt: candidate.expiresAt,
+    },
+  }));
+}
+
 function ontologyCandidateMemoryFromState(state: SelfState): Memory[] {
   return Array.from(state.learnings.ontologyCandidates.values()).map((candidate) => ({
     id: candidate.id,
@@ -172,6 +201,10 @@ export async function writeScopedStateToStore(state: SelfState, store: MemorySto
   }
 
   for (const memory of actionFollowupMemoryFromState(state)) {
+    await store.store(memory, PERSISTED_LAYER);
+  }
+
+  for (const memory of continuationCandidateMemoryFromState(state)) {
     await store.store(memory, PERSISTED_LAYER);
   }
 }
@@ -252,6 +285,43 @@ function addFollowupFromMemory(state: SelfState, memory: Memory): void {
   });
 }
 
+function addContinuationCandidateFromMemory(state: SelfState, memory: Memory): void {
+  const metadata = isRecord(memory.metadata) ? memory.metadata : {};
+  const cwd = isNonEmptyString(metadata.cwd) ? metadata.cwd.trim() : "";
+  const slice = isNonEmptyString(metadata.slice) ? metadata.slice.trim() : "unknown";
+  const owner = isNonEmptyString(metadata.owner) ? metadata.owner.trim() : "unknown";
+  const expiresAt = toNonNegativeNumber(metadata.expiresAt) ?? memory.createdAt;
+  const score = toNonNegativeNumber(metadata.score) ?? 0;
+  const confidence =
+    metadata.confidence === "high" ||
+    metadata.confidence === "medium" ||
+    metadata.confidence === "low"
+      ? metadata.confidence
+      : "low";
+  if (!cwd || expiresAt <= Date.now()) {
+    return;
+  }
+
+  const candidate: ContinuationCandidate = {
+    kind: "self.continuation_candidate.v1",
+    id: memory.id,
+    cwd,
+    slice,
+    owner,
+    prefillText: memory.content,
+    reason: isNonEmptyString(metadata.reason) ? metadata.reason.trim() : memory.context,
+    evidence: toStringArray(metadata.evidence),
+    nonAuthorizations: toStringArray(metadata.nonAuthorizations),
+    score,
+    confidence,
+    source: "mirror_only",
+    createdAt: memory.createdAt,
+    expiresAt,
+  };
+
+  state.continuationCandidates.push(candidate);
+}
+
 function addOntologyCandidateFromMemory(state: SelfState, memory: Memory): void {
   const metadata = isRecord(memory.metadata) ? memory.metadata : {};
   const evidence = isRecord(metadata.evidence) ? metadata.evidence : {};
@@ -321,6 +391,7 @@ export async function hydrateScopedStateFromStore(
   state.traps.traps.clear();
   state.checkpoints.length = 0;
   state.followups.length = 0;
+  state.continuationCandidates.length = 0;
 
   const loadedIds = new Set<string>();
 
@@ -354,6 +425,10 @@ export async function hydrateScopedStateFromStore(
 
       if (memory.type === "followup") {
         addFollowupFromMemory(state, memory);
+      }
+
+      if (memory.type === "continuation_candidate") {
+        addContinuationCandidateFromMemory(state, memory);
       }
     }
   }

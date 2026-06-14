@@ -79,6 +79,7 @@ export async function loadExtensionWithMocks() {
     "types.ts",
     "event-handlers.ts",
     "context-pressure.ts",
+    "continuation-candidate.ts",
     "perception.ts",
     "perception-command-evidence.ts",
     "perception-patterns.ts",

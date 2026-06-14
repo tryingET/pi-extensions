@@ -28,11 +28,21 @@ function createPiHarness() {
   return { pi, tools, commands, eventHandlers };
 }
 
-function createMockContext() {
+function createMockContext(overrides = {}) {
   return {
     hasUI: false,
     isIdle: () => true,
+    ...overrides,
   };
+}
+
+function recordWrite(harness, id, path) {
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+  toolCallHandler({
+    toolName: "write",
+    toolCallId: id,
+    input: { path, content: "export const value = 1;\n" },
+  });
 }
 
 async function withMemoryPath(memoryPath, fn) {
@@ -191,6 +201,59 @@ test("self memory persists crystallization + protection across extension lifecyc
         "Roundtrip checkpoint survives restart",
       );
       assert.equal(actions.details.data.followups[0].text, "Roundtrip followup survives restart");
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("self memory persists fresh same-cwd continuation candidate across reload", async () => {
+  const tempRoot = await mkdtemp(join(tmpdir(), "self-memory-continuation-"));
+  const sessionsDir = join(tempRoot, "sessions");
+  const memoryPath = join(tempRoot, "persist", "self-memory.json");
+
+  try {
+    await withMemoryPath(memoryPath, async () => {
+      const firstHarness = createPiHarness();
+      createExtension(sessionsDir)(firstHarness.pi);
+      const firstSelf = firstHarness.tools.get("self");
+      const context = createMockContext({ cwd: "/repo/self-evolution" });
+
+      recordWrite(firstHarness, "write-continuation-candidate", "src/local-validation.ts");
+
+      const first = await firstSelf.execute(
+        "tc-continuation-record",
+        { query: "continue safely" },
+        null,
+        null,
+        context,
+      );
+      assert.equal(first.details.data.continuationCandidate.kind, "self.continuation_candidate.v1");
+      assert.equal(first.details.data.nextMove.owner, "local-shell");
+      assert.equal(first.details.data.sendUserMessage, true);
+
+      const secondHarness = createPiHarness();
+      createExtension(sessionsDir)(secondHarness.pi);
+      const secondSelf = secondHarness.tools.get("self");
+
+      const resumed = await secondSelf.execute(
+        "tc-continuation-resume",
+        { query: "next autonomous step" },
+        null,
+        null,
+        context,
+      );
+      assert.equal(resumed.details.data.usedPersistedContinuationCandidate, true);
+      assert.equal(
+        resumed.details.data.continuationCandidate.kind,
+        "self.continuation_candidate.v1",
+      );
+      assert.equal(resumed.details.data.nextMove.owner, "local-shell");
+      assert.match(resumed.content[0].text, /User-message continuation suggested/);
+      assert.match(
+        resumed.details.data.nextMove.reason,
+        /reloaded from mirror-only continuation candidate/,
+      );
     });
   } finally {
     await rm(tempRoot, { recursive: true, force: true });

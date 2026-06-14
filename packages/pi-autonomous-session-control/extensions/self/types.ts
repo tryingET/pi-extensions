@@ -193,6 +193,23 @@ export interface FollowupMessage {
   delivered: boolean;
 }
 
+export interface ContinuationCandidate {
+  kind: "self.continuation_candidate.v1";
+  id: string;
+  cwd: string;
+  slice: string;
+  owner: string;
+  prefillText: string;
+  reason: string;
+  evidence: string[];
+  nonAuthorizations: string[];
+  score: number;
+  confidence: "low" | "medium" | "high";
+  source: "mirror_only";
+  createdAt: number;
+  expiresAt: number;
+}
+
 export type SuggestionFeedbackOutcome = "helpful" | "ignored" | "stale" | "wrong-owner" | "unsafe";
 
 export interface SuggestionFeedback {
@@ -231,6 +248,7 @@ export interface SelfState {
   // Actions
   checkpoints: Checkpoint[];
   followups: FollowupMessage[];
+  continuationCandidates: ContinuationCandidate[];
 
   // Session-local self-evolution feedback mirror (not durable owner evidence)
   suggestionFeedback: SuggestionFeedback[];
