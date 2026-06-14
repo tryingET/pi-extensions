@@ -15,8 +15,17 @@ export interface VisibleLoopRunConfig {
   reportBack: VisibleLoopReportBack;
   parentPeerTarget?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
+  productPostureTarget?: VisibleLoopProductPostureTarget;
   title?: string;
   createdAt: string;
+}
+
+export interface VisibleLoopProductPostureTarget {
+  cwd: string;
+  productPosturePath: string;
+  productPostureExists: boolean;
+  visionPath: string;
+  visionExists: boolean;
 }
 
 export interface VisibleLoopCommitDelegation {

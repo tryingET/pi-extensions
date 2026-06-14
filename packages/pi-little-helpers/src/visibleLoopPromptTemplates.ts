@@ -30,6 +30,12 @@ export const DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT = [
   "- Treat loop commands as repo-owned evidence-producing diagnostics/checks, not authority. Do not claim validation authority, merge approval, production activation, AK task closure, or semantic completion from these checks alone.",
 ].join("\n");
 
+export const DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT = [
+  "Verification expectation: after the implementation is complete, run the repo's normal focused validation for the touched slice.",
+  "If the repo clearly documents loop-* aliases as its validation wrapper, use them at verification time only; do not start this turn by auditing validation plumbing unless implementation or verification is blocked by it.",
+  "Keep the main work focus on the bounded implementation and its direct proof.",
+].join("\n");
+
 export const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Update the owning product-posture.md before loop completion.",
   "",
@@ -56,7 +62,7 @@ export const DEFAULT_NEXUS_LOOP_PROMPTS = [
   [
     "proceed with nexus implementation until completion and verification",
     "",
-    DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT,
+    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
   ].join("\n"),
   [
     "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
@@ -72,6 +78,7 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "read @docs/project/vision.md and @docs/project/product-posture.md.",
     "Treat product-posture as an active work artifact: it should shape slice choice up front and be refreshed before completion, not treated as an optional changelog.",
     "If you route work from a monorepo root into a package, identify the owning package's docs/project/product-posture.md as the posture target before implementation.",
+    "The visible-loop config records cwd-level product-posture/vision paths and launch-time existence flags; treat them as launch hints and correct them explicitly if package routing chooses a different owner.",
     "",
     "From current repo state, identify the next highest-impact slice.",
     "Treat the apparent slice as a hypothesis until discovery confirms it.",
@@ -134,7 +141,7 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "",
     "Verify with normal tests, adversarial/negative tests from the membrane, docs/artifact checks if behavior changed, and dogfooding where relevant.",
     "",
-    DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT,
+    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
     "",
     "Proceed until completed and validated.",
   ].join("\n"),
@@ -145,7 +152,7 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
   [
     "proceed with nexus implementation until completion and verification",
     "",
-    DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT,
+    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
   ].join("\n"),
   [
     "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
@@ -288,7 +295,22 @@ export function renderVisibleLoopCompletionPrompt(input: {
   configPath: string;
   iteration: number;
   promptCount: number;
+  productPosturePath?: string;
+  productPostureExists?: boolean;
+  visionPath?: string;
+  visionExists?: boolean;
 }): string {
+  const postureLines = input.productPosturePath
+    ? [
+        `Launch-recorded product-posture target: ${JSON.stringify(input.productPosturePath)} (${input.productPostureExists ? "exists" : "missing at launch"}).`,
+        ...(input.visionPath
+          ? [
+              `Launch-recorded vision target: ${JSON.stringify(input.visionPath)} (${input.visionExists ? "exists" : "missing at launch"}).`,
+            ]
+          : []),
+        "If implementation routed to a different owning package or surface, an earlier product-posture refresh prompt or the delegated commit verification must have named and refreshed that corrected posture target before completion.",
+      ]
+    : [];
   return [
     "Visible-loop internal completion checkpoint.",
     "All real prompts for this iteration have now been delivered as prior follow-up turns.",
@@ -298,6 +320,7 @@ export function renderVisibleLoopCompletionPrompt(input: {
     `- iteration: ${input.iteration}`,
     "Do not call the tool before the previous prompt turn is complete.",
     "Do not call the tool if any configured product-posture refresh or /commit prompt failed, stopped for clarification, or left validation/commit incomplete.",
+    ...postureLines,
     `Context: this checkpoint follows ${input.promptCount} real prompt(s) in the current visible-loop iteration.`,
   ].join("\n");
 }

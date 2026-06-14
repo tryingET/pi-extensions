@@ -40,6 +40,9 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     const repoRoot = `${stateHome}/repo`;
     const harness = createContext({ cwd: repoRoot });
     mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
+    mkdirSync(`${harness.ctx.cwd}/docs/project`, { recursive: true });
+    writeFileSync(`${harness.ctx.cwd}/docs/project/product-posture.md`, "# posture\n", "utf8");
+    writeFileSync(`${harness.ctx.cwd}/docs/project/vision.md`, "# vision\n", "utf8");
     writeFileSync(
       `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
       "EXPANDED DEEP REVIEW $ARGUMENTS\n",
@@ -84,6 +87,13 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     assert.match(userMessages[9].message, /Visible-loop internal completion checkpoint/);
     assert.match(userMessages[9].message, /visible_loop_child_complete/);
     assert.match(userMessages[9].message, /product-posture refresh or \/commit prompt failed/);
+    assert.match(
+      userMessages[9].message,
+      new RegExp(
+        `${repoRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/docs/project/product-posture\\.md`,
+      ),
+    );
+    assert.match(userMessages[9].message, /Launch-recorded product-posture target: .*exists/);
     assert.match(
       userMessages[9].message,
       new RegExp(configPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),

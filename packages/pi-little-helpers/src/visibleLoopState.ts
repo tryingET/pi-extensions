@@ -3,7 +3,11 @@ import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { normalizeOptionalString, parseReportBack } from "./visibleLoopArgs.ts";
 import { normalizeVisibleLoopCommandName } from "./visibleLoopProfiles.ts";
-import type { VisibleLoopCommitDelegation, VisibleLoopRunConfig } from "./visibleLoopTypes.ts";
+import type {
+  VisibleLoopCommitDelegation,
+  VisibleLoopProductPostureTarget,
+  VisibleLoopRunConfig,
+} from "./visibleLoopTypes.ts";
 
 export function getVisibleLoopStateDir(env: NodeJS.ProcessEnv = process.env): string {
   const stateHome = env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
@@ -140,6 +144,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   const commandName = normalizeVisibleLoopCommandName(record.commandName);
   const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
   const commitDelegation = parseCommitDelegation(record.commitDelegation);
+  const productPostureTarget = parseProductPostureTarget(record.productPostureTarget);
   const title = normalizeOptionalString(record.title);
   const createdAt = requireNonEmptyString(record.createdAt, "createdAt");
 
@@ -153,8 +158,42 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     reportBack,
     ...(parentPeerTarget ? { parentPeerTarget } : {}),
     ...(commitDelegation ? { commitDelegation } : {}),
+    ...(productPostureTarget ? { productPostureTarget } : {}),
     ...(title ? { title } : {}),
     createdAt,
+  };
+}
+
+function parseProductPostureTarget(value: unknown): VisibleLoopProductPostureTarget | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("productPostureTarget must be an object.");
+  }
+  const record = value as Record<string, unknown>;
+  const cwd = requireSingleLineAbsolutePath(record.cwd, "productPostureTarget.cwd");
+  const productPosturePath = requireSingleLineAbsolutePath(
+    record.productPosturePath,
+    "productPostureTarget.productPosturePath",
+  );
+  const visionPath = requireSingleLineAbsolutePath(
+    record.visionPath,
+    "productPostureTarget.visionPath",
+  );
+  if (!isPathInsideOrEqual(cwd, productPosturePath)) {
+    throw new TypeError("productPostureTarget.productPosturePath must be inside cwd.");
+  }
+  if (!isPathInsideOrEqual(cwd, visionPath)) {
+    throw new TypeError("productPostureTarget.visionPath must be inside cwd.");
+  }
+  return {
+    cwd,
+    productPosturePath,
+    productPostureExists: requireBoolean(
+      record.productPostureExists,
+      "productPostureTarget.productPostureExists",
+    ),
+    visionPath,
+    visionExists: requireBoolean(record.visionExists, "productPostureTarget.visionExists"),
   };
 }
 
@@ -179,9 +218,23 @@ function requireNonEmptyString(value: unknown, label: string): string {
   return value.trim();
 }
 
+function requireSingleLineAbsolutePath(value: unknown, label: string): string {
+  const text = requireNonEmptyString(value, label);
+  if (/\r|\n/u.test(text)) throw new TypeError(`${label} must be a single-line path.`);
+  if (!isAbsolute(text)) throw new TypeError(`${label} must be an absolute path.`);
+  return text;
+}
+
 function requirePositiveInteger(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 100) {
     throw new TypeError(`${label} must be an integer between 1 and 100.`);
+  }
+  return value;
+}
+
+function requireBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new TypeError(`${label} must be a boolean.`);
   }
   return value;
 }

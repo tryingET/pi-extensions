@@ -14,6 +14,16 @@ import {
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
 
+function assertImplementationVerificationFocus(prompt) {
+  assert.match(prompt, /Verification expectation/);
+  assert.match(prompt, /Keep the main work focus on the bounded implementation/);
+  assert.doesNotMatch(prompt, /Repo loop validation guidance/);
+  assert.doesNotMatch(prompt, /Typical phases/);
+  assert.doesNotMatch(prompt, /loop-doctor/);
+  assert.doesNotMatch(prompt, /loop-impact-plan/);
+  assert.doesNotMatch(prompt, /loop-landing-check/);
+}
+
 test("visible-loop writes config and launches one clean Ghostty tab with the child command", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
@@ -60,6 +70,13 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.reportBack, "intercom");
     assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
     assert.equal(config.commitDelegation, undefined);
+    assert.deepEqual(config.productPostureTarget, {
+      cwd: "/repo",
+      productPosturePath: "/repo/docs/project/product-posture.md",
+      productPostureExists: false,
+      visionPath: "/repo/docs/project/vision.md",
+      visionExists: false,
+    });
     assert.equal(config.prompts.length, 9);
     assert.match(
       config.prompts[0],
@@ -67,12 +84,13 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     );
     assert.match(config.prompts[0], /Treat product-posture as an active work artifact/);
     assert.match(config.prompts[0], /owning package's docs\/project\/product-posture\.md/);
+    assert.match(config.prompts[0], /config records cwd-level product-posture\/vision paths/);
     assert.match(config.prompts[0], /Which product-posture file owns this loop's frontier update/);
     assert.match(config.prompts[0], /design membrane/);
     assert.match(config.prompts[0], /TRUST \/ SECURITY MODEL/);
     assert.match(config.prompts[0], /ADVERSARIAL TEST PLAN/);
     assert.match(config.prompts[0], /Do not optimize for smallest diff/);
-    assertLoopValidationGuidance(config.prompts[0]);
+    assertImplementationVerificationFocus(config.prompts[0]);
     assert.match(config.prompts[0], /Proceed until completed and validated\./);
     assert.doesNotMatch(config.prompts[0], /Prompt Vault/);
     assert.equal(config.prompts[1], "proceed");
@@ -81,7 +99,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
       config.prompts[5],
       /proceed with nexus implementation until completion and verification/,
     );
-    assertLoopValidationGuidance(config.prompts[5]);
+    assertImplementationVerificationFocus(config.prompts[5]);
     assert.match(config.prompts[6], /fix any bugs/);
     assert.match(config.prompts[6], /Prompt Vault/);
     assert.match(
@@ -132,6 +150,9 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
     const repoRoot = `${stateHome}/repo`;
     const harness = createContext({ cwd: repoRoot });
     mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
+    mkdirSync(`${harness.ctx.cwd}/docs/project`, { recursive: true });
+    writeFileSync(`${harness.ctx.cwd}/docs/project/product-posture.md`, "# posture\n", "utf8");
+    writeFileSync(`${harness.ctx.cwd}/docs/project/vision.md`, "# vision\n", "utf8");
     writeFileSync(
       `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
       "EXPANDED DEEP REVIEW LOCAL_SENTINEL $ARGUMENTS\n",
@@ -162,6 +183,13 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
       mode: "dispatch_subagent",
       promptTemplate: "commit",
     });
+    assert.deepEqual(config.productPostureTarget, {
+      cwd: repoRoot,
+      productPosturePath: `${repoRoot}/docs/project/product-posture.md`,
+      productPostureExists: true,
+      visionPath: `${repoRoot}/docs/project/vision.md`,
+      visionExists: true,
+    });
     assert.equal(config.commandName, "nexus-loop");
     assert.equal(config.prompts.length, 5);
     assert.equal(config.prompts[0], "/deep-review");
@@ -169,7 +197,7 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
       config.prompts[1],
       /proceed with nexus implementation until completion and verification/,
     );
-    assertLoopValidationGuidance(config.prompts[1]);
+    assertImplementationVerificationFocus(config.prompts[1]);
     assert.match(config.prompts[2], /fix any bugs/);
     assert.match(config.prompts[2], /atomic-completion/);
     assert.match(config.prompts[2], /Prompt Vault/);
@@ -194,7 +222,7 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
       userMessages[1].message,
       /proceed with nexus implementation until completion and verification/,
     );
-    assertLoopValidationGuidance(userMessages[1].message);
+    assertImplementationVerificationFocus(userMessages[1].message);
     assert.match(userMessages[2].message, /fix any bugs/);
     assert.match(userMessages[3].message, /Update the owning product-posture\.md/);
     assert.match(userMessages[4].message, /Nexus loop commit delegation step/);

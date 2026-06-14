@@ -28,6 +28,7 @@ import {
 import {
   VISIBLE_LOOP_CHILD_COMMAND,
   type VisibleLoopCommitDelegation,
+  type VisibleLoopProductPostureTarget,
   type VisibleLoopReportBack,
   type VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
@@ -147,8 +148,21 @@ export function createVisibleLoopRunConfig(input: {
     reportBack: input.reportBack,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
     ...(input.commitDelegation ? { commitDelegation: input.commitDelegation } : {}),
+    productPostureTarget: resolveVisibleLoopProductPostureTarget(input.cwd),
     title: input.title ?? "Visible loop",
     createdAt: new Date().toISOString(),
+  };
+}
+
+function resolveVisibleLoopProductPostureTarget(cwd: string): VisibleLoopProductPostureTarget {
+  const productPosturePath = resolve(cwd, "docs", "project", "product-posture.md");
+  const visionPath = resolve(cwd, "docs", "project", "vision.md");
+  return {
+    cwd,
+    productPosturePath,
+    productPostureExists: existsSync(productPosturePath),
+    visionPath,
+    visionExists: existsSync(visionPath),
   };
 }
 
@@ -219,6 +233,7 @@ export async function startVisibleLoopChildRunner(
       event: "child_started",
       reportBack: config.reportBack,
       parentPeerTarget: config.parentPeerTarget ?? null,
+      productPostureTarget: config.productPostureTarget ?? null,
     },
     env,
   );
@@ -495,6 +510,10 @@ function queueVisibleLoopFollowups(
     configPath: state.configPath,
     iteration,
     promptCount: prompts.length,
+    productPosturePath: state.config.productPostureTarget?.productPosturePath,
+    productPostureExists: state.config.productPostureTarget?.productPostureExists,
+    visionPath: state.config.productPostureTarget?.visionPath,
+    visionExists: state.config.productPostureTarget?.visionExists,
   });
   const delegatesCompletion = visibleLoopDelegatesCompletion(state.config, realFollowups);
   const followups = delegatesCompletion ? [...realFollowups] : [...realFollowups, completionPrompt];
