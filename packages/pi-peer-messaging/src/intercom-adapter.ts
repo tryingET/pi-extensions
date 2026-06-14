@@ -181,6 +181,7 @@ function formatSessionListRow(
   currentCwd: string,
   selfId: string | undefined,
   duplicateNames: Set<string>,
+  now: number,
 ): string {
   const name = peer.name?.trim() || peer.addressLabel || "Unnamed session";
   const label = duplicateNames.has(name.toLowerCase()) ? formatPeerTarget(peer) : name;
@@ -188,10 +189,16 @@ function formatSessionListRow(
     peer.id === selfId ? "self" : undefined,
     peer.id !== selfId && peer.cwd === currentCwd ? "same cwd" : undefined,
     peer.status,
+    `last seen ${formatElapsedSeconds(peer.lastActivity, now)}`,
   ].filter((tag): tag is string => Boolean(tag));
   const suffix = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
 
   return `• ${label} — ${peer.cwd} (${peer.model})${suffix}\n  id: ${peer.id}`;
+}
+
+function formatElapsedSeconds(timestamp: number, now: number): string {
+  const elapsedSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  return `${elapsedSeconds}s ago`;
 }
 
 function matchesPeerTarget(peer: PeerPresence, target: string): boolean {
@@ -638,6 +645,8 @@ export class IntercomCompatibleAdapter {
       const status = await runtime.status();
       const peers = await runtime.listPeers();
       const duplicateNames = duplicateSessionNames(peers);
+      const now = this.now();
+      const pendingCount = this.replyTracker.listPending().length;
 
       if (status.selfId) {
         const currentSession = peers.find((peer) => peer.id === status.selfId);
@@ -654,17 +663,26 @@ export class IntercomCompatibleAdapter {
           currentSession.cwd,
           status.selfId,
           duplicateNames,
+          now,
         )}`;
         const otherSection =
           otherSessions.length === 0
             ? "**Other sessions:**\nNo other sessions connected."
             : `**Other sessions:**\n${otherSessions
                 .map((peer) =>
-                  formatSessionListRow(peer, currentSession.cwd, status.selfId, duplicateNames),
+                  formatSessionListRow(
+                    peer,
+                    currentSession.cwd,
+                    status.selfId,
+                    duplicateNames,
+                    now,
+                  ),
                 )
                 .join("\n")}`;
 
-        return textResult(`${currentSection}\n\n${otherSection}`);
+        return textResult(
+          `${currentSection}\n\n${otherSection}\n\nPending inbound messages: ${pendingCount}`,
+        );
       }
 
       if (peers.length === 0) {
@@ -674,7 +692,7 @@ export class IntercomCompatibleAdapter {
       const currentCwd = peers[0]?.cwd ?? "unknown";
       return textResult(
         `**Peer sessions:**\n${peers
-          .map((peer) => formatSessionListRow(peer, currentCwd, undefined, duplicateNames))
+          .map((peer) => formatSessionListRow(peer, currentCwd, undefined, duplicateNames, now))
           .join("\n")}`,
       );
     } catch (error) {
@@ -840,10 +858,12 @@ export class IntercomCompatibleAdapter {
       const status = await runtime.status();
       const peers = await runtime.listPeers();
       const identityProof = this.buildIdentityProof(status, peers);
-      return textResult(this.formatStatus(status, identityProof), {
+      const pendingInboundCount = this.replyTracker.listPending().length;
+      return textResult(this.formatStatus(status, identityProof, pendingInboundCount), {
         details: {
           ...status,
           identityProof,
+          pendingInboundCount,
         },
       });
     } catch (error) {
@@ -875,7 +895,11 @@ export class IntercomCompatibleAdapter {
     } satisfies IntercomIdentityProof;
   }
 
-  private formatStatus(status: PeerRuntimeStatus, identityProof: IntercomIdentityProof): string {
+  private formatStatus(
+    status: PeerRuntimeStatus,
+    identityProof: IntercomIdentityProof,
+    pendingInboundCount: number,
+  ): string {
     const selfPresence = identityProof.selfPresence;
     const selfPresenceLine = selfPresence
       ? `Self presence: ${formatPeerTarget(selfPresence, { includeShortId: false })} — ${selfPresence.cwd} (${selfPresence.model}) pid=${selfPresence.pid}`
@@ -886,6 +910,7 @@ export class IntercomCompatibleAdapter {
       `Connected: ${status.connected ? "Yes" : "No"}`,
       `Session ID: ${status.selfId ?? "unavailable"}`,
       `Active sessions: ${status.activePeerCount}`,
+      `Pending inbound messages: ${pendingInboundCount}`,
       `Identity proof: ${identityProof.status}`,
       `Exact peer target: ${identityProof.exactPeerTarget ?? "unavailable"}`,
       selfPresenceLine,

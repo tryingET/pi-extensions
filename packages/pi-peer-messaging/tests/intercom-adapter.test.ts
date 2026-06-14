@@ -204,9 +204,10 @@ test("adapter tracks inbound messages for pending and reply compatibility", asyn
   assert.match(pendingAfterReply.content[0]?.text ?? "", /No unresolved inbound messages/);
 });
 
-test("adapter lists current and other sessions without redefining the core", async () => {
+test("adapter lists current and other sessions with freshness and pending visibility", async () => {
   const runtime = new FakePeerMessagingRuntime([SELF_PEER, WORKER_A]);
-  const adapter = createIntercomCompatibleAdapter();
+  const adapter = createIntercomCompatibleAdapter({ now: () => 2010 });
+  adapter.handleIncomingMessage(WORKER_A, createMessage("Need review.", { id: "pending-list-1" }));
 
   const result = await adapter.execute(runtime, { action: "list" });
 
@@ -214,6 +215,8 @@ test("adapter lists current and other sessions without redefining the core", asy
   assert.match(result.content[0]?.text ?? "", /\*\*Current session:/);
   assert.match(result.content[0]?.text ?? "", /planner/);
   assert.match(result.content[0]?.text ?? "", /worker/);
+  assert.match(result.content[0]?.text ?? "", /last seen 2s ago/);
+  assert.match(result.content[0]?.text ?? "", /Pending inbound messages: 1/);
   assert.match(result.content[0]?.text ?? "", /id: worker-session-aaaaaaaa/);
 });
 
@@ -226,8 +229,10 @@ test("adapter status returns verifiable active peer identity proof", async () =>
   assert.equal(result.isError, undefined);
   assert.match(result.content[0]?.text ?? "", /Identity proof: verified/);
   assert.match(result.content[0]?.text ?? "", /Exact peer target: self-session-12345678/);
+  assert.match(result.content[0]?.text ?? "", /Pending inbound messages: 0/);
   assert.match(result.content[0]?.text ?? "", /Boundary: communication-only/);
   assert.equal(result.details?.connected, true);
+  assert.equal(result.details?.pendingInboundCount, 0);
   assert.deepEqual(result.details?.identityProof, {
     status: "verified",
     selfId: SELF_PEER.id,
