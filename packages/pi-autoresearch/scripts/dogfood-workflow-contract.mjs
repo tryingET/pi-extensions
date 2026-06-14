@@ -34,6 +34,10 @@ const files = {
     readRelative("extensions/pi-autoresearch.ts"),
     readRelative("extensions/pi-autoresearch/readProfile.ts"),
     readRelative("extensions/pi-autoresearch/toolPlanning.ts"),
+    readRelative("extensions/pi-autoresearch/toolRuntimeExecution.ts"),
+    readRelative("extensions/pi-autoresearch/toolLoopResume.ts"),
+    readRelative("extensions/pi-autoresearch/toolSelfHosting.ts"),
+    readRelative("extensions/pi-autoresearch/toolLlamacpp.ts"),
     readRelative("extensions/pi-autoresearch/toolStatusControl.ts"),
   ]
     .filter(Boolean)
