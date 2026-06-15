@@ -6,18 +6,29 @@ import type {
   PeerMessage,
   PeerMessagingRuntime,
   PeerPresence,
-  PeerRuntimeStatus,
 } from "./contracts.ts";
 import {
-  formatPendingInboundLine,
-  formatPendingInboundSummary,
-  type PendingInboundMessage,
-  pendingInboundDetails,
-} from "./intercom-pending-inbox.ts";
+  buildAmbiguousTargetReason,
+  escapeToolString,
+  formatAttachments,
+  formatMessageBody,
+  formatPeerTarget,
+  isAmbiguousTargetReason,
+} from "./intercom-peer-format.ts";
+import { formatPendingInboundLine, pendingInboundDetails } from "./intercom-pending-inbox.ts";
+import {
+  formatPeerProtocolSnapshot,
+  PeerProtocolLedger,
+  type PeerProtocolSnapshot,
+} from "./intercom-protocol-ledger.ts";
+import { ReplyTracker } from "./intercom-reply-tracker.ts";
+import {
+  buildIdentityProof,
+  formatIntercomSessionList,
+  formatIntercomStatus,
+} from "./intercom-status-format.ts";
 
 export const INTERCOM_TOOL_NAME = "intercom";
-const PENDING_PREVIEW_LENGTH = 80;
-
 export interface IntercomToolRequest {
   action: string;
   to?: string;
@@ -48,87 +59,6 @@ export interface IntercomAdapterOptions {
   onIncomingMessage?: (entry: IntercomIncomingMessage) => void;
 }
 
-type PeerProtocolKind =
-  | "PEER_ACK"
-  | "PEER_FINAL"
-  | "QUEST_ACK"
-  | "QUEST_FINAL"
-  | "VISIBLE_LOOP_ITERATION";
-
-type PeerProtocolPhase = "ack" | "final" | "progress" | "unknown";
-
-type PeerProtocolVocabulary = "peer" | "quest" | "unknown";
-
-type PeerProtocolState = "no_messages" | "ack_received" | "final_received" | "protocol_violation";
-
-interface ParsedPeerProtocolMessage {
-  runId: string;
-  kind: PeerProtocolKind | "UNKNOWN";
-  phase: PeerProtocolPhase;
-  vocabulary: PeerProtocolVocabulary;
-  token: "peer_run_id" | "quest_id" | null;
-}
-
-interface PeerProtocolMessage {
-  kind: PeerProtocolKind | "UNKNOWN";
-  phase: PeerProtocolPhase;
-  vocabulary: PeerProtocolVocabulary;
-  token: "peer_run_id" | "quest_id" | null;
-  peerRunId: string;
-  from: PeerPresence;
-  message: PeerMessage;
-  receivedAt: number;
-  preview: string;
-}
-
-interface PeerProtocolSnapshot {
-  peerRunId: string;
-  questId: string;
-  vocabulary: PeerProtocolVocabulary;
-  state: PeerProtocolState;
-  ackCount: number;
-  finalCount: number;
-  progressCount: number;
-  duplicateAckCount: number;
-  duplicateFinalCount: number;
-  violationCount: number;
-  messages: PeerProtocolMessage[];
-}
-
-interface IntercomIdentityProof {
-  status: "verified" | "unavailable" | "mismatch";
-  selfId?: string;
-  exactPeerTarget?: string;
-  selfPresence?: PeerPresence;
-  activePeerCount: number;
-  communicationOnly: true;
-  canonicalAuthority: false;
-}
-
-function shortSessionId(sessionId: string): string {
-  return sessionId.slice(0, 8);
-}
-
-function escapeToolString(value: string): string {
-  return JSON.stringify(value);
-}
-
-function formatAttachment(attachment: PeerAttachment): string {
-  if (attachment.language) {
-    return `\n\n---\n📎 ${attachment.name}\n\`\`\`${attachment.language}\n${attachment.content}\n\`\`\``;
-  }
-
-  return `\n\n---\n📎 ${attachment.name}\n${attachment.content}`;
-}
-
-function formatAttachments(attachments: PeerAttachment[] | undefined): string {
-  if (!attachments || attachments.length === 0) {
-    return "";
-  }
-
-  return attachments.map((attachment) => formatAttachment(attachment)).join("");
-}
-
 function createPeerMessage(
   text: string,
   options: {
@@ -148,152 +78,6 @@ function createPeerMessage(
   } satisfies PeerMessage;
 }
 
-function duplicateSessionNames(peers: PeerPresence[]): Set<string> {
-  const counts = new Map<string, number>();
-
-  for (const peer of peers) {
-    const name = peer.name?.trim().toLowerCase();
-    if (!name) {
-      continue;
-    }
-
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
-
-  return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([name]) => name));
-}
-
-function formatPeerTarget(peer: PeerPresence, options: { includeShortId?: boolean } = {}): string {
-  const base = peer.name?.trim() || peer.addressLabel || peer.id;
-  if (options.includeShortId === false) {
-    return base;
-  }
-
-  return `${base} (${shortSessionId(peer.id)})`;
-}
-
-function formatExactTargetCandidate(peer: PeerPresence): string {
-  return `${formatPeerTarget(peer)} → ${peer.id}`;
-}
-
-function formatSessionListRow(
-  peer: PeerPresence,
-  currentCwd: string,
-  selfId: string | undefined,
-  duplicateNames: Set<string>,
-  now: number,
-): string {
-  const name = peer.name?.trim() || peer.addressLabel || "Unnamed session";
-  const label = duplicateNames.has(name.toLowerCase()) ? formatPeerTarget(peer) : name;
-  const tags = [
-    peer.id === selfId ? "self" : undefined,
-    peer.id !== selfId && peer.cwd === currentCwd ? "same cwd" : undefined,
-    peer.status,
-    `last seen ${formatElapsedSeconds(peer.lastActivity, now)}`,
-  ].filter((tag): tag is string => Boolean(tag));
-  const suffix = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
-
-  return `• ${label} — ${peer.cwd} (${peer.model})${suffix}\n  id: ${peer.id}`;
-}
-
-function formatElapsedSeconds(timestamp: number, now: number): string {
-  const elapsedSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
-  return `${elapsedSeconds}s ago`;
-}
-
-function matchesPeerTarget(peer: PeerPresence, target: string): boolean {
-  if (peer.id === target) {
-    return true;
-  }
-
-  const normalizedTarget = target.trim().toLowerCase();
-  return (
-    peer.addressLabel.trim().toLowerCase() === normalizedTarget ||
-    peer.name?.trim().toLowerCase() === normalizedTarget
-  );
-}
-
-function buildAmbiguousTargetReason(to: string, peers: PeerPresence[], fallback: string): string {
-  const matchingPeers = peers.filter((peer) => matchesPeerTarget(peer, to));
-  if (matchingPeers.length === 0) {
-    return fallback;
-  }
-
-  return `${fallback} Matching peers: ${matchingPeers.map((peer) => formatExactTargetCandidate(peer)).join("; ")}`;
-}
-
-function isAmbiguousTargetReason(reason: string | undefined): boolean {
-  return typeof reason === "string" && reason.includes("Multiple peers matched");
-}
-
-function truncatePreview(value: string, maxLength: number = PENDING_PREVIEW_LENGTH): string {
-  const singleLine = value.replace(/\s+/g, " ").trim();
-  if (singleLine.length <= maxLength) return singleLine;
-  return `${singleLine.slice(0, maxLength - 1)}…`;
-}
-
-function phaseForProtocolKind(kind: PeerProtocolKind | "UNKNOWN"): PeerProtocolPhase {
-  if (kind === "PEER_ACK" || kind === "QUEST_ACK") {
-    return "ack";
-  }
-
-  if (kind === "PEER_FINAL" || kind === "QUEST_FINAL") {
-    return "final";
-  }
-
-  return "unknown";
-}
-
-function parsePeerProtocolMessage(text: string): ParsedPeerProtocolMessage | undefined {
-  const canonical = text.match(/\b(PEER_ACK|PEER_FINAL)\s+peer_run_id=([^\s:]+)\s*:/);
-  if (canonical?.[1] && canonical[2]) {
-    const kind = canonical[1] as "PEER_ACK" | "PEER_FINAL";
-    return {
-      runId: canonical[2],
-      kind,
-      phase: phaseForProtocolKind(kind),
-      vocabulary: "peer",
-      token: "peer_run_id",
-    };
-  }
-
-  const legacy = text.match(/\b(QUEST_ACK|QUEST_FINAL)\s+quest_id=([^\s:]+)\s*:/);
-  if (legacy?.[1] && legacy[2]) {
-    const kind = legacy[1] as "QUEST_ACK" | "QUEST_FINAL";
-    return {
-      runId: legacy[2],
-      kind,
-      phase: phaseForProtocolKind(kind),
-      vocabulary: "quest",
-      token: "quest_id",
-    };
-  }
-
-  const visibleLoopProgress = text.match(/\b(VISIBLE_LOOP_ITERATION)\s+peer_run_id=([^\s:]+)\s*:/);
-  if (visibleLoopProgress?.[1] && visibleLoopProgress[2]) {
-    return {
-      runId: visibleLoopProgress[2],
-      kind: "VISIBLE_LOOP_ITERATION",
-      phase: "progress",
-      vocabulary: "peer",
-      token: "peer_run_id",
-    };
-  }
-
-  const unknown = text.match(/\b([A-Z][A-Z_]+)\s+(peer_run_id|quest_id)=([^\s:]+)\s*:/);
-  if (unknown?.[2] && unknown[3]) {
-    return {
-      runId: unknown[3],
-      kind: "UNKNOWN",
-      phase: "unknown",
-      vocabulary: unknown[2] === "peer_run_id" ? "peer" : "quest",
-      token: unknown[2] as "peer_run_id" | "quest_id",
-    };
-  }
-
-  return undefined;
-}
-
 function textResult(
   text: string,
   options: { isError?: boolean; details?: Record<string, unknown> } = {},
@@ -303,152 +87,6 @@ function textResult(
     isError: options.isError,
     details: options.details,
   } satisfies IntercomToolResponse;
-}
-
-class PeerProtocolLedger {
-  private readonly messagesByRunId = new Map<string, PeerProtocolMessage[]>();
-
-  recordIncomingMessage(from: PeerPresence, message: PeerMessage, receivedAt: number): void {
-    const parsed = parsePeerProtocolMessage(message.content.text);
-    if (!parsed) {
-      return;
-    }
-
-    const entry = {
-      kind: parsed.kind,
-      phase: parsed.phase,
-      vocabulary: parsed.vocabulary,
-      token: parsed.token,
-      peerRunId: parsed.runId,
-      from,
-      message,
-      receivedAt,
-      preview: truncatePreview(message.content.text),
-    } satisfies PeerProtocolMessage;
-
-    const existing = this.messagesByRunId.get(parsed.runId) ?? [];
-    existing.push(entry);
-    existing.sort((left, right) => left.receivedAt - right.receivedAt);
-    this.messagesByRunId.set(parsed.runId, existing);
-  }
-
-  snapshot(peerRunId: string, vocabulary: "peer" | "quest"): PeerProtocolSnapshot {
-    const messages = [...(this.messagesByRunId.get(peerRunId) ?? [])].filter(
-      (message) => message.vocabulary === vocabulary,
-    );
-    const ackCount = messages.filter((message) => message.phase === "ack").length;
-    const finalCount = messages.filter((message) => message.phase === "final").length;
-    const progressCount = messages.filter((message) => message.phase === "progress").length;
-    const violationCount = messages.filter((message) => message.phase === "unknown").length;
-    const state: PeerProtocolState = violationCount
-      ? "protocol_violation"
-      : finalCount > 0
-        ? "final_received"
-        : ackCount > 0
-          ? "ack_received"
-          : "no_messages";
-
-    return {
-      peerRunId,
-      questId: peerRunId,
-      vocabulary,
-      state,
-      ackCount,
-      finalCount,
-      progressCount,
-      duplicateAckCount: Math.max(0, ackCount - 1),
-      duplicateFinalCount: Math.max(0, finalCount - 1),
-      violationCount,
-      messages,
-    } satisfies PeerProtocolSnapshot;
-  }
-
-  clear(): void {
-    this.messagesByRunId.clear();
-  }
-}
-
-class ReplyTracker {
-  private readonly pending = new Map<string, PendingInboundMessage>();
-
-  recordIncomingMessage(from: PeerPresence, message: PeerMessage, receivedAt: number): void {
-    if (message.replyTo) {
-      return;
-    }
-
-    this.pending.set(message.id, {
-      from,
-      message,
-      receivedAt,
-    });
-  }
-
-  markReplied(messageId: string): void {
-    this.pending.delete(messageId);
-  }
-
-  listPending(): PendingInboundMessage[] {
-    return [...this.pending.values()].sort((left, right) => left.receivedAt - right.receivedAt);
-  }
-
-  resolveReplyTarget(input: { to?: string; replyTo?: string }): PendingInboundMessage {
-    const pending = this.listPending();
-
-    if (pending.length === 0) {
-      throw new Error("No unresolved inbound messages to reply to.");
-    }
-
-    if (input.replyTo) {
-      const match = pending.find((entry) => entry.message.id === input.replyTo);
-      if (!match) {
-        throw new Error(`No unresolved inbound message matched replyTo "${input.replyTo}".`);
-      }
-      if (input.to && !matchesPeerTarget(match.from, input.to)) {
-        throw new Error(
-          `The unresolved inbound message ${input.replyTo} does not belong to "${input.to}".`,
-        );
-      }
-
-      return match;
-    }
-
-    if (input.to) {
-      const target = input.to;
-      const matches = pending.filter((entry) => matchesPeerTarget(entry.from, target));
-      if (matches.length === 0) {
-        throw new Error(`No unresolved inbound message matched "${target}".`);
-      }
-      if (matches.length > 1) {
-        throw new Error(
-          `Multiple unresolved inbound messages matched "${target}". Use replyTo or inspect pending first.`,
-        );
-      }
-
-      const [match] = matches;
-      if (!match) {
-        throw new Error(`No unresolved inbound message matched "${target}".`);
-      }
-
-      return match;
-    }
-
-    if (pending.length > 1) {
-      throw new Error(
-        "Multiple unresolved inbound messages are pending. Use pending or provide to/replyTo.",
-      );
-    }
-
-    const [onlyPendingMessage] = pending;
-    if (!onlyPendingMessage) {
-      throw new Error("No unresolved inbound messages to reply to.");
-    }
-
-    return onlyPendingMessage;
-  }
-
-  clear(): void {
-    this.pending.clear();
-  }
 }
 
 export class IntercomCompatibleAdapter {
@@ -480,7 +118,7 @@ export class IntercomCompatibleAdapter {
       replyCommand: message.replyTo
         ? undefined
         : `intercom({ action: "reply", to: ${escapeToolString(from.id)}, replyTo: ${escapeToolString(message.id)}, message: "..." })`,
-      bodyText: `${message.content.text}${formatAttachments(message.content.attachments)}`,
+      bodyText: formatMessageBody(message),
     } satisfies IntercomIncomingMessage;
 
     this.onIncomingMessage?.(entry);
@@ -542,29 +180,6 @@ export class IntercomCompatibleAdapter {
     return { error: "Missing 'questId' parameter" };
   }
 
-  private formatPeerProtocolSnapshot(
-    snapshot: PeerProtocolSnapshot,
-    vocabulary: "peer" | "quest",
-  ): string {
-    const rows = snapshot.messages.length
-      ? snapshot.messages
-          .map(
-            (message) =>
-              `- ${message.kind} from ${formatPeerTarget(message.from)} id=${message.message.id}: ${message.preview}`,
-          )
-          .join("\n")
-      : "- none";
-
-    const label = vocabulary === "peer" ? "Peer run" : "Quest";
-
-    return [
-      `${label} ${snapshot.peerRunId}: ${snapshot.state}`,
-      `ACK=${snapshot.ackCount} FINAL=${snapshot.finalCount} PROGRESS=${snapshot.progressCount} duplicateACK=${snapshot.duplicateAckCount} duplicateFINAL=${snapshot.duplicateFinalCount} violations=${snapshot.violationCount}`,
-      "Messages:",
-      rows,
-    ].join("\n");
-  }
-
   private peerProtocolStatus(
     request: IntercomToolRequest,
     vocabulary: "peer" | "quest",
@@ -575,7 +190,7 @@ export class IntercomCompatibleAdapter {
     }
 
     const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary);
-    return textResult(this.formatPeerProtocolSnapshot(snapshot, vocabulary), {
+    return textResult(formatPeerProtocolSnapshot(snapshot, vocabulary), {
       details: { ...snapshot },
     });
   }
@@ -606,7 +221,7 @@ export class IntercomCompatibleAdapter {
     while (true) {
       const snapshot = this.peerProtocolLedger.snapshot(resolved.runId, vocabulary);
       if (this.peerProtocolWatchConditionMet(snapshot, waitFor)) {
-        return textResult(this.formatPeerProtocolSnapshot(snapshot, vocabulary), {
+        return textResult(formatPeerProtocolSnapshot(snapshot, vocabulary), {
           details: { ...snapshot, timedOut: false, waitFor },
         });
       }
@@ -614,7 +229,7 @@ export class IntercomCompatibleAdapter {
       const remainingMs = deadline - this.now();
       if (remainingMs <= 0) {
         return textResult(
-          `Timed out waiting for ${waitFor} on ${resolved.runId}.\n${this.formatPeerProtocolSnapshot(snapshot, vocabulary)}`,
+          `Timed out waiting for ${waitFor} on ${resolved.runId}.\n${formatPeerProtocolSnapshot(snapshot, vocabulary)}`,
           {
             isError: true,
             details: { ...snapshot, timedOut: true, waitFor },
@@ -644,61 +259,12 @@ export class IntercomCompatibleAdapter {
     try {
       const status = await runtime.status();
       const peers = await runtime.listPeers();
-      const duplicateNames = duplicateSessionNames(peers);
-      const now = this.now();
       const pendingMessages = this.replyTracker.listPending();
-      const pendingSummary = formatPendingInboundSummary(pendingMessages, now);
-
-      if (status.selfId) {
-        const currentSession = peers.find((peer) => peer.id === status.selfId);
-        const otherSessions = peers.filter((peer) => peer.id !== status.selfId);
-
-        if (!currentSession) {
-          return textResult("Current session is missing from the peer session list.", {
-            isError: true,
-          });
-        }
-
-        const currentSection = `**Current session:**\n${formatSessionListRow(
-          currentSession,
-          currentSession.cwd,
-          status.selfId,
-          duplicateNames,
-          now,
-        )}`;
-        const otherSection =
-          otherSessions.length === 0
-            ? "**Other sessions:**\nNo other sessions connected."
-            : `**Other sessions:**\n${otherSessions
-                .map((peer) =>
-                  formatSessionListRow(
-                    peer,
-                    currentSession.cwd,
-                    status.selfId,
-                    duplicateNames,
-                    now,
-                  ),
-                )
-                .join("\n")}`;
-
-        return textResult(`${currentSection}\n\n${otherSection}\n\n${pendingSummary}`, {
-          details: {
-            pendingInboundCount: pendingMessages.length,
-            pendingInboundMessages: pendingInboundDetails(pendingMessages, now),
-          },
-        });
-      }
-
-      if (peers.length === 0) {
-        return textResult("No peer sessions connected.");
-      }
-
-      const currentCwd = peers[0]?.cwd ?? "unknown";
-      return textResult(
-        `**Peer sessions:**\n${peers
-          .map((peer) => formatSessionListRow(peer, currentCwd, undefined, duplicateNames, now))
-          .join("\n")}`,
-      );
+      const formatted = formatIntercomSessionList(status, peers, pendingMessages, this.now());
+      return textResult(formatted.text, {
+        isError: formatted.isError,
+        details: formatted.details,
+      });
     } catch (error) {
       return textResult(`Failed to list sessions: ${this.getErrorMessage(error)}`, {
         isError: true,
@@ -860,10 +426,10 @@ export class IntercomCompatibleAdapter {
     try {
       const status = await runtime.status();
       const peers = await runtime.listPeers();
-      const identityProof = this.buildIdentityProof(status, peers);
+      const identityProof = buildIdentityProof(status, peers);
       const now = this.now();
       const pendingMessages = this.replyTracker.listPending();
-      return textResult(this.formatStatus(status, identityProof, pendingMessages, now), {
+      return textResult(formatIntercomStatus(status, identityProof, pendingMessages, now), {
         details: {
           ...status,
           identityProof,
@@ -874,54 +440,6 @@ export class IntercomCompatibleAdapter {
     } catch (error) {
       return textResult(`Failed to get status: ${this.getErrorMessage(error)}`, { isError: true });
     }
-  }
-
-  private buildIdentityProof(
-    status: PeerRuntimeStatus,
-    peers: PeerPresence[],
-  ): IntercomIdentityProof {
-    const selfPresence = status.selfId
-      ? peers.find((peer) => peer.id === status.selfId)
-      : undefined;
-    const proofStatus: IntercomIdentityProof["status"] = !status.selfId
-      ? "unavailable"
-      : selfPresence
-        ? "verified"
-        : "mismatch";
-
-    return {
-      status: proofStatus,
-      selfId: status.selfId,
-      exactPeerTarget: status.selfId,
-      selfPresence,
-      activePeerCount: status.activePeerCount,
-      communicationOnly: true,
-      canonicalAuthority: false,
-    } satisfies IntercomIdentityProof;
-  }
-
-  private formatStatus(
-    status: PeerRuntimeStatus,
-    identityProof: IntercomIdentityProof,
-    pendingMessages: PendingInboundMessage[],
-    now: number,
-  ): string {
-    const selfPresence = identityProof.selfPresence;
-    const selfPresenceLine = selfPresence
-      ? `Self presence: ${formatPeerTarget(selfPresence, { includeShortId: false })} — ${selfPresence.cwd} (${selfPresence.model}) pid=${selfPresence.pid}`
-      : "Self presence: unavailable";
-
-    return [
-      "**Intercom Status:**",
-      `Connected: ${status.connected ? "Yes" : "No"}`,
-      `Session ID: ${status.selfId ?? "unavailable"}`,
-      `Active sessions: ${status.activePeerCount}`,
-      formatPendingInboundSummary(pendingMessages, now),
-      `Identity proof: ${identityProof.status}`,
-      `Exact peer target: ${identityProof.exactPeerTarget ?? "unavailable"}`,
-      selfPresenceLine,
-      "Boundary: communication-only; not durable authority, evidence, or completion truth.",
-    ].join("\n");
   }
 
   private async resolveDeliveryFailureReason(
