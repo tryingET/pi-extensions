@@ -160,6 +160,9 @@ function isExplicitUserMessageActionQuery(lower: string): boolean {
 function isExplicitDiagnosticActionQuery(lower: string): boolean {
   return (
     isExplicitUserMessageActionQuery(lower) ||
+    lower.includes("record continuation candidate") ||
+    lower.includes("queue continuation candidate") ||
+    lower.includes("remember next autonomous step") ||
     lower.includes("continue diagnostic review") ||
     lower.includes("continue self diagnostic") ||
     lower.includes("send diagnostic review") ||

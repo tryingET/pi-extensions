@@ -839,6 +839,58 @@ test("self query: action summary lists checkpoints and pending followups", async
   await cleanup(tempDir);
 });
 
+test("self query: explicit continuation candidate records without sending", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext({ cwd: "/repo/explicit-continuation" });
+
+  const result = await tool.execute(
+    "tc-record-explicit-continuation",
+    { query: "record continuation candidate: npm --prefix packages/pi-demo run check" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.content[0].text, /Continuation candidate recorded/);
+  assert.equal(result.details.data.recorded, true);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.prefill, false);
+  assert.equal(result.details.data.continuationCandidate.kind, "self.continuation_candidate.v1");
+  assert.equal(result.details.data.continuationCandidate.owner, "local-shell");
+  assert.equal(harness.sentUserMessages.length, 0);
+
+  await cleanup(tempDir);
+});
+
+test("self query: explicit continuation candidate requires text", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-record-explicit-continuation-empty",
+    { query: "record continuation candidate" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.content[0].text, /No continuation candidate recorded/);
+  assert.equal(result.details.data.recorded, false);
+  assert.equal(harness.sentUserMessages.length, 0);
+
+  await cleanup(tempDir);
+});
+
 test("self query: action summary lists continuation candidates as mirror-only", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

@@ -330,6 +330,7 @@ export type ActionIntent =
   | "queue_followup"
   | "prefill_editor"
   | "continue_suggested_next_move"
+  | "record_continuation_candidate"
   | "send_user_message"
   | "continue_diagnostic_review"
   | "prefill_diagnostic_record"

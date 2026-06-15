@@ -117,6 +117,7 @@ export async function loadExtensionWithMocks() {
     "helpers.ts",
     "autonomy-status.ts",
     "action-diagnostic.ts",
+    "action-continuation.ts",
     "action-handoff.ts",
     "action-user-message.ts",
     "capabilities.ts",

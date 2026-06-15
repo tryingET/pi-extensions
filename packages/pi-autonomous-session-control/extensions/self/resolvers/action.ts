@@ -10,6 +10,7 @@ import {
 import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
 import { analyzePatterns, queryHandoffSummary } from "../perception.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
+import { handleListActionState, handleRecordContinuationCandidate } from "./action-continuation.ts";
 import {
   handleContinueDiagnosticReview,
   handlePrefillDiagnosticRecord,
@@ -45,6 +46,9 @@ export const ACTION_KEYWORDS = [
   "continue safely",
   "next autonomous step",
   "next safe step",
+  "record continuation candidate",
+  "queue continuation candidate",
+  "remember next autonomous step",
   "send suggested next move",
   "advance suggested next move",
   "continue diagnostic review",
@@ -96,6 +100,13 @@ export function mapActionIntent(lower: string): string {
   }
   if (isDirectUserMessageQuery(lower)) {
     return "send_user_message";
+  }
+  if (
+    lower.includes("record continuation candidate") ||
+    lower.includes("queue continuation candidate") ||
+    lower.includes("remember next autonomous step")
+  ) {
+    return "record_continuation_candidate";
   }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
   if (
@@ -161,6 +172,10 @@ export function resolveActionQuery(
 
     case "continue_suggested_next_move": {
       return handleContinueSuggestedNextMove(query, state);
+    }
+
+    case "record_continuation_candidate": {
+      return handleRecordContinuationCandidate(query, state);
     }
 
     case "send_user_message": {
@@ -265,57 +280,6 @@ function handleQueueFollowup(query: SelfQuery, state: SelfState): SelfResponse {
     intent: "action",
     answer: `Follow-up queued: "${text}". I will remind myself to address this later.`,
     data: { followupId, text, context },
-  };
-}
-
-function handleListActionState(query: SelfQuery, state: SelfState): SelfResponse {
-  const pendingFollowups = state.followups.filter((followup) => !followup.delivered);
-  const now = Date.now();
-  const cwd = normalizeCurrentCwd(query);
-  const freshContinuationCandidates = state.continuationCandidates.filter(
-    (candidate) => candidate.expiresAt > now,
-  );
-  const currentCwdFreshContinuationCandidates = freshContinuationCandidates.filter(
-    (candidate) => candidate.cwd === cwd,
-  );
-  const expiredContinuationCandidateCount = state.continuationCandidates.filter(
-    (candidate) => candidate.expiresAt <= now,
-  ).length;
-  const crossCwdFreshContinuationCandidateCount =
-    freshContinuationCandidates.length - currentCwdFreshContinuationCandidates.length;
-  const checkpointText = state.checkpoints
-    .slice(-5)
-    .map((checkpoint) => `${checkpoint.label}: ${checkpoint.reason}`)
-    .join("; ");
-  const followupText = pendingFollowups
-    .slice(-5)
-    .map((followup) => `${followup.id}: ${followup.text}`)
-    .join("; ");
-  const continuationText = currentCwdFreshContinuationCandidates
-    .slice(0, 3)
-    .map((candidate) => `${candidate.id}: ${candidate.slice} via ${candidate.owner}`)
-    .join("; ");
-
-  return {
-    understood: true,
-    intent: "action",
-    answer: `Action summary (totals, not per-query mutation delta): checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}; continuation candidates=${state.continuationCandidates.length}; current-cwd fresh mirror-only candidates=${currentCwdFreshContinuationCandidates.length}${continuationText ? ` (${continuationText})` : ""}; cross-cwd fresh candidates=${crossCwdFreshContinuationCandidateCount}; expired candidates=${expiredContinuationCandidateCount}. Continuation candidates are mirror-only routing hints, not authority.`,
-    data: {
-      checkpoints: [...state.checkpoints],
-      followups: [...state.followups],
-      pendingFollowups,
-      continuationCandidates: [...state.continuationCandidates],
-      freshContinuationCandidates,
-      currentCwdFreshContinuationCandidates,
-      currentCwd: cwd,
-      crossCwdFreshContinuationCandidateCount,
-      expiredContinuationCandidateCount,
-      summaryScope: "totals_not_per_query_mutation_delta_current_cwd_candidates_separated",
-      authority: "mirror_only",
-      nonAuthorizations: [
-        "Continuation candidates do not authorize peer launch, visible-loop launch, campaign run, durable owner writes, commit, merge, push, release, or evidence projection.",
-      ],
-    },
   };
 }
 
@@ -454,7 +418,7 @@ function requiresOperatorReview(nextMove: {
     "pi-society-orchestrator",
   ].includes(nextMove.owner);
   const riskyDirective =
-    /\b(commit|merge|push|release|publish|delete|remove|rm\s+-rf|ak\s+evidence|ak\s+task|agent_vent|visible-loop|autoresearch|orchestrator|pi\s+install|reload)\b/u.test(
+    /\b(commit|merge|push|release|publish|delete|remove|rm\s+-rf|ak\s+evidence|ak\s+task|agent_vent|visible-loop|autoresearch|orchestrator|dispatch_subagent|candidate_peer_spawn|scout_peer_spawn|fork_peer_spawn|peer|peer[_-]?spawn|peer\s+launch|spawn|launch|harness|compact|compaction|pi\s+install|reload)\b/u.test(
       lower,
     );
   return (
