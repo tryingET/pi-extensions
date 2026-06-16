@@ -42,6 +42,7 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Prefill: [text]"
 - "Notify operator: [message]" / "Send user message: [message]" for explicit low-risk follow-up notifications through pi.sendUserMessage
 - "Prefill visible-loop self-evolution" to route Level-4 recursive-improvement work into an operator-reviewed /visible-loop --count 1 --delegate-commit command without launching it from self
+- "Prefill autoresearch campaign" to route Level-5 measured self-evolution work into a conservative /autoresearch plan surface without launching it from self
 - "Prefill suggested next move" after a handoff summary exposes nextMove
 - "Record continuation candidate: [text]" to explicitly store a mirror-only same-cwd next-step hint without sending or executing it
 - "Continue safely" / "Next autonomous step" to advance the same guarded nextMove seam: low-risk local work becomes a follow-up user message; peer/harness/compaction/high-severity moves stay prefilled. After reload/compaction, a fresh explicit same-cwd continuation candidate may win over stale mirror-derived nextMove; mirror-derived candidates do not override current recovery cues.

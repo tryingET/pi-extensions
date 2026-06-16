@@ -163,7 +163,7 @@ function isExplicitDiagnosticActionQuery(lower: string): boolean {
     lower.includes("record continuation candidate") ||
     lower.includes("queue continuation candidate") ||
     lower.includes("remember next autonomous step") ||
-    /prefill (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop))/u.test(
+    /prefill (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop)|autoresearch campaign|measured campaign)/u.test(
       lower,
     ) ||
     lower.includes("continue diagnostic review") ||

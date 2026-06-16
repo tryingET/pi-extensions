@@ -11,6 +11,10 @@ import {
 import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
 import { analyzePatterns, queryHandoffSummary } from "../perception.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
+import {
+  handlePrefillAutoresearchCampaign,
+  handlePrefillVisibleLoopSelfEvolution,
+} from "./action-autonomy-routes.ts";
 import { handleListActionState, handleRecordContinuationCandidate } from "./action-continuation.ts";
 import {
   handleContinueDiagnosticReview,
@@ -47,6 +51,8 @@ export const ACTION_KEYWORDS = [
   "prefill visible loop self-evolution",
   "prefill self-evolution visible-loop",
   "prefill self-evolution loop",
+  "prefill autoresearch campaign",
+  "prefill measured campaign",
   "continue suggested next move",
   "continue safely",
   "next autonomous step",
@@ -123,6 +129,12 @@ export function mapActionIntent(lower: string): string {
     return "prefill_visible_loop_self_evolution";
   }
   if (
+    lower.includes("prefill autoresearch campaign") ||
+    lower.includes("prefill measured campaign")
+  ) {
+    return "prefill_autoresearch_campaign";
+  }
+  if (
     lower.includes("prefill diagnostic record") ||
     lower.includes("prefill agent_vent record") ||
     lower.includes("prefill vent record") ||
@@ -185,6 +197,10 @@ export function resolveActionQuery(
 
     case "prefill_visible_loop_self_evolution": {
       return handlePrefillVisibleLoopSelfEvolution(query);
+    }
+
+    case "prefill_autoresearch_campaign": {
+      return handlePrefillAutoresearchCampaign(query);
     }
 
     case "continue_suggested_next_move": {
@@ -298,27 +314,6 @@ function handleQueueFollowup(query: SelfQuery, state: SelfState): SelfResponse {
     answer: `Follow-up queued: "${text}". I will remind myself to address this later.`,
     data: { followupId, text, context },
   };
-}
-
-function handlePrefillVisibleLoopSelfEvolution(_query: SelfQuery): SelfResponse {
-  const text = "/visible-loop --count 1 --delegate-commit";
-
-  return buildPrefillResponse(text, {
-    sendUserMessage: false,
-    dispatchMode: "operator_review_required",
-    autonomyLevel: 4,
-    ownerSurface: "pi-little-helpers / visible-loop",
-    routeKind: "visible_loop_self_evolution",
-    productPostureTarget:
-      "docs/project/product-posture.md or routed package docs/project/product-posture.md",
-    boundary:
-      "ASC/self routes by editor prefill only; pi-little-helpers owns /visible-loop launch and completion, and visible-loop output is not durable authority.",
-    nonAuthorizations: [
-      "does not launch visible-loop from self",
-      "does not claim loop output as AK/evidence/KES/ontology truth",
-      "does not bypass product-posture refresh or owner validation gates",
-    ],
-  });
 }
 
 function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {

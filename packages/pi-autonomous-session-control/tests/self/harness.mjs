@@ -116,6 +116,7 @@ export async function loadExtensionWithMocks() {
   const resolverFiles = [
     "helpers.ts",
     "autonomy-status.ts",
+    "action-autonomy-routes.ts",
     "action-diagnostic.ts",
     "action-continuation.ts",
     "action-handoff.ts",

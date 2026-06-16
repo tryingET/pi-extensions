@@ -213,6 +213,58 @@ test("self query: visible-loop self-evolution prefill ignores caller overrides",
   await cleanup(tempDir);
 });
 
+test("self query: prefill autoresearch campaign route", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-prefill-autoresearch-campaign",
+    {
+      query: "prefill autoresearch campaign for self-evolution",
+      context: { objective: "override" },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(editorText, /^\/autoresearch Evaluate ASC self-evolution harness:/);
+  assert.match(editorText, /operator_nudge_count/);
+  assert.equal(result.details.data.prefill, true);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.autonomyLevel, 5);
+  assert.equal(result.details.data.ownerSurface, "pi-autoresearch");
+  assert.equal(result.details.data.routeKind, "measured_self_evolution_campaign");
+
+  editorText = "";
+  const measuredAlias = await tool.execute(
+    "tc-prefill-measured-campaign",
+    { query: "prefill measured campaign for self-evolution" },
+    null,
+    null,
+    ctx,
+  );
+  assert.ok(measuredAlias.content[0].text.includes("Editor prefilled"));
+  assert.match(editorText, /^\/autoresearch Evaluate ASC self-evolution harness:/);
+  assert.equal(measuredAlias.details.data.routeKind, "measured_self_evolution_campaign");
+
+  await cleanup(tempDir);
+});
+
 test("self query: prefill preserves quoted command arguments", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
