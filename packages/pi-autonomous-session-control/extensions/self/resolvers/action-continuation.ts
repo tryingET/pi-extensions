@@ -35,7 +35,10 @@ export function handleRecordContinuationCandidate(
   const reason =
     normalizeString(normalizedContext.reason, { maxLength: 300 }) ||
     "Explicit mirror-only continuation candidate recorded by self action.";
-  const evidence = normalizeStringArray(normalizedContext.evidence) ?? ["explicit self action"];
+  const evidence = [
+    "explicit self action",
+    ...new Set(normalizeStringArray(normalizedContext.evidence) ?? []),
+  ];
   const candidate = recordContinuationCandidate(
     state,
     {

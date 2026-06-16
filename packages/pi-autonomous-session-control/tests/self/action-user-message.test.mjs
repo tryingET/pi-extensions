@@ -180,6 +180,140 @@ test("self query: explicit operator notification wins over diagnostic and checkp
   await cleanup(tempDir);
 });
 
+test("self query: direct operator notification allows low-risk compaction status", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-notify-operator-compaction-status",
+    {
+      query:
+        "notify operator: I am active after compaction and continuing with the verified local slice.",
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("User-message dispatch sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.equal(
+    harness.sentUserMessages[0].text,
+    "I am active after compaction and continuing with the verified local slice.",
+  );
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.prefill, false);
+
+  await cleanup(tempDir);
+});
+
+test("self query: fresh explicit continuation candidate wins over stale failure-recovery cue", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const recorded = await tool.execute(
+    "tc-record-local-continuation-before-failures",
+    { query: "record continuation candidate: npm --prefix packages/pi-demo run check" },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(recorded.details.data.recorded, true);
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-after-candidate-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-next-autonomous-step-prefers-candidate",
+    { query: "next autonomous step" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("User-message continuation sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.match(harness.sentUserMessages[0].text, /packages\/pi-demo run check/);
+  assert.equal(result.details.data.usedPersistedContinuationCandidate, true);
+  assert.equal(result.details.data.nextMove.owner, "local-shell");
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.prefill, false);
+
+  await cleanup(tempDir);
+});
+
+test("self query: mirror-derived continuation candidate does not override current recovery cue", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+  const toolCallHandler = harness.eventHandlers.get("tool_call");
+
+  toolCallHandler({
+    toolName: "write",
+    toolCallId: "write-mirror-candidate",
+    input: { path: "src/mirror-candidate.ts", content: "export const value = 1;\n" },
+  });
+
+  const first = await tool.execute(
+    "tc-create-mirror-derived-candidate",
+    { query: "continue suggested next move" },
+    null,
+    null,
+    ctx,
+  );
+  assert.equal(first.details.data.usedPersistedContinuationCandidate, false);
+  assert.equal(first.details.data.continuationCandidate.kind, "self.continuation_candidate.v1");
+
+  for (let i = 0; i < 3; i++) {
+    recordBash(harness, `cmd-failed-after-mirror-candidate-${i}`, "false", {
+      isError: true,
+      text: "Command exited with code 1",
+    });
+  }
+
+  const result = await tool.execute(
+    "tc-next-autonomous-step-keeps-current-recovery",
+    { query: "next autonomous step" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.ok(editorText.startsWith("/scoutpeer "));
+  assert.equal(result.details.data.usedPersistedContinuationCandidate, false);
+  assert.equal(result.details.data.nextMove.owner, "peer-tools");
+  assert.equal(result.details.data.sendUserMessage, false);
+
+  await cleanup(tempDir);
+});
+
 test("self query: legacy send user message alias still continues suggested next move", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -233,6 +367,69 @@ test("self query: direct operator notification requires explicit message text", 
   assert.equal(harness.sentUserMessages.length, 0);
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "missing_message_text");
+
+  await cleanup(tempDir);
+});
+
+test("self query: direct operator notification allows completed compaction status", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-notify-operator-compaction-complete",
+    { query: "notify operator: Compaction complete; continuing with the verified local slice." },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("User-message dispatch sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.equal(
+    harness.sentUserMessages[0].text,
+    "Compaction complete; continuing with the verified local slice.",
+  );
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.prefill, false);
+
+  await cleanup(tempDir);
+});
+
+test("self query: direct operator notification gates compaction directives to editor prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-notify-operator-compaction-directive",
+    { query: "notify operator: please compact the session now" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(editorText, "please compact the session now");
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_review_required");
 
   await cleanup(tempDir);
 });

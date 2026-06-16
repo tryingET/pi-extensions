@@ -101,7 +101,7 @@ function messageLooksSensitive(text: string): boolean {
 }
 
 function messageLooksActionDirective(text: string): boolean {
-  return /(^|\n)\s*[/!$]{1,2}\S|\b(?:run|execute|spawn|launch|commit|merge|delete|remove|reset|compact|record|publish|promote)\b|\b(?:ak\s+task|agent_vent|scout_peer_spawn|candidate_peer_spawn|fork_peer_spawn|dispatch_subagent|toolbox\(|evidence_record|write\s+AK|write\s+KES|peer review|durable record|compaction)\b/iu.test(
+  return /(^|\n)\s*[/!$]{1,2}\S|\b(?:run|execute|spawn|launch|commit|merge|delete|remove|reset|record|publish|promote)\b|(^|\n)\s*(?:(?:please|kindly)\s+|(?:can|could|would)\s+you\s+)?compact\b|\b(?:run|execute|start|trigger|perform)\s+(?:a\s+)?(?:compact|compaction)\b|\b(?:ak\s+task|agent_vent|scout_peer_spawn|candidate_peer_spawn|fork_peer_spawn|dispatch_subagent|toolbox\(|evidence_record|write\s+AK|write\s+KES|peer review|durable record)\b/iu.test(
     text,
   );
 }

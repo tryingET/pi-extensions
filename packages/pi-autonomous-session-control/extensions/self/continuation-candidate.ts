@@ -49,8 +49,32 @@ export function latestFreshContinuationCandidate(
   cwd: string,
   now = Date.now(),
 ): ContinuationCandidate | undefined {
+  return latestFreshContinuationCandidateMatching(state, cwd, () => true, now);
+}
+
+export function latestFreshExplicitContinuationCandidate(
+  state: SelfState,
+  cwd: string,
+  now = Date.now(),
+): ContinuationCandidate | undefined {
+  return latestFreshContinuationCandidateMatching(
+    state,
+    cwd,
+    (candidate) => candidate.evidence.includes("explicit self action"),
+    now,
+  );
+}
+
+function latestFreshContinuationCandidateMatching(
+  state: SelfState,
+  cwd: string,
+  predicate: (candidate: ContinuationCandidate) => boolean,
+  now = Date.now(),
+): ContinuationCandidate | undefined {
   return state.continuationCandidates
-    .filter((candidate) => candidate.cwd === cwd && candidate.expiresAt > now)
+    .filter(
+      (candidate) => candidate.cwd === cwd && candidate.expiresAt > now && predicate(candidate),
+    )
     .sort((left, right) => right.createdAt - left.createdAt)[0];
 }
 

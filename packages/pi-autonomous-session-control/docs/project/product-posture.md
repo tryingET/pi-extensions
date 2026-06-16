@@ -59,7 +59,7 @@ ASC currently owns:
 - diagnostic-review queries such as `dogfood self`, `self-evolution`, and `what friction just happened?`, returning `self.diagnostic_candidate.v1`, `self.evolution_candidate.v1`, mirror-only `self.insight_promotion_cue.v1`, and mirror-only `self.reflection_guard.v1` payloads without durable writes, and omitting `agent_vent` activation/preview/record suggestions when current prompt/context constraints explicitly disallow `agent_vent`;
 - session-local self-evolution feedback such as `self feedback: helpful`, `self feedback: wrong-owner`, and `self feedback summary`, returning `self.suggestion_feedback.v1` without writing owner surfaces;
 - exact/verbatim visible recall for crystallized patterns when stateless dogfood needs to verify full remembered content from text rather than hidden structured details;
-- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, safe continuation aliases (`continue safely`, `next autonomous step`) over the existing suggested-next-move membrane, and operator-reviewed `agent_vent action=preview` prefills that use the live `packageName` tool facet and JSON-quote caller-controlled fields, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
+- guarded actions: editor prefill, low-risk `pi.sendUserMessage` notifications, diagnostic-review continuations, safe continuation aliases (`continue safely`, `next autonomous step`) over the existing suggested-next-move membrane, fresh same-cwd explicit continuation candidates winning over stale mirror-derived next moves after reload/compaction, and operator-reviewed `agent_vent action=preview` prefills that use the live `packageName` tool facet and JSON-quote caller-controlled fields, with explicit user-message directives winning over diagnostic/action keywords inside the message payload;
 - `dispatch_subagent` and the public `createAscExecutionRuntime` seam with prompt-envelope provenance, child extension/skill-profile policy, concurrency/session reservation, timeout/abort handling, and failure taxonomy;
 - rewind/recovery behavior and runtime invariants for Pi-side session control.
 
@@ -81,7 +81,7 @@ A self/ASC recommendation is trustworthy only when:
 
 1. **Mirror scope** — output says when it is session-local and not durable truth.
 2. **Owner seam** — suggested actions name the owning package or authority surface.
-3. **Risk posture** — low-risk notifications may send; commands, peer launches, compaction, durable records, commits, and owner writes are prefilled or deferred.
+3. **Risk posture** — low-risk notifications may send, including status text about compaction/reload; actual commands, peer launches, compaction commands, durable records, commits, and owner writes are prefilled or deferred.
 4. **Verification** — implementation changes still pass package checks and live reload dogfood when runtime behavior changes.
 5. **Stateless dogfood prompt quality** — `pi -p` probes and fresh Ghostty continuation tabs must be prompted as stateless sessions with repo path, package owner, objective, expected behavior, validation, and non-authorizations included explicitly.
 6. **No hidden escalation** — diagnostic candidates do not create vent records, AK tasks/evidence, issues, incidents, KES notes, ontology entries, or telemetry.

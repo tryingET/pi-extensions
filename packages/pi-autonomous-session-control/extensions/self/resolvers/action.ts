@@ -5,6 +5,7 @@
 import {
   candidateToSliceCandidate,
   latestFreshContinuationCandidate,
+  latestFreshExplicitContinuationCandidate,
   recordContinuationCandidate,
 } from "../continuation-candidate.ts";
 import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
@@ -346,12 +347,16 @@ function handleContinueSuggestedNextMove(query: SelfQuery, state: SelfState): Se
   analyzePatterns(state.operations, state.patterns);
   const handoff = queryHandoffSummary(state.operations, state.patterns);
   const cwd = normalizeCurrentCwd(query);
-  const candidate = handoff.nextMove
-    ? recordContinuationCandidate(state, handoff.nextMove, cwd)
+  const persistedCandidate = handoff.nextMove
+    ? latestFreshExplicitContinuationCandidate(state, cwd)
     : latestFreshContinuationCandidate(state, cwd);
-  const nextMove =
-    handoff.nextMove ?? (candidate ? candidateToSliceCandidate(candidate) : undefined);
-  const usedPersistedContinuationCandidate = !handoff.nextMove && Boolean(candidate);
+  const candidate =
+    persistedCandidate ??
+    (handoff.nextMove ? recordContinuationCandidate(state, handoff.nextMove, cwd) : undefined);
+  const nextMove = persistedCandidate
+    ? candidateToSliceCandidate(persistedCandidate)
+    : handoff.nextMove;
+  const usedPersistedContinuationCandidate = Boolean(persistedCandidate);
 
   if (!nextMove) {
     return {
