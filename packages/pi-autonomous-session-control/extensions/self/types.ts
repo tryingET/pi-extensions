@@ -329,6 +329,7 @@ export type ActionIntent =
   | "create_checkpoint"
   | "queue_followup"
   | "prefill_editor"
+  | "prefill_visible_loop_self_evolution"
   | "continue_suggested_next_move"
   | "record_continuation_candidate"
   | "send_user_message"

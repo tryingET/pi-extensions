@@ -142,6 +142,77 @@ test("self query: prefill intent wins when text mentions follow-up", async () =>
   await cleanup(tempDir);
 });
 
+test("self query: prefill visible-loop self-evolution route", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-prefill-visible-loop-self-evolution",
+    { query: "prefill visible-loop self-evolution" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(result.details.data.prefill, true);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.autonomyLevel, 4);
+  assert.equal(result.details.data.ownerSurface, "pi-little-helpers / visible-loop");
+  assert.match(result.details.data.boundary, /ASC\/self routes by editor prefill only/);
+
+  await cleanup(tempDir);
+});
+
+test("self query: visible-loop self-evolution prefill ignores caller overrides", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-prefill-visible-loop-self-evolution-no-overrides",
+    {
+      query: "prefill visible-loop self-evolution",
+      context: { count: "99", delegateCommit: false },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(result.details.data.routeKind, "visible_loop_self_evolution");
+
+  await cleanup(tempDir);
+});
+
 test("self query: prefill preserves quoted command arguments", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

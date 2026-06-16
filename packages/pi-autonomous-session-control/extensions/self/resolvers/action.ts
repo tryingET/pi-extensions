@@ -43,6 +43,10 @@ export const ACTION_KEYWORDS = [
   "prefill",
   "suggest input",
   "prefill editor",
+  "prefill visible-loop self-evolution",
+  "prefill visible loop self-evolution",
+  "prefill self-evolution visible-loop",
+  "prefill self-evolution loop",
   "continue suggested next move",
   "continue safely",
   "next autonomous step",
@@ -111,6 +115,14 @@ export function mapActionIntent(lower: string): string {
   }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
   if (
+    lower.includes("prefill visible-loop self-evolution") ||
+    lower.includes("prefill visible loop self-evolution") ||
+    lower.includes("prefill self-evolution visible-loop") ||
+    lower.includes("prefill self-evolution loop")
+  ) {
+    return "prefill_visible_loop_self_evolution";
+  }
+  if (
     lower.includes("prefill diagnostic record") ||
     lower.includes("prefill agent_vent record") ||
     lower.includes("prefill vent record") ||
@@ -169,6 +181,10 @@ export function resolveActionQuery(
 
     case "prefill_editor": {
       return handlePrefillEditor(query, state);
+    }
+
+    case "prefill_visible_loop_self_evolution": {
+      return handlePrefillVisibleLoopSelfEvolution(query);
     }
 
     case "continue_suggested_next_move": {
@@ -282,6 +298,27 @@ function handleQueueFollowup(query: SelfQuery, state: SelfState): SelfResponse {
     answer: `Follow-up queued: "${text}". I will remind myself to address this later.`,
     data: { followupId, text, context },
   };
+}
+
+function handlePrefillVisibleLoopSelfEvolution(_query: SelfQuery): SelfResponse {
+  const text = "/visible-loop --count 1 --delegate-commit";
+
+  return buildPrefillResponse(text, {
+    sendUserMessage: false,
+    dispatchMode: "operator_review_required",
+    autonomyLevel: 4,
+    ownerSurface: "pi-little-helpers / visible-loop",
+    routeKind: "visible_loop_self_evolution",
+    productPostureTarget:
+      "docs/project/product-posture.md or routed package docs/project/product-posture.md",
+    boundary:
+      "ASC/self routes by editor prefill only; pi-little-helpers owns /visible-loop launch and completion, and visible-loop output is not durable authority.",
+    nonAuthorizations: [
+      "does not launch visible-loop from self",
+      "does not claim loop output as AK/evidence/KES/ontology truth",
+      "does not bypass product-posture refresh or owner validation gates",
+    ],
+  });
 }
 
 function handlePrefillEditor(query: SelfQuery, state: SelfState): SelfResponse {

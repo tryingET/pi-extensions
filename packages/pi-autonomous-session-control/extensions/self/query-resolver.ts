@@ -163,6 +163,9 @@ function isExplicitDiagnosticActionQuery(lower: string): boolean {
     lower.includes("record continuation candidate") ||
     lower.includes("queue continuation candidate") ||
     lower.includes("remember next autonomous step") ||
+    /prefill (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop))/u.test(
+      lower,
+    ) ||
     lower.includes("continue diagnostic review") ||
     lower.includes("continue self diagnostic") ||
     lower.includes("send diagnostic review") ||
@@ -336,8 +339,7 @@ export function classifyIntent(query: string): QueryIntent {
     return { domain: "meta", intent: "diagnostic_review" };
   }
 
-  // Check explicit action/crystallization/protection requests before capability discovery so
-  // content like "Remember: capability map stale" is stored instead of being hijacked as meta.
+  // Check explicit action/crystallization/protection requests before capability discovery.
   for (const keyword of ACTION_KEYWORDS) {
     if (lower.includes(keyword)) {
       return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
