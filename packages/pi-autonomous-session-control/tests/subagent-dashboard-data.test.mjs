@@ -1,32 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { visibleWidth } from "@earendil-works/pi-tui";
-import { buildDashboardLines } from "../extensions/self/subagent-dashboard.ts";
-import {
-  createSubagentDashboardSnapshot,
-  createSubagentSessionInspection,
-} from "../extensions/self/subagent-dashboard-data.ts";
-import { getSessionStatusPath } from "../extensions/self/subagent-session.ts";
-
-async function writeStatus(sessionsDir, sessionName, status, updatedAt, objective, extras = {}) {
-  await writeFile(
-    getSessionStatusPath(sessionsDir, sessionName),
-    JSON.stringify({
-      sessionName,
-      status,
-      pid: process.pid,
-      ppid: process.ppid,
-      createdAt: updatedAt,
-      updatedAt,
-      objective,
-      sessionKind: "subagent",
-      ...extras,
-    }),
-  );
-}
+import { createSubagentDashboardSnapshot } from "../extensions/self/subagent-dashboard-data.ts";
+import { writeStatus } from "./subagent-dashboard-data-harness.mjs";
 
 test("createSubagentDashboardSnapshot sorts recent sessions and computes hints", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-"));
@@ -70,7 +48,6 @@ test("createSubagentDashboardSnapshot sorts recent sessions and computes hints",
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });
-
 test("createSubagentDashboardSnapshot truncates long objectives and respects row limit", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-limit-"));
 
@@ -106,7 +83,6 @@ test("createSubagentDashboardSnapshot truncates long objectives and respects row
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });
-
 test("createSubagentDashboardSnapshot can filter to the current live session and freshness window", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-filter-"));
 
@@ -154,7 +130,6 @@ test("createSubagentDashboardSnapshot can filter to the current live session and
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });
-
 test("createSubagentDashboardSnapshot keeps current-session records that lack legacy repo-root metadata", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-legacy-repo-filter-"));
 
@@ -182,7 +157,6 @@ test("createSubagentDashboardSnapshot keeps current-session records that lack le
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });
-
 test("createSubagentDashboardSnapshot ignores valid-shaped sidecars without ASC ownership markers", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-unowned-status-"));
 
@@ -218,7 +192,6 @@ test("createSubagentDashboardSnapshot ignores valid-shaped sidecars without ASC 
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });
-
 test("createSubagentDashboardSnapshot ignores invalid status sidecars", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-invalid-status-"));
 
@@ -253,7 +226,6 @@ test("createSubagentDashboardSnapshot ignores invalid status sidecars", async ()
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });
-
 test("createSubagentDashboardSnapshot can filter to the current repo root as well as the live session", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-repo-filter-"));
 
@@ -286,418 +258,6 @@ test("createSubagentDashboardSnapshot can filter to the current repo root as wel
     assert.equal(snapshot.total, 1);
     assert.equal(snapshot.rows.length, 1);
     assert.equal(snapshot.rows[0].sessionName, "current-repo");
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection does not classify unowned status sidecars as ASC lifecycle state", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-unowned-"));
-
-  try {
-    await writeFile(join(sessionsDir, "foreign.jsonl"), "{}\n");
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "foreign"),
-      JSON.stringify({
-        sessionName: "foreign",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: "2026-03-06T11:30:00.000Z",
-        updatedAt: "2026-03-06T11:30:00.000Z",
-      }),
-    );
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "foreign", {
-      now: Date.parse("2026-03-06T12:00:00.000Z"),
-    });
-
-    assert.equal(inspection.found, true);
-    assert.equal(inspection.status, undefined);
-    assert.match(inspection.warnings.join("\n"), /not an owned ASC subagent status artifact/i);
-    assert.match(inspection.recommendedActionHint, /inspect artifact paths/i);
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection rejects path traversal session names", async () => {
-  const root = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-traversal-"));
-  const sessionsDir = join(root, "native", "sessions");
-  const outsideDir = join(root, "native", "outside");
-
-  try {
-    await mkdir(sessionsDir, { recursive: true });
-    await mkdir(outsideDir, { recursive: true });
-    await writeFile(
-      join(outsideDir, "probe.status.json"),
-      JSON.stringify({
-        sessionName: "../outside/probe",
-        sessionKind: "subagent",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: "2026-03-06T11:30:00.000Z",
-        updatedAt: "2026-03-06T11:30:00.000Z",
-        resultPreview: "OUTSIDE_READ",
-      }),
-    );
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "../outside/probe", {
-      now: Date.parse("2026-03-06T12:00:00.000Z"),
-    });
-
-    assert.equal(inspection.found, false);
-    assert.equal(inspection.status, undefined);
-    assert.equal(inspection.resultPreview, undefined);
-    assert.match(inspection.warnings.join("\n"), /invalid session name/i);
-    assert.ok(inspection.statusArtifact.path.startsWith(sessionsDir));
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection ignores recorded session files outside the session dir", async () => {
-  const root = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-contained-"));
-  const sessionsDir = join(root, "native", "sessions");
-  const outsideDir = join(root, "native", "outside");
-
-  try {
-    await mkdir(sessionsDir, { recursive: true });
-    await mkdir(outsideDir, { recursive: true });
-    await writeFile(join(outsideDir, "probe.jsonl"), "outside\n");
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "probe"),
-      JSON.stringify({
-        sessionName: "probe",
-        sessionKind: "subagent",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: "2026-03-06T11:30:00.000Z",
-        updatedAt: "2026-03-06T11:30:00.000Z",
-        sessionFile: join(outsideDir, "probe.jsonl"),
-        resultPreview: "STATUS_OK",
-      }),
-    );
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "probe", {
-      now: Date.parse("2026-03-06T12:00:00.000Z"),
-    });
-
-    assert.equal(inspection.status, "done");
-    assert.equal(inspection.resultPreview, "STATUS_OK");
-    assert.match(inspection.warnings.join("\n"), /escapes the subagent session directory/i);
-    assert.equal(inspection.sessionArtifact.path, join(sessionsDir, "probe.jsonl"));
-    assert.equal(inspection.sessionArtifact.exists, false);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection does not follow recorded symlinks outside the session dir", async () => {
-  const root = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-symlink-"));
-  const sessionsDir = join(root, "native", "sessions");
-  const outsideDir = join(root, "native", "outside");
-
-  try {
-    await mkdir(sessionsDir, { recursive: true });
-    await mkdir(outsideDir, { recursive: true });
-    const outsideFile = join(outsideDir, "probe.jsonl");
-    const symlinkFile = join(sessionsDir, "probe-link.jsonl");
-    await writeFile(outsideFile, "outside\n");
-    await symlink(outsideFile, symlinkFile);
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "probe"),
-      JSON.stringify({
-        sessionName: "probe",
-        sessionKind: "subagent",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: "2026-03-06T11:30:00.000Z",
-        updatedAt: "2026-03-06T11:30:00.000Z",
-        sessionFile: symlinkFile,
-        resultPreview: "STATUS_OK",
-      }),
-    );
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "probe", {
-      now: Date.parse("2026-03-06T12:00:00.000Z"),
-    });
-
-    assert.equal(inspection.status, "done");
-    assert.equal(inspection.resultPreview, "STATUS_OK");
-    assert.match(inspection.warnings.join("\n"), /escapes the subagent session directory/i);
-    assert.equal(inspection.sessionArtifact.path, join(sessionsDir, "probe.jsonl"));
-    assert.notEqual(inspection.sessionArtifact.path, symlinkFile);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection reports missing recorded files inside the session dir without escape warnings", async () => {
-  const sessionsDir = await mkdtemp(
-    join(tmpdir(), "subagent-dashboard-inspect-missing-contained-"),
-  );
-
-  try {
-    const missingFile = join(sessionsDir, "missing-recorded.jsonl");
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "probe"),
-      JSON.stringify({
-        sessionName: "probe",
-        sessionKind: "subagent",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: "2026-03-06T11:30:00.000Z",
-        updatedAt: "2026-03-06T11:30:00.000Z",
-        sessionFile: missingFile,
-        resultPreview: "STATUS_OK",
-      }),
-    );
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "probe", {
-      now: Date.parse("2026-03-06T12:00:00.000Z"),
-    });
-
-    assert.equal(inspection.status, "done");
-    assert.equal(inspection.sessionArtifact.path, missingFile);
-    assert.equal(inspection.sessionArtifact.exists, false);
-    assert.doesNotMatch(inspection.warnings.join("\n"), /escapes the subagent session directory/i);
-    assert.match(inspection.warnings.join("\n"), /missing session file/i);
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection rejects malformed non-string sessionFile sidecars", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-bad-file-"));
-
-  try {
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "bad-session-file"),
-      JSON.stringify({
-        sessionName: "bad-session-file",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: "2026-03-06T11:30:00.000Z",
-        updatedAt: "2026-03-06T11:30:00.000Z",
-        sessionKind: "subagent",
-        sessionFile: 123,
-      }),
-    );
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "bad-session-file", {
-      now: Date.parse("2026-03-06T12:00:00.000Z"),
-    });
-
-    assert.equal(inspection.status, undefined);
-    assert.match(inspection.warnings.join("\n"), /not an owned ASC subagent status artifact/i);
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection reports stale process identity as not live", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-stale-pid-"));
-
-  try {
-    await writeStatus(
-      sessionsDir,
-      "stale-pid",
-      "running",
-      new Date().toISOString(),
-      "Inspect a stale running sidecar after PID reuse.",
-      { pidStartedAt: -1 },
-    );
-    await writeFile(join(sessionsDir, "stale-pid.jsonl"), "{}\n");
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "stale-pid");
-
-    assert.equal(inspection.status, "running");
-    assert.equal(inspection.pidState, "dead");
-    assert.match(inspection.warnings.join("\n"), /process identity mismatch/i);
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection summarizes lifecycle metadata and artifact paths", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-inspect-"));
-  const updatedAt = "2026-03-06T11:59:00.000Z";
-
-  try {
-    await writeFile(
-      getSessionStatusPath(sessionsDir, "done-session"),
-      JSON.stringify({
-        sessionName: "done-session",
-        status: "done",
-        pid: process.pid,
-        ppid: process.ppid,
-        createdAt: "2026-03-06T11:58:00.000Z",
-        updatedAt,
-        objective: "Review the migrated dashboard slice and capture next steps",
-        parentSessionKey: "live-9",
-        resultPreview: "Review landed cleanly; next step is to verify the dashboard in Pi.",
-        exitCode: 0,
-        elapsed: 61_000,
-        sessionKind: "subagent",
-      }),
-    );
-    await writeFile(join(sessionsDir, "done-session.jsonl"), '{"session":true}\n');
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "done-session", {
-      now: Date.parse("2026-03-06T12:00:00.000Z"),
-      currentSessionKey: "live-9",
-    });
-
-    assert.equal(inspection.found, true);
-    assert.equal(inspection.status, "done");
-    assert.equal(inspection.ageLabel, "1m ago");
-    assert.equal(inspection.sessionScopeLabel, "Current live session (live-9)");
-    assert.equal(
-      inspection.resultPreview,
-      "Review landed cleanly; next step is to verify the dashboard in Pi.",
-    );
-    assert.equal(inspection.elapsedLabel, "1m 1s");
-    assert.equal(inspection.exitCode, 0);
-    assert.equal(inspection.pidState, "not-applicable");
-    assert.equal(inspection.sessionArtifact.exists, true);
-    assert.equal(inspection.statusArtifact.exists, true);
-    assert.match(inspection.recommendedActionHint, /review outcome/i);
-    assert.equal(inspection.warnings.length, 0);
-    assert.match(inspection.rawStatusJson, /"done-session"/);
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("createSubagentSessionInspection suggests recent sessions when the requested name is missing", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-missing-"));
-
-  try {
-    await writeStatus(
-      sessionsDir,
-      "analysis-run-2",
-      "error",
-      "2026-03-06T12:05:00.000Z",
-      "Inspect a failed subagent run and decide whether retry is safe.",
-      { parentSessionKey: "live-7" },
-    );
-    await writeStatus(
-      sessionsDir,
-      "review-run-1",
-      "done",
-      "2026-03-06T12:00:00.000Z",
-      "Summarize the completed review results.",
-    );
-
-    const inspection = createSubagentSessionInspection(sessionsDir, "analysis", {
-      now: Date.parse("2026-03-06T12:06:00.000Z"),
-    });
-
-    assert.equal(inspection.found, false);
-    assert.match(inspection.recommendedActionHint, /inspect artifact paths/i);
-    assert.deepEqual(inspection.recentSessionSuggestions, ["analysis-run-2", "review-run-1"]);
-    assert.match(inspection.warnings.join("\n"), /missing status sidecar/i);
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("buildDashboardLines never exceeds the requested width", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-width-"));
-  const theme = {
-    fg(_name, value) {
-      return value;
-    },
-  };
-
-  try {
-    const recentDoneAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const recentTimeoutAt = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-
-    await writeStatus(
-      sessionsDir,
-      "reviewer-2",
-      "done",
-      recentDoneAt,
-      "Reply with exactly DIRECT_OK_GHOSTTY_SUBAGENT_ETEST_2 after inspecting the session.",
-      {
-        parentSessionKey: "f50f147a-7a83-4d5e-8123-123456789abc",
-      },
-    );
-    await writeStatus(
-      sessionsDir,
-      "task-662-scope",
-      "timeout",
-      recentTimeoutAt,
-      "Inspect AK task #662 scope in /home/tryinget/ai-society/softwareco/owned/pi-extensions and summarize the blast radius.",
-      {
-        parentSessionKey: "f50f147a-7a83-4d5e-8123-123456789abc",
-      },
-    );
-
-    const baselineLines = buildDashboardLines(
-      93,
-      theme,
-      sessionsDir,
-      "f50f147a-7a83-4d5e-8123-123456789abc",
-    );
-    assert.ok(baselineLines.length > 0);
-
-    for (const width of [1, 2, 3, 10, 24, 40, 60, 93]) {
-      const lines = buildDashboardLines(
-        width,
-        theme,
-        sessionsDir,
-        "f50f147a-7a83-4d5e-8123-123456789abc",
-      );
-      for (const line of lines) {
-        assert.ok(
-          visibleWidth(line) <= width,
-          `expected line width <= ${width}, got ${visibleWidth(line)} for ${JSON.stringify(line)}`,
-        );
-      }
-    }
-  } finally {
-    await rm(sessionsDir, { recursive: true, force: true });
-  }
-});
-
-test("buildDashboardLines hides the widget until this live session has recent subagent activity", async () => {
-  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dashboard-empty-"));
-  const theme = {
-    fg(_name, value) {
-      return value;
-    },
-  };
-
-  try {
-    await writeStatus(
-      sessionsDir,
-      "other-session",
-      "done",
-      "2026-03-06T11:45:00.000Z",
-      "This belongs to another live session and should stay hidden.",
-      { parentSessionKey: "other-live-session" },
-    );
-    await writeStatus(
-      sessionsDir,
-      "current-but-stale",
-      "done",
-      "2026-03-06T10:00:00.000Z",
-      "This current-session entry is too old for the widget.",
-      { parentSessionKey: "live-session-key" },
-    );
-
-    for (const width of [1, 2, 3, 10, 24, 40]) {
-      const lines = buildDashboardLines(width, theme, sessionsDir, "live-session-key");
-      assert.deepEqual(lines, []);
-    }
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }
