@@ -145,17 +145,17 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       };
       const response = resolveQuery({ query: typedParams.query, context }, state);
       const actionData = response.data as
-        | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown }
+        | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown; dispatchMode?: unknown }
         | undefined;
-      const didPrefill =
-        response.intent === "action" &&
-        actionData?.prefill === true &&
-        typeof actionData.text === "string" &&
-        ctx.hasUI;
+      const hasActionText = response.intent === "action" && typeof actionData?.text === "string";
+      const wantsPrefill = hasActionText && actionData?.prefill === true;
+      const canPrefill = ctx.hasUI && typeof ctx.ui?.setEditorText === "function";
+      const didPrefill = wantsPrefill && canPrefill;
+      const prefillUnavailable = wantsPrefill && !canPrefill;
       const didSendUserMessage =
-        response.intent === "action" &&
+        hasActionText &&
+        !wantsPrefill &&
         actionData?.sendUserMessage === true &&
-        typeof actionData.text === "string" &&
         typeof pi.sendUserMessage === "function";
 
       if (didPrefill) {
@@ -165,6 +165,13 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       if (didSendUserMessage) {
         await pi.sendUserMessage(actionData.text as string, { deliverAs: "followUp" });
       }
+
+      const resultData = shapeActionDeliveryData(response.data, {
+        hasActionText,
+        didPrefill,
+        prefillUnavailable,
+        canPrefill,
+      });
 
       const shouldPersistScopedDomains =
         response.intent === "crystallization" ||
@@ -186,20 +193,12 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
           {
             type: "text",
             text:
-              (didPrefill
-                ? response.answer.replace("Editor prefill suggested", "Editor prefilled")
-                : didSendUserMessage
-                  ? response.answer
-                      .replace(
-                        "User-message continuation suggested",
-                        "User-message continuation sent",
-                      )
-                      .replace("User-message dispatch suggested", "User-message dispatch sent")
-                      .replace(
-                        "Diagnostic-review continuation suggested",
-                        "Diagnostic-review continuation sent",
-                      )
-                  : response.answer) +
+              formatActionDeliveryText(response.answer, {
+                didPrefill,
+                prefillUnavailable,
+                didSendUserMessage,
+                actionData,
+              }) +
               (response.suggestions?.length
                 ? `\n\nSuggestions: ${response.suggestions.join("; ")}`
                 : ""),
@@ -208,13 +207,80 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         details: {
           understood: response.understood,
           intent: response.intent,
-          data: response.data,
+          data: resultData,
         },
       };
     },
   };
 
   pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
+}
+
+function shapeActionDeliveryData(
+  data: unknown,
+  delivery: {
+    hasActionText: boolean;
+    didPrefill: boolean;
+    prefillUnavailable: boolean;
+    canPrefill: boolean;
+  },
+): unknown {
+  if (!delivery.hasActionText || typeof data !== "object" || data === null || Array.isArray(data)) {
+    return data;
+  }
+
+  const source = data as Record<string, unknown>;
+  const dispatchMode =
+    delivery.prefillUnavailable && source.dispatchMode === "operator_submit_required"
+      ? "operator_manual_submit_required"
+      : source.dispatchMode;
+
+  return {
+    ...source,
+    dispatchMode,
+    requestedDispatchMode: source.dispatchMode,
+    prefillAvailable: delivery.canPrefill,
+    prefillPerformed: delivery.didPrefill,
+    ...(delivery.prefillUnavailable ? { prefillUnavailableReason: "no_ui" } : {}),
+  };
+}
+
+function formatActionDeliveryText(
+  answer: string,
+  delivery: {
+    didPrefill: boolean;
+    prefillUnavailable: boolean;
+    didSendUserMessage: boolean;
+    actionData:
+      | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown; dispatchMode?: unknown }
+      | undefined;
+  },
+): string {
+  if (delivery.didPrefill) {
+    return answer.replace("Editor prefill suggested", "Editor prefilled");
+  }
+
+  if (delivery.prefillUnavailable && typeof delivery.actionData?.text === "string") {
+    const preview = formatQuotedPreview(delivery.actionData.text);
+    if (delivery.actionData.dispatchMode === "operator_submit_required") {
+      return `Editor prefill unavailable (no UI): manual operator submission required. Copy and submit this text through Pi's slash-command parser: ${preview}`;
+    }
+
+    return `Editor prefill unavailable (no UI): manual operator review required. Copy/review this text before acting: ${preview}`;
+  }
+
+  if (delivery.didSendUserMessage) {
+    return answer
+      .replace("User-message continuation suggested", "User-message continuation sent")
+      .replace("User-message dispatch suggested", "User-message dispatch sent")
+      .replace("Diagnostic-review continuation suggested", "Diagnostic-review continuation sent");
+  }
+
+  return answer;
+}
+
+function formatQuotedPreview(text: string): string {
+  return `"${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`;
 }
 
 function responseHasContinuationCandidate(data: unknown): boolean {

@@ -578,6 +578,81 @@ test("self query: direct operator notification gates context slash commands to p
   await cleanup(tempDir);
 });
 
+test("self query: direct operator notification reports manual slash submission when UI is unavailable", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-notify-operator-slash-command-no-ui",
+    { query: "notify operator: /visible-loop --count 1 --delegate-commit" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.content[0].text, /Editor prefill unavailable \(no UI\)/);
+  assert.match(result.content[0].text, /manual operator submission required/);
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
+  assert.equal(result.details.data.requestedDispatchMode, "operator_submit_required");
+  assert.equal(result.details.data.prefillAvailable, false);
+  assert.equal(result.details.data.prefillPerformed, false);
+  assert.equal(result.details.data.prefillUnavailableReason, "no_ui");
+
+  await cleanup(tempDir);
+});
+
+test("self query: direct operator notification gates prose and markdown slash commands", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  for (const [id, message] of [
+    ["prose-autoresearch", "please use /autoresearch Evaluate ASC slash-command gate"],
+    ["blockquote-visible-loop", "status update:\n> /visible-loop --count 1"],
+    ["list-visible-loop", "status update:\n- /visible-loop --count 1"],
+    ["code-visible-loop", "status update:\n`/visible-loop --count 1`"],
+  ]) {
+    editorText = "";
+    harness.sentUserMessages.length = 0;
+    const result = await tool.execute(
+      `tc-notify-operator-${id}`,
+      { query: `notify operator: ${message}` },
+      null,
+      null,
+      ctx,
+    );
+
+    assert.ok(result.content[0].text.includes("Editor prefilled"));
+    assert.equal(harness.sentUserMessages.length, 0);
+    assert.equal(editorText, message);
+    assert.equal(result.details.data.sendUserMessage, false);
+    assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+    assert.equal(result.details.data.prefillAvailable, true);
+    assert.equal(result.details.data.prefillPerformed, true);
+  }
+
+  await cleanup(tempDir);
+});
+
 test("self query: direct operator notification allows low-risk multiline absolute path status", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

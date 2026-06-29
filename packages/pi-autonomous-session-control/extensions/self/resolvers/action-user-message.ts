@@ -112,7 +112,7 @@ function messageLooksSensitive(text: string): boolean {
 }
 
 function messageLooksSlashCommand(text: string): boolean {
-  return /(^|\n)\s*\/[A-Za-z][\w-]*(?=\s|$)/u.test(text);
+  return /(^|[\s`'">(*_[-])\/[A-Za-z][\w-]*(?=\s|$)/u.test(text);
 }
 
 function messageLooksActionDirective(text: string): boolean {

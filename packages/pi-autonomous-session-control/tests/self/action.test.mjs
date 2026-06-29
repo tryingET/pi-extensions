@@ -191,6 +191,38 @@ test("self query: prefill visible-loop self-evolution route", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: visible-loop self-evolution reports manual submission when UI is unavailable", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-prefill-visible-loop-self-evolution-no-ui",
+    { query: "prefill visible-loop self-evolution" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.match(result.content[0].text, /Editor prefill unavailable \(no UI\)/);
+  assert.match(result.content[0].text, /manual operator submission required/);
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(result.details.data.text, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(result.details.data.prefill, true);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
+  assert.equal(result.details.data.requestedDispatchMode, "operator_submit_required");
+  assert.equal(result.details.data.prefillAvailable, false);
+  assert.equal(result.details.data.prefillPerformed, false);
+  assert.equal(result.details.data.prefillUnavailableReason, "no_ui");
+
+  await cleanup(tempDir);
+});
+
 test("self query: visible-loop self-evolution prefill ignores caller overrides", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
