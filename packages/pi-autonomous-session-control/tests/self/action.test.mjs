@@ -168,12 +168,25 @@ test("self query: prefill visible-loop self-evolution route", async () => {
   );
 
   assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(
+    result.content[0].text,
+    /press Enter to launch it through Pi's slash-command parser/,
+  );
   assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
   assert.equal(result.details.data.prefill, true);
   assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+  assert.equal(
+    result.details.data.launchMechanism,
+    "operator_reviews_prefilled_editor_then_presses_enter",
+  );
   assert.equal(result.details.data.autonomyLevel, 4);
   assert.equal(result.details.data.ownerSurface, "pi-little-helpers / visible-loop");
   assert.match(result.details.data.boundary, /ASC\/self routes by editor prefill only/);
+  assert.match(
+    result.details.data.boundary,
+    /sendUserMessage does not invoke Pi slash-command expansion/,
+  );
 
   await cleanup(tempDir);
 });
@@ -246,9 +259,11 @@ test("self query: prefill autoresearch campaign route", async () => {
   assert.match(editorText, /operator_nudge_count/);
   assert.equal(result.details.data.prefill, true);
   assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
   assert.equal(result.details.data.autonomyLevel, 5);
   assert.equal(result.details.data.ownerSurface, "pi-autoresearch");
   assert.equal(result.details.data.routeKind, "measured_self_evolution_campaign");
+  assert.match(result.details.data.boundary, /press Enter to launch \/autoresearch/);
 
   editorText = "";
   const measuredAlias = await tool.execute(

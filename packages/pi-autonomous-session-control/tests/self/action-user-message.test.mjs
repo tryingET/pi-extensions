@@ -434,6 +434,177 @@ test("self query: direct operator notification gates compaction directives to ed
   await cleanup(tempDir);
 });
 
+test("self query: direct operator notification gates slash commands to operator-submitted editor prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-notify-operator-slash-command",
+    { query: "notify operator: /visible-loop --count 1 --delegate-commit" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(result.content[0].text, /press Enter to send it through Pi's slash-command parser/);
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+  assert.match(
+    result.details.data.boundary,
+    /sendUserMessage does not invoke Pi slash-command expansion/,
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: direct operator notification gates multiline slash commands to prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const message = "status update:\n/visible-loop --count 1 --delegate-commit";
+  const result = await tool.execute(
+    "tc-notify-operator-multiline-slash-command",
+    { query: `notify operator: ${message}` },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(result.content[0].text, /press Enter to send it through Pi's slash-command parser/);
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(editorText, message);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+
+  await cleanup(tempDir);
+});
+
+test("self query: direct operator notification gates indented multiline slash commands to prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const message = "campaign proposal:\n  /autoresearch Evaluate ASC slash-command gate";
+  const result = await tool.execute(
+    "tc-notify-operator-indented-multiline-slash-command",
+    { query: `notify operator: ${message}` },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(editorText, message);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+
+  await cleanup(tempDir);
+});
+
+test("self query: direct operator notification gates context slash commands to prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-notify-operator-context-slash-command",
+    { query: "notify operator", context: { text: "/compact-handoff" } },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(editorText, "/compact-handoff");
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+
+  await cleanup(tempDir);
+});
+
+test("self query: direct operator notification allows low-risk multiline absolute path status", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const message = "validated output written to:\n/tmp/asc-visible-loop-report.txt";
+  const result = await tool.execute(
+    "tc-notify-operator-absolute-path",
+    { query: `notify operator: ${message}` },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("User-message dispatch sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.equal(harness.sentUserMessages[0].text, message);
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.dispatchMode, "operator_notification");
+
+  await cleanup(tempDir);
+});
+
 test("self query: direct operator notification gates risky directives to editor prefill", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

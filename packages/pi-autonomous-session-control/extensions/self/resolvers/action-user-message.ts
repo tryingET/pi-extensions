@@ -50,6 +50,17 @@ export function handleDirectUserMessage(query: SelfQuery): SelfResponse {
     };
   }
 
+  if (messageLooksSlashCommand(text)) {
+    return buildPrefillResponse(text, {
+      sendUserMessage: false,
+      dispatchMode: "operator_submit_required",
+      reason:
+        "Direct user-message text starts with a slash command; keep it as editor prefill so the operator can submit it through Pi's slash-command parser.",
+      boundary:
+        "Extension-originated pi.sendUserMessage does not invoke Pi slash-command expansion. ASC/self must not inject command-looking text as a follow-up or become a hidden loop runner.",
+    });
+  }
+
   if (messageLooksActionDirective(text)) {
     return buildPrefillResponse(text, {
       sendUserMessage: false,
@@ -100,17 +111,25 @@ function messageLooksSensitive(text: string): boolean {
   );
 }
 
+function messageLooksSlashCommand(text: string): boolean {
+  return /(^|\n)\s*\/[A-Za-z][\w-]*(?=\s|$)/u.test(text);
+}
+
 function messageLooksActionDirective(text: string): boolean {
-  return /(^|\n)\s*[/!$]{1,2}\S|\b(?:run|execute|spawn|launch|commit|merge|delete|remove|reset|record|publish|promote)\b|(^|\n)\s*(?:(?:please|kindly)\s+|(?:can|could|would)\s+you\s+)?compact\b|\b(?:run|execute|start|trigger|perform)\s+(?:a\s+)?(?:compact|compaction)\b|\b(?:ak\s+task|agent_vent|scout_peer_spawn|candidate_peer_spawn|fork_peer_spawn|dispatch_subagent|toolbox\(|evidence_record|write\s+AK|write\s+KES|peer review|durable record)\b/iu.test(
+  return /(^|\n)\s*[!$]{1,2}\S|\b(?:run|execute|spawn|launch|commit|merge|delete|remove|reset|record|publish|promote)\b|(^|\n)\s*(?:(?:please|kindly)\s+|(?:can|could|would)\s+you\s+)?compact\b|\b(?:run|execute|start|trigger|perform)\s+(?:a\s+)?(?:compact|compaction)\b|\b(?:ak\s+task|agent_vent|scout_peer_spawn|candidate_peer_spawn|fork_peer_spawn|dispatch_subagent|toolbox\(|evidence_record|write\s+AK|write\s+KES|peer review|durable record)\b/iu.test(
     text,
   );
 }
 
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {
+  const operatorSubmitSuffix =
+    extraData.dispatchMode === "operator_submit_required"
+      ? ". Operator submission required: review the editor text, then press Enter to send it through Pi's slash-command parser."
+      : "";
   return {
     understood: true,
     intent: "action",
-    answer: `Editor prefill suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
+    answer: `Editor prefill suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"${operatorSubmitSuffix}`,
     data: { text, prefill: true, ...extraData },
   };
 }
