@@ -55,7 +55,7 @@ export function handleDirectUserMessage(query: SelfQuery): SelfResponse {
       sendUserMessage: false,
       dispatchMode: "operator_submit_required",
       reason:
-        "Direct user-message text starts with a slash command; keep it as editor prefill so the operator can submit it through Pi's slash-command parser.",
+        "Direct user-message text contains a slash-command-looking token; keep it as editor prefill so the operator can submit it through Pi's slash-command parser.",
       boundary:
         "Extension-originated pi.sendUserMessage does not invoke Pi slash-command expansion. ASC/self must not inject command-looking text as a follow-up or become a hidden loop runner.",
     });
@@ -112,8 +112,37 @@ function messageLooksSensitive(text: string): boolean {
 }
 
 function messageLooksSlashCommand(text: string): boolean {
-  return /(^|[\s`'">(*_[-])\/[A-Za-z][\w-]*(?=\s|$)/u.test(text);
+  const slashTokenPattern = /(^|[\s`'">(*_[-])\/([A-Za-z][\w-]*)(?=\s|$)/gu;
+  for (const match of text.matchAll(slashTokenPattern)) {
+    const commandName = match[2]?.toLowerCase();
+    if (commandName && !COMMON_ABSOLUTE_PATH_ROOTS.has(commandName)) {
+      return true;
+    }
+  }
+  return false;
 }
+
+const COMMON_ABSOLUTE_PATH_ROOTS = new Set([
+  "bin",
+  "dev",
+  "etc",
+  "home",
+  "lib",
+  "lib64",
+  "media",
+  "mnt",
+  "opt",
+  "proc",
+  "root",
+  "run",
+  "sbin",
+  "srv",
+  "sys",
+  "tmp",
+  "usr",
+  "var",
+  "workspace",
+]);
 
 function messageLooksActionDirective(text: string): boolean {
   return /(^|\n)\s*[!$]{1,2}\S|\b(?:run|execute|spawn|launch|commit|merge|delete|remove|reset|record|publish|promote)\b|(^|\n)\s*(?:(?:please|kindly)\s+|(?:can|could|would)\s+you\s+)?compact\b|\b(?:run|execute|start|trigger|perform)\s+(?:a\s+)?(?:compact|compaction)\b|\b(?:ak\s+task|agent_vent|scout_peer_spawn|candidate_peer_spawn|fork_peer_spawn|dispatch_subagent|toolbox\(|evidence_record|write\s+AK|write\s+KES|peer review|durable record)\b/iu.test(

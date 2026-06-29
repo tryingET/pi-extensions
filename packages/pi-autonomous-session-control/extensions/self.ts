@@ -168,9 +168,11 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
 
       const resultData = shapeActionDeliveryData(response.data, {
         hasActionText,
+        wantsPrefill,
         didPrefill,
         prefillUnavailable,
         canPrefill,
+        didSendUserMessage,
       });
 
       const shouldPersistScopedDomains =
@@ -220,9 +222,11 @@ function shapeActionDeliveryData(
   data: unknown,
   delivery: {
     hasActionText: boolean;
+    wantsPrefill: boolean;
     didPrefill: boolean;
     prefillUnavailable: boolean;
     canPrefill: boolean;
+    didSendUserMessage: boolean;
   },
 ): unknown {
   if (!delivery.hasActionText || typeof data !== "object" || data === null || Array.isArray(data)) {
@@ -238,10 +242,15 @@ function shapeActionDeliveryData(
   return {
     ...source,
     dispatchMode,
-    requestedDispatchMode: source.dispatchMode,
-    prefillAvailable: delivery.canPrefill,
-    prefillPerformed: delivery.didPrefill,
-    ...(delivery.prefillUnavailable ? { prefillUnavailableReason: "no_ui" } : {}),
+    userMessageSent: delivery.didSendUserMessage,
+    ...(delivery.wantsPrefill
+      ? {
+          requestedDispatchMode: source.dispatchMode,
+          prefillAvailable: delivery.canPrefill,
+          prefillPerformed: delivery.didPrefill,
+          ...(delivery.prefillUnavailable ? { prefillUnavailableReason: "no_ui" } : {}),
+        }
+      : {}),
   };
 }
 

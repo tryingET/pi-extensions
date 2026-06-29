@@ -662,20 +662,28 @@ test("self query: direct operator notification allows low-risk multiline absolut
   const tool = harness.tools.get("self");
   const ctx = createMockContext();
 
-  const message = "validated output written to:\n/tmp/asc-visible-loop-report.txt";
-  const result = await tool.execute(
-    "tc-notify-operator-absolute-path",
-    { query: `notify operator: ${message}` },
-    null,
-    null,
-    ctx,
-  );
+  for (const [id, message] of [
+    ["absolute-path-file", "validated output written to:\n/tmp/asc-visible-loop-report.txt"],
+    ["absolute-path-root", "validated output directory:\n/tmp"],
+  ]) {
+    harness.sentUserMessages.length = 0;
+    const result = await tool.execute(
+      `tc-notify-operator-${id}`,
+      { query: `notify operator: ${message}` },
+      null,
+      null,
+      ctx,
+    );
 
-  assert.ok(result.content[0].text.includes("User-message dispatch sent"));
-  assert.equal(harness.sentUserMessages.length, 1);
-  assert.equal(harness.sentUserMessages[0].text, message);
-  assert.equal(result.details.data.sendUserMessage, true);
-  assert.equal(result.details.data.dispatchMode, "operator_notification");
+    assert.ok(result.content[0].text.includes("User-message dispatch sent"));
+    assert.equal(harness.sentUserMessages.length, 1);
+    assert.equal(harness.sentUserMessages[0].text, message);
+    assert.equal(result.details.data.sendUserMessage, true);
+    assert.equal(result.details.data.userMessageSent, true);
+    assert.equal(result.details.data.dispatchMode, "operator_notification");
+    assert.equal(result.details.data.prefillAvailable, undefined);
+    assert.equal(result.details.data.prefillPerformed, undefined);
+  }
 
   await cleanup(tempDir);
 });
