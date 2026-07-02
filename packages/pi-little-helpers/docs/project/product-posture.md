@@ -50,7 +50,7 @@ launch visible helper work; do not make helper output authority
 
 - slash commands for `/sidequest`, `/scoutpeer`, `/parallelquest`, `/visible-loop`, and `/nexus-loop`;
 - model-callable visible peer spawn tools for bounded peer launch surfaces;
-- visible-loop state files, visible child launch, prompt queue delivery, intercom report-back, and explicit completion checkpointing;
+- visible-loop state files, visible child launch, prompt queue delivery, intercom report-back, explicit completion checkpointing, and a narrow extension-originated `sendUserMessage` bridge for pi-little-helpers-owned `/visible-loop` / `/nexus-loop` commands;
 - deterministic expansion of configured slash prompt templates such as `/deep-review` and `/commit` from repo-local and global prompt directories;
 - commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion, with command-aware delegation prompt names and run-id wording;
 - default visible-loop prompts that read `docs/project/vision.md` and `docs/project/product-posture.md`, implement a bounded slice, run review/fixup/validation, refresh product posture, and only then commit/complete;
@@ -94,7 +94,8 @@ A visible-loop result is trustworthy only when:
 3. **Validation is scoped** — package-local loop/check scripts or truthful fallbacks were run and reported.
 4. **No authority drift** — child output, intercom messages, status files, and prompt queues are not treated as AK/evidence/KES/ontology/Prompt Vault truth.
 5. **Completion is gated** — the completion checkpoint is sent only after implementation, review/fixup, posture refresh, and commit/delegated commit succeeded or explicitly stopped.
-6. **Dirty worktree is protected** — unrelated files are not staged or overwritten.
+6. **Extension-originated launch is narrow** — only pi-little-helpers-owned `/visible-loop` and `/nexus-loop` messages injected through `pi.sendUserMessage` are bridged into command handlers; the package does not become a general slash-command dispatcher.
+7. **Dirty worktree is protected** — unrelated files are not staged or overwritten.
 
 ## Next product bets
 

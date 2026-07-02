@@ -1996,6 +1996,23 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       };
     }
 
+    function parseExtensionVisibleLoopCommand(text: string):
+      | {
+          commandName: typeof VISIBLE_LOOP_COMMAND;
+          args: string;
+          profile: VisibleLoopCommandProfile;
+        }
+      | { commandName: typeof NEXUS_LOOP_COMMAND; args: string; profile: VisibleLoopCommandProfile }
+      | undefined {
+      const match = text.match(/^\/(visible-loop|nexus-loop)(?:\s+([\s\S]*))?$/u);
+      if (!match) return undefined;
+      const commandName = match[1] as typeof VISIBLE_LOOP_COMMAND | typeof NEXUS_LOOP_COMMAND;
+      const args = match[2] ?? "";
+      return commandName === NEXUS_LOOP_COMMAND
+        ? { commandName, args, profile: DEFAULT_NEXUS_LOOP_PROFILE }
+        : { commandName, args, profile: DEFAULT_VISIBLE_LOOP_PROFILE };
+    }
+
     async function runVisibleLoopCommand(
       args: string | undefined,
       ctx: PiCommandContext,
@@ -2876,6 +2893,14 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env, {
             continueInNewSession: createVisibleLoopContinuation(ctx),
           }),
+      });
+
+      pi.on?.("input", async (event, ctx) => {
+        if (event.source !== "extension") return { action: "continue" };
+        const command = parseExtensionVisibleLoopCommand(event.text);
+        if (!command) return { action: "continue" };
+        await runVisibleLoopCommand(command.args, ctx as PiCommandContext, command.profile);
+        return { action: "handled" };
       });
     }
 

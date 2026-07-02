@@ -120,6 +120,160 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
   }
 });
 
+test("extension-originated sendUserMessage slash input can launch visible-loop", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-extension-input-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { events } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+    const inputHandler = events.get("input")?.[0];
+    assert.ok(inputHandler);
+
+    const result = await inputHandler(
+      { text: "/visible-loop --count 2 --delegate-commit", source: "extension" },
+      harness.ctx,
+    );
+
+    assert.deepEqual(result, { action: "handled" });
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.ok(ghosttyCall);
+    const piArgs = extractPiArgs(ghosttyCall.args);
+    assert.match(piArgs.at(-1), /^\/visible-loop-child /);
+    const configPath = piArgs.at(-1).replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.equal(config.loopCount, 2);
+    assert.deepEqual(config.commitDelegation, {
+      mode: "dispatch_subagent",
+      promptTemplate: "commit",
+    });
+    assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("extension-originated sendUserMessage slash input can launch nexus-loop", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-extension-input-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { events } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+    const inputHandler = events.get("input")?.[0];
+    assert.ok(inputHandler);
+
+    const result = await inputHandler(
+      { text: "/nexus-loop --count 1", source: "extension" },
+      harness.ctx,
+    );
+
+    assert.deepEqual(result, { action: "handled" });
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    assert.ok(ghosttyCall);
+    const piArgs = extractPiArgs(ghosttyCall.args);
+    assert.match(piArgs.at(-1), /^\/visible-loop-child /);
+    const configPath = piArgs.at(-1).replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.equal(config.commandName, "nexus-loop");
+    assert.equal(config.title, "Nexus loop");
+    assert.equal(config.loopCount, 1);
+    assert.deepEqual(config.commitDelegation, {
+      mode: "dispatch_subagent",
+      promptTemplate: "commit",
+    });
+    assert.match(harness.notifications.at(-1).message, /Opened nexus-loop/);
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("extension-originated slash bridge ignores non-extension visible-loop text", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-interactive-input-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command }) => {
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { events } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+    const inputHandler = events.get("input")?.[0];
+    assert.ok(inputHandler);
+
+    const result = await inputHandler(
+      { text: "/visible-loop --count 2", source: "interactive" },
+      harness.ctx,
+    );
+
+    assert.deepEqual(result, { action: "continue" });
+    assert.equal(execStub.calls.length, 0);
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("nexus-loop writes a focused command-aware config and launches the shared child runner", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
