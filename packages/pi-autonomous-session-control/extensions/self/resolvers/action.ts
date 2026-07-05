@@ -29,7 +29,7 @@ import {
 import { handleDirectUserMessage } from "./action-user-message.ts";
 import { extractQuotedContent } from "./helpers.ts";
 
-const SELF_EVOLUTION_CONTINUATION_PREFILL_ALIASES = [
+export const SELF_EVOLUTION_CONTINUATION_PREFILL_ALIASES = [
   "continue with self-evolution",
   "continue self-evolution",
   "continue visible self-evolution",

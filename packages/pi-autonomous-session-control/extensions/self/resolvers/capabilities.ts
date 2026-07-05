@@ -6,6 +6,11 @@
  */
 
 import type { SelfResponse } from "../types.ts";
+import { SELF_EVOLUTION_CONTINUATION_PREFILL_ALIASES } from "./action.ts";
+
+const selfEvolutionContinuationAliases = SELF_EVOLUTION_CONTINUATION_PREFILL_ALIASES.map(
+  (alias) => `"${alias}"`,
+).join(" / ");
 
 export function resolveCapabilityQuery(): SelfResponse {
   return {
@@ -41,7 +46,7 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Queue followup: [task]" / "Remind me: [task]"
 - "Prefill: [text]"
 - "Notify operator: [message]" / "Send user message: [message]" for explicit low-risk follow-up notifications through pi.sendUserMessage
-- "Prefill visible-loop self-evolution" to route Level-4 recursive-improvement work into an operator-submitted /visible-loop --count 1 --delegate-commit command; ASC fills the editor when UI is available, otherwise returns manual copy/submit instructions so Pi's slash-command parser remains the launcher
+- "Prefill visible-loop self-evolution" or ${selfEvolutionContinuationAliases} to route Level-4 recursive-improvement work into an operator-submitted /visible-loop --count 1 --delegate-commit command; ASC fills the editor when UI is available, otherwise returns manual copy/submit instructions so Pi's slash-command parser remains the launcher
 - "Launch visible-loop self-evolution" to send /visible-loop --count 1 --delegate-commit through the pi-little-helpers-owned extension bridge; ASC does not implement the loop
 - "Prefill autoresearch campaign" to route Level-5 measured self-evolution work into an operator-submitted /autoresearch plan surface; ASC fills the editor when UI is available, otherwise returns manual copy/submit instructions so Pi's slash-command parser remains the launcher
 - "Launch autoresearch campaign" to prefill the conservative /autoresearch campaign prompt for operator submission through Pi's slash-command parser; ASC does not implement the campaign
@@ -118,6 +123,7 @@ export function resolveCapabilityQuery(): SelfResponse {
             "Create checkpoint",
             "Queue followup: X",
             "Prefill: Y",
+            "continue self-evolution",
             "Prefill suggested next move",
             "Record continuation candidate: npm --prefix packages/<package> run check",
             "Continue safely",

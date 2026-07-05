@@ -200,6 +200,10 @@ test("self query: capability discovery", async () => {
     "should mention root capabilities docs",
   );
   assert.ok(result.content[0].text.includes("agent_vent"), "should mention agent-vent companion");
+  assert.ok(
+    result.content[0].text.includes("continue self-evolution"),
+    "should advertise self-evolution continuation aliases",
+  );
   assert.ok(result.details.data.domains, "should return domains data");
   assert.ok(result.details.data.discoverySurfaces, "should return discovery surfaces data");
 

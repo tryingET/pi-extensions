@@ -190,38 +190,48 @@ function combineNonAuthorizations(context: Record<string, unknown>): string[] {
   return merged;
 }
 
+function normalizeCueDisplayText(value: unknown): string | undefined {
+  return normalizeString(value, { maxLength: 300 })?.replace(/\s+/gu, " ");
+}
+
 function buildInsightPromotionCue(
   context: Record<string, unknown>,
   owner: string,
 ): Record<string, unknown> {
-  const sourceArtifact =
-    normalizeString(context.sourceArtifact) ||
-    normalizeString(context.source) ||
-    normalizeString(context.sessionArtifact) ||
-    "current Pi session mirror";
+  const explicitSourceArtifact =
+    normalizeCueDisplayText(context.sourceArtifact) ||
+    normalizeCueDisplayText(context.source) ||
+    normalizeCueDisplayText(context.sessionArtifact);
+  const sourceArtifact = explicitSourceArtifact || "current Pi session mirror";
   const explicitPromotionOwner =
-    normalizeString(context.promotionOwner) ||
-    normalizeString(context.sourceOwner) ||
-    normalizeString(context.owner) ||
-    normalizeString(context.packageName) ||
-    normalizeString(context.package);
-  const explicitPromotionTarget = normalizeString(context.promotionTarget);
-  const promotionOwner = explicitPromotionOwner || owner;
+    normalizeCueDisplayText(context.promotionOwner) ||
+    normalizeCueDisplayText(context.sourceOwner) ||
+    normalizeCueDisplayText(context.owner) ||
+    normalizeCueDisplayText(context.packageName) ||
+    normalizeCueDisplayText(context.package);
+  const explicitPromotionTarget = normalizeCueDisplayText(context.promotionTarget);
+  const promotionOwner = explicitPromotionOwner || normalizeCueDisplayText(owner) || owner;
   const promotionTarget = explicitPromotionTarget || `${promotionOwner} owner surface`;
   const status = normalizeInsightPromotionStatus(
-    normalizeString(context.promotionStatus) || normalizeString(context.insightPromotionStatus),
+    normalizeCueDisplayText(context.promotionStatus) ||
+      normalizeCueDisplayText(context.insightPromotionStatus),
   );
   const deferReason =
-    normalizeString(context.promotionDeferReason) || normalizeString(context.deferReason);
+    normalizeCueDisplayText(context.promotionDeferReason) ||
+    normalizeCueDisplayText(context.deferReason);
   const hasExplicitDeferralDestination = Boolean(explicitPromotionOwner || explicitPromotionTarget);
   const hasResolvedDeferral =
     status === "explicitly_deferred" && Boolean(deferReason) && hasExplicitDeferralDestination;
-  const requiredBeforeCompletion = !(status === "promoted" || hasResolvedDeferral);
+  const hasResolvedPromotion =
+    status === "promoted" && Boolean(explicitPromotionTarget) && Boolean(explicitSourceArtifact);
+  const requiredBeforeCompletion = !(hasResolvedPromotion || hasResolvedDeferral);
 
   const risk = (() => {
     switch (status) {
       case "promoted":
-        return "low if the named owner surface really contains the durable summary";
+        return hasResolvedPromotion
+          ? "low if the named owner surface really contains the durable summary"
+          : "promotion claim incomplete: explicit promoted status needs target and provenance before completion";
       case "explicitly_deferred":
         return hasResolvedDeferral
           ? "accepted only because the defer reason and owner/target are explicit in closeout"
@@ -235,13 +245,15 @@ function buildInsightPromotionCue(
   const nextAction = (() => {
     switch (status) {
       case "promoted":
-        return "verify the named owner surface before claiming completion";
+        return hasResolvedPromotion
+          ? "verify the named owner surface before claiming completion"
+          : "add an explicit promotion target and provenance source, or treat the insight as unpromoted before completion";
       case "explicitly_deferred":
         return hasResolvedDeferral
           ? `state the defer reason and owner/target before completion (${deferReason})`
           : "add an explicit defer reason plus owner/target, or promote the durable portion before completion";
       case "unknown":
-        return "normalize the promotion status to promoted, explicitly_deferred with reason, or session_only_unpromoted before completion";
+        return "normalize the promotion status to promoted with target/provenance, explicitly_deferred with reason, or session_only_unpromoted before completion";
       case "session_only_unpromoted":
         return "promote the durable portion to the owning surface or explicitly defer with owner/target and reason before completion";
     }
