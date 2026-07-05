@@ -204,12 +204,7 @@ export async function openAutoresearchShell(
   }
 
   if (normalizedArgs.length > 0 && normalizedArgs !== "help" && normalizedArgs !== "status") {
-    const toolCall = buildAutoresearchCampaignStartEditorCall(ctx.cwd, normalizedArgs);
-    await ctx.ui.editor("Start supervised autoresearch campaign", toolCall);
-    ctx.ui.notify(
-      "Prepared autoresearch_campaign_start front-door call. Review budget/scope, then send it to run the bounded campaign start.",
-      "info",
-    );
+    await executeAutoresearchPlanOnlyCampaignStart(normalizedArgs, ctx);
     return;
   }
 
@@ -269,6 +264,64 @@ async function executeAutoresearchFirstRun(
   );
   ctx.ui.notify(
     "Completed bounded foreground autoresearch run. Review the final dashboard and next exact call.",
+    "info",
+  );
+}
+
+async function executeAutoresearchPlanOnlyCampaignStart(
+  objective: string,
+  ctx: ExtensionContext,
+): Promise<void> {
+  ctx.ui.notify("Resolving /autoresearch objective as a plan-only campaign start...", "info");
+
+  let result: Awaited<ReturnType<typeof executeAutoresearchCampaignStart>>;
+  try {
+    result = await executeAutoresearchCampaignStart({
+      cwd: ctx.cwd,
+      objective,
+      setupMode: "autoplan",
+      runMode: "plan_only",
+      maxIterations: 3,
+      peerMode: "plan",
+      candidatePolicy: {
+        mode: "worktree",
+        keep: "preserve_branch",
+        discard: "suggest_cleanup",
+        rewind: "reset_worktree_to_base",
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await ctx.ui.editor(
+      "Autoresearch campaign start failed",
+      [
+        "# PI-AUTORESEARCH CAMPAIGN START FAILED",
+        "",
+        `- objective: ${objective}`,
+        `- reason: ${message}`,
+        "",
+        "The /autoresearch slash command was handled by pi-autoresearch, but the plan-only campaign-start front door failed before producing a result.",
+      ].join("\n"),
+    );
+    ctx.ui.notify(
+      "/autoresearch plan-only campaign start failed; opened failure details.",
+      "error",
+    );
+    return;
+  }
+
+  await ctx.ui.editor(
+    "Autoresearch campaign start result",
+    [
+      "# /autoresearch PLAN-ONLY RESULT",
+      "",
+      "The /autoresearch command has already executed the plan-only campaign-start front door. Pressing Enter in this review closes it; it does not submit another message or start a hidden loop.",
+      "",
+      formatAutoresearchCampaignStartResult(result),
+    ].join("\n"),
+  );
+  ctx.ui.notify(
+    "Closed /autoresearch plan-only result review. No further action was submitted.",
     "info",
   );
 }

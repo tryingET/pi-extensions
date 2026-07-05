@@ -22,9 +22,30 @@ export function handlePrefillVisibleLoopSelfEvolution(_query: SelfQuery): SelfRe
   });
 }
 
+export function handleLaunchVisibleLoopSelfEvolution(_query: SelfQuery): SelfResponse {
+  const text = "/visible-loop --count 1 --delegate-commit";
+
+  return buildOwnerBridgeResponse(text, {
+    ownerBridge: "pi-little-helpers extension-originated /visible-loop bridge",
+    dispatchMode: "owner_bridge_send_user_message",
+    autonomyLevel: 4,
+    ownerSurface: "pi-little-helpers / visible-loop",
+    routeKind: "visible_loop_self_evolution",
+    launchMechanism: "send_user_message_to_owner_bridge",
+    productPostureTarget:
+      "docs/project/product-posture.md or routed package docs/project/product-posture.md",
+    boundary:
+      "ASC/self sends the explicit slash text only to the pi-little-helpers-owned extension bridge; pi-little-helpers owns /visible-loop launch and completion, and visible-loop output is not durable authority.",
+    nonAuthorizations: [
+      "does not implement visible-loop execution in ASC",
+      "does not claim loop output as AK/evidence/KES/ontology truth",
+      "does not bypass product-posture refresh or owner validation gates",
+    ],
+  });
+}
+
 export function handlePrefillAutoresearchCampaign(_query: SelfQuery): SelfResponse {
-  const text =
-    "/autoresearch Evaluate ASC self-evolution harness: metric=operator_nudge_count lower-is-better target=0 for post-compaction continuation; guardrail_boundary_violations target=0";
+  const text = buildAutoresearchCampaignCommand();
 
   return buildPrefillResponse(text, {
     sendUserMessage: false,
@@ -43,11 +64,47 @@ export function handlePrefillAutoresearchCampaign(_query: SelfQuery): SelfRespon
   });
 }
 
+export function handleLaunchAutoresearchCampaign(_query: SelfQuery): SelfResponse {
+  const text = buildAutoresearchCampaignCommand();
+
+  return buildPrefillResponse(text, {
+    sendUserMessage: false,
+    dispatchMode: "operator_submit_required",
+    autonomyLevel: 5,
+    ownerSurface: "pi-autoresearch",
+    routeKind: "measured_self_evolution_campaign",
+    launchMechanism: "operator_reviews_prefilled_editor_then_presses_enter",
+    boundary:
+      "ASC/self prefills the explicit /autoresearch slash command so the operator can submit it through Pi's slash-command parser; pi-autoresearch owns campaign setup, measurement, receipts, and closeout packets without durable promotion authority.",
+    nonAuthorizations: [
+      "does not implement or run autoresearch in ASC",
+      "does not write AK/KES/evidence/ontology/Prompt Vault from ASC",
+      "does not treat local autoresearch receipts as durable authority without owner promotion",
+    ],
+  });
+}
+
+function buildAutoresearchCampaignCommand(): string {
+  return "/autoresearch Evaluate ASC self-evolution harness: metric=operator_nudge_count lower-is-better target=0 for post-compaction continuation; guardrail_boundary_violations target=0";
+}
+
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {
   return {
     understood: true,
     intent: "action",
     answer: `Editor prefill suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}". Operator submission required: review the editor text, then press Enter to launch it through Pi's slash-command parser.`,
     data: { text, prefill: true, ...extraData },
+  };
+}
+
+function buildOwnerBridgeResponse(
+  text: string,
+  extraData: Record<string, unknown> = {},
+): SelfResponse {
+  return {
+    understood: true,
+    intent: "action",
+    answer: `Owner-bridge launch suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}". ASC will send this as a follow-up user message for the owning extension bridge to handle.`,
+    data: { text, prefill: false, sendUserMessage: true, ...extraData },
   };
 }

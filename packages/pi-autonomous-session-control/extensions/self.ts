@@ -152,13 +152,17 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       const canPrefill = ctx.hasUI && typeof ctx.ui?.setEditorText === "function";
       const didPrefill = wantsPrefill && canPrefill;
       const prefillUnavailable = wantsPrefill && !canPrefill;
-      const didSendUserMessage =
+      const wantsSendUserMessage =
         hasActionText &&
         !wantsPrefill &&
         actionData?.sendUserMessage === true &&
         typeof pi.sendUserMessage === "function";
+      const blockedSendUserMessage =
+        wantsSendUserMessage && !isAllowedOwnerBridgeSendUserMessage(actionData);
+      const didSafetyPrefill = blockedSendUserMessage && canPrefill;
+      const didSendUserMessage = wantsSendUserMessage && !blockedSendUserMessage;
 
-      if (didPrefill) {
+      if (didPrefill || didSafetyPrefill) {
         ctx.ui.setEditorText(actionData.text as string);
       }
 
@@ -173,6 +177,8 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         prefillUnavailable,
         canPrefill,
         didSendUserMessage,
+        blockedSendUserMessage,
+        didSafetyPrefill,
       });
 
       const shouldPersistScopedDomains =
@@ -199,6 +205,8 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
                 didPrefill,
                 prefillUnavailable,
                 didSendUserMessage,
+                blockedSendUserMessage,
+                didSafetyPrefill,
                 actionData,
               }) +
               (response.suggestions?.length
@@ -227,6 +235,8 @@ function shapeActionDeliveryData(
     prefillUnavailable: boolean;
     canPrefill: boolean;
     didSendUserMessage: boolean;
+    blockedSendUserMessage: boolean;
+    didSafetyPrefill: boolean;
   },
 ): unknown {
   if (!delivery.hasActionText || typeof data !== "object" || data === null || Array.isArray(data)) {
@@ -243,6 +253,12 @@ function shapeActionDeliveryData(
     ...source,
     dispatchMode,
     userMessageSent: delivery.didSendUserMessage,
+    ...(delivery.blockedSendUserMessage
+      ? {
+          userMessageBlockedReason: "unapproved_slash_command_send_user_message",
+          safetyPrefillPerformed: delivery.didSafetyPrefill,
+        }
+      : {}),
     ...(delivery.wantsPrefill
       ? {
           requestedDispatchMode: source.dispatchMode,
@@ -260,6 +276,8 @@ function formatActionDeliveryText(
     didPrefill: boolean;
     prefillUnavailable: boolean;
     didSendUserMessage: boolean;
+    blockedSendUserMessage: boolean;
+    didSafetyPrefill: boolean;
     actionData:
       | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown; dispatchMode?: unknown }
       | undefined;
@@ -278,15 +296,79 @@ function formatActionDeliveryText(
     return `Editor prefill unavailable (no UI): manual operator review required. Copy/review this text before acting: ${preview}`;
   }
 
+  if (delivery.blockedSendUserMessage && typeof delivery.actionData?.text === "string") {
+    const preview = formatQuotedPreview(delivery.actionData.text);
+    const prefillText = delivery.didSafetyPrefill
+      ? " Editor prefilled for operator review instead."
+      : " No UI prefill is available; copy/review manually before acting.";
+    return `User-message dispatch blocked by ASC slash-command policy.${prefillText} Text: ${preview}`;
+  }
+
   if (delivery.didSendUserMessage) {
     return answer
       .replace("User-message continuation suggested", "User-message continuation sent")
       .replace("User-message dispatch suggested", "User-message dispatch sent")
+      .replace("Owner-bridge launch suggested", "Owner-bridge launch sent")
       .replace("Diagnostic-review continuation suggested", "Diagnostic-review continuation sent");
   }
 
   return answer;
 }
+
+export function isAllowedOwnerBridgeSendUserMessage(actionData: {
+  text?: unknown;
+  dispatchMode?: unknown;
+  ownerBridge?: unknown;
+  routeKind?: unknown;
+}): boolean {
+  if (typeof actionData.text !== "string" || !messageLooksWholeSlashCommand(actionData.text)) {
+    return true;
+  }
+
+  if (actionData.dispatchMode !== "owner_bridge_send_user_message") {
+    return false;
+  }
+
+  const text = actionData.text.trim();
+  if (
+    actionData.ownerBridge === "pi-little-helpers extension-originated /visible-loop bridge" &&
+    actionData.routeKind === "visible_loop_self_evolution" &&
+    text === "/visible-loop --count 1 --delegate-commit"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function messageLooksWholeSlashCommand(text: string): boolean {
+  const match = text.trim().match(/^\/([A-Za-z][\w-]*)(?=\s|$)/u);
+  if (!match) return false;
+  const commandName = match[1]?.toLowerCase();
+  return Boolean(commandName && !COMMON_ABSOLUTE_PATH_ROOTS.has(commandName));
+}
+
+const COMMON_ABSOLUTE_PATH_ROOTS = new Set([
+  "bin",
+  "dev",
+  "etc",
+  "home",
+  "lib",
+  "lib64",
+  "media",
+  "mnt",
+  "opt",
+  "proc",
+  "root",
+  "run",
+  "sbin",
+  "srv",
+  "sys",
+  "tmp",
+  "usr",
+  "var",
+  "workspace",
+]);
 
 function formatQuotedPreview(text: string): string {
   return `"${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`;

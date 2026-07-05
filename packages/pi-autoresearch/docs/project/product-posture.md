@@ -71,7 +71,7 @@ The package is product-healthy when:
 
 The package currently owns:
 
-- `/autoresearch` operator entrypoint; with an objective it now prepares the supervised campaign-start tool call instead of silently ignoring arguments;
+- `/autoresearch` operator entrypoint plus a narrow extension-originated `pi.sendUserMessage` bridge for the exact ASC self-evolution campaign-start prompt; with an objective it now executes the plan-only supervised campaign-start front door and opens the result editor instead of silently ignoring arguments or emitting inert tool-call text;
 - `autoresearch_campaign_start` as the first package-owned front door that composes autoplan, optional governed setup, optional baseline, and optional bounded loop modes;
 - `autoresearch_candidate_bind` as a read-only / plan-only candidate intake surface that inspects a controller-verified worktree/branch/base ref and prepares the exact measurement call before lifecycle decisions;
 - `autoresearch_candidate_decision` as a read-only / plan-only candidate lifecycle workbench for keep/discard/rewind/rebaseline/sample/finalize recommendations from current runtime status, closeout, and candidate-result evidence;
@@ -173,6 +173,7 @@ The initial version is intentionally conservative:
 - Replay Fabric remains observer/history/recovery-clue projection and ASC rewind remains live Pi/session recovery, so neither becomes candidate accept/discard authority;
 - baseline and bounded-loop execution are explicit `runMode` choices or the explicit `run|loop|go|start` first-entrypoint verb;
 - direct baseline/bounded-loop campaign-start execution fails closed instead of reusing a stale active segment when the requested campaign, metric, benchmark, or checks contract differs; pass `reconfigure: true` to start a fresh segment deliberately;
+- extension-originated launch is narrow: only the exact ASC self-evolution campaign-start prompt is bridged into the package-owned command handler; it executes the package-owned plan-only campaign-start front door directly and opens the result editor, while bare status, run/loop/go/start, and unrelated slash inputs from extension-originated messages are ignored, so pi-autoresearch does not become a general slash-command dispatcher;
 - peer launch, commits, worktree deletion/merge, AK/KES/evidence writes, and durable promotion remain outside this front door.
 
 A compact read-only dashboard slice is now also landed:

@@ -44,6 +44,7 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
 ### Command
 
 - `/autoresearch`
+  - may also be launched through the package-owned extension-originated `pi.sendUserMessage` bridge for the exact ASC self-evolution campaign-start prompt; this bridge executes the package-owned plan-only campaign-start front door directly and opens the result editor; it is not a general slash-command parser
   - with no objective, opens/reports the bounded runtime overview
   - with `dashboard`, opens a read-only operator dashboard in the editor with current posture, metric contract, candidate decision summary, candidate policy, and next legal surfaces
   - with `next` or `candidate next`, first surfaces open matrix candidate-review posture when packet inventory is waiting for owner review; otherwise inspects current candidate posture and prepares the recommended reviewable next call: bind when no candidate exists, plan keep/discard/rewind when evidence points there, or the next runtime/finalize call when more samples/rebaseline/finalize is needed

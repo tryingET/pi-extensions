@@ -4,6 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { isAllowedOwnerBridgeSendUserMessage } from "../../extensions/self.ts";
 import { cleanup, createMockContext, createPiHarness, loadExtensionWithMocks } from "./harness.mjs";
 
 function recordBash(harness, id, command, { isError = false, text = "" } = {}) {
@@ -27,6 +28,43 @@ function recordEdit(harness, id, path) {
     input: { path, edits: [{ oldText: "before\n", newText: "before\nafter\n" }] },
   });
 }
+
+test("owner-bridge sendUserMessage policy only permits known whole-message bridges", () => {
+  assert.equal(
+    isAllowedOwnerBridgeSendUserMessage({
+      text: "/visible-loop --count 1 --delegate-commit",
+      dispatchMode: "owner_bridge_send_user_message",
+      ownerBridge: "pi-little-helpers extension-originated /visible-loop bridge",
+      routeKind: "visible_loop_self_evolution",
+    }),
+    true,
+  );
+  assert.equal(
+    isAllowedOwnerBridgeSendUserMessage({
+      text: "/autoresearch Evaluate ASC self-evolution harness: metric=operator_nudge_count lower-is-better target=0 for post-compaction continuation; guardrail_boundary_violations target=0",
+      dispatchMode: "owner_bridge_send_user_message",
+      ownerBridge: "pi-autoresearch extension-originated /autoresearch bridge",
+      routeKind: "measured_self_evolution_campaign",
+    }),
+    false,
+  );
+  assert.equal(
+    isAllowedOwnerBridgeSendUserMessage({
+      text: "/nexus-loop --count 1",
+      dispatchMode: "owner_bridge_send_user_message",
+      ownerBridge: "unknown",
+      routeKind: "unknown",
+    }),
+    false,
+  );
+  assert.equal(
+    isAllowedOwnerBridgeSendUserMessage({
+      text: "/tmp/autoresearch-notes are available",
+      dispatchMode: "operator_notification",
+    }),
+    true,
+  );
+});
 
 test("self query: create checkpoint", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
@@ -223,6 +261,40 @@ test("self query: visible-loop self-evolution reports manual submission when UI 
   await cleanup(tempDir);
 });
 
+test("self query: launch visible-loop self-evolution sends owner-bridge message", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext({ hasUI: true });
+
+  const result = await tool.execute(
+    "tc-launch-visible-loop-self-evolution",
+    { query: "launch visible-loop self-evolution" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Owner-bridge launch sent"));
+  assert.equal(harness.sentUserMessages.length, 1);
+  assert.equal(harness.sentUserMessages[0].text, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(harness.sentUserMessages[0].options.deliverAs, "followUp");
+  assert.equal(result.details.data.prefill, false);
+  assert.equal(result.details.data.sendUserMessage, true);
+  assert.equal(result.details.data.userMessageSent, true);
+  assert.equal(result.details.data.dispatchMode, "owner_bridge_send_user_message");
+  assert.equal(
+    result.details.data.ownerBridge,
+    "pi-little-helpers extension-originated /visible-loop bridge",
+  );
+  assert.match(result.details.data.boundary, /pi-little-helpers-owned extension bridge/);
+
+  await cleanup(tempDir);
+});
+
 test("self query: visible-loop self-evolution prefill ignores caller overrides", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -308,6 +380,47 @@ test("self query: prefill autoresearch campaign route", async () => {
   assert.ok(measuredAlias.content[0].text.includes("Editor prefilled"));
   assert.match(editorText, /^\/autoresearch Evaluate ASC self-evolution harness:/);
   assert.equal(measuredAlias.details.data.routeKind, "measured_self_evolution_campaign");
+
+  await cleanup(tempDir);
+});
+
+test("self query: launch autoresearch campaign prefills slash command for operator submission", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-launch-autoresearch-campaign",
+    { query: "launch autoresearch campaign for self-evolution" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.ok(result.content[0].text.includes("Editor prefilled"));
+  assert.match(editorText, /^\/autoresearch Evaluate ASC self-evolution harness:/);
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(result.details.data.prefill, true);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.userMessageSent, false);
+  assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+  assert.equal(
+    result.details.data.launchMechanism,
+    "operator_reviews_prefilled_editor_then_presses_enter",
+  );
+  assert.match(result.details.data.boundary, /Pi's slash-command parser/);
 
   await cleanup(tempDir);
 });

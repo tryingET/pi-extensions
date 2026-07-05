@@ -118,6 +118,94 @@ test("extension registers /autoresearch plus the supervised campaign front door 
   );
 });
 
+test("extension-originated sendUserMessage slash input executes exact ASC plan-only bridge", async () => {
+  const { eventHandlers } = registerHarness();
+  const inputHandler = eventHandlers.get("input");
+  const editorTitles: string[] = [];
+  const editorTexts: string[] = [];
+  const notifications: Array<{ message: string; level?: string }> = [];
+
+  const result = (await inputHandler?.(
+    {
+      source: "extension",
+      text: "/autoresearch Evaluate ASC self-evolution harness: metric=operator_nudge_count lower-is-better target=0 for post-compaction continuation; guardrail_boundary_violations target=0",
+    },
+    {
+      cwd: "/repo",
+      hasUI: true,
+      ui: {
+        async editor(title: string, text: string) {
+          editorTitles.push(title);
+          editorTexts.push(text);
+          return text;
+        },
+        notify(message: string, level?: string) {
+          notifications.push({ message, level });
+        },
+      },
+    },
+  )) as { action: string };
+
+  assert.deepEqual(result, { action: "handled" });
+  assert.match(editorTitles[0] ?? "", /Autoresearch campaign start result/);
+  assert.match(editorTexts[0] ?? "", /PI-AUTORESEARCH CAMPAIGN START/);
+  assert.match(editorTexts[0] ?? "", /Evaluate ASC self-evolution harness/);
+  assert.match(editorTexts[0] ?? "", /run mode: plan_only/);
+  assert.equal(notifications.length, 1);
+  assert.match(
+    notifications[0]?.message ?? "",
+    /Executed exact ASC autoresearch bridge as a plan-only campaign start/,
+  );
+});
+
+test("extension-originated autoresearch bridge ignores bare /autoresearch status", async () => {
+  const { eventHandlers } = registerHarness();
+  const inputHandler = eventHandlers.get("input");
+
+  const result = (await inputHandler?.(
+    { source: "extension", text: "/autoresearch" },
+    { cwd: "/repo" },
+  )) as { action: string };
+
+  assert.deepEqual(result, { action: "continue" });
+});
+
+test("extension-originated autoresearch bridge ignores run commands", async () => {
+  const { eventHandlers } = registerHarness();
+  const inputHandler = eventHandlers.get("input");
+
+  const result = (await inputHandler?.(
+    { source: "extension", text: "/autoresearch run Improve the harness" },
+    { cwd: "/repo" },
+  )) as { action: string };
+
+  assert.deepEqual(result, { action: "continue" });
+});
+
+test("extension-originated autoresearch bridge ignores non-autoresearch slash input", async () => {
+  const { eventHandlers } = registerHarness();
+  const inputHandler = eventHandlers.get("input");
+
+  const result = (await inputHandler?.(
+    { source: "extension", text: "/visible-loop --count 1" },
+    { cwd: "/repo" },
+  )) as { action: string };
+
+  assert.deepEqual(result, { action: "continue" });
+});
+
+test("autoresearch input bridge ignores non-extension slash input", async () => {
+  const { eventHandlers } = registerHarness();
+  const inputHandler = eventHandlers.get("input");
+
+  const result = (await inputHandler?.(
+    { source: "interactive", text: "/autoresearch Evaluate ASC self-evolution harness" },
+    { cwd: "/repo" },
+  )) as { action: string };
+
+  assert.deepEqual(result, { action: "continue" });
+});
+
 test("/autoresearch without an objective reports status", async () => {
   const { commands } = registerHarness();
   let editorOpened = false;

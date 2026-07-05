@@ -12,6 +12,8 @@ import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-
 import { analyzePatterns, queryHandoffSummary } from "../perception.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
 import {
+  handleLaunchAutoresearchCampaign,
+  handleLaunchVisibleLoopSelfEvolution,
   handlePrefillAutoresearchCampaign,
   handlePrefillVisibleLoopSelfEvolution,
 } from "./action-autonomy-routes.ts";
@@ -51,8 +53,18 @@ export const ACTION_KEYWORDS = [
   "prefill visible loop self-evolution",
   "prefill self-evolution visible-loop",
   "prefill self-evolution loop",
+  "launch visible-loop self-evolution",
+  "launch visible loop self-evolution",
+  "run visible-loop self-evolution",
+  "start visible-loop self-evolution",
   "prefill autoresearch campaign",
   "prefill measured campaign",
+  "launch autoresearch campaign",
+  "run autoresearch campaign",
+  "start autoresearch campaign",
+  "launch measured campaign",
+  "run measured campaign",
+  "start measured campaign",
   "continue suggested next move",
   "continue safely",
   "next autonomous step",
@@ -121,12 +133,30 @@ export function mapActionIntent(lower: string): string {
   }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
   if (
+    lower.includes("launch visible-loop self-evolution") ||
+    lower.includes("launch visible loop self-evolution") ||
+    lower.includes("run visible-loop self-evolution") ||
+    lower.includes("start visible-loop self-evolution")
+  ) {
+    return "launch_visible_loop_self_evolution";
+  }
+  if (
     lower.includes("prefill visible-loop self-evolution") ||
     lower.includes("prefill visible loop self-evolution") ||
     lower.includes("prefill self-evolution visible-loop") ||
     lower.includes("prefill self-evolution loop")
   ) {
     return "prefill_visible_loop_self_evolution";
+  }
+  if (
+    lower.includes("launch autoresearch campaign") ||
+    lower.includes("run autoresearch campaign") ||
+    lower.includes("start autoresearch campaign") ||
+    lower.includes("launch measured campaign") ||
+    lower.includes("run measured campaign") ||
+    lower.includes("start measured campaign")
+  ) {
+    return "launch_autoresearch_campaign";
   }
   if (
     lower.includes("prefill autoresearch campaign") ||
@@ -199,8 +229,16 @@ export function resolveActionQuery(
       return handlePrefillVisibleLoopSelfEvolution(query);
     }
 
+    case "launch_visible_loop_self_evolution": {
+      return handleLaunchVisibleLoopSelfEvolution(query);
+    }
+
     case "prefill_autoresearch_campaign": {
       return handlePrefillAutoresearchCampaign(query);
+    }
+
+    case "launch_autoresearch_campaign": {
+      return handleLaunchAutoresearchCampaign(query);
     }
 
     case "continue_suggested_next_move": {

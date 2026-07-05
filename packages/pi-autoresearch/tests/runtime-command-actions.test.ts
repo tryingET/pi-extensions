@@ -464,10 +464,10 @@ test("/autoresearch learning prepares a learning-export handoff call", async () 
   assert.match(notifications[0]?.message ?? "", /Prepared autoresearch learning export/);
 });
 
-test("/autoresearch with an objective prepares the campaign-start tool call", async () => {
+test("/autoresearch with an objective executes plan-only campaign-start", async () => {
   const { commands } = registerHarness();
-  let editorTitle = "";
-  let editorText = "";
+  const editorTitles: string[] = [];
+  const editorTexts: string[] = [];
   const notifications: Array<{ message: string; level?: string }> = [];
 
   await commands.get(AUTORESEARCH_COMMAND_NAME)?.handler("optimize startup", {
@@ -475,8 +475,9 @@ test("/autoresearch with an objective prepares the campaign-start tool call", as
     hasUI: true,
     ui: {
       async editor(title: string, text: string) {
-        editorTitle = title;
-        editorText = text;
+        editorTitles.push(title);
+        editorTexts.push(text);
+        return text;
       },
       notify(message: string, level?: string) {
         notifications.push({ message, level });
@@ -484,14 +485,16 @@ test("/autoresearch with an objective prepares the campaign-start tool call", as
     },
   });
 
-  assert.match(editorTitle, /Start supervised autoresearch campaign/);
-  assert.match(editorText, /autoresearch_campaign_start/);
-  assert.match(editorText, /optimize startup/);
-  assert.match(editorText, /runMode: "plan_only"/);
-  assert.match(editorText, /candidatePolicy/);
-  assert.match(editorText, /mode: "worktree"/);
-  assert.equal(notifications.length, 1);
-  assert.match(notifications[0]?.message ?? "", /Prepared autoresearch_campaign_start/);
+  assert.match(editorTitles[0] ?? "", /Autoresearch campaign start result/);
+  assert.match(editorTexts[0] ?? "", /PI-AUTORESEARCH CAMPAIGN START/);
+  assert.match(editorTexts[0] ?? "", /optimize startup/);
+  assert.match(editorTexts[0] ?? "", /run mode: plan_only/);
+  assert.equal(notifications.length, 2);
+  assert.match(
+    notifications[0]?.message ?? "",
+    /Resolving \/autoresearch objective as a plan-only campaign start/,
+  );
+  assert.match(notifications[1]?.message ?? "", /Closed \/autoresearch plan-only result review/);
 });
 
 test("/autoresearch run executes the bounded first-entrypoint campaign", async () => {
