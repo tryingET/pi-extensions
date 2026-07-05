@@ -45,7 +45,7 @@ test("self query: explicit remember wins over self-evolution diagnostic keywords
   const tool = harness.tools.get("self");
   const ctx = createMockContext();
   const pattern =
-    "For ASC/self-evolution live dogfood, explicit crystallization should beat diagnostic_review, feedback, and checkpoint words";
+    "For ASC/self-evolution live dogfood, explicit crystallization should beat diagnostic_review, feedback, checkpoint, and continue with self-evolution words";
 
   const remember = await tool.execute(
     "tc-remember-self-evolution-collision",
@@ -101,7 +101,7 @@ test("self query: explicit trap marking wins over self-evolution diagnostic keyw
   const tool = harness.tools.get("self");
   const ctx = createMockContext();
   const description =
-    "self-evolution diagnostic feedback wording with checkpoint content can hijack protection storage";
+    "self-evolution diagnostic feedback wording with checkpoint and continue with self-evolution content can hijack protection storage";
 
   const mark = await tool.execute(
     "tc-trap-self-evolution-collision",

@@ -10,7 +10,12 @@
  * - resolvers/action.ts (checkpoints, followups, prefills)
  */
 
-import { ACTION_KEYWORDS, mapActionIntent, resolveActionQuery } from "./resolvers/action.ts";
+import {
+  ACTION_KEYWORDS,
+  isSelfEvolutionContinuationPrefillQuery,
+  mapActionIntent,
+  resolveActionQuery,
+} from "./resolvers/action.ts";
 import { isAutonomyStatusQuery, resolveAutonomyStatusQuery } from "./resolvers/autonomy-status.ts";
 import { resolveCapabilityQuery } from "./resolvers/capabilities.ts";
 import {
@@ -163,6 +168,7 @@ function isExplicitDiagnosticActionQuery(lower: string): boolean {
     lower.includes("record continuation candidate") ||
     lower.includes("queue continuation candidate") ||
     lower.includes("remember next autonomous step") ||
+    isSelfEvolutionContinuationPrefillQuery(lower) ||
     /(?:prefill|launch|run|start) (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop)|autoresearch campaign|measured campaign)/u.test(
       lower,
     ) ||

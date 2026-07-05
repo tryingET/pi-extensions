@@ -229,6 +229,52 @@ test("self query: prefill visible-loop self-evolution route", async () => {
   await cleanup(tempDir);
 });
 
+test("self query: continue with self-evolution routes to visible-loop prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  for (const [index, query] of [
+    "continue with self-evolution",
+    "continue self-evolution",
+    "continue visible self-evolution!",
+    "  CONTINUE   SELF-EVOLUTION ? ",
+  ].entries()) {
+    editorText = "";
+    const result = await tool.execute(
+      `tc-continue-self-evolution-visible-loop-${index}`,
+      { query },
+      null,
+      null,
+      ctx,
+    );
+
+    assert.equal(result.details.intent, "action");
+    assert.ok(result.content[0].text.includes("Editor prefilled"));
+    assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+    assert.equal(harness.sentUserMessages.length, 0);
+    assert.equal(result.details.data.prefill, true);
+    assert.equal(result.details.data.sendUserMessage, false);
+    assert.equal(result.details.data.dispatchMode, "operator_submit_required");
+    assert.equal(result.details.data.routeKind, "visible_loop_self_evolution");
+    assert.doesNotMatch(result.content[0].text, /agent_vent/);
+  }
+
+  await cleanup(tempDir);
+});
+
 test("self query: visible-loop self-evolution reports manual submission when UI is unavailable", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
@@ -238,25 +284,30 @@ test("self query: visible-loop self-evolution reports manual submission when UI 
   const tool = harness.tools.get("self");
   const ctx = createMockContext();
 
-  const result = await tool.execute(
-    "tc-prefill-visible-loop-self-evolution-no-ui",
-    { query: "prefill visible-loop self-evolution" },
-    null,
-    null,
-    ctx,
-  );
+  for (const [index, query] of [
+    "prefill visible-loop self-evolution",
+    "continue self-evolution",
+  ].entries()) {
+    const result = await tool.execute(
+      `tc-prefill-visible-loop-self-evolution-no-ui-${index}`,
+      { query },
+      null,
+      null,
+      ctx,
+    );
 
-  assert.match(result.content[0].text, /Editor prefill unavailable \(no UI\)/);
-  assert.match(result.content[0].text, /manual operator submission required/);
-  assert.equal(harness.sentUserMessages.length, 0);
-  assert.equal(result.details.data.text, "/visible-loop --count 1 --delegate-commit");
-  assert.equal(result.details.data.prefill, true);
-  assert.equal(result.details.data.sendUserMessage, false);
-  assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
-  assert.equal(result.details.data.requestedDispatchMode, "operator_submit_required");
-  assert.equal(result.details.data.prefillAvailable, false);
-  assert.equal(result.details.data.prefillPerformed, false);
-  assert.equal(result.details.data.prefillUnavailableReason, "no_ui");
+    assert.match(result.content[0].text, /Editor prefill unavailable \(no UI\)/);
+    assert.match(result.content[0].text, /manual operator submission required/);
+    assert.equal(harness.sentUserMessages.length, 0);
+    assert.equal(result.details.data.text, "/visible-loop --count 1 --delegate-commit");
+    assert.equal(result.details.data.prefill, true);
+    assert.equal(result.details.data.sendUserMessage, false);
+    assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
+    assert.equal(result.details.data.requestedDispatchMode, "operator_submit_required");
+    assert.equal(result.details.data.prefillAvailable, false);
+    assert.equal(result.details.data.prefillPerformed, false);
+    assert.equal(result.details.data.prefillUnavailableReason, "no_ui");
+  }
 
   await cleanup(tempDir);
 });

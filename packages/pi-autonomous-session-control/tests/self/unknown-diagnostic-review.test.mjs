@@ -140,6 +140,48 @@ test("self query: diagnostic review recognizes self-evolution phrasing", async (
 
   await cleanup(tempDir);
 });
+
+test("self query: diagnostic continuation prose does not route visible-loop prefill", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  for (const [index, query] of [
+    "Dogfood self: continue the self-evolution analysis without launching visible-loop or agent_vent",
+    "Dogfood self: continue self-evolution after checking the external signal; do not launch anything",
+    `Dogfood self: ${"continue self-evolution ".repeat(200)}only analyze this noisy caller-controlled prose`,
+  ].entries()) {
+    editorText = "";
+    const result = await tool.execute(
+      `tc-self-evolution-continuation-prose-${index}`,
+      { query },
+      null,
+      null,
+      ctx,
+    );
+
+    assert.equal(result.details.understood, true, "should understand diagnostic-review query");
+    assert.equal(result.details.intent, "meta");
+    assert.equal(result.details.data.evolutionCandidate.kind, "self.evolution_candidate.v1");
+    assert.equal(editorText, "");
+    assert.equal(harness.sentUserMessages.length, 0, "should not send a hidden continuation");
+    assert.match(result.content[0].text, /No authority changed/);
+  }
+
+  await cleanup(tempDir);
+});
 test("self query: diagnostic review uses provided context for candidate payload", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

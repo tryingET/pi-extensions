@@ -29,6 +29,21 @@ import {
 import { handleDirectUserMessage } from "./action-user-message.ts";
 import { extractQuotedContent } from "./helpers.ts";
 
+const SELF_EVOLUTION_CONTINUATION_PREFILL_ALIASES = [
+  "continue with self-evolution",
+  "continue self-evolution",
+  "continue visible self-evolution",
+] as const;
+
+export function isSelfEvolutionContinuationPrefillQuery(lower: string): boolean {
+  const normalized = lower
+    .trim()
+    .replace(/\s+/gu, " ")
+    .replace(/\s*[.!?]+$/u, "")
+    .trim();
+  return SELF_EVOLUTION_CONTINUATION_PREFILL_ALIASES.some((alias) => normalized === alias);
+}
+
 export const ACTION_KEYWORDS = [
   "create checkpoint",
   "checkpoint",
@@ -132,6 +147,9 @@ export function mapActionIntent(lower: string): string {
     return "record_continuation_candidate";
   }
   if (lower.includes("checkpoint") || lower.includes("save point")) return "create_checkpoint";
+  if (isSelfEvolutionContinuationPrefillQuery(lower)) {
+    return "prefill_visible_loop_self_evolution";
+  }
   if (
     lower.includes("launch visible-loop self-evolution") ||
     lower.includes("launch visible loop self-evolution") ||
