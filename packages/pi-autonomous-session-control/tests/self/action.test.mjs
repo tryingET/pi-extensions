@@ -312,6 +312,51 @@ test("self query: visible-loop self-evolution reports manual submission when UI 
   await cleanup(tempDir);
 });
 
+test("self query: continue with self-evolution defers inside visible-loop child", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  let editorText = "";
+  const ctx = createMockContext({
+    hasUI: true,
+    sessionManager: {
+      getSessionId() {
+        return "019f325c-4aef-7795-a9ac-aa5219418a36";
+      },
+      getSessionName() {
+        return "visible-loop";
+      },
+    },
+    ui: {
+      setEditorText(text) {
+        editorText = text;
+      },
+    },
+  });
+
+  const result = await tool.execute(
+    "tc-continue-self-evolution-visible-loop-child",
+    { query: "continue with self-evolution" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.intent, "action");
+  assert.match(result.content[0].text, /already appears to be a visible-loop child/);
+  assert.equal(editorText, "");
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(result.details.data.prefill, false);
+  assert.equal(result.details.data.sendUserMessage, false);
+  assert.equal(result.details.data.dispatchMode, "nested_visible_loop_deferred_to_controller");
+  assert.equal(result.details.data.launchMechanism, "deferred_inside_visible_loop_child");
+
+  await cleanup(tempDir);
+});
+
 test("self query: launch visible-loop self-evolution sends owner-bridge message", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

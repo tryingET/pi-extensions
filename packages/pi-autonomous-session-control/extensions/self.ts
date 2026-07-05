@@ -37,7 +37,7 @@ import {
   evaluateRuntimeInvariants,
   formatRuntimeInvariantReport,
 } from "./self/runtime-invariants.ts";
-import { collectSessionIntentSnapshot } from "./self/session-context.ts";
+import { collectSessionIntentSnapshot, getContextSessionKey } from "./self/session-context.ts";
 import { createSelfState } from "./self/state.ts";
 import {
   createSubagentState,
@@ -137,9 +137,12 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         !Array.isArray(typedParams.context)
           ? typedParams.context
           : undefined;
+      const sessionName = readSessionManagerString(ctx, "getSessionName");
       const context = {
         ...(callerContext ?? {}),
         cwd: ctx.cwd || process.cwd(),
+        sessionId: getContextSessionKey(ctx),
+        ...(sessionName ? { sessionName } : {}),
         sessionIntent: collectSessionIntentSnapshot(ctx, callerContext),
         memoryLoadResult: memoryLifecycle.getLoadResult(),
       };
@@ -224,6 +227,20 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
   };
 
   pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
+}
+
+function readSessionManagerString(ctx: unknown, method: "getSessionName"): string | undefined {
+  const sessionManager = (ctx as { sessionManager?: unknown } | undefined)?.sessionManager;
+  if (!sessionManager || typeof sessionManager !== "object") return undefined;
+  const value = (sessionManager as Record<string, unknown>)[method];
+  if (typeof value !== "function") return undefined;
+
+  try {
+    const result = value.call(sessionManager);
+    return typeof result === "string" && result.trim().length > 0 ? result.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function shapeActionDeliveryData(

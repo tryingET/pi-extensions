@@ -1,6 +1,9 @@
 import type { SelfQuery, SelfResponse } from "../types.ts";
 
-export function handlePrefillVisibleLoopSelfEvolution(_query: SelfQuery): SelfResponse {
+export function handlePrefillVisibleLoopSelfEvolution(query: SelfQuery): SelfResponse {
+  const nestedGuard = buildNestedVisibleLoopGuardResponse(query);
+  if (nestedGuard) return nestedGuard;
+
   const text = "/visible-loop --count 1 --delegate-commit";
 
   return buildPrefillResponse(text, {
@@ -22,7 +25,10 @@ export function handlePrefillVisibleLoopSelfEvolution(_query: SelfQuery): SelfRe
   });
 }
 
-export function handleLaunchVisibleLoopSelfEvolution(_query: SelfQuery): SelfResponse {
+export function handleLaunchVisibleLoopSelfEvolution(query: SelfQuery): SelfResponse {
+  const nestedGuard = buildNestedVisibleLoopGuardResponse(query);
+  if (nestedGuard) return nestedGuard;
+
   const text = "/visible-loop --count 1 --delegate-commit";
 
   return buildOwnerBridgeResponse(text, {
@@ -86,6 +92,39 @@ export function handleLaunchAutoresearchCampaign(_query: SelfQuery): SelfRespons
 
 function buildAutoresearchCampaignCommand(): string {
   return "/autoresearch Evaluate ASC self-evolution harness: metric=operator_nudge_count lower-is-better target=0 for post-compaction continuation; guardrail_boundary_violations target=0";
+}
+
+function buildNestedVisibleLoopGuardResponse(query: SelfQuery): SelfResponse | null {
+  if (!isVisibleLoopSession(query.context)) return null;
+
+  return {
+    understood: true,
+    intent: "action",
+    answer:
+      "Visible-loop launch deferred: this session already appears to be a visible-loop child. Continue the current visible-loop, or have the controller launch one `/visible-loop --count N --delegate-commit` run instead of spawning a nested parallel loop.",
+    data: {
+      prefill: false,
+      sendUserMessage: false,
+      dispatchMode: "nested_visible_loop_deferred_to_controller",
+      autonomyLevel: 4,
+      ownerSurface: "pi-little-helpers / visible-loop",
+      routeKind: "visible_loop_self_evolution",
+      launchMechanism: "deferred_inside_visible_loop_child",
+      boundary:
+        "ASC/self must not start a new visible-loop from inside a visible-loop child; use the existing loop iteration or ask the controller to relaunch with a higher --count when more serial iterations are desired.",
+      nonAuthorizations: [
+        "does not launch nested visible-loop sessions",
+        "does not increase loop count after launch from inside the child",
+        "does not claim visible-loop output as AK/evidence/KES/ontology truth",
+      ],
+    },
+  };
+}
+
+function isVisibleLoopSession(context: Record<string, unknown> | undefined): boolean {
+  const sessionName = typeof context?.sessionName === "string" ? context.sessionName : "";
+  const sessionId = typeof context?.sessionId === "string" ? context.sessionId : "";
+  return /\bvisible[- ]loop\b/iu.test(sessionName) || /^session-visible-loop-/u.test(sessionId);
 }
 
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {
