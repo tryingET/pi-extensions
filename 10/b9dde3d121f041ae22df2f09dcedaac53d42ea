@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "10b9dde3d121f041ae22df2f09dcedaac53d42ea"
+created_at: "2026-07-05T13:19:19Z"
+intent: "Update pi-autonomous-session-control product posture for promotion closeout and live runtime proof guidance"
+files:
+  - "packages/pi-autonomous-session-control/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Single package-local documentation posture update"
