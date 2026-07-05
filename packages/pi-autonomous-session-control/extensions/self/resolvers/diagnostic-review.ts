@@ -419,6 +419,13 @@ export function resolveDiagnosticReviewQuery(
     | undefined;
   const provenance = externalCheckEvidence?.provenance;
   const provenanceCount = Array.isArray(provenance) ? provenance.length : 0;
+  const insightPromotionCue = evolutionCandidate.insightPromotionCue as
+    | Record<string, unknown>
+    | undefined;
+  const insightPromotionNonAuthorizations = insightPromotionCue?.nonAuthorizations;
+  const insightPromotionNonAuthorizationCount = Array.isArray(insightPromotionNonAuthorizations)
+    ? insightPromotionNonAuthorizations.length
+    : 0;
 
   return {
     understood: true,
@@ -433,7 +440,7 @@ ${ownerBoundaryLine}
 
 Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}; ownerSurface=${String(diagnosticCandidate.suggestedOwnerSurface)}; agentVentSuggestionAllowed=${String(diagnosticCandidate.agentVentSuggestionAllowed)}.
 Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
-Insight promotion cue (${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.kind)}): source=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.sourceArtifact)}; status=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.status)}; target=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.target)}; requiredBeforeCompletion=${String((evolutionCandidate.insightPromotionCue as Record<string, unknown> | undefined)?.requiredBeforeCompletion)}.
+Insight promotion cue (${String(insightPromotionCue?.kind)}): source=${String(insightPromotionCue?.sourceArtifact)}; status=${String(insightPromotionCue?.status)}; owner=${String(insightPromotionCue?.owner)}; target=${String(insightPromotionCue?.target)}; requiredBeforeCompletion=${String(insightPromotionCue?.requiredBeforeCompletion)}; risk=${String(insightPromotionCue?.risk)}; nextAction=${String(insightPromotionCue?.nextAction)}; nonAuthorizationsCount=${String(insightPromotionNonAuthorizationCount)}.
 Reflection guard (${String(reflectionGuard?.kind)}): status=${String(reflectionGuard?.status)}; externalCheckStatus=${String(reflectionGuard?.externalCheckStatus)}; requiresExternalCheck=${String(reflectionGuard?.requiresExternalCheck)}; positiveCheckSignal=${String(externalCheckEvidence?.positiveSignal ?? "none")}; provenanceCount=${String(provenanceCount)}; missingProvenance=${String(externalCheckEvidence?.missingProvenance)}; nextAction=${String(reflectionGuard?.nextAction)}.
 
 No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, owner-surface promotion, or external telemetry was created.`,

@@ -261,7 +261,15 @@ test("self query: diagnostic review surfaces explicit insight promotion status w
   assert.equal(cue.requiredBeforeCompletion, false);
   assert.match(cue.nextAction, /owner doc will be updated after focused regression/);
   assert.match(cue.boundary, /mirror-only promotion cue/);
+  assert.match(result.content[0].text, /owner=pi-autonomous-session-control/);
+  assert.match(
+    result.content[0].text,
+    /target=packages\/pi-autonomous-session-control\/docs\/project\/product-posture\.md/,
+  );
   assert.match(result.content[0].text, /requiredBeforeCompletion=false/);
+  assert.match(result.content[0].text, /risk=accepted only because/);
+  assert.match(result.content[0].text, /nextAction=state the defer reason/);
+  assert.match(result.content[0].text, /nonAuthorizationsCount=3/);
   assert.match(result.content[0].text, /No authority changed/);
   assert.equal(harness.sentUserMessages.length, 0, "should not send hidden messages");
 
@@ -311,6 +319,11 @@ test("self query: diagnostic review fails closed on unresolved insight promotion
     unpromotedOverride.details.data.evolutionCandidate.insightPromotionCue.nextAction,
     /promote the durable portion/,
   );
+  assert.match(
+    unpromotedOverride.content[0].text,
+    /nextAction=promote the durable portion to the owning surface/,
+  );
+  assert.match(unpromotedOverride.content[0].text, /requiredBeforeCompletion=true/);
   assert.ok(
     unpromotedOverride.details.data.evolutionCandidate.nonAuthorizations.includes(
       "no AK task/evidence/decision writes from self",
