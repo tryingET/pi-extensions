@@ -8,6 +8,7 @@
 
 import { normalizeInput, normalizeString, normalizeStringArray } from "../edge-contract-kernel.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
+import { buildLiveRuntimeProofGuard } from "./live-runtime-proof-guard.ts";
 import { buildReflectionGuard } from "./reflection-guard.ts";
 
 function collectConstraintText(query: SelfQuery | undefined): string[] {
@@ -278,11 +279,26 @@ function buildInsightPromotionCue(
   };
 }
 
-function collectSessionValidationProvenance(state: SelfState): string[] {
+function collectSessionCommandProvenance(state: SelfState): Array<Record<string, unknown>> {
+  return state.operations.commands
+    .filter((command) => command.success)
+    .slice(-8)
+    .map((command) => ({
+      text: `session command: ${command.rawCommand}`,
+      observedAt: command.timestamp,
+      source: "session.command",
+    }));
+}
+
+function collectSessionValidationCommandEvidence(state: SelfState): Array<Record<string, unknown>> {
   return state.operations.commands
     .filter((command) => command.success && command.recoveryEvidence === true)
     .slice(-3)
-    .map((command) => `session validation command: ${command.rawCommand}`);
+    .map((command) => ({
+      text: `session validation command: ${command.rawCommand}`,
+      observedAt: command.timestamp,
+      source: "session.validation",
+    }));
 }
 
 function buildEvolutionCandidate(
@@ -311,8 +327,14 @@ function buildEvolutionCandidate(
     "add or run a focused regression that proves the diagnostic query remains mirror-only, then run the package check";
   const autonomyLevel = normalizeString(context.autonomyLevel) || "suggest";
   const insightPromotionCue = buildInsightPromotionCue(context, owner);
+  const validationCommandEvidence = collectSessionValidationCommandEvidence(state);
+  const validationProvenance = validationCommandEvidence.map((entry) => String(entry.text));
+  const liveRuntimeProofGuard = buildLiveRuntimeProofGuard(query, context, {
+    commandProvenance: collectSessionCommandProvenance(state),
+    validationProvenance: validationCommandEvidence,
+  });
   const reflectionGuard = buildReflectionGuard(query, context, {
-    validationProvenance: collectSessionValidationProvenance(state),
+    validationProvenance,
   });
   const sourceArtifact = String(insightPromotionCue.sourceArtifact ?? "current Pi session mirror");
   const promotionStatus = String(insightPromotionCue.status ?? "session_only_unpromoted");
@@ -333,6 +355,7 @@ function buildEvolutionCandidate(
     promotionStatus,
     insightPromotionCue,
     reflectionGuard,
+    liveRuntimeProofGuard,
     trace: {
       observe: friction,
       orient: `owner=${owner}; autonomyLevel=${autonomyLevel}; metric=${metric}`,
@@ -434,6 +457,9 @@ export function resolveDiagnosticReviewQuery(
   const insightPromotionCue = evolutionCandidate.insightPromotionCue as
     | Record<string, unknown>
     | undefined;
+  const liveRuntimeProofGuard = evolutionCandidate.liveRuntimeProofGuard as
+    | Record<string, unknown>
+    | undefined;
   const insightPromotionNonAuthorizations = insightPromotionCue?.nonAuthorizations;
   const insightPromotionNonAuthorizationCount = Array.isArray(insightPromotionNonAuthorizations)
     ? insightPromotionNonAuthorizations.length
@@ -454,8 +480,9 @@ Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(d
 Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
 Insight promotion cue (${String(insightPromotionCue?.kind)}): source=${String(insightPromotionCue?.sourceArtifact)}; status=${String(insightPromotionCue?.status)}; owner=${String(insightPromotionCue?.owner)}; target=${String(insightPromotionCue?.target)}; requiredBeforeCompletion=${String(insightPromotionCue?.requiredBeforeCompletion)}; risk=${String(insightPromotionCue?.risk)}; nextAction=${String(insightPromotionCue?.nextAction)}; nonAuthorizationsCount=${String(insightPromotionNonAuthorizationCount)}.
 Reflection guard (${String(reflectionGuard?.kind)}): status=${String(reflectionGuard?.status)}; externalCheckStatus=${String(reflectionGuard?.externalCheckStatus)}; requiresExternalCheck=${String(reflectionGuard?.requiresExternalCheck)}; positiveCheckSignal=${String(externalCheckEvidence?.positiveSignal ?? "none")}; provenanceCount=${String(provenanceCount)}; missingProvenance=${String(externalCheckEvidence?.missingProvenance)}; nextAction=${String(reflectionGuard?.nextAction)}.
+Live runtime proof guard (${String(liveRuntimeProofGuard?.kind)}): packageCheckStatus=${String(liveRuntimeProofGuard?.packageCheckStatus)}; installStatus=${String(liveRuntimeProofGuard?.installStatus)}; reloadStatus=${String(liveRuntimeProofGuard?.reloadStatus)}; postReloadDogfoodStatus=${String(liveRuntimeProofGuard?.postReloadDogfoodStatus)}; proofSequenceStatus=${String(liveRuntimeProofGuard?.proofSequenceStatus)}; ownerBindingFailures=${String(Array.isArray(liveRuntimeProofGuard?.ownerBindingFailures) ? liveRuntimeProofGuard.ownerBindingFailures.length : "unknown")}; liveBehaviorClaimAllowed=${String(liveRuntimeProofGuard?.liveBehaviorClaimAllowed)}; requiredBeforeCompletion=${String(liveRuntimeProofGuard?.requiredBeforeCompletion)}; nextAction=${String(liveRuntimeProofGuard?.nextAction)}.
 
-No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, visible-loop launch, measured campaign, owner-surface promotion, or external telemetry was created.`,
+No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, install, reload, visible-loop launch, measured campaign, owner-surface promotion, or external telemetry was created.`,
     data: {
       diagnosticCandidate,
       evolutionCandidate,

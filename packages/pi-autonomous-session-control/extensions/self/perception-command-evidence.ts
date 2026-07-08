@@ -5,6 +5,7 @@
 import type { CommandExecution, ErrorEncounter, OperationLog } from "./types.ts";
 
 const COMMAND_NORMALIZE_MAX_LEN = 100;
+const RAW_COMMAND_STORAGE_MAX_LEN = 500;
 
 const PACKAGE_MANAGER_VALIDATION_SCRIPT =
   "(?:test|check|lint|typecheck|quality(?::\\w+)?|ci|release:check(?::quick)?)";
@@ -38,7 +39,7 @@ export function normalizeCommand(command: string): string {
 }
 
 export function normalizeRawCommandForStorage(command: string): string {
-  return command.slice(0, COMMAND_NORMALIZE_MAX_LEN);
+  return command.slice(0, RAW_COMMAND_STORAGE_MAX_LEN);
 }
 
 export function extractErrorSignature(message: string): string {
