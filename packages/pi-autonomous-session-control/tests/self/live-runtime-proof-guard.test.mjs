@@ -141,6 +141,307 @@ test("self query: live runtime proof guard rejects reload-only proof without pos
   await cleanup(tempDir);
 });
 
+test("self query: live runtime proof guard accepts slash reload receipt text", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-live-runtime-proof-slash-reload-receipt",
+    {
+      query: "self-evolution closeout claims active runtime behavior after reload",
+      context: {
+        liveBehaviorClaim: true,
+        reloadStatus: "observed",
+        reloadSignal: "/reload completed",
+        reloadCommand: "/reload completed",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
+  assert.equal(guard.reloadStatus, "observed");
+  assert.equal(guard.liveBehaviorClaimAllowed, false);
+  assert.equal(guard.requiredBeforeCompletion, true);
+  assert.equal(harness.sentUserMessages.length, 0, "slash reload receipt remains mirror-only");
+
+  await cleanup(tempDir);
+});
+
+test("self query: live runtime proof guard uses host reload lifecycle as reload-tier evidence only", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const sessionStartHandler = harness.eventHandlers.get("session_start");
+  sessionStartHandler({ type: "session_start", reason: "reload" });
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-live-runtime-proof-lifecycle-reload",
+    {
+      query: "self-evolution closeout claims active runtime behavior after reload",
+      context: {
+        liveBehaviorClaim: true,
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
+  assert.equal(guard.reloadStatus, "observed");
+  assert.equal(guard.packageCheckStatus, "unknown");
+  assert.equal(guard.installStatus, "unknown");
+  assert.equal(guard.postReloadDogfoodStatus, "unknown");
+  assert.equal(guard.liveBehaviorClaimAllowed, false);
+  assert.equal(guard.requiredBeforeCompletion, true);
+  assert.ok(guard.missingTiers.includes("packageCheck"));
+  assert.ok(
+    guard.tiers.reload.provenance.some((entry) => /session_start reason=reload/.test(entry)),
+  );
+  assert.match(result.content[0].text, /reloadStatus=observed/);
+  assert.equal(harness.sentUserMessages.length, 0, "lifecycle proof remains mirror-only");
+
+  await cleanup(tempDir);
+});
+
+test("self query: live runtime proof guard ignores non-reload lifecycle starts", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const sessionStartHandler = harness.eventHandlers.get("session_start");
+  sessionStartHandler({ type: "session_start", reason: "startup" });
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-live-runtime-proof-lifecycle-startup",
+    {
+      query: "self-evolution closeout claims active runtime behavior after reload",
+      context: {
+        liveBehaviorClaim: true,
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
+  assert.equal(guard.reloadStatus, "unknown");
+  assert.equal(guard.liveBehaviorClaimAllowed, false);
+  assert.equal(guard.requiredBeforeCompletion, true);
+  assert.equal(harness.sentUserMessages.length, 0, "startup lifecycle proof remains mirror-only");
+
+  await cleanup(tempDir);
+});
+
+test("self query: live runtime proof guard keeps mixed lifecycle and caller sequence ordering unresolved", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const sessionStartHandler = harness.eventHandlers.get("session_start");
+  sessionStartHandler({ type: "session_start", reason: "reload" });
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-live-runtime-proof-lifecycle-mixed-order",
+    {
+      query: "self-evolution closeout claims active self runtime behavior after reload dogfood",
+      context: {
+        liveBehaviorClaim: true,
+        packageName: "pi-autonomous-session-control",
+        packageCheckStatus: "observed",
+        packageCheck: "package check passed",
+        packageCheckCommand: {
+          command: "cd packages/pi-autonomous-session-control && npm run check",
+          packageName: "pi-autonomous-session-control",
+          sequence: 1,
+        },
+        installStatus: "observed",
+        piInstall: "pi install completed",
+        installCommand: {
+          command:
+            "pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control",
+          packageName: "pi-autonomous-session-control",
+          sequence: 2,
+        },
+        postReloadDogfoodStatus: "observed",
+        postReloadDogfood: "post-reload self dogfood passed",
+        postReloadDogfoodCommand: {
+          command: 'post-reload dogfood query: self({ query: "self-evolution" })',
+          packageName: "pi-autonomous-session-control",
+          sequence: 4,
+        },
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
+  assert.equal(guard.reloadStatus, "observed");
+  assert.deepEqual(guard.missingTiers, []);
+  assert.equal(guard.proofSequenceStatus, "unknown");
+  assert.match(guard.proofSequenceReason, /mixed order-token domains/);
+  assert.equal(guard.liveBehaviorClaimAllowed, false);
+  assert.equal(guard.requiredBeforeCompletion, true);
+  assert.equal(harness.sentUserMessages.length, 0, "mixed ordering remains mirror-only");
+
+  await cleanup(tempDir);
+});
+
+test("self query: live runtime proof guard does not pair lifecycle observation with caller sequence", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const sessionStartHandler = harness.eventHandlers.get("session_start");
+  sessionStartHandler({ type: "session_start", reason: "reload" });
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-live-runtime-proof-lifecycle-caller-sequence",
+    {
+      query: "self-evolution closeout claims active self runtime behavior after reload dogfood",
+      context: {
+        liveBehaviorClaim: true,
+        packageName: "pi-autonomous-session-control",
+        packageCheckStatus: "observed",
+        packageCheck: "package check passed",
+        packageCheckCommand: {
+          command: "cd packages/pi-autonomous-session-control && npm run check",
+          packageName: "pi-autonomous-session-control",
+          sequence: 1,
+        },
+        installStatus: "observed",
+        piInstall: "pi install completed",
+        installCommand: {
+          command:
+            "pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control",
+          packageName: "pi-autonomous-session-control",
+          sequence: 2,
+        },
+        reloadCommand: { command: "/reload completed", sequence: 3 },
+        postReloadDogfoodStatus: "observed",
+        postReloadDogfood: "post-reload self dogfood passed",
+        postReloadDogfoodCommand: {
+          command: 'post-reload dogfood query: self({ query: "self-evolution" })',
+          packageName: "pi-autonomous-session-control",
+          sequence: 4,
+        },
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
+  assert.equal(guard.reloadStatus, "observed");
+  assert.deepEqual(guard.missingTiers, []);
+  assert.equal(guard.proofSequenceStatus, "unknown");
+  assert.match(guard.proofSequenceReason, /mixed order-token domains/);
+  assert.equal(guard.liveBehaviorClaimAllowed, false);
+  assert.equal(guard.requiredBeforeCompletion, true);
+  assert.equal(guard.tiers.reload.orderTokenKind, "observedAt");
+  assert.equal(
+    harness.sentUserMessages.length,
+    0,
+    "mixed lifecycle/caller order remains mirror-only",
+  );
+
+  await cleanup(tempDir);
+});
+
+test("self query: live runtime proof guard rejects caller-spoofed session evidence origins", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+  const receipt = (tier, command, sequence) => ({
+    tier,
+    command,
+    source: "session.spoof",
+    status: "observed",
+    packageName: "pi-autonomous-session-control",
+    sequence,
+  });
+
+  const result = await tool.execute(
+    "tc-live-runtime-proof-caller-spoofed-session-origin",
+    {
+      query: "self-evolution closeout claims active self runtime behavior after reload dogfood",
+      context: {
+        liveBehaviorClaim: true,
+        packageName: "pi-autonomous-session-control",
+        liveRuntimeProofReceipts: [
+          receipt(
+            "packageCheck",
+            "cd packages/pi-autonomous-session-control && npm run check passed",
+            1,
+          ),
+          receipt(
+            "install",
+            "pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control completed",
+            2,
+          ),
+          receipt("reload", "operator reload receipt completed", 3),
+          receipt(
+            "postReloadDogfood",
+            "post-reload self dogfood passed for pi-autonomous-session-control",
+            4,
+          ),
+        ],
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
+  assert.equal(guard.packageCheckStatus, "unknown");
+  assert.equal(guard.installStatus, "unknown");
+  assert.equal(guard.reloadStatus, "unknown");
+  assert.equal(guard.postReloadDogfoodStatus, "unknown");
+  assert.equal(guard.liveBehaviorClaimAllowed, false);
+  assert.equal(guard.requiredBeforeCompletion, true);
+  assert.ok(
+    guard.tiers.reload.provenanceOrigins.every((origin) => origin === "caller_context"),
+    "caller source text must not become trusted session origin",
+  );
+  assert.equal(harness.sentUserMessages.length, 0, "spoofed proof remains mirror-only");
+
+  await cleanup(tempDir);
+});
+
 test("self query: live runtime proof guard ignores caller prose without structured proof", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();

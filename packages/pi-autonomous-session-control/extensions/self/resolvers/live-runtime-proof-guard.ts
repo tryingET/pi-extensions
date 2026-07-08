@@ -14,10 +14,16 @@ type LiveRuntimeTierStatus = "observed" | "required" | "failed" | "unknown";
 type ProofSequenceStatus = "observed" | "required" | "failed" | "unknown";
 type OwnerBindingStatus = "observed" | "failed" | "unknown";
 type EvidenceInput = string | Record<string, unknown>;
+type EvidenceOrigin =
+  | "caller_context"
+  | "session_command"
+  | "session_validation"
+  | "session_lifecycle";
 
 interface LiveRuntimeSessionEvidence {
   commandProvenance?: EvidenceInput[];
   validationProvenance?: EvidenceInput[];
+  lifecycleProvenance?: EvidenceInput[];
 }
 
 interface TierSpec {
@@ -36,10 +42,12 @@ interface TierSpec {
 interface EvidenceEntry {
   text: string;
   source: string;
+  origin: EvidenceOrigin;
   tier?: string;
   packageName?: string;
   observedAt?: number;
   sequence?: number;
+  status?: LiveRuntimeTierStatus;
 }
 
 const TEXT_ENTRY_MAX_LENGTH = 500;
@@ -118,10 +126,14 @@ function normalizeNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function normalizeEvidenceInput(value: unknown, source: string): EvidenceEntry | undefined {
+function normalizeEvidenceInput(
+  value: unknown,
+  source: string,
+  origin: EvidenceOrigin,
+): EvidenceEntry | undefined {
   if (typeof value === "string") {
     const text = normalizeString(value, { maxLength: TEXT_ENTRY_MAX_LENGTH });
-    return text ? { text, source } : undefined;
+    return text ? { text, source, origin } : undefined;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const input = value as Record<string, unknown>;
@@ -135,21 +147,27 @@ function normalizeEvidenceInput(value: unknown, source: string): EvidenceEntry |
   return {
     text,
     source: normalizeString(input.source, { maxLength: 80 }) || source,
+    origin,
     tier: normalizeString(input.tier, { maxLength: 80 }),
     packageName: normalizeString(input.packageName, { maxLength: 160 }),
     observedAt: normalizeNumber(input.observedAt) ?? normalizeNumber(input.timestamp),
     sequence: normalizeNumber(input.sequence) ?? normalizeNumber(input.order),
+    status: normalizeExplicitTierStatus(input.status),
   };
 }
 
-function collectEvidenceArray(value: unknown, source: string): EvidenceEntry[] {
+function collectEvidenceArray(
+  value: unknown,
+  source: string,
+  origin: EvidenceOrigin,
+): EvidenceEntry[] {
   if (!Array.isArray(value)) {
-    const entry = normalizeEvidenceInput(value, source);
+    const entry = normalizeEvidenceInput(value, source, origin);
     return entry ? [entry] : [];
   }
   return value
     .slice(0, ARRAY_ENTRY_LIMIT)
-    .map((entry) => normalizeEvidenceInput(entry, source))
+    .map((entry) => normalizeEvidenceInput(entry, source, origin))
     .filter((entry): entry is EvidenceEntry => Boolean(entry));
 }
 
@@ -160,14 +178,18 @@ function collectContextEvidenceEntries(
   const observedAt = normalizeNumber(context[`${spec.name}ObservedAt`]);
   const sequence = normalizeNumber(context[`${spec.name}Sequence`]);
   const directEntries = spec.provenanceKeys.flatMap((key) =>
-    collectEvidenceArray(context[key], `context.${key}`).map((entry) => ({
+    collectEvidenceArray(context[key], `context.${key}`, "caller_context").map((entry) => ({
       ...entry,
       tier: entry.tier ?? spec.name,
       observedAt: entry.observedAt ?? observedAt,
       sequence: entry.sequence ?? sequence,
     })),
   );
-  const receiptEntries = collectEvidenceArray(context.liveRuntimeProofReceipts, "context.receipt")
+  const receiptEntries = collectEvidenceArray(
+    context.liveRuntimeProofReceipts,
+    "context.receipt",
+    "caller_context",
+  )
     .filter((entry) => entry.tier === spec.name)
     .map((entry) => ({
       ...entry,
@@ -181,12 +203,28 @@ function collectSessionEvidenceEntries(
   spec: TierSpec,
   sessionEvidence: LiveRuntimeSessionEvidence,
 ): EvidenceEntry[] {
-  const commandEntries = collectEvidenceArray(sessionEvidence.commandProvenance, "session.command");
+  const commandEntries = collectEvidenceArray(
+    sessionEvidence.commandProvenance,
+    "session.command",
+    "session_command",
+  );
   const validationEntries =
     spec.name === "packageCheck"
-      ? collectEvidenceArray(sessionEvidence.validationProvenance, "session.validation")
+      ? collectEvidenceArray(
+          sessionEvidence.validationProvenance,
+          "session.validation",
+          "session_validation",
+        )
       : [];
-  return [...commandEntries, ...validationEntries].slice(0, ARRAY_ENTRY_LIMIT);
+  const lifecycleEntries =
+    spec.name === "reload"
+      ? collectEvidenceArray(
+          sessionEvidence.lifecycleProvenance,
+          "session.lifecycle",
+          "session_lifecycle",
+        )
+      : [];
+  return [...commandEntries, ...validationEntries, ...lifecycleEntries].slice(0, ARRAY_ENTRY_LIMIT);
 }
 
 function packageNamePattern(packageName: string): RegExp {
@@ -203,6 +241,12 @@ function evidenceOrderToken(entry: EvidenceEntry): number | undefined {
   return entry.sequence ?? entry.observedAt;
 }
 
+function evidenceOrderTokenKind(entry: EvidenceEntry): "sequence" | "observedAt" | undefined {
+  if (entry.sequence !== undefined) return "sequence";
+  if (entry.observedAt !== undefined) return "observedAt";
+  return undefined;
+}
+
 function resolveTier(
   context: Record<string, unknown>,
   spec: TierSpec,
@@ -211,14 +255,21 @@ function resolveTier(
 ): Record<string, unknown> {
   const explicitStatuses = collectExplicitStatuses(context, spec.statusKeys);
   const signalEntries = collectTextEntries(context, spec.signalKeys);
+  const contextEvidenceEntries = collectContextEvidenceEntries(context, spec).filter((entry) =>
+    spec.provenancePattern.test(entry.text.toLowerCase()),
+  );
+  const sessionEvidenceEntries = collectSessionEvidenceEntries(spec, sessionEvidence).filter(
+    (entry) => spec.provenancePattern.test(entry.text.toLowerCase()),
+  );
   const evidenceEntries = [
-    ...collectContextEvidenceEntries(context, spec),
-    ...collectSessionEvidenceEntries(spec, sessionEvidence),
-  ]
-    .filter((entry) => spec.provenancePattern.test(entry.text.toLowerCase()))
-    .slice(0, ARRAY_ENTRY_LIMIT);
+    ...contextEvidenceEntries.slice(0, ARRAY_ENTRY_LIMIT / 2),
+    ...sessionEvidenceEntries.slice(0, ARRAY_ENTRY_LIMIT / 2),
+  ].slice(0, ARRAY_ENTRY_LIMIT);
   const positiveSignal = firstMatchingEntry(signalEntries, spec.positivePattern);
-  const hasPositiveSignal = Boolean(positiveSignal);
+  const positiveEvidence = evidenceEntries.find((entry) =>
+    spec.positivePattern.test(entry.text.toLowerCase()),
+  );
+  const hasPositiveSignal = Boolean(positiveSignal || positiveEvidence);
   const hasProvenance = evidenceEntries.length > 0;
   const ownerBoundEvidence = spec.ownerBound
     ? evidenceEntries.filter((entry) => evidenceMatchesOwner(entry, expectedPackageName))
@@ -230,12 +281,20 @@ function resolveTier(
       : ownerBoundEvidence.length > 0
         ? "observed"
         : "failed";
-  const orderedEvidence = ownerBoundEvidence.find(
-    (entry) => evidenceOrderToken(entry) !== undefined,
+  const trustedObservedEvidenceEntry = evidenceEntries.find(
+    (entry) =>
+      spec.name === "reload" && entry.origin === "session_lifecycle" && entry.status === "observed",
   );
+  const callerObservedStatus = explicitStatuses.includes("observed");
+  const trustedObservedEvidence = Boolean(trustedObservedEvidenceEntry);
+  const orderedEvidence =
+    trustedObservedEvidenceEntry && !callerObservedStatus
+      ? trustedObservedEvidenceEntry
+      : ownerBoundEvidence.find((entry) => evidenceOrderToken(entry) !== undefined);
   const orderToken = orderedEvidence ? evidenceOrderToken(orderedEvidence) : undefined;
+  const orderTokenKind = orderedEvidence ? evidenceOrderTokenKind(orderedEvidence) : undefined;
   const hasObserved =
-    explicitStatuses.includes("observed") &&
+    (callerObservedStatus || trustedObservedEvidence) &&
     hasPositiveSignal &&
     hasProvenance &&
     ownerBindingStatus === "observed";
@@ -257,10 +316,12 @@ function resolveTier(
 
   return {
     status,
-    positiveSignal,
+    positiveSignal: positiveSignal ?? positiveEvidence?.text,
     provenance: evidenceEntries.map((entry) => entry.text),
+    provenanceOrigins: evidenceEntries.map((entry) => entry.origin),
     ownerBindingStatus,
     orderToken,
+    orderTokenKind,
     missingProvenance: explicitStatuses.includes("observed") && hasPositiveSignal && !hasProvenance,
     nextAction: status === "observed" ? "cite this tier's signal and provenance" : spec.nextAction,
   };
@@ -343,12 +404,13 @@ const TIER_SPECS: TierSpec[] = [
     signalKeys: ["reloadSignal", "piReload", "reloadCheck"],
     provenanceKeys: ["reloadCommand", "piReloadCommand", "reloadArtifact"],
     positivePattern:
-      /\b(\/reload|pi reload|operator reload|reload)\b[^\n]{0,100}\b(passed|pass|succeeded|successful|success|ok|complete|completed|observed)\b|\b(passed|pass|succeeded|successful|success|ok|complete|completed|observed)\b[^\n]{0,100}\b(\/reload|pi reload|operator reload|reload)\b/u,
-    provenancePattern: /\b\/reload\b|\bpi reload\b|\boperator reload\b|\breload receipt\b/u,
+      /(?:^|[\s;&|])(\/reload|pi\s+reload|operator\s+reload|reload)\b[^\n]{0,100}\b(passed|pass|succeeded|successful|success|ok|complete|completed|observed)\b|\b(passed|pass|succeeded|successful|success|ok|complete|completed|observed)\b[^\n]{0,100}(?:^|[\s;&|])(\/reload|pi\s+reload|operator\s+reload|reload)\b/u,
+    provenancePattern:
+      /(?:^|[\s;&|])(\/reload|pi\s+reload|operator\s+reload|reload\s+receipt)(?=$|[\s;&|])/u,
     requiredPattern:
-      /\b(\/reload|pi reload|operator reload|reload)\b[^\n]{0,80}\b(required|needed|pending|missing|absent)\b|\b(required|needed|pending|missing|absent)\b[^\n]{0,80}\b(\/reload|pi reload|operator reload|reload)\b/u,
+      /(?:^|[\s;&|])(\/reload|pi\s+reload|operator\s+reload|reload)\b[^\n]{0,80}\b(required|needed|pending|missing|absent)\b|\b(required|needed|pending|missing|absent)\b[^\n]{0,80}(?:^|[\s;&|])(\/reload|pi\s+reload|operator\s+reload|reload)\b/u,
     failedPattern:
-      /\b(\/reload|pi reload|operator reload|reload)\b[^\n]{0,80}\b(failed|failing|blocked|incomplete|not passed)\b|\b(failed|failing|blocked|incomplete|not passed)\b[^\n]{0,80}\b(\/reload|pi reload|operator reload|reload)\b/u,
+      /(?:^|[\s;&|])(\/reload|pi\s+reload|operator\s+reload|reload)\b[^\n]{0,80}\b(failed|failing|blocked|incomplete|not passed)\b|\b(failed|failing|blocked|incomplete|not passed)\b[^\n]{0,80}(?:^|[\s;&|])(\/reload|pi\s+reload|operator\s+reload|reload)\b/u,
     nextAction: "reload Pi through the operator-visible /reload path and cite the reload receipt",
     ownerBound: false,
   },
@@ -387,11 +449,20 @@ function resolveSequenceStatus(tiers: Record<TierName, Record<string, unknown>>)
   const tokens = orderedNames.map((name) => ({
     name,
     token: normalizeNumber(tiers[name].orderToken),
+    tokenKind: normalizeString(tiers[name].orderTokenKind),
   }));
-  if (tokens.some((entry) => entry.token === undefined)) {
+  if (tokens.some((entry) => entry.token === undefined || !entry.tokenKind)) {
     return {
       status: "unknown",
       reason: "ordered proof receipts are missing for one or more live-runtime tiers",
+    };
+  }
+  const tokenKinds = new Set(tokens.map((entry) => entry.tokenKind));
+  if (tokenKinds.size > 1) {
+    return {
+      status: "unknown",
+      reason:
+        "ordered proof receipts use mixed order-token domains; provide a single sequence or timestamp domain for all tiers",
     };
   }
   for (let index = 1; index < tokens.length; index++) {

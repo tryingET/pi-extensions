@@ -34,10 +34,19 @@ export interface ErrorEncounter {
   recoveredAt?: number;
 }
 
+export interface SessionLifecycleEvent {
+  type: "session_start";
+  reason: "startup" | "reload" | "new" | "resume" | "fork";
+  timestamp: number;
+  source: "pi.session_start";
+  previousSessionFile?: string;
+}
+
 export interface OperationLog {
   fileOps: FileOperation[];
   commands: CommandExecution[];
   errors: ErrorEncounter[];
+  lifecycleEvents: SessionLifecycleEvent[];
   sessionStartAt: number;
   lastMeaningfulChangeAt: number;
   turnCount: number;

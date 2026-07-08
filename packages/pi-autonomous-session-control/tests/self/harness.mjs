@@ -26,7 +26,19 @@ export function createPiHarness() {
       tools.set(definition.name, definition);
     },
     on(eventName, handler) {
-      eventHandlers.set(eventName, handler);
+      const existing = eventHandlers.get(eventName);
+      if (!existing) {
+        eventHandlers.set(eventName, handler);
+        return;
+      }
+
+      eventHandlers.set(eventName, (...args) => {
+        const first = existing(...args);
+        if (first && typeof first.then === "function") {
+          return Promise.resolve(first).then(() => handler(...args));
+        }
+        return handler(...args);
+      });
     },
     sendUserMessage(text, options) {
       sentUserMessages.push({ text, options });

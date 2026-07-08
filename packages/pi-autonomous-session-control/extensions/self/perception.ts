@@ -17,7 +17,13 @@ import {
   recoveryEvidenceAppliesToError,
 } from "./perception-command-evidence.ts";
 import { rankSliceCandidates, type SliceCandidate } from "./perception-slices.ts";
-import type { DetectedPattern, FileOperation, OperationLog, PatternDetector } from "./types.ts";
+import type {
+  DetectedPattern,
+  FileOperation,
+  OperationLog,
+  PatternDetector,
+  SessionLifecycleEvent,
+} from "./types.ts";
 
 export { analyzePatterns, createPatternDetector } from "./perception-patterns.ts";
 export { rankSliceCandidates } from "./perception-slices.ts";
@@ -31,6 +37,7 @@ export function createOperationLog(): OperationLog {
     fileOps: [],
     commands: [],
     errors: [],
+    lifecycleEvents: [],
     sessionStartAt: Date.now(),
     lastMeaningfulChangeAt: Date.now(),
     turnCount: 0,
@@ -104,6 +111,15 @@ export function incrementTurn(log: OperationLog): void {
   log.turnsSinceMeaningfulChange++;
 }
 
+export function trackSessionLifecycleEvent(
+  log: OperationLog,
+  event: Omit<SessionLifecycleEvent, "timestamp" | "source">,
+): void {
+  log.lifecycleEvents ??= [];
+  log.lifecycleEvents.push({ ...event, timestamp: Date.now(), source: "pi.session_start" });
+  trimLog(log);
+}
+
 function trimLog(log: OperationLog, maxSize = 500): void {
   if (log.fileOps.length > maxSize) {
     log.fileOps = log.fileOps.slice(-maxSize);
@@ -113,6 +129,9 @@ function trimLog(log: OperationLog, maxSize = 500): void {
   }
   if (log.errors.length > maxSize) {
     log.errors = log.errors.slice(-maxSize);
+  }
+  if (log.lifecycleEvents && log.lifecycleEvents.length > maxSize) {
+    log.lifecycleEvents = log.lifecycleEvents.slice(-maxSize);
   }
 }
 

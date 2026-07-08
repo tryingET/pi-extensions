@@ -1,10 +1,17 @@
 import type {
   ExtensionAPI,
+  SessionStartEvent,
   ToolCallEvent,
   ToolResultEvent,
   TurnStartEvent,
 } from "@earendil-works/pi-coding-agent";
-import { incrementTurn, trackCommand, trackError, trackFileOp } from "./perception.ts";
+import {
+  incrementTurn,
+  trackCommand,
+  trackError,
+  trackFileOp,
+  trackSessionLifecycleEvent,
+} from "./perception.ts";
 import type { SelfState } from "./types.ts";
 
 type NamedToolCallEvent<TName extends ToolCallEvent["toolName"]> = Extract<
@@ -151,7 +158,16 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
     incrementTurn(state.operations);
   };
 
+  const handleSessionStart = (event: SessionStartEvent): void => {
+    trackSessionLifecycleEvent(state.operations, {
+      type: "session_start",
+      reason: event.reason,
+      ...(event.previousSessionFile ? { previousSessionFile: event.previousSessionFile } : {}),
+    });
+  };
+
   pi.on("tool_call", handleToolCall);
   pi.on("tool_result", handleToolResult);
   pi.on("turn_start", handleTurnStart);
+  pi.on("session_start", handleSessionStart);
 }

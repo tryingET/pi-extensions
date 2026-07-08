@@ -301,6 +301,19 @@ function collectSessionValidationCommandEvidence(state: SelfState): Array<Record
     }));
 }
 
+function collectSessionLifecycleEvidence(state: SelfState): Array<Record<string, unknown>> {
+  return (state.operations.lifecycleEvents ?? [])
+    .filter((event) => event.type === "session_start" && event.reason === "reload")
+    .slice(-3)
+    .map((event) => ({
+      text: "session lifecycle reload receipt observed: Pi emitted session_start reason=reload",
+      observedAt: event.timestamp,
+      source: "session.lifecycle",
+      tier: "reload",
+      status: "observed",
+    }));
+}
+
 function buildEvolutionCandidate(
   query: SelfQuery | undefined,
   diagnosticCandidate: Record<string, unknown>,
@@ -332,6 +345,7 @@ function buildEvolutionCandidate(
   const liveRuntimeProofGuard = buildLiveRuntimeProofGuard(query, context, {
     commandProvenance: collectSessionCommandProvenance(state),
     validationProvenance: validationCommandEvidence,
+    lifecycleProvenance: collectSessionLifecycleEvidence(state),
   });
   const reflectionGuard = buildReflectionGuard(query, context, {
     validationProvenance,
