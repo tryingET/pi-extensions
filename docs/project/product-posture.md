@@ -70,15 +70,17 @@ For package implementation, prefer launching Pi from the owning package director
 The current high-leverage self-evolution frontier is described once in [visible-self-evolution-spine.md](./visible-self-evolution-spine.md) and package postures linked from it.
 That spine carries the DRY many-of-the-greats translation — cybernetic feedback, Popper falsifiers, PDCA/OODA traces, autonomy layers, specialist critics, decision budgets, and reflection guards — so package docs can link to one shared model instead of copying it.
 
-The current routed ASC/self frontier is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md). The latest package-local slice is repeated-reflection guard hardening:
+The current routed ASC/self frontier is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md). The latest package-local slice is live-runtime proof-tier hardening:
 
 ```text
-repeated self-analysis without external check
--> typed self.reflection_guard.v1 status
--> fail closed until an explicit positive check/scout/deep-review/focused-regression signal is named
+package check / focused regression
+-> pi install receipt
+-> /reload receipt
+-> post-reload self dogfood query
+-> typed self.live_runtime_proof_guard.v1 status
 ```
 
-Done means diagnostic/self-evolution responses keep the existing insight-promotion cue and also name typed reflection-guard status, whether an external check is required, the concrete next action, and non-authorizations; unresolved repeated reflection stays required-before-completion even if caller context tries to suppress it; negated, required, failed, unknown, or query-only check prose does not count as observed; and ASC does not launch peers/visible loops/campaigns or write owner docs, AK/evidence, incidents, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
+Done means diagnostic/self-evolution responses keep the existing insight-promotion and reflection-guard cues and also name typed live-runtime proof status: package-check, install, reload, post-reload dogfood, owner binding, proof ordering, whether active behavior may be claimed, required-before-completion, and the concrete next action. Install-only, wrong-owner, unordered, reload-only, caller-prose-only, missing-provenance, or missing post-reload dogfood claims fail closed before active `self` behavior is claimed; and ASC does not install packages, reload Pi, launch dogfood, launch peers/visible loops/campaigns, or write owner docs, AK/evidence, incidents, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
 
 ## Trust gates
 
