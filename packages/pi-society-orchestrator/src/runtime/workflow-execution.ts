@@ -122,8 +122,14 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
       );
       const stepResults: WorkflowStepResult[] = [];
       const worktreeGroupSummaries = new Map<number, WorkflowWorktreeSummary>();
+      let queuedDispatchCancelled = false;
 
       for (const [nodeIndex, node] of request.steps.entries()) {
+        if (params.signal?.aborted) {
+          queuedDispatchCancelled = true;
+          break;
+        }
+
         if (node.kind === "step") {
           const stepResult = await executeWorkflowStep({
             step: node,
@@ -135,6 +141,13 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
           });
           stepResults.push(stepResult);
 
+          if (stepResult.status === "aborted") {
+            break;
+          }
+          if (params.signal?.aborted && nodeIndex < request.steps.length - 1) {
+            queuedDispatchCancelled = true;
+            break;
+          }
           if (request.mode === "chain" && stepResult.status !== "done") {
             break;
           }
@@ -153,14 +166,14 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
               startIndex: stepResults.length,
             })
           : {
-              results: await executeParallelGroup({
+              ...(await executeParallelGroup({
                 group: node,
                 startIndex: stepResults.length,
                 request,
                 params,
                 executor,
                 executionRunId,
-              }),
+              })),
               worktreeSummary: undefined,
             };
 
@@ -169,21 +182,34 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
           worktreeGroupSummaries.set(nodeIndex, parallelExecution.worktreeSummary);
         }
 
+        const parallelStatus = aggregateWorkflowStatus(parallelExecution.results);
+        if (parallelStatus === "aborted") {
+          break;
+        }
         if (
-          request.mode === "chain" &&
-          aggregateWorkflowStatus(parallelExecution.results) !== "done"
+          parallelExecution.queuedDispatchCancelled ||
+          (params.signal?.aborted && nodeIndex < request.steps.length - 1)
         ) {
+          queuedDispatchCancelled = true;
+          break;
+        }
+        if (request.mode === "chain" && parallelStatus !== "done") {
           break;
         }
       }
 
       const worktreeSummary = mergeWorkflowWorktreeSummaries([...worktreeGroupSummaries.values()]);
+      const workflowStatus = aggregateWorkflowStatus(stepResults, {
+        aborted: queuedDispatchCancelled,
+      });
 
       return {
         mode: request.mode,
-        status: aggregateWorkflowStatus(stepResults),
+        status: workflowStatus,
         steps: stepResults,
         aggregatedOutput: buildAggregatedOutput(request, stepResults, {
+          workflowStatus,
+          queuedDispatchCancelled,
           worktreeSummary,
           worktreeGroupSummaries,
         }),
@@ -202,7 +228,11 @@ async function executeWorktreeParallelGroup(input: {
   executionRunId: string;
   worktreePatchRootDir: string;
   startIndex: number;
-}): Promise<{ results: WorkflowStepResult[]; worktreeSummary: WorkflowWorktreeSummary }> {
+}): Promise<{
+  results: WorkflowStepResult[];
+  queuedDispatchCancelled: boolean;
+  worktreeSummary: WorkflowWorktreeSummary;
+}> {
   const {
     group,
     nodeIndex,
@@ -241,10 +271,11 @@ async function executeWorktreeParallelGroup(input: {
 
   try {
     let results: WorkflowStepResult[] | undefined;
+    let queuedDispatchCancelled = false;
     let executionError: unknown;
 
     try {
-      results = await executeParallelGroup({
+      const parallelExecution = await executeParallelGroup({
         group,
         startIndex,
         request,
@@ -253,6 +284,8 @@ async function executeWorktreeParallelGroup(input: {
         executionRunId,
         cwdOverrides,
       });
+      results = parallelExecution.results;
+      queuedDispatchCancelled = parallelExecution.queuedDispatchCancelled;
     } catch (error) {
       executionError = error;
     }
@@ -269,6 +302,7 @@ async function executeWorktreeParallelGroup(input: {
 
     return {
       results: results ?? [],
+      queuedDispatchCancelled,
       worktreeSummary,
     };
   } finally {
@@ -284,34 +318,93 @@ async function executeParallelGroup(input: {
   executor: OrchestratorSubagentExecutor;
   executionRunId: string;
   cwdOverrides?: string[];
-}): Promise<WorkflowStepResult[]> {
+}): Promise<{ results: WorkflowStepResult[]; queuedDispatchCancelled: boolean }> {
   const { group, startIndex, request, params, executor, executionRunId, cwdOverrides } = input;
 
-  const settled = await Promise.allSettled(
-    group.tasks.map((step, parallelTaskIndex) =>
-      executeWorkflowStep({
-        step,
-        index: startIndex + parallelTaskIndex,
-        request,
-        params,
-        executor,
-        executionRunId,
-        cwdOverride: cwdOverrides?.[parallelTaskIndex],
-      }),
+  const scheduling = await allSettledWithConcurrency(
+    group.tasks.map(
+      (step, parallelTaskIndex) => () =>
+        executeWorkflowStep({
+          step,
+          index: startIndex + parallelTaskIndex,
+          request,
+          params,
+          executor,
+          executionRunId,
+          cwdOverride: cwdOverrides?.[parallelTaskIndex],
+        }),
     ),
+    group.concurrency ?? group.tasks.length,
+    {
+      signal: params.signal,
+      stopAfterResult: (result) => result.status === "aborted",
+    },
   );
 
-  const rejected = settled.find((result) => result.status === "rejected");
+  const rejected = scheduling.results.find((result) => result.status === "rejected");
   if (rejected?.status === "rejected") {
     throw rejected.reason;
   }
 
-  return settled
-    .filter(
-      (result): result is PromiseFulfilledResult<WorkflowStepResult> =>
-        result.status === "fulfilled",
-    )
-    .map((result) => result.value);
+  return {
+    results: scheduling.results
+      .filter(
+        (result): result is PromiseFulfilledResult<WorkflowStepResult> =>
+          result.status === "fulfilled",
+      )
+      .map((result) => result.value),
+    queuedDispatchCancelled: scheduling.queuedDispatchCancelled,
+  };
+}
+
+async function allSettledWithConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number,
+  options: {
+    signal?: AbortSignal;
+    stopAfterResult?: (result: T) => boolean;
+  } = {},
+): Promise<{
+  results: PromiseSettledResult<T>[];
+  queuedDispatchCancelled: boolean;
+}> {
+  const results = new Array<PromiseSettledResult<T> | undefined>(tasks.length);
+  let nextTaskIndex = 0;
+  let stopScheduling = false;
+  let queuedDispatchCancelled = false;
+
+  async function runWorker(): Promise<void> {
+    while (!stopScheduling && nextTaskIndex < tasks.length) {
+      if (options.signal?.aborted) {
+        queuedDispatchCancelled = true;
+        stopScheduling = true;
+        break;
+      }
+      const taskIndex = nextTaskIndex;
+      nextTaskIndex += 1;
+      try {
+        const value = await tasks[taskIndex]();
+        results[taskIndex] = { status: "fulfilled", value };
+        if (options.stopAfterResult?.(value)) {
+          stopScheduling = true;
+        }
+        if (options.signal?.aborted && nextTaskIndex < tasks.length) {
+          queuedDispatchCancelled = true;
+          stopScheduling = true;
+        }
+      } catch (reason) {
+        results[taskIndex] = { status: "rejected", reason };
+        stopScheduling = true;
+      }
+    }
+  }
+
+  const workerCount = Math.min(concurrency, tasks.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return {
+    results: results.filter((result): result is PromiseSettledResult<T> => result !== undefined),
+    queuedDispatchCancelled,
+  };
 }
 
 async function executeWorkflowStep(input: {
@@ -387,7 +480,10 @@ async function executeWorkflowStep(input: {
   };
 }
 
-function aggregateWorkflowStatus(stepResults: WorkflowStepResult[]): WorkflowStatus {
+function aggregateWorkflowStatus(
+  stepResults: WorkflowStepResult[],
+  options: { aborted?: boolean } = {},
+): WorkflowStatus {
   if (stepResults.some((step) => step.status === "aborted")) {
     return "aborted";
   }
@@ -397,18 +493,28 @@ function aggregateWorkflowStatus(stepResults: WorkflowStepResult[]): WorkflowSta
   if (stepResults.some((step) => step.status === "error")) {
     return "error";
   }
-  return "done";
+  return options.aborted ? "aborted" : "done";
 }
 
 function buildAggregatedOutput(
   request: WorkflowRequest,
   stepResults: WorkflowStepResult[],
   extras: {
+    workflowStatus: WorkflowStatus;
+    queuedDispatchCancelled: boolean;
     worktreeSummary?: WorkflowWorktreeSummary;
     worktreeGroupSummaries: Map<number, WorkflowWorktreeSummary>;
   },
 ): string {
-  const sections = [buildWorkflowSummarySection(request, stepResults, extras.worktreeSummary)];
+  const sections = [
+    buildWorkflowSummarySection(
+      request,
+      stepResults,
+      extras.workflowStatus,
+      extras.queuedDispatchCancelled,
+      extras.worktreeSummary,
+    ),
+  ];
   let nextStepResultIndex = 0;
   let parallelGroupOrdinal = 0;
 
@@ -434,6 +540,8 @@ function buildAggregatedOutput(
     if (results.length === 0) {
       break;
     }
+    const queuedDispatchCancelled =
+      extras.queuedDispatchCancelled && results.length < node.tasks.length;
     nextStepResultIndex += results.length;
     parallelGroupOrdinal += 1;
     sections.push(
@@ -441,6 +549,7 @@ function buildAggregatedOutput(
         groupOrdinal: parallelGroupOrdinal,
         group: node,
         results,
+        queuedDispatchCancelled,
         worktreeSummary: extras.worktreeGroupSummaries.get(nodeIndex),
       }),
     );
@@ -452,13 +561,15 @@ function buildAggregatedOutput(
 function buildWorkflowSummarySection(
   request: WorkflowRequest,
   stepResults: WorkflowStepResult[],
+  workflowStatus: WorkflowStatus,
+  queuedDispatchCancelled: boolean,
   worktreeSummary?: WorkflowWorktreeSummary,
 ): string {
   const totalRequestedSteps = flattenWorkflowSteps(request).length;
   const lines = [
     "## Workflow summary",
     `- mode: ${request.mode}`,
-    `- status: ${aggregateWorkflowStatus(stepResults)}`,
+    `- status: ${workflowStatus}`,
     `- executed_steps: ${stepResults.length}/${totalRequestedSteps}`,
     `- step_statuses: ${formatWorkflowStatusCounts(countWorkflowStatuses(stepResults))}`,
   ];
@@ -468,7 +579,10 @@ function buildWorkflowSummarySection(
     lines.push(`- failure_kinds: ${failureKinds}`);
   }
 
-  if (request.mode === "chain" && stepResults.length < totalRequestedSteps) {
+  if (
+    stepResults.length < totalRequestedSteps &&
+    (request.mode === "chain" || workflowStatus === "aborted" || queuedDispatchCancelled)
+  ) {
     lines.push("- halted_early: true");
   }
 
@@ -486,14 +600,21 @@ function renderParallelGroupSection(input: {
   groupOrdinal: number;
   group: WorkflowParallelGroup;
   results: WorkflowStepResult[];
+  queuedDispatchCancelled: boolean;
   worktreeSummary?: WorkflowWorktreeSummary;
 }): string {
-  const { groupOrdinal, group, results, worktreeSummary } = input;
+  const { groupOrdinal, group, results, queuedDispatchCancelled, worktreeSummary } = input;
+  const groupStatus = aggregateWorkflowStatus(results, { aborted: queuedDispatchCancelled });
   const lines = [
-    `## Parallel group ${groupOrdinal} — ${aggregateWorkflowStatus(results)}`,
+    `## Parallel group ${groupOrdinal} — ${groupStatus}`,
     `- tasks: ${group.tasks.length}`,
+    `- executed_tasks: ${results.length}/${group.tasks.length}`,
     `- step_statuses: ${formatWorkflowStatusCounts(countWorkflowStatuses(results))}`,
   ];
+
+  if (queuedDispatchCancelled) {
+    lines.push("- halted_early: true");
+  }
 
   if (typeof group.concurrency === "number") {
     lines.push(`- concurrency: ${group.concurrency}`);

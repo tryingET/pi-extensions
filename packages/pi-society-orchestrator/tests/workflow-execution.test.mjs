@@ -261,6 +261,429 @@ test("workflow executor preserves input order for parallel groups", async () => 
   assert.match(result.aggregatedOutput, /### Task 2 — builder — done/);
 });
 
+test("workflow executor enforces parallel group concurrency without changing result order", async () => {
+  let active = 0;
+  let peakActive = 0;
+  const started = [];
+  const releases = [];
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute(params) {
+        const taskNumber = Number(params.objective.at(-1));
+        started.push(taskNumber);
+        active += 1;
+        peakActive = Math.max(peakActive, active);
+        await new Promise((resolve) => {
+          releases[taskNumber] = resolve;
+        });
+        active -= 1;
+        return createFakeDispatchResult({
+          status: "done",
+          output: `done: ${taskNumber}`,
+        });
+      },
+    },
+  });
+
+  const execution = executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    request: {
+      mode: "parallel",
+      steps: [
+        {
+          kind: "parallel",
+          concurrency: 2,
+          tasks: [1, 2, 3, 4].map((taskNumber) => ({
+            kind: "step",
+            agent: "builder",
+            objective: `Implement feature ${taskNumber}`,
+          })),
+        },
+      ],
+    },
+  });
+
+  await waitFor(() => started.length === 2);
+  assert.deepEqual(started, [1, 2]);
+  assert.equal(peakActive, 2);
+
+  releases[2]();
+  await waitFor(() => started.length === 3);
+  assert.deepEqual(started, [1, 2, 3]);
+  assert.equal(peakActive, 2);
+
+  releases[1]();
+  await waitFor(() => started.length === 4);
+  assert.deepEqual(started, [1, 2, 3, 4]);
+  assert.equal(peakActive, 2);
+
+  releases[3]();
+  releases[4]();
+  const result = await execution;
+
+  assert.deepEqual(
+    result.steps.map((step) => step.displayOutput),
+    ["done: 1", "done: 2", "done: 3", "done: 4"],
+  );
+  assert.match(result.aggregatedOutput, /- concurrency: 2/);
+});
+
+test("workflow executor stops queued parallel dispatches after an executor rejection", async () => {
+  const started = [];
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute(params) {
+        started.push(params.objective);
+        throw new Error("ASC execution seam unavailable");
+      },
+    },
+  });
+
+  await assert.rejects(
+    executor.execute({
+      activeTeam: "full",
+      model: "mock/model",
+      cwd: "/repo",
+      cognitiveToolContent: "FRAMEWORK: workflow",
+      request: {
+        mode: "parallel",
+        steps: [
+          {
+            kind: "parallel",
+            concurrency: 1,
+            tasks: [1, 2, 3].map((taskNumber) => ({
+              kind: "step",
+              agent: "builder",
+              objective: `Implement feature ${taskNumber}`,
+            })),
+          },
+        ],
+      },
+    }),
+    /ASC execution seam unavailable/,
+  );
+
+  assert.deepEqual(started, ["Implement feature 1"]);
+});
+
+test("workflow executor stops queued parallel dispatches after ASC fulfills an aborted result", async () => {
+  const started = [];
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute(params) {
+        started.push(params.objective);
+        return createFakeDispatchResult({
+          status: "aborted",
+          output: "cancelled by operator",
+          failureKind: "aborted",
+        });
+      },
+    },
+  });
+
+  const result = await executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    request: {
+      mode: "parallel",
+      steps: [
+        {
+          kind: "parallel",
+          concurrency: 1,
+          tasks: [1, 2, 3].map((taskNumber) => ({
+            kind: "step",
+            agent: "builder",
+            objective: `Implement feature ${taskNumber}`,
+          })),
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.status, "aborted");
+  assert.deepEqual(started, ["Implement feature 1"]);
+  assert.deepEqual(
+    result.steps.map((step) => step.status),
+    ["aborted"],
+  );
+  assert.match(result.aggregatedOutput, /- executed_steps: 1\/3/);
+  assert.match(result.aggregatedOutput, /- halted_early: true/);
+});
+
+test("workflow executor does not claim work when the cancellation signal is already aborted", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute() {
+        calls += 1;
+        return createFakeDispatchResult({ status: "done", output: "unexpected" });
+      },
+    },
+  });
+
+  const result = await executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    signal: controller.signal,
+    request: {
+      mode: "parallel",
+      steps: [
+        {
+          kind: "parallel",
+          concurrency: 1,
+          tasks: [{ kind: "step", agent: "builder", objective: "Do not dispatch" }],
+        },
+      ],
+    },
+  });
+
+  assert.equal(calls, 0);
+  assert.equal(result.status, "aborted");
+  assert.deepEqual(result.steps, []);
+  assert.match(result.aggregatedOutput, /- status: aborted/);
+  assert.match(result.aggregatedOutput, /- executed_steps: 0\/1/);
+  assert.match(result.aggregatedOutput, /- halted_early: true/);
+});
+
+test("workflow cancellation does not cross node boundaries in parallel mode", async () => {
+  const started = [];
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute(params) {
+        started.push(params.objective);
+        return createFakeDispatchResult({
+          status: params.objective === "Cancel workflow" ? "aborted" : "done",
+          output: params.objective,
+        });
+      },
+    },
+  });
+
+  const result = await executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    request: {
+      mode: "parallel",
+      steps: [
+        { kind: "step", agent: "builder", objective: "Cancel workflow" },
+        { kind: "step", agent: "builder", objective: "Must remain queued" },
+      ],
+    },
+  });
+
+  assert.equal(result.status, "aborted");
+  assert.deepEqual(started, ["Cancel workflow"]);
+  assert.match(result.aggregatedOutput, /- executed_steps: 1\/2/);
+  assert.match(result.aggregatedOutput, /- halted_early: true/);
+});
+
+test("late cancellation does not rewrite completed ASC step truth", async () => {
+  const controller = new AbortController();
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute() {
+        controller.abort();
+        return createFakeDispatchResult({ status: "done", output: "completed" });
+      },
+    },
+  });
+
+  const result = await executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    signal: controller.signal,
+    request: {
+      mode: "parallel",
+      steps: [{ kind: "step", agent: "builder", objective: "Complete final step" }],
+    },
+  });
+
+  assert.equal(result.status, "done");
+  assert.deepEqual(
+    result.steps.map((step) => step.status),
+    ["done"],
+  );
+});
+
+test("cancellation with no queued parallel work does not rewrite completed ASC truth", async () => {
+  const controller = new AbortController();
+  let completed = 0;
+  let started = 0;
+  let release;
+  const barrier = new Promise((resolve) => {
+    release = resolve;
+  });
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute(params) {
+        started += 1;
+        await barrier;
+        completed += 1;
+        return createFakeDispatchResult({ status: "done", output: params.objective });
+      },
+    },
+  });
+
+  const execution = executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    signal: controller.signal,
+    request: {
+      mode: "parallel",
+      steps: [
+        {
+          kind: "parallel",
+          concurrency: 2,
+          tasks: [1, 2].map((taskNumber) => ({
+            kind: "step",
+            agent: "builder",
+            objective: `Complete task ${taskNumber}`,
+          })),
+        },
+      ],
+    },
+  });
+
+  await waitFor(() => started === 2);
+  controller.abort();
+  release();
+  const result = await execution;
+
+  assert.equal(completed, 2);
+  assert.equal(result.status, "done");
+  assert.deepEqual(
+    result.steps.map((step) => step.status),
+    ["done", "done"],
+  );
+});
+
+test("queued signal cancellation preserves completed ASC truth while marking the partial group aborted", async () => {
+  const controller = new AbortController();
+  const started = [];
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute(params) {
+        started.push(params.objective);
+        controller.abort();
+        return createFakeDispatchResult({
+          status: "done",
+          output: "completed before cancellation",
+        });
+      },
+    },
+  });
+
+  const result = await executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    signal: controller.signal,
+    request: {
+      mode: "parallel",
+      steps: [
+        {
+          kind: "parallel",
+          concurrency: 1,
+          tasks: [1, 2].map((taskNumber) => ({
+            kind: "step",
+            agent: "builder",
+            objective: `Queued task ${taskNumber}`,
+          })),
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(started, ["Queued task 1"]);
+  assert.equal(result.status, "aborted");
+  assert.deepEqual(
+    result.steps.map((step) => step.status),
+    ["done"],
+  );
+  assert.match(result.aggregatedOutput, /## Parallel group 1 — aborted/);
+  assert.match(result.aggregatedOutput, /- executed_tasks: 1\/2/);
+  assert.match(result.aggregatedOutput, /- halted_early: true/);
+});
+
+test("queued cancellation does not mask an ASC timed-out result", async () => {
+  const controller = new AbortController();
+  const started = [];
+  const executor = createWorkflowExecutor({
+    executor: {
+      state: {},
+      async execute(params) {
+        started.push(params.objective);
+        controller.abort();
+        return createFakeDispatchResult({ status: "timed_out", output: "ASC timed out" });
+      },
+    },
+  });
+
+  const result = await executor.execute({
+    activeTeam: "full",
+    model: "mock/model",
+    cwd: "/repo",
+    cognitiveToolContent: "FRAMEWORK: workflow",
+    signal: controller.signal,
+    request: {
+      mode: "parallel",
+      steps: [
+        {
+          kind: "parallel",
+          concurrency: 1,
+          tasks: [1, 2].map((taskNumber) => ({
+            kind: "step",
+            agent: "builder",
+            objective: `Timed task ${taskNumber}`,
+          })),
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(started, ["Timed task 1"]);
+  assert.equal(result.status, "timed_out");
+  assert.deepEqual(
+    result.steps.map((step) => step.status),
+    ["timed_out"],
+  );
+  assert.match(result.aggregatedOutput, /- halted_early: true/);
+});
+
+async function waitFor(predicate, timeoutMs = 1_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error("Timed out waiting for workflow test condition");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+}
+
 test("workflow executor renders parallel failure fan-in without hiding raw step failures", async () => {
   const executor = createWorkflowExecutor({
     executor: {
