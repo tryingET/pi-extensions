@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { parseSelfEvolutionExecutionEnvelope } from "./selfEvolutionEnvelope.ts";
 import { normalizeOptionalString, parseReportBack } from "./visibleLoopArgs.ts";
 import { normalizeVisibleLoopCommandName } from "./visibleLoopProfiles.ts";
 import type {
@@ -145,6 +146,13 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
   const commitDelegation = parseCommitDelegation(record.commitDelegation);
   const productPostureTarget = parseProductPostureTarget(record.productPostureTarget);
+  const selfEvolutionEnvelope =
+    record.selfEvolutionEnvelope === undefined
+      ? undefined
+      : parseSelfEvolutionExecutionEnvelope(record.selfEvolutionEnvelope);
+  if (record.selfEvolutionEnvelope !== undefined && !selfEvolutionEnvelope) {
+    throw new TypeError("selfEvolutionEnvelope is invalid.");
+  }
   const title = normalizeOptionalString(record.title);
   const createdAt = requireNonEmptyString(record.createdAt, "createdAt");
 
@@ -159,6 +167,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     ...(parentPeerTarget ? { parentPeerTarget } : {}),
     ...(commitDelegation ? { commitDelegation } : {}),
     ...(productPostureTarget ? { productPostureTarget } : {}),
+    ...(selfEvolutionEnvelope ? { selfEvolutionEnvelope } : {}),
     ...(title ? { title } : {}),
     createdAt,
   };

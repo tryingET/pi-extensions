@@ -1,36 +1,48 @@
 /**
- * Diagnostic action helpers for ASC/self.
+ * Explicit diagnostic action helpers.
  *
- * These actions only prepare mirror-only continuation messages or editor
- * prefills. Durable diagnostic capture remains owned by agent_vent.
+ * These actions reuse the canonical diagnostic candidate builder and never send
+ * an imperative recursive-continuation message. Durable capture stays preview-only
+ * and owner-reviewed through agent_vent.
  */
 
-import { normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
-import type { SelfQuery, SelfResponse } from "../types.ts";
-import { extractQuotedContent } from "./helpers.ts";
+import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
+import { buildDiagnosticCandidate, resolveDiagnosticReviewQuery } from "./diagnostic-review.ts";
 
-export function handleContinueDiagnosticReview(query: SelfQuery): SelfResponse {
-  const candidate = buildDiagnosticCandidate(query);
-  const text = buildDiagnosticContinuationMessage(candidate);
+export function handleContinueDiagnosticReview(query: SelfQuery, state: SelfState): SelfResponse {
+  const review = resolveDiagnosticReviewQuery(query, state);
+  const data = review.data as
+    | {
+        diagnosticCandidate?: Record<string, unknown>;
+        evolutionCandidate?: Record<string, unknown>;
+      }
+    | undefined;
+  const candidate = data?.evolutionCandidate;
+  const reflectionGuard = candidate?.reflectionGuard as Record<string, unknown> | undefined;
+  const requiresExternalCheck = reflectionGuard?.requiresExternalCheck === true;
 
   return {
     understood: true,
     intent: "action",
-    answer: `Diagnostic-review continuation suggested: "${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`,
+    answer: requiresExternalCheck
+      ? `Diagnostic continuation blocked by self.reflection_guard.v1 for candidate ${String(candidate?.candidateId ?? "unknown")}. ${String(reflectionGuard?.nextAction ?? "Run a concrete external check before continuing.")}`
+      : `Diagnostic review produced candidate ${String(candidate?.candidateId ?? "unknown")} without sending a hidden continuation. Review its evidence and use an explicit candidate-bound visible-loop or autoresearch route only if executionReady=true.`,
     data: {
-      text,
-      diagnosticCandidate: candidate,
-      sendUserMessage: true,
+      diagnosticCandidate: data?.diagnosticCandidate,
+      evolutionCandidate: candidate,
+      sendUserMessage: false,
       prefill: false,
-      dispatchMode: "agent_diagnostic_continuation",
+      dispatchMode: requiresExternalCheck
+        ? "external_check_required"
+        : "diagnostic_candidate_review_required",
       boundary:
-        "Low-risk mirror-only continuation; durable agent_vent recording remains operator-reviewed.",
+        "mirror-only explicit diagnostic action; no recursive follow-up, agent_vent write, loop launch, campaign launch, or durable authority mutation occurred",
     },
   };
 }
 
-export function handlePrefillDiagnosticRecord(query: SelfQuery): SelfResponse {
-  const candidate = buildDiagnosticCandidate(query);
+export function handlePrefillDiagnosticRecord(query: SelfQuery, state: SelfState): SelfResponse {
+  const candidate = buildDiagnosticCandidate(query, state);
   const text = buildAgentVentPreviewCommand(candidate);
 
   return buildPrefillResponse(text, {
@@ -42,44 +54,7 @@ export function handlePrefillDiagnosticRecord(query: SelfQuery): SelfResponse {
   });
 }
 
-function buildDiagnosticCandidate(query: SelfQuery): Record<string, string> {
-  const context = normalizeInput(query.context);
-  const summary =
-    normalizeString(context.summary) ||
-    normalizeString(context.diagnosticSummary) ||
-    extractQuotedContent(query.query) ||
-    "self/operator diagnostic affordance needs review";
-  const category = normalizeString(context.category) || "missing_affordance";
-  const tool = normalizeString(context.tool) || "self";
-  const packageName =
-    normalizeString(context.packageName) ||
-    normalizeString(context.package) ||
-    "pi-autonomous-session-control";
-
-  return {
-    kind: "self.diagnostic_candidate.v1",
-    summary,
-    category,
-    tool,
-    package: packageName,
-    sourceQuery: query.query,
-    suggestedOwnerSurface: "agent_vent",
-    boundary:
-      "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
-  };
-}
-
-function buildDiagnosticContinuationMessage(candidate: Record<string, string>): string {
-  return [
-    "Continue the self diagnostic review as a mirror-only local improvement step.",
-    `Candidate: ${candidate.summary}`,
-    `Facet: category=${candidate.category}, tool=${candidate.tool}, package=${candidate.package}`,
-    "Allowed: inspect the candidate, improve self/tooling behavior, or ask the operator before durable capture.",
-    "Not allowed: do not write agent_vent records, AK tasks/evidence, issues, incidents, or telemetry unless explicitly requested through the owning surface.",
-  ].join("\n");
-}
-
-function buildAgentVentPreviewCommand(candidate: Record<string, string>): string {
+function buildAgentVentPreviewCommand(candidate: Record<string, unknown>): string {
   return `agent_vent({ action: "preview", category: ${JSON.stringify(candidate.category)}, tool: ${JSON.stringify(candidate.tool)}, packageName: ${JSON.stringify(candidate.package)}, summary: ${JSON.stringify(candidate.summary)} })`;
 }
 

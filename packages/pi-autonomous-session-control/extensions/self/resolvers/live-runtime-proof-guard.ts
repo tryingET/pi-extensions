@@ -80,6 +80,9 @@ export function buildLiveRuntimeProofGuard(
     failedTiers,
     tiers,
     nextAction,
+    provenanceTrust: "local_session_mirror_not_tamper_evident",
+    tamperBoundary:
+      "Pi session entries improve machine readability and branch replay, but another local extension or process with equivalent filesystem permissions can forge or edit them; this is not cryptographic or canonical evidence",
     boundary:
       "mirror-only live-runtime proof guard; ASC/self does not install packages, reload Pi, launch dogfood, or write durable owner surfaces",
     nonAuthorizations: [

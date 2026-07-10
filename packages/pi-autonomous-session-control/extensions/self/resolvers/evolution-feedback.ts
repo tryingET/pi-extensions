@@ -7,6 +7,7 @@
  */
 
 import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
+import { findEvolutionCandidate, latestEvolutionCandidate } from "../evolution-candidate-ledger.ts";
 import type { SelfQuery, SelfResponse, SelfState, SuggestionFeedbackOutcome } from "../types.ts";
 
 const MAX_FEEDBACK_ENTRIES = 50;
@@ -54,34 +55,15 @@ function parseOutcome(query: SelfQuery): SuggestionFeedbackOutcome | undefined {
     return contextOutcome as SuggestionFeedbackOutcome;
   }
 
-  const lower = query.query.toLowerCase();
-  if (
-    lower.includes("wrong-owner") ||
-    lower.includes("wrong owner") ||
-    lower.includes("wrongowner")
-  ) {
-    return "wrong-owner";
-  }
-  if (lower.includes("unsafe") || lower.includes("not safe") || lower.includes("risky")) {
-    return "unsafe";
-  }
-  if (lower.includes("stale") || lower.includes("outdated") || lower.includes("obsolete")) {
-    return "stale";
-  }
-  if (
-    lower.includes("ignored") ||
-    lower.includes("skip") ||
-    lower.includes("not useful") ||
-    lower.includes("not helpful") ||
-    lower.includes("unhelpful")
-  ) {
-    return "ignored";
-  }
-  if (lower.includes("helpful") || lower.includes("useful") || lower.includes("worked")) {
-    return "helpful";
-  }
-
-  return undefined;
+  const match = query.query
+    .toLowerCase()
+    .match(
+      /^(?:self|suggestion|candidate|self[- ]?evolution|evolution|outcome)?\s*feedback\s*:\s*(helpful|ignored|stale|wrong[- ]owner|unsafe)\b/u,
+    );
+  const normalized = match?.[1]?.replace(/\s+/gu, "-");
+  return normalized && OUTCOMES.includes(normalized as SuggestionFeedbackOutcome)
+    ? (normalized as SuggestionFeedbackOutcome)
+    : undefined;
 }
 
 function inferTargetKind(query: SelfQuery): string {
@@ -187,12 +169,41 @@ function handleRecordFeedback(query: SelfQuery, state: SelfState): SelfResponse 
   }
 
   const context = normalizeInput(query.context);
+  const sessionId = normalizeString(context.sessionId) || "unknown-session";
+  const inferredKind = inferTargetKind(query);
+  const inferredId = inferTargetId(query);
+  const latestCandidate = latestEvolutionCandidate(state, sessionId);
+  const targetsEvolutionCandidate =
+    inferredKind === "self.evolution_candidate.v1" ||
+    Boolean(inferredId) ||
+    (inferredKind === "self_suggestion" && Boolean(latestCandidate));
+  const targetId =
+    inferredId ?? (targetsEvolutionCandidate ? latestCandidate?.candidateId : undefined);
+  const targetCandidate = targetId ? findEvolutionCandidate(state, targetId, sessionId) : undefined;
+
+  if (targetsEvolutionCandidate && !targetCandidate) {
+    return {
+      understood: true,
+      intent: "meta",
+      answer:
+        "Self-evolution feedback was not recorded because it does not reference a candidate emitted in this session. Run self-evolution first or provide its exact candidateId.",
+      data: {
+        feedbackRecorded: false,
+        reason: "candidate_not_found",
+        targetId,
+        boundary:
+          "unbound candidate feedback is rejected; no agent_vent, AK, KES, ontology, visible-loop, or telemetry state changed",
+      },
+    };
+  }
+
   const feedback = {
     kind: "self.suggestion_feedback.v1" as const,
     id: createEdgeMonotonicId("feedback"),
     outcome,
-    targetKind: inferTargetKind(query),
-    targetId: inferTargetId(query),
+    targetKind: targetCandidate ? "self.evolution_candidate.v1" : inferredKind,
+    ...(targetId ? { targetId } : {}),
+    bound: Boolean(targetCandidate),
     note: inferNote(query),
     owner:
       normalizeString(context.owner) ||

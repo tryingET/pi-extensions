@@ -115,13 +115,11 @@ export const ACTION_KEYWORDS = [
 
 function isDirectUserMessageQuery(lower: string): boolean {
   return (
-    lower.includes("notify operator") ||
-    lower.includes("notify user") ||
-    lower.includes("message operator") ||
-    lower.includes("send operator message") ||
-    /send\s+user\s*message\s*:/u.test(lower) ||
-    /sendusermessage\s*:/u.test(lower) ||
-    lower.trim() === "sendusermessage"
+    /^\s*(?:notify operator|notify user|message operator|send operator message)(?:\s*:|\s*$)/u.test(
+      lower,
+    ) ||
+    /^\s*send\s+user\s*message\s*:/u.test(lower) ||
+    /^\s*sendusermessage(?:\s*:|\s*$)/u.test(lower)
   );
 }
 
@@ -244,19 +242,19 @@ export function resolveActionQuery(
     }
 
     case "prefill_visible_loop_self_evolution": {
-      return handlePrefillVisibleLoopSelfEvolution(query);
+      return handlePrefillVisibleLoopSelfEvolution(query, state);
     }
 
     case "launch_visible_loop_self_evolution": {
-      return handleLaunchVisibleLoopSelfEvolution(query);
+      return handleLaunchVisibleLoopSelfEvolution(query, state);
     }
 
     case "prefill_autoresearch_campaign": {
-      return handlePrefillAutoresearchCampaign(query);
+      return handlePrefillAutoresearchCampaign(query, state);
     }
 
     case "launch_autoresearch_campaign": {
-      return handleLaunchAutoresearchCampaign(query);
+      return handleLaunchAutoresearchCampaign(query, state);
     }
 
     case "continue_suggested_next_move": {
@@ -272,11 +270,11 @@ export function resolveActionQuery(
     }
 
     case "continue_diagnostic_review": {
-      return handleContinueDiagnosticReview(query);
+      return handleContinueDiagnosticReview(query, state);
     }
 
     case "prefill_diagnostic_record": {
-      return handlePrefillDiagnosticRecord(query);
+      return handlePrefillDiagnosticRecord(query, state);
     }
 
     case "self_contained_handoff_prompt": {

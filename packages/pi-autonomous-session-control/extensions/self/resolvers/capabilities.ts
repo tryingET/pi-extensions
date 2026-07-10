@@ -46,10 +46,10 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Queue followup: [task]" / "Remind me: [task]"
 - "Prefill: [text]"
 - "Notify operator: [message]" / "Send user message: [message]" for explicit low-risk follow-up notifications through pi.sendUserMessage
-- "Prefill visible-loop self-evolution" or ${selfEvolutionContinuationAliases} to route Level-4 recursive-improvement work into an operator-submitted /visible-loop --count 1 --delegate-commit command; ASC fills the editor when UI is available, otherwise returns manual copy/submit instructions so Pi's slash-command parser remains the launcher
-- "Launch visible-loop self-evolution" to send /visible-loop --count 1 --delegate-commit through the pi-little-helpers-owned extension bridge; ASC does not implement the loop
-- "Prefill autoresearch campaign" to route Level-5 measured self-evolution work into an operator-submitted /autoresearch plan surface; ASC fills the editor when UI is available, otherwise returns manual copy/submit instructions so Pi's slash-command parser remains the launcher
-- "Launch autoresearch campaign" to prefill the conservative /autoresearch campaign prompt for operator submission through Pi's slash-command parser; ASC does not implement the campaign
+- First run "Self-evolution" with concrete friction/hypothesis/metric/falsifier/owner/test context; ASC emits and retains a bounded session-local candidate id, and insufficient-evidence candidates fail closed
+- "Prefill visible-loop self-evolution" or ${selfEvolutionContinuationAliases} to route the latest execution-ready candidate into an operator-submitted /visible-loop --count 1 --delegate-commit --candidate <id> command; pi-little-helpers resolves the correlated self result and persists its execution/closeout membrane
+- "Launch visible-loop self-evolution" to send that candidate-bound command through the pi-little-helpers-owned extension bridge; ASC does not implement the loop
+- "Prefill autoresearch campaign" / "Launch autoresearch campaign" to carry the latest candidate id, hypothesis, metric, falsifier, and owner into an operator-reviewed /autoresearch objective; ASC does not implement the campaign
 - "Prefill suggested next move" after a handoff summary exposes nextMove
 - "Record continuation candidate: [text]" to explicitly store a mirror-only same-cwd next-step hint without sending or executing it
 - "Continue safely" / "Next autonomous step" to advance the same guarded nextMove seam: low-risk local work becomes a follow-up user message; peer/harness/compaction/high-severity moves stay prefilled. After reload/compaction, a fresh explicit same-cwd continuation candidate may win over stale mirror-derived nextMove; mirror-derived candidates do not override current recovery cues.
@@ -60,7 +60,7 @@ export function resolveCapabilityQuery(): SelfResponse {
 - "Dogfood self" / "How can self improve?"
 - "Self-evolution" / "Evolve self"
 - "What friction just happened?"
-- "Continue diagnostic review" for a low-risk follow-up user message
+- "Continue diagnostic review" to produce/review a canonical typed candidate without sending a hidden recursive follow-up; reflection-required candidates stay blocked on an external check
 - "Prefill agent_vent record" for an operator-reviewed durable local diagnostic write
 - Return a candidate diagnostic payload for explicit operator/toolbox/agent_vent follow-up, not a stored vent or authoritative issue.
 

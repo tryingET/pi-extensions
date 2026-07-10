@@ -350,7 +350,7 @@ export function isAllowedOwnerBridgeSendUserMessage(actionData: {
   if (
     actionData.ownerBridge === "pi-little-helpers extension-originated /visible-loop bridge" &&
     actionData.routeKind === "visible_loop_self_evolution" &&
-    text === "/visible-loop --count 1 --delegate-commit"
+    /^\/visible-loop --count 1 --delegate-commit --candidate evolution-[A-Za-z0-9._-]+$/u.test(text)
   ) {
     return true;
   }

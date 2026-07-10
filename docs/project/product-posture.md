@@ -70,17 +70,19 @@ For package implementation, prefer launching Pi from the owning package director
 The current high-leverage self-evolution frontier is described once in [visible-self-evolution-spine.md](./visible-self-evolution-spine.md) and package postures linked from it.
 That spine carries the DRY many-of-the-greats translation — cybernetic feedback, Popper falsifiers, PDCA/OODA traces, autonomy layers, specialist critics, decision budgets, and reflection guards — so package docs can link to one shared model instead of copying it.
 
-The current routed ASC/self frontier is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md). The latest package-local slice is live-runtime proof-tier hardening:
+The current routed ASC/self frontier is package-owned by [pi-autonomous-session-control](../../packages/pi-autonomous-session-control/docs/project/product-posture.md). The latest package-local slice closes the non-host receipt gap with branch-local machine-readable proof:
 
 ```text
-package check / focused regression
--> pi install receipt
--> /reload receipt
--> post-reload self dogfood query
--> typed self.live_runtime_proof_guard.v1 status
+finalized canonical-package npm run check
+-> finalized canonical-path pi install
+-> Pi session_start(reason=reload)
+-> exact dogfood self: live runtime proof probe
+-> later self status query reads self.live_runtime_proof_guard.v1
 ```
 
-Done means diagnostic/self-evolution responses keep the existing insight-promotion and reflection-guard cues and also name typed live-runtime proof status: package-check, install, reload, post-reload dogfood, owner binding, proof ordering, whether active behavior may be claimed, required-before-completion, and the concrete next action. Install-only, wrong-owner, unordered, reload-only, caller-prose-only, missing-provenance, or missing post-reload dogfood claims fail closed before active `self` behavior is claimed; and ASC does not install packages, reload Pi, launch dogfood, launch peers/visible loops/campaigns, or write owner docs, AK/evidence, incidents, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
+Done means diagnostic/self-evolution responses retain insight-promotion and reflection-guard cues while the live-runtime guard reconstructs a bounded typed ledger from the active Pi session branch, ignores caller owner overrides and caller receipts for non-host tiers, follows `/tree`, survives long unrelated branch histories, binds every tier to a bounded shipped-runtime source fingerprint, recomputes that fingerprint on status reads, invalidates source drift and non-reload session starts, prevents a probe from certifying its own result, and exposes the concrete next action. Install-only, wrong-owner, source-drifted, stale, wrong-branch, unordered, reload-only, caller-prose-only, missing-provenance, or missing post-reload dogfood claims fail closed before active `self` behavior is claimed. The ledger is explicitly a local session mirror (`local_session_mirror_not_tamper_evident`), not canonical/cryptographic evidence; ASC still does not install packages, reload Pi, launch dogfood, launch peers/visible loops/campaigns, or write owner docs, AK/evidence, incidents, telemetry, `agent_vent`, KES, ontology, or Prompt Vault state.
+
+The cross-package handoff is now candidate-bound as well: ASC emits a session-local candidate id only after distinguishing caller claims from host-observed/validation-corroborated evidence and checking a bounded owner map; explicit visible-loop routing carries only that id; pi-little-helpers correlates it to the preceding `self` tool call/result and then requires a canonical typed JSON owner artifact below `packages/<owner>/` with exact candidate/owner binding. Config retains the full envelope for audit, while the first child prompt receives only a safe manifest, parsed owner-approved hypothesis/metric/falsifier/scope/validation fields, and guard requirements. Persisted child start/restore/completion recheck candidate age and source-session binding. Candidate-bound completion returns an explicit accepted/rejected result and verifies package-check tool-call IDs, ASC ordered-proof run IDs, and owner-artifact paths against host-observed branch/filesystem state rather than trusting closeout labels. Autoresearch receives the same candidate identity and typed owner-artifact path rather than raw caller prose or a hard-coded ASC benchmark. Candidate transport, local receipts, and closeout remain session-mirror inputs, not durable authority or evidence.
 
 ## Trust gates
 

@@ -1,12 +1,23 @@
-import type { SelfQuery, SelfResponse } from "../types.ts";
+import {
+  isSafeEvolutionCandidateText,
+  latestEvolutionCandidate,
+} from "../evolution-candidate-ledger.ts";
+import type { SelfEvolutionCandidate, SelfQuery, SelfResponse, SelfState } from "../types.ts";
 
-export function handlePrefillVisibleLoopSelfEvolution(query: SelfQuery): SelfResponse {
+export function handlePrefillVisibleLoopSelfEvolution(
+  query: SelfQuery,
+  state: SelfState,
+): SelfResponse {
   const nestedGuard = buildNestedVisibleLoopGuardResponse(query);
   if (nestedGuard) return nestedGuard;
+  const resolved = resolveRoutableCandidate(query, state);
+  if (!resolved.ok) return resolved.response;
 
-  const text = "/visible-loop --count 1 --delegate-commit";
+  const text = buildVisibleLoopCommand(resolved.candidate);
 
   return buildPrefillResponse(text, {
+    candidateId: resolved.candidate.candidateId,
+    evolutionCandidate: resolved.candidate,
     sendUserMessage: false,
     dispatchMode: "operator_submit_required",
     autonomyLevel: 4,
@@ -16,22 +27,30 @@ export function handlePrefillVisibleLoopSelfEvolution(query: SelfQuery): SelfRes
     productPostureTarget:
       "docs/project/product-posture.md or routed package docs/project/product-posture.md",
     boundary:
-      "ASC/self routes by editor prefill only; extension-originated pi.sendUserMessage does not invoke Pi slash-command expansion, so the operator must press Enter to launch /visible-loop through Pi's slash-command parser. pi-little-helpers owns /visible-loop launch and completion, and visible-loop output is not durable authority.",
+      "ASC/self routes the exact session-local candidate id by editor prefill. pi-little-helpers must resolve that id from the correlated self tool result and owns visible-loop launch/config; loop output is not durable authority.",
     nonAuthorizations: [
       "does not launch visible-loop from self",
+      "does not treat an unbound or insufficient-evidence candidate as executable",
       "does not claim loop output as AK/evidence/KES/ontology truth",
-      "does not bypass product-posture refresh or owner validation gates",
+      "does not bypass candidate closeout guards or owner validation gates",
     ],
   });
 }
 
-export function handleLaunchVisibleLoopSelfEvolution(query: SelfQuery): SelfResponse {
+export function handleLaunchVisibleLoopSelfEvolution(
+  query: SelfQuery,
+  state: SelfState,
+): SelfResponse {
   const nestedGuard = buildNestedVisibleLoopGuardResponse(query);
   if (nestedGuard) return nestedGuard;
+  const resolved = resolveRoutableCandidate(query, state);
+  if (!resolved.ok) return resolved.response;
 
-  const text = "/visible-loop --count 1 --delegate-commit";
+  const text = buildVisibleLoopCommand(resolved.candidate);
 
   return buildOwnerBridgeResponse(text, {
+    candidateId: resolved.candidate.candidateId,
+    evolutionCandidate: resolved.candidate,
     ownerBridge: "pi-little-helpers extension-originated /visible-loop bridge",
     dispatchMode: "owner_bridge_send_user_message",
     autonomyLevel: 4,
@@ -41,19 +60,27 @@ export function handleLaunchVisibleLoopSelfEvolution(query: SelfQuery): SelfResp
     productPostureTarget:
       "docs/project/product-posture.md or routed package docs/project/product-posture.md",
     boundary:
-      "ASC/self sends the explicit slash text only to the pi-little-helpers-owned extension bridge; pi-little-helpers owns /visible-loop launch and completion, and visible-loop output is not durable authority.",
+      "ASC/self sends the exact candidate-bound slash text only to the pi-little-helpers-owned bridge. pi-little-helpers validates the correlated self result and owns launch/config; loop output is not durable authority.",
     nonAuthorizations: [
       "does not implement visible-loop execution in ASC",
+      "does not launch an unbound or insufficient-evidence candidate",
       "does not claim loop output as AK/evidence/KES/ontology truth",
-      "does not bypass product-posture refresh or owner validation gates",
+      "does not bypass candidate closeout guards or owner validation gates",
     ],
   });
 }
 
-export function handlePrefillAutoresearchCampaign(_query: SelfQuery): SelfResponse {
-  const text = buildAutoresearchCampaignCommand();
+export function handlePrefillAutoresearchCampaign(
+  query: SelfQuery,
+  state: SelfState,
+): SelfResponse {
+  const resolved = resolveRoutableCandidate(query, state);
+  if (!resolved.ok) return resolved.response;
+  const text = buildAutoresearchCampaignCommand(resolved.candidate);
 
   return buildPrefillResponse(text, {
+    candidateId: resolved.candidate.candidateId,
+    evolutionCandidate: resolved.candidate,
     sendUserMessage: false,
     dispatchMode: "operator_submit_required",
     autonomyLevel: 5,
@@ -61,7 +88,7 @@ export function handlePrefillAutoresearchCampaign(_query: SelfQuery): SelfRespon
     routeKind: "measured_self_evolution_campaign",
     launchMechanism: "operator_reviews_prefilled_editor_then_presses_enter",
     boundary:
-      "ASC/self routes by editor prefill only; extension-originated pi.sendUserMessage does not invoke Pi slash-command expansion, so the operator must press Enter to launch /autoresearch through Pi's slash-command parser. pi-autoresearch owns bounded campaign setup, measurement, receipts, and closeout packets without durable promotion authority.",
+      "ASC/self carries only the candidate id, routed owner, and promoted owner-artifact path into an operator-reviewed /autoresearch objective. pi-autoresearch must read and verify that artifact before using its hypothesis, metric, or falsifier, and owns campaign setup, measurement, receipts, and closeout packets without durable promotion authority.",
     nonAuthorizations: [
       "does not launch or run autoresearch from self",
       "does not write AK/KES/evidence/ontology/Prompt Vault from ASC",
@@ -70,28 +97,126 @@ export function handlePrefillAutoresearchCampaign(_query: SelfQuery): SelfRespon
   });
 }
 
-export function handleLaunchAutoresearchCampaign(_query: SelfQuery): SelfResponse {
-  const text = buildAutoresearchCampaignCommand();
-
-  return buildPrefillResponse(text, {
-    sendUserMessage: false,
-    dispatchMode: "operator_submit_required",
-    autonomyLevel: 5,
-    ownerSurface: "pi-autoresearch",
-    routeKind: "measured_self_evolution_campaign",
-    launchMechanism: "operator_reviews_prefilled_editor_then_presses_enter",
-    boundary:
-      "ASC/self prefills the explicit /autoresearch slash command so the operator can submit it through Pi's slash-command parser; pi-autoresearch owns campaign setup, measurement, receipts, and closeout packets without durable promotion authority.",
-    nonAuthorizations: [
-      "does not implement or run autoresearch in ASC",
-      "does not write AK/KES/evidence/ontology/Prompt Vault from ASC",
-      "does not treat local autoresearch receipts as durable authority without owner promotion",
-    ],
-  });
+export function handleLaunchAutoresearchCampaign(query: SelfQuery, state: SelfState): SelfResponse {
+  return handlePrefillAutoresearchCampaign(query, state);
 }
 
-function buildAutoresearchCampaignCommand(): string {
-  return "/autoresearch Evaluate ASC self-evolution harness: metric=operator_nudge_count lower-is-better target=0 for post-compaction continuation; guardrail_boundary_violations target=0";
+function resolveRoutableCandidate(
+  query: SelfQuery,
+  state: SelfState,
+): { ok: true; candidate: SelfEvolutionCandidate } | { ok: false; response: SelfResponse } {
+  const sessionId =
+    typeof query.context?.sessionId === "string" ? query.context.sessionId : "unknown-session";
+  const candidate = latestEvolutionCandidate(state, sessionId);
+  if (!candidate) {
+    return {
+      ok: false,
+      response: buildCandidateRouteBlockedResponse(
+        "candidate_missing",
+        'No typed self-evolution candidate exists in this session. Run self({ query: "self-evolution", context: { friction, hypothesis, metric, falsifier, owner, nextSafeTest } }) first.',
+      ),
+    };
+  }
+  if (
+    !candidate.executionReady ||
+    candidate.confidence === "insufficient" ||
+    candidate.ownerRoutingStatus !== "allowed"
+  ) {
+    return {
+      ok: false,
+      response: buildCandidateRouteBlockedResponse(
+        "candidate_insufficient_evidence",
+        `Candidate ${candidate.candidateId} is not execution-ready because its evidence is insufficient. Name concrete friction or run the proposed external check before routing it.`,
+        candidate,
+      ),
+    };
+  }
+  const candidateTextFields = [
+    candidate.friction,
+    candidate.hypothesis,
+    candidate.falsifier,
+    candidate.metric,
+    candidate.owner,
+    candidate.nextSafeTest,
+    ...candidate.nonAuthorizations,
+  ];
+  if (!candidateTextFields.every(isSafeEvolutionCandidateText)) {
+    return {
+      ok: false,
+      response: buildCandidateRouteBlockedResponse(
+        "candidate_unsafe_text",
+        `Candidate ${candidate.candidateId} contains multiline, directional-control, slash-command, role-like, or instruction-like text and cannot be routed automatically. Rephrase it as bounded declarative data.`,
+        candidate,
+      ),
+    };
+  }
+  const promotionCue = candidate.insightPromotionCue;
+  const promotionTarget = typeof promotionCue.target === "string" ? promotionCue.target.trim() : "";
+  if (
+    promotionCue.status !== "promoted" ||
+    promotionCue.requiredBeforeCompletion !== false ||
+    !isSafePromotionTarget(promotionTarget)
+  ) {
+    return {
+      ok: false,
+      response: buildCandidateRouteBlockedResponse(
+        "owner_promotion_required",
+        `Candidate ${candidate.candidateId} must be promoted to an explicit safe repo-relative owner artifact with provenance before executable routing.`,
+        candidate,
+      ),
+    };
+  }
+  if (candidate.reflectionGuard.requiresExternalCheck === true) {
+    return {
+      ok: false,
+      response: buildCandidateRouteBlockedResponse(
+        "external_check_required",
+        `Candidate ${candidate.candidateId} is blocked by self.reflection_guard.v1. ${String(candidate.reflectionGuard.nextAction ?? "Run the named external check before recursive continuation.")}`,
+        candidate,
+      ),
+    };
+  }
+  return { ok: true, candidate };
+}
+
+function buildCandidateRouteBlockedResponse(
+  reason: string,
+  answer: string,
+  candidate?: SelfEvolutionCandidate,
+): SelfResponse {
+  return {
+    understood: true,
+    intent: "action",
+    answer,
+    data: {
+      prefill: false,
+      sendUserMessage: false,
+      dispatchMode: "candidate_route_blocked",
+      reason,
+      ...(candidate ? { candidateId: candidate.candidateId, evolutionCandidate: candidate } : {}),
+      boundary:
+        "candidate routing fails closed; no editor prefill, owner-bridge message, visible-loop launch, campaign launch, or durable authority mutation occurred",
+    },
+  };
+}
+
+function isSafePromotionTarget(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.length <= 300 &&
+    !value.startsWith("/") &&
+    !value.split("/").includes("..") &&
+    /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/u.test(value)
+  );
+}
+
+function buildVisibleLoopCommand(candidate: SelfEvolutionCandidate): string {
+  return `/visible-loop --count 1 --delegate-commit --candidate ${candidate.candidateId}`;
+}
+
+function buildAutoresearchCampaignCommand(candidate: SelfEvolutionCandidate): string {
+  const target = String(candidate.insightPromotionCue.target);
+  return `/autoresearch Evaluate promoted self-evolution candidate ${candidate.candidateId} for owner ${candidate.owner}; ownerArtifact=${target}`;
 }
 
 function buildNestedVisibleLoopGuardResponse(query: SelfQuery): SelfResponse | null {

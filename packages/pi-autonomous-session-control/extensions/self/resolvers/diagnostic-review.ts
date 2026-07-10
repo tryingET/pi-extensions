@@ -6,8 +6,15 @@
  * visible-loop, measured-campaign, issue, incident, or telemetry state.
  */
 
-import { normalizeInput, normalizeString, normalizeStringArray } from "../edge-contract-kernel.ts";
-import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
+import {
+  createEdgeMonotonicId,
+  normalizeInput,
+  normalizeString,
+  normalizeStringArray,
+} from "../edge-contract-kernel.ts";
+import { recordEvolutionCandidate } from "../evolution-candidate-ledger.ts";
+import { liveRuntimeProofLedgerEvidence } from "../live-runtime-proof-ledger.ts";
+import type { SelfEvolutionCandidate, SelfQuery, SelfResponse, SelfState } from "../types.ts";
 import { buildLiveRuntimeProofGuard } from "./live-runtime-proof-guard.ts";
 import { buildReflectionGuard } from "./reflection-guard.ts";
 
@@ -60,17 +67,24 @@ function disallowsAgentVentSuggestion(query: SelfQuery | undefined): boolean {
   );
 }
 
-function buildDiagnosticCandidate(
+export function buildDiagnosticCandidate(
   query: SelfQuery | undefined,
   state: SelfState,
 ): Record<string, unknown> {
   const context = normalizeInput(query?.context);
   const agentVentDisallowed = disallowsAgentVentSuggestion(query);
-  const latestError = [...state.operations.errors].sort(
-    (a, b) => (b.lastSeen ?? b.timestamp) - (a.lastSeen ?? a.timestamp),
-  )[0];
+  const latestError = [...state.operations.errors]
+    .filter((error) => (error.activeCount ?? error.count) > 0)
+    .sort((a, b) => (b.lastSeen ?? b.timestamp) - (a.lastSeen ?? a.timestamp))[0];
+  const latestValidationCommand = [...state.operations.commands]
+    .filter((command) => command.success && command.recoveryEvidence === true)
+    .sort((a, b) => b.timestamp - a.timestamp)[0];
   const latestFailedCommand = [...state.operations.commands]
-    .filter((command) => !command.success)
+    .filter(
+      (command) =>
+        !command.success &&
+        (!latestValidationCommand || latestValidationCommand.timestamp < command.timestamp),
+    )
     .sort((a, b) => b.timestamp - a.timestamp)[0];
 
   const contextSummary =
@@ -106,7 +120,14 @@ function buildDiagnosticCandidate(
     normalizeString(context.package) ||
     "pi-autonomous-session-control";
   const agentVentPreviewCommand = `agent_vent({ action: "preview", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, packageName: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
-  const agentVentRecordCommand = `agent_vent({ action: "record", category: ${JSON.stringify(category)}, tool: ${JSON.stringify(tool)}, packageName: ${JSON.stringify(packageName)}, summary: ${JSON.stringify(summary)} })`;
+  const evidenceSufficiency =
+    latestError || latestFailedCommand
+      ? "host_observed_friction"
+      : contextSummary && latestValidationCommand
+        ? "caller_claim_corroborated"
+        : contextSummary
+          ? "caller_claim_only"
+          : "insufficient_evidence";
 
   return {
     kind: "self.diagnostic_candidate.v1",
@@ -120,6 +141,7 @@ function buildDiagnosticCandidate(
     boundary: agentVentDisallowed
       ? "candidate-only local diagnostic suggestion; current constraints disallow agent_vent suggestions, and self does not create AK/evidence/incident state"
       : "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
+    evidenceSufficiency,
     mirrorEvidence: {
       latestError: latestError
         ? {
@@ -135,14 +157,16 @@ function buildDiagnosticCandidate(
             timestamp: latestFailedCommand.timestamp,
           }
         : undefined,
+      latestValidationCommand: latestValidationCommand
+        ? {
+            command: latestValidationCommand.command,
+            timestamp: latestValidationCommand.timestamp,
+          }
+        : undefined,
     },
     copyableCommands: agentVentDisallowed
       ? ["self feedback summary", "capability discovery"]
-      : [
-          'toolbox({ action: "activate", bundle: "agent_vent" })',
-          agentVentPreviewCommand,
-          agentVentRecordCommand,
-        ],
+      : ['toolbox({ action: "activate", bundle: "agent_vent" })', agentVentPreviewCommand],
   };
 }
 
@@ -151,6 +175,15 @@ type InsightPromotionStatus =
   | "promoted"
   | "explicitly_deferred"
   | "unknown";
+
+const ROUTABLE_SELF_EVOLUTION_OWNERS = new Set([
+  "pi-autonomous-session-control",
+  "pi-little-helpers",
+  "pi-autoresearch",
+  "pi-session-compaction",
+  "pi-agent-vent",
+  "pi-society-orchestrator",
+]);
 
 const DEFAULT_EVOLUTION_NON_AUTHORIZATIONS = [
   "no AK task/evidence/decision writes from self",
@@ -318,7 +351,7 @@ function buildEvolutionCandidate(
   query: SelfQuery | undefined,
   diagnosticCandidate: Record<string, unknown>,
   state: SelfState,
-): Record<string, unknown> {
+): SelfEvolutionCandidate {
   const context = normalizeInput(query?.context);
   const friction =
     normalizeString(context.friction) ||
@@ -329,6 +362,10 @@ function buildEvolutionCandidate(
     normalizeString(context.packageName) ||
     normalizeString(context.package) ||
     "pi-autonomous-session-control";
+  const ownerRoutingStatus = ROUTABLE_SELF_EVOLUTION_OWNERS.has(owner)
+    ? "allowed"
+    : "unknown_owner";
+  const sessionId = normalizeString(context.sessionId) || "unknown-session";
   const metric =
     normalizeString(context.metric) ||
     "fewer wrong-owner or unsafe self suggestions; diagnostic query does not mutate action state";
@@ -346,24 +383,44 @@ function buildEvolutionCandidate(
     commandProvenance: collectSessionCommandProvenance(state),
     validationProvenance: validationCommandEvidence,
     lifecycleProvenance: collectSessionLifecycleEvidence(state),
+    proofLedger: liveRuntimeProofLedgerEvidence(state),
   });
   const reflectionGuard = buildReflectionGuard(query, context, {
     validationProvenance,
   });
   const sourceArtifact = String(insightPromotionCue.sourceArtifact ?? "current Pi session mirror");
   const promotionStatus = String(insightPromotionCue.status ?? "session_only_unpromoted");
+  const evidenceSufficiency = String(diagnosticCandidate.evidenceSufficiency) as
+    | "insufficient_evidence"
+    | "caller_claim_only"
+    | "caller_claim_corroborated"
+    | "host_observed_friction";
+  const executionReady =
+    (evidenceSufficiency === "caller_claim_corroborated" ||
+      evidenceSufficiency === "host_observed_friction") &&
+    ownerRoutingStatus === "allowed";
+  const confidence = executionReady ? "medium" : "insufficient";
 
   return {
     kind: "self.evolution_candidate.v1",
+    candidateId: createEdgeMonotonicId("evolution"),
+    sessionId,
+    issuedAt: Date.now(),
     friction,
     hypothesis:
       normalizeString(context.hypothesis) ||
-      "self lacked an explicit typed promotion/evolution contract, so valuable session-only analysis could be narrowed into the next implementation slice and lose strategic rationale",
+      (executionReady
+        ? "self lacked an explicit typed promotion/evolution contract, so valuable session-only analysis could be narrowed into the next implementation slice and lose strategic rationale"
+        : "insufficient evidence: gather one concrete friction signal before proposing or routing an implementation"),
     falsifier,
     metric,
     owner,
     autonomyLevel,
     nextSafeTest,
+    executionReady,
+    evidenceSufficiency,
+    ownerRoutingStatus,
+    confidence,
     nonAuthorizations: combineNonAuthorizations(context),
     sourceArtifact,
     promotionStatus,
@@ -408,7 +465,10 @@ export function resolveDiagnosticReviewQuery(
   state: SelfState,
 ): SelfResponse {
   const diagnosticCandidate = buildDiagnosticCandidate(query, state);
-  const evolutionCandidate = buildEvolutionCandidate(query, diagnosticCandidate, state);
+  const evolutionCandidate = recordEvolutionCandidate(
+    state,
+    buildEvolutionCandidate(query, diagnosticCandidate, state),
+  );
   const reflectionGuard = evolutionCandidate.reflectionGuard as Record<string, unknown> | undefined;
   const reflectionRequiresExternalCheck = reflectionGuard?.requiresExternalCheck === true;
 
@@ -440,7 +500,6 @@ export function resolveDiagnosticReviewQuery(
       ? [
           "toolbox activation",
           "agent_vent preview by explicit operator/tool call",
-          "agent_vent record by explicit operator/tool call after preview/review",
           "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
           "owner docs/task/evidence/learning surfaces only through their owners",
         ]
@@ -491,10 +550,10 @@ ${ownerBoundaryLine}
 - owner docs, visible-loop, autoresearch, AK/evidence, KES, Prompt Vault, and ontology remain separate owner surfaces.
 
 Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}; ownerSurface=${String(diagnosticCandidate.suggestedOwnerSurface)}; agentVentSuggestionAllowed=${String(diagnosticCandidate.agentVentSuggestionAllowed)}.
-Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
+Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): candidateId=${String(evolutionCandidate.candidateId)}; executionReady=${String(evolutionCandidate.executionReady)}; evidenceSufficiency=${String(evolutionCandidate.evidenceSufficiency)}; ownerRoutingStatus=${String(evolutionCandidate.ownerRoutingStatus)}; confidence=${String(evolutionCandidate.confidence)}; friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
 Insight promotion cue (${String(insightPromotionCue?.kind)}): source=${String(insightPromotionCue?.sourceArtifact)}; status=${String(insightPromotionCue?.status)}; owner=${String(insightPromotionCue?.owner)}; target=${String(insightPromotionCue?.target)}; requiredBeforeCompletion=${String(insightPromotionCue?.requiredBeforeCompletion)}; risk=${String(insightPromotionCue?.risk)}; nextAction=${String(insightPromotionCue?.nextAction)}; nonAuthorizationsCount=${String(insightPromotionNonAuthorizationCount)}.
 Reflection guard (${String(reflectionGuard?.kind)}): status=${String(reflectionGuard?.status)}; externalCheckStatus=${String(reflectionGuard?.externalCheckStatus)}; requiresExternalCheck=${String(reflectionGuard?.requiresExternalCheck)}; positiveCheckSignal=${String(externalCheckEvidence?.positiveSignal ?? "none")}; provenanceCount=${String(provenanceCount)}; missingProvenance=${String(externalCheckEvidence?.missingProvenance)}; nextAction=${String(reflectionGuard?.nextAction)}.
-Live runtime proof guard (${String(liveRuntimeProofGuard?.kind)}): packageCheckStatus=${String(liveRuntimeProofGuard?.packageCheckStatus)}; installStatus=${String(liveRuntimeProofGuard?.installStatus)}; reloadStatus=${String(liveRuntimeProofGuard?.reloadStatus)}; postReloadDogfoodStatus=${String(liveRuntimeProofGuard?.postReloadDogfoodStatus)}; proofSequenceStatus=${String(liveRuntimeProofGuard?.proofSequenceStatus)}; ownerBindingFailures=${String(Array.isArray(liveRuntimeProofGuard?.ownerBindingFailures) ? liveRuntimeProofGuard.ownerBindingFailures.length : "unknown")}; liveBehaviorClaimAllowed=${String(liveRuntimeProofGuard?.liveBehaviorClaimAllowed)}; requiredBeforeCompletion=${String(liveRuntimeProofGuard?.requiredBeforeCompletion)}; nextAction=${String(liveRuntimeProofGuard?.nextAction)}.
+Live runtime proof guard (${String(liveRuntimeProofGuard?.kind)}): packageCheckStatus=${String(liveRuntimeProofGuard?.packageCheckStatus)}; installStatus=${String(liveRuntimeProofGuard?.installStatus)}; reloadStatus=${String(liveRuntimeProofGuard?.reloadStatus)}; postReloadDogfoodStatus=${String(liveRuntimeProofGuard?.postReloadDogfoodStatus)}; proofSequenceStatus=${String(liveRuntimeProofGuard?.proofSequenceStatus)}; ownerBindingFailures=${String(Array.isArray(liveRuntimeProofGuard?.ownerBindingFailures) ? liveRuntimeProofGuard.ownerBindingFailures.length : "unknown")}; liveBehaviorClaimAllowed=${String(liveRuntimeProofGuard?.liveBehaviorClaimAllowed)}; requiredBeforeCompletion=${String(liveRuntimeProofGuard?.requiredBeforeCompletion)}; provenanceTrust=${String(liveRuntimeProofGuard?.provenanceTrust)}; nextAction=${String(liveRuntimeProofGuard?.nextAction)}.
 
 No authority changed: no vent record, AK task, evidence, issue, incident, KES note, ontology entry, install, reload, visible-loop launch, measured campaign, owner-surface promotion, or external telemetry was created.`,
     data: {

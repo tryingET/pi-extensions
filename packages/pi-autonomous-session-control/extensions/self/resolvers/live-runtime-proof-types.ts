@@ -9,12 +9,14 @@ export type EvidenceOrigin =
   | "caller_context"
   | "session_command"
   | "session_validation"
-  | "session_lifecycle";
+  | "session_lifecycle"
+  | "session_proof_ledger";
 
 export interface LiveRuntimeSessionEvidence {
   commandProvenance?: EvidenceInput[];
   validationProvenance?: EvidenceInput[];
   lifecycleProvenance?: EvidenceInput[];
+  proofLedger?: EvidenceInput[];
 }
 
 export interface TierSpec {

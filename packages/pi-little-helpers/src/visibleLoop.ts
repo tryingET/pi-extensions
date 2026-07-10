@@ -3,6 +3,13 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  renderSelfEvolutionExecutionMembrane,
+  type SelfEvolutionCandidateCloseout,
+  type SelfEvolutionExecutionEnvelope,
+  validateSelfEvolutionCandidateCloseout,
+} from "./selfEvolutionEnvelope.ts";
+import { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
 import { normalizeOptionalString, parseVisibleLoopCompletionArgs } from "./visibleLoopArgs.ts";
 import {
   getVisibleLoopCommandName,
@@ -33,6 +40,17 @@ import {
   type VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
 
+export {
+  bindSelfEvolutionOwnerArtifact,
+  findSelfEvolutionExecutionEnvelope,
+  parseSelfEvolutionExecutionEnvelope,
+  renderSelfEvolutionCandidateCloseoutTemplate,
+  renderSelfEvolutionExecutionMembrane,
+  type SelfEvolutionCandidateCloseout,
+  type SelfEvolutionExecutionEnvelope,
+  validateSelfEvolutionCandidateCloseout,
+} from "./selfEvolutionEnvelope.ts";
+export { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
 export { parseVisibleLoopCommandArgs } from "./visibleLoopArgs.ts";
 export {
   DEFAULT_NEXUS_LOOP_PROFILE,
@@ -80,6 +98,7 @@ export interface VisibleLoopChildRunnerOptions {
   continueInNewSession?: ContinueVisibleLoopInNewSession;
   createPeerRuntime?: CreateVisibleLoopPeerRuntime;
   intercomSendTimeoutMs?: number;
+  candidateCloseout?: SelfEvolutionCandidateCloseout;
 }
 
 type VisibleLoopContext = {
@@ -94,6 +113,7 @@ type VisibleLoopContext = {
     getSessionId?(): string;
     getSessionName?(): string | undefined;
     getCwd?(): string;
+    getBranch?(): unknown;
   };
   hasPendingMessages?(): boolean;
 };
@@ -135,6 +155,7 @@ export function createVisibleLoopRunConfig(input: {
   runIdPrefix?: string;
   title?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
+  selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
 }): VisibleLoopRunConfig {
   const commandName = normalizeVisibleLoopCommandName(input.commandName ?? input.runIdPrefix);
   const runIdPrefix = normalizeRunIdPrefix(input.runIdPrefix ?? commandName ?? "visible-loop");
@@ -144,14 +165,28 @@ export function createVisibleLoopRunConfig(input: {
     loopCount: input.loopCount,
     cwd: input.cwd,
     ...(commandName ? { commandName } : {}),
-    prompts: [...(input.prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS)],
+    prompts: buildVisibleLoopPrompts(
+      input.prompts ?? DEFAULT_VISIBLE_LOOP_PROMPTS,
+      input.selfEvolutionEnvelope,
+    ),
     reportBack: input.reportBack,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
     ...(input.commitDelegation ? { commitDelegation: input.commitDelegation } : {}),
     productPostureTarget: resolveVisibleLoopProductPostureTarget(input.cwd),
+    ...(input.selfEvolutionEnvelope ? { selfEvolutionEnvelope: input.selfEvolutionEnvelope } : {}),
     title: input.title ?? "Visible loop",
     createdAt: new Date().toISOString(),
   };
+}
+
+function buildVisibleLoopPrompts(
+  prompts: readonly string[],
+  envelope: SelfEvolutionExecutionEnvelope | undefined,
+): string[] {
+  const rendered = [...prompts];
+  if (!envelope || rendered.length === 0) return rendered;
+  rendered[0] = `${renderSelfEvolutionExecutionMembrane(envelope)}\n\n${rendered[0]}`;
+  return rendered;
 }
 
 function resolveVisibleLoopProductPostureTarget(cwd: string): VisibleLoopProductPostureTarget {
@@ -201,6 +236,14 @@ export async function startVisibleLoopChildRunner(
   }
 
   const config = configResult.config;
+  const candidateBinding = validatePersistedSelfEvolutionBinding(config.selfEvolutionEnvelope, {
+    cwd: config.cwd,
+    parentPeerTarget: config.parentPeerTarget,
+  });
+  if (!candidateBinding.ok) {
+    ctx.ui?.notify?.(`visible-loop child failed: ${candidateBinding.error}`, "error");
+    return;
+  }
   const sendUserMessage = getSendUserMessage(pi);
   if (!sendUserMessage) {
     ctx.ui?.notify?.("visible-loop child failed: pi.sendUserMessage is unavailable", "error");
@@ -385,6 +428,14 @@ function restoreActiveVisibleLoopState(
     if (persisted.schemaVersion !== 1 || !persisted.configPath) return null;
     const configResult = loadVisibleLoopRunConfig(persisted.configPath, env);
     if (!configResult.ok) return null;
+    const candidateBinding = validatePersistedSelfEvolutionBinding(
+      configResult.config.selfEvolutionEnvelope,
+      {
+        cwd: configResult.config.cwd,
+        parentPeerTarget: configResult.config.parentPeerTarget,
+      },
+    );
+    if (!candidateBinding.ok) return null;
     const state: ActiveVisibleLoopState = {
       config: configResult.config,
       configPath: persisted.configPath,
@@ -514,6 +565,7 @@ function queueVisibleLoopFollowups(
     productPostureExists: state.config.productPostureTarget?.productPostureExists,
     visionPath: state.config.productPostureTarget?.visionPath,
     visionExists: state.config.productPostureTarget?.visionExists,
+    selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
   });
   const delegatesCompletion = visibleLoopDelegatesCompletion(state.config, realFollowups);
   const followups = delegatesCompletion ? [...realFollowups] : [...realFollowups, completionPrompt];
@@ -617,6 +669,7 @@ function maybeRenderDelegatedVisibleLoopPrompt(
     promptIndex,
     commandName: getVisibleLoopCommandName(state.config),
     title: getVisibleLoopTitle(state.config),
+    selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
   });
 }
 
@@ -652,38 +705,40 @@ function completeVisibleLoopIteration(
   env: NodeJS.ProcessEnv,
   source: "agent_end" | "completion_command",
   expectedIteration?: number,
-): void {
+): { accepted: true } | { accepted: false; reason: string } {
   if (state.stopped) {
+    const reason = "loop already stopped";
     appendVisibleLoopStatus(
       state.config,
       {
         event: "completion_ignored",
         source,
-        reason: "loop already stopped",
+        reason,
         expectedIteration: expectedIteration ?? null,
         completedIterations: state.completedIterations,
       },
       env,
     );
-    return;
+    return { accepted: false, reason };
   }
 
   const promptCount = getVisibleLoopCompletionTurnCount(state.config);
   const nextIteration = state.completedIterations + 1;
   if (expectedIteration !== undefined && expectedIteration !== nextIteration) {
+    const reason = "stale or out-of-order iteration";
     appendVisibleLoopStatus(
       state.config,
       {
         event: "completion_ignored",
         source,
-        reason: "stale or out-of-order iteration",
+        reason,
         expectedIteration,
         nextIteration,
         completedIterations: state.completedIterations,
       },
       env,
     );
-    return;
+    return { accepted: false, reason };
   }
 
   state.completedIterations = nextIteration;
@@ -738,7 +793,7 @@ function completeVisibleLoopIteration(
         if (activeVisibleLoop === state) activeVisibleLoop = null;
         ctx.ui?.setStatus?.(getVisibleLoopCommandName(state.config), undefined);
       });
-    return;
+    return { accepted: true };
   }
 
   persistActiveVisibleLoopState(state, ctx, env);
@@ -792,7 +847,7 @@ function completeVisibleLoopIteration(
           "error",
         );
       });
-    return;
+    return { accepted: true };
   }
 
   void progressReport.finally(() => {
@@ -802,6 +857,7 @@ function completeVisibleLoopIteration(
       }
     }, 250);
   });
+  return { accepted: true };
 }
 
 function getVisibleLoopCompletionTurnCount(_config: VisibleLoopRunConfig): number {
@@ -1039,43 +1095,154 @@ async function loadPeerMessagingModule(): Promise<PeerMessagingModule> {
   throw new Error(errors.join("; "));
 }
 
+export interface VisibleLoopCompletionOutcome {
+  ok: boolean;
+  accepted: boolean;
+  reason: string;
+  runId?: string;
+  candidateId?: string;
+  completedIterations?: number;
+}
+
+function rejectedCompletion(
+  reason: string,
+  config?: VisibleLoopRunConfig,
+): VisibleLoopCompletionOutcome {
+  return {
+    ok: false,
+    accepted: false,
+    reason,
+    ...(config ? { runId: config.runId } : {}),
+    ...(config?.selfEvolutionEnvelope
+      ? { candidateId: config.selfEvolutionEnvelope.candidateId }
+      : {}),
+  };
+}
+
+function candidateCloseoutAllowsCompletion(
+  config: VisibleLoopRunConfig,
+  closeout: SelfEvolutionCandidateCloseout | undefined,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+): { ok: true; closeout?: SelfEvolutionCandidateCloseout } | { ok: false; error: string } {
+  const validation = validateSelfEvolutionCandidateCloseout(
+    config.selfEvolutionEnvelope,
+    closeout,
+    {
+      branchEntries: ctx.sessionManager?.getBranch?.(),
+      cwd: config.cwd,
+      notBefore: Date.parse(config.createdAt),
+      parentPeerTarget: config.parentPeerTarget,
+    },
+  );
+  if (!validation.ok) {
+    appendVisibleLoopStatus(
+      config,
+      {
+        event: "completion_ignored",
+        source: "candidate_closeout_gate",
+        reason: validation.error,
+        candidateId: config.selfEvolutionEnvelope?.candidateId ?? null,
+      },
+      env,
+    );
+    ctx.ui?.notify?.(`visible-loop completion ignored: ${validation.error}`, "warning");
+    return { ok: false, error: validation.error };
+  }
+  return validation.closeout ? { ok: true, closeout: validation.closeout } : { ok: true };
+}
+
+function recordCandidateCloseoutAccepted(
+  config: VisibleLoopRunConfig,
+  closeout: SelfEvolutionCandidateCloseout | undefined,
+  env: NodeJS.ProcessEnv,
+): void {
+  if (!closeout) return;
+  appendVisibleLoopStatus(
+    config,
+    {
+      event: "candidate_closeout_accepted",
+      candidateId: closeout.candidateId,
+      closeout,
+    },
+    env,
+  );
+}
+
 export async function startVisibleLoopChildCompleteRunner(
   args: string | undefined,
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
   runnerOptions: VisibleLoopChildRunnerOptions = {},
-): Promise<void> {
+): Promise<VisibleLoopCompletionOutcome> {
   const parsed = parseVisibleLoopCompletionArgs(args);
   if (!parsed.ok) {
     ctx.ui?.notify?.(`visible-loop completion ignored: ${parsed.error}`, "warning");
-    return;
+    return rejectedCompletion(parsed.error);
   }
 
   const existingState =
     activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
   if (!parsed.configPath) {
     if (!existingState) {
-      ctx.ui?.notify?.(
-        "visible-loop completion ignored: missing config path and no active visible-loop state",
-        "warning",
-      );
-      return;
+      const reason = "missing config path and no active visible-loop state";
+      ctx.ui?.notify?.(`visible-loop completion ignored: ${reason}`, "warning");
+      return rejectedCompletion(reason);
     }
-    completeVisibleLoopIteration(
+    const gate = candidateCloseoutAllowsCompletion(
+      existingState.config,
+      runnerOptions.candidateCloseout,
+      ctx,
+      env,
+    );
+    if (!gate.ok) return rejectedCompletion(gate.error, existingState.config);
+    const completion = completeVisibleLoopIteration(
       existingState,
       ctx,
       env,
       "completion_command",
       parsed.iteration ?? existingState.completedIterations + 1,
     );
-    return;
+    if (!completion.accepted) {
+      return rejectedCompletion(completion.reason, existingState.config);
+    }
+    recordCandidateCloseoutAccepted(existingState.config, gate.closeout, env);
+    return {
+      ok: true,
+      accepted: true,
+      reason: "iteration completion accepted",
+      runId: existingState.config.runId,
+      candidateId: existingState.config.selfEvolutionEnvelope?.candidateId,
+      completedIterations: existingState.completedIterations,
+    };
   }
 
   const configResult = loadVisibleLoopRunConfig(parsed.configPath, env);
   if (!configResult.ok) {
     ctx.ui?.notify?.(`visible-loop completion ignored: ${configResult.error}`, "warning");
-    return;
+    return rejectedCompletion(configResult.error);
+  }
+  const candidateBinding = validatePersistedSelfEvolutionBinding(
+    configResult.config.selfEvolutionEnvelope,
+    {
+      cwd: configResult.config.cwd,
+      parentPeerTarget: configResult.config.parentPeerTarget,
+    },
+  );
+  if (!candidateBinding.ok) {
+    appendVisibleLoopStatus(
+      configResult.config,
+      {
+        event: "completion_ignored",
+        source: "candidate_binding_gate",
+        reason: candidateBinding.error,
+        iteration: parsed.iteration ?? null,
+      },
+      env,
+    );
+    ctx.ui?.notify?.(`visible-loop completion ignored: ${candidateBinding.error}`, "warning");
+    return rejectedCompletion(candidateBinding.error, configResult.config);
   }
 
   if (
@@ -1083,17 +1250,18 @@ export async function startVisibleLoopChildCompleteRunner(
     !existingState &&
     hasVisibleLoopAlreadyCompleted(configResult.config, env)
   ) {
+    const reason = "loop already completed";
     appendVisibleLoopStatus(
       configResult.config,
       {
         event: "completion_ignored",
         source: "completion_command",
-        reason: "loop already completed",
+        reason,
         iteration: parsed.iteration ?? null,
       },
       env,
     );
-    return;
+    return rejectedCompletion(reason, configResult.config);
   }
 
   const state =
@@ -1107,27 +1275,29 @@ export async function startVisibleLoopChildCompleteRunner(
       runnerOptions,
     );
   if (!state) {
+    const reason = "active state unavailable";
     appendVisibleLoopStatus(
       configResult.config,
       {
         event: "completion_ignored",
         source: "completion_command",
-        reason: "active state unavailable",
+        reason,
         iteration: parsed.iteration ?? null,
       },
       env,
     );
-    ctx.ui?.notify?.("visible-loop completion ignored: active state unavailable", "warning");
-    return;
+    ctx.ui?.notify?.(`visible-loop completion ignored: ${reason}`, "warning");
+    return rejectedCompletion(reason, configResult.config);
   }
 
   if (state.config.runId !== configResult.config.runId) {
+    const reason = "active state runId mismatch";
     appendVisibleLoopStatus(
       configResult.config,
       {
         event: "completion_ignored",
         source: "completion_command",
-        reason: "active state runId mismatch",
+        reason,
         activeRunId: state.config.runId,
         requestedRunId: configResult.config.runId,
         iteration: parsed.iteration ?? null,
@@ -1135,16 +1305,33 @@ export async function startVisibleLoopChildCompleteRunner(
       env,
     );
     ctx.ui?.notify?.("visible-loop completion ignored: active run mismatch", "warning");
-    return;
+    return rejectedCompletion(reason, configResult.config);
   }
 
-  completeVisibleLoopIteration(
+  const gate = candidateCloseoutAllowsCompletion(
+    state.config,
+    runnerOptions.candidateCloseout,
+    ctx,
+    env,
+  );
+  if (!gate.ok) return rejectedCompletion(gate.error, state.config);
+  const completion = completeVisibleLoopIteration(
     state,
     ctx,
     env,
     "completion_command",
     parsed.iteration ?? state.completedIterations + 1,
   );
+  if (!completion.accepted) return rejectedCompletion(completion.reason, state.config);
+  recordCandidateCloseoutAccepted(state.config, gate.closeout, env);
+  return {
+    ok: true,
+    accepted: true,
+    reason: "iteration completion accepted",
+    runId: state.config.runId,
+    candidateId: state.config.selfEvolutionEnvelope?.candidateId,
+    completedIterations: state.completedIterations,
+  };
 }
 
 function getSendUserMessage(pi: ExtensionAPI): SendUserMessage | undefined {

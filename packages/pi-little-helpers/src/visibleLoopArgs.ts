@@ -9,12 +9,13 @@ export function parseVisibleLoopCommandArgs(
   args: string | undefined,
   commandName = VISIBLE_LOOP_COMMAND,
 ): VisibleLoopCommandParseResult {
-  const usage = `Usage: /${commandName} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none] [--delegate-commit]`;
+  const usage = `Usage: /${commandName} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none] [--delegate-commit] [--candidate evolution-...]`;
   const tokens = tokenizeArgs(args ?? "");
   let loopCount: number | undefined;
   let parentPeerTarget: string | undefined;
   let reportBack: VisibleLoopReportBack | undefined;
   let delegateCommit = false;
+  let candidateId: string | undefined;
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -82,6 +83,19 @@ export function parseVisibleLoopCommandArgs(
       continue;
     }
 
+    if (token === "--candidate") {
+      index += 1;
+      candidateId = parseCandidateId(tokens[index]);
+      if (!candidateId) return { ok: false, error: "Missing or invalid candidate id.", usage };
+      continue;
+    }
+
+    if (token.startsWith("--candidate=")) {
+      candidateId = parseCandidateId(token.slice("--candidate=".length));
+      if (!candidateId) return { ok: false, error: "Missing or invalid candidate id.", usage };
+      continue;
+    }
+
     if (!token.startsWith("-") && loopCount === undefined) {
       const parsed = parseLoopCount(token);
       if (!parsed) return { ok: false, error: `Invalid loop count: ${token}`, usage };
@@ -98,7 +112,15 @@ export function parseVisibleLoopCommandArgs(
     reportBack: reportBack ?? "intercom",
     parentPeerTarget,
     ...(delegateCommit ? { delegateCommit } : {}),
+    ...(candidateId ? { candidateId } : {}),
   };
+}
+
+function parseCandidateId(value: string | undefined): string | undefined {
+  if (!value || value.length > 160 || !/^evolution-[A-Za-z0-9._-]+$/u.test(value)) {
+    return undefined;
+  }
+  return value;
 }
 
 export function parseVisibleLoopCompletionArgs(

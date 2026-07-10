@@ -56,6 +56,8 @@
     "lib/package-utils.ts",
     "src/candidatePeerRegistry.ts",
     "src/capabilityManifest.ts",
+    "src/selfEvolutionEnvelope.ts",
+    "src/selfEvolutionVerification.ts",
     "src/toolboxBundle.ts",
     "src/visibleLoop.ts",
     "src/visibleLoopArgs.ts",

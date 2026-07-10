@@ -168,6 +168,11 @@ export function collectSessionEvidenceEntries(
   spec: TierSpec,
   sessionEvidence: LiveRuntimeSessionEvidence,
 ): EvidenceEntry[] {
+  const proofLedgerEntries = collectEvidenceArray(
+    sessionEvidence.proofLedger,
+    "session.proof-ledger",
+    "session_proof_ledger",
+  ).filter((entry) => entry.tier === spec.name);
   const commandEntries = collectEvidenceArray(
     sessionEvidence.commandProvenance,
     "session.command",
@@ -189,7 +194,12 @@ export function collectSessionEvidenceEntries(
           "session_lifecycle",
         )
       : [];
-  return [...commandEntries, ...validationEntries, ...lifecycleEntries].slice(0, ARRAY_ENTRY_LIMIT);
+  return [
+    ...proofLedgerEntries,
+    ...commandEntries,
+    ...validationEntries,
+    ...lifecycleEntries,
+  ].slice(0, ARRAY_ENTRY_LIMIT);
 }
 
 export function packageNamePattern(packageName: string): RegExp {

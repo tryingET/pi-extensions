@@ -1,3 +1,5 @@
+import type { SelfEvolutionExecutionEnvelope } from "./selfEvolutionEnvelope.ts";
+
 export const VISIBLE_LOOP_COMMAND = "visible-loop";
 export const NEXUS_LOOP_COMMAND = "nexus-loop";
 export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
@@ -16,6 +18,7 @@ export interface VisibleLoopRunConfig {
   parentPeerTarget?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
   productPostureTarget?: VisibleLoopProductPostureTarget;
+  selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
   title?: string;
   createdAt: string;
 }
@@ -40,6 +43,7 @@ export type VisibleLoopCommandParseResult =
       reportBack: VisibleLoopReportBack;
       parentPeerTarget?: string;
       delegateCommit?: boolean;
+      candidateId?: string;
     }
   | { ok: false; error: string; usage: string };
 

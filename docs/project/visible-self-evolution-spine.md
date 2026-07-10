@@ -23,9 +23,11 @@ The target shape is:
 
 ```text
 self observes friction
--> diagnostic candidate with hypothesis, falsifier, metric, owner, and safe next test
--> visible-loop or bounded campaign executes the improvement with reviewable state
--> tests and live dogfood check the result
+-> identified diagnostic candidate with hypothesis, falsifier, metric, owner, and safe next test
+-> candidate-bound execution envelope preserves the full closeout membrane
+-> visible implementation and/or measured evaluation runs with reviewable state
+-> host-observed tests and live dogfood check the result
+-> candidate-bound feedback records adopt/reject/defer locally
 -> durable recurrence, evidence, learning, or ontology moves only through the owning surface
 ```
 
@@ -100,6 +102,35 @@ valuable session-only insight
 
 A docs alignment is incomplete when it preserves the next implementation slice but loses the design rationale, falsifier, metric, owner map, or non-authorizations that make the slice safe to run in `/visible-loop`.
 
+## Execution versus evaluation
+
+Visible implementation and measured evaluation are orthogonal modes, not a mandatory autonomy ladder:
+
+| Situation | Route |
+|---|---|
+| Known bug, missing invariant, or bounded implementation | Candidate-bound `/visible-loop` |
+| Uncertain hypothesis with automatable comparative metric | `pi-autoresearch` |
+| Implementation followed by empirical comparison | `/visible-loop`, then `pi-autoresearch` using the same candidate identity |
+| Owner, evidence, or falsifier unclear | External check/scout first; do not launch either loop |
+| Candidate evidence is insufficient | Return `executionReady=false`; do not synthesize an executable objective |
+
+## Candidate-bound transport
+
+ASC assigns each emitted `self.evolution_candidate.v1` a session-local `candidateId`. Explicit routing must preserve that identity:
+
+```text
+self tool result carrying candidateId
+-> /visible-loop ... --candidate <candidateId>
+-> pi-little-helpers correlates the result with its preceding self tool call
+-> pi-little-helpers canonicalizes and parses a typed owner artifact bound to candidateId + owner
+-> visible-loop config stores self.evolution_execution_envelope.v1 plus the validated artifact fields
+-> first child prompt receives only the safe manifest, validated owner-artifact data, and guard requirements
+```
+
+The transport envelope is typed but remains untrusted session-mirror data. It is not AK evidence, promotion, empirical proof, or completion authority. Before launch, pi-little-helpers requires a canonical, direct, repo-relative JSON artifact below `packages/<owner>/` with kind `self.evolution_owner_artifact.v1`, exact candidate/owner binding, and bounded hypothesis, metric, falsifier, scope, and validation fields. Raw candidate prose remains in config for audit but is not injected into the child prompt. Missing, invented, multiline/directional/instruction-like, insufficient-evidence, unknown-owner, stale-session, orphaned, artifact-mismatched, or reflection-blocked candidates fail closed. Persisted configs recheck the 30-minute candidate age and source-session/parent binding at child start, restore, and completion. Caller prose alone is not execution evidence: routing requires host-observed friction or a caller claim corroborated by a successful session validation command. Candidate and feedback ledgers clear on session/tree boundaries.
+
+Candidate-bound completion is also fail-closed. The completion tool requires a matching `candidateCloseout` packet, but its labels do not certify themselves: reflection command references must correlate to a successful host-observed package-check tool call/result performed in the child branch, live proof receipt references must correlate to one ordered four-tier ASC branch ledger run, and promotion artifacts must revalidate against the typed candidate/owner artifact. Invented run IDs, paths, statuses, stale candidates, and cross-session configs are rejected. The tool returns a typed accepted/rejected outcome; the status sidecar records the same diagnostic result separately from ordinary loop completion.
+
 ## Visible-loop role
 
 `/visible-loop` is the operator-visible execution harness for bounded implementation/review loops.
@@ -125,9 +156,11 @@ A self-evolution loop is out of bounds when it:
 The next safe frontier is not generic AGI autonomy. It is a typed, testable self-evolution candidate flow:
 
 ```text
-self.evolution_candidate.v1
+self.evolution_candidate.v1 + candidateId
 -> optional agent_vent preview for recurrence
--> visible-loop or pi-autoresearch campaign for implementation/evaluation
+-> typed execution envelope
+-> visible implementation and/or pi-autoresearch evaluation
+-> ordered host-observed verification and candidate-bound feedback
 -> owner-routed evidence/learning only after verification
 ```
 

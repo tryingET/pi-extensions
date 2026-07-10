@@ -20,6 +20,32 @@ function recordBash(harness, id, command, { isError = false, text = "" } = {}) {
   });
 }
 
+async function seedRoutableCandidate(harness, tool, ctx, id) {
+  recordBash(harness, `seed-check-${id}`, "npm run check");
+  const result = await tool.execute(
+    `seed-${id}`,
+    {
+      query: "self-evolution",
+      context: {
+        summary: "typed self-evolution handoff loses its candidate payload",
+        hypothesis: "the route omits candidate identity",
+        metric: "candidate_handoff_fidelity=100%",
+        falsifier: "the visible-loop config omits any required candidate field",
+        owner: "pi-little-helpers",
+        nextSafeTest: "launch a candidate-bound visible loop and inspect its config",
+        promotionStatus: "promoted",
+        promotionTarget:
+          "packages/pi-little-helpers/docs/project/self-evolution-owner-artifact.json",
+        sourceArtifact: "owner product posture verified after package check",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+  return result.details.data.evolutionCandidate;
+}
+
 function recordEdit(harness, id, path) {
   const toolCallHandler = harness.eventHandlers.get("tool_call");
   toolCallHandler({
@@ -32,7 +58,7 @@ function recordEdit(harness, id, path) {
 test("owner-bridge sendUserMessage policy only permits known whole-message bridges", () => {
   assert.equal(
     isAllowedOwnerBridgeSendUserMessage({
-      text: "/visible-loop --count 1 --delegate-commit",
+      text: "/visible-loop --count 1 --delegate-commit --candidate evolution-test-1",
       dispatchMode: "owner_bridge_send_user_message",
       ownerBridge: "pi-little-helpers extension-originated /visible-loop bridge",
       routeKind: "visible_loop_self_evolution",
@@ -197,6 +223,7 @@ test("self query: prefill visible-loop self-evolution route", async () => {
     },
   });
 
+  const candidate = await seedRoutableCandidate(harness, tool, ctx, "prefill-visible-loop");
   const result = await tool.execute(
     "tc-prefill-visible-loop-self-evolution",
     { query: "prefill visible-loop self-evolution" },
@@ -210,7 +237,11 @@ test("self query: prefill visible-loop self-evolution route", async () => {
     result.content[0].text,
     /press Enter to launch it through Pi's slash-command parser/,
   );
-  assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(
+    editorText,
+    `/visible-loop --count 1 --delegate-commit --candidate ${candidate.candidateId}`,
+  );
+  assert.equal(result.details.data.candidateId, candidate.candidateId);
   assert.equal(result.details.data.prefill, true);
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_submit_required");
@@ -220,11 +251,8 @@ test("self query: prefill visible-loop self-evolution route", async () => {
   );
   assert.equal(result.details.data.autonomyLevel, 4);
   assert.equal(result.details.data.ownerSurface, "pi-little-helpers / visible-loop");
-  assert.match(result.details.data.boundary, /ASC\/self routes by editor prefill only/);
-  assert.match(
-    result.details.data.boundary,
-    /sendUserMessage does not invoke Pi slash-command expansion/,
-  );
+  assert.match(result.details.data.boundary, /exact session-local candidate id/);
+  assert.match(result.details.data.boundary, /pi-little-helpers must resolve that id/);
 
   await cleanup(tempDir);
 });
@@ -246,6 +274,7 @@ test("self query: continue with self-evolution routes to visible-loop prefill", 
     },
   });
 
+  const candidate = await seedRoutableCandidate(harness, tool, ctx, "continue-visible-loop");
   for (const [index, query] of [
     "continue with self-evolution",
     "continue self-evolution",
@@ -263,7 +292,11 @@ test("self query: continue with self-evolution routes to visible-loop prefill", 
 
     assert.equal(result.details.intent, "action");
     assert.ok(result.content[0].text.includes("Editor prefilled"));
-    assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+    assert.equal(
+      editorText,
+      `/visible-loop --count 1 --delegate-commit --candidate ${candidate.candidateId}`,
+    );
+    assert.equal(result.details.data.candidateId, candidate.candidateId);
     assert.equal(harness.sentUserMessages.length, 0);
     assert.equal(result.details.data.prefill, true);
     assert.equal(result.details.data.sendUserMessage, false);
@@ -283,6 +316,7 @@ test("self query: visible-loop self-evolution reports manual submission when UI 
 
   const tool = harness.tools.get("self");
   const ctx = createMockContext();
+  const candidate = await seedRoutableCandidate(harness, tool, ctx, "no-ui-visible-loop");
 
   for (const [index, query] of [
     "prefill visible-loop self-evolution",
@@ -299,7 +333,10 @@ test("self query: visible-loop self-evolution reports manual submission when UI 
     assert.match(result.content[0].text, /Editor prefill unavailable \(no UI\)/);
     assert.match(result.content[0].text, /manual operator submission required/);
     assert.equal(harness.sentUserMessages.length, 0);
-    assert.equal(result.details.data.text, "/visible-loop --count 1 --delegate-commit");
+    assert.equal(
+      result.details.data.text,
+      `/visible-loop --count 1 --delegate-commit --candidate ${candidate.candidateId}`,
+    );
     assert.equal(result.details.data.prefill, true);
     assert.equal(result.details.data.sendUserMessage, false);
     assert.equal(result.details.data.dispatchMode, "operator_manual_submit_required");
@@ -365,6 +402,7 @@ test("self query: launch visible-loop self-evolution sends owner-bridge message"
 
   const tool = harness.tools.get("self");
   const ctx = createMockContext({ hasUI: true });
+  const candidate = await seedRoutableCandidate(harness, tool, ctx, "launch-visible-loop");
 
   const result = await tool.execute(
     "tc-launch-visible-loop-self-evolution",
@@ -376,7 +414,10 @@ test("self query: launch visible-loop self-evolution sends owner-bridge message"
 
   assert.ok(result.content[0].text.includes("Owner-bridge launch sent"));
   assert.equal(harness.sentUserMessages.length, 1);
-  assert.equal(harness.sentUserMessages[0].text, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(
+    harness.sentUserMessages[0].text,
+    `/visible-loop --count 1 --delegate-commit --candidate ${candidate.candidateId}`,
+  );
   assert.equal(harness.sentUserMessages[0].options.deliverAs, "followUp");
   assert.equal(result.details.data.prefill, false);
   assert.equal(result.details.data.sendUserMessage, true);
@@ -386,7 +427,7 @@ test("self query: launch visible-loop self-evolution sends owner-bridge message"
     result.details.data.ownerBridge,
     "pi-little-helpers extension-originated /visible-loop bridge",
   );
-  assert.match(result.details.data.boundary, /pi-little-helpers-owned extension bridge/);
+  assert.match(result.details.data.boundary, /pi-little-helpers-owned bridge/);
 
   await cleanup(tempDir);
 });
@@ -408,6 +449,7 @@ test("self query: visible-loop self-evolution prefill ignores caller overrides",
     },
   });
 
+  const candidate = await seedRoutableCandidate(harness, tool, ctx, "ignore-overrides");
   const result = await tool.execute(
     "tc-prefill-visible-loop-self-evolution-no-overrides",
     {
@@ -420,7 +462,10 @@ test("self query: visible-loop self-evolution prefill ignores caller overrides",
   );
 
   assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.equal(editorText, "/visible-loop --count 1 --delegate-commit");
+  assert.equal(
+    editorText,
+    `/visible-loop --count 1 --delegate-commit --candidate ${candidate.candidateId}`,
+  );
   assert.equal(result.details.data.routeKind, "visible_loop_self_evolution");
 
   await cleanup(tempDir);
@@ -443,6 +488,7 @@ test("self query: prefill autoresearch campaign route", async () => {
     },
   });
 
+  const candidate = await seedRoutableCandidate(harness, tool, ctx, "prefill-autoresearch");
   const result = await tool.execute(
     "tc-prefill-autoresearch-campaign",
     {
@@ -455,15 +501,19 @@ test("self query: prefill autoresearch campaign route", async () => {
   );
 
   assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.match(editorText, /^\/autoresearch Evaluate ASC self-evolution harness:/);
-  assert.match(editorText, /operator_nudge_count/);
+  assert.equal(
+    editorText,
+    `/autoresearch Evaluate promoted self-evolution candidate ${candidate.candidateId} for owner pi-little-helpers; ownerArtifact=packages/pi-little-helpers/docs/project/self-evolution-owner-artifact.json`,
+  );
+  assert.doesNotMatch(editorText, /candidate_handoff_fidelity|route omits candidate identity/);
   assert.equal(result.details.data.prefill, true);
   assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.dispatchMode, "operator_submit_required");
   assert.equal(result.details.data.autonomyLevel, 5);
   assert.equal(result.details.data.ownerSurface, "pi-autoresearch");
   assert.equal(result.details.data.routeKind, "measured_self_evolution_campaign");
-  assert.match(result.details.data.boundary, /press Enter to launch \/autoresearch/);
+  assert.match(result.details.data.boundary, /only the candidate id, routed owner, and promoted/);
+  assert.match(result.details.data.boundary, /must read and verify that artifact/);
 
   editorText = "";
   const measuredAlias = await tool.execute(
@@ -474,7 +524,10 @@ test("self query: prefill autoresearch campaign route", async () => {
     ctx,
   );
   assert.ok(measuredAlias.content[0].text.includes("Editor prefilled"));
-  assert.match(editorText, /^\/autoresearch Evaluate ASC self-evolution harness:/);
+  assert.equal(
+    editorText,
+    `/autoresearch Evaluate promoted self-evolution candidate ${candidate.candidateId} for owner pi-little-helpers; ownerArtifact=packages/pi-little-helpers/docs/project/self-evolution-owner-artifact.json`,
+  );
   assert.equal(measuredAlias.details.data.routeKind, "measured_self_evolution_campaign");
 
   await cleanup(tempDir);
@@ -497,6 +550,7 @@ test("self query: launch autoresearch campaign prefills slash command for operat
     },
   });
 
+  const candidate = await seedRoutableCandidate(harness, tool, ctx, "launch-autoresearch");
   const result = await tool.execute(
     "tc-launch-autoresearch-campaign",
     { query: "launch autoresearch campaign for self-evolution" },
@@ -506,7 +560,10 @@ test("self query: launch autoresearch campaign prefills slash command for operat
   );
 
   assert.ok(result.content[0].text.includes("Editor prefilled"));
-  assert.match(editorText, /^\/autoresearch Evaluate ASC self-evolution harness:/);
+  assert.equal(
+    editorText,
+    `/autoresearch Evaluate promoted self-evolution candidate ${candidate.candidateId} for owner pi-little-helpers; ownerArtifact=packages/pi-little-helpers/docs/project/self-evolution-owner-artifact.json`,
+  );
   assert.equal(harness.sentUserMessages.length, 0);
   assert.equal(result.details.data.prefill, true);
   assert.equal(result.details.data.sendUserMessage, false);
@@ -516,7 +573,8 @@ test("self query: launch autoresearch campaign prefills slash command for operat
     result.details.data.launchMechanism,
     "operator_reviews_prefilled_editor_then_presses_enter",
   );
-  assert.match(result.details.data.boundary, /Pi's slash-command parser/);
+  assert.match(result.details.data.boundary, /only the candidate id, routed owner, and promoted/);
+  assert.match(result.details.data.boundary, /must read and verify that artifact/);
 
   await cleanup(tempDir);
 });

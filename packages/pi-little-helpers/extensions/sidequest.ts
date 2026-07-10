@@ -17,10 +17,12 @@ import {
   LITTLE_HELPERS_PEER_TOOL_NAMES,
 } from "../src/capabilityManifest.ts";
 import {
+  bindSelfEvolutionOwnerArtifact,
   type ContinueVisibleLoopInNewSession,
   createVisibleLoopRunConfig,
   DEFAULT_NEXUS_LOOP_PROFILE,
   DEFAULT_VISIBLE_LOOP_PROFILE,
+  findSelfEvolutionExecutionEnvelope,
   getVisibleLoopStatusPath,
   handleVisibleLoopAgentEnd,
   handleVisibleLoopAgentStart,
@@ -28,12 +30,14 @@ import {
   NEXUS_LOOP_COMMAND,
   parseVisibleLoopCommandArgs,
   resolveParentPeerTarget,
+  type SelfEvolutionCandidateCloseout,
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
   VISIBLE_LOOP_CHILD_COMMAND,
   VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
   VISIBLE_LOOP_COMMAND,
   type VisibleLoopCommandProfile,
+  validatePersistedSelfEvolutionBinding,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
 
@@ -276,6 +280,23 @@ const scoutPeerSpawnParameters = asPiToolParameters(
   }),
 );
 
+const visibleLoopCloseoutResolutionParameters = Type.Object({
+  resolution: Type.String({
+    description: "satisfied, explicitly_deferred, or not_required",
+  }),
+  evidence: Type.Array(
+    Type.Object({
+      kind: Type.String({ description: "command, artifact, receipt, or owner_defer" }),
+      ref: Type.String({
+        description:
+          "Host-correlatable reference: bash toolCallId, ASC live-proof runId, or canonical repo-relative owner-artifact path.",
+      }),
+      status: Type.String({ description: "passed, verified, or recorded" }),
+    }),
+    { description: "Typed closeout evidence entries." },
+  ),
+});
+
 const visibleLoopChildCompleteToolParameters = asPiToolParameters(
   Type.Object({
     configPath: Type.String({
@@ -284,6 +305,14 @@ const visibleLoopChildCompleteToolParameters = asPiToolParameters(
     iteration: Type.Number({
       description: "The visible-loop iteration that just completed.",
     }),
+    candidateCloseout: Type.Optional(
+      Type.Object({
+        candidateId: Type.String(),
+        reflection: visibleLoopCloseoutResolutionParameters,
+        liveRuntimeProof: visibleLoopCloseoutResolutionParameters,
+        insightPromotion: visibleLoopCloseoutResolutionParameters,
+      }),
+    ),
   }),
 );
 
@@ -2026,7 +2055,44 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       const cwd = ctx.cwd || process.cwd();
+      const resolvedSelfEvolutionEnvelope = parsed.candidateId
+        ? findSelfEvolutionExecutionEnvelope(ctx.sessionManager.getBranch(), parsed.candidateId, {
+            sessionId: ctx.sessionManager.getSessionId(),
+          })
+        : undefined;
+      if (parsed.candidateId && !resolvedSelfEvolutionEnvelope) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `/${commandName} cannot launch: candidate ${parsed.candidateId} was not found as a valid self.evolution_candidate.v1 in this Pi session branch. Run self({ query: "self-evolution" }) and route the returned candidate id without editing it.`,
+            "error",
+          );
+        }
+        return;
+      }
+      const boundEnvelope = resolvedSelfEvolutionEnvelope
+        ? bindSelfEvolutionOwnerArtifact(resolvedSelfEvolutionEnvelope, cwd)
+        : undefined;
+      if (boundEnvelope && !boundEnvelope.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `/${commandName} cannot launch: ${boundEnvelope.error}. The promotion target must be a canonical typed owner artifact bound to this candidate.`,
+            "error",
+          );
+        }
+        return;
+      }
+      const selfEvolutionEnvelope = boundEnvelope?.envelope;
       const parentPeerTarget = parsed.parentPeerTarget ?? resolveParentPeerTarget(ctx);
+      const candidateBinding = validatePersistedSelfEvolutionBinding(selfEvolutionEnvelope, {
+        cwd,
+        parentPeerTarget,
+      });
+      if (!candidateBinding.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(`/${commandName} cannot launch: ${candidateBinding.error}.`, "error");
+        }
+        return;
+      }
       const reportBack =
         parsed.reportBack === "intercom" && !parentPeerTarget ? "manual" : parsed.reportBack;
       const missingPromptTemplates = listMissingVisibleLoopPromptTemplates(prompts, cwd);
@@ -2058,6 +2124,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         ...(shouldDelegateCommit
           ? { commitDelegation: { mode: "dispatch_subagent", promptTemplate: "commit" } as const }
           : {}),
+        ...(selfEvolutionEnvelope ? { selfEvolutionEnvelope } : {}),
         runIdPrefix: commandName,
         title: titlePrefix,
       });
@@ -2889,10 +2956,11 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
       pi.registerCommand(VISIBLE_LOOP_CHILD_COMPLETE_COMMAND, {
         description: "Internal helper that advances a visible-loop child iteration",
-        handler: (args, ctx) =>
-          startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env, {
+        handler: async (args, ctx) => {
+          await startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env, {
             continueInNewSession: createVisibleLoopContinuation(ctx),
-          }),
+          });
+        },
       });
 
       pi.on?.("input", async (event, ctx) => {
@@ -2930,24 +2998,34 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           "Internal visible-loop completion fallback tool. Use only when explicitly asked to mark visible-loop completion with configPath and iteration.",
         parameters: visibleLoopChildCompleteToolParameters,
         execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
-          const request = params as { configPath?: string; iteration?: number };
+          const request = params as {
+            configPath?: string;
+            iteration?: number;
+            candidateCloseout?: SelfEvolutionCandidateCloseout;
+          };
           const configPath = typeof request.configPath === "string" ? request.configPath : "";
           const iteration = Number(request.iteration);
-          await startVisibleLoopChildCompleteRunner(
+          const outcome = await startVisibleLoopChildCompleteRunner(
             `${configPath} --iteration ${iteration}`,
             pi,
             ctx,
             options.env ?? process.env,
             {
               continueInNewSession: createVisibleLoopContinuation(ctx as PiCommandContext),
+              candidateCloseout: request.candidateCloseout,
             },
           );
-          return successToolResult("visible-loop completion request processed", {
-            ok: Boolean(configPath && Number.isInteger(iteration) && iteration > 0),
-            configPath,
-            iteration,
-            note: "status sidecar/intercom contain diagnostic outcome",
-          });
+          return successToolResult(
+            outcome.accepted
+              ? "visible-loop completion accepted"
+              : `visible-loop completion rejected: ${outcome.reason}`,
+            {
+              ...outcome,
+              configPath,
+              iteration,
+              note: "typed outcome mirrors the completion gate; status sidecar/intercom remain diagnostic",
+            },
+          );
         },
       });
     }

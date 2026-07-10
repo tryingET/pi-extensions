@@ -1,10 +1,23 @@
 import type {
   ExtensionAPI,
+  ExtensionContext,
   SessionStartEvent,
+  SessionTreeEvent,
   ToolCallEvent,
   ToolResultEvent,
   TurnStartEvent,
 } from "@earendil-works/pi-coding-agent";
+import {
+  appendLiveRuntimeProofEvent,
+  appendLiveRuntimeProofInvalidation,
+  classifyLiveRuntimeProofCommand,
+  hasActiveLiveRuntimeProofRun,
+  hasLiveRuntimeProofSourceDrift,
+  isLiveRuntimeDogfoodProbe,
+  pathMayMutateRuntimePackage,
+  reconstructLiveRuntimeProofEvents,
+  resolveAscRuntimePackageRoot,
+} from "./live-runtime-proof-ledger.ts";
 import {
   incrementTurn,
   trackCommand,
@@ -13,6 +26,13 @@ import {
   trackSessionLifecycleEvent,
 } from "./perception.ts";
 import type { SelfState } from "./types.ts";
+
+interface FinalToolExecutionEvent {
+  toolCallId: string;
+  toolName: string;
+  result: unknown;
+  isError: boolean;
+}
 
 type NamedToolCallEvent<TName extends ToolCallEvent["toolName"]> = Extract<
   ToolCallEvent,
@@ -41,13 +61,99 @@ function hasRelativeDevNullRedirect(command: string): boolean {
   return RELATIVE_DEV_NULL_REDIRECT_PATTERN.test(command);
 }
 
+function readSelfQueryInput(input: unknown): string | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const query = (input as { query?: unknown }).query;
+  return typeof query === "string" ? query : undefined;
+}
+
+function resultHasTypedDogfoodProbe(result: unknown): boolean {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return false;
+  const details = (result as { details?: unknown }).details;
+  if (!details || typeof details !== "object" || Array.isArray(details)) return false;
+  const data = (details as { data?: unknown }).data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const evolutionCandidate = (data as { evolutionCandidate?: unknown }).evolutionCandidate;
+  if (
+    !evolutionCandidate ||
+    typeof evolutionCandidate !== "object" ||
+    Array.isArray(evolutionCandidate)
+  ) {
+    return false;
+  }
+  const guard = (evolutionCandidate as { liveRuntimeProofGuard?: unknown }).liveRuntimeProofGuard;
+  return (
+    Boolean(guard) &&
+    typeof guard === "object" &&
+    !Array.isArray(guard) &&
+    (guard as { kind?: unknown }).kind === "self.live_runtime_proof_guard.v1"
+  );
+}
+
+function readActiveBranch(ctx: ExtensionContext | undefined): unknown[] {
+  try {
+    const branch = ctx?.sessionManager?.getBranch();
+    return Array.isArray(branch) ? branch : [];
+  } catch {
+    return [];
+  }
+}
+
 export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
+  const packageRoot = resolveAscRuntimePackageRoot();
   const bashCommandByCallId = new Map<string, string>();
+  const proofBashByCallId = new Map<
+    string,
+    { input: unknown; cwd: string; tier: "packageCheck" | "install" }
+  >();
+  const dogfoodSelfCalls = new Map<string, unknown>();
   const malformedBashCallIds = new Set<string>();
 
-  const handleToolCall = (event: ToolCallEvent): void => {
+  const persistSourceDriftInvalidation = (): void => {
+    if (!hasLiveRuntimeProofSourceDrift(state)) return;
+    try {
+      appendLiveRuntimeProofInvalidation(pi, state, packageRoot, {
+        source: "pi.tool_call.file_mutation",
+        reason: "runtime source fingerprint drift observed before proof status",
+      });
+    } catch (error) {
+      state.liveRuntimeProofEvents = [];
+      trackError(
+        state.operations,
+        "live-runtime-proof-ledger",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  };
+
+  const handleToolCall = (event: ToolCallEvent, ctx?: ExtensionContext): void => {
+    const cwd = ctx?.cwd || process.cwd();
+    if (event.toolName === "self") persistSourceDriftInvalidation();
+    const invalidateForPackageMutation = (path: unknown): void => {
+      if (
+        !hasActiveLiveRuntimeProofRun(state) ||
+        !pathMayMutateRuntimePackage(path, cwd, packageRoot)
+      ) {
+        return;
+      }
+      try {
+        appendLiveRuntimeProofInvalidation(pi, state, packageRoot, {
+          source: "pi.tool_call.file_mutation",
+          reason: "package file mutation observed after live-runtime proof began",
+        });
+      } catch (error) {
+        state.liveRuntimeProofEvents = [];
+        trackError(
+          state.operations,
+          "live-runtime-proof-ledger",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    };
+
     if (isNamedToolCallEvent(event, "write")) {
       const { path, content } = event.input;
+      invalidateForPackageMutation(path);
       if (typeof path === "string" && typeof content === "string") {
         trackFileOp(state.operations, {
           type: "create",
@@ -65,6 +171,7 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
         newText?: unknown;
       };
       const path = input.path;
+      invalidateForPackageMutation(path);
       const edits = Array.isArray(input.edits)
         ? input.edits
         : [{ oldText: input.oldText, newText: input.newText }];
@@ -110,6 +217,8 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
 
       if (callId) {
         bashCommandByCallId.set(callId, command);
+        const tier = classifyLiveRuntimeProofCommand(command, cwd, packageRoot);
+        if (tier) proofBashByCallId.set(callId, { input: event.input, cwd, tier });
       }
       if (hasRelativeDevNullRedirect(command)) {
         trackError(
@@ -118,6 +227,11 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
           "Suspicious bash redirection to relative dev/null; use absolute /dev/null to avoid repo artifacts.",
         );
       }
+    }
+
+    if (event.toolName === "self" && event.toolCallId) {
+      const query = readSelfQueryInput(event.input);
+      if (isLiveRuntimeDogfoodProbe(query)) dogfoodSelfCalls.set(event.toolCallId, event.input);
     }
   };
 
@@ -154,11 +268,81 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
     }
   };
 
+  const handleToolExecutionEnd = (event: FinalToolExecutionEvent): void => {
+    if (event.toolName === "bash") {
+      const proofCommand = proofBashByCallId.get(event.toolCallId);
+      proofBashByCallId.delete(event.toolCallId);
+      const finalCommand = proofCommand ? readBashCommandInput(proofCommand.input) : null;
+      const finalTier =
+        proofCommand && finalCommand
+          ? classifyLiveRuntimeProofCommand(finalCommand, proofCommand.cwd, packageRoot)
+          : undefined;
+      if (!event.isError && proofCommand && finalCommand && finalTier === proofCommand.tier) {
+        try {
+          appendLiveRuntimeProofEvent(pi, state, packageRoot, {
+            tier: proofCommand.tier,
+            toolCallId: event.toolCallId,
+            command: finalCommand,
+          });
+        } catch (error) {
+          trackError(
+            state.operations,
+            "live-runtime-proof-ledger",
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+    }
+
+    if (event.toolName === "self") {
+      const input = dogfoodSelfCalls.get(event.toolCallId);
+      dogfoodSelfCalls.delete(event.toolCallId);
+      if (
+        !event.isError &&
+        isLiveRuntimeDogfoodProbe(readSelfQueryInput(input)) &&
+        resultHasTypedDogfoodProbe(event.result)
+      ) {
+        try {
+          appendLiveRuntimeProofEvent(pi, state, packageRoot, {
+            tier: "postReloadDogfood",
+            toolCallId: event.toolCallId,
+          });
+        } catch (error) {
+          trackError(
+            state.operations,
+            "live-runtime-proof-ledger",
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+    }
+  };
+
   const handleTurnStart = (_event: TurnStartEvent): void => {
     incrementTurn(state.operations);
   };
 
-  const handleSessionStart = (event: SessionStartEvent): void => {
+  const handleSessionStart = (event: SessionStartEvent, ctx?: ExtensionContext): void => {
+    state.evolutionCandidates = [];
+    state.suggestionFeedback = [];
+    reconstructLiveRuntimeProofEvents(state, readActiveBranch(ctx), packageRoot);
+    try {
+      if (event.reason === "reload") {
+        appendLiveRuntimeProofEvent(pi, state, packageRoot, { tier: "reload" });
+      } else {
+        appendLiveRuntimeProofInvalidation(pi, state, packageRoot, {
+          source: "pi.session_start.non_reload",
+          reason: `proof does not carry across session_start reason=${event.reason}`,
+        });
+      }
+    } catch (error) {
+      state.liveRuntimeProofEvents = [];
+      trackError(
+        state.operations,
+        "live-runtime-proof-ledger",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
     trackSessionLifecycleEvent(state.operations, {
       type: "session_start",
       reason: event.reason,
@@ -166,8 +350,17 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
     });
   };
 
+  const handleSessionTree = (_event: SessionTreeEvent, ctx?: ExtensionContext): void => {
+    state.evolutionCandidates = [];
+    state.suggestionFeedback = [];
+    reconstructLiveRuntimeProofEvents(state, readActiveBranch(ctx), packageRoot);
+    persistSourceDriftInvalidation();
+  };
+
   pi.on("tool_call", handleToolCall);
   pi.on("tool_result", handleToolResult);
+  pi.on("tool_execution_end", handleToolExecutionEnd);
   pi.on("turn_start", handleTurnStart);
   pi.on("session_start", handleSessionStart);
+  pi.on("session_tree", handleSessionTree);
 }

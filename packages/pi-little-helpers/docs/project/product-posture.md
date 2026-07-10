@@ -40,9 +40,9 @@ launch visible helper work; do not make helper output authority
 ## Current product maturity
 
 - maturity: `internal alpha / visible peer and visible-loop harness operational`
-- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as execution harnesses, not evaluators or evidence stores, while making product-posture refresh unavoidable before completion
+- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as execution harnesses, not evaluators or evidence stores, while preserving candidate-bound objectives and closeout guards through launch, continuation, and completion
 - release posture: package has local loop validation scripts and tests for prompt expansion, checkpointing, completion, commit delegation, and visible peer capability registration
-- latest loop-prompt/profile hardening: implementation prompts now keep the child's attention on the bounded slice and direct proof, while detailed repo-loop-validation guidance is reserved for delegated commit/validation-command selection; `/visible-loop` configs now record cwd-level `docs/project/product-posture.md` and `docs/project/vision.md` launch hints so checkpoints can name the expected posture target; `/nexus-loop` carries the required product-posture refresh before delegated commit and uses command-aware labels instead of generic visible-loop report-back wording; the root loop taxonomy names visible execution loops separately from orchestrator cognitive/workflow loops and repo validation phases
+- latest candidate-handoff hardening: `/visible-loop --candidate evolution-...` resolves only a matching fresh candidate from a correlated preceding assistant `self` tool call and `self` tool result in the active Pi branch, requires a canonical direct `packages/<owner>/...json` artifact of kind `self.evolution_owner_artifact.v1` with exact candidate/owner binding, persists the full audit envelope plus parsed artifact, and injects only the safe manifest, owner-approved hypothesis/metric/falsifier/scope/validation data, and guard requirements into the first child prompt; child start/restore/completion recheck age and source-session binding, and candidate completion returns a typed accepted/rejected result after correlating evidence references to host-observed package-check calls, ordered ASC proof-ledger runs, and canonical owner artifacts
 
 ## Current landed capability baseline
 
@@ -50,7 +50,7 @@ launch visible helper work; do not make helper output authority
 
 - slash commands for `/sidequest`, `/scoutpeer`, `/parallelquest`, `/visible-loop`, and `/nexus-loop`;
 - model-callable visible peer spawn tools for bounded peer launch surfaces;
-- visible-loop state files, visible child launch, prompt queue delivery, intercom report-back, explicit completion checkpointing, and a narrow extension-originated `sendUserMessage` bridge for pi-little-helpers-owned `/visible-loop` / `/nexus-loop` commands;
+- visible-loop state files, visible child launch, prompt queue delivery, intercom report-back, explicit completion checkpointing, candidate-bound self-evolution envelopes, and a narrow extension-originated `sendUserMessage` bridge for pi-little-helpers-owned `/visible-loop` / `/nexus-loop` commands;
 - deterministic expansion of configured slash prompt templates such as `/deep-review` and `/commit` from repo-local and global prompt directories;
 - commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion, with command-aware delegation prompt names and run-id wording;
 - default visible-loop prompts that read `docs/project/vision.md` and `docs/project/product-posture.md`, implement a bounded slice, run review/fixup/validation, refresh product posture, and only then commit/complete;
@@ -96,6 +96,8 @@ A visible-loop result is trustworthy only when:
 5. **Completion is gated** — the completion checkpoint is sent only after implementation, review/fixup, posture refresh, and commit/delegated commit succeeded or explicitly stopped.
 6. **Extension-originated launch is narrow** — only pi-little-helpers-owned `/visible-loop` and `/nexus-loop` messages injected through `pi.sendUserMessage` are bridged into command handlers; the package does not become a general slash-command dispatcher.
 7. **Dirty worktree is protected** — unrelated files are not staged or overwritten.
+8. **Candidate provenance is correlated but non-authoritative** — a candidate route must match an assistant `self` tool call and its `self` tool result in the active branch; the resulting envelope remains untrusted session-mirror transport, not evidence or authority.
+9. **Closeout brakes survive transport** — full source guard snapshots remain in config for audit, while the first child prompt gets only guard requirements and validated typed owner-artifact fields. Required reflection/live-proof/promotion evidence must correlate to host-observed command results, ordered ASC ledger events, or the canonical bound artifact; free-form status labels, invented receipt IDs, missing/stale artifacts, and cross-session/expired configs cannot advance completion.
 
 ## Next product bets
 

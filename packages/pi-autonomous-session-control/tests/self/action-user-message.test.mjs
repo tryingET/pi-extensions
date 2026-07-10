@@ -788,7 +788,7 @@ test("self query: continue suggested next move keeps operator-gated peer move as
   await cleanup(tempDir);
 });
 
-test("self query: continue diagnostic review sends mirror-only follow-up", async () => {
+test("self query: continue diagnostic review returns a candidate without hidden recursion", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -811,14 +811,13 @@ test("self query: continue diagnostic review sends mirror-only follow-up", async
     ctx,
   );
 
-  assert.ok(result.content[0].text.includes("Diagnostic-review continuation sent"));
-  assert.equal(harness.sentUserMessages.length, 1);
-  assert.match(harness.sentUserMessages[0].text, /Continue the self diagnostic review/);
-  assert.match(harness.sentUserMessages[0].text, /do not write agent_vent records/);
-  assert.equal(harness.sentUserMessages[0].options.deliverAs, "followUp");
-  assert.equal(result.details.data.sendUserMessage, true);
+  assert.match(result.content[0].text, /Diagnostic review produced candidate evolution-/);
+  assert.equal(harness.sentUserMessages.length, 0);
+  assert.equal(result.details.data.sendUserMessage, false);
   assert.equal(result.details.data.prefill, false);
+  assert.equal(result.details.data.dispatchMode, "diagnostic_candidate_review_required");
   assert.equal(result.details.data.diagnosticCandidate.kind, "self.diagnostic_candidate.v1");
+  assert.match(result.details.data.evolutionCandidate.candidateId, /^evolution-/);
 
   await cleanup(tempDir);
 });

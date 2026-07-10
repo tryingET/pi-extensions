@@ -1,6 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+  renderSelfEvolutionCandidateCloseoutTemplate,
+  type SelfEvolutionExecutionEnvelope,
+} from "./selfEvolutionEnvelope.ts";
 
 const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
@@ -184,6 +188,7 @@ export function renderVisibleLoopCommitDelegationPrompt(input: {
   promptIndex: number;
   commandName?: string;
   title?: string;
+  selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
 }): string {
   const loopCommandName = normalizeLoopCommandName(input.commandName);
   const loopTitle = normalizeLoopTitle(input.title, loopCommandName);
@@ -214,9 +219,28 @@ export function renderVisibleLoopCommitDelegationPrompt(input: {
     "1. If the subagent reports successful commit workflow completion, call `visible_loop_child_complete` exactly once with:",
     "",
     "```json",
-    JSON.stringify({ configPath: input.configPath, iteration: input.iteration }, null, 2),
+    JSON.stringify(
+      {
+        configPath: input.configPath,
+        iteration: input.iteration,
+        ...(input.selfEvolutionEnvelope
+          ? {
+              candidateCloseout: renderSelfEvolutionCandidateCloseoutTemplate(
+                input.selfEvolutionEnvelope,
+              ),
+            }
+          : {}),
+      },
+      null,
+      2,
+    ),
     "```",
     "",
+    ...(input.selfEvolutionEnvelope
+      ? [
+          "Replace each candidateCloseout placeholder truthfully. Evidence refs must be host-correlatable: a successful package-check bash toolCallId for reflection, an ordered ASC live-proof ledger runId for liveRuntimeProof, or the exact canonical owner-artifact path for promotion. Free-form claims and invented IDs fail closed.",
+        ]
+      : []),
     "2. If dispatch fails, times out, or reports a blocker/failure, stop and report that status. Do not mark the loop iteration complete.",
     "",
     "The ordinary completion checkpoint is intentionally not queued for this delegated commit step; this tool call is the completion gate.",
@@ -299,6 +323,7 @@ export function renderVisibleLoopCompletionPrompt(input: {
   productPostureExists?: boolean;
   visionPath?: string;
   visionExists?: boolean;
+  selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
 }): string {
   const postureLines = input.productPosturePath
     ? [
@@ -311,6 +336,17 @@ export function renderVisibleLoopCompletionPrompt(input: {
         "If implementation routed to a different owning package or surface, an earlier product-posture refresh prompt or the delegated commit verification must have named and refreshed that corrected posture target before completion.",
       ]
     : [];
+  const candidateCloseoutLines = input.selfEvolutionEnvelope
+    ? [
+        "This is a candidate-bound loop. The completion tool also requires candidateCloseout:",
+        JSON.stringify(
+          renderSelfEvolutionCandidateCloseoutTemplate(input.selfEvolutionEnvelope),
+          null,
+          2,
+        ),
+        "Replace each placeholder truthfully. Evidence refs must be host-correlatable: a successful package-check bash toolCallId for reflection, an ordered ASC live-proof ledger runId for liveRuntimeProof, or the exact canonical owner-artifact path for promotion. Free-form claims and invented IDs fail closed.",
+      ]
+    : [];
   return [
     "Visible-loop internal completion checkpoint.",
     "All real prompts for this iteration have now been delivered as prior follow-up turns.",
@@ -318,6 +354,7 @@ export function renderVisibleLoopCompletionPrompt(input: {
     "If and only if the immediately previous real prompt turn is complete, call the `visible_loop_child_complete` tool with exactly:",
     `- configPath: ${JSON.stringify(input.configPath)}`,
     `- iteration: ${input.iteration}`,
+    ...candidateCloseoutLines,
     "Do not call the tool before the previous prompt turn is complete.",
     "Do not call the tool if any configured product-posture refresh or /commit prompt failed, stopped for clarification, or left validation/commit incomplete.",
     ...postureLines,

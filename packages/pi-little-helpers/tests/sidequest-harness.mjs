@@ -66,6 +66,7 @@ export function createContext(options = {}) {
     : "/sessions/main.jsonl";
   const model = options.model ?? { provider: "openai", id: "gpt-4o" };
   const notifications = [];
+  const branchEntries = options.branchEntries ?? [];
 
   return {
     notifications,
@@ -90,6 +91,9 @@ export function createContext(options = {}) {
         },
         getCwd() {
           return cwd;
+        },
+        getBranch() {
+          return branchEntries;
         },
       },
     },

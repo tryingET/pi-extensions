@@ -46,14 +46,14 @@ test("self query: live runtime proof guard rejects package-check-only active beh
 
   const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
   assert.equal(guard.kind, "self.live_runtime_proof_guard.v1");
-  assert.equal(guard.packageCheckStatus, "observed");
+  assert.equal(guard.packageCheckStatus, "unknown");
   assert.equal(guard.installStatus, "unknown");
   assert.equal(guard.reloadStatus, "unknown");
   assert.equal(guard.postReloadDogfoodStatus, "unknown");
   assert.equal(guard.liveBehaviorClaimAllowed, false);
   assert.equal(guard.requiredBeforeCompletion, true);
-  assert.deepEqual(guard.missingTiers, ["install", "reload", "postReloadDogfood"]);
-  assert.match(guard.nextAction, /install the package into Pi/);
+  assert.deepEqual(guard.missingTiers, ["packageCheck", "install", "reload", "postReloadDogfood"]);
+  assert.match(guard.nextAction, /focused regression\/package check/);
   assert.match(result.content[0].text, /Live runtime proof guard/);
   assert.match(result.content[0].text, /liveBehaviorClaimAllowed=false/);
   assert.equal(harness.sentUserMessages.length, 0, "guard must not send hidden messages");
@@ -92,7 +92,7 @@ test("self query: live runtime proof guard rejects install-only proof without re
   );
 
   const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
-  assert.equal(guard.installStatus, "observed");
+  assert.equal(guard.installStatus, "unknown");
   assert.equal(guard.packageCheckStatus, "unknown");
   assert.equal(guard.reloadStatus, "unknown");
   assert.equal(guard.postReloadDogfoodStatus, "unknown");
@@ -251,7 +251,7 @@ test("self query: live runtime proof guard ignores non-reload lifecycle starts",
   await cleanup(tempDir);
 });
 
-test("self query: live runtime proof guard keeps mixed lifecycle and caller sequence ordering unresolved", async () => {
+test("self query: live runtime proof guard keeps lifecycle and caller-only tiers unresolved", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -301,9 +301,9 @@ test("self query: live runtime proof guard keeps mixed lifecycle and caller sequ
 
   const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
   assert.equal(guard.reloadStatus, "observed");
-  assert.deepEqual(guard.missingTiers, []);
+  assert.deepEqual(guard.missingTiers, ["packageCheck", "install", "postReloadDogfood"]);
   assert.equal(guard.proofSequenceStatus, "unknown");
-  assert.match(guard.proofSequenceReason, /mixed order-token domains/);
+  assert.match(guard.proofSequenceReason, /missing/);
   assert.equal(guard.liveBehaviorClaimAllowed, false);
   assert.equal(guard.requiredBeforeCompletion, true);
   assert.equal(harness.sentUserMessages.length, 0, "mixed ordering remains mirror-only");
@@ -362,9 +362,9 @@ test("self query: live runtime proof guard does not pair lifecycle observation w
 
   const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
   assert.equal(guard.reloadStatus, "observed");
-  assert.deepEqual(guard.missingTiers, []);
+  assert.deepEqual(guard.missingTiers, ["packageCheck", "install", "postReloadDogfood"]);
   assert.equal(guard.proofSequenceStatus, "unknown");
-  assert.match(guard.proofSequenceReason, /mixed order-token domains/);
+  assert.match(guard.proofSequenceReason, /missing/);
   assert.equal(guard.liveBehaviorClaimAllowed, false);
   assert.equal(guard.requiredBeforeCompletion, true);
   assert.equal(guard.tiers.reload.orderTokenKind, "observedAt");
@@ -533,7 +533,7 @@ test("self query: live runtime proof guard rejects wrong-owner install receipts"
   await cleanup(tempDir);
 });
 
-test("self query: live runtime proof guard rejects unordered dogfood proof", async () => {
+test("self query: live runtime proof guard rejects caller-only unordered dogfood proof", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -582,12 +582,14 @@ test("self query: live runtime proof guard rejects unordered dogfood proof", asy
   );
 
   const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
-  assert.equal(guard.proofSequenceStatus, "failed");
+  assert.equal(guard.packageCheckStatus, "unknown");
+  assert.equal(guard.installStatus, "unknown");
+  assert.equal(guard.postReloadDogfoodStatus, "unknown");
+  assert.equal(guard.proofSequenceStatus, "unknown");
   assert.equal(guard.liveBehaviorClaimAllowed, false);
   assert.equal(guard.requiredBeforeCompletion, true);
-  assert.match(guard.proofSequenceReason, /reload must be observed before postReloadDogfood/);
-  assert.match(guard.nextAction, /ordered proof receipts/);
-  assert.match(result.content[0].text, /proofSequenceStatus=failed/);
+  assert.match(guard.proofSequenceReason, /missing/);
+  assert.match(result.content[0].text, /proofSequenceStatus=unknown/);
   assert.equal(harness.sentUserMessages.length, 0, "unordered proof remains mirror-only");
 
   await cleanup(tempDir);
@@ -624,7 +626,7 @@ test("self query: live runtime proof guard detects active claims in objective co
   await cleanup(tempDir);
 });
 
-test("self query: live runtime proof guard allows active behavior claim only with all ordered owner-bound tiers", async () => {
+test("self query: live runtime proof guard rejects caller-provided ordered owner-bound tiers", async () => {
   const { default: extension, tempDir } = await loadExtensionWithMocks();
   const harness = createPiHarness();
 
@@ -684,21 +686,17 @@ test("self query: live runtime proof guard allows active behavior claim only wit
   );
 
   const guard = result.details.data.evolutionCandidate.liveRuntimeProofGuard;
-  assert.equal(guard.packageCheckStatus, "observed");
-  assert.equal(guard.installStatus, "observed");
+  assert.equal(guard.packageCheckStatus, "unknown");
+  assert.equal(guard.installStatus, "unknown");
   assert.equal(guard.reloadStatus, "observed");
-  assert.equal(guard.postReloadDogfoodStatus, "observed");
-  assert.deepEqual(guard.missingTiers, []);
-  assert.equal(guard.liveBehaviorClaimAllowed, true);
-  assert.equal(guard.requiredBeforeCompletion, false);
-  assert.match(
-    guard.nextAction,
-    /cite ordered package-check, install, reload, and post-reload self dogfood/,
-  );
-  assert.match(result.content[0].text, /proofSequenceStatus=observed/);
-  assert.match(result.content[0].text, /ownerBindingFailures=0/);
-  assert.match(result.content[0].text, /liveBehaviorClaimAllowed=true/);
-  assert.equal(harness.sentUserMessages.length, 0, "positive proof remains mirror-only");
+  assert.equal(guard.postReloadDogfoodStatus, "unknown");
+  assert.deepEqual(guard.missingTiers, ["packageCheck", "install", "postReloadDogfood"]);
+  assert.equal(guard.liveBehaviorClaimAllowed, false);
+  assert.equal(guard.requiredBeforeCompletion, true);
+  assert.match(guard.nextAction, /focused regression\/package check/);
+  assert.match(result.content[0].text, /proofSequenceStatus=unknown/);
+  assert.match(result.content[0].text, /liveBehaviorClaimAllowed=false/);
+  assert.equal(harness.sentUserMessages.length, 0, "caller proof remains mirror-only");
 
   await cleanup(tempDir);
 });

@@ -12,11 +12,12 @@ const EXTENSION_PATH = path.join(REPO_ROOT, "extensions", "self.ts");
 const SELF_MODULE_DIR = path.join(REPO_ROOT, "extensions", "self");
 const TEMP_TEST_ROOT = path.join(REPO_ROOT, ".tmp-self-tests");
 
-export function createPiHarness() {
+export function createPiHarness(options = {}) {
   const commands = new Map();
   const tools = new Map();
   const eventHandlers = new Map();
   const sentUserMessages = [];
+  const sessionEntries = options.sessionEntries ?? [];
 
   const pi = {
     registerCommand(name, definition) {
@@ -43,9 +44,14 @@ export function createPiHarness() {
     sendUserMessage(text, options) {
       sentUserMessages.push({ text, options });
     },
+    appendEntry(customType, data) {
+      const entry = { type: "custom", customType, data };
+      sessionEntries.push(entry);
+      return `custom-${sessionEntries.length}`;
+    },
   };
 
-  return { pi, commands, tools, eventHandlers, sentUserMessages };
+  return { pi, commands, tools, eventHandlers, sentUserMessages, sessionEntries };
 }
 
 export async function loadExtensionWithMocks() {
@@ -58,6 +64,10 @@ export async function loadExtensionWithMocks() {
   const mockModulePath = path.join(tempDir, "mock-pi-coding-agent.mjs");
 
   process.env.PI_SUBAGENT_SESSIONS_DIR = path.join(tempDir, "sessions");
+  await writeFile(
+    path.join(tempDir, "package.json"),
+    JSON.stringify({ name: "@tryinget/pi-autonomous-session-control", type: "module" }),
+  );
 
   // Read extension source
   let source = await readFile(EXTENSION_PATH, "utf8");
@@ -103,10 +113,12 @@ export async function loadExtensionWithMocks() {
     "file-budget.ts",
     "prompt-vault-compat.ts",
     "edge-contract-kernel.ts",
+    "evolution-candidate-ledger.ts",
     "memory.ts",
     "memory-lifecycle-codec.ts",
     "memory-lifecycle-state.ts",
     "memory-lifecycle.ts",
+    "live-runtime-proof-ledger.ts",
   ];
 
   for (const file of moduleFiles) {
@@ -272,9 +284,17 @@ export function resolveSubagentModelSelection() {
   await writeFile(underTestPath, source);
 
   // Import and execute extension
-  const moduleUrl = pathToFileURL(underTestPath).href;
+  const moduleUrl = `${pathToFileURL(underTestPath).href}?instance=${Date.now()}-${Math.random()}`;
   const module = await import(moduleUrl);
 
+  return { tempDir, module, default: module.default };
+}
+
+export async function reloadExtensionWithMocks(tempDir) {
+  process.env.PI_SUBAGENT_SESSIONS_DIR = path.join(tempDir, "sessions");
+  const underTestPath = path.join(tempDir, "self.ts");
+  const moduleUrl = `${pathToFileURL(underTestPath).href}?reload=${Date.now()}-${Math.random()}`;
+  const module = await import(moduleUrl);
   return { tempDir, module, default: module.default };
 }
 

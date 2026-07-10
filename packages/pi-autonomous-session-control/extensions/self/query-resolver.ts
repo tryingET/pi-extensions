@@ -152,35 +152,43 @@ function isExplicitProtectionDirectiveQuery(lower: string): boolean {
 
 function isExplicitUserMessageActionQuery(lower: string): boolean {
   return (
-    lower.includes("notify operator") ||
-    lower.includes("notify user") ||
-    lower.includes("message operator") ||
-    lower.includes("send operator message") ||
-    /send\s+user\s*message\s*:/u.test(lower) ||
-    /sendusermessage\s*:/u.test(lower) ||
-    lower.trim() === "sendusermessage"
+    /^\s*(?:notify operator|notify user|message operator|send operator message)(?:\s*:|\s*$)/u.test(
+      lower,
+    ) ||
+    /^\s*send\s+user\s*message\s*:/u.test(lower) ||
+    /^\s*sendusermessage(?:\s*:|\s*$)/u.test(lower)
   );
 }
 
 function isExplicitDiagnosticActionQuery(lower: string): boolean {
+  const normalized = lower
+    .trim()
+    .replace(/\s+/gu, " ")
+    .replace(/[.!?]+$/u, "");
+  const exactCommands = [
+    "record continuation candidate",
+    "queue continuation candidate",
+    "remember next autonomous step",
+    "continue diagnostic review",
+    "continue self diagnostic",
+    "send diagnostic review",
+    "send diagnostic followup",
+    "send diagnostic follow-up",
+    "prefill diagnostic record",
+    "prefill agent_vent record",
+    "prefill vent record",
+  ];
+  const routeCommandPattern =
+    /^(?:prefill|launch|run|start) (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop)|autoresearch campaign|measured campaign)(?: for self-evolution)?$/u;
   return (
     isExplicitUserMessageActionQuery(lower) ||
-    lower.includes("record continuation candidate") ||
-    lower.includes("queue continuation candidate") ||
-    lower.includes("remember next autonomous step") ||
-    isSelfEvolutionContinuationPrefillQuery(lower) ||
-    /(?:prefill|launch|run|start) (?:visible[- ]loop self-evolution|self-evolution (?:visible-loop|loop)|autoresearch campaign|measured campaign)/u.test(
-      lower,
+    exactCommands.includes(normalized) ||
+    /^(?:record continuation candidate|queue continuation candidate|remember next autonomous step)\s*:/u.test(
+      normalized,
     ) ||
-    lower.includes("continue diagnostic review") ||
-    lower.includes("continue self diagnostic") ||
-    lower.includes("send diagnostic review") ||
-    lower.includes("send diagnostic followup") ||
-    lower.includes("send diagnostic follow-up") ||
-    lower.includes("prefill diagnostic record") ||
-    lower.includes("prefill agent_vent record") ||
-    lower.includes("prefill vent record") ||
-    lower.trim().startsWith("record this friction")
+    isSelfEvolutionContinuationPrefillQuery(lower) ||
+    routeCommandPattern.test(normalized) ||
+    normalized.startsWith("record this friction")
   );
 }
 
@@ -348,7 +356,31 @@ export function classifyIntent(query: string): QueryIntent {
   // Check explicit action/crystallization/protection requests before capability discovery.
   for (const keyword of ACTION_KEYWORDS) {
     if (lower.includes(keyword)) {
-      return { domain: "action", intent: mapActionIntent(lower) as ActionIntent };
+      const userMessageKeywords = [
+        "notify operator",
+        "notify user",
+        "message operator",
+        "send operator message",
+        "send usermessage",
+        "sendusermessage",
+      ];
+      if (userMessageKeywords.includes(keyword) && !isExplicitUserMessageActionQuery(lower)) {
+        continue;
+      }
+      const mappedIntent = mapActionIntent(lower) as ActionIntent;
+      const explicitOnlyIntents = new Set<ActionIntent>([
+        "send_user_message",
+        "prefill_visible_loop_self_evolution",
+        "launch_visible_loop_self_evolution",
+        "prefill_autoresearch_campaign",
+        "launch_autoresearch_campaign",
+        "continue_diagnostic_review",
+        "prefill_diagnostic_record",
+      ]);
+      if (explicitOnlyIntents.has(mappedIntent) && !isExplicitDiagnosticActionQuery(lower)) {
+        continue;
+      }
+      return { domain: "action", intent: mappedIntent };
     }
   }
 

@@ -219,7 +219,16 @@ test("self query: diagnostic review uses provided context for candidate payload"
     result.details.data.diagnosticCandidate.copyableCommands[1],
     /self failed to use sendUserMessage/,
   );
-  assert.match(result.details.data.diagnosticCandidate.copyableCommands[2], /action: "record"/);
+  assert.equal(
+    result.details.data.diagnosticCandidate.copyableCommands.some((command) =>
+      command.includes('action: "record"'),
+    ),
+    false,
+    "mirror-only candidates must advertise preview, never a direct durable record shortcut",
+  );
+  assert.match(result.details.data.evolutionCandidate.candidateId, /^evolution-/);
+  assert.equal(result.details.data.evolutionCandidate.executionReady, false);
+  assert.equal(result.details.data.evolutionCandidate.evidenceSufficiency, "caller_claim_only");
 
   await cleanup(tempDir);
 });

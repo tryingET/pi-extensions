@@ -219,6 +219,33 @@ export interface ContinuationCandidate {
   expiresAt: number;
 }
 
+export interface SelfEvolutionCandidate {
+  kind: "self.evolution_candidate.v1";
+  candidateId: string;
+  sessionId: string;
+  issuedAt: number;
+  friction: string;
+  hypothesis: string;
+  falsifier: string;
+  metric: string;
+  owner: string;
+  autonomyLevel: string;
+  nextSafeTest: string;
+  executionReady: boolean;
+  evidenceSufficiency:
+    | "insufficient_evidence"
+    | "caller_claim_only"
+    | "caller_claim_corroborated"
+    | "host_observed_friction";
+  ownerRoutingStatus: "allowed" | "unknown_owner";
+  confidence: "insufficient" | "low" | "medium" | "high";
+  nonAuthorizations: string[];
+  insightPromotionCue: Record<string, unknown>;
+  reflectionGuard: Record<string, unknown>;
+  liveRuntimeProofGuard: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export type SuggestionFeedbackOutcome = "helpful" | "ignored" | "stale" | "wrong-owner" | "unsafe";
 
 export interface SuggestionFeedback {
@@ -227,6 +254,7 @@ export interface SuggestionFeedback {
   outcome: SuggestionFeedbackOutcome;
   targetKind: string;
   targetId?: string;
+  bound: boolean;
   note: string;
   owner: string;
   sourceQuery: string;
@@ -239,10 +267,43 @@ export interface SuggestionFeedback {
 // SELF STATE (Aggregate)
 // ============================================================================
 
+export interface LiveRuntimeProofStateEvent {
+  kind: "self.live_runtime_proof_event.v1";
+  schemaVersion: 1;
+  runId: string;
+  tier: "packageCheck" | "install" | "reload" | "postReloadDogfood";
+  sequence: 1 | 2 | 3 | 4;
+  status: "observed";
+  packageName: "pi-autonomous-session-control";
+  packageRoot: string;
+  observedAt: number;
+  source: "pi.tool_result.bash" | "pi.session_start.reload" | "pi.tool_result.self";
+  sourceFingerprint: string;
+  toolCallId?: string;
+  command?: string;
+}
+
+export interface LiveRuntimeProofStateInvalidation {
+  kind: "self.live_runtime_proof_invalidation.v1";
+  schemaVersion: 1;
+  packageName: "pi-autonomous-session-control";
+  packageRoot: string;
+  observedAt: number;
+  source: "pi.tool_call.file_mutation" | "pi.session_start.non_reload";
+  reason: string;
+}
+
+export type LiveRuntimeProofStateEntry =
+  | LiveRuntimeProofStateEvent
+  | LiveRuntimeProofStateInvalidation;
+
 export interface SelfState {
   // Perception
   operations: OperationLog;
   patterns: PatternDetector;
+
+  // Branch-local machine receipts; mirror-only and reconstructed from Pi session entries.
+  liveRuntimeProofEvents: LiveRuntimeProofStateEntry[];
 
   // Direction
   branches: BranchRegistry;
@@ -259,7 +320,8 @@ export interface SelfState {
   followups: FollowupMessage[];
   continuationCandidates: ContinuationCandidate[];
 
-  // Session-local self-evolution feedback mirror (not durable owner evidence)
+  // Session-local typed candidate/feedback mirror (not durable owner evidence)
+  evolutionCandidates: SelfEvolutionCandidate[];
   suggestionFeedback: SuggestionFeedback[];
 
   // Configuration

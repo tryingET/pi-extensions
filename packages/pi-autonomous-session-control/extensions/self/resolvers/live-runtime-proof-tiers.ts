@@ -1,6 +1,7 @@
 /** Tier resolution policy for the ASC live-runtime proof guard. */
 
 import { normalizeString } from "../edge-contract-kernel.ts";
+import { ASC_RUNTIME_PACKAGE_NAME } from "../live-runtime-proof-ledger.ts";
 import type { SelfQuery } from "../types.ts";
 import {
   anyEntryMatches,
@@ -62,18 +63,22 @@ export function resolveTier(
         : "failed";
   const trustedObservedEvidenceEntry = evidenceEntries.find(
     (entry) =>
-      spec.name === "reload" && entry.origin === "session_lifecycle" && entry.status === "observed",
+      entry.status === "observed" &&
+      (entry.origin === "session_proof_ledger" ||
+        (spec.name === "reload" && entry.origin === "session_lifecycle")),
   );
   const callerObservedStatus = explicitStatuses.includes("observed");
   const trustedObservedEvidence = Boolean(trustedObservedEvidenceEntry);
-  const orderedEvidence =
-    trustedObservedEvidenceEntry && !callerObservedStatus
-      ? trustedObservedEvidenceEntry
-      : ownerBoundEvidence.find((entry) => evidenceOrderToken(entry) !== undefined);
+  const callerObservationAllowed = spec.name === "reload" && callerObservedStatus;
+  const orderedEvidence = trustedObservedEvidenceEntry
+    ? trustedObservedEvidenceEntry
+    : callerObservationAllowed
+      ? ownerBoundEvidence.find((entry) => evidenceOrderToken(entry) !== undefined)
+      : undefined;
   const orderToken = orderedEvidence ? evidenceOrderToken(orderedEvidence) : undefined;
   const orderTokenKind = orderedEvidence ? evidenceOrderTokenKind(orderedEvidence) : undefined;
   const hasObserved =
-    (callerObservedStatus || trustedObservedEvidence) &&
+    (trustedObservedEvidence || callerObservationAllowed) &&
     hasPositiveSignal &&
     hasProvenance &&
     ownerBindingStatus === "observed";
@@ -211,13 +216,10 @@ export const TIER_SPECS: TierSpec[] = [
   },
 ];
 
-export function resolveExpectedPackageName(context: Record<string, unknown>): string {
-  return (
-    normalizeString(context.packageName, { maxLength: 160 }) ||
-    normalizeString(context.package, { maxLength: 160 }) ||
-    normalizeString(context.owner, { maxLength: 160 }) ||
-    "pi-autonomous-session-control"
-  );
+export function resolveExpectedPackageName(_context: Record<string, unknown>): string {
+  // Runtime ownership is package-defined. Caller context may describe a target,
+  // but it cannot redefine which package owns the active `self` extension.
+  return ASC_RUNTIME_PACKAGE_NAME;
 }
 
 export function resolveSequenceStatus(tiers: Record<TierName, Record<string, unknown>>): {

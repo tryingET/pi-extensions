@@ -10,6 +10,24 @@ test("self query: records session-local self-evolution feedback without owner wr
 
   const tool = harness.tools.get("self");
   const ctx = createMockContext();
+  const candidateResult = await tool.execute(
+    "tc-self-feedback-candidate",
+    {
+      query: "self-evolution",
+      context: {
+        summary: "candidate feedback was previously unbound",
+        hypothesis: "candidate ids were not stored",
+        metric: "unbound_feedback_rate=0",
+        falsifier: "feedback accepts a nonexistent candidate id",
+        owner: "pi-autonomous-session-control",
+        nextSafeTest: "record feedback against this exact candidate",
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+  const candidateId = candidateResult.details.data.evolutionCandidate.candidateId;
 
   const result = await tool.execute(
     "tc-self-feedback-helpful",
@@ -17,7 +35,7 @@ test("self query: records session-local self-evolution feedback without owner wr
       query: "self feedback: helpful — self.evolution_candidate.v1 routed the owner correctly",
       context: {
         targetKind: "self.evolution_candidate.v1",
-        candidateId: "candidate-1",
+        candidateId,
         owner: "pi-autonomous-session-control",
       },
     },
@@ -32,7 +50,8 @@ test("self query: records session-local self-evolution feedback without owner wr
   assert.equal(result.details.data.feedback.kind, "self.suggestion_feedback.v1");
   assert.equal(result.details.data.feedback.outcome, "helpful");
   assert.equal(result.details.data.feedback.targetKind, "self.evolution_candidate.v1");
-  assert.equal(result.details.data.feedback.targetId, "candidate-1");
+  assert.equal(result.details.data.feedback.targetId, candidateId);
+  assert.equal(result.details.data.feedback.bound, true);
   assert.equal(result.details.data.feedbackCounts.helpful, 1);
   assert.equal(result.details.data.ledgerScope, "session-local-bounded");
   assert.deepEqual(

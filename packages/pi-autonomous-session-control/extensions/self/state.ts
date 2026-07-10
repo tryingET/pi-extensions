@@ -62,6 +62,7 @@ export function createSelfState(config: Partial<SelfConfig> = {}): SelfState {
   return {
     operations: createOperationLog(),
     patterns: createPatternDetector(),
+    liveRuntimeProofEvents: [],
     branches: createBranchRegistry(),
     signals: createSignalLog(),
     learnings: createPatternStore(),
@@ -69,6 +70,7 @@ export function createSelfState(config: Partial<SelfConfig> = {}): SelfState {
     checkpoints: [],
     followups: [],
     continuationCandidates: [],
+    evolutionCandidates: [],
     suggestionFeedback: [],
     config: { ...DEFAULT_CONFIG, ...config },
   };
