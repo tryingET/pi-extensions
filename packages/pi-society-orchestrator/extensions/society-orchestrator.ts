@@ -122,7 +122,7 @@ import {
   formatTsQualityReleaseWorkflowResult,
   TsQualityReleaseWorkflowRunner,
 } from "../src/runtime/ts-quality-release-workflow.ts";
-import { WORKFLOW_AGENT_NAMES } from "../src/runtime/workflow.ts";
+import { validateWorkflowRequest, WORKFLOW_AGENT_NAMES } from "../src/runtime/workflow.ts";
 import {
   createWorkflowExecutor,
   WorkflowExecutionError,
@@ -177,6 +177,34 @@ export interface SocietyOrchestratorExtensionOptions {
   selfHostingSupervisor?: AutoresearchSelfHostingSupervisor;
   tsQualityReleaseWorkflowRunner?: TsQualityReleaseWorkflowRunner;
   autoresearchLearningKesPackageRoot?: string;
+  workflowCognitiveToolLookup?: typeof getCognitiveToolByName;
+  workflowExecutorFactory?: typeof createWorkflowExecutor;
+}
+
+function workflowCognitiveToolUnavailable(
+  mode: "chain" | "parallel",
+  lookupFailure: "boundary_failure" | "lookup_exception" | "not_found" | "empty_content",
+  error: string,
+) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `Workflow execution blocked: governed cognitive tool 'controlled' is unavailable (${lookupFailure}): ${error}`,
+      },
+    ],
+    details: {
+      ok: false,
+      mode,
+      status: "blocked",
+      stepCount: 0,
+      errorCode: "workflow_cognitive_tool_unavailable",
+      cognitiveTool: "controlled",
+      lookupFailure,
+      error,
+      dispatchedSteps: 0,
+    },
+  };
 }
 
 type AutoresearchLiveSupervisionAction =
@@ -2025,6 +2053,8 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   const autoresearchLearningKesPackageRoot = path.resolve(
     options.autoresearchLearningKesPackageRoot || ORCHESTRATOR_PACKAGE_ROOT,
   );
+  const workflowCognitiveToolLookup = options.workflowCognitiveToolLookup || getCognitiveToolByName;
+  const workflowExecutorFactory = options.workflowExecutorFactory || createWorkflowExecutor;
 
   // ===========================================================================
   // TOOL: society_query
@@ -4358,14 +4388,67 @@ and failureKind truth, and produces a structured aggregated output with workflow
         ? `${ctx.model.provider}/${ctx.model.id}`
         : "openrouter/google/gemini-2.5-flash-preview";
 
-      // Load cognitive tool for workflow context
-      const toolResult = await getCognitiveToolByName("controlled", { cwd: ctx.cwd }, signal);
-      const cognitiveToolContent =
-        toolResult && !isBoundaryFailure(toolResult) && toolResult.value
-          ? toolResult.value.content
-          : "FRAMEWORK: workflow execution";
+      // Preserve request/team validation precedence so malformed workflows fail without
+      // consulting Prompt Vault or touching the execution substrate.
+      const validatedRequest = validateWorkflowRequest(request, { activeTeam });
+      if (!validatedRequest.ok) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Workflow execution failed: Workflow request failed validation.\nIssues: ${validatedRequest.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ")}`,
+            },
+          ],
+          details: {
+            ok: false,
+            errorCode: "workflow_validation_failed",
+            issues: validatedRequest.issues.map((issue) => ({
+              path: issue.path,
+              code: issue.code,
+              message: issue.message,
+            })),
+          },
+        };
+      }
 
-      const workflowExecutor = createWorkflowExecutor({
+      // A valid workflow must never silently downgrade from its governed cognitive framework
+      // to an ungoverned placeholder. Fail before constructing the executor or dispatching.
+      let toolResult: Awaited<ReturnType<typeof getCognitiveToolByName>>;
+      try {
+        toolResult = await workflowCognitiveToolLookup("controlled", { cwd: ctx.cwd }, signal);
+      } catch (error) {
+        signal?.throwIfAborted();
+        return workflowCognitiveToolUnavailable(
+          validatedRequest.value.mode,
+          "lookup_exception",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      signal?.throwIfAborted();
+      if (isBoundaryFailure(toolResult)) {
+        return workflowCognitiveToolUnavailable(
+          validatedRequest.value.mode,
+          "boundary_failure",
+          toolResult.error,
+        );
+      }
+      if (!toolResult.value) {
+        return workflowCognitiveToolUnavailable(
+          validatedRequest.value.mode,
+          "not_found",
+          "Cognitive tool 'controlled' was not found.",
+        );
+      }
+      const cognitiveToolContent = toolResult.value.content;
+      if (!cognitiveToolContent.trim()) {
+        return workflowCognitiveToolUnavailable(
+          validatedRequest.value.mode,
+          "empty_content",
+          "Cognitive tool 'controlled' has empty content.",
+        );
+      }
+
+      const workflowExecutor = workflowExecutorFactory({
         sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "workflows"),
       });
 
