@@ -1,5 +1,8 @@
 import { join } from "node:path";
+import { createEdgeMonotonicId } from "./edge-contract-kernel.ts";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
+import { reserveSharedSubagentCapacity } from "./subagent-capacity.ts";
+import { cancelSubagentDispatch } from "./subagent-control.ts";
 import {
   formatInvariantIssues,
   normalizeDispatchParams,
@@ -30,6 +33,11 @@ import type {
   SubagentModelContext,
   SubagentModelProviderResult,
 } from "./subagent-runtime-types.ts";
+import {
+  writeCompletedSubagentStatus,
+  writeRunningSubagentStatus,
+} from "./subagent-spawn-status.ts";
+import { applyDispatchTaskContract, buildDispatchTaskContract } from "./subagent-task-contract.ts";
 
 export { getDispatchSubagentDisplayOutput } from "./subagent-runtime-display.ts";
 export type {
@@ -46,12 +54,13 @@ export type {
   SubagentModelProviderResult,
 } from "./subagent-runtime-types.ts";
 
+import { resolveSubagentResume } from "./subagent-resume.ts";
 import {
   createSubagentState,
   reserveSubagentExecutionSlot,
   type SubagentState,
 } from "./subagent-session.ts";
-import { reserveUniqueSessionName } from "./subagent-session-name.ts";
+import { reserveExactSessionName, reserveUniqueSessionName } from "./subagent-session-name.ts";
 import {
   resolveSubagentSkillSelection,
   SubagentSkillSelectionError,
@@ -81,6 +90,18 @@ export async function executeDispatchSubagentRequest(options: {
     tools,
     systemPrompt,
     name,
+    resumeDispatchId,
+    thinking,
+    startupTimeout,
+    allowUnlimited,
+    deliverable,
+    acceptanceCriteria,
+    constraints,
+    evidenceRequired,
+    mutationPolicy,
+    stopConditions,
+    allowedPaths,
+    forbiddenPaths,
     timeout,
     extensions,
     env,
@@ -108,6 +129,22 @@ export async function executeDispatchSubagentRequest(options: {
     };
   }
 
+  if (
+    timeout === 0 &&
+    (allowUnlimited !== true ||
+      process.env.PI_SUBAGENT_ALLOW_UNLIMITED_TIMEOUT?.trim().toLowerCase() !== "true")
+  ) {
+    return {
+      ok: false,
+      text: "Unlimited subagent execution is disabled. timeout=0 requires allowUnlimited=true and PI_SUBAGENT_ALLOW_UNLIMITED_TIMEOUT=true.",
+      details: {
+        reason: "unlimited_timeout_policy_failed",
+        failureKind: "invariant_failed",
+        status: "error",
+      },
+    };
+  }
+
   const envPolicy = validateSubagentRequestEnv(env);
 
   if (!envPolicy.ok) {
@@ -127,6 +164,30 @@ export async function executeDispatchSubagentRequest(options: {
   }
 
   const safeObjective = objective as string;
+  const parentSessionKey = getContextSessionKey(options.ctx);
+  const parentRepoRoot = getContextRepoRoot(options.ctx);
+  const resume = resumeDispatchId
+    ? resolveSubagentResume({
+        sessionsDir: options.state.sessionsDir,
+        dispatchId: resumeDispatchId,
+        parentSessionKey,
+        parentRepoRoot,
+      })
+    : undefined;
+  if (resume && !resume.ok) {
+    return {
+      ok: false,
+      text: `Subagent resume rejected: ${resume.error}`,
+      details: {
+        reason: "resume_rejected",
+        failureKind: "invariant_failed",
+        resumeDispatchId,
+        status: "error",
+      },
+    };
+  }
+  const dispatchId = resume?.ok ? resume.value.dispatchId : createEdgeMonotonicId("dispatch");
+  const attemptId = createEdgeMonotonicId("attempt");
   const profileDef = SUBAGENT_PROFILES[profile];
   if (!profileDef && profile !== "custom") {
     return {
@@ -155,6 +216,40 @@ export async function executeDispatchSubagentRequest(options: {
     };
   }
 
+  const taskContract = buildDispatchTaskContract({
+    objective: safeObjective,
+    deliverable,
+    acceptanceCriteria,
+    constraints,
+    evidenceRequired,
+    mutationPolicy,
+    stopConditions,
+    allowedPaths,
+    forbiddenPaths,
+  });
+  const sharedCapacityLease = reserveSharedSubagentCapacity(
+    options.state.sessionsDir,
+    options.state.maxConcurrent,
+  );
+  if (!sharedCapacityLease) {
+    executionSlot.release();
+    return {
+      ok: false,
+      text: `Maximum concurrent subagents reached across Pi processes (${options.state.maxConcurrent}).`,
+      details: {
+        reason: "rate_limited",
+        failureKind: "rate_limited",
+        activeCount: options.state.activeCount,
+        maxConcurrent: options.state.maxConcurrent,
+        status: "error",
+      },
+    };
+  }
+  const releaseExecutionReservations = (completed = false) => {
+    sharedCapacityLease.release();
+    executionSlot.release({ completed });
+  };
+
   const baseSystemPrompt = systemPrompt || profileDef?.systemPrompt;
   const promptEnvelope = applyPromptEnvelope(baseSystemPrompt, {
     prompt_name,
@@ -162,6 +257,10 @@ export async function executeDispatchSubagentRequest(options: {
     prompt_tags,
     prompt_source,
   });
+  const effectiveSystemPrompt = applyDispatchTaskContract(
+    promptEnvelope.systemPrompt,
+    taskContract,
+  );
 
   const reservationsEnabled =
     process.env.PI_SUBAGENT_RESERVE_SESSION_NAMES?.trim().toLowerCase() !== "false";
@@ -174,7 +273,7 @@ export async function executeDispatchSubagentRequest(options: {
   try {
     selectedModel = normalizeModelProviderResult(options.modelProvider(options.ctx));
   } catch (error) {
-    executionSlot.release();
+    releaseExecutionReservations();
     const message = error instanceof Error ? error.message : String(error);
     const output = `Model selection failed before subagent spawn: ${message}`;
     return {
@@ -196,11 +295,12 @@ export async function executeDispatchSubagentRequest(options: {
   }
   const extensionSelection = resolveSubagentExtensionSelection({
     requestedExtensions: extensions,
+    effectiveModel: selectedModel.effectiveModel,
     ctx: options.ctx,
   });
 
   if (extensionSelection.missingRequired.length > 0) {
-    executionSlot.release();
+    releaseExecutionReservations();
     return {
       ok: false,
       text: [
@@ -231,7 +331,7 @@ export async function executeDispatchSubagentRequest(options: {
       ctx: options.ctx,
     });
   } catch (error) {
-    executionSlot.release();
+    releaseExecutionReservations();
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
@@ -257,33 +357,60 @@ export async function executeDispatchSubagentRequest(options: {
         release: () => void;
       }
     | undefined;
-  let result: SubagentResult;
+  let result: SubagentResult = {
+    output: "Subagent execution did not start.",
+    exitCode: 1,
+    elapsed: 0,
+    status: "error",
+  };
   let sessionFile: string | undefined;
+  let activeDef: SubagentDef | undefined;
+  let spawnAttempted = false;
+  const attemptCreatedAt = new Date().toISOString();
+  const runtimeOwnsStatusProjection = spawner !== spawnSubagent;
+  let progressSequence = 0;
+  const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
+  const startupTimeoutMs = (startupTimeout ?? 30) * 1000;
+  const configuredThinking = thinking ?? profileDef?.thinking ?? "medium";
   try {
-    sessionReservation = reserveUniqueSessionName(
-      name || profile,
-      options.state.sessionsDir,
-      options.state.reservedSessionNames,
-      {
-        useInMemoryReservation: reservationsEnabled,
-        useFileLockReservation,
-      },
-    );
+    sessionReservation = resume?.ok
+      ? reserveExactSessionName(
+          resume.value.sessionName,
+          options.state.sessionsDir,
+          options.state.reservedSessionNames,
+          {
+            useInMemoryReservation: reservationsEnabled,
+            useFileLockReservation,
+          },
+        )
+      : reserveUniqueSessionName(
+          name || profile,
+          options.state.sessionsDir,
+          options.state.reservedSessionNames,
+          {
+            useInMemoryReservation: reservationsEnabled,
+            useFileLockReservation,
+          },
+        );
 
-    const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
-    const parentSessionKey = getContextSessionKey(options.ctx);
-    const parentRepoRoot = getContextRepoRoot(options.ctx);
-
-    sessionFile = join(options.state.sessionsDir, `${sessionReservation.sessionName}.jsonl`);
+    sessionFile = resume?.ok
+      ? resume.value.sessionFile
+      : join(options.state.sessionsDir, `${sessionReservation.sessionName}.jsonl`);
 
     const def: SubagentDef = {
       name: sessionReservation.sessionName,
+      dispatchId,
+      attemptId,
       objective: safeObjective,
       tools: tools || profileDef?.tools || "read,bash",
-      systemPrompt: promptEnvelope.systemPrompt,
+      systemPrompt: effectiveSystemPrompt,
       profile: profile as string,
       sessionFile,
       timeout: timeoutMs,
+      startupTimeout: startupTimeoutMs,
+      thinking: configuredThinking,
+      resumed: Boolean(resume?.ok),
+      taskContract: taskContract as unknown as Record<string, unknown>,
       executionSlotReserved: true,
       parentSessionKey,
       parentRepoRoot,
@@ -292,12 +419,25 @@ export async function executeDispatchSubagentRequest(options: {
       skillSources: skillSelection.skillSources,
       env: envPolicy.env,
     };
+    activeDef = def;
 
     options.onUpdate?.({
       text: `Dispatching ${profile} subagent...`,
       details: {
         profile: profile as DispatchSubagentProfile,
         objective: safeObjective,
+        dispatchId,
+        attemptId,
+        sessionName: sessionReservation.sessionName,
+        sessionFile,
+        resumed: Boolean(resume?.ok),
+        resumeDispatchId,
+        configuredThinking,
+        startupTimeoutSeconds: startupTimeoutMs / 1000,
+        executionTimeoutSeconds: timeoutMs === undefined ? 300 : timeoutMs / 1000,
+        taskContract,
+        progressSequence: ++progressSequence,
+        progressPhase: "spawning",
         status: "spawning",
         ...(selectedModel.warning
           ? {
@@ -327,12 +467,49 @@ export async function executeDispatchSubagentRequest(options: {
       },
     });
 
+    spawnAttempted = true;
+    if (runtimeOwnsStatusProjection) {
+      writeRunningSubagentStatus({
+        state: options.state,
+        def,
+        createdAt: attemptCreatedAt,
+        childPid: process.pid,
+        model: selectedModel.effectiveModel,
+        cancelSupported: false,
+      });
+    }
     result = await spawner(
       def,
       selectedModel.effectiveModel,
       options.ctx,
       options.state,
       options.signal,
+      (progress) => {
+        options.onUpdate?.({
+          text: `[${profile}] ${progress.phase} (${Math.round(progress.elapsedMs / 1000)}s)${
+            progress.latestTool ? ` tool=${progress.latestTool}` : ""
+          }`,
+          details: {
+            profile: profile as DispatchSubagentProfile,
+            objective: safeObjective,
+            dispatchId,
+            attemptId,
+            sessionName: sessionReservation?.sessionName,
+            sessionFile,
+            resumed: Boolean(resume?.ok),
+            configuredThinking,
+            startupTimeoutSeconds: startupTimeoutMs / 1000,
+            executionTimeoutSeconds: timeoutMs === undefined ? 300 : timeoutMs / 1000,
+            taskContract,
+            usage: progress.usage,
+            progressSequence: ++progressSequence,
+            progressPhase: progress.phase,
+            lastActivityAt: progress.lastActivityAt,
+            latestTool: progress.latestTool,
+            status: progress.phase === "spawning" ? "spawning" : "running",
+          },
+        });
+      },
     );
   } catch (error) {
     result = {
@@ -342,9 +519,19 @@ export async function executeDispatchSubagentRequest(options: {
       status: "error",
     };
   } finally {
+    if (runtimeOwnsStatusProjection && activeDef && spawnAttempted && result) {
+      writeCompletedSubagentStatus({
+        state: options.state,
+        def: activeDef,
+        result,
+        createdAt: attemptCreatedAt,
+        pid: process.pid,
+        model: selectedModel.effectiveModel,
+      });
+    }
     await skillSelection.cleanup?.().catch(() => undefined);
     sessionReservation?.release();
-    executionSlot.release();
+    releaseExecutionReservations(spawnAttempted);
   }
 
   const lifecycleInvariants = validateSubagentLifecycle(options.state);
@@ -380,6 +567,7 @@ export async function executeDispatchSubagentRequest(options: {
     : "";
   const failureKind = getDispatchSubagentFailureKind({
     status,
+    timeoutPhase: result.timeoutPhase,
     executionState: result.executionState,
   });
 
@@ -389,6 +577,21 @@ export async function executeDispatchSubagentRequest(options: {
     details: {
       profile: profile as DispatchSubagentProfile,
       objective: safeObjective,
+      dispatchId,
+      attemptId,
+      sessionName: sessionReservation?.sessionName,
+      sessionFile,
+      resumed: Boolean(resume?.ok),
+      resumeDispatchId,
+      configuredThinking,
+      startupTimeoutSeconds: startupTimeoutMs / 1000,
+      executionTimeoutSeconds: timeoutMs === undefined ? 300 : timeoutMs / 1000,
+      timeoutPhase: result.timeoutPhase,
+      taskContract,
+      usage: result.usage,
+      progressSequence: ++progressSequence,
+      progressPhase: "completed",
+      lastActivityAt: Date.now(),
       elapsed: result.elapsed,
       exitCode: result.exitCode,
       fullOutput: result.output,
@@ -437,6 +640,15 @@ export function createAscExecutionRuntime(
 
   return {
     state,
+    cancel(dispatchId, ctx, reason) {
+      return cancelSubagentDispatch({
+        state,
+        dispatchId,
+        requestedBy: getContextSessionKey(ctx) ?? "runtime:unknown",
+        reason,
+        parentRepoRoot: getContextRepoRoot(ctx),
+      });
+    },
     execute(request, ctx, onUpdate, signal) {
       return executeDispatchSubagentRequest({
         request,

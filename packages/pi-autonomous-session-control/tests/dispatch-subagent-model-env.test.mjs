@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { setup } from "./dispatch-subagent-harness.mjs";
+import { executeToolExpectFailure, setup } from "./dispatch-subagent-harness.mjs";
 
 test("dispatch_subagent returns a structured model-selection error without leaking activeCount", async () => {
   const harness = await setup(undefined, () => {
@@ -11,7 +11,8 @@ test("dispatch_subagent returns a structured model-selection error without leaki
   });
 
   try {
-    const result = await harness.tool.execute(
+    const result = await executeToolExpectFailure(
+      harness.tool,
       "tc-model-provider-throw",
       {
         profile: "reviewer",
@@ -40,7 +41,8 @@ test("dispatch_subagent rejects whitespace-only model strings before spawn witho
   const harness = await setup(undefined, () => "   ");
 
   try {
-    const result = await harness.tool.execute(
+    const result = await executeToolExpectFailure(
+      harness.tool,
       "tc-model-provider-empty-string",
       {
         profile: "reviewer",
@@ -97,7 +99,8 @@ test("dispatch_subagent rejects dangerous request env before spawn without leaki
     const harness = await setup();
 
     try {
-      const result = await harness.tool.execute(
+      const result = await executeToolExpectFailure(
+        harness.tool,
         `tc-env-reject-${key}`,
         {
           profile: "reviewer",
@@ -142,7 +145,8 @@ test("dispatch_subagent rejects empty requested/effective model selections befor
     const harness = await setup(undefined, () => testCase.selection);
 
     try {
-      const result = await harness.tool.execute(
+      const result = await executeToolExpectFailure(
+        harness.tool,
         `tc-model-provider-empty-${testCase.name}`,
         {
           profile: "reviewer",
@@ -207,6 +211,42 @@ test("dispatch_subagent auto-loads pi-multi-pass when the current model uses a n
     await harness.cleanup();
   }
 });
+test("dispatch_subagent uses context provider for extension inference when effective model id is bare", async () => {
+  const previous = process.env.PI_MULTI_PASS_EXTENSION;
+  const extensionDir = await mkdtemp(join(tmpdir(), "subagent-bare-model-extension-"));
+  const extensionPath = join(extensionDir, "multi-sub.ts");
+  await writeFile(extensionPath, "export default () => {};\n");
+  process.env.PI_MULTI_PASS_EXTENSION = extensionPath;
+
+  const anthropicHarness = await setup(undefined, () => "claude-sonnet-4-5");
+  const aliasHarness = await setup(undefined, () => "gpt-5.2");
+  try {
+    await anthropicHarness.tool.execute(
+      "tc-bare-anthropic-model",
+      { profile: "reviewer", objective: "Review bare model inference" },
+      null,
+      null,
+      { cwd: process.cwd(), model: { provider: "anthropic", id: "claude-sonnet-4-5" } },
+    );
+    assert.deepEqual(anthropicHarness.getCapturedDef().extensionSources, []);
+
+    await aliasHarness.tool.execute(
+      "tc-bare-alias-model",
+      { profile: "reviewer", objective: "Review bare alias inference" },
+      null,
+      null,
+      { cwd: process.cwd(), model: { provider: "openai-codex-2", id: "gpt-5.2" } },
+    );
+    assert.deepEqual(aliasHarness.getCapturedDef().extensionSources, [extensionPath]);
+  } finally {
+    if (previous === undefined) delete process.env.PI_MULTI_PASS_EXTENSION;
+    else process.env.PI_MULTI_PASS_EXTENSION = previous;
+    await anthropicHarness.cleanup();
+    await aliasHarness.cleanup();
+    await rm(extensionDir, { recursive: true, force: true });
+  }
+});
+
 test("dispatch_subagent loads explicit child extensions for extension-provided tools", async () => {
   const previous = process.env.PI_VAULT_CLIENT_EXTENSION;
   const extensionDir = await mkdtemp(join(tmpdir(), "subagent-vault-extension-"));
@@ -251,7 +291,8 @@ test("dispatch_subagent fails clearly when a subscription-backed alias needs pi-
   }));
 
   try {
-    const result = await harness.tool.execute(
+    const result = await executeToolExpectFailure(
+      harness.tool,
       "tc-missing-multi-pass",
       {
         profile: "reviewer",

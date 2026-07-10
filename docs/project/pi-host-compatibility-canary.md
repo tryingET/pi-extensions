@@ -2,7 +2,7 @@
 summary: "Root-owned canary lane for validating pi-extensions against upstream Pi host changes."
 read_when:
   - "Triaging whether an upstream Pi changelog item requires extension changes."
-  - "Before bumping @mariozechner/pi-coding-agent across monorepo packages."
+  - "Before bumping @earendil-works/pi-coding-agent across monorepo packages."
   - "When adding a new extension scenario that should be guarded by the compatibility canary."
 system4d:
   container: "Monorepo-level host compatibility contract and execution lane."
@@ -41,11 +41,12 @@ Package tests remain where they belong; the root canary binds them into one upgr
 ## Current profiles
 
 Each profile resolves an **exact host contract** before any scenario runs:
-- `@mariozechner/pi-coding-agent` version
-- companion package versions (`@mariozechner/pi-ai`, `@mariozechner/pi-tui`)
+- `@earendil-works/pi-coding-agent` version
+- companion package versions (`@earendil-works/pi-ai`, `@earendil-works/pi-tui`)
 - exact review anchor for the upstream changelog item / diff under review
 
 The manifest now declares explicit leaf package roots for each scenario. The runner validates those package roots, auto-aligns them to the selected host contract before executing the scenario command, and restores the prior host-package versions after the run.
+Host alignment, scenario commands, and restoration run with isolated empty npm config files and without ambient `before` / `min-release-age` settings. Exact compatibility probes therefore cannot silently exclude the selected host release because a workstation-level package-age policy predates it.
 That removes directory-shape inference, keeps execution scope consistent with the declared seam, and reduces local environment contamination after upgrade checks.
 
 Coverage health for the critical root canary is tracked with `critical_uncovered_host_surfaces`; the current target is `critical_uncovered_host_surfaces=0`.
@@ -57,6 +58,10 @@ Run against the root-owned pinned host contract recorded in `policy/pi-host-comp
 Run against an explicit candidate Pi host release supplied via:
 - `PI_HOST_COMPAT_HOST_VERSION`
 - `PI_HOST_COMPAT_CHANGELOG_REF`
+
+## Host/package upgrade boundary
+
+Since Pi 0.79.7, bare `pi update` updates the Pi host only; `pi update --all` is required for managed package updates. Local-path packages in this monorepo are not upgraded by either command: bump their Pi development contract and lockfile, run this canary, reinstall the changed local package with `pi install /absolute/package/path`, and `/reload` before claiming live compatibility. This prevents a new host from running against stale package-local types or helper dependencies.
 
 ## Seed scenarios
 
@@ -104,6 +109,23 @@ Protected host surfaces:
 - `tool_call` preflight ordering
 - `tool_result` correlation
 - parallel tool execution
+
+### `asc-settlement-and-thinking-contract`
+Anchors the Pi 0.80 host lifecycle used by `dispatch_subagent` and rewind finalization.
+
+Current command:
+
+```bash
+cd packages/pi-autonomous-session-control
+node --test --experimental-strip-types tests/rewind-runtime.test.mjs tests/subagent-transport-live.test.mjs tests/dispatch-subagent-lifecycle-control.test.mjs
+```
+
+Protected host surfaces:
+- authoritative `agent_settled` finality
+- legacy `agent_end.willRetry` compatibility
+- session idle/settlement timing
+- `max` thinking-level forwarding
+- rewind finalization after full settlement
 
 ### `autoresearch-runtime-packet-contract`
 Anchors the direct `pi-autoresearch` runtime packet/export surface: runtime receipts become status, closeout, candidate-result, and learning-export packets without crossing into orchestrator-owned reporting.
@@ -197,16 +219,16 @@ npm run compat:canary
 Run the upgrade profile explicitly:
 
 ```bash
-PI_HOST_COMPAT_HOST_VERSION=0.61.0 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/badlogic/pi-mono/compare/v0.60.0...v0.61.0' \
+PI_HOST_COMPAT_HOST_VERSION=0.80.6 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.76.0...v0.80.6' \
 node ./scripts/pi-host-compatibility-canary.mjs run --profile upgrade
 ```
 
 Preview the upgrade contract without executing commands:
 
 ```bash
-PI_HOST_COMPAT_HOST_VERSION=0.61.0 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/badlogic/pi-mono/compare/v0.60.0...v0.61.0' \
+PI_HOST_COMPAT_HOST_VERSION=0.80.6 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.76.0...v0.80.6' \
 node ./scripts/pi-host-compatibility-canary.mjs run --profile upgrade --dry-run
 ```
 
@@ -217,8 +239,8 @@ PI_HOST_COMPAT_CANARY=1 ./scripts/ci/full.sh
 # optional profile override
 PI_HOST_COMPAT_CANARY=1 \
 PI_HOST_COMPAT_PROFILE=upgrade \
-PI_HOST_COMPAT_HOST_VERSION=0.61.0 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/badlogic/pi-mono/compare/v0.60.0...v0.61.0' \
+PI_HOST_COMPAT_HOST_VERSION=0.80.6 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.76.0...v0.80.6' \
 ./scripts/ci/full.sh
 ```
 

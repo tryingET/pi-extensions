@@ -39,7 +39,7 @@ This package is background/library-first. It does not register a user-facing sla
 Current surfaces:
 
 1. an importable helper for callers that already have `ctx.sessionManager`
-2. a gated background `agent_end` handler for explicit review-lane capture
+2. a gated background `agent_settled` handler for explicit review-lane capture
 
 ## Programmatic helper
 
@@ -81,7 +81,7 @@ The helper does not include raw message content, prompts, provider request paylo
 
 ## Background review-lane capture
 
-The extension listens for `agent_end`, but it is inert unless both explicit environment markers are present:
+The extension listens for `agent_settled`, but it is inert unless both explicit environment markers are present:
 
 ```bash
 export PI_PROVENANCE_REVIEW_LANE_ID="review-lane-id"
@@ -112,7 +112,7 @@ review runner / orchestrator / ASC consumer
 -> keep historical lanes as not_surfaced unless exact JSONL entries are resolved
 ```
 
-Important host lifecycle detail: Pi emits extension `message_end` before the session manager appends the message entry to JSONL. If a caller needs exact `message_entry_id`, resolve it from `ctx.sessionManager.getEntries()` after persistence, for example at `agent_end` or by post-turn readback.
+Important host lifecycle detail: Pi emits extension `message_end` before the session manager appends the message entry to JSONL. If a caller needs exact `message_entry_id`, resolve it from `ctx.sessionManager.getEntries()` after persistence, for example at `agent_settled` or by post-turn readback.
 
 ## Runtime dependencies
 

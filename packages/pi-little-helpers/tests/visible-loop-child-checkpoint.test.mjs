@@ -113,7 +113,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     );
     assert.equal(visibleLoopLaunches.length, 1);
 
-    const agentEnd = events.get("agent_end")[0];
+    const agentEnd = events.get("agent_settled")[0];
     await agentEnd({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
     visibleLoopLaunches = execStub.calls.filter(
@@ -122,7 +122,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     assert.equal(
       visibleLoopLaunches.length,
       1,
-      "agent_end must not launch the next iteration before the completion tool runs",
+      "agent_settled must not launch the next iteration before the completion tool runs",
     );
 
     await commands

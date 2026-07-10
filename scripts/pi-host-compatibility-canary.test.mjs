@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -24,8 +26,8 @@ test("compatibility canary manifest validates", () => {
   const result = runJson(["validate"]);
   assert.equal(result.ok, true);
   assert.equal(result.defaultProfile, "current");
-  assert.equal(result.hostPackage, "@mariozechner/pi-coding-agent");
-  assert.ok(result.hostCompanionPackages.includes("@mariozechner/pi-ai"));
+  assert.equal(result.hostPackage, "@earendil-works/pi-coding-agent");
+  assert.ok(result.hostCompanionPackages.includes("@earendil-works/pi-ai"));
   assert.ok(result.scenarioCount >= 3);
   assert.ok(result.profiles.includes("upgrade"));
 });
@@ -33,10 +35,10 @@ test("compatibility canary manifest validates", () => {
 test("compatibility canary resolves the exact current host contract", () => {
   const result = runJson(["resolve-host", "--profile", "current"]);
   assert.equal(result.profile, "current");
-  assert.equal(result.host.packageName, "@mariozechner/pi-coding-agent");
-  assert.equal(result.host.version, "0.70.2");
-  assert.equal(result.host.reviewAnchor, "npm:@mariozechner/pi-coding-agent@0.70.2");
-  assert.ok(result.host.companionPackages.includes("@mariozechner/pi-tui"));
+  assert.equal(result.host.packageName, "@earendil-works/pi-coding-agent");
+  assert.equal(result.host.version, "0.80.6");
+  assert.equal(result.host.reviewAnchor, "npm:@earendil-works/pi-coding-agent@0.80.6");
+  assert.ok(result.host.companionPackages.includes("@earendil-works/pi-tui"));
 });
 
 test("compatibility canary list resolves upgrade scenarios against explicit host inputs", () => {
@@ -54,6 +56,7 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
     "https://example.test/pi-mono/compare/v0.60.0...v0.61.0",
   );
   assert.ok(result.scenarios.some((scenario) => scenario.id === "parallel-tool-event-correlation"));
+  assert.ok(result.scenarios.some((scenario) => scenario.id === "asc-settlement-and-thinking-contract"));
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
 });
 
@@ -116,6 +119,61 @@ test("compatibility canary list uses explicit leaf package roots from the manife
   );
 });
 
+test("compatibility canary scenario commands ignore ambient npm release-age cutoffs", () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "pi-host-compat-neutral-env-"));
+  const manifestPath = path.join(tempDir, "manifest.json");
+  const envAssertion = [
+    "if (process.env.npm_config_before || process.env.NPM_CONFIG_BEFORE) process.exit(2)",
+    "if (process.env.npm_config_min_release_age || process.env.NPM_CONFIG_MIN_RELEASE_AGE) process.exit(3)",
+  ].join("; ");
+  writeFileSync(
+    manifestPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      hostPackage: "@earendil-works/pi-coding-agent",
+      hostCompanionPackages: ["@earendil-works/pi-ai", "@earendil-works/pi-tui"],
+      trackedChangelog: "https://example.test/pi-changelog",
+      defaultProfile: "current",
+      profiles: {
+        current: {
+          description: "Test the neutral scenario environment.",
+          host: {
+            version: "0.80.6",
+            reviewAnchor: "npm:@earendil-works/pi-coding-agent@0.80.6",
+          },
+        },
+      },
+      scenarios: [
+        {
+          id: "neutral-npm-env",
+          title: "Neutral npm environment",
+          owner: "monorepo-root",
+          why: "Exact host canaries must not inherit local package-age cutoffs.",
+          profiles: ["current"],
+          packages: ["packages/pi-autonomous-session-control"],
+          upstreamSurfaces: ["npm configuration isolation"],
+          cwd: "packages/pi-autonomous-session-control",
+          command: [process.execPath, "-e", envAssertion],
+        },
+      ],
+    }),
+  );
+
+  try {
+    const result = runJson(
+      ["run", "--manifest", manifestPath, "--scenario", "neutral-npm-env"],
+      {
+        npm_config_before: "2026-07-03T00:00:00Z",
+        NPM_CONFIG_MIN_RELEASE_AGE: "999999",
+      },
+    );
+    assert.equal(result.summary.passed, 1);
+    assert.equal(result.summary.failed, 0);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("compatibility canary dry-run can target a single scenario with package-set host preparation details", () => {
   const result = runJson([
     "run",
@@ -127,7 +185,7 @@ test("compatibility canary dry-run can target a single scenario with package-set
   ]);
 
   assert.equal(result.profile, "current");
-  assert.equal(result.host.version, "0.70.2");
+  assert.equal(result.host.version, "0.80.6");
   assert.equal(result.summary.selected, 1);
   assert.equal(result.summary.failed, 0);
   assert.equal(result.results[0].id, "vault-live-trigger-contract");
@@ -145,9 +203,9 @@ test("compatibility canary dry-run can target a single scenario with package-set
       "install",
       "--no-save",
       "--package-lock=false",
-      "@mariozechner/pi-coding-agent@0.70.2",
-      "@mariozechner/pi-ai@0.70.2",
-      "@mariozechner/pi-tui@0.70.2",
+      "@earendil-works/pi-coding-agent@0.80.6",
+      "@earendil-works/pi-ai@0.80.6",
+      "@earendil-works/pi-tui@0.80.6",
     ]);
   }
   assert.ok(["dry-run", "ready"].includes(result.results[0].host.preparation.status));

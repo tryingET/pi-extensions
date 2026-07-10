@@ -192,11 +192,7 @@ export default function activityStripExtension(pi) {
     telemetry.onTurnEnd();
   });
 
-  // The package's pinned host types predate agent_settled, while the live host emits it.
-  const onRuntimeEvent = /** @type {(name: string, handler: () => Promise<void>) => void} */ (
-    pi.on.bind(pi)
-  );
-  onRuntimeEvent("agent_settled", async () => {
+  pi.on("agent_settled", async () => {
     telemetry.onAgentSettled();
   });
 

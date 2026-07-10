@@ -9,7 +9,7 @@ import {
   type Model,
   type SimpleStreamOptions,
   streamSimpleOpenAICompletions,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { Value } from "typebox/value";

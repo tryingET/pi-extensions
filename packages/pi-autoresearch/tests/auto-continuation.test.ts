@@ -207,7 +207,7 @@ test("auto-continuation helper blocks goal terminal states, operator pause, runt
   }
 });
 
-test("extension hook sends one follow-up user message after settled eligible agent_end", async () => {
+test("extension hook sends one follow-up user message after settled eligible agent_settled", async () => {
   const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-auto-extension-"));
   const previousEnabled = process.env.PI_AUTORESEARCH_AUTO_CONTINUE;
   const previousSettle = process.env.PI_AUTORESEARCH_AUTO_CONTINUE_SETTLE_MS;
@@ -247,7 +247,7 @@ test("extension hook sends one follow-up user message after settled eligible age
       },
     } as never);
 
-    handlers.get("agent_end")?.({}, { cwd });
+    handlers.get("agent_settled")?.({}, { cwd });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     assert.equal(sentUserMessages.length, 1);
@@ -261,7 +261,7 @@ test("extension hook sends one follow-up user message after settled eligible age
     assert.match(sentUserMessages[0]?.content, /peerMode: "off"/);
     assert.deepEqual(sentUserMessages[0]?.options, { deliverAs: "followUp" });
 
-    handlers.get("agent_end")?.({}, { cwd });
+    handlers.get("agent_settled")?.({}, { cwd });
     await new Promise((resolve) => setTimeout(resolve, 20));
     assert.equal(sentUserMessages.length, 1, "default max count allows only one send");
   } finally {
@@ -313,7 +313,7 @@ test("extension hook cancels pending auto-continuation on a new agent_start befo
       },
     } as never);
 
-    handlers.get("agent_end")?.({}, { cwd });
+    handlers.get("agent_settled")?.({}, { cwd });
     handlers.get("agent_start")?.({}, { cwd });
     await new Promise((resolve) => setTimeout(resolve, 80));
     assert.equal(sentUserMessages.length, 0);
@@ -397,7 +397,7 @@ test("actual loop with campaignGoalAutoContinue stays active and extension sends
       },
     } as never);
 
-    handlers.get("agent_end")?.({}, { cwd });
+    handlers.get("agent_settled")?.({}, { cwd });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     assert.equal(sentUserMessages.length, 1);
@@ -461,7 +461,7 @@ test("actual loop without campaignGoalAutoContinue stays paused and extension do
       },
     } as never);
 
-    handlers.get("agent_end")?.({}, { cwd });
+    handlers.get("agent_settled")?.({}, { cwd });
     await new Promise((resolve) => setTimeout(resolve, 20));
     assert.equal(sentUserMessages.length, 0);
   } finally {

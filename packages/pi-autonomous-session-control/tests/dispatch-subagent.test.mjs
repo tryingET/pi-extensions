@@ -19,7 +19,10 @@ test("dispatch_subagent keeps legacy profile/systemPrompt behavior when no promp
     );
 
     const def = harness.getCapturedDef();
-    assert.equal(def.systemPrompt, SUBAGENT_PROFILES.reviewer.systemPrompt);
+    assert.ok(def.systemPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
+    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
+    assert.match(def.systemPrompt, /"objective": "Review changes"/);
+    assert.doesNotMatch(def.systemPrompt, /"mutationPolicy"/);
 
     assert.equal(result.details.prompt_applied, false);
     assert.equal(result.details.prompt_name, undefined);
@@ -106,20 +109,26 @@ test("dispatch_subagent converts thrown spawner errors into structured tool erro
   });
 
   try {
-    const result = await harness.tool.execute(
-      "tc-8",
-      {
-        profile: "reviewer",
-        objective: "Review changes",
-      },
-      null,
-      null,
-      { cwd: process.cwd() },
-    );
+    const error = await harness.tool
+      .execute(
+        "tc-8",
+        {
+          profile: "reviewer",
+          objective: "Review changes",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw a tool error"),
+        (caught) => caught,
+      );
 
-    assert.equal(result.details.status, "error");
-    assert.equal(result.details.exitCode, 1);
-    assert.match(result.content[0].text, /spawn exploded/);
+    assert.equal(error.name, "DispatchSubagentToolError");
+    assert.equal(error.result.details.status, "error");
+    assert.equal(error.result.details.exitCode, 1);
+    assert.match(error.result.text, /spawn exploded/);
   } finally {
     await harness.cleanup();
   }

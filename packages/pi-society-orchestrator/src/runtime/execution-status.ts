@@ -20,9 +20,15 @@ export interface AssistantProtocolParseErrorState {
   errorMessage: string;
 }
 
+export interface AssistantProtocolIncompleteState {
+  kind: "assistant_protocol_incomplete";
+  errorMessage: string;
+}
+
 export type ProtocolExecutionState =
   | AssistantProtocolExecutionState
-  | AssistantProtocolParseErrorState;
+  | AssistantProtocolParseErrorState
+  | AssistantProtocolIncompleteState;
 
 export interface ExecutionState {
   transport: TransportExecutionState;
@@ -74,13 +80,19 @@ export function getExecutionState(result: ExecutionLike): ExecutionState {
 export function getExecutionStatus(result: ExecutionLike): ExecutionStatus {
   const state = getExecutionState(result);
 
-  if (state.transport.aborted) {
+  if (
+    state.transport.aborted ||
+    (state.protocol?.kind === "assistant_protocol" && state.protocol.stopReason === "aborted")
+  ) {
     return "aborted";
   }
   if (state.transport.timedOut) {
     return "timed_out";
   }
-  if (state.protocol?.kind === "assistant_protocol_parse_error") {
+  if (
+    state.protocol?.kind === "assistant_protocol_parse_error" ||
+    state.protocol?.kind === "assistant_protocol_incomplete"
+  ) {
     return "error";
   }
   if (state.protocol?.kind === "assistant_protocol") {
@@ -90,7 +102,9 @@ export function getExecutionStatus(result: ExecutionLike): ExecutionStatus {
       case "error":
         return "error";
       case "stop":
-        return state.transport.exitCode === 0 ? "done" : "error";
+        // ASC owns semantic execution truth: a final assistant stop is successful even when
+        // transport teardown later exits non-zero. Keep transport drift as diagnostics only.
+        return "done";
       case "length":
         return "error";
       case "toolUse":

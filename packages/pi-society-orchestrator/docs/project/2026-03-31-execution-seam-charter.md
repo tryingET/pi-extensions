@@ -35,8 +35,9 @@ The seam should stay limited to the smallest headless runtime contract that a no
 
 - `createAscExecutionRuntime(...)`
 - request/result/runtime types needed to call it truthfully
-- optional `AbortSignal` propagation
-- execution truth in `result.details` needed for orchestration decisions
+- optional `AbortSignal` propagation and exact ASC-owned `runtime.cancel(...)`
+- stable dispatch/per-attempt identity, owner-checked resume, bounded startup/execution timeouts, and progress/result truth in `result.details` needed for orchestration decisions
+- advisory typed delegation fields; workflow composition, enforcement, and evidence projection remain orchestrator/owner-surface concerns
 
 ## Explicit non-goals
 
@@ -71,7 +72,8 @@ Any future seam change should preserve these rules:
 3. **No UI creep into the headless contract**
    - tool registration and dashboard composition stay ASC-owned extension-layer concerns
 4. **Transport-safety invariants stay contract-level**
-   - abort propagation, bounded output/event buffering, lifecycle uniqueness, and hard I/O failure surfacing must stay covered
+   - abort propagation, identity-verified cancellation, bounded startup/execution timeouts, authoritative agent settlement with a final terminal assistant outcome, bounded output/event buffering, lifecycle uniqueness, and hard I/O failure surfacing must stay covered
+   - ASC owns dispatch/attempt IDs, resume, cancellation, capacity, progress, and session artifacts; orchestrator may compose these facts but must not become a second executor
 5. **Verification layers must stay explicit**
    - ASC package-local contract tests prove seam semantics and transport-safety invariants
    - orchestrator package-local consumer tests prove the narrow adapter still preserves that truth in repo-local source

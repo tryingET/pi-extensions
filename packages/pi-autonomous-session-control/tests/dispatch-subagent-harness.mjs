@@ -9,6 +9,22 @@ import {
 
 export { SUBAGENT_PROFILES };
 
+export async function executeToolExpectFailure(tool, ...args) {
+  try {
+    await tool.execute(...args);
+  } catch (error) {
+    if (error?.result) {
+      return {
+        content: [{ type: "text", text: error.result.text }],
+        details: error.result.details,
+        error,
+      };
+    }
+    throw error;
+  }
+  throw new Error("Expected dispatch_subagent to throw a tool error");
+}
+
 export async function setup(spawnerOverride, modelProvider = () => "test/model") {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-dispatch-test-"));
   const state = createSubagentState(sessionsDir);

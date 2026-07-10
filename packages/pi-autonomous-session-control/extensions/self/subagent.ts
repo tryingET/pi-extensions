@@ -1,4 +1,6 @@
 /** Subagent dispatcher for the `dispatch_subagent` tool. */
+
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { shapeToolResult } from "./edge-contract-kernel.ts";
@@ -6,6 +8,7 @@ import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import {
   type AscExecutionRuntime,
   createAscExecutionRuntime,
+  type DispatchSubagentExecutionResult,
   type DispatchSubagentProfile,
   type DispatchSubagentRequest,
   type SubagentModelContext,
@@ -47,6 +50,21 @@ export type {
   SubagentState,
 };
 
+export class DispatchSubagentToolError extends Error {
+  readonly result: DispatchSubagentExecutionResult;
+
+  constructor(result: DispatchSubagentExecutionResult) {
+    const failureKind = result.details.failureKind ?? result.details.reason ?? "unknown_failure";
+    const dispatchId = result.details.dispatchId ? ` dispatchId=${result.details.dispatchId}` : "";
+    const inspect = result.details.sessionName
+      ? ` Inspect with /subagent-inspect ${result.details.sessionName}.`
+      : "";
+    super(`dispatch_subagent failed (${failureKind})${dispatchId}: ${result.text}${inspect}`);
+    this.name = "DispatchSubagentToolError";
+    this.result = result;
+  }
+}
+
 type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
   parameters?: unknown;
   promptSnippet?: string;
@@ -69,10 +87,10 @@ Profiles:
 Use for:
 - Parallel exploration of different approaches
 - Self-review of your own work
-- Background research while you continue
+- Focused research before continuing parent work
 - Testing hypotheses before committing
 
-Subagents maintain session state - you can dispatch follow-up tasks to continue work.
+Dispatch is foreground/blocking. Use an explicit resumeDispatchId to continue a completed owned child session; repeated names alone create new collision-safe sessions.
 
 Prompt envelope (optional):
 - prompt_name / prompt_content / prompt_tags / prompt_source
@@ -98,15 +116,8 @@ Child skill profile bootstrap (optional):
       "Pick the narrowest profile and objective that will produce a useful intermediate result you can inspect before proceeding.",
     ],
     parameters: Type.Object({
-      profile: Type.Union(
-        [
-          Type.Literal("explorer"),
-          Type.Literal("reviewer"),
-          Type.Literal("tester"),
-          Type.Literal("researcher"),
-          Type.Literal("minimal"),
-          Type.Literal("custom"),
-        ],
+      profile: StringEnum(
+        ["explorer", "reviewer", "tester", "researcher", "minimal", "custom"] as const,
         { description: "Predefined profile or 'custom'" },
       ),
       objective: Type.String({ description: "Clear objective for the subagent" }),
@@ -117,10 +128,59 @@ Child skill profile bootstrap (optional):
         Type.String({ description: "Custom system prompt (for custom profile)" }),
       ),
       name: Type.Optional(
-        Type.String({ description: "Session name for resumption (default: profile name)" }),
+        Type.String({ description: "Human-readable session name (default: profile name)" }),
+      ),
+      resumeDispatchId: Type.Optional(
+        Type.String({
+          description:
+            "Exact completed ASC dispatch id to resume. Reuses its owned child session after repo/session validation.",
+        }),
+      ),
+      thinking: Type.Optional(
+        StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
+          description: "Child thinking level. Defaults by profile.",
+        }),
+      ),
+      startupTimeout: Type.Optional(
+        Type.Number({ description: "Bootstrap timeout in seconds (default: 30, maximum: 300)" }),
       ),
       timeout: Type.Optional(
-        Type.Number({ description: "Timeout in seconds (default: 300, 0 = no timeout)" }),
+        Type.Number({
+          description:
+            "Execution timeout after child bootstrap in seconds (default: 300). timeout=0 also requires allowUnlimited=true and host policy opt-in.",
+        }),
+      ),
+      allowUnlimited: Type.Optional(
+        Type.Boolean({
+          description: "Explicit request for timeout=0; host policy must also allow it.",
+        }),
+      ),
+      deliverable: Type.Optional(
+        Type.String({ description: "Expected result shape or artifact." }),
+      ),
+      acceptanceCriteria: Type.Optional(
+        Type.Array(Type.String(), { description: "Observable completion criteria." }),
+      ),
+      constraints: Type.Optional(
+        Type.Array(Type.String(), { description: "Task-specific constraints." }),
+      ),
+      evidenceRequired: Type.Optional(
+        Type.Array(Type.String(), { description: "Evidence the child should cite." }),
+      ),
+      mutationPolicy: Type.Optional(
+        StringEnum(["read_only", "bounded_mutation"] as const, {
+          description:
+            "Declared mutation posture. This guides the child but does not replace tool or sandbox policy.",
+        }),
+      ),
+      stopConditions: Type.Optional(
+        Type.Array(Type.String(), { description: "Conditions that require the child to stop." }),
+      ),
+      allowedPaths: Type.Optional(
+        Type.Array(Type.String(), { description: "Advisory allowed path scope." }),
+      ),
+      forbiddenPaths: Type.Optional(
+        Type.Array(Type.String(), { description: "Advisory forbidden path scope." }),
       ),
       extensions: Type.Optional(
         Type.Array(Type.String(), {
@@ -185,8 +245,12 @@ Child skill profile bootstrap (optional):
         _signal ?? undefined,
       );
 
+      if (!result.ok) {
+        throw new DispatchSubagentToolError(result);
+      }
+
       return shapeToolResult({
-        status: result.details.status ?? (result.ok ? "done" : "error"),
+        status: result.details.status ?? "done",
         text: result.text,
         details: result.details as Record<string, unknown>,
       });

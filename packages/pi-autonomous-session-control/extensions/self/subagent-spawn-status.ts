@@ -1,6 +1,11 @@
 import { join } from "node:path";
 import {
+  getMatchingSubagentCancelRequest,
+  removeMatchingSubagentCancelRequest,
+} from "./subagent-control.ts";
+import {
   getProcessStartTicks,
+  listSubagentSessionStatuses,
   type SubagentState,
   writeSessionStatus,
 } from "./subagent-session.ts";
@@ -17,6 +22,7 @@ export function writeRunningSubagentStatus(params: {
   createdAt: string;
   childPid: number;
   model: string;
+  cancelSupported?: boolean;
 }): void {
   const pidStartedAt = getProcessStartTicks(params.childPid);
   writeSessionStatus(params.state.sessionsDir, params.def.name, {
@@ -27,6 +33,13 @@ export function writeRunningSubagentStatus(params: {
     pidStartedAt: pidStartedAt ?? undefined,
     pidIdentity: pidStartedAt === null ? "unsupported" : "proc-start-ticks",
     objective: params.def.objective,
+    dispatchId: params.def.dispatchId,
+    attemptId: params.def.attemptId,
+    resumed: params.def.resumed,
+    configuredThinking: params.def.thinking,
+    startupTimeoutMs: params.def.startupTimeout,
+    executionTimeoutMs: params.def.timeout,
+    cancelSupported: params.cancelSupported ?? true,
     parentSessionKey: params.def.parentSessionKey,
     parentRepoRoot: params.def.parentRepoRoot,
     sessionKind: "subagent",
@@ -45,6 +58,15 @@ export function writeCompletedSubagentStatus(params: {
   pid: number;
   model: string;
 }): void {
+  const prior = listSubagentSessionStatuses(params.state.sessionsDir).find(
+    (status) => status.sessionName === params.def.name,
+  );
+  const cancelRequest = getMatchingSubagentCancelRequest({
+    sessionsDir: params.state.sessionsDir,
+    sessionName: params.def.name,
+    dispatchId: params.def.dispatchId,
+    attemptId: params.def.attemptId,
+  });
   writeSessionStatus(params.state.sessionsDir, params.def.name, {
     status: params.result.status,
     pid: params.pid,
@@ -52,6 +74,17 @@ export function writeCompletedSubagentStatus(params: {
     createdAt: params.createdAt,
     pidStartedAt: getProcessStartTicks(params.pid) ?? undefined,
     objective: params.def.objective,
+    dispatchId: params.def.dispatchId,
+    attemptId: params.def.attemptId,
+    resumed: params.def.resumed,
+    configuredThinking: params.def.thinking,
+    startupTimeoutMs: params.def.startupTimeout,
+    executionTimeoutMs: params.def.timeout,
+    timeoutPhase: params.result.timeoutPhase,
+    cancelRequestedAt: cancelRequest?.requestedAt ?? prior?.cancelRequestedAt,
+    cancelRequestedBy: cancelRequest?.requestedBy ?? prior?.cancelRequestedBy,
+    cancelReason: cancelRequest?.reason ?? prior?.cancelReason,
+    cancelSupported: prior?.cancelSupported,
     exitCode: params.result.exitCode,
     elapsed: params.result.elapsed,
     parentSessionKey: params.def.parentSessionKey,
@@ -62,5 +95,11 @@ export function writeCompletedSubagentStatus(params: {
     profile: params.def.profile,
     model: params.model,
     tools: params.def.tools,
+  });
+  removeMatchingSubagentCancelRequest({
+    sessionsDir: params.state.sessionsDir,
+    sessionName: params.def.name,
+    attemptId: params.def.attemptId,
+    token: cancelRequest?.token,
   });
 }

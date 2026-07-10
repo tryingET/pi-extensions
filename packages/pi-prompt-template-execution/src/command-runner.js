@@ -84,7 +84,7 @@ export async function executePromptTemplateCommand(prompt, args, ctx, host = {},
   const switchedModel = plan.actions.switchModel;
   const changedThinking = Boolean(plan.actions.setThinking && setThinking);
   const deferRestore =
-    options.restoreTiming === "agent_end" || options.restoreTiming === "deferred";
+    options.restoreTiming === "agent_settled" || options.restoreTiming === "deferred";
   let sent = false;
   const deferredRestore = {
     ...(plan.actions.restoreModel ? { model: plan.actions.restoreModel } : {}),

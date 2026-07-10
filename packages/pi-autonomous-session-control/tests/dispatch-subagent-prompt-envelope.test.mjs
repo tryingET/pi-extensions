@@ -22,20 +22,19 @@ test("dispatch_subagent applies prompt envelope deterministically and returns pr
     );
 
     const def = harness.getCapturedDef();
-    assert.equal(
-      def.systemPrompt,
-      [
-        "[Prompt Envelope]",
-        "name: nexus",
-        "source: vault-client",
-        "tags: phase:hypothesis, scope:system",
-        "Use the single highest leverage intervention.",
-        "",
-        "---",
-        "",
-        "Base prompt",
-      ].join("\n"),
-    );
+    const expectedEnvelope = [
+      "[Prompt Envelope]",
+      "name: nexus",
+      "source: vault-client",
+      "tags: phase:hypothesis, scope:system",
+      "Use the single highest leverage intervention.",
+      "",
+      "---",
+      "",
+      "Base prompt",
+    ].join("\n");
+    assert.ok(def.systemPrompt.startsWith(`${expectedEnvelope}\n\n`));
+    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
 
     assert.equal(result.details.prompt_applied, true);
     assert.equal(result.details.prompt_name, "nexus");
@@ -64,7 +63,8 @@ test("dispatch_subagent fails soft with guidance when envelope metadata is provi
     );
 
     const def = harness.getCapturedDef();
-    assert.equal(def.systemPrompt, SUBAGENT_PROFILES.reviewer.systemPrompt);
+    assert.ok(def.systemPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
+    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
     assert.equal(result.details.prompt_applied, false);
     assert.equal(result.details.prompt_name, "meta-orchestration");
     assert.equal(result.details.prompt_source, "vault-client");
@@ -94,7 +94,8 @@ test("dispatch_subagent fails soft with guidance when prompt_content is blank", 
     );
 
     const def = harness.getCapturedDef();
-    assert.equal(def.systemPrompt, SUBAGENT_PROFILES.reviewer.systemPrompt);
+    assert.ok(def.systemPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
+    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
     assert.equal(result.details.prompt_applied, false);
     assert.equal(result.details.prompt_source, "vault-client");
     assert.equal(

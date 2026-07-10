@@ -17,6 +17,7 @@ export function getDispatchSubagentStatusLabel(status: DispatchSubagentStatus): 
 export function getDispatchSubagentFailureKind(params: {
   status: DispatchSubagentStatus;
   reason?: string;
+  timeoutPhase?: "startup" | "execution";
   executionState?: ExecutionState;
 }): DispatchSubagentFailureKind | undefined {
   switch (params.reason) {
@@ -29,14 +30,18 @@ export function getDispatchSubagentFailureKind(params: {
   switch (params.status) {
     case "done":
     case "spawning":
+    case "running":
       return undefined;
     case "aborted":
       return "aborted";
     case "timed_out":
-      return "timed_out";
+      return params.timeoutPhase === "startup" ? "startup_timed_out" : "timed_out";
     case "error":
       if (params.executionState?.protocol?.kind === "assistant_protocol_parse_error") {
         return "assistant_protocol_parse_error";
+      }
+      if (params.executionState?.protocol?.kind === "assistant_protocol_incomplete") {
+        return "assistant_protocol_incomplete";
       }
       if (params.executionState?.protocol?.kind === "assistant_protocol") {
         return "assistant_protocol_error";

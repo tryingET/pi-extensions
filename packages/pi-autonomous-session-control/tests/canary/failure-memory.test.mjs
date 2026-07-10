@@ -138,14 +138,22 @@ async function runDispatchCard(card) {
     const results = [];
 
     for (const call of card.calls ?? []) {
-      const result = await tool.execute(
-        `failure-memory-${card.id}-${results.length}`,
-        call,
-        null,
-        null,
-        { cwd: process.cwd() },
-      );
-      results.push(result);
+      try {
+        const result = await tool.execute(
+          `failure-memory-${card.id}-${results.length}`,
+          call,
+          null,
+          null,
+          { cwd: process.cwd() },
+        );
+        results.push(result);
+      } catch (error) {
+        if (!error?.result) throw error;
+        results.push({
+          content: [{ type: "text", text: error.result.text }],
+          details: error.result.details,
+        });
+      }
     }
 
     return { results, state };

@@ -12,7 +12,7 @@ system4d:
 
 # Campaign-goal auto-continuation contract
 
-`pi-autoresearch` may send a visible `pi.sendUserMessage(..., { deliverAs: "followUp" })` follow-up after `agent_end`, but only as a session-local opt-in convenience. The follow-up asks Pi to run the exact foreground continuation call; it does not install a daemon, spawn peers, or mutate external authority.
+`pi-autoresearch` may send a visible `pi.sendUserMessage(..., { deliverAs: "followUp" })` follow-up after `agent_settled`, but only as a session-local opt-in convenience. The follow-up asks Pi to run the exact foreground continuation call; it does not install a daemon, spawn peers, or mutate external authority.
 
 ## Contrib comparison
 

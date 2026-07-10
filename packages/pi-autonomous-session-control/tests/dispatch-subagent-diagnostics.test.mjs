@@ -11,6 +11,12 @@ import {
 } from "../extensions/self/subagent.ts";
 import { getSessionStatusPath } from "../extensions/self/subagent-session.ts";
 
+const MODERN_HANDSHAKE = `${JSON.stringify({
+  type: "transport_ready",
+  settlementMode: "agent_settled",
+  piVersion: "0.80.6",
+})}\n`;
+
 async function setup(spawnerOverride, stateOptions) {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-diagnostics-test-"));
   const state = createSubagentState(sessionsDir, stateOptions);
@@ -42,20 +48,25 @@ test("dispatch_subagent surfaces diagnostics when spawner errors with empty outp
   }));
 
   try {
-    const result = await harness.tool.execute(
-      "tc-d1",
-      {
-        profile: "reviewer",
-        objective: "Review changes",
-      },
-      null,
-      null,
-      { cwd: process.cwd() },
-    );
+    const error = await harness.tool
+      .execute(
+        "tc-d1",
+        {
+          profile: "reviewer",
+          objective: "Review changes",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw a tool error"),
+        (caught) => caught,
+      );
 
-    assert.equal(result.details.status, "error");
-    assert.equal(result.details.failureKind, "transport_error");
-    assert.match(result.content[0].text, /exited with code 17 without output/i);
+    assert.equal(error.result.details.status, "error");
+    assert.equal(error.result.details.failureKind, "transport_error");
+    assert.match(error.result.text, /exited with code 17 without output/i);
   } finally {
     await harness.cleanup();
   }
@@ -65,31 +76,41 @@ test("dispatch_subagent does not leak activeCount when spawn arguments throw syn
   const harness = await setup(undefined, { maxConcurrent: 1 });
 
   try {
-    const first = await harness.tool.execute(
-      "tc-d2",
-      {
-        profile: "reviewer",
-        objective: "bad\u0000objective",
-      },
-      null,
-      null,
-      { cwd: process.cwd() },
-    );
+    const first = await harness.tool
+      .execute(
+        "tc-d2",
+        {
+          profile: "reviewer",
+          objective: "bad\u0000objective",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw a tool error"),
+        (caught) => caught.result,
+      );
 
     assert.equal(first.details.status, "error");
     assert.equal(first.details.failureKind, "transport_error");
     assert.equal(harness.state.activeCount, 0);
 
-    const second = await harness.tool.execute(
-      "tc-d3",
-      {
-        profile: "reviewer",
-        objective: "bad\u0000objective-again",
-      },
-      null,
-      null,
-      { cwd: process.cwd() },
-    );
+    const second = await harness.tool
+      .execute(
+        "tc-d3",
+        {
+          profile: "reviewer",
+          objective: "bad\u0000objective-again",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw a tool error"),
+        (caught) => caught.result,
+      );
 
     assert.equal(second.details.status, "error");
     assert.equal(second.details.failureKind, "transport_error");
@@ -100,7 +121,7 @@ test("dispatch_subagent does not leak activeCount when spawn arguments throw syn
   }
 });
 
-test("spawnSubagentWithSpawn finalizes on exit even when close never arrives", async () => {
+test("spawnSubagentWithSpawn fails closed on exit without a terminal assistant event", async () => {
   const state = createSubagentState(join(tmpdir(), `subagent-exit-only-${Date.now()}`));
   const stdout = new EventEmitter();
   const stderr = new EventEmitter();
@@ -137,28 +158,31 @@ test("spawnSubagentWithSpawn finalizes on exit even when close never arrives", a
   assert.equal(runningStatus.parentSessionKey, "live-session-42");
   assert.equal(runningStatus.parentRepoRoot, process.cwd());
 
-  stdout.emit("data", '{"type":"assistant_text_delta","delta":"hello"}\n');
+  stdout.emit("data", `${MODERN_HANDSHAKE}{"type":"assistant_text_delta","delta":"hello"}\n`);
   child.emit("exit", 0);
 
   const result = await resultPromise;
-  assert.equal(result.status, "done");
-  assert.equal(result.output, "hello");
+  assert.equal(result.status, "error");
+  assert.match(result.output, /hello/);
+  assert.match(result.output, /Expected finality for settlementMode=agent_settled/);
+  assert.match(result.output, /outcomes=0/);
   assert.equal(state.activeCount, 0);
   assert.equal(state.completedCount, 1);
 
   const finalStatus = JSON.parse(
     await readFile(getSessionStatusPath(state.sessionsDir, "exit-only"), "utf-8"),
   );
-  assert.equal(finalStatus.status, "done");
-  assert.equal(finalStatus.exitCode, 0);
+  assert.equal(finalStatus.status, "error");
+  assert.equal(finalStatus.exitCode, 1);
   assert.equal(finalStatus.parentSessionKey, "live-session-42");
   assert.equal(finalStatus.parentRepoRoot, process.cwd());
-  assert.equal(finalStatus.resultPreview, "hello");
+  assert.match(finalStatus.resultPreview, /hello/);
+  assert.match(finalStatus.resultPreview, /Expected finality for settlementMode=agent_settled/);
 
   await rm(state.sessionsDir, { recursive: true, force: true });
 });
 
-test("spawnSubagentWithSpawn flushes a final unterminated assistant_message_end event", async () => {
+test("spawnSubagentWithSpawn flushes a final unterminated settlement event", async () => {
   const state = createSubagentState(join(tmpdir(), `subagent-final-message-${Date.now()}`));
   const stdout = new EventEmitter();
   const stderr = new EventEmitter();
@@ -186,7 +210,7 @@ test("spawnSubagentWithSpawn flushes a final unterminated assistant_message_end 
 
   stdout.emit(
     "data",
-    '{"type":"assistant_message_end","text":"final output without newline","stopReason":"stop"}',
+    `${MODERN_HANDSHAKE}{"type":"assistant_message_end","text":"final output without newline","stopReason":"stop"}\n{"type":"agent_settled"}`,
   );
   child.emit("close", 0);
 
@@ -231,7 +255,7 @@ test("spawnSubagentWithSpawn treats a final assistant stop as semantic success e
 
   stdout.emit(
     "data",
-    '{"type":"assistant_message_end","text":"review complete","stopReason":"stop"}\n',
+    `${MODERN_HANDSHAKE}{"type":"assistant_message_end","text":"review complete","stopReason":"stop"}\n{"type":"agent_settled"}\n`,
   );
   child.emit("close", 1);
 
@@ -283,10 +307,10 @@ test("spawnSubagentWithSpawn preserves assistant protocol failures", async () =>
     () => child,
   );
 
-  stdout.emit("data", '{"type":"assistant_text_delta","delta":"partial"}\n');
+  stdout.emit("data", `${MODERN_HANDSHAKE}{"type":"assistant_text_delta","delta":"partial"}\n`);
   stdout.emit(
     "data",
-    '{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n',
+    '{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n{"type":"agent_settled"}\n',
   );
   child.emit("close", 0);
 
@@ -332,7 +356,7 @@ test("spawnSubagentWithSpawn honors final-only semantic assistant failures", asy
 
   stdout.emit(
     "data",
-    '{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n',
+    `${MODERN_HANDSHAKE}{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n{"type":"agent_settled"}\n`,
   );
   child.emit("close", 0);
 
@@ -421,7 +445,7 @@ test("spawnSubagentWithSpawn rejects raw pi JSON events once the helper protocol
 
   stdout.emit(
     "data",
-    '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"stop"}}\n',
+    `${MODERN_HANDSHAKE}{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"stop"}}\n`,
   );
   child.emit("close", 0);
 
@@ -470,11 +494,11 @@ test("spawnSubagentWithSpawn bounds assistant output and marks truncation", asyn
 
     stdout.emit(
       "data",
-      JSON.stringify({
+      `${MODERN_HANDSHAKE}${JSON.stringify({
         type: "assistant_message_end",
         text: "x".repeat(64),
         stopReason: "stop",
-      }),
+      })}\n${JSON.stringify({ type: "agent_settled" })}\n`,
     );
     child.emit("close", 0);
 

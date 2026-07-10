@@ -1,3 +1,4 @@
+import { classifyPiSettlementMode, type SubagentSettlementMode } from "./subagent-protocol.ts";
 import {
   ASSISTANT_STOP_REASONS,
   type AssistantStopReason,
@@ -55,7 +56,23 @@ export function consumeSubagentEventLine(params: {
     stopReason?: AssistantStopReason;
     errorMessage?: string;
   }) => void;
-  markTransportReady: (rawChildPid?: number) => void;
+  addUsage: (usage: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    cost: number;
+    contextTokens: number;
+  }) => void;
+  setLatestTool: (toolName: string) => void;
+  markAgentRunEnd: (willRetry: boolean | undefined) => void;
+  markAgentSettled: () => void;
+  isTransportReady: () => boolean;
+  markTransportReady: (
+    rawChildPid: number | undefined,
+    settlementMode: SubagentSettlementMode,
+    piVersion: string,
+  ) => void;
 }): { parseError?: string; protocolError?: string; stdoutNoiseLine?: string } {
   const trimmed = params.line.trim();
   if (!trimmed) {
@@ -72,22 +89,56 @@ export function consumeSubagentEventLine(params: {
     const event = JSON.parse(trimmed);
 
     if (event.type === "transport_ready") {
+      if (params.isTransportReady()) {
+        return { parseError: "Duplicate transport_ready handshake from subagent protocol." };
+      }
+      const settlementMode =
+        event.settlementMode === "agent_settled" || event.settlementMode === "legacy_agent_end_exit"
+          ? event.settlementMode
+          : undefined;
+      if (!settlementMode) {
+        return {
+          parseError: `Missing or unknown Pi settlement mode from subagent protocol: ${String(event.settlementMode)}`,
+        };
+      }
+      const piVersion = typeof event.piVersion === "string" ? event.piVersion.trim() : "";
+      const classifiedMode = classifyPiSettlementMode(piVersion);
+      if (!piVersion || !classifiedMode) {
+        return {
+          parseError: `Missing or unsupported Pi version from subagent protocol: ${piVersion || "undefined"}`,
+        };
+      }
+      if (classifiedMode !== settlementMode) {
+        return {
+          parseError: `Pi settlement handshake mismatch: piVersion=${piVersion} requires ${classifiedMode}, received ${settlementMode}.`,
+        };
+      }
       params.markTransportReady(
         typeof event.rawChildPid === "number" && event.rawChildPid > 0
           ? event.rawChildPid
           : undefined,
+        settlementMode,
+        piVersion,
       );
       return {};
     }
 
+    if (
+      !params.isTransportReady() &&
+      event.type !== "stdout_noise" &&
+      event.type !== "protocol_error"
+    ) {
+      return {
+        parseError: `Subagent protocol event ${String(event.type)} arrived before a complete transport_ready settlement handshake.`,
+      };
+    }
+
     if (event.type === "assistant_text_delta") {
-      params.markTransportReady();
       params.appendTextDelta(typeof event.delta === "string" ? event.delta : "");
       return {};
     }
 
     if (event.type === "assistant_message_end") {
-      params.markTransportReady();
       const rawStopReason = event.stopReason;
       const stopReason =
         rawStopReason === undefined
@@ -113,16 +164,34 @@ export function consumeSubagentEventLine(params: {
         stopReason,
         errorMessage: typeof event.errorMessage === "string" ? event.errorMessage : undefined,
       });
+      if (event.usage && typeof event.usage === "object") {
+        params.addUsage(event.usage);
+      }
+      return {};
+    }
+
+    if (event.type === "agent_run_end") {
+      params.markAgentRunEnd(typeof event.willRetry === "boolean" ? event.willRetry : undefined);
+      return {};
+    }
+
+    if (event.type === "agent_settled") {
+      params.markAgentSettled();
+      return {};
+    }
+
+    if (event.type === "tool_activity") {
+      if (typeof event.toolName === "string" && event.toolName.length > 0) {
+        params.setLatestTool(event.toolName.slice(0, 80));
+      }
       return {};
     }
 
     if (event.type === "stdout_noise") {
-      params.markTransportReady();
       return { stdoutNoiseLine: typeof event.line === "string" ? event.line : "" };
     }
 
     if (event.type === "protocol_error") {
-      params.markTransportReady();
       return {
         protocolError:
           typeof event.errorMessage === "string"
@@ -180,6 +249,7 @@ export function getSemanticStatus(params: {
   aborted: boolean;
   timedOut: boolean;
   protocolFailed: boolean;
+  protocolIncomplete: boolean;
   assistantStopReason?: AssistantStopReason;
 }): SubagentStatus {
   if (params.aborted || params.assistantStopReason === "aborted") {
@@ -188,7 +258,7 @@ export function getSemanticStatus(params: {
   if (params.timedOut) {
     return "timeout";
   }
-  if (params.protocolFailed) {
+  if (params.protocolFailed || params.protocolIncomplete) {
     return "error";
   }
   switch (params.assistantStopReason) {
@@ -202,7 +272,7 @@ export function getSemanticStatus(params: {
       // in executionState so diagnostics can still explain the drift.
       return "done";
     case undefined:
-      return params.transportExitCode === 0 ? "done" : "error";
+      return "error";
     default: {
       const exhaustive: never = params.assistantStopReason;
       return exhaustive;
@@ -216,6 +286,7 @@ export function createExecutionState(params: {
   timedOut: boolean;
   rawChildPid?: number;
   protocolFailed: boolean;
+  protocolIncomplete: boolean;
   protocolFailureOutput: string;
   finalAssistantStopReason?: AssistantStopReason;
   finalAssistantErrorMessage?: string;
@@ -234,13 +305,20 @@ export function createExecutionState(params: {
           errorMessage:
             params.protocolFailureOutput || "Failed to parse the subagent protocol event stream.",
         }
-      : params.finalAssistantStopReason
+      : params.protocolIncomplete
         ? {
-            kind: "assistant_protocol",
-            stopReason: params.finalAssistantStopReason,
-            errorMessage: params.finalAssistantErrorMessage,
+            kind: "assistant_protocol_incomplete",
+            errorMessage:
+              params.protocolFailureOutput ||
+              "Subagent transport ended without exactly one terminal assistant event.",
           }
-        : undefined,
+        : params.finalAssistantStopReason
+          ? {
+              kind: "assistant_protocol",
+              stopReason: params.finalAssistantStopReason,
+              errorMessage: params.finalAssistantErrorMessage,
+            }
+          : undefined,
   };
 }
 
@@ -249,6 +327,7 @@ export function getSemanticExitCode(params: {
   aborted: boolean;
   timedOut: boolean;
   protocolFailed: boolean;
+  protocolIncomplete: boolean;
   assistantStopReason?: AssistantStopReason;
 }): number {
   if (params.aborted || params.assistantStopReason === "aborted") {
@@ -257,7 +336,7 @@ export function getSemanticExitCode(params: {
   if (params.timedOut) {
     return 124;
   }
-  if (params.protocolFailed) {
+  if (params.protocolFailed || params.protocolIncomplete) {
     return ASSISTANT_ERROR_EXIT_CODE;
   }
   switch (params.assistantStopReason) {

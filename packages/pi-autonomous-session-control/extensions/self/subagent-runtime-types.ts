@@ -9,13 +9,46 @@ import type { SubagentState } from "./subagent-session.ts";
 import type { AssistantStopReason, ExecutionState, SubagentSpawner } from "./subagent-spawn.ts";
 
 export type DispatchSubagentProfile = keyof typeof SUBAGENT_PROFILES | "custom";
-export type DispatchSubagentStatus = "done" | "error" | "timed_out" | "aborted" | "spawning";
+export type DispatchThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type DispatchMutationPolicy = "read_only" | "bounded_mutation";
+export type DispatchSubagentStatus =
+  | "done"
+  | "error"
+  | "timed_out"
+  | "aborted"
+  | "spawning"
+  | "running";
+
+export interface DispatchTaskContract {
+  objective: string;
+  deliverable: string;
+  acceptanceCriteria: string[];
+  constraints: string[];
+  evidenceRequired: string[];
+  mutationPolicy?: DispatchMutationPolicy;
+  stopConditions: string[];
+  allowedPaths: string[];
+  forbiddenPaths: string[];
+  boundary: string;
+}
+
+export interface DispatchUsage {
+  turns: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+  contextTokens: number;
+}
 export type DispatchSubagentFailureKind =
   | "aborted"
   | "timed_out"
   | "assistant_protocol_error"
   | "assistant_protocol_parse_error"
+  | "assistant_protocol_incomplete"
   | "transport_error"
+  | "startup_timed_out"
   | "extension_bootstrap_missing"
   | "env_policy_failed"
   | "skill_profile_failed"
@@ -28,6 +61,18 @@ export interface DispatchSubagentRequest {
   profile: DispatchSubagentProfile;
   objective: string;
   tools?: string;
+  resumeDispatchId?: string;
+  thinking?: DispatchThinkingLevel;
+  startupTimeout?: number;
+  allowUnlimited?: boolean;
+  deliverable?: string;
+  acceptanceCriteria?: string[];
+  constraints?: string[];
+  evidenceRequired?: string[];
+  mutationPolicy?: DispatchMutationPolicy;
+  stopConditions?: string[];
+  allowedPaths?: string[];
+  forbiddenPaths?: string[];
   systemPrompt?: string;
   name?: string;
   timeout?: number;
@@ -45,6 +90,22 @@ export interface DispatchSubagentRequest {
 export interface DispatchSubagentDetails {
   profile?: DispatchSubagentProfile;
   objective?: string;
+  dispatchId?: string;
+  attemptId?: string;
+  sessionName?: string;
+  sessionFile?: string;
+  resumed?: boolean;
+  resumeDispatchId?: string;
+  configuredThinking?: DispatchThinkingLevel;
+  startupTimeoutSeconds?: number;
+  executionTimeoutSeconds?: number;
+  timeoutPhase?: "startup" | "execution";
+  taskContract?: DispatchTaskContract;
+  usage?: DispatchUsage;
+  progressSequence?: number;
+  progressPhase?: "preparing" | "spawning" | "running" | "finalizing" | "completed";
+  lastActivityAt?: number;
+  latestTool?: string;
   status?: DispatchSubagentStatus;
   elapsed?: number;
   exitCode?: number;
@@ -111,6 +172,11 @@ export interface AscExecutionRuntimeOptions {
 
 export interface AscExecutionRuntime {
   state: SubagentState;
+  cancel(
+    dispatchId: string,
+    ctx: SubagentModelContext,
+    reason?: string,
+  ): { ok: boolean; status: string; error?: string; sessionName?: string };
   execute(
     request: DispatchSubagentRequest,
     ctx: SubagentModelContext,

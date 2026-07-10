@@ -5,11 +5,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createSubagentState, spawnSubagentWithSpawn } from "../extensions/self/subagent.ts";
-import { translatePiJsonEventLineToSubagentProtocol } from "../extensions/self/subagent-protocol.ts";
+import {
+  classifyPiSettlementMode,
+  translatePiJsonEventLineToSubagentProtocol,
+} from "../extensions/self/subagent-protocol.ts";
 
-test("translatePiJsonEventLineToSubagentProtocol drops oversized aggregate pi events instead of forwarding them", () => {
+test("classifyPiSettlementMode distinguishes audited legacy and authoritative settlement hosts", () => {
+  assert.equal(classifyPiSettlementMode("0.76.0"), "legacy_agent_end_exit");
+  assert.equal(classifyPiSettlementMode("0.76.9"), "legacy_agent_end_exit");
+  assert.equal(classifyPiSettlementMode("0.80.6"), "agent_settled");
+  assert.equal(classifyPiSettlementMode("1.0.0"), "agent_settled");
+  assert.equal(classifyPiSettlementMode("0.79.9"), undefined);
+  assert.equal(classifyPiSettlementMode("not-semver"), undefined);
+});
+
+test("translatePiJsonEventLineToSubagentProtocol drops agent_end aggregates but preserves Pi 0.76 retry finality", () => {
   const rawLine = JSON.stringify({
     type: "agent_end",
+    willRetry: false,
     messages: [
       {
         role: "assistant",
@@ -22,7 +35,7 @@ test("translatePiJsonEventLineToSubagentProtocol drops oversized aggregate pi ev
     maxFinalTextChars: 64_000,
   });
 
-  assert.equal(translated, undefined);
+  assert.deepEqual(translated, { type: "agent_run_end", willRetry: false });
 });
 
 test("translatePiJsonEventLineToSubagentProtocol emits bounded assistant_message_end events", () => {
@@ -46,6 +59,13 @@ test("translatePiJsonEventLineToSubagentProtocol emits bounded assistant_message
     text: "x".repeat(16),
     textTruncated: true,
   });
+});
+
+test("translatePiJsonEventLineToSubagentProtocol emits authoritative agent settlement", () => {
+  assert.deepEqual(
+    translatePiJsonEventLineToSubagentProtocol(JSON.stringify({ type: "agent_settled" })),
+    { type: "agent_settled" },
+  );
 });
 
 test("translatePiJsonEventLineToSubagentProtocol contextualizes malformed raw pi JSON", () => {
@@ -87,9 +107,15 @@ test("spawnSubagentWithSpawn consumes the assistant-only filtered protocol", asy
       () => child,
     );
 
-    stdout.emit("data", '{"type":"transport_ready","rawChildPid":787878}\n');
+    stdout.emit(
+      "data",
+      '{"type":"transport_ready","rawChildPid":787878,"settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
+    );
     stdout.emit("data", '{"type":"assistant_text_delta","delta":"hello"}\n');
-    stdout.emit("data", '{"type":"assistant_message_end","stopReason":"stop"}\n');
+    stdout.emit(
+      "data",
+      '{"type":"assistant_message_end","stopReason":"stop"}\n{"type":"agent_settled"}\n',
+    );
     child.emit("close", 0);
 
     const result = await resultPromise;
@@ -113,6 +139,66 @@ test("spawnSubagentWithSpawn consumes the assistant-only filtered protocol", asy
     });
   } finally {
     await rm(state.sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnSubagentWithSpawn rejects missing and mismatched settlement handshakes", async () => {
+  const cases = [
+    {
+      name: "missing",
+      handshake: { type: "transport_ready" },
+      expected: /Missing or unknown Pi settlement mode/,
+    },
+    {
+      name: "mismatch",
+      handshake: {
+        type: "transport_ready",
+        settlementMode: "legacy_agent_end_exit",
+        piVersion: "0.80.6",
+      },
+      expected: /Pi settlement handshake mismatch/,
+    },
+  ];
+
+  for (const scenario of cases) {
+    const state = createSubagentState(
+      join(tmpdir(), `subagent-invalid-handshake-${scenario.name}-${Date.now()}`),
+    );
+    const stdout = new EventEmitter();
+    const stderr = new EventEmitter();
+    stdout.setEncoding = () => stdout;
+    stderr.setEncoding = () => stderr;
+    const child = new EventEmitter();
+    child.stdout = stdout;
+    child.stderr = stderr;
+    child.kill = () => true;
+    child.pid = 566000;
+
+    try {
+      const resultPromise = spawnSubagentWithSpawn(
+        {
+          name: `invalid-handshake-${scenario.name}`,
+          objective: "Reject an invalid settlement handshake",
+          tools: "read",
+          sessionFile: join(state.sessionsDir, `${scenario.name}.jsonl`),
+        },
+        "test/model",
+        { cwd: process.cwd() },
+        state,
+        () => child,
+      );
+      stdout.emit(
+        "data",
+        `${JSON.stringify(scenario.handshake)}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "must fail" })}\n${JSON.stringify({ type: "agent_settled" })}\n`,
+      );
+      child.emit("close", 0);
+      const result = await resultPromise;
+      assert.equal(result.status, "error");
+      assert.equal(result.executionState?.protocol?.kind, "assistant_protocol_parse_error");
+      assert.match(result.output, scenario.expected);
+    } finally {
+      await rm(state.sessionsDir, { recursive: true, force: true });
+    }
   }
 });
 
@@ -193,8 +279,14 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
       },
     );
 
-    stdout.emit("data", '{"type":"transport_ready"}\n');
-    stdout.emit("data", '{"type":"assistant_message_end","stopReason":"stop","text":"ok"}\n');
+    stdout.emit(
+      "data",
+      '{"type":"transport_ready","settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
+    );
+    stdout.emit(
+      "data",
+      '{"type":"assistant_message_end","stopReason":"stop","text":"ok"}\n{"type":"agent_settled"}\n',
+    );
     child.emit("close", 0);
 
     const result = await resultPromise;
@@ -238,8 +330,14 @@ test("spawnSubagentWithSpawn defers timeout until the helper signals transport r
     );
 
     await new Promise((resolve) => setTimeout(resolve, 40));
-    stdout.emit("data", '{"type":"transport_ready","rawChildPid":797979}\n');
-    stdout.emit("data", '{"type":"assistant_message_end","text":"ready ok","stopReason":"stop"}\n');
+    stdout.emit(
+      "data",
+      '{"type":"transport_ready","rawChildPid":797979,"settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
+    );
+    stdout.emit(
+      "data",
+      '{"type":"assistant_message_end","text":"ready ok","stopReason":"stop"}\n{"type":"agent_settled"}\n',
+    );
     child.emit("close", 0);
 
     const result = await resultPromise;

@@ -1,5 +1,5 @@
 import type {
-  AgentEndEvent,
+  AgentSettledEvent,
   ExtensionAPI,
   ExtensionContext,
   SessionBeforeForkEvent,
@@ -206,8 +206,8 @@ async function handleTurnEnd(
   }
 }
 
-async function handleAgentEnd(
-  _event: AgentEndEvent,
+async function handleAgentSettled(
+  _event: AgentSettledEvent,
   ctx: ExtensionContext,
   pi: ExtensionAPI,
   state: RewindRuntimeState,
@@ -450,8 +450,8 @@ export function registerRewindRuntime(pi: ExtensionAPI): void {
     await handleTurnEnd(event, ctx, state);
   });
 
-  pi.on("agent_end", async (event: AgentEndEvent, ctx) => {
-    await handleAgentEnd(event, ctx, pi, state);
+  pi.on("agent_settled", async (event: AgentSettledEvent, ctx) => {
+    await handleAgentSettled(event, ctx, pi, state);
   });
 
   pi.on("session_compact", async (event: SessionCompactEvent, ctx) => {

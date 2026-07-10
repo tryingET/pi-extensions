@@ -29,6 +29,8 @@ All notable changes to this project should be documented here.
 - Legacy startup cleanup env flags no longer delete session traces; startup now preserves by policy and destructive pruning is command-explicit.
 - Destructive pruning no longer trusts arbitrary contained `sessionFile` paths; only expected ASC trace names (`<session>.jsonl` / legacy `<session>.json`) are deletion candidates.
 - Running-session liveness now records process start ticks when available, marks unsupported process-identity platforms explicitly, rejects mismatched PID identity on restart, keeps unsupported-identity live sessions while their PID is alive, abandons stale legacy running sidecars that lack process identity after a bounded grace window, and reports the same identity-aware live-owner state in subagent inspection.
+- `dispatch_subagent` now probes the exact child `pi --version`, requires one complete parent-reclassified settlement handshake before lifecycle events, enforces ordered `agent_settled` finality on Pi >=0.80, and confines the clean-exit `agent_end.willRetry=false` fallback to explicitly identified Pi 0.76 hosts.
+- Cross-process capacity lease and reclaim payloads are privately completed before atomic hard-link publication; identity-bearing compare/delete claims fence stale takeover and release against suspended creators and concurrent replacements.
 
 ## [0.1.5] - 2026-05-12
 
@@ -48,7 +50,7 @@ All notable changes to this project should be documented here.
   - pure retention-planning helper
 - ASC-owned rewind runtime wiring in `extensions/self/rewind/runtime.ts`:
   - session bootstrap and reconstruction for ASC-owned rewind metadata
-  - exact rewind-point capture on `turn_start` / `turn_end` / `agent_end`
+  - exact rewind-point capture on `turn_start` / `turn_end` / `agent_settled`
   - compaction alias recording on `session_compact`
   - integration with Pi's built-in `/fork` and `/tree` flows via `session_before_fork`, `session_start` (`reason: "fork"`), `session_before_tree`, and `session_tree`
   - footer/status publication for rewind point visibility in interactive sessions

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   createIsolatedSubagentAgentDir,
   type IsolatedSubagentAgentDir,
@@ -6,7 +6,10 @@ import {
 } from "./subagent-child-agent-dir.ts";
 import {
   type AssistantMessageEndProtocolEvent,
+  classifyPiSettlementMode,
+  isRecognizedPiJsonEventLine,
   type SubagentProtocolEvent,
+  type SubagentSettlementMode,
   translatePiJsonEventLineToSubagentProtocol,
 } from "./subagent-protocol.ts";
 
@@ -19,6 +22,7 @@ interface RunnerOptions {
   cwd: string;
   model: string;
   tools: string;
+  thinking: string;
   sessionFile: string;
   objective: string;
   systemPrompt?: string;
@@ -42,6 +46,19 @@ async function main(): Promise<void> {
     DEFAULT_RAW_PI_EVENT_BUFFER_BYTES,
   );
 
+  const settlementContract = detectPiSettlementContract(options.cwd || process.cwd());
+  if (!settlementContract) {
+    process.stdout.write(
+      `${JSON.stringify({
+        type: "protocol_error",
+        errorMessage:
+          "Unable to establish a supported Pi settlement contract. ASC supports explicit Pi 0.76 legacy finality and authoritative agent_settled on Pi >=0.80.",
+      })}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const args = ["--mode", "json", "-p", "--no-extensions"];
 
   for (const extensionSource of options.extensionSources) {
@@ -62,7 +79,7 @@ async function main(): Promise<void> {
     "--tools",
     options.tools,
     "--thinking",
-    "off",
+    options.thinking || "off",
     "--session",
     options.sessionFile,
   );
@@ -193,6 +210,18 @@ async function main(): Promise<void> {
     process.stdout.write(`${serialized}\n`);
   };
 
+  let transportReadyEmitted = false;
+  const emitTransportReady = () => {
+    if (transportReadyEmitted) return;
+    transportReadyEmitted = true;
+    emitProtocolEvent({
+      type: "transport_ready",
+      ...(typeof child.pid === "number" && child.pid > 0 ? { rawChildPid: child.pid } : {}),
+      settlementMode: settlementContract.mode,
+      piVersion: settlementContract.version,
+    });
+  };
+
   const emitFilteredEventFromRawLine = (line: string) => {
     if (Buffer.byteLength(line, "utf-8") > maxRawPiEventBufferBytes) {
       emitProtocolError(`Raw pi JSON event line exceeded ${maxRawPiEventBufferBytes} bytes.`);
@@ -201,9 +230,15 @@ async function main(): Promise<void> {
 
     const event = translatePiJsonEventLineToSubagentProtocol(line, { maxFinalTextChars });
     if (!event) {
+      if (isRecognizedPiJsonEventLine(line)) emitTransportReady();
+      return;
+    }
+    if (event.type === "protocol_error" || event.type === "stdout_noise") {
+      emitProtocolEvent(event);
       return;
     }
 
+    emitTransportReady();
     emitProtocolEvent(event);
   };
 
@@ -269,11 +304,23 @@ async function main(): Promise<void> {
     );
     process.exitCode = signalToExitCode(terminationSignal) ?? 1;
   });
+}
 
-  emitProtocolEvent({
-    type: "transport_ready",
-    ...(typeof child.pid === "number" && child.pid > 0 ? { rawChildPid: child.pid } : {}),
+function detectPiSettlementContract(
+  cwd: string,
+): { version: string; mode: SubagentSettlementMode } | undefined {
+  const probe = spawnSync("pi", ["--version"], {
+    cwd,
+    env: process.env,
+    encoding: "utf8",
+    timeout: 5_000,
+    maxBuffer: 64 * 1024,
   });
+  if (probe.error || probe.status !== 0) return undefined;
+
+  const version = String(probe.stdout || probe.stderr || "").trim();
+  const mode = classifyPiSettlementMode(version);
+  return mode ? { version, mode } : undefined;
 }
 
 function parseArgs(argv: string[]): RunnerOptions {
@@ -299,6 +346,7 @@ function parseArgs(argv: string[]): RunnerOptions {
   const cwd = requireArg(values, "--cwd");
   const model = requireArg(values, "--model");
   const tools = requireArg(values, "--tools");
+  const thinking = firstArg(values, "--thinking") || "off";
   const sessionFile = requireArg(values, "--session-file");
   const objective = requireArg(values, "--objective");
   const systemPrompt = firstArg(values, "--system-prompt") || undefined;
@@ -307,6 +355,7 @@ function parseArgs(argv: string[]): RunnerOptions {
     cwd,
     model,
     tools,
+    thinking,
     sessionFile,
     objective,
     systemPrompt,

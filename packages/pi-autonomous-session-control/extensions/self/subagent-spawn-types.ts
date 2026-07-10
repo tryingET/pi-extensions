@@ -2,12 +2,18 @@ import type { SubagentState } from "./subagent-session.ts";
 
 export interface SubagentDef {
   name: string;
+  dispatchId: string;
+  attemptId: string;
   objective: string;
   tools: string;
   systemPrompt?: string;
   profile?: string;
   sessionFile: string | null;
-  timeout?: number; // milliseconds, 0 = no timeout
+  timeout?: number; // execution milliseconds after bootstrap, 0 = no timeout
+  startupTimeout?: number; // bootstrap milliseconds, always bounded
+  thinking?: string;
+  resumed?: boolean;
+  taskContract?: Record<string, unknown>;
   env?: Record<string, string>;
   noSkills?: boolean;
   skillSources?: string[];
@@ -41,13 +47,38 @@ export interface AssistantProtocolParseErrorState {
   errorMessage: string;
 }
 
+export interface AssistantProtocolIncompleteState {
+  kind: "assistant_protocol_incomplete";
+  errorMessage: string;
+}
+
 export type ProtocolExecutionState =
   | AssistantProtocolExecutionState
-  | AssistantProtocolParseErrorState;
+  | AssistantProtocolParseErrorState
+  | AssistantProtocolIncompleteState;
 
 export interface ExecutionState {
   transport: TransportExecutionState;
   protocol?: ProtocolExecutionState;
+}
+
+export interface SubagentUsage {
+  turns: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+  contextTokens: number;
+}
+
+export interface SubagentProgressEvent {
+  phase: "spawning" | "running" | "finalizing";
+  elapsedMs: number;
+  lastActivityAt: number;
+  outputChars: number;
+  latestTool?: string;
+  usage: SubagentUsage;
 }
 
 export interface SubagentResult {
@@ -58,7 +89,9 @@ export interface SubagentResult {
   stderr?: string;
   outputTruncated?: boolean;
   timedOut?: boolean;
+  timeoutPhase?: "startup" | "execution";
   aborted?: boolean;
+  usage?: SubagentUsage;
   assistantStopReason?: AssistantStopReason;
   assistantErrorMessage?: string;
   executionState?: ExecutionState;
@@ -70,4 +103,5 @@ export type SubagentSpawner = (
   ctx: { cwd: string },
   state: SubagentState,
   signal?: AbortSignal,
+  onProgress?: (event: SubagentProgressEvent) => void,
 ) => Promise<SubagentResult>;

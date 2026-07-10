@@ -375,6 +375,15 @@ The `dispatch_subagent` tool spawns subagents with configurable model selection:
 
 The child still launches with `--no-extensions`, but ASC now supports explicit child-only extension bootstrap on top of that minimal base. Empty or whitespace-only requested/effective model selections fail before spawn as structured `model_selection_failed` results and do not expose internal concurrency counters. When the current model uses a numeric-suffix provider alias such as `openai-codex-2`, ASC auto-loads `pi-multi-pass` into the child so the same subscription-backed provider alias remains valid instead of being collapsed to the base provider. ASC also launches the raw child against an isolated copy of the Pi agent dir with a sanitized `settings.json`, so extensionless child runs do not inherit unrelated global default-model warnings from the parent's configured provider aliases.
 
+**Dispatch contract and lifecycle policy:**
+- Legacy `{ profile, objective }` requests remain supported. Optional structured fields add `deliverable`, `acceptanceCriteria`, `constraints`, `evidenceRequired`, `mutationPolicy`, `stopConditions`, `allowedPaths`, and `forbiddenPaths`; path fields are advisory task scope, not a filesystem sandbox.
+- Profile defaults choose a child thinking level, and callers may select an allowlisted `thinking` value explicitly.
+- `startupTimeout` is separately bounded from the execution `timeout`. `timeout=0` is unlimited only when `allowUnlimited=true` and the host sets `PI_SUBAGENT_ALLOW_UNLIMITED_TIMEOUT=true`.
+- Each new dispatch gets a stable `dispatchId` and per-run `attemptId`. Only exact repository- and parent-session-checked `resumeDispatchId` resumes an existing canonical JSONL; missing ownership metadata fails closed and repeated names keep collision-safe new-session behavior.
+- `/subagent-cancel <dispatchId> [reason]` and public `runtime.cancel(...)` target one live child with verified process-start identity. Unsupported identity fails closed, failed signals roll back cancellation intent, and custom-spawner sidecars are observable but cannot signal the parent Pi process.
+- Progress updates expose bounded phase/sequence, latest-tool, activity, and usage metadata. The helper probes `pi --version` and declares settlement capability in `transport_ready`: Pi >=0.80 requires exactly one authoritative `agent_settled` after the final terminal assistant outcome. The retained Pi 0.76 mode instead requires clean foreground JSON-mode exit plus final `agent_end.willRetry=false` after that outcome; undeclared streams cannot select this fallback, and unclassified versions fail closed.
+- The public runtime returns structured failure results. The `dispatch_subagent` tool adapter throws those failures so Pi records the tool invocation as an error rather than a successful tool call containing `{ status: "error" }`.
+
 **Request env policy:**
 - `DispatchSubagentRequest.env` is a per-dispatch child environment overlay for provenance sidecars only.
 - Allowed keys must match `PI_PROVENANCE_*` (for example `PI_PROVENANCE_REVIEW_LANE_ID` or `PI_PROVENANCE_OUTPUT_FILE`).
@@ -392,7 +401,7 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - `PI_SUBAGENT_SESSIONS_DIR` remains an escape hatch for a separate ASC-owned directory.
 - `PI_SUBAGENT_CLEAR_ON_SESSION_START` — legacy startup cleanup flag; retained as a no-op compatibility knob because ASC preserves subagent traces by default
 - `PI_SUBAGENT_ALLOW_DESTRUCTIVE_CLEANUP` — legacy compatibility knob; startup cleanup no longer deletes traces, use `/subagent-clear --delete` or `/subagent-cleanup --delete ...` for explicit destructive pruning
-- `PI_SUBAGENT_RESERVE_SESSION_NAMES` — set to `false` to disable all session-name reservation mechanisms (in-memory + file-lock) for rollback/debugging (default: enabled)
+- `PI_SUBAGENT_RESERVE_SESSION_NAMES` — set to `false` to disable in-memory + file-lock reservation for rollback/debugging (default: enabled); owned status sidecars still occupy recorded session names to prevent trace reuse
 - `PI_SUBAGENT_FILE_LOCK_SESSION_NAMES` — set to `false` to disable only cross-process file-lock reservation while keeping in-memory reservation (default: enabled; ignored when `PI_SUBAGENT_RESERVE_SESSION_NAMES=false`)
 - `PI_SUBAGENT_LOCK_STALE_AFTER_MS` — stale-lock reclamation threshold in milliseconds for orphaned subagent locks that no longer have a live owning PID (default: `3600000`)
 - `PI_SUBAGENT_EVENT_BUFFER_BYTES` — buffer for the filtered assistant-only subagent protocol consumed by ASC (default: `262144`)
@@ -409,12 +418,12 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - `dispatch_subagent` also accepts `extensions: ["vault-client", "/abs/path/to/ext.ts", ...]` so a subagent can opt into specific extension-provided tools without inheriting the full parent extension surface.
 - `dispatch_subagent` accepts `skillProfile: "minimal" | "ak" | "governance" | "dspx-skill-authoring"` when the child should load an allowlisted skill profile without inheriting all parent skills.
 - Result details now expose both the selected model (`requestedModel` / `effectiveModel`) and explicit child bootstrap metadata (`loadedExtensions`, `extensionWarnings`, `skillProfile`, `loadedSkills`, `librarySkills`, `skillWarnings`, `skillRegistry`).
-- Subagent transport now runs through a package-local assistant-only JSON filter helper, so large aggregate Pi events (`agent_end`, `turn_end`, `tool_execution_end`) are dropped before ASC parses the stream.
+- Subagent transport now runs through a package-local assistant-only JSON filter helper, so large aggregate Pi payloads are removed before ASC parses the stream: `agent_end` is reduced to bounded `agent_run_end.willRetry` metadata for audited Pi 0.76 finality, while `turn_end` and `tool_execution_end` are dropped.
 - ASC now treats the helper protocol as authoritative: raw Pi JSON events on the parent seam fail closed instead of being accepted as a compatibility fallback.
-- Parent-side execution timeouts now arm only after the helper emits its `transport_ready` handshake, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget.
+- Parent-side startup remains independently bounded; execution timeouts arm only after the helper emits one complete `transport_ready` handshake with the probed Pi version and settlement mode. The parent independently reclassifies that version, rejects missing/mismatched handshakes and pre-handshake lifecycle events, and does not let stdout noise or malformed startup output consume the execution budget.
 - Helper shutdown now tears down the raw `pi` child process group before parent-side force kill, preventing orphaned raw subprocesses on timeout/abort.
 - Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.
-- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned` plus subagent metadata such as session file path, profile, model, tools, parent session key, parent repo root, and bounded result preview; dead running sessions are reconciled to `abandoned` on next startup.
+- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned` plus dispatch/attempt identity, resumability/cancellation metadata, timeout phase, session file path, profile, model, tools, parent session key, parent repo root, and bounded result preview; dead running sessions are reconciled to `abandoned` on next startup.
 - Status sidecars now also keep a bounded `resultPreview` plus the originating live `parentSessionKey` when available so dashboard/inspection views can stay session-aware without parsing the whole session log.
 - `subagent-status` now reports counts by terminal/runtime status for faster operator diagnosis.
 - A read-only widget surfaces recent subagent sessions for the current live session only, appears only after this session dispatches a subagent, and auto-clears once entries age past 1 hour.

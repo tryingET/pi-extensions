@@ -174,6 +174,38 @@ function acquireSessionNameLock(sessionName: string, sessionsDir: string): (() =
   return null;
 }
 
+export function reserveExactSessionName(
+  sessionName: string,
+  sessionsDir: string,
+  reservedSessionNames: Set<string>,
+  options: {
+    useInMemoryReservation: boolean;
+    useFileLockReservation: boolean;
+  },
+): SessionNameReservation {
+  const normalized = normalizeSessionName(sessionName);
+  if (normalized !== sessionName) {
+    throw new Error("Resume session name is not canonical.");
+  }
+  if (options.useInMemoryReservation && reservedSessionNames.has(normalized)) {
+    throw new Error(`Resume session '${normalized}' is already reserved.`);
+  }
+  const releaseLock = options.useFileLockReservation
+    ? acquireSessionNameLock(normalized, sessionsDir)
+    : null;
+  if (options.useFileLockReservation && !releaseLock) {
+    throw new Error(`Resume session '${normalized}' is locked by another execution.`);
+  }
+  if (options.useInMemoryReservation) reservedSessionNames.add(normalized);
+  return {
+    sessionName: normalized,
+    release: () => {
+      if (options.useInMemoryReservation) reservedSessionNames.delete(normalized);
+      releaseLock?.();
+    },
+  };
+}
+
 export function reserveUniqueSessionName(
   baseName: string,
   sessionsDir: string,

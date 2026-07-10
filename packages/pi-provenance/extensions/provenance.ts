@@ -39,7 +39,7 @@ export function writeJsonAtomic(filePath: string, payload: unknown): void {
 }
 
 export default function provenanceExtension(pi: ExtensionAPI) {
-  pi.on("agent_end", async (_event, ctx) => {
+  pi.on("agent_settled", async (_event, ctx) => {
     try {
       const config = readBackgroundCaptureConfig();
       if (!config) return;

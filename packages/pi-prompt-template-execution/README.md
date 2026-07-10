@@ -64,7 +64,7 @@ Current live posture:
   - refreshes prompt templates at invocation time
   - switches model when needed
   - sends rendered user message through Pi host APIs
-  - supports deferred `agent_end` restore timing for model/thinking restore
+  - supports deferred `agent_settled` restore timing for model/thinking restore
   - restores immediately if message dispatch fails
 - Pi host adapter:
   - normalizes `pi.setModel`, `pi.setThinkingLevel`, `pi.sendUserMessage`, `pi.getThinkingLevel`, queued skill messages, and UI notification behavior

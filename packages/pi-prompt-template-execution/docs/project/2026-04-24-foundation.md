@@ -38,7 +38,7 @@ The package was scaffolded from `../pi-extensions-template` in `simple-package` 
   - refreshes prompt templates at invocation time
   - executes a prompt through injected host actions
   - switches/restores model and thinking according to the execution plan
-  - supports deferred agent-end style restore by returning restore intent plus an explicit restore helper, while still restoring immediately on send failure
+  - supports deferred agent-settled style restore by returning restore intent plus an explicit restore helper, while still restoring immediately on send failure
   - exposes the single guarded future command-handler path used by registration when no custom handler is supplied
 - `src/host-adapter.js`
   - normalizes Pi host APIs for `setModel`, `setThinkingLevel`, `sendUserMessage`, `getThinkingLevel`, command snapshots, queued skill messages, and UI notifications
@@ -67,7 +67,7 @@ The package was scaffolded from `../pi-extensions-template` in `simple-package` 
   - live minimal Pi extension entrypoint
   - calls the guarded registration path with explicit enablement and confirmed test/preflight flags
   - filters Pi core prompt/source commands out of extension-owner collision checks while blocking duplicate extension command owners
-  - defers restore to `agent_end` for normal prompt execution and also attempts restore on shutdown
+  - defers restore to `agent_settled` for normal prompt execution and also attempts restore on shutdown
 - `docs/project/2026-04-24-live-cutover-plan.md`
   - records Phase 4 cutover closeout, no-double-registration interpretation, live proof, rollback, and owner boundaries
 

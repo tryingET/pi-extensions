@@ -1,19 +1,25 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createSubagentState, spawnSubagentWithSpawn } from "../extensions/self/subagent.ts";
 
-async function withFakePiOnPath(scriptBody, run) {
+async function withFakePiOnPath(scriptBody, run, version = "0.80.6") {
   const tempDir = await mkdtemp(join(tmpdir(), "subagent-transport-live-fake-pi-"));
   const binDir = join(tempDir, "bin");
   const fakePiPath = join(binDir, "pi");
+  const scenarioPath = join(binDir, "pi-scenario");
   const previousPath = process.env.PATH;
 
   await mkdir(binDir, { recursive: true });
-  await writeFile(fakePiPath, scriptBody, { mode: 0o755 });
+  await writeFile(scenarioPath, scriptBody, { mode: 0o755 });
+  await writeFile(
+    fakePiPath,
+    `#!/usr/bin/env bash\nif [[ "$1" == "--version" ]]; then printf '%s\\n' ${JSON.stringify(version)}; exit 0; fi\nexec ${JSON.stringify(scenarioPath)} "$@"\n`,
+    { mode: 0o755 },
+  );
   process.env.PATH = `${binDir}:${previousPath || ""}`;
 
   try {
@@ -116,6 +122,7 @@ test("end-to-end: helper forwards noSkills and skillSources to raw pi args", asy
       '    stopReason: "stop",',
       "  },",
       "}));",
+      'console.log(JSON.stringify({ type: "agent_settled" }));',
       "",
     ].join("\n"),
     async (tempRoot) => {
@@ -161,7 +168,7 @@ test("end-to-end: raw pi buffering no longer inherits the filtered protocol buff
   });
 
   await withFakePiOnPath(
-    `#!/usr/bin/env bash\nprintf '%s\\n' '${oversizedRawPiLine}'\n`,
+    `#!/usr/bin/env bash\nprintf '%s\\n' '${oversizedRawPiLine}'\nprintf '%s\\n' '{"type":"agent_settled"}'\n`,
     async (tempRoot) => {
       await withTemporaryEnv(
         {
@@ -231,6 +238,7 @@ test("end-to-end: helper isolates the raw child agent dir and cleans it up after
         '    stopReason: "stop",',
         "  },",
         "}));",
+        'console.log(JSON.stringify({ type: "agent_settled" }));',
         "",
       ].join("\n"),
       async (tempRoot) => {
@@ -264,32 +272,183 @@ test("end-to-end: helper isolates the raw child agent dir and cleans it up after
   }
 });
 
-test("end-to-end: timeout tears down the raw pi child before the helper is force-killed", async () => {
+test("end-to-end: raw Pi automatic retry settles once at agent_settled", async () => {
+  const rawEvents = [
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "retryable",
+        content: [],
+      },
+    },
+    { type: "agent_end", messages: [] },
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "recovered" }],
+      },
+    },
+    { type: "agent_end", messages: [] },
+    { type: "agent_settled" },
+  ];
+  const script = [
+    "#!/usr/bin/env bash",
+    ...rawEvents.map((event) => `printf '%s\\n' '${JSON.stringify(event)}'`),
+    "",
+  ].join("\n");
+
+  await withFakePiOnPath(script, async (tempRoot) => {
+    const state = createSubagentState(join(tempRoot, "sessions"));
+    const result = await spawnSubagentWithSpawn(
+      {
+        name: "retry-settles-once",
+        objective: "Accept recovered final outcome",
+        tools: "read,bash",
+        sessionFile: join(state.sessionsDir, "retry-settles-once.jsonl"),
+        timeout: 1_000,
+        startupTimeout: 1_000,
+      },
+      "test/model",
+      { cwd: tempRoot },
+      state,
+    );
+
+    assert.equal(result.status, "done");
+    assert.equal(result.output, "recovered");
+    assert.equal(result.assistantStopReason, "stop");
+    assert.equal(result.usage?.turns, 2);
+  });
+});
+
+test("end-to-end: legacy Pi 0.76 raw retry stream settles on clean JSON-mode exit", async () => {
+  const rawEvents = [
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "retryable",
+        content: [],
+      },
+    },
+    { type: "agent_end", messages: [], willRetry: true },
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "legacy recovered" }],
+      },
+    },
+    { type: "auto_retry_end", success: true, attempt: 1 },
+    { type: "agent_end", messages: [], willRetry: false },
+  ];
+  const script = [
+    "#!/usr/bin/env bash",
+    ...rawEvents.map((event) => `printf '%s\\n' '${JSON.stringify(event)}'`),
+    "",
+  ].join("\n");
+
   await withFakePiOnPath(
-    ["#!/usr/bin/env bash", "trap '' TERM INT", "while true; do sleep 1; done", ""].join("\n"),
+    script,
     async (tempRoot) => {
       const state = createSubagentState(join(tempRoot, "sessions"));
       const result = await spawnSubagentWithSpawn(
         {
-          name: "timeout-reaps-raw-pi",
-          objective: "Review changes",
+          name: "legacy-retry-settles-on-exit",
+          objective: "Accept the pinned host's final retry outcome",
           tools: "read,bash",
-          sessionFile: join(state.sessionsDir, "timeout-reaps-raw-pi.json"),
-          timeout: 50,
+          sessionFile: join(state.sessionsDir, "legacy-retry-settles-on-exit.jsonl"),
+          timeout: 1_000,
+          startupTimeout: 1_000,
         },
         "test/model",
         { cwd: tempRoot },
         state,
       );
 
-      const rawPiPid = result.executionState?.transport.rawChildPid;
+      assert.equal(result.status, "done");
+      assert.equal(result.output, "legacy recovered");
+      assert.equal(result.assistantStopReason, "stop");
+      assert.equal(result.usage?.turns, 2);
+    },
+    "0.76.0",
+  );
+});
+
+test("end-to-end: raw stdout noise does not satisfy startup readiness", async () => {
+  await withFakePiOnPath(
+    [
+      "#!/usr/bin/env bash",
+      "printf 'startup banner\\n'",
+      "trap '' TERM INT",
+      "while true; do sleep 1; done",
+      "",
+    ].join("\n"),
+    async (tempRoot) => {
+      const state = createSubagentState(join(tempRoot, "sessions"));
+      const result = await spawnSubagentWithSpawn(
+        {
+          name: "noise-does-not-ready",
+          objective: "Wait for recognized Pi readiness",
+          tools: "read,bash",
+          sessionFile: join(state.sessionsDir, "noise-does-not-ready.jsonl"),
+          timeout: 5_000,
+          startupTimeout: 250,
+        },
+        "test/model",
+        { cwd: tempRoot },
+        state,
+      );
+
+      assert.equal(result.status, "timeout");
+      assert.equal(result.timeoutPhase, "startup");
+      assert.equal(result.output, "Subagent timed out during startup after 250ms");
+      assert.match(result.stderr, /raw pi stdout noise: startup banner/);
+    },
+  );
+});
+
+test("end-to-end: timeout tears down the raw pi child before the helper is force-killed", async () => {
+  await withFakePiOnPath(
+    [
+      "#!/usr/bin/env bash",
+      'printf \'%s\' "$$" > "$PI_PROVENANCE_OUTPUT_FILE"',
+      "trap '' TERM INT",
+      "while true; do sleep 1; done",
+      "",
+    ].join("\n"),
+    async (tempRoot) => {
+      const state = createSubagentState(join(tempRoot, "sessions"));
+      const rawPidPath = join(tempRoot, "raw-pi.pid");
+      const result = await spawnSubagentWithSpawn(
+        {
+          name: "timeout-reaps-raw-pi",
+          objective: "Review changes",
+          tools: "read,bash",
+          sessionFile: join(state.sessionsDir, "timeout-reaps-raw-pi.json"),
+          timeout: 5_000,
+          startupTimeout: 250,
+          env: { PI_PROVENANCE_OUTPUT_FILE: rawPidPath },
+        },
+        "test/model",
+        { cwd: tempRoot },
+        state,
+      );
+
+      const rawPiPid = Number(await readFile(rawPidPath, "utf8"));
 
       assert.equal(result.status, "timeout");
       assert.equal(result.timedOut, true);
-      assert.equal(result.output, "Subagent timed out after 50ms");
+      assert.equal(result.timeoutPhase, "startup");
+      assert.equal(result.output, "Subagent timed out during startup after 250ms");
       assert.ok(
-        result.elapsed < 500,
-        `expected timeout teardown under 500ms, got ${result.elapsed}`,
+        result.elapsed < 750,
+        `expected timeout teardown under 750ms, got ${result.elapsed}`,
       );
       assert.equal(typeof rawPiPid, "number");
       assert.equal(processIsAlive(rawPiPid), false);

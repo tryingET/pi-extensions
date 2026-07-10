@@ -30,7 +30,7 @@ export default function promptTemplateExecutionExtension(pi) {
   async function runPrompt(prompt, args, ctx) {
     const host = createPiPromptTemplateHostAdapter(pi, ctx);
     const result = await executePromptTemplateCommand(prompt, args, ctx, host, {
-      restoreTiming: "agent_end",
+      restoreTiming: "agent_settled",
     });
     if (result?.deferredRestore) pendingRestore = result.deferredRestore;
     return result;
@@ -64,7 +64,7 @@ export default function promptTemplateExecutionExtension(pi) {
     );
   });
 
-  pi.on("agent_end", async (_event, ctx) => {
+  pi.on("agent_settled", async (_event, ctx) => {
     const restore = pendingRestore;
     pendingRestore = undefined;
     if (!restore) return;

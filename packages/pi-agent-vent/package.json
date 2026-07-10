@@ -86,17 +86,19 @@
     "releaseConfigMode": "component"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.14"
+    "@biomejs/biome": "2.3.14",
+    "@earendil-works/pi-ai": "^0.80.6",
+    "@earendil-works/pi-coding-agent": "^0.80.6"
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"
   },
   "peerDependencies": {
-    "typebox": "*",
     "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
   },
   "dependencies": {
-    "typebox": "^1.0.0"
+    "typebox": "*"
   }
 }

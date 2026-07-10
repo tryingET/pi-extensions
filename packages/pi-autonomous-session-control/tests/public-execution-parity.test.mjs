@@ -15,24 +15,50 @@ function defaultSpawner(def) {
   });
 }
 
-function normalizeToolResult(result) {
+function normalizeExecutionDetails(details) {
   return {
+    ...details,
+    ...(details.dispatchId ? { dispatchId: "<dispatch-id>" } : {}),
+    ...(details.attemptId ? { attemptId: "<attempt-id>" } : {}),
+    ...(details.sessionFile ? { sessionFile: basename(details.sessionFile) } : {}),
+    ...(details.lastActivityAt ? { lastActivityAt: "<timestamp>" } : {}),
+  };
+}
+
+function normalizeExecutionResult(result) {
+  return {
+    ...result,
+    details: normalizeExecutionDetails(result.details),
+  };
+}
+
+function normalizeToolResult(result) {
+  return normalizeExecutionResult({
     ok: result.details.status === "done",
     text: result.content[0]?.type === "text" ? result.content[0].text : "",
     details: result.details,
-  };
+  });
 }
 
 function normalizeToolUpdate(update) {
   return {
     text: update.content[0]?.type === "text" ? update.content[0].text : "",
-    details: update.details,
+    details: normalizeExecutionDetails(update.details),
+  };
+}
+
+function normalizeRuntimeUpdate(update) {
+  return {
+    ...update,
+    details: normalizeExecutionDetails(update.details),
   };
 }
 
 function normalizeCapturedDef(def) {
   return {
     ...def,
+    dispatchId: "<dispatch-id>",
+    attemptId: "<attempt-id>",
     sessionFile: basename(def.sessionFile),
   };
 }
@@ -181,23 +207,29 @@ async function createParityHarness({ stateOptions, spawner, seed } = {}) {
 }
 
 async function executeRuntime(harness, request) {
-  return harness.runtime.execute(request, { cwd: process.cwd() }, (update) => {
-    harness.runtimeUpdates.push(update);
+  const result = await harness.runtime.execute(request, { cwd: process.cwd() }, (update) => {
+    harness.runtimeUpdates.push(normalizeRuntimeUpdate(update));
   });
+  return normalizeExecutionResult(result);
 }
 
 async function executeTool(harness, request, toolCallId = "tc-public-parity") {
-  const result = await harness.tool.execute(
-    toolCallId,
-    request,
-    null,
-    (update) => {
-      harness.toolUpdates.push(normalizeToolUpdate(update));
-    },
-    { cwd: process.cwd() },
-  );
+  try {
+    const result = await harness.tool.execute(
+      toolCallId,
+      request,
+      null,
+      (update) => {
+        harness.toolUpdates.push(normalizeToolUpdate(update));
+      },
+      { cwd: process.cwd() },
+    );
 
-  return normalizeToolResult(result);
+    return normalizeToolResult(result);
+  } catch (error) {
+    if (error?.result) return normalizeExecutionResult(error.result);
+    throw error;
+  }
 }
 
 test("public runtime parity: prompt envelope, updates, and result shaping match dispatch_subagent", async () => {

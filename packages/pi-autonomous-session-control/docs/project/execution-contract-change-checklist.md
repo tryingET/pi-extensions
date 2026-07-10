@@ -29,7 +29,7 @@ Do **not** land the change if it would introduce any of the following:
 - an orchestrator-local spawn/runtime revival or copied lifecycle logic
 - UI, dashboard, or tool-registration concerns in the headless public contract
 - unbounded stdout/stderr/raw-event buffering or weaker truncation signaling
-- weaker abort, timeout, assistant-protocol, model-selection, or malformed-output truth in execution results
+- weaker abort, startup/execution timeout, cancellation identity, assistant-protocol terminal-event, model-selection, or malformed-output truth in execution results
 - drift between raw `fullOutput`, normalized `displayOutput`, and consumer-side rendering helpers for the same failure mode
 - weaker session-name reservation, sidecar occupancy handling, or lock-failure surfacing
 - public API growth justified only by today's bundled publish/install bridge or smoke-harness convenience
@@ -61,6 +61,7 @@ Run these whenever the ASC public runtime itself, the named transport-safety inv
 - `tests/subagent-protocol.test.mjs`
 - `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
+- `tests/dispatch-subagent-lifecycle-control.test.mjs`
 
 This layer proves the supported seam semantics owned by ASC.
 For helper-protocol changes, do not stop at EventEmitter-only mocks: include at least one spawned-helper proof for raw-Pi framing, one complete-line oversize proof, and one raw-child teardown proof when timeout/abort handling changed.

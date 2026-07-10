@@ -1,0 +1,34 @@
+{
+  "id": "assistant-protocol-incomplete",
+  "title": "A clean modern transport exit without authoritative agent settlement fails closed",
+  "kind": "runtime-result",
+  "dispatchResult": {
+    "ok": false,
+    "text": "✗ [custom] error in 0s\n\npartial output\n\nExpected finality for settlementMode=agent_settled: Pi >=0.80 requires exactly one agent_settled after the final terminal assistant outcome; explicit Pi 0.76 compatibility requires clean exit plus final agent_end.willRetry=false after that outcome. Observed piVersion=0.80.6, settlements=0, settlementOrdinal=0, outcomes=0, finalOutcomeOrdinal=0, agentEnds=0, finalAgentEndOrdinal=0, finalWillRetry=undefined, transportExit=0.",
+    "details": {
+      "status": "error",
+      "failureKind": "assistant_protocol_incomplete",
+      "exitCode": 1,
+      "elapsed": 0,
+      "fullOutput": "partial output\n\nExpected finality for settlementMode=agent_settled: Pi >=0.80 requires exactly one agent_settled after the final terminal assistant outcome; explicit Pi 0.76 compatibility requires clean exit plus final agent_end.willRetry=false after that outcome. Observed piVersion=0.80.6, settlements=0, settlementOrdinal=0, outcomes=0, finalOutcomeOrdinal=0, agentEnds=0, finalAgentEndOrdinal=0, finalWillRetry=undefined, transportExit=0.",
+      "displayOutput": "partial output\n\nExpected finality for settlementMode=agent_settled: Pi >=0.80 requires exactly one agent_settled after the final terminal assistant outcome; explicit Pi 0.76 compatibility requires clean exit plus final agent_end.willRetry=false after that outcome. Observed piVersion=0.80.6, settlements=0, settlementOrdinal=0, outcomes=0, finalOutcomeOrdinal=0, agentEnds=0, finalAgentEndOrdinal=0, finalWillRetry=undefined, transportExit=0.",
+      "executionState": {
+        "transport": {
+          "kind": "transport",
+          "exitCode": 0,
+          "aborted": false,
+          "timedOut": false
+        },
+        "protocol": {
+          "kind": "assistant_protocol_incomplete",
+          "errorMessage": "Expected finality for settlementMode=agent_settled: Pi >=0.80 requires exactly one agent_settled after the final terminal assistant outcome; explicit Pi 0.76 compatibility requires clean exit plus final agent_end.willRetry=false after that outcome. Observed piVersion=0.80.6, settlements=0, settlementOrdinal=0, outcomes=0, finalOutcomeOrdinal=0, agentEnds=0, finalAgentEndOrdinal=0, finalWillRetry=undefined, transportExit=0."
+        }
+      }
+    }
+  },
+  "expected": {
+    "executionLikeOutput": "partial output\n\nExpected finality for settlementMode=agent_settled: Pi >=0.80 requires exactly one agent_settled after the final terminal assistant outcome; explicit Pi 0.76 compatibility requires clean exit plus final agent_end.willRetry=false after that outcome. Observed piVersion=0.80.6, settlements=0, settlementOrdinal=0, outcomes=0, finalOutcomeOrdinal=0, agentEnds=0, finalAgentEndOrdinal=0, finalWillRetry=undefined, transportExit=0.",
+    "executionLikeStatus": "error",
+    "failureKind": "assistant_protocol_incomplete"
+  }
+}

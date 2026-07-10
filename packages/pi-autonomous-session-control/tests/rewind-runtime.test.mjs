@@ -83,10 +83,16 @@ test("rewind runtime records exact user and assistant rewind points during a pro
       },
       harness.ctx,
     );
-    await harness.handlers.get("agent_end")(
-      { type: "agent_end", messages: [assistantEntry.message] },
-      harness.ctx,
+    assert.equal(
+      sessionManager
+        .getEntries()
+        .some(
+          (entry) => entry.type === "custom" && entry.customType === ASC_REWIND_TURN_CUSTOM_TYPE,
+        ),
+      false,
+      "agent/turn completion must not finalize before Pi reports full settlement",
     );
+    await harness.handlers.get("agent_settled")({ type: "agent_settled" }, harness.ctx);
 
     const rewindEntry = sessionManager
       .getEntries()
@@ -145,7 +151,7 @@ test("rewind runtime aliases the current exact state to compaction entries", asy
       },
       harness.ctx,
     );
-    await harness.handlers.get("agent_end")({ type: "agent_end", messages: [] }, harness.ctx);
+    await harness.handlers.get("agent_settled")({ type: "agent_settled" }, harness.ctx);
 
     const compactionEntry = sessionManager.appendCompaction();
     await harness.handlers.get("session_compact")(

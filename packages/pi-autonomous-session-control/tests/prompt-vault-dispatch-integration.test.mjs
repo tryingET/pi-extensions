@@ -116,7 +116,8 @@ test("mock vault payload without content fails soft and keeps legacy reviewer pr
     );
 
     const def = harness.getCapturedDef();
-    assert.equal(def.systemPrompt, SUBAGENT_PROFILES.reviewer.systemPrompt);
+    assert.ok(def.systemPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
+    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
     assert.equal(result.details.prompt_applied, false);
     assert.equal(result.details.prompt_name, "meta-orchestration");
     assert.equal(result.details.prompt_source, "vault-client");

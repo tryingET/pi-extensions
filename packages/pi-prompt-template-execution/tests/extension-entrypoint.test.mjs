@@ -194,7 +194,7 @@ describe("live prompt-template execution extension entrypoint", () => {
     );
   });
 
-  it("defers restore until agent_end for live command execution", async () => {
+  it("defers restore until agent_settled for live command execution", async () => {
     const home = await tempHome();
     await writePrompt(home, "commit", commandPrompt("Commit $ARGUMENTS"));
     const current = createModel({ provider: "openai-codex", id: "gpt-5.4" });
@@ -228,11 +228,11 @@ describe("live prompt-template execution extension entrypoint", () => {
       { type: "sendUserMessage", content: "Commit live args" },
     ]);
 
-    await emit("agent_end", { type: "agent_end" }, { ...ctx, model: target });
+    await emit("agent_settled", { type: "agent_settled" }, { ...ctx, model: target });
     assert.deepEqual(calls.slice(2), [{ type: "setModel", model: "openai-codex/gpt-5.4" }]);
   });
 
-  it("handles thinking frontmatter and restores thinking on agent_end", async () => {
+  it("handles thinking frontmatter and restores thinking on agent_settled", async () => {
     const home = await tempHome();
     await writePrompt(
       home,
@@ -276,14 +276,14 @@ describe("live prompt-template execution extension entrypoint", () => {
       { type: "sendUserMessage", content: "Think hard" },
     ]);
 
-    await emit("agent_end", { type: "agent_end" }, { ...ctx, model: target });
+    await emit("agent_settled", { type: "agent_settled" }, { ...ctx, model: target });
     assert.deepEqual(calls.slice(4), [
       { type: "setThinkingLevel", thinking: "low" },
       { type: "setModel", model: "openai-codex/gpt-5.4" },
     ]);
   });
 
-  it("honors restore false by leaving model and thinking active after agent_end", async () => {
+  it("honors restore false by leaving model and thinking active after agent_settled", async () => {
     const home = await tempHome();
     await writePrompt(
       home,
@@ -320,7 +320,7 @@ describe("live prompt-template execution extension entrypoint", () => {
     await emit("session_start", { type: "session_start" }, ctx);
 
     await handlers.get("stay")("active", ctx);
-    await emit("agent_end", { type: "agent_end" }, { ...ctx, model: target });
+    await emit("agent_settled", { type: "agent_settled" }, { ...ctx, model: target });
 
     assert.deepEqual(calls, [
       { type: "getThinkingLevel" },

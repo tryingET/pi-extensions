@@ -151,7 +151,11 @@ test("dispatch_subagent releases file-lock reservations after execution", async 
 
     assert.equal(capturedDefs.length, 2);
     assert.match(capturedDefs[0].sessionFile, /same\.jsonl$/);
-    assert.match(capturedDefs[1].sessionFile, /same\.jsonl$/);
+    assert.match(capturedDefs[1].sessionFile, /same-1\.jsonl$/);
+    assert.deepEqual(
+      (await readdir(sessionsDir)).filter((entry) => entry.endsWith(".lock")),
+      [],
+    );
   } finally {
     if (previous === undefined) {
       delete process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES;

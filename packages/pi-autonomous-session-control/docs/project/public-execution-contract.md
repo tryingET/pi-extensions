@@ -42,13 +42,18 @@ The seam is therefore an anti-drift boundary, not a goal by itself.
 
 The public runtime preserves the existing ASC execution-plane behavior:
 - request normalization and invariant checks
-- runtime-owned concurrency reservation before spawn so `maxConcurrent` applies even to custom spawners
+- runtime-owned in-process and cross-process capacity leases before spawn so `maxConcurrent` applies even to custom spawners and concurrent Pi processes sharing the session root
 - model selection failure shaping before spawn, including whitespace/empty model rejection, deterministic release of the reserved concurrency slot, and no exposure of internal concurrency counters on `model_selection_failed`
-- prompt-envelope application
-- session-name reservation and artifact-backed session lifecycle
+- prompt-envelope application plus an advisory typed task contract (`deliverable`, acceptance criteria, constraints, evidence, mutation posture, stop conditions, and path scope)
+- profile/request thinking selection and effective-child-model extension bootstrap
+- session-name reservation and artifact-backed session lifecycle with stable dispatch IDs and per-run attempt IDs
+- exact repository- and parent-session-checked resume by `resumeDispatchId`; missing ownership metadata fails closed and repeated names alone never resume a child
+- targeted cancellation through `runtime.cancel(...)`, gated by repository ownership and live process identity
+- distinct bounded startup timeout and execution timeout, with unlimited execution requiring both request and host opt-in
+- bounded progress updates with sequence, phase, usage, and latest-tool metadata
 - subagent spawn execution
-- result shaping used by `dispatch_subagent`
-- assistant protocol semantics (`message_end` stop reasons, parse failures, timeout/abort state)
+- structured result shaping used by `dispatch_subagent`; the tool adapter throws on failure so Pi records `tool_execution_end.isError=true`, while the public runtime retains structured non-throwing results
+- assistant protocol semantics (`message_end` stop reasons, agent settlement, parse failures, timeout/abort state), including fail-closed rejection unless a final terminal assistant outcome is followed by one authoritative `agent_settled` on declared Pi >=0.80 or by final `agent_end.willRetry=false` plus clean foreground exit in explicitly declared Pi 0.76 compatibility mode
 - abort propagation through an optional `AbortSignal`
 
 This keeps the tool path and the non-tool consumer path on the same core execution logic.
@@ -61,13 +66,16 @@ The public execution seam now also carries explicit transport-safety expectation
 - request-scoped child environment overlays via `DispatchSubagentRequest.env`, applied only to that subagent execution without mutating ambient `process.env`; this overlay is fail-closed to `PI_PROVENANCE_*` keys only, and rejects control-plane keys such as `PATH`, `NODE_OPTIONS`, and `PI_CODING_AGENT_DIR` before spawn
 - optional `DispatchSubagentRequest.skillProfile`, resolved fail-closed through an allowlisted skill registry and materialized as child `--no-skills` plus `--skill <dir>` without mutating the source skill library; raw `skills[]` paths are reserved and rejected
 - bounded assistant output capture with truncation signaling
-- helper `transport_ready` handshake before ASC arms the execution timeout, so helper/raw-`pi` bootstrap does not silently consume the configured execution budget
+- a bounded startup timeout before helper readiness plus one mandatory `transport_ready` handshake emitted only after a recognized raw-Pi lifecycle event (not stdout noise or malformed output); before accepting any lifecycle event or arming execution timeout, the parent independently classifies the declared Pi version and requires it to match either `agent_settled` or audited `legacy_agent_end_exit` finality
 - assistant-only filtered subagent protocol between ASC and the child helper, so aggregate Pi JSON events are dropped before the runtime parser and raw Pi JSON is no longer accepted on the parent seam as a compatibility fallback
 - bounded raw Pi JSON buffering inside that helper for malformed/no-newline upstream stdout, with separate raw-buffer configuration from the parent filtered-protocol buffer
 - isolated raw-child agent-dir settings so extensionless child runs do not inherit unrelated global default-model warnings from the parent environment
 - bounded filtered-protocol buffering inside ASC for malformed/no-newline or oversized helper stdout
 - helper-owned raw-child process-group shutdown on abort/timeout so the parent does not leave orphaned raw `pi` subprocesses behind when it escalates
-- session-name reservation that treats status sidecars as occupied artifacts
+- on declared Pi >=0.80 hosts, exactly one authoritative raw-Pi `agent_settled` event after the final terminal assistant outcome is required for semantic success; per-run `agent_end` events may precede automatic retry, and a clean modern transport exit can never select the legacy fallback
+- the development/runtime contract is validated against Pi 0.80.6; the retained Pi 0.76 compatibility fixture predates `agent_settled`, so only an explicit `legacy_agent_end_exit` handshake plus clean foreground JSON-mode process exit and final `agent_end.willRetry=false` after the final outcome synthesizes compatibility settlement; unclassified Pi versions fail closed
+- cancellation only signals a sidecar owner whose live PID start identity and repository ownership verify; unsupported process identity fails closed, failed signals roll back cancellation intent, and custom-spawner sidecars cannot signal the parent Pi process
+- session-name reservation that treats status sidecars as occupied artifacts, plus shared capacity leases across Pi processes; lease and reclaim payloads are fully written to private inodes before atomic hard-link publication, and stale takeover/release uses identity-bearing compare/delete claims so a suspended creator or concurrent replacement cannot be mistaken for an empty partial lock
 - explicit hard failure when lock creation fails for permanent filesystem reasons
 
 These invariants are currently anchored by:
@@ -77,6 +85,7 @@ These invariants are currently anchored by:
 - `tests/subagent-protocol.test.mjs`
 - `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
+- `tests/dispatch-subagent-lifecycle-control.test.mjs`
 
 ## Change checklist
 
@@ -130,11 +139,13 @@ Useful properties:
 - `result.ok` tells the consumer whether execution completed successfully
 - `result.text` preserves the human-readable execution summary
 - `result.details.displayOutput` preserves the normalized body text consumers should render or forward, even when `fullOutput` is empty/whitespace on failing executions
-- `result.details.status` uses the canonical execution taxonomy (`done`, `aborted`, `timed_out`, `error`)
-- `result.details.failureKind` names the normalized failure branch (`timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `transport_error`, `extension_bootstrap_missing`, `env_policy_failed`, `skill_profile_failed`, `model_selection_failed`, or the pre-execution guardrail reasons)
+- `result.details.status` uses the canonical terminal execution taxonomy (`done`, `aborted`, `timed_out`, `error`); progress updates additionally use `spawning` and `running`
+- `result.details.dispatchId` is stable across an explicit resume, while `attemptId` changes per attempt; progress updates carry both plus monotonic `progressSequence`
+- `result.details.failureKind` names the normalized failure branch (`timed_out`, `startup_timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `assistant_protocol_incomplete`, `transport_error`, `extension_bootstrap_missing`, `env_policy_failed`, `skill_profile_failed`, `model_selection_failed`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
 - request `env` values are intentionally not echoed into `result.details`; only `PI_PROVENANCE_*` request env keys are accepted, there is no privileged passthrough escape hatch, and consumers that need provenance should read their own sidecar/output artifact
 - skill-profile result details (`skillProfile`, `loadedSkills`, `librarySkills`, `skillWarnings`, `skillRegistry`) report child bootstrap provenance without promoting or editing the source skill library
+- `runtime.cancel(dispatchId, ctx, reason?)` requests targeted cancellation only for an exact live identity-verified owned dispatch
 - `getDispatchSubagentDisplayOutput(result)` is the exported compatibility helper for consumers that want the same normalized body shaping without reimplementing fallback logic
 
 ## Prompt-related surfaces outside this seam
@@ -197,5 +208,6 @@ Current proof shape:
 - `tests/dispatch-subagent-diagnostics.test.mjs`
 - `tests/subagent-protocol.test.mjs`
 - `tests/subagent-transport-live.test.mjs`
+- `tests/dispatch-subagent-lifecycle-control.test.mjs`
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs`
 - `cd packages/pi-society-orchestrator && npm run release:check`

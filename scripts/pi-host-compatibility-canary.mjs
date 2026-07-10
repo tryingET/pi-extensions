@@ -972,19 +972,21 @@ async function spawnScenario(scenario, host, options) {
     packages: [],
   };
 
+  const scenarioNpmEnv = createNeutralNpmEnv({
+    ...process.env,
+    PI_HOST_COMPAT_PROFILE: options.profile,
+    PI_HOST_COMPAT_SCENARIO: scenario.id,
+    PI_HOST_VERSION: host.version,
+    PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
+  });
   try {
     execution = await spawnCommand(scenario.command[0], scenario.command.slice(1), {
       cwd: scenario.cwdAbs,
-      env: {
-        ...process.env,
-        PI_HOST_COMPAT_PROFILE: options.profile,
-        PI_HOST_COMPAT_SCENARIO: scenario.id,
-        PI_HOST_VERSION: host.version,
-        PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
-      },
+      env: scenarioNpmEnv.env,
       stdio,
     });
   } finally {
+    scenarioNpmEnv.cleanup();
     restoration = await restoreScenarioHost(host, hostPreparation, options);
   }
 

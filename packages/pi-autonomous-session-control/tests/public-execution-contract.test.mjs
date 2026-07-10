@@ -13,6 +13,7 @@ const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const timeoutEmptyOutputCase = loadExecutionSeamCase("timeout-empty-output");
 const timeoutWhitespaceOutputCase = loadExecutionSeamCase("timeout-whitespace-output");
 const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protocol-parse-error");
+const assistantProtocolIncompleteCase = loadExecutionSeamCase("assistant-protocol-incomplete");
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -31,14 +32,20 @@ test("public execution export target stays published and typechecked", async () 
   assert.ok(tsconfig.include?.includes("execution.ts"));
 });
 
-async function withFakePiOnPath(scriptBody, run) {
+async function withFakePiOnPath(scriptBody, run, version = "0.80.6") {
   const tempDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-fake-pi-"));
   const binDir = join(tempDir, "bin");
   const fakePiPath = join(binDir, "pi");
+  const scenarioPath = join(binDir, "pi-scenario");
   const previousPath = process.env.PATH;
 
   await mkdir(binDir, { recursive: true });
-  await writeFile(fakePiPath, scriptBody, { mode: 0o755 });
+  await writeFile(scenarioPath, scriptBody, { mode: 0o755 });
+  await writeFile(
+    fakePiPath,
+    `#!/usr/bin/env bash\nif [[ "$1" == "--version" ]]; then printf '%s\\n' ${JSON.stringify(version)}; exit 0; fi\nexec ${JSON.stringify(scenarioPath)} "$@"\n`,
+    { mode: 0o755 },
+  );
   process.env.PATH = `${binDir}:${previousPath || ""}`;
 
   try {
@@ -103,31 +110,30 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
       PI_PROVENANCE_REVIEW_LANE_ID: "lane-1",
       PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-1.json",
     });
-    assert.equal(
-      capturedDef.systemPrompt,
-      [
-        "[Prompt Envelope]",
-        "name: nexus",
-        "source: vault-client",
-        "tags: phase:execution, scope:public-contract",
-        "Use the smallest stable public seam.",
-        "",
-        "---",
-        "",
-        "Base prompt",
-      ].join("\n"),
-    );
+    const expectedBasePrompt = [
+      "[Prompt Envelope]",
+      "name: nexus",
+      "source: vault-client",
+      "tags: phase:execution, scope:public-contract",
+      "Use the smallest stable public seam.",
+      "",
+      "---",
+      "",
+      "Base prompt",
+    ].join("\n");
+    assert.ok(capturedDef.systemPrompt.startsWith(`${expectedBasePrompt}\n\n`));
+    assert.match(capturedDef.systemPrompt, /DISPATCH TASK CONTRACT/);
+    assert.match(capturedDef.systemPrompt, /"objective": "Review the integration seam"/);
 
-    assert.deepEqual(updates, [
-      {
-        text: "Dispatching custom subagent...",
-        details: {
-          profile: "custom",
-          objective: "Review the integration seam",
-          status: "spawning",
-        },
-      },
-    ]);
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].text, "Dispatching custom subagent...");
+    assert.equal(updates[0].details.profile, "custom");
+    assert.equal(updates[0].details.objective, "Review the integration seam");
+    assert.equal(updates[0].details.status, "spawning");
+    assert.equal(updates[0].details.progressPhase, "spawning");
+    assert.equal(updates[0].details.progressSequence, 1);
+    assert.equal(typeof updates[0].details.dispatchId, "string");
+    assert.equal(typeof updates[0].details.attemptId, "string");
 
     assert.equal(result.ok, true);
     assert.equal(result.details.status, "done");
@@ -286,16 +292,20 @@ test("execution entrypoint stays headless-importable without package-local node_
     "extensions/self/edge-contract-kernel.ts",
     "extensions/self/subagent-child-agent-dir.ts",
     "extensions/self/resolvers/helpers.ts",
+    "extensions/self/subagent-capacity.ts",
+    "extensions/self/subagent-control.ts",
     "extensions/self/subagent-edge-contract.ts",
     "extensions/self/subagent-extension-selection.ts",
     "extensions/self/subagent-profiles.ts",
     "extensions/self/subagent-prompt-envelope.ts",
+    "extensions/self/subagent-protocol.ts",
     "extensions/self/subagent-model-selection.ts",
     "extensions/self/session-context.ts",
     "extensions/self/subagent-runtime-display.ts",
     "extensions/self/subagent-runtime-model.ts",
     "extensions/self/subagent-runtime-types.ts",
     "extensions/self/subagent-runtime.ts",
+    "extensions/self/subagent-resume.ts",
     "extensions/self/subagent-session-name.ts",
     "extensions/self/subagent-session-status.ts",
     "extensions/self/subagent-session.ts",
@@ -307,6 +317,7 @@ test("execution entrypoint stays headless-importable without package-local node_
     "extensions/self/subagent-spawn-types.ts",
     "extensions/self/subagent-spawn-utils.ts",
     "extensions/self/subagent-spawn.ts",
+    "extensions/self/subagent-task-contract.ts",
   ];
 
   try {
@@ -487,6 +498,51 @@ test("createAscExecutionRuntime replays the parse-error casebook against the liv
       new RegExp(escapeRegExp(assistantProtocolParseErrorCase.expected.executionLikeOutput)),
     );
   });
+});
+
+test("createAscExecutionRuntime replays the incomplete-protocol casebook against a clean transport exit", async () => {
+  const rawEvent = JSON.stringify({
+    type: "message_update",
+    assistantMessageEvent: { type: "text_delta", delta: "partial output" },
+  });
+  await withFakePiOnPath(
+    `#!/usr/bin/env bash\nprintf '%s\\n' '${rawEvent}'\n`,
+    async (tempRoot) => {
+      const runtime = createAscExecutionRuntime({
+        sessionsDir: join(tempRoot, "sessions"),
+        modelProvider: () => "test/model",
+      });
+      const result = await runtime.execute(
+        {
+          profile: "custom",
+          objective: "Verify incomplete protocol shaping",
+          tools: "read",
+          systemPrompt: "test prompt",
+          name: "incomplete-protocol-casebook",
+          timeout: 1,
+        },
+        { cwd: tempRoot },
+      );
+
+      assert.equal(result.ok, false);
+      assert.equal(
+        result.details.status,
+        assistantProtocolIncompleteCase.dispatchResult.details.status,
+      );
+      assert.equal(
+        result.details.failureKind,
+        assistantProtocolIncompleteCase.expected.failureKind,
+      );
+      assert.equal(
+        result.details.displayOutput,
+        assistantProtocolIncompleteCase.expected.executionLikeOutput,
+      );
+      assert.equal(
+        result.details.executionState?.protocol?.kind,
+        assistantProtocolIncompleteCase.dispatchResult.details.executionState.protocol.kind,
+      );
+    },
+  );
 });
 
 test("registerDispatchSubagentTool binds dispatch_subagent to the shared ASC runtime", async () => {

@@ -18,6 +18,7 @@ Initial seed cases:
 - `timeout-whitespace-output` — whitespace-only raw timeout output must not blank the human fallback body
 - `assistant-protocol-semantic-error` — semantic assistant failure must preserve partial output and failure kind
 - `assistant-protocol-parse-error` — malformed raw pi JSON output must preserve parse-error classification and body text across translation into the helper protocol seam
+- `assistant-protocol-incomplete` — a clean transport exit without exactly one terminal assistant event must fail closed and preserve partial output plus incomplete-protocol classification
 - `bundled-bridge-import` — installed release smoke must still see the temporary bundled ASC bridge in the isolated package copy
 
 Usage today:

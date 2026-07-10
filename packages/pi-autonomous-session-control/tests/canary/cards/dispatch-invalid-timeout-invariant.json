@@ -20,7 +20,7 @@
     },
     {
       "path": "results.0.content.0.text",
-      "includes": "dispatch.timeout.non_negative"
+      "includes": "dispatch.timeout.bounded"
     }
   ]
 }

@@ -21,6 +21,8 @@ export function createSubagentProtocolArgs(params: {
     params.model,
     "--tools",
     params.def.tools,
+    "--thinking",
+    params.def.thinking || "off",
     "--session-file",
     getSubagentSessionFile(params.def, params.state),
     "--objective",

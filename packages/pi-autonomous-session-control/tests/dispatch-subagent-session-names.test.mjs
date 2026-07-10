@@ -148,10 +148,10 @@ test("dispatch_subagent generates unique session names for concurrent dispatches
   assert.notEqual(capturedDefs[0].sessionFile, capturedDefs[1].sessionFile);
 });
 
-test("dispatch_subagent can disable session-name reservation protections via env flag", async () => {
+test("dispatch_subagent status projection still prevents collisions when lock reservations are disabled", async () => {
   const capturedDefs = await runConcurrentSameNameDispatch("false");
   assert.equal(capturedDefs.length, 2);
-  assert.equal(capturedDefs[0].sessionFile, capturedDefs[1].sessionFile);
+  assert.notEqual(capturedDefs[0].sessionFile, capturedDefs[1].sessionFile);
 });
 
 test("dispatch_subagent rate limits when max concurrent reached", async () => {
@@ -160,18 +160,19 @@ test("dispatch_subagent rate limits when max concurrent reached", async () => {
   try {
     harness.state.activeCount = 2;
 
-    const result = await harness.tool.execute(
-      "tc-12",
-      { profile: "reviewer", objective: "Task" },
-      null,
-      null,
-      { cwd: process.cwd() },
-    );
+    const result = await harness.tool
+      .execute("tc-12", { profile: "reviewer", objective: "Task" }, null, null, {
+        cwd: process.cwd(),
+      })
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw a rate-limit tool error"),
+        (error) => error.result,
+      );
 
     assert.equal(result.details.status, "error");
     assert.equal(result.details.reason, "rate_limited");
     assert.equal(result.details.maxConcurrent, 2);
-    assert.match(result.content[0].text, /Maximum concurrent/);
+    assert.match(result.text, /Maximum concurrent/);
   } finally {
     await harness.cleanup();
   }

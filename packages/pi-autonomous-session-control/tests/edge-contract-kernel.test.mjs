@@ -86,20 +86,25 @@ test("dispatch_subagent rejects malformed objective via edge invariants", async 
   );
 
   try {
-    const result = await tool.execute(
-      "tc-eck-1",
-      {
-        profile: "reviewer",
-        objective: "   ",
-      },
-      null,
-      null,
-      { cwd: process.cwd() },
-    );
+    const result = await tool
+      .execute(
+        "tc-eck-1",
+        {
+          profile: "reviewer",
+          objective: "   ",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw an invariant tool error"),
+        (error) => error.result,
+      );
 
     assert.equal(result.details.status, "error");
     assert.equal(result.details.reason, "invariant_failed");
-    assert.match(result.content[0].text, /dispatch.objective.required/);
+    assert.match(result.text, /dispatch.objective.required/);
     assert.equal(spawnCalls, 0);
     assert.equal(state.activeCount, 0);
   } finally {

@@ -150,7 +150,7 @@ describe("prompt-template command runner", () => {
     ]);
   });
 
-  it("supports deferred agent-end style restore without live hook registration", async () => {
+  it("supports deferred agent-settled style restore without live hook registration", async () => {
     const current = createModel({ provider: "openai", id: "gpt-5" });
     const target = createModel({ provider: "zai", id: "glm-5.1" });
     const { ctx } = createContext(current, [current, target]);
@@ -167,7 +167,7 @@ describe("prompt-template command runner", () => {
       "",
       ctx,
       host,
-      { restoreTiming: "agent_end" },
+      { restoreTiming: "agent_settled" },
     );
 
     assert.equal(result.ok, true);
@@ -212,7 +212,7 @@ describe("prompt-template command runner", () => {
         "",
         ctx,
         host,
-        { restoreTiming: "agent_end" },
+        { restoreTiming: "agent_settled" },
       ),
       /send failed/,
     );

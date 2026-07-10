@@ -23,14 +23,20 @@ export interface SubagentExtensionContext {
 
 export function resolveSubagentExtensionSelection(params: {
   requestedExtensions?: string[];
+  effectiveModel?: string;
   ctx?: SubagentExtensionContext;
 }): ResolvedSubagentExtensionSelection {
   const requested = dedupe([
     ...parseExtensionEnv(process.env.PI_SUBAGENT_EXTENSIONS),
     ...(params.requestedExtensions ?? []),
   ]);
+  const normalizedEffectiveModel = params.effectiveModel?.trim() ?? "";
+  const effectiveProvider = normalizedEffectiveModel.includes("/")
+    ? (normalizedEffectiveModel.split("/", 1)[0] ?? "")
+    : "";
   const provider =
-    typeof params.ctx?.model?.provider === "string" ? params.ctx.model.provider.trim() : "";
+    effectiveProvider ||
+    (typeof params.ctx?.model?.provider === "string" ? params.ctx.model.provider.trim() : "");
   const aliasRequiresMultiPass = NUMERIC_PROVIDER_ALIAS_PATTERN.test(provider);
   const extensions = new Set<string>();
   const warnings: string[] = [];

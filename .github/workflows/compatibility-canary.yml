@@ -16,7 +16,7 @@ on:
           - current
           - upgrade
       host_version:
-        description: "Exact @mariozechner/pi-coding-agent version for upgrade runs"
+        description: "Exact @earendil-works/pi-coding-agent version for upgrade runs"
         required: false
         type: string
       changelog_ref:

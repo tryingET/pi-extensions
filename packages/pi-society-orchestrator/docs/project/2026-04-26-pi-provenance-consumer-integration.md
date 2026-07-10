@@ -44,7 +44,7 @@ AK projects/joins later: only after source evidence exists and query pressure ju
 
 | Seam | Current truth | Integration consequence |
 |---|---|---|
-| `pi-provenance` | Provides `extractLatestAssistantMessageProvenance(ctx.sessionManager)` and an inert-by-default `agent_end` handler gated by `PI_PROVENANCE_REVIEW_LANE_ID` + `PI_PROVENANCE_OUTPUT_FILE`. | It is already shaped as background/library-first. Consumers must supply explicit review-lane markers and output path. |
+| `pi-provenance` | Provides `extractLatestAssistantMessageProvenance(ctx.sessionManager)` and an inert-by-default `agent_settled` handler gated by `PI_PROVENANCE_REVIEW_LANE_ID` + `PI_PROVENANCE_OUTPUT_FILE`. | It is already shaped as background/library-first. Consumers must supply explicit review-lane markers and output path. |
 | `pi-society-orchestrator` subagent adapter | `src/runtime/subagent.ts` wraps ASC's public execution runtime and passes objective/model/cwd/prompt envelope, but does not currently expose child extension sources or per-execution environment markers. | Orchestrator is the right consumer, but needs a narrow adapter addition before it can activate child-lane provenance capture. |
 | ASC public runtime | `DispatchSubagentRequest` already supports `extensions?: string[]`; `resolveSubagentExtensionSelection` feeds child `--extension` sources. | Child Pi can load `pi-provenance` if orchestrator passes the extension source through. |
 | ASC spawn path | `subagent-spawn.ts` spawns the helper with `env: { ...process.env }`; the helper then spawns raw `pi` with inherited env plus isolated agent-dir. There is no request-scoped env overlay today. | Do not mutate `process.env` around concurrent execution. Add a small ASC-owned per-execution env overlay if child-lane background capture is implemented. |
@@ -78,7 +78,7 @@ For each orchestrator-launched governed review lane that opts into provenance:
    ```
 
 4. The child Pi session loads `pi-provenance`.
-5. At child `agent_end`, `pi-provenance` writes the minimal provenance block.
+5. At child `agent_settled`, `pi-provenance` writes the minimal provenance block.
 6. Orchestrator reads the sidecar after ASC returns and copies the block path or contents into the review-lane result/evidence artifact.
 
 ## Required seam additions before implementation
@@ -212,7 +212,7 @@ This integration does not:
 ```gherkin
 Given orchestrator launches a governed review lane through ASC
 And provenance capture is enabled for that lane
-When the child Pi runtime reaches agent_end
+When the child Pi runtime reaches agent_settled
 Then pi-provenance writes a sidecar with session file, message entry id, provider, model, API, stop reason, timestamp, and usage
 And orchestrator attaches or references that sidecar in the lane result.
 ```

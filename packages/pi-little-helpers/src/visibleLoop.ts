@@ -318,7 +318,7 @@ export function handleVisibleLoopAgentStart(
   queueVisibleLoopFollowups(state, ctx, env);
 }
 
-export function handleVisibleLoopAgentEnd(
+export function handleVisibleLoopAgentSettled(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
@@ -331,8 +331,8 @@ export function handleVisibleLoopAgentEnd(
   appendVisibleLoopStatus(
     state.config,
     {
-      event: "agent_end_observed",
-      source: "agent_end",
+      event: "agent_settled_observed",
+      source: "agent_settled",
       pendingMessages: Boolean(ctx.hasPendingMessages?.()),
       completedPromptCount: state.completedPromptCount,
       completedIterations: state.completedIterations,
@@ -703,7 +703,7 @@ function completeVisibleLoopIteration(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv,
-  source: "agent_end" | "completion_command",
+  source: "agent_settled" | "completion_command",
   expectedIteration?: number,
 ): { accepted: true } | { accepted: false; reason: string } {
   if (state.stopped) {

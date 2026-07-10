@@ -55,7 +55,7 @@ The current slice provides:
   - extract that block from Pi's read-only `ctx.sessionManager`
 - `extensions/provenance.ts`
   - no user-facing slash command
-  - gated `agent_end` background capture only when `PI_PROVENANCE_REVIEW_LANE_ID` and `PI_PROVENANCE_OUTPUT_FILE` are set
+  - gated `agent_settled` background capture only when `PI_PROVENANCE_REVIEW_LANE_ID` and `PI_PROVENANCE_OUTPUT_FILE` are set
 - tests that prove the block omits raw message content and preserves provider/model/API/session refs
 
 ## Non-goals

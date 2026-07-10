@@ -20,17 +20,17 @@ function assistantEntry() {
 }
 
 function registerEntrypoint() {
-  let agentEnd;
+  let agentSettled;
   provenanceExtension({
     on(event, handler) {
-      if (event === "agent_end") agentEnd = handler;
+      if (event === "agent_settled") agentSettled = handler;
     },
   });
-  assert.equal(typeof agentEnd, "function");
-  return agentEnd;
+  assert.equal(typeof agentSettled, "function");
+  return agentSettled;
 }
 
-test("agent_end entrypoint writes configured provenance", async () => {
+test("agent_settled entrypoint writes configured provenance", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "pi-provenance-entrypoint-"));
   const outputFile = path.join(dir, "capture.json");
   const oldLane = process.env.PI_PROVENANCE_REVIEW_LANE_ID;
@@ -39,8 +39,8 @@ test("agent_end entrypoint writes configured provenance", async () => {
   process.env.PI_PROVENANCE_OUTPUT_FILE = outputFile;
 
   try {
-    const agentEnd = registerEntrypoint();
-    await agentEnd({}, { sessionManager: { getEntries: () => [assistantEntry()] } });
+    const agentSettled = registerEntrypoint();
+    await agentSettled({}, { sessionManager: { getEntries: () => [assistantEntry()] } });
     const payload = JSON.parse(await readFile(outputFile, "utf8"));
     assert.equal(payload.pi_session.message_entry_id, "assistant-entry");
     assert.equal(payload.capture_context.review_lane_id, "lane-1");
@@ -51,7 +51,7 @@ test("agent_end entrypoint writes configured provenance", async () => {
   }
 });
 
-test("agent_end entrypoint isolates extraction and background write failures", async () => {
+test("agent_settled entrypoint isolates extraction and background write failures", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "pi-provenance-failure-"));
   const oldLane = process.env.PI_PROVENANCE_REVIEW_LANE_ID;
   const oldOutput = process.env.PI_PROVENANCE_OUTPUT_FILE;
@@ -59,12 +59,12 @@ test("agent_end entrypoint isolates extraction and background write failures", a
   process.env.PI_PROVENANCE_OUTPUT_FILE = dir;
 
   try {
-    const agentEnd = registerEntrypoint();
+    const agentSettled = registerEntrypoint();
     await assert.doesNotReject(() =>
-      agentEnd({}, { sessionManager: { getEntries: () => [assistantEntry()] } }),
+      agentSettled({}, { sessionManager: { getEntries: () => [assistantEntry()] } }),
     );
     await assert.doesNotReject(() =>
-      agentEnd(
+      agentSettled(
         {},
         {
           sessionManager: {

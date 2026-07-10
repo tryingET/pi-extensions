@@ -3,6 +3,8 @@
  */
 
 import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
+import { getContextRepoRoot } from "./session-context.ts";
+import { cancelSubagentDispatch } from "./subagent-control.ts";
 import {
   cleanupOldSessions,
   clearSubagentSessions,
@@ -32,6 +34,32 @@ function notifyPreserved(ctx: Parameters<RegisteredCommand["handler"]>[1], comma
 }
 
 export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState): void {
+  pi.registerCommand("subagent-cancel", {
+    description: "Cancel one exact live ASC subagent dispatch id",
+    handler: async (args, ctx) => {
+      const [dispatchId, ...reasonParts] = parseCommandArgs(args);
+      if (!dispatchId) {
+        if (ctx.hasUI) ctx.ui.notify("Usage: /subagent-cancel <dispatchId> [reason]", "warning");
+        return;
+      }
+      const result = cancelSubagentDispatch({
+        state,
+        dispatchId,
+        requestedBy: `operator:${ctx.sessionManager.getSessionId()}`,
+        reason: reasonParts.join(" "),
+        parentRepoRoot: getContextRepoRoot(ctx),
+      });
+      if (ctx.hasUI) {
+        ctx.ui.notify(
+          result.ok
+            ? `Subagent ${result.dispatchId}: ${result.status}`
+            : `Subagent cancellation failed: ${result.error}`,
+          result.ok ? "info" : "error",
+        );
+      }
+    },
+  });
+
   pi.registerCommand("subagent-clear", {
     description: "Preserve subagent sessions by default; pass --delete to remove ASC artifacts",
     handler: async (args, ctx) => {

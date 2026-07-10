@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   createSkillRegistryFixture,
+  executeToolExpectFailure,
   setup,
   withTemporaryEnv,
 } from "./dispatch-subagent-harness.mjs";
@@ -78,7 +79,8 @@ test("dispatch_subagent rejects unknown skillProfile before spawn without leakin
 
   try {
     await withTemporaryEnv({ ASC_SKILL_REGISTRY_PATH: fixture.registryPath }, async () => {
-      const result = await harness.tool.execute(
+      const result = await executeToolExpectFailure(
+        harness.tool,
         "tc-skill-profile-unknown",
         {
           profile: "reviewer",
@@ -133,7 +135,8 @@ test("dispatch_subagent rejects registry skill paths outside the library root", 
     );
 
     await withTemporaryEnv({ ASC_SKILL_REGISTRY_PATH: registryPath }, async () => {
-      const result = await harness.tool.execute(
+      const result = await executeToolExpectFailure(
+        harness.tool,
         "tc-skill-path-escape",
         {
           profile: "reviewer",
@@ -167,7 +170,8 @@ test("dispatch_subagent checks missing child extensions before materializing ski
         PI_VAULT_CLIENT_EXTENSION: "/tmp/does-not-exist-vault-client.ts",
       },
       async () => {
-        const result = await harness.tool.execute(
+        const result = await executeToolExpectFailure(
+          harness.tool,
           "tc-missing-extension-before-skills",
           {
             profile: "reviewer",
@@ -197,7 +201,8 @@ test("dispatch_subagent rejects raw skills before spawn", async () => {
   const harness = await setup();
 
   try {
-    const result = await harness.tool.execute(
+    const result = await executeToolExpectFailure(
+      harness.tool,
       "tc-raw-skills-rejected",
       {
         profile: "reviewer",

@@ -113,7 +113,7 @@ Improve prompt wording and tests so root-launched loops route posture updates to
 
 Keep completion checkpoint wording aligned with the actual prompt queue so child sessions know not to mark a loop complete when product-posture refresh, validation, or commit/delegated commit failed.
 
-Recent proof: the model-facing `visible_loop_child_complete` description now matches the checkpointed completion flow instead of implying ordinary `agent_end` completion.
+Recent proof: the model-facing `visible_loop_child_complete` description now matches the checkpointed completion flow instead of implying ordinary `agent_settled` completion.
 
 ### Bet 4 — Readability ratchet for visible-loop internals
 

@@ -56,7 +56,7 @@ export function registerPiAutoresearchExtension(
         autoContinuationTimers,
       );
     });
-    maybeOn.call(pi, "agent_end", (_event: unknown, ctx: unknown) => {
+    maybeOn.call(pi, "agent_settled", (_event: unknown, ctx: unknown) => {
       scheduleAutoresearchAutoContinuationFollowUp(
         pi,
         ctx as AutoresearchWidgetContext,

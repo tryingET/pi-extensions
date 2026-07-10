@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
-  "hostPackage": "@mariozechner/pi-coding-agent",
+  "hostPackage": "@earendil-works/pi-coding-agent",
   "hostCompanionPackages": [
-    "@mariozechner/pi-ai",
-    "@mariozechner/pi-tui"
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-tui"
   ],
-  "trackedChangelog": "https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/CHANGELOG.md",
+  "trackedChangelog": "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/CHANGELOG.md",
   "defaultProfile": "current",
   "profiles": {
     "current": {
       "description": "Run against the root-owned pinned Pi host contract that defines the current canary baseline for this monorepo.",
       "host": {
-        "version": "0.70.2",
-        "reviewAnchor": "npm:@mariozechner/pi-coding-agent@0.70.2"
+        "version": "0.80.6",
+        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.80.6"
       }
     },
     "upgrade": {
@@ -103,6 +103,35 @@
         "npm",
         "run",
         "test:compat:parallel-tool-events"
+      ]
+    },
+    {
+      "id": "asc-settlement-and-thinking-contract",
+      "title": "ASC settled-run and thinking-level host contract",
+      "owner": "pi-autonomous-session-control",
+      "why": "Protect the Pi 0.80 settled-run lifecycle, max thinking level, and legacy raw-JSON compatibility boundary used by dispatch_subagent and rewind finalization.",
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
+      "packages": [
+        "packages/pi-autonomous-session-control"
+      ],
+      "upstreamSurfaces": [
+        "agent_settled finality",
+        "agent_end retry compatibility",
+        "session idle settlement",
+        "max thinking level",
+        "rewind finalization timing"
+      ],
+      "cwd": "packages/pi-autonomous-session-control",
+      "command": [
+        "node",
+        "--test",
+        "--experimental-strip-types",
+        "tests/rewind-runtime.test.mjs",
+        "tests/subagent-transport-live.test.mjs",
+        "tests/dispatch-subagent-lifecycle-control.test.mjs"
       ]
     },
     {

@@ -24,7 +24,7 @@ import {
   DEFAULT_VISIBLE_LOOP_PROFILE,
   findSelfEvolutionExecutionEnvelope,
   getVisibleLoopStatusPath,
-  handleVisibleLoopAgentEnd,
+  handleVisibleLoopAgentSettled,
   handleVisibleLoopAgentStart,
   listMissingVisibleLoopPromptTemplates,
   NEXUS_LOOP_COMMAND,
@@ -2979,9 +2979,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       });
     });
 
-    pi.on?.("agent_end", async (_event, ctx) => {
+    pi.on?.("agent_settled", async (_event, ctx) => {
       const commandCtx = ctx ?? {};
-      handleVisibleLoopAgentEnd(pi, commandCtx, options.env ?? process.env, {
+      handleVisibleLoopAgentSettled(pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
       });
     });

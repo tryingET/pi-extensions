@@ -111,7 +111,8 @@ function normalizeIntentText(value: unknown): string | undefined {
 }
 
 function findRepoRoot(cwd: string): string {
-  let current = resolve(cwd);
+  const resolvedCwd = resolve(cwd);
+  let current = resolvedCwd;
 
   while (true) {
     if (existsSync(join(current, ".git"))) {
@@ -120,7 +121,7 @@ function findRepoRoot(cwd: string): string {
 
     const parent = dirname(current);
     if (parent === current) {
-      return current;
+      return resolvedCwd;
     }
     current = parent;
   }

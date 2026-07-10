@@ -51,6 +51,7 @@ const assistantProtocolSemanticErrorCase = loadExecutionSeamCase(
   "assistant-protocol-semantic-error",
 );
 const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protocol-parse-error");
+const assistantProtocolIncompleteCase = loadExecutionSeamCase("assistant-protocol-incomplete");
 
 function createSessionUsageManager() {
   return {
@@ -614,6 +615,21 @@ test("toExecutionLike preserves parse failures from the execution seam casebook"
   );
 });
 
+test("toExecutionLike preserves incomplete-protocol failures from the execution seam casebook", () => {
+  const execution = toExecutionLike(assistantProtocolIncompleteCase.dispatchResult);
+
+  assert.equal(execution.output, assistantProtocolIncompleteCase.expected.executionLikeOutput);
+  assert.equal(execution.failureKind, assistantProtocolIncompleteCase.expected.failureKind);
+  assert.deepEqual(
+    execution.executionState,
+    assistantProtocolIncompleteCase.dispatchResult.details.executionState,
+  );
+  assert.equal(
+    getExecutionStatus(execution),
+    assistantProtocolIncompleteCase.expected.executionLikeStatus,
+  );
+});
+
 test("createOrchestratorSubagentExecutor preserves truncation metadata from ASC output policy", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-asc-truncation-"));
 
@@ -758,6 +774,16 @@ test("execution status classifier honors explicit transport/protocol precedence"
     getExecutionStatus({
       exitCode: 0,
       executionState: {
+        transport: { kind: "transport", exitCode: 17, aborted: false, timedOut: false },
+        protocol: { kind: "assistant_protocol", stopReason: "stop" },
+      },
+    }),
+    "done",
+  );
+  assert.equal(
+    getExecutionStatus({
+      exitCode: 0,
+      executionState: {
         transport: { kind: "transport", exitCode: 0, aborted: false, timedOut: false },
         protocol: {
           kind: "assistant_protocol_parse_error",
@@ -766,6 +792,17 @@ test("execution status classifier honors explicit transport/protocol precedence"
       },
     }),
     "error",
+  );
+  assert.equal(
+    getExecutionStatus({
+      exitCode: 124,
+      timedOut: true,
+      executionState: {
+        transport: { kind: "transport", exitCode: 124, aborted: false, timedOut: true },
+        protocol: { kind: "assistant_protocol", stopReason: "aborted" },
+      },
+    }),
+    "aborted",
   );
   assert.equal(
     getExecutionStatus({

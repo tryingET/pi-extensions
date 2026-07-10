@@ -6,7 +6,7 @@ import test from "node:test";
 import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {
   createVisibleLoopRunConfig,
-  handleVisibleLoopAgentEnd,
+  handleVisibleLoopAgentSettled,
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
   writeVisibleLoopRunConfig,
@@ -97,7 +97,7 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
       "nonsense loop must not launch iteration 2 before explicit completion",
     );
 
-    const agentEnd = events.get("agent_end")[0];
+    const agentEnd = events.get("agent_settled")[0];
     await agentEnd({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
 
@@ -107,7 +107,7 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
     assert.equal(
       visibleLoopLaunches.length,
       0,
-      "agent_end must not launch iteration 2 before the checkpoint command/tool completes",
+      "agent_settled must not launch iteration 2 before the checkpoint command/tool completes",
     );
 
     await commands
@@ -138,7 +138,7 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
       ),
     );
     assert.ok(statusEntries.some((entry) => entry.event === "completion_prompt_queued"));
-    assert.ok(statusEntries.some((entry) => entry.event === "agent_end_observed"));
+    assert.ok(statusEntries.some((entry) => entry.event === "agent_settled_observed"));
     assert.ok(
       statusEntries.some(
         (entry) =>
@@ -269,13 +269,13 @@ test("visible-loop intercom timeout does not block prompt queue or next iteratio
       "ACK report-back timeout must not prevent the child from receiving its first prompt",
     );
 
-    handleVisibleLoopAgentEnd(pi, ctx, env);
+    handleVisibleLoopAgentSettled(pi, ctx, env);
     await new Promise((resolve) => setTimeout(resolve, 80));
 
     assert.equal(
       continuationCount,
       0,
-      "agent_end must not launch the next visible-loop iteration before explicit completion",
+      "agent_settled must not launch the next visible-loop iteration before explicit completion",
     );
 
     await startVisibleLoopChildCompleteRunner(`${configPath} --iteration 1`, pi, ctx, env);

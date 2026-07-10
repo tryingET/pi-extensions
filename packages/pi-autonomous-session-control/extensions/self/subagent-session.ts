@@ -85,7 +85,7 @@ function readMatchingSessionStatus(
   return status;
 }
 
-function readLifecycleOwnedSessionStatus(
+export function readLifecycleOwnedSessionStatus(
   sessionsDir: string,
   sessionName: string,
 ): SubagentSessionStatus | null {
@@ -159,6 +159,11 @@ function getExistingSessionArtifactPaths(
 
   const lockPath = join(sessionsDir, `${status.sessionName}.lock`);
   if (existsSync(lockPath)) paths.add(lockPath);
+  for (const entry of readdirSync(sessionsDir)) {
+    if (entry.startsWith(`${status.sessionName}.`) && entry.endsWith(".cancel.json")) {
+      paths.add(join(sessionsDir, entry));
+    }
+  }
 
   paths.add(getSessionStatusPath(sessionsDir, status.sessionName));
   return [...paths].filter((path) => existsSync(path));
@@ -215,7 +220,7 @@ export function createSubagentState(
 
   return {
     sessionsDir,
-    activeCount: countLiveRunningSessionStatuses(sessionsDir),
+    activeCount: 0,
     completedCount: 0,
     maxConcurrent: options?.maxConcurrent ?? DEFAULT_MAX_CONCURRENT,
     reservedSessionNames: new Set(),
@@ -236,7 +241,6 @@ export function clearSubagentSessions(
       }
     }
   }
-  state.activeCount = countLiveRunningSessionStatuses(state.sessionsDir);
   state.completedCount = 0;
   state.reservedSessionNames.clear();
 }
@@ -394,7 +398,7 @@ export function canSpawnSubagent(state: SubagentState): boolean {
 }
 
 export interface SubagentExecutionSlotReservation {
-  release(): void;
+  release(options?: { completed?: boolean }): void;
 }
 
 export function reserveSubagentExecutionSlot(
@@ -408,13 +412,13 @@ export function reserveSubagentExecutionSlot(
   let released = false;
 
   return {
-    release() {
+    release(options = {}) {
       if (released) {
         return;
       }
       released = true;
       state.activeCount = Math.max(0, state.activeCount - 1);
-      state.completedCount += 1;
+      if (options.completed) state.completedCount += 1;
     },
   };
 }
@@ -445,7 +449,7 @@ export function getSubagentStats(state: SubagentState): {
   }
 
   return {
-    active: state.activeCount,
+    active: countLiveRunningSessionStatuses(state.sessionsDir),
     completed: state.completedCount,
     maxConcurrent: state.maxConcurrent,
     sessionFiles: files.length,

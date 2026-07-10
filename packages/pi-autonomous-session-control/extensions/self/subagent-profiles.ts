@@ -2,14 +2,18 @@
  * Predefined subagent profiles.
  */
 
+import type { DispatchThinkingLevel } from "./subagent-runtime-types.ts";
+
 export interface SubagentProfile {
   tools: string;
+  thinking: DispatchThinkingLevel;
   systemPrompt: string;
 }
 
 export const SUBAGENT_PROFILES: Record<string, SubagentProfile> = {
   explorer: {
     tools: "read,bash",
+    thinking: "low",
     systemPrompt: `You are an exploration agent. Your job is to investigate and report.
 - Explore broadly, report findings concisely
 - Note interesting patterns, file structures, key files
@@ -18,6 +22,7 @@ export const SUBAGENT_PROFILES: Record<string, SubagentProfile> = {
   },
   reviewer: {
     tools: "read,bash",
+    thinking: "medium",
     systemPrompt: `You are a code reviewer agent. Your job is to evaluate and critique.
 - Review the code for correctness, clarity, and patterns
 - Identify potential issues, edge cases, or improvements
@@ -29,6 +34,7 @@ export const SUBAGENT_PROFILES: Record<string, SubagentProfile> = {
   },
   tester: {
     tools: "read,bash",
+    thinking: "medium",
     systemPrompt: `You are a testing agent. Your job is to verify and validate.
 - Check if the implementation matches the requirements
 - Identify edge cases and potential failure modes
@@ -37,6 +43,7 @@ export const SUBAGENT_PROFILES: Record<string, SubagentProfile> = {
   },
   researcher: {
     tools: "read,bash",
+    thinking: "medium",
     systemPrompt: `You are a research agent. Your job is to investigate and learn.
 - Search for relevant documentation, examples, patterns
 - Synthesize findings into actionable knowledge
@@ -45,6 +52,7 @@ export const SUBAGENT_PROFILES: Record<string, SubagentProfile> = {
   },
   minimal: {
     tools: "read,bash",
+    thinking: "off",
     systemPrompt: `You are a minimal agent. Follow the objective precisely, then stop.`,
   },
 };

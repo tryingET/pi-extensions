@@ -482,7 +482,7 @@ test("clearSubagentSessions keeps live running subagent artifacts", async () => 
   }
 });
 
-test("createSubagentState restores active concurrency from live running status sidecars", async () => {
+test("createSubagentState keeps process-local capacity separate from live external sidecars", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-active-restart-"));
 
   try {
@@ -491,8 +491,9 @@ test("createSubagentState restores active concurrency from live running status s
 
     const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
 
-    assert.equal(state.activeCount, 1);
-    assert.equal(canSpawnSubagent(state), false);
+    assert.equal(state.activeCount, 0);
+    assert.equal(canSpawnSubagent(state), true);
+    assert.equal(getSubagentStats(state).active, 1);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }
@@ -571,7 +572,7 @@ test("createSubagentState rejects future-dated running sidecars without process 
   }
 });
 
-test("createSubagentState keeps running sidecars when process identity is unsupported", async () => {
+test("createSubagentState fails closed when process identity is unsupported", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "session-active-unsupported-identity-"));
 
   try {
@@ -587,9 +588,10 @@ test("createSubagentState keeps running sidecars when process identity is unsupp
       await readFile(getSessionStatusPath(sessionsDir, "unsupported-identity"), "utf8"),
     );
 
-    assert.equal(state.activeCount, 1);
-    assert.equal(canSpawnSubagent(state), false);
-    assert.equal(status.status, "running");
+    assert.equal(state.activeCount, 0);
+    assert.equal(canSpawnSubagent(state), true);
+    assert.equal(getSubagentStats(state).active, 0);
+    assert.equal(status.status, "abandoned");
     assert.equal(status.updatedAt, oldUpdatedAt);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });

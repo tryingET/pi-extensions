@@ -8,7 +8,7 @@ import {
   complete,
   type Model,
   type Usage,
-} from "@earendil-works/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 const COMMAND_NAME = "evalset";

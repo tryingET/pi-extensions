@@ -8,6 +8,17 @@ export interface SubagentSessionStatus {
   createdAt: string;
   updatedAt: string;
   objective?: string;
+  dispatchId?: string;
+  attemptId?: string;
+  resumed?: boolean;
+  configuredThinking?: string;
+  startupTimeoutMs?: number;
+  executionTimeoutMs?: number;
+  timeoutPhase?: "startup" | "execution";
+  cancelRequestedAt?: string;
+  cancelRequestedBy?: string;
+  cancelReason?: string;
+  cancelSupported?: boolean;
   exitCode?: number;
   elapsed?: number;
   parentSessionKey?: string;
@@ -75,6 +86,30 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
   ) {
     return null;
   }
+  for (const key of [
+    "dispatchId",
+    "attemptId",
+    "configuredThinking",
+    "cancelRequestedAt",
+    "cancelRequestedBy",
+    "cancelReason",
+  ] as const) {
+    if (candidate[key] !== undefined && typeof candidate[key] !== "string") return null;
+  }
+  for (const key of ["startupTimeoutMs", "executionTimeoutMs"] as const) {
+    if (candidate[key] !== undefined && typeof candidate[key] !== "number") return null;
+  }
+  if (candidate.resumed !== undefined && typeof candidate.resumed !== "boolean") return null;
+  if (candidate.cancelSupported !== undefined && typeof candidate.cancelSupported !== "boolean") {
+    return null;
+  }
+  if (
+    candidate.timeoutPhase !== undefined &&
+    candidate.timeoutPhase !== "startup" &&
+    candidate.timeoutPhase !== "execution"
+  ) {
+    return null;
+  }
 
   return candidate as unknown as SubagentSessionStatus;
 }
@@ -110,7 +145,7 @@ function processIsAlive(pid: number): boolean {
 export function runningStatusHasLiveOwner(status: SubagentSessionStatus): boolean {
   if (!processIsAlive(status.pid)) return false;
   if (typeof status.pidStartedAt !== "number") {
-    if (status.pidIdentity === "unsupported") return true;
+    if (status.pidIdentity === "unsupported") return false;
 
     const updatedAtMs = Date.parse(status.updatedAt);
     const ageMs = Date.now() - updatedAtMs;

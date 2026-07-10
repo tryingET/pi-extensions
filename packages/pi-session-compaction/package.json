@@ -68,12 +68,12 @@
     "./user-prompts": "./extensions/session-compaction/user-prompts.js"
   },
   "dependencies": {
-    "@tryinget/pi-model-selection": "file:../pi-model-selection",
-    "@earendil-works/pi-ai": "^0.76.0"
+    "@earendil-works/pi-ai": "^0.80.6",
+    "@tryinget/pi-model-selection": "file:../pi-model-selection"
   },
   "peerDependencies": {
-    "typebox": "*",
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": {
@@ -82,6 +82,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
+    "@earendil-works/pi-coding-agent": "^0.80.6",
     "typebox": "^1.0.0"
   },
   "x-pi-template": {
