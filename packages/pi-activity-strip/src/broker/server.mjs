@@ -20,6 +20,12 @@ function safeUnlink(filePath) {
   }
 }
 
+/** @param {unknown} error */
+function isExpectedClientDisconnect(error) {
+  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  return code === "ECONNRESET" || code === "EPIPE" || code === "ERR_STREAM_DESTROYED";
+}
+
 /** @param {string} line */
 function parseLine(line) {
   const trimmed = String(line ?? "").trim();
@@ -64,13 +70,23 @@ export class ActivityStripBroker extends EventEmitter {
 
   /** @param {import("node:net").Socket} socket @param {Record<string, unknown>} message */
   reply(socket, message) {
-    socket.write(`${JSON.stringify(message)}\n`);
+    if (socket.destroyed || !socket.writable) return;
+    try {
+      socket.write(`${JSON.stringify(message)}\n`, (error) => {
+        if (error && !isExpectedClientDisconnect(error)) this.emit("client-error", error);
+      });
+    } catch (error) {
+      if (!isExpectedClientDisconnect(error)) this.emit("client-error", error);
+    }
   }
 
   /** @param {import("node:net").Socket} socket */
   handleConnection(socket) {
     let buffer = "";
     socket.setEncoding("utf8");
+    socket.on("error", (error) => {
+      if (!isExpectedClientDisconnect(error)) this.emit("client-error", error);
+    });
 
     socket.on("data", (chunk) => {
       buffer += chunk;
