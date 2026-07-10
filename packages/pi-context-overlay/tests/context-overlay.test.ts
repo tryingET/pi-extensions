@@ -136,6 +136,7 @@ test("context overlay extension registers /c and opens an overlay", async () => 
 
   const ctx = {
     hasUI: true,
+    mode: "tui",
     cwd: process.cwd(),
     model: { provider: "test", id: "model" },
     sessionManager: {
@@ -187,6 +188,36 @@ test("context overlay extension registers /c and opens an overlay", async () => 
 
   const rendered = overlay?.render(100).join("\n") ?? "";
   assert.match(rendered, /Context Inspector/);
+});
+
+test("context overlay explains unsupported RPC mode instead of silently opening no UI", async () => {
+  const commands = new Map<string, RegisteredCommand>();
+  contextOverlayExtension({
+    on() {},
+    registerCommand(name: string, command: RegisteredCommand) {
+      commands.set(name, command);
+    },
+  } as never);
+
+  const notifications: Array<{ message: string; level: string }> = [];
+  let customCalled = false;
+  await commands.get("c")?.handler("", {
+    hasUI: true,
+    mode: "rpc",
+    ui: {
+      notify(message: string, level: string) {
+        notifications.push({ message, level });
+      },
+      async custom() {
+        customCalled = true;
+      },
+    },
+  });
+
+  assert.equal(customCalled, false);
+  assert.deepEqual(notifications, [
+    { message: "Context inspector requires interactive TUI mode", level: "warning" },
+  ]);
 });
 
 test("buildGroups splits AGENTS files out of markdown project context payload", () => {

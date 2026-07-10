@@ -79,7 +79,9 @@
     "releaseConfigMode": "component"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.14"
+    "@biomejs/biome": "2.3.14",
+    "@types/node": "^25.9.4",
+    "typescript": "^6.0.3"
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"

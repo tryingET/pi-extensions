@@ -153,6 +153,7 @@ export function registerPromptTemplateCommands(
   if (!plan.ok) return plan;
 
   const handler = options.handler ?? createPromptTemplateExecutionHandler(pi, options);
+  const refreshAtInvocation = options.refreshAtInvocation ?? options.loadResult === undefined;
   for (const command of plan.commands) {
     pi.registerCommand(command.name, {
       description: command.description,
@@ -164,7 +165,26 @@ export function registerPromptTemplateCommands(
           );
           return;
         }
-        return handler(command.prompt, args, ctx);
+
+        let invocationPrompt = command.prompt;
+        if (refreshAtInvocation) {
+          const refreshed = load({ cwd: ctx?.cwd ?? options.cwd });
+          invocationPrompt = refreshed.prompts?.get?.(command.name);
+          if (!invocationPrompt) {
+            ctx?.ui?.notify?.(
+              `Prompt template /${command.name} is no longer available on disk; reload to refresh registered commands.`,
+              "error",
+            );
+            return {
+              ok: false,
+              reason: "prompt_no_longer_available",
+              command: command.name,
+              diagnostics: refreshed.diagnostics ?? [],
+            };
+          }
+        }
+
+        return handler(invocationPrompt, args, ctx);
       },
     });
   }

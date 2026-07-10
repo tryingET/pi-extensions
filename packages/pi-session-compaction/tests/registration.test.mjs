@@ -139,6 +139,61 @@ describe("session compaction registration guard", () => {
     assert.equal(handlers.length, 1);
   });
 
+  it("clears matched commands only after successful custom compaction", async () => {
+    for (const outcome of [undefined, { cancel: true }, new Error("summary failed")]) {
+      const { pi, handlers } = createPiRecorder();
+      const store = createTrackedCommandStore();
+      store.trackInput("/review --strict", 1000);
+      registerSessionBeforeCompact(pi, {
+        enableSessionBeforeCompact: true,
+        handlerTestsPassed: true,
+        noDoubleCompactionPreflight: true,
+        existingCompactionHandlerCount: 0,
+        trackedCommandStore: store,
+        handler: async () => {
+          if (outcome instanceof Error) throw outcome;
+          return outcome;
+        },
+      });
+      const event = {
+        branchEntries: [
+          { type: "message", message: { role: "user", content: "expanded", timestamp: 1000 } },
+        ],
+      };
+
+      if (outcome instanceof Error) {
+        await assert.rejects(handlers[0].handler(event, {}), /summary failed/);
+      } else {
+        await handlers[0].handler(event, {});
+      }
+      assert.deepEqual(
+        store.trackedCommands.map((command) => command.original),
+        ["/review --strict"],
+      );
+    }
+
+    const { pi, handlers } = createPiRecorder();
+    const store = createTrackedCommandStore();
+    store.trackInput("/review --strict", 1000);
+    registerSessionBeforeCompact(pi, {
+      enableSessionBeforeCompact: true,
+      handlerTestsPassed: true,
+      noDoubleCompactionPreflight: true,
+      existingCompactionHandlerCount: 0,
+      trackedCommandStore: store,
+      handler: async () => ({ compaction: { summary: "ok" } }),
+    });
+    await handlers[0].handler(
+      {
+        branchEntries: [
+          { type: "message", message: { role: "user", content: "expanded", timestamp: 1000 } },
+        ],
+      },
+      {},
+    );
+    assert.deepEqual(store.trackedCommands, []);
+  });
+
   it("can track slash-command input without registering slash commands", async () => {
     const { pi, handlers } = createPiRecorder();
     const state = createCompactionRegistrationState();

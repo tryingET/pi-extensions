@@ -389,8 +389,11 @@ export const discoverDocsSeeds = async ({
   objective,
   env = {},
   top = DEFAULT_TOP,
+  signal,
 }) => {
+  signal?.throwIfAborted();
   const discoveryRoot = await docsDiscoveryRoot({ repoRoot, cwd });
+  signal?.throwIfAborted();
   const docsRoot = discoveryRoot.root;
   const overrideRefusals = processDocsListOverrideRefusals(env);
   const script = await firstExistingScript(env);
@@ -410,7 +413,8 @@ export const discoverDocsSeeds = async ({
   }
 
   try {
-    const { stdout } = await execFileAsync(
+    const exec = env.execFileAsync ?? execFileAsync;
+    const { stdout } = await exec(
       process.execPath,
       [
         script,
@@ -424,7 +428,12 @@ export const discoverDocsSeeds = async ({
         "--repo-relative",
         "--json",
       ],
-      { cwd: docsRoot, timeout: DOCS_LIST_TIMEOUT_MS, maxBuffer: DOCS_LIST_MAX_BUFFER },
+      {
+        cwd: docsRoot,
+        timeout: DOCS_LIST_TIMEOUT_MS,
+        maxBuffer: DOCS_LIST_MAX_BUFFER,
+        signal,
+      },
     );
     const discovered = normalizeJsonOutputPaths(stdout, { repoRoot, docsRoot });
     const seeds = discovered.paths.map((value) => ({
@@ -442,6 +451,7 @@ export const discoverDocsSeeds = async ({
     }
     return { seeds, omissions };
   } catch (error) {
+    signal?.throwIfAborted();
     return {
       seeds: [],
       omissions: [

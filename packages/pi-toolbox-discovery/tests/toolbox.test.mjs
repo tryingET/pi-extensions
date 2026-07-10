@@ -217,6 +217,8 @@ test("risk gates mutating activation", async () => {
     profile: "mutating",
   });
   assert.match(result.content[0].text, /Refusing to activate vault\/mutating/);
+  assert.match(result.content[0].text, /advisory risk declaration, not proof of operator consent/);
+  assert.equal(result.details.acknowledgementSemantics, "caller-declaration-not-operator-consent");
   assert.equal(harness.activeTools.includes("vault_insert"), false);
 });
 
@@ -234,6 +236,7 @@ test("activates registered mutating tools after acknowledgement", async () => {
     /Activated tools: vault_insert, vault_update, vault_rate, prompt_eval/,
   );
   assert.equal(harness.activeTools.includes("vault_insert"), true);
+  assert.equal(result.details.acknowledgementSemantics, "caller-declaration-not-operator-consent");
 });
 
 test("fails closed for missing explicit tools", async () => {

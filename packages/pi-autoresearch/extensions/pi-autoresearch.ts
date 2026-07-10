@@ -91,8 +91,11 @@ export function registerPiAutoresearchExtension(
       const bridgeArgs = parseExtensionAutoresearchCommand(text);
       if (inputEvent.source === "extension") {
         if (bridgeArgs === undefined) return { action: "continue" as const };
-        await executeExtensionAutoresearchBridge(bridgeArgs, ctx as ExtensionContext);
-        return { action: "handled" as const };
+        const handled = await executeExtensionAutoresearchBridge(
+          bridgeArgs,
+          ctx as ExtensionContext,
+        );
+        return { action: handled ? ("handled" as const) : ("continue" as const) };
       }
       const transformed = transformAutoresearchDollarInput(text, inputContext.cwd);
       if (!transformed) return { action: "continue" as const };
@@ -115,8 +118,10 @@ const EXTENSION_AUTORESEARCH_ASC_SELF_EVOLUTION_COMMAND =
 async function executeExtensionAutoresearchBridge(
   objective: string,
   ctx: ExtensionContext,
-): Promise<void> {
-  if (!ctx.hasUI) return;
+): Promise<boolean> {
+  // Headless input must remain available to the host/agent. Without an editor there is
+  // no truthful way to present this bridge's plan-only result, so do not consume it.
+  if (!ctx.hasUI) return false;
   const result = await executeAutoresearchCampaignStart({
     cwd: ctx.cwd,
     objective,
@@ -139,6 +144,7 @@ async function executeExtensionAutoresearchBridge(
     "Executed exact ASC autoresearch bridge as a plan-only campaign start. Review result gates and next exact call.",
     "info",
   );
+  return true;
 }
 
 function parseExtensionAutoresearchCommand(text: string): string | undefined {

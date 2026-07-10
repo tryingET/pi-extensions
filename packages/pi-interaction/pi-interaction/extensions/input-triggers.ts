@@ -55,6 +55,25 @@ type TriggerPickerEntry = {
   showInPicker?: boolean;
   pickerLabel?: string;
   pickerDetail?: string;
+  enabled?: boolean;
+};
+
+type ManualTriggerBroker = ReturnType<typeof getBroker> & {
+  fireTrigger(
+    trigger: TriggerPickerEntry,
+    match: { matchedText: string; startIndex: number; endIndex: number },
+    context: {
+      fullText: string;
+      textBeforeCursor: string;
+      textAfterCursor: string;
+      cursorLine: number;
+      cursorColumn: number;
+      totalLines: number;
+      isLive: boolean;
+      cwd: string;
+    },
+    api: Record<string, unknown>,
+  ): Promise<boolean>;
 };
 
 function getEnv(...names: string[]): string | undefined {
@@ -308,7 +327,7 @@ export default function (pi: ExtensionAPI) {
       if (!ctx.hasUI) return;
 
       const triggers = (broker.list() as TriggerPickerEntry[]).filter(
-        (t: TriggerPickerEntry) => t.showInPicker !== false,
+        (t: TriggerPickerEntry) => t.showInPicker !== false && t.enabled !== false,
       );
       if (triggers.length === 0) {
         ctx.ui.notify("No triggers available for manual pick", "warning");
@@ -323,12 +342,48 @@ export default function (pi: ExtensionAPI) {
       const selected = await ctx.ui.select("Pick a trigger", options);
       if (!selected) return;
 
-      const triggerId = triggers.find((t: TriggerPickerEntry) =>
-        selected.startsWith(t.pickerLabel ?? t.id),
-      )?.id;
-      if (triggerId) {
-        ctx.ui.notify(`Selected trigger: ${triggerId}`, "info");
+      const selectedIndex = options.indexOf(selected);
+      const trigger = selectedIndex >= 0 ? triggers[selectedIndex] : undefined;
+      if (!trigger) {
+        ctx.ui.notify("Selected trigger is no longer registered", "warning");
+        return;
       }
+
+      const editorText = ctx.ui.getEditorText?.() ?? "";
+      const lines = editorText.split("\n");
+      const context = {
+        fullText: editorText,
+        textBeforeCursor: editorText,
+        textAfterCursor: "",
+        cursorLine: Math.max(0, lines.length - 1),
+        cursorColumn: lines.at(-1)?.length ?? 0,
+        totalLines: lines.length,
+        isLive: false,
+        cwd: ctx.cwd,
+      };
+      const api = {
+        setText: (text: string) => ctx.ui.setEditorText(text),
+        insertText: (text: string) =>
+          ctx.ui.setEditorText(`${ctx.ui.getEditorText?.() ?? ""}${text}`),
+        notify: (message: string, level?: "info" | "warning" | "error") =>
+          ctx.ui.notify(message, level),
+        select: (title: string, values: string[]) => ctx.ui.select(title, values),
+        confirm: (title: string, message: string) => ctx.ui.confirm(title, message),
+        input: (title: string, placeholder?: string) => ctx.ui.input(title, placeholder),
+        getText: () => ctx.ui.getEditorText?.() ?? "",
+        close: () => {},
+        ctx,
+      };
+      const fired = await (broker as ManualTriggerBroker).fireTrigger(
+        trigger,
+        { matchedText: editorText, startIndex: 0, endIndex: editorText.length },
+        context,
+        api,
+      );
+      ctx.ui.notify(
+        fired ? `Triggered: ${trigger.id}` : `Trigger failed: ${trigger.id}`,
+        fired ? "info" : "error",
+      );
     },
   });
 

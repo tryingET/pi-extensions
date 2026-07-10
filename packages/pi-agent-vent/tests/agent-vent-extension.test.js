@@ -3,21 +3,26 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import agentVentExtension from "../extensions/agent-vent.ts";
+import agentVentExtension, { _test } from "../extensions/agent-vent.ts";
 import { createCurationEvent, createVentRecord, readReviewEvents } from "../src/vent-store.js";
 
 function createMockPi() {
   const tools = new Map();
   const commands = new Map();
+  const messages = [];
   return {
     tools,
     commands,
+    messages,
     api: {
       registerTool(tool) {
         tools.set(tool.name, tool);
       },
       registerCommand(name, command) {
         commands.set(name, command);
+      },
+      sendMessage(message) {
+        messages.push(message);
       },
     },
   };
@@ -48,6 +53,41 @@ test("agent_vent tool schema stays aligned with retention candidate and compare 
   assert.match(schemaText, /"all"/);
   assert.match(schemaText, /candidates, history, preview, archive, or restore/);
   assert.match(schemaText, /outcomes, compare, export, or retention planning/);
+});
+
+test("agent_vent keeps long command output persistent while short statuses stay notifications", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const notifications = [];
+  const ctx = { hasUI: true, ui: { notify: (message) => notifications.push(message) } };
+
+  await pi.commands.get("agent_vent").handler("help", ctx);
+  assert.equal(pi.messages.length, 1);
+  assert.equal(pi.messages[0].customType, "agent-vent-command");
+  assert.match(pi.messages[0].content, /agent_vent commands/);
+  assert.match(notifications[0], /added to the session transcript/);
+
+  await pi.commands.get("agent_vent").handler("unknown", ctx);
+  assert.equal(pi.messages.length, 1);
+  assert.match(notifications[1], /Unknown \/agent_vent action/);
+  assert.equal(_test.isLongCommandOutput("short"), false);
+});
+
+test("agent_vent cancellation fails before expensive store work", async () => {
+  const pi = createMockPi();
+  agentVentExtension(pi.api);
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    () =>
+      pi.tools
+        .get("agent_vent")
+        .execute("cancelled", { action: "summary" }, controller.signal, undefined, {
+          cwd: "/repo",
+          sessionManager: { getSessionFile: () => undefined },
+        }),
+    /cancelled/,
+  );
 });
 
 test("agent_vent records minimized local diagnostics without external authority claims", async () => {

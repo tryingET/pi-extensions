@@ -67,6 +67,8 @@ export {
 };
 
 const DEFAULT_DOLT_MAX_BUFFER = 64 * 1024 * 1024;
+const DEFAULT_DOLT_TIMEOUT_MS = 30_000;
+const MAX_DOLT_TIMEOUT_MS = 5 * 60_000;
 let cachedContracts: GovernedContracts | null = null;
 let cachedContractsKey: string | null = null;
 
@@ -479,6 +481,20 @@ function buildDoltProcessEnv(tempDir: string): NodeJS.ProcessEnv {
   };
 }
 
+export function resolveDoltTimeoutMs(value = process.env.PI_VAULT_DOLT_TIMEOUT_MS): number {
+  if (!value || !/^[1-9]\d*$/.test(value.trim())) return DEFAULT_DOLT_TIMEOUT_MS;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed)
+    ? Math.min(parsed, MAX_DOLT_TIMEOUT_MS)
+    : DEFAULT_DOLT_TIMEOUT_MS;
+}
+
+function isDoltTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { code?: unknown; signal?: unknown; killed?: unknown };
+  return record.code === "ETIMEDOUT" || record.signal === "SIGTERM" || record.killed === true;
+}
+
 function runDolt(args: string[], maxBuffer = DEFAULT_DOLT_MAX_BUFFER): string {
   const doltExecutionEnvironment = resolveDoltExecutionEnvironment({ probeMode: "prepare" });
   const startedAt = Date.now();
@@ -488,6 +504,8 @@ function runDolt(args: string[], maxBuffer = DEFAULT_DOLT_MAX_BUFFER): string {
       cwd: getActiveVaultDir(),
       encoding: "utf-8",
       maxBuffer,
+      timeout: resolveDoltTimeoutMs(),
+      killSignal: "SIGTERM",
       env: buildDoltProcessEnv(doltExecutionEnvironment.tempDir),
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -511,8 +529,11 @@ function runDolt(args: string[], maxBuffer = DEFAULT_DOLT_MAX_BUFFER): string {
       exitCode: extractExecExitCode(error),
       error: formatVaultError(error),
     });
+    const timeoutDetail = isDoltTimeoutError(error)
+      ? `Dolt command timed out after ${resolveDoltTimeoutMs()}ms (${commandShape.command}).\n`
+      : "";
     throw new Error(
-      `${formatVaultError(error)}\nDolt temp dir: ${doltExecutionEnvironment.tempDir} (${doltExecutionEnvironment.source})`,
+      `${timeoutDetail}${formatVaultError(error)}\nDolt temp dir: ${doltExecutionEnvironment.tempDir} (${doltExecutionEnvironment.source})`,
       {
         cause: error instanceof Error ? error : undefined,
       },

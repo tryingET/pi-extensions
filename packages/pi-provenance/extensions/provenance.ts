@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -16,28 +17,45 @@ function readBackgroundCaptureConfig(): BackgroundCaptureConfig | undefined {
   return { laneId, outputFile };
 }
 
-function writeJsonAtomic(filePath: string, payload: unknown): void {
+export function writeJsonAtomic(filePath: string, payload: unknown): void {
   const dirPath = path.dirname(filePath);
   fs.mkdirSync(dirPath, { recursive: true });
-  const tmpPath = path.join(dirPath, `.${path.basename(filePath)}.tmp-${process.pid}`);
-  fs.writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-  fs.renameSync(tmpPath, filePath);
+  const tmpPath = path.join(
+    dirPath,
+    `.${path.basename(filePath)}.tmp-${process.pid}-${randomUUID()}`,
+  );
+
+  try {
+    fs.writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    fs.renameSync(tmpPath, filePath);
+  } catch (error) {
+    try {
+      fs.rmSync(tmpPath, { force: true });
+    } catch {
+      // Preserve the original capture failure; temp cleanup is best effort.
+    }
+    throw error;
+  }
 }
 
 export default function provenanceExtension(pi: ExtensionAPI) {
   pi.on("agent_end", async (_event, ctx) => {
-    const config = readBackgroundCaptureConfig();
-    if (!config) return;
+    try {
+      const config = readBackgroundCaptureConfig();
+      if (!config) return;
 
-    const provenance = extractLatestAssistantMessageProvenance(ctx.sessionManager);
-    if (!provenance) return;
+      const provenance = extractLatestAssistantMessageProvenance(ctx.sessionManager);
+      if (!provenance) return;
 
-    writeJsonAtomic(config.outputFile, {
-      ...provenance,
-      capture_context: {
-        kind: "review_lane",
-        review_lane_id: config.laneId,
-      },
-    });
+      writeJsonAtomic(config.outputFile, {
+        ...provenance,
+        capture_context: {
+          kind: "review_lane",
+          review_lane_id: config.laneId,
+        },
+      });
+    } catch {
+      // Background provenance is best effort and must never reject the Pi lifecycle.
+    }
   });
 }

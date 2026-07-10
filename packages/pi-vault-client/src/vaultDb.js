@@ -9,6 +9,8 @@ import { checkSchemaCompatibilityDetailed as computeSchemaCompatibilityDetailed,
 import { ARTIFACT_KINDS, COMPANIES, CONTROL_MODES, CONTROLLED_VOCABULARY_DIMENSIONS, DEFAULT_VAULT_QUERY_LIMIT, DOLT_TELEMETRY_LIMIT, FORMALIZATION_LEVELS, INTENT_RANKING_CANDIDATE_POOL_LIMIT, MAX_VAULT_QUERY_LIMIT, PROMPT_VAULT_ROOT, VAULT_DIR, } from "./vaultTypes.js";
 export { authorizeTemplateInsert, authorizeTemplateUpdate, prepareTemplateUpdate, resolveMutationActorContext, validateTemplateContent, };
 const DEFAULT_DOLT_MAX_BUFFER = 64 * 1024 * 1024;
+const DEFAULT_DOLT_TIMEOUT_MS = 30_000;
+const MAX_DOLT_TIMEOUT_MS = 5 * 60_000;
 let cachedContracts = null;
 let cachedContractsKey = null;
 function createDoltTelemetryState() {
@@ -364,6 +366,20 @@ function buildDoltProcessEnv(tempDir) {
         TEMP: tempDir,
     };
 }
+export function resolveDoltTimeoutMs(value = process.env.PI_VAULT_DOLT_TIMEOUT_MS) {
+    if (!value || !/^[1-9]\d*$/.test(value.trim()))
+        return DEFAULT_DOLT_TIMEOUT_MS;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed)
+        ? Math.min(parsed, MAX_DOLT_TIMEOUT_MS)
+        : DEFAULT_DOLT_TIMEOUT_MS;
+}
+function isDoltTimeoutError(error) {
+    if (!error || typeof error !== "object")
+        return false;
+    const record = error;
+    return record.code === "ETIMEDOUT" || record.signal === "SIGTERM" || record.killed === true;
+}
 function runDolt(args, maxBuffer = DEFAULT_DOLT_MAX_BUFFER) {
     const doltExecutionEnvironment = resolveDoltExecutionEnvironment({ probeMode: "prepare" });
     const startedAt = Date.now();
@@ -373,6 +389,8 @@ function runDolt(args, maxBuffer = DEFAULT_DOLT_MAX_BUFFER) {
             cwd: getActiveVaultDir(),
             encoding: "utf-8",
             maxBuffer,
+            timeout: resolveDoltTimeoutMs(),
+            killSignal: "SIGTERM",
             env: buildDoltProcessEnv(doltExecutionEnvironment.tempDir),
             stdio: ["pipe", "pipe", "pipe"],
         });
@@ -397,7 +415,10 @@ function runDolt(args, maxBuffer = DEFAULT_DOLT_MAX_BUFFER) {
             exitCode: extractExecExitCode(error),
             error: formatVaultError(error),
         });
-        throw new Error(`${formatVaultError(error)}\nDolt temp dir: ${doltExecutionEnvironment.tempDir} (${doltExecutionEnvironment.source})`, {
+        const timeoutDetail = isDoltTimeoutError(error)
+            ? `Dolt command timed out after ${resolveDoltTimeoutMs()}ms (${commandShape.command}).\n`
+            : "";
+        throw new Error(`${timeoutDetail}${formatVaultError(error)}\nDolt temp dir: ${doltExecutionEnvironment.tempDir} (${doltExecutionEnvironment.source})`, {
             cause: error instanceof Error ? error : undefined,
         });
     }

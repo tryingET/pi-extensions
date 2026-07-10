@@ -5,12 +5,14 @@ import { createTempDirectoryWithoutGit } from "./helpers.ts";
 
 function registerExtensionHarness() {
   const tools: string[] = [];
+  const toolDefinitions = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
   const commands = new Map<string, { handler: (args: string, ctx: unknown) => Promise<void> }>();
   const events: string[] = [];
 
   extension({
-    registerTool(tool: { name: string }) {
+    registerTool(tool: { name: string; execute: (...args: unknown[]) => Promise<unknown> }) {
       tools.push(tool.name);
+      toolDefinitions.set(tool.name, tool);
     },
     registerCommand(
       name: string,
@@ -23,7 +25,7 @@ function registerExtensionHarness() {
     },
   } as never);
 
-  return { tools, commands, events };
+  return { tools, toolDefinitions, commands, events };
 }
 
 test("extension registers the compact ontology workflow surface", () => {
@@ -35,6 +37,37 @@ test("extension registers the compact ontology workflow surface", () => {
     ["ontology-status", "ontology-bootstrap", "ontology-manifest"],
   );
   assert.deepEqual(events.sort(), ["before_agent_start", "session_start", "session_start"]);
+});
+
+test("ontology_change apply fails closed without interactive UI", async () => {
+  const { toolDefinitions } = registerExtensionHarness();
+  const change = toolDefinitions.get("ontology_change");
+  await assert.rejects(
+    () =>
+      change?.execute("call", { mode: "apply" }, undefined, undefined, {
+        cwd: process.cwd(),
+        hasUI: false,
+        ui: {},
+      }) as Promise<unknown>,
+    /requires interactive UI confirmation.*no change was applied/i,
+  );
+});
+
+test("/ontology-bootstrap fails closed and explains headless behavior", async () => {
+  const { commands } = registerExtensionHarness();
+  const messages: string[] = [];
+  const oldLog = console.log;
+  console.log = (message?: unknown) => messages.push(String(message));
+  try {
+    await commands.get("ontology-bootstrap")?.handler("", {
+      cwd: process.cwd(),
+      hasUI: false,
+      ui: {},
+    });
+  } finally {
+    console.log = oldLog;
+  }
+  assert.match(messages.join("\n"), /requires interactive UI confirmation/i);
 });
 
 test("/ontology-manifest help opens usage text", async () => {
@@ -143,10 +176,12 @@ test("parseOntologyManifestCommandArgs handles show/help/default/profile/reset f
 test("parseOntologyManifestCommandArgs fails clearly on invalid input", () => {
   assert.throws(() => parseOntologyManifestCommandArgs("default"), /requires a profile name/);
   assert.throws(() => parseOntologyManifestCommandArgs("profile"), /requires a profile name/);
-  assert.throws(
-    () => parseOntologyManifestCommandArgs("profile review --budget nope"),
-    /positive integer/,
-  );
+  for (const invalid of ["nope", "1x", "1.5", "+1", "0", "-1", "9007199254740992"]) {
+    assert.throws(
+      () => parseOntologyManifestCommandArgs(`profile review --budget ${invalid}`),
+      /positive integer/,
+    );
+  }
   assert.throws(
     () => parseOntologyManifestCommandArgs("profile review --wat"),
     /unknown \/ontology-manifest argument/,

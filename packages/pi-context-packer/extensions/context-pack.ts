@@ -61,12 +61,13 @@ const asToolResult = async (result: Promise<unknown>): Promise<ContextPackerTool
 
 const truthyEnv = (value: string | undefined) => /^(1|true|yes)$/iu.test(value ?? "");
 
-const contextEnv = (ctx: ExtensionContext | undefined) => ({
+const contextEnv = (ctx: ExtensionContext | undefined, signal?: AbortSignal) => ({
   cwd: ctx?.cwd,
   systemPrompt: ctx?.getSystemPrompt?.(),
   contextUsage: ctx?.getContextUsage?.(),
   modelLabel: ctx?.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
   sciReadOnlySafe: truthyEnv(process.env.PI_CONTEXT_PACKER_SCI_READ_ONLY_SAFE),
+  signal,
 });
 
 function assertSmoke(condition: unknown, message: string): asserts condition {
@@ -106,11 +107,13 @@ const contextPlanTool: ContextPackerToolDefinition = {
     "Follow owner-surface recommendations directly when the task needs self, subagent execution, peer messaging/launch, workflow supervision, AK/FCOS authority, or Prompt Vault governance.",
   ],
   parameters: CONTEXT_PLAN_PARAMETERS,
-  async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
+  async execute(_toolCallId, rawParams, signal, _onUpdate, ctx) {
+    signal?.throwIfAborted();
     const plan = buildContextPlan(
       rawParams as Parameters<typeof buildContextPlan>[0],
-      contextEnv(ctx),
+      contextEnv(ctx, signal),
     );
+    signal?.throwIfAborted();
     return textResult(formatContextPlan(plan), compactContextPlanDetails(plan));
   },
 };
@@ -129,11 +132,12 @@ const contextPackTool: ContextPackerToolDefinition = {
     "Treat owner-surface routing as advice only; context_pack does not call self, spawn subagents, message peers, launch worktrees, or move authority.",
   ],
   parameters: CONTEXT_PACK_PARAMETERS,
-  async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
+  async execute(_toolCallId, rawParams, signal, _onUpdate, ctx) {
+    signal?.throwIfAborted();
     const result = await asToolResult(
       contextPacketToolResult(
         rawParams as Parameters<typeof contextPacketToolResult>[0],
-        contextEnv(ctx),
+        contextEnv(ctx, signal),
       ),
     );
     return { ...result, details: withRuntimeContract(result.details) };

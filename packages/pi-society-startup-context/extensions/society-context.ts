@@ -133,6 +133,7 @@ interface ExtensionState {
   packet?: StartupContextPacket;
   inFlight?: Promise<StartupContextPacket>;
   inFlightCwd?: string;
+  refreshController?: AbortController;
   generation: number;
 }
 
@@ -239,7 +240,7 @@ function parseJsonMachine(stdout: string, surfaceLabel: string): MachineRead<Jso
 function runCommand(
   command: string,
   args: string[],
-  options: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+  options: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal } = {},
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
     execFile(
@@ -250,6 +251,7 @@ function runCommand(
         env: options.env,
         timeout: options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
         maxBuffer: 1024 * 1024,
+        signal: options.signal,
       },
       (error, stdout, stderr) => {
         const stdoutText = stdout;
@@ -280,7 +282,7 @@ async function runJsonCommand(
   command: string,
   args: string[],
   label: string,
-  options: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+  options: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal } = {},
 ): Promise<MachineRead<JsonRecord>> {
   const result = await runCommand(command, args, options);
   if (!result.ok) {
@@ -300,10 +302,14 @@ async function runJsonCommand(
   return parseJsonMachine(result.stdout, label);
 }
 
-async function findGitRepoRoot(cwd: string): Promise<{ repoRoot: string; warning?: string }> {
+async function findGitRepoRoot(
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<{ repoRoot: string; warning?: string }> {
   const result = await runCommand("git", ["rev-parse", "--show-toplevel"], {
     cwd,
     timeoutMs: 2_000,
+    signal,
   });
   if (!result.ok) {
     return { repoRoot: cwd, warning: `git repo root unavailable: ${result.error}` };
@@ -312,10 +318,11 @@ async function findGitRepoRoot(cwd: string): Promise<{ repoRoot: string; warning
   return { repoRoot: repoRoot || cwd };
 }
 
-async function readGitStatus(repoRoot: string): Promise<GitSummary> {
+async function readGitStatus(repoRoot: string, signal?: AbortSignal): Promise<GitSummary> {
   const result = await runCommand("git", ["status", "--short"], {
     cwd: repoRoot,
     timeoutMs: 3_000,
+    signal,
   });
   if (!result.ok) {
     return {
@@ -789,7 +796,10 @@ export function createFastStartupContextPacket(
   };
 }
 
-async function buildStartupContextPacket(cwd: string): Promise<StartupContextPacket> {
+async function buildStartupContextPacket(
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<StartupContextPacket> {
   const aiSocietyRoot = getAiSocietyRoot();
   if (!readBooleanEnv("PI_SOCIETY_STARTUP_CONTEXT", true)) {
     return createNotApplicablePacket(cwd, aiSocietyRoot, true);
@@ -800,7 +810,7 @@ async function buildStartupContextPacket(cwd: string): Promise<StartupContextPac
   }
 
   const warnings: string[] = [];
-  const { repoRoot, warning: repoRootWarning } = await findGitRepoRoot(cwd);
+  const { repoRoot, warning: repoRootWarning } = await findGitRepoRoot(cwd, signal);
   if (repoRootWarning) warnings.push(repoRootWarning);
 
   const identity = deriveRepoIdentity(aiSocietyRoot, repoRoot);
@@ -810,6 +820,13 @@ async function buildStartupContextPacket(cwd: string): Promise<StartupContextPac
     "PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS",
     DEFAULT_COMMAND_TIMEOUT_MS,
   );
+  const runAkJson = (args: string[], label: string) =>
+    runJsonCommand(akExecutable, args, label, {
+      cwd: repoRoot,
+      env: akEnv,
+      timeoutMs: commandTimeoutMs,
+      signal,
+    });
 
   const [
     git,
@@ -824,89 +841,26 @@ async function buildStartupContextPacket(cwd: string): Promise<StartupContextPac
     blockedTaskRead,
     decisionListRead,
   ] = await Promise.all([
-    readGitStatus(repoRoot),
-    runJsonCommand(akExecutable, ["doctor", "--machine"], "ak doctor", {
-      cwd: repoRoot,
-      env: akEnv,
-      timeoutMs: commandTimeoutMs,
-    }),
-    runJsonCommand(
-      akExecutable,
-      ["machine", "schema", "task-ready", "-F", "json"],
-      "ak machine schema",
-      {
-        cwd: repoRoot,
-        env: akEnv,
-        timeoutMs: commandTimeoutMs,
-      },
-    ),
-    runJsonCommand(akExecutable, ["repo", "show", repoRoot, "--machine"], "ak repo show", {
-      cwd: repoRoot,
-      env: akEnv,
-      timeoutMs: commandTimeoutMs,
-    }),
-    runJsonCommand(
-      akExecutable,
-      ["direction", "export", "--repo", repoRoot, "--machine"],
-      "ak direction export",
-      { cwd: repoRoot, env: akEnv, timeoutMs: commandTimeoutMs },
-    ),
-    runJsonCommand(
-      akExecutable,
-      ["direction", "check", "--repo", repoRoot, "--machine"],
-      "ak direction check",
-      { cwd: repoRoot, env: akEnv, timeoutMs: commandTimeoutMs },
-    ),
-    runJsonCommand(
-      akExecutable,
-      ["task", "ready", "--repo", repoRoot, "--machine"],
-      "ak task ready",
-      {
-        cwd: repoRoot,
-        env: akEnv,
-        timeoutMs: commandTimeoutMs,
-      },
-    ),
-    runJsonCommand(
-      akExecutable,
+    readGitStatus(repoRoot, signal),
+    runAkJson(["doctor", "--machine"], "ak doctor"),
+    runAkJson(["machine", "schema", "task-ready", "-F", "json"], "ak machine schema"),
+    runAkJson(["repo", "show", repoRoot, "--machine"], "ak repo show"),
+    runAkJson(["direction", "export", "--repo", repoRoot, "--machine"], "ak direction export"),
+    runAkJson(["direction", "check", "--repo", repoRoot, "--machine"], "ak direction check"),
+    runAkJson(["task", "ready", "--repo", repoRoot, "--machine"], "ak task ready"),
+    runAkJson(
       ["task", "list", "--repo", repoRoot, "--status", "claimed", "--machine"],
       "ak task list --status claimed",
-      {
-        cwd: repoRoot,
-        env: akEnv,
-        timeoutMs: commandTimeoutMs,
-      },
     ),
-    runJsonCommand(
-      akExecutable,
+    runAkJson(
       ["task", "list", "--repo", repoRoot, "--status", "running", "--machine"],
       "ak task list --status running",
-      {
-        cwd: repoRoot,
-        env: akEnv,
-        timeoutMs: commandTimeoutMs,
-      },
     ),
-    runJsonCommand(
-      akExecutable,
+    runAkJson(
       ["task", "list", "--repo", repoRoot, "--status", "blocked", "--machine"],
       "ak task list --status blocked",
-      {
-        cwd: repoRoot,
-        env: akEnv,
-        timeoutMs: commandTimeoutMs,
-      },
     ),
-    runJsonCommand(
-      akExecutable,
-      ["decision", "list", "--machine", "--limit", "10"],
-      "ak decision list",
-      {
-        cwd: repoRoot,
-        env: akEnv,
-        timeoutMs: commandTimeoutMs,
-      },
-    ),
+    runAkJson(["decision", "list", "--machine", "--limit", "10"], "ak decision list"),
   ]);
 
   if (git.warning) warnings.push(git.warning);
@@ -929,11 +883,9 @@ async function buildStartupContextPacket(cwd: string): Promise<StartupContextPac
       .slice(0, 2)
       .map(async (decision) => ({
         decision,
-        read: await runJsonCommand(
-          akExecutable,
+        read: await runAkJson(
           ["decision", "passport", String(decision.id), "--machine"],
           `ak decision passport #${decision.id}`,
-          { cwd: repoRoot, env: akEnv, timeoutMs: commandTimeoutMs },
         ),
       })),
   );
@@ -1194,11 +1146,14 @@ function waitForPacket(
 }
 
 function startFullRefresh(state: ExtensionState, cwd: string): Promise<StartupContextPacket> {
+  state.refreshController?.abort();
+  const controller = new AbortController();
   const generation = state.generation + 1;
   state.generation = generation;
   state.inFlightCwd = cwd;
+  state.refreshController = controller;
   let refreshPromise: Promise<StartupContextPacket>;
-  refreshPromise = buildStartupContextPacket(cwd)
+  refreshPromise = buildStartupContextPacket(cwd, controller.signal)
     .catch((error: unknown) =>
       createFastStartupContextPacket(cwd, os.homedir(), "failed", [
         `background full refresh failed: ${summarizeRefreshError(error)}`,
@@ -1218,6 +1173,7 @@ function startFullRefresh(state: ExtensionState, cwd: string): Promise<StartupCo
       if (state.generation === generation && state.inFlight === refreshPromise) {
         state.inFlight = undefined;
         state.inFlightCwd = undefined;
+        state.refreshController = undefined;
       }
     });
   state.inFlight = refreshPromise;
@@ -1288,6 +1244,8 @@ export default function societyStartupContextExtension(pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async () => {
     state.generation += 1;
+    state.refreshController?.abort();
+    state.refreshController = undefined;
     state.inFlight = undefined;
     state.inFlightCwd = undefined;
   });
@@ -1307,10 +1265,7 @@ export default function societyStartupContextExtension(pi: ExtensionAPI) {
     description: "Show or refresh the read-only AI Society startup context packet",
     handler: async (args, ctx) => {
       if (args.trim() === "refresh") {
-        state.generation += 1;
-        state.inFlight = undefined;
-        state.inFlightCwd = undefined;
-        state.packet = await buildStartupContextPacket(ctx.cwd);
+        state.packet = await startFullRefresh(state, ctx.cwd);
       }
       const packet = await ensurePacket(state, ctx.cwd);
       const rendered = renderStartupContextPacket(packet);
@@ -1321,6 +1276,8 @@ export default function societyStartupContextExtension(pi: ExtensionAPI) {
           summarizeStartupForStatus(packet),
           packet.warnings.length > 0 ? "warning" : "info",
         );
+      } else {
+        console.log(rendered);
       }
     },
   });

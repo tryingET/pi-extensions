@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import interactionExtension, { getBroker, resetBroker } from "../extensions/input-triggers.ts";
 
 const SOURCE = readFileSync(new URL("../extensions/input-triggers.ts", import.meta.url), "utf8");
 
@@ -45,6 +46,74 @@ test("built-in example triggers do not own PTX's canonical $$ slash surface", ()
     SOURCE,
     /description:\s*"Show prompt-template picker while typing \$\$ \/<query>"/,
   );
+});
+
+test("/trigger-pick invokes the selected registered trigger through broker semantics", async () => {
+  const previousExamples = process.env.PI_INTERACTION_EXAMPLES;
+  process.env.PI_INTERACTION_EXAMPLES = "0";
+  resetBroker();
+
+  try {
+    const broker = getBroker();
+    broker.register({
+      id: "behavioral-picker",
+      description: "Behavioral picker test",
+      match: "never-needed-for-manual-dispatch",
+      debounceMs: 0,
+      showInPicker: true,
+      pickerLabel: "Behavioral picker",
+      handler: async (_match, context, api) => {
+        assert.equal(context.isLive, false);
+        api.setText("trigger handler actually ran");
+      },
+    });
+
+    const commands = new Map();
+    interactionExtension({
+      on() {},
+      registerCommand(name, command) {
+        commands.set(name, command);
+      },
+    });
+
+    let editorText = "original editor text";
+    const notifications = [];
+    await commands.get("trigger-pick").handler("", {
+      hasUI: true,
+      cwd: process.cwd(),
+      ui: {
+        async select(_title, options) {
+          return options.find((option) => option.startsWith("Behavioral picker"));
+        },
+        setEditorText(text) {
+          editorText = text;
+        },
+        getEditorText() {
+          return editorText;
+        },
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+        async confirm() {
+          return false;
+        },
+        async input() {
+          return undefined;
+        },
+      },
+    });
+
+    assert.equal(editorText, "trigger handler actually ran");
+    assert.equal(broker.diagnostics()[0].fireCount, 1);
+    assert.deepEqual(notifications.at(-1), {
+      message: "Triggered: behavioral-picker",
+      level: "info",
+    });
+  } finally {
+    resetBroker();
+    if (previousExamples === undefined) delete process.env.PI_INTERACTION_EXAMPLES;
+    else process.env.PI_INTERACTION_EXAMPLES = previousExamples;
+  }
 });
 
 test("source files do not import vault-client internals via relative source paths", () => {

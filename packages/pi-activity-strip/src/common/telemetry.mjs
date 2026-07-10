@@ -18,6 +18,45 @@ function asRecord(value) {
   return value && typeof value === "object" ? /** @type {Record<string, unknown>} */ (value) : null;
 }
 
+/** @param {unknown} value @param {number} [depth] @returns {string} */
+export function extractToolResultText(value, depth = 0) {
+  if (value == null || depth > 4) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => extractToolResultText(entry, depth + 1))
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  const record = asRecord(value);
+  if (!record) return "";
+  if (record.type === "text" && typeof record.text === "string") return record.text;
+
+  for (const key of [
+    "errorMessage",
+    "error",
+    "message",
+    "stdout",
+    "stderr",
+    "output",
+    "content",
+    "details",
+    "text",
+  ]) {
+    const text = extractToolResultText(record[key], depth + 1);
+    if (text) return text;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "";
+  }
+}
+
 export function createSessionId() {
   return `${os.hostname()}-${process.pid}-${Date.now()}-${randomUUID().slice(0, 6)}`;
 }
@@ -106,21 +145,28 @@ export function describeToolCall(toolName, args = {}) {
 export function summarizeToolResult(toolName, result, isError = false) {
   const record = asRecord(result);
   if (isError) {
-    const errorValue = record?.errorMessage ?? record?.message ?? result;
+    const errorText = extractToolResultText(
+      record?.errorMessage ??
+        record?.error ??
+        record?.message ??
+        record?.details ??
+        record?.content ??
+        result,
+    );
     return {
       state: "error",
       phase: `${toolName} failed`,
-      detail: previewText(errorValue, 104) || `${toolName} failed`,
-      errorMessage: previewText(errorValue, 104),
+      detail: previewText(errorText, 104) || `${toolName} failed`,
+      errorMessage: previewText(errorText, 104),
     };
   }
 
+  const outputText = extractToolResultText(result);
   if (toolName === "bash") {
-    const outputValue = record?.stdout ?? record?.stderr ?? result;
     return {
       state: "thinking",
       phase: "Processing output",
-      detail: previewText(outputValue, 104) || "Command finished",
+      detail: previewText(outputText, 104) || "Command finished",
       errorMessage: "",
     };
   }
@@ -128,7 +174,7 @@ export function summarizeToolResult(toolName, result, isError = false) {
   return {
     state: "thinking",
     phase: "Continuing",
-    detail: previewText(result, 104) || `${toolName} finished`,
+    detail: previewText(outputText, 104) || `${toolName} finished`,
     errorMessage: "",
   };
 }

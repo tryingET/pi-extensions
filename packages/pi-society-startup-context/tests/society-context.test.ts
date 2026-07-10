@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -160,6 +168,80 @@ test("renders fast startup packet with explicit pending warning and no posture c
   assert.doesNotMatch(rendered, /no active repo-scoped decision blockers found/);
 });
 
+test("replacement and shutdown abort in-flight full-refresh subprocesses", async () => {
+  const root = mkdtempSync(join(tmpdir(), "society-context-abort-"));
+  const marker = join(root, "aborted");
+  const executable = join(root, "fake-ak");
+  writeFileSync(
+    executable,
+    `#!/usr/bin/env node\nconst fs = require("node:fs");\nprocess.on("SIGTERM", () => { fs.appendFileSync(${JSON.stringify(marker)}, "aborted\\n"); process.exit(0); });\nsetTimeout(() => process.stdout.write('{"ok":true,"payload":{}}\\n'), 5000);\n`,
+  );
+  chmodSync(executable, 0o755);
+  const oldAk = process.env.PI_SOCIETY_CONTEXT_AK;
+  process.env.PI_SOCIETY_CONTEXT_AK = executable;
+  const events = new Map<string, (...args: unknown[]) => Promise<void>>();
+  try {
+    societyStartupContextExtension({
+      on(name: string, handler: (...args: unknown[]) => Promise<void>) {
+        events.set(name, handler);
+      },
+      registerCommand() {},
+    } as never);
+    const context = { cwd: process.cwd(), hasUI: false, ui: {} };
+    await events.get("session_start")?.({}, context);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await events.get("session_start")?.({}, context);
+    for (let attempt = 0; attempt < 20 && !existsSync(marker); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(existsSync(marker), true, "replacement should abort the prior refresh");
+    const replacementAbortCount = readFileSync(marker, "utf8").trim().split("\n").length;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    await events.get("session_shutdown")?.();
+    let shutdownAbortCount = replacementAbortCount;
+    for (
+      let attempt = 0;
+      attempt < 20 && shutdownAbortCount <= replacementAbortCount;
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      shutdownAbortCount = readFileSync(marker, "utf8").trim().split("\n").length;
+    }
+    assert.ok(
+      shutdownAbortCount > replacementAbortCount,
+      "shutdown should abort the replacement refresh",
+    );
+  } finally {
+    if (oldAk === undefined) delete process.env.PI_SOCIETY_CONTEXT_AK;
+    else process.env.PI_SOCIETY_CONTEXT_AK = oldAk;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("headless society-context command prints the read-only packet", async () => {
+  const commands = new Map<string, { handler: (args: string, ctx: unknown) => Promise<void> }>();
+  societyStartupContextExtension({
+    on() {},
+    registerCommand(
+      name: string,
+      command: { handler: (args: string, ctx: unknown) => Promise<void> },
+    ) {
+      commands.set(name, command);
+    },
+  } as never);
+  const output: string[] = [];
+  const oldLog = console.log;
+  console.log = (message?: unknown) => output.push(String(message));
+  try {
+    await commands.get("society-context")?.handler("", { cwd: "/tmp", hasUI: false });
+  } finally {
+    console.log = oldLog;
+  }
+  assert.match(output.join("\n"), /AI Society startup context/);
+  assert.match(output.join("\n"), /not applicable outside/);
+});
+
 test("extension registers startup, prompt injection, and manual context command", () => {
   const events = new Map<string, unknown>();
   const commands = new Map<string, unknown>();
@@ -174,5 +256,6 @@ test("extension registers startup, prompt injection, and manual context command"
 
   assert.equal(typeof events.get("session_start"), "function");
   assert.equal(typeof events.get("before_agent_start"), "function");
+  assert.equal(typeof events.get("session_shutdown"), "function");
   assert.equal(typeof commands.get("society-context"), "object");
 });

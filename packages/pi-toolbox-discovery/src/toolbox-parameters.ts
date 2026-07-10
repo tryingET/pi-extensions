@@ -51,12 +51,13 @@ export const TOOLBOX_PARAMETERS = {
     },
     riskAcknowledged: {
       type: "boolean",
-      description: "Required for mutating, external-mutation, and orchestrator-gated profiles.",
+      description:
+        "Caller declaration required for mutating, external-mutation, and orchestrator-gated profiles. Advisory only; it does not prove operator consent.",
     },
     riskJustification: {
       type: "string",
       description:
-        "Required with riskAcknowledged for mutating, external-mutation, and orchestrator-gated activation. Summarize the explicit user intent/risk reason.",
+        "Required with riskAcknowledged for mutating, external-mutation, and orchestrator-gated activation. Record the caller-stated risk rationale; this is not proof of operator consent.",
     },
   },
 } as const;

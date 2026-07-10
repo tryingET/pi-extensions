@@ -158,6 +158,20 @@ test("extension-originated sendUserMessage slash input executes exact ASC plan-o
   );
 });
 
+test("exact ASC bridge input is not swallowed in headless sessions", async () => {
+  const { eventHandlers } = registerHarness();
+  const inputHandler = eventHandlers.get("input");
+  const result = (await inputHandler?.(
+    {
+      source: "extension",
+      text: "/autoresearch Evaluate ASC self-evolution harness: metric=operator_nudge_count lower-is-better target=0 for post-compaction continuation; guardrail_boundary_violations target=0",
+    },
+    { cwd: "/repo", hasUI: false },
+  )) as { action: string };
+
+  assert.deepEqual(result, { action: "continue" });
+});
+
 test("extension-originated autoresearch bridge ignores bare /autoresearch status", async () => {
   const { eventHandlers } = registerHarness();
   const inputHandler = eventHandlers.get("input");

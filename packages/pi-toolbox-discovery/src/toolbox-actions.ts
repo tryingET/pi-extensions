@@ -119,8 +119,13 @@ export async function executeToolboxAction(
     const riskJustification = params.riskJustification?.trim() ?? "";
     if (plan.requiresAcknowledgement && (!params.riskAcknowledged || !riskJustification)) {
       return textResult(
-        `Refusing to activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"} (${plan.risks.join(", ")}) without riskAcknowledged=true, riskJustification, and explicit user intent.`,
-        { ok: false, risks: plan.risks, source: plan.source },
+        `Refusing to activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"} (${plan.risks.join(", ")}) without riskAcknowledged=true and riskJustification. These caller-supplied fields are an advisory risk declaration, not proof of operator consent.`,
+        {
+          ok: false,
+          risks: plan.risks,
+          source: plan.source,
+          acknowledgementSemantics: "caller-declaration-not-operator-consent",
+        },
       );
     }
 
@@ -179,6 +184,9 @@ export async function executeToolboxAction(
       profile: plan.profile?.id,
       source: plan.source,
       risks: plan.risks,
+      acknowledgementSemantics: plan.requiresAcknowledgement
+        ? "caller-declaration-not-operator-consent"
+        : "not-required",
       leases,
       schemaVisibility: {
         activeSetUpdated: true,
@@ -313,7 +321,7 @@ function formatRecommendations(recommendations: ToolboxRecommendation[]): string
         .filter(Boolean)
         .join("\n"),
     ),
-    "Activation remains explicit; mutating, external-mutation, and orchestrator-gated profiles still require riskAcknowledged and riskJustification.",
+    "Activation remains explicit; mutating, external-mutation, and orchestrator-gated profiles require a caller-supplied riskAcknowledged/riskJustification declaration. That declaration is advisory and does not prove operator consent.",
   ].join("\n");
 }
 
@@ -341,7 +349,7 @@ function buildActivationSuggestion(
 ): string {
   const base = `toolbox({ action: "activate", bundle: "${bundleId}", profile: "${profileId}"`;
   return requiresAcknowledgement
-    ? `${base}, riskAcknowledged: true, riskJustification: "<explicit user intent>" })`
+    ? `${base}, riskAcknowledged: true, riskJustification: "<caller-stated risk rationale>" })`
     : `${base} })`;
 }
 

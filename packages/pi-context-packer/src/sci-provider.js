@@ -123,7 +123,8 @@ const workflowEnv = (cwd) => {
   };
 };
 
-const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync }) => {
+const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync, signal }) => {
+  signal?.throwIfAborted();
   const { stdout } = await exec(
     command,
     ["workflow", workflow, "--args", JSON.stringify(args), "--json"],
@@ -132,18 +133,22 @@ const runWorkflow = async ({ cwd, command, workflow, args, exec = execFileAsync 
       timeout: SCI_TIMEOUT_MS,
       maxBuffer: SCI_MAX_BUFFER,
       env: workflowEnv(cwd),
+      signal,
     },
   );
   return parseWorkflowStdout(stdout);
 };
 
-const tryWorkflow = async ({ cwd, workflow, args, env, exec, shouldAbort }) => {
+const tryWorkflow = async ({ cwd, workflow, args, env, exec, shouldAbort, signal }) => {
+  signal?.throwIfAborted();
   const errors = [];
   for (const command of await sciCommandCandidates(env)) {
+    signal?.throwIfAborted();
     try {
-      const result = await runWorkflow({ cwd, command, workflow, args, exec });
+      const result = await runWorkflow({ cwd, command, workflow, args, exec, signal });
       return { ...result, command };
     } catch (error) {
+      signal?.throwIfAborted();
       errors.push(subprocessFailureDetail("SCI workflow", error, workflow));
       if (shouldAbort && (await shouldAbort())) {
         return {
@@ -333,7 +338,8 @@ const sandboxSetupFailure = (omissions = []) => ({
   ],
 });
 
-export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {} }) => {
+export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}, signal }) => {
+  signal?.throwIfAborted();
   const items = [];
   const omissions = [];
   const exec = env.execFileAsync;
@@ -422,6 +428,7 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
         env,
         exec,
         shouldAbort: () => firstExistingArtifact(allArtifactPaths),
+        signal,
       });
       if (await firstExistingArtifact(allArtifactPaths)) {
         result = artifactCreatedResult();
@@ -466,6 +473,7 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
         env,
         exec,
         shouldAbort: () => firstExistingArtifact(allArtifactPaths),
+        signal,
       });
       if (await firstExistingArtifact(allArtifactPaths)) {
         result = artifactCreatedResult();
@@ -481,6 +489,7 @@ export const buildSciSection = async ({ cwd, repoRoot, seeds, maxBytes, env = {}
               env,
               exec,
               shouldAbort: () => firstExistingArtifact(allArtifactPaths),
+              signal,
             });
 
       if (await firstExistingArtifact(allArtifactPaths)) {

@@ -256,6 +256,31 @@ test("non-UI: trigger-like context without sessionManager still builds PTX sugge
   });
 });
 
+test("non-UI: unexpected discovery failure falls back to the exact raw command instead of rejecting input", async () => {
+  const handlers: InputHandler[] = [];
+  ptxExtension({
+    on(eventName: string, handler: InputHandler) {
+      if (eventName === "input") handlers.push(handler);
+    },
+    registerCommand() {},
+    getCommands() {
+      throw new Error("command registry unavailable");
+    },
+  } as any);
+
+  const result = await runWithTimeout(
+    runInputPipeline(
+      handlers,
+      '$$ /review "keep exact args"',
+      createNonUiContext(process.cwd()),
+    ),
+    2000,
+  );
+
+  assert.equal(result.action, "transform");
+  assert.equal(result.text, '/review "keep exact args"');
+});
+
 test("non-UI: prompt command without template path falls back to prefilling raw slash command", async () => {
   const commands = [
     {

@@ -19,6 +19,7 @@ import {
 import {
   createInitialSnapshot,
   describeToolCall,
+  extractToolResultText,
   summarizeToolResult,
 } from "../common/telemetry.mjs";
 import { publishSessionSnapshot, removeSession } from "./broker-client.mjs";
@@ -157,7 +158,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
     /** @param {ToolExecutionEventLike} event */
     onToolExecutionUpdate(event) {
       if (snapshot.state !== "tool" && snapshot.state !== "waiting") return;
-      const partial = previewText(event?.partialResult, 104);
+      const partial = previewText(extractToolResultText(event?.partialResult), 104);
       if (!partial) return;
       update({
         detail: partial,
@@ -183,7 +184,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
         detail: snapshot.assistantPreview || snapshot.detail || "Thinking…",
       });
     },
-    onAgentEnd() {
+    onAgentSettled() {
       const detail =
         snapshot.errorMessage || snapshot.assistantPreview || snapshot.lastPromptPreview || "Done";
       update({

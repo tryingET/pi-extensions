@@ -25,7 +25,7 @@ The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt V
 - enforces the standard active tool set on `session_start`
 - searches/explains catalog metadata, recommends next-best matching bundle/profile choices, and plans activation without importing owner packages
 - plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
-- activates already-registered bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require acknowledgement plus `riskJustification`
+- activates already-registered bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require a caller-supplied `riskAcknowledged` plus `riskJustification` declaration. This is an advisory gate and audit hint, not proof of operator consent
 - queues an extension-origin same-task continuation after activation changes the active tool set, unless `autoContinue: false` is passed
 - fails closed when requested tools are not registered in the current Pi session, with instructions to enable/install the owner extension and `/reload` or start a fresh session
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
@@ -110,16 +110,12 @@ If you validate the package outside the monorepo tree, set `PACKAGE_QUALITY_GATE
 ## AK task/work-item operations
 
 This package is a monorepo member, not a git root.
-Use the monorepo-root AK wrapper for task/work-item operations:
+Use the plain installed `ak` CLI for task/work-item operations. The monorepo root remains the repo identity even when commands run from this package directory:
 
 ```bash
-# from the monorepo root
-./scripts/ak.sh --doctor
-./scripts/ak.sh task ready
-
-# from this package directory
-../../scripts/ak.sh --doctor
-../../scripts/ak.sh task show <id> -F json
+ak --doctor
+ak task ready
+ak task show <id> -F json
 ```
 
 ## Documentation placement

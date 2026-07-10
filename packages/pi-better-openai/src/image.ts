@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, isAbsolute, join, resolve, sep } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -12,6 +12,11 @@ const OPENAI_IMAGE_TOOL = "openai_image";
 const OPENAI_IMAGE_COMMAND = "openai-image";
 const CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
 const DEFAULT_TIMEOUT_MS = 180_000;
+const MAX_INPUT_IMAGES = 8;
+const MAX_INPUT_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_TOTAL_INPUT_IMAGE_BYTES = 40 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 40 * 1024 * 1024;
+const MAX_ERROR_BODY_BYTES = 16 * 1024;
 
 export const IMAGE_SAVE_MODES = ["none", "project", "global", "custom"] as const;
 export const IMAGE_ACTIONS = ["auto", "generate", "edit"] as const;
@@ -202,14 +207,72 @@ function extensionForFormat(format: ImageOutputFormat): string {
   return format === "jpeg" ? "jpg" : format;
 }
 
+async function readExpectedFileBytes(
+  expectedBytes: number,
+  readAt: (buffer: Buffer, offset: number, length: number, position: number) => Promise<number>,
+): Promise<{ buffer: Buffer; bytesRead: number }> {
+  const buffer = Buffer.allocUnsafe(expectedBytes + 1);
+  let bytesRead = 0;
+  while (bytesRead < buffer.length) {
+    const count = await readAt(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+    if (count === 0) break;
+    bytesRead += count;
+  }
+  return { buffer, bytesRead };
+}
+
+async function readBoundedImageFile(
+  path: string,
+  afterOpen?: () => Promise<void> | void,
+): Promise<Buffer> {
+  const handle = await open(path, "r");
+  try {
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile()) throw new Error(`Input image is not a regular file: ${path}`);
+    if (before.size > BigInt(MAX_INPUT_IMAGE_BYTES)) {
+      throw new Error(`Input image exceeds ${MAX_INPUT_IMAGE_BYTES} bytes: ${path}`);
+    }
+
+    await afterOpen?.();
+    const expectedBytes = Number(before.size);
+    const { buffer, bytesRead } = await readExpectedFileBytes(
+      expectedBytes,
+      async (target, offset, length, position) =>
+        (await handle.read(target, offset, length, position)).bytesRead,
+    );
+    const after = await handle.stat({ bigint: true });
+    const currentPath = await stat(path, { bigint: true }).catch(() => undefined);
+    const openedFileChanged =
+      after.size !== before.size ||
+      after.mtimeNs !== before.mtimeNs ||
+      after.ctimeNs !== before.ctimeNs ||
+      bytesRead !== expectedBytes;
+    const pathChanged =
+      !currentPath || currentPath.dev !== before.dev || currentPath.ino !== before.ino;
+    if (openedFileChanged || pathChanged) {
+      throw new Error(`Input image changed while reading: ${path}`);
+    }
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 async function readImageInputs(paths: string[] | undefined, cwd: string): Promise<ImageInput[]> {
+  const requested = (paths ?? []).map((value) => value.trim()).filter(Boolean);
+  if (requested.length > MAX_INPUT_IMAGES) {
+    throw new Error(`At most ${MAX_INPUT_IMAGES} input images are allowed.`);
+  }
   const inputs: ImageInput[] = [];
-  for (const rawPath of paths ?? []) {
-    const trimmed = rawPath.trim();
-    if (!trimmed) continue;
+  let totalBytes = 0;
+  for (const trimmed of requested) {
     const path = isAbsolute(trimmed) ? trimmed : resolve(cwd, trimmed);
-    const data = (await readFile(path)).toString("base64");
-    inputs.push({ path, data, mimeType: imageMimeType(path) });
+    const bytes = await readBoundedImageFile(path);
+    totalBytes += bytes.byteLength;
+    if (totalBytes > MAX_TOTAL_INPUT_IMAGE_BYTES) {
+      throw new Error(`Input images exceed ${MAX_TOTAL_INPUT_IMAGE_BYTES} total bytes.`);
+    }
+    inputs.push({ path, data: bytes.toString("base64"), mimeType: imageMimeType(path) });
   }
   return inputs;
 }
@@ -348,12 +411,18 @@ async function parseSseForImage(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let receivedBytes = 0;
   let lastImage: ExtractedImageResult | undefined;
   try {
     while (true) {
       if (signal?.aborted) throw new Error("Image request was aborted.");
       const { done, value } = await reader.read();
       if (done) break;
+      if (receivedBytes + value.byteLength > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`Codex image response exceeded ${MAX_RESPONSE_BYTES} bytes.`);
+      }
+      receivedBytes += value.byteLength;
       buffer += decoder.decode(value, { stream: true });
       let idx = buffer.indexOf("\n\n");
       while (idx !== -1) {
@@ -435,7 +504,7 @@ async function requestCodexImage(
     signal,
   });
   if (!response.ok) {
-    const text = await response.text().catch(() => "");
+    const text = await readBoundedResponseText(response, MAX_ERROR_BODY_BYTES).catch(() => "");
     throw new Error(
       `Codex image request failed (${response.status}): ${text || response.statusText}`,
     );
@@ -488,7 +557,36 @@ function latestUserPromptFromEntries(entries: unknown[]): string | undefined {
 }
 
 function resolveToolPrompt(params: ToolParams, ctx: ExtensionContext): string {
-  return latestUserPromptFromEntries(ctx.sessionManager.getEntries()) ?? params.prompt;
+  return params.prompt.trim() || latestUserPromptFromEntries(ctx.sessionManager.getEntries()) || "";
+}
+
+async function readBoundedResponseText(response: Response, maxBytes: number): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  const boundedMax = Math.max(0, maxBytes);
+  const probeLimit = boundedMax + 1;
+  let total = 0;
+  let truncated = false;
+  try {
+    while (total < probeLimit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const remaining = probeLimit - total;
+      chunks.push(value.subarray(0, remaining));
+      total += Math.min(value.byteLength, remaining);
+      if (value.byteLength > remaining) {
+        truncated = true;
+        break;
+      }
+    }
+    truncated ||= total > boundedMax;
+    if (truncated) await reader.cancel().catch(() => undefined);
+  } finally {
+    reader.releaseLock();
+  }
+  const combined = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).subarray(0, boundedMax);
+  return `${combined.toString("utf8")}${truncated ? "…[truncated]" : ""}`;
 }
 
 function resultText(result: CodexImageResult): string {
@@ -611,10 +709,10 @@ export function registerOpenAIImage(
     handler: async (args, ctx) => {
       const prompt = args.trim();
       if (!prompt) {
-        ctx.ui.notify("Usage: /openai-image <prompt>", "error");
+        if (ctx.hasUI) ctx.ui.notify("Usage: /openai-image <prompt>", "error");
         return;
       }
-      ctx.ui.notify("Requesting OpenAI image...", "info");
+      if (ctx.hasUI) ctx.ui.notify("Requesting OpenAI image...", "info");
       const result = await generate({ prompt }, ctx);
       pi.sendMessage({
         customType: "openai-image",
@@ -670,6 +768,10 @@ export function registerOpenAIImage(
 export const _imageTest = {
   CODEX_RESPONSES_URL,
   DEFAULT_TIMEOUT_MS,
+  MAX_INPUT_IMAGES,
+  MAX_INPUT_IMAGE_BYTES,
+  MAX_TOTAL_INPUT_IMAGE_BYTES,
+  MAX_ERROR_BODY_BYTES,
   OPENAI_IMAGE_TOOL,
   OPENAI_IMAGE_COMMAND,
   extractAccountIdFromJwt,
@@ -678,5 +780,10 @@ export const _imageTest = {
   extractImageFromEvent,
   displayPath,
   latestUserPromptFromEntries,
+  resolveToolPrompt,
+  readExpectedFileBytes,
+  readBoundedImageFile,
+  readImageInputs,
+  readBoundedResponseText,
   buildRequest,
 };

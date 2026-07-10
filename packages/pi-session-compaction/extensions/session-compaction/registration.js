@@ -143,7 +143,7 @@ export function registerSessionBeforeCompact(
       ...(getTrackedCommands ? { getTrackedCommands } : {}),
     });
 
-    if (options.trackedCommandStore && Array.isArray(event?.branchEntries)) {
+    if (result?.compaction && options.trackedCommandStore && Array.isArray(event?.branchEntries)) {
       const messages = event.branchEntries
         .filter((entry) => entry?.type === "message")
         .map((entry) => entry.message);

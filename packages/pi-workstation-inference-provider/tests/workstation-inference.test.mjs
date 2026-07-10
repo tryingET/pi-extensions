@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import extension, {
+  clearWorkstationHealthCache,
   providerModel,
   resolveContractStatus,
   streamWorkstationInference,
@@ -18,6 +19,7 @@ function withInlineContract(contract, fn) {
   const oldJson = process.env[CONTRACT_JSON_ENV];
   delete process.env[CONTRACT_ENV];
   process.env[CONTRACT_JSON_ENV] = JSON.stringify(contract);
+  clearWorkstationHealthCache();
   return Promise.resolve()
     .then(fn)
     .finally(() => {
@@ -62,6 +64,55 @@ test("stale contracts warn but remain loadable so committed defaults do not disa
     assert.equal(status.status, "ok");
     assert.match(status.detail, /refresh_after_seconds=1/);
   });
+});
+
+test("health checks use a bounded TTL cache and refresh after expiry", async () => {
+  const oldFetch = globalThis.fetch;
+  const oldTtl = process.env.PI_WORKSTATION_INFERENCE_HEALTH_CACHE_TTL_MS;
+  let calls = 0;
+  process.env.PI_WORKSTATION_INFERENCE_HEALTH_CACHE_TTL_MS = "50";
+  globalThis.fetch = async () => {
+    calls += 1;
+    return { ok: true, status: 200 };
+  };
+  try {
+    await withInlineContract(contract(), async () => {
+      await resolveContractStatus({ checkHealth: true });
+      await resolveContractStatus({ checkHealth: true });
+      assert.equal(calls, 1);
+      await new Promise((resolve) => setTimeout(resolve, 70));
+      await resolveContractStatus({ checkHealth: true });
+      assert.equal(calls, 2);
+    });
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldTtl === undefined) delete process.env.PI_WORKSTATION_INFERENCE_HEALTH_CACHE_TTL_MS;
+    else process.env.PI_WORKSTATION_INFERENCE_HEALTH_CACHE_TTL_MS = oldTtl;
+  }
+});
+
+test("caller cancellation aborts an in-flight health check before its timeout", async () => {
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      if (init.signal.aborted) {
+        reject(init.signal.reason);
+        return;
+      }
+      init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+    });
+  try {
+    await withInlineContract(contract(), async () => {
+      const controller = new AbortController();
+      const pending = resolveContractStatus({ checkHealth: true, signal: controller.signal });
+      controller.abort(new Error("operator cancelled"));
+      const status = await pending;
+      assert.equal(status.status, "unhealthy");
+      assert.match(status.detail, /cancelled by caller/);
+    });
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
 });
 
 test("providerModel strips thinking controls from visible non-reasoning aliases", () => {

@@ -20,6 +20,11 @@ import {
 } from "../src/runtime/boundaries.ts";
 import { listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
 import {
+  createSessionTokenHistoryCache,
+  type SessionTokenHistoryCache,
+  summarizeSessionTokenEntries,
+} from "../src/runtime/session-token-history.js";
+import {
   createRuntimeTruthSnapshot,
   fitRuntimeFooterLayout,
   formatRuntimeRoutingStatus,
@@ -101,44 +106,8 @@ function getSessionEntriesForUsage(ctx: RuntimeStatusContext): unknown[] {
   return [];
 }
 
-function normalizeSessionTokenCount(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0;
-}
-
-function summarizeSessionTokens(ctx: RuntimeStatusContext) {
-  let input = 0;
-  let output = 0;
-  let cacheRead = 0;
-  let cacheWrite = 0;
-
-  for (const entry of getSessionEntriesForUsage(ctx)) {
-    if (!entry || typeof entry !== "object") {
-      continue;
-    }
-
-    const messageEntry = entry as {
-      type?: unknown;
-      message?: {
-        role?: unknown;
-        usage?: {
-          input?: unknown;
-          output?: unknown;
-          cacheRead?: unknown;
-          cacheWrite?: unknown;
-        };
-      };
-    };
-    if (messageEntry.type !== "message" || messageEntry.message?.role !== "assistant") {
-      continue;
-    }
-
-    input += normalizeSessionTokenCount(messageEntry.message.usage?.input);
-    output += normalizeSessionTokenCount(messageEntry.message.usage?.output);
-    cacheRead += normalizeSessionTokenCount(messageEntry.message.usage?.cacheRead);
-    cacheWrite += normalizeSessionTokenCount(messageEntry.message.usage?.cacheWrite);
-  }
-
-  return { input, output, cacheRead, cacheWrite };
+function summarizeSessionTokens(ctx: RuntimeStatusContext, cache?: SessionTokenHistoryCache) {
+  return summarizeSessionTokenEntries(getSessionEntriesForUsage(ctx), cache);
 }
 
 function readContextUsage(ctx: RuntimeStatusContext) {
@@ -149,7 +118,11 @@ function readContextUsage(ctx: RuntimeStatusContext) {
   }
 }
 
-function buildRuntimeSnapshot(ctx: RuntimeStatusContext, toolsResult?: CognitiveToolsResult) {
+function buildRuntimeSnapshot(
+  ctx: RuntimeStatusContext,
+  toolsResult?: CognitiveToolsResult,
+  tokenHistoryCache?: SessionTokenHistoryCache,
+) {
   const contextUsage = readContextUsage(ctx);
 
   return createRuntimeTruthSnapshot({
@@ -162,7 +135,7 @@ function buildRuntimeSnapshot(ctx: RuntimeStatusContext, toolsResult?: Cognitive
           contextWindow: contextUsage.contextWindow,
         }
       : undefined,
-    sessionTokens: summarizeSessionTokens(ctx),
+    sessionTokens: summarizeSessionTokens(ctx, tokenHistoryCache),
     boundaryTelemetry: {
       ...getBoundaryTelemetryStats(),
       latestFailure: getLatestBoundaryTelemetryFailure(),
@@ -425,14 +398,22 @@ export default function runtimeFooterExtension(pi: ExtensionAPI) {
       isBoundaryFailure(toolsResult) ? "warning" : "info",
     );
 
+    const tokenHistoryCache = createSessionTokenHistoryCache();
     ctx.ui.setFooter((tui, theme, footerData) => ({
       dispose: () => {
         footerHealthState.disposed = true;
       },
-      invalidate() {},
+      invalidate() {
+        // History continuity is checked at render time using stable session entry ids plus
+        // boundary usage, so defensive copies and mutable tail usage invalidate safely.
+      },
       render(width: number): string[] {
         refreshFooterHealth(footerHealthState, ctx.cwd, tui);
-        const footerSnapshot = buildRuntimeSnapshot(ctx, footerHealthState.latestToolsResult);
+        const footerSnapshot = buildRuntimeSnapshot(
+          ctx,
+          footerHealthState.latestToolsResult,
+          tokenHistoryCache,
+        );
         const extensionStatuses = footerData?.getExtensionStatuses?.() ?? new Map<string, string>();
         const extensionStatusSlots = buildExtensionStatusSlots(extensionStatuses);
         return [renderRuntimeFooterLine(width, theme, footerSnapshot, extensionStatusSlots)];

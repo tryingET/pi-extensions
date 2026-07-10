@@ -163,6 +163,7 @@ interface SessionArtifactSpec {
 interface SessionReportOptions {
   toolName: string;
   objective?: string;
+  requiredArtifactPath?: string;
   artifact?: (result: CommandResult) => SessionArtifactSpec | undefined;
 }
 
@@ -195,6 +196,8 @@ const FORMAT_VALUES = [
 ] as const;
 const MODE_VALUES = ["iterate", "remix", "expand", "audit"] as const;
 const OPENPENCIL_EXPORT_FORMAT_VALUES = ["svg", "png", "jpg", "webp", "fig"] as const;
+const WATCH_FETCH_TIMEOUT_MS = 5_000;
+const MAX_PENPOT_BRIDGE_NODES = 10_000;
 
 const baseFields = {
   cwd: Type.Optional(
@@ -507,23 +510,23 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params) {
       const request = params as OpenPencilExportParams;
       const resolvedOutputPath = resolveInputPath(request.cwd, request.outputPath);
-      return toolResult(
-        await runDesignmdWithSession(
-          request,
-          [
-            "openpencil-export",
-            resolveInputPath(request.cwd, request.filePath),
-            "--format",
-            request.format,
-            "--output",
-            resolvedOutputPath,
-          ],
-          {
-            toolName: "designmd_openpencil_export",
-            artifact: () => artifactForOpenPencilExport(request.format, resolvedOutputPath),
-          },
-        ),
+      const result = await runDesignmdWithSession(
+        request,
+        [
+          "openpencil-export",
+          resolveInputPath(request.cwd, request.filePath),
+          "--format",
+          request.format,
+          "--output",
+          resolvedOutputPath,
+        ],
+        {
+          toolName: "designmd_openpencil_export",
+          requiredArtifactPath: resolvedOutputPath,
+          artifact: () => artifactForOpenPencilExport(request.format, resolvedOutputPath),
+        },
       );
+      return toolResult(requireExportArtifact(result, resolvedOutputPath));
     },
   });
 
@@ -693,8 +696,10 @@ export default function (pi: ExtensionAPI) {
           Type.String({ description: "Optional Penpot board name for the bridge apply plan." }),
         ),
         maxNodes: Type.Optional(
-          Type.Number({
-            description: "Optional positive maximum number of bridge nodes to render.",
+          Type.Integer({
+            minimum: 1,
+            maximum: MAX_PENPOT_BRIDGE_NODES,
+            description: `Optional positive maximum number of bridge nodes to render (1-${MAX_PENPOT_BRIDGE_NODES}).`,
           }),
         ),
         updateLatest: Type.Optional(
@@ -724,6 +729,17 @@ export default function (pi: ExtensionAPI) {
         return messageResult("Pass either updateLatest or updateBoardId, not both.", { ok: false });
       }
       if (request.boardName) args.push("--board-name", request.boardName);
+      if (
+        request.maxNodes !== undefined &&
+        (!Number.isInteger(request.maxNodes) ||
+          request.maxNodes < 1 ||
+          request.maxNodes > MAX_PENPOT_BRIDGE_NODES)
+      ) {
+        return messageResult(
+          `maxNodes must be a positive integer no greater than ${MAX_PENPOT_BRIDGE_NODES}.`,
+          { ok: false },
+        );
+      }
       if (request.maxNodes !== undefined) args.push("--max-nodes", String(request.maxNodes));
       if (request.updateLatest) args.push("--update-latest");
       if (request.updateBoardId) args.push("--update-board-id", request.updateBoardId);
@@ -782,15 +798,15 @@ export default function (pi: ExtensionAPI) {
       if (request.boardId) args.push("--board-id", request.boardId);
       else args.push("--latest");
       if (request.endpoint) args.push("--endpoint", request.endpoint);
-      return toolResult(
-        await runDesignmdWithSession(request, args, {
-          toolName: "designmd_penpot_mcp_export",
-          objective: request.boardId
-            ? `Export Penpot MCP bridge board ${request.boardId}`
-            : "Export latest Penpot MCP bridge board",
-          artifact: (result) => artifactForPenpotMcpExport(result.stdout, resolvedOutputPath),
-        }),
-      );
+      const result = await runDesignmdWithSession(request, args, {
+        toolName: "designmd_penpot_mcp_export",
+        requiredArtifactPath: resolvedOutputPath,
+        objective: request.boardId
+          ? `Export Penpot MCP bridge board ${request.boardId}`
+          : "Export latest Penpot MCP bridge board",
+        artifact: (result) => artifactForPenpotMcpExport(result.stdout, resolvedOutputPath),
+      });
+      return toolResult(requireExportArtifact(result, resolvedOutputPath));
     },
   });
 
@@ -1273,6 +1289,9 @@ async function reportCommandResult(
   options: SessionReportOptions,
   existingSession?: WatchSession | null,
 ): Promise<CommandResult> {
+  if (options.requiredArtifactPath) {
+    result = requireExportArtifact(result, options.requiredArtifactPath);
+  }
   const session =
     existingSession === undefined ? await ensureWatchSession(options) : existingSession;
   await postSessionActivity(session, {
@@ -1496,12 +1515,22 @@ async function postJson<T = unknown>(
       method,
       headers,
       body: body === null ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(WATCH_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {
     return null;
   }
+}
+
+function requireExportArtifact(result: CommandResult, outputPath: string): CommandResult {
+  if (!result.ok || fs.existsSync(outputPath)) return result;
+  return {
+    ...result,
+    ok: false,
+    error: `Export command completed without creating required artifact: ${outputPath}`,
+  };
 }
 
 function normalizedSessionEndpoint(): string | undefined {
@@ -1538,3 +1567,10 @@ function expandHome(value: string): string {
   if (value.startsWith("~/")) return path.join(os.homedir(), value.slice(2));
   return value;
 }
+
+export const _test = {
+  WATCH_FETCH_TIMEOUT_MS,
+  MAX_PENPOT_BRIDGE_NODES,
+  postJson,
+  requireExportArtifact,
+};

@@ -61,6 +61,10 @@ export default function contextOverlayExtension(pi: ExtensionAPI): void {
     description: "Open context inspector overlay",
     handler: async (_args, ctx) => {
       if (!ctx.hasUI) return;
+      if ((ctx as ExtensionContext & { mode?: string }).mode === "rpc") {
+        ctx.ui.notify("Context inspector requires interactive TUI mode", "warning");
+        return;
+      }
 
       syncStoreFromSession(ctx);
 

@@ -271,7 +271,8 @@ export default function agentVentExtension(pi: ExtensionAPI) {
       "When calling agent_vent, summarize minimally and never include secrets, credentials, private user payloads, or long raw logs.",
     ],
     parameters: AgentVentParams,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      throwIfCancelled(signal);
       const storePath = defaultStorePath();
       const reviewPath = defaultReviewPath();
       const curationPath = defaultCurationPath();
@@ -315,6 +316,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
             `agent_vent record rejected by anti-junk quality check: ${quality.issues.join("; ")}`,
           );
         }
+        throwIfCancelled(signal);
         appendVentRecord(storePath, record);
         const state = loadDiagnosticState({
           storePath,
@@ -364,6 +366,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         });
       }
 
+      throwIfCancelled(signal);
       const state = loadDiagnosticState({
         storePath,
         reviewPath,
@@ -400,6 +403,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
         };
         assertCanCurateRecurrence(records, curationEvents, input);
         const event = createCurationEvent(input, { source: "agent_vent_tool" });
+        throwIfCancelled(signal);
         appendCurationEvent(curationPath, event);
         const targetText = event.targetRecurrenceKey ? ` -> ${event.targetRecurrenceKey}` : "";
         const text = [
@@ -433,6 +437,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           },
           { source: "agent_vent_tool" },
         );
+        throwIfCancelled(signal);
         appendReviewEvent(reviewPath, event);
         const text = [
           `Set local review state for ${event.recurrenceKey} to ${event.state}.`,
@@ -643,6 +648,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
           });
         }
         if (retentionAction === "archive") {
+          throwIfCancelled(signal);
           const result = archiveRecurrenceGroup({
             storePath,
             reviewPath,
@@ -665,6 +671,7 @@ export default function agentVentExtension(pi: ExtensionAPI) {
             retention: result,
           });
         }
+        throwIfCancelled(signal);
         const result = restoreRetentionBackup({
           storePath,
           retentionPath,
@@ -770,13 +777,29 @@ function registerAgentVentCommand(pi: ExtensionAPI, name: string, description: s
     description,
     handler: async (args, ctx) => {
       const output = handleCommand(args);
-      if (ctx.hasUI) {
-        ctx.ui.notify(output, "info");
-      } else {
+      if (!ctx.hasUI) {
         console.log(output);
+      } else if (isLongCommandOutput(output)) {
+        pi.sendMessage({
+          customType: "agent-vent-command",
+          content: output,
+          display: true,
+          details: { command: name },
+        });
+        ctx.ui.notify("agent_vent output added to the session transcript", "info");
+      } else {
+        ctx.ui.notify(output, "info");
       }
     },
   });
+}
+
+function isLongCommandOutput(output: string): boolean {
+  return output.length > 500 || output.split("\n").length > 8;
+}
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new Error("agent_vent cancelled");
 }
 
 function handleCommand(args: string) {
@@ -1423,6 +1446,8 @@ function formatRecordPreview(
     `Boundary: ${quality.boundary || "local diagnostic preview only"}`,
   ].join("\n");
 }
+
+export const _test = { isLongCommandOutput, throwIfCancelled };
 
 function textResult(text: string, details: Record<string, unknown>) {
   return {

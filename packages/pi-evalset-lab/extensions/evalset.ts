@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import {
+  type Api,
   type AssistantMessage,
   type Context,
   complete,
@@ -97,6 +98,7 @@ interface EvalCaseResult {
   pass: boolean;
   checks: CaseCheckResult[];
   failedChecks: string[];
+  output: string;
   outputPreview: string;
   latencyMs: number;
   stopReason: string;
@@ -296,11 +298,20 @@ function parseDataset(raw: string): EvalDataset {
     throw new Error("Dataset field 'systemPrompt' must be a string when provided.");
   }
 
-  return {
-    name,
-    systemPrompt,
-    cases: cases.map((entry, index) => parseCase(entry, index)),
-  };
+  const parsedCases = cases.map((entry, index) => parseCase(entry, index));
+  const ids = new Set<string>();
+  for (let index = 0; index < parsedCases.length; index += 1) {
+    const id = parsedCases[index].id;
+    if (id !== undefined && !id.trim()) {
+      throw new Error(`Case at index ${index}: 'id' must not be empty.`);
+    }
+    const normalized = id?.trim() || `case-${index + 1}`;
+    if (ids.has(normalized)) throw new Error(`Duplicate case id: ${normalized}`);
+    ids.add(normalized);
+    parsedCases[index].id = normalized;
+  }
+
+  return { name, systemPrompt, cases: parsedCases };
 }
 
 function toAbsolutePath(cwd: string, inputPath: string): string {
@@ -345,15 +356,17 @@ function requireValue(tokens: string[], index: number, flag: string): string {
 }
 
 function parsePositiveInteger(raw: string, field: string): number {
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${field} must be a positive integer.`);
-  }
+  if (!/^[1-9]\d*$/.test(raw)) throw new Error(`${field} must be a positive integer.`);
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed)) throw new Error(`${field} must be a positive integer.`);
   return parsed;
 }
 
 function parseTemperature(raw: string): number {
-  const parsed = Number.parseFloat(raw);
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw)) {
+    throw new Error("--temperature must be a number between 0 and 2.");
+  }
+  const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 2) {
     throw new Error("--temperature must be a number between 0 and 2.");
   }
@@ -633,7 +646,7 @@ function defaultRunReportPath(cwd: string, datasetName: string, variantName: str
     cwd,
     ".evalset",
     "reports",
-    `run-${sanitizeSlug(datasetName)}-${sanitizeSlug(variantName)}-${timestampSlug()}.json`,
+    `run-${sanitizeSlug(datasetName)}-${sanitizeSlug(variantName)}-${timestampSlug()}-${randomUUID().slice(0, 8)}.json`,
   );
 }
 
@@ -642,19 +655,28 @@ function defaultCompareReportPath(cwd: string, datasetName: string): string {
     cwd,
     ".evalset",
     "reports",
-    `compare-${sanitizeSlug(datasetName)}-${timestampSlug()}.json`,
+    `compare-${sanitizeSlug(datasetName)}-${timestampSlug()}-${randomUUID().slice(0, 8)}.json`,
   );
 }
 
 async function writeReportFile(path: string, data: unknown): Promise<string> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  const tempPath = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify(data, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+    await link(tempPath, path);
+  } finally {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+  }
   return path;
 }
 
 async function evaluateVariant(args: {
   ctx: ExtensionCommandContext;
-  model: Model;
+  model: Model<Api>;
   datasetPath: string;
   datasetName: string;
   datasetHash: string;
@@ -727,6 +749,7 @@ async function evaluateVariant(args: {
           failedChecks: evaluation.checks
             .filter((check) => !check.pass)
             .map((check) => check.details),
+          output: outputText,
           outputPreview: clip(outputText),
           latencyMs: Date.now() - startedAt,
           stopReason: response.stopReason,
@@ -747,6 +770,7 @@ async function evaluateVariant(args: {
             },
           ],
           failedChecks: [message],
+          output: "",
           outputPreview: "",
           latencyMs: Date.now() - startedAt,
           stopReason: "error",
@@ -829,7 +853,7 @@ function postMessage(pi: ExtensionAPI, message: string, details?: unknown): void
   });
 }
 
-function ensureActiveModel(ctx: ExtensionCommandContext): Model {
+function ensureActiveModel(ctx: ExtensionCommandContext): Model<Api> {
   if (!ctx.model) {
     throw new Error("No active model. Select one first via /model.");
   }
@@ -838,7 +862,7 @@ function ensureActiveModel(ctx: ExtensionCommandContext): Model {
 
 async function resolveRequestAuth(
   ctx: ExtensionCommandContext,
-  model: Model,
+  model: Model<Api>,
 ): Promise<{ apiKey?: string; headers?: Record<string, string> }> {
   const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
   if (!auth.ok) throw new Error(auth.error);
@@ -1118,6 +1142,14 @@ function formatError(error: unknown): string {
   }
   return String(error);
 }
+
+export const _test = {
+  parseDataset,
+  parsePositiveInteger,
+  parseTemperature,
+  parseRunCommand,
+  writeReportFile,
+};
 
 export default function (pi: ExtensionAPI): void {
   pi.registerCommand(COMMAND_NAME, {

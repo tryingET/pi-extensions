@@ -91,6 +91,12 @@ const WORKSTATION_API_ID = "workstation-inference";
 const DEFAULT_CONTEXT_WINDOW = 131_072;
 const DEFAULT_MAX_TOKENS = 16_384;
 const DEFAULT_TIMEOUT_MS = 1_500;
+const MAX_HEALTH_TIMEOUT_MS = 30_000;
+const DEFAULT_HEALTH_CACHE_TTL_MS = 5_000;
+const MAX_HEALTH_CACHE_TTL_MS = 60_000;
+const HEALTH_TIMEOUT_ENV = "PI_WORKSTATION_INFERENCE_HEALTH_TIMEOUT_MS";
+const HEALTH_CACHE_TTL_ENV = "PI_WORKSTATION_INFERENCE_HEALTH_CACHE_TTL_MS";
+const healthCache = new Map<string, { expiresAt: number; unhealthy?: string }>();
 const DEFAULT_API_KEY = "workstation-local";
 const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
 const CANARY_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CANARY_CONTRACT";
@@ -104,6 +110,17 @@ const DEFAULT_WORKSTATION_ROOT = join(
   "workstation",
 );
 const LANE_OP_SCRIPT = join("scripts", "phasee", "lane-op.py");
+
+function boundedPositiveIntegerEnv(name: string, fallback: number, maximum: number): number {
+  const value = process.env[name]?.trim();
+  if (!value || !/^[1-9]\d*$/.test(value)) return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? Math.min(parsed, maximum) : fallback;
+}
+
+export function clearWorkstationHealthCache(): void {
+  healthCache.clear();
+}
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -249,7 +266,7 @@ function staleDetail(contract: WorkstationInferenceContract): string | undefined
 
 async function resolveContractForModel(
   modelId: string,
-  options: { checkHealth?: boolean } = {},
+  options: { checkHealth?: boolean; signal?: AbortSignal } = {},
 ): Promise<{ contract: WorkstationInferenceContract; model: ContractModel; source: string }> {
   const loadedContracts = await loadAvailableContracts();
   for (const loaded of loadedContracts) {
@@ -258,7 +275,7 @@ async function resolveContractForModel(
     );
     if (!contractModel) continue;
     if (options.checkHealth) {
-      const unhealthy = await checkHealth(loaded.contract);
+      const unhealthy = await checkHealth(loaded.contract, options.signal);
       if (unhealthy) throw new Error(`workstation inference endpoint is not healthy: ${unhealthy}`);
     }
     return { contract: loaded.contract, model: contractModel, source: loaded.source };
@@ -266,24 +283,59 @@ async function resolveContractForModel(
   throw new Error(`model ${modelId} is not present in the current workstation contracts`);
 }
 
-async function checkHealth(contract: WorkstationInferenceContract): Promise<string | undefined> {
+async function checkHealth(
+  contract: WorkstationInferenceContract,
+  callerSignal?: AbortSignal,
+): Promise<string | undefined> {
+  const healthUrl = contract.health_url ?? defaultHealthUrl(contract);
+  if (callerSignal?.aborted) return "health check cancelled by caller";
+  const cached = healthCache.get(healthUrl);
+  if (cached && cached.expiresAt > Date.now()) return cached.unhealthy;
+  if (cached) healthCache.delete(healthUrl);
+
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timeoutMs = boundedPositiveIntegerEnv(
+    HEALTH_TIMEOUT_ENV,
+    DEFAULT_TIMEOUT_MS,
+    MAX_HEALTH_TIMEOUT_MS,
+  );
+  const onCallerAbort = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) onCallerAbort();
+  else callerSignal?.addEventListener("abort", onCallerAbort, { once: true });
+  const timeout = setTimeout(
+    () => controller.abort(new Error(`health timed out after ${timeoutMs}ms`)),
+    timeoutMs,
+  );
+  let unhealthy: string | undefined;
   try {
-    const response = await fetch(contract.health_url ?? defaultHealthUrl(contract), {
-      signal: controller.signal,
-    });
-    if (!response.ok) return `health returned HTTP ${response.status}`;
-    return undefined;
+    const response = await fetch(healthUrl, { signal: controller.signal });
+    if (!response.ok) unhealthy = `health returned HTTP ${response.status}`;
   } catch (error) {
-    return error instanceof Error ? error.message : String(error);
+    unhealthy = callerSignal?.aborted
+      ? "health check cancelled by caller"
+      : controller.signal.reason instanceof Error
+        ? controller.signal.reason.message
+        : error instanceof Error
+          ? error.message
+          : String(error);
   } finally {
     clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", onCallerAbort);
   }
+
+  if (!callerSignal?.aborted) {
+    const ttlMs = boundedPositiveIntegerEnv(
+      HEALTH_CACHE_TTL_ENV,
+      DEFAULT_HEALTH_CACHE_TTL_MS,
+      MAX_HEALTH_CACHE_TTL_MS,
+    );
+    healthCache.set(healthUrl, { expiresAt: Date.now() + ttlMs, unhealthy });
+  }
+  return unhealthy;
 }
 
 export async function resolveContractStatus(
-  options: { checkHealth?: boolean } = {},
+  options: { checkHealth?: boolean; signal?: AbortSignal } = {},
 ): Promise<ContractStatus> {
   let loaded: LoadedContract;
   try {
@@ -300,7 +352,7 @@ export async function resolveContractStatus(
   const stale = staleDetail(loaded.contract);
 
   if (options.checkHealth) {
-    const unhealthy = await checkHealth(loaded.contract);
+    const unhealthy = await checkHealth(loaded.contract, options.signal);
     if (unhealthy) {
       return {
         status: "unhealthy",
@@ -368,7 +420,10 @@ export function streamWorkstationInference(
 
   (async () => {
     try {
-      const selected = await resolveContractForModel(model.id, { checkHealth: true });
+      const selected = await resolveContractForModel(model.id, {
+        checkHealth: true,
+        signal: (options as (SimpleStreamOptions & { signal?: AbortSignal }) | undefined)?.signal,
+      });
 
       const inner = streamSimpleOpenAICompletions(
         {

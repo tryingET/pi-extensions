@@ -203,29 +203,49 @@ export function registerPeerMessagingIntercomExtension(
       createPeerMessagingRuntime(runtimeOptions));
 
   let runtime: ManagedPeerMessagingRuntime | null = null;
+  let runtimeInitialization: Promise<ManagedPeerMessagingRuntime> | null = null;
   let detachRuntimeMessages: (() => void) | null = null;
+  let shuttingDown = false;
 
   async function ensureRuntime(
     ctx: IntercomExtensionContext | undefined,
   ): Promise<ManagedPeerMessagingRuntime> {
+    if (shuttingDown) {
+      throw new Error("Peer-messaging session is shutting down.");
+    }
     if (runtime) {
       return runtime;
     }
+    if (runtimeInitialization) {
+      return runtimeInitialization;
+    }
 
-    const nextRuntime = await runtimeFactory({
-      id: resolveStablePeerSessionId(ctx),
-      name: resolveSessionName(ctx),
-      cwd: resolveSessionCwd(ctx),
-      model: resolveModelId(ctx),
-      runtimeDir: options.runtimeDir,
-      packageRoot: getPackageRoot(),
-      idleShutdownMs: options.idleShutdownMs,
+    runtimeInitialization = (async () => {
+      const nextRuntime = await runtimeFactory({
+        id: resolveStablePeerSessionId(ctx),
+        name: resolveSessionName(ctx),
+        cwd: resolveSessionCwd(ctx),
+        model: resolveModelId(ctx),
+        runtimeDir: options.runtimeDir,
+        packageRoot: getPackageRoot(),
+        idleShutdownMs: options.idleShutdownMs,
+      });
+
+      if (shuttingDown) {
+        await nextRuntime.disconnect();
+        throw new Error("Peer-messaging session shut down during runtime initialization.");
+      }
+
+      detachRuntimeMessages = nextRuntime.onMessage((from, message) => {
+        adapter.handleIncomingMessage(from, message);
+      });
+      runtime = nextRuntime;
+      return nextRuntime;
+    })().finally(() => {
+      runtimeInitialization = null;
     });
-    detachRuntimeMessages = nextRuntime.onMessage((from, message) => {
-      adapter.handleIncomingMessage(from, message);
-    });
-    runtime = nextRuntime;
-    return nextRuntime;
+
+    return runtimeInitialization;
   }
 
   async function syncPresence(ctx: IntercomExtensionContext | undefined): Promise<void> {
@@ -246,17 +266,26 @@ export function registerPeerMessagingIntercomExtension(
   });
 
   pi.on("session_shutdown", async () => {
+    shuttingDown = true;
     adapter.clear();
     detachRuntimeMessages?.();
     detachRuntimeMessages = null;
 
+    const initialization = runtimeInitialization;
     const activeRuntime = runtime;
     runtime = null;
-    if (!activeRuntime) {
+    if (activeRuntime) {
+      await activeRuntime.disconnect();
       return;
     }
 
-    await activeRuntime.disconnect();
+    if (initialization) {
+      try {
+        await initialization;
+      } catch {
+        // ensureRuntime disconnects a runtime that resolves after shutdown begins.
+      }
+    }
   });
 
   pi.registerTool({

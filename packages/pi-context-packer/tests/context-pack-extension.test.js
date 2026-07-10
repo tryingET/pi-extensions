@@ -116,6 +116,25 @@ test("context-packer extension registers command and all model-callable tools", 
   assert.equal(aggregate.details.dogfoodAggregateEvaluation.activityTypeCounts.validation, 1);
 });
 
+test("context_plan honors an already-aborted tool signal", async () => {
+  const { tools } = createHarness();
+  const controller = new AbortController();
+  controller.abort(new DOMException("operator cancelled", "AbortError"));
+
+  await assert.rejects(
+    tools
+      .get("context_plan")
+      .execute(
+        "tool-call-cancelled-plan",
+        { objective: "Plan docs context" },
+        controller.signal,
+        undefined,
+        { cwd: process.cwd() },
+      ),
+    { name: "AbortError" },
+  );
+});
+
 test("context-packer release smoke command executes registered tool closures", async () => {
   const { commands } = createHarness();
   const command = commands.get("context-packer-release-smoke");

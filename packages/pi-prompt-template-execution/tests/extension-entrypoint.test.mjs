@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -130,6 +130,68 @@ describe("live prompt-template execution extension entrypoint", () => {
     await emit("session_start", { type: "session_start" }, { cwd: "/repo", ui: {} });
 
     assert.equal(commands.filter((command) => command.name === "commit").length, 1);
+  });
+
+  it("refreshes an edited prompt from disk at invocation time", async () => {
+    const home = await tempHome();
+    const promptPath = await writePrompt(home, "commit", commandPrompt("Original $ARGUMENTS"));
+    const current = createModel({ provider: "zai", id: "glm-5.1" });
+    const calls = [];
+    const { pi, handlers, emit } = createPi([], {
+      sendUserMessage(content) {
+        calls.push(content);
+      },
+    });
+
+    promptTemplateExecutionExtension(pi);
+    const ctx = {
+      cwd: "/repo",
+      model: current,
+      modelRegistry: createRegistry([current]),
+      ui: {},
+    };
+    await emit("session_start", { type: "session_start" }, ctx);
+    await writeFile(promptPath, commandPrompt("Edited $ARGUMENTS"), "utf8");
+
+    await handlers.get("commit")("now", ctx);
+    assert.deepEqual(calls, ["Edited now"]);
+  });
+
+  it("fails truthfully instead of executing stale content after prompt deletion", async () => {
+    const home = await tempHome();
+    const promptPath = await writePrompt(home, "commit", commandPrompt("Stale $ARGUMENTS"));
+    const current = createModel({ provider: "zai", id: "glm-5.1" });
+    const calls = [];
+    const { pi, handlers, emit } = createPi([], {
+      sendUserMessage(content) {
+        calls.push({ type: "sendUserMessage", content });
+      },
+    });
+    const ctx = {
+      cwd: "/repo",
+      model: current,
+      modelRegistry: createRegistry([current]),
+      ui: { notify: (message, level) => calls.push({ type: "notify", message, level }) },
+    };
+
+    promptTemplateExecutionExtension(pi);
+    await emit("session_start", { type: "session_start" }, ctx);
+    await unlink(promptPath);
+
+    const result = await handlers.get("commit")("now", ctx);
+    assert.equal(result.reason, "prompt_no_longer_available");
+    assert.equal(
+      calls.some((call) => call.type === "sendUserMessage"),
+      false,
+    );
+    assert.ok(
+      calls.some(
+        (call) =>
+          call.type === "notify" &&
+          /no longer available on disk/.test(call.message) &&
+          call.level === "error",
+      ),
+    );
   });
 
   it("defers restore until agent_end for live command execution", async () => {

@@ -255,6 +255,75 @@ test("extension surfaces incoming messages with an exact reply hint", async () =
   assert.equal(harness.sentMessages[0]?.options?.triggerTurn, true);
 });
 
+test("concurrent startup and tool execution share one deferred runtime initialization", async () => {
+  const runtime = new FakeManagedRuntime();
+  const eventHandlers = new Map<
+    string,
+    (event: unknown, ctx?: IntercomExtensionContext) => unknown
+  >();
+  const tools = new Map<string, IntercomRegisteredTool>();
+  let resolveRuntime: ((runtime: ManagedPeerMessagingRuntime) => void) | undefined;
+  const deferredRuntime = new Promise<ManagedPeerMessagingRuntime>((resolve) => {
+    resolveRuntime = resolve;
+  });
+  let factoryCalls = 0;
+
+  registerPeerMessagingIntercomExtension(
+    {
+      on: (event, handler) => eventHandlers.set(event, handler),
+      registerTool: (tool) => tools.set(tool.name, tool),
+      sendMessage: () => {},
+    },
+    {
+      runtimeFactory: async () => {
+        factoryCalls += 1;
+        return deferredRuntime;
+      },
+    },
+  );
+
+  const ctx = createContext();
+  const startup = eventHandlers.get("session_start")?.({}, ctx);
+  const toolCall = tools
+    .get("intercom")
+    ?.execute("concurrent-list", { action: "list" }, undefined, undefined, ctx);
+  await Promise.resolve();
+  assert.equal(factoryCalls, 1);
+
+  resolveRuntime?.(runtime);
+  await Promise.all([startup, toolCall]);
+  assert.equal(runtime.updatePresenceCalls.length, 2);
+});
+
+test("shutdown during deferred initialization disconnects the eventual runtime without leaking it", async () => {
+  const runtime = new FakeManagedRuntime();
+  const eventHandlers = new Map<
+    string,
+    (event: unknown, ctx?: IntercomExtensionContext) => unknown
+  >();
+  let resolveRuntime: ((runtime: ManagedPeerMessagingRuntime) => void) | undefined;
+  const deferredRuntime = new Promise<ManagedPeerMessagingRuntime>((resolve) => {
+    resolveRuntime = resolve;
+  });
+
+  registerPeerMessagingIntercomExtension(
+    {
+      on: (event, handler) => eventHandlers.set(event, handler),
+      registerTool: () => {},
+      sendMessage: () => {},
+    },
+    { runtimeFactory: async () => deferredRuntime },
+  );
+
+  const startup = eventHandlers.get("session_start")?.({}, createContext());
+  await Promise.resolve();
+  const shutdown = eventHandlers.get("session_shutdown")?.({}, createContext());
+  resolveRuntime?.(runtime);
+
+  await Promise.all([startup, shutdown]);
+  assert.equal(runtime.disconnected, true);
+});
+
 test("extension clears runtime state on session shutdown", async () => {
   const harness = createHarness();
   const sessionShutdown = harness.eventHandlers.get("session_shutdown");

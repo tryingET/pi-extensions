@@ -672,12 +672,23 @@ export default function ptxExtension(pi: ExtensionAPI) {
       return { action: "handled" as const };
     }
 
-    const suggestion = await buildTemplateSuggestion({
-      pi,
-      ctx,
-      commandName: parsed.query,
-      providedArgs: parsed.args,
-    });
+    const rawFallback = buildRawFallbackCommand(parsed.query, parsed.args);
+    let suggestion: TemplateSuggestionResult;
+    try {
+      suggestion = await buildTemplateSuggestion({
+        pi,
+        ctx,
+        commandName: parsed.query,
+        providedArgs: parsed.args,
+      });
+    } catch (error) {
+      suggestion = {
+        transformed: rawFallback,
+        warning: rawFallback
+          ? `PTX non-UI fallback for /${parsed.query}: ${asErrorMessage(error)}; inserted raw command without inferred args.`
+          : `PTX non-UI error: ${asErrorMessage(error)}`,
+      };
+    }
 
     if (!suggestion.transformed) {
       return {

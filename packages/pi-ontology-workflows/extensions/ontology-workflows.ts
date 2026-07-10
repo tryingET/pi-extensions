@@ -38,6 +38,12 @@ const workspace = createWorkspacePort();
 const runtimeDeps = { files, rocs, workspace };
 const proposalRuntime = createOntologyProposalRuntime(runtimeDeps);
 const ONTOLOGY_STATUS_KEY = "ontology-workflows";
+const HEADLESS_MUTATION_ERROR =
+  "Ontology mutation requires interactive UI confirmation; no change was applied in this headless session.";
+
+function outputCommandText(ctx: { hasUI: boolean }, text: string): void {
+  if (!ctx.hasUI) console.log(text);
+}
 
 const inspectSchema = Type.Object({
   kind: StringEnum(ONTOLOGY_INSPECT_KINDS),
@@ -319,8 +325,11 @@ export function parseOntologyManifestCommandArgs(raw: string): OntologyManifestC
       if (token === "--budget") {
         const value = tokens[++i];
         if (!value) throw new Error("--budget requires a positive integer");
-        const parsed = Number.parseInt(value, 10);
-        if (!Number.isFinite(parsed) || parsed <= 0) {
+        if (!/^[1-9]\d*$/.test(value)) {
+          throw new Error("--budget requires a positive integer");
+        }
+        const parsed = Number(value);
+        if (!Number.isSafeInteger(parsed)) {
           throw new Error("--budget requires a positive integer");
         }
         budget = parsed;
@@ -419,6 +428,9 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
     parameters: asPiToolParameters(changeSchema),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const request = params as OntologyChangeRequest;
+      if (request.mode === "apply" && !ctx.hasUI) {
+        throw new Error(HEADLESS_MUTATION_ERROR);
+      }
       const planned = await planOntologyChange(request, { cwd: ctx.cwd }, runtimeDeps);
 
       if (request.mode === "apply" && planned.target.externalToCurrentRepo && ctx.hasUI) {
@@ -485,6 +497,8 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       updateStatusFromInspect(ctx, result);
       if (ctx.hasUI) {
         await ctx.ui.editor("Ontology Status", text);
+      } else {
+        outputCommandText(ctx, text);
       }
     },
   });
@@ -492,6 +506,10 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
   pi.registerCommand("ontology-bootstrap", {
     description: "Create the minimal repo-local ontology/ skeleton for the current repo",
     handler: async (args, ctx) => {
+      if (!ctx.hasUI) {
+        outputCommandText(ctx, HEADLESS_MUTATION_ERROR);
+        return;
+      }
       const detected = await workspace.detect(ctx.cwd);
       if (!detected.currentRepoDetectedFromGit) {
         if (ctx.hasUI) {
@@ -621,6 +639,10 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       }
 
       if (plan.kind !== "apply") {
+        return;
+      }
+      if (!ctx.hasUI) {
+        outputCommandText(ctx, HEADLESS_MUTATION_ERROR);
         return;
       }
 

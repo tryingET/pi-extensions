@@ -91,13 +91,16 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     applyDesiredFastState(ctx, nextConfig);
     persist(nextConfig);
     if (next && !active) {
+      if (!ctx.hasUI) return;
       ctx.ui.notify(
         `Fast mode requested, but ${currentModelKey(ctx)} is unsupported. It will activate automatically when you switch to a supported model: ${modelList(nextConfig.supportedModels)}.`,
         "warning",
       );
       return;
     }
-    ctx.ui.notify(stateText(ctx, desiredActive, active, nextConfig.supportedModels), "info");
+    if (ctx.hasUI) {
+      ctx.ui.notify(stateText(ctx, desiredActive, active, nextConfig.supportedModels), "info");
+    }
   }
 
   pi.registerFlag(FLAG, {
@@ -106,12 +109,20 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     default: false,
   });
 
+  pi.on("session_start", (_event, ctx) => {
+    const cfg = refresh(ctx);
+    if (pi.getFlag(FLAG) === true) {
+      desiredActive = true;
+      applyDesiredFastState(ctx, cfg);
+    }
+  });
+
   pi.registerCommand(COMMAND, {
     description: "Toggle OpenAI fast mode",
     handler: async (args, ctx) => {
       const arg = args.trim().toLowerCase();
       if (!arg) return setActive(ctx, !desiredActive);
-      ctx.ui.notify("Usage: /fast", "error");
+      if (ctx.hasUI) ctx.ui.notify("Usage: /fast", "error");
     },
   });
 
@@ -122,6 +133,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     handler: async (_args, ctx) => {
       const cfg = refresh(ctx);
       const imageDebug = await image.getDebug(ctx);
+      if (!ctx.hasUI) return;
       ctx.ui.notify(
         [
           `Fast desired: ${desiredActive}`,
@@ -148,6 +160,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     applyDesiredFastState(ctx, cfg);
     if (active !== wasActive) {
       persist(cfg);
+      if (!ctx.hasUI) return;
       ctx.ui.notify(
         active
           ? stateText(ctx, desiredActive, active, cfg.supportedModels)

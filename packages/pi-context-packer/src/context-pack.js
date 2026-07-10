@@ -33,6 +33,7 @@ const SECTION_AUTHORITY = {
   docs: "Markdown/docs are source-owned data unless active instructions make them authoritative.",
 };
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
+const throwIfAborted = (signal) => signal?.throwIfAborted();
 const isMarkdownPath = (value) => /\.md$/i.test(value);
 const selectedProviderIds = (plan) =>
   plan.providerPlans
@@ -262,12 +263,14 @@ const findAgentFiles = async (cwd, repoRoot) => {
   return existing;
 };
 
-const buildAgentsSection = async ({ cwd, repoRoot, maxBytes, loadedSystemPrompt }) => {
+const buildAgentsSection = async ({ cwd, repoRoot, maxBytes, loadedSystemPrompt, signal }) => {
+  throwIfAborted(signal);
   const agentFiles = await findAgentFiles(cwd, repoRoot);
   const items = [];
   const omissions = [];
 
   for (const pathSeed of agentFiles) {
+    throwIfAborted(signal);
     const { item, omission } = await readBoundedFile({
       root: repoRoot,
       pathSeed,
@@ -284,12 +287,14 @@ const buildAgentsSection = async ({ cwd, repoRoot, maxBytes, loadedSystemPrompt 
   return { section: sectionFromItems("agents", "Instruction context", items), omissions };
 };
 
-const buildDocsSection = async ({ repoRoot, seeds, maxBytes, loadedSystemPrompt }) => {
+const buildDocsSection = async ({ repoRoot, seeds, maxBytes, loadedSystemPrompt, signal }) => {
+  throwIfAborted(signal);
   const markdownSeeds = seeds.filter((seed) => seed.kind === "path" && isMarkdownPath(seed.value));
   const items = [];
   const omissions = [];
 
   for (const seed of markdownSeeds) {
+    throwIfAborted(signal);
     const { item, omission } = await readBoundedFile({
       root: repoRoot,
       pathSeed: seed.value,
@@ -317,8 +322,10 @@ const trustedGitPath = async () => {
   return undefined;
 };
 
-const buildGitSection = async ({ cwd, exec = execFileAsync }) => {
+const buildGitSection = async ({ cwd, exec = execFileAsync, signal }) => {
+  throwIfAborted(signal);
   const gitPath = await trustedGitPath();
+  throwIfAborted(signal);
   if (!gitPath) {
     return {
       section: sectionFromItems("git", "Git posture", []),
@@ -333,6 +340,7 @@ const buildGitSection = async ({ cwd, exec = execFileAsync }) => {
       cwd,
       timeout: 5_000,
       maxBuffer: GIT_MAX_BUFFER,
+      signal,
     });
     const content = stdout.trim() || "clean";
     const item = {
@@ -348,6 +356,7 @@ const buildGitSection = async ({ cwd, exec = execFileAsync }) => {
     };
     return { section: sectionFromItems("git", "Git posture", [item]), omissions: [] };
   } catch (error) {
+    throwIfAborted(signal);
     return {
       section: sectionFromItems("git", "Git posture", []),
       omissions: [
@@ -477,7 +486,9 @@ const appendSectionWithinBudget = ({
 };
 
 export const buildContextPacket = async (input = {}, env = {}) => {
+  throwIfAborted(env.signal);
   const plan = buildContextPlan(input, env);
+  throwIfAborted(env.signal);
   if (!plan.ok) return { ok: false, errors: plan.errors, plan };
 
   const cwd = resolve(plan.cwd);
@@ -506,6 +517,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       repoRoot,
       maxBytes: providerMaxBytes(plan, "agents", remainingBudget),
       loadedSystemPrompt: env.systemPrompt,
+      signal: env.signal,
     });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({
@@ -519,7 +531,13 @@ export const buildContextPacket = async (input = {}, env = {}) => {
 
   if (providerIds.includes("docs")) {
     if (docsSeeds.length === 0) {
-      const discovered = await discoverDocsSeeds({ repoRoot, cwd, objective: plan.objective, env });
+      const discovered = await discoverDocsSeeds({
+        repoRoot,
+        cwd,
+        objective: plan.objective,
+        env,
+        signal: env.signal,
+      });
       docsSeeds = unique(
         [...docsSeeds, ...discovered.seeds].map((seed) => JSON.stringify(seed)),
       ).map((seed) => JSON.parse(seed));
@@ -530,6 +548,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       seeds: docsSeeds,
       maxBytes: providerMaxBytes(plan, "docs", remainingBudget),
       loadedSystemPrompt: env.systemPrompt,
+      signal: env.signal,
     });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({
@@ -548,6 +567,7 @@ export const buildContextPacket = async (input = {}, env = {}) => {
       seeds: sciSeeds,
       maxBytes: providerMaxBytes(plan, "sci", remainingBudget),
       env,
+      signal: env.signal,
     });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({
@@ -572,7 +592,11 @@ export const buildContextPacket = async (input = {}, env = {}) => {
   }
 
   if (providerIds.includes("git")) {
-    const result = await buildGitSection({ cwd: repoRoot, exec: env.execFileAsync });
+    const result = await buildGitSection({
+      cwd: repoRoot,
+      exec: env.execFileAsync,
+      signal: env.signal,
+    });
     omissions.push(...result.omissions);
     appendSectionWithinBudget({
       sections,
