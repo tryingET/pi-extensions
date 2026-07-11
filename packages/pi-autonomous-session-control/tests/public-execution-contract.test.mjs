@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
 import { createAscExecutionRuntime, getDispatchSubagentDisplayOutput } from "../execution.ts";
+import { writeDispatchEffectReceipt } from "../extensions/self/effect-receipt.ts";
 import { registerDispatchSubagentTool } from "../extensions/self/subagent.ts";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -18,6 +19,29 @@ const assistantProtocolIncompleteCase = loadExecutionSeamCase("assistant-protoco
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+test("ASC effect receipts publish privately without overwrite or unsafe attempt ids", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-effect-receipt-"));
+  try {
+    const params = {
+      sessionsDir,
+      sessionName: "receipt-test",
+      dispatchId: "dispatch-test",
+      attemptId: "attempt-test",
+      disposition: "settled",
+    };
+    const receipt = writeDispatchEffectReceipt(params);
+    assert.equal(receipt.sessionName, params.sessionName);
+    assert.equal((await stat(receipt.receiptPath)).mode & 0o777, 0o600);
+    assert.throws(() => writeDispatchEffectReceipt(params), /EEXIST/);
+    assert.throws(
+      () => writeDispatchEffectReceipt({ ...params, attemptId: "../escape" }),
+      /filename-safe attempt id/,
+    );
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
 
 test("public execution export target stays published and typechecked", async () => {
   const [packageJson, tsconfigJson] = await Promise.all([
@@ -141,6 +165,13 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
     assert.equal(result.details.prompt_name, "nexus");
     assert.deepEqual(result.details.prompt_tags, ["phase:execution", "scope:public-contract"]);
     assert.equal(result.details.fullOutput, "runtime ok");
+    assert.equal(result.details.effectReceipt.disposition, "settled");
+    assert.equal(result.details.effectReceipt.dispatchId, result.details.dispatchId);
+    assert.equal(result.details.effectReceipt.attemptId, result.details.attemptId);
+    assert.deepEqual(
+      JSON.parse(await readFile(result.details.effectReceipt.receiptPath, "utf8")),
+      result.details.effectReceipt,
+    );
     assert.match(result.text, /^✓ \[custom\] done in 1s/);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
@@ -295,6 +326,7 @@ test("execution entrypoint stays headless-importable without package-local node_
     "extensions/self/subagent-capacity.ts",
     "extensions/self/subagent-control.ts",
     "extensions/self/subagent-edge-contract.ts",
+    "extensions/self/effect-receipt.ts",
     "extensions/self/subagent-extension-selection.ts",
     "extensions/self/subagent-profiles.ts",
     "extensions/self/subagent-prompt-envelope.ts",

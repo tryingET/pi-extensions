@@ -24,7 +24,30 @@ function createExecutor(plugin, operatorCwd, packageRoot) {
     },
     checkpointStore: new LoopRunCheckpointStore(path.join(operatorCwd, ".loop-runs")),
     captureStateFingerprint: () => "sha256:test-state",
+    verifyEffectReceipt: (receipt) => receipt?.schema === "asc.dispatch_effect_receipt.v1",
   });
+}
+
+function settledResult(output, elapsed) {
+  return {
+    output,
+    exitCode: 0,
+    elapsed,
+    assistantStopReason: "stop",
+    executionState: {
+      transport: { kind: "transport", exitCode: 0, aborted: false, timedOut: false },
+      protocol: { kind: "assistant_protocol", stopReason: "stop" },
+    },
+    effectReceipt: {
+      schema: "asc.dispatch_effect_receipt.v1",
+      dispatchId: "dispatch-test",
+      attemptId: "attempt-test",
+      sessionName: "loop-test",
+      disposition: "settled",
+      recordedAt: "2026-07-11T00:00:00.000Z",
+      receiptPath: "/tmp/test-effect-receipt.json",
+    },
+  };
 }
 
 function readAllFiles(dir) {
@@ -56,11 +79,7 @@ test("LoopExecutor writes package-owned KES artifacts and stages candidate-only 
       async ({ cognitiveTool }) => {
         const phase = KAIZEN_PLUGIN.phases[phaseIndex++];
         assert.equal(cognitiveTool, KAIZEN_PLUGIN.cognitiveTools[phase][0]);
-        return {
-          output: phaseOutputs[phase],
-          exitCode: 0,
-          elapsed: 12,
-        };
+        return settledResult(phaseOutputs[phase], 12);
       },
     );
 
@@ -244,11 +263,7 @@ test("Transcendent v4 fail-fast stops unresolved blocking debt before dissolve/r
             failureKind: "blocking_debt_remaining",
           };
         }
-        return {
-          output: `Phase ${phase} completed and preserved debt-routing evidence.`,
-          exitCode: 0,
-          elapsed: 7,
-        };
+        return settledResult(`Phase ${phase} completed and preserved debt-routing evidence.`, 7);
       },
     );
 
@@ -288,11 +303,7 @@ test("Transcendent v4 closure-gate records incomplete debt instead of pretending
           failureKind: "closure_gate_blocking_debt",
         };
       }
-      return {
-        output: `Phase ${phase} completed with evidence for the closure gate.`,
-        exitCode: 0,
-        elapsed: 6,
-      };
+      return settledResult(`Phase ${phase} completed with evidence for the closure gate.`, 6);
     });
 
     assert.equal(result.success, false);
@@ -313,6 +324,40 @@ test("Transcendent v4 closure-gate records incomplete debt instead of pretending
   }
 });
 
+test("Transcendent closure gate requires one explicit machine verdict", async () => {
+  const scenarios = [
+    { suffix: "No marker", expectedSuccess: false, failureKind: "closure_gate_verdict_missing" },
+    {
+      suffix: "CLOSURE_GATE: INCOMPLETE",
+      expectedSuccess: false,
+      failureKind: "closure_gate_incomplete",
+    },
+    { suffix: "CLOSURE_GATE: PASS", expectedSuccess: true, failureKind: undefined },
+  ];
+
+  for (const scenario of scenarios) {
+    const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-operator-"));
+    const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-package-"));
+    let phaseIndex = 0;
+    try {
+      const executor = createExecutor(TRANSCENDENT_PLUGIN, operatorCwd, packageRoot);
+      const result = await executor.execute("Enforce truthful closure", async () => {
+        const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
+        const output =
+          phase === "closure-gate"
+            ? `Closure analysis complete.\n${scenario.suffix}`
+            : `Phase ${phase} complete.`;
+        return settledResult(output, 1);
+      });
+      assert.equal(result.success, scenario.expectedSuccess, scenario.suffix);
+      assert.equal(result.phases.at(-1)?.failureKind, scenario.failureKind, scenario.suffix);
+    } finally {
+      fs.rmSync(operatorCwd, { recursive: true, force: true });
+      fs.rmSync(packageRoot, { recursive: true, force: true });
+    }
+  }
+});
+
 test("LoopExecutor keeps non-crystallization loops diary-only even when KES roots are package-owned", async () => {
   const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-operator-"));
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-loop-package-"));
@@ -324,11 +369,7 @@ test("LoopExecutor keeps non-crystallization loops diary-only even when KES root
     const result = await executor.execute("Plan the migration", async ({ cognitiveTool }) => {
       const phase = STRATEGIC_PLUGIN.phases[phaseIndex++];
       assert.equal(cognitiveTool, STRATEGIC_PLUGIN.cognitiveTools[phase][0]);
-      return {
-        output: `Phase ${phase} stayed bounded and completed successfully.`,
-        exitCode: 0,
-        elapsed: 8,
-      };
+      return settledResult(`Phase ${phase} stayed bounded and completed successfully.`, 8);
     });
 
     assert.equal(result.success, true);

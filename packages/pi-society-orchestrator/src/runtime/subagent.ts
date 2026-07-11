@@ -1,7 +1,9 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   createAscExecutionRuntime,
   createSubagentState,
+  type DispatchEffectReceipt,
   type DispatchSubagentExecutionResult,
   type DispatchSubagentExecutionUpdate,
   type DispatchSubagentFailureKind,
@@ -22,6 +24,12 @@ const DEFAULT_PI_SUBAGENT_TIMEOUT_MS =
   Number.parseInt(process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS || "", 10) || 10 * 60 * 1000;
 const DEFAULT_PI_OUTPUT_CHARS =
   Number.parseInt(process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS || "", 10) || 64_000;
+const verifiedEffectReceiptBrand: unique symbol = Symbol("verifiedEffectReceipt");
+const verifiedEffectReceipts = new WeakSet<object>();
+
+export type VerifiedDispatchEffectReceipt = DispatchEffectReceipt & {
+  readonly [verifiedEffectReceiptBrand]: true;
+};
 
 export interface OrchestratorSubagentExecutionParams {
   agentProfile: Pick<AgentDef, "name" | "tools" | "systemPrompt">;
@@ -51,6 +59,7 @@ export interface OrchestratorExecutionLike extends ExecutionLike {
   stderr?: string;
   outputTruncated?: boolean;
   failureKind?: DispatchSubagentFailureKind;
+  effectReceipt?: VerifiedDispatchEffectReceipt;
 }
 
 export interface OrchestratorSubagentExecutor {
@@ -144,20 +153,137 @@ export function createOrchestratorSubagentExecutor(
 
 export function toExecutionLike(
   result: DispatchSubagentExecutionResult,
+  trustedSessionsDir?: string,
 ): OrchestratorExecutionLike {
+  const effectReceipt = trustedSessionsDir
+    ? verifyDispatchEffectReceipt(result, trustedSessionsDir)
+    : undefined;
+  const receiptWriteFailed = result.details.failureKind === "effect_receipt_write_failed";
+  const receiptFailureMessage =
+    "ASC effect receipt could not be persisted; execution effects remain indeterminate.";
   return {
     output: getDispatchSubagentDisplayOutput(result),
-    exitCode: result.details.exitCode ?? (result.ok ? 0 : 1),
+    exitCode: receiptWriteFailed ? 1 : (result.details.exitCode ?? (result.ok ? 0 : 1)),
     elapsed: result.details.elapsed ?? 0,
     stderr: result.details.stderr,
     outputTruncated: result.details.outputTruncated,
     timedOut: result.details.timedOut ?? result.details.status === "timed_out",
     aborted: result.details.aborted ?? result.details.status === "aborted",
-    assistantStopReason: result.details.assistantStopReason,
-    assistantErrorMessage: result.details.assistantErrorMessage,
-    executionState: result.details.executionState,
+    assistantStopReason: receiptWriteFailed ? "error" : result.details.assistantStopReason,
+    assistantErrorMessage: receiptWriteFailed
+      ? receiptFailureMessage
+      : result.details.assistantErrorMessage,
+    executionState: receiptWriteFailed
+      ? {
+          transport: {
+            kind: "transport",
+            exitCode: 1,
+            aborted: false,
+            timedOut: false,
+          },
+          protocol: {
+            kind: "assistant_protocol",
+            stopReason: "error",
+            errorMessage: receiptFailureMessage,
+          },
+        }
+      : result.details.executionState,
     failureKind: result.details.failureKind,
+    effectReceipt,
   };
+}
+
+export function verifyDispatchEffectReceipt(
+  result: DispatchSubagentExecutionResult,
+  trustedSessionsDir: string,
+): VerifiedDispatchEffectReceipt | undefined {
+  const returned = result.details.effectReceipt;
+  if (
+    !returned ||
+    returned.schema !== "asc.dispatch_effect_receipt.v1" ||
+    returned.dispatchId !== result.details.dispatchId ||
+    returned.attemptId !== result.details.attemptId ||
+    typeof result.details.sessionName !== "string" ||
+    !result.details.sessionName ||
+    returned.sessionName !== result.details.sessionName ||
+    !["settled", "confirmed_no_effects", "effect_indeterminate"].includes(returned.disposition) ||
+    !Number.isFinite(Date.parse(returned.recordedAt))
+  ) {
+    return undefined;
+  }
+
+  try {
+    const root = fs.realpathSync(trustedSessionsDir);
+    const candidate = path.resolve(returned.receiptPath);
+    if (candidate === root || !candidate.startsWith(`${root}${path.sep}`)) return undefined;
+    const expectedName = `${result.details.sessionName}.${returned.attemptId}.effect-receipt.json`;
+    if (path.basename(candidate) !== expectedName) return undefined;
+    const lstat = fs.lstatSync(candidate);
+    if (
+      lstat.isSymbolicLink() ||
+      !lstat.isFile() ||
+      lstat.nlink !== 1 ||
+      lstat.size > 64 * 1024 ||
+      (lstat.mode & 0o077) !== 0 ||
+      (typeof process.getuid === "function" && lstat.uid !== process.getuid())
+    ) {
+      return undefined;
+    }
+    const realCandidate = fs.realpathSync(candidate);
+    if (!realCandidate.startsWith(`${root}${path.sep}`)) return undefined;
+
+    const descriptor = fs.openSync(candidate, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    let persistedText: string;
+    try {
+      const stat = fs.fstatSync(descriptor);
+      if (
+        !stat.isFile() ||
+        stat.nlink !== 1 ||
+        stat.size !== lstat.size ||
+        stat.dev !== lstat.dev ||
+        stat.ino !== lstat.ino
+      ) {
+        return undefined;
+      }
+      const bytes = Buffer.alloc(stat.size);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, offset);
+        if (count === 0) return undefined;
+        offset += count;
+      }
+      persistedText = bytes.toString("utf8");
+    } finally {
+      fs.closeSync(descriptor);
+    }
+
+    const persisted = JSON.parse(persistedText) as Record<string, unknown>;
+    const expectedKeys = [
+      "attemptId",
+      "dispatchId",
+      "disposition",
+      "receiptPath",
+      "recordedAt",
+      "schema",
+      "sessionName",
+    ];
+    if (JSON.stringify(Object.keys(persisted).sort()) !== JSON.stringify(expectedKeys)) {
+      return undefined;
+    }
+    for (const key of expectedKeys) {
+      if (persisted[key] !== returned[key as keyof DispatchEffectReceipt]) return undefined;
+    }
+    verifiedEffectReceipts.add(returned);
+    return returned as VerifiedDispatchEffectReceipt;
+  } catch {
+    return undefined;
+  }
+}
+
+export function isVerifiedDispatchEffectReceipt(
+  receipt: DispatchEffectReceipt | undefined,
+): receipt is VerifiedDispatchEffectReceipt {
+  return Boolean(receipt && verifiedEffectReceipts.has(receipt));
 }
 
 function buildAscExecutionContext(cwd: string, model: string): SubagentModelContext {

@@ -16,11 +16,22 @@ export type LoopAttemptEffectDisposition =
   | "confirmed_no_effects"
   | "effect_indeterminate";
 
+export interface OwnerEffectReceipt {
+  schema: "asc.dispatch_effect_receipt.v1";
+  dispatchId: string;
+  attemptId: string;
+  sessionName: string;
+  disposition: LoopAttemptEffectDisposition;
+  recordedAt: string;
+  receiptPath: string;
+}
+
 export interface LoopPhaseAttemptCheckpoint {
   attemptId: string;
   phase: string;
   status: LoopAttemptStatus;
   effectDisposition: LoopAttemptEffectDisposition;
+  ownerEffectReceipt?: OwnerEffectReceipt;
   output: string;
   exitCode: number;
   failureKind?: string;
@@ -37,6 +48,7 @@ export interface LoopRunCheckpoint {
   objective: string;
   cwd: string;
   status: LoopRunStatus;
+  effectReceiptContract?: "asc.dispatch_effect_receipt.v1";
   attempts: LoopPhaseAttemptCheckpoint[];
   artifactHashes: Record<string, string>;
   stateFingerprint: string;
@@ -109,6 +121,7 @@ export class LoopRunCheckpointStore {
       objective: input.objective,
       cwd: fs.realpathSync(input.cwd),
       status: "running",
+      effectReceiptContract: "asc.dispatch_effect_receipt.v1",
       attempts: [],
       artifactHashes: { ...input.artifactHashes },
       stateFingerprint: input.stateFingerprint,
@@ -378,7 +391,7 @@ export function deriveResumePhase(checkpoint: LoopRunCheckpoint): string {
     const phase = checkpoint.phases[phaseIndex];
     const attempts = checkpoint.attempts.filter((attempt) => attempt.phase === phase);
     const latest = attempts.at(-1);
-    if (latest?.status === "done") continue;
+    if (latest?.status === "done" && latest.effectDisposition === "settled") continue;
 
     const laterAttempts = checkpoint.attempts.filter(
       (attempt) => checkpoint.phases.indexOf(attempt.phase) > phaseIndex,
@@ -390,6 +403,12 @@ export function deriveResumePhase(checkpoint: LoopRunCheckpoint): string {
       );
     }
     if (!latest || latest.effectDisposition === "confirmed_no_effects") return phase;
+    if (latest.effectDisposition === "settled") {
+      throw new LoopResumeError(
+        "loop_resume_effect_settled",
+        `Loop run ${checkpoint.runId} cannot retry ${phase}: attempt ${latest.attemptId} has owner-settled effects. Reorient or restart instead of duplicating the phase.`,
+      );
+    }
     throw new LoopResumeError(
       "loop_resume_effect_indeterminate",
       `Loop run ${checkpoint.runId} cannot retry ${phase}: attempt ${latest.attemptId} may have emitted effects. Reconcile those effects through their owning surfaces or restart instead of retrying mechanically.`,
@@ -415,6 +434,12 @@ export function validateResumeCheckpoint(input: {
   retentionMs?: number;
 }): string {
   const { checkpoint } = input;
+  if (checkpoint.effectReceiptContract !== "asc.dispatch_effect_receipt.v1") {
+    throw new LoopResumeError(
+      "loop_resume_receipt_contract_missing",
+      `Loop run ${checkpoint.runId} predates owner-issued effect receipts and cannot be resumed safely.`,
+    );
+  }
   if (checkpoint.plugin !== input.plugin) {
     throw new LoopResumeError(
       "loop_resume_plugin_mismatch",
@@ -546,6 +571,8 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
     typeof record.objective !== "string" ||
     typeof record.cwd !== "string" ||
     !statuses.has(record.status as LoopRunStatus) ||
+    (record.effectReceiptContract !== undefined &&
+      record.effectReceiptContract !== "asc.dispatch_effect_receipt.v1") ||
     !Array.isArray(record.attempts) ||
     !record.artifactHashes ||
     typeof record.artifactHashes !== "object" ||
@@ -584,7 +611,14 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
       !record.phases.includes(attempt.phase) ||
       !attemptStatuses.has(attempt.status) ||
       !dispositions.has(attempt.effectDisposition) ||
-      (attempt.status === "done" && attempt.effectDisposition !== "settled") ||
+      (record.effectReceiptContract === "asc.dispatch_effect_receipt.v1" &&
+        attempt.effectDisposition === "settled" &&
+        attempt.ownerEffectReceipt === undefined) ||
+      (attempt.ownerEffectReceipt !== undefined &&
+        !isValidCheckpointOwnerEffectReceipt(
+          attempt.ownerEffectReceipt,
+          attempt.effectDisposition,
+        )) ||
       typeof attempt.output !== "string" ||
       typeof attempt.exitCode !== "number" ||
       typeof attempt.elapsed !== "number" ||
@@ -603,6 +637,28 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
   }
 
   return record as LoopRunCheckpoint;
+}
+
+function isValidCheckpointOwnerEffectReceipt(
+  value: unknown,
+  expectedDisposition: LoopAttemptEffectDisposition,
+): value is OwnerEffectReceipt {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const receipt = value as Partial<OwnerEffectReceipt>;
+  return (
+    receipt.schema === "asc.dispatch_effect_receipt.v1" &&
+    typeof receipt.dispatchId === "string" &&
+    Boolean(receipt.dispatchId) &&
+    typeof receipt.attemptId === "string" &&
+    Boolean(receipt.attemptId) &&
+    typeof receipt.sessionName === "string" &&
+    Boolean(receipt.sessionName) &&
+    receipt.disposition === expectedDisposition &&
+    typeof receipt.recordedAt === "string" &&
+    Number.isFinite(Date.parse(receipt.recordedAt)) &&
+    typeof receipt.receiptPath === "string" &&
+    path.isAbsolute(receipt.receiptPath)
+  );
 }
 
 function assertCheckpointWithinRetention(

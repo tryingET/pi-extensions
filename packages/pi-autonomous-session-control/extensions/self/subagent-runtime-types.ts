@@ -1,4 +1,5 @@
 import type { InvariantIssue } from "./edge-contract-kernel.ts";
+import type { DispatchEffectReceipt } from "./effect-receipt.ts";
 import type { SessionScopedContext } from "./session-context.ts";
 import type {
   ResolvedSubagentModelSelection,
@@ -55,7 +56,8 @@ export type DispatchSubagentFailureKind =
   | "invariant_failed"
   | "unknown_profile"
   | "rate_limited"
-  | "model_selection_failed";
+  | "model_selection_failed"
+  | "effect_receipt_write_failed";
 
 export interface DispatchSubagentRequest {
   profile: DispatchSubagentProfile;
@@ -136,6 +138,8 @@ export interface DispatchSubagentDetails {
   prompt_warning?: string;
   reason?: string;
   failureKind?: DispatchSubagentFailureKind;
+  /** Durable, owner-issued effect disposition for this exact ASC attempt. */
+  effectReceipt?: DispatchEffectReceipt;
   invariants?: InvariantIssue[];
   activeCount?: number;
   maxConcurrent?: number;

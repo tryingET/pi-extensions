@@ -38,8 +38,13 @@ import {
   finalizeExecutionEffects,
   recordEvidence,
 } from "../runtime/evidence.ts";
-import type { ExecutionStatus } from "../runtime/execution-status.ts";
-import { createOrchestratorSubagentExecutor, toExecutionLike } from "../runtime/subagent.ts";
+import type { ExecutionLike, ExecutionStatus } from "../runtime/execution-status.ts";
+import {
+  createOrchestratorSubagentExecutor,
+  isVerifiedDispatchEffectReceipt,
+  toExecutionLike,
+  type VerifiedDispatchEffectReceipt,
+} from "../runtime/subagent.ts";
 import type { TeamScopedContext } from "../runtime/team-state.ts";
 import { LoopKesWriter, resolveLoopKesPackageRoot } from "./kes.ts";
 import {
@@ -189,14 +194,14 @@ export type LoopDispatchFn = (params: {
   context: string;
   timeoutSeconds?: number;
   onUpdate?: (update: unknown) => void;
-}) => Promise<{
-  output: string;
-  exitCode: number;
-  elapsed: number;
-  aborted?: boolean;
-  timedOut?: boolean;
-  failureKind?: string;
-}>;
+}) => Promise<
+  ExecutionLike & {
+    output: string;
+    elapsed: number;
+    failureKind?: string;
+    effectReceipt?: VerifiedDispatchEffectReceipt;
+  }
+>;
 
 // ============================================================================
 // BUILT-IN PLUGINS
@@ -425,6 +430,7 @@ export interface LoopExecutorOptions {
   ak?: LoopEvidenceRecorder;
   checkpointStore?: LoopRunCheckpointStore;
   captureStateFingerprint?: (cwd: string) => string;
+  verifyEffectReceipt?: (receipt: VerifiedDispatchEffectReceipt | undefined) => boolean;
 }
 
 export class LoopExecutor {
@@ -434,6 +440,7 @@ export class LoopExecutor {
   private cwd: string;
   private checkpointStore: LoopRunCheckpointStore;
   private captureStateFingerprint: (cwd: string) => string;
+  private verifyEffectReceipt: (receipt: VerifiedDispatchEffectReceipt | undefined) => boolean;
   private kesPackageRoot: string;
 
   constructor(
@@ -457,6 +464,7 @@ export class LoopExecutor {
       );
     this.checkpointStore = options.checkpointStore || new LoopRunCheckpointStore();
     this.captureStateFingerprint = options.captureStateFingerprint || captureLoopStateFingerprint;
+    this.verifyEffectReceipt = options.verifyEffectReceipt || isVerifiedDispatchEffectReceipt;
     const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "loops");
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });
@@ -670,7 +678,7 @@ export class LoopExecutor {
 
       // Dispatch agent with cognitive tool
       const _phaseStart = Date.now();
-      const result = await dispatchFn({
+      const rawResult = await dispatchFn({
         agent,
         cognitiveTool: primaryTool,
         context: phaseContext,
@@ -684,6 +692,7 @@ export class LoopExecutor {
             update,
           }),
       });
+      const result = applyLoopPhaseSemanticOutcome(this.plugin.name, phase, rawResult);
 
       const executionOutcome = await finalizeExecutionEffects({
         result,
@@ -701,19 +710,31 @@ export class LoopExecutor {
         recordEvidence: (entry, activeSignal) => this.ak.evidenceRecord(entry, activeSignal),
       });
 
+      const ownerReceipt =
+        isValidOwnerEffectReceipt(result.effectReceipt) &&
+        this.verifyEffectReceipt(result.effectReceipt)
+          ? result.effectReceipt
+          : undefined;
+      const effectDisposition = ownerReceipt?.disposition ?? "effect_indeterminate";
       const phaseResult: PhaseResult = {
         phase,
         attemptId,
         output: result.output,
         exitCode: result.exitCode,
         status: executionOutcome.status,
-        failureKind: result.failureKind,
+        failureKind:
+          result.failureKind ||
+          (executionOutcome.success && !ownerReceipt
+            ? "effect_receipt_unverified"
+            : executionOutcome.success && effectDisposition !== "settled"
+              ? "effect_receipt_not_settled"
+              : undefined),
         elapsed: result.elapsed,
         artifacts: [],
         timestamp: new Date(),
       };
 
-      if (!executionOutcome.evidence.ok) {
+      if (!executionOutcome.evidence.ok || effectDisposition !== "settled") {
         success = false;
       }
 
@@ -734,7 +755,7 @@ export class LoopExecutor {
         status: executionOutcome.status,
         exitCode: result.exitCode,
         elapsed: result.elapsed,
-        failureKind: result.failureKind,
+        failureKind: phaseResult.failureKind,
         evidence: executionOutcome.evidence,
         hookArtifacts: phaseResult.artifacts,
         timestamp: phaseResult.timestamp,
@@ -747,12 +768,15 @@ export class LoopExecutor {
       );
       checkpoint.attempts[checkpointAttemptIndex] = toCheckpointAttempt(
         phaseResult,
-        phaseResult.status === "done" ? "settled" : "effect_indeterminate",
+        effectDisposition,
+        ownerReceipt,
       );
       checkpoint.status =
         executionOutcome.status === "aborted"
           ? "aborted"
-          : executionOutcome.success && executionOutcome.evidence.ok
+          : executionOutcome.success &&
+              executionOutcome.evidence.ok &&
+              effectDisposition === "settled"
             ? "running"
             : "failed";
       checkpoint.artifactHashes = {
@@ -769,10 +793,15 @@ export class LoopExecutor {
         phase,
         status: executionOutcome.status,
         elapsed: result.elapsed,
-        failureKind: result.failureKind,
+        failureKind: phaseResult.failureKind,
       });
 
       if (executionOutcome.status === "aborted") {
+        success = false;
+        break;
+      }
+
+      if (effectDisposition !== "settled") {
         success = false;
         break;
       }
@@ -888,22 +917,93 @@ Focus on what this phase requires. Use the cognitive tools available to you.
       "alien-pass":
         "Make the rebuilt result feel alien because the old problem no longer appears as a problem. Optimize outcome leverage and directness, not aesthetic novelty.",
       "closure-gate":
-        "Apply the Definition of Done. Close only if no blocking in-scope debt remains; otherwise emit the next-loop ceiling or stop incomplete when continuation is not authorized.",
+        "Apply the Definition of Done. Close only if no blocking in-scope debt remains; otherwise emit the next-loop ceiling or stop incomplete when continuation is not authorized. End with exactly one standalone machine verdict line: `CLOSURE_GATE: PASS` or `CLOSURE_GATE: INCOMPLETE`.",
     };
 
     return protocols[phase] || "Use the transcendent loop semantics for this phase.";
   }
 }
 
+function applyLoopPhaseSemanticOutcome(
+  pluginName: string,
+  phase: string,
+  result: Awaited<ReturnType<LoopDispatchFn>>,
+): Awaited<ReturnType<LoopDispatchFn>> {
+  if (pluginName !== "transcendent" || phase !== "closure-gate" || result.exitCode !== 0) {
+    return result;
+  }
+  const verdicts = [...result.output.matchAll(/^CLOSURE_GATE:\s*(PASS|INCOMPLETE)\s*$/gim)].map(
+    (match) => match[1]?.toUpperCase(),
+  );
+  if (verdicts.length !== 1) {
+    return forceLoopSemanticFailure(
+      result,
+      "closure_gate_verdict_missing",
+      "Transcendent closure gate omitted its required machine verdict.",
+    );
+  }
+  if (verdicts[0] === "INCOMPLETE") {
+    return forceLoopSemanticFailure(
+      result,
+      "closure_gate_incomplete",
+      "Transcendent closure gate reported blocking incomplete work.",
+    );
+  }
+  return result;
+}
+
+function forceLoopSemanticFailure(
+  result: Awaited<ReturnType<LoopDispatchFn>>,
+  failureKind: string,
+  errorMessage: string,
+): Awaited<ReturnType<LoopDispatchFn>> {
+  return {
+    ...result,
+    exitCode: 1,
+    assistantStopReason: "error",
+    assistantErrorMessage: errorMessage,
+    executionState: {
+      transport: {
+        kind: "transport",
+        exitCode: 1,
+        aborted: false,
+        timedOut: false,
+      },
+      protocol: {
+        kind: "assistant_protocol",
+        stopReason: "error",
+        errorMessage,
+      },
+    },
+    failureKind,
+  };
+}
+
+function isValidOwnerEffectReceipt(
+  receipt: Awaited<ReturnType<LoopDispatchFn>>["effectReceipt"],
+): receipt is NonNullable<Awaited<ReturnType<LoopDispatchFn>>["effectReceipt"]> {
+  return Boolean(
+    receipt &&
+      receipt.schema === "asc.dispatch_effect_receipt.v1" &&
+      receipt.dispatchId &&
+      receipt.attemptId &&
+      receipt.recordedAt &&
+      receipt.receiptPath &&
+      ["settled", "confirmed_no_effects", "effect_indeterminate"].includes(receipt.disposition),
+  );
+}
+
 function toCheckpointAttempt(
   result: PhaseResult,
   effectDisposition: LoopPhaseAttemptCheckpoint["effectDisposition"],
+  ownerEffectReceipt?: LoopPhaseAttemptCheckpoint["ownerEffectReceipt"],
 ): LoopPhaseAttemptCheckpoint {
   return {
     attemptId: result.attemptId || randomUUID(),
     phase: result.phase,
     status: result.status,
     effectDisposition,
+    ...(ownerEffectReceipt ? { ownerEffectReceipt } : {}),
     output: result.output,
     exitCode: result.exitCode,
     ...(result.failureKind ? { failureKind: result.failureKind } : {}),
@@ -1268,7 +1368,7 @@ export function registerLoopTools(
         signal: effectiveSignal.signal,
       });
 
-      return toExecutionLike(runtimeResult);
+      return toExecutionLike(runtimeResult, subagentExecutor.state.sessionsDir);
     };
 
     try {

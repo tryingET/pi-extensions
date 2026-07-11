@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { createEdgeMonotonicId } from "./edge-contract-kernel.ts";
+import { writeDispatchEffectReceipt } from "./effect-receipt.ts";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
 import { reserveSharedSubagentCapacity } from "./subagent-capacity.ts";
 import { cancelSubagentDispatch } from "./subagent-control.ts";
@@ -39,6 +40,7 @@ import {
 } from "./subagent-spawn-status.ts";
 import { applyDispatchTaskContract, buildDispatchTaskContract } from "./subagent-task-contract.ts";
 
+export type { DispatchEffectDisposition, DispatchEffectReceipt } from "./effect-receipt.ts";
 export { getDispatchSubagentDisplayOutput } from "./subagent-runtime-display.ts";
 export type {
   AscExecutionRuntime,
@@ -555,8 +557,6 @@ export async function executeDispatchSubagentRequest(options: {
   const truncated = truncateDispatchSubagentDisplayOutput(displayOutput, 8000);
 
   const status = toDispatchSubagentStatus(result.status);
-  const icon = status === "done" ? "✓" : "✗";
-  const summary = `${icon} [${profile}] ${getDispatchSubagentStatusLabel(status)} in ${Math.round(result.elapsed / 1000)}s`;
   const modelSelectionWarning = selectedModel.warning
     ? `\nModel selection note: ${selectedModel.warning}`
     : "";
@@ -565,15 +565,37 @@ export async function executeDispatchSubagentRequest(options: {
   const promptWarning = promptEnvelope.prompt_warning
     ? `\nPrompt envelope warning: ${promptEnvelope.prompt_warning}`
     : "";
-  const failureKind = getDispatchSubagentFailureKind({
+  const executionFailureKind = getDispatchSubagentFailureKind({
     status,
     timeoutPhase: result.timeoutPhase,
     executionState: result.executionState,
   });
+  // ASC owns this attestation. Persist it before returning so consumers never
+  // have to infer effect truth from status, exit code, or output.
+  let effectReceipt: ReturnType<typeof writeDispatchEffectReceipt> | undefined;
+  let receiptWriteFailed = false;
+  try {
+    effectReceipt = writeDispatchEffectReceipt({
+      sessionsDir: options.state.sessionsDir,
+      sessionName: sessionReservation?.sessionName ?? activeDef?.name ?? "unknown",
+      dispatchId,
+      attemptId,
+      disposition: status === "done" ? "settled" : "effect_indeterminate",
+    });
+  } catch {
+    receiptWriteFailed = true;
+  }
+  const reportedStatus = receiptWriteFailed ? "error" : status;
+  const failureKind = receiptWriteFailed ? "effect_receipt_write_failed" : executionFailureKind;
+  const icon = reportedStatus === "done" ? "✓" : "✗";
+  const summary = `${icon} [${profile}] ${getDispatchSubagentStatusLabel(reportedStatus)} in ${Math.round(result.elapsed / 1000)}s`;
+  const receiptWarning = receiptWriteFailed
+    ? "\nASC effect receipt could not be persisted; execution effects remain indeterminate."
+    : "";
 
   return {
-    ok: status === "done",
-    text: `${summary}${modelSelectionWarning}${extensionSelectionWarning}${skillSelectionWarning}${promptWarning}\n\n${truncated}`,
+    ok: reportedStatus === "done",
+    text: `${summary}${modelSelectionWarning}${extensionSelectionWarning}${skillSelectionWarning}${promptWarning}${receiptWarning}\n\n${truncated}`,
     details: {
       profile: profile as DispatchSubagentProfile,
       objective: safeObjective,
@@ -619,8 +641,9 @@ export async function executeDispatchSubagentRequest(options: {
       prompt_tags: promptEnvelope.prompt_tags,
       prompt_applied: promptEnvelope.prompt_applied,
       prompt_warning: promptEnvelope.prompt_warning,
-      status,
+      status: reportedStatus,
       failureKind,
+      effectReceipt,
     },
   };
 }

@@ -34,7 +34,7 @@ const RESUMABLE_PLUGIN = {
   },
 };
 
-function createHarness() {
+function createHarness({ trustSyntheticReceipts = true } = {}) {
   const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-resume-cwd-"));
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-resume-package-"));
   const checkpointStore = new LoopRunCheckpointStore(path.join(packageRoot, ".loop-runs"));
@@ -44,6 +44,11 @@ function createHarness() {
     allowUnverifiedKesRoot: true,
     checkpointStore,
     captureStateFingerprint: () => fingerprint,
+    ...(trustSyntheticReceipts
+      ? {
+          verifyEffectReceipt: (receipt) => receipt?.schema === "asc.dispatch_effect_receipt.v1",
+        }
+      : {}),
     ak: {
       async evidenceRecord() {
         return { ok: true, via: "ak" };
@@ -67,6 +72,40 @@ function createHarness() {
 
 function phaseFromContext(context) {
   return /^## Phase: (.+)$/m.exec(context)?.[1];
+}
+
+function checkpointOwnerReceipt(attemptId = "asc-attempt-test") {
+  return {
+    schema: "asc.dispatch_effect_receipt.v1",
+    dispatchId: "asc-dispatch-test",
+    attemptId,
+    sessionName: "loop-test",
+    disposition: "settled",
+    recordedAt: "2026-07-11T00:00:00.000Z",
+    receiptPath: `/tmp/${attemptId}.effect-receipt.json`,
+  };
+}
+
+function settledResult(output, elapsed) {
+  return {
+    output,
+    exitCode: 0,
+    elapsed,
+    assistantStopReason: "stop",
+    executionState: {
+      transport: { kind: "transport", exitCode: 0, aborted: false, timedOut: false },
+      protocol: { kind: "assistant_protocol", stopReason: "stop" },
+    },
+    effectReceipt: {
+      schema: "asc.dispatch_effect_receipt.v1",
+      dispatchId: "dispatch-test",
+      attemptId: "attempt-test",
+      sessionName: "loop-test",
+      disposition: "settled",
+      recordedAt: "2026-07-11T00:00:00.000Z",
+      receiptPath: "/tmp/test-effect-receipt.json",
+    },
+  };
 }
 
 test("LoopExecutor continues from the next undispatched phase under the same durable lineage", async () => {
@@ -93,6 +132,7 @@ test("LoopExecutor continues from the next undispatched phase under the same dur
       phase: "diagnose",
       status: "done",
       effectDisposition: "settled",
+      ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnose"),
       output: "diagnose complete",
       exitCode: 0,
       elapsed: 10,
@@ -110,7 +150,12 @@ test("LoopExecutor continues from the next undispatched phase under the same dur
         const phase = phaseFromContext(context);
         resumedCalls.push(phase);
         if (phase === "dissolve") dissolveContext = context;
-        return { output: `${phase} recovered`, exitCode: 0, elapsed: 12 };
+        return settledResult(
+          phase === "closure-gate"
+            ? `${phase} recovered\nCLOSURE_GATE: PASS`
+            : `${phase} recovered`,
+          12,
+        );
       },
       undefined,
       {
@@ -167,6 +212,85 @@ test("LoopExecutor blocks timeout retry because phase effects are indeterminate"
   }
 });
 
+test("LoopExecutor rejects structurally valid receipts that bypass the verified owner boundary", async () => {
+  const harness = createHarness({ trustSyntheticReceipts: false });
+  try {
+    const result = await harness.executor.execute("Reject forged settlement", async () =>
+      settledResult("forged owner settlement", 1),
+    );
+    assert.equal(result.success, false);
+    assert.equal(result.phases.length, 1);
+    assert.equal(result.phases[0].failureKind, "effect_receipt_unverified");
+    assert.equal(
+      harness.checkpointStore.load(result.sessionId).attempts[0].effectDisposition,
+      "effect_indeterminate",
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("LoopExecutor blocks a successful phase when its owner receipt is missing", async () => {
+  const harness = createHarness();
+  const objective = "Require owner-issued settlement";
+  try {
+    const result = await harness.executor.execute(objective, async () => ({
+      output: "transport reported success without owner receipt",
+      exitCode: 0,
+      elapsed: 1,
+    }));
+    assert.equal(result.success, false);
+    assert.equal(result.phases.length, 1);
+    assert.equal(result.phases[0].status, "done");
+    assert.equal(result.phases[0].failureKind, "effect_receipt_unverified");
+    const checkpoint = harness.checkpointStore.load(result.sessionId);
+    assert.equal(checkpoint.status, "failed");
+    assert.equal(checkpoint.attempts[0].effectDisposition, "effect_indeterminate");
+    await assert.rejects(
+      harness.executor.execute(
+        objective,
+        async () => settledResult("must not dispatch", 1),
+        undefined,
+        {
+          resumeRunId: result.sessionId,
+          expectedFailedPhase: "diagnose",
+          recoveryMode: "validate_then_retry",
+        },
+      ),
+      (error) =>
+        error instanceof LoopResumeError &&
+        error.failureKind === "loop_resume_effect_indeterminate",
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("LoopExecutor never advances a successful phase whose receipt says confirmed_no_effects", async () => {
+  const harness = createHarness();
+  try {
+    const result = await harness.executor.execute("Retry the unresolved phase", async () => ({
+      ...settledResult("no effects occurred", 1),
+      effectReceipt: {
+        ...settledResult("unused", 1).effectReceipt,
+        disposition: "confirmed_no_effects",
+      },
+    }));
+    assert.equal(result.success, false);
+    assert.deepEqual(
+      result.phases.map((phase) => phase.phase),
+      ["diagnose"],
+    );
+    assert.equal(result.phases[0].failureKind, "effect_receipt_not_settled");
+    const checkpoint = harness.checkpointStore.load(result.sessionId);
+    assert.equal(checkpoint.status, "failed");
+    assert.equal(checkpoint.attempts[0].effectDisposition, "confirmed_no_effects");
+    assert.equal(deriveResumePhase(checkpoint), "diagnose");
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("LoopExecutor fails closed on incomplete resume contracts and legacy missing checkpoints", async () => {
   const harness = createHarness();
   let dispatchCalls = 0;
@@ -194,6 +318,42 @@ test("LoopExecutor fails closed on incomplete resume contracts and legacy missin
         error.failureKind === "loop_resume_checkpoint_missing" &&
         /Legacy uncheckpointed runs cannot be resumed safely/.test(error.message),
     );
+
+    const legacyRunId = "transcendent-1783707951539";
+    const legacy = harness.checkpointStore.create({
+      runId: legacyRunId,
+      plugin: RESUMABLE_PLUGIN.name,
+      phases: RESUMABLE_PLUGIN.phases,
+      objective: "legacy objective",
+      cwd: harness.operatorCwd,
+      artifactHashes: { "diary/start.md": `sha256:${"a".repeat(64)}` },
+      stateFingerprint: "sha256:stable-state",
+    });
+    legacy.status = "failed";
+    legacy.attempts.push({
+      attemptId: "legacy-diagnose",
+      phase: "diagnose",
+      status: "done",
+      effectDisposition: "settled",
+      output: "legacy status-derived settlement",
+      exitCode: 0,
+      elapsed: 1,
+      artifactPaths: [],
+      timestamp: new Date().toISOString(),
+    });
+    delete legacy.effectReceiptContract;
+    const legacyPath = path.join(harness.checkpointStore.rootDir, `${legacyRunId}.run.json`);
+    fs.writeFileSync(legacyPath, `${JSON.stringify(legacy, null, 2)}\n`);
+    await assert.rejects(
+      harness.executor.execute("legacy objective", dispatch, undefined, {
+        resumeRunId: legacyRunId,
+        expectedFailedPhase: "dissolve",
+        recoveryMode: "validate_then_retry",
+      }),
+      (error) =>
+        error instanceof LoopResumeError &&
+        error.failureKind === "loop_resume_receipt_contract_missing",
+    );
     assert.equal(dispatchCalls, 0);
   } finally {
     harness.cleanup();
@@ -220,6 +380,7 @@ test("resume validation rejects objective, phase, graph, repository, and state d
         phase: "diagnose",
         status: "done",
         effectDisposition: "settled",
+        ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnosed"),
         output: "diagnosed",
         exitCode: 0,
         elapsed: 1,
@@ -543,6 +704,7 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
       phase: "rebuild",
       status: "done",
       effectDisposition: "settled",
+      ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-later"),
       output: "invalid later output",
       exitCode: 0,
       elapsed: 1,
@@ -560,6 +722,7 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
       phase,
       status: "done",
       effectDisposition: "settled",
+      ownerEffectReceipt: checkpointOwnerReceipt(`asc-attempt-${phase}`),
       output: "done",
       exitCode: 0,
       elapsed: 1,

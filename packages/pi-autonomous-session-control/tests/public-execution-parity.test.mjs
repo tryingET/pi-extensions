@@ -22,6 +22,17 @@ function normalizeExecutionDetails(details) {
     ...(details.attemptId ? { attemptId: "<attempt-id>" } : {}),
     ...(details.sessionFile ? { sessionFile: basename(details.sessionFile) } : {}),
     ...(details.lastActivityAt ? { lastActivityAt: "<timestamp>" } : {}),
+    ...(details.effectReceipt
+      ? {
+          effectReceipt: {
+            ...details.effectReceipt,
+            dispatchId: "<dispatch-id>",
+            attemptId: "<attempt-id>",
+            recordedAt: "<timestamp>",
+            receiptPath: "<receipt-path>",
+          },
+        }
+      : {}),
   };
 }
 

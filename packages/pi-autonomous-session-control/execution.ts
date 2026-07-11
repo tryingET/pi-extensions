@@ -3,6 +3,8 @@ export {
   type AscExecutionRuntime,
   type AscExecutionRuntimeOptions,
   createAscExecutionRuntime,
+  type DispatchEffectDisposition,
+  type DispatchEffectReceipt,
   type DispatchSubagentDetails,
   type DispatchSubagentExecutionResult,
   type DispatchSubagentExecutionUpdate,
