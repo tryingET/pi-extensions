@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "2918f13734dbbf7e3930d582093d5991151c5976"
+created_at: "2026-07-11T10:04:58Z"
+intent: "Record live Protocol B standard override dogfood evidence."
+files:
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-standard-override-dogfood.md"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Keep raw runtime output ephemeral and promote only content-free verified outcomes."
+links:
+  task_ids:
+    - 3619
+  evidence_ids:
+    - 3369
+    - 3370
+    - 3371
