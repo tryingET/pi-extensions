@@ -61,18 +61,30 @@ export const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Do not commit yet.",
 ].join("\n");
 
+export const DEFAULT_COMPLETION_AUDIT_PROMPT = [
+  "Audit the current implementation against the original design membrane before deep review.",
+  "If a membrane criterion is unsatisfied, fix only that concrete gap and run the smallest affected regression.",
+  "If every criterion is satisfied, do not select or begin another product slice.",
+  "Treat previous validation as current only while none of its relevant inputs have changed; after a relevant edit, rerun only the invalidated focused proof.",
+  "Report the remaining concrete gaps, or state that the implementation is ready for independent adversarial review.",
+].join("\n");
+
+export const DEFAULT_NEXUS_FIXUP_PROMPT = [
+  "Proceed with the single highest-leverage Nexus implementation from the deep review until bounded completion and verification.",
+  "Resolve the review findings as one coherent fix batch; do not select another product slice.",
+  "After the fixes, perform one independent read-only review when reviewer tooling is available, resolve its bounded actionable findings together, and stop repeating review passes after a no-findings result.",
+  "Run only tests invalidated by the latest edits during fixup. Leave the repo-declared final impact/landing gate for the final verified state instead of repeatedly rerunning overlapping suites.",
+  "",
+  DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
+  "",
+  "Finish with one atomic-completion pass for bugs, code smells, gaps, or technical debt still inside this Nexus slice.",
+  "",
+  DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
+].join("\n");
+
 export const DEFAULT_NEXUS_LOOP_PROMPTS = [
   "/deep-review",
-  [
-    "proceed with nexus implementation until completion and verification",
-    "",
-    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
-  ].join("\n"),
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
+  DEFAULT_NEXUS_FIXUP_PROMPT,
   DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   "/commit",
 ] as const;
@@ -149,20 +161,9 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "",
     "Proceed until completed and validated.",
   ].join("\n"),
-  "proceed",
-  "proceed",
-  "proceed",
+  DEFAULT_COMPLETION_AUDIT_PROMPT,
   "/deep-review",
-  [
-    "proceed with nexus implementation until completion and verification",
-    "",
-    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
-  ].join("\n"),
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
+  DEFAULT_NEXUS_FIXUP_PROMPT,
   DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   "/commit",
 ] as const;

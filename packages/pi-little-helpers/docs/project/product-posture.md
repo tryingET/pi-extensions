@@ -73,10 +73,10 @@ launch visible helper work; do not make helper output authority
 
 ```text
 read vision/product-posture
--> design membrane
--> bounded implementation
--> validation and dogfood where relevant
--> deep review / fixup
+-> design membrane + bounded implementation
+-> one membrane completion audit without selecting another slice
+-> independent deep review
+-> consolidated Nexus / atomic fixup with validation invalidation
 -> product-posture refresh
 -> commit / completion checkpoint
 ```
@@ -98,6 +98,14 @@ A visible-loop result is trustworthy only when:
 7. **Dirty worktree is protected** — unrelated files are not staged or overwritten.
 8. **Candidate provenance is correlated but non-authoritative** — a candidate route must match an assistant `self` tool call and its `self` tool result in the active branch; the resulting envelope remains untrusted session-mirror transport, not evidence or authority.
 9. **Closeout brakes survive transport** — full source guard snapshots remain in config for audit, while the first child prompt gets only guard requirements and validated typed owner-artifact fields. Required reflection/live-proof/promotion evidence must correlate to host-observed command results, ordered ASC ledger events, or the canonical bound artifact; free-form status labels, invented receipt IDs, missing/stale artifacts, and cross-session/expired configs cannot advance completion.
+
+## Cost-aware prompt posture — 2026-07-11
+
+The default `/visible-loop` now uses six real prompts instead of nine: the three ambiguous `proceed` turns are replaced by one membrane completion audit, and Nexus implementation plus atomic completion share one bounded fixup prompt. `/nexus-loop` similarly uses four prompts instead of five. The optimized sequence preserves independent deep review, one independent post-fix review when reviewer tooling is available, Prompt Vault dispatch gating, owning-posture refresh, commit provenance, final repo impact/landing validation, and the explicit completion checkpoint.
+
+The completion audit forbids silently selecting another product slice and introduces validation invalidation: prior proof remains reusable only while its relevant inputs are unchanged; development reruns the smallest invalidated proof, while the final repo-declared impact/landing gate remains mandatory on the final state. This reduces redundant model turns and overlapping test runs without treating cached diagnostics as authority or weakening owner, dirty-tree, posture, commit, or closeout gates.
+
+Proof is owned by the visible-loop launch/checkpoint tests, which assert the six-prompt and four-prompt queues, completion-audit wording, consolidated independent-review/atomic-fixup contract, posture-before-commit ordering, and unchanged completion checkpoint behavior. The remaining cost gap is Vault's intentionally separate query/retrieve/dispatch-check contract and expensive reviewer/full-gate execution; any future reduction should optimize those through owner-provided composite receipts or weighted budgets, not by deleting governance or independent review.
 
 ## Next product bets
 
