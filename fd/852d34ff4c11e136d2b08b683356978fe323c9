@@ -1,0 +1,4 @@
+Task: AK-3657
+Intent: Make adaptive-v1 the zero-configuration visible-loop default while preserving explicit emergency rollback and automatic budget fallback.
+Validation: npm run check (98/98 tests; Node and structure validation passed; package/release checks passed; existing warn-only file-size warnings only); focused controller/launch/completion tests 23/23; independent reviewer reported no findings; ak direction check passed.
+Scope: packages/pi-little-helpers only; unrelated pi-society-orchestrator untracked diary/learnings preserved.
