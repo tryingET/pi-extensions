@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-society-orchestrator",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Cognitive-driven multi-agent orchestration for society.db, prompt-vault, and agent-kernel",
   "type": "module",
   "exports": {
@@ -108,7 +108,7 @@
     }
   },
   "dependencies": {
-    "@tryinget/pi-autonomous-session-control": "^0.1.5",
+    "@tryinget/pi-autonomous-session-control": "^0.2.0",
     "@tryinget/pi-autoresearch": "file:../pi-autoresearch",
     "@tryinget/pi-vault-client": "file:../pi-vault-client"
   }
