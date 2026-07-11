@@ -1,3 +1,4 @@
+import { SNAPSHOT_EDIT_HELPER_BUILD_MARKER } from "./build-marker.js";
 import { digestBytes, SnapshotStore } from "./snapshot-store.js";
 import {
   applyTextEdits,
@@ -128,6 +129,10 @@ export class SnapshotEditService {
         },
       };
     });
+  }
+
+  buildMarker() {
+    return SNAPSHOT_EDIT_HELPER_BUILD_MARKER;
   }
 
   clear() {

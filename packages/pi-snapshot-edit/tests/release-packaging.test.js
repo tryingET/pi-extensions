@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
+import { SnapshotEditService } from "../src/snapshot-service.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const bundlePath = path.join(root, "dist/snapshot-edit.js");
@@ -51,6 +52,10 @@ async function importBuilt(marker) {
   });
   return import(`${pathToFileURL(bundlePath).href}?marker=${encodeURIComponent(marker)}`);
 }
+
+test("source mode exposes a truthful development marker", () => {
+  assert.equal(new SnapshotEditService().buildMarker(), "source-development");
+});
 
 test("build is byte-deterministic, readable, and self-contained", async () => {
   run(process.execPath, ["scripts/build-extension.mjs"]);

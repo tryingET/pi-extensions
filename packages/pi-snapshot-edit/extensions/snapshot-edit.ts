@@ -9,16 +9,10 @@ import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 import { SnapshotEditService } from "../src/snapshot-service.js";
 
-declare const __PI_SNAPSHOT_EDIT_BUILD_MARKER__: string;
-
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
 const LEGACY_LINES_BASE = "__legacy_line_coordinates_require_snapshot_read__";
 const OVERRIDE_ENV = "PI_SNAPSHOT_EDIT_OVERRIDE";
 const RELEASE_SMOKE_ENV = "PI_SNAPSHOT_EDIT_RELEASE_SMOKE";
-export const SNAPSHOT_EDIT_BUILD_MARKER =
-  typeof __PI_SNAPSHOT_EDIT_BUILD_MARKER__ === "string"
-    ? __PI_SNAPSHOT_EDIT_BUILD_MARKER__
-    : "source-development";
 
 const readParameters = Type.Object({
   path: Type.String({
@@ -269,13 +263,14 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
           path?: string;
           base?: string;
         };
+        const helperMarker = service.buildMarker();
         const respond = (payload: Record<string, unknown>) => {
           ctx.ui.notify(`PI_SNAPSHOT_EDIT_RELEASE_SMOKE:${JSON.stringify(payload)}`, "info");
         };
         if (request.action === "marker") {
           respond({
-            marker: SNAPSHOT_EDIT_BUILD_MARKER,
-            behavior: `protocol-b:${SNAPSHOT_EDIT_BUILD_MARKER}`,
+            marker: helperMarker,
+            behavior: `protocol-b:${helperMarker}`,
           });
           return;
         }
@@ -291,14 +286,14 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
                   op: "replace",
                   oldText: "same",
                   occurrence: 2,
-                  newText: `changed:${SNAPSHOT_EDIT_BUILD_MARKER}`,
+                  newText: `changed:${helperMarker}`,
                 },
               ],
             },
             ctx.cwd,
           );
           respond({
-            marker: SNAPSHOT_EDIT_BUILD_MARKER,
+            marker: helperMarker,
             rawRead: readResult.text,
             revision: editResult.details.revision,
           });
@@ -307,12 +302,12 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
         if (request.action === "revision") {
           if (!request.path) throw new Error("release smoke revision requires path");
           const readResult = await service.read({ path: request.path }, ctx.cwd);
-          respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, revision: readResult.details.revision });
+          respond({ marker: helperMarker, revision: readResult.details.revision });
           return;
         }
         if (request.action === "clear") {
           service.clear();
-          respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, revisions: service.stats().count });
+          respond({ marker: helperMarker, revisions: service.stats().count });
           return;
         }
         if (request.action === "expect-expired") {
@@ -331,7 +326,7 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
           } catch (error) {
             const message = (error as Error).message;
             if (!/Unknown or expired revision/.test(message)) throw error;
-            respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, rejected: message });
+            respond({ marker: helperMarker, rejected: message });
             return;
           }
           throw new Error("cleared or reloaded revision remained usable");
@@ -345,7 +340,7 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
           try {
             rejectLegacyEdit(prepared);
           } catch (error) {
-            respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, rejected: (error as Error).message });
+            respond({ marker: helperMarker, rejected: (error as Error).message });
             return;
           }
           throw new Error("legacy line coordinates were not rejected");
