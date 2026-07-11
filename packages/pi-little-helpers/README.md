@@ -22,6 +22,7 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | Extension | Description |
 |---|---|
 | `code-block-picker` | Pick a code block from the conversation and copy it safely to the clipboard |
+| `codex-reset` | Inspect banked OpenAI Codex rate-limit resets and spend one through an explicit, idempotent confirmation flow |
 | `html-output-browser` | Auto-open written/edited HTML files in the browser, append clickable `file://` links to tool output, and expose `/artifacts` / `/show-artifacts` plus `Ctrl+Shift+S` to pick an openable artifact from the workspace or recently written outside it |
 | `package-update-notify` | Check for updates to pinned npm/git packages in Pi settings |
 | `session-presence` | Publish exact Pi session identity for Steve's Ghostty/Niri hourly observation and hot restore flow |
@@ -57,6 +58,20 @@ git branch -D <branch>
 ```
 
 Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
+
+## Codex reset credits
+
+Use `/codex-reset status` to inspect the active OpenAI Codex subscription account without spending anything. It lists every available banked reset with both relative and absolute expiry times. Use `/codex-reset` or `/codex-reset use` to review that same list and then explicitly confirm spending one credit.
+
+The extracted workflow intentionally improves on the source interaction:
+
+- the command name describes the action instead of hiding it in a settings tab
+- every spend requires a confirmation that shows the before/after credit count
+- print/JSON invocations are status-only and never spend a credit; RPC requires its confirmation response just like the TUI
+- ambiguous transport failures retain and retry the same idempotent request ID for the life of the loaded extension
+- the result reports how many windows were reset and refreshes the remaining count
+
+The command requires the active model provider to be `openai-codex`; it reuses Pi's model-registry authentication and does not persist credentials.
 
 ## Toolbox bundle
 
@@ -125,7 +140,7 @@ pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-
 Then in Pi:
 
 1. run `/reload`
-2. verify `/codeblocks`, `/artifacts`, `/show-artifacts`, `Ctrl+Shift+S`, `/sidequest "test prompt"`, `/scoutpeer "test prompt"`, `/parallelquest "test prompt"`, `/visible-loop --count 1`, `/visible-loop --count 1 --delegate-commit`, `/nexus-loop --count 1`, `/session-presence`, the `stash` shortcuts/commands, `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, `candidate_peer_cleanup` dry-run, and any `write`/`edit` flow that produces an `.html` file in a real session
+2. verify `/codeblocks`, `/codex-reset status`, `/codex-reset` (including cancel-before-spend), `/artifacts`, `/show-artifacts`, `Ctrl+Shift+S`, `/sidequest "test prompt"`, `/scoutpeer "test prompt"`, `/parallelquest "test prompt"`, `/visible-loop --count 1`, `/visible-loop --count 1 --delegate-commit`, `/nexus-loop --count 1`, `/session-presence`, the `stash` shortcuts/commands, `fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`, `candidate_peer_cleanup` dry-run, and any `write`/`edit` flow that produces an `.html` file in a real session
 3. verify `/visible-loop --count 2` opens one visible Ghostty Pi tab for iteration 1, queues only the real prompt sequence as follow-up prompts, requires the product-posture refresh prompt and `/commit` prompt after the final fix-bugs prompt, emits `VISIBLE_LOOP_ITERATION` only after the explicit completion checkpoint confirms those prompts finished, then launches iteration 2 in a fresh visible Pi session; do not queue internal completion commands as follow-ups because extension-originated command prompts are intercepted at enqueue time rather than after prior follow-ups finish
 4. verify `/nexus-loop --count 2` uses the same per-iteration launch/completion/intercom behavior while queueing only `/deep-review`, nexus implementation through verification, atomic-completion cleanup with Prompt Vault grounding, and a resolved `/commit` delegation prompt that calls `dispatch_subagent`
 5. for `/sidequest`, `/visible-loop`, `/nexus-loop`, and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
