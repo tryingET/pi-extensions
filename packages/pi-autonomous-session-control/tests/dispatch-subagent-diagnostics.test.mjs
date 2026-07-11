@@ -17,6 +17,17 @@ const MODERN_HANDSHAKE = `${JSON.stringify({
   piVersion: "0.80.6",
 })}\n`;
 
+async function emitChildEvent(child, event, ...args) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (child.listenerCount(event) > 0) {
+      child.emit(event, ...args);
+      return;
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error(`child listener was not attached for ${event}`);
+}
+
 async function setup(spawnerOverride, stateOptions) {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-diagnostics-test-"));
   const state = createSubagentState(sessionsDir, stateOptions);
@@ -159,7 +170,7 @@ test("spawnSubagentWithSpawn fails closed on exit without a terminal assistant e
   assert.equal(runningStatus.parentRepoRoot, process.cwd());
 
   stdout.emit("data", `${MODERN_HANDSHAKE}{"type":"assistant_text_delta","delta":"hello"}\n`);
-  child.emit("exit", 0);
+  await emitChildEvent(child, "exit", 0);
 
   const result = await resultPromise;
   assert.equal(result.status, "error");
@@ -212,7 +223,7 @@ test("spawnSubagentWithSpawn flushes a final unterminated settlement event", asy
     "data",
     `${MODERN_HANDSHAKE}{"type":"assistant_message_end","text":"final output without newline","stopReason":"stop"}\n{"type":"agent_settled"}`,
   );
-  child.emit("close", 0);
+  await emitChildEvent(child, "close", 0);
 
   const result = await resultPromise;
   assert.equal(result.status, "done");
@@ -257,7 +268,7 @@ test("spawnSubagentWithSpawn treats a final assistant stop as semantic success e
     "data",
     `${MODERN_HANDSHAKE}{"type":"assistant_message_end","text":"review complete","stopReason":"stop"}\n{"type":"agent_settled"}\n`,
   );
-  child.emit("close", 1);
+  await emitChildEvent(child, "close", 1);
 
   const result = await resultPromise;
   assert.equal(result.status, "done");
@@ -312,7 +323,7 @@ test("spawnSubagentWithSpawn preserves assistant protocol failures", async () =>
     "data",
     '{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n{"type":"agent_settled"}\n',
   );
-  child.emit("close", 0);
+  await emitChildEvent(child, "close", 0);
 
   const result = await resultPromise;
   assert.equal(result.status, "error");
@@ -358,7 +369,7 @@ test("spawnSubagentWithSpawn honors final-only semantic assistant failures", asy
     "data",
     `${MODERN_HANDSHAKE}{"type":"assistant_message_end","stopReason":"error","errorMessage":"boom"}\n{"type":"agent_settled"}\n`,
   );
-  child.emit("close", 0);
+  await emitChildEvent(child, "close", 0);
 
   const result = await resultPromise;
   assert.equal(result.status, "error");
@@ -402,7 +413,7 @@ test("spawnSubagentWithSpawn fails closed on malformed subagent protocol output"
   );
 
   stdout.emit("data", "{not-json\n");
-  child.emit("close", 0);
+  await emitChildEvent(child, "close", 0);
 
   const result = await resultPromise;
   assert.equal(result.status, "error");
@@ -447,7 +458,7 @@ test("spawnSubagentWithSpawn rejects raw pi JSON events once the helper protocol
     "data",
     `${MODERN_HANDSHAKE}{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"stop"}}\n`,
   );
-  child.emit("close", 0);
+  await emitChildEvent(child, "close", 0);
 
   const result = await resultPromise;
   assert.equal(result.status, "error");
@@ -500,7 +511,7 @@ test("spawnSubagentWithSpawn bounds assistant output and marks truncation", asyn
         stopReason: "stop",
       })}\n${JSON.stringify({ type: "agent_settled" })}\n`,
     );
-    child.emit("close", 0);
+    await emitChildEvent(child, "close", 0);
 
     const result = await resultPromise;
     assert.equal(result.status, "done");
@@ -549,7 +560,7 @@ test("spawnSubagentWithSpawn fails closed when a subagent protocol line exceeds 
     );
 
     stdout.emit("data", "0123456789abcdefghijklmnopqrstuvwxyz");
-    child.emit("close", 0);
+    await emitChildEvent(child, "close", 0);
 
     const result = await resultPromise;
     assert.equal(result.status, "error");
@@ -607,7 +618,7 @@ test("spawnSubagentWithSpawn fails closed when a complete subagent protocol line
       "data",
       `${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "x".repeat(128) })}\n`,
     );
-    child.emit("close", 0);
+    await emitChildEvent(child, "close", 0);
 
     const result = await resultPromise;
     assert.equal(result.status, "error");
