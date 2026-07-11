@@ -51,11 +51,12 @@ The script enumerates every package root under `packages/` and reports whether i
 
 Audited on 2026-05-16.
 Refreshed on 2026-05-21 from `node ./scripts/engineering-review-surfaces.mjs --json` after adding `packages/pi-agent-vent`.
+Refreshed on 2026-07-11 after registering `packages/pi-snapshot-edit`, which raised the audited package count to `29`.
 
 Snapshot summary:
 
-- package entries audited: `28`
-- legacy-full: `19`
+- package entries audited: `29`
+- legacy-full: `20`
 - reduced-form: `1`
 - policy-only: `0`
 - no local surface: `8`
@@ -76,6 +77,7 @@ Snapshot summary:
 - `packages/pi-prompt-template-execution`
 - `packages/pi-provenance`
 - `packages/pi-session-compaction`
+- `packages/pi-snapshot-edit`
 - `packages/pi-society-orchestrator`
 - `packages/pi-society-startup-context`
 - `packages/pi-toolbox-discovery`
@@ -105,7 +107,7 @@ Snapshot summary:
 
 The `#601` audit confirmed that the original `legacy-full` bucket was not uniform, and the first routed follow-up wave has now proved that classification in practice:
 
-- the current nineteen `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
+- the current twenty `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
   - `packages/pi-agent-vent`
   - `packages/pi-autoresearch`
   - `packages/pi-better-openai`
@@ -120,6 +122,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
   - `packages/pi-prompt-template-execution`
   - `packages/pi-provenance`
   - `packages/pi-session-compaction`
+  - `packages/pi-snapshot-edit`
   - `packages/pi-society-orchestrator`
   - `packages/pi-society-startup-context`
   - `packages/pi-toolbox-discovery`
