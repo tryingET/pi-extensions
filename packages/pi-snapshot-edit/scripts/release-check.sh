@@ -20,6 +20,17 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
   exit 1
 fi
 
+echo "== deterministic extension build"
+npm run build
+FIRST_BUNDLE_SHA="$(sha256sum dist/snapshot-edit.js | awk '{print $1}')"
+npm run build
+SECOND_BUNDLE_SHA="$(sha256sum dist/snapshot-edit.js | awk '{print $1}')"
+[[ "$FIRST_BUNDLE_SHA" == "$SECOND_BUNDLE_SHA" ]] || {
+  echo "Bundle bytes changed across identical builds." >&2
+  exit 1
+}
+echo "Bundle SHA-256: $FIRST_BUNDLE_SHA"
+
 echo "== npm pack --dry-run --json"
 PACK_JSON="$(npm pack --dry-run --json)"
 echo "$PACK_JSON"
@@ -138,16 +149,13 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
   fi
 fi
 
-TEST_AGENT_DIR=""
+TEST_ROOT=""
 TARBALL_PATH=""
 cleanup() {
+  npm run build >/dev/null 2>&1 || true
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
-    if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
-      rm -rf "$TEST_AGENT_DIR"
-    fi
-    if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
-      rm -f "$TARBALL_PATH"
-    fi
+    [[ -z "$TEST_ROOT" || ! -d "$TEST_ROOT" ]] || rm -rf "$TEST_ROOT"
+    [[ -z "$TARBALL_PATH" || ! -f "$TARBALL_PATH" ]] || rm -f "$TARBALL_PATH"
   fi
 }
 trap cleanup EXIT
@@ -160,62 +168,35 @@ echo "Tarball: $TARBALL_PATH"
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
 else
-  if ! command -v pi >/dev/null 2>&1; then
-    echo "pi CLI not found in PATH." >&2
-    exit 1
-  fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
+  command -v pi >/dev/null 2>&1 || { echo "pi CLI not found in PATH." >&2; exit 1; }
+  umask 077
+  TEST_ROOT="$(mktemp -d /tmp/pi-snapshot-edit-release-check-XXXXXX)"
+  TEST_AGENT_DIR="$TEST_ROOT/agent"
+  TEST_PREFIX="$TEST_ROOT/prefix"
+  TEST_HOME="$TEST_ROOT/home"
+  mkdir -p "$TEST_AGENT_DIR" "$TEST_PREFIX" "$TEST_HOME"
+  chmod 700 "$TEST_ROOT" "$TEST_AGENT_DIR" "$TEST_PREFIX" "$TEST_HOME"
+  printf '{"extensions":[]}\n' > "$TEST_AGENT_DIR/settings.json"
+  chmod 600 "$TEST_AGENT_DIR/settings.json"
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
-
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Allow override via environment variables for different provider configurations
-  PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
-  PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
-  PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
-
-  cat > "$TEST_AGENT_DIR/settings.json" <<JSON
-{
-  "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
-  "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
-  "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "extensions": []
-}
-JSON
-
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR)"
+  echo "== pi install exact tarball (isolated agent dir and npm prefix)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
+  HOME="$TEST_HOME" PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$TEST_PREFIX" \
+    NPM_CONFIG_OFFLINE=true HTTP_PROXY=http://127.0.0.1:9 HTTPS_PROXY=http://127.0.0.1:9 \
+    ALL_PROXY=http://127.0.0.1:9 NO_PROXY= pi install "$PACKAGE_SPEC"
 
-  echo "== verify tarball package recorded in settings"
-  TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
-const settingsPath = path.join(process.env.TEST_AGENT_DIR, "settings.json");
-const packageSpec = process.env.PACKAGE_SPEC;
-const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const packages = Array.isArray(settings.packages) ? settings.packages : [];
-const found = packages.some((entry) => {
-  if (typeof entry === "string") return entry === packageSpec;
-  if (entry && typeof entry === "object") return entry.source === packageSpec;
-  return false;
-});
-if (!found) {
-  console.error(`Could not find ${packageSpec} in settings.packages`);
-  process.exit(1);
-}
-console.log("Tarball package entry present in settings.packages.");
-NODE
+  INSTALLED_PACKAGE_DIR="$(find "$TEST_AGENT_DIR" "$TEST_PREFIX" -type f -path '*/@tryinget/pi-snapshot-edit/package.json' -printf '%h\n' | head -n 1)"
+  [[ -n "$INSTALLED_PACKAGE_DIR" ]] || {
+    echo "Could not locate isolated tarball installation." >&2
+    find "$TEST_AGENT_DIR" "$TEST_PREFIX" -maxdepth 5 -type f -print >&2
+    exit 1
+  }
 
-  if [[ -x "./scripts/release-smoke.sh" ]]; then
-    echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
-  fi
+  echo "== extension-specific offline smoke checks"
+  HOME="$TEST_HOME" PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$TEST_PREFIX" \
+    NPM_CONFIG_OFFLINE=true TARBALL_PATH="$TARBALL_PATH" \
+    INSTALLED_PACKAGE_DIR="$INSTALLED_PACKAGE_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" \
+    bash ./scripts/release-smoke.sh
 fi
 
 echo "== npm view ${NAME} version (pre-publish may be 404)"

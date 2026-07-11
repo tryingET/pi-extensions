@@ -14,13 +14,17 @@ system4d:
 
 ## Current Protocol B command
 
-After installing the package in the intended Pi runtime and reloading:
+Build before installing or running the package entry, then reload the intended Pi runtime:
 
 ```bash
+cd packages/pi-snapshot-edit
+npm run build
 PI_SNAPSHOT_EDIT_OVERRIDE=1 pi --no-extensions \
-  -e packages/pi-snapshot-edit/extensions/snapshot-edit.ts \
+  -e ./dist/snapshot-edit.js \
   --tools read,edit -p '<scenario>'
 ```
+
+The distributable path is the single package-owned bundle. After another source change, rebuild and use `/reload`; no process restart should be necessary.
 
 The expected read result is one `revision:<alias>` header plus raw UTF-8 text with no gutters. Standard `edit` uses `{path,base,edits}` with `oldText` replacement or `anchorText` insertion selectors and an optional 1-indexed `occurrence` only when the selector is unique.
 

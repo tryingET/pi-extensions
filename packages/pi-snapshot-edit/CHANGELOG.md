@@ -19,6 +19,9 @@ All notable changes to this project should be documented here.
 
 - Replaced Protocol A line gutters and line coordinates with Protocol B raw reads and occurrence-qualified exact selectors across namespaced and standard override tools.
 - Added partial-line and multi-line replacement, anchored insertion, immutable batch resolution, EOL-normalized selectors, and precise retired-call diagnostics.
+- Hardened distribution around one deterministic `dist/snapshot-edit.js` bundle with package-owned runtime modules embedded and an exact packed-file whitelist.
+- Added deterministic double-build, bundled registration, packed-manifest, isolated exact-tarball Protocol B, revision reset, and same-process reload regression checks.
+- Documented the non-standard restricted source-available license prominently and clarified build plus `/reload` behavior.
 
 ## [0.1.0] - 2026-07-11
 

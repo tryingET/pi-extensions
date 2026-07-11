@@ -96,6 +96,9 @@ function validatePackageJson() {
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     check: "npm run quality:ci",
     test: "bash ../../scripts/package-quality-gate.sh test .",
+    build: "node ./scripts/build-extension.mjs",
+    prepare: "npm run build",
+    prepack: "npm run build",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
@@ -162,11 +165,13 @@ function validatePackageJson() {
   if (!Array.isArray(p.files) || p.files.length < 1) {
     fail("package.json must define a non-empty files array");
   } else {
-    if (!p.files.includes("extensions")) {
-      fail("package.json files must include 'extensions'");
+    if (!p.files.includes("dist/snapshot-edit.js")) {
+      fail(
+        "package.json files must include only the bundled runtime entry 'dist/snapshot-edit.js'",
+      );
     }
-    if (!p.files.includes("src")) {
-      fail("package.json files must include 'src'");
+    if (p.files.includes("extensions") || p.files.includes("src")) {
+      fail("package.json files must not publish runtime source directories");
     }
     if (!p.files.includes("policy/security-policy.json")) {
       fail("package.json files must include 'policy/security-policy.json'");

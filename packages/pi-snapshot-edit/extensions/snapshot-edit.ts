@@ -9,9 +9,16 @@ import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 import { SnapshotEditService } from "../src/snapshot-service.js";
 
+declare const __PI_SNAPSHOT_EDIT_BUILD_MARKER__: string;
+
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
 const LEGACY_LINES_BASE = "__legacy_line_coordinates_require_snapshot_read__";
 const OVERRIDE_ENV = "PI_SNAPSHOT_EDIT_OVERRIDE";
+const RELEASE_SMOKE_ENV = "PI_SNAPSHOT_EDIT_RELEASE_SMOKE";
+export const SNAPSHOT_EDIT_BUILD_MARKER =
+  typeof __PI_SNAPSHOT_EDIT_BUILD_MARKER__ === "string"
+    ? __PI_SNAPSHOT_EDIT_BUILD_MARKER__
+    : "source-development";
 
 const readParameters = Type.Object({
   path: Type.String({
@@ -152,16 +159,7 @@ function createEditDefinition(
     prepareArguments: acceptLegacyResume ? prepareLegacyEditArguments : undefined,
     async execute(_toolCallId, params, signal, _onUpdate, ctx: ExtensionContext) {
       if (signal?.aborted) throw new Error(`${name} cancelled`);
-      if (params.base === LEGACY_TEXT_BASE) {
-        throw new Error(
-          "This resumed top-level edit call uses the retired schema. Call read again, then retry with {path, base, edits:[{op:'replace', oldText, occurrence?, newText}] }.",
-        );
-      }
-      if (params.base === LEGACY_LINES_BASE) {
-        throw new Error(
-          "This resumed edit call uses retired line coordinates. Call read again, then retry with exact oldText or anchorText selectors from the raw snapshot.",
-        );
-      }
+      rejectLegacyEdit(params);
       const editResult = await service.edit(params, ctx.cwd, signal);
       return result(editResult.text, editResult.details);
     },
@@ -178,6 +176,19 @@ function createEditDefinition(
       return new Text(theme.fg("toolOutput", compactRenderText(text, options.expanded)), 0, 0);
     },
   };
+}
+
+function rejectLegacyEdit(params: EditParams) {
+  if (params.base === LEGACY_TEXT_BASE) {
+    throw new Error(
+      "This resumed top-level edit call uses the retired schema. Call read again, then retry with {path, base, edits:[{op:'replace', oldText, occurrence?, newText}] }.",
+    );
+  }
+  if (params.base === LEGACY_LINES_BASE) {
+    throw new Error(
+      "This resumed edit call uses retired line coordinates. Call read again, then retry with exact oldText or anchorText selectors from the raw snapshot.",
+    );
+  }
 }
 
 function prepareLegacyEditArguments(args: unknown): EditParams {
@@ -248,6 +259,105 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
     overrideInstalled = true;
     return { installed: true, reason: "local snapshot override active" };
   };
+
+  if (process.env[RELEASE_SMOKE_ENV] === "1") {
+    pi.registerCommand("snapshot-edit-release-smoke", {
+      description: "Release-only isolated snapshot-edit smoke closure",
+      handler: async (args, ctx) => {
+        const request = JSON.parse(args) as {
+          action: string;
+          path?: string;
+          base?: string;
+        };
+        const respond = (payload: Record<string, unknown>) => {
+          ctx.ui.notify(`PI_SNAPSHOT_EDIT_RELEASE_SMOKE:${JSON.stringify(payload)}`, "info");
+        };
+        if (request.action === "marker") {
+          respond({
+            marker: SNAPSHOT_EDIT_BUILD_MARKER,
+            behavior: `protocol-b:${SNAPSHOT_EDIT_BUILD_MARKER}`,
+          });
+          return;
+        }
+        if (request.action === "probe") {
+          if (!request.path) throw new Error("release smoke probe requires path");
+          const readResult = await service.read({ path: request.path }, ctx.cwd);
+          const editResult = await service.edit(
+            {
+              path: request.path,
+              base: readResult.details.revision as string,
+              edits: [
+                {
+                  op: "replace",
+                  oldText: "same",
+                  occurrence: 2,
+                  newText: `changed:${SNAPSHOT_EDIT_BUILD_MARKER}`,
+                },
+              ],
+            },
+            ctx.cwd,
+          );
+          respond({
+            marker: SNAPSHOT_EDIT_BUILD_MARKER,
+            rawRead: readResult.text,
+            revision: editResult.details.revision,
+          });
+          return;
+        }
+        if (request.action === "revision") {
+          if (!request.path) throw new Error("release smoke revision requires path");
+          const readResult = await service.read({ path: request.path }, ctx.cwd);
+          respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, revision: readResult.details.revision });
+          return;
+        }
+        if (request.action === "clear") {
+          service.clear();
+          respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, revisions: service.stats().count });
+          return;
+        }
+        if (request.action === "expect-expired") {
+          if (!request.path || !request.base) {
+            throw new Error("release smoke expect-expired requires path and base");
+          }
+          try {
+            await service.edit(
+              {
+                path: request.path,
+                base: request.base,
+                edits: [{ op: "replace", oldText: "same", occurrence: 1, newText: "changed" }],
+              },
+              ctx.cwd,
+            );
+          } catch (error) {
+            const message = (error as Error).message;
+            if (!/Unknown or expired revision/.test(message)) throw error;
+            respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, rejected: message });
+            return;
+          }
+          throw new Error("cleared or reloaded revision remained usable");
+        }
+        if (request.action === "legacy-lines") {
+          const prepared = prepareLegacyEditArguments({
+            path: request.path ?? "smoke.txt",
+            base: request.base ?? "amber",
+            edits: [{ op: "replace", startLine: 1, endLine: 1, newText: "changed" }],
+          });
+          try {
+            rejectLegacyEdit(prepared);
+          } catch (error) {
+            respond({ marker: SNAPSHOT_EDIT_BUILD_MARKER, rejected: (error as Error).message });
+            return;
+          }
+          throw new Error("legacy line coordinates were not rejected");
+        }
+        if (request.action === "reload") {
+          await ctx.reload();
+          return;
+        }
+        throw new Error(`Unknown release smoke action: ${request.action}`);
+      },
+    });
+  }
 
   pi.registerCommand("snapshot-edit", {
     description: "Snapshot edit status; actions: override, clear",

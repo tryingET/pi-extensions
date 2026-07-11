@@ -24,6 +24,7 @@ system4d:
 - Build in small commits.
 - Keep command/tool behavior explicit.
 - Update docs as behavior changes.
+- Run `npm run build` after changing `extensions/` or `src/`; `dist/snapshot-edit.js` is the only published runtime entry.
 
 ## 3) Verify
 
@@ -33,12 +34,13 @@ system4d:
 
 ## 4) Release
 
-- Run `npm run release:check` (or `npm run release:check:quick` for artifact-only CI mode).
+- Run `npm run build`, then `npm run release:check` (or `npm run release:check:quick` for artifact-only CI mode).
+- Confirm the exact tarball's isolated offline smoke proves artifact bytes, Protocol B behavior, revision reset, and same-process reload.
 - Confirm GitHub Actions settings allow marketplace actions and PR creation by workflows.
 - Use release-please PR flow for versioning/changelog updates.
 - For first-time npm packages, bootstrap once with token auth before switching fully to trusted publishing.
 - Publish from GitHub release after publish workflow checks pass.
-- Sync extension to live pi when needed.
+- Install the package into live Pi when needed, then use `/reload`; bundled source updates must not require a process restart.
 
 ## 5) Maintain
 

@@ -12,6 +12,8 @@ system4d:
 
 # @tryinget/pi-snapshot-edit
 
+> **License notice:** This package is **source-available under a non-standard restricted license; it is not OSI open source**. Read the complete [LICENSE](LICENSE) before use. The license names Restricted Parties—including OpenAI, Anthropic, xAI, specified PRC frontier labs, their affiliates, and parties acting for them—and grants those Restricted Parties no rights.
+
 `pi-snapshot-edit` provides Protocol B through both namespaced tools and an opt-in standard-tool override:
 
 - `snapshot_read` / `read` — return one `revision:<alias>` header followed by raw UTF-8 file text, without line numbers or gutters;
@@ -88,12 +90,17 @@ The override refuses to displace non-built-in owners. Unsupported reads fail clo
 ## Install and verify
 
 ```bash
-npm ci
+npm ci              # installs dev dependencies and runs prepare -> build
+npm run build       # required after every extension/runtime source change
 npm run check
 pi install /absolute/path/to/pi-extensions/packages/pi-snapshot-edit
 ```
 
-Then run `/reload` and verify with real read/edit calls on a disposable file. Candidate lanes should report this command rather than altering the controller's Pi install.
+The published runtime is the deterministic, unminified `dist/snapshot-edit.js` bundle. Package-owned runtime modules are embedded; Pi and TypeBox imports remain host-provided. The package does not publish `extensions/` or `src/` runtime source.
+
+After installation, run `/reload` and verify with real read/edit calls on a disposable file. After later source changes, run `npm run build` and then `/reload`. A bundled update **must take effect in the same Pi process; a process restart is not required**. Candidate lanes should report installation commands rather than altering the controller's Pi install.
+
+Release validation uses the exact packed tarball in isolated `PI_CODING_AGENT_DIR` and `NPM_CONFIG_PREFIX` roots. The gated release-only smoke closure is unavailable unless `PI_SNAPSHOT_EDIT_RELEASE_SMOKE=1`; normal operators never see it.
 
 ## Evidence and architecture
 

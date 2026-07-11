@@ -34,6 +34,9 @@ required_files=(
   "scripts/validate-structure.mjs"
   "scripts/quality-gate.sh"
   "scripts/analyze-edit-failures.sh"
+  "scripts/build-extension.mjs"
+  "scripts/release-smoke.sh"
+  "scripts/release-smoke-client.mjs"
   "extensions/snapshot-edit.ts"
   "src/snapshot-service.js"
   "src/snapshot-store.js"
@@ -67,6 +70,9 @@ required_executables=(
   "scripts/validate-structure.mjs"
   "scripts/quality-gate.sh"
   "scripts/analyze-edit-failures.sh"
+  "scripts/build-extension.mjs"
+  "scripts/release-smoke.sh"
+  "scripts/release-smoke-client.mjs"
 )
 
 errors=0

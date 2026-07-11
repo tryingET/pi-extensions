@@ -39,6 +39,9 @@ Protocol B completely owns both namespaced `snapshot_read` / `snapshot_edit` and
 11. Desired bytes must pass snapshot-store budget and text-decoding validation before commit.
 12. Commit uses a same-directory temporary file, fsync, mode preservation, a best-effort pre-rename recheck from one opened handle, and atomic rename.
 13. Successful edit output issues a fresh revision and a raw, gutter-free bounded preview or a non-throwing omission notice.
+14. Distribution uses one deterministic, readable, unminified ESM bundle at `dist/snapshot-edit.js`. It embeds all package-owned runtime modules while leaving Pi and TypeBox host imports external.
+15. `prepare` and `prepack` rebuild that entry. Published files exclude `extensions/` and `src/`, and `/reload` must activate rebuilt bytes in the same Pi process.
+16. A release-only command closure exists only when `PI_SNAPSHOT_EDIT_RELEASE_SMOKE=1`; exact-tarball validation uses it without a model/provider call and without operator settings.
 
 There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or incompatible resumed call must reread. Resumed Protocol A line coordinates and top-level legacy calls receive precise migration guidance; nested Protocol B `oldText` is valid.
 
@@ -51,6 +54,8 @@ There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or i
 - Selectors can be as small as a partial line or span multiple lines.
 - Immutable batch resolution avoids coordinate drift.
 - Snapshot digest and identity checks preserve machine-verifiable staleness.
+- One bundled runtime prevents a reloaded extension schema from retaining stale package-owned service modules.
+- Deterministic bundle bytes and an exact publish whitelist make artifact drift detectable before publication.
 
 ### Negative
 
@@ -59,6 +64,7 @@ There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or i
 - Full snapshots retain sensitive bytes in bounded process memory.
 - Atomic rename cannot preserve every filesystem metadata or identity property.
 - Non-cooperating cross-process races cannot be eliminated with portable filesystem APIs. In particular, the final recheck is not compare-and-swap: a writer can change the path after that check and before rename.
+- Contributors must rebuild after runtime source changes; `/reload` loads the bundle, not source modules.
 
 ## Retired decision
 
