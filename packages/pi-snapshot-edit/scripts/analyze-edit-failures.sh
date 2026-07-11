@@ -41,12 +41,12 @@ while IFS= read -r -d '' session_file; do
     | ($calls | map(select(.id == $result.message.toolCallId)) | first // null) as $call
     | ($text | capture("Found (?<count>[0-9]+) occurrences of edits\\[(?<index>[0-9]+)\\]")? // null) as $occurrence
     | ($text | capture("edits\\[(?<right>[0-9]+)\\] and edits\\[(?<left>[0-9]+)\\] overlap")? // null) as $overlap
-    | if $occurrence != null then "ambiguous_old_text"
-      elif $overlap != null then "overlapping_edits"
-      elif ($text | test("Could not find|not found|No match"; "i")) then "missing_old_text"
-      elif ($text | test("no changes|no change|identical"; "i")) then "no_op"
-      else "other"
-      end as $category
+    | (if $occurrence != null then "ambiguous_old_text"
+       elif $overlap != null then "overlapping_edits"
+       elif ($text | test("Could not find|not found|No match"; "i")) then "missing_old_text"
+       elif ($text | test("no changes|no change|identical"; "i")) then "no_op"
+       else "other"
+       end) as $category
     | ($occurrence.index? // null | if . == null then null else tonumber end) as $edit_index
     | ($call.arguments.edits? // []) as $edits
     | (if $edit_index == null then null else ($edits[$edit_index] // null) end) as $selected

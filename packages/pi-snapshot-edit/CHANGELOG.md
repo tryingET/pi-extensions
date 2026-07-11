@@ -43,6 +43,7 @@ No version of `@tryinget/pi-snapshot-edit` has been published to npm. Version `0
 
 ### Fixed
 
+- Parenthesize the jq category conditional before binding it with `as`, preserving analyzer compatibility with jq 1.6 on GitHub-hosted runners.
 - Keep the model-screen timeout referenced until `runPi` settles so handle-free fake-child runs complete reliably on Node 22.
 
 ### Added

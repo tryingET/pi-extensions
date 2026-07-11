@@ -48,6 +48,13 @@ async function writeJsonl(path, values) {
   await writeFile(path, `${values.map((value) => JSON.stringify(value)).join("\n")}\n`, "utf8");
 }
 
+test("jq-only analyzer uses jq 1.6-compatible conditional binding syntax", async () => {
+  const analyzer = new URL("../scripts/analyze-edit-failures.sh", import.meta.url).pathname;
+  const source = await readFile(analyzer, "utf8");
+  assert.match(source, /\| \(if \$occurrence != null then[\s\S]*?\n\s+end\) as \$category/);
+  assert.doesNotMatch(source, /\bend as \$[A-Za-z_][A-Za-z0-9_]*/);
+});
+
 test("jq-only analyzer deduplicates forked calls and retains no source text or paths", async () => {
   const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-evidence-"));
   const sessions = join(directory, "sessions");
