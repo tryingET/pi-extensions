@@ -5,6 +5,9 @@ import * as path from "node:path";
 
 const LOOP_RUN_SCHEMA = "society_orchestrator.loop_run.v1";
 const MAX_CHECKPOINT_BYTES = 8 * 1024 * 1024;
+export const LOOP_CHECKPOINT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_PRUNE_LIMIT = 100;
+const DEFAULT_PRUNE_SCAN_LIMIT = 1_000;
 
 export type LoopRunStatus = "running" | "failed" | "aborted" | "done";
 export type LoopAttemptStatus = "done" | "error" | "timed_out" | "aborted";
@@ -44,6 +47,21 @@ export interface LoopRunCheckpoint {
 
 export interface LoopRunLock {
   release(): void;
+}
+
+export interface LoopCheckpointPruneResult {
+  retentionMs: number;
+  cutoff: string;
+  dryRun: boolean;
+  entriesExamined: number;
+  scanned: number;
+  candidates: string[];
+  deleted: string[];
+  skippedActive: string[];
+  skippedLocked: string[];
+  skippedInvalid: string[];
+  limitReached: boolean;
+  scanLimitReached: boolean;
 }
 
 export class LoopResumeError extends Error {
@@ -179,6 +197,137 @@ export class LoopRunCheckpointStore {
     };
   }
 
+  pruneExpired(
+    options: {
+      nowMs?: number;
+      retentionMs?: number;
+      dryRun?: boolean;
+      maxDeletes?: number;
+      maxScans?: number;
+      excludeRunIds?: string[];
+    } = {},
+  ): LoopCheckpointPruneResult {
+    const nowMs = options.nowMs ?? Date.now();
+    const retentionMs = options.retentionMs ?? LOOP_CHECKPOINT_RETENTION_MS;
+    const dryRun = options.dryRun ?? false;
+    const maxDeletes = options.maxDeletes ?? DEFAULT_PRUNE_LIMIT;
+    const maxScans = options.maxScans ?? DEFAULT_PRUNE_SCAN_LIMIT;
+    if (!Number.isFinite(nowMs) || !Number.isFinite(retentionMs) || retentionMs <= 0) {
+      throw new LoopResumeError(
+        "loop_checkpoint_retention_invalid",
+        "Loop checkpoint retention requires finite now and positive retention values.",
+      );
+    }
+    if (!Number.isSafeInteger(maxDeletes) || maxDeletes <= 0 || maxDeletes > 1_000) {
+      throw new LoopResumeError(
+        "loop_checkpoint_prune_limit_invalid",
+        "Loop checkpoint pruning requires maxDeletes between 1 and 1000.",
+      );
+    }
+    if (!Number.isSafeInteger(maxScans) || maxScans <= 0 || maxScans > 10_000) {
+      throw new LoopResumeError(
+        "loop_checkpoint_scan_limit_invalid",
+        "Loop checkpoint pruning requires maxScans between 1 and 10000.",
+      );
+    }
+
+    const cutoffMs = nowMs - retentionMs;
+    const result: LoopCheckpointPruneResult = {
+      retentionMs,
+      cutoff: new Date(cutoffMs).toISOString(),
+      dryRun,
+      entriesExamined: 0,
+      scanned: 0,
+      candidates: [],
+      deleted: [],
+      skippedActive: [],
+      skippedLocked: [],
+      skippedInvalid: [],
+      limitReached: false,
+      scanLimitReached: false,
+    };
+    if (!fs.existsSync(this.rootDir)) return result;
+    ensureStateRoot(this.rootDir);
+    const excluded = new Set(options.excludeRunIds || []);
+    const runIds: string[] = [];
+    const directory = fs.opendirSync(this.rootDir);
+    try {
+      while (result.entriesExamined < maxScans) {
+        const entry = directory.readSync();
+        if (!entry) break;
+        result.entriesExamined += 1;
+        if (!entry.name.endsWith(".run.json")) continue;
+        const runId = entry.name.slice(0, -".run.json".length);
+        if (excluded.has(runId)) continue;
+        runIds.push(runId);
+      }
+      result.scanLimitReached = result.entriesExamined >= maxScans;
+    } finally {
+      directory.closeSync();
+    }
+
+    for (const runId of runIds) {
+      result.scanned += 1;
+      let checkpoint: LoopRunCheckpoint;
+      try {
+        checkpoint = this.load(runId);
+      } catch {
+        result.skippedInvalid.push(runId);
+        continue;
+      }
+      if (checkpoint.status === "running") {
+        result.skippedActive.push(runId);
+        continue;
+      }
+      if (checkpointUpdatedAtMs(checkpoint) > cutoffMs) continue;
+      if (dryRun && fs.existsSync(`${this.pathFor(runId)}.lock`)) {
+        result.skippedLocked.push(runId);
+        continue;
+      }
+      result.candidates.push(runId);
+      if (dryRun) continue;
+      if (result.deleted.length >= maxDeletes) {
+        result.limitReached = true;
+        break;
+      }
+
+      let lock: LoopRunLock | undefined;
+      try {
+        lock = this.acquire(runId);
+        const current = this.load(runId);
+        if (current.status === "running" || checkpointUpdatedAtMs(current) > cutoffMs) {
+          result.skippedActive.push(runId);
+          continue;
+        }
+        const checkpointPath = this.pathFor(runId);
+        assertSecureCheckpointFile(checkpointPath);
+        fs.unlinkSync(checkpointPath);
+        fsyncDirectory(this.rootDir);
+        result.deleted.push(runId);
+      } catch (error) {
+        if (
+          error instanceof LoopResumeError &&
+          ["loop_resume_already_running", "loop_resume_stale_lock"].includes(error.failureKind)
+        ) {
+          result.skippedLocked.push(runId);
+        } else if (errorCode(error) === "ENOENT") {
+          // Another owner completed the same cleanup after the initial scan.
+        } else {
+          result.skippedInvalid.push(runId);
+        }
+      } finally {
+        lock?.release();
+      }
+    }
+
+    result.candidates.sort();
+    result.deleted.sort();
+    result.skippedActive.sort();
+    result.skippedLocked.sort();
+    result.skippedInvalid.sort();
+    return result;
+  }
+
   private pathFor(runId: string): string {
     return path.join(this.rootDir, `${runId}.run.json`);
   }
@@ -262,6 +411,8 @@ export function validateResumeCheckpoint(input: {
   expectedFailedPhase: string;
   currentStateFingerprint: string;
   artifactRoot: string;
+  nowMs?: number;
+  retentionMs?: number;
 }): string {
   const { checkpoint } = input;
   if (checkpoint.plugin !== input.plugin) {
@@ -289,6 +440,11 @@ export function validateResumeCheckpoint(input: {
       `Loop run ${checkpoint.runId} belongs to ${checkpoint.cwd}, not ${currentCwd}.`,
     );
   }
+  assertCheckpointWithinRetention(
+    checkpoint,
+    input.nowMs ?? Date.now(),
+    input.retentionMs ?? LOOP_CHECKPOINT_RETENTION_MS,
+  );
   if (
     checkpoint.stateFingerprint.startsWith("unverifiable:") ||
     input.currentStateFingerprint.startsWith("unverifiable:")
@@ -447,6 +603,26 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
   }
 
   return record as LoopRunCheckpoint;
+}
+
+function assertCheckpointWithinRetention(
+  checkpoint: LoopRunCheckpoint,
+  nowMs: number,
+  retentionMs: number,
+): void {
+  const updatedAtMs = checkpointUpdatedAtMs(checkpoint);
+  if (updatedAtMs <= nowMs - retentionMs) {
+    throw new LoopResumeError(
+      "loop_resume_checkpoint_expired",
+      `Loop checkpoint ${checkpoint.runId} is outside the seven-day rolling continuation window. Restart the loop instead of reviving stale lineage.`,
+    );
+  }
+}
+
+function checkpointUpdatedAtMs(checkpoint: LoopRunCheckpoint): number {
+  const updatedAtMs = Date.parse(checkpoint.updatedAt);
+  if (!Number.isFinite(updatedAtMs)) throw invalidCheckpoint(checkpoint.runId);
+  return updatedAtMs;
 }
 
 function ensureStateRoot(rootDir: string): void {

@@ -484,6 +484,7 @@ export class LoopExecutor {
     }
 
     const runId = options.resumeRunId || `${this.plugin.name}-${Date.now()}`;
+    this.checkpointStore.pruneExpired({ excludeRunIds: [runId] });
     const lock = this.checkpointStore.acquire(runId);
     try {
       return await this.executeRun(objective, dispatchFn, signal, options, runId);
@@ -2531,6 +2532,37 @@ export function registerLoopCommands(
         "Loop Runs",
         renderLoopTreeSnapshotText(loadLoopTreeSnapshot(defaultLoopSessionsDir(), plugins)),
       );
+    },
+  });
+
+  pi.registerCommand("loop-checkpoints", {
+    description:
+      "Inspect seven-day checkpoint retention; use /loop-checkpoints prune to apply cleanup",
+    handler: async (args, ctx) => {
+      if (!ctx.hasUI) return;
+      const apply = ["prune", "apply", "--apply"].includes((args || "").trim().toLowerCase());
+      const result = new LoopRunCheckpointStore().pruneExpired({ dryRun: !apply });
+      const lines = [
+        `# Loop Checkpoint Retention`,
+        ``,
+        `Mode: ${apply ? "prune" : "dry-run"}`,
+        `Rolling window: ${Math.round(result.retentionMs / (24 * 60 * 60 * 1000))} days`,
+        `Cutoff: ${result.cutoff}`,
+        `Directory entries examined: ${result.entriesExamined}`,
+        `Checkpoints scanned: ${result.scanned}`,
+        `Candidates: ${result.candidates.length}`,
+        `Deleted: ${result.deleted.length}`,
+        `Protected active: ${result.skippedActive.length}`,
+        `Protected locked/stale: ${result.skippedLocked.length}`,
+        `Skipped invalid: ${result.skippedInvalid.length}`,
+        `Delete limit reached: ${result.limitReached ? "yes" : "no"}`,
+        `Scan limit reached: ${result.scanLimitReached ? "yes" : "no"}`,
+        ``,
+        ...(result.candidates.length > 0
+          ? ["## Expired candidates", ...result.candidates.map((runId) => `- ${runId}`)]
+          : ["No expired checkpoint candidates."]),
+      ];
+      await ctx.ui.editor("Loop Checkpoint Retention", lines.join("\n"));
     },
   });
 

@@ -8,6 +8,7 @@ import { LoopExecutor, registerLoopTools } from "../src/loops/engine.ts";
 import {
   captureLoopArtifactHashes,
   deriveResumePhase,
+  LOOP_CHECKPOINT_RETENTION_MS,
   LoopResumeError,
   LoopRunCheckpointStore,
   validateResumeCheckpoint,
@@ -270,6 +271,13 @@ test("resume validation rejects objective, phase, graph, repository, and state d
       [{ ...base, phases: [...RESUMABLE_PLUGIN.phases, "extra"] }, "loop_resume_phase_graph_drift"],
       [{ ...base, cwd: harness.packageRoot }, "loop_resume_repository_mismatch"],
       [{ ...base, currentStateFingerprint: "sha256:drifted" }, "loop_resume_state_drift"],
+      [
+        {
+          ...base,
+          nowMs: Date.parse(checkpoint.updatedAt) + LOOP_CHECKPOINT_RETENTION_MS + 1,
+        },
+        "loop_resume_checkpoint_expired",
+      ],
     ];
 
     for (const [input, expectedKind] of cases) {
@@ -363,6 +371,98 @@ test("loop_execute exposes structured fail-closed resume errors before dispatch"
     assert.equal(invalid.details.failureKind, "loop_resume_invalid_run_id");
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("checkpoint retention prunes expired terminal runs while protecting active and locked state", () => {
+  const harness = createHarness();
+  const nowMs = Date.parse("2026-07-11T12:00:00.000Z");
+  const oldTimestamp = new Date(nowMs - LOOP_CHECKPOINT_RETENTION_MS - 1).toISOString();
+  const freshTimestamp = new Date(nowMs - LOOP_CHECKPOINT_RETENTION_MS + 1).toISOString();
+  const artifactPath = "diary/retention-start.md";
+  fs.mkdirSync(path.join(harness.packageRoot, "diary"), { recursive: true });
+  fs.writeFileSync(path.join(harness.packageRoot, artifactPath), "retention\n");
+  const artifactHashes = captureLoopArtifactHashes(harness.packageRoot, [artifactPath]);
+
+  const createCheckpoint = (runId, status, updatedAt) => {
+    harness.checkpointStore.create({
+      runId,
+      plugin: RESUMABLE_PLUGIN.name,
+      phases: RESUMABLE_PLUGIN.phases,
+      objective: "retention fixture",
+      cwd: harness.operatorCwd,
+      artifactHashes,
+      stateFingerprint: "sha256:stable-state",
+    });
+    const checkpointPath = path.join(harness.checkpointStore.rootDir, `${runId}.run.json`);
+    const checkpoint = JSON.parse(fs.readFileSync(checkpointPath, "utf8"));
+    checkpoint.status = status;
+    checkpoint.updatedAt = updatedAt;
+    fs.writeFileSync(checkpointPath, `${JSON.stringify(checkpoint, null, 2)}\n`);
+    return checkpointPath;
+  };
+
+  const expiredDone = "transcendent-1783708000200";
+  const expiredFailed = "transcendent-1783708000201";
+  const expiredRunning = "transcendent-1783708000202";
+  const freshDone = "transcendent-1783708000203";
+  const expiredLocked = "transcendent-1783708000204";
+
+  try {
+    const expiredDonePath = createCheckpoint(expiredDone, "done", oldTimestamp);
+    const expiredFailedPath = createCheckpoint(expiredFailed, "failed", oldTimestamp);
+    const expiredRunningPath = createCheckpoint(expiredRunning, "running", oldTimestamp);
+    const freshDonePath = createCheckpoint(freshDone, "done", freshTimestamp);
+    const expiredLockedPath = createCheckpoint(expiredLocked, "failed", oldTimestamp);
+    const lock = harness.checkpointStore.acquire(expiredLocked);
+    try {
+      const boundedPreview = harness.checkpointStore.pruneExpired({
+        nowMs,
+        dryRun: true,
+        maxScans: 1,
+      });
+      assert.equal(boundedPreview.entriesExamined, 1);
+      assert.ok(boundedPreview.scanned <= 1);
+      assert.equal(boundedPreview.scanLimitReached, true);
+
+      const preview = harness.checkpointStore.pruneExpired({ nowMs, dryRun: true });
+      assert.deepEqual(preview.candidates, [expiredDone, expiredFailed]);
+      assert.deepEqual(preview.deleted, []);
+      assert.deepEqual(preview.skippedActive, [expiredRunning]);
+      assert.deepEqual(preview.skippedLocked, [expiredLocked]);
+      assert.equal(fs.existsSync(expiredDonePath), true);
+
+      const firstApplied = harness.checkpointStore.pruneExpired({ nowMs, maxDeletes: 1 });
+      assert.equal(firstApplied.deleted.length, 1);
+      assert.equal(firstApplied.limitReached, true);
+      const secondApplied = harness.checkpointStore.pruneExpired({ nowMs });
+      assert.equal(secondApplied.deleted.length, 1);
+      assert.deepEqual(secondApplied.skippedLocked, [expiredLocked]);
+      assert.equal(fs.existsSync(expiredDonePath), false);
+      assert.equal(fs.existsSync(expiredFailedPath), false);
+      assert.equal(fs.existsSync(expiredRunningPath), true);
+      assert.equal(fs.existsSync(freshDonePath), true);
+      assert.equal(fs.existsSync(expiredLockedPath), true);
+    } finally {
+      lock.release();
+    }
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("checkpoint retention counts non-checkpoint directory entries against its scan budget", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-prune-budget-"));
+  try {
+    for (let index = 0; index < 20; index += 1) {
+      fs.writeFileSync(path.join(root, `junk-${String(index).padStart(2, "0")}`), "junk\n");
+    }
+    const result = new LoopRunCheckpointStore(root).pruneExpired({ dryRun: true, maxScans: 5 });
+    assert.equal(result.entriesExamined, 5);
+    assert.equal(result.scanned, 0);
+    assert.equal(result.scanLimitReached, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
