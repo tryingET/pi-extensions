@@ -360,7 +360,6 @@ export function runPi({
         finish(() => reject(new ScreenError("timeout", `Pi exceeded ${timeoutMs}ms timeout`)));
       }, killGraceMs);
     }, timeoutMs);
-    timeoutTimer.unref?.();
     const finish = (callback) => {
       if (settled) return;
       settled = true;

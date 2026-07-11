@@ -33,6 +33,10 @@ All notable changes to this project should be documented here.
 
 No version of `@tryinget/pi-snapshot-edit` has been published to npm. Version `0.1.0` is the release-please component floor and an unpublished internal development baseline; the first generated public release must describe the Protocol B implementation below rather than presenting Protocol A as a shipped npm release.
 
+### Fixed
+
+- Keep the model-screen timeout referenced until `runPi` settles so handle-free fake-child runs complete reliably on Node 22.
+
 ### Added
 
 - `snapshot_read` and `snapshot_edit` with session-scoped, path-bound revision aliases.
