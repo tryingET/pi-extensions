@@ -3,9 +3,9 @@
     "tool": "engineering-core",
     "repository": "https://github.com/lightningralf/engineering-core",
     "ref": "v0.6.0",
-    "catalog_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty",
-    "list_disciplines_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines",
-    "list_templates_command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates",
+    "catalog_command": "uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core catalog --pretty",
+    "list_disciplines_command": "uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core list-disciplines",
+    "list_templates_command": "uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core list-templates",
     "disciplines": [
       "validation",
       "testing",
@@ -18,7 +18,7 @@
       "build-graph-acceleration"
     ],
     "lane": "pi-ts",
-    "command": "uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show pi-ts",
+    "command": "uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core show pi-ts",
     "loop_validation": {
       "version": "repo-loop-validation-v1",
       "contract_doc": "docs/engineering.local.md#repo-loop-validation",
@@ -44,6 +44,12 @@
           "response_schema": "engineering-advice-response-v1"
         }
       }
+    },
+    "release_pin": {
+      "kind": "git-tag",
+      "ref": "v0.6.0",
+      "resolved_commit": "6ebdab1962a2966e7d8e100363e96c021809aa40",
+      "source": "git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0"
     }
   }
 }
