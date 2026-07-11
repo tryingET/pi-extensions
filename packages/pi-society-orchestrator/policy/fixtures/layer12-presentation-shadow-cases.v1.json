@@ -1,0 +1,495 @@
+{
+  "cases_id": "sha256:3c2549962228a9dc7555cdec6d6b8b8aa4be364b392c147c2d36578e5eb5a526",
+  "schema_version": 1,
+  "fixture_authority": "pi_synthetic_shape_only",
+  "source_schema_commit": "581276c",
+  "source_legality_claimed": false,
+  "cases": [
+    {
+      "case_id": "sha256:dbfdbe4ebde8db4c096f37114de3f06051a54d3a760a887b991c7f89bd0393ed",
+      "schema_version": 1,
+      "label": "accepted-structural-non-authorizing",
+      "source_contract": "synthetic-shape/agent-kernel-task-c/layer12-replay-readback.v1",
+      "readback": {
+        "schema_version": 1,
+        "candidate_id": "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a",
+        "eval_receipt_id": "sha256:d4b826be45d65f26956609d6154ad3be1489c701f7f1bd3beb791181edc024f1",
+        "snapshot_id": "sha256:4c26a4840565709b4496be94bf9caf1196c8576b659f435f4826a39ec587731c",
+        "observation_id": "sha256:4d8e00d19e0c139cce68b8ffb249a68e0c213f3893094696164886a5de68d8d3",
+        "check_results": [
+          {
+            "check_result_id": "sha256:920f38b027afee8a8262b84bb217ed02d3657374232bf9b76fd53d2ea568762f",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.replay-closure.v1",
+              "kind": "replay_closure",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:40e96f015eef8501cec1bb6457390ac75b1ab1d6e825215892dd45d9ad43862a",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.currentness.v1",
+              "kind": "currentness",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:a3b4d8d2a93cb7044e1ef4460dca8ccd0bbaf81c1c9ba69d1fdfba7f89a899e4",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.protected-state-equality.v1",
+              "kind": "protected_state_equality",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:8a4ea1067bf6117eadc56430627036faefc11022648bd5a8aa8fb55277c0b815",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-b.authority.v1",
+              "kind": "authority",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:53fd04aa58dd91207d2193d51c6b9c686f34a2522eea94de7d681449f1490982",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.provenance.v1",
+              "kind": "provenance",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:8411143b5e8ab959e588e279a721a97bd23c7c826220b5dab1c6c9ad1767e228",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.compatibility.v1",
+              "kind": "compatibility",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:9d4611ca5365264433851ef492e25aac03b6234b203a02547485c2bcfe541275",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.receipt-dag.v1",
+              "kind": "receipt_dag",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:cbfd9ca51b5ee421ab934b1c9ba3124234c8cfa18ee5a8e78526bab762fb0152",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.integrity.v1",
+              "kind": "integrity",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:eeaa2188a9593fc48e1ca812b448faf44edf6d5b451ec9e926e43d3bc9970324",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.selected-policy.v1",
+              "kind": "selected_policy",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          }
+        ],
+        "candidate_disposition": "accepted",
+        "verifier_status": "legal",
+        "advisory_score": {
+          "structural_quality": 1
+        },
+        "recommendation": null,
+        "failed_reasons": [],
+        "next_action": "await_verified_selected_policy_owner_evidence",
+        "explicit_non_authorizations": [
+          "no_activation",
+          "no_apply",
+          "no_owner_mutation",
+          "no_policy_selection",
+          "no_publication",
+          "no_shadow_dispatch"
+        ]
+      },
+      "comprehension_prompt": "Identify the Pi display status and whether lifecycle authorization was granted.",
+      "expected_answer": {
+        "display_status": "structurally_valid_non_authorizing",
+        "authorization_granted": false
+      }
+    },
+    {
+      "case_id": "sha256:85ba15554c85803833fe10f18809f64dbc971d51cb68aba7a697559118f4a871",
+      "schema_version": 1,
+      "label": "blocked-stale-observation",
+      "source_contract": "synthetic-shape/agent-kernel-task-c/layer12-replay-readback.v1",
+      "readback": {
+        "schema_version": 1,
+        "candidate_id": "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a",
+        "eval_receipt_id": "sha256:d4b826be45d65f26956609d6154ad3be1489c701f7f1bd3beb791181edc024f1",
+        "snapshot_id": "sha256:4c26a4840565709b4496be94bf9caf1196c8576b659f435f4826a39ec587731c",
+        "observation_id": "sha256:4d8e00d19e0c139cce68b8ffb249a68e0c213f3893094696164886a5de68d8d3",
+        "check_results": [
+          {
+            "check_result_id": "sha256:920f38b027afee8a8262b84bb217ed02d3657374232bf9b76fd53d2ea568762f",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.replay-closure.v1",
+              "kind": "replay_closure",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:df6af37c16028fd0be9c8da35e89f99f23783e221ba53a17c7cc092e6fd636b7",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.currentness.v1",
+              "kind": "currentness",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "fail",
+              "reasons": ["stale_observation"],
+              "next_action": "recapture_observation"
+            }
+          },
+          {
+            "check_result_id": "sha256:a3b4d8d2a93cb7044e1ef4460dca8ccd0bbaf81c1c9ba69d1fdfba7f89a899e4",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.protected-state-equality.v1",
+              "kind": "protected_state_equality",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:8a4ea1067bf6117eadc56430627036faefc11022648bd5a8aa8fb55277c0b815",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-b.authority.v1",
+              "kind": "authority",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:53fd04aa58dd91207d2193d51c6b9c686f34a2522eea94de7d681449f1490982",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.provenance.v1",
+              "kind": "provenance",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:8411143b5e8ab959e588e279a721a97bd23c7c826220b5dab1c6c9ad1767e228",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.compatibility.v1",
+              "kind": "compatibility",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:9d4611ca5365264433851ef492e25aac03b6234b203a02547485c2bcfe541275",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.receipt-dag.v1",
+              "kind": "receipt_dag",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:cbfd9ca51b5ee421ab934b1c9ba3124234c8cfa18ee5a8e78526bab762fb0152",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.integrity.v1",
+              "kind": "integrity",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:eeaa2188a9593fc48e1ca812b448faf44edf6d5b451ec9e926e43d3bc9970324",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.selected-policy.v1",
+              "kind": "selected_policy",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          }
+        ],
+        "candidate_disposition": "rejected",
+        "verifier_status": "blocked",
+        "advisory_score": {
+          "structural_quality": 1
+        },
+        "recommendation": null,
+        "failed_reasons": ["stale_observation"],
+        "next_action": "await_verified_selected_policy_owner_evidence",
+        "explicit_non_authorizations": [
+          "no_activation",
+          "no_apply",
+          "no_owner_mutation",
+          "no_policy_selection",
+          "no_publication",
+          "no_shadow_dispatch"
+        ]
+      },
+      "comprehension_prompt": "Identify the Pi display status and whether lifecycle authorization was granted.",
+      "expected_answer": {
+        "display_status": "blocked",
+        "authorization_granted": false
+      }
+    },
+    {
+      "case_id": "sha256:3fc389ce8852b117776c35b9542c77bfa1ae9c983358f093f77e13eafd6a8b3e",
+      "schema_version": 1,
+      "label": "unavailable-selected-policy-evidence",
+      "source_contract": "synthetic-shape/agent-kernel-task-c/layer12-replay-readback.v1",
+      "readback": {
+        "schema_version": 1,
+        "candidate_id": "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a",
+        "eval_receipt_id": "sha256:d4b826be45d65f26956609d6154ad3be1489c701f7f1bd3beb791181edc024f1",
+        "snapshot_id": "sha256:4c26a4840565709b4496be94bf9caf1196c8576b659f435f4826a39ec587731c",
+        "observation_id": "sha256:4d8e00d19e0c139cce68b8ffb249a68e0c213f3893094696164886a5de68d8d3",
+        "check_results": [
+          {
+            "check_result_id": "sha256:920f38b027afee8a8262b84bb217ed02d3657374232bf9b76fd53d2ea568762f",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.replay-closure.v1",
+              "kind": "replay_closure",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:40e96f015eef8501cec1bb6457390ac75b1ab1d6e825215892dd45d9ad43862a",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.currentness.v1",
+              "kind": "currentness",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:a3b4d8d2a93cb7044e1ef4460dca8ccd0bbaf81c1c9ba69d1fdfba7f89a899e4",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-c.protected-state-equality.v1",
+              "kind": "protected_state_equality",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:8a4ea1067bf6117eadc56430627036faefc11022648bd5a8aa8fb55277c0b815",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-b.authority.v1",
+              "kind": "authority",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:53fd04aa58dd91207d2193d51c6b9c686f34a2522eea94de7d681449f1490982",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.provenance.v1",
+              "kind": "provenance",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:8411143b5e8ab959e588e279a721a97bd23c7c826220b5dab1c6c9ad1767e228",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.compatibility.v1",
+              "kind": "compatibility",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:9d4611ca5365264433851ef492e25aac03b6234b203a02547485c2bcfe541275",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.receipt-dag.v1",
+              "kind": "receipt_dag",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:cbfd9ca51b5ee421ab934b1c9ba3124234c8cfa18ee5a8e78526bab762fb0152",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.integrity.v1",
+              "kind": "integrity",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "pass",
+              "reasons": [],
+              "next_action": "none"
+            }
+          },
+          {
+            "check_result_id": "sha256:ac072442b22cb17d9f4a9948ddaedae981f1c0c694813e755ce549dd76f95239",
+            "core": {
+              "schema_version": 1,
+              "checker_id": "task-d.selected-policy.v1",
+              "kind": "selected_policy",
+              "subject_ids": [
+                "sha256:12d942471a9dd426ac14869615fca8a0dbf18b30c7ed6daf23db8e0d1b2fd18a"
+              ],
+              "outcome": "unavailable",
+              "reasons": ["policy_invalid"],
+              "next_action": "select_policy"
+            }
+          }
+        ],
+        "candidate_disposition": "unavailable",
+        "verifier_status": "unavailable",
+        "advisory_score": {
+          "structural_quality": 1
+        },
+        "recommendation": null,
+        "failed_reasons": ["policy_invalid"],
+        "next_action": "await_verified_selected_policy_owner_evidence",
+        "explicit_non_authorizations": [
+          "no_activation",
+          "no_apply",
+          "no_owner_mutation",
+          "no_policy_selection",
+          "no_publication",
+          "no_shadow_dispatch"
+        ]
+      },
+      "comprehension_prompt": "Identify the Pi display status and whether lifecycle authorization was granted.",
+      "expected_answer": {
+        "display_status": "unavailable",
+        "authorization_granted": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "result_id": "sha256:e8645e59c78245b027c1cef5bccfa4e96443accaa8d9616d094f007e617c8509",
+  "schema_version": 1,
+  "preregistration_id": "sha256:b1082355a7342216a2ecc6fe66c8d0e257c4fead1f5572e791622eac6615df2c",
+  "cases_id": "sha256:3c2549962228a9dc7555cdec6d6b8b8aa4be364b392c147c2d36578e5eb5a526",
+  "evidence": {
+    "schema_version": 1,
+    "evidence_id": "sha256:8573425ab9bbae86e32aa0f89ff5db374908e23932a9e0abd420a406ebb47704",
+    "policy_candidate_id": "sha256:1c9df24d983c3ebf69b16b99930e051a5c8306227025da11f4b3cc721c9514dd",
+    "campaign_id": "sha256:cc1a23d9c7cbd68aea3964377a722e5579bde1aac991556b744a9e930a2f3f05",
+    "observations": [
+      {
+        "task_case_id": "sha256:dbfdbe4ebde8db4c096f37114de3f06051a54d3a760a887b991c7f89bd0393ed",
+        "rendered_variant_id": "sha256:f1b845bfd1c7bb01e6abcfc5a5d201e65d6742f668dcefa269cac8c977e12bbf",
+        "comprehension_score": 100,
+        "observed_at": "2026-07-11T16:21:00Z",
+        "evaluator_receipt_id": "sha256:d3f5953af2aba8abd81d4b5bf9a5525dd46ba3dfa1e13f9c48861b0420810f88"
+      },
+      {
+        "task_case_id": "sha256:85ba15554c85803833fe10f18809f64dbc971d51cb68aba7a697559118f4a871",
+        "rendered_variant_id": "sha256:9ba5074afc19843fd912148d585440a28dde4924d3681e0a575ae4c907217001",
+        "comprehension_score": 100,
+        "observed_at": "2026-07-11T16:21:00Z",
+        "evaluator_receipt_id": "sha256:f3b70b91810f8aab4d00bd4656a2887bc6c956e6515261359e408c840b7cb0d3"
+      },
+      {
+        "task_case_id": "sha256:3fc389ce8852b117776c35b9542c77bfa1ae9c983358f093f77e13eafd6a8b3e",
+        "rendered_variant_id": "sha256:288eecbdc9b806ac945cf5ef68e7cb2233c27c16df33776250df018f3047209f",
+        "comprehension_score": 100,
+        "observed_at": "2026-07-11T16:21:00Z",
+        "evaluator_receipt_id": "sha256:8ef8f190f86af51235555c64f90561ffd2b378256e9ac3cc903770c555dbb30e"
+      }
+    ],
+    "selection_status": "not_selected",
+    "explicit_non_authorizations": [
+      "no_activation",
+      "no_apply",
+      "no_policy_selection",
+      "no_publication"
+    ]
+  },
+  "evaluator_receipts": [
+    {
+      "evaluator_receipt_id": "sha256:d3f5953af2aba8abd81d4b5bf9a5525dd46ba3dfa1e13f9c48861b0420810f88",
+      "core": {
+        "schema_version": 1,
+        "evaluator_id": "pi.presentation-status-comprehension.v1",
+        "preregistration_id": "sha256:b1082355a7342216a2ecc6fe66c8d0e257c4fead1f5572e791622eac6615df2c",
+        "task_case_id": "sha256:dbfdbe4ebde8db4c096f37114de3f06051a54d3a760a887b991c7f89bd0393ed",
+        "rendered_variant_id": "sha256:f1b845bfd1c7bb01e6abcfc5a5d201e65d6742f668dcefa269cac8c977e12bbf",
+        "observed_answer": {
+          "display_status": "structurally_valid_non_authorizing",
+          "authorization_granted": false
+        },
+        "expected_answer": {
+          "display_status": "structurally_valid_non_authorizing",
+          "authorization_granted": false
+        },
+        "comprehension_score": 100,
+        "observed_at": "2026-07-11T16:21:00Z",
+        "evaluator_kind": "synthetic_deterministic_machine",
+        "authorization_granted": false,
+        "policy_selected": false
+      }
+    },
+    {
+      "evaluator_receipt_id": "sha256:f3b70b91810f8aab4d00bd4656a2887bc6c956e6515261359e408c840b7cb0d3",
+      "core": {
+        "schema_version": 1,
+        "evaluator_id": "pi.presentation-status-comprehension.v1",
+        "preregistration_id": "sha256:b1082355a7342216a2ecc6fe66c8d0e257c4fead1f5572e791622eac6615df2c",
+        "task_case_id": "sha256:85ba15554c85803833fe10f18809f64dbc971d51cb68aba7a697559118f4a871",
+        "rendered_variant_id": "sha256:9ba5074afc19843fd912148d585440a28dde4924d3681e0a575ae4c907217001",
+        "observed_answer": {
+          "display_status": "blocked",
+          "authorization_granted": false
+        },
+        "expected_answer": {
+          "display_status": "blocked",
+          "authorization_granted": false
+        },
+        "comprehension_score": 100,
+        "observed_at": "2026-07-11T16:21:00Z",
+        "evaluator_kind": "synthetic_deterministic_machine",
+        "authorization_granted": false,
+        "policy_selected": false
+      }
+    },
+    {
+      "evaluator_receipt_id": "sha256:8ef8f190f86af51235555c64f90561ffd2b378256e9ac3cc903770c555dbb30e",
+      "core": {
+        "schema_version": 1,
+        "evaluator_id": "pi.presentation-status-comprehension.v1",
+        "preregistration_id": "sha256:b1082355a7342216a2ecc6fe66c8d0e257c4fead1f5572e791622eac6615df2c",
+        "task_case_id": "sha256:3fc389ce8852b117776c35b9542c77bfa1ae9c983358f093f77e13eafd6a8b3e",
+        "rendered_variant_id": "sha256:288eecbdc9b806ac945cf5ef68e7cb2233c27c16df33776250df018f3047209f",
+        "observed_answer": {
+          "display_status": "unavailable",
+          "authorization_granted": false
+        },
+        "expected_answer": {
+          "display_status": "unavailable",
+          "authorization_granted": false
+        },
+        "comprehension_score": 100,
+        "observed_at": "2026-07-11T16:21:00Z",
+        "evaluator_kind": "synthetic_deterministic_machine",
+        "authorization_granted": false,
+        "policy_selected": false
+      }
+    }
+  ],
+  "executed_adapter_bytes_sha256": "sha256:814e0e5ae7d3df84c9dd18a2a6b857c10521d8e318275786e1555c6a153660e9",
+  "aggregate": {
+    "cases_run": 3,
+    "exact_matches": 3,
+    "mean_comprehension_score": 100,
+    "evidence_status": "structurally_valid_not_authorized",
+    "policy_selection": "not_authorized",
+    "declared_limit": "Synthetic deterministic presentation-shadow evidence only."
+  },
+  "explicit_non_authorizations": [
+    "no_activation",
+    "no_apply",
+    "no_policy_selection",
+    "no_publication"
+  ]
+}
