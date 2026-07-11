@@ -25,9 +25,13 @@ if [ -f "./governance/work-items.json" ] && [ -f "./crates/ak-cli/Cargo.toml" ] 
 fi
 
 if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then
-  ./scripts/rocs.sh version
-  ./scripts/rocs.sh build --repo . --resolve-refs --clean
-  ./scripts/rocs.sh validate --repo . --resolve-refs
+  if [ "${PI_SKIP_ROCS:-0}" = "1" ]; then
+    echo "skipping ROCS validation: PI_SKIP_ROCS=1 (workspace-owned runner unavailable)"
+  else
+    ./scripts/rocs.sh version
+    ./scripts/rocs.sh build --repo . --resolve-refs --clean
+    ./scripts/rocs.sh validate --repo . --resolve-refs
+  fi
 fi
 
 if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.json" ] && [ -f "./.release-please-manifest.json" ]; then
