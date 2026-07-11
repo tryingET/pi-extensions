@@ -1,0 +1,33 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "452a091857e813d5349e3776752cf8043e76fcaf"
+created_at: "2026-07-11T08:31:20Z"
+intent: "Add a consent-gated blinded model screen for snapshot editing protocol usability."
+files:
+  - "packages/pi-snapshot-edit/.gitignore"
+  - "packages/pi-snapshot-edit/autoresearch.md"
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-model-screen-runner.md"
+  - "packages/pi-snapshot-edit/package.json"
+  - "packages/pi-snapshot-edit/scripts/model-screen-core.mjs"
+  - "packages/pi-snapshot-edit/scripts/model-screen-fixtures.mjs"
+  - "packages/pi-snapshot-edit/scripts/run-model-screen.mjs"
+  - "packages/pi-snapshot-edit/tests/model-screen.test.js"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Keep the bounded runner, privacy contract, process controls, tests, and operator documentation together."
+links:
+  task_ids:
+    - 3604
+  evidence_ids:
+    - 3362
+    - 3363
