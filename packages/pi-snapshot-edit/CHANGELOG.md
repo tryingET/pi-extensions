@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.2.1...pi-snapshot-edit-v0.2.2) (2026-07-11)
+
+
+### Bug Fixes
+
+* **snapshot-edit:** support jq 1.6 analyzer syntax ([eb28b96](https://github.com/tryingET/pi-extensions/commit/eb28b963f89715f7bf70c819f43e6305b38a125a))
+* **snapshot-edit:** support runner jq syntax ([da3b1db](https://github.com/tryingET/pi-extensions/commit/da3b1dbbe7d72c0dc1c6112372e71590a249a990))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.2.0...pi-snapshot-edit-v0.2.1) (2026-07-11)
 
 
