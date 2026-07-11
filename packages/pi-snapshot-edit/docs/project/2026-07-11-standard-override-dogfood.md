@@ -50,8 +50,14 @@ Before AK #3619, live dogfood exercised numbered reads and line-coordinate edits
 
 That run also led to positive built-in owner identification and refusal to displace visible non-built-in owners. Its line-coordinate payloads and line-number output are retired and are not current examples.
 
-## Live verification still required after install
+## Protocol B live verification
 
-Run a disposable Protocol B scenario through standard `read` and `edit`, then inspect exact file bytes. Include a duplicate selector with occurrence, a CRLF/BOM file, and a stale revision failure. Reload restores built-ins.
+After local installation, three fresh Pi processes ran the guarded standard override with `gpt-5.6-sol`:
+
+1. **Raw duplicate/batch test:** `read` returned `revision:amber` plus raw text with no `N│` gutters. One standard `edit` call replaced occurrence 2 of duplicate `repeat` and inserted `done\n` after unique anchor `tail\n`. Exact output was `alpha\nrepeat\nchosen\ntail\ndone\n`.
+2. **CRLF/BOM test:** standard `read` plus unique-selector `edit` changed `two` to `second`. Exact bytes remained UTF-8 BOM + `one\r\nsecond\r\n`.
+3. **Stale-base test:** standard `read` captured `amber`; `bash` then replaced the file; standard `edit` using `amber` failed with `Stale revision 'amber'`. External bytes remained unchanged and no retry occurred.
+
+The local package was installed from `packages/pi-snapshot-edit`. Raw Pi JSONL and disposable files were deleted after content-free evidence extraction. Reload the controller session to activate Protocol B there; a later reload restores whichever tool owners the runtime selects.
 
 Permanent canonical ownership still belongs in Pi core if arbitrary remote/sandbox operation adapters must be preserved. This package remains a reversible local carrier.
