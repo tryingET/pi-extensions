@@ -1,3 +1,8 @@
+/**
+summary: "Discovers safe Markdown candidates through docs-list with package-root disambiguation and bounded subprocess output."
+read_when:
+  - "Changing docs discovery roots, docs-list trust overrides, JSON path rebasing, or omission diagnostics."
+*/
 import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";

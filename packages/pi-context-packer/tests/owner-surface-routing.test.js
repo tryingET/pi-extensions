@@ -1,3 +1,8 @@
+/**
+summary: "Tests exact owner-surface routing, provider-driven recommendations, and false-positive resistance."
+read_when:
+  - "Changing owner routing signals, bounded phrase matching, or provider-selected recommendations."
+*/
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildOwnerSurfaceRecommendations } from "../src/owner-surface-routing.js";

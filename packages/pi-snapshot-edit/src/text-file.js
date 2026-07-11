@@ -1,3 +1,8 @@
+/**
+summary: "Validates UTF-8 text snapshots, resolves exact selectors, and atomically replaces unchanged regular files."
+read_when:
+  - "Changing file identity checks, BOM or line-ending handling, selector transactions, or atomic commit safeguards."
+*/
 import { randomBytes } from "node:crypto";
 import { chmod, lstat, open, realpath, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";

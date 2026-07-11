@@ -1,3 +1,8 @@
+/**
+summary: "Runs bounded SCI reads in a temporary copied-file sandbox while rejecting source-workspace ontology artifacts."
+read_when:
+  - "Changing SCI command trust, sandbox copying, artifact guards, workflow fallbacks, or cleanup behavior."
+*/
 import { execFile } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
 import { access, lstat, mkdir, mkdtemp, open, realpath, rm, writeFile } from "node:fs/promises";

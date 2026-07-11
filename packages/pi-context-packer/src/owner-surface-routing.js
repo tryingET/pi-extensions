@@ -1,3 +1,8 @@
+/**
+summary: "Maps task signals to ASC, peer, orchestrator, AK, FCOS, Vault, and ROCS owner-surface follow-ups."
+read_when:
+  - "Adding an owner surface or changing routing signals, next actions, or non-authorization wording."
+*/
 import { boundedSignalMatches } from "./context-intake-safety.js";
 
 const OWNER_SURFACE_GUIDANCE = [

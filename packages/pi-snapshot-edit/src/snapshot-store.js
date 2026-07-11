@@ -1,3 +1,8 @@
+/**
+summary: "Stores bounded immutable byte snapshots under opaque word aliases with SHA-256 digests and oldest-first eviction."
+read_when:
+  - "Changing snapshot alias generation, byte or count budgets, digesting, copying, or eviction order."
+*/
 import { createHash } from "node:crypto";
 
 const DEFAULT_WORDS = [

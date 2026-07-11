@@ -1,3 +1,8 @@
+/**
+summary: "Validates context seed paths and symbols, matches bounded signals, and redacts unsafe public diagnostics."
+read_when:
+  - "Changing seed path restrictions, control-character handling, signal matching, or omission redaction."
+*/
 const GENERATED_OR_VENDOR_PARTS = new Set(["node_modules", "dist", "build", "coverage"]);
 const HIDDEN_OR_INTERNAL_PARTS = new Set(["__pycache__"]);
 

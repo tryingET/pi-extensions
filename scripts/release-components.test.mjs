@@ -1,3 +1,8 @@
+/**
+summary: "Tests release component inventory plus stable, prerelease, JSON, and environment tag resolution."
+read_when:
+  - "Changing release component discovery, component tag syntax, or npm dist-tag projection."
+*/
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import path from "node:path";

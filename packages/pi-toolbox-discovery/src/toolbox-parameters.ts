@@ -1,3 +1,8 @@
+/**
+summary: "JSON-schema parameters for toolbox discovery, planning, activation, deactivation, and risk acknowledgement."
+read_when:
+  - "Changing toolbox tool-call arguments, action names, activation leases, or risk acknowledgement fields."
+*/
 export const TOOLBOX_PARAMETERS = {
   type: "object",
   additionalProperties: false,

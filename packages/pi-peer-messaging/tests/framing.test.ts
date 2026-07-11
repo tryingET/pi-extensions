@@ -1,3 +1,8 @@
+/**
+summary: "Tests peer frame length headers, fragmented-frame reassembly, and malformed JSON reporting."
+read_when:
+  - "Changing peer socket frame encoding, buffering, or parser error behavior."
+*/
 import assert from "node:assert/strict";
 import test from "node:test";
 

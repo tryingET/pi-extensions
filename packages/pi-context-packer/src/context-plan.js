@@ -1,3 +1,8 @@
+/**
+summary: "Builds bounded provider plans from safe seeds, workspace trust checks, budgets, and owner-surface boundaries."
+read_when:
+  - "Changing context_plan normalization, provider selection, risk reporting, or its compact result contract."
+*/
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {

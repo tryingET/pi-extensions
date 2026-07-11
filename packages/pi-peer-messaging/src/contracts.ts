@@ -1,3 +1,8 @@
+/**
+summary: "Defines and runtime-validates the stable peer presence, message, attachment, delivery, and adapter contracts."
+read_when:
+  - "Changing peer message shapes, boundary guarantees, ask timeouts, or runtime validation behavior."
+*/
 export const DEFAULT_ASK_TIMEOUT_MS = 10 * 60 * 1000;
 export const PEER_ATTACHMENT_TYPES = ["file", "snippet", "context"] as const;
 

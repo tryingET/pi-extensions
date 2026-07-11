@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+summary: "Audits code, test, and Markdown files against advisory line and byte budgets with bounded diagnostics."
+read_when:
+  - "Changing file classification, excluded artifacts, readability thresholds, or warn-versus-fail reporting."
+*/
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

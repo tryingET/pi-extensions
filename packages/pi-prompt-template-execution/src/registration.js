@@ -1,4 +1,9 @@
 /**
+summary: "Fail-closed prompt command registration with ownership, collision, test, and live-refresh guards."
+read_when:
+  - "Changing command cutover preconditions, collision checks, disk refresh, or registration state."
+*/
+/**
  * Non-live registration guard for future prompt-template command activation.
  *
  * This module does not make the package live. It provides fail-closed command
