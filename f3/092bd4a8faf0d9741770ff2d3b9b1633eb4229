@@ -1,0 +1,32 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f3092bd4a8faf0d9741770ff2d3b9b1633eb4229"
+created_at: "2026-07-11T12:14:49Z"
+intent: "Prove same-process reload refreshes package-owned helper behavior."
+files:
+  - "packages/pi-snapshot-edit/extensions/snapshot-edit.ts"
+  - "packages/pi-snapshot-edit/scripts/build-extension.mjs"
+  - "packages/pi-snapshot-edit/src/build-marker.js"
+  - "packages/pi-snapshot-edit/src/snapshot-service.js"
+  - "packages/pi-snapshot-edit/tests/release-packaging.test.js"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Close the stale-transitive-helper failure class with a helper-owned build marker and source fallback regression."
+links:
+  task_ids:
+    - 3625
+  evidence_ids:
+    - 3389
+    - 3390
+    - 3391
+    - 3392
