@@ -48,6 +48,19 @@ test("compactContextPlanDetails omits raw objectives, paths, queries, and seeds"
 
   const byProvider = Object.fromEntries(details.providers.map((entry) => [entry.provider, entry]));
   assert.equal(byProvider.docs.posture, "selected");
+  assert.equal(byProvider.docs.adapterStatus, "wired");
+  assert.equal(byProvider.docs.executionStatus, "executable_now");
+  assert.equal(byProvider.sci.executionStatus, "blocked_by_safety_gate");
+  assert.equal(byProvider.prompt_vault.adapterStatus, "planned_unwired");
+  assert.equal(byProvider.prompt_vault.executionStatus, "owner_routed");
+  assert.ok(details.executionSummary.executableNow.includes("docs"));
+  assert.ok(details.executionSummary.ownerRouted.includes("prompt_vault"));
+  assert.equal(details.executionSummary.recommendedNextStep, "multiple_actions_required");
+  assert.deepEqual(details.executionSummary.nextActions, [
+    { action: "context_pack", providers: ["agents", "docs"] },
+    { action: "resolve_safety_gate_or_skip", providers: ["sci"] },
+    { action: "owner_surface_followup", providers: ["prompt_vault"] },
+  ]);
   assert.equal(byProvider.docs.queryCount, 1);
   assert.equal(byProvider.docs.proposedQueries[0].queryOmitted, true);
   assert.equal(byProvider.docs.proposedQueries[0].rawSeedsOmitted, true);
@@ -95,6 +108,8 @@ test("compactContextPlanDetails normalizes labels and resists returned-array mut
   mutableDetails.budget.maxTokens = 1;
   mutableDetails.risks[0].message = "MUTATED RISK";
   mutableDetails.ownerSurfaceRecommendations[0].surface = "MUTATED OWNER";
+  mutableDetails.executionSummary.executableNow.push("MUTATED PROVIDER");
+  mutableDetails.executionSummary.nextActions[0].providers.push("MUTATED ACTION PROVIDER");
   const nextPlan = buildContextPlan({ objective: "Fresh plan" });
   const nextDetails = compactContextPlanDetails(nextPlan);
   assert.equal(nextPlan.nonAuthorizations.includes("MUTATED AUTH BOUNDARY"), false);
@@ -102,6 +117,11 @@ test("compactContextPlanDetails normalizes labels and resists returned-array mut
   assert.notEqual(mutablePlan.budget.maxTokens, 1);
   assert.notEqual(mutablePlan.risks[0].message, "MUTATED RISK");
   assert.notEqual(mutablePlan.ownerSurfaceRecommendations[0].surface, "MUTATED OWNER");
+  assert.equal(mutablePlan.executionSummary.executableNow.includes("MUTATED PROVIDER"), false);
+  assert.equal(
+    mutablePlan.executionSummary.nextActions[0].providers.includes("MUTATED ACTION PROVIDER"),
+    false,
+  );
 
   const packetResult = await contextPacketToolResult(
     {

@@ -9,7 +9,7 @@ import {
 } from "./context-intake-safety.js";
 
 const execFileAsync = promisify(execFile);
-const DOCS_LIST_MAX_BUFFER = 512_000;
+const DOCS_LIST_MAX_BUFFER = 4 * 1024 * 1024;
 const DOCS_LIST_TIMEOUT_MS = 8_000;
 const DEFAULT_TOP = 8;
 const DEFAULT_DOCS_LIST_SCRIPT_PATHS = [

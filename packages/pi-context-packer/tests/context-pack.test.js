@@ -367,6 +367,87 @@ test("context_pack consumes structured docs-list JSON using repo-relative ranked
   );
 });
 
+test("context_pack accepts bounded docs-list JSON larger than the legacy buffer", async () => {
+  const root = await makeWorkspace();
+  await writeFile(
+    join(root, "docs", "project", "large-workspace-ranked.md"),
+    "# Large workspace ranked\n\nSelected from a bounded large docs-list payload.\n",
+    "utf8",
+  );
+  const script = join(root, "docs-list-large-json-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const filler = 'x'.repeat(1_200_000);",
+      "console.log(JSON.stringify({",
+      "  ok: true,",
+      "  items: [{ path: 'ignored.md', summary: filler }],",
+      "  rankedItems: [{ repoPath: 'docs/project/large-workspace-ranked.md' }]",
+      "}));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Use ranked docs from a large monorepo inventory",
+      cwd: root,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { docsListScript: script },
+  );
+
+  const docs = result.packet.sections.find((section) => section.provider === "docs");
+  assert.deepEqual(
+    docs.items.map((item) => item.provenance.path),
+    ["docs/project/large-workspace-ranked.md"],
+  );
+  assert.match(docs.items[0].content, /bounded large docs-list payload/);
+  assert.equal(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "docs" && omission.reason === "unavailable",
+    ),
+    false,
+  );
+});
+
+test("context_pack fails closed when docs-list output exceeds the bounded buffer", async () => {
+  const root = await makeWorkspace();
+  const script = join(root, "docs-list-oversized-json-fake.mjs");
+  await writeFile(
+    script,
+    [
+      "const secret = 'OVERSIZED_DOCS_SECRET_'.repeat(220_000);",
+      "console.log(JSON.stringify({ ok: true, rankedItems: [], secret }));",
+    ].join("\n"),
+    "utf8",
+  );
+  await chmod(script, 0o755);
+
+  const result = await buildContextPacket(
+    {
+      objective: "Reject an oversized docs-list inventory",
+      cwd: root,
+      repoRoot: root,
+      providers: { agents: "off", docs: "required", git: "off", sci: "off" },
+    },
+    { docsListScript: script },
+  );
+
+  assert.equal(
+    result.packet.sections.some((section) => section.provider === "docs"),
+    false,
+  );
+  assert.ok(
+    result.packet.omissions.some(
+      (omission) => omission.provider === "docs" && omission.reason === "unavailable",
+    ),
+  );
+  assert.equal(JSON.stringify(result.packet.omissions).includes("OVERSIZED_DOCS_SECRET"), false);
+});
+
 test("context_pack keeps JSON repoPath in the caller repo-root basis", async () => {
   const root = await makeWorkspace();
   await mkdir(join(root, "packages", "pkg", "docs", "project"), { recursive: true });

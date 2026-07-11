@@ -3,6 +3,8 @@ import {
   DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE,
   DOGFOOD_USER_OMISSION_FOLLOWUP_CLASSES,
 } from "./dogfood-followup-classes.js";
+import { isPlannedUnwiredContextPackProvider } from "./provider-capabilities.js";
+import { compactSessionContextUsage } from "./session-context.js";
 
 const ESTIMATED_BYTES_PER_TOKEN = 4;
 const DOGFOOD_TEMPLATE_ITEM_LIMIT = 20;
@@ -12,8 +14,6 @@ const DOGFOOD_RUNTIME_CONTEXT_OPTIONS = Object.freeze([
   "live_pi_reloaded",
   "unknown",
 ]);
-const PLANNED_UNWIRED_PROVIDER_IDS = new Set(["prompt_vault", "ak", "fcos"]);
-
 const textTokens = (text) => Math.ceil(text.length / ESTIMATED_BYTES_PER_TOKEN);
 
 const sectionFromItems = (provider, title, items) => ({
@@ -29,40 +29,10 @@ const sectionFromItems = (provider, title, items) => ({
   items,
 });
 
-const extractUsageTokens = (usage) => {
-  if (!usage || typeof usage !== "object") return undefined;
-  for (const key of ["tokens", "totalTokens", "usedTokens", "inputTokens"]) {
-    const value = usage[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-  }
-  return undefined;
-};
-
-const extractUsageWindow = (usage) => {
-  if (!usage || typeof usage !== "object") return undefined;
-  for (const key of ["windowTokens", "contextWindow", "maxTokens", "limitTokens"]) {
-    const value = usage[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-  }
-  return undefined;
-};
-
-const compactContextUsage = (usage) => {
-  const tokens = extractUsageTokens(usage);
-  const windowTokens = extractUsageWindow(usage);
-  const contextPressureRatio = tokens && windowTokens ? tokens / windowTokens : undefined;
-  return {
-    tokens: tokens ?? null,
-    windowTokens: windowTokens ?? null,
-    contextPressureRatio: contextPressureRatio ?? null,
-    rawUsageOmitted: Boolean(usage),
-  };
-};
-
 export const buildSessionAwareness = (env = {}) => {
   const usage = env.contextUsage;
   const systemPrompt = typeof env.systemPrompt === "string" ? env.systemPrompt : "";
-  const contextUsage = compactContextUsage(usage);
+  const contextUsage = compactSessionContextUsage(usage);
   const { tokens, contextPressureRatio } = contextUsage;
   return {
     cwdRef: env.cwd ? "ExtensionContext.cwd" : undefined,
@@ -148,7 +118,8 @@ export const buildMeasurementReceipt = ({
     unwiredProviderOmissions: omissions
       .filter(
         (omission) =>
-          omission.reason === "unavailable" && PLANNED_UNWIRED_PROVIDER_IDS.has(omission.provider),
+          omission.reason === "unavailable" &&
+          isPlannedUnwiredContextPackProvider(omission.provider),
       )
       .map((omission) => omission.provider),
   };

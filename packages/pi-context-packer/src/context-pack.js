@@ -10,6 +10,7 @@ import {
   normalizeContextPlanSeedKind,
 } from "./context-plan.js";
 import { discoverDocsSeeds } from "./docs-provider.js";
+import { isPlannedUnwiredContextPackProvider } from "./provider-capabilities.js";
 import { buildSciSection } from "./sci-provider.js";
 import {
   buildDogfoodObservationTemplate,
@@ -381,13 +382,11 @@ const sectionFromItems = (provider, title, items) => ({
 });
 
 const unavailableProviderOmissions = (providerIds) =>
-  providerIds
-    .filter((provider) => !["agents", "docs", "git", "sci", "session"].includes(provider))
-    .map((provider) => ({
-      provider,
-      reason: "unavailable",
-      detail: `${provider} read-only adapter is planned but not wired; use the owning surface directly if this task needs live authority or governed retrieval`,
-    }));
+  providerIds.filter(isPlannedUnwiredContextPackProvider).map((provider) => ({
+    provider,
+    reason: "unavailable",
+    detail: `${provider} read-only adapter is planned but not wired; use the owning surface directly if this task needs live authority or governed retrieval`,
+  }));
 
 const ownerActionFromRecommendation = (recommendation) => ({
   surface: recommendation.surface,

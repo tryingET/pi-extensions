@@ -94,6 +94,7 @@ test("context-packer extension registers command and all model-callable tools", 
     result.details.runtimeContract.registeredToolContract,
     "context-packer-registered-tools-v1",
   );
+  assert.equal(result.details.runtimeContract.runtimeBuild, "provider-capabilities-docs-buffer-v2");
 
   const aggregate = await tools.get("context_dogfood_summarize").execute("tool-call-2", {
     evaluations: [result.details.dogfoodObservationEvaluation],

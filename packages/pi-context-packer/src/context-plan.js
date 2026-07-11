@@ -10,6 +10,12 @@ import {
 } from "./context-intake-safety.js";
 import { fileBudgetRisksForPathSeeds } from "./file-budget.js";
 import { buildOwnerSurfaceRecommendations } from "./owner-surface-routing.js";
+import {
+  buildContextPackExecutionSummary,
+  contextPackProviderCapability,
+} from "./provider-capabilities.js";
+
+export { contextPackProviderCapability } from "./provider-capabilities.js";
 
 const PROVIDER_IDS = ["agents", "git", "sci", "docs", "session", "prompt_vault", "ak", "fcos"];
 
@@ -546,15 +552,17 @@ const postureForProvider = (provider, requestedMode, objective, seeds) => {
   };
 };
 
-const buildProviderPlans = ({ objective, seeds, providers, budget }) =>
+const buildProviderPlans = ({ objective, seeds, providers, budget, env }) =>
   PROVIDER_IDS.map((provider) => {
     const mode = normalizeMode(providers[provider]);
     const { posture, reason } = postureForProvider(provider, mode, objective, seeds);
     const selected = posture === "selected" || posture === "optional";
+    const capability = contextPackProviderCapability(provider, env, { reason });
     return {
       provider,
       posture,
       reason,
+      ...capability,
       proposedQueries: selected ? [queryForProvider(provider, objective, seeds, budget)] : [],
       maxTokens: budget.perProviderMaxTokens[provider],
       authority: PROVIDER_AUTHORITY[provider],
@@ -669,6 +677,7 @@ export const buildContextPlan = (input = {}, env = {}) => {
     seeds: safeSeeds,
     providers,
     budget,
+    env,
   });
   const ownerSurfaceRecommendations = buildOwnerSurfaceRecommendations({
     objective: normalizedObjective,
@@ -684,6 +693,7 @@ export const buildContextPlan = (input = {}, env = {}) => {
     ...(repoRoot ? { repoRoot } : {}),
     budget,
     providerPlans,
+    executionSummary: buildContextPackExecutionSummary(providerPlans),
     ownerSurfaceRecommendations,
     ...(omittedSeeds.length ? { omittedSeeds } : {}),
     risks: buildRisks({
@@ -740,11 +750,17 @@ export const compactContextPlanDetails = (plan) => {
       provider: providerPlan.provider,
       posture: providerPlan.posture,
       reason: providerPlan.reason,
+      adapterStatus: providerPlan.adapterStatus,
+      executionStatus: providerPlan.executionStatus,
+      ...(providerPlan.executionCondition
+        ? { executionCondition: providerPlan.executionCondition }
+        : {}),
       queryCount: providerPlan.proposedQueries.length,
       proposedQueries: providerPlan.proposedQueries.map(compactPlanQuery),
       maxTokens: providerPlan.maxTokens,
       authority: providerPlan.authority,
     })),
+    executionSummary: cloneProjection(plan.executionSummary),
     omittedSeedCount: plan.omittedSeeds?.length ?? 0,
     omittedSeeds: (plan.omittedSeeds ?? []).map((seed) => ({
       kind: normalizeContextPlanSeedKind(seed.kind),
@@ -838,6 +854,8 @@ export const formatContextPlan = (plan) => {
     .filter((providerPlan) => providerPlan.posture === "optional")
     .map((providerPlan) => providerPlan.provider)
     .join(", ");
+  const execution = plan.executionSummary;
+  const providerList = (providers) => providers.join(", ") || "none";
   const risks = plan.risks.map((risk) => `- ${risk.severity}: ${risk.message}`).join("\n");
   const ownerRouting = (plan.ownerSurfaceRecommendations ?? [])
     .map(
@@ -851,6 +869,21 @@ export const formatContextPlan = (plan) => {
     `budget: ${plan.budget.maxTokens} tokens (${plan.budget.reserveTokens} reserved)`,
     `selected providers: ${selected || "none"}`,
     `optional providers: ${optional || "none"}`,
+    `context_pack executable now: ${providerList(execution.executableNow)}`,
+    `context_pack runtime preflight required: ${providerList(execution.runtimePreflightRequired)}`,
+    `context_pack runtime eligibility required: ${providerList(execution.runtimeEligibilityRequired)}`,
+    `context_pack blocked by safety gate: ${providerList(execution.blockedBySafetyGate)}`,
+    `owner-routed / not wired in context_pack: ${providerList(execution.ownerRouted)}`,
+    `recommended next step: ${execution.recommendedNextStep}`,
+    ...(execution.nextActions.length > 0
+      ? [
+          "next actions:",
+          ...execution.nextActions.map(
+            (action) => `- ${action.action}: ${providerList(action.providers)}`,
+          ),
+        ]
+      : ["next actions: none"]),
+    `execution note: ${execution.note}`,
     risks ? `risks:\n${risks}` : "risks: none",
     ownerRouting ? `owner-surface routing:\n${ownerRouting}` : "owner-surface routing: none",
     "non-authorizations:",

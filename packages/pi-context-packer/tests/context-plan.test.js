@@ -189,6 +189,192 @@ test("context_plan normalizes invalid core seed kinds before projection", () => 
   assert.equal(JSON.stringify(plan).includes(sentinel), false);
 });
 
+test("context_plan separates selected intent from current context_pack execution capability", () => {
+  const blockedPlan = buildContextPlan({
+    objective: "Implement code with AK task and Prompt Vault procedure context",
+    providers: { sci: "required", ak: "required", prompt_vault: "required", fcos: "off" },
+  });
+  const blockedByProvider = Object.fromEntries(
+    blockedPlan.providerPlans.map((entry) => [entry.provider, entry]),
+  );
+
+  assert.equal(blockedByProvider.agents.adapterStatus, "wired");
+  assert.equal(blockedByProvider.agents.executionStatus, "executable_now");
+  assert.equal(blockedByProvider.session.adapterStatus, "guarded");
+  assert.equal(blockedByProvider.session.executionStatus, "runtime_eligibility_required");
+  assert.equal(
+    blockedByProvider.session.executionCondition,
+    "caller_required_or_high_context_pressure",
+  );
+  assert.equal(blockedByProvider.sci.adapterStatus, "guarded");
+  assert.equal(blockedByProvider.sci.executionStatus, "blocked_by_safety_gate");
+  assert.equal(blockedByProvider.ak.adapterStatus, "planned_unwired");
+  assert.equal(blockedByProvider.ak.executionStatus, "owner_routed");
+  assert.equal(blockedByProvider.prompt_vault.executionStatus, "owner_routed");
+  assert.ok(blockedPlan.executionSummary.executableNow.includes("agents"));
+  assert.deepEqual(blockedPlan.executionSummary.runtimeEligibilityRequired, ["session"]);
+  assert.ok(blockedPlan.executionSummary.blockedBySafetyGate.includes("sci"));
+  assert.deepEqual(blockedPlan.executionSummary.ownerRouted, ["prompt_vault", "ak"]);
+  assert.equal(blockedPlan.executionSummary.recommendedNextStep, "multiple_actions_required");
+  assert.deepEqual(blockedPlan.executionSummary.nextActions, [
+    { action: "context_pack", providers: ["agents", "git"] },
+    { action: "check_runtime_eligibility_or_skip", providers: ["session"] },
+    { action: "resolve_safety_gate_or_skip", providers: ["sci"] },
+    { action: "owner_surface_followup", providers: ["prompt_vault", "ak"] },
+  ]);
+
+  const guardedPlan = buildContextPlan(
+    {
+      objective: "Implement code context",
+      providers: { sci: "required", git: "off", docs: "required", session: "required" },
+    },
+    { sciReadOnlySafe: true },
+  );
+  const sci = guardedPlan.providerPlans.find((entry) => entry.provider === "sci");
+  assert.equal(sci.executionStatus, "runtime_preflight_required");
+  assert.ok(guardedPlan.executionSummary.runtimePreflightRequired.includes("sci"));
+  assert.ok(guardedPlan.executionSummary.executableNow.includes("session"));
+  assert.deepEqual(guardedPlan.executionSummary.runtimeEligibilityRequired, []);
+  assert.deepEqual(guardedPlan.executionSummary.nextActions, [
+    { action: "context_pack", providers: ["agents", "docs", "session"] },
+    { action: "context_pack_with_runtime_preflight", providers: ["sci"] },
+  ]);
+  assert.match(
+    formatContextPlan(blockedPlan),
+    /context_pack runtime eligibility required: session/,
+  );
+  assert.match(formatContextPlan(blockedPlan), /context_pack blocked by safety gate: sci/);
+  assert.match(formatContextPlan(blockedPlan), /resolve_safety_gate_or_skip: sci/);
+  assert.match(
+    formatContextPlan(blockedPlan),
+    /owner-routed \/ not wired in context_pack: prompt_vault, ak/,
+  );
+});
+
+test("context_plan reports session eligibility from caller mode and live context pressure", () => {
+  const baseInput = {
+    objective: "Inspect current session context",
+    providers: {
+      agents: "off",
+      git: "off",
+      sci: "off",
+      docs: "off",
+      prompt_vault: "off",
+      ak: "off",
+      fcos: "off",
+    },
+  };
+
+  const required = buildContextPlan({
+    ...baseInput,
+    providers: { ...baseInput.providers, session: "required" },
+  });
+  assert.deepEqual(required.executionSummary.executableNow, ["session"]);
+  assert.deepEqual(required.executionSummary.runtimeEligibilityRequired, []);
+
+  const lowPressure = buildContextPlan(
+    { ...baseInput, providers: { ...baseInput.providers, session: "auto" } },
+    { contextUsage: { tokens: 10_000, contextWindow: 100_000 } },
+  );
+  assert.deepEqual(lowPressure.executionSummary.executableNow, []);
+  assert.deepEqual(lowPressure.executionSummary.runtimeEligibilityRequired, ["session"]);
+  assert.equal(
+    lowPressure.executionSummary.recommendedNextStep,
+    "check_runtime_eligibility_or_skip",
+  );
+
+  const highPressure = buildContextPlan(
+    { ...baseInput, providers: { ...baseInput.providers, session: "auto" } },
+    { contextUsage: { usedTokens: 80_000, maxTokens: 100_000 } },
+  );
+  assert.deepEqual(highPressure.executionSummary.executableNow, ["session"]);
+  assert.deepEqual(highPressure.executionSummary.runtimeEligibilityRequired, []);
+});
+
+test("context_plan excludes optional provider capabilities from execution actions", () => {
+  const plan = buildContextPlan({
+    objective: "Read repository instructions",
+    providers: { agents: "required", git: "off", session: "off" },
+  });
+  const optional = plan.providerPlans.filter((entry) => entry.posture === "optional");
+
+  assert.ok(optional.length > 0);
+  assert.ok(optional.every((entry) => entry.adapterStatus && entry.executionStatus));
+  const actionProviders = plan.executionSummary.nextActions.flatMap((action) => action.providers);
+  assert.ok(optional.every((entry) => !actionProviders.includes(entry.provider)));
+});
+
+test("context_plan requires literal true for the SCI read-only safety capability", () => {
+  for (const sciReadOnlySafe of ["false", "true", 1, {}, []]) {
+    const plan = buildContextPlan(
+      {
+        objective: "Inspect code with SCI",
+        providers: {
+          agents: "off",
+          git: "off",
+          sci: "required",
+          docs: "off",
+          session: "off",
+          prompt_vault: "off",
+          ak: "off",
+          fcos: "off",
+        },
+      },
+      { sciReadOnlySafe },
+    );
+
+    assert.deepEqual(plan.executionSummary.runtimePreflightRequired, []);
+    assert.deepEqual(plan.executionSummary.blockedBySafetyGate, ["sci"]);
+    assert.equal(plan.executionSummary.recommendedNextStep, "resolve_safety_gate_or_skip");
+  }
+});
+
+test("context_plan preserves both safety and owner actions when no provider is packable", () => {
+  const plan = buildContextPlan({
+    objective: "Use SCI and AK context",
+    providers: {
+      agents: "off",
+      git: "off",
+      sci: "required",
+      docs: "off",
+      session: "off",
+      prompt_vault: "off",
+      ak: "required",
+      fcos: "off",
+    },
+  });
+
+  assert.deepEqual(plan.executionSummary.executableNow, []);
+  assert.deepEqual(plan.executionSummary.blockedBySafetyGate, ["sci"]);
+  assert.deepEqual(plan.executionSummary.ownerRouted, ["ak"]);
+  assert.equal(plan.executionSummary.recommendedNextStep, "multiple_actions_required");
+  assert.deepEqual(plan.executionSummary.nextActions, [
+    { action: "resolve_safety_gate_or_skip", providers: ["sci"] },
+    { action: "owner_surface_followup", providers: ["ak"] },
+  ]);
+});
+
+test("context_plan recommends owner surfaces instead of a fake packet when only unwired providers are selected", () => {
+  const plan = buildContextPlan({
+    objective: "Retrieve AK task orientation",
+    providers: {
+      agents: "off",
+      git: "off",
+      sci: "off",
+      docs: "off",
+      session: "off",
+      prompt_vault: "off",
+      ak: "required",
+      fcos: "off",
+    },
+  });
+
+  assert.deepEqual(plan.executionSummary.executableNow, []);
+  assert.deepEqual(plan.executionSummary.ownerRouted, ["ak"]);
+  assert.equal(plan.executionSummary.recommendedNextStep, "owner_surface_only");
+  assert.match(formatContextPlan(plan), /recommended next step: owner_surface_only/);
+});
+
 test("context_plan honors provider required and off modes without creating mutation authority", () => {
   const plan = buildContextPlan({
     objective: "Coordinate FCOS context window work",

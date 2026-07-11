@@ -23,6 +23,7 @@ import {
 export const CONTEXT_PACKER_REGISTERED_TOOL_CONTRACT = Object.freeze({
   package: "@tryinget/pi-context-packer",
   registeredToolContract: "context-packer-registered-tools-v1",
+  runtimeBuild: "provider-capabilities-docs-buffer-v2",
   requiresCompactContextPlanDetails: true,
 });
 
