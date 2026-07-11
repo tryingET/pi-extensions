@@ -100,7 +100,7 @@ function validatePackageJson() {
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "release:check": "bash ./scripts/release-check.sh",
-    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
+    "release:check:quick": "bash ./scripts/release-check.sh",
   };
 
   for (const [scriptName, expected] of Object.entries(scriptExpectations)) {

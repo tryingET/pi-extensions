@@ -1,21 +1,129 @@
 #!/usr/bin/env node
-import { randomInt } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { randomInt, randomUUID } from "node:crypto";
+import { chmod, link, lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { aggregateResults, runPi, scorePiOutput } from "./model-screen-core.mjs";
-import { buildScreenPrompt, PROTOCOLS, WORKLOADS } from "./model-screen-fixtures.mjs";
+import {
+  buildScreenPrompt,
+  CROSSOVER_PROTOCOLS,
+  CROSSOVER_SIZES,
+  crossoverWorkload,
+  PROTOCOLS,
+  WORKLOADS,
+} from "./model-screen-fixtures.mjs";
 
 export const ALLOWED_MODELS = Object.freeze(["zai/glm-5.2", "openai-codex/gpt-5.6-sol"]);
+export const SUITES = Object.freeze(["screening", "crossover"]);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const outputPath = resolve(packageRoot, ".autoresearch/model-screen-aggregate.json");
+const outputPaths = {
+  screening: resolve(packageRoot, ".autoresearch/model-screen-aggregate.json"),
+  crossover: resolve(packageRoot, ".autoresearch/model-screen-crossover-aggregate.json"),
+};
+const claimPaths = {
+  screening: resolve(packageRoot, ".autoresearch/model-screen-claim.json"),
+  crossover: resolve(packageRoot, ".autoresearch/model-screen-crossover-claim.json"),
+};
+
+function cellKey(cell) {
+  return JSON.stringify([cell.model, cell.protocol, cell.workload]);
+}
+
+async function assertAbsent(path, label) {
+  try {
+    await lstat(path);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw error;
+  }
+  throw new Error(`${label} already exists; refusing execution`);
+}
+
+async function createClaim(path, claim) {
+  await mkdir(dirname(path), { recursive: true });
+  let handle;
+  try {
+    handle = await open(path, "wx", 0o600);
+    await handle.writeFile(`${JSON.stringify(claim, null, 2)}\n`);
+    await handle.sync();
+  } catch (error) {
+    if (error?.code === "EEXIST") throw new Error("suite claim already exists; refusing execution");
+    throw error;
+  } finally {
+    await handle?.close();
+  }
+  await chmod(path, 0o600);
+}
+
+export async function writeAtomicJson(path, value, { replace = false, linker = link } = {}) {
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = resolve(dirname(path), `model-screen-temp-${randomUUID()}`);
+  let handle;
+  try {
+    handle = await open(temporary, "wx", 0o600);
+    await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`);
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await chmod(temporary, 0o600);
+    if (replace) await rename(temporary, path);
+    else await linker(temporary, path);
+  } catch (error) {
+    if (!replace && error?.code === "EEXIST")
+      throw new Error("destination already exists; refusing publication", { cause: error });
+    throw error;
+  } finally {
+    await handle?.close();
+    await rm(temporary, { force: true });
+  }
+}
+
+export async function runClaimedSuite({
+  suite,
+  models,
+  plan,
+  executor = runPi,
+  execute = executePlan,
+  atomicWriter = writeAtomicJson,
+  timeoutMs = 180_000,
+  outputPath = outputPaths[suite],
+  claimPath = claimPaths[suite],
+}) {
+  await assertAbsent(outputPath, "suite output aggregate");
+  const claim = {
+    suite,
+    models,
+    expectedCellKeys: plan.map(cellKey),
+    expectedCellCount: plan.length,
+    state: "running",
+  };
+  await createClaim(claimPath, claim);
+  // The claim serializes lawful runners; this second check closes the pre-claim race.
+  await assertAbsent(outputPath, "suite output aggregate");
+  const results = await execute(plan, executor, { timeoutMs });
+  const aggregate = aggregateResults(results, plan);
+  await assertAbsent(outputPath, "suite output aggregate");
+  await atomicWriter(outputPath, aggregate);
+  await atomicWriter(claimPath, { ...claim, state: "completed" }, { replace: true });
+  return { aggregate, results };
+}
 
 export function parseArgs(argv) {
-  const options = { models: [], execute: false, maxCalls: 30, timeoutSeconds: 180 };
+  const options = {
+    models: [],
+    execute: false,
+    suite: "screening",
+    maxCalls: undefined,
+    timeoutSeconds: 180,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--execute") options.execute = true;
-    else if (arg === "--model") {
+    else if (arg === "--suite") {
+      const value = argv[++index];
+      if (!SUITES.includes(value)) throw new Error(`--suite must be one of: ${SUITES.join(", ")}`);
+      options.suite = value;
+    } else if (arg === "--model") {
       const value = argv[++index];
       if (!value || value.startsWith("--")) throw new Error("--model requires provider/model");
       options.models.push(value);
@@ -38,11 +146,21 @@ export function parseArgs(argv) {
     ALLOWED_MODELS.some((model) => !options.models.includes(model))
   )
     throw new Error(`models must be exactly: ${ALLOWED_MODELS.join(", ")}`);
-  if (options.maxCalls !== 30) throw new Error("this bounded screen requires --max-calls 30");
+  const requiredCalls = options.suite === "crossover" ? 12 : 30;
+  if (options.maxCalls === undefined) options.maxCalls = requiredCalls;
+  if (options.maxCalls !== requiredCalls)
+    throw new Error(`the ${options.suite} suite requires --max-calls ${requiredCalls}`);
   return options;
 }
 
-export function buildPlan(models) {
+export function buildPlan(models, suite = "screening") {
+  if (suite === "crossover")
+    return models.flatMap((model) =>
+      CROSSOVER_PROTOCOLS.flatMap((protocol) =>
+        CROSSOVER_SIZES.map((size) => ({ model, protocol, workload: crossoverWorkload(size) })),
+      ),
+    );
+  if (suite !== "screening") throw new Error(`unknown suite: ${suite}`);
   return models.flatMap((model) =>
     PROTOCOLS.flatMap((protocol) => WORKLOADS.map((workload) => ({ model, protocol, workload }))),
   );
@@ -82,26 +200,28 @@ export async function executePlan(plan, executor = runPi, { timeoutMs = 180_000 
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const plan = buildPlan(options.models);
+  const plan = buildPlan(options.models, options.suite);
   if (plan.length !== options.maxCalls) throw new Error("planned call count does not match cap");
   if (!options.execute) {
     process.stdout.write(
-      `${JSON.stringify({ mode: "plan", externalCalls: 0, callCount: plan.length, cells: plan }, null, 2)}\n`,
+      `${JSON.stringify({ mode: "plan", suite: options.suite, externalCalls: 0, callCount: plan.length, cells: plan }, null, 2)}\n`,
     );
     return;
   }
-  const results = await executePlan(plan, runPi, { timeoutMs: options.timeoutSeconds * 1_000 });
-  const aggregate = aggregateResults(results);
-  await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(aggregate, null, 2)}\n`, { mode: 0o600 });
-  const failedClosed = results.some(
-    (result) =>
-      !result.usage || ["parse_ambiguity", "usage_error", "simulator_error"].includes(result.error),
-  );
+  const { aggregate, results } = await runClaimedSuite({
+    suite: options.suite,
+    models: options.models,
+    plan,
+    timeoutMs: options.timeoutSeconds * 1_000,
+  });
+  const aggregateName =
+    options.suite === "crossover"
+      ? ".autoresearch/model-screen-crossover-aggregate.json"
+      : ".autoresearch/model-screen-aggregate.json";
   process.stdout.write(
-    `${JSON.stringify({ mode: "execute", calls: results.length, aggregate: ".autoresearch/model-screen-aggregate.json", failedClosed })}\n`,
+    `${JSON.stringify({ mode: "execute", suite: options.suite, calls: results.length, aggregate: aggregateName, failedClosed: aggregate.failedClosed })}\n`,
   );
-  if (failedClosed) process.exitCode = 1;
+  if (aggregate.failedClosed) process.exitCode = 1;
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

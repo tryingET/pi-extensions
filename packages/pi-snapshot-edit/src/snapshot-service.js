@@ -1,15 +1,16 @@
-import { readFile } from "node:fs/promises";
 import { digestBytes, SnapshotStore } from "./snapshot-store.js";
 import {
-  applyLineEdits,
+  applyTextEdits,
   atomicReplace,
   decodeTextBytes,
   loadTextFile,
+  readFileState,
   resolveTextFile,
 } from "./text-file.js";
 
 const DEFAULT_MAX_LINES = 2000;
 const DEFAULT_MAX_BYTES = 50 * 1024;
+const EDIT_PREVIEW_MAX_BYTES = 8 * 1024;
 
 export class SnapshotEditService {
   /**
@@ -78,15 +79,23 @@ export class SnapshotEditService {
 
     return this.mutationQueue(target.canonicalPath, async () => {
       if (signal?.aborted) throw new Error("snapshot_edit cancelled before mutation");
-      const currentBytes = await readFile(target.canonicalPath);
-      const currentDigest = digestBytes(currentBytes);
+      const current = await readFileState(target.canonicalPath);
+      if (
+        current.fileStat.dev !== snapshot.identity.dev ||
+        current.fileStat.ino !== snapshot.identity.ino
+      ) {
+        throw new Error(`Revision '${base}' refers to a file identity that has been replaced`);
+      }
+      const currentDigest = digestBytes(current.bytes);
       if (currentDigest !== snapshot.digest) {
         throw new Error(
           `Stale revision '${base}': the file changed after snapshot_read; reread before retrying`,
         );
       }
 
-      const desiredBytes = applyLineEdits(snapshot, edits);
+      const desiredBytes = applyTextEdits(snapshot, edits);
+      this.store.assertWithinByteBudget(desiredBytes);
+      const committed = decodeTextBytes(desiredBytes, target.canonicalPath);
       if (signal?.aborted) throw new Error("snapshot_edit cancelled before commit");
       const commit = await atomicReplace(
         target.canonicalPath,
@@ -96,7 +105,6 @@ export class SnapshotEditService {
         digestBytes,
         signal,
       );
-      const committed = decodeTextBytes(desiredBytes, target.canonicalPath);
       const next = this.store.add({
         path: target.canonicalPath,
         bytes: committed.bytes,
@@ -108,18 +116,9 @@ export class SnapshotEditService {
         identity: commit.identity,
       });
 
-      const minimumLine = Math.max(
-        1,
-        Math.min(...edits.map((edit) => Math.max(1, edit.startLine))) - 2,
-      );
-      const maximumLine = Math.min(
-        next.lines.length,
-        Math.max(...edits.map((edit) => Math.max(1, edit.endLine ?? edit.startLine))) + 3,
-      );
-      const previewLimit = Math.max(1, maximumLine - minimumLine + 1);
-      const preview = renderRead(next, minimumLine, previewLimit);
+      const preview = renderEditPreview(next);
       return {
-        text: `Applied ${edits.length} snapshot edit(s). New revision: ${next.alias}\n\n${preview.text}`,
+        text: `Applied ${edits.length} snapshot edit(s). New revision: ${next.alias}\n\n${preview}`,
         details: {
           baseRevision: base,
           revision: next.alias,
@@ -140,25 +139,52 @@ export class SnapshotEditService {
   }
 }
 
-function renderRead(snapshot, offset, limit) {
+function truncationSuffix(snapshot, body, start, returnedLines) {
+  const separator = body.length > 0 && !body.endsWith("\n") ? "\n" : "";
+  return `${separator}[Snapshot read truncated after ${returnedLines} line(s); continue with offset ${start + returnedLines + 1}. Revision ${snapshot.alias} remains bound to the full file.]`;
+}
+
+function renderRead(snapshot, offset, limit, maxBytes = DEFAULT_MAX_BYTES) {
   const start = Math.min(offset - 1, snapshot.lines.length);
   const selected = snapshot.lines.slice(start, start + limit);
-  const output = [`revision:${snapshot.alias}`];
-  let byteCount = Buffer.byteLength(output[0], "utf8");
-  let returnedLines = 0;
-  for (let index = 0; index < selected.length; index += 1) {
-    const rendered = `${start + index + 1}│${selected[index].text}`;
-    const renderedBytes = Buffer.byteLength(rendered, "utf8") + 1;
-    if (byteCount + renderedBytes > DEFAULT_MAX_BYTES) break;
-    output.push(rendered);
-    byteCount += renderedBytes;
-    returnedLines += 1;
+  const header = `revision:${snapshot.alias}\n`;
+  if (Buffer.byteLength(header, "utf8") > maxBytes) {
+    throw new Error("Revision header exceeds the snapshot_read output cap");
   }
-  const truncated = start + returnedLines < snapshot.lines.length;
-  if (truncated) {
-    output.push(
-      `[Snapshot read truncated after ${returnedLines} line(s); continue with offset ${start + returnedLines + 1}. Revision ${snapshot.alias} remains bound to the full file.]`,
+
+  let body = "";
+  let returnedLines = 0;
+  for (const line of selected) {
+    const candidateBody = body + snapshot.text.slice(line.start, line.end);
+    const candidateCount = returnedLines + 1;
+    const candidateTruncated = start + candidateCount < snapshot.lines.length;
+    const suffix = candidateTruncated
+      ? truncationSuffix(snapshot, candidateBody, start, candidateCount)
+      : "";
+    if (Buffer.byteLength(header + candidateBody + suffix, "utf8") > maxBytes) break;
+    body = candidateBody;
+    returnedLines = candidateCount;
+  }
+
+  if (selected.length > 0 && returnedLines === 0) {
+    throw new Error(
+      `Line ${start + 1} exceeds the snapshot_read 50KB safe-page output cap; exact raw pagination cannot split a line`,
     );
   }
-  return { text: output.join("\n"), returnedLines, truncated };
+  const truncated = start + returnedLines < snapshot.lines.length;
+  const text =
+    header + body + (truncated ? truncationSuffix(snapshot, body, start, returnedLines) : "");
+  if (Buffer.byteLength(text, "utf8") > maxBytes) {
+    throw new Error("snapshot_read output framing exceeds its byte cap");
+  }
+  return { text, returnedLines, truncated };
+}
+
+function renderEditPreview(snapshot) {
+  try {
+    return renderRead(snapshot, 1, Math.min(snapshot.lines.length || 1, 12), EDIT_PREVIEW_MAX_BYTES)
+      .text;
+  } catch {
+    return `[Edit preview omitted: content does not fit the ${EDIT_PREVIEW_MAX_BYTES}-byte preview cap.]`;
+  }
 }

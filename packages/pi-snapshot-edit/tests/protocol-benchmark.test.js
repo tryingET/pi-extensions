@@ -43,7 +43,7 @@ test("aggregate is deterministic and content-free", () => {
   assert.ok(!serialized.includes(".txt"));
 });
 
-test("protocol A matches the live read and edit schema", () => {
+test("protocol A remains a deterministic retired-schema benchmark", () => {
   const insertion = protocolTranscript(
     "A",
     FIXTURES.find((fixture) => fixture.id === "insert"),

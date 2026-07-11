@@ -20,7 +20,9 @@ system4d:
 - five protocols: A–E; and
 - three hard workloads: `duplicate_targeting`, `repeated_block_targeting`, and `batched_edits`.
 
-That is 30 calls. Other model sets and call caps are rejected rather than silently changing the experiment.
+That is 30 calls. Other model sets and call caps are rejected rather than silently changing the experiment. This original `screening` suite remains the default.
+
+A separate scale-crossover suite uses the same two models with protocols A and B across deterministic 20-, 100-, and 500-line duplicate-target files. Each generated file has two identical target lines at separated positions; the shared task intent names the second occurrence without supplying an oracle edit. Protocol A receives the complete numbered read and protocol B the complete raw read. This matrix is exactly 12 calls.
 
 ## Consent gate and dry run
 
@@ -34,7 +36,21 @@ npm run model-screen -- \
   --timeout-seconds 180
 ```
 
-Only an operator-authorized invocation adding `--execute` may launch Pi. The timeout is configurable per call with `--timeout-seconds` (default 180, range 1–3600). On expiry the runner signals the isolated Pi process group with `SIGTERM`, waits five seconds, then uses `SIGKILL` against that group even if its leader has already exited. The attempt settles with a controlled `timeout` only after this bounded escalation.
+The 12-cell crossover can likewise be reviewed without execution:
+
+```bash
+npm run model-screen -- \
+  --suite crossover \
+  --model zai/glm-5.2 \
+  --model openai-codex/gpt-5.6-sol \
+  --max-calls 12
+```
+
+Only an operator-authorized invocation adding `--execute` may launch Pi. Before any provider call, execution refuses if either the suite aggregate or its suite-specific claim exists. It then exclusively creates the claim with `wx` and mode `0600`. The content-free claim records only the suite, selected models, expected cell keys/count, and `state: "running"`. This exact-once guard applies independently to screening and crossover.
+
+A failed or interrupted run deliberately retains its running claim. There is no automatic retry, reset, or stale-claim recovery path. Deleting a claim to authorize a new attempt is a separate manual operator action requiring separate authorization; do not infer that authorization from the original execute consent.
+
+The timeout is configurable per call with `--timeout-seconds` (default 180, range 1–3600). On expiry the runner signals the isolated Pi process group with `SIGTERM`, waits five seconds, then uses `SIGKILL` against that group even if its leader has already exited. The attempt settles with a controlled `timeout` only after this bounded escalation.
 
 The runner invokes each cell using the arguments below, with the blinded prompt written to piped stdin and then stdin closed. The prompt is deliberately absent from process arguments and therefore from ordinary local argv/process listings. The child inherits the parent environment, including authorized provider credentials, while forcing `PI_SKIP_VERSION_CHECK=1` and `PI_TELEMETRY=0`. These settings disable incidental pi.dev version checks and telemetry; they do not disable or bypass the provider calls explicitly authorized by `--execute`.
 
@@ -64,7 +80,9 @@ Pi JSONL is held in process memory only, capped at 2 MB per invocation. The scor
 
 Missing usage, ambiguous JSONL, model mismatch, invalid ranges, and simulator errors are failures. No raw output is accepted as evidence of correctness.
 
-The only durable execution artifact is `.autoresearch/model-screen-aggregate.json`. Its cells contain model, protocol, workload, attempt/valid-JSON/correct counts, token sums, reported-cost sum/sample count, and error-category counts. It contains no prompts, source text, paths, expected calls, raw output, prose, timestamps, session/request/response IDs, or provider payloads. Local raw/temp naming patterns are ignored as a defense in depth; the runner itself does not create them.
+The durable execution artifacts are the suite claim plus `.autoresearch/model-screen-aggregate.json` for the default suite or `.autoresearch/model-screen-crossover-aggregate.json` for crossover. After all calls, the runner validates the exact expected plan: expected and observed counts, unique keys, no missing or extra cells, and exactly one attempt for every expected cell. The aggregate reports `matrixComplete`, `expectedCellCount`, `observedCellCount`, `usageComplete`, `observedTokenTotalsAreLowerBounds`, and `failedClosed`. An incomplete or even empty result set is written truthfully and fails closed rather than disappearing.
+
+Cells contain model, protocol, workload, attempt/valid-JSON/correct counts, token sums, reported-cost sum/sample count, usage sample/completeness fields, and error-category counts. A process failure with no usage therefore cannot masquerade as exact zero-token evidence. Aggregates contain no prompts, source text, paths, expected calls, raw output, prose, timestamps, session/request/response IDs, or provider payloads. Aggregate publication uses a same-directory mode-`0600` temporary file, flushes it, and atomically hard-links it to the destination. Because link creation fails with `EEXIST`, a destination created at the publication boundary is never overwritten; the temporary name is removed on success and failure. Completed-claim updates use same-directory mode-`0600` temporary files and atomic rename, while the running claim itself is exclusively created at mode `0600`. Local raw/temp naming patterns are ignored as defense in depth.
 
 ## Validation
 
