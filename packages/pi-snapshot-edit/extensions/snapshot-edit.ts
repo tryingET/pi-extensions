@@ -9,7 +9,8 @@ import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 import { SnapshotEditService } from "../src/snapshot-service.js";
 
-const LEGACY_BASE = "__legacy_exact_text_requires_snapshot_read__";
+const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
+const LEGACY_LINES_BASE = "__legacy_line_coordinates_require_snapshot_read__";
 const OVERRIDE_ENV = "PI_SNAPSHOT_EDIT_OVERRIDE";
 
 const readParameters = Type.Object({
@@ -24,21 +25,30 @@ const readParameters = Type.Object({
   ),
 });
 
-const editOperation = Type.Object({
-  op: StringEnum(["replace", "insert_after"] as const, {
-    description: "replace an inclusive base line range, or insert_after startLine",
+const occurrence = Type.Optional(
+  Type.Integer({
+    minimum: 1,
+    description: "1-indexed exact-match occurrence; omit only when the selector is unique",
   }),
-  startLine: Type.Integer({
-    minimum: 0,
-    description: "Base revision line. replace requires >=1; insert_after accepts 0 for file start.",
+);
+
+const editOperation = Type.Union([
+  Type.Object({
+    op: StringEnum(["replace"] as const),
+    oldText: Type.String({ minLength: 1, description: "Exact text selected in the base snapshot" }),
+    occurrence,
+    newText: Type.String({ description: "Literal replacement text; empty text deletes" }),
   }),
-  endLine: Type.Optional(
-    Type.Integer({ minimum: 1, description: "Inclusive base revision end line for replace" }),
-  ),
-  newText: Type.String({
-    description: "Literal replacement or insertion text; empty replace text deletes",
+  Type.Object({
+    op: StringEnum(["insert_after"] as const),
+    anchorText: Type.String({
+      minLength: 1,
+      description: "Exact text whose selected occurrence supplies the insertion point",
+    }),
+    occurrence,
+    newText: Type.String({ minLength: 1, description: "Literal text inserted after the anchor" }),
   }),
-});
+]);
 
 const editParameters = Type.Object({
   path: Type.String({ description: "Same file path used with the corresponding snapshot read" }),
@@ -84,15 +94,15 @@ function createReadDefinition(
     label,
     description:
       name === "read"
-        ? "Read a local UTF-8 text file with 1-indexed lines and a compact session-scoped revision for the standard snapshot edit protocol. Unsupported inputs fail closed; reload to restore the authoritative built-in reader. Output is capped at 2000 lines or 50KB."
-        : "Read UTF-8 text with 1-indexed line numbers and create a compact session-scoped revision alias. The full file is snapshotted even when output is paginated. Output is capped at 2000 lines or 50KB.",
+        ? "Read a local UTF-8 text file as raw text with one compact session-scoped revision header for standard snapshot editing. Unsupported inputs fail closed; reload to restore the built-in reader. Output is capped at 2000 lines or 50KB."
+        : "Read raw UTF-8 text with one compact session-scoped revision header. The full file is snapshotted even when output is paginated. Output is capped at 2000 lines or 50KB.",
     promptSnippet:
       name === "read"
-        ? "Read files and obtain snapshot revisions for unambiguous line-range edits"
-        : "Read a text file and obtain a revision alias for unambiguous line-range edits",
+        ? "Read raw file text and obtain a revision for exact-selector edits"
+        : "Read raw text and obtain a revision alias for exact-selector edits",
     promptGuidelines: [
-      `Use ${name} before ${name === "read" ? "edit" : "snapshot_edit"}; line numbers are coordinates in the returned base revision.`,
-      `Treat ${name} revision words as opaque aliases, not file content or checksums.`,
+      `Use ${name} before ${name === "read" ? "edit" : "snapshot_edit"}; copy exact selectors from the raw base text.`,
+      `Treat ${name} revision words as opaque aliases; pagination remains bound to the full file.`,
     ],
     parameters: readParameters,
     async execute(_toolCallId, params, signal, _onUpdate, ctx: ExtensionContext) {
@@ -125,25 +135,31 @@ function createEditDefinition(
     label,
     description:
       name === "edit"
-        ? "Apply disjoint line-range edits against a revision returned by standard read. Duplicate source text is valid because selection uses base line coordinates. Detects stale bytes and file identity before atomic rename, but cannot exclude non-cooperating cross-process writers."
-        : "Apply disjoint line-range edits against an immutable snapshot_read revision using Pi's per-file queue and atomic rename. Duplicate source text is valid because selection uses base line coordinates. Detects stale bytes and file identity before commit, but cannot exclude non-cooperating cross-process writers.",
+        ? "Apply exact-text replacements and anchored insertions against an immutable revision returned by standard read. Unique selectors may omit occurrence; duplicates require a 1-indexed occurrence. Detects stale bytes and file identity before atomic rename."
+        : "Apply exact-text replacements and anchored insertions against an immutable snapshot_read revision. Unique selectors may omit occurrence; duplicates require a 1-indexed occurrence. Uses Pi's per-file queue and atomic rename.",
     promptSnippet:
       name === "edit"
-        ? "Apply snapshot-bound line-range edits to one file"
-        : "Apply unambiguous line-range edits against a snapshot_read revision",
+        ? "Apply snapshot-bound exact-selector edits to one file"
+        : "Apply exact-selector edits against a snapshot_read revision",
     promptGuidelines: [
-      `Use ${name} with the revision returned by ${name === "edit" ? "read" : "snapshot_read"}; do not use oldText/newText matching.`,
-      `All ${name} operations use coordinates from one base revision; do not adjust later ranges for earlier edits.`,
-      `On an unknown, expired, or stale ${name} revision, read the file again instead of guessing or retrying unchanged arguments.`,
-      `Keep ${name} ranges disjoint; merge touching or overlapping changes into one operation.`,
+      `Use ${name} with the revision returned by ${name === "edit" ? "read" : "snapshot_read"}; replace selects oldText and insert_after selects anchorText.`,
+      `Omit occurrence only for a unique selector; otherwise provide its 1-indexed exact occurrence.`,
+      `All operations resolve against one immutable base revision; do not account for earlier operations in the batch.`,
+      `On an unknown, expired, stale, or invalid selector, read the file again instead of guessing or rebasing.`,
+      `Keep replacements and insertion points disjoint; insertion on a replacement boundary is rejected.`,
     ],
     parameters: editParameters,
     prepareArguments: acceptLegacyResume ? prepareLegacyEditArguments : undefined,
     async execute(_toolCallId, params, signal, _onUpdate, ctx: ExtensionContext) {
       if (signal?.aborted) throw new Error(`${name} cancelled`);
-      if (params.base === LEGACY_BASE) {
+      if (params.base === LEGACY_TEXT_BASE) {
         throw new Error(
-          "This resumed edit call uses the retired exact-text schema. Call read again, then retry with base, startLine/endLine, and newText.",
+          "This resumed top-level edit call uses the retired schema. Call read again, then retry with {path, base, edits:[{op:'replace', oldText, occurrence?, newText}] }.",
+        );
+      }
+      if (params.base === LEGACY_LINES_BASE) {
+        throw new Error(
+          "This resumed edit call uses retired line coordinates. Call read again, then retry with exact oldText or anchorText selectors from the raw snapshot.",
         );
       }
       const editResult = await service.edit(params, ctx.cwd, signal);
@@ -170,15 +186,22 @@ function prepareLegacyEditArguments(args: unknown): EditParams {
     path?: unknown;
     oldText?: unknown;
     newText?: unknown;
-    edits?: Array<{ oldText?: unknown; newText?: unknown }>;
+    edits?: Array<{ startLine?: unknown; endLine?: unknown }>;
   };
   const topLevelLegacy = typeof input.oldText === "string" && typeof input.newText === "string";
-  const nestedLegacy = input.edits?.some((edit) => typeof edit.oldText === "string");
-  if (!topLevelLegacy && !nestedLegacy) return args as EditParams;
+  const resumedLines =
+    Array.isArray(input.edits) &&
+    input.edits.some(
+      (operation) =>
+        operation !== null &&
+        typeof operation === "object" &&
+        ("startLine" in operation || "endLine" in operation),
+    );
+  if (!topLevelLegacy && !resumedLines) return args as EditParams;
   return {
     path: typeof input.path === "string" ? input.path : "",
-    base: LEGACY_BASE,
-    edits: [{ op: "replace", startLine: 1, endLine: 1, newText: "" }],
+    base: topLevelLegacy ? LEGACY_TEXT_BASE : LEGACY_LINES_BASE,
+    edits: [{ op: "replace", oldText: "legacy", newText: "" }],
   };
 }
 

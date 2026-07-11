@@ -16,6 +16,8 @@ Date: 2026-07-11
 
 AK task: `#3604`
 
+> Historical evaluation record: AK #3619 subsequently promoted B as the sole live runtime protocol. References to A below are benchmark history, not current schema guidance.
+
 ## Question
 
 Which snapshot-safe editing protocol minimizes model-visible token cost without ambiguous or stale mutation?
@@ -99,11 +101,11 @@ B reduced complete observed usage by **2,642 tokens (22.90%)** with no observed 
 
 The initial broad screen sometimes favored A on small tasks, while the controlled scale crossover favored B at every measured size. Therefore the evidence supports advancing B as an experimental candidate—not declaring universal replacement.
 
-## Decision and next gate
+## Historical decision and subsequent promotion
 
-Implement B behind an experimental namespaced or opt-in surface while retaining A as the baseline/fallback. Do not replace the live standard override yet.
+At the end of this experiment, B was proposed behind an experimental surface while A remained a temporary baseline. AK #3619 superseded that gate: B now completely owns namespaced and standard override tools, and A remains only a historical benchmark.
 
-Before promotion, repeat and broaden model trials across:
+The original recommended follow-up dimensions were:
 
 - insertions and deletions;
 - batched mixed operations;
