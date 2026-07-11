@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "67222e742a9b7f3a66b43e4bcb423f2f6991c33f"
-created_at: "2026-07-11T04:29:37Z"
+created_at: "2026-07-11T04:29:59Z"
 intent: "Add guarded snapshot-bound line-range editing tools and content-free historical failure analysis."
 files:
   - "packages/pi-snapshot-edit/.copier-answers.yml"
@@ -67,3 +67,4 @@ links:
   evidence_ids:
     - 3341
     - 3342
+    - 3343
