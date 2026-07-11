@@ -81,3 +81,11 @@ Practical rule:
   - treat package-local `policy/engineering-lane.json` as legacy/full-surface state until package/template follow-up intentionally removes it
   - do not treat `policy-only` as an acceptable end state; local policy metadata should disappear with the same change that lands the truthful reduced-form or no-local-surface target
   - optional `engineering-core show <lane> --prefer-repo` smoke checks stay available when package validation still pins the upstream lane explicitly
+
+## Engineering-core v0.6 capability posture
+
+- Release pin: `v0.6.0`.
+- Declared capabilities: `planning`, `advisor`.
+- `closed_loop` remains undeclared and evidence remains `not-supplied`.
+- Doctor and capability scanning are deterministic static observations only; they do not execute repository commands, invoke models, or establish CI, release, compliance, or runtime-evidence truth.
+- Owner-local observation: `governance/engineering-core-capability-baseline.json`.
