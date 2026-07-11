@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "78f8f316a00377510dace79d5237f6a3f0a22806"
+created_at: "2026-07-11T09:07:18Z"
+intent: "Record audited snapshot editing protocol campaign results and bounded recommendation."
+files:
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-protocol-autoresearch-results.md"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Promote content-free reviewed findings while leaving raw runtime projections ignored."
+links:
+  task_ids:
+    - 3604
+  evidence_ids:
+    - 3364
+    - 3365
+    - 3366
