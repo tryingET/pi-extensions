@@ -1,0 +1,34 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "658922fa1fd28bb85ef1d2fa415ee7de72b0e22f"
+created_at: "2026-07-11T09:07:18Z"
+intent: "Add an exactly-once blinded A/B scale-crossover experiment."
+files:
+  - "packages/pi-snapshot-edit/.gitignore"
+  - "packages/pi-snapshot-edit/autoresearch.md"
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-model-screen-runner.md"
+  - "packages/pi-snapshot-edit/scripts/model-screen-core.mjs"
+  - "packages/pi-snapshot-edit/scripts/model-screen-fixtures.mjs"
+  - "packages/pi-snapshot-edit/scripts/run-model-screen.mjs"
+  - "packages/pi-snapshot-edit/tests/model-screen-crossover.test.js"
+  - "packages/pi-snapshot-edit/tests/model-screen-exact-once.test.js"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Keep crossover fixtures, execution claim, no-clobber publication, completeness gates, and tests coherent."
+links:
+  task_ids:
+    - 3604
+  evidence_ids:
+    - 3364
+    - 3365
+    - 3366
