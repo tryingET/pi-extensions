@@ -1,3 +1,8 @@
+/**
+summary: "Declares the discriminated client-to-broker and broker-to-client message unions for peer transport."
+read_when:
+  - "Adding a broker frame type or changing fields exchanged across the peer socket protocol."
+*/
 import type { PeerMessage, PeerPresence } from "./contracts.ts";
 import type { PeerPresenceUpdate, PeerRegistration } from "./presence.ts";
 

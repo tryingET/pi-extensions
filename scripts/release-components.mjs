@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+summary: "Lists, validates, syncs, and resolves release components from package metadata and component-scoped tags."
+read_when:
+  - "Changing release component eligibility, release-please projection, tag parsing, or npm dist-tag selection."
+*/
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

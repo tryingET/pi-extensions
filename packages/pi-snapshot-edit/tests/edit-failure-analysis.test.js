@@ -1,3 +1,8 @@
+/**
+summary: "Tests jq-only edit-failure aggregation, fork deduplication, private-field redaction, and output permissions."
+read_when:
+  - "Changing snapshot-edit failure categories, session-log analysis, or baseline privacy guarantees."
+*/
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";

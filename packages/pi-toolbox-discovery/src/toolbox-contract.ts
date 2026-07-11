@@ -1,3 +1,8 @@
+/**
+summary: "Defines toolbox actions, risks, bundles, activation leases, always-active tools, and operator-facing activation contracts."
+read_when:
+  - "Changing toolbox type contracts, TTL limits, foundational tools, cache guidance, or continuation messaging."
+*/
 export type ToolboxAction =
   | "search"
   | "activate"

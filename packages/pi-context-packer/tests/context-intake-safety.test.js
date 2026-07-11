@@ -1,3 +1,8 @@
+/**
+summary: "Tests bounded labels, path and symbol controls, and redaction of local paths or secret-like omission details."
+read_when:
+  - "Changing context intake sanitization, label bounds, or public omission redaction."
+*/
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

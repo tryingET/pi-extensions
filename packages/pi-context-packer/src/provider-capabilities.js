@@ -1,3 +1,8 @@
+/**
+summary: "Classifies context providers as executable, preflight-gated, eligibility-gated, safety-blocked, or owner-routed."
+read_when:
+  - "Changing provider wiring posture, SCI safety gating, session eligibility, or recommended next actions."
+*/
 import { hasHighSessionContextPressure } from "./session-context.js";
 
 const PROVIDER_CAPABILITIES = Object.freeze({

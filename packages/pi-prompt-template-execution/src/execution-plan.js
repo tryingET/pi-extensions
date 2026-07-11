@@ -1,3 +1,8 @@
+/**
+summary: "Selects a prompt model, renders model conditionals and arguments, and describes switch, restore, and send actions."
+read_when:
+  - "Changing inherited-model behavior, prompt rendering, thinking restoration, or execution-plan action ordering."
+*/
 import { selectModelCandidate } from "@tryinget/pi-model-selection";
 
 import { substituteArgs } from "./args.js";

@@ -1,3 +1,8 @@
+/**
+summary: "Loads global and project prompt templates, parses supported frontmatter, and reports deterministic ownership diagnostics."
+read_when:
+  - "Changing template discovery, frontmatter fields, model parsing, command precedence, or reserved-name handling."
+*/
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";

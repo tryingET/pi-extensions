@@ -1,3 +1,8 @@
+/**
+summary: "Tests model-conditional exact, provider, wildcard, comma, nested, else, and malformed-markup behavior."
+read_when:
+  - "Changing if-model parsing, model-spec matching, nesting, or compatibility warnings."
+*/
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

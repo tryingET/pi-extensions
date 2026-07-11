@@ -1,3 +1,8 @@
+/**
+summary: "Declares toolbox bundles, owner boundaries, risk profiles, tool memberships, search keywords, and default leases."
+read_when:
+  - "Adding a lazy capability bundle or changing a profile's tools, risk, owner semantics, or activation lifetime."
+*/
 import type { ToolboxBundle } from "./toolbox-contract.ts";
 
 export const CATALOG: ToolboxBundle[] = [

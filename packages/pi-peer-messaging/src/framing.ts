@@ -1,3 +1,8 @@
+/**
+summary: "Writes and incrementally decodes four-byte length-prefixed JSON frames for the local peer socket."
+read_when:
+  - "Changing peer socket framing, partial-frame buffering, JSON parsing, or frame handler errors."
+*/
 import type { Socket } from "node:net";
 
 export function writeFramedMessage(socket: Socket, message: unknown): void {

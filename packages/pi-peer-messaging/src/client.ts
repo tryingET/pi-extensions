@@ -1,3 +1,8 @@
+/**
+summary: "Implements the peer broker socket client, registration lifecycle, bounded requests, presence updates, and events."
+read_when:
+  - "Changing broker connection state, list or send timeouts, delivery correlation, or disconnect cleanup."
+*/
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import net from "node:net";
