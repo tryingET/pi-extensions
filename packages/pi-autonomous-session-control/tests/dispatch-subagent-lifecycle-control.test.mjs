@@ -1169,6 +1169,7 @@ test("startup timeout is distinct from execution timeout and fails before transp
     setImmediate(() => child.emit("close", null));
     return true;
   };
+  const fakeChildProcessKeepAlive = setTimeout(() => {}, 1_000);
 
   try {
     const result = await spawnSubagentWithSpawn(
@@ -1191,6 +1192,7 @@ test("startup timeout is distinct from execution timeout and fails before transp
     assert.equal(result.timeoutPhase, "startup");
     assert.match(result.output, /timed out during startup after 10ms/);
   } finally {
+    clearTimeout(fakeChildProcessKeepAlive);
     await rm(sessionsDir, { recursive: true, force: true });
   }
 });

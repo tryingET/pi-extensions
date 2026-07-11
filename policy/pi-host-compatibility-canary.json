@@ -186,7 +186,7 @@
       "command": [
         "bash",
         "-lc",
-        "npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves' tests/autoresearch-live-control-plane.test.mjs"
+        "npm --prefix ../pi-autoresearch ci >/dev/null && npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves' tests/autoresearch-live-control-plane.test.mjs"
       ],
       "notes": "Focused orchestrator supervision canary for live start/status/session management and dashboard-first matrix closeout reporting. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules. It does not launch peers, run benchmarks, merge candidates, or write AK/KES evidence."
     },
@@ -211,7 +211,7 @@
       "command": [
         "bash",
         "-lc",
-        "npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares' tests/autoresearch-live-control-plane.test.mjs"
+        "npm --prefix ../pi-autoresearch ci >/dev/null && npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares' tests/autoresearch-live-control-plane.test.mjs"
       ],
       "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules."
     }
