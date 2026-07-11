@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "dce9586f9389b7283b6195f3ba0ba1319943f070"
+created_at: "2026-07-11T02:31:07Z"
+intent: "Harden pi-agent-vent release probes to an exact Pi host contract and isolate npm release-age policy to disposable probe installs"
+files:
+  - "packages/pi-agent-vent/README.md"
+  - "packages/pi-agent-vent/package-lock.json"
+  - "packages/pi-agent-vent/package.json"
+  - "packages/pi-agent-vent/scripts/release-check.sh"
+  - "packages/pi-agent-vent/scripts/release-smoke-check.mjs"
+  - "packages/pi-agent-vent/scripts/release-smoke.sh"
+  - "packages/pi-agent-vent/tests/release-smoke-check.test.js"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Transcendent-iteration output for pi-agent-vent release-smoke host-contract failure; single package-local group."
