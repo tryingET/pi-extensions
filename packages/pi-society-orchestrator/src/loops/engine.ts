@@ -13,6 +13,7 @@
  *   /loop kaizen "Improve test coverage"
  */
 
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -40,7 +41,16 @@ import {
 import type { ExecutionStatus } from "../runtime/execution-status.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../runtime/subagent.ts";
 import type { TeamScopedContext } from "../runtime/team-state.ts";
-import { LoopKesWriter } from "./kes.ts";
+import { LoopKesWriter, resolveLoopKesPackageRoot } from "./kes.ts";
+import {
+  captureLoopArtifactHashes,
+  type LoopPhaseAttemptCheckpoint,
+  LoopResumeError,
+  type LoopRunCheckpoint,
+  LoopRunCheckpointStore,
+  validateResumeCheckpoint,
+} from "./run-checkpoint.ts";
+import { captureLoopStateFingerprint } from "./run-state-fingerprint.ts";
 
 type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
   parameters?: unknown;
@@ -87,6 +97,7 @@ export interface LoopContext {
 
 export interface PhaseResult {
   phase: string;
+  attemptId?: string;
   output: string;
   exitCode: number;
   status: ExecutionStatus;
@@ -104,7 +115,10 @@ export interface Artifact {
 
 export interface LoopResult {
   plugin: string;
+  sessionId: string;
   objective: string;
+  resumed: boolean;
+  resumedPhase?: string;
   phases: PhaseResult[];
   artifacts: Artifact[];
   success: boolean;
@@ -122,7 +136,10 @@ export interface CompactPhaseResult {
 
 export interface CompactLoopResult {
   plugin: string;
+  sessionId: string;
   objective: string;
+  resumed: boolean;
+  resumedPhase?: string;
   phases: CompactPhaseResult[];
   artifactPaths: string[];
   success: boolean;
@@ -161,7 +178,25 @@ export interface LoopExecutionOptions {
   continueAfterFailure?: boolean;
   phaseTimeoutSeconds?: number;
   onUpdate?: (update: LoopExecutionUpdate) => void;
+  resumeRunId?: string;
+  expectedFailedPhase?: string;
+  recoveryMode?: "validate_then_retry";
 }
+
+export type LoopDispatchFn = (params: {
+  agent: string;
+  cognitiveTool: string;
+  context: string;
+  timeoutSeconds?: number;
+  onUpdate?: (update: unknown) => void;
+}) => Promise<{
+  output: string;
+  exitCode: number;
+  elapsed: number;
+  aborted?: boolean;
+  timedOut?: boolean;
+  failureKind?: string;
+}>;
 
 // ============================================================================
 // BUILT-IN PLUGINS
@@ -388,6 +423,8 @@ export interface LoopExecutorOptions {
   packageRoot?: string;
   allowUnverifiedKesRoot?: boolean;
   ak?: LoopEvidenceRecorder;
+  checkpointStore?: LoopRunCheckpointStore;
+  captureStateFingerprint?: (cwd: string) => string;
 }
 
 export class LoopExecutor {
@@ -395,6 +432,9 @@ export class LoopExecutor {
   private kes: LoopKesWriter;
   private ak: LoopEvidenceRecorder;
   private cwd: string;
+  private checkpointStore: LoopRunCheckpointStore;
+  private captureStateFingerprint: (cwd: string) => string;
+  private kesPackageRoot: string;
 
   constructor(
     plugin: LoopPlugin,
@@ -404,7 +444,8 @@ export class LoopExecutor {
   ) {
     this.plugin = plugin;
     this.cwd = cwd;
-    this.kes = new LoopKesWriter(options.packageRoot, {
+    this.kesPackageRoot = resolveLoopKesPackageRoot(options.packageRoot);
+    this.kes = new LoopKesWriter(this.kesPackageRoot, {
       allowUnverifiedPackageRoot: options.allowUnverifiedKesRoot,
     });
     this.ak =
@@ -414,6 +455,8 @@ export class LoopExecutor {
         DEFAULT_SOCIETY_DB,
         cwd,
       );
+    this.checkpointStore = options.checkpointStore || new LoopRunCheckpointStore();
+    this.captureStateFingerprint = options.captureStateFingerprint || captureLoopStateFingerprint;
     const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "loops");
     if (!fs.existsSync(sessionsDir)) {
       fs.mkdirSync(sessionsDir, { recursive: true });
@@ -422,30 +465,53 @@ export class LoopExecutor {
 
   async execute(
     objective: string,
-    dispatchFn: (params: {
-      agent: string;
-      cognitiveTool: string;
-      context: string;
-      timeoutSeconds?: number;
-      onUpdate?: (update: unknown) => void;
-    }) => Promise<{
-      output: string;
-      exitCode: number;
-      elapsed: number;
-      aborted?: boolean;
-      timedOut?: boolean;
-      failureKind?: string;
-    }>,
+    dispatchFn: LoopDispatchFn,
     signal?: AbortSignal,
     options: LoopExecutionOptions = {},
   ): Promise<LoopResult> {
+    const resumeFields = [options.resumeRunId, options.expectedFailedPhase, options.recoveryMode];
+    const resumeRequested = resumeFields.some((value) => value !== undefined);
+    if (
+      resumeRequested &&
+      (!options.resumeRunId ||
+        !options.expectedFailedPhase ||
+        options.recoveryMode !== "validate_then_retry")
+    ) {
+      throw new LoopResumeError(
+        "loop_resume_contract_incomplete",
+        "Loop resume requires resume_run_id, expected_failed_phase, and recovery_mode=validate_then_retry.",
+      );
+    }
+
+    const runId = options.resumeRunId || `${this.plugin.name}-${Date.now()}`;
+    const lock = this.checkpointStore.acquire(runId);
+    try {
+      return await this.executeRun(objective, dispatchFn, signal, options, runId);
+    } finally {
+      lock.release();
+    }
+  }
+
+  private async executeRun(
+    objective: string,
+    dispatchFn: LoopDispatchFn,
+    signal: AbortSignal | undefined,
+    options: LoopExecutionOptions,
+    runId: string,
+  ): Promise<LoopResult> {
     const startTime = Date.now();
-    const sessionId = `${this.plugin.name}-${Date.now()}`;
+    const resumed = Boolean(options.resumeRunId);
+    let sessionId = runId;
+    let resumedPhase: string | undefined;
+    let startPhaseIndex = 0;
+    let checkpoint: LoopRunCheckpoint | undefined;
 
     if (signal?.aborted) {
       return {
         plugin: this.plugin.name,
+        sessionId,
         objective,
+        resumed,
         phases: [],
         artifacts: [],
         success: false,
@@ -463,25 +529,70 @@ export class LoopExecutor {
       cwd: this.cwd,
     };
 
-    context.artifacts.push(
-      ...this.kes.writeStart({
+    if (options.resumeRunId) {
+      checkpoint = this.checkpointStore.load(options.resumeRunId);
+      resumedPhase = validateResumeCheckpoint({
+        checkpoint,
         plugin: this.plugin.name,
-        sessionId,
-        objective,
         phases: this.plugin.phases,
-      }),
-    );
+        objective,
+        cwd: this.cwd,
+        expectedFailedPhase: options.expectedFailedPhase || "",
+        currentStateFingerprint: this.captureStateFingerprint(this.cwd),
+        artifactRoot: this.kesPackageRoot,
+      });
+      startPhaseIndex = this.plugin.phases.indexOf(resumedPhase);
+      sessionId = checkpoint.runId;
+      context.sessionId = sessionId;
+      context.history = checkpoint.attempts.map(phaseResultFromCheckpoint);
+      context.artifacts = checkpoint.attempts.flatMap((attempt) =>
+        attempt.artifactPaths.map((artifactPath) => ({
+          type: "resume-reference",
+          content: artifactPath,
+          metadata: {
+            runId: checkpoint?.runId,
+            phase: attempt.phase,
+            attemptId: attempt.attemptId,
+          },
+        })),
+      );
+      checkpoint.status = "running";
+      checkpoint.resumeCount += 1;
+      this.checkpointStore.save(checkpoint);
+    } else {
+      context.artifacts.push(
+        ...this.kes.writeStart({
+          plugin: this.plugin.name,
+          sessionId,
+          objective,
+          phases: this.plugin.phases,
+        }),
+      );
+      checkpoint = this.checkpointStore.create({
+        runId: sessionId,
+        plugin: this.plugin.name,
+        phases: this.plugin.phases,
+        objective,
+        cwd: this.cwd,
+        artifactHashes: this.captureKesArtifactHashes(context.artifacts),
+        stateFingerprint: this.captureStateFingerprint(this.cwd),
+      });
+    }
 
     let success = true;
 
-    for (let i = 0; i < this.plugin.phases.length; i++) {
+    for (let i = startPhaseIndex; i < this.plugin.phases.length; i++) {
       if (signal?.aborted) {
         success = false;
         break;
       }
 
       const phase = this.plugin.phases[i];
-      const previousPhase = context.history.at(-1)?.phase;
+      const previousPhase = [...context.history]
+        .reverse()
+        .find(
+          (result) => result.status === "done" && this.plugin.phases.indexOf(result.phase) < i,
+        )?.phase;
       context.currentPhase = phase;
 
       if (
@@ -491,6 +602,7 @@ export class LoopExecutor {
       ) {
         const validationFailure: PhaseResult = {
           phase,
+          attemptId: randomUUID(),
           output: `Transition validation failed: ${previousPhase} -> ${phase}`,
           exitCode: 1,
           status: "error",
@@ -499,9 +611,37 @@ export class LoopExecutor {
           timestamp: new Date(),
         };
         context.history.push(validationFailure);
+        checkpoint.attempts.push(toCheckpointAttempt(validationFailure, "confirmed_no_effects"));
+        checkpoint.status = "failed";
+        checkpoint.artifactHashes = {
+          ...checkpoint.artifactHashes,
+          ...this.captureKesArtifactHashes(context.artifacts),
+        };
+        checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+        this.checkpointStore.save(checkpoint);
         success = false;
         break;
       }
+
+      // Persist an indeterminate attempt before any phase hook or dispatch can emit effects.
+      // A crash or timeout after this point must reconcile through the effect owner before retry.
+      const attemptId = randomUUID();
+      const pendingAttempt: LoopPhaseAttemptCheckpoint = {
+        attemptId,
+        phase,
+        status: "error",
+        effectDisposition: "effect_indeterminate",
+        output: "Phase attempt began but has no conclusive execution receipt.",
+        exitCode: 1,
+        failureKind: "loop_attempt_in_progress",
+        elapsed: 0,
+        artifactPaths: [],
+        timestamp: new Date().toISOString(),
+      };
+      checkpoint.attempts.push(pendingAttempt);
+      checkpoint.status = "running";
+      checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+      this.checkpointStore.save(checkpoint);
 
       // Phase enter hook
       if (this.plugin.onEnter) {
@@ -562,6 +702,7 @@ export class LoopExecutor {
 
       const phaseResult: PhaseResult = {
         phase,
+        attemptId,
         output: result.output,
         exitCode: result.exitCode,
         status: executionOutcome.status,
@@ -600,6 +741,25 @@ export class LoopExecutor {
       phaseResult.artifacts = [...phaseResult.artifacts, ...kesArtifacts];
       context.history.push(phaseResult);
       context.artifacts.push(...phaseResult.artifacts);
+      const checkpointAttemptIndex = checkpoint.attempts.findIndex(
+        (attempt) => attempt.attemptId === attemptId,
+      );
+      checkpoint.attempts[checkpointAttemptIndex] = toCheckpointAttempt(
+        phaseResult,
+        phaseResult.status === "done" ? "settled" : "effect_indeterminate",
+      );
+      checkpoint.status =
+        executionOutcome.status === "aborted"
+          ? "aborted"
+          : executionOutcome.success && executionOutcome.evidence.ok
+            ? "running"
+            : "failed";
+      checkpoint.artifactHashes = {
+        ...checkpoint.artifactHashes,
+        ...this.captureKesArtifactHashes(context.artifacts),
+      };
+      checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+      this.checkpointStore.save(checkpoint);
 
       options.onUpdate?.({
         event: "phase_complete",
@@ -644,10 +804,24 @@ export class LoopExecutor {
         emittedArtifacts: context.artifacts,
       }),
     );
+    checkpoint.status = success
+      ? "done"
+      : context.history.at(-1)?.status === "aborted"
+        ? "aborted"
+        : "failed";
+    checkpoint.artifactHashes = {
+      ...checkpoint.artifactHashes,
+      ...this.captureKesArtifactHashes(context.artifacts),
+    };
+    checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+    this.checkpointStore.save(checkpoint);
 
     return {
       plugin: this.plugin.name,
+      sessionId,
       objective,
+      resumed,
+      ...(resumedPhase ? { resumedPhase } : {}),
       phases: context.history,
       artifacts: context.artifacts,
       success,
@@ -655,9 +829,23 @@ export class LoopExecutor {
     };
   }
 
+  private captureKesArtifactHashes(artifacts: Artifact[]): Record<string, string> {
+    return captureLoopArtifactHashes(
+      this.kesPackageRoot,
+      artifacts
+        .filter((artifact) => artifact.type.startsWith("kes_"))
+        .map((artifact) => artifact.content),
+    );
+  }
+
   private buildPhaseContext(phase: string, objective: string, context: LoopContext): string {
+    const phaseAttemptCounts = new Map<string, number>();
     const previousResults = context.history
-      .map((h) => `## ${h.phase}\n${h.output.slice(0, 500)}`)
+      .map((historyEntry) => {
+        const attempt = (phaseAttemptCounts.get(historyEntry.phase) || 0) + 1;
+        phaseAttemptCounts.set(historyEntry.phase, attempt);
+        return `## ${historyEntry.phase} — attempt ${attempt} — ${historyEntry.status}\n${historyEntry.output.slice(0, 500)}`;
+      })
       .join("\n\n");
 
     return `# Loop: ${this.plugin.name.toUpperCase()}
@@ -706,10 +894,51 @@ Focus on what this phase requires. Use the cognitive tools available to you.
   }
 }
 
+function toCheckpointAttempt(
+  result: PhaseResult,
+  effectDisposition: LoopPhaseAttemptCheckpoint["effectDisposition"],
+): LoopPhaseAttemptCheckpoint {
+  return {
+    attemptId: result.attemptId || randomUUID(),
+    phase: result.phase,
+    status: result.status,
+    effectDisposition,
+    output: result.output,
+    exitCode: result.exitCode,
+    ...(result.failureKind ? { failureKind: result.failureKind } : {}),
+    elapsed: result.elapsed,
+    artifactPaths: result.artifacts
+      .filter((artifact) => artifact.type.startsWith("kes_"))
+      .map((artifact) => artifact.content),
+    timestamp: result.timestamp.toISOString(),
+  };
+}
+
+function phaseResultFromCheckpoint(attempt: LoopPhaseAttemptCheckpoint): PhaseResult {
+  return {
+    phase: attempt.phase,
+    attemptId: attempt.attemptId,
+    output: attempt.output,
+    exitCode: attempt.exitCode,
+    status: attempt.status,
+    ...(attempt.failureKind ? { failureKind: attempt.failureKind } : {}),
+    elapsed: attempt.elapsed,
+    artifacts: attempt.artifactPaths.map((artifactPath) => ({
+      type: "resume-reference",
+      content: artifactPath,
+      metadata: { attemptId: attempt.attemptId, phase: attempt.phase },
+    })),
+    timestamp: new Date(attempt.timestamp),
+  };
+}
+
 function compactLoopResult(result: LoopResult): CompactLoopResult {
   return {
     plugin: result.plugin,
+    sessionId: result.sessionId,
     objective: result.objective,
+    resumed: result.resumed,
+    ...(result.resumedPhase ? { resumedPhase: result.resumedPhase } : {}),
     success: result.success,
     elapsed: result.elapsed,
     phases: result.phases.map((phase) => ({
@@ -881,14 +1110,25 @@ export function registerLoopTools(
     onUpdate: LoopToolUpdateCallback | undefined,
     ctx: LoopToolContext,
   ): Promise<AgentToolResult<unknown>> => {
-    const { loop, objective, continue_after_failure, loop_timeout_seconds, phase_timeout_seconds } =
-      params as {
-        loop: string;
-        objective: string;
-        continue_after_failure?: boolean;
-        loop_timeout_seconds?: number;
-        phase_timeout_seconds?: number;
-      };
+    const {
+      loop,
+      objective,
+      continue_after_failure,
+      loop_timeout_seconds,
+      phase_timeout_seconds,
+      resume_run_id,
+      expected_failed_phase,
+      recovery_mode,
+    } = params as {
+      loop: string;
+      objective: string;
+      continue_after_failure?: boolean;
+      loop_timeout_seconds?: number;
+      phase_timeout_seconds?: number;
+      resume_run_id?: string;
+      expected_failed_phase?: string;
+      recovery_mode?: "validate_then_retry";
+    };
 
     if (loop === "mito") {
       return {
@@ -1034,6 +1274,9 @@ export function registerLoopTools(
       const result = await executor.execute(objective, dispatch, effectiveSignal.signal, {
         continueAfterFailure: continue_after_failure,
         phaseTimeoutSeconds: normalizePositiveSeconds(phase_timeout_seconds),
+        resumeRunId: resume_run_id,
+        expectedFailedPhase: expected_failed_phase,
+        recoveryMode: recovery_mode,
         onUpdate: (update) =>
           onUpdate?.({
             content: [
@@ -1055,6 +1298,7 @@ export function registerLoopTools(
 
       const summary = `# ${loop.toUpperCase()} Loop Complete
 
+**Run:** ${result.sessionId}${result.resumed ? ` (resumed at ${result.resumedPhase})` : ""}
 **Objective:** ${objective}
 **Status:** ${result.success ? "✓ Success" : "✗ Completed with failures"}
 **Elapsed:** ${Math.round(result.elapsed / 1000)}s
@@ -1075,6 +1319,18 @@ ${compactResult.artifactPaths.map((artifactPath) => `- ${artifactPath}`).join("\
         details: { ok: result.success, result: compactResult, loopTimedOut },
       };
     } catch (err) {
+      if (err instanceof LoopResumeError) {
+        return {
+          content: [{ type: "text", text: `Loop resume failed closed: ${err.message}` }],
+          details: {
+            ok: false,
+            error: "loop-resume-failed",
+            failureKind: err.failureKind,
+            resumeRunId: resume_run_id,
+            expectedFailedPhase: expected_failed_phase,
+          },
+        };
+      }
       if (isKesMaterializationError(err)) {
         return {
           content: [
@@ -1114,6 +1370,8 @@ Available loops:
 - adkar: Awareness → Desire → Knowledge → Ability → Reinforcement (change management)
 - transcendent: Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Alien Pass → Closure Gate (debt-resolving 100x improvement)
 
+Checkpointed runs can continue under the same run lineage by supplying resume_run_id, expected_failed_phase, and recovery_mode=validate_then_retry. The runtime derives the lawful continuation phase and fails closed on objective, repository, phase-graph, state, or artifact drift. A dispatched attempt that failed, timed out, aborted, or crashed remains effect-indeterminate and cannot be retried mechanically.
+
 Each phase injects the appropriate cognitive tool and dispatches an agent.
 Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \`docs/learnings/\` when applicable) plus the evidence ledger.`,
     promptSnippet:
@@ -1146,6 +1404,21 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
       phase_timeout_seconds: Type.Optional(
         Type.Number({
           description: "Optional positive timeout in seconds for each dispatched phase.",
+        }),
+      ),
+      resume_run_id: Type.Optional(
+        Type.String({ description: "Exact owned checkpointed loop run id to continue." }),
+      ),
+      expected_failed_phase: Type.Optional(
+        Type.String({
+          description:
+            "Caller assertion for the lawful continuation phase; the runtime derives and verifies it.",
+        }),
+      ),
+      recovery_mode: Type.Optional(
+        Type.Literal("validate_then_retry", {
+          description:
+            "Validate checkpoint lineage, current state, artifacts, and effect disposition before continuation.",
         }),
       ),
     }),
@@ -1216,6 +1489,13 @@ Unknown loop templates and workflow-grade templates without an execution binding
           description: "Optional positive timeout in seconds for each dispatched phase.",
         }),
       ),
+      resume_run_id: Type.Optional(
+        Type.String({ description: "Exact owned checkpointed loop run id to continue." }),
+      ),
+      expected_failed_phase: Type.Optional(
+        Type.String({ description: "Caller assertion for the lawful continuation phase." }),
+      ),
+      recovery_mode: Type.Optional(Type.Literal("validate_then_retry")),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const templateName = String((params as Record<string, unknown>).template_name || "").trim();
@@ -1295,6 +1575,9 @@ Unknown loop templates and workflow-grade templates without an execution binding
             continue_after_failure: (params as Record<string, unknown>).continue_after_failure,
             loop_timeout_seconds: (params as Record<string, unknown>).loop_timeout_seconds,
             phase_timeout_seconds: (params as Record<string, unknown>).phase_timeout_seconds,
+            resume_run_id: (params as Record<string, unknown>).resume_run_id,
+            expected_failed_phase: (params as Record<string, unknown>).expected_failed_phase,
+            recovery_mode: (params as Record<string, unknown>).recovery_mode,
           },
           signal,
           onUpdate,

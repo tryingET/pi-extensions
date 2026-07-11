@@ -11,6 +11,7 @@ import {
   TRANSCENDENT_PLUGIN,
 } from "../src/loops/engine.ts";
 import { LoopKesWriter } from "../src/loops/kes.ts";
+import { LoopRunCheckpointStore } from "../src/loops/run-checkpoint.ts";
 
 function createExecutor(plugin, operatorCwd, packageRoot) {
   return new LoopExecutor(plugin, operatorCwd, "/tmp/unused-vault", {
@@ -21,6 +22,8 @@ function createExecutor(plugin, operatorCwd, packageRoot) {
         return { ok: true, via: "ak" };
       },
     },
+    checkpointStore: new LoopRunCheckpointStore(path.join(operatorCwd, ".loop-runs")),
+    captureStateFingerprint: () => "sha256:test-state",
   });
 }
 
