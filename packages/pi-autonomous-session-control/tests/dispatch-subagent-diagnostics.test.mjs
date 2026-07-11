@@ -17,6 +17,11 @@ const MODERN_HANDSHAKE = `${JSON.stringify({
   piVersion: "0.80.6",
 })}\n`;
 
+// Node 22 cancels pending promise tests when injected EventEmitter children leave
+// no referenced handles. Real child processes provide that handle themselves.
+const injectedChildKeepAlive = setInterval(() => {}, 1_000);
+test.after(() => clearInterval(injectedChildKeepAlive));
+
 async function emitChildEvent(child, event, ...args) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (child.listenerCount(event) > 0) {
