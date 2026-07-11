@@ -1,0 +1,40 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "fa3dfc705b088880e6b6b3e55ce0d6f43edc6fcf"
+created_at: "2026-07-11T10:04:57Z"
+intent: "Replace numbered snapshot coordinates with raw-read exact occurrence selectors."
+files:
+  - "packages/pi-snapshot-edit/CHANGELOG.md"
+  - "packages/pi-snapshot-edit/README.md"
+  - "packages/pi-snapshot-edit/autoresearch.md"
+  - "packages/pi-snapshot-edit/docs/adr/0001-snapshot-bound-line-range-editing.md"
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-protocol-autoresearch-results.md"
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-standard-override-dogfood.md"
+  - "packages/pi-snapshot-edit/extensions/snapshot-edit.ts"
+  - "packages/pi-snapshot-edit/package.json"
+  - "packages/pi-snapshot-edit/src/snapshot-service.js"
+  - "packages/pi-snapshot-edit/src/snapshot-store.js"
+  - "packages/pi-snapshot-edit/src/text-file.js"
+  - "packages/pi-snapshot-edit/tests/extension.test.js"
+  - "packages/pi-snapshot-edit/tests/protocol-benchmark.test.js"
+  - "packages/pi-snapshot-edit/tests/snapshot-service.test.js"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Ship the schema, runtime, safety preflights, tests, and active documentation as one protocol replacement."
+links:
+  task_ids:
+    - 3619
+  evidence_ids:
+    - 3369
+    - 3370
+    - 3371
