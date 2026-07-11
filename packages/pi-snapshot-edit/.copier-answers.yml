@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: 6827e1f
+_src_path: ../pi-extensions-template
+command_name: snapshot-edit
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-snapshot-edit
+release_config_mode: component
+repo_name: pi-snapshot-edit
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-snapshot-edit

@@ -1,0 +1,88 @@
+{
+  "name": "@tryinget/pi-snapshot-edit",
+  "version": "0.1.0",
+  "description": "Snapshot-bound line-range editing tools for Pi agents",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-snapshot-edit"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-snapshot-edit",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "snapshot-edit",
+    "monorepo"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "bash ../../scripts/package-quality-gate.sh test .",
+    "evidence:edit-failures": "bash ./scripts/analyze-edit-failures.sh",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+  },
+  "files": [
+    "extensions",
+    "src",
+    "policy/security-policy.json",
+    "policy/engineering-lane.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/snapshot-edit.ts"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-snapshot-edit",
+    "releaseComponent": "pi-snapshot-edit",
+    "releaseConfigMode": "component"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.80.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "@earendil-works/pi-tui": "^0.80.6",
+    "@types/node": "^24.0.0",
+    "typebox": "^1.0.0",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.80.6 <0.81.0",
+    "@earendil-works/pi-tui": ">=0.80.6 <0.81.0",
+    "typebox": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  }
+}

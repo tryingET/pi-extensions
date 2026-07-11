@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "source": "derived from Pi session JSONL tool-result records; no source text retained",
+  "authority": "empirical test input only; session history is not canonical task or evidence authority",
+  "capturedOn": "2026-07-11",
+  "timeRangeMonths": {
+    "first": "2026-02",
+    "last": "2026-07"
+  },
+  "uniqueEditErrors": 3205,
+  "categories": {
+    "ambiguous_old_text": 1095,
+    "missing_old_text": 1447,
+    "no_op": 141,
+    "other": 432,
+    "overlapping_edits": 90
+  },
+  "ambiguousOccurrenceCounts": {
+    "2": 840,
+    "3": 143,
+    "4": 46,
+    "5": 18,
+    "6": 14,
+    "7": 9,
+    "8": 8,
+    "9": 2,
+    "10": 2,
+    "12": 1,
+    "13": 2,
+    "14": 2,
+    "15": 3,
+    "19": 1,
+    "20": 1,
+    "23": 1,
+    "24": 1,
+    "35": 1
+  },
+  "ambiguousOldText": {
+    "chars": {
+      "minimum": 3,
+      "median": 104,
+      "p90": 271,
+      "maximum": 2274
+    },
+    "lines": {
+      "minimum": 1,
+      "median": 3,
+      "p90": 7,
+      "maximum": 79
+    },
+    "editBatchSizes": {
+      "2": 255,
+      "3": 194,
+      "4": 169,
+      "5": 136,
+      "6": 112,
+      "7": 72,
+      "8": 56,
+      "9": 33,
+      "10": 20,
+      "11": 12,
+      "12": 12,
+      "13": 5,
+      "14": 1,
+      "15": 4,
+      "16": 3,
+      "17": 2,
+      "18": 3,
+      "19": 3,
+      "21": 1,
+      "24": 1,
+      "25": 1
+    },
+    "pathExtensions": {
+      "cpp": 6,
+      "js": 29,
+      "json": 14,
+      "md": 40,
+      "mjs": 86,
+      "py": 338,
+      "rs": 134,
+      "sh": 20,
+      "ts": 414,
+      "other": 14
+    }
+  }
+}
