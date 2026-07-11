@@ -39,6 +39,19 @@ test("list reports pi-model-selection as a top-level support package", () => {
   assert.equal(component?.packageName, "@tryinget/pi-model-selection");
 });
 
+test("snapshot-edit component resolves to its public npm package and changelog", () => {
+  const components = listComponents();
+  const component = components.find((entry) => entry.component === "pi-snapshot-edit");
+  assert.equal(component?.packagePath, "packages/pi-snapshot-edit");
+  assert.equal(component?.packageName, "@tryinget/pi-snapshot-edit");
+  assert.equal(component?.changelogPath, "packages/pi-snapshot-edit/CHANGELOG.md");
+  assert.match(component?.version ?? "", /^\d+\.\d+\.\d+$/);
+  const resolved = resolveTag("pi-snapshot-edit-v0.2.0");
+  assert.equal(resolved.packagePath, "packages/pi-snapshot-edit");
+  assert.equal(resolved.packageName, "@tryinget/pi-snapshot-edit");
+  assert.equal(resolved.tagVersion, "0.2.0");
+});
+
 test("resolve-tag reports latest dist-tag for stable versions", () => {
   const result = resolveTag("pi-society-orchestrator-v0.1.0");
   assert.equal(result.packageName, "@tryinget/pi-society-orchestrator");

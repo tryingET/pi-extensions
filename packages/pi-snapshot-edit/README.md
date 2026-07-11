@@ -12,6 +12,8 @@ system4d:
 
 # @tryinget/pi-snapshot-edit
 
+> **License notice:** this package is **not standard open source**. Its bundled license is an MIT-style license with a restrictive rider that denies rights to named AI companies, related entities, and people acting for them. Review [LICENSE](LICENSE) before use or redistribution. The project does not describe this restricted license as plain MIT.
+
 `pi-snapshot-edit` provides Protocol B through both namespaced tools and an opt-in standard-tool override:
 
 - `snapshot_read` / `read` — return one `revision:<alias>` header followed by raw UTF-8 file text, without line numbers or gutters;
@@ -90,8 +92,11 @@ The override refuses to displace non-built-in owners. Unsupported reads fail clo
 ```bash
 npm ci
 npm run check
+npm run release:check
 pi install /absolute/path/to/pi-extensions/packages/pi-snapshot-edit
 ```
+
+`release:check` packs the exact npm artifact, installs it under isolated Pi and npm roots, then runs provider-free Protocol B smoke checks in two fresh Pi processes. It also checks the packed whitelist, `npm audit --omit=dev`, and `npm publish --dry-run`; it never publishes.
 
 Then run `/reload` and verify with real read/edit calls on a disposable file. Candidate lanes should report this command rather than altering the controller's Pi install.
 

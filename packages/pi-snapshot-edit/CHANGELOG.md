@@ -13,20 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
-## [Unreleased]
+## [Unreleased] — first public release candidate
 
-### Changed
-
-- Replaced Protocol A line gutters and line coordinates with Protocol B raw reads and occurrence-qualified exact selectors across namespaced and standard override tools.
-- Added partial-line and multi-line replacement, anchored insertion, immutable batch resolution, EOL-normalized selectors, and precise retired-call diagnostics.
-
-## [0.1.0] - 2026-07-11
+No version of `@tryinget/pi-snapshot-edit` has been published to npm. Version `0.1.0` is the release-please component floor and an unpublished internal development baseline; the first generated public release must describe the Protocol B implementation below rather than presenting Protocol A as a shipped npm release.
 
 ### Added
 
-- `snapshot_read` and `snapshot_edit` tools with session-scoped revision aliases.
-- Initial Protocol A line-range replacement, insertion, deletion, and batched operations (retired by Protocol B).
+- `snapshot_read` and `snapshot_edit` with session-scoped, path-bound revision aliases.
 - Guarded opt-in ownership of standard `read` and `edit` names for local dogfood.
-- Stale-byte, file-identity, hard-link, overlap, cancellation, BOM, EOL, and mode safeguards.
-- Jq-only aggregate analysis of historical Pi edit failures.
-- Live model-driven standard-tool dogfood evidence and compatibility tests.
+- Protocol B raw reads, occurrence-qualified exact replacements, anchored insertions, immutable batch resolution, EOL-normalized selectors, and precise retired line-coordinate diagnostics.
+- Stale-byte, file-identity, hard-link, overlap, cancellation, BOM, EOL, mode, byte-budget, pagination, and no-op safeguards.
+- Provider-free packed-tarball smoke coverage for namespaced and standard tools, duplicate occurrences, exact bytes, legacy rejection, and revision expiry across restart.
+- Jq-only aggregate analysis of historical Pi edit failures, protocol benchmarks, and blinded model-screen evidence.

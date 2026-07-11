@@ -7,6 +7,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
+import { runPackedReleaseSmoke } from "../src/release-smoke.js";
 import { SnapshotEditService } from "../src/snapshot-service.js";
 
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
@@ -236,18 +237,49 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
     default: false,
   });
 
-  pi.registerTool(createReadDefinition("snapshot_read", "Snapshot Read", service));
-  pi.registerTool(createEditDefinition("snapshot_edit", "Snapshot Edit", service, false));
+  type RegisteredTool =
+    | ReturnType<typeof createReadDefinition>
+    | ReturnType<typeof createEditDefinition>;
+  const registeredTools = new Map<string, RegisteredTool>();
+  const snapshotRead = createReadDefinition("snapshot_read", "Snapshot Read", service);
+  const snapshotEdit = createEditDefinition("snapshot_edit", "Snapshot Edit", service, false);
+  registeredTools.set(snapshotRead.name, snapshotRead);
+  registeredTools.set(snapshotEdit.name, snapshotEdit);
+  pi.registerTool(snapshotRead);
+  pi.registerTool(snapshotEdit);
 
   const installStandardOverrides = () => {
     if (overrideInstalled) return { installed: false, reason: "already installed" };
     validateStandardOwners(pi);
-    pi.registerTool(createReadDefinition("read", "Read", service));
-    pi.registerTool(createEditDefinition("edit", "Edit", service, true));
+    const standardRead = createReadDefinition("read", "Read", service);
+    const standardEdit = createEditDefinition("edit", "Edit", service, true);
+    registeredTools.set(standardRead.name, standardRead);
+    registeredTools.set(standardEdit.name, standardEdit);
+    pi.registerTool(standardRead);
+    pi.registerTool(standardEdit);
     pi.setActiveTools([...new Set([...pi.getActiveTools(), "read", "edit"])]);
     overrideInstalled = true;
     return { installed: true, reason: "local snapshot override active" };
   };
+
+  pi.registerCommand("snapshot-edit-release-smoke", {
+    description: "Internal packed-artifact release smoke (environment gated)",
+    handler: async () => {
+      if (process.env.PI_SNAPSHOT_EDIT_RELEASE_SMOKE !== "1") {
+        throw new Error("snapshot-edit release smoke is disabled");
+      }
+      const phase = process.env.PI_SNAPSHOT_EDIT_RELEASE_SMOKE_PHASE ?? "";
+      const summary = await runPackedReleaseSmoke({
+        phase,
+        snapshotRead,
+        snapshotEdit,
+        installStandardOverrides,
+        getTool: (name: string) => registeredTools.get(name),
+        clear: () => service.clear(),
+      });
+      console.log(`snapshot-edit packed release smoke ${phase} OK: ${summary}`);
+    },
+  });
 
   pi.registerCommand("snapshot-edit", {
     description: "Snapshot edit status; actions: override, clear",

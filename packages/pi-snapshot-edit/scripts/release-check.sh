@@ -138,12 +138,19 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
   fi
 fi
 
+echo "== npm audit --omit=dev"
+npm audit --omit=dev
+
 TEST_AGENT_DIR=""
+TEST_NPM_PREFIX=""
 TARBALL_PATH=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
       rm -rf "$TEST_AGENT_DIR"
+    fi
+    if [[ -n "$TEST_NPM_PREFIX" && -d "$TEST_NPM_PREFIX" ]]; then
+      rm -rf "$TEST_NPM_PREFIX"
     fi
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
@@ -164,33 +171,21 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
+  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-agent-XXXXXX)"
+  TEST_NPM_PREFIX="$(mktemp -d /tmp/pi-extension-release-check-npm-XXXXXX)"
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
-
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Allow override via environment variables for different provider configurations
-  PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
-  PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
-  PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
-
-  cat > "$TEST_AGENT_DIR/settings.json" <<JSON
+  cat > "$TEST_AGENT_DIR/settings.json" <<'JSON'
 {
-  "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
-  "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
-  "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "extensions": []
+  "extensions": [],
+  "packages": []
 }
 JSON
 
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR)"
+  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR and NPM_CONFIG_PREFIX)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
+  RELEASE_NPM_USERCONFIG="$TEST_AGENT_DIR/release-smoke.npmrc"
+  : > "$RELEASE_NPM_USERCONFIG"
+  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" npm_config_prefix="$TEST_NPM_PREFIX" NPM_CONFIG_USERCONFIG="$RELEASE_NPM_USERCONFIG" npm_config_userconfig="$RELEASE_NPM_USERCONFIG" pi install "$PACKAGE_SPEC"
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -214,7 +209,7 @@ NODE
 
   if [[ -x "./scripts/release-smoke.sh" ]]; then
     echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
+    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" npm_config_prefix="$TEST_NPM_PREFIX" NPM_CONFIG_USERCONFIG="$RELEASE_NPM_USERCONFIG" npm_config_userconfig="$RELEASE_NPM_USERCONFIG" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
   fi
 fi
 
