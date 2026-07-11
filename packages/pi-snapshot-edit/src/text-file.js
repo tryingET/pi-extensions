@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { chmod, lstat, open, readFile, realpath, rename, rm, stat } from "node:fs/promises";
+import { chmod, lstat, open, realpath, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
@@ -22,8 +22,20 @@ export async function resolveTextFile(inputPath, cwd) {
   };
 }
 
+export async function readFileState(canonicalPath) {
+  const handle = await open(canonicalPath, "r");
+  try {
+    const fileStat = await handle.stat();
+    const bytes = await handle.readFile();
+    return { bytes, fileStat };
+  } finally {
+    await handle.close();
+  }
+}
+
 export async function loadTextFile(canonicalPath) {
-  return decodeTextBytes(await readFile(canonicalPath), canonicalPath);
+  const { bytes } = await readFileState(canonicalPath);
+  return decodeTextBytes(bytes, canonicalPath);
 }
 
 export function decodeTextBytes(bytes, label = "file") {
@@ -37,14 +49,10 @@ export function decodeTextBytes(bytes, label = "file") {
   } catch {
     throw new Error(`File is not valid UTF-8 text: ${label}`);
   }
-
-  if (/\r(?!\n)/u.test(text)) {
-    throw new Error(`Bare-CR line endings are not supported: ${label}`);
-  }
+  if (/\r(?!\n)/u.test(text)) throw new Error(`Bare-CR line endings are not supported: ${label}`);
   if (text.includes("\r\n") && /(^|[^\r])\n/u.test(text)) {
     throw new Error(`Mixed CRLF/LF line endings are not supported: ${label}`);
   }
-
   return {
     bytes: Buffer.from(bytes),
     text,
@@ -71,17 +79,15 @@ export function indexLines(text) {
 }
 
 export function detectPreferredEol(text) {
-  const crlf = text.indexOf("\r\n");
-  const lf = text.indexOf("\n");
-  if (crlf !== -1 && crlf === lf - 1) return "\r\n";
-  return "\n";
+  return text.includes("\r\n") ? "\r\n" : "\n";
 }
 
-function normalizeReplacement(text, eol) {
+function normalizeEol(text, eol) {
   return text.replace(/\r\n|\r|\n/g, eol);
 }
 
-export function applyLineEdits(base, edits) {
+/** Resolve every exact-text selector against the same immutable snapshot, then mutate. */
+export function applyTextEdits(base, edits) {
   if (!Array.isArray(edits) || edits.length === 0) {
     throw new Error("edits must contain at least one operation");
   }
@@ -96,73 +102,75 @@ export function applyLineEdits(base, edits) {
     text = `${text.slice(0, edit.startOffset)}${edit.replacement}${text.slice(edit.endOffset)}`;
   }
   if (text === base.text) throw new Error("Edit would make no changes");
-
   const payload = Buffer.from(text, "utf8");
   return base.hasBom ? Buffer.concat([UTF8_BOM, payload]) : payload;
 }
 
 function resolveEdit(base, edit, index) {
   if (!edit || typeof edit !== "object") throw new Error(`edits[${index}] must be an object`);
-  const op = edit.op;
-  const startLine = edit.startLine;
-  const newText = edit.newText;
-  if (op !== "replace" && op !== "insert_after") {
+  if ("startLine" in edit || "endLine" in edit) {
+    throw new Error(
+      `edits[${index}] uses retired line coordinates; reread the file and retry with oldText or anchorText selectors`,
+    );
+  }
+  if (edit.op !== "replace" && edit.op !== "insert_after") {
     throw new Error(`edits[${index}].op must be replace or insert_after`);
   }
-  if (!Number.isInteger(startLine)) throw new Error(`edits[${index}].startLine must be an integer`);
-  if (typeof newText !== "string") throw new Error(`edits[${index}].newText must be a string`);
+  if (typeof edit.newText !== "string") throw new Error(`edits[${index}].newText must be a string`);
 
-  if (op === "insert_after") {
-    if (startLine < 0 || startLine > base.lines.length) {
-      throw new Error(`edits[${index}].startLine is outside 0..${base.lines.length}`);
-    }
-    const startOffset = startLine === 0 ? 0 : base.lines[startLine - 1].end;
-    let replacement = normalizeReplacement(newText, base.preferredEol);
-    if (replacement.length === 0) throw new Error(`edits[${index}] inserts no text`);
-    if (
-      startLine === base.lines.length &&
-      startOffset === base.text.length &&
-      base.text.length > 0
-    ) {
-      const priorLine = base.lines.at(-1);
-      if (priorLine && priorLine.end === priorLine.contentEnd)
-        replacement = `${base.preferredEol}${replacement}`;
-    }
-    if (startLine < base.lines.length && !replacement.endsWith(base.preferredEol)) {
-      replacement += base.preferredEol;
-    }
-    return {
-      index,
-      op,
-      startLine,
-      endLine: startLine,
-      startOffset,
-      endOffset: startOffset,
-      replacement,
-    };
+  const selectorKey = edit.op === "replace" ? "oldText" : "anchorText";
+  const selector = edit[selectorKey];
+  if (typeof selector !== "string" || selector.length === 0) {
+    throw new Error(`edits[${index}].${selectorKey} must be a non-empty string`);
   }
+  const normalizedSelector = normalizeEol(selector, base.preferredEol);
+  const starts = exactMatchOffsets(base.text, normalizedSelector);
+  const occurrence = resolveOccurrence(edit.occurrence, starts.length, index, selectorKey);
+  const selectedStart = starts[occurrence - 1];
+  const selectedEnd = selectedStart + normalizedSelector.length;
+  const replacement = normalizeEol(edit.newText, base.preferredEol);
 
-  const endLine = edit.endLine;
-  if (!Number.isInteger(endLine)) throw new Error(`edits[${index}].endLine must be an integer`);
-  if (startLine < 1 || endLine < startLine || endLine > base.lines.length) {
-    throw new Error(`edits[${index}] range must be within 1..${base.lines.length}`);
+  if (edit.op === "replace") {
+    if (replacement === normalizedSelector) throw new Error(`edits[${index}] makes no change`);
+    return { index, startOffset: selectedStart, endOffset: selectedEnd, replacement };
   }
-  const first = base.lines[startLine - 1];
-  const last = base.lines[endLine - 1];
-  let replacement = normalizeReplacement(newText, base.preferredEol);
-  const replacedHadEol = last.end > last.contentEnd;
-  if (replacement.length > 0 && replacedHadEol && !replacement.endsWith(base.preferredEol)) {
-    replacement += base.preferredEol;
+  if (replacement.length === 0) throw new Error(`edits[${index}] inserts no text`);
+  return { index, startOffset: selectedEnd, endOffset: selectedEnd, replacement };
+}
+
+function exactMatchOffsets(text, selector) {
+  const starts = [];
+  let from = 0;
+  while (from <= text.length - selector.length) {
+    const found = text.indexOf(selector, from);
+    if (found === -1) break;
+    starts.push(found);
+    from = found + 1;
   }
-  return {
-    index,
-    op,
-    startLine,
-    endLine,
-    startOffset: first.start,
-    endOffset: last.end,
-    replacement,
-  };
+  return starts;
+}
+
+function resolveOccurrence(value, matchCount, index, selectorKey) {
+  if (matchCount === 0) {
+    throw new Error(
+      `edits[${index}].${selectorKey} has no exact match in the base revision; reread before retrying`,
+    );
+  }
+  if (value === undefined) {
+    if (matchCount === 1) return 1;
+    throw new Error(
+      `edits[${index}].${selectorKey} matches ${matchCount} occurrences; occurrence is required and 1-indexed`,
+    );
+  }
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`edits[${index}].occurrence must be a positive 1-indexed integer`);
+  }
+  if (value > matchCount) {
+    throw new Error(
+      `edits[${index}].occurrence ${value} is out of range for ${matchCount} match(es)`,
+    );
+  }
+  return value;
 }
 
 function validateDisjoint(edits) {
@@ -172,18 +180,18 @@ function validateDisjoint(edits) {
   for (let index = 1; index < ascending.length; index += 1) {
     const previous = ascending[index - 1];
     const current = ascending[index];
-    const overlappingRanges = previous.endOffset > current.startOffset;
-    const sameInsertionPoint =
+    const overlap = previous.endOffset > current.startOffset;
+    const sameInsertion =
       previous.startOffset === previous.endOffset &&
       current.startOffset === current.endOffset &&
       previous.startOffset === current.startOffset;
-    const insertionOnBoundary =
+    const insertionOnReplacement =
       previous.startOffset === previous.endOffset
         ? previous.startOffset >= current.startOffset && previous.startOffset <= current.endOffset
         : current.startOffset === current.endOffset &&
           current.startOffset >= previous.startOffset &&
           current.startOffset <= previous.endOffset;
-    if (overlappingRanges || sameInsertionPoint || insertionOnBoundary) {
+    if (overlap || sameInsertion || insertionOnReplacement) {
       throw new Error(`edits[${previous.index}] and edits[${current.index}] overlap`);
     }
   }
@@ -197,10 +205,10 @@ export async function atomicReplace(
   digestBytes,
   signal,
 ) {
-  const before = await readFile(canonicalPath);
-  const fileStat = await stat(canonicalPath);
+  const before = await readFileState(canonicalPath);
+  const fileStat = before.fileStat;
   validateCommitIdentity(fileStat, expectedIdentity);
-  if (digestBytes(before) !== expectedDigest) {
+  if (digestBytes(before.bytes) !== expectedDigest) {
     throw new Error("File changed during mutation preparation; reread before retrying");
   }
 
@@ -214,14 +222,14 @@ export async function atomicReplace(
     handle = undefined;
     await chmod(tempPath, fileStat.mode);
     const committedStat = await stat(tempPath);
-
-    const finalCheck = await readFile(canonicalPath);
-    const finalStat = await stat(canonicalPath);
-    validateCommitIdentity(finalStat, expectedIdentity);
-    if (digestBytes(finalCheck) !== expectedDigest) {
+    const finalCheck = await readFileState(canonicalPath);
+    validateCommitIdentity(finalCheck.fileStat, expectedIdentity);
+    if (digestBytes(finalCheck.bytes) !== expectedDigest) {
       throw new Error("File changed immediately before commit; no snapshot edit was written");
     }
     if (signal?.aborted) throw new Error("snapshot_edit cancelled before atomic commit");
+    // Best-effort pre-rename detection only: a non-cooperating writer can still
+    // change the directory entry after this check and before rename completes.
     await rename(tempPath, canonicalPath);
     return {
       identity: { dev: committedStat.dev, ino: committedStat.ino },

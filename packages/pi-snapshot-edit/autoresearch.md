@@ -18,8 +18,8 @@ This benchmark preserves five competing schools rather than assuming the package
 
 | ID | School | Model-visible contract |
 | --- | --- | --- |
-| A | Explicit coordinates | The live snapshot protocol, represented here with `revision:amber`, fully numbered `N│text` output, and snapshot-bound ranges. `insert_after` uses `startLine`; deletion is `replace` with empty `newText`. |
-| B | Raw/exact occurrence | A raw snapshot read; mutation selects exact text, omitting `occurrence` only when unique and requiring it when duplicates exist. |
+| A | Explicit coordinates | The retired Protocol A benchmark baseline, represented with `revision:amber`, fully numbered `N│text` output, and snapshot-bound ranges. `insert_after` uses `startLine`; deletion is `replace` with empty `newText`. It is not a live runtime schema. |
+| B | Raw/exact occurrence | The current live protocol: a raw snapshot read; mutation selects exact text, omitting `occurrence` only when unique and requiring it when duplicates exist. |
 | C | Two-stage adaptive read | A raw snapshot read followed by a separate numbered range-read tool call and result around the target; mutation then uses snapshot-bound coordinates. |
 | D | Hashline identity | Each displayed line receives a compact snapshot-derived hash ID; mutations select unique IDs rather than line numbers or copied text. |
 | E | Patch/context | A raw snapshot read followed by a snapshot-bound patch in the benchmark's narrow validated hunk grammar. |

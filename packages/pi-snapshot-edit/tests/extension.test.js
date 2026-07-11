@@ -62,7 +62,7 @@ test("extension registers host-compatible namespaced tools and edits duplicate l
   assert.equal(pi.commands.has("snapshot-edit"), true);
   assert.equal(pi.flags.has("snapshot-edit-override"), true);
   assert.equal(pi.handlers.has("session_shutdown"), true);
-  assert.match(pi.tools.get("snapshot_edit").promptSnippet, /line-range edits/);
+  assert.match(pi.tools.get("snapshot_edit").promptSnippet, /exact-selector edits/);
 
   const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-extension-"));
   const path = join(directory, "duplicate.txt");
@@ -80,13 +80,16 @@ test("extension registers host-compatible namespaced tools and edits duplicate l
       {
         path: "duplicate.txt",
         base,
-        edits: [{ op: "replace", startLine: 2, endLine: 2, newText: "changed" }],
+        edits: [{ op: "replace", oldText: "same", occurrence: 2, newText: "changed" }],
       },
       undefined,
       undefined,
       context,
     );
     assert.equal(editResult.details.baseRevision, "amber");
+    const preview = editResult.content[0].text;
+    assert.match(preview, /revision:apple\nsame\nchanged\n/);
+    assert.doesNotMatch(preview, /\d+│/u);
     assert.equal(await readFile(path, "utf8"), "same\nchanged\n");
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -114,7 +117,7 @@ test("explicit override command replaces standard names and preserves snapshot s
     const editArguments = {
       path: "duplicate.txt",
       base: readResult.details.revision,
-      edits: [{ op: "replace", startLine: 2, endLine: 2, newText: "selected" }],
+      edits: [{ op: "replace", oldText: "repeat", occurrence: 2, newText: "selected" }],
     };
     const prepared = pi.tools.get("edit").prepareArguments(editArguments);
     assert.deepEqual(prepared, editArguments);
@@ -174,17 +177,39 @@ test("override refuses to displace a non-built-in read owner", async () => {
   assert.equal(pi.tools.has("edit"), false);
 });
 
-test("legacy exact-text calls are converted into a deterministic reread diagnostic", async () => {
+test("nested Protocol B oldText survives preparation", async () => {
   const pi = createMockPi();
   snapshotEditExtension(pi.api);
   await pi.commands.get("snapshot-edit").handler("override", { hasUI: false });
   const editTool = pi.tools.get("edit");
-  const prepared = editTool.prepareArguments({
+  const current = {
     path: "example.ts",
-    edits: [{ oldText: "duplicate", newText: "changed" }],
-  });
-  await assert.rejects(
-    editTool.execute("legacy", prepared, undefined, undefined, { cwd: process.cwd() }),
-    /retired exact-text schema.*Call read again/,
-  );
+    base: "amber",
+    edits: [{ op: "replace", oldText: "duplicate", occurrence: 2, newText: "changed" }],
+  };
+  assert.deepEqual(editTool.prepareArguments(current), current);
+});
+
+test("top-level legacy and resumed line-coordinate calls get precise reread guidance", async () => {
+  const pi = createMockPi();
+  snapshotEditExtension(pi.api);
+  await pi.commands.get("snapshot-edit").handler("override", { hasUI: false });
+  const editTool = pi.tools.get("edit");
+  for (const [input, pattern] of [
+    [{ path: "example.ts", oldText: "old", newText: "new" }, /resumed top-level.*Call read again/],
+    [
+      {
+        path: "example.ts",
+        base: "amber",
+        edits: [{ op: "replace", startLine: 1, endLine: 1, newText: "new" }],
+      },
+      /retired line coordinates.*Call read again/,
+    ],
+  ]) {
+    const prepared = editTool.prepareArguments(input);
+    await assert.rejects(
+      editTool.execute("legacy", prepared, undefined, undefined, { cwd: process.cwd() }),
+      pattern,
+    );
+  }
 });

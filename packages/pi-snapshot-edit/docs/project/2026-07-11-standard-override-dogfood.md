@@ -1,22 +1,20 @@
 ---
-summary: "Live dogfood evidence for the guarded standard read/edit snapshot override."
+summary: "Dogfood plan and prior evidence for the guarded standard read/edit override."
 read_when:
-  - "Evaluating whether the snapshot protocol can own standard read/edit names locally."
-  - "Reviewing failures discovered by live model-driven dogfood."
+  - "Evaluating local standard-tool override behavior."
+  - "Preparing Protocol B live verification."
 system4d:
-  container: "A bounded implementation and live-runtime evidence note."
-  compass: "Promote only behavior that survives real tool selection and mutation."
-  engine: "Install -> activate guarded override -> model-driven read/edit -> inspect exact file -> repair -> repeat."
-  fog: "Mocked registration can pass while provider serialization or prepareArguments breaks live calls."
+  container: "A bounded implementation and live-runtime verification note."
+  compass: "Promote only behavior that survives real tool selection and exact-byte inspection."
+  engine: "Install -> reload -> activate override -> read/edit disposable file -> inspect."
+  fog: "Mock registration can pass while provider serialization or argument preparation fails live."
 ---
 
 # Standard read/edit override dogfood — 2026-07-11
 
-## Scope
+## Current Protocol B command
 
-Package: `packages/pi-snapshot-edit`
-
-Mode:
+After installing the package in the intended Pi runtime and reloading:
 
 ```bash
 PI_SNAPSHOT_EDIT_OVERRIDE=1 pi --no-extensions \
@@ -24,142 +22,36 @@ PI_SNAPSHOT_EDIT_OVERRIDE=1 pi --no-extensions \
   --tools read,edit -p '<scenario>'
 ```
 
-The model was allowed only standard `read` and `edit`; namespaced tools, `bash`, and `write` were excluded by instruction and tool allowlist.
+The expected read result is one `revision:<alias>` header plus raw UTF-8 text with no gutters. Standard `edit` uses `{path,base,edits}` with `oldText` replacement or `anchorText` insertion selectors and an optional 1-indexed `occurrence` only when the selector is unique.
 
-## Failure-driven repairs
+Candidate worktrees must report the install command and must not mutate the controller Pi install.
 
-### Runtime initialization failure
+## Protocol B deterministic coverage
 
-Initial startup activation called action APIs while the extension factory was still loading:
+Package tests cover:
 
-```text
-Extension runtime not initialized. Action methods cannot be called during extension loading.
-```
+- namespaced and standard override registration and behavior;
+- raw token-lean read and edit preview output without line gutters;
+- unique-selector occurrence omission and duplicate occurrence selection;
+- partial-line and multi-line exact selectors;
+- anchored insertion and immutable batch resolution;
+- overlap, shared insertion-point, and replacement-boundary rejection;
+- selector/new-text CRLF normalization with BOM and mode preservation;
+- stale bytes, replaced inode, hard-link, cancellation, and no-op rejection;
+- top-level legacy and resumed line-coordinate reread diagnostics;
+- nested Protocol B `oldText` surviving standard argument preparation.
 
-Repair: startup override activation moved to `session_start`, where dynamic registration is lawful.
+## Historical Protocol A dogfood
 
-Regression test: `startup override waits for initialized session runtime`.
+Before AK #3619, live dogfood exercised numbered reads and line-coordinate edits. It discovered two extension integration failures that remain relevant:
 
-### False legacy-schema classification
+1. Startup override activation must occur at `session_start`; action APIs are not lawful while the extension factory loads.
+2. Unsupported standard reads must fail closed rather than constructing a local reader that could bypass a remote or sandbox owner.
 
-The first live standard edit used the correct new schema:
+That run also led to positive built-in owner identification and refusal to displace visible non-built-in owners. Its line-coordinate payloads and line-number output are retired and are not current examples.
 
-```json
-{
-  "path": "duplicate.txt",
-  "base": "amber",
-  "edits": [
-    {
-      "op": "replace",
-      "startLine": 2,
-      "endLine": 2,
-      "newText": "selected"
-    }
-  ]
-}
-```
+## Live verification still required after install
 
-`prepareArguments` incorrectly treated any nested `newText` as legacy, even though `newText` exists in both protocols. Three valid retries failed with the retired-schema diagnostic.
+Run a disposable Protocol B scenario through standard `read` and `edit`, then inspect exact file bytes. Include a duplicate selector with occurrence, a CRLF/BOM file, and a stale revision failure. Reload restores built-ins.
 
-Repair: nested legacy detection now requires `oldText`; a regression test passes current-schema arguments through `prepareArguments` before execution.
-
-### Authority review failure
-
-A review found that delegating unsupported reads through a newly constructed `createReadTool(ctx.cwd)` could bypass a remote or sandbox operations adapter.
-
-Repair:
-
-- unsupported standard reads now fail closed;
-- override activation requires positively identified built-in `read` and `edit` owners;
-- any visible non-built-in owner blocks activation;
-- documentation directs the operator to `/reload` to restore the authoritative built-in reader.
-
-Final adversarial review: no blockers; GO for local opt-in dogfood.
-
-## Successful live scenarios
-
-### Duplicate single-line selection
-
-Input:
-
-```text
-repeat
-repeat
-end
-```
-
-Requested through standard names only: replace line 2 with `selected`.
-
-Observed result:
-
-```text
-repeat
-selected
-end
-```
-
-The model returned fresh revision `apple`. The first identical line remained unchanged.
-
-### Batched insertion and duplicate replacement
-
-Input:
-
-```ts
-export function first() {
-  return "same";
-}
-
-export function second() {
-  return "same";
-}
-```
-
-Requested in one standard edit call:
-
-1. insert `// verified` immediately before the second function;
-2. replace only the second duplicate return value.
-
-Observed result:
-
-```ts
-export function first() {
-  return "same";
-}
-
-// verified
-export function second() {
-  return "selected";
-}
-```
-
-The model returned fresh revision `apple`. Both operations were interpreted against the original base coordinates.
-
-## Deterministic verification
-
-```text
-18 tests passed
-Typecheck passed
-Biome lint passed
-```
-
-Coverage includes:
-
-- namespaced and standard tool registration;
-- live-schema preparation;
-- legacy resumed-call diagnostics;
-- non-built-in owner refusal;
-- startup activation timing;
-- unsupported image fail-closed behavior;
-- duplicate-line targeting;
-- stale bytes and replaced inode rejection;
-- hard-link commit recheck;
-- cancellation before rename;
-- BOM/CRLF/mode preservation;
-- batch coordinates and overlap rejection;
-- jq-only session failure aggregation.
-
-## Decision
-
-The guarded override is verified for local, opt-in text-file dogfood.
-
-It is not promoted to an unconditional default. Host-native standard ownership still belongs in Pi core because an extension cannot preserve arbitrary remote/sandbox operation adapters. The current package is the protocol laboratory and reversible local carrier.
+Permanent canonical ownership still belongs in Pi core if arbitrary remote/sandbox operation adapters must be preserved. This package remains a reversible local carrier.

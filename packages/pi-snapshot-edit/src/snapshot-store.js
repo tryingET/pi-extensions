@@ -78,13 +78,16 @@ export class SnapshotStore {
     this.sequence = 0;
   }
 
-  add(snapshot) {
-    if (!snapshot || !Buffer.isBuffer(snapshot.bytes)) {
-      throw new Error("snapshot bytes must be a Buffer");
-    }
-    if (snapshot.bytes.length > this.maxBytes) {
+  assertWithinByteBudget(bytes) {
+    if (!Buffer.isBuffer(bytes)) throw new Error("snapshot bytes must be a Buffer");
+    if (bytes.length > this.maxBytes) {
       throw new Error(`File exceeds snapshot byte budget (${this.maxBytes} bytes)`);
     }
+  }
+
+  add(snapshot) {
+    if (!snapshot) throw new Error("snapshot is required");
+    this.assertWithinByteBudget(snapshot.bytes);
 
     const alias = this.#nextAlias();
     const stored = {
