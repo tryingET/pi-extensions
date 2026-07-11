@@ -33,6 +33,18 @@ system4d:
 - Publish workflow should run npm >= 11.5.1 for trusted publishing compatibility.
 - Actions policy + permissions at repo level must allow release/publish workflows.
 
+## First public release bootstrap
+
+This package starts from an unpublished `0.1.0` release-please floor. Follow the established activity-strip/context-packer bootstrap pattern:
+
+1. Merge the release-ready feature history without manufacturing a published `0.1.0` release.
+2. Let release-please generate the first public `0.2.0` release PR, then review its version and changelog before merging it.
+3. Let the normal release and OIDC publish workflow attempt to publish the immutable `0.2.0` release artifact.
+4. Only if OIDC fails because the npm package does not exist yet, manually publish that exact already-produced `0.2.0` artifact with authenticated npm credentials. Do not rebuild, retag, or substitute an artifact.
+5. After the package exists, configure npm trusted publishing for the repository workflow and use OIDC for subsequent releases.
+
+The package retains its current restricted custom license. Keep the prominent README disclosure and `SEE LICENSE IN LICENSE` package metadata; this bootstrap does not authorize changing license terms.
+
 ## Common failure modes
 
 1. Component key drift between package metadata and root release config.
