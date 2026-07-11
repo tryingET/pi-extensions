@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 2,
+  "tokenizer": {
+    "implementation": "js-tiktoken@1.0.21",
+    "encoding": "o200k_base",
+    "scope": "exact encoding count of the serialized benchmark envelope; not provider-reported usage"
+  },
+  "envelope": "oracle-authored canonical-correct compact JSON transcript of protocol instructions, tool schemas, and ordered separate tool_call/tool_result events for every protocol",
+  "fixtureCount": 9,
+  "protocols": {
+    "A": {
+      "totalTokens": 2316,
+      "tokensPerCorrectMutationCase": 265.857,
+      "correctMutationCases": 7,
+      "staleRejections": 1,
+      "byWorkloadClass": {
+        "batched_edits": {
+          "cases": 1,
+          "tokens": 287
+        },
+        "blank_lines": {
+          "cases": 1,
+          "tokens": 265
+        },
+        "duplicate_targeting": {
+          "cases": 1,
+          "tokens": 260
+        },
+        "insert_delete": {
+          "cases": 2,
+          "tokens": 506
+        },
+        "read_only": {
+          "cases": 1,
+          "tokens": 201
+        },
+        "repeated_block_targeting": {
+          "cases": 1,
+          "tokens": 283
+        },
+        "stale_rejection": {
+          "cases": 1,
+          "tokens": 254
+        },
+        "unique_replacement": {
+          "cases": 1,
+          "tokens": 260
+        }
+      }
+    },
+    "B": {
+      "totalTokens": 2142,
+      "tokensPerCorrectMutationCase": 246,
+      "correctMutationCases": 7,
+      "staleRejections": 1,
+      "byWorkloadClass": {
+        "batched_edits": {
+          "cases": 1,
+          "tokens": 258
+        },
+        "blank_lines": {
+          "cases": 1,
+          "tokens": 242
+        },
+        "duplicate_targeting": {
+          "cases": 1,
+          "tokens": 243
+        },
+        "insert_delete": {
+          "cases": 2,
+          "tokens": 475
+        },
+        "read_only": {
+          "cases": 1,
+          "tokens": 185
+        },
+        "repeated_block_targeting": {
+          "cases": 1,
+          "tokens": 263
+        },
+        "stale_rejection": {
+          "cases": 1,
+          "tokens": 235
+        },
+        "unique_replacement": {
+          "cases": 1,
+          "tokens": 241
+        }
+      }
+    },
+    "C": {
+      "totalTokens": 2777,
+      "tokensPerCorrectMutationCase": 323.571,
+      "correctMutationCases": 7,
+      "staleRejections": 1,
+      "byWorkloadClass": {
+        "batched_edits": {
+          "cases": 1,
+          "tokens": 349
+        },
+        "blank_lines": {
+          "cases": 1,
+          "tokens": 317
+        },
+        "duplicate_targeting": {
+          "cases": 1,
+          "tokens": 316
+        },
+        "insert_delete": {
+          "cases": 2,
+          "tokens": 622
+        },
+        "read_only": {
+          "cases": 1,
+          "tokens": 199
+        },
+        "repeated_block_targeting": {
+          "cases": 1,
+          "tokens": 341
+        },
+        "stale_rejection": {
+          "cases": 1,
+          "tokens": 313
+        },
+        "unique_replacement": {
+          "cases": 1,
+          "tokens": 320
+        }
+      }
+    },
+    "D": {
+      "totalTokens": 2336,
+      "tokensPerCorrectMutationCase": 269.571,
+      "correctMutationCases": 7,
+      "staleRejections": 1,
+      "byWorkloadClass": {
+        "batched_edits": {
+          "cases": 1,
+          "tokens": 297
+        },
+        "blank_lines": {
+          "cases": 1,
+          "tokens": 268
+        },
+        "duplicate_targeting": {
+          "cases": 1,
+          "tokens": 263
+        },
+        "insert_delete": {
+          "cases": 2,
+          "tokens": 500
+        },
+        "read_only": {
+          "cases": 1,
+          "tokens": 193
+        },
+        "repeated_block_targeting": {
+          "cases": 1,
+          "tokens": 302
+        },
+        "stale_rejection": {
+          "cases": 1,
+          "tokens": 256
+        },
+        "unique_replacement": {
+          "cases": 1,
+          "tokens": 257
+        }
+      }
+    },
+    "E": {
+      "totalTokens": 2163,
+      "tokensPerCorrectMutationCase": 248.429,
+      "correctMutationCases": 7,
+      "staleRejections": 1,
+      "byWorkloadClass": {
+        "batched_edits": {
+          "cases": 1,
+          "tokens": 267
+        },
+        "blank_lines": {
+          "cases": 1,
+          "tokens": 243
+        },
+        "duplicate_targeting": {
+          "cases": 1,
+          "tokens": 242
+        },
+        "insert_delete": {
+          "cases": 2,
+          "tokens": 477
+        },
+        "read_only": {
+          "cases": 1,
+          "tokens": 185
+        },
+        "repeated_block_targeting": {
+          "cases": 1,
+          "tokens": 264
+        },
+        "stale_rejection": {
+          "cases": 1,
+          "tokens": 239
+        },
+        "unique_replacement": {
+          "cases": 1,
+          "tokens": 246
+        }
+      }
+    }
+  }
+}

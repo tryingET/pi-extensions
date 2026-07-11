@@ -35,6 +35,8 @@
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "npm run quality:ci",
     "test": "bash ../../scripts/package-quality-gate.sh test .",
+    "autoresearch": "bash ./autoresearch.sh",
+    "autoresearch:checks": "bash ./autoresearch.checks.sh",
     "evidence:edit-failures": "bash ./scripts/analyze-edit-failures.sh",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
@@ -69,6 +71,7 @@
     "@earendil-works/pi-coding-agent": "^0.80.6",
     "@earendil-works/pi-tui": "^0.80.6",
     "@types/node": "^24.0.0",
+    "js-tiktoken": "^1.0.21",
     "typebox": "^1.0.0",
     "typescript": "^5.9.3"
   },
