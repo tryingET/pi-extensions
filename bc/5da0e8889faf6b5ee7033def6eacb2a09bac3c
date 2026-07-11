@@ -1,0 +1,38 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "bc5da0e8889faf6b5ee7033def6eacb2a09bac3c"
+created_at: "2026-07-11T07:50:35Z"
+intent: "Add a correctness-gated autoresearch benchmark comparing snapshot editing protocol token costs."
+files:
+  - "packages/pi-snapshot-edit/.autoresearch/protocol-token-aggregate.json"
+  - "packages/pi-snapshot-edit/.gitignore"
+  - "packages/pi-snapshot-edit/autoresearch.checks.sh"
+  - "packages/pi-snapshot-edit/autoresearch.md"
+  - "packages/pi-snapshot-edit/autoresearch.sh"
+  - "packages/pi-snapshot-edit/package-lock.json"
+  - "packages/pi-snapshot-edit/package.json"
+  - "packages/pi-snapshot-edit/scripts/protocol-benchmark.mjs"
+  - "packages/pi-snapshot-edit/scripts/protocol-common.mjs"
+  - "packages/pi-snapshot-edit/scripts/protocol-simulator.mjs"
+  - "packages/pi-snapshot-edit/scripts/run-autoresearch.mjs"
+  - "packages/pi-snapshot-edit/tests/protocol-benchmark.test.js"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Keep campaign contract, simulator, tests, and content-free aggregate in one coherent benchmark commit."
+links:
+  task_ids:
+    - 3604
+  evidence_ids:
+    - 3359
+    - 3360
+    - 3361
