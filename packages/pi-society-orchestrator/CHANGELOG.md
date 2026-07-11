@@ -13,6 +13,28 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.2.0...pi-society-orchestrator-v0.3.0) (2026-07-11)
+
+
+### Features
+
+* add fail-closed loop continuation checkpoints ([de0c6b6](https://github.com/tryingET/pi-extensions/commit/de0c6b69f85c5632ae370233666a57adf1d395a8))
+* add matrix executor and self continuation ([35d0f6b](https://github.com/tryingET/pi-extensions/commit/35d0f6b993deadf25fe6ff73ece26410e9879df7))
+* bind loop continuation to ASC effect receipts ([4b94648](https://github.com/tryingET/pi-extensions/commit/4b94648a2889c04809bd2e725f3f89aa1f5cd5ad))
+* **extensions:** harden runtime quality across packages ([1ff1eb0](https://github.com/tryingET/pi-extensions/commit/1ff1eb0cf10a3f8f60cf391ccf246b238951a848))
+* migrate pi extensions to pi 0.76 ([93dd0e0](https://github.com/tryingET/pi-extensions/commit/93dd0e0fdc9e23b0fc36661cc0e33972f365bf98))
+* **orchestrator:** forward model context to ASC subagent for child extension selection ([6c3c72a](https://github.com/tryingET/pi-extensions/commit/6c3c72a911a289168ddf7b245a5770825f13613b))
+* **orchestrator:** render discovery posture without active wave ([6e8b0b7](https://github.com/tryingET/pi-extensions/commit/6e8b0b7dc8e8dd3a1e128b33b561458e7c721578))
+* prune loop checkpoints after seven days ([caeda34](https://github.com/tryingET/pi-extensions/commit/caeda34ebd9ae80cfb3c45121397149b47081c02))
+* retry provable pre-spawn loop failures ([7382b10](https://github.com/tryingET/pi-extensions/commit/7382b10b779f743bf5b880241aa3842cd9146851))
+
+
+### Bug Fixes
+
+* align extension runtimes with Pi 0.80 ([1702c25](https://github.com/tryingET/pi-extensions/commit/1702c25f9d31bf4f619fdaa6f7a7f898ca5ee48e))
+* enforce workflow concurrency and cancellation ([df146d3](https://github.com/tryingET/pi-extensions/commit/df146d3c7089b48d69bb181184b0269b9b7275f3))
+* **orchestrator:** fail closed on missing cognitive tools ([33e2329](https://github.com/tryingET/pi-extensions/commit/33e2329f14426f884661f3f0b189274f8760ee23))
+
 ## [Unreleased]
 
 ## [0.2.0] - 2026-05-17
