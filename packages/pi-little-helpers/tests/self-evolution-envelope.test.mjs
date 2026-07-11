@@ -561,7 +561,7 @@ test("visible-loop candidate route persists the typed envelope and prepends it t
   }
 });
 
-test("candidate-bound visible-loop completion rejects missing closeout and accepts resolved guards", async () => {
+test("baseline rollback candidate completion rejects missing closeout and accepts resolved guards", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-candidate-closeout-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
@@ -578,6 +578,7 @@ test("candidate-bound visible-loop completion rejects missing closeout and accep
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
+        PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "0",
       },
       exec: execStub.exec,
       pathExists(path) {

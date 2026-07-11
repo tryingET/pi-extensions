@@ -51,14 +51,16 @@ function deliverIteration(config, promptCount = 3) {
   return state;
 }
 
-test("adaptive controller remains opt-in and bounds configured cost", () => {
-  assert.equal(resolveVisibleLoopAdaptiveControllerConfig({}), undefined);
-  assert.equal(
-    resolveVisibleLoopAdaptiveControllerConfig({
-      PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "true",
-    }),
-    undefined,
-  );
+test("adaptive controller is the zero-configuration default with an explicit emergency opt-out", () => {
+  assert.equal(resolveVisibleLoopAdaptiveControllerConfig({})?.mode, "adaptive-v1");
+  for (const disabledValue of ["0", "false", "off"]) {
+    assert.equal(
+      resolveVisibleLoopAdaptiveControllerConfig({
+        PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: disabledValue,
+      }),
+      undefined,
+    );
+  }
   assert.equal(enabledConfig().maxWeightedCost, 100);
   assert.equal(enabledConfig({ PI_VISIBLE_LOOP_MAX_WEIGHTED_COST: "17" }).maxWeightedCost, 17);
   assert.equal(enabledConfig({ PI_VISIBLE_LOOP_MAX_WEIGHTED_COST: "NaN" }).maxWeightedCost, 100);

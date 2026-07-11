@@ -30,7 +30,10 @@ export const DEFAULT_VISIBLE_LOOP_CONTROLLER_WEIGHTS: Record<
 export function resolveVisibleLoopAdaptiveControllerConfig(
   env: NodeJS.ProcessEnv,
 ): VisibleLoopAdaptiveControllerConfig | undefined {
-  if (env.PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER !== "1") return undefined;
+  const configuredMode = env.PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER?.trim().toLowerCase();
+  if (configuredMode === "0" || configuredMode === "false" || configuredMode === "off") {
+    return undefined;
+  }
   return {
     mode: "adaptive-v1",
     maxWeightedCost: parseBoundedPositiveNumber(

@@ -189,7 +189,7 @@ test("adaptive continuation launch failure falls back to a full same-session ite
   }
 });
 
-test("visible-loop manual completion command advances non-final iterations", async () => {
+test("baseline rollback manual completion advances non-final iterations", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-command-next-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
@@ -208,6 +208,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
+        PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "0",
       },
       exec: execStub.exec,
       pathExists(path) {
@@ -267,7 +268,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
   }
 });
 
-test("visible-loop manual completion command finalizes", async () => {
+test("baseline rollback manual completion finalizes", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-command-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
@@ -286,6 +287,7 @@ test("visible-loop manual completion command finalizes", async () => {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
+        PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "0",
       },
       exec: execStub.exec,
       pathExists(path) {

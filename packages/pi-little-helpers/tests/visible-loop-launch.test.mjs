@@ -70,7 +70,8 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.reportBack, "intercom");
     assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
     assert.equal(config.commitDelegation, undefined);
-    assert.equal(config.adaptiveController, undefined);
+    assert.equal(config.adaptiveController.mode, "adaptive-v1");
+    assert.equal(config.adaptiveController.maxWeightedCost, 100);
     assert.deepEqual(config.productPostureTarget, {
       cwd: "/repo",
       productPosturePath: "/repo/docs/project/product-posture.md",
@@ -124,7 +125,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
   }
 });
 
-test("visible-loop launch persists the opt-in adaptive controller policy", async () => {
+test("visible-loop launch persists an explicitly configured adaptive controller budget", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-adaptive-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
