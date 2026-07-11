@@ -51,7 +51,12 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
-          node ./scripts/release-components.mjs resolve-tag "$RELEASE_TAG" --env >> "$GITHUB_ENV"
+          set -euo pipefail
+          resolver_env="$(mktemp "$RUNNER_TEMP/release-component-env.XXXXXX")"
+          trap 'rm -f "$resolver_env"' EXIT
+          node ./scripts/release-components.mjs resolve-tag "$RELEASE_TAG" --env > "$resolver_env"
+          cat "$resolver_env" >> "$GITHUB_ENV"
+          source "$resolver_env"
           if [[ "$RELEASE_PACKAGE_VERSION" != "$RELEASE_TAG_VERSION" ]]; then
             echo "Resolved package version ($RELEASE_PACKAGE_VERSION) does not match release tag version ($RELEASE_TAG_VERSION)." >&2
             exit 1
@@ -116,7 +121,8 @@ jobs:
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm run check
 
-      - name: Create immutable release tarball
+      - name: Create immutable snapshot-edit release tarball
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
           set -euo pipefail
@@ -133,14 +139,17 @@ jobs:
           echo "$tarball_sha256  $tarball_basename" > "$artifact_dir/$tarball_basename.sha256"
           echo "Retained $tarball_path ($tarball_sha256)"
 
-      - name: Run package release checks against retained tarball
+      - name: Run snapshot-edit release checks against retained tarball
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm run release:check:quick -- "$RELEASE_TARBALL_PATH"
 
-      - name: Verify retained tarball after release checks
+      - name: Verify snapshot-edit retained tarball after release checks
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
         run: echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
 
-      - name: Upload retained release tarball
+      - name: Upload snapshot-edit retained release tarball
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
         uses: actions/upload-artifact@v6
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
@@ -150,8 +159,19 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish retained tarball to npm (OIDC + provenance)
+      - name: Run generic package release checks (artifact-only)
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit'
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        run: npm run release:check:quick
+
+      - name: Publish snapshot-edit retained tarball to npm (OIDC + provenance)
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+
+      - name: Publish generic package directory to npm (OIDC + provenance)
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit'
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        run: npm publish --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"

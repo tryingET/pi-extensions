@@ -45,29 +45,81 @@ This package starts from an unpublished `0.1.0` release-please floor. Follow the
 
 ### Failed-run artifact bootstrap fallback
 
-The publish job uploads the checked tarball and its SHA-256 sidecar before attempting OIDC publish. For the one-time first-package bootstrap, replace `RUN_ID` below with the failed publish workflow run ID:
+The publish job uploads the checked tarball and its SHA-256 sidecar before attempting OIDC publish. For the one-time first-package bootstrap, set both the expected release tag and failed publish workflow run ID. The guard below refuses to download unless the run is the failed `publish` release run for that exact tag and its recorded head SHA equals the fetched tag commit.
 
 ```bash
-mkdir -p /tmp/pi-snapshot-edit-bootstrap
-cd /tmp/pi-snapshot-edit-bootstrap
-gh run download RUN_ID \
-  --repo tryingET/pi-extensions \
-  --name npm-pi-snapshot-edit-0.2.0 \
-  --dir .
-sha256sum --check tryinget-pi-snapshot-edit-0.2.0.tgz.sha256
-```
+export EXPECTED_TAG=pi-snapshot-edit-v0.2.0
+export RUN_ID="<failed-publish-workflow-run-id>"
 
-Inspect the checksum result and authenticate with an npm account authorized to create `@tryinget/pi-snapshot-edit`. Then publish the downloaded, verified path directly:
+set -euo pipefail
+: "${EXPECTED_TAG:?EXPECTED_TAG is required}"
+: "${RUN_ID:?RUN_ID is required}"
+[[ "$RUN_ID" =~ ^[0-9]+$ ]] || {
+  echo "RUN_ID must be the numeric failed publish workflow run ID" >&2
+  exit 1
+}
+repo=tryingET/pi-extensions
+case "$EXPECTED_TAG" in
+  pi-snapshot-edit-v*) expected_version="${EXPECTED_TAG#pi-snapshot-edit-v}" ;;
+  *) echo "EXPECTED_TAG must be a pi-snapshot-edit release tag" >&2; exit 1 ;;
+esac
+[[ "$expected_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]] || {
+  echo "Invalid snapshot-edit release version in EXPECTED_TAG: $EXPECTED_TAG" >&2
+  exit 1
+}
 
-```bash
+run_json="$(gh run view "$RUN_ID" --repo "$repo" \
+  --json name,event,conclusion,headBranch,headSha)"
+run_head_sha="$(RUN_JSON="$run_json" EXPECTED_TAG="$EXPECTED_TAG" node <<'NODE'
+const run = JSON.parse(process.env.RUN_JSON);
+const expected = process.env.EXPECTED_TAG;
+const failures = [];
+if (run.name !== "publish") failures.push(`workflow name is ${JSON.stringify(run.name)}, not "publish"`);
+if (run.event !== "release") failures.push(`event is ${JSON.stringify(run.event)}, not "release"`);
+if (run.conclusion !== "failure") failures.push(`conclusion is ${JSON.stringify(run.conclusion)}, not "failure"`);
+if (run.headBranch !== expected) failures.push(`head branch/tag is ${JSON.stringify(run.headBranch)}, not ${JSON.stringify(expected)}`);
+if (!/^[0-9a-f]{40}$/i.test(run.headSha || "")) failures.push(`invalid head SHA ${JSON.stringify(run.headSha)}`);
+if (failures.length) {
+  console.error(`Refusing bootstrap download: ${failures.join("; ")}`);
+  process.exit(1);
+}
+process.stdout.write(run.headSha);
+NODE
+)"
+
+workdir="$(mktemp -d /tmp/pi-snapshot-edit-bootstrap-XXXXXX)"
+trap 'rm -rf "$workdir"' EXIT
+git init --quiet "$workdir/tag-check"
+git -C "$workdir/tag-check" remote add origin "https://github.com/$repo.git"
+git -C "$workdir/tag-check" fetch --quiet --depth=1 origin \
+  "refs/tags/$EXPECTED_TAG:refs/tags/$EXPECTED_TAG"
+tag_commit="$(git -C "$workdir/tag-check" rev-parse "$EXPECTED_TAG^{commit}")"
+[[ "$tag_commit" == "$run_head_sha" ]] || {
+  echo "Run head SHA $run_head_sha does not equal tag commit $tag_commit" >&2
+  exit 1
+}
+
+artifact_dir="$workdir/artifact"
+mkdir -p "$artifact_dir"
+gh run download "$RUN_ID" \
+  --repo "$repo" \
+  --name "npm-pi-snapshot-edit-$expected_version" \
+  --dir "$artifact_dir"
+tarball="$artifact_dir/tryinget-pi-snapshot-edit-$expected_version.tgz"
+[[ -f "$tarball" && -f "$tarball.sha256" ]] || {
+  echo "Expected tarball and SHA-256 sidecar were not downloaded" >&2
+  exit 1
+}
+(cd "$artifact_dir" && sha256sum --check "$(basename "$tarball.sha256")")
+
 npm whoami --registry https://registry.npmjs.org/
-npm publish "$PWD/tryinget-pi-snapshot-edit-0.2.0.tgz" \
+npm publish "$tarball" \
   --registry https://registry.npmjs.org/ \
   --access public \
   --tag latest
 ```
 
-Manual bootstrap credentials come from the operator's authenticated npm configuration; never place a token in the repository or command history. Do **not** run `npm pack`, rebuild from the tag, rename/substitute the tarball, or publish when SHA verification fails. A missing or expired failed-run artifact requires rerunning the unchanged release workflow to produce a newly checked artifact, not a local rebuild.
+Manual bootstrap credentials come from the operator's authenticated npm configuration; never place a token in the repository or command history. Do **not** run `npm pack`, rebuild from the tag, rename/substitute the tarball, or publish when workflow metadata, tag-commit equality, or SHA verification fails. A missing or expired failed-run artifact requires rerunning the unchanged release workflow to produce a newly checked artifact, not a local rebuild.
 
 The package retains its current restricted custom license. Keep the prominent README disclosure and `SEE LICENSE IN LICENSE` package metadata; this bootstrap does not authorize changing license terms.
 
