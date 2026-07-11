@@ -1,0 +1,69 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "67222e742a9b7f3a66b43e4bcb423f2f6991c33f"
+created_at: "2026-07-11T04:29:37Z"
+intent: "Add guarded snapshot-bound line-range editing tools and content-free historical failure analysis."
+files:
+  - "packages/pi-snapshot-edit/.copier-answers.yml"
+  - "packages/pi-snapshot-edit/.gitignore"
+  - "packages/pi-snapshot-edit/.pi/prompts/commit.md"
+  - "packages/pi-snapshot-edit/.vscode/settings.json"
+  - "packages/pi-snapshot-edit/AGENTS.md"
+  - "packages/pi-snapshot-edit/CHANGELOG.md"
+  - "packages/pi-snapshot-edit/LICENSE"
+  - "packages/pi-snapshot-edit/README.md"
+  - "packages/pi-snapshot-edit/biome.jsonc"
+  - "packages/pi-snapshot-edit/docs/adr/0001-snapshot-bound-line-range-editing.md"
+  - "packages/pi-snapshot-edit/docs/engineering.local.md"
+  - "packages/pi-snapshot-edit/docs/org/operating_model.md"
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-standard-override-dogfood.md"
+  - "packages/pi-snapshot-edit/docs/project/contributing.md"
+  - "packages/pi-snapshot-edit/docs/project/extension-sop.md"
+  - "packages/pi-snapshot-edit/docs/project/foundation.md"
+  - "packages/pi-snapshot-edit/docs/project/incentives.md"
+  - "packages/pi-snapshot-edit/docs/project/resources.md"
+  - "packages/pi-snapshot-edit/docs/project/session-edit-failure-baseline.json"
+  - "packages/pi-snapshot-edit/docs/project/trusted-publishing.md"
+  - "packages/pi-snapshot-edit/docs/project/vision.md"
+  - "packages/pi-snapshot-edit/examples/.gitkeep"
+  - "packages/pi-snapshot-edit/extensions/snapshot-edit.ts"
+  - "packages/pi-snapshot-edit/external/.gitkeep"
+  - "packages/pi-snapshot-edit/next_session_prompt.md"
+  - "packages/pi-snapshot-edit/ontology/.gitkeep"
+  - "packages/pi-snapshot-edit/package-lock.json"
+  - "packages/pi-snapshot-edit/package.json"
+  - "packages/pi-snapshot-edit/policy/engineering-lane.json"
+  - "packages/pi-snapshot-edit/policy/security-policy.json"
+  - "packages/pi-snapshot-edit/prek.toml"
+  - "packages/pi-snapshot-edit/scripts/analyze-edit-failures.sh"
+  - "packages/pi-snapshot-edit/scripts/docs-list.sh"
+  - "packages/pi-snapshot-edit/scripts/quality-gate.sh"
+  - "packages/pi-snapshot-edit/scripts/release-check.sh"
+  - "packages/pi-snapshot-edit/scripts/validate-structure.mjs"
+  - "packages/pi-snapshot-edit/scripts/validate-structure.sh"
+  - "packages/pi-snapshot-edit/src/snapshot-service.js"
+  - "packages/pi-snapshot-edit/src/snapshot-store.js"
+  - "packages/pi-snapshot-edit/src/text-file.js"
+  - "packages/pi-snapshot-edit/tests/edit-failure-analysis.test.js"
+  - "packages/pi-snapshot-edit/tests/extension.test.js"
+  - "packages/pi-snapshot-edit/tests/snapshot-service.test.js"
+  - "packages/pi-snapshot-edit/tsconfig.json"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Ship the package as one coherent extension, protocol, test, evidence, and documentation unit."
+links:
+  task_ids:
+    - 3601
+  evidence_ids:
+    - 3341
+    - 3342
