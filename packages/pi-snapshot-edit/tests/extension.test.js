@@ -5,22 +5,32 @@ import { join } from "node:path";
 import test from "node:test";
 import snapshotEditExtension from "../extensions/snapshot-edit.ts";
 
-function createMockPi({ conflictingReadOwner } = {}) {
+function createMockPi({
+  readOwner = "builtin",
+  editOwner = "builtin",
+  includeRead = true,
+  includeEdit = true,
+  initialActiveTools = ["read", "edit"],
+  flagEnabled = false,
+} = {}) {
   const tools = new Map();
   const commands = new Map();
   const handlers = new Map();
   const flags = new Map();
-  const catalog = new Map([
-    [
-      "read",
-      {
-        name: "read",
-        sourceInfo: { source: conflictingReadOwner ?? "builtin", path: "<builtin:read>" },
-      },
-    ],
-    ["edit", { name: "edit", sourceInfo: { source: "builtin", path: "<builtin:edit>" } }],
-  ]);
-  let activeTools = ["read", "edit"];
+  const catalog = new Map();
+  if (includeRead) {
+    catalog.set("read", {
+      name: "read",
+      sourceInfo: { source: readOwner, path: `<${readOwner}:read>` },
+    });
+  }
+  if (includeEdit) {
+    catalog.set("edit", {
+      name: "edit",
+      sourceInfo: { source: editOwner, path: `<${editOwner}:edit>` },
+    });
+  }
+  let activeTools = [...initialActiveTools];
   const api = {
     registerTool(tool) {
       tools.set(tool.name, tool);
@@ -36,7 +46,7 @@ function createMockPi({ conflictingReadOwner } = {}) {
       flags.set(name, flag);
     },
     getFlag() {
-      return false;
+      return flagEnabled;
     },
     getAllTools() {
       return [...catalog.values()];
@@ -52,6 +62,18 @@ function createMockPi({ conflictingReadOwner } = {}) {
     },
   };
   return { api, tools, commands, handlers, flags, getActiveTools: () => activeTools };
+}
+
+async function withOverrideEnv(value, operation) {
+  const previous = process.env.PI_SNAPSHOT_EDIT_OVERRIDE;
+  if (value === undefined) delete process.env.PI_SNAPSHOT_EDIT_OVERRIDE;
+  else process.env.PI_SNAPSHOT_EDIT_OVERRIDE = value;
+  try {
+    await operation();
+  } finally {
+    if (previous === undefined) delete process.env.PI_SNAPSHOT_EDIT_OVERRIDE;
+    else process.env.PI_SNAPSHOT_EDIT_OVERRIDE = previous;
+  }
 }
 
 test("extension registers host-compatible namespaced tools and edits duplicate lines", async () => {
@@ -150,31 +172,92 @@ test("standard read override fails closed for images instead of bypassing host a
   }
 });
 
-test("startup override waits for initialized session runtime", async () => {
-  const previous = process.env.PI_SNAPSHOT_EDIT_OVERRIDE;
-  process.env.PI_SNAPSHOT_EDIT_OVERRIDE = "1";
-  try {
-    const pi = createMockPi();
+test("default startup replaces standard tools while preserving host active-tool selection", async () => {
+  await withOverrideEnv(undefined, async () => {
+    const pi = createMockPi({ initialActiveTools: ["bash", "snapshot_read"] });
     snapshotEditExtension(pi.api);
     assert.equal(pi.tools.has("read"), false);
     await pi.handlers.get("session_start")();
     assert.equal(pi.tools.has("read"), true);
     assert.equal(pi.tools.has("edit"), true);
-  } finally {
-    if (previous === undefined) delete process.env.PI_SNAPSHOT_EDIT_OVERRIDE;
-    else process.env.PI_SNAPSHOT_EDIT_OVERRIDE = previous;
+    assert.deepEqual(pi.getActiveTools(), ["bash", "snapshot_read"]);
+  });
+});
+
+test("legacy explicit enable surfaces may activate standard tools", async (t) => {
+  await t.test("environment", async () => {
+    await withOverrideEnv("1", async () => {
+      const pi = createMockPi({ initialActiveTools: ["bash"] });
+      snapshotEditExtension(pi.api);
+      await pi.handlers.get("session_start")();
+      assert.deepEqual(pi.getActiveTools(), ["bash", "read", "edit"]);
+    });
+  });
+  await t.test("flag", async () => {
+    await withOverrideEnv(undefined, async () => {
+      const pi = createMockPi({ initialActiveTools: ["bash"], flagEnabled: true });
+      snapshotEditExtension(pi.api);
+      await pi.handlers.get("session_start")();
+      assert.deepEqual(pi.getActiveTools(), ["bash", "read", "edit"]);
+    });
+  });
+  await t.test("command after default startup", async () => {
+    await withOverrideEnv(undefined, async () => {
+      const pi = createMockPi({ initialActiveTools: ["bash"] });
+      snapshotEditExtension(pi.api);
+      await pi.handlers.get("session_start")();
+      assert.deepEqual(pi.getActiveTools(), ["bash"]);
+      await pi.commands.get("snapshot-edit").handler("override", { hasUI: false });
+      assert.deepEqual(pi.getActiveTools(), ["bash", "read", "edit"]);
+    });
+  });
+});
+
+test("documented environment opt-outs retain namespaced-only tools", async (t) => {
+  for (const value of ["0", "false", "off", "no"]) {
+    await t.test(value, async () => {
+      await withOverrideEnv(value, async () => {
+        const pi = createMockPi();
+        snapshotEditExtension(pi.api);
+        await pi.handlers.get("session_start")();
+        assert.deepEqual([...pi.tools.keys()], ["snapshot_read", "snapshot_edit"]);
+      });
+    });
   }
 });
 
-test("override refuses to displace a non-built-in read owner", async () => {
-  const pi = createMockPi({ conflictingReadOwner: "ssh-extension" });
-  snapshotEditExtension(pi.api);
-  await assert.rejects(
-    pi.commands.get("snapshot-edit").handler("override", { hasUI: false }),
-    /non-built-in owners.*read:ssh-extension/,
-  );
-  assert.equal(pi.tools.has("read"), false);
-  assert.equal(pi.tools.has("edit"), false);
+test("default override refuses non-built-in read and edit owners", async (t) => {
+  for (const name of ["read", "edit"]) {
+    await t.test(name, async () => {
+      await withOverrideEnv(undefined, async () => {
+        const pi = createMockPi({ [`${name}Owner`]: "ssh-extension" });
+        snapshotEditExtension(pi.api);
+        await assert.rejects(
+          pi.handlers.get("session_start")(),
+          new RegExp(`non-built-in owners.*${name}:ssh-extension`),
+        );
+        assert.equal(pi.tools.has("read"), false);
+        assert.equal(pi.tools.has("edit"), false);
+      });
+    });
+  }
+});
+
+test("default override refuses missing built-in read and edit owners", async (t) => {
+  for (const name of ["read", "edit"]) {
+    await t.test(name, async () => {
+      await withOverrideEnv(undefined, async () => {
+        const pi = createMockPi({ [`include${name[0].toUpperCase()}${name.slice(1)}`]: false });
+        snapshotEditExtension(pi.api);
+        await assert.rejects(
+          pi.handlers.get("session_start")(),
+          new RegExp(`positively identified built-in ${name} owner`),
+        );
+        assert.equal(pi.tools.has("read"), false);
+        assert.equal(pi.tools.has("edit"), false);
+      });
+    });
+  }
 });
 
 test("nested Protocol B oldText survives preparation", async () => {

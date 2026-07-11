@@ -56,7 +56,11 @@ export async function runPackedReleaseSmoke({
     assert.equal(await readFile(namespacedPath, "utf8"), "same\nselected\n");
 
     const installed = installStandardOverrides();
-    assert.equal(installed.installed, true);
+    assert.equal(
+      installed.installed,
+      false,
+      "default session startup did not install standard tools",
+    );
     const standardRead = getTool("read");
     const standardEdit = getTool("edit");
     assert.ok(standardRead && standardEdit, "standard Protocol B tools were not registered");

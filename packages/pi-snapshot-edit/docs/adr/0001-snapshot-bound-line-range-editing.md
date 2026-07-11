@@ -24,7 +24,7 @@ The content-free aggregate remains in [`../project/session-edit-failure-baseline
 
 ## Decision
 
-Protocol B completely owns both namespaced `snapshot_read` / `snapshot_edit` and opt-in standard `read` / `edit`:
+Protocol B completely owns namespaced `snapshot_read` / `snapshot_edit`. Loading the extension also replaces built-in standard `read` / `edit` at `session_start` by default:
 
 1. Read snapshots the complete canonical regular file as raw bytes.
 2. Output is one compact `revision:<alias>` header followed by raw UTF-8 text, with pagination/truncation but no line gutters.
@@ -39,6 +39,9 @@ Protocol B completely owns both namespaced `snapshot_read` / `snapshot_edit` and
 11. Desired bytes must pass snapshot-store budget and text-decoding validation before commit.
 12. Commit uses a same-directory temporary file, fsync, mode preservation, a best-effort pre-rename recheck from one opened handle, and atomic rename.
 13. Successful edit output issues a fresh revision and a raw, gutter-free bounded preview or a non-throwing omission notice.
+14. Default startup replacement preserves the host's active-tool selection and never force-enables standard tools.
+15. Standard replacement requires positively identified built-in owners for both names and fails closed for a missing built-in or any visible non-built-in owner.
+16. `PI_SNAPSHOT_EDIT_OVERRIDE=0|false|off|no` opts out to namespaced-only operation. Legacy explicit enable surfaces (`PI_SNAPSHOT_EDIT_OVERRIDE=1`, `--snapshot-edit-override`, and `/snapshot-edit override`) remain available and may activate `read` and `edit`.
 
 There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or incompatible resumed call must reread. Resumed Protocol A line coordinates and top-level legacy calls receive precise migration guidance; nested Protocol B `oldText` is valid.
 
@@ -51,6 +54,8 @@ There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or i
 - Selectors can be as small as a partial line or span multiple lines.
 - Immutable batch resolution avoids coordinate drift.
 - Snapshot digest and identity checks preserve machine-verifiable staleness.
+- Standard snapshot semantics apply on extension load without requiring a second activation step.
+- Host active-tool policy remains authoritative during default startup replacement.
 
 ### Negative
 
@@ -59,6 +64,7 @@ There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or i
 - Full snapshots retain sensitive bytes in bounded process memory.
 - Atomic rename cannot preserve every filesystem metadata or identity property.
 - Non-cooperating cross-process races cannot be eliminated with portable filesystem APIs. In particular, the final recheck is not compare-and-swap: a writer can change the path after that check and before rename.
+- Hosts with missing standard built-ins or extension-owned standard tools cannot use default standard replacement; they must opt out or resolve ownership.
 
 ## Retired decision
 

@@ -1,12 +1,12 @@
 ---
-summary: "Dogfood plan and prior evidence for the guarded standard read/edit override."
+summary: "Dogfood plan and prior evidence for default guarded standard read/edit ownership."
 read_when:
   - "Evaluating local standard-tool override behavior."
   - "Preparing Protocol B live verification."
 system4d:
   container: "A bounded implementation and live-runtime verification note."
   compass: "Promote only behavior that survives real tool selection and exact-byte inspection."
-  engine: "Install -> reload -> activate override -> read/edit disposable file -> inspect."
+  engine: "Install -> reload -> verify default ownership and host selection -> read/edit disposable file -> inspect."
   fog: "Mock registration can pass while provider serialization or argument preparation fails live."
 ---
 
@@ -14,13 +14,15 @@ system4d:
 
 ## Current Protocol B command
 
-After installing the package in the intended Pi runtime and reloading:
+After installing the package in the intended Pi runtime and reloading, extension loading replaces positively identified built-in `read` and `edit` at `session_start` without changing the host's active-tool selection:
 
 ```bash
-PI_SNAPSHOT_EDIT_OVERRIDE=1 pi --no-extensions \
+pi --no-extensions \
   -e packages/pi-snapshot-edit/extensions/snapshot-edit.ts \
   --tools read,edit -p '<scenario>'
 ```
+
+Use `PI_SNAPSHOT_EDIT_OVERRIDE=0`, `false`, `off`, or `no` to retain namespaced-only operation. The legacy `PI_SNAPSHOT_EDIT_OVERRIDE=1`, `--snapshot-edit-override`, and `/snapshot-edit override` surfaces remain explicit activation paths and may add `read` and `edit` to the active-tool selection.
 
 The expected read result is one `revision:<alias>` header plus raw UTF-8 text with no gutters. Standard `edit` uses `{path,base,edits}` with `oldText` replacement or `anchorText` insertion selectors and an optional 1-indexed `occurrence` only when the selector is unique.
 
@@ -30,7 +32,9 @@ Candidate worktrees must report the install command and must not mutate the cont
 
 Package tests cover:
 
-- namespaced and standard override registration and behavior;
+- namespaced registration, default standard replacement, and all four namespaced-only opt-out values;
+- exact preservation of host active-tool selection during default startup;
+- explicit legacy activation of standard tools;
 - raw token-lean read and edit preview output without line gutters;
 - unique-selector occurrence omission and duplicate occurrence selection;
 - partial-line and multi-line exact selectors;
@@ -48,7 +52,7 @@ Before AK #3619, live dogfood exercised numbered reads and line-coordinate edits
 1. Startup override activation must occur at `session_start`; action APIs are not lawful while the extension factory loads.
 2. Unsupported standard reads must fail closed rather than constructing a local reader that could bypass a remote or sandbox owner.
 
-That run also led to positive built-in owner identification and refusal to displace visible non-built-in owners. Its line-coordinate payloads and line-number output are retired and are not current examples.
+That run also led to positive built-in owner identification and refusal to displace visible non-built-in owners. Current tests apply those checks independently to both `read` and `edit`, including missing built-ins. Its line-coordinate payloads and line-number output are retired and are not current examples.
 
 ## Protocol B live verification
 

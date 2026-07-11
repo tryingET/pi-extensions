@@ -14,7 +14,7 @@ system4d:
 
 > **License notice:** this package is **not standard open source**. Its bundled license is an MIT-style license with a restrictive rider that denies rights to named AI companies, related entities, and people acting for them. Review [LICENSE](LICENSE) before use or redistribution. The project does not describe this restricted license as plain MIT.
 
-`pi-snapshot-edit` provides Protocol B through both namespaced tools and an opt-in standard-tool override:
+`pi-snapshot-edit` provides Protocol B through namespaced tools and, by default, owns the standard tool names after `session_start`:
 
 - `snapshot_read` / `read` — return one `revision:<alias>` header followed by raw UTF-8 file text, without line numbers or gutters;
 - `snapshot_edit` / `edit` — apply exact replacements and anchored insertions against that immutable full-file snapshot.
@@ -70,22 +70,28 @@ The implementation preserves valid UTF-8 bytes outside edits, UTF-8 BOM, LF/CRLF
 
 Revisions expire on reload, session shutdown, eviction, or `/snapshot-edit clear`. The last digest/identity check is best-effort pre-rename detection, not filesystem compare-and-swap: a non-cooperating writer can change the path in the residual window between that check and rename. Atomic rename also cannot preserve every ACL, xattr, sparse-file, open-descriptor, or watcher behavior. Pi's queue cannot exclude non-cooperating processes.
 
-## Standard-tool override dogfood
+## Standard-tool ownership and dogfood
 
-Namespaced tools are always registered. To replace standard `read` and `edit` for one local Pi process:
+Loading the extension always registers `snapshot_read` and `snapshot_edit`. At `session_start` it also replaces built-in `read` and `edit` by default, while preserving the host's active-tool selection exactly; a standard tool disabled by the host remains disabled.
+
+Set `PI_SNAPSHOT_EDIT_OVERRIDE` to `0`, `false`, `off`, or `no` for namespaced-only operation:
+
+```bash
+PI_SNAPSHOT_EDIT_OVERRIDE=off pi
+```
+
+Legacy explicit enable surfaces remain available and may add `read` and `edit` to the active-tool selection:
 
 ```text
 /snapshot-edit override
 ```
-
-or:
 
 ```bash
 PI_SNAPSHOT_EDIT_OVERRIDE=1 pi
 pi --snapshot-edit-override
 ```
 
-The override refuses to displace non-built-in owners. Unsupported reads fail closed; `/reload` restores built-ins. Resumed line-coordinate calls and top-level legacy edit calls are rejected with instructions to reread and issue Protocol B. Nested Protocol B `oldText` remains valid.
+Standard-name ownership requires positively identified built-in owners for both tools and refuses any visible non-built-in `read` or `edit` owner. Unsupported reads fail closed. Restart with an opt-out value for namespaced-only operation, or disable/uninstall the extension to restore host ownership. Resumed line-coordinate calls and top-level legacy edit calls are rejected with instructions to reread and issue Protocol B. Nested Protocol B `oldText` remains valid.
 
 ## Install and verify
 

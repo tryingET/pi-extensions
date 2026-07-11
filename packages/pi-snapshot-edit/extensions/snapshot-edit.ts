@@ -13,6 +13,7 @@ import { SnapshotEditService } from "../src/snapshot-service.js";
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
 const LEGACY_LINES_BASE = "__legacy_line_coordinates_require_snapshot_read__";
 const OVERRIDE_ENV = "PI_SNAPSHOT_EDIT_OVERRIDE";
+const OVERRIDE_OPT_OUT_VALUES = new Set(["0", "false", "off", "no"]);
 
 const readParameters = Type.Object({
   path: Type.String({
@@ -232,7 +233,7 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
   let overrideInstalled = false;
 
   pi.registerFlag("snapshot-edit-override", {
-    description: "Replace built-in read/edit with the local snapshot protocol for this Pi process",
+    description: "Explicitly activate snapshot-owned standard read/edit for this Pi process",
     type: "boolean",
     default: false,
   });
@@ -248,18 +249,32 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
   pi.registerTool(snapshotRead);
   pi.registerTool(snapshotEdit);
 
-  const installStandardOverrides = () => {
-    if (overrideInstalled) return { installed: false, reason: "already installed" };
-    validateStandardOwners(pi);
-    const standardRead = createReadDefinition("read", "Read", service);
-    const standardEdit = createEditDefinition("edit", "Edit", service, true);
-    registeredTools.set(standardRead.name, standardRead);
-    registeredTools.set(standardEdit.name, standardEdit);
-    pi.registerTool(standardRead);
-    pi.registerTool(standardEdit);
-    pi.setActiveTools([...new Set([...pi.getActiveTools(), "read", "edit"])]);
-    overrideInstalled = true;
-    return { installed: true, reason: "local snapshot override active" };
+  const installStandardOverrides = ({ activate = false } = {}) => {
+    const wasInstalled = overrideInstalled;
+    if (!overrideInstalled) {
+      validateStandardOwners(pi);
+      const standardRead = createReadDefinition("read", "Read", service);
+      const standardEdit = createEditDefinition("edit", "Edit", service, true);
+      registeredTools.set(standardRead.name, standardRead);
+      registeredTools.set(standardEdit.name, standardEdit);
+      pi.registerTool(standardRead);
+      pi.registerTool(standardEdit);
+      overrideInstalled = true;
+    }
+    let activated = false;
+    if (activate) {
+      const currentTools = pi.getActiveTools();
+      const nextTools = [...new Set([...currentTools, "read", "edit"])];
+      activated = nextTools.length !== currentTools.length;
+      pi.setActiveTools(nextTools);
+    }
+    return {
+      installed: !wasInstalled,
+      activated,
+      reason: activate
+        ? "local snapshot override active and standard tools enabled"
+        : "local snapshot override active with host tool selection preserved",
+    };
   };
 
   pi.registerCommand("snapshot-edit-release-smoke", {
@@ -286,12 +301,12 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const action = args.trim().toLowerCase();
       if (action === "override") {
-        const installed = installStandardOverrides();
+        const installed = installStandardOverrides({ activate: true });
         if (ctx.hasUI) {
           ctx.ui.notify(
-            installed.installed
-              ? "Snapshot protocol now owns standard read/edit for this session. Run /reload to restore built-ins."
-              : "Snapshot read/edit override was already active.",
+            installed.installed || installed.activated
+              ? "Snapshot protocol owns and has enabled standard read/edit for this session. Restart with PI_SNAPSHOT_EDIT_OVERRIDE=off for namespaced-only operation."
+              : "Snapshot read/edit override was already active and enabled.",
             "info",
           );
         }
@@ -313,9 +328,11 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async () => {
-    if (process.env[OVERRIDE_ENV] === "1" || pi.getFlag("snapshot-edit-override") === true) {
-      installStandardOverrides();
-    }
+    const overrideValue = process.env[OVERRIDE_ENV]?.trim().toLowerCase();
+    if (overrideValue !== undefined && OVERRIDE_OPT_OUT_VALUES.has(overrideValue)) return;
+    const explicitlyEnabled =
+      overrideValue === "1" || pi.getFlag("snapshot-edit-override") === true;
+    installStandardOverrides({ activate: explicitlyEnabled });
   });
 
   pi.on("session_shutdown", async () => {

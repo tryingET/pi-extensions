@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [Unreleased]
+
+### Changed
+
+- Loading the extension now replaces positively identified built-in `read` and `edit` owners at `session_start` by default without changing the host's active-tool selection.
+- `PI_SNAPSHOT_EDIT_OVERRIDE=0`, `false`, `off`, or `no` now retains namespaced-only tools.
+- Legacy explicit enable surfaces remain available and may activate standard `read` and `edit`.
+- Standard replacement continues to fail closed for missing built-ins or non-built-in owners.
+
 ## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.2.1...pi-snapshot-edit-v0.2.2) (2026-07-11)
 
 
@@ -44,21 +53,3 @@ All notable changes to this project should be documented here.
 
 * **snapshot-edit:** close npm release workflow gaps ([01eba1a](https://github.com/tryingET/pi-extensions/commit/01eba1adae71ffe049ec3986f721b66b92259db8))
 * **snapshot-edit:** retain exact npm release tarball ([88d65b6](https://github.com/tryingET/pi-extensions/commit/88d65b6640778c3baf2ea841cb52ab35e1eb51ba))
-
-## [Unreleased] — first public release candidate
-
-No version of `@tryinget/pi-snapshot-edit` has been published to npm. Version `0.1.0` is the release-please component floor and an unpublished internal development baseline; the first generated public release must describe the Protocol B implementation below rather than presenting Protocol A as a shipped npm release.
-
-### Fixed
-
-- Parenthesize the jq category conditional before binding it with `as`, preserving analyzer compatibility with jq 1.6 on GitHub-hosted runners.
-- Keep the model-screen timeout referenced until `runPi` settles so handle-free fake-child runs complete reliably on Node 22.
-
-### Added
-
-- `snapshot_read` and `snapshot_edit` with session-scoped, path-bound revision aliases.
-- Guarded opt-in ownership of standard `read` and `edit` names for local dogfood.
-- Protocol B raw reads, occurrence-qualified exact replacements, anchored insertions, immutable batch resolution, EOL-normalized selectors, and precise retired line-coordinate diagnostics.
-- Stale-byte, file-identity, hard-link, overlap, cancellation, BOM, EOL, mode, byte-budget, pagination, and no-op safeguards.
-- Provider-free packed-tarball smoke coverage for namespaced and standard tools, duplicate occurrences, exact bytes, legacy rejection, and revision expiry across restart.
-- Jq-only aggregate analysis of historical Pi edit failures, protocol benchmarks, and blinded model-screen evidence.
