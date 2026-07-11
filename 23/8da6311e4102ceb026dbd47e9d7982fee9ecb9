@@ -1,0 +1,43 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "238da6311e4102ceb026dbd47e9d7982fee9ecb9"
+created_at: "2026-07-11T12:14:48Z"
+intent: "Harden pi-snapshot-edit as a deterministic bundled restricted-license npm artifact."
+files:
+  - "packages/pi-snapshot-edit/CHANGELOG.md"
+  - "packages/pi-snapshot-edit/README.md"
+  - "packages/pi-snapshot-edit/docs/adr/0001-snapshot-bound-line-range-editing.md"
+  - "packages/pi-snapshot-edit/docs/project/2026-07-11-standard-override-dogfood.md"
+  - "packages/pi-snapshot-edit/docs/project/extension-sop.md"
+  - "packages/pi-snapshot-edit/docs/project/trusted-publishing.md"
+  - "packages/pi-snapshot-edit/extensions/snapshot-edit.ts"
+  - "packages/pi-snapshot-edit/package-lock.json"
+  - "packages/pi-snapshot-edit/package.json"
+  - "packages/pi-snapshot-edit/scripts/build-extension.mjs"
+  - "packages/pi-snapshot-edit/scripts/release-check.sh"
+  - "packages/pi-snapshot-edit/scripts/release-smoke-client.mjs"
+  - "packages/pi-snapshot-edit/scripts/release-smoke.sh"
+  - "packages/pi-snapshot-edit/scripts/validate-structure.mjs"
+  - "packages/pi-snapshot-edit/scripts/validate-structure.sh"
+  - "packages/pi-snapshot-edit/tests/release-packaging.test.js"
+validation:
+  fast_gate:
+    command: "cd packages/pi-snapshot-edit && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-snapshot-edit && npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Keep license disclosure, bundle lifecycle, exact tarball smoke, reload command, and release documentation coherent."
+links:
+  task_ids:
+    - 3625
+  evidence_ids:
+    - 3389
+    - 3390
+    - 3391
+    - 3392
