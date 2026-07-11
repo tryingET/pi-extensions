@@ -8,3 +8,7 @@ autoresearch.jsonl
 autoresearch.events.jsonl
 .autoresearch/model-screen-raw*
 .autoresearch/model-screen-temp*
+.autoresearch/model-screen-aggregate.json
+.autoresearch/model-screen-crossover-aggregate.json
+.autoresearch/model-screen-claim.json
+.autoresearch/model-screen-crossover-claim.json

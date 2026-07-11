@@ -403,10 +403,14 @@ export function runPi({
   });
 }
 
-export function aggregateResults(results) {
+function cellKey({ model, protocol, workload }) {
+  return JSON.stringify([model, protocol, workload]);
+}
+
+export function aggregateResults(results, expectedPlan = results) {
   const cells = new Map();
   for (const result of results) {
-    const key = JSON.stringify([result.model, result.protocol, result.workload]);
+    const key = cellKey(result);
     const cell = cells.get(key) ?? {
       model: result.model,
       protocol: result.protocol,
@@ -421,12 +425,15 @@ export function aggregateResults(results) {
       totalTokens: 0,
       reportedCost: 0,
       reportedCostSamples: 0,
+      usageSamples: 0,
+      usageComplete: false,
       errorCategories: {},
     };
     cell.attempts += 1;
     cell.validJson += Number(result.validJson);
     cell.correct += Number(result.correct);
     if (result.usage) {
+      cell.usageSamples += 1;
       cell.inputTokens += result.usage.input;
       cell.outputTokens += result.usage.output;
       cell.cacheReadTokens += result.usage.cacheRead;
@@ -439,7 +446,34 @@ export function aggregateResults(results) {
     }
     if (result.error)
       cell.errorCategories[result.error] = (cell.errorCategories[result.error] ?? 0) + 1;
+    cell.usageComplete = cell.usageSamples === cell.attempts;
     cells.set(key, cell);
   }
-  return { schemaVersion: 1, screeningMode: "blinded-one-response", cells: [...cells.values()] };
+  const aggregateCells = [...cells.values()];
+  const expectedKeys = expectedPlan.map(cellKey);
+  const observedKeys = results.map(cellKey);
+  const expectedSet = new Set(expectedKeys);
+  const observedSet = new Set(observedKeys);
+  const exactExpectedPlan =
+    expectedKeys.length > 0 &&
+    expectedSet.size === expectedKeys.length &&
+    observedKeys.length === expectedKeys.length &&
+    observedSet.size === observedKeys.length &&
+    [...expectedSet].every((key) => observedSet.has(key)) &&
+    aggregateCells.every((cell) => cell.attempts === 1);
+  const usageComplete = exactExpectedPlan && aggregateCells.every((cell) => cell.usageComplete);
+  const scoringFailedClosed = results.some((result) =>
+    ["parse_ambiguity", "usage_error", "model_mismatch", "simulator_error"].includes(result.error),
+  );
+  return {
+    schemaVersion: 3,
+    screeningMode: "blinded-one-response",
+    matrixComplete: exactExpectedPlan,
+    expectedCellCount: expectedKeys.length,
+    observedCellCount: observedKeys.length,
+    usageComplete,
+    observedTokenTotalsAreLowerBounds: !usageComplete,
+    failedClosed: !exactExpectedPlan || !usageComplete || scoringFailedClosed,
+    cells: aggregateCells,
+  };
 }

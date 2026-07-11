@@ -7,6 +7,9 @@ export const WORKLOADS = Object.freeze([
   "repeated_block_targeting",
   "batched_edits",
 ]);
+export const CROSSOVER_PROTOCOLS = Object.freeze(["A", "B"]);
+export const CROSSOVER_SIZES = Object.freeze([20, 100, 500]);
+export const crossoverWorkload = (size) => `duplicate_target_${size}`;
 
 const replace = (startLine, endLine, newLines) => ({
   op: "replace",
@@ -50,7 +53,23 @@ const coordinateEdit = {
   ],
 };
 
+export function crossoverFixture(size) {
+  if (!CROSSOVER_SIZES.includes(size)) throw new Error(`unknown crossover size: ${size}`);
+  const first = Math.floor(size / 3);
+  const second = Math.floor((size * 2) / 3);
+  const lines = Array.from({ length: size }, (_, index) => `filler-${index + 1}`);
+  lines[first - 1] = "duplicate target";
+  lines[second - 1] = "duplicate target";
+  return Object.freeze({
+    lines: Object.freeze(lines),
+    edits: Object.freeze([replace(second, second, ["selected second target"])]),
+    duplicatePositions: Object.freeze([first, second]),
+  });
+}
+
 export function fixtureFor(workload) {
+  const crossoverMatch = /^duplicate_target_(\d+)$/.exec(workload);
+  if (crossoverMatch) return crossoverFixture(Number(crossoverMatch[1]));
   const item = fixtures[workload];
   if (!item) throw new Error(`unknown workload: ${workload}`);
   return item;
@@ -152,12 +171,15 @@ export function buildScreenPrompt(protocol, workload) {
   if (!PROTOCOLS.includes(protocol)) throw new Error(`unknown protocol: ${protocol}`);
   const item = fixtureFor(workload);
   const protocolContract = contract(protocol);
+  const taskIntent = workload.startsWith("duplicate_target_")
+    ? "In screen.txt, replace only the second occurrence of the line whose text is 'duplicate target' with 'selected second target'."
+    : intents[workload];
   const approximation =
     protocol === "C"
       ? "One-response screening approximation, not a real multi-turn tool loop: choose the numbered range you would request, then emit the edit call you would make after that range read."
       : undefined;
   return JSON.stringify({
-    taskIntent: intents[workload],
+    taskIntent,
     protocol: { ...protocolContract, ...(approximation ? { approximation } : {}) },
     readInteraction: readInteraction(protocol, item),
     responseSchema:
