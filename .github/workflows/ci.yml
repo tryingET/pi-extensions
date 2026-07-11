@@ -37,4 +37,4 @@ jobs:
         # ROCS is workspace-owned and unavailable in this standalone GitHub checkout.
         # Package release contracts run in the dedicated release-check matrix with package deps.
         # Developer pre-push validation still runs both checks from the owning workspace.
-        run: PI_SKIP_ROCS=1 PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1 npm run quality:ci
+        run: PI_SKIP_ROCS=1 PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1 PI_SKIP_PACKAGES=1 npm run quality:ci

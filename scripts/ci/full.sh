@@ -67,7 +67,11 @@ if [ -f "./scripts/root-doc-alignment.test.mjs" ]; then
 fi
 
 if [ -x "./scripts/ci/packages.sh" ]; then
-  ./scripts/ci/packages.sh
+  if [ "${PI_SKIP_PACKAGES:-0}" = "1" ]; then
+    echo "skipping aggregate package quality gates: dedicated release-check matrix owns CI coverage"
+  else
+    ./scripts/ci/packages.sh
+  fi
 fi
 
 if [ "${PI_HOST_COMPAT_CANARY:-0}" = "1" ] && [ -f "./scripts/pi-host-compatibility-canary.mjs" ]; then
