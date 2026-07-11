@@ -93,6 +93,10 @@
       "release-type": "node",
       "component": "pi-session-compaction"
     },
+    "packages/pi-snapshot-edit": {
+      "release-type": "node",
+      "component": "pi-snapshot-edit"
+    },
     "packages/pi-society-orchestrator": {
       "release-type": "node",
       "component": "pi-society-orchestrator"
