@@ -29,7 +29,9 @@ jobs:
           python -m pip install --disable-pip-version-check --prefix "$RUNNER_TEMP/uv" uv==0.11.14
           uv_bin="$(find "$RUNNER_TEMP/uv" -type f -name uv -perm -111 -print -quit)"
           test -n "$uv_bin"
-          dirname "$uv_bin" >> "$GITHUB_PATH"
+          uv_dir="$(dirname "$uv_bin")"
+          echo "$uv_dir" >> "$GITHUB_PATH"
+          echo "UV_DIR=$uv_dir" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: |
@@ -41,4 +43,4 @@ jobs:
           fi
 
       - name: Run quality gate (ci)
-        run: npm run quality:ci
+        run: PATH="$UV_DIR:$PATH" npm run quality:ci
