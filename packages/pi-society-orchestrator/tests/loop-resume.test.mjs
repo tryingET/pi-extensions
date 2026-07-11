@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-control/execution";
 import { LoopExecutor, registerLoopTools } from "../src/loops/engine.ts";
 import {
   captureLoopArtifactHashes,
@@ -14,6 +15,7 @@ import {
   validateResumeCheckpoint,
 } from "../src/loops/run-checkpoint.ts";
 import { captureLoopStateFingerprint } from "../src/loops/run-state-fingerprint.ts";
+import { toExecutionLike } from "../src/runtime/subagent.ts";
 
 const RESUMABLE_PLUGIN = {
   name: "transcendent",
@@ -34,12 +36,12 @@ const RESUMABLE_PLUGIN = {
   },
 };
 
-function createHarness({ trustSyntheticReceipts = true } = {}) {
+function createHarness({ trustSyntheticReceipts = true, plugin = RESUMABLE_PLUGIN } = {}) {
   const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-resume-cwd-"));
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-resume-package-"));
   const checkpointStore = new LoopRunCheckpointStore(path.join(packageRoot, ".loop-runs"));
   let fingerprint = "sha256:stable-state";
-  const executor = new LoopExecutor(RESUMABLE_PLUGIN, operatorCwd, "/tmp/unused-vault", {
+  const executor = new LoopExecutor(plugin, operatorCwd, "/tmp/unused-vault", {
     packageRoot,
     allowUnverifiedKesRoot: true,
     checkpointStore,
@@ -74,19 +76,23 @@ function phaseFromContext(context) {
   return /^## Phase: (.+)$/m.exec(context)?.[1];
 }
 
-function checkpointOwnerReceipt(attemptId = "asc-attempt-test") {
+function checkpointOwnerReceipt(
+  attemptId = "asc-attempt-test",
+  consumerCorrelationId = "attempt-test",
+) {
   return {
     schema: "asc.dispatch_effect_receipt.v1",
-    dispatchId: "asc-dispatch-test",
+    dispatchId: `dispatch-${attemptId}`,
     attemptId,
     sessionName: "loop-test",
+    consumerCorrelationId,
     disposition: "settled",
     recordedAt: "2026-07-11T00:00:00.000Z",
     receiptPath: `/tmp/${attemptId}.effect-receipt.json`,
   };
 }
 
-function settledResult(output, elapsed) {
+function settledResult(output, elapsed, consumerCorrelationId = "attempt-test") {
   return {
     output,
     exitCode: 0,
@@ -98,12 +104,13 @@ function settledResult(output, elapsed) {
     },
     effectReceipt: {
       schema: "asc.dispatch_effect_receipt.v1",
-      dispatchId: "dispatch-test",
-      attemptId: "attempt-test",
+      dispatchId: `dispatch-${consumerCorrelationId}`,
+      attemptId: `asc-${consumerCorrelationId}`,
       sessionName: "loop-test",
+      consumerCorrelationId,
       disposition: "settled",
       recordedAt: "2026-07-11T00:00:00.000Z",
-      receiptPath: "/tmp/test-effect-receipt.json",
+      receiptPath: `/tmp/${consumerCorrelationId}.effect-receipt.json`,
     },
   };
 }
@@ -132,7 +139,7 @@ test("LoopExecutor continues from the next undispatched phase under the same dur
       phase: "diagnose",
       status: "done",
       effectDisposition: "settled",
-      ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnose"),
+      ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnose", "attempt-diagnose"),
       output: "diagnose complete",
       exitCode: 0,
       elapsed: 10,
@@ -146,7 +153,7 @@ test("LoopExecutor continues from the next undispatched phase under the same dur
     let dissolveContext = "";
     const resumed = await harness.executor.execute(
       objective,
-      async ({ context }) => {
+      async ({ context, effectCorrelationId }) => {
         const phase = phaseFromContext(context);
         resumedCalls.push(phase);
         if (phase === "dissolve") dissolveContext = context;
@@ -155,6 +162,7 @@ test("LoopExecutor continues from the next undispatched phase under the same dur
             ? `${phase} recovered\nCLOSURE_GATE: PASS`
             : `${phase} recovered`,
           12,
+          effectCorrelationId,
         );
       },
       undefined,
@@ -269,13 +277,16 @@ test("LoopExecutor blocks a successful phase when its owner receipt is missing",
 test("LoopExecutor never advances a successful phase whose receipt says confirmed_no_effects", async () => {
   const harness = createHarness();
   try {
-    const result = await harness.executor.execute("Retry the unresolved phase", async () => ({
-      ...settledResult("no effects occurred", 1),
-      effectReceipt: {
-        ...settledResult("unused", 1).effectReceipt,
-        disposition: "confirmed_no_effects",
-      },
-    }));
+    const result = await harness.executor.execute(
+      "Retry the unresolved phase",
+      async ({ effectCorrelationId }) => ({
+        ...settledResult("no effects occurred", 1, effectCorrelationId),
+        effectReceipt: {
+          ...settledResult("unused", 1, effectCorrelationId).effectReceipt,
+          disposition: "confirmed_no_effects",
+        },
+      }),
+    );
     assert.equal(result.success, false);
     assert.deepEqual(
       result.phases.map((phase) => phase.phase),
@@ -288,6 +299,117 @@ test("LoopExecutor never advances a successful phase whose receipt says confirme
     assert.equal(deriveResumePhase(checkpoint), "diagnose");
   } finally {
     harness.cleanup();
+  }
+});
+
+test("confirmed dispatch no-effects never overrides an Orchestrator phase-enter hook", async () => {
+  let hookCalls = 0;
+  const harness = createHarness({
+    plugin: {
+      ...RESUMABLE_PLUGIN,
+      async onEnter() {
+        hookCalls += 1;
+      },
+    },
+  });
+  try {
+    const result = await harness.executor.execute(
+      "Protect hook effects",
+      async ({ effectCorrelationId }) => ({
+        ...settledResult("dispatch did not spawn", 1, effectCorrelationId),
+        exitCode: 1,
+        effectReceipt: {
+          ...settledResult("unused", 1, effectCorrelationId).effectReceipt,
+          disposition: "confirmed_no_effects",
+        },
+      }),
+    );
+    assert.equal(hookCalls, 1);
+    assert.equal(result.success, false);
+    const checkpoint = harness.checkpointStore.load(result.sessionId);
+    assert.equal(checkpoint.attempts[0].effectDisposition, "effect_indeterminate");
+    assert.equal(checkpoint.attempts[0].ownerEffectReceipt, undefined);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("ASC confirmed-no-effects receipt enables one exact same-lineage retry", async () => {
+  const harness = createHarness({ trustSyntheticReceipts: false });
+  const sessionsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-confirmed-no-effects-"));
+  const objective = "Retry after a proven pre-spawn failure";
+  try {
+    const first = await harness.executor.execute(objective, async ({ effectCorrelationId }) => {
+      const rejectedRuntime = createAscExecutionRuntime({
+        sessionsDir,
+        modelProvider: () => {
+          throw new Error("transient model selection failure");
+        },
+        spawner: async () => {
+          throw new Error("pre-spawn failure must not call the spawner");
+        },
+      });
+      const rejected = await rejectedRuntime.execute(
+        { profile: "reviewer", objective, effectCorrelationId },
+        { cwd: harness.operatorCwd },
+      );
+      assert.equal(rejected.details.effectReceipt?.disposition, "confirmed_no_effects");
+      return toExecutionLike(rejected, sessionsDir);
+    });
+    assert.equal(first.success, false);
+    assert.equal(first.phases[0].artifacts.length, 0);
+    assert.equal(first.artifacts.length, 1);
+    assert.match(first.artifacts[0].content, /session-/);
+    assert.equal(
+      first.artifacts.some((artifact) => artifact.content.includes("complete-")),
+      false,
+    );
+    const rejectedCheckpoint = harness.checkpointStore.load(first.sessionId);
+    assert.equal(rejectedCheckpoint.attempts[0].artifactPaths.length, 0);
+    assert.equal(deriveResumePhase(rejectedCheckpoint), "diagnose");
+
+    const resumedCalls = [];
+    const resumed = await harness.executor.execute(
+      objective,
+      async ({ context, effectCorrelationId }) => {
+        const phase = phaseFromContext(context);
+        resumedCalls.push(phase);
+        const runtime = createAscExecutionRuntime({
+          sessionsDir,
+          modelProvider: () => "test/model",
+          spawner: async () => ({
+            output:
+              phase === "closure-gate"
+                ? `${phase} settled\nCLOSURE_GATE: PASS`
+                : `${phase} settled`,
+            exitCode: 0,
+            elapsed: 1,
+            status: "done",
+          }),
+        });
+        const result = await runtime.execute(
+          {
+            profile: "reviewer",
+            objective: `${objective}: ${phase}`,
+            effectCorrelationId,
+          },
+          { cwd: harness.operatorCwd },
+        );
+        return toExecutionLike(result, sessionsDir);
+      },
+      undefined,
+      {
+        resumeRunId: first.sessionId,
+        expectedFailedPhase: "diagnose",
+        recoveryMode: "validate_then_retry",
+      },
+    );
+    assert.equal(resumed.success, true);
+    assert.deepEqual(resumedCalls, RESUMABLE_PLUGIN.phases);
+    assert.equal(resumed.sessionId, first.sessionId);
+  } finally {
+    harness.cleanup();
+    fs.rmSync(sessionsDir, { recursive: true, force: true });
   }
 });
 
@@ -380,7 +502,7 @@ test("resume validation rejects objective, phase, graph, repository, and state d
         phase: "diagnose",
         status: "done",
         effectDisposition: "settled",
-        ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnosed"),
+        ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnosed", "attempt-diagnose"),
         output: "diagnosed",
         exitCode: 0,
         elapsed: 1,
@@ -704,7 +826,7 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
       phase: "rebuild",
       status: "done",
       effectDisposition: "settled",
-      ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-later"),
+      ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-later", "later-attempt"),
       output: "invalid later output",
       exitCode: 0,
       elapsed: 1,
@@ -722,7 +844,7 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
       phase,
       status: "done",
       effectDisposition: "settled",
-      ownerEffectReceipt: checkpointOwnerReceipt(`asc-attempt-${phase}`),
+      ownerEffectReceipt: checkpointOwnerReceipt(`asc-attempt-${phase}`, `attempt-${phase}`),
       output: "done",
       exitCode: 0,
       elapsed: 1,
@@ -730,6 +852,16 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
       timestamp: new Date().toISOString(),
     }));
     checkpoint.status = "done";
+    const replayedReceiptCheckpoint = structuredClone(checkpoint);
+    replayedReceiptCheckpoint.attempts[1].ownerEffectReceipt.dispatchId =
+      replayedReceiptCheckpoint.attempts[0].ownerEffectReceipt.dispatchId;
+    replayedReceiptCheckpoint.attempts[1].ownerEffectReceipt.attemptId =
+      replayedReceiptCheckpoint.attempts[0].ownerEffectReceipt.attemptId;
+    assert.throws(
+      () => harness.checkpointStore.save(replayedReceiptCheckpoint),
+      (error) =>
+        error instanceof LoopResumeError && error.failureKind === "loop_resume_checkpoint_invalid",
+    );
     assert.throws(
       () => deriveResumePhase(checkpoint),
       (error) =>

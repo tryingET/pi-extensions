@@ -49,6 +49,7 @@ export interface OrchestratorSubagentExecutionParams {
   promptContent?: string;
   promptTags?: string[];
   promptSource?: string;
+  effectCorrelationId?: string;
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
   signal?: AbortSignal;
 }
@@ -140,6 +141,7 @@ export function createOrchestratorSubagentExecutor(
           prompt_content: params.promptContent,
           prompt_tags: params.promptTags,
           prompt_source: params.promptSource,
+          effectCorrelationId: params.effectCorrelationId,
         },
         buildAscExecutionContext(params.cwd, params.model),
         params.onUpdate,
@@ -206,6 +208,7 @@ export function verifyDispatchEffectReceipt(
     typeof result.details.sessionName !== "string" ||
     !result.details.sessionName ||
     returned.sessionName !== result.details.sessionName ||
+    returned.consumerCorrelationId !== result.details.effectCorrelationId ||
     !["settled", "confirmed_no_effects", "effect_indeterminate"].includes(returned.disposition) ||
     !Number.isFinite(Date.parse(returned.recordedAt))
   ) {
@@ -260,6 +263,7 @@ export function verifyDispatchEffectReceipt(
     const persisted = JSON.parse(persistedText) as Record<string, unknown>;
     const expectedKeys = [
       "attemptId",
+      "consumerCorrelationId",
       "dispatchId",
       "disposition",
       "receiptPath",

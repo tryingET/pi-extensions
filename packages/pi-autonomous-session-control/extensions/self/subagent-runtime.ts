@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { createEdgeMonotonicId } from "./edge-contract-kernel.ts";
-import { writeDispatchEffectReceipt } from "./effect-receipt.ts";
+import { normalizeEffectReceiptSessionName, writeDispatchEffectReceipt } from "./effect-receipt.ts";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
 import { reserveSharedSubagentCapacity } from "./subagent-capacity.ts";
 import { cancelSubagentDispatch } from "./subagent-control.ts";
@@ -76,6 +76,53 @@ import {
   validateSubagentRequestEnv,
 } from "./subagent-spawn.ts";
 
+function attachConfirmedNoEffectsReceipt(params: {
+  sessionsDir: string;
+  sessionName: string;
+  dispatchId: string;
+  attemptId: string;
+  effectCorrelationId?: string;
+  result: DispatchSubagentExecutionResult;
+}): DispatchSubagentExecutionResult {
+  const sessionName = normalizeEffectReceiptSessionName(params.sessionName);
+  try {
+    const effectReceipt = writeDispatchEffectReceipt({
+      sessionsDir: params.sessionsDir,
+      sessionName,
+      dispatchId: params.dispatchId,
+      attemptId: params.attemptId,
+      consumerCorrelationId: params.effectCorrelationId,
+      disposition: "confirmed_no_effects",
+    });
+    return {
+      ...params.result,
+      details: {
+        ...params.result.details,
+        dispatchId: params.dispatchId,
+        attemptId: params.attemptId,
+        sessionName,
+        effectCorrelationId: effectReceipt.consumerCorrelationId,
+        effectReceipt,
+      },
+    };
+  } catch {
+    return {
+      ...params.result,
+      ok: false,
+      text: `${params.result.text}\n\nASC effect receipt could not be persisted; execution effects remain indeterminate.`,
+      details: {
+        ...params.result.details,
+        dispatchId: params.dispatchId,
+        attemptId: params.attemptId,
+        sessionName,
+        effectCorrelationId: params.effectCorrelationId,
+        status: "error",
+        failureKind: "effect_receipt_write_failed",
+      },
+    };
+  }
+}
+
 export async function executeDispatchSubagentRequest(options: {
   request: DispatchSubagentRequest;
   state: SubagentState;
@@ -114,6 +161,7 @@ export async function executeDispatchSubagentRequest(options: {
     prompt_content,
     prompt_tags,
     prompt_source,
+    effectCorrelationId,
   } = normalizedParams;
 
   const invariants = validateDispatchParams(normalizedParams);
@@ -190,9 +238,20 @@ export async function executeDispatchSubagentRequest(options: {
   }
   const dispatchId = resume?.ok ? resume.value.dispatchId : createEdgeMonotonicId("dispatch");
   const attemptId = createEdgeMonotonicId("attempt");
+  const failBeforeSpawn = (
+    result: DispatchSubagentExecutionResult,
+  ): DispatchSubagentExecutionResult =>
+    attachConfirmedNoEffectsReceipt({
+      sessionsDir: options.state.sessionsDir,
+      sessionName: name || profile,
+      dispatchId,
+      attemptId,
+      effectCorrelationId,
+      result,
+    });
   const profileDef = SUBAGENT_PROFILES[profile];
   if (!profileDef && profile !== "custom") {
-    return {
+    return failBeforeSpawn({
       ok: false,
       text: `Unknown profile: ${profile}. Available: ${Object.keys(SUBAGENT_PROFILES).join(", ")}, custom`,
       details: {
@@ -200,12 +259,12 @@ export async function executeDispatchSubagentRequest(options: {
         failureKind: "unknown_profile",
         status: "error",
       },
-    };
+    });
   }
 
   const executionSlot = reserveSubagentExecutionSlot(options.state);
   if (!executionSlot) {
-    return {
+    return failBeforeSpawn({
       ok: false,
       text: `Maximum concurrent subagents reached (${options.state.maxConcurrent}). Wait for existing subagents to complete.`,
       details: {
@@ -215,7 +274,7 @@ export async function executeDispatchSubagentRequest(options: {
         maxConcurrent: options.state.maxConcurrent,
         status: "error",
       },
-    };
+    });
   }
 
   const taskContract = buildDispatchTaskContract({
@@ -235,7 +294,7 @@ export async function executeDispatchSubagentRequest(options: {
   );
   if (!sharedCapacityLease) {
     executionSlot.release();
-    return {
+    return failBeforeSpawn({
       ok: false,
       text: `Maximum concurrent subagents reached across Pi processes (${options.state.maxConcurrent}).`,
       details: {
@@ -245,7 +304,7 @@ export async function executeDispatchSubagentRequest(options: {
         maxConcurrent: options.state.maxConcurrent,
         status: "error",
       },
-    };
+    });
   }
   const releaseExecutionReservations = (completed = false) => {
     sharedCapacityLease.release();
@@ -278,7 +337,7 @@ export async function executeDispatchSubagentRequest(options: {
     releaseExecutionReservations();
     const message = error instanceof Error ? error.message : String(error);
     const output = `Model selection failed before subagent spawn: ${message}`;
-    return {
+    return failBeforeSpawn({
       ok: false,
       text: `✗ [${profile}] error before spawn\n\n${output}`,
       details: {
@@ -293,7 +352,7 @@ export async function executeDispatchSubagentRequest(options: {
         activeCount: options.state.activeCount,
         maxConcurrent: options.state.maxConcurrent,
       },
-    };
+    });
   }
   const extensionSelection = resolveSubagentExtensionSelection({
     requestedExtensions: extensions,
@@ -303,7 +362,7 @@ export async function executeDispatchSubagentRequest(options: {
 
   if (extensionSelection.missingRequired.length > 0) {
     releaseExecutionReservations();
-    return {
+    return failBeforeSpawn({
       ok: false,
       text: [
         "Subagent child runtime is missing required extension bootstrap.",
@@ -321,7 +380,7 @@ export async function executeDispatchSubagentRequest(options: {
         status: "error",
         failureKind: "extension_bootstrap_missing",
       },
-    };
+    });
   }
 
   let skillSelection: Awaited<ReturnType<typeof resolveSubagentSkillSelection>>;
@@ -335,7 +394,7 @@ export async function executeDispatchSubagentRequest(options: {
   } catch (error) {
     releaseExecutionReservations();
     const message = error instanceof Error ? error.message : String(error);
-    return {
+    return failBeforeSpawn({
       ok: false,
       text: `Subagent child runtime skill-profile resolution failed: ${message}`,
       details: {
@@ -350,7 +409,7 @@ export async function executeDispatchSubagentRequest(options: {
           error instanceof SubagentSkillSelectionError ? error.reason : "skill_profile_failed",
         failureKind: "skill_profile_failed",
       },
-    };
+    });
   }
 
   let sessionReservation:
@@ -469,7 +528,6 @@ export async function executeDispatchSubagentRequest(options: {
       },
     });
 
-    spawnAttempted = true;
     if (runtimeOwnsStatusProjection) {
       writeRunningSubagentStatus({
         state: options.state,
@@ -480,6 +538,7 @@ export async function executeDispatchSubagentRequest(options: {
         cancelSupported: false,
       });
     }
+    spawnAttempted = true;
     result = await spawner(
       def,
       selectedModel.effectiveModel,
@@ -580,7 +639,13 @@ export async function executeDispatchSubagentRequest(options: {
       sessionName: sessionReservation?.sessionName ?? activeDef?.name ?? "unknown",
       dispatchId,
       attemptId,
-      disposition: status === "done" ? "settled" : "effect_indeterminate",
+      consumerCorrelationId: effectCorrelationId,
+      disposition:
+        status === "done"
+          ? "settled"
+          : spawnAttempted
+            ? "effect_indeterminate"
+            : "confirmed_no_effects",
     });
   } catch {
     receiptWriteFailed = true;
@@ -643,6 +708,7 @@ export async function executeDispatchSubagentRequest(options: {
       prompt_warning: promptEnvelope.prompt_warning,
       status: reportedStatus,
       failureKind,
+      effectCorrelationId: effectReceipt?.consumerCorrelationId ?? effectCorrelationId,
       effectReceipt,
     },
   };

@@ -87,6 +87,8 @@ export interface DispatchSubagentRequest {
   prompt_content?: string;
   prompt_tags?: string[];
   prompt_source?: string;
+  /** Consumer-owned correlation id bound into ASC's durable effect receipt. */
+  effectCorrelationId?: string;
 }
 
 export interface DispatchSubagentDetails {
@@ -140,6 +142,7 @@ export interface DispatchSubagentDetails {
   failureKind?: DispatchSubagentFailureKind;
   /** Durable, owner-issued effect disposition for this exact ASC attempt. */
   effectReceipt?: DispatchEffectReceipt;
+  effectCorrelationId?: string;
   invariants?: InvariantIssue[];
   activeCount?: number;
   maxConcurrent?: number;

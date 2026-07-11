@@ -261,6 +261,13 @@ test("createAscExecutionRuntime returns structured model-selection errors withou
     assert.equal(result.details.activeCount, 0);
     assert.equal(typeof result.details.maxConcurrent, "number");
     assert.equal(result.details.displayOutput, result.details.fullOutput);
+    assert.equal(result.details.effectReceipt.disposition, "confirmed_no_effects");
+    assert.equal(result.details.effectReceipt.dispatchId, result.details.dispatchId);
+    assert.equal(result.details.effectReceipt.attemptId, result.details.attemptId);
+    assert.deepEqual(
+      JSON.parse(await readFile(result.details.effectReceipt.receiptPath, "utf8")),
+      result.details.effectReceipt,
+    );
     assert.match(result.text, /^✗ \[reviewer\] error before spawn/);
     assert.match(result.text, /model provider exploded/);
   } finally {

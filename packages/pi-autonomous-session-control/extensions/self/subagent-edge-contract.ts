@@ -45,6 +45,7 @@ export interface NormalizedDispatchParams {
   prompt_content?: string;
   prompt_tags?: string[];
   prompt_source?: string;
+  effectCorrelationId?: string;
   rawTimeout: unknown;
   rawStartupTimeout: unknown;
   rawThinking: unknown;
@@ -96,6 +97,7 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
     }),
     prompt_tags: normalizeStringArray(normalized.prompt_tags),
     prompt_source: normalizeString(normalized.prompt_source),
+    effectCorrelationId: normalizeString(normalized.effectCorrelationId, { maxLength: 200 }),
     rawTimeout: normalized.timeout,
     rawStartupTimeout: normalized.startupTimeout,
     rawThinking: normalized.thinking,

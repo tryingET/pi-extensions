@@ -9,9 +9,15 @@ export interface DispatchEffectReceipt {
   dispatchId: string;
   attemptId: string;
   sessionName: string;
+  consumerCorrelationId: string;
   disposition: DispatchEffectDisposition;
   recordedAt: string;
   receiptPath: string;
+}
+
+export function normalizeEffectReceiptSessionName(raw: string): string {
+  const safe = raw.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80);
+  return safe || "subagent";
 }
 
 /** Persist ASC's owner-issued execution-effect attestation before exposing it to consumers. */
@@ -20,6 +26,7 @@ export function writeDispatchEffectReceipt(params: {
   sessionName: string;
   dispatchId: string;
   attemptId: string;
+  consumerCorrelationId?: string;
   disposition: DispatchEffectDisposition;
 }): DispatchEffectReceipt {
   const sessionsRoot = fs.realpathSync(params.sessionsDir);
@@ -39,6 +46,7 @@ export function writeDispatchEffectReceipt(params: {
     dispatchId: params.dispatchId,
     attemptId: params.attemptId,
     sessionName: safeSessionName,
+    consumerCorrelationId: params.consumerCorrelationId || params.attemptId,
     disposition: params.disposition,
     recordedAt: new Date().toISOString(),
     receiptPath,

@@ -20,6 +20,7 @@ function normalizeExecutionDetails(details) {
     ...details,
     ...(details.dispatchId ? { dispatchId: "<dispatch-id>" } : {}),
     ...(details.attemptId ? { attemptId: "<attempt-id>" } : {}),
+    ...(details.effectCorrelationId ? { effectCorrelationId: "<correlation-id>" } : {}),
     ...(details.sessionFile ? { sessionFile: basename(details.sessionFile) } : {}),
     ...(details.lastActivityAt ? { lastActivityAt: "<timestamp>" } : {}),
     ...(details.effectReceipt
@@ -28,6 +29,7 @@ function normalizeExecutionDetails(details) {
             ...details.effectReceipt,
             dispatchId: "<dispatch-id>",
             attemptId: "<attempt-id>",
+            consumerCorrelationId: "<correlation-id>",
             recordedAt: "<timestamp>",
             receiptPath: "<receipt-path>",
           },

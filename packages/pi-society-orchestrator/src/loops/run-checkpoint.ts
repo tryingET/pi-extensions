@@ -21,6 +21,7 @@ export interface OwnerEffectReceipt {
   dispatchId: string;
   attemptId: string;
   sessionName: string;
+  consumerCorrelationId: string;
   disposition: LoopAttemptEffectDisposition;
   recordedAt: string;
   receiptPath: string;
@@ -599,6 +600,8 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
     "effect_indeterminate",
   ]);
   const attemptIds = new Set<string>();
+  const ownerDispatchIds = new Set<string>();
+  const ownerAttemptIds = new Set<string>();
   let highestPhaseIndex = 0;
   for (const attempt of record.attempts) {
     if (
@@ -618,6 +621,7 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
         !isValidCheckpointOwnerEffectReceipt(
           attempt.ownerEffectReceipt,
           attempt.effectDisposition,
+          attempt.attemptId,
         )) ||
       typeof attempt.output !== "string" ||
       typeof attempt.exitCode !== "number" ||
@@ -631,6 +635,16 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
       throw invalidCheckpoint(expectedRunId);
     }
     attemptIds.add(attempt.attemptId);
+    if (attempt.ownerEffectReceipt) {
+      if (
+        ownerDispatchIds.has(attempt.ownerEffectReceipt.dispatchId) ||
+        ownerAttemptIds.has(attempt.ownerEffectReceipt.attemptId)
+      ) {
+        throw invalidCheckpoint(expectedRunId);
+      }
+      ownerDispatchIds.add(attempt.ownerEffectReceipt.dispatchId);
+      ownerAttemptIds.add(attempt.ownerEffectReceipt.attemptId);
+    }
     const phaseIndex = record.phases.indexOf(attempt.phase);
     if (phaseIndex < highestPhaseIndex) throw invalidCheckpoint(expectedRunId);
     highestPhaseIndex = phaseIndex;
@@ -642,6 +656,7 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
 function isValidCheckpointOwnerEffectReceipt(
   value: unknown,
   expectedDisposition: LoopAttemptEffectDisposition,
+  expectedCorrelationId: string,
 ): value is OwnerEffectReceipt {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const receipt = value as Partial<OwnerEffectReceipt>;
@@ -653,6 +668,7 @@ function isValidCheckpointOwnerEffectReceipt(
     Boolean(receipt.attemptId) &&
     typeof receipt.sessionName === "string" &&
     Boolean(receipt.sessionName) &&
+    receipt.consumerCorrelationId === expectedCorrelationId &&
     receipt.disposition === expectedDisposition &&
     typeof receipt.recordedAt === "string" &&
     Number.isFinite(Date.parse(receipt.recordedAt)) &&

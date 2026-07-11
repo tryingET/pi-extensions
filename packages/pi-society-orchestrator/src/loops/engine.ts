@@ -38,7 +38,11 @@ import {
   finalizeExecutionEffects,
   recordEvidence,
 } from "../runtime/evidence.ts";
-import type { ExecutionLike, ExecutionStatus } from "../runtime/execution-status.ts";
+import {
+  type ExecutionLike,
+  type ExecutionStatus,
+  getExecutionStatus,
+} from "../runtime/execution-status.ts";
 import {
   createOrchestratorSubagentExecutor,
   isVerifiedDispatchEffectReceipt,
@@ -192,6 +196,7 @@ export type LoopDispatchFn = (params: {
   agent: string;
   cognitiveTool: string;
   context: string;
+  effectCorrelationId: string;
   timeoutSeconds?: number;
   onUpdate?: (update: unknown) => void;
 }) => Promise<
@@ -682,6 +687,7 @@ export class LoopExecutor {
         agent,
         cognitiveTool: primaryTool,
         context: phaseContext,
+        effectCorrelationId: attemptId,
         timeoutSeconds: options.phaseTimeoutSeconds,
         onUpdate: (update) =>
           options.onUpdate?.({
@@ -693,6 +699,56 @@ export class LoopExecutor {
           }),
       });
       const result = applyLoopPhaseSemanticOutcome(this.plugin.name, phase, rawResult);
+      const verifiedOwnerReceipt =
+        isValidOwnerEffectReceipt(result.effectReceipt, attemptId) &&
+        this.verifyEffectReceipt(result.effectReceipt)
+          ? result.effectReceipt
+          : undefined;
+      // ASC's receipt covers dispatch effects only. A pre-dispatch plugin hook is a
+      // separate owner surface, so it prevents phase-wide confirmed-no-effects retry.
+      const ownerReceipt =
+        verifiedOwnerReceipt?.disposition === "confirmed_no_effects" && this.plugin.onEnter
+          ? undefined
+          : verifiedOwnerReceipt;
+
+      if (ownerReceipt?.disposition === "confirmed_no_effects") {
+        const phaseResult: PhaseResult = {
+          phase,
+          attemptId,
+          output: result.output,
+          exitCode: result.exitCode,
+          status: getExecutionStatus(result),
+          failureKind:
+            result.failureKind ||
+            (getExecutionStatus(result) === "done" ? "effect_receipt_not_settled" : undefined),
+          elapsed: result.elapsed,
+          artifacts: [],
+          timestamp: new Date(),
+        };
+        context.history.push(phaseResult);
+        const confirmedAttemptIndex = checkpoint.attempts.findIndex(
+          (attempt) => attempt.attemptId === attemptId,
+        );
+        checkpoint.attempts[confirmedAttemptIndex] = toCheckpointAttempt(
+          phaseResult,
+          "confirmed_no_effects",
+          ownerReceipt,
+        );
+        checkpoint.status = "failed";
+        checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+        this.checkpointStore.save(checkpoint);
+        options.onUpdate?.({
+          event: "phase_complete",
+          plugin: this.plugin.name,
+          sessionId,
+          phase,
+          status: phaseResult.status,
+          elapsed: result.elapsed,
+          failureKind: phaseResult.failureKind,
+        });
+        success = false;
+        break;
+      }
 
       const executionOutcome = await finalizeExecutionEffects({
         result,
@@ -710,11 +766,6 @@ export class LoopExecutor {
         recordEvidence: (entry, activeSignal) => this.ak.evidenceRecord(entry, activeSignal),
       });
 
-      const ownerReceipt =
-        isValidOwnerEffectReceipt(result.effectReceipt) &&
-        this.verifyEffectReceipt(result.effectReceipt)
-          ? result.effectReceipt
-          : undefined;
       const effectDisposition = ownerReceipt?.disposition ?? "effect_indeterminate";
       const phaseResult: PhaseResult = {
         phase,
@@ -818,22 +869,28 @@ export class LoopExecutor {
     }
 
     const elapsed = Date.now() - startTime;
-    context.artifacts.push(
-      ...this.kes.writeComplete({
-        plugin: this.plugin.name,
-        sessionId,
-        objective,
-        success,
-        elapsed,
-        phases: context.history.map((phase) => ({
-          phase: phase.phase,
-          status: phase.status,
-          elapsed: phase.elapsed,
-          failureKind: phase.failureKind,
-        })),
-        emittedArtifacts: context.artifacts,
-      }),
-    );
+    const latestAttempt = checkpoint.attempts.at(-1);
+    const retryableConfirmedNoEffects =
+      latestAttempt?.effectDisposition === "confirmed_no_effects" &&
+      latestAttempt.attemptId === context.history.at(-1)?.attemptId;
+    if (!retryableConfirmedNoEffects) {
+      context.artifacts.push(
+        ...this.kes.writeComplete({
+          plugin: this.plugin.name,
+          sessionId,
+          objective,
+          success,
+          elapsed,
+          phases: context.history.map((phase) => ({
+            phase: phase.phase,
+            status: phase.status,
+            elapsed: phase.elapsed,
+            failureKind: phase.failureKind,
+          })),
+          emittedArtifacts: context.artifacts,
+        }),
+      );
+    }
     checkpoint.status = success
       ? "done"
       : context.history.at(-1)?.status === "aborted"
@@ -981,12 +1038,14 @@ function forceLoopSemanticFailure(
 
 function isValidOwnerEffectReceipt(
   receipt: Awaited<ReturnType<LoopDispatchFn>>["effectReceipt"],
+  expectedCorrelationId: string,
 ): receipt is NonNullable<Awaited<ReturnType<LoopDispatchFn>>["effectReceipt"]> {
   return Boolean(
     receipt &&
       receipt.schema === "asc.dispatch_effect_receipt.v1" &&
       receipt.dispatchId &&
       receipt.attemptId &&
+      receipt.consumerCorrelationId === expectedCorrelationId &&
       receipt.recordedAt &&
       receipt.receiptPath &&
       ["settled", "confirmed_no_effects", "effect_indeterminate"].includes(receipt.disposition),
@@ -1308,6 +1367,7 @@ export function registerLoopTools(
       agent: string;
       cognitiveTool: string;
       context: string;
+      effectCorrelationId: string;
       timeoutSeconds?: number;
       onUpdate?: (update: unknown) => void;
     }) => {
@@ -1358,6 +1418,7 @@ export function registerLoopTools(
         cognitiveToolContent: toolResult.value.content,
         objective: p.context,
         model,
+        effectCorrelationId: p.effectCorrelationId,
         cwd: ctx.cwd,
         extraSections: [
           `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,

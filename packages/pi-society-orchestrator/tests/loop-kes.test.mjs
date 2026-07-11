@@ -28,7 +28,7 @@ function createExecutor(plugin, operatorCwd, packageRoot) {
   });
 }
 
-function settledResult(output, elapsed) {
+function settledResult(output, elapsed, consumerCorrelationId) {
   return {
     output,
     exitCode: 0,
@@ -40,12 +40,13 @@ function settledResult(output, elapsed) {
     },
     effectReceipt: {
       schema: "asc.dispatch_effect_receipt.v1",
-      dispatchId: "dispatch-test",
-      attemptId: "attempt-test",
+      dispatchId: `dispatch-${consumerCorrelationId}`,
+      attemptId: `asc-${consumerCorrelationId}`,
       sessionName: "loop-test",
+      consumerCorrelationId,
       disposition: "settled",
       recordedAt: "2026-07-11T00:00:00.000Z",
-      receiptPath: "/tmp/test-effect-receipt.json",
+      receiptPath: `/tmp/${consumerCorrelationId}.effect-receipt.json`,
     },
   };
 }
@@ -76,10 +77,10 @@ test("LoopExecutor writes package-owned KES artifacts and stages candidate-only 
 
     const result = await executor.execute(
       "Improve evidence reporting",
-      async ({ cognitiveTool }) => {
+      async ({ cognitiveTool, effectCorrelationId }) => {
         const phase = KAIZEN_PLUGIN.phases[phaseIndex++];
         assert.equal(cognitiveTool, KAIZEN_PLUGIN.cognitiveTools[phase][0]);
-        return settledResult(phaseOutputs[phase], 12);
+        return settledResult(phaseOutputs[phase], 12, effectCorrelationId);
       },
     );
 
@@ -250,7 +251,7 @@ test("Transcendent v4 fail-fast stops unresolved blocking debt before dissolve/r
     const executor = createExecutor(TRANSCENDENT_PLUGIN, operatorCwd, packageRoot);
     const result = await executor.execute(
       "Remove loop debt",
-      async ({ cognitiveTool, context }) => {
+      async ({ cognitiveTool, context, effectCorrelationId }) => {
         const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
         assert.equal(cognitiveTool, TRANSCENDENT_PLUGIN.cognitiveTools[phase][0]);
         if (phase === "debt-targeting") {
@@ -263,7 +264,11 @@ test("Transcendent v4 fail-fast stops unresolved blocking debt before dissolve/r
             failureKind: "blocking_debt_remaining",
           };
         }
-        return settledResult(`Phase ${phase} completed and preserved debt-routing evidence.`, 7);
+        return settledResult(
+          `Phase ${phase} completed and preserved debt-routing evidence.`,
+          7,
+          effectCorrelationId,
+        );
       },
     );
 
@@ -288,23 +293,30 @@ test("Transcendent v4 closure-gate records incomplete debt instead of pretending
 
   try {
     const executor = createExecutor(TRANSCENDENT_PLUGIN, operatorCwd, packageRoot);
-    const result = await executor.execute("Close only when debt is gone", async ({ context }) => {
-      const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
-      if (phase === "alien-pass") {
-        assert.match(context, /old problem no longer appears as a problem/);
-      }
-      if (phase === "closure-gate") {
-        assert.match(context, /Close only if no blocking in-scope debt remains/);
-        return {
-          output:
-            "Decision: stop_incomplete. Next loop ceiling: closure gate still has blocking in-scope debt.",
-          exitCode: 1,
-          elapsed: 11,
-          failureKind: "closure_gate_blocking_debt",
-        };
-      }
-      return settledResult(`Phase ${phase} completed with evidence for the closure gate.`, 6);
-    });
+    const result = await executor.execute(
+      "Close only when debt is gone",
+      async ({ context, effectCorrelationId }) => {
+        const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
+        if (phase === "alien-pass") {
+          assert.match(context, /old problem no longer appears as a problem/);
+        }
+        if (phase === "closure-gate") {
+          assert.match(context, /Close only if no blocking in-scope debt remains/);
+          return {
+            output:
+              "Decision: stop_incomplete. Next loop ceiling: closure gate still has blocking in-scope debt.",
+            exitCode: 1,
+            elapsed: 11,
+            failureKind: "closure_gate_blocking_debt",
+          };
+        }
+        return settledResult(
+          `Phase ${phase} completed with evidence for the closure gate.`,
+          6,
+          effectCorrelationId,
+        );
+      },
+    );
 
     assert.equal(result.success, false);
     assert.deepEqual(
@@ -341,14 +353,17 @@ test("Transcendent closure gate requires one explicit machine verdict", async ()
     let phaseIndex = 0;
     try {
       const executor = createExecutor(TRANSCENDENT_PLUGIN, operatorCwd, packageRoot);
-      const result = await executor.execute("Enforce truthful closure", async () => {
-        const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
-        const output =
-          phase === "closure-gate"
-            ? `Closure analysis complete.\n${scenario.suffix}`
-            : `Phase ${phase} complete.`;
-        return settledResult(output, 1);
-      });
+      const result = await executor.execute(
+        "Enforce truthful closure",
+        async ({ effectCorrelationId }) => {
+          const phase = TRANSCENDENT_PLUGIN.phases[phaseIndex++];
+          const output =
+            phase === "closure-gate"
+              ? `Closure analysis complete.\n${scenario.suffix}`
+              : `Phase ${phase} complete.`;
+          return settledResult(output, 1, effectCorrelationId);
+        },
+      );
       assert.equal(result.success, scenario.expectedSuccess, scenario.suffix);
       assert.equal(result.phases.at(-1)?.failureKind, scenario.failureKind, scenario.suffix);
     } finally {
@@ -366,11 +381,18 @@ test("LoopExecutor keeps non-crystallization loops diary-only even when KES root
   try {
     const executor = createExecutor(STRATEGIC_PLUGIN, operatorCwd, packageRoot);
 
-    const result = await executor.execute("Plan the migration", async ({ cognitiveTool }) => {
-      const phase = STRATEGIC_PLUGIN.phases[phaseIndex++];
-      assert.equal(cognitiveTool, STRATEGIC_PLUGIN.cognitiveTools[phase][0]);
-      return settledResult(`Phase ${phase} stayed bounded and completed successfully.`, 8);
-    });
+    const result = await executor.execute(
+      "Plan the migration",
+      async ({ cognitiveTool, effectCorrelationId }) => {
+        const phase = STRATEGIC_PLUGIN.phases[phaseIndex++];
+        assert.equal(cognitiveTool, STRATEGIC_PLUGIN.cognitiveTools[phase][0]);
+        return settledResult(
+          `Phase ${phase} stayed bounded and completed successfully.`,
+          8,
+          effectCorrelationId,
+        );
+      },
+    );
 
     assert.equal(result.success, true);
     assert.equal(result.artifacts.filter((artifact) => artifact.type === "kes_diary").length, 6);

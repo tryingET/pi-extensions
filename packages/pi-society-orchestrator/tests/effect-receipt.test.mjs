@@ -15,6 +15,7 @@ function createFixture() {
     dispatchId: "dispatch-expected",
     attemptId: "attempt-expected",
     sessionName,
+    consumerCorrelationId: "loop-attempt-expected",
     disposition: "settled",
     recordedAt: "2026-07-11T00:00:00.000Z",
     receiptPath,
@@ -27,6 +28,7 @@ function createFixture() {
       dispatchId: receipt.dispatchId,
       attemptId: receipt.attemptId,
       sessionName,
+      effectCorrelationId: receipt.consumerCorrelationId,
       status: "done",
       exitCode: 0,
       elapsed: 1,
@@ -87,6 +89,7 @@ test("Orchestrator rejects missing, altered, mismatched, escaped, symlinked, and
     "hard-linked",
     "permissive-mode",
     "session-mismatch",
+    "correlation-mismatch",
   ];
 
   for (const scenario of cases) {
@@ -118,6 +121,9 @@ test("Orchestrator rejects missing, altered, mismatched, escaped, symlinked, and
       }
       if (scenario === "permissive-mode") fs.chmodSync(fixture.receiptPath, 0o644);
       if (scenario === "session-mismatch") fixture.result.details.sessionName = "other-session";
+      if (scenario === "correlation-mismatch") {
+        fixture.result.details.effectCorrelationId = "other-loop-attempt";
+      }
 
       assert.equal(
         verifyDispatchEffectReceipt(fixture.result, fixture.sessionsDir),
