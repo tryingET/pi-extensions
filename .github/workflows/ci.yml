@@ -27,7 +27,9 @@ jobs:
       - name: Install uv for ROCS validation
         run: |
           python -m pip install --disable-pip-version-check --prefix "$RUNNER_TEMP/uv" uv==0.11.14
-          echo "$RUNNER_TEMP/uv/bin" >> "$GITHUB_PATH"
+          uv_bin="$(find "$RUNNER_TEMP/uv" -type f -name uv -perm -111 -print -quit)"
+          test -n "$uv_bin"
+          dirname "$uv_bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
         run: |
