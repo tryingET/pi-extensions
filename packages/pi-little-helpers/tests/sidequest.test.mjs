@@ -20,6 +20,7 @@ import {
   LOCAL_GHOSTTY_BIN,
   LOCAL_GHOSTTY_NEXT_BIN,
   LOCAL_GHOSTTY_PREV_BIN,
+  LOCAL_GHOSTTY_WRAPPER,
   registerExtension,
 } from "./sidequest-harness.mjs";
 
@@ -129,9 +130,9 @@ test("sidequest uses the local wrapper for tab launch when the current Ghostty l
     execStub.calls.map(({ command, args }) => [command, args[0]]),
     [
       ["/usr/bin/ghostty", "+help"],
-      ["/home/tryinget/.local/bin/ghostty-sidequest", "+help"],
-      ["/home/tryinget/.local/bin/ghostty-sidequest", "+version"],
-      ["/home/tryinget/.local/bin/ghostty-sidequest", "+new-tab"],
+      [LOCAL_GHOSTTY_WRAPPER, "+help"],
+      [LOCAL_GHOSTTY_WRAPPER, "+version"],
+      [LOCAL_GHOSTTY_WRAPPER, "+new-tab"],
     ],
   );
 
