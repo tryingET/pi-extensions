@@ -124,7 +124,9 @@ test("ci skips packaging for private packages without release:check:quick", (t) 
 
 test("target paths are resolved from cwd parents before repo root", (t) => {
   const fixture = createFixture(t);
-  const repoTmpRoot = fs.mkdtempSync(path.join(ROOT, ".git", "tmp", "package-gate-target-"));
+  const repoTestTmp = path.join(ROOT, ".tmp-test");
+  fs.mkdirSync(repoTestTmp, { recursive: true });
+  const repoTmpRoot = fs.mkdtempSync(path.join(repoTestTmp, "package-gate-target-"));
   t.after(() => {
     fs.rmSync(repoTmpRoot, { recursive: true, force: true });
   });
@@ -139,6 +141,6 @@ test("target paths are resolved from cwd parents before repo root", (t) => {
   const nestedCwd = path.join(ROOT, "packages", "pi-context-packer");
   const output = fixture.run("ci", { cwd: nestedCwd, target });
 
-  assert.match(output, /package quality gate: \.git\/tmp\/package-gate-target-/);
+  assert.match(output, /package quality gate: \.tmp-test\/package-gate-target-/);
   assert.equal(fs.existsSync(fixture.packMarkerPath), true);
 });
