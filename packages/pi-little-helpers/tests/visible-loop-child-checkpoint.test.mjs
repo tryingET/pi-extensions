@@ -72,40 +72,43 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     await agentStart({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    assert.equal(userMessages.length, 10);
-    assert.equal(userMessages[1].message, "proceed");
-    assert.notEqual(userMessages[4].message, "/deep-review");
-    assert.match(userMessages[4].message, /DEEP REVIEW/);
-    assert.match(userMessages[6].message, /Prompt Vault/);
-    assert.match(userMessages[6].message, /Do not stop after retrieving the template/);
-    assert.match(userMessages[7].message, /Update the owning product-posture\.md/);
-    assert.match(userMessages[7].message, /Default target: @docs\/project\/product-posture\.md/);
-    assert.match(userMessages[7].message, /owning package's docs\/project\/product-posture\.md/);
-    assert.match(userMessages[7].message, /next-iteration frontier map/);
-    assert.notEqual(userMessages[8].message, "/commit");
-    assert.match(userMessages[8].message, /commit orchestrator|EXPANDED COMMIT/i);
-    assert.match(userMessages[9].message, /Visible-loop internal completion checkpoint/);
-    assert.match(userMessages[9].message, /visible_loop_child_complete/);
-    assert.match(userMessages[9].message, /product-posture refresh or \/commit prompt failed/);
+    assert.equal(userMessages.length, 7);
     assert.match(
-      userMessages[9].message,
+      userMessages[1].message,
+      /Audit the current implementation against the original design membrane/,
+    );
+    assert.notEqual(userMessages[2].message, "/deep-review");
+    assert.match(userMessages[2].message, /DEEP REVIEW/);
+    assert.match(userMessages[3].message, /Prompt Vault/);
+    assert.match(userMessages[3].message, /Do not stop after retrieving the template/);
+    assert.match(userMessages[4].message, /Update the owning product-posture\.md/);
+    assert.match(userMessages[4].message, /Default target: @docs\/project\/product-posture\.md/);
+    assert.match(userMessages[4].message, /owning package's docs\/project\/product-posture\.md/);
+    assert.match(userMessages[4].message, /next-iteration frontier map/);
+    assert.notEqual(userMessages[5].message, "/commit");
+    assert.match(userMessages[5].message, /commit orchestrator|EXPANDED COMMIT/i);
+    assert.match(userMessages[6].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[6].message, /visible_loop_child_complete/);
+    assert.match(userMessages[6].message, /product-posture refresh or \/commit prompt failed/);
+    assert.match(
+      userMessages[6].message,
       new RegExp(
         `${repoRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/docs/project/product-posture\\.md`,
       ),
     );
-    assert.match(userMessages[9].message, /Launch-recorded product-posture target: .*exists/);
+    assert.match(userMessages[6].message, /Launch-recorded product-posture target: .*exists/);
     assert.match(
-      userMessages[9].message,
+      userMessages[6].message,
       new RegExp(configPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
     assert.deepEqual(
       userMessages.slice(1).map((entry) => entry.options),
-      Array(9).fill({ deliverAs: "followUp" }),
+      Array(6).fill({ deliverAs: "followUp" }),
     );
     await new Promise((resolve) => setTimeout(resolve, 360));
     assert.equal(
       userMessages.length,
-      10,
+      7,
       "next iteration should not queue before explicit completion checkpoint runs",
     );
     let visibleLoopLaunches = execStub.calls.filter(
@@ -129,7 +132,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       .get("visible-loop-child-complete")
       .handler(`${configPath} --iteration 1`, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
-    assert.equal(userMessages.length, 10);
+    assert.equal(userMessages.length, 7);
     visibleLoopLaunches = execStub.calls.filter(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
