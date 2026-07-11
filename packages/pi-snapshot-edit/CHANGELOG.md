@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.2.0...pi-snapshot-edit-v0.2.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* **snapshot-edit:** keep model timeout referenced ([a2d00b4](https://github.com/tryingET/pi-extensions/commit/a2d00b4b07ca892a8c7d92ccf243e39409aa95a3))
+* **snapshot-edit:** keep model timeout referenced on Node 22 ([ff835b5](https://github.com/tryingET/pi-extensions/commit/ff835b5d2e17c5e7d3f7243e0261622c63239991))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.1.0...pi-snapshot-edit-v0.2.0) (2026-07-11)
 
 
