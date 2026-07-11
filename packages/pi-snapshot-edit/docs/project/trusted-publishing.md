@@ -43,6 +43,32 @@ This package starts from an unpublished `0.1.0` release-please floor. Follow the
 4. Only if OIDC fails because the npm package does not exist yet, manually publish that exact already-produced `0.2.0` artifact with authenticated npm credentials. Do not rebuild, retag, or substitute an artifact.
 5. After the package exists, configure npm trusted publishing for the repository workflow and use OIDC for subsequent releases.
 
+### Failed-run artifact bootstrap fallback
+
+The publish job uploads the checked tarball and its SHA-256 sidecar before attempting OIDC publish. For the one-time first-package bootstrap, replace `RUN_ID` below with the failed publish workflow run ID:
+
+```bash
+mkdir -p /tmp/pi-snapshot-edit-bootstrap
+cd /tmp/pi-snapshot-edit-bootstrap
+gh run download RUN_ID \
+  --repo tryingET/pi-extensions \
+  --name npm-pi-snapshot-edit-0.2.0 \
+  --dir .
+sha256sum --check tryinget-pi-snapshot-edit-0.2.0.tgz.sha256
+```
+
+Inspect the checksum result and authenticate with an npm account authorized to create `@tryinget/pi-snapshot-edit`. Then publish the downloaded, verified path directly:
+
+```bash
+npm whoami --registry https://registry.npmjs.org/
+npm publish "$PWD/tryinget-pi-snapshot-edit-0.2.0.tgz" \
+  --registry https://registry.npmjs.org/ \
+  --access public \
+  --tag latest
+```
+
+Manual bootstrap credentials come from the operator's authenticated npm configuration; never place a token in the repository or command history. Do **not** run `npm pack`, rebuild from the tag, rename/substitute the tarball, or publish when SHA verification fails. A missing or expired failed-run artifact requires rerunning the unchanged release workflow to produce a newly checked artifact, not a local rebuild.
+
 The package retains its current restricted custom license. Keep the prominent README disclosure and `SEE LICENSE IN LICENSE` package metadata; this bootstrap does not authorize changing license terms.
 
 ## Common failure modes

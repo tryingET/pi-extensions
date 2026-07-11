@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -67,4 +69,55 @@ test("resolve-tag derives prerelease dist-tags from prerelease identifiers", () 
 test("resolve-tag env output exports RELEASE_NPM_DIST_TAG", () => {
   const output = resolveTagEnv("pi-vault-client-v0.1.0-rc.1");
   assert.match(output, /RELEASE_NPM_DIST_TAG=rc/);
+});
+
+test("publish workflow retains, verifies, uploads, and publishes one exact tarball", () => {
+  const workflow = fs.readFileSync(path.join(ROOT, ".github", "workflows", "publish.yml"), "utf8");
+  const packMatches = workflow.match(/npm pack\b/g) ?? [];
+  assert.equal(packMatches.length, 1, "workflow must create the release tarball exactly once");
+  assert.match(workflow, /RELEASE_TARBALL_PATH=\$tarball_path/);
+  assert.match(workflow, /RELEASE_TARBALL_BASENAME=\$tarball_basename/);
+  assert.match(workflow, /RELEASE_TARBALL_SHA256=\$tarball_sha256/);
+  const check = workflow.indexOf("npm run release:check:quick -- \"$RELEASE_TARBALL_PATH\"");
+  const upload = workflow.indexOf("uses: actions/upload-artifact@v6");
+  const publish = workflow.indexOf('npm publish "$RELEASE_TARBALL_PATH" --provenance');
+  assert.ok(
+    check >= 0 && upload > check && publish > upload,
+    "check, upload, and exact-path publish order must be preserved",
+  );
+  assert.ok((workflow.match(/sha256sum --check --status/g) ?? []).length >= 2);
+});
+
+test("snapshot release check fails closed on retained tarball SHA drift", () => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "snapshot-release-sha-"));
+  try {
+    const tarball = path.join(fixture, "release.tgz");
+    fs.writeFileSync(tarball, "changed artifact");
+    const result = spawnSync(
+      "bash",
+      [path.join(ROOT, "packages", "pi-snapshot-edit", "scripts", "release-check.sh"), tarball],
+      {
+        cwd: path.join(ROOT, "packages", "pi-snapshot-edit"),
+        encoding: "utf8",
+        env: { ...process.env, RELEASE_TARBALL_SHA256: "0".repeat(64), SKIP_PI_SMOKE: "1" },
+      },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Release tarball SHA-256 changed/);
+    assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /== npm pack/);
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("snapshot supplied-tarball contract requires exact artifact operations", () => {
+  const script = fs.readFileSync(
+    path.join(ROOT, "packages", "pi-snapshot-edit", "scripts", "release-check.sh"),
+    "utf8",
+  );
+  assert.match(script, /Supplied release tarball path must be absolute/);
+  assert.match(script, /RELEASE_TARBALL_SHA256 is required/);
+  assert.match(script, /npm publish \"\$TARBALL_PATH\" --dry-run/);
+  assert.match(script, /PACKAGE_SPEC=\"npm:\$TARBALL_PATH\"/);
+  assert.match(script, /Tarball identity mismatch/);
 });
