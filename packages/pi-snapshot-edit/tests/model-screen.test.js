@@ -302,12 +302,13 @@ test("invalid JSON and simulator failures are categorized, never accepted", () =
   assert.equal(simulator.error, "simulator_error");
 });
 
-test("runPi pipes prompts on stdin and timeout cleans up with TERM then KILL", async () => {
+test("runPi keeps its timeout alive for a handle-free fake child and cleans up with TERM then KILL", async () => {
   const signals = [];
   let capturedArgs;
   let capturedOptions;
   let stdinText = "";
   const spawnImpl = (_command, args, options) => {
+    // Deliberately expose no process handle: Node 22 must stay alive solely for runPi's timeout.
     capturedArgs = args;
     capturedOptions = options;
     const child = new EventEmitter();

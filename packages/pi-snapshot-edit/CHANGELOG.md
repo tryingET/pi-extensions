@@ -25,6 +25,10 @@ All notable changes to this project should be documented here.
 
 ## [0.1.0] - 2026-07-11
 
+### Fixed
+
+- Keep the model-screen timeout referenced until `runPi` settles so handle-free fake-child runs complete reliably on Node 22.
+
 ### Added
 
 - `snapshot_read` and `snapshot_edit` tools with session-scoped revision aliases.
