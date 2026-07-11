@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tryinget.dev/pi-society-orchestrator/layer12-presentation-evidence.v1.schema.json",
+  "title": "SF14 Layer-12 presentation-policy observation evidence (not selection)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "policy_candidate_id",
+    "campaign_id",
+    "observations",
+    "selection_status",
+    "explicit_non_authorizations"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "evidence_id": { "$ref": "#/$defs/content_ref" },
+    "policy_candidate_id": { "$ref": "#/$defs/content_ref" },
+    "campaign_id": { "$ref": "#/$defs/content_ref" },
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/observation" }
+    },
+    "selection_status": { "const": "not_selected" },
+    "explicit_non_authorizations": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "allOf": [
+        { "contains": { "const": "no_activation" } },
+        { "contains": { "const": "no_apply" } },
+        { "contains": { "const": "no_policy_selection" } },
+        { "contains": { "const": "no_publication" } }
+      ],
+      "items": {
+        "enum": ["no_activation", "no_apply", "no_policy_selection", "no_publication"]
+      }
+    }
+  },
+  "$defs": {
+    "content_ref": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_case_id",
+        "rendered_variant_id",
+        "comprehension_score",
+        "observed_at",
+        "evaluator_receipt_id"
+      ],
+      "properties": {
+        "task_case_id": { "$ref": "#/$defs/content_ref" },
+        "rendered_variant_id": { "$ref": "#/$defs/content_ref" },
+        "comprehension_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "evaluator_receipt_id": { "$ref": "#/$defs/content_ref" }
+      }
+    }
+  }
+}
