@@ -35,5 +35,6 @@ jobs:
 
       - name: Run quality gate (ci)
         # ROCS is workspace-owned and unavailable in this standalone GitHub checkout.
-        # Developer pre-push validation still runs it from the owning workspace.
-        run: PI_SKIP_ROCS=1 npm run quality:ci
+        # Package release contracts run in the dedicated release-check matrix with package deps.
+        # Developer pre-push validation still runs both checks from the owning workspace.
+        run: PI_SKIP_ROCS=1 PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1 npm run quality:ci

@@ -39,7 +39,11 @@ if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.j
 fi
 
 if [ -f "./scripts/validate-package-release-contracts.mjs" ]; then
-  node ./scripts/validate-package-release-contracts.mjs
+  if [ "${PI_SKIP_PACKAGE_RELEASE_CONTRACTS:-0}" = "1" ]; then
+    echo "skipping aggregate package release contracts: dedicated release-check matrix owns CI coverage"
+  else
+    node ./scripts/validate-package-release-contracts.mjs
+  fi
 fi
 
 if [ -f "./scripts/pi-host-compatibility-canary.mjs" ] && [ -f "./policy/pi-host-compatibility-canary.json" ]; then
