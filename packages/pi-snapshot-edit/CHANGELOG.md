@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.2.2...pi-snapshot-edit-v0.3.0) (2026-07-11)
+
+
+### Features
+
+* **snapshot-edit:** own standard tools by default ([8662b2a](https://github.com/tryingET/pi-extensions/commit/8662b2a8bbe41a06f51313ebf8b9223954ed6eeb))
+
 ## [Unreleased]
 
 ### Changed
