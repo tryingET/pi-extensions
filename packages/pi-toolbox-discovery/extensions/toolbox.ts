@@ -14,13 +14,26 @@ export { CATALOG };
 export default function toolboxDiscoveryExtension(pi: ExtensionAPI) {
   const state = createToolboxState();
 
-  pi.on("session_start", () => {
-    state.leases.clear();
-    applyStandardStartupProfile(pi);
+  pi.on("session_start", (_event, ctx) => {
+    const mutation = applyStandardStartupProfile(pi);
+    if (mutation.ok) {
+      state.leases.clear();
+      return;
+    }
+    ctx.ui.notify(
+      `Toolbox could not verify the standard startup active set (${mutation.failureClass}); prior lease bookkeeping was preserved. Run toolbox doctor and /reload before relying on tool visibility.`,
+      "warning",
+    );
   });
 
-  pi.on("turn_start", () => {
-    expireLeases(pi, state);
+  pi.on("turn_start", (_event, ctx) => {
+    const expiry = expireLeases(pi, state);
+    if (expiry.mutation && !expiry.mutation.ok) {
+      ctx.ui.notify(
+        `Toolbox could not verify TTL deactivation (${expiry.mutation.failureClass}); expired leases remain tracked for retry. Run toolbox doctor if the problem persists.`,
+        "warning",
+      );
+    }
   });
 
   pi.registerCommand("toolbox", {

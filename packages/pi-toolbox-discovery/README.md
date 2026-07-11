@@ -22,18 +22,19 @@ The package registers:
 
 The package keeps `self`, `interview`, `dispatch_subagent`, `intercom`, Prompt Vault read tools (`vault_query`, `vault_retrieve`, `vault_vocabulary`, `vault_dispatch_check`), the lightweight context planning tool (`context_plan`), pi-little-helpers peer-spawn tools (`fork_peer_spawn`, `scout_peer_spawn`, `candidate_peer_spawn`), the visible-loop checkpoint fallback (`visible_loop_child_complete`), the orchestrator loop dispatcher (`loop_execute`), and `toolbox` as foundational always-active custom tools while letting heavier package-owned tools and Prompt Vault diagnostics/mutations remain latent until explicitly activated. Current behavior:
 
-- enforces the standard active tool set on `session_start`
+- verifies the standard active tool set on `session_start` and clears prior lease bookkeeping only after host readback confirms the baseline
 - searches/explains catalog metadata, recommends next-best matching bundle/profile choices, and plans activation without importing owner packages
 - plans every activation through one policy path before changing active tools, including raw `tools: [...]` requests
 - activates already-registered bundle profiles and explicit tool lists only after risk gates pass; non-catalog explicit tools are treated as high-risk and require a caller-supplied `riskAcknowledged` plus `riskJustification` declaration. This is an advisory gate and audit hint, not proof of operator consent
+- treats active-set changes as verified host transactions: it snapshots the exact pre-operation set, applies the desired set, compares semantic readback, and attempts exact rollback before changing leases or queueing activation continuation when the host throws, silently no-ops, or partially applies a mutation
 - queues an extension-origin same-task continuation after activation changes the active tool set, unless `autoContinue: false` is passed
 - fails closed when requested tools are not registered in the current Pi session, with instructions to enable/install the owner extension and `/reload` or start a fresh session
 - tracks unpinned activation TTLs across turns and preserves pinned activations until explicit deactivation
 - reports catalog registration gaps separately from active-set/lease problems
-- clears lease bookkeeping on `session_start` before re-applying the standard active-tool baseline
-- provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, catalog registration completeness, active leases, and unleased active catalog tools
+- preserves prior lease bookkeeping when startup baseline registration lookup or active-set verification fails, and clears it only after the standard baseline is verified
+- provides `toolbox({ action: "doctor" })` as an evaluative startup-health check covering the always-active baseline, catalog registration completeness, active leases, unleased active catalog tools, and leased tools that are no longer active
 
-The package-owned production bundles are `vault`, `context-packer`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, `agent_vent`, and `peer-spawn`. Their tools must be registered by the owning package's Pi extension entry before toolbox activation; toolbox activation only changes the active set. The `context-packer` read profile includes packet planning, bounded packet assembly, and packet-local dogfood receipt evaluation; it does not make dogfood observations canonical evidence.
+The package-owned production bundles are `vault`, `context-packer`, `ontology`, `designmd`, `autoresearch`, `orchestrator`, `agent_vent`, and `peer-spawn`. Their tools must be registered by the owning package's Pi extension entry before toolbox activation; toolbox activation only changes the active set. The `context-packer` read profile includes packet planning, bounded packet assembly, packet-local dogfood receipt evaluation, and non-persistent aggregate summarization; it does not make dogfood observations canonical evidence.
 
 `agent_vent` is intentionally a diagnostic/local-write bundle: activation can expose the same-named `agent_vent` tool for `self.diagnostic_candidate.v1` payloads or recurring friction. After activation, use `agent_vent action=preview` before `action=record` for self-suggested candidates so the anti-junk quality check can reject low-signal payloads without writing local JSONL. A later `record` may append local JSONL vent records, but it does not create AK tasks, GitHub issues, real incidents, canonical evidence, external telemetry, or ASC/self state. See [Self, toolbox, and agent_vent diagnostic boundary](../pi-agent-vent/docs/project/2026-06-05-self-toolbox-agent-vent-diagnostic-boundary.md) for the cross-package handoff contract.
 
@@ -69,6 +70,8 @@ Missing catalog registrations are warnings when the baseline is healthy because 
 `toolbox({ action: "activate" })` changes the active tool set through Pi and then, when the active set actually changed, queues an extension-origin continuation message with `deliverAs: "steer"` and `triggerTurn: true`. The continuation is not a fake user command; it is a same-task nudge that lets Pi issue another provider/model request after the refreshed active-tool schema is available. Use `autoContinue: false` for activation-only calls.
 
 Changing active tools changes the provider tool-schema prefix. The first request for a newly active tool combination may therefore miss or write a new provider prompt-cache entry. Later requests with the same active-tool combination can reuse cache again. Avoid repeated activate/deactivate oscillation if cache stability matters.
+
+Activation continuation is queued only after `pi.getActiveTools()` verifies the complete intended set. If verification fails, toolbox attempts to restore the exact pre-operation set, keeps lease state unchanged, suppresses continuation, and reports whether rollback was verified. A failed rollback means runtime state is degraded or unknown: run `toolbox({ action: "doctor" })` and `/reload` before relying on tool visibility. Deactivation, TTL expiry, and startup baseline application use the same verified mutation membrane.
 
 ## Tool registration invariant
 

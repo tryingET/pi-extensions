@@ -22,6 +22,7 @@ import {
   formatActivationPlan,
   formatBundle,
   getKnownToolNames,
+  mutateActiveToolsVerified,
   planActivation,
   queueActivationContinuation,
   recordLeases,
@@ -129,11 +130,26 @@ export async function executeToolboxAction(
       );
     }
 
-    const activeBeforeActivation = pi.getActiveTools();
-    const knownToolNames = getKnownToolNames(pi);
+    let knownToolNames: Set<string>;
+    try {
+      knownToolNames = getKnownToolNames(pi);
+    } catch {
+      return textResult(
+        "Cannot activate tools because Pi registered-tool truth could not be read; no active-set or lease change was attempted. Run toolbox doctor or /reload before retrying.",
+        { ok: false, failureClass: "registered_tool_snapshot_failed" },
+      );
+    }
     const availableTools = plan.requestedTools.filter((tool) => knownToolNames.has(tool));
     const missingTools = plan.requestedTools.filter((tool) => !knownToolNames.has(tool));
-    const currentActiveTools = activeBeforeActivation.filter((tool) => knownToolNames.has(tool));
+    let currentActiveTools: string[];
+    try {
+      currentActiveTools = pi.getActiveTools();
+    } catch {
+      return textResult(
+        "Cannot activate tools because Pi active-set truth could not be read; no activation or lease change was attempted. Run toolbox doctor or /reload before retrying.",
+        { ok: false, failureClass: "active_set_snapshot_failed" },
+      );
+    }
     if (missingTools.length > 0) {
       return textResult(
         [
@@ -151,10 +167,39 @@ export async function executeToolboxAction(
       );
     }
 
-    const nextActive = [...new Set([...currentActiveTools, ...availableTools])];
-    const activeBeforeSet = new Set(currentActiveTools);
-    const activatedNewTools = availableTools.filter((tool) => !activeBeforeSet.has(tool));
-    pi.setActiveTools(nextActive);
+    const baseline = ALWAYS_ACTIVE_TOOLS.filter((tool) => knownToolNames.has(tool));
+    const mutation = mutateActiveToolsVerified(pi, (before) => [
+      ...before,
+      ...baseline,
+      ...availableTools,
+    ]);
+    if (!mutation.ok) {
+      const activeTools = mutation.rollbackAttempted
+        ? mutation.rollbackObserved
+        : mutation.observed;
+      return textResult(
+        [
+          `Cannot activate ${plan.bundle?.id ?? "explicit-tools"}/${plan.profile?.id ?? "requested"}: Pi did not verify the complete requested active set.`,
+          `Failure class: ${mutation.failureClass}; rollback attempted=${mutation.rollbackAttempted}; rollback succeeded=${mutation.rollbackSucceeded}.`,
+          mutation.rollbackSucceeded
+            ? "The pre-activation active set is intact; no leases were recorded and no continuation was queued."
+            : "Active-set state is degraded or unknown; run toolbox doctor and /reload before relying on tool visibility.",
+        ].join("\n"),
+        {
+          ok: false,
+          failureClass: mutation.failureClass,
+          activeTools,
+          mutation,
+          leasesChanged: false,
+          continuation: { queued: false, reason: "activation-not-verified" },
+        },
+      );
+    }
+
+    const activeBeforeSet = new Set(mutation.before);
+    const requestedNewTools = availableTools.filter((tool) => !activeBeforeSet.has(tool));
+    const activatedNewTools = mutation.observed.filter((tool) => !activeBeforeSet.has(tool));
+    const nextActive = mutation.observed;
     const leases = recordLeases(state, availableTools, params, plan);
     const ttl = boundedTtlTurns(params.ttlTurns, plan.profile);
     const continuation = await queueActivationContinuation(pi, params, activatedNewTools, plan);
@@ -176,6 +221,7 @@ export async function executeToolboxAction(
     return textResult(text, {
       ok: true,
       activated: availableTools,
+      requestedNewTools,
       activatedNewTools,
       missing: missingTools,
       activeTools: nextActive,
@@ -188,8 +234,10 @@ export async function executeToolboxAction(
         ? "caller-declaration-not-operator-consent"
         : "not-required",
       leases,
+      activeSetMutation: mutation,
       schemaVisibility: {
         activeSetUpdated: true,
+        activeSetVerified: true,
         nextProviderRequest: true,
         retroactiveCurrentProviderRequest: false,
         externalClientSchemaSnapshotRefresh: "reload-or-new-session-if-client-does-not-refresh",
@@ -211,13 +259,45 @@ export async function executeToolboxAction(
       });
     }
     const remove = new Set(plan.requestedTools);
+    let registered: Set<string>;
+    try {
+      registered = getKnownToolNames(pi);
+    } catch {
+      return textResult(
+        "Cannot deactivate tools because Pi registered-tool truth could not be read; no active-set or lease change was attempted. Run toolbox doctor or /reload before retrying.",
+        { ok: false, failureClass: "registered_tool_snapshot_failed" },
+      );
+    }
+    const baseline = ALWAYS_ACTIVE_TOOLS.filter((tool) => registered.has(tool));
+    const mutation = mutateActiveToolsVerified(pi, (before) => [
+      ...before.filter((tool) => !remove.has(tool) || ALWAYS_ACTIVE_TOOLS.includes(tool)),
+      ...baseline,
+    ]);
+    if (!mutation.ok) {
+      const activeTools = mutation.rollbackAttempted
+        ? mutation.rollbackObserved
+        : mutation.observed;
+      return textResult(
+        [
+          "Cannot deactivate tools because Pi did not verify the complete requested active set.",
+          `Failure class: ${mutation.failureClass}; rollback attempted=${mutation.rollbackAttempted}; rollback succeeded=${mutation.rollbackSucceeded}.`,
+          mutation.rollbackSucceeded
+            ? "The pre-deactivation active set and leases are intact."
+            : "Active-set state is degraded or unknown; run toolbox doctor and /reload before relying on lease or visibility state.",
+        ].join("\n"),
+        {
+          ok: false,
+          failureClass: mutation.failureClass,
+          activeTools,
+          mutation,
+          leasesChanged: false,
+        },
+      );
+    }
     for (const tool of remove) {
       state.leases.delete(tool);
     }
-    const nextActive = pi
-      .getActiveTools()
-      .filter((tool) => !remove.has(tool) || ALWAYS_ACTIVE_TOOLS.includes(tool));
-    pi.setActiveTools(nextActive);
+    const nextActive = mutation.observed;
     const protectedTools = plan.requestedTools.filter((tool) => ALWAYS_ACTIVE_TOOLS.includes(tool));
     return textResult(
       [
@@ -228,7 +308,7 @@ export async function executeToolboxAction(
       ]
         .filter(Boolean)
         .join("\n"),
-      { ok: true, activeTools: nextActive, protectedTools },
+      { ok: true, activeTools: nextActive, protectedTools, activeSetMutation: mutation },
     );
   }
 

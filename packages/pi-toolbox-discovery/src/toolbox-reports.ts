@@ -80,6 +80,9 @@ export const buildDoctorReport = (pi: ExtensionAPI, state: ToolboxState) => {
     },
   );
   const unleasedActiveCatalogTools = findUnleasedActiveCatalogTools(pi, state);
+  const leasedInactiveTools = [...state.leases.keys()]
+    .filter((tool) => !activeSet.has(tool))
+    .sort();
   const problems: string[] = [];
   const warnings: string[] = [];
   const recommendations: string[] = [];
@@ -110,6 +113,12 @@ export const buildDoctorReport = (pi: ExtensionAPI, state: ToolboxState) => {
       "Deactivate unneeded catalog tools or reactivate them through toolbox so TTL/pin state is explicit.",
     );
   }
+  if (leasedInactiveTools.length > 0) {
+    problems.push(`leased tools are not active: ${leasedInactiveTools.join(", ")}`);
+    recommendations.push(
+      "Run toolbox doctor after active-set recovery; use /reload if Pi cannot restore a lease-consistent active set.",
+    );
+  }
   if (recommendations.length === 0) {
     recommendations.push(
       "Standard startup profile is healthy; activate registered latent tools only when the task needs them.",
@@ -126,6 +135,7 @@ export const buildDoctorReport = (pi: ExtensionAPI, state: ToolboxState) => {
     missingCatalogRegistrations,
     missingCatalogRegistrationGroups,
     unleasedActiveCatalogTools,
+    leasedInactiveTools,
     recommendations,
     problems,
     warnings,
@@ -150,6 +160,7 @@ export const formatDoctor = (report: ReturnType<typeof buildDoctorReport>): stri
     `- missing catalog registrations (${report.missingCatalogRegistrations.length}): ${report.missingCatalogRegistrations.join(", ") || "none"}`,
     `- missing registration groups (${report.missingCatalogRegistrationGroups.length}): ${report.missingCatalogRegistrationGroups.join("; ") || "none"}`,
     `- unleased active catalog tools (${report.unleasedActiveCatalogTools.length}): ${report.unleasedActiveCatalogTools.join(", ") || "none"}`,
+    `- leased inactive tools (${report.leasedInactiveTools.length}): ${report.leasedInactiveTools.join(", ") || "none"}`,
     `- warnings: ${report.warnings.join(" ") || "none"}`,
     `- recommendations: ${report.recommendations.join(" ")}`,
   ].join("\n");
@@ -180,6 +191,7 @@ export const formatStatus = (pi: ExtensionAPI, state: ToolboxState): string => {
     }`,
     `- missing catalog registrations (${doctorReport.missingCatalogRegistrations.length}): ${doctorReport.missingCatalogRegistrations.join(", ") || "none"}`,
     `- unleased active catalog tools (${doctorReport.unleasedActiveCatalogTools.length}): ${doctorReport.unleasedActiveCatalogTools.join(", ") || "none"}`,
-    "- startup profile: standard active set is enforced on session_start when these tools are registered.",
+    `- leased inactive tools (${doctorReport.leasedInactiveTools.length}): ${doctorReport.leasedInactiveTools.join(", ") || "none"}`,
+    "- startup profile: standard active set is verified on session_start when these tools are registered; lease bookkeeping is cleared only after verification.",
   ].join("\n");
 };

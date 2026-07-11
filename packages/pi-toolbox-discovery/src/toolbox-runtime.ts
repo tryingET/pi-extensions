@@ -168,6 +168,130 @@ export function getKnownToolNames(pi: ExtensionAPI): Set<string> {
   return new Set(pi.getAllTools().map((tool) => tool.name));
 }
 
+export interface ActiveSetMutationResult {
+  ok: boolean;
+  before: string[];
+  desired: string[];
+  observed: string[];
+  missing: string[];
+  unexpected: string[];
+  failureClass?:
+    | "active_set_snapshot_failed"
+    | "registered_tool_snapshot_failed"
+    | "set_active_tools_threw"
+    | "active_set_readback_failed"
+    | "active_set_mismatch";
+  rollbackAttempted: boolean;
+  rollbackSucceeded: boolean;
+  rollbackObserved: string[];
+}
+
+const uniqueTools = (tools: string[]): string[] => [...new Set(tools)];
+
+const activeSetDifference = (desired: string[], observed: string[]) => {
+  const desiredSet = new Set(desired);
+  const observedSet = new Set(observed);
+  return {
+    missing: desired.filter((tool) => !observedSet.has(tool)),
+    unexpected: observed.filter((tool) => !desiredSet.has(tool)),
+  };
+};
+
+const sameActiveSet = (left: string[], right: string[]): boolean => {
+  const difference = activeSetDifference(uniqueTools(left), uniqueTools(right));
+  return difference.missing.length === 0 && difference.unexpected.length === 0;
+};
+
+export function mutateActiveToolsVerified(
+  pi: ExtensionAPI,
+  desiredFromBefore: (before: string[]) => string[],
+): ActiveSetMutationResult {
+  let before: string[];
+  try {
+    before = uniqueTools(pi.getActiveTools());
+  } catch {
+    return {
+      ok: false,
+      before: [],
+      desired: [],
+      observed: [],
+      missing: [],
+      unexpected: [],
+      failureClass: "active_set_snapshot_failed",
+      rollbackAttempted: false,
+      rollbackSucceeded: false,
+      rollbackObserved: [],
+    };
+  }
+
+  const desired = uniqueTools(desiredFromBefore([...before]));
+  let failureClass: ActiveSetMutationResult["failureClass"];
+  try {
+    pi.setActiveTools(desired);
+  } catch {
+    failureClass = "set_active_tools_threw";
+  }
+
+  let observed: string[] = [];
+  try {
+    observed = uniqueTools(pi.getActiveTools());
+  } catch {
+    failureClass ??= "active_set_readback_failed";
+  }
+
+  if (!failureClass && sameActiveSet(desired, observed)) {
+    return {
+      ok: true,
+      before,
+      desired,
+      observed,
+      missing: [],
+      unexpected: [],
+      rollbackAttempted: false,
+      rollbackSucceeded: true,
+      rollbackObserved: observed,
+    };
+  }
+
+  failureClass ??= "active_set_mismatch";
+  const difference = activeSetDifference(desired, observed);
+  if (sameActiveSet(before, observed)) {
+    return {
+      ok: false,
+      before,
+      desired,
+      observed,
+      ...difference,
+      failureClass,
+      rollbackAttempted: false,
+      rollbackSucceeded: true,
+      rollbackObserved: observed,
+    };
+  }
+
+  let rollbackObserved: string[] = [];
+  let rollbackSucceeded = false;
+  try {
+    pi.setActiveTools(before);
+    rollbackObserved = uniqueTools(pi.getActiveTools());
+    rollbackSucceeded = sameActiveSet(before, rollbackObserved);
+  } catch {
+    rollbackSucceeded = false;
+  }
+
+  return {
+    ok: false,
+    before,
+    desired,
+    observed,
+    ...difference,
+    failureClass,
+    rollbackAttempted: true,
+    rollbackSucceeded,
+    rollbackObserved,
+  };
+}
+
 export function boundedTtlTurns(
   requested: number | undefined,
   profile: ToolboxProfile | undefined,
@@ -177,11 +301,32 @@ export function boundedTtlTurns(
   return Math.max(1, Math.min(MAX_TTL_TURNS, candidate));
 }
 
-export function applyStandardStartupProfile(pi: ExtensionAPI): string[] {
-  const registered = getKnownToolNames(pi);
+export function applyStandardStartupProfile(pi: ExtensionAPI): ActiveSetMutationResult {
+  let registered: Set<string>;
+  try {
+    registered = getKnownToolNames(pi);
+  } catch {
+    let before: string[] = [];
+    try {
+      before = uniqueTools(pi.getActiveTools());
+    } catch {
+      // Both host snapshots are unavailable; no mutation is attempted.
+    }
+    return {
+      ok: false,
+      before,
+      desired: [],
+      observed: before,
+      missing: [],
+      unexpected: [],
+      failureClass: "registered_tool_snapshot_failed",
+      rollbackAttempted: false,
+      rollbackSucceeded: true,
+      rollbackObserved: before,
+    };
+  }
   const standard = ALWAYS_ACTIVE_TOOLS.filter((tool) => registered.has(tool));
-  pi.setActiveTools(standard);
-  return standard;
+  return mutateActiveToolsVerified(pi, () => standard);
 }
 
 export function recordLeases(
@@ -213,26 +358,60 @@ export function recordLeases(
     }
   }
 
-  return leases;
+  return leases.flatMap((lease) => {
+    const stored = state.leases.get(lease.tool);
+    return stored ? [stored] : [];
+  });
 }
 
-export function expireLeases(pi: ExtensionAPI, state: ToolboxState): string[] {
+export function expireLeases(
+  pi: ExtensionAPI,
+  state: ToolboxState,
+): { expiredTools: string[]; mutation?: ActiveSetMutationResult } {
   state.turn += 1;
   const expired = [...state.leases.values()].filter(
     (lease) => !lease.pinned && (lease.expiresAtTurn ?? Number.POSITIVE_INFINITY) < state.turn,
   );
-  if (expired.length === 0) return [];
+  if (expired.length === 0) return { expiredTools: [] };
+
+  const expiredTools = new Set(expired.map((lease) => lease.tool));
+  let registered: Set<string>;
+  try {
+    registered = getKnownToolNames(pi);
+  } catch {
+    let before: string[] = [];
+    try {
+      before = uniqueTools(pi.getActiveTools());
+    } catch {
+      // Both host snapshots are unavailable; lease state remains unchanged.
+    }
+    return {
+      expiredTools: [],
+      mutation: {
+        ok: false,
+        before,
+        desired: [],
+        observed: before,
+        missing: [],
+        unexpected: [],
+        failureClass: "registered_tool_snapshot_failed",
+        rollbackAttempted: false,
+        rollbackSucceeded: true,
+        rollbackObserved: before,
+      },
+    };
+  }
+  const baseline = ALWAYS_ACTIVE_TOOLS.filter((tool) => registered.has(tool));
+  const mutation = mutateActiveToolsVerified(pi, (before) => [
+    ...before.filter((tool) => !expiredTools.has(tool) || ALWAYS_ACTIVE_TOOLS.includes(tool)),
+    ...baseline,
+  ]);
+  if (!mutation.ok) return { expiredTools: [], mutation };
 
   for (const lease of expired) {
     state.leases.delete(lease.tool);
   }
-
-  const expiredTools = new Set(expired.map((lease) => lease.tool));
-  const nextActive = pi
-    .getActiveTools()
-    .filter((tool) => !expiredTools.has(tool) || ALWAYS_ACTIVE_TOOLS.includes(tool));
-  pi.setActiveTools(nextActive);
-  return [...expiredTools];
+  return { expiredTools: [...expiredTools], mutation };
 }
 
 export function describeLeases(state: ToolboxState): string[] {

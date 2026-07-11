@@ -108,3 +108,7 @@ TTL semantics should mean `ttlTurns: 1` keeps a just-activated tool available fo
 - Added activation result details under `continuation` and `cacheImpact` to make same-task refresh and cache tradeoffs machine-visible.
 - Reworded plan, doctor, activation failure, activation success, and README text to distinguish owner registration from active-set selection, external client schema snapshots, continuation behavior, and cache impact.
 - Added tests for next-request visibility messaging, no partial activation on mixed missing requests, activation-during-turn TTL behavior, continuation queueing, no-op continuation suppression, and `autoContinue: false`.
+- Active-set mutations now use a shared verified transaction membrane for activation, deactivation, TTL expiry, and startup baseline application: snapshot exact pre-state, apply, compare semantic host readback, and attempt exact rollback on thrown, silent, partial, or unexpected application.
+- Lease changes and activation continuation occur only after full readback verification. Failed deactivation/expiry/startup verification preserves prior lease bookkeeping; rollback failure is reported as degraded or unknown runtime state rather than success.
+- Doctor/status now report leased tools that are no longer active, complementing the existing unleased-active-tool diagnosis.
+- Package validation now performs strict TypeScript checking through a package-local `tsconfig.json` instead of skipping typed source validation.

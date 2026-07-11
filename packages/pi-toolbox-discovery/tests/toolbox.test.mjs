@@ -34,6 +34,7 @@ function createHarness(options = {}) {
   const tools = new Map();
   const handlers = new Map();
   const sentMessages = [];
+  const notifications = [];
   const omittedTools = new Set(options.omitRegisteredTools ?? []);
   const allToolNames = new Set(
     [
@@ -43,6 +44,8 @@ function createHarness(options = {}) {
     ].filter((tool) => !omittedTools.has(tool)),
   );
   let activeTools = [...ALWAYS_ACTIVE_TOOLS];
+  let getAllToolsCallCount = 0;
+  let setActiveToolsCallCount = 0;
   const pi = {
     on(event, handler) {
       const eventHandlers = handlers.get(event) ?? [];
@@ -60,6 +63,9 @@ function createHarness(options = {}) {
       return [...activeTools];
     },
     getAllTools() {
+      getAllToolsCallCount += 1;
+      const outcome = options.getAllToolsBehavior?.({ call: getAllToolsCallCount });
+      if (outcome?.throw) throw new Error("injected getAllTools failure");
       return [...allToolNames].map((name) => ({
         name,
         description: `${name} description`,
@@ -67,7 +73,16 @@ function createHarness(options = {}) {
       }));
     },
     setActiveTools(names) {
-      activeTools = [...names];
+      setActiveToolsCallCount += 1;
+      const requested = [...names];
+      const outcome = options.setActiveToolsBehavior?.({
+        call: setActiveToolsCallCount,
+        requested,
+        activeTools: [...activeTools],
+      });
+      if (outcome?.activeTools) activeTools = [...outcome.activeTools];
+      else if (!outcome?.noOp) activeTools = requested;
+      if (outcome?.throw) throw new Error("injected setActiveTools failure");
     },
     async sendMessage(message, options) {
       sentMessages.push({ message, options });
@@ -78,8 +93,20 @@ function createHarness(options = {}) {
     commands,
     tools,
     sentMessages,
+    notifications,
     async runEvent(event) {
-      for (const handler of handlers.get(event) ?? []) await handler({}, { ui: { notify() {} } });
+      for (const handler of handlers.get(event) ?? []) {
+        await handler(
+          {},
+          {
+            ui: {
+              notify(message, level) {
+                notifications.push({ message, level });
+              },
+            },
+          },
+        );
+      }
     },
     setActiveTools(names) {
       activeTools = [...names];
@@ -89,6 +116,12 @@ function createHarness(options = {}) {
     },
     clearSentMessages() {
       sentMessages.length = 0;
+    },
+    get setActiveToolsCallCount() {
+      return setActiveToolsCallCount;
+    },
+    get getAllToolsCallCount() {
+      return getAllToolsCallCount;
     },
   };
 }
@@ -193,6 +226,23 @@ test("doctor passes for complete startup registration", async () => {
   ]);
 });
 
+test("doctor reports leases whose tools are no longer active", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test leased inactive diagnosis",
+  });
+  harness.setActiveTools(ALWAYS_ACTIVE_TOOLS);
+
+  const result = await executeToolbox(toolbox, { action: "doctor" });
+  assert.equal(result.details.ok, false);
+  assert.deepEqual(result.details.leasedInactiveTools, ["vault_insert"]);
+  assert.match(result.content[0].text, /leased inactive tools \(1\): vault_insert/);
+});
+
 test("plan is active-set only and states next-request schema visibility", async () => {
   const harness = createHarness();
   const result = await executeToolbox(harness.tools.get("toolbox"), {
@@ -268,6 +318,257 @@ test("fails closed without partial activation when mixed explicit tools include 
   assert.deepEqual(harness.activeTools, before);
 });
 
+test("activation verifies host readback and rolls back partial application before leases or continuation", async () => {
+  const harness = createHarness({
+    setActiveToolsBehavior({ call, activeTools }) {
+      if (call === 1) return { activeTools: [...activeTools, "vault_insert"] };
+      return undefined;
+    },
+  });
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert", "vault_update"],
+    riskAcknowledged: true,
+    riskJustification: "test verified rollback",
+  });
+
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.failureClass, "active_set_mismatch");
+  assert.equal(result.details.mutation.rollbackSucceeded, true);
+  assert.equal(result.details.leasesChanged, false);
+  assert.equal(result.details.continuation.queued, false);
+  assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+  assert.equal(harness.sentMessages.length, 0);
+  const status = await executeToolbox(harness.tools.get("toolbox"), { action: "status" });
+  assert.deepEqual(status.details.leases, []);
+});
+
+test("activation reports degraded truth when partial application and rollback both fail", async () => {
+  const harness = createHarness({
+    setActiveToolsBehavior({ call, activeTools }) {
+      if (call === 1) return { activeTools: [...activeTools, "vault_insert"] };
+      return { noOp: true };
+    },
+  });
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert", "vault_update"],
+    riskAcknowledged: true,
+    riskJustification: "test degraded rollback",
+  });
+
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.mutation.rollbackAttempted, true);
+  assert.equal(result.details.mutation.rollbackSucceeded, false);
+  assert.equal(result.details.activeTools.includes("vault_insert"), true);
+  assert.equal(result.details.continuation.queued, false);
+  assert.equal(harness.sentMessages.length, 0);
+});
+
+test("activation rolls back when the host mutates then throws", async () => {
+  const harness = createHarness({
+    setActiveToolsBehavior({ call, activeTools }) {
+      if (call === 1) {
+        return { activeTools: [...activeTools, "vault_insert"], throw: true };
+      }
+      return undefined;
+    },
+  });
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test thrown mutation",
+  });
+
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.failureClass, "set_active_tools_threw");
+  assert.equal(result.details.mutation.rollbackSucceeded, true);
+  assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
+  assert.equal(harness.sentMessages.length, 0);
+});
+
+test("activation accepts host ordering differences after semantic set verification", async () => {
+  const harness = createHarness({
+    setActiveToolsBehavior({ requested }) {
+      return { activeTools: [...requested].reverse() };
+    },
+  });
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test semantic ordering",
+  });
+
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.activeSetMutation.ok, true);
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+});
+
+test("activation continuation includes baseline-only tools repaired by the verified mutation", async () => {
+  const harness = createHarness();
+  harness.setActiveTools(ALWAYS_ACTIVE_TOOLS.filter((tool) => tool !== "loop_execute"));
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["context_plan"],
+  });
+
+  assert.equal(result.details.ok, true);
+  assert.deepEqual(result.details.requestedNewTools, []);
+  assert.deepEqual(result.details.activatedNewTools, ["loop_execute"]);
+  assert.equal(result.details.continuation.queued, true);
+  assert.deepEqual(harness.sentMessages[0].message.details.activatedTools, ["loop_execute"]);
+});
+
+test("activation returns the retained pinned lease rather than a shorter proposal", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    pin: true,
+    riskAcknowledged: true,
+    riskJustification: "test pinned lease",
+  });
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    ttlTurns: 1,
+    riskAcknowledged: true,
+    riskJustification: "test shorter proposal",
+  });
+
+  assert.equal(result.details.leases[0].pinned, true);
+  assert.equal(result.details.leases[0].expiresAtTurn, undefined);
+});
+
+test("activation fails closed when registered-tool truth cannot be read", async () => {
+  const harness = createHarness({
+    getAllToolsBehavior() {
+      return { throw: true };
+    },
+  });
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test registration lookup",
+  });
+
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.failureClass, "registered_tool_snapshot_failed");
+  assert.equal(harness.setActiveToolsCallCount, 0);
+  assert.equal(harness.sentMessages.length, 0);
+});
+
+test("failed deactivation preserves active tools and lease bookkeeping", async () => {
+  const harness = createHarness({
+    setActiveToolsBehavior({ call }) {
+      return call === 2 ? { noOp: true } : undefined;
+    },
+  });
+  const toolbox = harness.tools.get("toolbox");
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test deactivation",
+  });
+  const result = await executeToolbox(toolbox, {
+    action: "deactivate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test deactivation",
+  });
+
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.leasesChanged, false);
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+  const status = await executeToolbox(toolbox, { action: "status" });
+  assert.match(status.details.leases[0], /vault_insert/);
+});
+
+test("failed TTL deactivation retains leases and emits a warning", async () => {
+  const harness = createHarness({
+    setActiveToolsBehavior({ call }) {
+      return call === 2 ? { noOp: true } : undefined;
+    },
+  });
+  const toolbox = harness.tools.get("toolbox");
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    ttlTurns: 1,
+    riskAcknowledged: true,
+    riskJustification: "test ttl rollback",
+  });
+  await harness.runEvent("turn_start");
+  await harness.runEvent("turn_start");
+
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+  const status = await executeToolbox(toolbox, { action: "status" });
+  assert.match(status.details.leases[0], /vault_insert/);
+  assert.match(harness.notifications[0].message, /expired leases remain tracked/);
+});
+
+test("failed startup baseline verification preserves leases and warns", async () => {
+  const harness = createHarness({
+    setActiveToolsBehavior({ call }) {
+      return call === 2 ? { noOp: true } : undefined;
+    },
+  });
+  const toolbox = harness.tools.get("toolbox");
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test startup rollback",
+  });
+  await harness.runEvent("session_start");
+
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+  const status = await executeToolbox(toolbox, { action: "status" });
+  assert.match(status.details.leases[0], /vault_insert/);
+  assert.match(harness.notifications[0].message, /prior lease bookkeeping was preserved/);
+});
+
+test("startup registration lookup failure preserves leases and warns without mutation", async () => {
+  const harness = createHarness({
+    getAllToolsBehavior({ call }) {
+      return call === 2 ? { throw: true } : undefined;
+    },
+  });
+  const toolbox = harness.tools.get("toolbox");
+  await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["vault_insert"],
+    riskAcknowledged: true,
+    riskJustification: "test startup registration lookup",
+  });
+  const mutationCallsBeforeStartup = harness.setActiveToolsCallCount;
+  await harness.runEvent("session_start");
+
+  assert.equal(harness.setActiveToolsCallCount, mutationCallsBeforeStartup);
+  assert.equal(harness.activeTools.includes("vault_insert"), true);
+  const status = await executeToolbox(toolbox, { action: "status" });
+  assert.match(status.details.leases[0], /vault_insert/);
+  assert.match(harness.notifications[0].message, /registered_tool_snapshot_failed/);
+});
+
+test("deactivation restores a missing registered always-active baseline tool", async () => {
+  const harness = createHarness();
+  harness.setActiveTools(ALWAYS_ACTIVE_TOOLS.filter((tool) => tool !== "toolbox"));
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "deactivate",
+    tools: ["toolbox"],
+  });
+
+  assert.equal(result.details.ok, true);
+  assert.equal(harness.activeTools.includes("toolbox"), true);
+  assert.deepEqual(result.details.protectedTools, ["toolbox"]);
+});
+
 test("activates only requested profile tools", async () => {
   const bundle = {
     id: "profile-test",
@@ -322,7 +623,12 @@ test("catalog includes context-packer read profile", async () => {
   const contextPacker = CATALOG.find((bundle) => bundle.id === "context-packer");
   const read = contextPacker?.profiles.find((profile) => profile.id === "read");
   assert.ok(read);
-  assert.deepEqual(read.tools, ["context_plan", "context_pack", "context_dogfood_evaluate"]);
+  assert.deepEqual(read.tools, [
+    "context_plan",
+    "context_pack",
+    "context_dogfood_evaluate",
+    "context_dogfood_summarize",
+  ]);
   assert.equal(read.risk, "read");
 
   const harness = createHarness();
@@ -332,12 +638,17 @@ test("catalog includes context-packer read profile", async () => {
   });
   assert.match(
     result.content[0].text,
-    /Activated tools: context_plan, context_pack, context_dogfood_evaluate/,
+    /Activated tools: context_plan, context_pack, context_dogfood_evaluate, context_dogfood_summarize/,
   );
-  assert.deepEqual(result.details.activatedNewTools, ["context_pack", "context_dogfood_evaluate"]);
+  assert.deepEqual(result.details.activatedNewTools, [
+    "context_pack",
+    "context_dogfood_evaluate",
+    "context_dogfood_summarize",
+  ]);
   assert.equal(harness.activeTools.includes("context_plan"), true);
   assert.equal(harness.activeTools.includes("context_pack"), true);
   assert.equal(harness.activeTools.includes("context_dogfood_evaluate"), true);
+  assert.equal(harness.activeTools.includes("context_dogfood_summarize"), true);
 });
 
 test("catalog includes agent_vent as diagnostic companion to ASC", async () => {
