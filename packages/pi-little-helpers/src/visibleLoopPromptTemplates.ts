@@ -324,6 +324,7 @@ export function renderVisibleLoopCompletionPrompt(input: {
   productPostureExists?: boolean;
   visionPath?: string;
   visionExists?: boolean;
+  adaptiveController?: boolean;
   selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
 }): string {
   const postureLines = input.productPosturePath
@@ -335,6 +336,13 @@ export function renderVisibleLoopCompletionPrompt(input: {
             ]
           : []),
         "If implementation routed to a different owning package or surface, an earlier product-posture refresh prompt or the delegated commit verification must have named and refreshed that corrected posture target before completion.",
+      ]
+    : [];
+  const adaptiveControllerLines = input.adaptiveController
+    ? [
+        "Adaptive controller mode is active for this run.",
+        "Completion is accepted only when deeply validated host-recorded prompt-delivery and completion-checkpoint receipts for this iteration are present and uninvalidated.",
+        "The weighted-cost/receipt ledger is local diagnostic transport state only; it is not tamper-proof and is not AK, validation, merge, release, promotion, or owner authority.",
       ]
     : [];
   const candidateCloseoutLines = input.selfEvolutionEnvelope
@@ -355,6 +363,7 @@ export function renderVisibleLoopCompletionPrompt(input: {
     "If and only if the immediately previous real prompt turn is complete, call the `visible_loop_child_complete` tool with exactly:",
     `- configPath: ${JSON.stringify(input.configPath)}`,
     `- iteration: ${input.iteration}`,
+    ...adaptiveControllerLines,
     ...candidateCloseoutLines,
     "Do not call the tool before the previous prompt turn is complete.",
     "Do not call the tool if any configured product-posture refresh or /commit prompt failed, stopped for clarification, or left validation/commit incomplete.",

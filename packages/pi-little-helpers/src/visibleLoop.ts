@@ -12,6 +12,12 @@ import {
 import { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
 import { normalizeOptionalString, parseVisibleLoopCompletionArgs } from "./visibleLoopArgs.ts";
 import {
+  createVisibleLoopControllerState,
+  decideVisibleLoopContinuation,
+  validateVisibleLoopCompletionInvariants,
+} from "./visibleLoopController.ts";
+import { recordVisibleLoopControllerEvent as applyVisibleLoopControllerEvent } from "./visibleLoopControllerRuntime.ts";
+import {
   getVisibleLoopCommandName,
   getVisibleLoopHumanLabel,
   getVisibleLoopIntercomEventPrefix,
@@ -28,13 +34,19 @@ import {
 import {
   appendVisibleLoopStatus,
   getVisibleLoopStateDir,
+  getVisibleLoopStatusPath,
   hasVisibleLoopAlreadyCompleted,
+  loadVisibleLoopControllerState,
   loadVisibleLoopRunConfig,
   readCompletedVisibleLoopIterations,
+  writeVisibleLoopControllerState,
 } from "./visibleLoopState.ts";
 import {
   VISIBLE_LOOP_CHILD_COMMAND,
+  type VisibleLoopAdaptiveControllerConfig,
   type VisibleLoopCommitDelegation,
+  type VisibleLoopContinuationDecision,
+  type VisibleLoopControllerState,
   type VisibleLoopProductPostureTarget,
   type VisibleLoopReportBack,
   type VisibleLoopRunConfig,
@@ -52,6 +64,7 @@ export {
 } from "./selfEvolutionEnvelope.ts";
 export { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
 export { parseVisibleLoopCommandArgs } from "./visibleLoopArgs.ts";
+export { resolveVisibleLoopAdaptiveControllerConfig } from "./visibleLoopController.ts";
 export {
   DEFAULT_NEXUS_LOOP_PROFILE,
   DEFAULT_VISIBLE_LOOP_PROFILE,
@@ -99,6 +112,7 @@ export interface VisibleLoopChildRunnerOptions {
   createPeerRuntime?: CreateVisibleLoopPeerRuntime;
   intercomSendTimeoutMs?: number;
   candidateCloseout?: SelfEvolutionCandidateCloseout;
+  persistControllerState?: typeof writeVisibleLoopControllerState;
 }
 
 type VisibleLoopContext = {
@@ -155,6 +169,7 @@ export function createVisibleLoopRunConfig(input: {
   runIdPrefix?: string;
   title?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
+  adaptiveController?: VisibleLoopAdaptiveControllerConfig;
   selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
 }): VisibleLoopRunConfig {
   const commandName = normalizeVisibleLoopCommandName(input.commandName ?? input.runIdPrefix);
@@ -172,6 +187,7 @@ export function createVisibleLoopRunConfig(input: {
     reportBack: input.reportBack,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
     ...(input.commitDelegation ? { commitDelegation: input.commitDelegation } : {}),
+    ...(input.adaptiveController ? { adaptiveController: input.adaptiveController } : {}),
     productPostureTarget: resolveVisibleLoopProductPostureTarget(input.cwd),
     ...(input.selfEvolutionEnvelope ? { selfEvolutionEnvelope: input.selfEvolutionEnvelope } : {}),
     title: input.title ?? "Visible loop",
@@ -256,20 +272,38 @@ export async function startVisibleLoopChildRunner(
     return;
   }
 
+  const controllerState = initialVisibleLoopControllerState(config, restoredIterations, env);
+  if (config.adaptiveController && !controllerState) {
+    ctx.ui?.notify?.("visible-loop child failed: adaptive controller state unavailable", "error");
+    return;
+  }
+
   const state: ActiveVisibleLoopState = {
     config,
     configPath,
     completedPromptCount: restoredIterations * getVisibleLoopCompletionTurnCount(config),
     completedIterations: restoredIterations,
+    controllerState,
     sendUserMessage,
     peerRuntime: null,
     createPeerRuntime: runnerOptions.createPeerRuntime,
     intercomSendTail: Promise.resolve(),
     intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
+    persistControllerState: runnerOptions.persistControllerState ?? writeVisibleLoopControllerState,
     stopped: false,
     followupsQueuedForIteration: null,
     continueInNewSession: runnerOptions.continueInNewSession,
   };
+  if (
+    !recordVisibleLoopControllerEvent(
+      state,
+      { kind: "child_started", iteration: restoredIterations + 1 },
+      env,
+    )
+  ) {
+    ctx.ui?.notify?.("visible-loop adaptive controller failed during child start", "error");
+    return;
+  }
   appendVisibleLoopStatus(
     config,
     {
@@ -280,7 +314,10 @@ export async function startVisibleLoopChildRunner(
     },
     env,
   );
-  persistActiveVisibleLoopState(state, ctx, env);
+  if (!persistActiveVisibleLoopState(state, ctx, env)) {
+    ctx.ui?.notify?.("visible-loop adaptive controller state could not be persisted", "error");
+    return;
+  }
 
   activeVisibleLoop = state;
   const statusKey = getVisibleLoopCommandName(config);
@@ -348,17 +385,54 @@ interface ActiveVisibleLoopState {
   configPath: string;
   completedPromptCount: number;
   completedIterations: number;
+  controllerState?: VisibleLoopControllerState;
   sendUserMessage: SendUserMessage;
   peerRuntime: PeerMessagingRuntime | null;
   createPeerRuntime?: CreateVisibleLoopPeerRuntime;
   intercomSendTail: Promise<void>;
   intercomSendTimeoutMs: number;
+  persistControllerState: typeof writeVisibleLoopControllerState;
   stopped: boolean;
   followupsQueuedForIteration: number | null;
   continueInNewSession?: ContinueVisibleLoopInNewSession;
 }
 
 let activeVisibleLoop: ActiveVisibleLoopState | null = null;
+
+function initialVisibleLoopControllerState(
+  config: VisibleLoopRunConfig,
+  _completedIterations: number,
+  env: NodeJS.ProcessEnv,
+): VisibleLoopControllerState | undefined {
+  if (!config.adaptiveController) return undefined;
+  const restored = loadVisibleLoopControllerState(config, env);
+  if (restored.ok) return restored.state;
+  if (
+    restored.error === "controller state file does not exist" &&
+    !existsSync(getVisibleLoopStatusPath(config, env))
+  ) {
+    return createVisibleLoopControllerState();
+  }
+  return undefined;
+}
+
+function restoreRequiredVisibleLoopControllerState(
+  config: VisibleLoopRunConfig,
+  env: NodeJS.ProcessEnv,
+): VisibleLoopControllerState | undefined {
+  if (!config.adaptiveController) return undefined;
+  const restored = loadVisibleLoopControllerState(config, env);
+  if (!restored.ok) throw new TypeError(restored.error);
+  return restored.state;
+}
+
+function recordVisibleLoopControllerEvent(
+  state: ActiveVisibleLoopState,
+  event: Parameters<typeof applyVisibleLoopControllerEvent>[1],
+  env: NodeJS.ProcessEnv,
+): boolean {
+  return applyVisibleLoopControllerEvent(state, event, env, appendVisibleLoopStatus);
+}
 
 interface PersistedActiveVisibleLoopState {
   schemaVersion: 1;
@@ -390,9 +464,25 @@ function persistActiveVisibleLoopState(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
-): void {
+): boolean {
+  try {
+    if (state.config.adaptiveController && state.controllerState) {
+      state.persistControllerState(state.config, state.controllerState, env);
+    }
+  } catch (error) {
+    state.stopped = true;
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "adaptive_controller_persistence_failed",
+        reason: error instanceof Error ? error.message : String(error),
+      },
+      env,
+    );
+    return false;
+  }
   const path = getActiveVisibleLoopStatePath(ctx, env);
-  if (!path) return;
+  if (!path) return true;
   try {
     mkdirSync(dirname(path), { recursive: true });
     const persisted: PersistedActiveVisibleLoopState = {
@@ -406,8 +496,9 @@ function persistActiveVisibleLoopState(
     };
     writeFileSync(path, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
   } catch {
-    // Diagnostic persistence only; keep visible loop running.
+    // Session-local active-state persistence is diagnostic only.
   }
+  return true;
 }
 
 function restoreActiveVisibleLoopState(
@@ -445,11 +536,14 @@ function restoreActiveVisibleLoopState(
       completedIterations: Number.isInteger(persisted.completedIterations)
         ? Number(persisted.completedIterations)
         : 0,
+      controllerState: restoreRequiredVisibleLoopControllerState(configResult.config, env),
       sendUserMessage,
       peerRuntime: null,
       createPeerRuntime: runnerOptions.createPeerRuntime,
       intercomSendTail: Promise.resolve(),
       intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
+      persistControllerState:
+        runnerOptions.persistControllerState ?? writeVisibleLoopControllerState,
       stopped: Boolean(persisted.stopped),
       followupsQueuedForIteration:
         typeof persisted.followupsQueuedForIteration === "number"
@@ -534,6 +628,17 @@ function queueVisibleLoopIteration(
     return;
   }
   state.sendUserMessage(initialPrompt.prompt);
+  if (
+    !recordVisibleLoopControllerEvent(
+      state,
+      { kind: "initial_prompt_delivered", iteration, promptIndex: 1 },
+      env,
+    )
+  ) {
+    ctx.ui?.notify?.("visible-loop adaptive controller rejected initial prompt delivery", "error");
+    return;
+  }
+  persistActiveVisibleLoopState(state, ctx, env);
   const queuedCompletedIterations = state.completedIterations;
   setTimeout(() => {
     if (
@@ -565,6 +670,7 @@ function queueVisibleLoopFollowups(
     productPostureExists: state.config.productPostureTarget?.productPostureExists,
     visionPath: state.config.productPostureTarget?.visionPath,
     visionExists: state.config.productPostureTarget?.visionExists,
+    adaptiveController: Boolean(state.config.adaptiveController),
     selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
   });
   const delegatesCompletion = visibleLoopDelegatesCompletion(state.config, realFollowups);
@@ -598,6 +704,12 @@ function queueVisibleLoopFollowups(
       );
       if (isCompletionPrompt) {
         state.sendUserMessage(prompt, { deliverAs: "followUp" });
+        recordVisibleLoopControllerEvent(
+          state,
+          { kind: "completion_checkpoint_delivered", iteration },
+          env,
+        );
+        persistActiveVisibleLoopState(state, ctx ?? {}, env);
         return;
       }
       const expandedPrompt = expandVisibleLoopPromptTemplate(prompt, state.config.cwd);
@@ -622,6 +734,27 @@ function queueVisibleLoopFollowups(
       );
       if (!deliveryPrompt) return;
       state.sendUserMessage(deliveryPrompt, { deliverAs: "followUp" });
+      if (
+        !recordVisibleLoopControllerEvent(
+          state,
+          { kind: "followup_prompt_delivered", iteration, promptIndex: index + 2 },
+          env,
+        )
+      ) {
+        ctx?.ui?.notify?.("visible-loop adaptive controller rejected followup delivery", "error");
+        return;
+      }
+      if (
+        state.config.commitDelegation &&
+        expandedPrompt.templateName === state.config.commitDelegation.promptTemplate
+      ) {
+        recordVisibleLoopControllerEvent(
+          state,
+          { kind: "delegated_completion_requested", iteration },
+          env,
+        );
+      }
+      persistActiveVisibleLoopState(state, ctx ?? {}, env);
     }, 150 * index);
   });
 }
@@ -683,6 +816,11 @@ function stopVisibleLoopForPromptExpansionFailure(
 ): void {
   state.stopped = true;
   const detail = expansion.error ?? "prompt template expansion failed";
+  recordVisibleLoopControllerEvent(
+    state,
+    { kind: "prompt_delivery_failed", iteration, promptIndex, reason: detail },
+    env,
+  );
   appendVisibleLoopStatus(
     state.config,
     {
@@ -705,7 +843,9 @@ function completeVisibleLoopIteration(
   env: NodeJS.ProcessEnv,
   source: "agent_settled" | "completion_command",
   expectedIteration?: number,
-): { accepted: true } | { accepted: false; reason: string } {
+):
+  | { accepted: true; continuationDecision?: VisibleLoopContinuationDecision }
+  | { accepted: false; reason: string } {
   if (state.stopped) {
     const reason = "loop already stopped";
     appendVisibleLoopStatus(
@@ -741,6 +881,67 @@ function completeVisibleLoopIteration(
     return { accepted: false, reason };
   }
 
+  if (
+    !recordVisibleLoopControllerEvent(
+      state,
+      { kind: "completion_requested", iteration: nextIteration },
+      env,
+    )
+  ) {
+    return { accepted: false, reason: "adaptive controller rejected completion request" };
+  }
+  if (state.config.adaptiveController) {
+    if (!state.controllerState) {
+      return { accepted: false, reason: "adaptive controller state unavailable" };
+    }
+    const prompts = getVisibleLoopPrompts(state.config);
+    const invariant = validateVisibleLoopCompletionInvariants({
+      state: state.controllerState,
+      iteration: nextIteration,
+      promptCount: prompts.length,
+      delegatedCompletion: visibleLoopDelegatesCompletion(state.config, prompts.slice(1)),
+    });
+    if (!invariant.ok) {
+      const reason = `${invariant.error}: missing=${invariant.missingProofIds.join(",") || "none"}; invalidated=${invariant.invalidatedProofIds.join(",") || "none"}`;
+      appendVisibleLoopStatus(
+        state.config,
+        {
+          event: "adaptive_completion_rejected",
+          iteration: nextIteration,
+          reason,
+          missingProofIds: invariant.missingProofIds,
+          invalidatedProofIds: invariant.invalidatedProofIds,
+        },
+        env,
+      );
+      persistActiveVisibleLoopState(state, ctx, env);
+      return { accepted: false, reason };
+    }
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "adaptive_completion_invariants_passed",
+        iteration: nextIteration,
+        proofIds: invariant.proofIds,
+        authority: "diagnostic_transport_proof_only_non_authoritative",
+      },
+      env,
+    );
+  }
+
+  if (
+    !recordVisibleLoopControllerEvent(
+      state,
+      { kind: "iteration_completed", iteration: nextIteration },
+      env,
+    )
+  ) {
+    return { accepted: false, reason: "adaptive controller rejected iteration completion" };
+  }
+  if (state.config.adaptiveController && !persistActiveVisibleLoopState(state, ctx, env)) {
+    return { accepted: false, reason: "adaptive controller state persistence failed" };
+  }
+
   state.completedIterations = nextIteration;
   state.completedPromptCount = Math.max(state.completedPromptCount, nextIteration * promptCount);
   appendVisibleLoopStatus(
@@ -764,6 +965,28 @@ function completeVisibleLoopIteration(
     `${getVisibleLoopIntercomEventPrefix(state.config)}_ITERATION peer_run_id=${state.config.runId}: completed iteration ${state.completedIterations}/${state.config.loopCount}`,
     env,
   );
+
+  const continuationDecision = state.config.adaptiveController
+    ? decideVisibleLoopContinuation({
+        completedIterations: state.completedIterations,
+        loopCount: state.config.loopCount,
+        weightedCost: state.controllerState?.weightedCost ?? Number.POSITIVE_INFINITY,
+        maxWeightedCost: state.config.adaptiveController.maxWeightedCost,
+        hasNewSessionContinuation: Boolean(state.continueInNewSession),
+      })
+    : undefined;
+  if (continuationDecision) {
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "adaptive_continuation_decided",
+        completedIterations: state.completedIterations,
+        decision: continuationDecision,
+        weightedCost: state.controllerState?.weightedCost ?? null,
+      },
+      env,
+    );
+  }
 
   if (state.completedIterations >= state.config.loopCount) {
     state.stopped = true;
@@ -793,12 +1016,16 @@ function completeVisibleLoopIteration(
         if (activeVisibleLoop === state) activeVisibleLoop = null;
         ctx.ui?.setStatus?.(getVisibleLoopCommandName(state.config), undefined);
       });
-    return { accepted: true };
+    return { accepted: true, ...(continuationDecision ? { continuationDecision } : {}) };
   }
 
   persistActiveVisibleLoopState(state, ctx, env);
 
-  if (state.continueInNewSession) {
+  const useNewSession = continuationDecision
+    ? continuationDecision.method === "new_session" ||
+      (continuationDecision.method === "baseline_fallback" && Boolean(state.continueInNewSession))
+    : Boolean(state.continueInNewSession);
+  if (useNewSession && state.continueInNewSession) {
     const nextIteration = state.completedIterations + 1;
     state.stopped = true;
     persistActiveVisibleLoopState(state, ctx, env);
@@ -830,6 +1057,15 @@ function completeVisibleLoopIteration(
       })
       .catch((error) => {
         state.stopped = false;
+        recordVisibleLoopControllerEvent(
+          state,
+          {
+            kind: "continuation_failed",
+            iteration: nextIteration,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          env,
+        );
         persistActiveVisibleLoopState(state, ctx, env);
         appendVisibleLoopStatus(
           state.config,
@@ -840,14 +1076,31 @@ function completeVisibleLoopIteration(
           },
           env,
         );
-        ctx.ui?.notify?.(
-          `${getVisibleLoopHumanLabel(state.config)} failed to launch iteration ${nextIteration}/${state.config.loopCount}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-          "error",
-        );
+        if (state.config.adaptiveController) {
+          ctx.ui?.notify?.(
+            `${getVisibleLoopHumanLabel(state.config)} failed to launch iteration ${nextIteration}/${state.config.loopCount}; continuing in the current session: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            "warning",
+          );
+          if (!state.stopped && activeVisibleLoop === state) {
+            appendVisibleLoopStatus(
+              state.config,
+              { event: "next_iteration_same_session_fallback", nextIteration },
+              env,
+            );
+            queueVisibleLoopIteration(state, ctx, env);
+          }
+        } else {
+          ctx.ui?.notify?.(
+            `${getVisibleLoopHumanLabel(state.config)} failed to launch iteration ${nextIteration}/${state.config.loopCount}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            "error",
+          );
+        }
       });
-    return { accepted: true };
+    return { accepted: true, ...(continuationDecision ? { continuationDecision } : {}) };
   }
 
   void progressReport.finally(() => {
@@ -857,7 +1110,7 @@ function completeVisibleLoopIteration(
       }
     }, 250);
   });
-  return { accepted: true };
+  return { accepted: true, ...(continuationDecision ? { continuationDecision } : {}) };
 }
 
 function getVisibleLoopCompletionTurnCount(_config: VisibleLoopRunConfig): number {
@@ -883,10 +1136,12 @@ function recreateActiveVisibleLoopState(
     configPath,
     completedPromptCount: 0,
     completedIterations: 0,
+    controllerState: config.adaptiveController ? createVisibleLoopControllerState() : undefined,
     sendUserMessage,
     peerRuntime: null,
     intercomSendTail: Promise.resolve(),
     intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
+    persistControllerState: runnerOptions.persistControllerState ?? writeVisibleLoopControllerState,
     stopped: false,
     followupsQueuedForIteration: null,
     createPeerRuntime: runnerOptions.createPeerRuntime,
@@ -1102,6 +1357,7 @@ export interface VisibleLoopCompletionOutcome {
   runId?: string;
   candidateId?: string;
   completedIterations?: number;
+  continuationDecision?: VisibleLoopContinuationDecision;
 }
 
 function rejectedCompletion(
@@ -1215,6 +1471,9 @@ export async function startVisibleLoopChildCompleteRunner(
       runId: existingState.config.runId,
       candidateId: existingState.config.selfEvolutionEnvelope?.candidateId,
       completedIterations: existingState.completedIterations,
+      ...(completion.continuationDecision
+        ? { continuationDecision: completion.continuationDecision }
+        : {}),
     };
   }
 
@@ -1261,6 +1520,22 @@ export async function startVisibleLoopChildCompleteRunner(
       },
       env,
     );
+    return rejectedCompletion(reason, configResult.config);
+  }
+
+  if (configResult.config.adaptiveController && !existingState) {
+    const reason = "adaptive active controller state unavailable";
+    appendVisibleLoopStatus(
+      configResult.config,
+      {
+        event: "completion_ignored",
+        source: "adaptive_controller_gate",
+        reason,
+        iteration: parsed.iteration ?? null,
+      },
+      env,
+    );
+    ctx.ui?.notify?.(`visible-loop completion ignored: ${reason}`, "warning");
     return rejectedCompletion(reason, configResult.config);
   }
 
@@ -1331,6 +1606,9 @@ export async function startVisibleLoopChildCompleteRunner(
     runId: state.config.runId,
     candidateId: state.config.selfEvolutionEnvelope?.candidateId,
     completedIterations: state.completedIterations,
+    ...(completion.continuationDecision
+      ? { continuationDecision: completion.continuationDecision }
+      : {}),
   };
 }
 

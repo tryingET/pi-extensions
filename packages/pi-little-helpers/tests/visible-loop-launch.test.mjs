@@ -70,6 +70,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.reportBack, "intercom");
     assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
     assert.equal(config.commitDelegation, undefined);
+    assert.equal(config.adaptiveController, undefined);
     assert.deepEqual(config.productPostureTarget, {
       cwd: "/repo",
       productPosturePath: "/repo/docs/project/product-posture.md",
@@ -117,6 +118,53 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.match(config.prompts[4], /Do not commit yet/);
     assert.equal(config.prompts[5], "/commit");
     assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop launch persists the opt-in adaptive controller policy", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-adaptive-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") return { code: 0, stdout: "", stderr: "" };
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+        PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "1",
+        PI_VISIBLE_LOOP_MAX_WEIGHTED_COST: "23",
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("visible-loop").handler("--count 1", harness.ctx);
+
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    const configPath = extractPiArgs(ghosttyCall.args)
+      .at(-1)
+      .replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.equal(config.adaptiveController.mode, "adaptive-v1");
+    assert.equal(config.adaptiveController.maxWeightedCost, 23);
+    assert.equal(config.adaptiveController.weights.prompt_delivery_failed, 8);
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });

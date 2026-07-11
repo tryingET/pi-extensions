@@ -63,6 +63,8 @@
     "src/toolboxBundle.ts",
     "src/visibleLoop.ts",
     "src/visibleLoopArgs.ts",
+    "src/visibleLoopController.ts",
+    "src/visibleLoopControllerRuntime.ts",
     "src/visibleLoopPromptTemplates.ts",
     "src/visibleLoopProfiles.ts",
     "src/visibleLoopState.ts",

@@ -7,6 +7,51 @@ export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete"
 
 export type VisibleLoopReportBack = "intercom" | "manual" | "none";
 
+export type VisibleLoopControllerEventKind =
+  | "child_started"
+  | "initial_prompt_delivered"
+  | "followup_prompt_delivered"
+  | "completion_checkpoint_delivered"
+  | "delegated_completion_requested"
+  | "prompt_delivery_failed"
+  | "completion_requested"
+  | "iteration_completed"
+  | "continuation_failed";
+
+export interface VisibleLoopAdaptiveControllerConfig {
+  mode: "adaptive-v1";
+  maxWeightedCost: number;
+  weights: Record<VisibleLoopControllerEventKind, number>;
+}
+
+export interface VisibleLoopControllerProof {
+  id: string;
+  kind: "prompt_delivered" | "completion_checkpoint_delivered" | "delegated_completion_requested";
+  iteration: number;
+  promptIndex?: number;
+  eventSequence: number;
+}
+
+export interface VisibleLoopControllerInvalidation {
+  proofId: string;
+  reason: string;
+  eventSequence: number;
+}
+
+export interface VisibleLoopControllerState {
+  schemaVersion: 1;
+  sequence: number;
+  weightedCost: number;
+  proofs: VisibleLoopControllerProof[];
+  invalidations: VisibleLoopControllerInvalidation[];
+}
+
+export type VisibleLoopContinuationDecision =
+  | { method: "complete"; reason: "loop_count_reached" }
+  | { method: "same_session"; reason: "fresh_proof_within_budget" }
+  | { method: "new_session"; reason: "fresh_proof_within_budget" }
+  | { method: "baseline_fallback"; reason: "budget_exceeded" };
+
 export interface VisibleLoopRunConfig {
   schemaVersion: 1;
   runId: string;
@@ -17,6 +62,7 @@ export interface VisibleLoopRunConfig {
   reportBack: VisibleLoopReportBack;
   parentPeerTarget?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
+  adaptiveController?: VisibleLoopAdaptiveControllerConfig;
   productPostureTarget?: VisibleLoopProductPostureTarget;
   selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
   title?: string;

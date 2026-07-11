@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -29,6 +29,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
+        PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "1",
       },
       exec: execStub.exec,
       pathExists(path) {
@@ -36,7 +37,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, events, userMessages } = registerExtension(extension);
+    const { commands, events, tools, userMessages } = registerExtension(extension);
     const repoRoot = `${stateHome}/repo`;
     const harness = createContext({ cwd: repoRoot });
     mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
@@ -90,6 +91,8 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     assert.match(userMessages[6].message, /Visible-loop internal completion checkpoint/);
     assert.match(userMessages[6].message, /visible_loop_child_complete/);
     assert.match(userMessages[6].message, /product-posture refresh or \/commit prompt failed/);
+    assert.match(userMessages[6].message, /Adaptive controller mode is active/);
+    assert.match(userMessages[6].message, /host-recorded prompt-delivery/);
     assert.match(
       userMessages[6].message,
       new RegExp(
@@ -138,6 +141,45 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     );
     assert.equal(visibleLoopLaunches.length, 2);
     assert.match(extractPiArgs(visibleLoopLaunches[1].args).at(-1), /^\/visible-loop-child /);
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    const statusEntries = readFileSync(
+      `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`,
+      "utf8",
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(
+      statusEntries.some((entry) => entry.event === "adaptive_completion_invariants_passed"),
+    );
+    assert.ok(
+      statusEntries.some(
+        (entry) =>
+          entry.event === "adaptive_continuation_decided" &&
+          entry.decision?.method === "new_session",
+      ),
+    );
+
+    const controllerStatePath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.controller.json`;
+    const firstIterationCost = JSON.parse(readFileSync(controllerStatePath, "utf8")).weightedCost;
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const restoredCost = JSON.parse(readFileSync(controllerStatePath, "utf8")).weightedCost;
+    assert.ok(restoredCost > firstIterationCost, "new child must retain and extend run cost");
+    await new Promise((resolve) => setTimeout(resolve, 1900));
+    const finalResult = await tools
+      .get("visible_loop_child_complete")
+      .execute("adaptive-final", { configPath, iteration: 2 }, null, null, harness.ctx);
+    assert.equal(finalResult.details.accepted, true, finalResult.details.reason);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const finalEntries = readFileSync(
+      `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`,
+      "utf8",
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(finalEntries.some((entry) => entry.event === "loop_completed"));
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
   }

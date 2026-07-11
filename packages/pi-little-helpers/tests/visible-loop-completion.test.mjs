@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
 import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {
   createVisibleLoopRunConfig,
+  getVisibleLoopStatusPath,
+  resolveVisibleLoopAdaptiveControllerConfig,
   startVisibleLoopChildCompleteRunner,
+  startVisibleLoopChildRunner,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
+import { writeVisibleLoopControllerState } from "../src/visibleLoopState.ts";
 import {
   createContext,
   createExecStub,
@@ -16,6 +20,174 @@ import {
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
+
+test("adaptive restart rejects missing controller state after run history exists", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-adaptive-missing-state-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const adaptiveController = resolveVisibleLoopAdaptiveControllerConfig({
+      PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "1",
+    });
+    assert.ok(adaptiveController);
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: "/repo",
+      reportBack: "none",
+      prompts: ["bounded work"],
+      adaptiveController,
+      runId: "visible-loop-adaptive-missing-state",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    writeFileSync(
+      getVisibleLoopStatusPath(config, env),
+      `${JSON.stringify({ event: "child_started", runId: config.runId })}\n`,
+    );
+    const userMessages = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const harness = createContext({ cwd: "/repo" });
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env);
+
+    assert.equal(userMessages.length, 0);
+    assert.match(harness.notifications.at(-1).message, /controller state unavailable/);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("adaptive completion fails closed when controller persistence fails", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-adaptive-persist-failure-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const adaptiveController = resolveVisibleLoopAdaptiveControllerConfig({
+      PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "1",
+    });
+    assert.ok(adaptiveController);
+    const config = createVisibleLoopRunConfig({
+      loopCount: 2,
+      cwd: "/repo",
+      reportBack: "none",
+      prompts: ["bounded work"],
+      adaptiveController,
+      runId: "visible-loop-adaptive-persist-failure",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    const pi = { sendUserMessage() {} };
+    const harness = createContext({ cwd: "/repo" });
+    let continuationCalls = 0;
+    const continueInNewSession = async () => {
+      continuationCalls += 1;
+    };
+    const persistControllerState = (inputConfig, state, inputEnv) => {
+      if (state.sequence >= 5) throw new Error("synthetic persistence failure");
+      writeVisibleLoopControllerState(inputConfig, state, inputEnv);
+    };
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, {
+      continueInNewSession,
+      persistControllerState,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const outcome = await startVisibleLoopChildCompleteRunner(
+      `${configPath} --iteration 1`,
+      pi,
+      harness.ctx,
+      env,
+      { continueInNewSession, persistControllerState },
+    );
+
+    assert.equal(outcome.accepted, false);
+    assert.equal(outcome.reason, "adaptive controller state persistence failed");
+    assert.equal(continuationCalls, 0);
+    const status = readFileSync(
+      `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`,
+      "utf8",
+    );
+    assert.match(status, /adaptive_controller_persistence_failed/);
+    assert.doesNotMatch(status, /"event":"iteration_completed"/);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("adaptive continuation launch failure falls back to a full same-session iteration", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-adaptive-fallback-state-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const adaptiveController = resolveVisibleLoopAdaptiveControllerConfig({
+      PI_VISIBLE_LOOP_ADAPTIVE_CONTROLLER: "1",
+    });
+    assert.ok(adaptiveController);
+    const config = createVisibleLoopRunConfig({
+      loopCount: 2,
+      cwd: "/repo",
+      reportBack: "none",
+      prompts: ["bounded work"],
+      adaptiveController,
+      runId: "visible-loop-adaptive-fallback",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    const userMessages = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const harness = createContext({ cwd: "/repo" });
+    harness.ctx.sessionManager = undefined;
+    const rejectContinuation = async () => {
+      throw new Error("synthetic launch failure");
+    };
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, {
+      continueInNewSession: rejectContinuation,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    assert.equal(
+      existsSync(`${stateHome}/pi-little-helpers/visible-loop/${config.runId}.controller.json`),
+      true,
+    );
+    const outcome = await startVisibleLoopChildCompleteRunner(
+      `${configPath} --iteration 1`,
+      pi,
+      harness.ctx,
+      env,
+      { continueInNewSession: rejectContinuation },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    assert.equal(outcome.accepted, true);
+    assert.equal(outcome.continuationDecision?.method, "new_session");
+    assert.equal(userMessages.length, 3);
+    assert.equal(userMessages[2].message, "bounded work");
+    const statusEntries = readFileSync(
+      `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`,
+      "utf8",
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(
+      statusEntries.some((entry) => entry.event === "next_iteration_same_session_fallback"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const finalOutcome = await startVisibleLoopChildCompleteRunner(
+      `${configPath} --iteration 2`,
+      pi,
+      harness.ctx,
+      env,
+      { continueInNewSession: rejectContinuation },
+    );
+    assert.equal(finalOutcome.accepted, true);
+    assert.equal(finalOutcome.continuationDecision?.method, "complete");
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
 
 test("visible-loop manual completion command advances non-final iterations", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-command-next-state-`);

@@ -30,6 +30,7 @@ import {
   NEXUS_LOOP_COMMAND,
   parseVisibleLoopCommandArgs,
   resolveParentPeerTarget,
+  resolveVisibleLoopAdaptiveControllerConfig,
   type SelfEvolutionCandidateCloseout,
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
@@ -2114,6 +2115,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
       const shouldDelegateCommit =
         profile.delegateCommitByDefault === true || parsed.delegateCommit === true;
+      const adaptiveController = resolveVisibleLoopAdaptiveControllerConfig(
+        options.env ?? process.env,
+      );
       const config = createVisibleLoopRunConfig({
         loopCount: parsed.loopCount,
         cwd,
@@ -2124,6 +2128,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         ...(shouldDelegateCommit
           ? { commitDelegation: { mode: "dispatch_subagent", promptTemplate: "commit" } as const }
           : {}),
+        ...(adaptiveController ? { adaptiveController } : {}),
         ...(selfEvolutionEnvelope ? { selfEvolutionEnvelope } : {}),
         runIdPrefix: commandName,
         title: titlePrefix,

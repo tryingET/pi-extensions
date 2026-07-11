@@ -1,11 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseSelfEvolutionExecutionEnvelope } from "./selfEvolutionEnvelope.ts";
 import { normalizeOptionalString, parseReportBack } from "./visibleLoopArgs.ts";
+import { assertControllerConfig, assertControllerState } from "./visibleLoopController.ts";
 import { normalizeVisibleLoopCommandName } from "./visibleLoopProfiles.ts";
 import type {
   VisibleLoopCommitDelegation,
+  VisibleLoopControllerState,
   VisibleLoopProductPostureTarget,
   VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
@@ -21,7 +23,7 @@ export function writeVisibleLoopRunConfig(
 ): string {
   const dir = getVisibleLoopStateDir(env);
   mkdirSync(dir, { recursive: true });
-  const path = join(dir, `${config.runId}.json`);
+  const path = join(dir, `${requireSafeRunId(config.runId)}.json`);
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
   return path;
 }
@@ -30,8 +32,51 @@ export function getVisibleLoopStatusPath(
   configOrRunId: Pick<VisibleLoopRunConfig, "runId"> | string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const runId = typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId;
+  const runId = requireSafeRunId(
+    typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId,
+  );
   return join(getVisibleLoopStateDir(env), `${runId}.status.jsonl`);
+}
+
+export function getVisibleLoopControllerStatePath(
+  configOrRunId: Pick<VisibleLoopRunConfig, "runId"> | string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const runId = requireSafeRunId(
+    typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId,
+  );
+  return join(getVisibleLoopStateDir(env), `${runId}.controller.json`);
+}
+
+export function writeVisibleLoopControllerState(
+  config: VisibleLoopRunConfig,
+  state: VisibleLoopControllerState,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  assertControllerState(state);
+  const path = getVisibleLoopControllerStatePath(config, env);
+  const temporaryPath = `${path}.tmp`;
+  mkdirSync(getVisibleLoopStateDir(env), { recursive: true });
+  writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  renameSync(temporaryPath, path);
+}
+
+export function loadVisibleLoopControllerState(
+  config: VisibleLoopRunConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): { ok: true; state: VisibleLoopControllerState } | { ok: false; error: string } {
+  const path = getVisibleLoopControllerStatePath(config, env);
+  if (!existsSync(path)) return { ok: false, error: "controller state file does not exist" };
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    assertControllerState(parsed);
+    return { ok: true, state: parsed };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export function appendVisibleLoopStatus(
@@ -133,7 +178,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   }
   const record = value as Record<string, unknown>;
   if (record.schemaVersion !== 1) throw new TypeError("Unsupported visible-loop schemaVersion.");
-  const runId = requireNonEmptyString(record.runId, "runId");
+  const runId = requireSafeRunId(record.runId);
   const loopCount = requirePositiveInteger(record.loopCount, "loopCount");
   const cwd = requireNonEmptyString(record.cwd, "cwd");
   const prompts = Array.isArray(record.prompts)
@@ -145,6 +190,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   const commandName = normalizeVisibleLoopCommandName(record.commandName);
   const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
   const commitDelegation = parseCommitDelegation(record.commitDelegation);
+  const adaptiveController = parseAdaptiveController(record.adaptiveController);
   const productPostureTarget = parseProductPostureTarget(record.productPostureTarget);
   const selfEvolutionEnvelope =
     record.selfEvolutionEnvelope === undefined
@@ -166,11 +212,18 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     reportBack,
     ...(parentPeerTarget ? { parentPeerTarget } : {}),
     ...(commitDelegation ? { commitDelegation } : {}),
+    ...(adaptiveController ? { adaptiveController } : {}),
     ...(productPostureTarget ? { productPostureTarget } : {}),
     ...(selfEvolutionEnvelope ? { selfEvolutionEnvelope } : {}),
     ...(title ? { title } : {}),
     createdAt,
   };
+}
+
+function parseAdaptiveController(value: unknown): VisibleLoopRunConfig["adaptiveController"] {
+  if (value === undefined || value === null) return undefined;
+  assertControllerConfig(value);
+  return value;
 }
 
 function parseProductPostureTarget(value: unknown): VisibleLoopProductPostureTarget | undefined {
@@ -218,6 +271,14 @@ function parseCommitDelegation(value: unknown): VisibleLoopCommitDelegation | un
     );
   }
   return { mode: "dispatch_subagent", promptTemplate: "commit" };
+}
+
+function requireSafeRunId(value: unknown): string {
+  const runId = requireNonEmptyString(value, "runId");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u.test(runId)) {
+    throw new TypeError("runId must be a safe visible-loop identifier");
+  }
+  return runId;
 }
 
 function requireNonEmptyString(value: unknown, label: string): string {
