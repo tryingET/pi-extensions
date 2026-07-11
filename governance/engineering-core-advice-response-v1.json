@@ -1,0 +1,54 @@
+{
+  "schema": "engineering-advice-response-v1",
+  "request_sha256": "d05f134f28e3d21cdb31b529ce702ed34db2139bf12d23baaa9b6cda654108d6",
+  "provenance": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "model_version": "2026-07-11-session",
+    "adapter": "pi",
+    "adapter_version": "1",
+    "prompt_id": "engineering-core-bounded-advisor",
+    "prompt_version": "1"
+  },
+  "status": "advice",
+  "summary": "Bounded advisory review from the captured repository evidence; no patch or execution is authorized.",
+  "recommendations": [
+    {
+      "id": "r1",
+      "catalog_ids": [
+        "pi-ts",
+        "validation",
+        "testing"
+      ],
+      "recommendation": "Preserve root-to-package validation fan-out and package-local manifests when evolving the monorepo control plane.",
+      "confidence": 0.72,
+      "unknowns": [
+        "The bounded request does not prove every package currently participates in each root gate."
+      ],
+      "counterevidence": [
+        "Static manifests and policy declarations do not prove runtime execution or current owner intent."
+      ],
+      "falsification": [
+        "Owner evidence shows the recommendation conflicts with the active validation or runtime contract."
+      ],
+      "citations": [
+        {
+          "evidence_id": "e1",
+          "path": "docs/engineering.local.md",
+          "start": 0,
+          "end": 128
+        }
+      ],
+      "competes_with": []
+    }
+  ],
+  "critiques": [
+    {
+      "recommendation_id": "r1",
+      "critique": "The recommendation is intentionally conservative because evidence is static and bounded.",
+      "severity": "medium",
+      "falsification": "Provide current owner-executed validation and runtime receipts."
+    }
+  ],
+  "patch_proposals": []
+}

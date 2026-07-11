@@ -1,0 +1,31 @@
+{
+  "schema": "engineering-evidence-receipt-v1",
+  "receipt_id": "v060-actual-use",
+  "authority": "owner-evidence-only; not CI, release, AK, or compliance authority",
+  "provenance": {
+    "owner": "softwareco/owned/pi-extensions",
+    "owner_type": "repository",
+    "produced_at": "2026-07-11T00:00:00Z",
+    "source": "operator-directed engineering-core v0.6 actual-use canary"
+  },
+  "bindings": {
+    "catalog_sha256": "b8036e239db5888b991e91883537467e321b4a00addaff531ca62ce3b3b7a6f1",
+    "plan_sha256": "fe8093cc65d86516f97a6bc20eb035a0bf6983ef957ad374ba2523a415212ff3",
+    "repository_facts_sha256": "02e48b281e198efddb5455a34d70859d5e024a0b66cd9b19f2196a02cce039af"
+  },
+  "target": {
+    "repository": "softwareco/owned/pi-extensions",
+    "revision": "a642aef5c49235e5c6da79e38f1b3244fde7a77a",
+    "recommendation_id": "r1"
+  },
+  "observations": [
+    {
+      "kind": "artifact",
+      "outcome": "observed",
+      "evidence_sha256": "51bee34bfe21bd769a43b802e5b2cb50a00534cbbbcfbf8e91694a6e6eaed6a1",
+      "reference": "governance/engineering-core-advice-response-v1.json"
+    }
+  ],
+  "state": "schema-valid",
+  "reason": "Plan/advice artifacts were generated and schema-validated; no consumer command or patch execution is claimed."
+}

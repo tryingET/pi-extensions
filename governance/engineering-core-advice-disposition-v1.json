@@ -1,0 +1,26 @@
+{
+  "schema": "engineering-recommendation-disposition-v1",
+  "disposition_id": "v060-canary-r1",
+  "authority": "owner disposition; advisory inputs do not self-authorize",
+  "provenance": {
+    "owner": "softwareco/owned/pi-extensions",
+    "owner_type": "repository",
+    "produced_at": "2026-07-11T00:00:00Z",
+    "source": "operator-directed engineering-core v0.6 actual-use canary"
+  },
+  "bindings": {
+    "request_sha256": "d05f134f28e3d21cdb31b529ce702ed34db2139bf12d23baaa9b6cda654108d6",
+    "advice_sha256": "7786cc5273d29047442514d7a046990e0131f8e8651ddfb0c22dbfd3396158bb",
+    "catalog_sha256": "b8036e239db5888b991e91883537467e321b4a00addaff531ca62ce3b3b7a6f1",
+    "plan_sha256": "fe8093cc65d86516f97a6bc20eb035a0bf6983ef957ad374ba2523a415212ff3",
+    "repository_facts_sha256": "02e48b281e198efddb5455a34d70859d5e024a0b66cd9b19f2196a02cce039af"
+  },
+  "target": {
+    "repository": "softwareco/owned/pi-extensions",
+    "revision": "a642aef5c49235e5c6da79e38f1b3244fde7a77a"
+  },
+  "recommendation_id": "r1",
+  "decision": "deferred",
+  "reason_code": "needs-evidence",
+  "rationale": "Retain the advice for owner review; static evidence does not authorize execution or a repository mutation."
+}

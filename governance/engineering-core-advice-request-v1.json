@@ -1,0 +1,237 @@
+{
+  "allowed_catalog_ids": [
+    "accessibility",
+    "ai-ml",
+    "build-graph-acceleration",
+    "cpp",
+    "cpp-cuda",
+    "data-governance",
+    "dependency-governance",
+    "design-patterns",
+    "design-system",
+    "documentation",
+    "domain-modeling",
+    "elixir",
+    "engineering-reasoning",
+    "go",
+    "local-first-data",
+    "observability",
+    "performance",
+    "pi-ts",
+    "py",
+    "release-package",
+    "rust",
+    "rust-build-graph",
+    "security-privacy",
+    "service-api",
+    "specification-and-dsls",
+    "testing",
+    "ts",
+    "ts-frontend",
+    "validation"
+  ],
+  "authority": "advisory-only; owner review required; never execute or apply patches",
+  "budgets": {
+    "bytes": 8574,
+    "files": 3,
+    "max_file_bytes": 65536,
+    "max_files": 12,
+    "max_total_bytes": 262144
+  },
+  "evidence": [
+    {
+      "bytes": 5351,
+      "content": "---\nsummary: \"Local override notes for the monorepo root validation and package management model.\"\nread_when:\n  - \"Aligning monorepo-level tooling decisions with package-level TypeScript lanes.\"\n  - \"Reconciling root validation behavior with per-package quality gates.\"\nsystem4d:\n  container: \"Repo-local deltas on top of package-level stack guidance.\"\n  compass: \"Keep monorepo operations reproducible while packages retain their own manifests.\"\n  engine: \"Use root validation contract -> use package-local checks -> validate before release/push.\"\n  fog: \"Root npm ergonomics can be mistaken for a full workspace unless documented explicitly.\"\n---\n\n# engineering.local (pi-extensions monorepo root)\n\nPrimary model:\n\n- Root repo is a **monorepo control plane**, not a full npm workspace manifest.\n- Packages under `packages/` keep their own manifests and package-local checks.\n- Shared upstream guidance comes from `engineering-core`; root machine-readable recognition lives in `policy/engineering-lane.json`.\n- Inspect available upstream catalog/discipline/template surfaces with:\n  - `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty`\n  - `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines`\n  - `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates`\n\nRepo-local emphasis:\n\n- Root npm validation surface:\n  - `npm run quality:pre-commit`\n  - `npm run quality:pre-push`\n  - `npm run quality:ci`\n  - `npm run check`\n- Canonical root wrapper:\n  - `./scripts/quality-gate.sh`\n- Single implementation of full root validation:\n  - `./scripts/ci/full.sh`\n- Canonical package validation implementation:\n  - `./scripts/package-quality-gate.sh`\n- Package validation fan-out:\n  - `./scripts/ci/packages.sh` discovers top-level package roots under `packages/`\n  - package-groups recurse through child packages via `scripts/package-quality-gate.sh`\n- Root smoke lane:\n  - `./scripts/ci/smoke.sh`\n- Root local feedback bootstrap:\n  - `bash ./scripts/install-hooks.sh`\n- Editor/formatting contract stays package-local for now:\n  - no root `biome.jsonc`\n  - no root `.vscode/settings.json`\n  - package repos/groups own their own formatter/editor settings\n- Package-level stack specifics remain owned by each package/group under `packages/`.\n- Common package-local pi-ts companions stay package-scoped rather than becoming root defaults:\n  - `fast-check`\n  - `@cucumber/cucumber`\n  - `nunjucks`\n- `build-graph-acceleration` is conditional only for measured monorepo build/test/package fan-out acceleration work; native npm/package scripts remain canonical unless a repo-local decision accepts an accelerator.\n\n## Repo loop validation\n\npi-extensions adopts `repo-loop-validation-v1` for monorepo control-plane and package fan-out loop work. The machine-readable declaration lives in `policy/engineering-lane.json`.\n\n- `loop-doctor`: `just loop-doctor` (non-failing git/Node/npm/Just diagnostics)\n- `loop-verify-fast`: `just loop-verify-fast` (maps to `just check` / root quality gate)\n- `loop-impact-plan`: `just loop-impact-plan` (changed-file listing plus run/wide recommendation)\n- `loop-impact-run`: `just loop-impact-run` (maps to `just check`)\n- `loop-impact-wide`: `just loop-impact-wide` (maps to `just ci`)\n- `loop-landing-check`: `just loop-landing-check` (maps to the repo-declared `just ci` gate)\n\nThese commands produce repo-local evidence for loop orchestration. They do not replace AK task/evidence/decision authority, live Pi extension activation/reload proof, package release approval, publication authority, merge approval, or downstream production activation authority.\n\nPractical rule:\n\n- Use root commands for monorepo-wide validation.\n- Use package-local `npm run check` when working inside a specific package.\n- Treat root policy + audit as the review surface of record:\n  - root-owned stance: `docs/engineering.local.md`\n  - root validator: `scripts/validate-engineering-contract.mjs`\n  - live package audit: `npm run engineering:review-surfaces`\n  - current package state + routing notes: `docs/project/engineering-review-surfaces.md`\n  - migration contract + exact boundaries: `docs/project/reduced-form-migration-contract.md`\n- Reduced-form target for package/template outputs:\n  - keep package-local `docs/engineering.local.md` only when a package has a real local override\n  - treat package-local `policy/engineering-lane.json` as legacy/full-surface state until package/template follow-up intentionally removes it\n  - do not treat `policy-only` as an acceptable end state; local policy metadata should disappear with the same change that lands the truthful reduced-form or no-local-surface target\n  - optional `engineering-core show <lane> --prefer-repo` smoke checks stay available when package validation still pins the upstream lane explicitly\n\n## Engineering-core v0.6 capability posture\n\n- Release pin: `v0.6.0`.\n- Declared capabilities: `planning`, `advisor`.\n- `closed_loop` remains undeclared and evidence remains `not-supplied`.\n- Doctor and capability scanning are deterministic static observations only; they do not execute repository commands, invoke models, or establish CI, release, compliance, or runtime-evidence truth.\n- Owner-local observation: `governance/engineering-core-capability-baseline.json`.\n",
+      "id": "e1",
+      "path": "docs/engineering.local.md",
+      "sha256": "f6725d9f1073dc28da4bbc891ee09a5b3805b46f749c5369496ec8c804e675ff",
+      "span": {
+        "end": 5351,
+        "start": 0
+      }
+    },
+    {
+      "bytes": 1055,
+      "content": "{\n  \"name\": \"pi-extensions-monorepo\",\n  \"private\": true,\n  \"description\": \"Monorepo root validation surface for pi-extensions.\",\n  \"scripts\": {\n    \"quality:pre-commit\": \"bash ./scripts/quality-gate.sh pre-commit\",\n    \"quality:pre-push\": \"bash ./scripts/quality-gate.sh pre-push\",\n    \"quality:ci\": \"bash ./scripts/quality-gate.sh ci\",\n    \"check\": \"bash ./scripts/quality-gate.sh check\",\n    \"engineering:review-surfaces\": \"node ./scripts/engineering-review-surfaces.mjs\",\n    \"release:contracts:validate\": \"node ./scripts/validate-package-release-contracts.mjs\",\n    \"compat:canary\": \"node ./scripts/pi-host-compatibility-canary.mjs run\",\n    \"compat:canary:list\": \"node ./scripts/pi-host-compatibility-canary.mjs list\",\n    \"compat:canary:validate\": \"node ./scripts/pi-host-compatibility-canary.mjs validate\",\n    \"release:components:list\": \"node ./scripts/release-components.mjs list\",\n    \"release:components:check\": \"node ./scripts/release-components.mjs validate\",\n    \"release:components:sync\": \"node ./scripts/release-components.mjs sync\"\n  }\n}\n",
+      "id": "e2",
+      "path": "package.json",
+      "sha256": "ff683da2f6a6b1e4e5fabfa9d4e88ee2c9ec2ac2aa2fe7984489c9b3db7326bf",
+      "span": {
+        "end": 1055,
+        "start": 0
+      }
+    },
+    {
+      "bytes": 2168,
+      "content": "{\n  \"engineering_core\": {\n    \"tool\": \"engineering-core\",\n    \"repository\": \"https://github.com/lightningralf/engineering-core\",\n    \"ref\": \"v0.6.0\",\n    \"catalog_command\": \"uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core catalog --pretty\",\n    \"list_disciplines_command\": \"uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core list-disciplines\",\n    \"list_templates_command\": \"uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core list-templates\",\n    \"disciplines\": [\n      \"validation\",\n      \"testing\",\n      \"security-privacy\",\n      \"documentation\",\n      \"dependency-governance\",\n      \"observability\",\n      \"specification-and-dsls\",\n      \"engineering-reasoning\",\n      \"build-graph-acceleration\"\n    ],\n    \"lane\": \"pi-ts\",\n    \"command\": \"uv tool -n run --from 'git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0' engineering-core show pi-ts\",\n    \"loop_validation\": {\n      \"version\": \"repo-loop-validation-v1\",\n      \"contract_doc\": \"docs/engineering.local.md#repo-loop-validation\",\n      \"commands\": {\n        \"loop-doctor\": \"just loop-doctor\",\n        \"loop-verify-fast\": \"just loop-verify-fast\",\n        \"loop-impact-plan\": \"just loop-impact-plan\",\n        \"loop-impact-run\": \"just loop-impact-run\",\n        \"loop-impact-wide\": \"just loop-impact-wide\",\n        \"loop-landing-check\": \"just loop-landing-check\"\n      }\n    },\n    \"capability_contract\": {\n      \"version\": \"engineering-core-capabilities-v1\",\n      \"capabilities\": {\n        \"planning\": {\n          \"status\": \"declared\",\n          \"schema\": \"engineering-plan-v1\"\n        },\n        \"advisor\": {\n          \"status\": \"declared\",\n          \"request_schema\": \"engineering-advice-request-v1\",\n          \"response_schema\": \"engineering-advice-response-v1\"\n        }\n      }\n    },\n    \"release_pin\": {\n      \"kind\": \"git-tag\",\n      \"ref\": \"v0.6.0\",\n      \"resolved_commit\": \"6ebdab1962a2966e7d8e100363e96c021809aa40\",\n      \"source\": \"git+file:///home/tryinget/ai-society/core/engineering-core@v0.6.0\"\n    }\n  }\n}\n",
+      "id": "e3",
+      "path": "policy/engineering-lane.json",
+      "sha256": "bafc7f2f44cae2f1066c08da50a6c6b0c475b039131c2ac14e3a6ecc35792120",
+      "span": {
+        "end": 2168,
+        "start": 0
+      }
+    }
+  ],
+  "plan": {
+    "authority": {
+      "mode": "advisory",
+      "statement": "Compiled projection of repository evidence and engineering-core catalog implications; not runtime or compliance authority."
+    },
+    "dependencies": [],
+    "diagnostics": [],
+    "digests": {
+      "catalog_sha256": "b8036e239db5888b991e91883537467e321b4a00addaff531ca62ce3b3b7a6f1",
+      "plan_sha256": "fe8093cc65d86516f97a6bc20eb035a0bf6983ef957ad374ba2523a415212ff3",
+      "repository_facts_sha256": "02e48b281e198efddb5455a34d70859d5e024a0b66cd9b19f2196a02cce039af"
+    },
+    "evidence": [
+      {
+        "kind": "local-guidance",
+        "path": "docs/engineering.local.md",
+        "sha256": "f6725d9f1073dc28da4bbc891ee09a5b3805b46f749c5369496ec8c804e675ff",
+        "size": 5351
+      },
+      {
+        "kind": "manifest",
+        "path": "package.json",
+        "sha256": "ff683da2f6a6b1e4e5fabfa9d4e88ee2c9ec2ac2aa2fe7984489c9b3db7326bf",
+        "size": 1055
+      },
+      {
+        "kind": "policy",
+        "path": "policy/engineering-lane.json",
+        "sha256": "bafc7f2f44cae2f1066c08da50a6c6b0c475b039131c2ac14e3a6ecc35792120",
+        "size": 2168
+      }
+    ],
+    "policy_ref": "v0.6.0",
+    "schema": "engineering-plan-v1",
+    "selections": [
+      {
+        "id": "build-graph-acceleration",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "dependency-governance",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "documentation",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "engineering-reasoning",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "observability",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "pi-ts",
+        "kind": "lane",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "security-privacy",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "specification-and-dsls",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "testing",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      },
+      {
+        "id": "validation",
+        "kind": "discipline",
+        "provenance": [
+          {
+            "path": "policy/engineering-lane.json",
+            "source": "policy"
+          }
+        ],
+        "requested": true
+      }
+    ],
+    "source": "policy",
+    "status": "complete",
+    "unknowns": []
+  },
+  "prompt": {
+    "id": "engineering-core-bounded-advisor",
+    "instructions": "Advise only from allowed catalog IDs and captured evidence. Express uncertainty, counterevidence, and falsification. Abstain when evidence is insufficient. Patches are proposals only.",
+    "version": "1"
+  },
+  "request_sha256": "d05f134f28e3d21cdb31b529ce702ed34db2139bf12d23baaa9b6cda654108d6",
+  "safeguards": {
+    "redactions": 0,
+    "secret_pii_redaction": true
+  },
+  "schema": "engineering-advice-request-v1"
+}

@@ -1,0 +1,150 @@
+{
+  "authority": {
+    "mode": "advisory",
+    "statement": "Compiled projection of repository evidence and engineering-core catalog implications; not runtime or compliance authority."
+  },
+  "dependencies": [],
+  "diagnostics": [],
+  "digests": {
+    "catalog_sha256": "b8036e239db5888b991e91883537467e321b4a00addaff531ca62ce3b3b7a6f1",
+    "plan_sha256": "fe8093cc65d86516f97a6bc20eb035a0bf6983ef957ad374ba2523a415212ff3",
+    "repository_facts_sha256": "02e48b281e198efddb5455a34d70859d5e024a0b66cd9b19f2196a02cce039af"
+  },
+  "evidence": [
+    {
+      "kind": "local-guidance",
+      "path": "docs/engineering.local.md",
+      "sha256": "f6725d9f1073dc28da4bbc891ee09a5b3805b46f749c5369496ec8c804e675ff",
+      "size": 5351
+    },
+    {
+      "kind": "manifest",
+      "path": "package.json",
+      "sha256": "ff683da2f6a6b1e4e5fabfa9d4e88ee2c9ec2ac2aa2fe7984489c9b3db7326bf",
+      "size": 1055
+    },
+    {
+      "kind": "policy",
+      "path": "policy/engineering-lane.json",
+      "sha256": "bafc7f2f44cae2f1066c08da50a6c6b0c475b039131c2ac14e3a6ecc35792120",
+      "size": 2168
+    }
+  ],
+  "policy_ref": "v0.6.0",
+  "schema": "engineering-plan-v1",
+  "selections": [
+    {
+      "id": "build-graph-acceleration",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "dependency-governance",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "documentation",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "engineering-reasoning",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "observability",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "pi-ts",
+      "kind": "lane",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "security-privacy",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "specification-and-dsls",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "testing",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    },
+    {
+      "id": "validation",
+      "kind": "discipline",
+      "provenance": [
+        {
+          "path": "policy/engineering-lane.json",
+          "source": "policy"
+        }
+      ],
+      "requested": true
+    }
+  ],
+  "source": "policy",
+  "status": "complete",
+  "unknowns": []
+}
