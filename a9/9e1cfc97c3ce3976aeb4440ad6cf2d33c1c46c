@@ -1,0 +1,38 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "a99e1cfc97c3ce3976aeb4440ad6cf2d33c1c46c"
+created_at: "2026-07-11T13:53:58Z"
+intent: "Add an opt-in proof-carrying adaptive visible-loop controller foundation with bounded cost, fail-closed completion, deterministic continuation, and baseline fallback"
+files:
+  - "packages/pi-little-helpers/README.md"
+  - "packages/pi-little-helpers/docs/project/2026-05-05-visible-peer-capability-contract.md"
+  - "packages/pi-little-helpers/docs/project/product-posture.md"
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/package.json"
+  - "packages/pi-little-helpers/src/visibleLoop.ts"
+  - "packages/pi-little-helpers/src/visibleLoopController.ts"
+  - "packages/pi-little-helpers/src/visibleLoopControllerRuntime.ts"
+  - "packages/pi-little-helpers/src/visibleLoopPromptTemplates.ts"
+  - "packages/pi-little-helpers/src/visibleLoopState.ts"
+  - "packages/pi-little-helpers/src/visibleLoopTypes.ts"
+  - "packages/pi-little-helpers/tests/visible-loop-child-checkpoint.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-completion.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-controller.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-launch.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run loop-verify-fast"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-little-helpers run loop-impact-run"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "One atomic feature-flagged controller foundation and its proof, docs, and integration"
+links:
+  task_ids:
+    - 3649
+    - 3656
