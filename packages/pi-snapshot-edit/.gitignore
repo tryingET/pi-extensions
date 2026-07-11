@@ -6,3 +6,5 @@ dist/
 autoresearch.runtime.json
 autoresearch.jsonl
 autoresearch.events.jsonl
+.autoresearch/model-screen-raw*
+.autoresearch/model-screen-temp*

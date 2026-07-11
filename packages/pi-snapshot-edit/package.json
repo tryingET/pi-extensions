@@ -37,6 +37,7 @@
     "test": "bash ../../scripts/package-quality-gate.sh test .",
     "autoresearch": "bash ./autoresearch.sh",
     "autoresearch:checks": "bash ./autoresearch.checks.sh",
+    "model-screen": "node ./scripts/run-model-screen.mjs",
     "evidence:edit-failures": "bash ./scripts/analyze-edit-failures.sh",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
