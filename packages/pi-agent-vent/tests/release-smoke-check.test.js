@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   assertAgentVentPathSmokeOutput,
+  assertExactHostContract,
   assertInstalledArtifactPackage,
   assertLocalTarballInstallSource,
   assertPackageSpecInstalled,
@@ -12,6 +13,24 @@ import {
   executeInstalledArtifactToolPathSmoke,
   packageSourcesFromSettings,
 } from "../scripts/release-smoke-check.mjs";
+
+test("release smoke release-age bypass is gated by one exact host contract", () => {
+  const packageJson = {
+    devDependencies: {
+      "@earendil-works/pi-ai": "0.80.6",
+      "@earendil-works/pi-coding-agent": "0.80.6",
+    },
+  };
+  assert.equal(assertExactHostContract({ packageJson, hostVersion: "0.80.6" }), "0.80.6");
+  assert.throws(
+    () => assertExactHostContract({ packageJson, hostVersion: "^0.80.6" }),
+    /requires an exact Pi host version/,
+  );
+  assert.throws(
+    () => assertExactHostContract({ packageJson, hostVersion: "0.80.7" }),
+    /host contract mismatch/,
+  );
+});
 
 test("release smoke settings check accepts only unfiltered string package entries", () => {
   const settings = {

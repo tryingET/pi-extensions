@@ -14,6 +14,11 @@ if [[ -z "${PI_CODING_AGENT_DIR:-}" ]]; then
   exit 1
 fi
 
+if [[ -z "${INSTALLED_PACKAGE_ROOT:-}" ]]; then
+  echo "INSTALLED_PACKAGE_ROOT is required; the caller must provide Pi's isolated installed-artifact path." >&2
+  exit 1
+fi
+
 if ! command -v pi >/dev/null 2>&1; then
   echo "pi CLI not found in PATH." >&2
   exit 1
@@ -38,23 +43,15 @@ SMOKE_TOOL_VENT_DIR="$SMOKE_DIR/agent-vent-tool-store"
 SMOKE_LOCAL_PATH_OUTPUT="$SMOKE_DIR/agent-vent-local-path.out"
 PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
-if [[ -n "${NPM_CONFIG_PREFIX:-}" ]]; then
-  GLOBAL_NODE_MODULES="$(npm --prefix "$NPM_CONFIG_PREFIX" root -g)"
-else
-  GLOBAL_NODE_MODULES="$(npm root -g)"
-fi
-INSTALLED_PACKAGE_ROOT="$GLOBAL_NODE_MODULES/$PACKAGE_NAME"
 INSTALLED_EXTENSION_PATH="$INSTALLED_PACKAGE_ROOT/extensions/agent-vent.ts"
 
-if [[ -n "${NPM_CONFIG_PREFIX:-}" ]]; then
-  case "$INSTALLED_PACKAGE_ROOT" in
-    "$NPM_CONFIG_PREFIX"/*) ;;
-    *)
-      echo "Installed package root escaped isolated npm prefix: $INSTALLED_PACKAGE_ROOT" >&2
-      exit 1
-      ;;
-  esac
-fi
+case "$(realpath -m "$INSTALLED_PACKAGE_ROOT")" in
+  "$(realpath "$PI_CODING_AGENT_DIR")"/*) ;;
+  *)
+    echo "Installed package root escaped isolated Pi agent directory: $INSTALLED_PACKAGE_ROOT" >&2
+    exit 1
+    ;;
+esac
 
 node ./scripts/release-smoke-check.mjs assert-settings \
   --settings "$PI_CODING_AGENT_DIR/settings.json" \

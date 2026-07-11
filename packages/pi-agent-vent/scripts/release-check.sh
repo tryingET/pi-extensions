@@ -8,7 +8,81 @@ NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 REPOSITORY_URL="$(node -p "(() => { const pkg = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); const repo = pkg.repository; if (typeof repo === 'string') return repo.trim(); if (repo && typeof repo === 'object' && typeof repo.url === 'string') return repo.url.trim(); return ''; })()")"
 
+HOST_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).devDependencies['@earendil-works/pi-coding-agent'] || ''")"
+
+# One release-only policy membrane. Every dependency-resolving command, including
+# Pi's nested npm invocation, must enter through here with disposable cache/prefix.
+RELEASE_MIN_AGE=0
+with_release_npm_policy() {
+  local cache="$1"
+  local prefix="$2"
+  shift 2
+  case "$cache" in
+    /tmp/pi-agent-vent-*-npm-cache-*) ;;
+    *)
+      echo "Release command refused non-isolated npm cache: $cache" >&2
+      return 1
+      ;;
+  esac
+  if [[ "$prefix" != "-" ]]; then
+    case "$prefix" in
+      /tmp/pi-agent-vent-*-npm-prefix-*) ;;
+      *)
+        echo "Release command refused non-isolated npm prefix: $prefix" >&2
+        return 1
+        ;;
+    esac
+    (
+      export NPM_CONFIG_PREFIX="$prefix" NPM_CONFIG_CACHE="$cache"
+      export NPM_CONFIG_MIN_RELEASE_AGE="$RELEASE_MIN_AGE"
+      "$@"
+    )
+  else
+    (
+      export NPM_CONFIG_CACHE="$cache" NPM_CONFIG_MIN_RELEASE_AGE="$RELEASE_MIN_AGE"
+      "$@"
+    )
+  fi
+}
+
+release_npm_install() {
+  local cache="$1"
+  local prefix="$2"
+  shift 2
+  with_release_npm_policy "$cache" "$prefix" npm install \
+    --ignore-scripts --no-audit --fund=false "$@"
+}
+
+CONTROL_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-control-npm-cache-XXXXXX)"
+TEST_AGENT_DIR=""
+TEST_NPM_PREFIX=""
+TEST_NPM_CACHE=""
+ARTIFACT_NPM_PREFIX=""
+ARTIFACT_NPM_CACHE=""
+ARTIFACT_TOOL_VENT_DIR=""
+TARBALL_CHECK_DIR=""
+TARBALL_NPM_CACHE=""
+TARBALL_PATH=""
+cleanup() {
+  if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
+    for path_to_remove in "$CONTROL_NPM_CACHE" "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" \
+      "$TEST_NPM_CACHE" "$ARTIFACT_NPM_PREFIX" "$ARTIFACT_NPM_CACHE" \
+      "$ARTIFACT_TOOL_VENT_DIR" "$TARBALL_CHECK_DIR" "$TARBALL_NPM_CACHE"; do
+      if [[ -n "$path_to_remove" && -d "$path_to_remove" ]]; then
+        rm -rf "$path_to_remove"
+      fi
+    done
+    if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
+      rm -f "$TARBALL_PATH"
+    fi
+  fi
+}
+trap cleanup EXIT
+
 echo "== release-check: ${NAME}@${VERSION}"
+node ./scripts/release-smoke-check.mjs assert-exact-host-contract \
+  --package-json package.json \
+  --host-version "$HOST_VERSION"
 
 if [[ -z "$REPOSITORY_URL" ]]; then
   echo "package.json repository.url is required for provenance release publishing." >&2
@@ -21,14 +95,14 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
 fi
 
 echo "== npm pack --dry-run --json"
-PACK_JSON="$(npm pack --dry-run --json)"
+PACK_JSON="$(npm --cache "$CONTROL_NPM_CACHE" pack --dry-run --json)"
 echo "$PACK_JSON"
 
 PACK_JSON="$PACK_JSON" node ./scripts/release-artifact-check.mjs
 
 echo "== npm publish --dry-run"
 set +e
-PUBLISH_DRY_RUN_OUTPUT="$(npm publish --dry-run 2>&1)"
+PUBLISH_DRY_RUN_OUTPUT="$(npm --cache "$CONTROL_NPM_CACHE" publish --dry-run 2>&1)"
 PUBLISH_DRY_RUN_EXIT=$?
 set -e
 echo "$PUBLISH_DRY_RUN_OUTPUT"
@@ -41,55 +115,20 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
   fi
 fi
 
-TEST_AGENT_DIR=""
-TEST_NPM_PREFIX=""
-TEST_NPM_CACHE=""
-ARTIFACT_NPM_PREFIX=""
-ARTIFACT_NPM_CACHE=""
-ARTIFACT_TOOL_VENT_DIR=""
-TARBALL_CHECK_DIR=""
-TARBALL_PATH=""
-cleanup() {
-  if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
-    if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
-      rm -rf "$TEST_AGENT_DIR"
-    fi
-    if [[ -n "$TEST_NPM_PREFIX" && -d "$TEST_NPM_PREFIX" ]]; then
-      rm -rf "$TEST_NPM_PREFIX"
-    fi
-    if [[ -n "$TEST_NPM_CACHE" && -d "$TEST_NPM_CACHE" ]]; then
-      rm -rf "$TEST_NPM_CACHE"
-    fi
-    if [[ -n "$ARTIFACT_NPM_PREFIX" && -d "$ARTIFACT_NPM_PREFIX" ]]; then
-      rm -rf "$ARTIFACT_NPM_PREFIX"
-    fi
-    if [[ -n "$ARTIFACT_NPM_CACHE" && -d "$ARTIFACT_NPM_CACHE" ]]; then
-      rm -rf "$ARTIFACT_NPM_CACHE"
-    fi
-    if [[ -n "$ARTIFACT_TOOL_VENT_DIR" && -d "$ARTIFACT_TOOL_VENT_DIR" ]]; then
-      rm -rf "$ARTIFACT_TOOL_VENT_DIR"
-    fi
-    if [[ -n "$TARBALL_CHECK_DIR" && -d "$TARBALL_CHECK_DIR" ]]; then
-      rm -rf "$TARBALL_CHECK_DIR"
-    fi
-    if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
-      rm -f "$TARBALL_PATH"
-    fi
-  fi
-}
-trap cleanup EXIT
-
 echo "== npm pack"
-TARBALL="$(npm pack --silent | tail -n 1)"
+TARBALL="$(npm --cache "$CONTROL_NPM_CACHE" pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
 TARBALL_CHECK_DIR="$(mktemp -d /tmp/pi-agent-vent-tarball-check-XXXXXX)"
+TARBALL_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-tarball-npm-cache-XXXXXX)"
 echo "== unpacked tarball package contract"
 tar -xzf "$TARBALL_PATH" -C "$TARBALL_CHECK_DIR"
 (
   cd "$TARBALL_CHECK_DIR/package"
-  npm install --ignore-scripts --no-audit --fund=false
+  # This isolated artifact probe intentionally selects the exact host contract above.
+  # Ordinary installs retain the workstation's npm release-age policy.
+  release_npm_install "$TARBALL_NPM_CACHE" -
   npm run check
 )
 
@@ -107,8 +146,8 @@ case "$ARTIFACT_PACKAGE_ROOT" in
 esac
 
 echo "== npm installed artifact shadow registered-tool smoke (no Pi auth)"
-npm --prefix "$ARTIFACT_NPM_PREFIX" --cache "$ARTIFACT_NPM_CACHE" \
-  install --global --ignore-scripts --no-audit --fund=false "$TARBALL_PATH"
+release_npm_install "$ARTIFACT_NPM_CACHE" "$ARTIFACT_NPM_PREFIX" \
+  --prefix "$ARTIFACT_NPM_PREFIX" --global "$TARBALL_PATH"
 node ./scripts/release-smoke-check.mjs assert-installed-artifact \
   --package-root "$ARTIFACT_PACKAGE_ROOT" \
   --package-name "$NAME" \
@@ -124,15 +163,19 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
+  INSTALLED_PI_VERSION="$(pi --version)"
+  node ./scripts/release-smoke-check.mjs assert-exact-host-contract \
+    --package-json package.json \
+    --host-version "$INSTALLED_PI_VERSION"
   if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
     echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
     echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
     exit 1
   fi
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
-  TEST_NPM_PREFIX="$(mktemp -d /tmp/pi-extension-release-npm-prefix-XXXXXX)"
-  TEST_NPM_CACHE="$(mktemp -d /tmp/pi-extension-release-npm-cache-XXXXXX)"
+  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-agent-vent-pi-agent-dir-XXXXXX)"
+  TEST_NPM_PREFIX="$(mktemp -d /tmp/pi-agent-vent-pi-npm-prefix-XXXXXX)"
+  TEST_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-pi-npm-cache-XXXXXX)"
 
   cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
 
@@ -153,8 +196,8 @@ JSON
 
   echo "== pi install tarball (isolated PI_CODING_AGENT_DIR and npm prefix)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
+  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
+    with_release_npm_policy "$TEST_NPM_CACHE" "$TEST_NPM_PREFIX" pi install "$PACKAGE_SPEC"
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -178,14 +221,16 @@ NODE
 
   if [[ -x "./scripts/release-smoke.sh" ]]; then
     echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
+    PI_INSTALLED_PACKAGE_ROOT="$TEST_AGENT_DIR/npm/node_modules/$NAME"
     NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
-      PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
+      PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" \
+      INSTALLED_PACKAGE_ROOT="$PI_INSTALLED_PACKAGE_ROOT" bash ./scripts/release-smoke.sh
   fi
 fi
 
 echo "== npm view ${NAME} version (pre-publish may be 404)"
 set +e
-npm view "$NAME" version --json --registry https://registry.npmjs.org/
+npm --cache "$CONTROL_NPM_CACHE" view "$NAME" version --json --registry https://registry.npmjs.org/
 VIEW_EXIT=$?
 set -e
 echo "npm view exit: $VIEW_EXIT"

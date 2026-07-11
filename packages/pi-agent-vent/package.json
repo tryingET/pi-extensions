@@ -87,8 +87,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
-    "@earendil-works/pi-ai": "^0.80.6",
-    "@earendil-works/pi-coding-agent": "^0.80.6"
+    "@earendil-works/pi-ai": "0.80.6",
+    "@earendil-works/pi-coding-agent": "0.80.6"
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"

@@ -173,7 +173,9 @@ npm install
 npm run check
 ```
 
-For release confidence, `npm run release:check` packs the package, verifies packaged docs/scripts, runs the packaged fallback gate, installs the tarball into an isolated npm prefix for a no-auth shadow registered-tool `agent_vent path` smoke, then installs the tarball with isolated Pi settings and npm prefix/cache, validates that local `npm:<tarball>` is being used only as the install source, and smokes the installed artifact through local-path Pi package discovery with `/agent_vent path`. Use `npm run release:check:quick` for artifact-only checks when live Pi smoke is not available; quick checks still include the no-auth installed shadow registered-tool smoke. These smokes prove artifact/package-loading behavior only, not npm/GitHub publication or provenance.
+For release confidence, `npm run release:check` packs the package, verifies packaged docs/scripts, runs the packaged fallback gate, installs the tarball into an isolated npm prefix for a no-auth shadow registered-tool `agent_vent path` smoke, then installs the tarball with isolated Pi settings and npm prefix/cache, validates that local `npm:<tarball>` is being used only as the install source, and smokes the installed artifact through local-path Pi package discovery with `/agent_vent path`. Use `npm run release:check:quick` for artifact-only checks when live Pi smoke is not available; quick checks still include the no-auth installed shadow registered-tool smoke.
+
+Release probes pin `pi-ai` and `pi-coding-agent` to one exact version and fail before installation if that contract diverges from the selected/installed Pi host. Only the isolated artifact/probe installs set `min-release-age=0`, allowing a newly selected exact host contract to be tested while ordinary installs continue to obey the workstation supply-chain cutoff. These smokes prove artifact/package-loading behavior only, not npm/GitHub publication or provenance.
 
 Run from monorepo root through the canonical package gate:
 

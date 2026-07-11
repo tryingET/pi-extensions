@@ -5,6 +5,22 @@ import { pathToFileURL } from "node:url";
 
 export const readJsonFile = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 
+export const assertExactHostContract = ({ packageJson, hostVersion }) => {
+  const piAi = packageJson?.devDependencies?.["@earendil-works/pi-ai"];
+  const codingAgent = packageJson?.devDependencies?.["@earendil-works/pi-coding-agent"];
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(hostVersion || "")) {
+    throw new Error(
+      `Release smoke requires an exact Pi host version, got: ${hostVersion || "(empty)"}`,
+    );
+  }
+  if (piAi !== hostVersion || codingAgent !== hostVersion) {
+    throw new Error(
+      `Release smoke host contract mismatch: pi=${hostVersion}, pi-ai=${piAi || "(missing)"}, pi-coding-agent=${codingAgent || "(missing)"}`,
+    );
+  }
+  return hostVersion;
+};
+
 export const packageSourcesFromSettings = (settings) => {
   const packages = Array.isArray(settings?.packages) ? settings.packages : [];
   return packages
@@ -292,6 +308,15 @@ const readArgValue = (args, name) => {
 const runCli = async () => {
   const [command, ...args] = process.argv.slice(2);
 
+  if (command === "assert-exact-host-contract") {
+    const packageJsonPath = readArgValue(args, "--package-json");
+    const hostVersion = readArgValue(args, "--host-version");
+    if (!packageJsonPath) throw new Error("--package-json is required");
+    assertExactHostContract({ packageJson: readJsonFile(packageJsonPath), hostVersion });
+    console.log(`Exact Pi host contract selected: ${hostVersion}.`);
+    return;
+  }
+
   if (command === "assert-settings") {
     const settingsPath = readArgValue(args, "--settings");
     const packageSpec = readArgValue(args, "--package-spec");
@@ -353,7 +378,7 @@ const runCli = async () => {
   }
 
   throw new Error(
-    "Usage: node ./scripts/release-smoke-check.mjs <assert-settings|assert-local-tarball-install-source|assert-installed-artifact|prepare-local-path-artifact-settings|assert-command-output|assert-installed-tool-path> ...",
+    "Usage: node ./scripts/release-smoke-check.mjs <assert-exact-host-contract|assert-settings|assert-local-tarball-install-source|assert-installed-artifact|prepare-local-path-artifact-settings|assert-command-output|assert-installed-tool-path> ...",
   );
 };
 
