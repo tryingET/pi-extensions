@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Verifies campaign-goal auto-continuation eligibility, budgets, status diagnostics, and refusal gates.
+// read_when:
+//   - Testing visible session-local continuation without daemon, peer, or authority mutation.
 // Campaign-goal auto-continuation dogfood contract.
 // Proves an actual loop with campaignGoalAutoContinue keeps the goal active and eligible for one
 // visible exact follow-up call while disabled/manual and blocked states refuse continuation. It does

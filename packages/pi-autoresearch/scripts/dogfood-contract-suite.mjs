@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Aggregates strict autoresearch product dogfood contracts under suite-owned temporary paths.
+// read_when:
+//   - Running or extending the foreground dogfood contract suite and blocker metric aggregation.
 // Aggregated pi-autoresearch dogfood contract suite.
 // Runs the current strict product dogfood contracts in one foreground command. Child contracts get
 // suite-owned temporary paths so known dogfood artifact env vars cannot redirect durable artifacts.

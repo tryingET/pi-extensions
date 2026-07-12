@@ -1,3 +1,6 @@
+// summary: Formats compact autoresearch TUI lines, metrics, improvements, and box borders.
+// read_when:
+//   - Adjusting terminal metric display, truncation, or bordered layout helpers.
 export function truncatePlainLine(line: string, width: number): string {
   if (line.length <= width) return line;
   if (width <= 1) return line.slice(0, Math.max(0, width));

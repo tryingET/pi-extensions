@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Measures the integrated operator journey from campaign objective through dashboard and handoff packets.
+// read_when:
+//   - Assessing supervised campaign UX coherence, dashboard guidance, or review packet availability.
 // Integrated supervised-campaign UX dogfood benchmark.
 //
 // This is intentionally a product-journey contract, not a package quality gate. It creates an

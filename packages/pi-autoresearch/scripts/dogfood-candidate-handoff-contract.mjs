@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Tests isolated candidate binding, measurement, result packets, and plan-only lifecycle decisions.
+// read_when:
+//   - Validating the visible candidate handoff path without candidate or package-root mutation.
 // Visible-candidate handoff dogfood contract.
 // Creates an isolated controller repo + candidate worktree and exercises the package runtime through
 // candidate_bind -> candidate measurement -> candidate_result -> candidate_decision. No package-root

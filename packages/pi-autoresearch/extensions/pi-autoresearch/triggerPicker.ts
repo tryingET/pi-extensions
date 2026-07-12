@@ -1,3 +1,6 @@
+// summary: Provides optional picker interactions for campaign start, candidate binding, and candidate decisions.
+// read_when:
+//   - Changing $$ autoresearch trigger matching, picker candidates, or editor-call insertion behavior.
 import {
   AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES,
   type AutoresearchCandidateDecisionTriggerCandidate,

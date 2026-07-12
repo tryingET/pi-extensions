@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Tests the slash resume review UI, exact foreground call transfer, and plan-only boundaries.
+// read_when:
+//   - Changing /autoresearch resume editor content, confirmation prompts, or composer behavior.
 // Slash resume review dogfood contract.
 // Exercises the package extension command surface for /autoresearch resume against an isolated
 // resumable runtime snapshot. It opens no real editor and runs no foreground resume executor.

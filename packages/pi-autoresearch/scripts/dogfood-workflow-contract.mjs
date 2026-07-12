@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Checks package docs, runtime, extension, and tests for required workflow contract fragments.
+// read_when:
+//   - Verifying core autoresearch product posture, resume guarantees, or read-profile enforcement.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

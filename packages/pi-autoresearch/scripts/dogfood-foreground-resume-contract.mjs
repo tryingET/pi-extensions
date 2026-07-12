@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Proves an inspected resume plan can execute one confirmed, peer-free foreground continuation.
+// read_when:
+//   - Testing resume-apply keys, confirmation, budgets, posture, or authority warnings.
 // Foreground resume dogfood contract.
 // Default cwd is the package root so operator dogfood exercises pi-autoresearch itself and appends
 // ignored projection receipts. Set PI_AUTORESEARCH_DOGFOOD_CWD to a temp directory for non-mutating

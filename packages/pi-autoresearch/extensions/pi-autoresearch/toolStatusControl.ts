@@ -1,3 +1,6 @@
+// summary: Registers status, evidence packet, resume planning, control, and finalization tool surfaces.
+// read_when:
+//   - Inspecting autoresearch status actions, operator controls, exports, or finalization workflow.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   executeAutoresearchFinalization,

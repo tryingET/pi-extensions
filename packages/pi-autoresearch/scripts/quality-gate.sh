@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: Locates and delegates to the canonical monorepo package quality gate.
+# read_when:
+#   - Running package validation or troubleshooting quality-gate discovery and overrides.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
