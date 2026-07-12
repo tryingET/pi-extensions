@@ -83,6 +83,17 @@ test("canonical renderer emits fixed structural fields, JCS candidates, and no o
   assert.equal((replaced.match(/semantic-preflight\.v0 begin/g) ?? []).length, 1);
 });
 
+test("projection deduplicates evidence enums that differ only by hidden query terms", () => {
+  const duplicated = structuredClone(candidate);
+  duplicated.evidence = [
+    { field: "description", rule: "token_exact", query_term: "agent" },
+    { field: "description", rule: "token_exact", query_term: "authority" },
+  ];
+  const envelope = projectDiscovery("ok", "unknown", result("unique_candidate", [duplicated]));
+  assert.deepEqual(envelope.candidates[0]?.evidence, ["description.token_exact"]);
+  assert.doesNotThrow(() => renderSemanticPreflightBlock(envelope));
+});
+
 test("renderer rejects non-structural candidate fields before system-role injection", () => {
   const envelope = projectDiscovery("ok", "unknown", result("unique_candidate", [candidate]));
   const first = envelope.candidates[0];

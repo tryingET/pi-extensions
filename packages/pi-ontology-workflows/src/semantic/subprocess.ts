@@ -7,8 +7,10 @@ const STDERR_CAP = 32_768;
 const COMBINED_CAP = 163_840;
 const TOTAL_MS = 750;
 const MAX_TOTAL_MS = 5_000;
-const TERM_MS = 100;
-const KILL_AND_REAP_MS = 100;
+// Reserve bounded teardown inside the 750 ms end-to-end budget without starving
+// verified discovery on cold filesystem pages. Both remain below the RFC's 100 ms maxima.
+const TERM_MS = 10;
+const KILL_AND_REAP_MS = 10;
 
 export type ProcessFailureKind = "unavailable" | "timeout" | "incompatible" | "resource_exhausted";
 
