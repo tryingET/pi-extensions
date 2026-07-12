@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: verifies the pi-provenance publish artifact and isolated pi installation flow
+# read_when:
+#   - preparing a package release or diagnosing provenance tarball smoke failures
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

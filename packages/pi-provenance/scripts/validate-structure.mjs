@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: validates pi-provenance manifest, extension, release, and engineering-lane contracts
+// read_when:
+//   - changing package structure, package metadata, or required npm script wiring
+// ---
 
 import fs from "node:fs";
 

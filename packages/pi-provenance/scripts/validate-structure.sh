@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: checks the pi-provenance scaffold layout, executable bits, and markdown frontmatter
+# read_when:
+#   - validating package filesystem structure or copier scaffold conformance
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

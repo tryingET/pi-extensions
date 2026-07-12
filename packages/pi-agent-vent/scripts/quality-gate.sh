@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: runs pi-agent-vent quality stages through the root gate or package fallback
+# read_when:
+#   - checking lint, types, tests, or scaffold structure in varied checkout layouts
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

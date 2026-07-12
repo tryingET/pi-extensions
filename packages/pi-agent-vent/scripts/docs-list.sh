@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: locates and invokes documentation listing support for pi-agent-vent
+# read_when:
+#   - enumerating package docs or overriding the docs-list implementation
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

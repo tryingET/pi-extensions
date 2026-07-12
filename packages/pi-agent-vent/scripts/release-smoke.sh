@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: smoke-tests the installed agent_vent package through isolated pi discovery
+# read_when:
+#   - verifying tarball installation, command output, or registered-tool execution
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,3 +1,9 @@
+// ---
+// summary: tests agent vent persistence, redaction, review projections, and retention safety
+// read_when:
+//   - modifying vent-store records, filters, curation, exports, backups, or filesystem guards
+// ---
+
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";

@@ -1,3 +1,9 @@
+// ---
+// summary: tests isolated release-smoke contracts for installed agent_vent artifacts
+// read_when:
+//   - changing tarball source validation, package discovery, or path-tool smoke probes
+// ---
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";

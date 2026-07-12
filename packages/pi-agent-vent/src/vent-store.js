@@ -1,3 +1,9 @@
+// ---
+// summary: implements private agent vent storage, review projections, and retention safeguards
+// read_when:
+//   - changing diagnostic record schemas, redaction, curation, review, export, or retention logic
+// ---
+
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";

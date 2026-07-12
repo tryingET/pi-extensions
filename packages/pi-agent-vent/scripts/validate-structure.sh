@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: verifies the pi-agent-vent scaffold tree, executables, and markdown frontmatter
+# read_when:
+#   - checking filesystem conformance after package scaffold or documentation changes
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

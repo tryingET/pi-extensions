@@ -1,3 +1,9 @@
+// ---
+// summary: validates packed file whitelists and local links in published markdown
+// read_when:
+//   - changing pi-agent-vent package contents or release artifact policy
+// ---
+
 import fs from "node:fs";
 import path from "node:path";
 
