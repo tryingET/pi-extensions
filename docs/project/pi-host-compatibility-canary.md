@@ -127,6 +127,24 @@ Protected host surfaces:
 - `max` thinking-level forwarding
 - rewind finalization after full settlement
 
+### `prompt-mode-base-composition-parity`
+Anchors `pi-modes` `replace_base` behavior to the pinned Pi host custom-base builder.
+
+Current command:
+
+```bash
+cd packages/pi-modes
+node --import tsx --test --test-name-pattern "replace_base has complete-output parity with the pinned Pi host builder" tests/modes.test.ts
+```
+
+Protected host surfaces:
+- `BuildSystemPromptOptions` shape
+- custom base-prompt composition order and formatting
+- project context and skill rendering
+- `before_agent_start` system-prompt replacement
+
+This is a complete-output parity check, not an autonomy scenario. It does not continue turns, dispatch agents, or start campaigns.
+
 ### `autoresearch-runtime-packet-contract`
 Anchors the direct `pi-autoresearch` runtime packet/export surface: runtime receipts become status, closeout, candidate-result, and learning-export packets without crossing into orchestrator-owned reporting.
 

@@ -135,6 +135,36 @@
       ]
     },
     {
+      "id": "prompt-mode-base-composition-parity",
+      "title": "pi-modes custom-base prompt composition parity",
+      "owner": "pi-modes",
+      "why": "Protect replace_base semantics against Pi host drift by comparing complete output with the pinned host's custom-base system-prompt builder.",
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
+      "packages": [
+        "packages/pi-modes"
+      ],
+      "upstreamSurfaces": [
+        "BuildSystemPromptOptions shape",
+        "custom base prompt composition",
+        "project context and skill formatting",
+        "before_agent_start system prompt replacement"
+      ],
+      "cwd": "packages/pi-modes",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "--test-name-pattern",
+        "replace_base has complete-output parity with the pinned Pi host builder",
+        "tests/modes.test.ts"
+      ],
+      "notes": "Focused complete-output parity check. Mode activation remains prompt-only and does not continue turns, dispatch agents, or start campaigns."
+    },
+    {
       "id": "autoresearch-runtime-packet-contract",
       "title": "pi-autoresearch runtime status and packet export contract",
       "owner": "pi-autoresearch",
