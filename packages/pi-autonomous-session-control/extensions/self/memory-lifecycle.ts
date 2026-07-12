@@ -1,3 +1,9 @@
+// ---
+// summary: loads and atomically saves scoped self-memory snapshots while serializing persistence requests.
+// read_when:
+//   - changing memory file lifecycle, load outcomes, snapshot writes, or persistence queueing.
+// ---
+
 /**
  * Runtime lifecycle wiring for scoped self-memory persistence.
  *

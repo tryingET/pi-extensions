@@ -1,3 +1,9 @@
+// ---
+// summary: exposes the self tool's entry formatting, tracing, and watchdog infrastructure helpers.
+// read_when:
+//   - changing the public infrastructure helper surface consumed by self runtime modules.
+// ---
+
 /**
  * Infrastructure utilities for the self tool.
  * These are general-purpose helpers not tied to the core query resolution logic.

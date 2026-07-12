@@ -1,3 +1,9 @@
+// ---
+// summary: defines persisted self-memory snapshot contracts and normalizes untrusted snapshot entries.
+// read_when:
+//   - changing memory schema versions, valid layers and types, or persisted payload validation.
+// ---
+
 import type { Memory, MemoryLayer, MemorySource, MemoryType } from "./memory.ts";
 
 export const MEMORY_SNAPSHOT_VERSION = 1;

@@ -1,3 +1,9 @@
+// ---
+// summary: detects edit, command, error, stall, and progress patterns from the self operation log.
+// read_when:
+//   - changing loop thresholds, recovery-aware pattern detection, or progress and stall signals.
+// ---
+
 /**
  * Pattern detection helpers for self perception.
  */

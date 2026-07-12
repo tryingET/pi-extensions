@@ -1,3 +1,9 @@
+// ---
+// summary: screens evolution candidate text and maintains a bounded session-local candidate ledger.
+// read_when:
+//   - changing candidate safety filters, retention limits, or candidate lookup semantics.
+// ---
+
 import type { SelfEvolutionCandidate, SelfState } from "./types.ts";
 
 const MAX_EVOLUTION_CANDIDATES = 20;

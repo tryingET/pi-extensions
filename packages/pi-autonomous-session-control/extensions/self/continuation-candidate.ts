@@ -1,3 +1,9 @@
+// ---
+// summary: records, expires, selects, and rehydrates mirror-only continuation candidates for the current workspace.
+// read_when:
+//   - changing continuation candidate retention, freshness, deduplication, or slice conversion.
+// ---
+
 import { createEdgeMonotonicId } from "./edge-contract-kernel.ts";
 import type { SliceCandidate } from "./perception-slices.ts";
 import type { ContinuationCandidate, SelfState } from "./types.ts";

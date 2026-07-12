@@ -1,3 +1,9 @@
+// ---
+// summary: evaluates mirror-only session pressure from turn counts and repeated lifecycle commands.
+// read_when:
+//   - changing handoff-pressure thresholds or the signals reported by self context diagnostics.
+// ---
+
 import type { OperationLog } from "./types.ts";
 
 const CONTEXT_PRESSURE_TURN_NOTICE_THRESHOLD = 20;

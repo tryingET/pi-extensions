@@ -1,3 +1,9 @@
+// ---
+// summary: classifies touched files and reports package-local size-budget overruns without following symlinks.
+// read_when:
+//   - changing file budget limits, exclusions, path containment, or advisory generation.
+// ---
+
 import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 

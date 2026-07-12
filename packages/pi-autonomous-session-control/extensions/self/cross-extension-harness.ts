@@ -1,3 +1,9 @@
+// ---
+// summary: resolves Prompt Vault client paths, checks cross-extension readiness, and parses template query envelopes.
+// read_when:
+//   - changing vault-client discovery, dependency readiness checks, or retrieved-template output parsing.
+// ---
+
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";

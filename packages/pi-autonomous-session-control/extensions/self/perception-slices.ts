@@ -1,3 +1,9 @@
+// ---
+// summary: ranks mirror-only next-move slices from touched files, failures, loops, and progress signals.
+// read_when:
+//   - changing continuation recommendations, owner routing, scores, or non-authorization language.
+// ---
+
 /**
  * Mirror-only continuation slice ranking for self perception.
  */

@@ -1,3 +1,9 @@
+// ---
+// summary: writes opt-in synchronous and asynchronous runtime traces to a temporary diagnostic log.
+// read_when:
+//   - changing self tracing enablement, log formatting, wrapper behavior, or trace file location.
+// ---
+
 /**
  * Simple tracing utility for debugging compaction hangs and other issues.
  * Writes to a log file since terminal output may not be visible during hangs.

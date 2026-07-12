@@ -1,3 +1,9 @@
+// ---
+// summary: provides shared input normalizers, invariant reporting, result shaping, and monotonic IDs for edge tools.
+// read_when:
+//   - changing boundary validation or common result contracts used by natural-language and process tools.
+// ---
+
 /**
  * Edge Contract Kernel (ECK)
  * Shared boundary contracts for natural-language and process-boundary tools.

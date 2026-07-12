@@ -1,3 +1,9 @@
+// ---
+// summary: guards asynchronous and compaction operations with abortable timeouts and UI notifications.
+// read_when:
+//   - changing timeout settlement, abort behavior, compaction callbacks, or watchdog diagnostics.
+// ---
+
 /**
  * Watchdog timeout guard for long-running operations.
  * Prevents stuck compaction prompts and other hanging operations.

@@ -1,3 +1,9 @@
+// ---
+// summary: wires Pi lifecycle and tool events into self perception tracking and the live-runtime proof ledger.
+// read_when:
+//   - changing how tool calls, results, session transitions, or proof invalidations update self state.
+// ---
+
 import type {
   ExtensionAPI,
   ExtensionContext,

@@ -1,3 +1,9 @@
+// ---
+// summary: converts scoped self state to memory-store records and hydrates state from prioritized layers.
+// read_when:
+//   - changing persistence mappings for patterns, traps, ontology candidates, checkpoints, follow-ups, or continuations.
+// ---
+
 import type { Memory, MemoryStore } from "./memory.ts";
 import {
   clampStrength,

@@ -1,3 +1,9 @@
+// ---
+// summary: defines layered memory contracts and supplies the default asynchronous in-memory store.
+// read_when:
+//   - changing memory types, query scoring, layer operations, maintenance, or global store selection.
+// ---
+
 /**
  * Memory Interface: Layered memory system for cross-session persistence.
  *

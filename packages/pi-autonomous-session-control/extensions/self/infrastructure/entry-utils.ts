@@ -1,3 +1,9 @@
+// ---
+// summary: formats session entries, previews message content, and creates sanitized checkpoint labels.
+// read_when:
+//   - changing session history descriptions, text previews, extraction, or checkpoint label construction.
+// ---
+
 /**
  * Session entry utilities.
  * Helpers for describing, summarizing, and manipulating session entries.

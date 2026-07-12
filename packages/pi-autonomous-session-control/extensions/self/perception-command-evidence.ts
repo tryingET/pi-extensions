@@ -1,3 +1,9 @@
+// ---
+// summary: normalizes tracked commands and identifies productive workflow and recovery-validation evidence.
+// read_when:
+//   - changing command signatures, validation recognition, or active-error recovery boundaries.
+// ---
+
 /**
  * Command normalization and validation/recovery evidence helpers for self perception.
  */

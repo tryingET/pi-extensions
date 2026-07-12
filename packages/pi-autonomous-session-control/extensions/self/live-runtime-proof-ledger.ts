@@ -1,3 +1,9 @@
+// ---
+// summary: classifies and records branch-local four-tier receipts for ASC live-runtime verification.
+// read_when:
+//   - changing proof command recognition, source fingerprinting, invalidation, or ledger reconstruction.
+// ---
+
 /**
  * Branch-local machine receipts for ASC live-runtime proof.
  *

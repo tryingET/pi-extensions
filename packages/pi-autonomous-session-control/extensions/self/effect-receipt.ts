@@ -1,3 +1,9 @@
+// ---
+// summary: atomically persists owner-issued dispatch effect receipts with safe session and attempt identifiers.
+// read_when:
+//   - changing dispatch effect dispositions, receipt publication, or filesystem durability guarantees.
+// ---
+
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
