@@ -9,14 +9,19 @@ import evidenceReviewExtension, {
   COMMAND_NAME,
   HEADLESS_ERROR,
 } from "../extensions/evidence-review.ts";
-import { EvidenceReviewPanel, reviewDisplayLines, sanitizePlainText } from "../src/render.ts";
+import {
+  EvidenceReviewPanel,
+  reviewDisplayLines,
+  reviewSummaryLines,
+  sanitizePlainText,
+} from "../src/render.ts";
 import { validateEvidenceReview } from "../src/validation.ts";
 
 const valid = validateEvidenceReview(
   JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "valid.json"), "utf8")),
 );
 
-test("sanitizes terminal, bidi, markdown, HTML, URI, and command-shaped strings as plain text", () => {
+test("neutralizes terminal controls while preserving ordinary printable punctuation", () => {
   const hostile =
     "\u001b]8;;https://evil.example\u0007CLICK\u001b]8;;\u0007\u202e\u200b # <img src=x> [run](command:rm -rf /) `sudo`\rOVERWRITE";
   const rendered = sanitizePlainText(hostile);
@@ -24,43 +29,63 @@ test("sanitizes terminal, bidi, markdown, HTML, URI, and command-shaped strings 
   assert.equal(rendered.includes(String.fromCodePoint(7)), false);
   assert.equal(rendered.includes(String.fromCodePoint(0x202e)), false);
   assert.equal(rendered.includes(String.fromCodePoint(0x200b)), false);
-  assert.doesNotMatch(rendered, /[#<>[\]()`]/u);
-  assert.match(rendered, /command:rm -rf/);
-  assert.match(rendered, /⏎/);
+  assert.match(rendered, /# <img src=x> \[run\]\(command:rm -rf \/\) `sudo`/u);
+  assert.match(rendered, /\[control U\+001B\]/u);
+  assert.match(rendered, /\[format U\+202E\]/u);
+  assert.match(rendered, /\[carriage-return\]/u);
 });
 
-test("display preserves selected/recommended/observed, preview/applied, limitations, authority and blocked handoff", () => {
-  const output = reviewDisplayLines(valid).join("\n");
+test("summary prioritizes operator evidence while full detail preserves normalized fields", () => {
+  const summary = reviewSummaryLines(valid).join("\n");
+  const detail = reviewDisplayLines(valid).join("\n");
+  assert.ok(reviewSummaryLines(valid).length < reviewDisplayLines(valid).length);
   for (const expected of [
-    "Command posture: selected=",
-    "recommended-minimum=",
-    "previewOnly=",
-    "applied=",
-    "evidenceArtifacts[0].observedStatus",
-    "limitations[0].severity",
-    "authorityBoundaries[0].boundary",
+    "Outcome: checks_passed",
+    "Commands: selected=",
+    "-- Claims (7) --",
+    "-- Limitations (2) --",
+    "-- Authority boundaries (3) --",
     "Handoff: status=blocked",
     "displayed only; never accepted",
   ]) {
-    assert.match(output, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")));
+    assert.match(summary, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")));
   }
+  for (const expected of [
+    "evidenceArtifacts[0].observedStatus",
+    "limitations[0].severity",
+    "authorityBoundaries[0].boundary",
+    "outcome.previewOnly: true",
+    "semantic-code-intelligence.evidence_review.v1",
+  ]) {
+    assert.match(detail, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")));
+  }
+  assert.doesNotMatch(summary, /checks＿passed/u);
+  assert.match(summary, /checks_passed/u);
 });
 
-test("component never exceeds line width and scroll/escape lifecycle is inert", () => {
+test("component keeps width, scrolls, toggles detail, and closes inertly", () => {
   let closed = false;
   const panel = new EvidenceReviewPanel(
-    reviewDisplayLines(valid),
+    reviewSummaryLines(valid),
     () => {
       closed = true;
     },
     8,
+    reviewDisplayLines(valid),
   );
   const initial = panel.render(31);
   assert.equal(initial.length, 8);
   assert.ok(initial.every((line) => visibleWidth(line) <= 31));
+  assert.match(initial.join("\n"), /EVIDENCE REVIEW - inert/u);
   panel.handleInput("\u001b[B");
   const scrolled = panel.render(31);
   assert.notDeepEqual(scrolled, initial);
+  panel.handleInput("d");
+  const detailed = panel.render(31);
+  assert.match(detailed.join("\n"), /full\s+normalized detail/u);
+  assert.ok(detailed.every((line) => visibleWidth(line) <= 31));
+  panel.handleInput("\r");
+  assert.match(panel.render(31).join("\n"), /EVIDENCE REVIEW - inert/u);
   panel.handleInput("\u001b");
   assert.equal(closed, true);
 });

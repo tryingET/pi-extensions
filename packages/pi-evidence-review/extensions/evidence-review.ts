@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { discoverEvidenceReviewFiles, readEvidenceReviewFile } from "../src/reader.ts";
-import { EvidenceReviewPanel, reviewDisplayLines } from "../src/render.ts";
+import { EvidenceReviewPanel, reviewDisplayLines, reviewSummaryLines } from "../src/render.ts";
 
 export const COMMAND_NAME = "evidence-review";
 export const HEADLESS_ERROR =
@@ -45,7 +45,12 @@ export default function evidenceReviewExtension(pi: ExtensionAPI): void {
       try {
         const review = await readEvidenceReviewFile(ctx.cwd, namedPath);
         await ctx.ui.custom<void>((tui, _theme, _keybindings, done) => {
-          const panel = new EvidenceReviewPanel(reviewDisplayLines(review), () => done());
+          const panel = new EvidenceReviewPanel(
+            reviewSummaryLines(review),
+            () => done(),
+            22,
+            reviewDisplayLines(review),
+          );
           return {
             render: (width: number) => panel.render(width),
             invalidate: () => panel.invalidate(),

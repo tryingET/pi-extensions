@@ -24,6 +24,8 @@ With no argument, the command performs a bounded read-only workspace scan and of
 
 An explicit argument must name exactly one workspace-relative regular `.json` file and bypasses discovery. The command does not invoke SCI, normalize raw inputs, follow links, execute commands, contact a network, persist a session entry, record a decision, or mutate anything.
 
+The panel opens with a bounded operator summary of outcome, checks, claims, limitations, authority boundaries, decision points, and handoff gates. Press `D` or `Enter` to toggle the complete normalized field view; press `Escape` to close.
+
 Interactive TUI mode is required. Print, JSON, and RPC modes fail before any discovery or file access.
 
 ## Contract and limits
@@ -37,7 +39,7 @@ The package vendors the exact reviewed draft-07 schema in [`schemas/evidence-rev
 - rejection of every observed symlink path component, final-component `O_NOFOLLOW`, opened-descriptor containment, stable inode/size/mtime/ctime checks, and post-read component rechecks
 - bounded picker discovery that exposes only candidates accepted by this same reader and validator
 
-Invalid input is rejected atomically with a generic diagnostic. Payload strings are plain terminal text: ANSI/control/bidi characters and markdown/HTML metacharacters are neutralized; URI, path, command, option, recommendation, and next-action values remain inert.
+Invalid input is rejected atomically with a generic diagnostic. Payload strings are rendered by a plain-text TUI component, not a Markdown or HTML parser. ANSI/control/bidi characters are replaced by visible ASCII labels while ordinary printable punctuation is preserved accurately. URI, path, command, option, recommendation, and next-action values remain inert.
 
 ### Filesystem boundary
 
