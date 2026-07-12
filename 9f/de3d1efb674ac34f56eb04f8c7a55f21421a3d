@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "9fde3d1efb674ac34f56eb04f8c7a55f21421a3d"
+created_at: "2026-07-12T13:33:54Z"
+intent: "Replace the machine-specific pi-modes installation path with a portable public clone-and-install example"
+files:
+  - "packages/pi-modes/README.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Public-release documentation portability fix"
