@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: Resolves and runs the local or shared documentation listing utility.
+# read_when:
+#   - Listing package documentation or troubleshooting docs-list resolution.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

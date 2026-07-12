@@ -1,3 +1,7 @@
+// summary: Supplies the minimal pi-tui declarations used to type the interaction overlay.
+// read_when:
+//   - Updating interaction-kit compatibility with pi-tui exports.
+
 declare module "@earendil-works/pi-tui" {
   export const Container: new (...args: unknown[]) => { invalidate: () => void };
   export const Input: new () => {

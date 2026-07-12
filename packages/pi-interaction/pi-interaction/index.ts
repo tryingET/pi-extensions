@@ -1,3 +1,7 @@
+// summary: Defines the pi-interaction package entrypoint and public composed exports.
+// read_when:
+//   - Loading the extension or importing interaction runtime helpers.
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import ext_extensions_input_triggers from "./extensions/input-triggers.ts";
 

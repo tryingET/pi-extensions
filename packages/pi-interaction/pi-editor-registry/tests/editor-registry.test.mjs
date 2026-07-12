@@ -1,3 +1,7 @@
+// summary: Verifies editor registry mount guards, notifications, and diagnostic state.
+// read_when:
+//   - Changing editor registry ownership or mount behavior.
+
 import assert from "node:assert/strict";
 import test from "node:test";
 

@@ -1,3 +1,7 @@
+// summary: Tests composed interaction runtime diagnostics and singleton lifecycle.
+// read_when:
+//   - Changing runtime construction, caching, or reset semantics.
+
 import assert from "node:assert/strict";
 import test from "node:test";
 

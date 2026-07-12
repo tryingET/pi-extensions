@@ -1,3 +1,7 @@
+// summary: Exercises trigger editor context, autocomplete, and interrupt compatibility.
+// read_when:
+//   - Modifying TriggerEditor input or completion handling.
+
 import assert from "node:assert/strict";
 import test from "node:test";
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Validates package metadata, scripts, publish files, and scaffold contracts.
+// read_when:
+//   - Changing pi-interaction package structure or manifest requirements.
 
 import fs from "node:fs";
 

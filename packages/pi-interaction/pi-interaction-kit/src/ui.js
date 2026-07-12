@@ -1,3 +1,7 @@
+// summary: Implements the keyboard-driven fuzzy selection overlay and portable TUI fallbacks.
+// read_when:
+//   - Changing overlay rendering, filtering, or keybinding handling.
+
 import { lower, rankCandidatesFallback } from "./core.js";
 
 /** @typedef {{id:string,label:string,detail:string,preview?:string,source?:string,[key:string]:unknown}} Candidate */
