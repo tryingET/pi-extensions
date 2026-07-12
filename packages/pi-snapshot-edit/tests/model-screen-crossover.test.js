@@ -1,3 +1,7 @@
+// summary: "Verifies the bounded crossover model-screen matrix, blinded prompts, scoring, and usage aggregation."
+// read_when:
+//   - "Changing crossover fixtures, model-screen plans, or protocol scoring."
+
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";

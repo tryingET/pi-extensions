@@ -1,3 +1,7 @@
+// summary: "Tests launcher reuse, spawn readiness polling, compatibility failures, and starting-state timeouts."
+// read_when:
+//   - "Changing activity-strip startup, broker readiness checks, or launcher error reporting."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ensureActivityStripRunning } from "../src/client/launcher.mjs";

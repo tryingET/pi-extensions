@@ -1,3 +1,7 @@
+// summary: "Checks ontology interaction candidates and prompt insertions for pack and change-plan actions."
+// read_when:
+//   - "Changing ontology picker candidates or generated interaction prompt text."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

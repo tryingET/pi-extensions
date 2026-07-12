@@ -1,3 +1,7 @@
+// summary: "Exercises snapshot reads, exact-selector edits, atomic replacement guards, pagination, and byte preservation."
+// read_when:
+//   - "Changing snapshot service semantics, selector validation, file safety, or output limits."
+
 import assert from "node:assert/strict";
 import { link, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

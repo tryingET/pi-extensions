@@ -1,3 +1,7 @@
+// summary: "Verifies activity-strip session ordering and stale-session purging in the broker store."
+// read_when:
+//   - "Changing session-store sorting, freshness thresholds, or snapshot contents."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SessionStore } from "../src/broker/session-store.mjs";

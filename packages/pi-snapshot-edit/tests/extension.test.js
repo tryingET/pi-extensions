@@ -1,3 +1,7 @@
+// summary: "Tests snapshot-edit extension registration, overrides, ownership guards, and legacy-call failures."
+// read_when:
+//   - "Changing snapshot-edit tool registration, override semantics, or argument preparation."
+
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

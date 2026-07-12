@@ -1,3 +1,7 @@
+// summary: "Tests broker-client upserts and ping replies with session and runtime status data."
+// read_when:
+//   - "Changing activity-strip broker messaging, snapshots, or ping responses."
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";

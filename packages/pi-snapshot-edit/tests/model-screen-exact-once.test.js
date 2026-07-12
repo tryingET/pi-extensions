@@ -1,3 +1,7 @@
+// summary: "Enforces exact-once model-screen claims, atomic publication, complete matrices, and interruption handling."
+// read_when:
+//   - "Changing model-screen claim files, aggregate publication, or exact-once execution safeguards."
+
 import assert from "node:assert/strict";
 import { link, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

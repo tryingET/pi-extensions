@@ -1,3 +1,7 @@
+// summary: "Covers model-screen planning, blinded protocol scoring, process cleanup, usage parsing, and aggregation."
+// read_when:
+//   - "Changing the snapshot-edit model-screen harness, schemas, execution, or result accounting."
+
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { EventEmitter } from "node:events";

@@ -1,3 +1,7 @@
+// summary: "Validates protocol benchmark coverage, deterministic aggregates, simulators, and mutation correctness gates."
+// read_when:
+//   - "Changing benchmark protocols, transcripts, fixtures, or mutation validation."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

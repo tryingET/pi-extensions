@@ -1,3 +1,7 @@
+// summary: "Provides temporary ontology repository layouts and a fake workspace port for workflow tests."
+// read_when:
+//   - "Adding ontology workflow fixtures or changing test workspace detection behavior."
+
 import { chmod, copyFile, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

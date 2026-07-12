@@ -1,3 +1,7 @@
+// summary: "Checks broker handling of expected disconnects and reporting of unexpected socket write failures."
+// read_when:
+//   - "Changing activity-strip broker connection error or reply-write handling."
+
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";

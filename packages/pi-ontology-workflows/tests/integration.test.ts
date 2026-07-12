@@ -1,3 +1,7 @@
+// summary: "Runs ontology change, validation, build, search, and pack flows against temporary repository layouts."
+// read_when:
+//   - "Changing applied ontology workflows or nested and root layout integration behavior."
+
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import path from "node:path";

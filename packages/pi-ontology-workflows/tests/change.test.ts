@@ -1,3 +1,7 @@
+// summary: "Verifies ontology change planning for concepts, bootstraps, manifests, bridges, and system4d entries."
+// read_when:
+//   - "Changing ontology change planners or their canonical file outputs."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createFilesystemPort } from "../src/adapters/filesystem.ts";

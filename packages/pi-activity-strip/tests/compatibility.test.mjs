@@ -1,3 +1,7 @@
+// summary: "Validates display detection and activity-strip compatibility reports for headless, niri, and multi-display sessions."
+// read_when:
+//   - "Changing graphical-session detection, compatibility blockers, warnings, or report formatting."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

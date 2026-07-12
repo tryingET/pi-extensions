@@ -1,3 +1,7 @@
+// summary: "Validates the ontology toolbox bundle identity, lazy profile summaries, tools, and command registration."
+// read_when:
+//   - "Changing ontology toolbox activation contracts or registered surfaces."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 

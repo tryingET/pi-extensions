@@ -1,3 +1,7 @@
+// summary: "Tests ontology proposal assessment for new concepts, duplicates, and incomplete relations."
+// read_when:
+//   - "Changing proposal verdicts, duplicate detection, or relation evidence requirements."
+
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";

@@ -1,3 +1,7 @@
+// summary: "Exercises ontology workflow extension registration, headless safeguards, and manifest command parsing."
+// read_when:
+//   - "Changing ontology extension tools, commands, or manifest CLI argument handling."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import extension, { parseOntologyManifestCommandArgs } from "../extensions/ontology-workflows.ts";

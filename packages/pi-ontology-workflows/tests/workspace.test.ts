@@ -1,3 +1,7 @@
+// summary: "Covers ontology workspace target resolution across repo, company, core, and bootstrap scopes."
+// read_when:
+//   - "Changing ontology scope inference or workspace repository resolution."
+
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
