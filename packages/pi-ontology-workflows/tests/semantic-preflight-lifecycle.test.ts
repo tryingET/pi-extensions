@@ -467,7 +467,7 @@ test("inspect and status observations permanently invalidate stale grants and ca
   assert.equal(h.runtime.snapshot().grant, false);
 });
 
-test("render overflow maps to canonical unavailable readback instead of escaping", async () => {
+test("repeated hidden-term evidence projects to a bounded structural block", async () => {
   const oversized = discoveryResult();
   const templateCandidate = oversized.candidates[0];
   assert.ok(templateCandidate);
@@ -489,10 +489,12 @@ test("render overflow maps to canonical unavailable readback instead of escaping
     systemPrompt: "BASE",
   });
   const result = promptResult(rawResult);
-  assert.match(result.systemPrompt, /outcome=unavailable/);
-  assert.doesNotMatch(result.systemPrompt, /core\.Agent0/);
-  assert.match(h.statuses.at(-1) ?? "", /preflight=unavailable/);
-  assert.equal(h.runtime.snapshot().promptBindings, 0);
+  assert.match(result.systemPrompt, /outcome=matched/);
+  assert.match(result.systemPrompt, /core\.Agent0/);
+  assert.equal((result.systemPrompt.match(/label\.token_exact/g) ?? []).length, 12);
+  assert.equal(Buffer.byteLength(result.systemPrompt) < 16_384, true);
+  assert.match(h.statuses.at(-1) ?? "", /preflight=matched/);
+  assert.equal(h.runtime.snapshot().promptBindings, 12);
 });
 
 test("unavailable discovery fails open with visible readback and no ontology prose", async () => {

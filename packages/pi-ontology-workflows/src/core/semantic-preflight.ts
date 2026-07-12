@@ -109,7 +109,7 @@ function projectCandidate(candidate: DiscoveryCandidate): StructuralCandidate {
     kind: candidate.kind,
     layer: candidate.layer,
     score: candidate.score,
-    evidence: candidate.evidence.map((item) => `${item.field}.${item.rule}`),
+    evidence: [...new Set(candidate.evidence.map((item) => `${item.field}.${item.rule}`))],
   };
 }
 
