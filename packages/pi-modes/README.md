@@ -155,10 +155,11 @@ Implementation plan: [`docs/project/2026-07-11-implementation-plan.md`](docs/pro
 ## Install and verify
 
 ```bash
-cd packages/pi-modes
+git clone https://github.com/tryingET/pi-extensions.git
+cd pi-extensions/packages/pi-modes
 npm install
 npm run check
-pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-modes
+pi install "$PWD"
 ```
 
 Then run `/reload` and verify with:
