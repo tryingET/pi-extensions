@@ -80,7 +80,7 @@ test("mock vault payload applies envelope and preserves provenance through dispa
     assert.match(def.systemPrompt, /name: meta-orchestration/);
     assert.match(def.systemPrompt, /source: vault-client/);
     assert.match(def.systemPrompt, /Choose the right phase and execution mode before acting\./);
-    assert.match(def.systemPrompt, /---\n\nYou are a code reviewer agent/);
+    assert.match(def.systemPrompt, /---\n\nYou are the reviewer/);
 
     assert.equal(result.details.prompt_applied, true);
     assert.equal(result.details.prompt_name, "meta-orchestration");
