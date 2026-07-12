@@ -1,3 +1,9 @@
+// ---
+// summary: tests model-selection failures, request environment allowlisting, and child extension inference and bootstrap.
+// read_when:
+//   - changing dispatch model resolution, provenance environment policy, or extension loading rules.
+// ---
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

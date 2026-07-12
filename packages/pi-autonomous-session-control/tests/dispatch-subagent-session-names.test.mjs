@@ -1,3 +1,9 @@
+// ---
+// summary: validates sanitized collision-free subagent session names under sequential and concurrent dispatch plus concurrency limits.
+// read_when:
+//   - changing session-file reservation, name normalization, or dispatch rate limiting.
+// ---
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

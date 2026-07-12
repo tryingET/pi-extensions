@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: performs the node-based package manifest, extension, prompt, script, release-mode, and publish-file structure checks.
+// read_when:
+//   - updating the package manifest contract or tracing node validation errors from structure checks.
+// ---
 
 import fs from "node:fs";
 

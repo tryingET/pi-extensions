@@ -1,3 +1,9 @@
+// ---
+// summary: checks deterministic prompt-envelope injection, provenance reporting, missing-content guidance, and header sanitization.
+// read_when:
+//   - changing dispatch prompt metadata or how retrieved prompt content is composed into child instructions.
+// ---
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SUBAGENT_PROFILES, setup } from "./dispatch-subagent-harness.mjs";

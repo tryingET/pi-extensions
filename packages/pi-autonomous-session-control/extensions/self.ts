@@ -1,3 +1,9 @@
+// ---
+// summary: registers the self-perception tool, delegation runtime, rewind support, and compatibility commands for the autonomy extension.
+// read_when:
+//   - changing the extension entry point or the self tool's action-delivery policy.
+// ---
+
 /**
  * Transcendent Autonomy Extension
  *

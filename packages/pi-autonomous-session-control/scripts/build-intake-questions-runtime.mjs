@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: builds context-aware runtime intake questions from the canonical project documentation questionnaire.
+// read_when:
+//   - generating or changing startup-intent and detected-repository intake context.
+// ---
 
 import fs from "node:fs";
 import path from "node:path";

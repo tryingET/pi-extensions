@@ -1,3 +1,9 @@
+// ---
+// summary: re-exports the public autonomous session control execution runtime, dispatch contracts, profiles, and session helpers.
+// read_when:
+//   - consuming the package-level execution API without importing extension internals.
+// ---
+
 export { SUBAGENT_PROFILES } from "./extensions/self/subagent-profiles.ts";
 export {
   type AscExecutionRuntime,

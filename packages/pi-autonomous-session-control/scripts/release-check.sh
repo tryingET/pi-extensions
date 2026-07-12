@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: verifies package publish metadata, packed file boundaries, dry-run publishing, and an optional isolated pi install smoke test.
+# read_when:
+#   - preparing a release or diagnosing package provenance and tarball contents.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

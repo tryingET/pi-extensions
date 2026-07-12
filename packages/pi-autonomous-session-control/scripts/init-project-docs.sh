@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: checks project-doc intake assets, optionally installs interview tooling, and prints the guided setup workflow.
+# read_when:
+#   - initializing repository documentation intake or diagnosing its required files and tool install path.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

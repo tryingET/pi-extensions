@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: makes package hook scripts executable and configures git to use the package-local hooks directory.
+# read_when:
+#   - installing or repairing the autonomous session control git hook wiring.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

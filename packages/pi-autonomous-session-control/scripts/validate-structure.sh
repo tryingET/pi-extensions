@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: enforces required package files, directories, executable modes, copier answers, and markdown structure before acceptance.
+# read_when:
+#   - changing the package scaffold layout or diagnosing the aggregate structure validation gate.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

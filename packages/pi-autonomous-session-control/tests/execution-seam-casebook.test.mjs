@@ -1,3 +1,9 @@
+// ---
+// summary: validates that governed execution-seam runtime and packaging cases load with the fields required by consumers.
+// read_when:
+//   - adding casebook fixtures or changing the execution-seam evidence schema.
+// ---
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

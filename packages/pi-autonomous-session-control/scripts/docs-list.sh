@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: resolves the repository or shared docs-list implementation and forwards documentation discovery arguments to it.
+# read_when:
+#   - troubleshooting documentation listing script selection or its node prerequisite.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

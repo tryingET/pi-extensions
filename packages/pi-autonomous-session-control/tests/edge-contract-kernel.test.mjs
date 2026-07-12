@@ -1,3 +1,9 @@
+// ---
+// summary: tests shared edge normalization, invariant reporting, tool-result shaping, monotonic ids, and malformed dispatch rejection.
+// read_when:
+//   - evolving boundary contracts used to validate and shape autonomous control tool calls.
+// ---
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

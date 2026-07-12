@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: cleans temporary runtime artifacts and delegates package validation modes to the monorepo quality gate.
+# read_when:
+#   - running package quality checks or investigating stale self-test artifacts.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

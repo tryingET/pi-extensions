@@ -1,3 +1,9 @@
+// ---
+// summary: provides temporary dispatch tool fixtures, expected-failure handling, environment isolation, and a test skill registry.
+// read_when:
+//   - writing dispatch_subagent tests that need captured spawn definitions or skill-profile fixtures.
+// ---
+
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -1,3 +1,9 @@
+// ---
+// summary: exercises dispatch ownership, resume, capacity leasing, targeted cancellation, settlement ordering, and startup deadlines.
+// read_when:
+//   - modifying lifecycle controls shared across dispatch processes and resumable attempts.
+// ---
+
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { EventEmitter, once } from "node:events";

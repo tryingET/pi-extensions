@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: validates intake, package, release, publish, template, and biome-ignore metadata contracts for the package.
+// read_when:
+//   - changing package metadata policy or investigating a metadata-specific structure failure.
+// ---
 
 import fs from "node:fs";
 import path from "node:path";

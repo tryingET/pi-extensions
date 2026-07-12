@@ -1,3 +1,9 @@
+// ---
+// summary: verifies governed skill-profile resolution, safe materialization, registry boundaries, bootstrap ordering, and no-skills behavior.
+// read_when:
+//   - changing child skill discovery, profile allowlists, or dispatch skill isolation.
+// ---
+
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";

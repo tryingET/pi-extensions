@@ -1,3 +1,9 @@
+// ---
+// summary: covers baseline dispatch profile composition, parent context capture, model context, name safety, errors, and timeouts.
+// read_when:
+//   - changing the core dispatch_subagent request-to-spawn contract.
+// ---
+
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import test from "node:test";

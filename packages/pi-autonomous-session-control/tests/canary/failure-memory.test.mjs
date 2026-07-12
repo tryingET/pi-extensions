@@ -1,3 +1,9 @@
+// ---
+// summary: executes failure-memory canary cards against self queries, dispatch behavior, and subagent session cleanup.
+// read_when:
+//   - adding failure-memory cards or changing their assertion and target runners.
+// ---
+
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

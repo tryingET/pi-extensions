@@ -1,3 +1,9 @@
+// ---
+// summary: verifies dispatch diagnostics, protocol settlement, output bounds, abort handling, and abandoned-status reconciliation.
+// read_when:
+//   - changing subagent transport parsing, terminal-state classification, or diagnostic persistence.
+// ---
+
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
