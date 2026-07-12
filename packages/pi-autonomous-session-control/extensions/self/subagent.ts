@@ -78,11 +78,11 @@ export function registerDispatchSubagentTool(pi: ExtensionAPI, runtime: AscExecu
     description: `Spawn a specialized subagent to work on a specific objective. Subagents run in parallel and return their results.
 
 Profiles:
-- explorer: Broad investigation, pattern discovery (tools: read, bash)
-- reviewer: Code evaluation, critique (tools: read, bash)
-- tester: Verification, validation (tools: read, bash)
-- researcher: Documentation, examples, patterns (tools: read, bash)
-- minimal: Just read and bash with minimal prompt
+- explorer: High-value problem-space mapping and uncertainty discovery (tools: read, bash)
+- reviewer: Independent, evidence-ranked assessment of proposed work (tools: read, bash)
+- tester: Adversarial falsification and confidence-calibrated verification (tools: read, bash)
+- researcher: Source-grounded uncertainty reduction and synthesis (tools: read, bash)
+- minimal: Full-precision execution with minimal context, ceremony, and output (tools: read, bash)
 
 Use for:
 - Parallel exploration of different approaches
