@@ -1,3 +1,8 @@
+/**
+summary: "Plans PTX transforms by parsing input, resolving prompt provenance and policy, reading templates, and mapping inferred arguments."
+read_when:
+  - "Changing the end-to-end PTX transform pipeline or any planner status transition."
+*/
 import { readFile } from "node:fs/promises";
 import { buildTransformedCommand } from "./buildTransformedCommand.js";
 import { inferContextArgs } from "./inferContextArgs.js";

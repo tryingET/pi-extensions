@@ -1,3 +1,8 @@
+/**
+summary: "Tokenizes shell-like quoted input and parses slash-command names and arguments with deterministic errors."
+read_when:
+  - "Changing PTX quote, escape, token boundary, or slash-command parsing rules."
+*/
 export class RawCommandParseError extends Error {
   constructor(message) {
     super(message);

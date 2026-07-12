@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Validates PTX publish metadata, packed contents, dry-run publishing, and isolated Pi installation smoke checks."
+# read_when:
+#   - "Preparing a PTX release or changing its npm artifact and installation verification."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

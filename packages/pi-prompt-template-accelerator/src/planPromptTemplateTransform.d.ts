@@ -1,3 +1,8 @@
+/**
+summary: "Defines every typed outcome and input for planning a PTX prompt-template transformation."
+read_when:
+  - "Changing transform-plan statuses, result fields, or planner inputs."
+*/
 import type { ParsedRawCommand, RawCommandParseError } from "./parseRawCommand.js";
 import type { TemplatePlaceholderUsage } from "./parseTemplatePlaceholders.js";
 import type { PtxPolicyConfig, ResolvedTemplatePolicy } from "./ptxPolicyConfig.js";

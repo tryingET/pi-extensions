@@ -1,3 +1,8 @@
+/**
+summary: "Quotes arguments and assembles normalized slash commands for PTX output."
+read_when:
+  - "Changing transformed command escaping, slash normalization, or argument serialization."
+*/
 export function quoteArgument(arg) {
   const escaped = String(arg).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   return `"${escaped}"`;

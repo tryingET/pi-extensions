@@ -1,3 +1,8 @@
+/**
+summary: "Detects unescaped positional, all-argument, and sliced-argument placeholders in prompt text."
+read_when:
+  - "Changing supported PTX placeholder syntax or usage aggregation."
+*/
 function isEscapedOrDoubled(text, index) {
   if (index <= 0) return false;
   const previous = text[index - 1];

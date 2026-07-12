@@ -1,4 +1,9 @@
 /**
+summary: "Registers PTX input transforms, fuzzy template selection, live picker integration, lifecycle bridges, and diagnostic commands."
+read_when:
+  - "Changing the PTX extension entrypoint, picker behavior, command registration, or fallback handling."
+*/
+/**
  * Prompt Template Accelerator (PTX)
  *
  * - Non-UI: deterministic `$$` transform pipeline (for tests/automation)

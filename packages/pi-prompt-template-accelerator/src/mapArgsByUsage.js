@@ -1,3 +1,8 @@
+/**
+summary: "Maps supplied and inferred values into positional and variadic template slots using placeholder hints."
+read_when:
+  - "Changing PTX missing-argument filling, slot classification, or rest-argument behavior."
+*/
 function isMissing(value) {
   return value === undefined || value === null || value.trim().length === 0;
 }

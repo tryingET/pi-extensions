@@ -1,3 +1,8 @@
+/**
+summary: "Defines command provenance shapes and helpers for identifying prompt-backed commands and paths."
+read_when:
+  - "Changing the typed command source or path resolution contract."
+*/
 export type CommandSource = "extension" | "prompt" | "skill";
 
 export interface CommandLike {
