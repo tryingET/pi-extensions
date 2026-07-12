@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: delegates package quality commands to the nearest canonical monorepo quality gate.
+# read_when:
+#   - running lint, typecheck, pre-commit, pre-push, or CI validation for toolbox discovery.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

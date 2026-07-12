@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: checks society-startup-context package contents and performs an isolated release installation smoke test.
+# read_when:
+#   - validating a release artifact before publishing the startup-context extension.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

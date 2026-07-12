@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: verifies the toolbox-discovery scaffold layout, executable bits, copier answers, and markdown metadata.
+# read_when:
+#   - modifying package structure or validating scaffold conformance.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

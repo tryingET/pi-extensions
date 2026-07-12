@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: validates startup-context manifest fields, Pi artifacts, publish files, and stack-lane metadata.
+// read_when:
+//   - updating package metadata or checking generated scaffold invariants.
+// ---
 
 import fs from "node:fs";
 

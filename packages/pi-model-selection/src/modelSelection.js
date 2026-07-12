@@ -1,3 +1,8 @@
+// ---
+// summary: parses model references and selects authenticated candidates with provider-aware fallback ordering.
+// read_when:
+//   - changing model resolution, authentication compatibility, or fallback selection behavior.
+// ---
 export const PREFERRED_PROVIDERS = ["openai-codex", "anthropic", "github-copilot", "openrouter"];
 
 function normalizeText(value) {

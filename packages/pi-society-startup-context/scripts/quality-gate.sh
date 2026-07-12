@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: routes society-startup-context validation modes through the canonical package quality gate.
+# read_when:
+#   - invoking package lint, typecheck, pre-commit, pre-push, or CI checks.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

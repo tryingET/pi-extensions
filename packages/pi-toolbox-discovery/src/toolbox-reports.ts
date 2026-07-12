@@ -1,3 +1,8 @@
+// ---
+// summary: builds toolbox status and doctor reports from registrations, active tools, catalog entries, and leases.
+// read_when:
+//   - changing toolbox diagnostics or operator-facing health output.
+// ---
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CATALOG } from "./toolbox-catalog.ts";
 import {

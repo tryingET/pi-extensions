@@ -1,3 +1,8 @@
+// ---
+// summary: tests toolbox registration, discovery, risk gating, active-set verification, leases, and continuation behavior.
+// read_when:
+//   - changing toolbox catalog actions or runtime safety guarantees.
+// ---
 import assert from "node:assert/strict";
 import test from "node:test";
 

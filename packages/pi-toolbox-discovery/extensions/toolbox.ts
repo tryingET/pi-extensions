@@ -1,3 +1,8 @@
+// ---
+// summary: registers the toolbox command, discovery tool, startup baseline, and lease expiry hooks.
+// read_when:
+//   - changing toolbox extension registration or session lifecycle behavior.
+// ---
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { executeToolboxAction } from "../src/toolbox-actions.ts";
 import { CATALOG } from "../src/toolbox-catalog.ts";

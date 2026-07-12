@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: resolves and runs the canonical documentation inventory script for this package.
+# read_when:
+#   - listing package documentation or troubleshooting docs-list script resolution.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

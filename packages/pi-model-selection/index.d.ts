@@ -1,3 +1,8 @@
+// ---
+// summary: declares the public model-selection types and exported helper signatures.
+// read_when:
+//   - integrating model-selection utilities from typed TypeScript consumers.
+// ---
 export interface PiModelLike {
   id?: string;
   provider?: string;

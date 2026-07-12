@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: checks toolbox-discovery package metadata, scripts, publish inputs, and engineering-lane settings.
+// read_when:
+//   - changing the package manifest, Pi entrypoints, or scaffold contract.
+// ---
 
 import fs from "node:fs";
 

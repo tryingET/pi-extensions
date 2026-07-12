@@ -1,3 +1,8 @@
+// ---
+// summary: verifies startup-context applicability, packet rendering, read-first hints, refresh aborts, and extension hooks.
+// read_when:
+//   - changing startup-context collection or user-visible packet semantics.
+// ---
 import assert from "node:assert/strict";
 import {
   chmodSync,

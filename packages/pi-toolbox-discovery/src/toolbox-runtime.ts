@@ -1,3 +1,8 @@
+// ---
+// summary: manages toolbox catalog lookup, activation plans, verified active-set changes, leases, and continuations.
+// read_when:
+//   - modifying toolbox runtime state, TTL semantics, or activation verification.
+// ---
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CATALOG } from "./toolbox-catalog.ts";
 import {

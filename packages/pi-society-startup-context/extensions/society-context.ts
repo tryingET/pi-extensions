@@ -1,3 +1,8 @@
+// ---
+// summary: collects and injects read-only AI Society startup context from bounded git and AK runtime probes.
+// read_when:
+//   - changing startup packet collection, rendering, refresh lifecycle, or Pi integration.
+// ---
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";

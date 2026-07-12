@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: enforces the society-startup-context directory contract, executable modes, and markdown frontmatter.
+# read_when:
+#   - adding package files or diagnosing structural validation failures.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,3 +1,8 @@
+// ---
+// summary: executes toolbox discovery, planning, activation, deactivation, doctor, and recommendation actions.
+// read_when:
+//   - changing toolbox tool responses, risk gates, or active-set mutations.
+// ---
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CATALOG } from "./toolbox-catalog.ts";
 import {

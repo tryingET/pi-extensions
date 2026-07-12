@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: validates toolbox-discovery publish contents and exercises an isolated packaged extension install.
+# read_when:
+#   - preparing or diagnosing a toolbox-discovery npm release.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

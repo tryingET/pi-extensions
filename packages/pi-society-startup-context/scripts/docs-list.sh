@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: locates and invokes the documentation inventory entrypoint for society startup context.
+# read_when:
+#   - enumerating package docs or configuring an alternate docs-list implementation.
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

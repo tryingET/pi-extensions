@@ -1,3 +1,8 @@
+// ---
+// summary: verifies model reference parsing, provider preference, fallback selection, and auth compatibility.
+// read_when:
+//   - modifying the model-selection API or its registry integration behavior.
+// ---
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
