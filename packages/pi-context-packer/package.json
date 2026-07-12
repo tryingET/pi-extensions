@@ -40,6 +40,7 @@
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "dogfood:docs-list-json": "node ./scripts/dogfood-docs-list-json-smoke.mjs",
+    "experiment:source-selection": "node ./scripts/run-source-selection-experiment.mjs",
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
     "loop-doctor": "bash -lc 'node --version; npm --version; npm pkg get name version >/dev/null; git status --short -- . || true; exit 0'",
