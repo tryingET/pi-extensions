@@ -2,18 +2,20 @@
   "schema_version": 1,
   "exported_at": "2026-07-12T17:08:30.150771129+00:00",
   "task_id": 3843,
-  "entity_version": 2,
-  "commit_sha": null,
+  "entity_version": 4,
+  "commit_sha": "7f67c23c",
   "scope": {
     "allowed_paths": [
       "README.md",
       "README.terse.md",
+      "docs/project/engineering-review-surfaces.md",
       "docs/project/root-capabilities.md",
       "governance/task-scopes/AK-*.snapshot.json",
       "governance/work-items.json",
       "packages/pi-evidence-review/**"
     ],
     "required_paths": [
+      "docs/project/engineering-review-surfaces.md",
       "packages/pi-evidence-review/README.md",
       "packages/pi-evidence-review/extensions/evidence-review.ts",
       "packages/pi-evidence-review/package.json"

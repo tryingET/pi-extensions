@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-12",
-  "owner": "@tryingET",
+  "updated_at": "2026-07-19",
+  "owner": "@project-owners",
   "project_name": "pi-extensions",
   "milestones": [
     {
@@ -107,11 +107,11 @@
         },
         {
           "id": "AK-TASK-0595",
-          "title": "Seed root direction decomposition docs for reduced-form engineering governance wave",
+          "title": "Seed root direction decomposition docs for reduced-form tech-stack governance wave",
           "state": "done",
           "tasks": [
             {
-              "text": "Seed root direction decomposition docs for reduced-form engineering governance wave (task #595)",
+              "text": "Seed root direction decomposition docs for reduced-form tech-stack governance wave (task #595)",
               "done": true
             }
           ],
@@ -120,11 +120,11 @@
         },
         {
           "id": "AK-TASK-0596",
-          "title": "Refresh root engineering review surface audit after recent package/template alignment",
+          "title": "Refresh root tech-stack review surface audit after recent package/template alignment",
           "state": "done",
           "tasks": [
             {
-              "text": "Refresh root engineering review surface audit after recent package/template alignment (task #596)",
+              "text": "Refresh root tech-stack review surface audit after recent package/template alignment (task #596)",
               "done": true
             }
           ],
@@ -146,11 +146,11 @@
         },
         {
           "id": "AK-TASK-0601",
-          "title": "Audit remaining legacy-full package engineering docs for real local overrides vs boilerplate",
+          "title": "Audit remaining legacy-full package tech-stack docs for real local overrides vs boilerplate",
           "state": "done",
           "tasks": [
             {
-              "text": "Audit remaining legacy-full package engineering docs for real local overrides vs boilerplate (task #601)",
+              "text": "Audit remaining legacy-full package tech-stack docs for real local overrides vs boilerplate (task #601)",
               "done": true
             }
           ],
@@ -159,11 +159,11 @@
         },
         {
           "id": "AK-TASK-0602",
-          "title": "Refresh root engineering audit with per-package target-state classification and routed next candidates",
+          "title": "Refresh root tech-stack audit with per-package target-state classification and routed next candidates",
           "state": "done",
           "tasks": [
             {
-              "text": "Refresh root engineering audit with per-package target-state classification and routed next candidates (task #602)",
+              "text": "Refresh root tech-stack audit with per-package target-state classification and routed next candidates (task #602)",
               "done": true
             }
           ],
@@ -341,11 +341,11 @@
         },
         {
           "id": "AK-TASK-0634",
-          "title": "Reduce packages/pi-activity-strip from legacy-full to no local engineering surface",
+          "title": "Reduce packages/pi-activity-strip from legacy-full to no local tech-stack surface",
           "state": "done",
           "tasks": [
             {
-              "text": "Reduce packages/pi-activity-strip from legacy-full to no local engineering surface (task #634)",
+              "text": "Reduce packages/pi-activity-strip from legacy-full to no local tech-stack surface (task #634)",
               "done": true
             }
           ],
@@ -354,11 +354,11 @@
         },
         {
           "id": "AK-TASK-0635",
-          "title": "Reduce packages/pi-autonomous-session-control from legacy-full to no local engineering surface",
+          "title": "Reduce packages/pi-autonomous-session-control from legacy-full to no local tech-stack surface",
           "state": "done",
           "tasks": [
             {
-              "text": "Reduce packages/pi-autonomous-session-control from legacy-full to no local engineering surface (task #635)",
+              "text": "Reduce packages/pi-autonomous-session-control from legacy-full to no local tech-stack surface (task #635)",
               "done": true
             }
           ],
@@ -367,11 +367,11 @@
         },
         {
           "id": "AK-TASK-0636",
-          "title": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local engineering surface",
+          "title": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local tech-stack surface",
           "state": "done",
           "tasks": [
             {
-              "text": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local engineering surface (task #636)",
+              "text": "Reduce packages/pi-interaction/pi-interaction from legacy-full to reduced-form local tech-stack surface (task #636)",
               "done": true
             }
           ],
@@ -381,50 +381,41 @@
         {
           "id": "AK-TASK-0654",
           "title": "[TG4] Implement guarded repo-root classification for softwareco auto-registration",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "[TG4] Implement guarded repo-root classification for softwareco auto-registration (task #654)",
-              "done": false
+              "done": true
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": [
-            "deferred"
-          ],
-          "note": "Deferred:\n- reason: Hold package-local classifier work until agent-kernel decision #8 resolves the durable owner/policy for guarded repo bootstrap.\n- kind: until_decision\n- trigger_ref: decision:8"
+          "completed_at": "2026-06-05"
         },
         {
           "id": "AK-TASK-0655",
           "title": "[TG4] Wire guarded auto-registration into repo-aware runtime paths with explicit exclusions",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "[TG4] Wire guarded auto-registration into repo-aware runtime paths with explicit exclusions (task #655)",
-              "done": false
+              "done": true
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": [
-            "deferred"
-          ],
-          "note": "Deferred:\n- reason: Hold package-local guarded-bootstrap wiring until agent-kernel decision #8 resolves whether AK owns the canonical bootstrap path.\n- kind: until_decision\n- trigger_ref: decision:8"
+          "completed_at": "2026-06-05"
         },
         {
           "id": "AK-TASK-0656",
           "title": "[TG4] Verify guarded auto-registration with regression tests, release checks, and live Ghostty smoke",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "[TG4] Verify guarded auto-registration with regression tests, release checks, and live Ghostty smoke (task #656)",
-              "done": false
+              "done": true
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": [
-            "deferred"
-          ],
-          "note": "Deferred:\n- reason: Hold guarded-bootstrap verification until the decision packet in agent-kernel decides the owner/path that should actually be verified.\n- kind: until_decision\n- trigger_ref: decision:8"
+          "completed_at": "2026-06-05"
         },
         {
           "id": "AK-TASK-0662",
@@ -3215,16 +3206,2188 @@
           "completed_at": "2026-05-09"
         },
         {
-          "id": "AK-TASK-3843",
-          "title": "Implement authorized read-only Pi evidence review consumer v1",
-          "state": "claimed",
+          "id": "AK-TASK-2674",
+          "title": "Use orchestrator-supervised autoresearch campaign to fix stale segment campaign-start behavior",
+          "state": "done",
           "tasks": [
             {
-              "text": "Implement authorized read-only Pi evidence review consumer v1 (task #3843)",
+              "text": "Use orchestrator-supervised autoresearch campaign to fix stale segment campaign-start behavior (task #2674)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2689",
+          "title": "[SF4/IW8 owner handoff] Design AK close-frame operator UX in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SF4/IW8 owner handoff] Design AK close-frame operator UX in pi-society-orchestrator (task #2689)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-09"
+        },
+        {
+          "id": "AK-TASK-2693",
+          "title": "[SF4/IW8 owner implementation] Add read-only AK close-frame status to runtime-status",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SF4/IW8 owner implementation] Add read-only AK close-frame status to runtime-status (task #2693)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-09"
+        },
+        {
+          "id": "AK-TASK-2722",
+          "title": "Dogfood matrix autoresearch campaigns as implementation-wave substrate",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood matrix autoresearch campaigns as implementation-wave substrate (task #2722)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2749",
+          "title": "Prove bounded pi-autoresearch campaign endurance before matrix automation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prove bounded pi-autoresearch campaign endurance before matrix automation (task #2749)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2763",
+          "title": "Dogfood managed candidate-wave fan-in for integrated supervised autoresearch",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood managed candidate-wave fan-in for integrated supervised autoresearch (task #2763)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2768",
+          "title": "Bind matrix campaign cells to managed candidate-wave fan-in",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Bind matrix campaign cells to managed candidate-wave fan-in (task #2768)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2774",
+          "title": "Add matrix campaign aggregate review over managed cell waves",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add matrix campaign aggregate review over managed cell waves (task #2774)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2777",
+          "title": "Surface dashboard-first owner review route for candidate and matrix reviews",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Surface dashboard-first owner review route for candidate and matrix reviews (task #2777)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2784",
+          "title": "Harden autoresearch AK evidence projection dedupe and anchor metadata",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden autoresearch AK evidence projection dedupe and anchor metadata (task #2784)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2786",
+          "title": "Dogfood integrated supervised matrix campaign closeout",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood integrated supervised matrix campaign closeout (task #2786)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2787",
+          "title": "Make matrix campaign closeout evidence handoff actionable",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Make matrix campaign closeout evidence handoff actionable (task #2787)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2789",
+          "title": "Add canary campaign for orchestrator autoresearch matrix closeout",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add canary campaign for orchestrator autoresearch matrix closeout (task #2789)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2790",
+          "title": "Add long supervised autoresearch campaign dogfood contract",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add long supervised autoresearch campaign dogfood contract (task #2790)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2791",
+          "title": "Use real candidate peers to harden long campaign dogfood suite",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Use real candidate peers to harden long campaign dogfood suite (task #2791)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2794",
+          "title": "Run code-to-canvas live design autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run code-to-canvas live design autoresearch campaign (task #2794)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2815",
+          "title": "Harden autoresearch campaigns to route implementation through peer runners",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden autoresearch campaigns to route implementation through peer runners (task #2815)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2818",
+          "title": "Borrow Codex goal semantics for long-running autoresearch campaigns",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Borrow Codex goal semantics for long-running autoresearch campaigns (task #2818)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2829",
+          "title": "Restore governed autoresearch auto-continuation loop",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Restore governed autoresearch auto-continuation loop (task #2829)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-10"
+        },
+        {
+          "id": "AK-TASK-2835",
+          "title": "Expose autoresearch auto-continuation status gates",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Expose autoresearch auto-continuation status gates (task #2835)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-11"
+        },
+        {
+          "id": "AK-TASK-2837",
+          "title": "Add toolbox preflight to autoresearch follow-up",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add toolbox preflight to autoresearch follow-up (task #2837)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-11"
+        },
+        {
+          "id": "AK-TASK-2846",
+          "title": "Guard ASC subagent model selection failures",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Guard ASC subagent model selection failures (task #2846)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-11"
+        },
+        {
+          "id": "AK-TASK-2847",
+          "title": "Replace ASC tsc fallback dependency with tsgo-only typecheck",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Replace ASC tsc fallback dependency with tsgo-only typecheck (task #2847)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-11"
+        },
+        {
+          "id": "AK-TASK-2850",
+          "title": "Make ASC capability discovery route to toolbox and maps",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Make ASC capability discovery route to toolbox and maps (task #2850)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-11"
+        },
+        {
+          "id": "AK-TASK-2853",
+          "title": "Typecheck ASC public execution export",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Typecheck ASC public execution export (task #2853)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2856",
+          "title": "Align ASC prompt-vault compatibility version floor",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align ASC prompt-vault compatibility version floor (task #2856)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2857",
+          "title": "Harden ASC contract probe seams",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden ASC contract probe seams (task #2857)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2858",
+          "title": "Guard ASC dispatch request env policy",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Guard ASC dispatch request env policy (task #2858)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2860",
+          "title": "Isolate ASC live prompt-vault tests",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Isolate ASC live prompt-vault tests (task #2860)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2861",
+          "title": "Isolate ASC live prompt-vault tests",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Isolate ASC live prompt-vault tests (task #2861)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2863",
+          "title": "Finalize ASC live prompt-vault opt-in wording",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Finalize ASC live prompt-vault opt-in wording (task #2863)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2864",
+          "title": "Exclude ASC live prompt-vault files from default discovery",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Exclude ASC live prompt-vault files from default discovery (task #2864)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2872",
+          "title": "Fix ASC live prompt-vault vault-client readiness",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Fix ASC live prompt-vault vault-client readiness (task #2872)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2875",
+          "title": "Harden ASC rewind restore rollback and ledger guards",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden ASC rewind restore rollback and ledger guards (task #2875)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2876",
+          "title": "Align ASC release version truth to 0.1.5",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align ASC release version truth to 0.1.5 (task #2876)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2879",
+          "title": "Scope unscoped pi-extension npm package names",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Scope unscoped pi-extension npm package names (task #2879)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2886",
+          "title": "Root-manage remaining pi-extension release components",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Root-manage remaining pi-extension release components (task #2886)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2888",
+          "title": "Fix workstation inference prompt frontmatter",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Fix workstation inference prompt frontmatter (task #2888)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2889",
+          "title": "Refresh tech-stack review snapshot for release components",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Refresh tech-stack review snapshot for release components (task #2889)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2890",
+          "title": "Cut orchestrator ASC dependency to registry",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Cut orchestrator ASC dependency to registry (task #2890)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2891",
+          "title": "Harden GitHub npm upgrade workflow step",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden GitHub npm upgrade workflow step (task #2891)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-12"
+        },
+        {
+          "id": "AK-TASK-2892",
+          "title": "Configure npm trusted publisher for pi-model-selection",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Configure npm trusted publisher for pi-model-selection (task #2892)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2902",
+          "title": "Run integrated supervised autoresearch product dogfood campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run integrated supervised autoresearch product dogfood campaign (task #2902)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2907",
+          "title": "Run integrated supervised autoresearch product dogfood wave 2",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run integrated supervised autoresearch product dogfood wave 2 (task #2907)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2909",
+          "title": "Promote pi-model-selection to top-level support package",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Promote pi-model-selection to top-level support package (task #2909)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-13"
+        },
+        {
+          "id": "AK-TASK-2916",
+          "title": "Run pi-host compatibility canary expansion autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run pi-host compatibility canary expansion autoresearch campaign (task #2916)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2919",
+          "title": "Run monorepo quality-gate throughput and drift autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run monorepo quality-gate throughput and drift autoresearch campaign (task #2919)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2921",
+          "title": "Run matrix endurance and live observability autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run matrix endurance and live observability autoresearch campaign (task #2921)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2924",
+          "title": "Run metric-readiness trust campaign for pi-autoresearch dashboard export",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run metric-readiness trust campaign for pi-autoresearch dashboard export (task #2924)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2926",
+          "title": "Run candidate-wave reliability autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run candidate-wave reliability autoresearch campaign (task #2926)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2930",
+          "title": "Run authority handoff dashboard autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run authority handoff dashboard autoresearch campaign (task #2930)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2934",
+          "title": "Canonicalize pi-evalset-lab into pi-extensions monorepo",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Canonicalize pi-evalset-lab into pi-extensions monorepo (task #2934)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2935",
+          "title": "Run supervised self-hosting endurance autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run supervised self-hosting endurance autoresearch campaign (task #2935)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2942",
+          "title": "Update pi-evalset-lab docs and deprecate legacy repo",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Update pi-evalset-lab docs and deprecate legacy repo (task #2942)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2944",
+          "title": "Archive remaining legacy pi-extension folders",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Archive remaining legacy pi-extension folders (task #2944)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2947",
+          "title": "Codify measured implementation-wave campaign substrate adoption playbook",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Codify measured implementation-wave campaign substrate adoption playbook (task #2947)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2948",
+          "title": "Prepare campaign automation graduation decision packet from adoption corpus",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prepare campaign automation graduation decision packet from adoption corpus (task #2948)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2950",
+          "title": "Select next real non-meta level-1 measured campaign adoption wave",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Select next real non-meta level-1 measured campaign adoption wave (task #2950)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2951",
+          "title": "Delete legacy programming pi-extensions workspace",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Delete legacy programming pi-extensions workspace (task #2951)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2953",
+          "title": "Run root compatibility/release control-plane level-1 measured campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run root compatibility/release control-plane level-1 measured campaign (task #2953)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2954",
+          "title": "Run level-1 missing/stalled/late lane recovery campaign before any level-2 proposal",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run level-1 missing/stalled/late lane recovery campaign before any level-2 proposal (task #2954)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2955",
+          "title": "Select second non-meta level-1 measured campaign adoption wave after recovery proof",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Select second non-meta level-1 measured campaign adoption wave after recovery proof (task #2955)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2957",
+          "title": "Run pi-society-orchestrator loop/nexus boundary hardening matrix campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run pi-society-orchestrator loop/nexus boundary hardening matrix campaign (task #2957)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2959",
+          "title": "Run post-fan-in campaign finalizer automation matrix",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run post-fan-in campaign finalizer automation matrix (task #2959)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2962",
+          "title": "Run pi-autoresearch continuation/recovery level-1 matrix campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run pi-autoresearch continuation/recovery level-1 matrix campaign (task #2962)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2963",
+          "title": "Run target 3 whole-matrix visible-candidate-peer implementation wave",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run target 3 whole-matrix visible-candidate-peer implementation wave (task #2963)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2965",
+          "title": "Synthesize Target 3 whole-matrix execution controller runbook from visible candidate lanes",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Synthesize Target 3 whole-matrix execution controller runbook from visible candidate lanes (task #2965)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2967",
+          "title": "Close level-1 measured campaign arc and open level-2 automation decision packet",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Close level-1 measured campaign arc and open level-2 automation decision packet (task #2967)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2971",
+          "title": "Repair level-2 decision lifecycle and clean Target 3 candidate worktrees",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Repair level-2 decision lifecycle and clean Target 3 candidate worktrees (task #2971)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2973",
+          "title": "Record ADR and post-ADR continuation plan for level-2 checkpointed campaign automation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Record ADR and post-ADR continuation plan for level-2 checkpointed campaign automation (task #2973)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2974",
+          "title": "Adjust level-2 implementation workflow for campaign-driven execution",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Adjust level-2 implementation workflow for campaign-driven execution (task #2974)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2976",
+          "title": "Run Slice 1 level-2 packet-only planning implementation campaign in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run Slice 1 level-2 packet-only planning implementation campaign in pi-society-orchestrator (task #2976)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2979",
+          "title": "Run Slice 2 level-2 candidate binding implementation campaign in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run Slice 2 level-2 candidate binding implementation campaign in pi-society-orchestrator (task #2979)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2981",
+          "title": "Run Slice 3 level-2 review-packet generation campaign in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run Slice 3 level-2 review-packet generation campaign in pi-society-orchestrator (task #2981)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2983",
+          "title": "Run Slice 4 level-2 finalizer-token request campaign in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run Slice 4 level-2 finalizer-token request campaign in pi-society-orchestrator (task #2983)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2984",
+          "title": "Run Slice 5 level-2 operator UX dashboard integration in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run Slice 5 level-2 operator UX dashboard integration in pi-society-orchestrator (task #2984)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2987",
+          "title": "Run Slice 6 visible candidate-peer level-2 campaign in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run Slice 6 visible candidate-peer level-2 campaign in pi-society-orchestrator (task #2987)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2989",
+          "title": "Close level-2 campaign automation wave and open level-3 autonomy problem intent",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Close level-2 campaign automation wave and open level-3 autonomy problem intent (task #2989)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2992",
+          "title": "Draft level-3 autonomous campaign runner RFC",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Draft level-3 autonomous campaign runner RFC (task #2992)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-14"
+        },
+        {
+          "id": "AK-TASK-2994",
+          "title": "Review level-3 autonomous campaign runner RFC for ADR readiness",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Review level-3 autonomous campaign runner RFC for ADR readiness (task #2994)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-2995",
+          "title": "Record level-3 ADR and campaign-based implementation plan",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Record level-3 ADR and campaign-based implementation plan (task #2995)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-2996",
+          "title": "Implement Slice 1 level-3 manifest preflight in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement Slice 1 level-3 manifest preflight in pi-society-orchestrator (task #2996)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-2999",
+          "title": "Implement Slice 2 level-3 autonomous slice sequencing dry-run in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement Slice 2 level-3 autonomous slice sequencing dry-run in pi-society-orchestrator (task #2999)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-3003",
+          "title": "Implement Slice 3 level-3 visible candidate lifecycle automation in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement Slice 3 level-3 visible candidate lifecycle automation in pi-society-orchestrator (task #3003)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-3005",
+          "title": "Implement Slice 4 level-3 measurement export review packet automation in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement Slice 4 level-3 measurement export review packet automation in pi-society-orchestrator (task #3005)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3006",
+          "title": "Implement Slice 4 level-3 measurement export review automation in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement Slice 4 level-3 measurement export review automation in pi-society-orchestrator (task #3006)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-3007",
+          "title": "Implement Slice 5 level-3 authorized finalizer and cleanup automation in pi-society-orchestrator",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement Slice 5 level-3 authorized finalizer and cleanup automation in pi-society-orchestrator (task #3007)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-3008",
+          "title": "Recenter Level-3 runner on matrix/cell autonomy and edge dogfooding",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Recenter Level-3 runner on matrix/cell autonomy and edge dogfooding (task #3008)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-3009",
+          "title": "Add per-cell metrics and multi-lane cell generation to Level-3 matrix dogfood",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add per-cell metrics and multi-lane cell generation to Level-3 matrix dogfood (task #3009)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-15"
+        },
+        {
+          "id": "AK-TASK-3034",
+          "title": "Improve ASC self capabilities with bounded Level-4 dogfood slice",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Improve ASC self capabilities with bounded Level-4 dogfood slice (task #3034)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-20"
+        },
+        {
+          "id": "AK-TASK-3036",
+          "title": "Harden Level-4 visible candidate lane names against ENAMETOOLONG",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden Level-4 visible candidate lane names against ENAMETOOLONG (task #3036)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-16"
+        },
+        {
+          "id": "AK-TASK-3040",
+          "title": "Dogfood Level-4 matrix on candidate peer substrate hardening",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood Level-4 matrix on candidate peer substrate hardening (task #3040)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3060",
+          "title": "Dogfood measured Level-4 candidate-review journey",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Dogfood measured Level-4 candidate-review journey (task #3060)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-16"
+        },
+        {
+          "id": "AK-TASK-3095",
+          "title": "Close Pi-owned intercom handoff identity and envelope ergonomics gaps",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Close Pi-owned intercom handoff identity and envelope ergonomics gaps (task #3095)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-17"
+        },
+        {
+          "id": "AK-TASK-3126",
+          "title": "Review DesignMD visual-dossier Pi critique handoff seam",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Review DesignMD visual-dossier Pi critique handoff seam (task #3126)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-18"
+        },
+        {
+          "id": "AK-TASK-3314",
+          "title": "Stabilize dirty extension capability wave for commit readiness",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Stabilize dirty extension capability wave for commit readiness (task #3314)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-21"
+        },
+        {
+          "id": "AK-TASK-3318",
+          "title": "pi-agent-vent: decide hard-delete policy beyond archive retention",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "pi-agent-vent: decide hard-delete policy beyond archive retention (task #3318)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-22"
+        },
+        {
+          "id": "AK-TASK-3319",
+          "title": "pi-agent-vent: add category/tool/package review facets",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "pi-agent-vent: add category/tool/package review facets (task #3319)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-22"
+        },
+        {
+          "id": "AK-TASK-3321",
+          "title": "Harden root package-quality-gate target resolution from package cwd",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden root package-quality-gate target resolution from package cwd (task #3321)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-22"
+        },
+        {
+          "id": "AK-TASK-3333",
+          "title": "[SF13 owner-route] Render no-wave active-frame and close-check gate guidance",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SF13 owner-route] Render no-wave active-frame and close-check gate guidance (task #3333)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-22"
+        },
+        {
+          "id": "AK-TASK-3397",
+          "title": "Refactor oversized pi-little-helpers visible loop surfaces",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Refactor oversized pi-little-helpers visible loop surfaces (task #3397)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-25"
+        },
+        {
+          "id": "AK-TASK-3398",
+          "title": "Consolidate file-budget classifier parity across advisory surfaces",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Consolidate file-budget classifier parity across advisory surfaces (task #3398)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-25"
+        },
+        {
+          "id": "AK-TASK-3400",
+          "title": "Decide shared file-budget policy module boundary across packages",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Decide shared file-budget policy module boundary across packages (task #3400)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-25"
+        },
+        {
+          "id": "AK-TASK-3405",
+          "title": "Normalize trusted absolute context_plan path seeds and dedupe seed-risk output",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Normalize trusted absolute context_plan path seeds and dedupe seed-risk output (task #3405)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-25"
+        },
+        {
+          "id": "AK-TASK-3416",
+          "title": "Harden context-packer live install/reload verification after stale tool-wrapper failure",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden context-packer live install/reload verification after stale tool-wrapper failure (task #3416)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-27"
+        },
+        {
+          "id": "AK-TASK-3423",
+          "title": "Adopt repo-loop-validation-v1 command surface",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Adopt repo-loop-validation-v1 command surface (task #3423)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3427",
+          "title": "Adopt package loop validation for remaining pi-extensions packages",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Adopt package loop validation for remaining pi-extensions packages (task #3427)",
               "done": false
             }
           ],
-          "dod": "Task reaches done in society.v2.db with evidence recorded."
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-3461",
+          "title": "Self-evolutionary Pi operator UX autoresearch matrix",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Self-evolutionary Pi operator UX autoresearch matrix (task #3461)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-30"
+        },
+        {
+          "id": "AK-TASK-3462",
+          "title": "Matrix autoresearch campaign for self-evolutionary Pi operator UX",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Matrix autoresearch campaign for self-evolutionary Pi operator UX (task #3462)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-05-30"
+        },
+        {
+          "id": "AK-TASK-3463",
+          "title": "Add self diagnostic review intent and recovery cards",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add self diagnostic review intent and recovery cards (task #3463)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3464",
+          "title": "Document self, toolbox, and agent_vent diagnostic boundary",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Document self, toolbox, and agent_vent diagnostic boundary (task #3464)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3465",
+          "title": "Add agent_vent preview and anti-junk diagnostic constraints",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add agent_vent preview and anti-junk diagnostic constraints (task #3465)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3466",
+          "title": "Improve toolbox agent_vent activation guidance for self diagnostic candidates",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Improve toolbox agent_vent activation guidance for self diagnostic candidates (task #3466)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3467",
+          "title": "Add self diagnostic-review continuation action",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add self diagnostic-review continuation action (task #3467)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3468",
+          "title": "Make self diagnostic review use context and mirror evidence",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Make self diagnostic review use context and mirror evidence (task #3468)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3470",
+          "title": "Teach agent_vent category normalization common workflow aliases",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Teach agent_vent category normalization common workflow aliases (task #3470)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3472",
+          "title": "Clarify autoresearch widget candidate and failed run semantics",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Clarify autoresearch widget candidate and failed run semantics (task #3472)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3473",
+          "title": "Prefer agent_vent preview in self diagnostic candidate handoff",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prefer agent_vent preview in self diagnostic candidate handoff (task #3473)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3475",
+          "title": "Improve context-end handoff awareness",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Improve context-end handoff awareness (task #3475)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3477",
+          "title": "Recognize self-evolution diagnostic queries",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Recognize self-evolution diagnostic queries (task #3477)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3480",
+          "title": "Honor diagnostic review correction context in self-evolution",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Honor diagnostic review correction context in self-evolution (task #3480)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3481",
+          "title": "Detect stale autoresearch candidate artifacts before keep/finalize guidance",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Detect stale autoresearch candidate artifacts before keep/finalize guidance (task #3481)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3482",
+          "title": "Add ASC self-contained compaction handoff prompt affordance",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add ASC self-contained compaction handoff prompt affordance (task #3482)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3483",
+          "title": "Align handoff ownership and autoresearch candidate posture",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Align handoff ownership and autoresearch candidate posture (task #3483)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3484",
+          "title": "Surface autoresearch open candidate review posture",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Surface autoresearch open candidate review posture (task #3484)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3485",
+          "title": "Add autoresearch open candidate review shortcut",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add autoresearch open candidate review shortcut (task #3485)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-06-05"
+        },
+        {
+          "id": "AK-TASK-3506",
+          "title": "Reduce ASC self file-budget overages surfaced by package quality gate",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Reduce ASC self file-budget overages surfaced by package quality gate (task #3506)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Deferred from atomic cleanup pass because splitting extensions/self.ts, resolvers/action.ts, and query-resolver.ts is broader refactor risk than the validation-cleanup fix; package quality gate is warn-only, but repeated warnings should be retired before ratcheting file-budget enforcement.\n- kind: manual\n- review_at: 2026-07-19"
+        },
+        {
+          "id": "AK-TASK-3552",
+          "title": "Close typed self-evolution loop end-to-end",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Close typed self-evolution loop end-to-end (task #3552)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3553",
+          "title": "10x extension quality and dogfood campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "10x extension quality and dogfood campaign (task #3553)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3555",
+          "title": "Fail closed when workflow cognitive-tool loading fails",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Fail closed when workflow cognitive-tool loading fails (task #3555)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3561",
+          "title": "Eliminate residual image-read TOCTOU and runtime-footer cache identity assumptions",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Eliminate residual image-read TOCTOU and runtime-footer cache identity assumptions (task #3561)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3562",
+          "title": "Integrate, validate, and commit the completed extension improvement campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Integrate, validate, and commit the completed extension improvement campaign (task #3562)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3563",
+          "title": "Resolve dispatch_subagent correctness, control, and quality gaps",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Resolve dispatch_subagent correctness, control, and quality gaps (task #3563)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3567",
+          "title": "Handle pi-activity-strip broker client reset errors without Electron dialogs",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Handle pi-activity-strip broker client reset errors without Electron dialogs (task #3567)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3570",
+          "title": "Harden context-packer live docs discovery and toolbox activation",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden context-packer live docs discovery and toolbox activation (task #3570)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3572",
+          "title": "Enforce Society Orchestrator workflow concurrency and cancellation truth",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Enforce Society Orchestrator workflow concurrency and cancellation truth (task #3572)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-10"
+        },
+        {
+          "id": "AK-TASK-3575",
+          "title": "Complete deferred Transcendent closure for Society Orchestrator concurrency candidate",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Complete deferred Transcendent closure for Society Orchestrator concurrency candidate (task #3575)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3578",
+          "title": "Add seven-day rolling retention for loop checkpoints",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add seven-day rolling retention for loop checkpoints (task #3578)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3582",
+          "title": "Complete ASC effect-receipt provenance seam from Transcendent iteration",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Complete ASC effect-receipt provenance seam from Transcendent iteration (task #3582)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3585",
+          "title": "Issue confirmed-no-effects receipts for provable pre-spawn failures",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Issue confirmed-no-effects receipts for provable pre-spawn failures (task #3585)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3588",
+          "title": "Build snapshot-based Pi edit extension from session failure evidence",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Build snapshot-based Pi edit extension from session failure evidence (task #3588)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3589",
+          "title": "Complete context-packer execution truth and live dogfood",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Complete context-packer execution truth and live dogfood (task #3589)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3592",
+          "title": "Make toolbox active-set mutations verified and rollback-safe",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Make toolbox active-set mutations verified and rollback-safe (task #3592)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3593",
+          "title": "Add guarded standard read/edit override and dogfood snapshot protocol",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add guarded standard read/edit override and dogfood snapshot protocol (task #3593)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3601",
+          "title": "Stabilize and commit pi-snapshot-edit with telemetry-owner reuse",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Stabilize and commit pi-snapshot-edit with telemetry-owner reuse (task #3601)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3604",
+          "title": "Run low-token snapshot editing protocol autoresearch campaign",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Run low-token snapshot editing protocol autoresearch campaign (task #3604)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3616",
+          "title": "[SF14/IW14-A Task E placeholder] Confirm Pi owner scope for presentation-policy evidence and deterministic readback adapter",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SF14/IW14-A Task E placeholder] Confirm Pi owner scope for presentation-policy evidence and deterministic readback adapter (task #3616)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3619",
+          "title": "Replace numbered coordinate protocol with snapshot occurrence selectors",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Replace numbered coordinate protocol with snapshot occurrence selectors (task #3619)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3624",
+          "title": "Prepare pi-snapshot-edit for first public npm release",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prepare pi-snapshot-edit for first public npm release (task #3624)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3625",
+          "title": "Harden pi-snapshot-edit for restricted-license npm release",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Harden pi-snapshot-edit for restricted-license npm release (task #3625)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3627",
+          "title": "Canary: declare engineering-core v0.6 planning and advisor capabilities",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Canary: declare engineering-core v0.6 planning and advisor capabilities (task #3627)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3649",
+          "title": "Add proof-carrying adaptive visible-loop controller Wave 1",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add proof-carrying adaptive visible-loop controller Wave 1 (task #3649)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3650",
+          "title": "Make pi-snapshot-edit own standard read/edit by default",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Make pi-snapshot-edit own standard read/edit by default (task #3650)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3653",
+          "title": "Integrate default snapshot ownership and release pi-snapshot-edit 0.3.0",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Integrate default snapshot ownership and release pi-snapshot-edit 0.3.0 (task #3653)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3656",
+          "title": "Split visible-loop launch and completion transitions after adaptive Wave 1",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Split visible-loop launch and completion transitions after adaptive Wave 1 (task #3656)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "labels": [
+            "deferred"
+          ],
+          "note": "Deferred:\n- reason: Wave 1 is verified and feature-flagged; defer behavior-preserving readability split so it does not destabilize the controller landing\n- kind: manual\n- review_at: 2026-07-18"
+        },
+        {
+          "id": "AK-TASK-3657",
+          "title": "Make adaptive visible-loop controller the zero-configuration default",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Make adaptive visible-loop controller the zero-configuration default (task #3657)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3724",
+          "title": "[SF14/IW14-A G3] Run Pi owner-native presentation shadow evidence without policy selection",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "[SF14/IW14-A G3] Run Pi owner-native presentation shadow evidence without policy selection (task #3724)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3728",
+          "title": "pi-context-packer: evaluate source-list provider adoption before wiring",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "pi-context-packer: evaluate source-list provider adoption before wiring (task #3728)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3782",
+          "title": "Adopt engineering-core v0.7.0 exact release commit",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Adopt engineering-core v0.7.0 exact release commit (task #3782)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-11"
+        },
+        {
+          "id": "AK-TASK-3807",
+          "title": "Characterize and separate agent role policy from execution topology",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Characterize and separate agent role policy from execution topology (task #3807)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-12"
+        },
+        {
+          "id": "AK-TASK-3812",
+          "title": "Reconcile canonical agent role semantics and strengthen builder tester minimal",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Reconcile canonical agent role semantics and strengthen builder tester minimal (task #3812)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-12"
+        },
+        {
+          "id": "AK-TASK-3820",
+          "title": "Decision 52 I5: implement Pi ROCS runner protocol verification and gated inspect path",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Decision 52 I5: implement Pi ROCS runner protocol verification and gated inspect path (task #3820)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-3821",
+          "title": "Decision 52 I6: implement prompt-run semantic preflight lifecycle and TUI dogfood gate",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "Decision 52 I6: implement prompt-run semantic preflight lifecycle and TUI dogfood gate (task #3821)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-3840",
+          "title": "Design fail-closed Prompt Vault dispatch enforcement",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Design fail-closed Prompt Vault dispatch enforcement (task #3840)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-12"
+        },
+        {
+          "id": "AK-TASK-3843",
+          "title": "Implement authorized read-only Pi evidence review consumer v1",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Implement authorized read-only Pi evidence review consumer v1 (task #3843)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-07-12"
+        },
+        {
+          "id": "AK-TASK-3847",
+          "title": "IW6-A Implement aggregate fail-closed Vault authorization core",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "IW6-A Implement aggregate fail-closed Vault authorization core (task #3847)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-3848",
+          "title": "IW6-B Enforce Vault authorization across ingresses and durable handoff",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "IW6-B Enforce Vault authorization across ingresses and durable handoff (task #3848)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
+        },
+        {
+          "id": "AK-TASK-3849",
+          "title": "IW6-D Prove packed and installed Vault dispatch enforcement",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "IW6-D Prove packed and installed Vault dispatch enforcement (task #3849)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded."
         }
       ]
     }
