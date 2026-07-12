@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "a2b8350aa2debc5c42040e16591553920212b241"
+created_at: "2026-07-12T12:28:32Z"
+intent: "Register pi-modes across release-please config, README/terse package lists, root-capabilities, engineering-review audit count, and the new behavior-first runtime-capability-map"
+files:
+  - ".release-please-config.json"
+  - ".release-please-manifest.json"
+  - "README.md"
+  - "README.terse.md"
+  - "docs/project/engineering-review-surfaces.md"
+  - "docs/project/root-capabilities.md"
+  - "docs/project/runtime-capability-map.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 2
+  total: 7
+  rationale: "Root control-plane registration of the new package, separate from package code"
