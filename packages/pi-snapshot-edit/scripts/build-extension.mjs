@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "bundles the extension and injects a validated release build marker"
+// read_when:
+//   - "changing package build output or bundle integrity checks"
+// ---
 
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";

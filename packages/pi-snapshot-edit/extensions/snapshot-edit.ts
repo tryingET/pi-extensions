@@ -1,3 +1,8 @@
+// ---
+// summary: "registers snapshot-bound read and edit tools plus override and release-smoke commands"
+// read_when:
+//   - "changing extension tool schemas, lifecycle hooks, or standard tool overrides"
+// ---
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
   type ExtensionAPI,

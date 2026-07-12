@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "compares packed and installed artifacts before running the rpc smoke client"
+# read_when:
+#   - "checking release tarball whitelists or offline installation smoke coverage"
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

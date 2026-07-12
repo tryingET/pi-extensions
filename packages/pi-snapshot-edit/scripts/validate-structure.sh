@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "checks required package paths, modes, copier answers, and markdown structure"
+# read_when:
+#   - "updating package scaffold requirements or executable expectations"
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

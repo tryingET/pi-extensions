@@ -1,3 +1,8 @@
+// ---
+// summary: "benchmarks token cost and mutation correctness across five snapshot edit protocols"
+// read_when:
+//   - "modifying protocol fixtures, transcript envelopes, or token metrics"
+// ---
 import { getEncoding } from "js-tiktoken";
 import { CANONICAL_BASE_ALIAS, lineIds, render } from "./protocol-common.mjs";
 import { applyCanonical, executeProtocol } from "./protocol-simulator.mjs";

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "plans and executes claimed blinded model-screen suites with atomic results"
+// read_when:
+//   - "operating screening or crossover model evaluations"
+// ---
 import { randomInt, randomUUID } from "node:crypto";
 import { chmod, link, lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";

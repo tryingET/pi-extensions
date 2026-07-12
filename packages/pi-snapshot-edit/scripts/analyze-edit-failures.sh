@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "derives a privacy-limited edit failure baseline from pi session jsonl records"
+# read_when:
+#   - "refreshing or auditing empirical edit error categories"
+# ---
 set -euo pipefail
 
 session_root="${1:-$HOME/.pi/agent/sessions}"

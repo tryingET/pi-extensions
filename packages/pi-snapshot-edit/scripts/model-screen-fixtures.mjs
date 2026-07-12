@@ -1,3 +1,8 @@
+// ---
+// summary: "defines model-screen workloads, protocol contracts, prompts, and expected edits"
+// read_when:
+//   - "reviewing blinded screening fixtures or protocol prompt construction"
+// ---
 import { CANONICAL_BASE_ALIAS, lineIds, render } from "./protocol-common.mjs";
 import { applyCanonical } from "./protocol-simulator.mjs";
 

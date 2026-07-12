@@ -1,3 +1,8 @@
+// ---
+// summary: "coordinates snapshot reads, stale-safe atomic edits, previews, and revision storage"
+// read_when:
+//   - "changing snapshot service limits, mutation safety, or read and edit responses"
+// ---
 import { SNAPSHOT_EDIT_HELPER_BUILD_MARKER } from "./build-marker.js";
 import { digestBytes, SnapshotStore } from "./snapshot-store.js";
 import {

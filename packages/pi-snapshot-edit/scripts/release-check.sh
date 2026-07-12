@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "validates deterministic builds, publish contents, and isolated release installation"
+# read_when:
+#   - "preparing or troubleshooting a package release"
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "drives an isolated pi rpc client through packed extension release smoke scenarios"
+// read_when:
+//   - "debugging release-only commands, reload behavior, or revision expiry"
+// ---
 
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";

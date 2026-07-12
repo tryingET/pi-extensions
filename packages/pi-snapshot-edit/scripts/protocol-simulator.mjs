@@ -1,3 +1,8 @@
+// ---
+// summary: "simulates and validates canonical mutations for protocols a through e"
+// read_when:
+//   - "changing protocol execution semantics or overlap and selector validation"
+// ---
 import { lineIds, revisionAlias } from "./protocol-common.mjs";
 
 const insert = (afterLine, newLines) => ({ op: "insert", afterLine, newLines });

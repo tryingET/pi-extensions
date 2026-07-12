@@ -1,3 +1,8 @@
+// ---
+// summary: "runs blinded pi model calls and strictly scores protocol screening responses"
+// read_when:
+//   - "changing model-screen parsing, process isolation, scoring, or aggregation"
+// ---
 import { spawn } from "node:child_process";
 import {
   expectedLines,

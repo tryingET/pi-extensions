@@ -1,3 +1,8 @@
+// ---
+// summary: "provides canonical rendering, revision aliases, and stable line identifiers"
+// read_when:
+//   - "changing shared protocol identity or text rendering primitives"
+// ---
 import { createHash } from "node:crypto";
 
 const aliasWords = [

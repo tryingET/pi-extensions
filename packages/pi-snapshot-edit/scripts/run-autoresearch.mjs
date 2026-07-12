@@ -1,3 +1,8 @@
+// ---
+// summary: "writes protocol token aggregates and prints the selected autoresearch metric"
+// read_when:
+//   - "running the benchmark report or selecting its reported protocol"
+// ---
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
