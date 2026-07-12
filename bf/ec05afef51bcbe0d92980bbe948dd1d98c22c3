@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "bfec05afef51bcbe0d92980bbe948dd1d98c22c3"
+created_at: "2026-07-12T13:53:05Z"
+intent: "Normalize whitespace in public pi-modes package documentation so the publication diff passes git diff --check"
+files:
+  - "packages/pi-modes/README.md"
+  - "packages/pi-modes/docs/engineering.local.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "fail"
+group:
+  index: 1
+  total: 1
+  rationale: "Public package diff hygiene; full gate blocked by tmpfs ENOSPC in unrelated pi-agent-vent artifact install"
