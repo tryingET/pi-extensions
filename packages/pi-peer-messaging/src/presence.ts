@@ -1,3 +1,8 @@
+// ---
+// summary: normalizes peer registration and presence updates including runtime fallback aliases
+// read_when:
+//   - changing peer names, address labels, status, or activity timestamps
+// ---
 import type { PeerPresence } from "./contracts.ts";
 
 export const DEFAULT_RUNTIME_ALIAS_PREFIX = "peer-session";

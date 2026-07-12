@@ -1,3 +1,8 @@
+// ---
+// summary: tests intercom extension registration, lifecycle concurrency, delegation, and inbound delivery
+// read_when:
+//   - changing the pi extension hooks, runtime factory, or registered intercom tool
+// ---
 import assert from "node:assert/strict";
 import test from "node:test";
 

@@ -1,3 +1,8 @@
+// ---
+// summary: verifies stable peer contracts, boundary metadata, runtime wrapping, and stub behavior
+// read_when:
+//   - changing exported peer contracts, validation rules, or boundary guarantees
+// ---
 import assert from "node:assert/strict";
 import test from "node:test";
 

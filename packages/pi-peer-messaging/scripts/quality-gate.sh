@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: delegates package validation stages to the monorepo simple-package quality gate
+# read_when:
+#   - running or changing peer-messaging quality-gate stages
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

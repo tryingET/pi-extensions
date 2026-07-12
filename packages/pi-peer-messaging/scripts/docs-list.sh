@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: resolves and runs the canonical documentation listing validator for this package
+# read_when:
+#   - validating package documentation or troubleshooting docs-list resolution
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,3 +1,8 @@
+// ---
+// summary: registers the intercom tool and session lifecycle against the peer-messaging runtime
+// read_when:
+//   - changing intercom tool parameters, lifecycle hooks, or runtime initialization
+// ---
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 

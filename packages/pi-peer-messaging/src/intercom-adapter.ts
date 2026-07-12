@@ -1,3 +1,8 @@
+// ---
+// summary: adapts intercom actions onto the stable peer-messaging runtime and tracks inbound protocol state
+// read_when:
+//   - changing intercom actions, replies, pending messages, or peer protocol supervision
+// ---
 import { randomUUID } from "node:crypto";
 
 import type {

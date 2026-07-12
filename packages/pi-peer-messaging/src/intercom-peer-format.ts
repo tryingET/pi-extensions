@@ -1,3 +1,8 @@
+// ---
+// summary: formats peer identities, targets, attachments, message bodies, and ambiguity diagnostics
+// read_when:
+//   - changing user-visible peer labels or intercom message formatting
+// ---
 import type { PeerAttachment, PeerMessage, PeerPresence } from "./contracts.ts";
 
 const PENDING_PREVIEW_LENGTH = 80;
