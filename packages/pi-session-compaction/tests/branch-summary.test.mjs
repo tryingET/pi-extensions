@@ -1,3 +1,8 @@
+/**
+summary: "Tests branch-summary instruction composition, config selection, runtime skip paths, and failure warnings."
+read_when:
+  - "Changing branch-summary augmentation contracts, files-touched inclusion rules, or error handling."
+*/
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

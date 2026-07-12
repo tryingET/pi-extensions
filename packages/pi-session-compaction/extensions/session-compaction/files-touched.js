@@ -1,4 +1,7 @@
 /**
+summary: "Recovers file operations from successful session tool calls and renders canonical files-touched manifests."
+read_when:
+  - "Changing tracked tool parsing, path normalization, move handling, operation codes, or manifest formatting."
  * Files-touched recovery and manifest rendering for compaction summaries.
  *
  * Ported from dot314 grounded-compaction's shared files-touched core, with

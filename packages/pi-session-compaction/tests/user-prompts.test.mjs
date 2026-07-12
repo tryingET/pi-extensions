@@ -1,3 +1,8 @@
+/**
+summary: "Tests skill and command recovery, prompt extraction and merging, compaction formatting, and command-store pruning."
+read_when:
+  - "Changing user-prompt preservation, slash-command matching, legacy summary parsing, or tracked-command storage."
+*/
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

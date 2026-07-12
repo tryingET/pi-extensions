@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+summary: "Validates workstation inference package metadata, Pi manifests, scripts, publish settings, and engineering lane."
+read_when:
+  - "Changing package.json structure requirements, Pi extension manifests, publish policy, or engineering-lane validation."
+*/
 
 import fs from "node:fs";
 

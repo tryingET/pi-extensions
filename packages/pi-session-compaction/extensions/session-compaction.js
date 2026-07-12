@@ -1,3 +1,8 @@
+/**
+summary: "Registers live session compaction hooks, guided commands, and the fresh-session handoff tool."
+read_when:
+  - "Changing live compaction activation, focus choices, handoff registration, or tool parameters."
+*/
 import { Type } from "typebox";
 import {
   buildSessionCompactionHandoffToolResult,

@@ -1,4 +1,7 @@
 /**
+summary: "Guards and registers input tracking and session-before-compact handlers without duplicate activation."
+read_when:
+  - "Changing live registration preflights, duplicate-handler protection, tracked-command cleanup, or extension wiring."
  * Non-live registration guard for the future pi-session-compaction extension entrypoint.
  *
  * This file intentionally does not make the package live. It provides the

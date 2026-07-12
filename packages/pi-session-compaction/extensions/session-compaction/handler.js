@@ -1,4 +1,7 @@
 /**
+summary: "Builds and runs guarded custom compaction summaries with model, prompt, history, and manifest preservation."
+read_when:
+  - "Changing compaction config, history boundaries, prompt assembly, model fallback, abort handling, or result shape."
  * Pure/testable session_before_compact handler support.
  *
  * This module intentionally does not register a live Pi extension hook. It wires

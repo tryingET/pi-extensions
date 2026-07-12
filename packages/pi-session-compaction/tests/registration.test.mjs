@@ -1,3 +1,8 @@
+/**
+summary: "Tests guarded compaction registration, input tracking, command cleanup, and live command and tool surfaces."
+read_when:
+  - "Changing registration preflights, extension activation, input handlers, compact commands, or handoff tools."
+*/
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

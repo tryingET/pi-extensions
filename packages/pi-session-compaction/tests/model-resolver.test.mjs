@@ -1,3 +1,8 @@
+/**
+summary: "Tests thinking-level normalization, preset matching, model references, auth compatibility, and summarizer selection."
+read_when:
+  - "Changing model-resolution primitives, provider preference, preset fallbacks, reasoning support, or auth APIs."
+*/
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

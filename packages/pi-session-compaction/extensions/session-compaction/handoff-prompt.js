@@ -1,3 +1,8 @@
+/**
+summary: "Builds truthful operator-pasteable fresh-session handoff prompts with explicit authority boundaries."
+read_when:
+  - "Changing handoff fields, discovery rendering, startup reminders, argument parsing, or non-authorization language."
+*/
 const DEFAULT_AUTHORITY_BOUNDARIES = [
   "AK + society DB remain canonical for tasks, evidence, decisions, and lineage.",
   "Git status/diff/log are code-state truth; verify before committing or closing work.",

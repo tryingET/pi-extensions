@@ -1,4 +1,7 @@
 /**
+summary: "Builds optional branch-summary instructions from prompt contracts, focus text, and files-touched manifests."
+read_when:
+  - "Changing branch-summary prompt loading, files-touched inclusion, focus handling, or augmentation failure behavior."
  * Non-live branch-tree summary augmentation helpers.
  *
  * These helpers prepare optional `session_before_tree` custom instructions, but

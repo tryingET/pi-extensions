@@ -1,3 +1,8 @@
+/**
+summary: "Resolves current or preset summarizer models, thinking levels, provider preference, and authentication."
+read_when:
+  - "Changing compaction preset matching, fallback model selection, thinking-level mapping, or model authentication."
+*/
 import {
   modelSelectionInternals,
   PREFERRED_PROVIDERS,

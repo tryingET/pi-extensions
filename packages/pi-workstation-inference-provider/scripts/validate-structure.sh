@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Checks the workstation inference scaffold's required files, directories, executable modes, metadata, and markdown structure."
+# read_when:
+#   - "Changing scaffold contents, executable requirements, Copier keys, package layout rules, or documentation validation."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

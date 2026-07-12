@@ -1,3 +1,8 @@
+/**
+summary: "Tests compaction config and instruction parsing, span derivation, summary assembly, fallback paths, and aborts."
+read_when:
+  - "Changing the session compaction handler, prompt contract, model fallback, split-turn behavior, or preserved artifacts."
+*/
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";

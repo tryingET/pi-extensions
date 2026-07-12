@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Checks publish metadata and file whitelists, dry-runs npm release, and optionally smoke-tests a packed Pi extension."
+# read_when:
+#   - "Changing release prerequisites, packed-file verification, isolated Pi installation, smoke checks, or artifact cleanup."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

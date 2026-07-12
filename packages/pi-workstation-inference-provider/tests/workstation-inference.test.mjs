@@ -1,3 +1,8 @@
+/**
+summary: "Tests workstation contract loading, health caching and cancellation, provider registration, commands, and stream failures."
+read_when:
+  - "Changing workstation inference contracts, health behavior, provider models, lane-op integration, or stream error handling."
+*/
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

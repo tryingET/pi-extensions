@@ -1,3 +1,8 @@
+/**
+summary: "Tests successful file-operation recovery, ignored results, path normalization, redirects, and manifest rendering."
+read_when:
+  - "Changing files-touched tool parsing, operation merging, display paths, or manifest output."
+*/
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

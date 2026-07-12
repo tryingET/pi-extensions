@@ -1,4 +1,7 @@
 /**
+summary: "Recovers, deduplicates, formats, and tracks user prompts and slash commands across compaction."
+read_when:
+  - "Changing skill-block recovery, command timestamp matching, prompt merging, formatting, or tracked-command pruning."
  * User prompt and slash-command preservation helpers for compaction summaries.
  *
  * Adapted from legacy pi-user-prompt-compaction, with package-local support for

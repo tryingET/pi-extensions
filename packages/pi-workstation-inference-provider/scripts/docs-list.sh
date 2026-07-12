@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Resolves and runs the local or canonical docs-list implementation for this package."
+# read_when:
+#   - "Changing documentation inventory script discovery, overrides, prerequisites, or argument forwarding."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

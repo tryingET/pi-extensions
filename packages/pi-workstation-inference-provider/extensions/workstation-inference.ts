@@ -1,3 +1,8 @@
+/**
+summary: "Loads workstation inference contracts, registers provider models, streams completions, and exposes status and refresh commands."
+read_when:
+  - "Changing workstation contract validation, health checks, provider registration, model streaming, or lane-op commands."
+*/
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";

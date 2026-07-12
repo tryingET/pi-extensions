@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Delegates package quality modes to an override, enclosing monorepo gate, or canonical fallback."
+# read_when:
+#   - "Changing quality-gate discovery order, override handling, mode forwarding, or missing-gate diagnostics."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
