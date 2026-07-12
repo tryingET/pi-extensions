@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: delegates provenance quality stages to the canonical monorepo package gate
+# read_when:
+#   - running lint, typecheck, test, or continuous-integration checks for pi-provenance
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,3 +1,9 @@
+// ---
+// summary: registers the agent_vent tool and command for local diagnostic review workflows
+// read_when:
+//   - changing agent vent actions, command parsing, tool schemas, or authority boundaries
+// ---
+
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: exercises pi-agent-vent packaging, isolated installation, and release smoke gates
+# read_when:
+#   - preparing a release or investigating tarball and pi installation failures
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

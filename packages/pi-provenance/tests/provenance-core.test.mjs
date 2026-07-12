@@ -1,3 +1,9 @@
+// ---
+// summary: tests assistant-message selection, provenance shaping, and optional-field omission
+// read_when:
+//   - changing provenance-core extraction, validation, or serialization behavior
+// ---
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

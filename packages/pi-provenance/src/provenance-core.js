@@ -1,3 +1,9 @@
+// ---
+// summary: extracts and formats minimal assistant-message provenance from pi session entries
+// read_when:
+//   - changing provenance schema fields, session selection, or summary formatting
+// ---
+
 const PROVENANCE_SCHEMA = "pi.assistant_message.provenance.v1";
 const SOURCE_OWNER = "pi-runtime";
 

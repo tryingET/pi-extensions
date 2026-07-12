@@ -1,3 +1,9 @@
+// ---
+// summary: supplies assertions and isolated tool-path probes for release smoke testing
+// read_when:
+//   - changing installed-artifact validation or agent_vent release smoke behavior
+// ---
+
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

@@ -1,3 +1,9 @@
+// ---
+// summary: tests settled-agent provenance capture, atomic writes, and failure isolation
+// read_when:
+//   - modifying the provenance extension entrypoint or its filesystem guarantees
+// ---
+
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";

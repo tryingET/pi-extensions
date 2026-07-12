@@ -1,3 +1,9 @@
+// ---
+// summary: tests package whitelist parsing and published markdown link validation
+// read_when:
+//   - changing release artifact checks, pack output handling, or files-array policy
+// ---
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: enforces pi-agent-vent manifest, script, extension, and lane structure contracts
+// read_when:
+//   - editing package metadata, copier answers, publish files, or required npm scripts
+// ---
 
 import fs from "node:fs";
 

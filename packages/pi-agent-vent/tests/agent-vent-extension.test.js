@@ -1,3 +1,9 @@
+// ---
+// summary: tests agent_vent tool registration, commands, actions, and authority-safe output
+// read_when:
+//   - modifying the extension schema, command surface, lifecycle actions, or smoke contracts
+// ---
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: resolves and runs the canonical documentation listing script
+# read_when:
+#   - listing package documentation through local, overridden, or workspace tooling
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

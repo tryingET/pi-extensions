@@ -1,3 +1,9 @@
+// ---
+// summary: captures provenance for the latest assistant message after an agent settles
+// read_when:
+//   - tracing background review-lane provenance capture and atomic output writes
+// ---
+
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
