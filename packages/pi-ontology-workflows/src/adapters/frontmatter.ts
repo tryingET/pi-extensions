@@ -1,3 +1,7 @@
+// summary: "parses and renders yaml-frontmatter documents used by ontology artifacts."
+// read_when:
+//   - "changing frontmatter parsing, serialization, body trimming, or array normalization."
+
 import { parse, stringify } from "yaml";
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/;

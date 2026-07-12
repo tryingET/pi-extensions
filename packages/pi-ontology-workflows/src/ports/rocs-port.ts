@@ -1,3 +1,7 @@
+// summary: "declares rocs command contexts and normalized summary, validation, build, and pack results."
+// read_when:
+//   - "changing the workflow core boundary to rocs or its expected output artifacts."
+
 import type { ValidationFinding } from "../core/contracts.ts";
 import type { BoundPackResult, DiscoveryResult } from "../semantic/protocol.ts";
 import type { RocsRunnerDescriptor } from "../semantic/runner.ts";

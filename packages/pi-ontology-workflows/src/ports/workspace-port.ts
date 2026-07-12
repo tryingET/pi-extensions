@@ -1,3 +1,7 @@
+// summary: "declares workspace detection and ontology target-resolution inputs and capabilities."
+// read_when:
+//   - "changing the boundary between workflow cores and workspace scope resolution."
+
 import type {
   OntologyArtifactKind,
   OntologyScope,

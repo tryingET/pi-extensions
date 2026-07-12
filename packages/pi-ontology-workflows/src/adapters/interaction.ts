@@ -1,3 +1,7 @@
+// summary: "registers ontology trigger-editor pickers and converts search hits into insertions."
+// read_when:
+//   - "changing interactive ontology pickers, editor mounting, candidate previews, or scope parsing."
+
 import type { CustomEditor, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createEditorRegistry, TriggerEditor } from "@tryinget/pi-editor-registry";
 import { registerPickerInteraction, splitQueryAndContext } from "@tryinget/pi-trigger-adapter";

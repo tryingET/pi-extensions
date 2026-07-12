@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# summary: "resolves and runs the canonical docs-list entrypoint for this package."
+# read_when:
+#   - "listing package documentation or diagnosing docs-list script resolution."
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

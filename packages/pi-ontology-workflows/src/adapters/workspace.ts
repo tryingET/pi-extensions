@@ -1,3 +1,7 @@
+// summary: "detects workspace context and resolves guarded repo, company, or core ontology targets."
+// read_when:
+//   - "changing ontology scope inference, repo classification, manifest detection, or target boundaries."
+
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";

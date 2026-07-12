@@ -1,3 +1,7 @@
+// summary: "assesses ontology candidates for scope, duplicates, semantic fit, and plan readiness."
+// read_when:
+//   - "changing proposal normalization, cross-scope search, verdicts, ids, or change-plan suggestions."
+
 import path from "node:path";
 import type { FilesPort } from "../ports/files-port.ts";
 import type { RocsPort } from "../ports/rocs-port.ts";

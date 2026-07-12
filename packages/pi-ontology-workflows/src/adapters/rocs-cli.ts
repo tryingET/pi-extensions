@@ -1,3 +1,7 @@
+// summary: "adapts ontology workflow operations to rocs cli processes and normalized results."
+// read_when:
+//   - "changing rocs runner discovery, command arguments, process errors, or json result mapping."
+
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";

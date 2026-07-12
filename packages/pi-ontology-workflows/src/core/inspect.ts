@@ -1,3 +1,7 @@
+// summary: "runs ontology status, pack, and ranked search inspections through resolved targets."
+// read_when:
+//   - "changing inspection routing, rocs builds, search catalog loading, or relevance scoring."
+
 import path from "node:path";
 import { ensureStringArray, parseFrontmatterDocument } from "../adapters/frontmatter.ts";
 import type { FilesPort } from "../ports/files-port.ts";

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# summary: "checks required package structure, executable modes, and markdown system4d metadata."
+# read_when:
+#   - "changing scaffolded paths, executable scripts, copier answers, or markdown metadata."
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

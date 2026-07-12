@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: "checks package manifest, publishing, dependency, and engineering-lane contracts."
+// read_when:
+//   - "changing package metadata, scripts, dependencies, or scaffold contract fields."
 
 import fs from "node:fs";
 

@@ -1,3 +1,7 @@
+// summary: "registers ontology inspection, proposal, change, command, and session integrations for pi."
+// read_when:
+//   - "changing ontology tools, commands, schemas, mutation confirmation, or session hints."
+
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";

@@ -1,3 +1,7 @@
+// summary: "exposes ontology tools through read and mutating toolbox bundle profiles."
+// read_when:
+//   - "changing toolbox bundle identity, profile membership, tool risk, or registration filtering."
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import registerOntologyWorkflowsExtension from "../extensions/ontology-workflows.ts";

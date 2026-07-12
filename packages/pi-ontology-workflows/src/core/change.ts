@@ -1,3 +1,7 @@
+// summary: "plans and applies ontology artifact writes with validation and build follow-up."
+// read_when:
+//   - "changing concept, relation, bridge, system4d, manifest, or bootstrap mutation behavior."
+
 import path from "node:path";
 import { parse, stringify } from "yaml";
 import {

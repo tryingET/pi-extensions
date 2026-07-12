@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# summary: "validates publish contents and smoke-tests an isolated packaged extension install."
+# read_when:
+#   - "checking release provenance, npm artifacts, or install-time extension behavior."
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

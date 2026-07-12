@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# summary: "delegates package quality checks to the nearest canonical monorepo gate."
+# read_when:
+#   - "running package lint, typecheck, pre-commit, pre-push, or ci validation."
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

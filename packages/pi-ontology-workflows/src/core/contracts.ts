@@ -1,3 +1,7 @@
+// summary: "defines shared request, result, target, artifact, and rocs-facing ontology workflow contracts."
+// read_when:
+//   - "changing supported scopes, operations, artifact kinds, payload fields, or result shapes."
+
 export const ONTOLOGY_SCOPES = ["auto", "repo", "company", "core"] as const;
 export type OntologyScope = (typeof ONTOLOGY_SCOPES)[number];
 

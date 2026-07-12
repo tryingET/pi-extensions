@@ -1,3 +1,7 @@
+// summary: "renders ontology inspection and change results as concise markdown reports."
+// read_when:
+//   - "changing operator-facing output for status, search, pack, validation, or writes."
+
 import type {
   OntologyChangeResult,
   OntologyInspectResult,

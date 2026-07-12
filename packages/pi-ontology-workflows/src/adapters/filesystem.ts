@@ -1,3 +1,7 @@
+// summary: "implements ontology workflow file access with node filesystem primitives."
+// read_when:
+//   - "changing how workflows test paths, read data, create directories, or write files."
+
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { FilesPort } from "../ports/files-port.ts";
