@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { readEvidenceReviewFile } from "../src/reader.ts";
+import { discoverEvidenceReviewFiles, readEvidenceReviewFile } from "../src/reader.ts";
 import { EvidenceReviewPanel, reviewDisplayLines } from "../src/render.ts";
 
 export const COMMAND_NAME = "evidence-review";
@@ -8,17 +8,38 @@ export const HEADLESS_ERROR =
 
 export default function evidenceReviewExtension(pi: ExtensionAPI): void {
   pi.registerCommand(COMMAND_NAME, {
-    description: "Render one explicitly named workspace-contained SCI evidence_review.v1 JSON file",
+    description: "Select or render one workspace-contained SCI evidence_review.v1 JSON file",
     handler: async (args, ctx) => {
       if (ctx.mode !== "tui") throw new Error(HEADLESS_ERROR);
 
-      const namedPath = args.trim();
-      if (!namedPath || namedPath !== args || /[\r\n\0]/u.test(namedPath)) {
+      let namedPath = args.trim();
+      if (namedPath !== args || /[\r\n\0]/u.test(namedPath)) {
         ctx.ui.notify(
           "Evidence review rejected: name exactly one workspace-relative JSON file.",
           "error",
         );
         return;
+      }
+
+      if (!namedPath) {
+        try {
+          const discovery = await discoverEvidenceReviewFiles(ctx.cwd);
+          if (discovery.files.length === 0) {
+            ctx.ui.notify(
+              discovery.truncated
+                ? "No valid evidence review files found within the bounded workspace scan."
+                : "No valid evidence review files found in this workspace.",
+              "warning",
+            );
+            return;
+          }
+          const selected = await ctx.ui.select("Select evidence review file", discovery.files);
+          if (!selected) return;
+          namedPath = selected;
+        } catch {
+          ctx.ui.notify("Evidence review discovery failed closed.", "error");
+          return;
+        }
       }
 
       try {

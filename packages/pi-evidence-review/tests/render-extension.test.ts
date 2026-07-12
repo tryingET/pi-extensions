@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -83,7 +84,7 @@ test("extension registers exactly the evidence-review command", () => {
   );
   const registration = registrations[0];
   assert.ok(registration);
-  assert.match(registration.command.description, /explicitly named workspace-contained/);
+  assert.match(registration.command.description, /Select or render/);
 });
 
 test("package manifest activates only the evidence-review extension", () => {
@@ -130,6 +131,49 @@ test("headless command fails visibly before file or UI access", async () => {
     message: HEADLESS_ERROR,
   });
   assert.equal(uiTouched, false);
+});
+
+test("empty interactive invocation discovers valid files and opens a selector", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "pi-evidence-review-picker-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "evidence"));
+  writeFileSync(
+    join(root, "evidence", "review.json"),
+    readFileSync(join(import.meta.dirname, "fixtures", "valid.json")),
+  );
+  writeFileSync(join(root, "unrelated.json"), "{}");
+
+  let command: RegisteredCommand | undefined;
+  evidenceReviewExtension({
+    registerCommand(_name: string, registered: RegisteredCommand) {
+      command = registered;
+    },
+  } as unknown as ExtensionAPI);
+  assert.ok(command);
+
+  let selectorTitle = "";
+  let selectorOptions: string[] = [];
+  let panelOpened = false;
+  await command.handler("", {
+    mode: "tui",
+    cwd: root,
+    hasUI: true,
+    ui: {
+      select: async (title: string, options: string[]) => {
+        selectorTitle = title;
+        selectorOptions = options;
+        return options[0];
+      },
+      custom: async () => {
+        panelOpened = true;
+      },
+      notify: () => assert.fail("valid picker flow must not notify an error"),
+    },
+  });
+
+  assert.equal(selectorTitle, "Select evidence review file");
+  assert.deepEqual(selectorOptions, ["evidence/review.json"]);
+  assert.equal(panelOpened, true);
 });
 
 test("runtime source imports no denied capability modules or persistence APIs", () => {

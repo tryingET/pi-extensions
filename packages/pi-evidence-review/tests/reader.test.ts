@@ -11,7 +11,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { readEvidenceReviewFile } from "../src/reader.ts";
+import {
+  DISCOVERY_CAPS,
+  discoverEvidenceReviewFiles,
+  readEvidenceReviewFile,
+} from "../src/reader.ts";
 import { RESOURCE_CAPS, ReviewRejection } from "../src/validation.ts";
 
 const validBytes = Buffer.from(
@@ -46,6 +50,43 @@ test("reads only an explicitly named workspace-relative regular JSON file", asyn
   await expectRejected(root, join(root, "review.json"));
   await expectRejected(root, "../review.json");
   await expectRejected(root, "missing.json");
+});
+
+test("bounded discovery returns only valid review files and skips symlinked or heavy trees", async (t) => {
+  const root = workspace();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "reports"));
+  mkdirSync(join(root, "node_modules"));
+  writeFileSync(join(root, "reports", "review.json"), validBytes);
+  writeFileSync(join(root, "reports", "other.json"), "{}");
+  writeFileSync(join(root, "reports", "hostile-\u001b[31m-review.json"), validBytes);
+  writeFileSync(join(root, "node_modules", "hidden-review.json"), validBytes);
+  symlinkSync("reports", join(root, "linked-reports"));
+
+  assert.deepEqual(await discoverEvidenceReviewFiles(root), {
+    files: ["reports/review.json"],
+    truncated: false,
+  });
+});
+
+test("discovery reports when its workspace scan is truncated", async (t) => {
+  const root = workspace();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(join(root, "a-review.json"), validBytes);
+  writeFileSync(join(root, "b-review.json"), validBytes);
+
+  const result = await discoverEvidenceReviewFiles(root, { ...DISCOVERY_CAPS, entries: 1 });
+  assert.equal(result.truncated, true);
+  assert.ok(result.files.length <= 1);
+});
+
+test("discovery rejects non-positive injectable bounds", async (t) => {
+  const root = workspace();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  await assert.rejects(
+    () => discoverEvidenceReviewFiles(root, { ...DISCOVERY_CAPS, matches: 0 }),
+    (error: unknown) => error instanceof ReviewRejection && error.code === "discovery_caps",
+  );
 });
 
 test("rejects symlinks and non-regular targets", async (t) => {
@@ -145,6 +186,8 @@ test("reader source maintains no-follow, identity, post-read size, and overflow 
   );
   assert.match(source, /O_NOFOLLOW/);
   assert.match(source, /openedDescriptorTarget/);
+  assert.match(source, /O_DIRECTORY/);
+  assert.match(source, /opendir\(descriptorPath\)/);
   assert.match(source, /no_follow_unavailable/);
   assert.match(source, /sameStableMetadata\(before, opened\)/);
   assert.match(source, /mtimeNs/);
