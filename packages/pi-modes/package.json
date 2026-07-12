@@ -1,0 +1,88 @@
+{
+  "name": "@tryinget/pi-modes",
+  "version": "0.1.0",
+  "description": "Prompt mode switching for Pi with explicit append, replace-base, and replace-final semantics",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-modes"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-modes",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "mode",
+    "system-prompt",
+    "prompt-profiles",
+    "monorepo"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "npm run quality:ci",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+  },
+  "files": [
+    "extensions/mode.ts",
+    "src",
+    "tests",
+    "docs/project/2026-07-11-prompt-mode-architecture.md",
+    "docs/project/2026-07-11-implementation-plan.md",
+    "prompts",
+    "examples",
+    "policy/security-policy.json",
+    "policy/engineering-lane.json"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/mode.ts"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-modes",
+    "releaseComponent": "pi-modes",
+    "releaseConfigMode": "component"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@earendil-works/pi-ai": "0.80.6",
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "@earendil-works/pi-tui": "0.80.6",
+    "@types/node": "22.14.0",
+    "tsx": "4.20.6",
+    "typescript": "5.9.2"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  }
+}

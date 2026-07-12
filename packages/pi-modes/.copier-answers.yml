@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: b11b903
+_src_path: ../pi-extensions-template
+command_name: mode
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-modes
+release_config_mode: component
+repo_name: pi-modes
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-modes
