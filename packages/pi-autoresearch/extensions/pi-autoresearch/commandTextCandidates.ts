@@ -1,3 +1,8 @@
+// ---
+// summary: "Parses candidate workflow commands and builds review, integration, binding, measurement, and decision handoffs."
+// read_when:
+//   - "Changing candidate command aliases, packet-review calls, next-action selection, or lifecycle confirmation text."
+// ---
 import {
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,

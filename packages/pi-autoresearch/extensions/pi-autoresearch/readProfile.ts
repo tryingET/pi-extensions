@@ -1,3 +1,8 @@
+// ---
+// summary: "Enforces the autoresearch read profile by rejecting writes, apply requests, and unavailable tool actions."
+// read_when:
+//   - "Changing read-only effect boundaries, allowed actions, projection persistence, or rejection diagnostics."
+// ---
 export type AutoresearchExtensionEffectProfile = "unrestricted" | "read";
 
 export type AutoresearchEffectProfileOptions = {

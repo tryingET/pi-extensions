@@ -1,3 +1,8 @@
+// ---
+// summary: "Parses autoresearch dollar commands and formats campaign-start, resume, learning, and status editor calls."
+// read_when:
+//   - "Changing $$ autoresearch routing, resume or learning aliases, generated tool calls, or command notifications."
+// ---
 import type { buildAutoresearchRuntimeStatus } from "../../src/core/runtime.ts";
 import {
   AUTORESEARCH_RESUME_APPLY_TOOL_NAME,

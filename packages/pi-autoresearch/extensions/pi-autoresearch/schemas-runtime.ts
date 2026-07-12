@@ -1,3 +1,8 @@
+// ---
+// summary: "Defines TypeBox inputs for measured runs, peer-assist planning, local autoplan, and runtime setup actions."
+// read_when:
+//   - "Changing experiment evidence fields, candidate bindings, peer handoffs, planning inputs, or setup execution limits."
+// ---
 import { Type } from "typebox";
 import {
   autoplanPlannerSchema,

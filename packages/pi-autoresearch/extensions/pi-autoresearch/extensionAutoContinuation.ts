@@ -1,3 +1,8 @@
+// ---
+// summary: "Schedules gated post-settlement autoresearch follow-ups and cancels pending continuation timers when agent activity resumes."
+// read_when:
+//   - "Changing session auto-continuation eligibility, follow-up delivery, timer cleanup, or settle-delay configuration."
+// ---
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   type AutoresearchAutoContinuationDecision,

@@ -1,3 +1,8 @@
+// ---
+// summary: "Routes /autoresearch subcommands across dashboards, candidate workflows, learning, resume review, and bounded campaign starts."
+// read_when:
+//   - "Changing slash-command behavior, UI notifications, candidate handoffs, or plan-only and foreground-run fallbacks."
+// ---
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,

@@ -1,3 +1,8 @@
+// ---
+// summary: "Re-exports the complete pi-autoresearch tool schema surface from its domain-specific schema modules."
+// read_when:
+//   - "Adding, removing, renaming, or relocating a schema consumed by extension tool registration."
+// ---
 export {
   campaignStartSchema,
   candidateBindSchema,

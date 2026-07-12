@@ -1,3 +1,8 @@
+// ---
+// summary: "Declares the minimal host UI, TUI, context, and overlay component contracts used by autoresearch presentation code."
+// read_when:
+//   - "Changing widget context capabilities, custom UI factories, render invalidation, or overlay lifecycle typing."
+// ---
 export type AutoresearchWidgetUi = {
   setWidget?: (id: string, widget: unknown, options?: unknown) => void;
   notify?: (message: string, level?: "info" | "warning" | "error") => void;

@@ -1,3 +1,8 @@
+// ---
+// summary: "Renders autoresearch status widgets and overlays, exports refreshing HTML dashboards, and opens them in the host browser."
+// read_when:
+//   - "Changing live dashboard presentation, browser export refresh, overlay controls, or candidate and metric summaries."
+// ---
 import { spawn } from "node:child_process";
 import {
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,

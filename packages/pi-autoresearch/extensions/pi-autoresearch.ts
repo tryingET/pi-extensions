@@ -1,3 +1,8 @@
+// ---
+// summary: "Registers the pi-autoresearch extension commands, input bridges, session hooks, dashboard lifecycle, and tool families."
+// read_when:
+//   - "Changing extension startup, slash or dollar-input routing, session cleanup, or registered autoresearch tools."
+// ---
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_COMMAND_NAME,

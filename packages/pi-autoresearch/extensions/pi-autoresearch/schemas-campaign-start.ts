@@ -1,3 +1,8 @@
+// ---
+// summary: "Defines TypeBox inputs for campaign start, candidate intake and decisions, bounded loops, and foreground resume apply."
+// read_when:
+//   - "Changing campaign setup or run controls, candidate policy fields, loop budgets, or resume authorization parameters."
+// ---
 import { Type } from "typebox";
 import {
   autoplanPlannerSchema,

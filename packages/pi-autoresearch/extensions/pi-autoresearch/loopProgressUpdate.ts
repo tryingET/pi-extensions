@@ -1,3 +1,8 @@
+// ---
+// summary: "Emits structured live loop progress cards with current runtime posture, metrics, and dashboard details."
+// read_when:
+//   - "Changing bounded-loop update payloads, progress-card fields, or dashboard details sent through onUpdate."
+// ---
 import {
   AUTORESEARCH_LOOP_TOOL_NAME,
   type AutoresearchLoopProgressEvent,
