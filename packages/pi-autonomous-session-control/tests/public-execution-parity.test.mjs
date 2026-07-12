@@ -16,6 +16,8 @@ function defaultSpawner(def) {
 }
 
 function normalizeExecutionDetails(details) {
+  // Dynamic dispatch ids are intentionally present in model-visible text as
+  // continuation capabilities, so parity comparisons normalize them below.
   return {
     ...details,
     ...(details.dispatchId ? { dispatchId: "<dispatch-id>" } : {}),
@@ -38,9 +40,14 @@ function normalizeExecutionDetails(details) {
   };
 }
 
+function normalizeExecutionText(text, details) {
+  return details.dispatchId ? text.replaceAll(details.dispatchId, "<dispatch-id>") : text;
+}
+
 function normalizeExecutionResult(result) {
   return {
     ...result,
+    text: normalizeExecutionText(result.text, result.details),
     details: normalizeExecutionDetails(result.details),
   };
 }

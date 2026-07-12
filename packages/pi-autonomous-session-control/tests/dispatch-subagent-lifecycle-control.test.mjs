@@ -256,6 +256,12 @@ test("resume requires one exact owned dispatch id and reuses only its canonical 
     );
     assert.equal(first.ok, true);
     await writeFile(first.details.sessionFile, "{}\n");
+    assert.match(first.text, new RegExp(`Dispatch ID: ${first.details.dispatchId}`));
+    assert.match(
+      first.text,
+      new RegExp(`resumeDispatchId=${JSON.stringify(first.details.dispatchId)}`),
+    );
+    assert.ok(first.text.indexOf("Dispatch ID:") < first.text.indexOf("initial"));
 
     const resumed = await runtime.execute(
       {
@@ -270,6 +276,27 @@ test("resume requires one exact owned dispatch id and reuses only its canonical 
     assert.notEqual(resumed.details.attemptId, first.details.attemptId);
     assert.equal(resumed.details.resumed, true);
     assert.equal(defs[1].sessionFile, defs[0].sessionFile);
+
+    const statusPath = join(sessionsDir, "owned-review.status.json");
+    const ownedStatus = JSON.parse(await readFile(statusPath, "utf8"));
+    const { sessionName: _sessionName, updatedAt: _updatedAt, ...statusPayload } = ownedStatus;
+    const legacyDispatchId = "asc-legacy-owned-dispatch:reviewer_1";
+    writeSessionStatus(sessionsDir, "owned-review", {
+      ...statusPayload,
+      dispatchId: legacyDispatchId,
+    });
+    const legacyResumed = await runtime.execute(
+      {
+        profile: "reviewer",
+        objective: "Continue an exactly owned legacy dispatch",
+        resumeDispatchId: legacyDispatchId,
+      },
+      ownerCtx,
+    );
+    assert.equal(legacyResumed.ok, true);
+    assert.equal(legacyResumed.details.dispatchId, legacyDispatchId);
+    assert.match(legacyResumed.text, new RegExp(`Dispatch ID: ${legacyDispatchId}`));
+    writeSessionStatus(sessionsDir, "owned-review", statusPayload);
 
     const rejected = await runtime.execute(
       {
@@ -294,9 +321,6 @@ test("resume requires one exact owned dispatch id and reuses only its canonical 
     assert.equal(wrongRepo.ok, false);
     assert.match(wrongRepo.text, /different repository/);
 
-    const statusPath = join(sessionsDir, "owned-review.status.json");
-    const ownedStatus = JSON.parse(await readFile(statusPath, "utf8"));
-    const { sessionName: _sessionName, updatedAt: _updatedAt, ...statusPayload } = ownedStatus;
     const { parentRepoRoot: _parentRepoRoot, ...unownedPayload } = statusPayload;
     writeSessionStatus(sessionsDir, "owned-review", unownedPayload);
     const unowned = await runtime.execute(

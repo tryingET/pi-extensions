@@ -47,7 +47,7 @@ The public runtime preserves the existing ASC execution-plane behavior:
 - prompt-envelope application plus an advisory typed task contract (`deliverable`, acceptance criteria, constraints, evidence, mutation posture, stop conditions, and path scope)
 - profile/request thinking selection and effective-child-model extension bootstrap
 - session-name reservation and artifact-backed session lifecycle with stable dispatch IDs and per-run attempt IDs
-- exact repository- and parent-session-checked resume by `resumeDispatchId`; missing ownership metadata fails closed and repeated names alone never resume a child
+- model-visible canonical dispatch IDs before child output, followed by exact repository- and parent-session-checked resume through `resumeDispatchId`; current and legacy token formats remain inert unless persisted status metadata matches exactly, missing ownership metadata fails closed, and repeated names alone never resume a child
 - targeted cancellation through `runtime.cancel(...)`, gated by repository ownership and live process identity
 - distinct bounded startup timeout and execution timeout, with unlimited execution requiring both request and host opt-in
 - bounded progress updates with sequence, phase, usage, and latest-tool metadata
