@@ -17,9 +17,9 @@ system4d:
 
 ## Status
 
-This is a proposed package architecture under `decision:52`. It depends on the ROCS [Deterministic Semantic Discovery Protocol v0](../../../../../../../core/rocs-cli/docs/project/semantic-discovery-protocol-v0.md) and responds to the [attempt-1 review synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review-synthesis-v0.md) and [attempt-2 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-rereview-synthesis-v1.md).
+This is a proposed package architecture under `decision:52`. It depends on the ROCS [Deterministic Semantic Discovery Protocol v0](../../../../../../../core/rocs-cli/docs/project/semantic-discovery-protocol-v0.md) and responds to the [attempt-1 review synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review-synthesis-v0.md), [attempt-2 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-rereview-synthesis-v1.md), and [attempt-3 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review3-synthesis-v2.md).
 
-Nothing in this RFC authorizes implementation. Every P phase is candidate post-ADR sequencing and requires accepted decision state plus post-ADR implementation and validation/rollout/rollback artifacts. Production semantic release, ROCS tool trust, consumer adoption, automatic defaults, fleet enablement, and mandatory enforcement require a later concrete AK decision coordinate.
+Nothing in this RFC authorizes implementation. Every P phase is candidate post-ADR sequencing and requires accepted decision state plus post-ADR implementation and validation/rollout/rollback artifacts. Production semantic release, ROCS tool trust, consumer adoption, automatic defaults, fleet enablement, and mandatory enforcement require accepted AK decision:53 and its post-ADR artifacts.
 
 ## Product decision
 
@@ -131,6 +131,8 @@ retrieval: no_candidates | unique_candidate | multiple_candidates |
            ambiguous_equivalence | low_confidence | absent
 ```
 
+Valid dimension invariants are closed: `retrieval=absent` is allowed only when mode is disabled, applicability is `not_applicable`, or invocation is not `ok`; invocation `ok` with applicability `applicable|unknown` requires a non-absent ROCS retrieval state. Disabled/not-applicable bypasses occur before invocation, so they cannot coexist with an invocation failure. Any other combination is an adapter defect mapped to `unavailable` with no candidate context.
+
 Projection is normative and ordered:
 
 | Condition | Projection |
@@ -211,7 +213,7 @@ Subject to decision:53 and its accepted owner contracts, the adapter must:
 
 ### Development runner
 
-Developer mode is enabled only when `ctx.mode === "tui"`, the agent is idle, and `/ontology-preflight enable-development` obtains a fresh TUI confirmation that expires after 30 seconds and is invalidated by any generation or cwd change. RPC, prompt content, tools, repository files, settings, environment inheritance, startup detection, resume, and fork cannot enable it; reload/new/resume/fork resets it. Headless modes cannot enable it.
+Developer mode is enabled only when `ctx.mode === "tui"`, the agent is idle, and `/ontology-preflight enable-development` obtains a fresh confirmation dialog that auto-cancels after 30 seconds. A confirmed enablement grant expires after 10 minutes and is invalidated immediately by generation, cwd, or host-capability change. RPC, prompt content, tools, repository files, settings, environment inheritance, startup detection, resume, and fork cannot enable it; reload/new/resume/fork resets it. Headless modes cannot enable it.
 
 Enablement resolves absolute executable/source paths without a shell, requires a clean pinned ROCS commit, and atomically publishes a content-addressed prepared runtime in an extension-owned cache after full verification. Its closed manifest covers schema, ROCS commit, every staged regular file path/mode/size/digest, dependency lock digest, interpreter absolute path/version/digest, generated entrypoint digest, and whole-manifest digest. Staging rejects symlinks, non-owner ownership, group/world-writable directories/files, path escape, and existing partial generations; publication uses a fresh sibling directory plus atomic rename. The TUI discloses the write. Prompt runs use only that generation and reverify the complete manifest immediately before spawn; drift disables development mode. It is labeled `development_runtime` plus `development_snapshot`, never release authority.
 
@@ -231,11 +233,21 @@ Use an allowlisted environment with:
 
 V0 is Linux/POSIX-only and timeout-driven because Pi does not yet prove Escape cancellation before agent start. One 750 ms end-to-end deadline covers readiness wait, spawn, execution, parsing, TERM/KILL, and bounded reap; it may only be lowered by operator-owned session state. `before_agent_start` snapshots the current generation and awaits its readiness promise inside that deadline; absent readiness becomes `unavailable`, and late readiness applies only to later prompts. Spawn creates a process group; teardown allocates at most 100 ms to TERM and 100 ms to KILL/reap, after which the descriptor is quarantined and the handler returns without blocking. A later host capability decision may add pre-agent cancellation.
 
-Streaming caps are closed: query 16 KiB; stdout 128 KiB; stderr 32 KiB; combined 160 KiB; decoded discovery JSON 65,536 bytes including its digest field; rendered block 16 KiB; UI/error text 4 KiB; exact-ID pack 256 KiB. Crossing a process cap kills the group immediately. Cap excess maps to `resource_exhausted`; invalid UTF-8, truncated/malformed JSON, schema/digest failure, and unsupported protocol map to `incompatible`; spawn/not-found maps to `unavailable`; the outer deadline maps to `timeout`. No partial result is accepted.
+Streaming caps are closed: query 16 KiB; stdout 128 KiB; stderr 32 KiB; combined 160 KiB; decoded discovery JSON 65,536 bytes including its digest field; rendered block 16 KiB; UI/error text 4 KiB; exact-ID pack 256 KiB. Crossing a process cap kills the group immediately. Mapping is total:
+
+| ROCS/process condition | Pi invocation state |
+|---|---|
+| success | `ok` |
+| ROCS `resource_exhausted` or process cap | `resource_exhausted` |
+| ROCS `invalid_request`, `unsupported_identity`, or `incompatible`; invalid UTF-8; malformed/truncated JSON; schema/digest failure | `incompatible` |
+| ROCS `invalid_ontology`, `snapshot_changed`, or `internal`; spawn/not-found/readiness absent | `unavailable` |
+| outer deadline | `timeout` |
+
+No partial result is accepted.
 
 ### Host compatibility and operator readback
 
-The adapter resolves the actually loaded `@earendil-works/pi-coding-agent/package.json` through Node module resolution, verifies its package name and SemVer `>=0.80.6 <0.81.0`, and probes the required hook/context methods before registration. Missing, ambiguous, or unsupported identity disables preflight visibly; repository files cannot supply this fact.
+The adapter does not infer host identity through Node resolution. It requires a Pi-host-supplied immutable `ctx.hostCapabilities` object with exact fields `{host_package, host_version, extension_api_version, capabilities}` and capability tokens for prompt chaining, session-generation reasons, TUI mode/confirmation timeout, and shutdown. Adding that host field belongs to the Pi runtime owner and is a P0 prerequisite. Until the running host supplies it, preflight is visibly disabled. Required range is `@earendil-works/pi-coding-agent >=0.80.6 <0.81.0`; repository files and environment cannot supply or override the fact.
 
 For every attempted TUI preflight, one compact status/readback shows outcome, invocation state, corpus/result digest prefixes, candidate count, and whether any exact-ID pack was selected. It never prints ontology prose. Headless/RPC/print modes do not run automatic preflight and obtain the same fields only from explicit machine-result tools.
 
