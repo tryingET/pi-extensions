@@ -1,3 +1,7 @@
+// summary: "Checks parity between the public execution runtime and dispatch_subagent tool path."
+// read_when:
+//   - "Changing shared execution request handling, concurrency, or skill profiles."
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -1,3 +1,7 @@
+// summary: "Applies a live prompt-vault database template through dispatch_subagent."
+// read_when:
+//   - "Validating direct Dolt prompt-vault provenance and envelope injection."
+
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";

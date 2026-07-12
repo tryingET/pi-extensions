@@ -1,3 +1,7 @@
+// summary: "Tests dashboard snapshot sorting, filtering, counts, previews, and ownership checks."
+// read_when:
+//   - "Changing subagent dashboard row selection or presentation metadata."
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

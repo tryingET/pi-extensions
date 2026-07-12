@@ -1,3 +1,7 @@
+// summary: "Tests rewind runtime lifecycle hooks, navigation restores, and recovery projections."
+// read_when:
+//   - "Changing rewind commands, session hooks, prompts, or Replay Fabric events."
+
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";

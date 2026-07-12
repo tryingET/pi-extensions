@@ -1,3 +1,7 @@
+// summary: "Tests secure dashboard session inspection, artifact warnings, and lifecycle summaries."
+// read_when:
+//   - "Changing dashboard inspection path containment or status interpretation."
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

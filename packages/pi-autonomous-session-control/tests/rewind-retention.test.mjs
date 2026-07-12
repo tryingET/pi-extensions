@@ -1,3 +1,7 @@
+// summary: "Tests rewind retention live-set planning for fresh, pinned, current, and undo commits."
+// read_when:
+//   - "Changing rewind age, count, or pinning retention policy."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { planRetentionLiveSet } from "../extensions/self/rewind/index.ts";

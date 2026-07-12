@@ -1,3 +1,7 @@
+// summary: "Tests explicit deletion requirements for subagent cleanup and clear commands."
+// read_when:
+//   - "Changing subagent command cleanup thresholds or destructive opt-ins."
+
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

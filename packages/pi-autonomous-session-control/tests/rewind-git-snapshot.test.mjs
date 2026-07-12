@@ -1,3 +1,7 @@
+// summary: "Tests rewind Git tree snapshots, deduplication, and keepalive reachability."
+// read_when:
+//   - "Changing rewind snapshot creation or store-ref retention."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

@@ -1,3 +1,7 @@
+// summary: "Tests the published ASC execution seam, failure shaping, receipts, and tool binding."
+// read_when:
+//   - "Changing public execution exports, runtime results, or dispatch integration."
+
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

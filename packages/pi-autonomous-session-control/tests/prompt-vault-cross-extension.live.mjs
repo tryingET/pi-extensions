@@ -1,3 +1,7 @@
+// summary: "Exercises live vault-client query and retrieval through a dispatch prompt envelope."
+// read_when:
+//   - "Verifying live prompt-vault and subagent cross-extension integration."
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

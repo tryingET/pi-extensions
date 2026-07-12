@@ -1,3 +1,7 @@
+// summary: "Tests runtime invariant evaluation and human-readable issue reporting."
+// read_when:
+//   - "Changing operations or subagent state invariants."
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

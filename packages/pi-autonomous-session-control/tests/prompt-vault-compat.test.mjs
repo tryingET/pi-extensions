@@ -1,3 +1,7 @@
+// summary: "Tests prompt-vault compatibility version, schema, timeout, and report behavior."
+// read_when:
+//   - "Changing prompt-vault compatibility evaluation or diagnostics."
+
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

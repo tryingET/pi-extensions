@@ -1,3 +1,7 @@
+// summary: "Provides Pi session, UI, and Replay Fabric stubs for rewind runtime tests."
+// read_when:
+//   - "Extending rewind runtime event or recovery projection coverage."
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";

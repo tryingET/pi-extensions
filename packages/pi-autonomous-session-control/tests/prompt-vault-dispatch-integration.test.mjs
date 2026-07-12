@@ -1,3 +1,7 @@
+// summary: "Tests mocked vault payload injection and empty-content fallback in dispatch_subagent."
+// read_when:
+//   - "Changing dispatch prompt envelopes or prompt provenance result details."
+
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

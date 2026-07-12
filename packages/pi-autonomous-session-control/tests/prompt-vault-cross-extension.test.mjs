@@ -1,3 +1,7 @@
+// summary: "Tests prompt-vault output parsing and cross-extension path readiness helpers."
+// read_when:
+//   - "Changing vault query parsing, retrieval envelopes, or vault-client discovery."
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

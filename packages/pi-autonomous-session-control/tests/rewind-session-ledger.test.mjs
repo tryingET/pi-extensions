@@ -1,3 +1,7 @@
+// summary: "Tests rewind session-ledger guards, bindings, and commit lookup helpers."
+// read_when:
+//   - "Changing ASC rewind custom-entry schemas or ledger interpretation."
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

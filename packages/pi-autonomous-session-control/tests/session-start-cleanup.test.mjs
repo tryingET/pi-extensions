@@ -1,3 +1,7 @@
+// summary: "Tests that session startup preserves recorded subagent sessions under legacy flags."
+// read_when:
+//   - "Changing extension session_start cleanup or preservation behavior."
+
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -1,3 +1,7 @@
+// summary: "Provides isolated Git repository helpers for rewind snapshot and restore tests."
+// read_when:
+//   - "Adding rewind tests that need real Git commands or temporary worktrees."
+
 import { execFile as execFileCb } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";

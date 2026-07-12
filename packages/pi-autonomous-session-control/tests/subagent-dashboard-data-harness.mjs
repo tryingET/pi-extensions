@@ -1,3 +1,7 @@
+// summary: "Writes owned subagent status fixtures for dashboard data and inspection tests."
+// read_when:
+//   - "Adding dashboard tests that require lifecycle status sidecars."
+
 import { writeFile } from "node:fs/promises";
 import { getSessionStatusPath } from "../extensions/self/subagent-session.ts";
 

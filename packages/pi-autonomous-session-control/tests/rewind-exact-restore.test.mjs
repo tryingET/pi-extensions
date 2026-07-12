@@ -1,3 +1,7 @@
+// summary: "Tests exact rewind restoration and rollback after a destructive restore failure."
+// read_when:
+//   - "Changing rewind file restoration, deletion, or rollback guarantees."
+
 import assert from "node:assert/strict";
 import { rm } from "node:fs/promises";
 import path from "node:path";
