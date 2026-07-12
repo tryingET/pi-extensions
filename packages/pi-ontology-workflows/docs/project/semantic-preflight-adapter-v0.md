@@ -1,11 +1,11 @@
 ---
-summary: "Proposed two-stage Pi semantic-preflight adapter over deterministic ROCS discovery, with strict pre-ADR corrections and candidate post-ADR sequencing."
+summary: "Accepted development architecture for a two-stage Pi semantic-preflight adapter over deterministic ROCS discovery."
 read_when:
   - "Changing session_start or before_agent_start ontology behavior."
   - "Integrating ROCS task-language discovery into Pi."
   - "Reviewing ontology prompt-injection, lifecycle, or rollout safety."
 type: "rfc"
-status: "proposed"
+status: "accepted"
 system4d:
   container: "Pi ontology workflow adapter over ROCS-owned deterministic discovery."
   compass: "Deliver task-sensitive semantic orientation without importing semantic authority into Pi."
@@ -17,9 +17,9 @@ system4d:
 
 ## Status
 
-This is a proposed package architecture under `decision:52`. It depends on the ROCS [Deterministic Semantic Discovery Protocol v0](../../../../../../../core/rocs-cli/docs/project/semantic-discovery-protocol-v0.md) and responds to the [attempt-1 review synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review-synthesis-v0.md), [attempt-2 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-rereview-synthesis-v1.md), and [attempt-3 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review3-synthesis-v2.md).
+This development architecture was accepted by `decision:52` and its ADR. It depends on the ROCS [Deterministic Semantic Discovery Protocol v0](../../../../../../../core/rocs-cli/docs/project/semantic-discovery-protocol-v0.md) and responds to the [attempt-1 review synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review-synthesis-v0.md), [attempt-2 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-rereview-synthesis-v1.md), and [attempt-3 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review3-synthesis-v2.md).
 
-Nothing in this RFC authorizes implementation. Every P phase is candidate post-ADR sequencing and requires accepted decision state plus post-ADR implementation and validation/rollout/rollback artifacts. Production semantic release, ROCS tool trust, consumer adoption, automatic defaults, fleet enablement, and mandatory enforcement require accepted AK decision:53 and its post-ADR artifacts.
+Only owner-scoped post-ADR tasks authorize bounded development implementation. Production semantic release, ROCS tool trust, consumer adoption, automatic defaults, fleet enablement, and mandatory enforcement require accepted AK decision:53 and its post-ADR artifacts.
 
 ## Product decision
 
@@ -218,6 +218,15 @@ Developer mode is enabled only when `ctx.mode === "tui"`, the agent is idle, and
 Enablement resolves absolute executable/source paths without a shell, requires a clean pinned ROCS commit, and atomically publishes a content-addressed prepared runtime in an extension-owned cache after full verification. Its normative structure is [`semantic-preflight-v0/prepared-runtime.schema.json`](semantic-preflight-v0/prepared-runtime.schema.json), with cross-language fixtures in [`semantic-preflight-v0/prepared-runtime-fixtures.json`](semantic-preflight-v0/prepared-runtime-fixtures.json). File, dependency-lock, interpreter, and entrypoint digests are ordinary `sha256(raw bytes)` with no domain separator; their exact rules and boundary failures are fixture-bound. `manifest_digest` is `sha256(ASCII("pi.rocs-prepared-runtime-manifest.v0") || 0x00 || JCS(manifest with manifest_digest absent))`. Files are sorted by path UTF-8 bytes and unique by path; this ordering is verified before hashing. The manifest covers schema, ROCS commit, every staged regular file path/mode/size/digest, dependency lock digest, interpreter absolute path/version/digest, generated entrypoint digest, and whole-manifest digest. Staging rejects symlinks, non-owner ownership, group/world-writable directories/files, path escape, and existing partial generations; publication uses a fresh sibling directory plus atomic rename. The TUI discloses the write. Prompt runs use only that generation and reverify the complete manifest immediately before spawn; drift disables development mode. It is labeled `development_runtime` plus `development_snapshot`, never release authority.
 
 Automatic mode removes ambient bare `rocs`, package-root wrapper discovery, and unrestricted `PI_ONTOLOGY_ROCS_BIN` / `ROCS_BIN`. Explicit diagnostic commands may retain an operator override only when they report it as unverified and never use it silently for automatic preflight.
+
+The operator-authorized decision-52 transport repair makes prepared-runtime identity explicit in the fixed argv:
+
+```text
+--tool-kind development_runtime
+--tool-manifest-digest sha256:<verified prepared-runtime manifest digest>
+```
+
+The adapter supplies these values only after complete prepared-runtime verification. ROCS validates and binds them into its effective-execution and result digests. They are not environment variables, request fields, path-derived facts, or adapter post-processing. Bound pack follow-up also supplies the discovery request's effective `--profile` together with both expected snapshot and root-document digests. Although the ROCS parser recognizes `adopted_runtime`, this adapter must not select it before decision:53 authorizes and binds production runtime adoption.
 
 ### Closed subprocess environment
 
