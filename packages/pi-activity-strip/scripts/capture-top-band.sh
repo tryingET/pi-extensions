@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Captures a bounded top band of the focused Niri output with grim."
+# read_when:
+#   - "Changing top-band dimensions, focused-output geometry handling, or screenshot destination rules."
 set -euo pipefail
 
 if ! command -v niri >/dev/null 2>&1; then

@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+/**
+summary: "Validates Better OpenAI package identity, manifest contracts, publish files, and TypeScript engineering lane."
+read_when:
+  - "Changing scoped package naming, manifest requirements, copier release mode, or engineering-lane metadata."
+*/
+
 import fs from "node:fs";
 
 let failed = false;

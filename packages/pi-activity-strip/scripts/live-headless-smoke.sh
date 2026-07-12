@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Verifies a headless Pi tool run appears in the live activity-strip broker before completing."
+# read_when:
+#   - "Changing live session observation, headless smoke timing, cleanup, or expected Pi output."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

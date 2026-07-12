@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Captures the Niri window titled Pi Activity Strip to an absolute PNG output path."
+# read_when:
+#   - "Changing activity-strip window discovery, screenshot output validation, or Niri capture behavior."
 set -euo pipefail
 
 if ! command -v niri >/dev/null 2>&1; then

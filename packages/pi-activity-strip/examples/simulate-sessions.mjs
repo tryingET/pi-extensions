@@ -1,3 +1,8 @@
+/**
+summary: "Publishes a timed sequence of simulated activity-strip session snapshots, updates, and removals."
+read_when:
+  - "Changing the example session labels, lifecycle transitions, timing, or broker publication flow."
+*/
 import { setTimeout as delay } from "node:timers/promises";
 import { publishSessionSnapshot, removeSession } from "../src/client/broker-client.mjs";
 import { createInitialSnapshot } from "../src/common/telemetry.mjs";

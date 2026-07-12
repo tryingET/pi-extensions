@@ -1,3 +1,8 @@
+/**
+summary: "Registers Better OpenAI fast-mode controls, priority request injection, image tooling, and diagnostics."
+read_when:
+  - "Changing fast-mode activation, supported-model behavior, provider payloads, commands, or image registration."
+*/
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   CONFIG_BASENAME,

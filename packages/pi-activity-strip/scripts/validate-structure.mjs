@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+/**
+summary: "Validates activity-strip package manifest fields, Pi artifacts, scripts, dependencies, and publish files."
+read_when:
+  - "Changing activity-strip package metadata, required npm scripts, peer dependencies, or published artifacts."
+*/
+
 import fs from "node:fs";
 
 let failed = false;

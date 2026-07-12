@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Checks the Better OpenAI package scaffold, executables, copier keys, and documentation frontmatter."
+# read_when:
+#   - "Changing Better OpenAI required paths, scaffold exclusions, executable contracts, or Markdown validation."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

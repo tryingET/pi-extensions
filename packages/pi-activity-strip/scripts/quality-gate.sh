@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Delegates activity-strip quality commands to an override, ancestor, or canonical monorepo gate."
+# read_when:
+#   - "Changing package quality-gate resolution order, override handling, or failure guidance."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

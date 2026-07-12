@@ -1,3 +1,8 @@
+/**
+summary: "Tests headless fast-mode injection and bounded image prompt, file, race, and error-response handling."
+read_when:
+  - "Changing provider priority injection, image prompt fallback, input limits, file race detection, or error truncation."
+*/
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
