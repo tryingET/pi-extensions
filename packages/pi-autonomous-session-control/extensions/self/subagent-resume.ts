@@ -21,8 +21,12 @@ export function resolveSubagentResume(params: {
   parentRepoRoot?: string;
 }): { ok: true; value: ResolvedSubagentResume } | { ok: false; error: string } {
   const dispatchId = params.dispatchId.trim();
-  if (!/^dispatch-[A-Za-z0-9._-]+$/u.test(dispatchId)) {
-    return { ok: false, error: "resumeDispatchId must be an exact ASC dispatch id" };
+  // The exact persisted status match plus repository/session ownership checks below
+  // are the authority boundary. Keep the token printable and bounded, but do not
+  // require the current `dispatch-` prefix: older ASC releases emitted other
+  // opaque dispatch-id formats that remain safe to resume when ownership proves.
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(dispatchId)) {
+    return { ok: false, error: "resumeDispatchId must be an exact ASC dispatch id token" };
   }
   const matches = listSubagentSessionStatuses(params.sessionsDir).filter(
     (status) => status.dispatchId === dispatchId,

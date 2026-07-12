@@ -654,13 +654,17 @@ export async function executeDispatchSubagentRequest(options: {
   const failureKind = receiptWriteFailed ? "effect_receipt_write_failed" : executionFailureKind;
   const icon = reportedStatus === "done" ? "✓" : "✗";
   const summary = `${icon} [${profile}] ${getDispatchSubagentStatusLabel(reportedStatus)} in ${Math.round(result.elapsed / 1000)}s`;
+  // This continuation capability must be in model-visible content, not only
+  // result details (which Pi retains for rendering/state but does not send to
+  // the model). Keep it before child output so truncation cannot hide it.
+  const continuationHandle = `\nDispatch ID: ${dispatchId}\nResume this child with resumeDispatchId=${JSON.stringify(dispatchId)}.`;
   const receiptWarning = receiptWriteFailed
     ? "\nASC effect receipt could not be persisted; execution effects remain indeterminate."
     : "";
 
   return {
     ok: reportedStatus === "done",
-    text: `${summary}${modelSelectionWarning}${extensionSelectionWarning}${skillSelectionWarning}${promptWarning}${receiptWarning}\n\n${truncated}`,
+    text: `${summary}${continuationHandle}${modelSelectionWarning}${extensionSelectionWarning}${skillSelectionWarning}${promptWarning}${receiptWarning}\n\n${truncated}`,
     details: {
       profile: profile as DispatchSubagentProfile,
       objective: safeObjective,

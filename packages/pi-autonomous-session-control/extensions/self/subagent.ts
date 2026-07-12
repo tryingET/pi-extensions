@@ -90,7 +90,7 @@ Use for:
 - Focused research before continuing parent work
 - Testing hypotheses before committing
 
-Dispatch is foreground/blocking. Use an explicit resumeDispatchId to continue a completed owned child session; repeated names alone create new collision-safe sessions.
+Dispatch is foreground/blocking. Each completed result prints a canonical Dispatch ID before child output. Copy that exact value into resumeDispatchId to continue the owned child session; never derive it from name, sessionName, a UUID/ULID, or a tool-call id. Repeated names alone create new collision-safe sessions.
 
 Prompt envelope (optional):
 - prompt_name / prompt_content / prompt_tags / prompt_source
@@ -114,6 +114,7 @@ Child skill profile bootstrap (optional):
     promptGuidelines: [
       "Use dispatch_subagent when parallel work will reduce risk or latency versus doing the investigation yourself inline.",
       "Pick the narrowest profile and objective that will produce a useful intermediate result you can inspect before proceeding.",
+      "When resuming dispatch_subagent, copy resumeDispatchId exactly from the prior result's model-visible Dispatch ID; never derive it from name, sessionName, or another identifier.",
     ],
     parameters: Type.Object({
       profile: StringEnum(
@@ -133,7 +134,7 @@ Child skill profile bootstrap (optional):
       resumeDispatchId: Type.Optional(
         Type.String({
           description:
-            "Exact completed ASC dispatch id to resume. Reuses its owned child session after repo/session validation.",
+            "Exact model-visible Dispatch ID copied from a completed ASC result. Reuses its owned child session after repo/session validation; do not substitute a name, session id, UUID/ULID, or tool-call id.",
         }),
       ),
       thinking: Type.Optional(
