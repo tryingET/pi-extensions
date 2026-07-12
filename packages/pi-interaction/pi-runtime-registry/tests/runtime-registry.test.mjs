@@ -1,3 +1,8 @@
+/**
+ * summary: "tests runtime registry creation, mutation, lookup, capability discovery, diagnostics, and singleton reset semantics."
+ * read_when:
+ *   - "verifying changes to runtime registry behavior or its global sharing contract."
+ */
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import {

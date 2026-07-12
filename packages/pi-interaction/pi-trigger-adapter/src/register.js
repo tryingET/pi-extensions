@@ -1,4 +1,9 @@
 /**
+ * summary: "registers picker-style triggers that validate inputs, load and sanitize candidates, select, apply, and emit telemetry."
+ * read_when:
+ *   - "changing the picker interaction pipeline, candidate contract, prompt fallback, or selection callbacks."
+ */
+/**
  * Trigger registration flow for picker-style interactions.
  */
 

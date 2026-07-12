@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "checks publish metadata and whitelist contents, packs the package, and optionally performs an isolated pi install smoke test."
+# read_when:
+#   - "preparing a pi-interaction release or diagnosing npm artifact and pi installation checks."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

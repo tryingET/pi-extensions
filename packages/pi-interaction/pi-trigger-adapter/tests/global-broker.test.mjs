@@ -1,3 +1,8 @@
+/**
+ * summary: "verifies isolated module instances share and can reset one process-global compatible trigger broker."
+ * read_when:
+ *   - "changing the trigger broker global symbol, compatibility check, or reset semantics."
+ */
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";

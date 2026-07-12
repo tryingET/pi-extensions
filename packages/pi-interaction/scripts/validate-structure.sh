@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "checks required package files, directories, executable modes, copier keys, and markdown structure metadata."
+# read_when:
+#   - "changing the pi-interaction package scaffold or resolving shell structure-validation errors."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

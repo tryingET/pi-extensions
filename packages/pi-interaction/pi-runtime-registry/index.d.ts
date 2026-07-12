@@ -1,4 +1,9 @@
 /**
+ * summary: "defines the public runtime registry contracts and factory entry points for extension capability discovery."
+ * read_when:
+ *   - "integrating with runtime registration, lookup, capability search, or registry diagnostics."
+ */
+/**
  * Runtime capability descriptor registered by extensions.
  */
 export interface RuntimeCapability {
