@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "key": "exact-minimal",
+  "label": "Exact Minimal",
+  "description": "Demonstrate exact final-prompt replacement for controlled experiments.",
+  "promptStrategy": "replace_final",
+  "systemPrompt": "Respond concisely and directly to the user's request."
+}
