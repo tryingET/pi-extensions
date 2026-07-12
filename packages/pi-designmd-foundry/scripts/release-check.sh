@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Validates pi-designmd-foundry publish contents and performs isolated tarball installation smoke checks."
+# read_when:
+#   - "Changing DesignMD package provenance, publish whitelists, or release smoke validation."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

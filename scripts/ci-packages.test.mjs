@@ -1,3 +1,8 @@
+/**
+summary: "Tests package CI fan-out, explicit targeting, stage forwarding, and staged-only incompatibility."
+read_when:
+  - "Changing scripts/ci/packages.sh discovery, target syntax, or quality-gate delegation."
+*/
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

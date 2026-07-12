@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Checks pi-designmd-foundry required paths, executable modes, copier keys, and Markdown frontmatter."
+# read_when:
+#   - "Changing DesignMD scaffold inventory or package structure checks."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

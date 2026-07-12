@@ -1,3 +1,8 @@
+/**
+summary: "Tests DesignMD toolbox registration, profile contracts, bounded bridge inputs, and artifact safeguards."
+read_when:
+  - "Changing DesignMD toolbox summaries, tool parameters, export guarantees, or Watch Mode requests."
+*/
 import assert from "node:assert/strict";
 import test from "node:test";
 

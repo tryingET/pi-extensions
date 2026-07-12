@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+summary: "Validates pi-evalset-lab package metadata, scripts, publish files, and engineering lane settings."
+read_when:
+  - "Changing pi-evalset-lab package structure or scaffold metadata requirements."
+*/
 
 import fs from "node:fs";
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Validates pi-evalset-lab publish contents and performs isolated tarball installation smoke checks."
+# read_when:
+#   - "Changing pi-evalset-lab release provenance, package whitelists, or publish smoke validation."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

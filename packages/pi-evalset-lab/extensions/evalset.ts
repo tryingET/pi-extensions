@@ -1,3 +1,8 @@
+/**
+summary: "Registers the evalset command for reproducible dataset runs and baseline-versus-candidate comparisons."
+read_when:
+  - "Changing eval dataset validation, model execution, scoring, report identity, or command behavior."
+*/
 import { createHash, randomUUID } from "node:crypto";
 import { link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";

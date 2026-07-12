@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Locates and delegates pi-designmd-foundry checks to the canonical monorepo package quality gate."
+# read_when:
+#   - "Changing DesignMD package quality-gate overrides, ancestor lookup, or fallback behavior."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

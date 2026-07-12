@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+summary: "Renders evalset run and comparison JSON reports as standalone HTML."
+read_when:
+  - "Changing report export arguments, summary cards, case tables, or HTML escaping."
+*/
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
