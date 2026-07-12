@@ -1,3 +1,8 @@
+// ---
+// summary: resolves platform-specific peer-messaging runtime, socket, pid, and spawn-lock paths
+// read_when:
+//   - changing runtime directory defaults or cross-platform socket naming
+// ---
 import { homedir } from "node:os";
 import path from "node:path";
 

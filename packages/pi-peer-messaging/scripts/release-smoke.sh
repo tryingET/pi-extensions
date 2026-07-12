@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: smoke-tests the installed intercom extension inside an isolated pi package environment
+# read_when:
+#   - checking release artifacts or installed extension behavior
+# ---
 set -euo pipefail
 
 : "${PI_CODING_AGENT_DIR:?PI_CODING_AGENT_DIR is required}"

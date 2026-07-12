@@ -1,3 +1,8 @@
+// ---
+// summary: tracks unresolved inbound messages and resolves unambiguous reply targets
+// read_when:
+//   - changing reply selection, pending-message ordering, or resolution errors
+// ---
 import type { PeerMessage, PeerPresence } from "./contracts.ts";
 import { matchesPeerTarget } from "./intercom-peer-format.ts";
 import type { PendingInboundMessage } from "./intercom-pending-inbox.ts";

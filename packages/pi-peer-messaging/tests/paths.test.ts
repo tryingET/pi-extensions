@@ -1,3 +1,8 @@
+// ---
+// summary: checks runtime path resolution, Windows pipe sanitation, and fallback peer labels
+// read_when:
+//   - changing path helpers or unnamed-session address labels
+// ---
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

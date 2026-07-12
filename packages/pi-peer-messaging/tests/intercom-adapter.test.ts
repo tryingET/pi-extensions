@@ -1,3 +1,8 @@
+// ---
+// summary: exercises intercom adapter actions, formatting, pending replies, and protocol supervision
+// read_when:
+//   - changing intercom adapter behavior or peer and quest protocol compatibility
+// ---
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {

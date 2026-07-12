@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: verifies publish provenance, packed contents, isolated installation, and release readiness
+# read_when:
+#   - preparing or diagnosing a peer-messaging package release
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

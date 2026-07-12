@@ -1,3 +1,8 @@
+// ---
+// summary: launches the local broker safely across platforms with locking and readiness checks
+// read_when:
+//   - changing broker spawn commands, Windows launch behavior, locks, or startup waits
+// ---
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";

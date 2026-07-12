@@ -1,3 +1,8 @@
+// ---
+// summary: integration-tests broker startup, reconnection, addressing, delivery, presence, and ask failure modes
+// read_when:
+//   - changing managed runtime behavior or broker-backed messaging semantics
+// ---
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";

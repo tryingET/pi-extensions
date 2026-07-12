@@ -1,3 +1,8 @@
+// ---
+// summary: manages broker connectivity, peer operations, correlated asks, retries, and presence updates
+// read_when:
+//   - changing the managed runtime lifecycle, targeting, reconnection, or ask semantics
+// ---
 import { PeerMessagingClient } from "./client.ts";
 import {
   DEFAULT_ASK_TIMEOUT_MS,

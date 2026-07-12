@@ -1,3 +1,8 @@
+// ---
+// summary: formats unresolved inbound message summaries and structured pending-inbox details
+// read_when:
+//   - changing pending message previews, counts, ages, or detail payloads
+// ---
 import type { PeerMessage, PeerPresence } from "./contracts.ts";
 
 const PENDING_PREVIEW_LENGTH = 80;

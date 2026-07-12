@@ -1,3 +1,8 @@
+// ---
+// summary: exposes the public peer-messaging contracts, path helpers, presence helpers, and runtime factory
+// read_when:
+//   - reviewing or changing the package public API
+// ---
 export type {
   DeliveryResult,
   PeerAttachment,

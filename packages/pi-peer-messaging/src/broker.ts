@@ -1,3 +1,8 @@
+// ---
+// summary: implements the local socket broker for peer registration, presence, and message delivery
+// read_when:
+//   - changing broker protocol handling, routing, or session cleanup
+// ---
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";

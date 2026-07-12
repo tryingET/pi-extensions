@@ -1,3 +1,8 @@
+// ---
+// summary: records and summarizes canonical peer and legacy quest protocol messages by run id
+// read_when:
+//   - changing ack, final, progress, duplicate, or violation tracking
+// ---
 import type { PeerMessage, PeerPresence } from "./contracts.ts";
 import { formatPeerTarget, truncatePreview } from "./intercom-peer-format.ts";
 

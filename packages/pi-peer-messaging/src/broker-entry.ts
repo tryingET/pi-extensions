@@ -1,3 +1,8 @@
+// ---
+// summary: starts the peer-messaging broker process and handles operating-system shutdown signals
+// read_when:
+//   - changing broker process startup, shutdown, or idle-time configuration
+// ---
 import { PeerMessagingBroker } from "./broker.ts";
 
 const runtimeDir = process.env.PI_PEER_MESSAGING_RUNTIME_DIR;

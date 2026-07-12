@@ -1,3 +1,8 @@
+// ---
+// summary: builds intercom identity proofs and renders session-list and status responses
+// read_when:
+//   - changing intercom status output, identity evidence, or session listings
+// ---
 import type { PeerPresence, PeerRuntimeStatus } from "./contracts.ts";
 import {
   duplicateSessionNames,
