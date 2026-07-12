@@ -1,3 +1,7 @@
+// summary: "parses Pi npm and git package sources, compares remote revisions, and persists package-update check timing"
+// read_when:
+//   - "changing package source normalization, version comparison, remote lookups, or update cache behavior"
+
 /**
  * Package utilities for package-update-notify extension.
  * Extracted to keep main extension under 500 lines.

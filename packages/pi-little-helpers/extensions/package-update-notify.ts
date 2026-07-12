@@ -1,3 +1,7 @@
+// summary: "checks pinned Pi package sources for newer npm versions or git revisions and reports available updates"
+// read_when:
+//   - "changing package update checks, automatic check cadence, or update notifications"
+
 /**
  * Package update notifier extension for pi.
  * Checks for updates to pinned npm and git packages in pi settings.

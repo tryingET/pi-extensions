@@ -1,3 +1,7 @@
+// summary: "registers a conversation code-block picker that copies the selected block through terminal-safe clipboard fallbacks"
+// read_when:
+//   - "changing code-block extraction, picker presentation, shortcuts, or clipboard behavior"
+
 /**
  * Code Block Picker Extension
  *

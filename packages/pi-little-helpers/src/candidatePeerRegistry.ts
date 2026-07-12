@@ -1,3 +1,7 @@
+// summary: "builds durable candidate-peer registry records and archive-before-cleanup command packets with exact resource identities"
+// read_when:
+//   - "changing candidate registry paths, metadata schema, cleanup preconditions, or archival commands"
+
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";

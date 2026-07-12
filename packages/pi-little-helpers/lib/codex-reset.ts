@@ -1,3 +1,7 @@
+// summary: "implements authenticated Codex reset-credit API parsing, redemption, ambiguity classification, and result formatting"
+// read_when:
+//   - "changing Codex reset endpoints, response parsing, authentication headers, or credit formatting"
+
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";

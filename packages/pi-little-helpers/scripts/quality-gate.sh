@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "locates and delegates to the monorepo package quality gate with an optional explicit override"
+# read_when:
+#   - "changing quality-gate discovery, override handling, or package-root forwarding"
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

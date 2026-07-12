@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "resolves the canonical docs-list implementation and forwards package documentation listing arguments"
+# read_when:
+#   - "changing docs-list fallback resolution, prerequisites, or wrapper usage"
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

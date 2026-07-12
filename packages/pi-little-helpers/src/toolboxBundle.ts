@@ -1,3 +1,7 @@
+// summary: "exports little-helpers peer-spawn tools as a toolbox bundle without registering slash commands"
+// read_when:
+//   - "changing toolbox registration or the capability manifest exposed to on-demand tool activation"
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "checks required package files, directories, executable modes, scaffold answers, and documentation frontmatter"
+# read_when:
+#   - "changing the package scaffold layout, required artifacts, or shell-level structure validation"
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

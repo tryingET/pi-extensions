@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "validates publish metadata and packed contents, then installs the tarball for isolated Pi release smoke checks"
+# read_when:
+#   - "changing release artifact validation, npm dry runs, isolated installation, or smoke-test setup"
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

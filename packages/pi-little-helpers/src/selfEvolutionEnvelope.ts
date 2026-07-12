@@ -1,3 +1,7 @@
+// summary: "normalizes self-evolution candidates into bounded execution envelopes and enforces typed closeout requirements"
+// read_when:
+//   - "changing candidate correlation, execution membranes, owner routing, envelope parsing, or closeout validation"
+
 import {
   loadSelfEvolutionOwnerArtifact,
   parseSelfEvolutionOwnerArtifact,

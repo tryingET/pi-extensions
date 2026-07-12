@@ -1,3 +1,7 @@
+// summary: "verifies self-evolution owner artifacts, session bindings, package checks, and ordered live-runtime proof evidence"
+// read_when:
+//   - "changing owner-artifact safety, persisted candidate binding, or host-correlated closeout proof verification"
+
 import {
   closeSync,
   constants,
