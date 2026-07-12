@@ -17,7 +17,7 @@ system4d:
 
 ## Status
 
-This is a proposed package architecture under `decision:52`. It depends on the ROCS [Deterministic Semantic Discovery Protocol v0](../../../../../../../core/rocs-cli/docs/project/semantic-discovery-protocol-v0.md) and responds to the [attempt-1 review synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review-synthesis-v0.md).
+This is a proposed package architecture under `decision:52`. It depends on the ROCS [Deterministic Semantic Discovery Protocol v0](../../../../../../../core/rocs-cli/docs/project/semantic-discovery-protocol-v0.md) and responds to the [attempt-1 review synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-review-synthesis-v0.md) and [attempt-2 synthesis](../../../../../../../core/rocs-cli/docs/project/semantic-preflight-rereview-synthesis-v1.md).
 
 Nothing in this RFC authorizes implementation. Every P phase is candidate post-ADR sequencing and requires accepted decision state plus post-ADR implementation and validation/rollout/rollback artifacts. Production semantic release, ROCS tool trust, consumer adoption, automatic defaults, fleet enablement, and mandatory enforcement require a later concrete AK decision coordinate.
 
@@ -73,7 +73,7 @@ A digest authenticates bytes but does not make ontology prose safe system instru
 - resolve current repo and target semantic scope;
 - locate a verified ROCS runner descriptor;
 - identify declared semantic dependency/adoption posture when available;
-- report release capsule or explicit unreleased-development posture;
+- report reserved `semantic_release_coordinate` availability or explicit unreleased-development posture;
 - update UI status without injecting ontology content;
 - create a generation-scoped `AbortController`;
 - reconstruct no semantic selection from an old branch unless it is represented in the active branch's explicit tool history.
@@ -92,7 +92,7 @@ On `session_shutdown`, reload, new, resume, or fork:
 
 `before_agent_start` receives the expanded prompt and current chained system prompt. The handler:
 
-1. Canonicalizes the query under a closed byte limit.
+1. Preserves the exact expanded-prompt UTF-8 query bytes under the closed limit; only ROCS normalizes retrieval text.
 2. Applies only explicit deterministic applicability rules.
 3. Invokes ROCS `discover` through a verified runner under an outer wall-clock timeout.
 4. Validates the complete closed ROCS result schema and digest.
@@ -131,7 +131,17 @@ retrieval: no_candidates | unique_candidate | multiple_candidates |
            ambiguous_equivalence | low_confidence | absent
 ```
 
-Projection rules are closed and tested. Multiple candidates may represent several valid task intents; no candidate is silently selected.
+Projection is normative and ordered:
+
+| Condition | Projection |
+|---|---|
+| mode disabled or applicability=`not_applicable` | `not_applicable` |
+| invocation != `ok`, including every ROCS error/timeout/exhaustion | `unavailable` |
+| retrieval=`no_candidates` | `no_match` |
+| retrieval=`ambiguous_equivalence` or `low_confidence` | `ambiguous` |
+| retrieval=`unique_candidate` or `multiple_candidates` | `matched` |
+
+`multiple_candidates` means multiple independently relevant candidates, not automatic ambiguity. No candidate is silently selected.
 
 ### Automatic prompt block
 
@@ -183,15 +193,15 @@ kind: adopted_runtime | development_runtime
 executable and fixed arguments
 ROCS tool identity/digest
 supported discovery request/result/algorithm versions
-semantic dependency identity
+semantic release coordinate or development snapshot identity
 verification evidence
 ```
 
 ### Adopted runner
 
-The distribution form and trust root are deliberately unresolved until P6. Normal automatic mode will require an owner-authoritative adoption record that pins the ROCS tool digest independently of the consumer tree. A consumer-local hash manifest cannot authenticate itself when an attacker can replace both the manifest and runtime.
+The distribution form and trust root are deliberately unresolved until AK decision:53 and its post-ADR work. Normal automatic mode will require an owner-authoritative adoption record that pins the ROCS tool digest independently of the consumer tree. A consumer-local hash manifest cannot authenticate itself when an attacker can replace both the manifest and runtime.
 
-Subject to the P6 decision, the adapter must:
+Subject to decision:53 and its accepted owner contracts, the adapter must:
 
 - verify the complete runtime against the externally pinned tool digest;
 - invoke the isolated module directly with fixed arguments;
@@ -201,9 +211,9 @@ Subject to the P6 decision, the adapter must:
 
 ### Development runner
 
-Developer mode is enabled only when `ctx.mode === "tui"` and `/ontology-preflight enable-development` obtains a fresh bounded TUI confirmation for the current extension generation. RPC, prompt content, tools, repository files, settings, environment inheritance, startup detection, resume, and fork cannot enable it; reload/new/resume/fork resets it. Headless modes cannot enable it.
+Developer mode is enabled only when `ctx.mode === "tui"`, the agent is idle, and `/ontology-preflight enable-development` obtains a fresh TUI confirmation that expires after 30 seconds and is invalidated by any generation or cwd change. RPC, prompt content, tools, repository files, settings, environment inheritance, startup detection, resume, and fork cannot enable it; reload/new/resume/fork resets it. Headless modes cannot enable it.
 
-Enablement resolves absolute executable/source paths without a shell, requires a clean pinned ROCS commit, verifies all tracked source and lock bytes, and stages a content-addressed prepared runtime in an extension-owned external cache. The TUI discloses that preparation write. The immutable staged generation—not `uv`, `PATH`, or the mutable checkout—is used during prompt runs. Every invocation reverifies the staged manifest immediately before spawn; drift disables development mode. It is labeled `development_runtime` plus `development_snapshot`, never release authority.
+Enablement resolves absolute executable/source paths without a shell, requires a clean pinned ROCS commit, and atomically publishes a content-addressed prepared runtime in an extension-owned cache after full verification. Its closed manifest covers schema, ROCS commit, every staged regular file path/mode/size/digest, dependency lock digest, interpreter absolute path/version/digest, generated entrypoint digest, and whole-manifest digest. Staging rejects symlinks, non-owner ownership, group/world-writable directories/files, path escape, and existing partial generations; publication uses a fresh sibling directory plus atomic rename. The TUI discloses the write. Prompt runs use only that generation and reverify the complete manifest immediately before spawn; drift disables development mode. It is labeled `development_runtime` plus `development_snapshot`, never release authority.
 
 Automatic mode removes ambient bare `rocs`, package-root wrapper discovery, and unrestricted `PI_ONTOLOGY_ROCS_BIN` / `ROCS_BIN`. Explicit diagnostic commands may retain an operator override only when they report it as unverified and never use it silently for automatic preflight.
 
@@ -219,9 +229,15 @@ Use an allowlisted environment with:
 - no ambient `PYTHONPATH`;
 - no inherited ROCS override variables.
 
-V0 is Linux/POSIX-only and timeout-driven because Pi does not yet prove Escape cancellation before agent start. The default preflight ceiling is 750 ms and may only be lowered by operator-owned session state. Spawn creates a process group; timeout, generation replacement, or shutdown sends TERM, waits at most 100 ms, sends KILL, reaps the child, and returns within 250 ms. A later host capability decision may add pre-agent cancellation.
+V0 is Linux/POSIX-only and timeout-driven because Pi does not yet prove Escape cancellation before agent start. One 750 ms end-to-end deadline covers readiness wait, spawn, execution, parsing, TERM/KILL, and bounded reap; it may only be lowered by operator-owned session state. `before_agent_start` snapshots the current generation and awaits its readiness promise inside that deadline; absent readiness becomes `unavailable`, and late readiness applies only to later prompts. Spawn creates a process group; teardown allocates at most 100 ms to TERM and 100 ms to KILL/reap, after which the descriptor is quarantined and the handler returns without blocking. A later host capability decision may add pre-agent cancellation.
 
-Streaming caps are closed: query 16 KiB; stdout 128 KiB; stderr 32 KiB; combined 160 KiB; decoded JSON 64 KiB; rendered block 16 KiB; UI/error text 4 KiB; exact-ID pack 256 KiB. Crossing a process cap kills the group immediately. Invalid UTF-8 or a split/truncated JSON document fails as incompatible/resource exhausted; no partial result is accepted.
+Streaming caps are closed: query 16 KiB; stdout 128 KiB; stderr 32 KiB; combined 160 KiB; decoded discovery JSON 65,536 bytes including its digest field; rendered block 16 KiB; UI/error text 4 KiB; exact-ID pack 256 KiB. Crossing a process cap kills the group immediately. Cap excess maps to `resource_exhausted`; invalid UTF-8, truncated/malformed JSON, schema/digest failure, and unsupported protocol map to `incompatible`; spawn/not-found maps to `unavailable`; the outer deadline maps to `timeout`. No partial result is accepted.
+
+### Host compatibility and operator readback
+
+The adapter resolves the actually loaded `@earendil-works/pi-coding-agent/package.json` through Node module resolution, verifies its package name and SemVer `>=0.80.6 <0.81.0`, and probes the required hook/context methods before registration. Missing, ambiguous, or unsupported identity disables preflight visibly; repository files cannot supply this fact.
+
+For every attempted TUI preflight, one compact status/readback shows outcome, invocation state, corpus/result digest prefixes, candidate count, and whether any exact-ID pack was selected. It never prints ontology prose. Headless/RPC/print modes do not run automatic preflight and obtain the same fields only from explicit machine-result tools.
 
 ## State and concurrency
 
@@ -257,8 +273,8 @@ Rules:
 ### `ontology_inspect`
 
 - Inside the explicit development gate, search may delegate to ROCS `discover` for dogfood.
-- Outside the gate, preserve current behavior until P6 adopted cutover.
-- At P6 cutover, remove `loadSearchCatalog`, `rankSearchDocs`, and `scoreDoc`; search then no longer calls `rocs build`.
+- Outside the gate, preserve current behavior until the separately gated P7 explicit-search cutover.
+- At that P7 cutover, remove `loadSearchCatalog`, `rankSearchDocs`, and `scoreDoc`; search then no longer calls `rocs build`.
 - Interactive unbound pack remains available, but discovery follow-up uses ROCS bound-pack mode with expected corpus-snapshot and document digests. The adapter validates ROCS-emitted pack identity and caps output; it never manufactures lineage metadata.
 - Full pack text is rendered as untrusted semantic data, not instructions or certification.
 
@@ -267,10 +283,10 @@ Rules:
 Startup context may report:
 
 - semantic dependency available/unavailable;
-- capsule coordinate and digest;
+- semantic release coordinate and digest when decision:53 has supplied one;
 - how to request semantic discovery.
 
-It does not rank concepts or inject definitions. Coexistence uses advisory event `pi.semantic-dependency-availability.v0` with closed fields `{owner, extension_generation, cwd, status, semantic_coordinate_or_null, tool_identity_or_null}`. `pi-ontology-workflows` emits after readiness and again after reload/refresh; listeners tolerate absence and any load order. The event and prompt markers are forgeable adapter hints, never adoption or authority. No package imports the other's source.
+It does not rank concepts or inject definitions. Until `pi-society-startup-context` accepts a companion owner artifact, this package only emits and documents advisory event `pi.semantic-dependency-availability.v0` with closed fields `{owner, extension_generation, cwd, status, semantic_coordinate_or_null, tool_identity_or_null}`. `pi-ontology-workflows` emits after readiness and again after reload/refresh; listeners tolerate absence and any load order. The event and prompt markers are forgeable adapter hints, never adoption or authority. No package imports the other's source.
 
 ### DSPx and other consumers
 
@@ -282,18 +298,18 @@ Production facts remain separate:
 
 | Fact | Future owner | AK relationship |
 |---|---|---|
-| semantic release coordinate and corpus digest | semantic release owner selected by later decision | AK references decision/evidence; it does not store ontology meaning |
+| semantic release coordinate and corpus digest | semantic release owner selected by decision:53 | AK references decision/evidence; it does not store ontology meaning |
 | ROCS runtime/tool digest and distribution trust root | ROCS release/distribution owner selected by later decision | AK references accepted tool/adoption evidence |
 | consumer desired/default state | consumer owner through later adoption decision | AK owns decision/task/rollout intent, not semantic bytes |
 
-| Phase | Identity/runner | Search default | Automatic preflight | Startup orientation | Rollback |
-|---|---|---|---|---|---|
-| Pre-ADR | none | existing TypeScript path | existing static hint | existing behavior | none |
-| Development dogfood | prepared development runtime + snapshot | gated session path only | gated TUI prompt-run only | availability only | disable session; delete staged generation |
-| Adopted canary | accepted semantic coordinate + pinned runtime | unchanged | named TUI canary | availability only | semantic N→N−1 plus package/runtime rollback |
-| Search cutover | adopted identities | ROCS; remove old scorer | separately unchanged | unchanged | restore prior package version |
-| Automatic default | adopted identities | ROCS | separate accepted gate | separately unchanged | disable feature/package rollback |
-| Fleet | policy-selected pinned generations | ROCS | separately authorized | separately authorized | fleet policy and prior-generation rollback |
+| Phase | Identity/runner | Ranking owner and automatic behavior | Required AK/evidence gate | Rollback |
+|---|---|---|---|---|
+| Pre-ADR | none | existing TypeScript search/static hint/startup | decision:52 review only; no execution task | none |
+| Development dogfood | prepared development runtime + snapshot | ROCS only inside confirmed TUI generation; defaults unchanged | accepted decision:52 + post-ADR plan/validation + `post_adr_execution` task | disable session; delete staged generation; current behavior remains |
+| Adopted canary | accepted coordinate + pinned runtime | ROCS named TUI canary; defaults unchanged | accepted decision:53 + adoption receipt + named canary task/evidence | semantic N→N−1 when present, otherwise disable to current behavior; package/runtime rollback |
+| Search cutover | adopted identities | ROCS explicit search; remove old scorer; automatic/startup unchanged | canary evidence + separate accepted search-cutover task | restore prior package version |
+| Automatic default | adopted identities | ROCS search plus automatic prompt-run; startup unchanged | DSPx/Oracle evidence + separate accepted default task/decision | disable feature or restore package |
+| Fleet | policy-selected pinned generations | policy-authorized search/preflight/startup independently | fleet decision, policy, rollout tasks, receipts | fleet policy plus prior pinned runtime/semantic generations |
 
 One producer/consumer slice authorizes only a canary. It cannot authorize package defaults or fleet rollout.
 
@@ -326,7 +342,7 @@ Owners: ROCS + package adapter.
 
 - Verify Pi `>=0.80.6 <0.81.0` hook payloads, startup/resource ordering, prompt-run chaining, handler/provider-hook behavior, TUI mode, reload/new/resume/fork events, timeout behavior, and Linux process-group termination.
 - Fail the wave if required host behavior is absent; do not encode an assumption as a package contract.
-- Land ROCS caller-request/effective-request/result/identity fixtures and invalid cases.
+- Land ROCS caller-request/effective-execution/result/identity fixtures and invalid cases.
 - Add TypeScript fixture validators without implementing ranking.
 - Define protocol negotiation and incompatible-version behavior.
 - Freeze the outcome projection table and canonical prompt renderer fixtures.
@@ -364,7 +380,7 @@ Gate: hostile `scripts/rocs.sh` never executes; bare `PATH`, implicit `.env`, an
 Owner: `pi-ontology-workflows`.
 
 - Route `kind=search` to ROCS discovery only while the session development gate is enabled.
-- Preserve the existing default path until P6; do not claim one fleet ranking authority during dogfood.
+- Preserve the existing default path until the P7 explicit-search gate; do not claim one fleet ranking authority during dogfood.
 - Use the additive ROCS bound-pack mode, pass expected snapshot/document digests, validate ROCS-emitted identity, and cap output.
 - Document development behavior without announcing a default breaking contract.
 
@@ -402,7 +418,7 @@ This is dogfood evidence, not fleet adoption evidence.
 
 ### P6 — Production identities and adopted canary
 
-Blocked until a concrete later AK decision accepts three separate owner facts: semantic release coordinate, independently pinned ROCS runtime/tool digest, and consumer adoption/default intent.
+Blocked until AK decision:53 accepts three separate owner facts: semantic release coordinate, independently pinned ROCS runtime/tool digest, and consumer adoption/default intent.
 
 - Reject unadopted or incompatible automatic context.
 - Run one named TUI adopted canary without changing explicit search, automatic preflight, or startup defaults.
