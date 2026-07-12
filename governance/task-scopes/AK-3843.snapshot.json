@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-07-12T17:08:30.150771129+00:00",
+  "task_id": 3843,
+  "entity_version": 2,
+  "commit_sha": null,
+  "scope": {
+    "allowed_paths": [
+      "README.md",
+      "README.terse.md",
+      "docs/project/root-capabilities.md",
+      "governance/task-scopes/AK-*.snapshot.json",
+      "governance/work-items.json",
+      "packages/pi-evidence-review/**"
+    ],
+    "required_paths": [
+      "packages/pi-evidence-review/README.md",
+      "packages/pi-evidence-review/extensions/evidence-review.ts",
+      "packages/pi-evidence-review/package.json"
+    ],
+    "forbidden_paths": []
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}

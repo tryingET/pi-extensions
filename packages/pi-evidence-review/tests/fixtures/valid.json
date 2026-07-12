@@ -1,0 +1,478 @@
+{
+  "schema": "semantic-code-intelligence.evidence_review.v1",
+  "source": {
+    "kind": "validation_plan",
+    "schema": "semantic-code-intelligence.validation_plan.v1",
+    "workflow": "fixture_normalized_review"
+  },
+  "outcome": {
+    "ok": true,
+    "status": "checks_passed",
+    "previewOnly": true,
+    "applied": false,
+    "productionReady": false
+  },
+  "scope": {
+    "touchedFiles": [
+      "src/example.ts"
+    ],
+    "risk": {
+      "level": "low",
+      "category": "source_change"
+    },
+    "target": null
+  },
+  "commands": {
+    "selected": [
+      "bun test tests/example.test.ts"
+    ],
+    "recommendedMinimum": [
+      "bun run typecheck"
+    ],
+    "recommendedBroader": [
+      "bun run typecheck",
+      "bun test"
+    ],
+    "recommendationsAppliedToSelected": false,
+    "rationale": []
+  },
+  "checks": {
+    "ok": true,
+    "elapsedMs": 42,
+    "commands": [
+      {
+        "command": "bun test tests/example.test.ts",
+        "ok": true
+      }
+    ]
+  },
+  "graphImpact": {
+    "seed": {
+      "kind": "file",
+      "value": "src/example.ts"
+    },
+    "languageSupport": {
+      "language": "typescript",
+      "support": "tree_sitter_best_effort",
+      "supportedEdges": [
+        "imports",
+        "exports",
+        "callers",
+        "callees"
+      ]
+    },
+    "backend": "tree_sitter",
+    "freshness": "current",
+    "requestedEdges": [
+      "imports",
+      "exports",
+      "callers"
+    ],
+    "hasImpactEvidence": false,
+    "counts": {
+      "imports": 0,
+      "exports": 0,
+      "callers": 0,
+      "callees": 0
+    },
+    "evidence": [
+      {
+        "edge": "imports",
+        "count": 0,
+        "status": "empty_or_unavailable",
+        "limitations": []
+      },
+      {
+        "edge": "exports",
+        "count": 0,
+        "status": "empty_or_unavailable",
+        "limitations": []
+      },
+      {
+        "edge": "callers",
+        "count": 0,
+        "status": "limited",
+        "limitations": [
+          "callers: fallback-shaped evidence"
+        ]
+      }
+    ],
+    "limitations": [
+      "fallback: graph expand unavailable"
+    ],
+    "callerContextCount": 0,
+    "planningHints": [
+      "inspect callers manually if risk increases"
+    ]
+  },
+  "artifacts": {
+    "overlayDiff": "snapshot://example/overlay.diff",
+    "status": "snapshot://example/status"
+  },
+  "rollback": {
+    "available": false,
+    "notNeeded": true,
+    "status": "not_needed_preview",
+    "command": null,
+    "inversePatch": null,
+    "reason": "No source mutation occurred; rollback is not needed for preview-only evidence."
+  },
+  "verification": {
+    "applied": null,
+    "appliedDiffMatchesSnapshot": null,
+    "method": null,
+    "diagnostics": null,
+    "semanticFailures": []
+  },
+  "safety": {
+    "sourceMutated": false,
+    "targetStatusPreserved": null,
+    "authorityBoundary": "AK remains task/evidence authority where registered; this review is not canonical state.",
+    "productionBoundary": "Alpha evidence is not production readiness."
+  },
+  "operatorQuestions": [
+    "Is this evidence enough to continue, or should the operator stop and inspect details?",
+    "Did the executed checks match the risk of the change?"
+  ],
+  "evidenceArtifacts": [
+    {
+      "id": "source",
+      "kind": "validation_plan",
+      "schema": "semantic-code-intelligence.validation_plan.v1",
+      "observedStatus": "observed",
+      "durability": "reproducible_local",
+      "uriOrPath": null,
+      "citationRequirement": "cite input schema and command used to generate this review"
+    },
+    {
+      "id": "validation-execution",
+      "kind": "validation_execution",
+      "schema": null,
+      "observedStatus": "observed",
+      "durability": "reproducible_local",
+      "uriOrPath": null,
+      "citationRequirement": "cite AK evidence id or explicit command transcript when available; local summary output alone is not authority-durable evidence"
+    },
+    {
+      "id": "graph-impact",
+      "kind": "graph_impact",
+      "schema": null,
+      "observedStatus": "unknown",
+      "durability": "ephemeral",
+      "uriOrPath": null,
+      "citationRequirement": "cite limitations and regeneration command; do not infer no impact from absence"
+    },
+    {
+      "id": "snapshot-artifacts",
+      "kind": "snapshot_artifacts",
+      "schema": null,
+      "observedStatus": "observed",
+      "durability": "ephemeral",
+      "uriOrPath": "snapshot://example/overlay.diff",
+      "citationRequirement": "snapshot:// references are pointers, not durable proof, unless materialized or attached to AK evidence"
+    },
+    {
+      "id": "rollback",
+      "kind": "rollback",
+      "schema": null,
+      "observedStatus": "inapplicable",
+      "durability": "ephemeral",
+      "uriOrPath": null,
+      "citationRequirement": "no rollback needed because this evidence is preview-only and no source mutation occurred"
+    },
+    {
+      "id": "apply-verification",
+      "kind": "apply_verification",
+      "schema": null,
+      "observedStatus": "inapplicable",
+      "durability": "ephemeral",
+      "uriOrPath": null,
+      "citationRequirement": "cite applied-state verification evidence when source mutation is claimed; mismatch blocks apply-safety claims"
+    }
+  ],
+  "limitations": [
+    {
+      "id": "graph-impact-limitation-1",
+      "limitation": "fallback: graph expand unavailable",
+      "sourceArtifact": "graph-impact",
+      "affectsClaims": [
+        "graph-limitations"
+      ],
+      "affectsDecisionPoints": [
+        "continue-or-stop"
+      ],
+      "severity": "warning"
+    },
+    {
+      "id": "preview-boundary-limitation-1",
+      "limitation": "Preview-only evidence does not prove apply safety; rollback is not needed unless a source mutation is applied.",
+      "sourceArtifact": "rollback",
+      "affectsClaims": [
+        "preview-boundary"
+      ],
+      "affectsDecisionPoints": [
+        "continue-or-stop"
+      ],
+      "severity": "warning"
+    }
+  ],
+  "claims": [
+    {
+      "id": "checks-result",
+      "claim": "Selected validation checks passed.",
+      "status": "supported",
+      "supportedBy": [
+        "validation-execution"
+      ],
+      "limitedBy": [],
+      "warrant": "Executed command evidence, not recommendation text, determines this claim; check success without selected command evidence is not enough.",
+      "authorityBoundaries": [
+        "not-production-readiness",
+        "not-canonical-authority"
+      ],
+      "operatorDecisionPoints": [
+        "continue-or-stop",
+        "run-stronger-checks"
+      ]
+    },
+    {
+      "id": "command-distinction",
+      "claim": "Selected command evidence remains structurally distinct from recommended command advice.",
+      "status": "supported",
+      "supportedBy": [
+        "source"
+      ],
+      "limitedBy": [],
+      "warrant": "Selected and recommended commands are represented as separate fields; overlapping command strings are allowed when recommendations were intentionally selected.",
+      "authorityBoundaries": [
+        "not-canonical-authority"
+      ],
+      "operatorDecisionPoints": [
+        "run-stronger-checks"
+      ]
+    },
+    {
+      "id": "graph-limitations",
+      "claim": "Graph or impact evidence includes visible limitations.",
+      "status": "weakened",
+      "supportedBy": [
+        "graph-impact"
+      ],
+      "limitedBy": [
+        "graph-impact-limitation-1"
+      ],
+      "warrant": "Missing or fallback-shaped graph evidence qualifies continuation decisions; it does not imply no impact.",
+      "authorityBoundaries": [
+        "not-production-readiness"
+      ],
+      "operatorDecisionPoints": [
+        "continue-or-stop"
+      ]
+    },
+    {
+      "id": "artifact-durability",
+      "claim": "Snapshot artifact references are not materialized local proof.",
+      "status": "weakened",
+      "supportedBy": [
+        "snapshot-artifacts"
+      ],
+      "limitedBy": [],
+      "warrant": "Artifact references must distinguish materialized local files from ephemeral snapshot pointers, missing files, unsupported URIs, and path escapes.",
+      "authorityBoundaries": [
+        "not-canonical-authority"
+      ],
+      "operatorDecisionPoints": [
+        "continue-or-stop"
+      ]
+    },
+    {
+      "id": "rollback-posture",
+      "claim": "Rollback is not needed because no source mutation was applied.",
+      "status": "supported",
+      "supportedBy": [
+        "rollback"
+      ],
+      "limitedBy": [],
+      "warrant": "Rollback availability requires a command or materialized inverse patch; preview-only evidence does not need rollback because it does not mutate source.",
+      "authorityBoundaries": [
+        "not-canonical-authority",
+        "no-implicit-mutation"
+      ],
+      "operatorDecisionPoints": [
+        "continue-or-stop"
+      ]
+    },
+    {
+      "id": "apply-verification",
+      "claim": "Applied diff verification is not recorded for this review.",
+      "status": "weakened",
+      "supportedBy": [
+        "apply-verification"
+      ],
+      "limitedBy": [],
+      "warrant": "Applied mutation evidence must preserve whether the applied diff matched the reviewed snapshot; mismatch blocks apply-safety claims.",
+      "authorityBoundaries": [
+        "not-production-readiness",
+        "not-canonical-authority"
+      ],
+      "operatorDecisionPoints": [
+        "continue-or-stop"
+      ]
+    },
+    {
+      "id": "preview-boundary",
+      "claim": "This evidence remains preview-only and does not prove apply safety.",
+      "status": "weakened",
+      "supportedBy": [
+        "source",
+        "snapshot-artifacts"
+      ],
+      "limitedBy": [
+        "preview-boundary-limitation-1"
+      ],
+      "warrant": "Preview evidence can support continued review, not production readiness or governance acceptance.",
+      "authorityBoundaries": [
+        "not-production-readiness",
+        "no-implicit-mutation"
+      ],
+      "operatorDecisionPoints": [
+        "continue-or-stop"
+      ]
+    }
+  ],
+  "authorityBoundaries": [
+    {
+      "id": "not-canonical-authority",
+      "boundary": "AK remains task/evidence authority where registered; this review is not canonical state.",
+      "affectedScope": "governance"
+    },
+    {
+      "id": "not-production-readiness",
+      "boundary": "Alpha evidence is not production readiness.",
+      "affectedScope": "readiness"
+    },
+    {
+      "id": "no-implicit-mutation",
+      "boundary": "Rendering evidence review output must not mutate source, snapshots, target repos, AK, or databases.",
+      "affectedScope": "mutation"
+    }
+  ],
+  "operatorDecisionPoints": [
+    {
+      "id": "continue-or-stop",
+      "options": [
+        "continue",
+        "stop",
+        "inspect limitations"
+      ],
+      "supportingClaims": [
+        "checks-result"
+      ],
+      "limitingClaims": [
+        "graph-limitations",
+        "preview-boundary"
+      ],
+      "residualUncertainty": "Review claims include visible limitations; inspect before continuing."
+    },
+    {
+      "id": "run-stronger-checks",
+      "options": [
+        "accept selected checks",
+        "run recommended minimum",
+        "run recommended broader"
+      ],
+      "supportingClaims": [
+        "command-distinction"
+      ],
+      "limitingClaims": [],
+      "residualUncertainty": "Recommended commands remain advisory unless executed."
+    }
+  ],
+  "handoffReadiness": {
+    "status": "blocked",
+    "decision": "cli_only",
+    "summary": "ADR-0002 keeps evidence review CLI/markdown/JSON-only; this summary may inform an operator but does not authorize host handoff, UI rendering, AK decision advancement, or production readiness.",
+    "gates": [
+      {
+        "id": "claim-model-fields",
+        "status": "present",
+        "schemaIndicatorsPresent": [
+          "evidenceArtifacts",
+          "claims",
+          "limitations",
+          "authorityBoundaries",
+          "operatorDecisionPoints"
+        ],
+        "observedStatuses": [],
+        "externalAuthorityRequired": false,
+        "limitation": "The normalized review carries the first-class claim model fields required before reconsidering handoff.",
+        "nextAction": "Keep evidence review CLI/markdown/JSON-only unless all ADR-0002 reconsideration gates are present and owner acceptance is recorded outside SCI."
+      },
+      {
+        "id": "absence-states",
+        "status": "present",
+        "schemaIndicatorsPresent": [],
+        "observedStatuses": [
+          "observed",
+          "observed",
+          "unknown",
+          "observed",
+          "inapplicable",
+          "inapplicable"
+        ],
+        "externalAuthorityRequired": false,
+        "limitation": "Evidence artifact observedStatus values are constrained to the supported absence-state vocabulary.",
+        "nextAction": "Treat missing or unsupported evidence states as schema drift and block handoff."
+      },
+      {
+        "id": "selected-vs-recommended-commands",
+        "status": "present",
+        "schemaIndicatorsPresent": [
+          "commands.selected",
+          "commands.recommendedMinimum",
+          "commands.recommendedBroader",
+          "commands.recommendationsAppliedToSelected"
+        ],
+        "observedStatuses": [],
+        "externalAuthorityRequired": false,
+        "limitation": "Selected validation commands remain structurally distinct from advisory recommendations.",
+        "nextAction": "Do not render recommendations as executed commands or silently add them to selected validation."
+      },
+      {
+        "id": "read-only-boundary",
+        "status": "present",
+        "schemaIndicatorsPresent": [
+          "authorityBoundaries.no-implicit-mutation"
+        ],
+        "observedStatuses": [],
+        "externalAuthorityRequired": false,
+        "limitation": "The review preserves a no-implicit-mutation boundary for source, snapshots, target repos, AK, and databases.",
+        "nextAction": "Do not attach host handoff or UI behavior that can mutate owner surfaces through this summary."
+      },
+      {
+        "id": "sample-and-test-evidence",
+        "status": "not_asserted",
+        "schemaIndicatorsPresent": [],
+        "observedStatuses": [],
+        "externalAuthorityRequired": false,
+        "limitation": "This runtime summary does not certify committed fixture freshness or test execution.",
+        "nextAction": "Run bun test tests/evidence-review-claim-model.test.ts and cite the result before claiming schema-readiness evidence."
+      },
+      {
+        "id": "host-owner-acceptance",
+        "status": "missing",
+        "schemaIndicatorsPresent": [],
+        "observedStatuses": [],
+        "externalAuthorityRequired": true,
+        "limitation": "SCI cannot self-accept Pi/operator-workbench scope or create host integration authority.",
+        "nextAction": "Request explicit host-owner acceptance/review before any Pi/operator-workbench handoff or UI work."
+      }
+    ],
+    "nextActions": [
+      "Use this summary for local operator review only.",
+      "Run and cite the evidence-review tests before claiming schema-readiness evidence.",
+      "Seek explicit Pi/operator-workbench owner acceptance before any host handoff or rendered UI work."
+    ],
+    "authorityBoundary": "Generated readiness is a local review projection, not AK evidence, governance acceptance, host-owner approval, or production-readiness proof."
+  }
+}

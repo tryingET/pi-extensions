@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-18",
+  "updated_at": "2026-07-12",
   "owner": "@tryingET",
   "project_name": "pi-extensions",
   "milestones": [
@@ -3213,6 +3213,18 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-05-09"
+        },
+        {
+          "id": "AK-TASK-3843",
+          "title": "Implement authorized read-only Pi evidence review consumer v1",
+          "state": "claimed",
+          "tasks": [
+            {
+              "text": "Implement authorized read-only Pi evidence review consumer v1 (task #3843)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.v2.db with evidence recorded."
         }
       ]
     }
