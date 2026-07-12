@@ -1,3 +1,8 @@
+/**
+ * summary: "tests command execution, host adaptation, skill queuing, failures, and immediate or deferred restoration."
+ * read_when:
+ *   - "changing command-runner effects, error paths, refreshed prompts, or Pi host integration."
+ */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

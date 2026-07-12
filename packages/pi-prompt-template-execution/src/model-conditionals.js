@@ -1,4 +1,9 @@
 /**
+ * summary: "parses and renders nested if-model markup with model matching and fail-closed diagnostics."
+ * read_when:
+ *   - "changing conditional prompt syntax, model-spec matching, nesting, or error reporting."
+ */
+/**
  * Pure <if-model> conditional renderer.
  *
  * Ported semantically from npm:pi-prompt-template-model so nested conditionals,

@@ -1,4 +1,9 @@
 /**
+ * summary: "resolves prompt skills across registered commands and project or global skill directories."
+ * read_when:
+ *   - "changing prompt skill lookup precedence, markdown loading, or queued skill messages."
+ */
+/**
  * Pure skill-resolution helpers for prompt-template execution.
  *
  * These helpers mirror the prompt-template-model skill lookup order without

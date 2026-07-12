@@ -1,3 +1,8 @@
+/**
+ * summary: "tests file-budget policy parity, classification, exclusions, limits, failures, and CLI guidance."
+ * read_when:
+ *   - "changing file-budget audit policy, path classification, traversal errors, or output modes."
+ */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

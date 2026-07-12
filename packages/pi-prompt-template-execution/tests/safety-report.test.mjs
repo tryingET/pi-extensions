@@ -1,3 +1,8 @@
+/**
+ * summary: "tests non-live safety reports for manifest exposure, command snapshots, collisions, and cutover blockers."
+ * read_when:
+ *   - "changing safety-report blocker logic or candidate manifest posture."
+ */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

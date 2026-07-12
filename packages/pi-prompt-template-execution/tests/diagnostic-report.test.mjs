@@ -1,3 +1,8 @@
+/**
+ * summary: "tests dry-run claim reports, command-collision readiness, and real commit fixture planning parity."
+ * read_when:
+ *   - "changing diagnostic report contents or non-mutating commit prompt planning."
+ */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

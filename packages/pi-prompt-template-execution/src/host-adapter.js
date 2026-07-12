@@ -1,4 +1,9 @@
 /**
+ * summary: "adapts Pi model, thinking, message, skill-queue, command, and notification host capabilities."
+ * read_when:
+ *   - "changing how prompt-template execution calls or validates Pi host APIs."
+ */
+/**
  * Pi host action adapter for non-live prompt-template execution tests.
  *
  * This module normalizes the Pi host APIs used by the command runner without

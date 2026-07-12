@@ -1,3 +1,8 @@
+/**
+ * summary: "tests guarded prompt command registration, collision checks, one-time state, and runner wiring."
+ * read_when:
+ *   - "changing registration preconditions, command plans, duplicate protection, or extension factories."
+ */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

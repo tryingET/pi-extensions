@@ -1,3 +1,8 @@
+/**
+ * summary: "tests package quality-gate packaging choices and target-path resolution with isolated npm fixtures."
+ * read_when:
+ *   - "changing release-check selection, pack fallback, private-package skips, or target resolution."
+ */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

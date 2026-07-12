@@ -1,3 +1,8 @@
+/**
+ * summary: "tests skill-name normalization, lookup precedence, path rejection, content loading, and message resolution."
+ * read_when:
+ *   - "changing prompt skill discovery or skill-loaded message construction."
+ */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

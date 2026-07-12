@@ -1,3 +1,8 @@
+/**
+ * summary: "tests live extension registration, disk refresh, lifecycle restoration, skills, auth failures, and ownership exclusions."
+ * read_when:
+ *   - "changing the prompt-template extension entrypoint or its session hook behavior."
+ */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";

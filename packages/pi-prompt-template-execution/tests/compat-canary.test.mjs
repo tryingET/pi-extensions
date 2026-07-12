@@ -1,3 +1,8 @@
+/**
+ * summary: "tests compatibility canaries against prompt-loading and model-execution fixture expectations."
+ * read_when:
+ *   - "changing external-compatible loading, selection, restoration, thinking, or conditional behavior."
+ */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

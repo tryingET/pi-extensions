@@ -1,3 +1,8 @@
+/**
+ * summary: "tests argument substitution, conditional rendering, and prompt execution planning decisions."
+ * read_when:
+ *   - "changing prompt arguments, model conditionals, model selection, or execution-plan actions."
+ */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

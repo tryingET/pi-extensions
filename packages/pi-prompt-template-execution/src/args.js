@@ -1,3 +1,8 @@
+/**
+ * summary: "parses prompt command arguments and substitutes positional, aggregate, and slice placeholders."
+ * read_when:
+ *   - "changing prompt-template argument tokenization or placeholder substitution behavior."
+ */
 function shellSplit(value) {
   const tokens = [];
   let current = "";
