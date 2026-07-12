@@ -1,4 +1,9 @@
 /**
+ * summary: "implements owner-scoped runtime registration, capability lookup, diagnostics, and a lazy global singleton."
+ * read_when:
+ *   - "changing runtime lifecycle behavior or debugging shared extension runtime discovery."
+ */
+/**
  * Shared runtime instance registry for pi-interaction extensions.
  *
  * Provides a central place for registering and discovering runtime instances

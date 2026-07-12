@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+ * summary: "validates pi-interaction package metadata, scripts, publish fields, engineering lane, and scaffold contract."
+ * read_when:
+ *   - "updating package structure expectations or diagnosing node-based scaffold validation failures."
+ */
 
 import fs from "node:fs";
 

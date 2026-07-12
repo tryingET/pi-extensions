@@ -1,3 +1,8 @@
+/**
+ * summary: "validates picker registration option boundaries and normalized candidate records with compiled typebox schemas."
+ * read_when:
+ *   - "adding picker configuration fields or tightening candidate validation errors."
+ */
 import { Type } from "typebox";
 import { Compile } from "typebox/compile";
 

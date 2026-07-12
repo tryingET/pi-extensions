@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+ * summary: "validates one package publish artifact, local dependency rewrites, tarball installation, and importability."
+ * read_when:
+ *   - "checking package-level release contents or investigating packed dependency and install smoke failures."
+ */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";

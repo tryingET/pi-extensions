@@ -1,3 +1,8 @@
+/**
+ * summary: "tests picker trigger validation, candidate loading, query prompting, selection application, telemetry, and option limits."
+ * read_when:
+ *   - "verifying registerPickerInteraction contracts or picker fallback behavior."
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
 

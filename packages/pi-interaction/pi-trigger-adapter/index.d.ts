@@ -1,3 +1,8 @@
+/**
+ * summary: "declares the trigger adapter context, broker surface, picker registration, and query parsing exports."
+ * read_when:
+ *   - "consuming or evolving the public types exposed by pi-trigger-adapter."
+ */
 export type TriggerContext = {
   fullText: string;
   textBeforeCursor: string;

@@ -1,4 +1,9 @@
 /**
+ * summary: "tests trigger registration, diagnostics, matching, priority, enablement, and session-scoped debounce dispatch."
+ * read_when:
+ *   - "verifying core TriggerBroker matching or asynchronous dispatch behavior."
+ */
+/**
  * Tests for TriggerBroker.
  */
 

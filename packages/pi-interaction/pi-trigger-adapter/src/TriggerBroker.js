@@ -1,4 +1,9 @@
 /**
+ * summary: "implements globally shared trigger registration, matching, scoped debouncing, dispatch, and diagnostics."
+ * read_when:
+ *   - "changing trigger lifecycle, matching priority, debounce isolation, or broker singleton behavior."
+ */
+/**
  * Core broker that manages input trigger registration and dispatch.
  */
 

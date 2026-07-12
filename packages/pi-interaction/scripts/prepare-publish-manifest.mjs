@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+ * summary: "rewrites local file dependency specs to package versions for packing and restores the original manifest afterward."
+ * read_when:
+ *   - "debugging prepack dependency rewriting, stale backups, or postpack manifest restoration."
+ */
 import fs from "node:fs";
 import path from "node:path";
 
