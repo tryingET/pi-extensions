@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Verify the installed context-packer artifact through an isolated Pi runtime."
+# read_when:
+#   - "You change package discovery, registered tools, or release-time runtime activation."
 set -euo pipefail
 
 : "${PI_CODING_AGENT_DIR:?PI_CODING_AGENT_DIR is required so release smoke cannot touch operator pi settings}"

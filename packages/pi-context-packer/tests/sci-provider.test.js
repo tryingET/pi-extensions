@@ -1,3 +1,9 @@
+/**
+summary: "Test SCI packet reads, sandboxing, artifact refusal, overrides, and environment isolation."
+read_when:
+  - "You change SCI provider execution, safety gates, path handling, or subprocess controls."
+*/
+
 import assert from "node:assert/strict";
 import { chmod, lstat, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

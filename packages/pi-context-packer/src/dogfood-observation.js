@@ -1,3 +1,9 @@
+/**
+summary: "Evaluate and aggregate redacted context-packet dogfood observations."
+read_when:
+  - "You change dogfood receipt validation, calibration status, aggregation, or formatting."
+*/
+
 import {
   markdownFence,
   markdownInlineLabel,

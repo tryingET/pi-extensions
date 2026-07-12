@@ -1,3 +1,9 @@
+/**
+summary: "Classify source files and report line or byte budget overruns for path seeds."
+read_when:
+  - "You change context-plan file-size policy, exclusions, or budget risk detection."
+*/
+
 import { closeSync, lstatSync, openSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 

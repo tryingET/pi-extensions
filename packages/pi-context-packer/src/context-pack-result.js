@@ -1,3 +1,9 @@
+/**
+summary: "Format context packets and build compact redacted tool-result details."
+read_when:
+  - "You change packet Markdown output, detail projections, or redaction guarantees."
+*/
+
 import {
   compactNextToolSuggestionProjections,
   compactOmissionProjections,

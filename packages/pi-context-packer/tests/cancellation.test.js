@@ -1,3 +1,9 @@
+/**
+summary: "Verify context-packet cancellation reaches docs-provider subprocesses."
+read_when:
+  - "You change abort-signal propagation through context planning or docs discovery."
+*/
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

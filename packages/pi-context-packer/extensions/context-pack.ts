@@ -1,3 +1,9 @@
+/**
+summary: "Register context planning, packet assembly, and dogfood evaluation tools with Pi."
+read_when:
+  - "You change context-packer tool registration, command behavior, or installed runtime smoke coverage."
+*/
+
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";

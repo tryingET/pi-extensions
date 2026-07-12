@@ -1,3 +1,9 @@
+/**
+summary: "Project omission and next-tool details without exposing raw sensitive text."
+read_when:
+  - "You change compact packet detail redaction or token and byte estimates."
+*/
+
 const ESTIMATED_BYTES_PER_TOKEN = 4;
 
 export const projectionTextBytes = (value) =>

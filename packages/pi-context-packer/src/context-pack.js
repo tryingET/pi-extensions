@@ -1,3 +1,9 @@
+/**
+summary: "Assemble bounded read-only context packets from wired provider projections."
+read_when:
+  - "You change packet selection, provider budgets, path containment, or omission routing."
+*/
+
 import { execFile } from "node:child_process";
 import { open, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Check required package structure, executable modes, and Markdown metadata."
+# read_when:
+#   - "You change the context-packer scaffold layout or required repository artifacts."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

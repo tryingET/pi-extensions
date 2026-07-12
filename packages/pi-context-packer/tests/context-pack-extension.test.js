@@ -1,3 +1,9 @@
+/**
+summary: "Test Pi extension registration, wrappers, redaction, and runtime smoke commands."
+read_when:
+  - "You change context-packer extension tools, commands, contracts, or host configuration."
+*/
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Resolve and run docs-list with package-local scope by default."
+# read_when:
+#   - "You change context-packer documentation inventory routing or docs-list overrides."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

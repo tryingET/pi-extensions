@@ -1,3 +1,9 @@
+/**
+summary: "Exercise context-packet assembly, safety boundaries, budgets, discovery, and formatting."
+read_when:
+  - "You change core packet behavior, docs intake, instruction loading, omissions, or measurements."
+*/
+
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

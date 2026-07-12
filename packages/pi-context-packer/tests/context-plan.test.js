@@ -1,3 +1,9 @@
+/**
+summary: "Test context-plan routing, input screening, workspace trust, and budget normalization."
+read_when:
+  - "You change planning schemas, provider posture, seed safety, or repo-root inference."
+*/
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
