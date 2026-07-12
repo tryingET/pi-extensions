@@ -1,3 +1,7 @@
+// summary: "tests extension-level runtime registration, model-select tracking, and shutdown cleanup"
+// read_when:
+//   - "changing PTX extension lifecycle wiring to the shared runtime registry"
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getGlobalRuntimeRegistry } from "@tryinget/pi-runtime-registry";

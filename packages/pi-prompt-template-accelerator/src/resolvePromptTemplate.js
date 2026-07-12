@@ -1,3 +1,7 @@
+// summary: "resolves prompt command names while distinguishing unique, prefillable, and ambiguous matches"
+// read_when:
+//   - "changing direct template resolution or duplicate prompt-name handling"
+
 import { getCommandPath, getCommandSource } from "./commandProvenance.js";
 
 function normalizeCommandName(value) {

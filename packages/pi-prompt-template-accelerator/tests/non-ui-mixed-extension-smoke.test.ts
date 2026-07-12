@@ -1,3 +1,7 @@
+// summary: "smoke-tests PTX non-UI transforms, policies, live triggers, and mixed extension routing"
+// read_when:
+//   - "changing headless input handling, live picker integration, or coexistence with other extensions"
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";

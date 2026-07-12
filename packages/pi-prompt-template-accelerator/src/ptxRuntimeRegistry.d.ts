@@ -1,3 +1,7 @@
+// summary: "declares PTX runtime-registry capabilities, accessors, and model lifecycle state"
+// read_when:
+//   - "changing typed runtime ownership, prompt access, model observation, or bridge registration contracts"
+
 export interface PtxNormalizedPromptCommand {
   name: string;
   description?: string;

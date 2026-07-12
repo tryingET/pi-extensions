@@ -1,3 +1,7 @@
+// summary: "formats actionable PTX warnings for unavailable templates and unsuccessful selections"
+// read_when:
+//   - "changing no-candidate reason handling or operator guidance for template discovery failures"
+
 const DEBUG_COMMAND = "/ptx-debug-commands [query]";
 
 export function isNoPromptTemplateAvailabilityReason(reason) {

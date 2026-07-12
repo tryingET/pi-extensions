@@ -1,3 +1,7 @@
+// summary: "converts prefillable prompt commands into sorted and duplicate-safe PTX picker candidates"
+// read_when:
+//   - "changing picker candidate filtering, labels, details, identities, or ordering"
+
 import { getCommandPath, getCommandSource } from "./commandProvenance.js";
 
 function truncate(value, max = 80) {

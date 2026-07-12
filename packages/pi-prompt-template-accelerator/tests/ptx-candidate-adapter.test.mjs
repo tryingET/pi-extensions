@@ -1,3 +1,7 @@
+// summary: "tests prompt-command filtering, metadata preservation, truncation, and duplicate candidate disambiguation"
+// read_when:
+//   - "changing PTX candidate conversion or command provenance compatibility"
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { toPtxCandidates } from "../src/ptxCandidateAdapter.js";

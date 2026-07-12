@@ -1,3 +1,7 @@
+// summary: "tests unique, single-prefillable, ambiguous, and provenance-based prompt resolution"
+// read_when:
+//   - "changing prompt-template name matching or duplicate resolution outcomes"
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolvePromptTemplate } from "../src/resolvePromptTemplate.js";

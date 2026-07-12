@@ -1,3 +1,7 @@
+// summary: "tests fuzzy candidate ranking, UI mapping, empty input, and missing-fzf fallback"
+// read_when:
+//   - "changing fuzzy selection ranking or fallback behavior"
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { rankCandidatesFallback, selectFuzzyCandidate } from "../src/fuzzySelector.js";
