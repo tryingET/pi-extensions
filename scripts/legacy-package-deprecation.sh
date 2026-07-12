@@ -1,4 +1,9 @@
 #!/bin/sh
+# ---
+# summary: "Inspects legacy package migrations, plans Pi session relocation, and renders canonical deprecation handoffs."
+# read_when:
+#   - "Retiring a standalone package after migration into the pi-extensions monorepo."
+# ---
 set -eu
 
 usage() {

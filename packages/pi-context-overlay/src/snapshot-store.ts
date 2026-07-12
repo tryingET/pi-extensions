@@ -1,3 +1,8 @@
+// ---
+// summary: "Stores live context inputs, publishes snapshot updates, and builds classified token estimates for the overlay."
+// read_when:
+//   - "Changing context snapshot lifecycle, subscriptions, cloning, or aggregate estimates."
+// ---
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ContextUsage } from "@earendil-works/pi-coding-agent";
 import { buildGroups } from "./classifier.js";

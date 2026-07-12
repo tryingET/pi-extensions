@@ -1,3 +1,8 @@
+// ---
+// summary: "Renders and controls the keyboard-navigable context inspector overlay with grouped items and previews."
+// read_when:
+//   - "Changing context overlay layout, navigation, rendering, freezing, or file-opening interaction."
+// ---
 import { basename } from "node:path";
 import type { AppKeybinding, KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import * as PiCodingAgent from "@earendil-works/pi-coding-agent";

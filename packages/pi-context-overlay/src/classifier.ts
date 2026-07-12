@@ -1,3 +1,8 @@
+// ---
+// summary: "Classifies system context and session messages into token-weighted groups and file-aware context items."
+// read_when:
+//   - "Changing context grouping, project-context parsing, tool path extraction, or token percentages."
+// ---
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { estimateMessageTokens, estimateTokensFromText } from "./token-estimator.js";
 import type { ContextGroup, ContextGroupId, ContextItem } from "./types.js";

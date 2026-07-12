@@ -1,3 +1,8 @@
+// ---
+// summary: "Tests context overlay rendering bounds, command wiring, RPC handling, and project-context classification."
+// read_when:
+//   - "Changing context-overlay UI behavior, extension events, or system context parsing."
+// ---
 import assert from "node:assert/strict";
 import test from "node:test";
 

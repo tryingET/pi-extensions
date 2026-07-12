@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "Validates, lists, and runs manifest-defined package scenarios against pinned Pi host compatibility profiles."
+// read_when:
+//   - "Reviewing Pi host upgrade coverage, scenario selection, temporary dependency alignment, or restoration behavior."
+// ---
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

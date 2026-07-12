@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "Checks pi-context-overlay publish contents, dry-run publication, tarball installation, and optional Pi smoke behavior."
+# read_when:
+#   - "Preparing a pi-context-overlay release or diagnosing its publish artifact checks."
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,3 +1,8 @@
+// ---
+// summary: "Tests Pi host canary manifest contracts, scenario inventory, host resolution, dry runs, and npm isolation."
+// read_when:
+//   - "Changing host compatibility profiles, canary scenarios, package roots, or neutral npm handling."
+// ---
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

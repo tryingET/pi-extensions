@@ -1,3 +1,8 @@
+// ---
+// summary: "Registers the context inspector command and keeps its overlay snapshot synchronized with Pi session events."
+// read_when:
+//   - "Changing context-overlay command registration, session synchronization, or zellij file opening."
+// ---
 import { stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import {

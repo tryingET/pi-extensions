@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "Makes repository hook entrypoints executable and configures Git to use the tracked hooks directory."
+# read_when:
+#   - "Installing pi-extensions Git hooks or changing root hook wiring."
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

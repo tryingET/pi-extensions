@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "Resolves and runs the package documentation-listing helper from an override, local fallback, or workspace default."
+# read_when:
+#   - "Listing pi-context-overlay documentation or changing docs-list helper resolution."
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

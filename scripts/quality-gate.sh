@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "Routes root quality stages to staged smoke, package, or full monorepo validation scripts."
+# read_when:
+#   - "Running root quality checks or changing pre-commit, pre-push, CI, and package gate routing."
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
