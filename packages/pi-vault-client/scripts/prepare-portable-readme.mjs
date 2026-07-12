@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: pin README repository links for packing and restore the working copy afterward.
+// read_when:
+//   - preparing portable npm artifacts or debugging README link restoration.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

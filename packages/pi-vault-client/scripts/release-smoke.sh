@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: smoke-test the globally installed vault extension entry and its core registrations.
+# read_when:
+#   - verifying a packed pi-vault-client installation in an isolated agent directory.
 set -euo pipefail
 
 : "${PI_CODING_AGENT_DIR:?PI_CODING_AGENT_DIR is required}"

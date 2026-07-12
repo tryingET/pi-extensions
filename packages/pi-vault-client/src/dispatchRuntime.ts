@@ -1,3 +1,7 @@
+// summary: query visible templates under explicit company context and return their dispatch postures.
+// read_when:
+//   - implementing vault dispatch checks or diagnosing blocked template lookups.
+
 import * as crypto from "node:crypto";
 import {
   canonicalJcsBytes,

@@ -1,3 +1,7 @@
+// summary: register interactive vault commands, input transforms, execution receipts, replay, telemetry, and health views.
+// read_when:
+//   - changing slash-command behavior, template preparation, receipt handling, or session notifications.
+
 import type { Message, TextContent } from "@earendil-works/pi-ai";
 import { guardPreparedText } from "./dispatchGuard.js";
 import type { VaultDispatchRuntime } from "./dispatchRuntime.js";

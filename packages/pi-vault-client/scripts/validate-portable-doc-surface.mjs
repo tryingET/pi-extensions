@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: detect absolute or unpacked local links across the package Markdown surface.
+// read_when:
+//   - checking documentation portability in a working tree or packed artifact.
 
 import fs from "node:fs";
 import path from "node:path";

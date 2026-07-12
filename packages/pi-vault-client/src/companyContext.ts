@@ -1,3 +1,7 @@
+// summary: infer and resolve the active company from environment variables and workspace paths.
+// read_when:
+//   - debugging company-scoped visibility context or cwd inference precedence.
+
 import type { Company } from "./vaultTypes.js";
 
 const COMPANY_CONTEXT_ANCHOR_SEGMENTS = new Set(["ai-society", "work", "workspace"]);

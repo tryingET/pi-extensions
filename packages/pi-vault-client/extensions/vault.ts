@@ -1,3 +1,7 @@
+// summary: compose vault runtimes and register the extension's commands, tools, evaluators, and capability bridges.
+// read_when:
+//   - tracing pi-vault-client startup wiring or schema-gated registrations.
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createVaultDispatchRuntime } from "../src/dispatchRuntime.js";
 import {

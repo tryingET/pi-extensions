@@ -1,3 +1,7 @@
+// summary: resolve visible vault selections and continuation envelopes into prepared prompt-plane candidates.
+// read_when:
+//   - integrating exact or fuzzy prompt selection, continuation validation, or company visibility gates.
+
 import { guardPreparedText } from "./dispatchGuard.js";
 import { classifyDispatchPosture, type DispatchPostureResult } from "./dispatchPosture.js";
 import {

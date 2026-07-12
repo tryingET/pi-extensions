@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: resolve and invoke the available docs-list implementation for this package.
+# read_when:
+#   - listing package documentation or diagnosing docs-list path resolution.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

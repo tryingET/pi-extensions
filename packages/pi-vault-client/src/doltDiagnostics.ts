@@ -1,3 +1,7 @@
+// summary: capture a non-mutating snapshot of Dolt temporary-directory resolution and probe attempts.
+// read_when:
+//   - rendering vault diagnostics when Dolt execution environment setup is unavailable or failing.
+
 import type { DoltExecutionEnvironment } from "./vaultTypes.js";
 
 type DoltEnvironmentRuntimeLike = {

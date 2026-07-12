@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: validate package manifest conventions, engineering lane policy, and portable documentation.
+// read_when:
+//   - diagnosing Node-based package structure validation failures.
 
 import fs from "node:fs";
 

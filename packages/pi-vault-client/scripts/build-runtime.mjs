@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: transpile maintained TypeScript runtime sources into formatted JavaScript artifacts.
+// read_when:
+//   - rebuilding extension runtime files before package checks or publication.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";

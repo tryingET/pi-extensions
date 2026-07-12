@@ -1,3 +1,7 @@
+// summary: classify vault templates into lawful text, loop, workflow-gate, or fail-closed dispatch postures.
+// read_when:
+//   - adding execution bindings or checking projection freshness and orchestration requirements.
+
 /**
  * Fail-closed dispatch posture and immutable binding policy for Prompt Vault.
  */

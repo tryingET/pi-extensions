@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: build runtime artifacts when required and delegate package quality stages to the monorepo gate.
+# read_when:
+#   - running or diagnosing pi-vault-client lint, typecheck, test, or CI checks.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

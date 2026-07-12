@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: enforce required package files, directories, modes, scaffold answers, and Markdown metadata.
+# read_when:
+#   - checking pi-vault-client scaffold integrity or required executable bits.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: discover and optionally pack transitive local file-backed runtime dependencies for release checks.
+// read_when:
+//   - assembling clean-room install inputs for a package with local runtime dependencies.
 // Keep this helper mirrored with packages/pi-society-orchestrator/scripts/release-local-dependencies.mjs
 // until task scope allows a shared monorepo release-proof helper.
 import { spawnSync } from "node:child_process";

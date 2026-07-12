@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: prove package whitelist, portability, dependency, packing, installation, and extension release behavior.
+# read_when:
+#   - validating pi-vault-client publication readiness or investigating release-check failures.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
