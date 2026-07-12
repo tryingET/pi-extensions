@@ -1,3 +1,8 @@
+// ---
+// summary: "Provides shared TypeBox schema primitives and the adapter type used by pi-autoresearch tool registrations."
+// read_when:
+//   - "Changing common string arrays, metric direction, candidate-source values, planner choices, or schema casting."
+// ---
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 

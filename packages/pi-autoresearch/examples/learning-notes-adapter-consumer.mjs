@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "Validates an autoresearch learning packet and prints a dry-run plan for writing it under repository learning notes."
+// read_when:
+//   - "Testing the learning-notes adapter contract, destination-path safeguards, or planned write receipt."
+// ---
 import { readFileSync } from "node:fs";
 import path from "node:path";
 

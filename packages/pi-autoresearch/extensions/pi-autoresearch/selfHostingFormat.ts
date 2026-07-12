@@ -1,3 +1,8 @@
+// ---
+// summary: "Formats self-hosting status, candidate preparation, bounded wave, rollback, command, and live-update results."
+// read_when:
+//   - "Changing self-hosting operator output, subprocess result wording, update payloads, or regression input normalization."
+// ---
 import type {
   classifyAutoresearchSelfHostingApplicability,
   executeAutoresearchSelfHostingCandidateSubprocess,

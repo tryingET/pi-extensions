@@ -1,3 +1,8 @@
+// ---
+// summary: "Builds the interactive candidate-decision review overlay and ranks status, keep, discard, or rewind choices."
+// read_when:
+//   - "Changing candidate lifecycle review choices, recommendation badges, keyboard handling, or fallback editor behavior."
+// ---
 import { buildAutoresearchCandidateDecisionWorkbench } from "../../src/core/runtime.ts";
 import type {
   AutoresearchCandidateDecisionReviewParsedInput,

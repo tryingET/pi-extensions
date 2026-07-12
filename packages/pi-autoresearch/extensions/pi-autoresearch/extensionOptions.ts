@@ -1,3 +1,8 @@
+// ---
+// summary: "Defines extension configuration and resolves the model-backed decision runtime used for governed autoresearch prompts."
+// read_when:
+//   - "Changing extension injection options, model authentication, prompt execution, or decision-response handling."
+// ---
 import { complete } from "@earendil-works/pi-ai/compat";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {

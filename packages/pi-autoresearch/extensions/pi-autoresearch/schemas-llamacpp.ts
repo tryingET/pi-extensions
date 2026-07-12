@@ -1,3 +1,8 @@
+// ---
+// summary: "Defines TypeBox inputs for low-level llama.cpp campaign helpers and the public one-step campaign control surface."
+// read_when:
+//   - "Changing llama.cpp campaign actions, stage or build selection, AK binding inputs, apply semantics, or projection persistence."
+// ---
 import { Type } from "typebox";
 
 const campaignActionSchema = Type.Union(

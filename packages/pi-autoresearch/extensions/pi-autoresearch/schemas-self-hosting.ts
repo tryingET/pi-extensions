@@ -1,3 +1,8 @@
+// ---
+// summary: "Defines TypeBox inputs for workstation vLLM planning and supervised self-hosting candidate waves, promotion, and rollback."
+// read_when:
+//   - "Changing self-hosting actions, evaluator evidence, promotion approvals, rollback records, or vLLM campaign matrix inputs."
+// ---
 import { Type } from "typebox";
 import { nonEmptyStringArraySchema, stringArraySchema } from "./schemas-common.ts";
 

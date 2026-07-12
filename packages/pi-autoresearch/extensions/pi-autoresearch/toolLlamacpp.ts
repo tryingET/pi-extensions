@@ -1,3 +1,8 @@
+// ---
+// summary: "Registers public and low-level llama.cpp campaign tools with read-profile enforcement and optional projection persistence."
+// read_when:
+//   - "Changing llama.cpp tool guidance, action dispatch, read-profile policy, projection writes, or returned campaign details."
+// ---
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
