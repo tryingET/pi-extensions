@@ -1,3 +1,8 @@
+/**
+summary: "Defines read and mutating toolbox profiles for lazy activation of DesignMD tools."
+read_when:
+  - "Changing DesignMD toolbox profile membership, risk labels, or requested-tool filtering."
+*/
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import registerDesignmdExtension from "../extensions/designmd.ts";

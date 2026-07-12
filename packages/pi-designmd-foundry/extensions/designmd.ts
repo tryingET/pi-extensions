@@ -1,3 +1,8 @@
+/**
+summary: "Registers DesignMD commands and tools that bridge Pi to Foundry exports, sessions, and design integrations."
+read_when:
+  - "Changing DesignMD tool schemas, CLI invocation, artifact reporting, or Watch Mode integration."
+*/
 import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";

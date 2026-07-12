@@ -1,4 +1,7 @@
 #!/bin/sh
+# summary: "Discovers or selects package roots and fans out the requested monorepo quality-gate stage."
+# read_when:
+#   - "Changing package CI targeting, staged discovery, argument validation, or fan-out behavior."
 set -eu
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"

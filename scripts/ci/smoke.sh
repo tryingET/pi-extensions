@@ -1,4 +1,7 @@
 #!/bin/sh
+# summary: "Checks changed paths for protected-core violations and verifies minimal CI repository wiring."
+# read_when:
+#   - "Changing smoke-stage base selection, protected paths, or required CI entrypoints."
 set -eu
 
 say() { printf '%s\n' "$*"; }

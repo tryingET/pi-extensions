@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Resolves and runs the documentation inventory utility for pi-evalset-lab."
+# read_when:
+#   - "Listing package documentation or changing docs-list resolution precedence."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

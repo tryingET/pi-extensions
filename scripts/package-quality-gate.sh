@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Runs stage-specific lint, typecheck, test, structure, packaging, and file-budget checks for package roots."
+# read_when:
+#   - "Changing package quality stages, package-group detection, tool resolution, or release checks."
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

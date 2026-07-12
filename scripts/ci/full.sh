@@ -1,4 +1,7 @@
 #!/bin/sh
+# summary: "Runs the repository smoke gate followed by optional governance, release, canary, and package checks."
+# read_when:
+#   - "Changing full CI sequencing, optional validation gates, or aggregate package execution."
 set -eu
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"

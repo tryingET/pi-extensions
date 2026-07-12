@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Resolves and runs the documentation inventory utility for pi-designmd-foundry."
+# read_when:
+#   - "Listing DesignMD package documentation or changing docs-list fallback resolution."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

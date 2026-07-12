@@ -1,3 +1,8 @@
+/**
+summary: "Tests evalset dataset identifiers, numeric options, collision-safe reports, and retained outputs."
+read_when:
+  - "Changing evalset parsing, report persistence, or case output contracts."
+*/
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
