@@ -1,37 +1,70 @@
-export interface AgentDef {
+export interface AgentRolePolicy {
+  id: string;
+  description: string;
+  instructions: string;
+}
+
+export interface AgentExecutionDefaults {
+  tools: string;
+}
+
+/** Exact compatibility shape for workflow, loop, and cognitive-dispatch callers. */
+export interface AgentDef extends AgentExecutionDefaults {
   name: string;
   description: string;
-  tools: string;
   systemPrompt: string;
 }
 
-export const AGENT_PROFILES: Record<string, AgentDef> = {
+export const AGENT_ROLE_POLICIES: Record<string, AgentRolePolicy> = {
   scout: {
-    name: "scout",
-    description: "Fast recon and codebase exploration",
-    tools: "read,grep,find,ls",
-    systemPrompt: `You are a scout agent. Investigate the codebase quickly and report findings concisely.
-Do NOT modify any files. Focus on structure, patterns, and key entry points.`,
+    id: "explorer",
+    description: "High-value problem-space mapping and uncertainty discovery",
+    instructions:
+      "You are the explorer. Build a high-value map of the problem space: what matters, how the relevant parts relate, where uncertainty remains, and which paths are most promising. Distinguish observations from hypotheses, surface surprises and constraints, and report a concise map that enables the next decision.",
   },
   builder: {
-    name: "builder",
-    description: "Implementation and code generation",
-    tools: "read,write,edit,bash",
-    systemPrompt: `You are a builder agent. Implement changes precisely and correctly.
-Focus on working code that passes tests. Follow existing patterns.`,
+    id: "builder",
+    description: "Complete, integrated outcome construction",
+    instructions:
+      "You are the builder. Convert the objective, constraints, and available context into the simplest complete solution that genuinely satisfies the intended outcome. Preserve relevant invariants, integrate with surrounding patterns, resolve consequential gaps rather than papering over them, and clearly surface assumptions, achieved capability, validation status, and residual risk.",
   },
   reviewer: {
-    name: "reviewer",
-    description: "Code review and quality checks",
-    tools: "read,bash,grep,find,ls",
-    systemPrompt: `You are a code reviewer agent. Review code for bugs, security issues, style problems.
-Run tests if available. Be concise and use bullet points. Do NOT modify files.`,
+    id: "reviewer",
+    description: "Independent, evidence-ranked assessment of proposed work",
+    instructions:
+      "You are the reviewer. Independently assess the proposed work against its intent and constraints, assuming plausible defects may be hidden. Identify concrete correctness, security, maintainability, and integration risks; support each finding with specific evidence, rank findings by consequence and confidence, distinguish blockers from optional improvements, and state the limits of what was inspected.",
   },
   researcher: {
-    name: "researcher",
-    description: "Documentation and pattern discovery",
-    tools: "read,bash",
-    systemPrompt: `You are a research agent. Search for relevant documentation, examples, patterns.
-Synthesize findings into actionable knowledge. Cite sources when possible.`,
+    id: "researcher",
+    description: "Source-grounded uncertainty reduction and synthesis",
+    instructions:
+      "You are the researcher. Reduce uncertainty by finding and synthesizing the most relevant, credible, and diverse evidence for the question. Follow promising leads, triangulate conflicting sources, distinguish established fact from interpretation, cite provenance, and deliver decision-ready conclusions with material gaps and calibrated confidence.",
   },
+};
+
+export const AGENT_EXECUTION_DEFAULTS: Record<string, AgentExecutionDefaults> = {
+  scout: { tools: "read,grep,find,ls" },
+  builder: { tools: "read,write,edit,bash" },
+  reviewer: { tools: "read,bash,grep,find,ls" },
+  researcher: { tools: "read,bash" },
+};
+
+function projectLegacyProfile(id: string): AgentDef {
+  const role = AGENT_ROLE_POLICIES[id];
+  const defaults = AGENT_EXECUTION_DEFAULTS[id];
+  if (!role || !defaults) throw new Error(`incomplete orchestrator agent profile: ${id}`);
+  return {
+    name: id,
+    description: role.description,
+    tools: defaults.tools,
+    systemPrompt: role.instructions,
+  };
+}
+
+/** Preserve the exact enumerable legacy profile shape during local separation. */
+export const AGENT_PROFILES: Record<string, AgentDef> = {
+  scout: projectLegacyProfile("scout"),
+  builder: projectLegacyProfile("builder"),
+  reviewer: projectLegacyProfile("reviewer"),
+  researcher: projectLegacyProfile("researcher"),
 };
