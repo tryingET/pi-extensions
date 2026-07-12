@@ -1,3 +1,7 @@
+// summary: "registers the codex-reset command with credit inspection, confirmation, and idempotent retry handling"
+// read_when:
+//   - "changing the interactive Codex reset flow, persisted request state, or user-facing reset status"
+
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   type CodexResetCredits,

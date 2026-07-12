@@ -1,3 +1,7 @@
+// summary: "orchestrates persisted visible-loop child sessions, prompt delivery, adaptive continuation, completion gates, and report-back"
+// read_when:
+//   - "changing visible-loop lifecycle, state recovery, prompt sequencing, completion checks, or intercom delivery"
+
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

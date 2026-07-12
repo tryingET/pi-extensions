@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: "validates package manifest, publish, script, dependency, template, and engineering-lane structure requirements"
+// read_when:
+//   - "changing pi-little-helpers package structure or manifest contract checks"
 
 import fs from "node:fs";
 

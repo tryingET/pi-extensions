@@ -1,3 +1,7 @@
+// summary: "declares visible-peer command and tool capabilities, toolbox exports, and registration completeness checks"
+// read_when:
+//   - "changing little-helpers command names, peer tool projections, toolbox exposure, or capability validation"
+
 export const LITTLE_HELPERS_CAPABILITY_ID = "pi-little-helpers.visible-peer-spawn";
 
 export const LITTLE_HELPERS_COMMAND_NAMES = [

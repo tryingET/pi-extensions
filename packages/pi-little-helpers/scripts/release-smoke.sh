@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "imports the installed package and exercises sidequest registration plus the Ghostty window fallback path"
+# read_when:
+#   - "changing packaged extension entries, sidequest exports, registered peer tools, or release runtime smoke behavior"
 set -euo pipefail
 
 : "${PI_CODING_AGENT_DIR:?PI_CODING_AGENT_DIR is required}"

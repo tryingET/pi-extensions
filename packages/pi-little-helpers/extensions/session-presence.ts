@@ -1,3 +1,7 @@
+// summary: "publishes per-process Pi session presence sidecars and keeps terminal titles synchronized with the active session"
+// read_when:
+//   - "changing session presence records, Ghostty ancestry detection, title refreshes, or presence commands"
+
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";

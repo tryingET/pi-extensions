@@ -1,3 +1,7 @@
+// summary: "discovers recent workspace artifacts and opens supported tool outputs through an interactive browser picker"
+// read_when:
+//   - "changing artifact discovery, HTML auto-open behavior, browser commands, or the artifacts picker"
+
 import { spawn } from "node:child_process";
 import { type Dirent, existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";

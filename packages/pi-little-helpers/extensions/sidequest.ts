@@ -1,3 +1,7 @@
+// summary: "registers visible peer, candidate worktree, cleanup, and visible-loop launch surfaces backed by Ghostty"
+// read_when:
+//   - "changing peer launch prompts, worktree preparation, report-back policy, cleanup tools, or loop command registration"
+
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";

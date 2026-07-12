@@ -1,3 +1,7 @@
+// summary: "provides persistent session-aware editor stashing with shortcuts, restoration, deletion, and picker commands"
+// read_when:
+//   - "changing stash persistence, editor shortcuts, picker interactions, or session-aware restoration"
+
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
