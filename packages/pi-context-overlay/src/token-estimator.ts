@@ -1,3 +1,8 @@
+// ---
+// summary: "Estimates tokens from text and supported Pi message payloads using a character-based approximation."
+// read_when:
+//   - "Changing token estimation for assistant blocks, summaries, or bash execution messages."
+// ---
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 
 export const estimateTokensFromText = (text: string): number => Math.ceil(text.length / 4);

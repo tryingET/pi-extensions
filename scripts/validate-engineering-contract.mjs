@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "Validates pinned engineering-lane policy and safely executes the declared engineering-core smoke command."
+// read_when:
+//   - "Changing engineering-lane policy validation, command safety rules, or smoke execution behavior."
+// ---
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

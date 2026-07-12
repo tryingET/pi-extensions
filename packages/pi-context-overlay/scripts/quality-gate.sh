@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "Delegates pi-context-overlay quality stages to the nearest canonical monorepo package gate."
+# read_when:
+#   - "Running package quality checks or troubleshooting package-quality-gate discovery."
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

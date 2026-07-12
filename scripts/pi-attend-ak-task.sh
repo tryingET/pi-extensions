@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "Runs selected AK task prompts through Pi sequentially in the current monorepo worktree."
+# read_when:
+#   - "Attending the default seam-task batch or supplying a sequential list of AK task IDs."
+# ---
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

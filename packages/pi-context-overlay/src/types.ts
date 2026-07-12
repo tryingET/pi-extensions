@@ -1,3 +1,8 @@
+// ---
+// summary: "Defines context group, item, and snapshot contracts shared by the overlay classifier, store, and UI."
+// read_when:
+//   - "Changing context-overlay data shapes, group identifiers, usage fields, or item metadata."
+// ---
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ContextUsage } from "@earendil-works/pi-coding-agent";
 

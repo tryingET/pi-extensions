@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "Validates pi-context-overlay manifest, publishing, scaffold, dependency, and engineering-lane requirements."
+// read_when:
+//   - "Changing the package manifest contract or investigating structure validation failures."
+// ---
 
 import fs from "node:fs";
 

@@ -1,3 +1,8 @@
+// ---
+// summary: "Checks root documentation against live release-component inventory and engineering review audit results."
+// read_when:
+//   - "Updating root package routing, capability docs, or engineering review snapshots."
+// ---
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "Checks required pi-context-overlay files, directories, modes, scaffold answers, and markdown metadata."
+# read_when:
+#   - "Updating package structure or diagnosing missing scaffold artifacts and executable bits."
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

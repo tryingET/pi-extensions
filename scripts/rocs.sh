@@ -1,4 +1,9 @@
 #!/usr/bin/env sh
+# ---
+# summary: "Selects a portable ROCS runner and injects an inferred ontology workspace root when resolving references."
+# read_when:
+#   - "Launching ROCS from this repo or troubleshooting runner and workspace-root resolution."
+# ---
 set -eu
 
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
