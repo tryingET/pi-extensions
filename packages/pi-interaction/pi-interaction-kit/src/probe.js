@@ -1,3 +1,7 @@
+// summary: Probes interactive and filtered fzf execution for runtime diagnostics.
+// read_when:
+//   - Investigating fzf availability or subprocess behavior.
+
 import { spawnSync } from "node:child_process";
 import { normalize } from "./core.js";
 

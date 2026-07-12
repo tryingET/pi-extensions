@@ -1,3 +1,7 @@
+// summary: Declares the public trigger editor and editor registry TypeScript contracts.
+// read_when:
+//   - Typing consumers of the pi-editor-registry package.
+
 export declare class TriggerEditor {
   constructor(
     tui: unknown,

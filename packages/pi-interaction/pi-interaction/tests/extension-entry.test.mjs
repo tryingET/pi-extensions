@@ -1,3 +1,7 @@
+// summary: Verifies extension package boundaries, exports, and manual trigger dispatch behavior.
+// read_when:
+//   - Changing the input-trigger entrypoint or dependency boundaries.
+
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

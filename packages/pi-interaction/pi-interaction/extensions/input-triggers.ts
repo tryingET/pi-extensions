@@ -1,3 +1,7 @@
+// summary: Registers the trigger editor, demo triggers, and trigger management commands.
+// read_when:
+//   - Changing the live pi-interaction extension or its command surface.
+
 /**
  * Pi Interaction - Cooperative runtime for live editor interactions.
  *

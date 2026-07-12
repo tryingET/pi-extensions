@@ -1,3 +1,7 @@
+// summary: Composes editor registry, interaction kit, and trigger broker runtime services.
+// read_when:
+//   - Creating, inspecting, or resetting the shared interaction runtime.
+
 import { createEditorRegistry } from "@tryinget/pi-editor-registry";
 import {
   rankCandidatesFallback,

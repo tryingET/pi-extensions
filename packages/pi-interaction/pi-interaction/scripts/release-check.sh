@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: Validates publish contents, provenance settings, and isolated Pi installation.
+# read_when:
+#   - Preparing or diagnosing a pi-interaction package release.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

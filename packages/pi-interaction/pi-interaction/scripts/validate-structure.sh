@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: Checks required scaffold paths, executable modes, and documentation frontmatter.
+# read_when:
+#   - Auditing pi-interaction package layout or scaffold compliance.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

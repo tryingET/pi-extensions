@@ -1,3 +1,7 @@
+// summary: Coordinates fzf or fallback ranking with overlay, select, and automatic choice flows.
+// read_when:
+//   - Changing fuzzy picker modes, cancellation, or selection telemetry.
+
 /**
  * Candidate selection flow for live trigger pickers.
  */

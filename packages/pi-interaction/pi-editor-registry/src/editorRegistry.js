@@ -1,3 +1,7 @@
+// summary: Tracks ownership and diagnostics while mounting a custom editor factory.
+// read_when:
+//   - Adjusting interaction editor mounting or registry diagnostics.
+
 /**
  * Lightweight editor ownership registry for interaction runtime mounting.
  *

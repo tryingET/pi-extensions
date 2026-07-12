@@ -1,3 +1,7 @@
+// summary: Provides query parsing plus deterministic fallback and fzf candidate ranking.
+// read_when:
+//   - Changing picker normalization, scoring, or fzf filtering.
+
 /**
  * Core candidate parsing/ranking primitives shared by InteractionHelper flows.
  */

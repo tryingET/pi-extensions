@@ -1,3 +1,7 @@
+// summary: Declares candidate ranking, selection, probe, and telemetry package APIs.
+// read_when:
+//   - Typing consumers of the pi-interaction-kit package.
+
 export type PickerCandidate = {
   id: string;
   label: string;

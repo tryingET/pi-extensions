@@ -1,3 +1,7 @@
+// summary: Implements trigger-aware editor input handling and asynchronous autocomplete.
+// read_when:
+//   - Changing live trigger checks, editor APIs, or completion behavior.
+
 /**
  * Custom editor that integrates with the TriggerBroker.
  * Watches keystrokes and fires triggers when patterns match.

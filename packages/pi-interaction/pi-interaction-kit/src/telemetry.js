@@ -1,3 +1,7 @@
+// summary: Emits timestamped best-effort telemetry without interrupting interaction flows.
+// read_when:
+//   - Changing picker telemetry delivery or failure isolation.
+
 /**
  * @param {((payload: Record<string, unknown>) => void)|undefined} telemetry
  * @param {Record<string, unknown>} payload

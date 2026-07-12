@@ -1,3 +1,7 @@
+// summary: Tests interaction query parsing, fallback ranking, and overlay input semantics.
+// read_when:
+//   - Changing interaction-kit selection results or keyboard controls.
+
 import assert from "node:assert/strict";
 import test from "node:test";
 
