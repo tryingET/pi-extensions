@@ -1,4 +1,9 @@
 /**
+ * summary: "assesses non-live package manifests, command collisions, and blockers for prompt execution cutover."
+ * read_when:
+ *   - "reviewing whether the prompt-template successor remains non-live or is blocked from cutover."
+ */
+/**
  * Non-live safety report helpers for prompt-template-execution.
  *
  * These helpers make the current candidate posture explicit: package manifests

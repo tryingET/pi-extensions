@@ -1,4 +1,9 @@
 /**
+ * summary: "builds fixture-based compatibility reports for prompt loading and execution-plan outputs."
+ * read_when:
+ *   - "checking successor behavior against pi-prompt-template-model compatibility expectations."
+ */
+/**
  * Pure compatibility canary helpers for prompt-template-model replacement work.
  *
  * The canary compares monorepo prompt-template-execution outputs against

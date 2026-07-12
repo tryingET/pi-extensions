@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+ * summary: "reports root and package engineering-review surfaces, topology, scaffold modes, and coverage counts."
+ * read_when:
+ *   - "auditing engineering docs and lane-policy adoption across monorepo packages."
+ */
 
 import fs from "node:fs";
 import path from "node:path";

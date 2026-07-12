@@ -1,3 +1,8 @@
+/**
+ * summary: "registers executable prompt-template commands and restores deferred session state on Pi lifecycle hooks."
+ * read_when:
+ *   - "changing live prompt command registration, host dispatch, or deferred restore hook handling."
+ */
 import {
   executePromptTemplateCommand,
   restorePromptTemplateSessionState,

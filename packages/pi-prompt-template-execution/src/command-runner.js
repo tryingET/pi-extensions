@@ -1,4 +1,9 @@
 /**
+ * summary: "executes prepared prompt-template commands through an injected host and restores session state."
+ * read_when:
+ *   - "changing prompt dispatch, model or thinking transitions, skill queuing, or state restoration."
+ */
+/**
  * Non-live prompt-template command runner.
  *
  * This module executes a prepared prompt against an injected host action surface.

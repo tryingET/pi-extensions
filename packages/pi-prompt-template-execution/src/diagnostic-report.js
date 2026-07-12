@@ -1,4 +1,9 @@
 /**
+ * summary: "reports dry-run prompt claims, diagnostics, command collisions, and registration readiness."
+ * read_when:
+ *   - "inspecting which prompt templates would be claimed without mutating the Pi host."
+ */
+/**
  * Non-live dry-run diagnostics for prompt-template execution claim decisions.
  *
  * This module reports which prompt templates the successor would claim without

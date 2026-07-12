@@ -1,3 +1,8 @@
+/**
+ * summary: "tests prompt frontmatter parsing, ownership claims, overrides, diagnostics, and reserved features."
+ * read_when:
+ *   - "changing prompt discovery, frontmatter fields, precedence, or loader rejection rules."
+ */
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
