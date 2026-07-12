@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-07-12T18:53:56.835667136+00:00",
+  "task_id": 3853,
+  "entity_version": 3,
+  "commit_sha": "eb0db086",
+  "scope": {
+    "allowed_paths": [
+      "governance/task-scopes/AK-*.snapshot.json",
+      "governance/work-items.json",
+      "packages/pi-evidence-review/**"
+    ],
+    "required_paths": [
+      "packages/pi-evidence-review/README.md",
+      "packages/pi-evidence-review/extensions/evidence-review.ts",
+      "packages/pi-evidence-review/src/reader.ts",
+      "packages/pi-evidence-review/tests/reader.test.ts",
+      "packages/pi-evidence-review/tests/render-extension.test.ts"
+    ],
+    "forbidden_paths": []
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}
