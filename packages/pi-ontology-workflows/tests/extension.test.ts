@@ -34,9 +34,16 @@ test("extension registers the compact ontology workflow surface", () => {
   assert.deepEqual(tools.sort(), ["ontology_change", "ontology_inspect", "ontology_proposal"]);
   assert.deepEqual(
     [...commands.keys()],
-    ["ontology-status", "ontology-bootstrap", "ontology-manifest"],
+    ["ontology-preflight", "ontology-status", "ontology-bootstrap", "ontology-manifest"],
   );
-  assert.deepEqual(events.sort(), ["before_agent_start", "session_start", "session_start"]);
+  assert.deepEqual(events.sort(), [
+    "agent_settled",
+    "before_agent_start",
+    "session_shutdown",
+    "session_start",
+    "session_start",
+    "session_start",
+  ]);
 });
 
 test("ontology_change apply fails closed without interactive UI", async () => {

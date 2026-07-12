@@ -51,6 +51,10 @@ That means:
 
 - `/ontology-status`
   - inspect ontology status for the current repo/company/core context
+- `/ontology-preflight status|enable-development|disable`
+  - controls the explicit, TUI-only semantic-preflight dogfood gate
+  - `enable-development` requires Pi to be idle and a fresh 30-second confirmation
+  - a confirmed grant is bound to the current extension generation, cwd, immutable Pi host capabilities, and a 10-minute expiry
 - `/ontology-bootstrap [title]`
   - create the minimal nested repo-local `ontology/` skeleton for the current git repo
   - if ontology already exists, shows current repo ontology status instead of rewriting it
@@ -84,16 +88,32 @@ Examples:
 - `/ontology-pack:SLO::company`
 - `/ontology-change:Service::repo`
 
-### Startup behavior
+### Startup and semantic-preflight behavior
 
 - `session_start`
   - mounts the ontology picker/editor runtime when UI is available
-  - detects relevant ontology context
-  - sets an ontology footer status when useful
-  - sends a one-shot startup notification with ontology shortcuts
-  - if the current git repo has no repo-local ontology yet, suggests `/ontology-bootstrap` instead of silently falling through to unrelated status
+  - performs bounded target/readiness orientation only
+  - does **not** run ROCS validate, build, or discovery
+  - resets every development grant on reload, new, resume, and fork
 - `before_agent_start`
-  - injects a short ontology workflow hint when the prompt appears ontology-relevant
+  - keeps the existing workflow hint while development preflight is disabled
+  - when explicitly enabled in TUI, passes the exact expanded prompt bytes to verified ROCS discovery within one 750 ms boundary
+  - appends one canonical structural-only advisory block to the current chained `systemPrompt`; it adds no custom message and never injects definitions, snippets, Markdown, paths, labels, or arbitrary ontology prose
+  - stores exact candidate ID/snapshot/document bindings only for the active prompt run so `ontology_inspect kind=pack` can use verified bound-pack retrieval
+  - fails open with compact visible status when readiness, capability, timeout, process, or protocol checks fail
+
+Automatic semantic preflight never runs in RPC, JSON, or print mode. Those modes retain explicit `ontology_inspect` machine results only.
+
+### Development dogfood boundary
+
+Development preflight is disabled by default and is not an adopted or production runtime. Enabling it:
+
+1. requires immutable host-supplied `ctx.hostCapabilities` with extension API `1.0.0` and the required lifecycle/prompt/UI capability tokens;
+2. resolves the package-pinned clean ROCS checkout at `~/ai-society/core/rocs-cli` without shell, network, `PATH`, runner wrappers, or environment overrides;
+3. visibly prepares a complete content-addressed runtime under `~/.cache/pi-ontology-workflows/extension-cache` using fresh sibling staging plus atomic rename;
+4. verifies every staged file, dependency lock, interpreter, generated entrypoint, and manifest before use and immediately before each spawn.
+
+Use `/ontology-preflight disable` for immediate rollback. Reload/new/resume/fork/shutdown also invalidate the grant synchronously.
 
 ## Stable-core / thin-adapter architecture
 
@@ -112,11 +132,18 @@ Ports live in `src/ports/`:
 Adapters live in `src/adapters/`:
 
 - `rocs-cli.ts`
+- `semantic-preflight-format.ts` — canonical structural-only system block
 - `filesystem.ts`
 - `workspace.ts`
 - `interaction.ts`
 - `format.ts`
 - `frontmatter.ts`
+
+The development-only semantic runtime lives under `src/semantic/`:
+
+- `preflight-runtime.ts` — host/mode/consent/grant/prompt lifecycle
+- `preparer.ts` — clean pinned source resolution and atomic content-addressed publication
+- `runner.ts`, `subprocess.ts`, `protocol.ts`, `prepared-runtime.ts` — verified identity, bounded execution, and closed protocol validation
 
 The extension entrypoint in [extensions/ontology-workflows.ts](extensions/ontology-workflows.ts) is intentionally thin.
 

@@ -6,6 +6,10 @@ export interface RocsCommandContext {
   workspaceRoot: string;
   workspaceRefMode: "strict" | "loose";
   resolveRefs: boolean;
+  /** Optional shared monotonic deadline for prompt-run calls. */
+  deadline?: number;
+  /** Generation-scoped cancellation; never sourced from ambient process state. */
+  signal?: AbortSignal;
 }
 
 export interface RocsSummaryResult {
