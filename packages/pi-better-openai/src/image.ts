@@ -1,3 +1,8 @@
+/**
+summary: "Implements bounded OpenAI Codex image generation, local image inputs, persistence, rendering, command, and tool APIs."
+read_when:
+  - "Changing image request construction, OAuth credentials, input or response bounds, saving, SSE parsing, or Pi registration."
+*/
 import { randomUUID } from "node:crypto";
 import { mkdir, open, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";

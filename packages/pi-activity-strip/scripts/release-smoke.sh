@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Exercises the installed activity-strip package in forced-headless doctor and Pi session smoke scenarios."
+# read_when:
+#   - "Changing release-time headless compatibility assertions or installed-extension smoke expectations."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

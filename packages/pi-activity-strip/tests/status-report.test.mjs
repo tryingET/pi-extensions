@@ -1,3 +1,8 @@
+/**
+summary: "Tests activity-strip runtime status formatting and operator headline selection."
+read_when:
+  - "Changing broker status fields, warning rendering, readiness headlines, or severity mapping."
+*/
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

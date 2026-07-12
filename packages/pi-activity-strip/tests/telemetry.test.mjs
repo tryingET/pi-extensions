@@ -1,3 +1,8 @@
+/**
+summary: "Tests activity snapshot initialization, tool detail summaries, terminal transitions, and extension event wiring."
+read_when:
+  - "Changing telemetry states, tool progress extraction, session settlement, or registered lifecycle hooks."
+*/
 import assert from "node:assert/strict";
 import test from "node:test";
 import activityStripExtension from "../extensions/activity-strip.js";

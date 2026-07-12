@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Resolves and invokes docs-list for the Better OpenAI package from override, local, or global paths."
+# read_when:
+#   - "Changing Better OpenAI documentation listing resolution, CLI forwarding, or dependency checks."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

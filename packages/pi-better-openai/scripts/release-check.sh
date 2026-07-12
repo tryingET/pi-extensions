@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Validates Better OpenAI release identity, packed contents, publication dry runs, and isolated installation."
+# read_when:
+#   - "Changing Better OpenAI release provenance, npm whitelist checks, tarball installation, or smoke configuration."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

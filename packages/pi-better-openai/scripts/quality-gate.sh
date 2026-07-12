@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Routes Better OpenAI quality commands to the configured or nearest monorepo package gate."
+# read_when:
+#   - "Changing Better OpenAI gate lookup precedence, external overrides, or resolution errors."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

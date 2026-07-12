@@ -1,3 +1,8 @@
+/**
+summary: "Reads openai-codex OAuth access and account credentials from the active Pi auth file."
+read_when:
+  - "Changing Better OpenAI auth-file location, accepted credential fields, or OAuth validation."
+*/
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";

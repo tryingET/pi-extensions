@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Checks activity-strip release metadata, packed files, dry-run publishing, and isolated Pi installation."
+# read_when:
+#   - "Changing publish provenance checks, package whitelist validation, tarball smoke setup, or registry handling."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

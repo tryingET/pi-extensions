@@ -1,3 +1,8 @@
+/**
+summary: "Defines, reads, normalizes, writes, and resolves project or global Better OpenAI configuration."
+read_when:
+  - "Changing fast-mode defaults, supported models, image settings, config precedence, or persistence behavior."
+*/
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";

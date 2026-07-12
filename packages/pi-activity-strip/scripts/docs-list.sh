@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# summary: "Resolves and runs the available docs-list implementation for the activity-strip package."
+# read_when:
+#   - "Changing documentation discovery entrypoints, override precedence, or missing-script diagnostics."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
