@@ -149,7 +149,7 @@ mode systemPrompt exactly
 
 Mode activation changes prompt policy only. It does not send follow-up messages, continue automatically, launch peers/subagents/campaigns, or grant mutation or promotion authority. Future autonomy integration is intentionally separate.
 
-Architecture: [`docs/project/2026-07-11-prompt-mode-architecture.md`](docs/project/2026-07-11-prompt-mode-architecture.md)  
+Architecture: [`docs/project/2026-07-11-prompt-mode-architecture.md`](docs/project/2026-07-11-prompt-mode-architecture.md)
 Implementation plan: [`docs/project/2026-07-11-implementation-plan.md`](docs/project/2026-07-11-implementation-plan.md)
 
 ## Install and verify

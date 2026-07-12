@@ -70,4 +70,3 @@ This `copier-template-monorepo-package` adoption surface declares `repo-loop-val
 - `loop-landing-check`: `n/a` — generated packages own local landing/readiness gates after rendering.
 
 Template-source validation remains owned by the `pi-extensions-template` root scripts, especially `npm run check` and `npm run check:full`. Loop command success in generated packages remains evidence only and does not replace release approval, Pi runtime install/reload proof, or monorepo owner authority.
-
