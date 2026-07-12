@@ -1,3 +1,8 @@
+/**
+summary: "Extracts line-level semantic hints around unescaped positional and rest placeholders in prompt templates."
+read_when:
+  - "Changing how PTX derives argument roles from template prose near placeholders."
+*/
 function isEscapedOrDoubled(text, index) {
   if (index <= 0) return false;
   const previous = text[index - 1];

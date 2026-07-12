@@ -1,3 +1,8 @@
+/**
+summary: "Normalizes command source and filesystem provenance across current and legacy Pi command fields."
+read_when:
+  - "Changing how PTX recognizes prompt commands or obtains their template paths."
+*/
 const COMMAND_KINDS = new Set(["extension", "prompt", "skill"]);
 
 export function getCommandSource(command) {

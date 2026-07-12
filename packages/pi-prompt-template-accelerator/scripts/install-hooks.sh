@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Configures the package checkout to use its tracked Git hooks and reports the available hook runner."
+# read_when:
+#   - "Installing or troubleshooting package-local Git hook execution."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

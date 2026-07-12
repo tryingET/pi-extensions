@@ -1,3 +1,8 @@
+/**
+summary: "Infers deterministic PTX argument context from cwd, Git branch, session objectives, and provided values."
+read_when:
+  - "Changing automatic context snippets, objective filtering, or System4D mode inference."
+*/
 import { basename } from "node:path";
 
 function collapseWhitespace(value) {

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Checks the PTX package scaffold, executable files, manifests, release wiring, and Markdown metadata contract."
+# read_when:
+#   - "Changing required PTX package structure, manifest policy, or release configuration checks."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

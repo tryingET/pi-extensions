@@ -1,3 +1,8 @@
+/**
+summary: "Declares PTX fuzzy candidate ranking, UI selection, and fzf probe result contracts."
+read_when:
+  - "Integrating fuzzy selection or changing its public TypeScript surface."
+*/
 export interface FuzzyCandidate {
   id: string;
   label: string;

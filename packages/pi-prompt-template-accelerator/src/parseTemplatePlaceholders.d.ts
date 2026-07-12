@@ -1,3 +1,8 @@
+/**
+summary: "Defines typed positional, all-arguments, and slice placeholder usage returned by the template parser."
+read_when:
+  - "Changing the placeholder parser result shape or consuming its TypeScript contract."
+*/
 export interface TemplateSliceUsage {
   start: number;
   length?: number;

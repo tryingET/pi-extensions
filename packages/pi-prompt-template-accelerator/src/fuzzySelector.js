@@ -1,3 +1,8 @@
+/**
+summary: "Ranks PTX candidates with fzf or a deterministic fallback and coordinates optional UI selection."
+read_when:
+  - "Changing fuzzy scoring, fzf invocation, selection labels, or probe diagnostics."
+*/
 import { spawnSync } from "node:child_process";
 
 const DEFAULT_TIMEOUT_MS = 2500;
