@@ -1,3 +1,6 @@
+// summary: verifies sidequest ghostty selection, tab and window fallback, placement checks, and registered commands and tools.
+// read_when:
+//   - changing sidequest launch routing, ghostty compatibility, surface attachment, or default registration.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

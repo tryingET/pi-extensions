@@ -1,3 +1,6 @@
+// summary: defines visible-loop and nexus-loop command profiles plus normalized labels and command names.
+// read_when:
+//   - changing loop profile prompts, delegation defaults, command normalization, or operator-facing labels.
 import {
   DEFAULT_NEXUS_LOOP_PROMPTS,
   DEFAULT_VISIBLE_LOOP_PROMPTS,

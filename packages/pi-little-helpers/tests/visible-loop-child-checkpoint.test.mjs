@@ -1,3 +1,6 @@
+// summary: verifies child prompt sequencing, explicit completion checkpoints, adaptive receipts, and next-iteration launch.
+// read_when:
+//   - changing visible-loop child queues, completion checkpoint delivery, controller persistence, or iteration continuation.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

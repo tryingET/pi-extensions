@@ -1,3 +1,6 @@
+// summary: verifies session presence files, resumable session metadata, ghostty surface ids, and refreshed window titles.
+// read_when:
+//   - changing session-presence publication, title overrides, delayed refresh, or path reporting.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

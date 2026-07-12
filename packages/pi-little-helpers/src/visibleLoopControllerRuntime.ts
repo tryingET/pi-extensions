@@ -1,3 +1,6 @@
+// summary: applies adaptive controller events to a running visible-loop host and records diagnostic transitions.
+// read_when:
+//   - changing runtime controller failure handling, state updates, or status-sidecar events.
 import {
   transitionVisibleLoopController,
   type VisibleLoopControllerEvent,

@@ -1,3 +1,6 @@
+// summary: maintains the adaptive visible-loop proof ledger, weighted budget, invariants, and continuation decisions.
+// read_when:
+//   - changing adaptive controller events, proof validation, cost limits, or continuation policy.
 import type {
   VisibleLoopAdaptiveControllerConfig,
   VisibleLoopContinuationDecision,

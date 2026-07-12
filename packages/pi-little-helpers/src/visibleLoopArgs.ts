@@ -1,3 +1,6 @@
+// summary: parses visible-loop launch and completion command arguments into bounded typed results.
+// read_when:
+//   - changing visible-loop flags, defaults, tokenization, or completion argument validation.
 import {
   VISIBLE_LOOP_COMMAND,
   type VisibleLoopCommandParseResult,

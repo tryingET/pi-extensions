@@ -1,3 +1,6 @@
+// summary: verifies self-evolution envelope provenance, owner binding, guarded closeout evidence, and visible-loop transport.
+// read_when:
+//   - changing candidate envelope validation, owner artifacts, closeout guards, or candidate-bound loop launch.
 import assert from "node:assert/strict";
 import {
   existsSync,

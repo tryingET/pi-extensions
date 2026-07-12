@@ -1,3 +1,6 @@
+// summary: verifies artifact discovery, browser opening, preview widgets, notices, and opener failure handling.
+// read_when:
+//   - changing html output browser commands, artifact routing, recent writes, or preview ui behavior.
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";

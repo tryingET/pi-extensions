@@ -1,3 +1,6 @@
+// summary: verifies adaptive controller defaults, delivery proofs, invalidation, persistence, budgets, and deterministic continuation.
+// read_when:
+//   - changing controller weights, proof invariants, serialized state validation, or continuation decisions.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

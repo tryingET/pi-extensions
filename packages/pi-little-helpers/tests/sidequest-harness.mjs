@@ -1,3 +1,6 @@
+// summary: supplies shared sidequest test contexts, extension registries, ghostty stubs, and prompt contract assertions.
+// read_when:
+//   - changing sidequest test fixtures, pi argument extraction, intercom assertions, or validation guidance checks.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";

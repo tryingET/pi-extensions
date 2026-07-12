@@ -1,3 +1,6 @@
+// summary: persists and validates visible-loop configs, controller state, completion history, and diagnostic status records.
+// read_when:
+//   - changing visible-loop state paths, serialized config validation, controller persistence, or completion recovery.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
