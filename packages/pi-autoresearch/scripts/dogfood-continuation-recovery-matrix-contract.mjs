@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Runs a continuation and recovery scenario matrix and writes measured campaign closeout artifacts.
+// read_when:
+//   - Exercising foreground resume, goal-ledger, auto-continuation, and long-campaign recovery together.
 // Level-1 pi-autoresearch continuation/recovery matrix dogfood contract.
 // Runs the strongest continuation-adjacent contracts as matrix cells and emits one campaign metric.
 import { spawnSync } from "node:child_process";

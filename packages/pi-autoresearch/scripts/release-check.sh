@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: Validates publish metadata, npm artifact contents, dry-run publishing, and isolated Pi installation.
+# read_when:
+#   - Preparing a pi-autoresearch release or diagnosing package provenance and smoke checks.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

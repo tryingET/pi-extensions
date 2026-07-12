@@ -1,3 +1,6 @@
+// summary: Registers the supervised self-hosting tool for candidate waves, evaluation, promotion records, and rollback truth.
+// read_when:
+//   - Reviewing bounded self-hosting execution, progress updates, or external promotion boundaries.
 import { existsSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {

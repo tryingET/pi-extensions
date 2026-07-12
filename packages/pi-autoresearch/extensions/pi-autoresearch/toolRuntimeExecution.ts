@@ -1,3 +1,6 @@
+// summary: Registers bounded runtime run, autoplan, setup, and supervised campaign-start execution tools.
+// read_when:
+//   - Tracing how autoresearch execution requests become configured runs or bounded campaigns.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_AUTOPLAN_TOOL_NAME,

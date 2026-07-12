@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Exercises a multi-segment campaign, candidate matrix review, and external evidence handoff end to end.
+// read_when:
+//   - Validating long supervised campaign continuation, candidate comparison, or closeout boundaries.
 // Long supervised campaign dogfood contract.
 // Exercises the intended "greater campaign" path in an isolated controller repo:
 // campaign_start bounded loop -> resume_apply continuation -> visible candidate packets

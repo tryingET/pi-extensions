@@ -1,3 +1,6 @@
+// summary: Registers peer-assist planning, bounded loop execution, and explicit foreground resume tools.
+// read_when:
+//   - Reviewing autoresearch loop, peer-assist, or resume tool registration and execution boundaries.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_LOOP_TOOL_NAME,

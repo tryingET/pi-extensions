@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Verifies one isolated self-hosting wave, locked evaluator safety, and record-only rollback truth.
+// read_when:
+//   - Testing supervised self-hosting progress, promotion records, rollback, or owner-surface isolation.
 // Supervised self-hosting endurance dogfood contract.
 // Runs one isolated start_and_watch-shaped wave against the package core and verifies progress,
 // evaluator snapshot safety, record-only promotion/rollback truth, and no AK/KES/orchestrator writes.

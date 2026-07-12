@@ -1,3 +1,6 @@
+// summary: Registers read-only candidate binding, lifecycle decision, and vLLM campaign planning tools.
+// read_when:
+//   - Inspecting autoresearch candidate planning or workstation vLLM campaign tool surfaces.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,

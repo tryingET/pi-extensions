@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// summary: Exercises campaign-goal ledger progress and control states across explicit foreground segments.
+// read_when:
+//   - Validating active, paused, budget-limited, complete, or continuation-call goal behavior.
 // Campaign goal ledger dogfood contract.
 // Proves one package-local long-running goal accumulates progress across multiple explicit
 // foreground segments and exposes legal active/paused/budget_limited/complete statuses plus an
