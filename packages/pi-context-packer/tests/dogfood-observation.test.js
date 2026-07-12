@@ -1,3 +1,9 @@
+/**
+summary: "Validate dogfood receipt parsing, calibration, aggregation, redaction, and telemetry."
+read_when:
+  - "You change dogfood observation schemas, follow-up classes, statuses, or aggregate output."
+*/
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

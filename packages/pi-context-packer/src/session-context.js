@@ -1,3 +1,9 @@
+/**
+summary: "Normalize session token usage and detect high context pressure."
+read_when:
+  - "You change supported context-usage fields or session pressure thresholds."
+*/
+
 const finiteNumberForKeys = (value, keys) => {
   if (!value || typeof value !== "object") return undefined;
   for (const key of keys) {

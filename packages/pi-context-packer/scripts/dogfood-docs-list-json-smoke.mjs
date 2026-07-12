@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+summary: "Smoke-test structured docs-list JSON intake and packet dogfood evaluation."
+read_when:
+  - "You change docs discovery JSON handling, package-root parity, or dogfood smoke expectations."
+*/
 
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";

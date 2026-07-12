@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Delegate package quality checks to the canonical monorepo gate."
+# read_when:
+#   - "You change context-packer lint, typecheck, pre-commit, or CI gate routing."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+summary: "Validate package identity, manifest contracts, and engineering lane configuration."
+read_when:
+  - "You change the context-packer package manifest, scaffold metadata, or lane policy."
+*/
 
 import fs from "node:fs";
 

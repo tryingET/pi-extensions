@@ -1,3 +1,9 @@
+/**
+summary: "Build session awareness, packet utility receipts, and dogfood observation templates."
+read_when:
+  - "You change packet measurement, session visibility, utility advice, or dogfood scaffolds."
+*/
+
 import { compactOmissionProjections } from "./compact-projection.js";
 import {
   DOGFOOD_OMISSION_FOLLOWUP_CLASS_GUIDANCE,

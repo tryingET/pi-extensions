@@ -1,3 +1,9 @@
+/**
+summary: "Define omission follow-up classifications and their calibration guidance."
+read_when:
+  - "You change dogfood follow-up categories, contrary signals, or suggested actions."
+*/
+
 const classEntry = ({ classification, userSelectable, contrary, nextAction }) =>
   Object.freeze({ classification, userSelectable, contrary, nextAction });
 

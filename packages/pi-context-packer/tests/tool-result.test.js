@@ -1,3 +1,9 @@
+/**
+summary: "Test compact context-plan and context-packet tool-result projections."
+read_when:
+  - "You change tool detail schemas, projection cloning, omission redaction, or packet receipts."
+*/
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

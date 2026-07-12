@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# summary: "Validate publish contents and exercise an isolated packaged Pi installation."
+# read_when:
+#   - "You prepare a context-packer release or change artifact and provenance checks."
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
