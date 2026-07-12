@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/.pi/tmp/pi-modes-source-publication"
+commit: "68d73b5093421e7b0b534b3c2f354de63033ce1f"
+created_at: "2026-07-12T13:53:05Z"
+intent: "Normalize whitespace in public pi-modes package documentation on the isolated publication branch"
+files:
+  - "packages/pi-modes/README.md"
+  - "packages/pi-modes/docs/engineering.local.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "fail"
+group:
+  index: 1
+  total: 1
+  rationale: "Publication branch integration; full gate reaches unrelated pi-snapshot-edit smoke and exits while its exact direct release check passes"
