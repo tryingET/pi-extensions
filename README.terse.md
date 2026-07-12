@@ -54,6 +54,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-peer-messaging` | yes | provide same-machine peer-session messaging and `intercom` adapter | communication-only; not task/evidence/authority state |
 | `pi-better-openai` | yes | add OpenAI fast mode and image generation/editing affordances | `/fast`, `/openai-image`, `openai_image` |
 | `pi-model-selection` | yes (library) | provide shared model-selection and auth-resolution primitives | support library only; no `pi.extensions` entrypoint |
+| `pi-modes` | yes | switch session prompt profiles with explicit composition semantics | additive, complete static-base replacement, and exact final replacement; no autonomy authority |
 | `pi-autonomous-session-control` | yes | provide the `self` operational mirror plus autonomy/subagent control surfaces | strongest in subagent-heavy workflows; `self` summaries are mirror-only, not AK/KES/evidence authority |
 | `pi-autoresearch` | with extra setup | own the bounded experiment-loop runtime and manifest-campaign control seam | strongest when local campaign receipts and AK/Prompt Vault adjacencies are in play |
 | `pi-prompt-template-accelerator` | yes | speed up prompt-template command workflows | picker/prefill UX only |
@@ -72,3 +73,5 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-workstation-inference-provider` | with workstation lane-op contract | expose workstation inference as a read-only Pi provider | no model/server/runtime control ownership |
 
 For live release-component inventory, run `node ./scripts/release-components.mjs list --json`.
+
+For behavior-first routing across system prompts, editor prefill, `sendUserMessage`, settlement, loops, and evaluation, see [docs/project/runtime-capability-map.md](docs/project/runtime-capability-map.md).

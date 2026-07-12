@@ -52,11 +52,12 @@ The script enumerates every package root under `packages/` and reports whether i
 Audited on 2026-05-16.
 Refreshed on 2026-05-21 from `node ./scripts/engineering-review-surfaces.mjs --json` after adding `packages/pi-agent-vent`.
 Refreshed on 2026-07-11 after registering `packages/pi-snapshot-edit`, which raised the audited package count to `29`.
+Refreshed again on 2026-07-11 after adding `packages/pi-modes`, which raised the audited package count to `30`.
 
 Snapshot summary:
 
-- package entries audited: `29`
-- legacy-full: `20`
+- package entries audited: `30`
+- legacy-full: `21`
 - reduced-form: `1`
 - policy-only: `0`
 - no local surface: `8`
@@ -73,6 +74,7 @@ Snapshot summary:
 - `packages/pi-interaction` (`package-group-root`)
 - `packages/pi-little-helpers`
 - `packages/pi-model-selection`
+- `packages/pi-modes`
 - `packages/pi-ontology-workflows`
 - `packages/pi-prompt-template-execution`
 - `packages/pi-provenance`
@@ -107,7 +109,7 @@ Snapshot summary:
 
 The `#601` audit confirmed that the original `legacy-full` bucket was not uniform, and the first routed follow-up wave has now proved that classification in practice:
 
-- the current twenty `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
+- the current twenty-one `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
   - `packages/pi-agent-vent`
   - `packages/pi-autoresearch`
   - `packages/pi-better-openai`
@@ -117,6 +119,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
   - `packages/pi-evalset-lab`
   - `packages/pi-interaction` (`package-group-root`)
   - `packages/pi-model-selection`
+  - `packages/pi-modes`
   - `packages/pi-little-helpers`
   - `packages/pi-ontology-workflows`
   - `packages/pi-prompt-template-execution`
@@ -210,5 +213,5 @@ Notable refresh outcome for the current alignment wave:
 - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` sit in the `none` bucket after the two completed `none` pilots.
 - `packages/pi-peer-messaging` now also sits in the `none` bucket as a fresh simple-package scaffold that landed directly in the root-owned steady state without local engineering duplication.
 - `packages/pi-interaction/pi-interaction` remains in the `reduced-form` bucket after `#636`; the surrounding `packages/pi-interaction` package-group root is now a full engineering-core adoption surface.
-- `packages/pi-agent-vent`, `packages/pi-autoresearch`, `packages/pi-better-openai`, `packages/pi-context-overlay`, `packages/pi-context-packer`, `packages/pi-designmd-foundry`, `packages/pi-evalset-lab`, `packages/pi-little-helpers`, `packages/pi-model-selection`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, `packages/pi-vault-client`, and `packages/pi-workstation-inference-provider` are among the current `legacy-full` package-local surfaces; `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
+- `packages/pi-agent-vent`, `packages/pi-autoresearch`, `packages/pi-better-openai`, `packages/pi-context-overlay`, `packages/pi-context-packer`, `packages/pi-designmd-foundry`, `packages/pi-evalset-lab`, `packages/pi-little-helpers`, `packages/pi-model-selection`, `packages/pi-modes`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, `packages/pi-vault-client`, and `packages/pi-workstation-inference-provider` are among the current `legacy-full` package-local surfaces; `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
 - no package is currently in a `policy-only` intermediate state.

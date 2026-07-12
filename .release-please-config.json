@@ -69,6 +69,10 @@
       "release-type": "node",
       "component": "pi-model-selection"
     },
+    "packages/pi-modes": {
+      "release-type": "node",
+      "component": "pi-modes"
+    },
     "packages/pi-ontology-workflows": {
       "release-type": "node",
       "component": "pi-ontology-workflows"

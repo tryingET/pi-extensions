@@ -36,6 +36,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-peer-messaging` (stable same-machine peer-session messaging core and `intercom` adapter)
   - `packages/pi-better-openai` (`/fast`, `/openai-image`, and OpenAI image tool support)
   - `packages/pi-model-selection` (shared support library; no live extension entrypoint)
+  - `packages/pi-modes` (session prompt profiles with explicit append, static-base replacement, and exact-final replacement)
   - `packages/pi-prompt-template-accelerator`
   - `packages/pi-prompt-template-execution` (live successor for prompt-template model/thinking/args semantics; minimal extension entrypoint, no prompt bundle)
   - `packages/pi-session-compaction` (live local compaction owner after guarded cutover; tested handler, registration guard, and non-live branch augmentation helpers)
@@ -51,6 +52,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-society-startup-context` (read-only AI Society session-start orientation packet)
   - `packages/pi-workstation-inference-provider` (read-only Pi provider over workstation-owned inference contracts)
 - For the shortest package map and outsider framing, see [README.terse.md](README.terse.md).
+- For behavior-first routing across prompt replacement, editor prefill, `sendUserMessage`, settlement, loops, and evaluation, see [docs/project/runtime-capability-map.md](docs/project/runtime-capability-map.md).
 - For live release-component inventory, run `node ./scripts/release-components.mjs list --json`.
   The inventory is metadata-driven: publish-ready packages opt in with `x-pi-template.releaseConfigMode=component`; private group roots such as `packages/pi-interaction` stay out of the root-managed component list.
 
@@ -68,6 +70,7 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-peer-messaging` — stable same-machine peer-session messaging core and `intercom` adapter; communication-only, not authority
 - `packages/pi-better-openai` — OpenAI/OpenAI Codex provider affordances such as `/fast`, `/openai-image`, image editing/generation, and related diagnostics
 - `packages/pi-model-selection` — shared model-selection/auth-resolution library for prompt-template-compatible resolver semantics; intentionally no `pi.extensions` entrypoint
+- `packages/pi-modes` — session prompt-profile discovery and switching; owns `append`, complete static `replace_base`, and exact `replace_final` semantics, but no autonomous continuation or execution authority
 - `packages/pi-prompt-template-execution` — prompt-template execution semantics such as `model`, `thinking`, `restore`, `skill`, conditionals, args, Pi host adapter behavior, dry-run diagnostics, compatibility canaries, and `/commit` live execution ownership after replacing `npm:pi-prompt-template-model`
 - `packages/pi-session-compaction` — custom `session_before_compact` summary ownership, summarizer model resolution, user-prompt/command preservation, and files-touched manifests (live local owner; do not enable alongside another compaction override)
 - `packages/pi-toolbox-discovery` — lazy custom-tool discovery/activation broker; route here when reducing default active tool count or activating capability bundles on demand
