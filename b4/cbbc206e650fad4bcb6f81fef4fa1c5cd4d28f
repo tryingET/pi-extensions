@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "b4cbbc206e650fad4bcb6f81fef4fa1c5cd4d28f"
+created_at: "2026-07-12T12:28:33Z"
+intent: "Record the canonical agent role semantics decision (ADR) and the dependency-neutral agent-run-contracts RFC for future extraction"
+files:
+  - "docs/decisions/2026-07-12-canonical-agent-role-semantics.md"
+  - "docs/project/2026-07-12-rfc-agent-run-contracts.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 6
+  total: 7
+  rationale: "Decision documentation for the role reconciliation implemented in groups 4-5"
+links:
+  task_ids:
+    - 3807
+    - 3812
