@@ -1,3 +1,7 @@
+// summary: "tests recognition and actionable wording of PTX template availability warnings"
+// read_when:
+//   - "changing missing-template reason categories or user-facing recovery guidance"
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

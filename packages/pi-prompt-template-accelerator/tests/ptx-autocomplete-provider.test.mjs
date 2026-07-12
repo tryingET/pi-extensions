@@ -1,3 +1,7 @@
+// summary: "tests PTX prefix adaptation and completion restoration around the host autocomplete provider"
+// read_when:
+//   - "changing prefixed autocomplete delegation, async normalization, or applied cursor positions"
+
 import assert from "node:assert/strict";
 import test from "node:test";
 

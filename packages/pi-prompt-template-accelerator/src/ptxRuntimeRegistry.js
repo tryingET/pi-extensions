@@ -1,3 +1,7 @@
+// summary: "registers PTX prompt-template ownership and observed model lifecycle in the shared runtime registry"
+// read_when:
+//   - "changing runtime capabilities, accessors, ownership descriptions, or model selection observation"
+
 /**
  * PTX runtime registry integration.
  *

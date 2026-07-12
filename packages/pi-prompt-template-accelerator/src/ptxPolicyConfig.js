@@ -1,3 +1,7 @@
+// summary: "normalizes, discovers, loads, and resolves repository-local PTX template policy"
+// read_when:
+//   - "changing .pi/ptx-config.json lookup, normalization defaults, or allow and block precedence"
+
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 

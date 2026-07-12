@@ -1,3 +1,7 @@
+// summary: "adapts host autocomplete calls to PTX dollar and preview slash-command prefixes"
+// read_when:
+//   - "changing autocomplete suggestion, completion, or cursor behavior for prefixed PTX input"
+
 const PREFIX_PATTERNS = [/^(\s*\$\$\s+)/, /^(\s*\/ptx-preview\s+)/];
 
 function isPromiseLike(value) {

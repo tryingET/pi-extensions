@@ -1,3 +1,7 @@
+// summary: "declares PTX policy configuration, load results, and resolved template decisions"
+// read_when:
+//   - "changing typed policy modes, configuration fields, or policy resolution APIs"
+
 export type PtxPolicyMode = "allow" | "block";
 export type PtxPolicyFallback = "passthrough" | "block";
 

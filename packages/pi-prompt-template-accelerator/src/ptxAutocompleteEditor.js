@@ -1,3 +1,7 @@
+// summary: "extends the PTX editor to recognize prefixed slash contexts and trigger wrapped autocomplete"
+// read_when:
+//   - "changing editor start-of-message detection, slash context checks, or tab completion routing"
+
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { wrapAutocompleteProviderForDollarPrefix } from "./ptxAutocompleteProvider.js";
 

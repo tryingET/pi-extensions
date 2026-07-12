@@ -1,3 +1,7 @@
+// summary: "tests PTX capability registration, prompt accessors, model lifecycle views, and unregistration"
+// read_when:
+//   - "changing runtime-registry bridge behavior or command provenance normalization"
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getGlobalRuntimeRegistry } from "@tryinget/pi-runtime-registry";

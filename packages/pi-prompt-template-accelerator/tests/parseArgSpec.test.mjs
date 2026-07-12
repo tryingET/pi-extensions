@@ -1,3 +1,7 @@
+// summary: "tests extraction of positional, all-argument, and sliced placeholders from prompt text"
+// read_when:
+//   - "changing prompt argument-spec parsing or supported placeholder forms"
+
 /**
  * Tests for parseArgSpec function
  */

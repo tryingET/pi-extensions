@@ -1,3 +1,7 @@
+// summary: "tests ancestor policy discovery and invalid nearest-config reporting"
+// read_when:
+//   - "changing PTX policy file search paths or configuration parse failures"
+
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
