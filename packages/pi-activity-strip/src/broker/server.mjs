@@ -1,3 +1,9 @@
+// ---
+// summary: "hosts the Unix-socket broker that accepts session updates and broadcasts activity snapshots"
+// read_when:
+//   - "changing broker lifecycle, socket message handling, or snapshot emission"
+// ---
+
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import net from "node:net";

@@ -1,3 +1,9 @@
+// ---
+// summary: "provides ANSI-safe truncation, whitespace compaction, and concise path, command, and session labels"
+// read_when:
+//   - "changing text previews or labels displayed in activity-strip telemetry"
+// ---
+
 import path from "node:path";
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping requires an ESC control character pattern.

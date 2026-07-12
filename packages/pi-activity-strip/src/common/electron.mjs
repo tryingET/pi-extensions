@@ -1,3 +1,9 @@
+// ---
+// summary: "resolves an executable Electron binary from explicit settings, local dependencies, or PATH candidates"
+// read_when:
+//   - "changing Electron discovery order, environment overrides, or executable checks"
+// ---
+
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";

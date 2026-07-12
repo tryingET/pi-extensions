@@ -1,3 +1,9 @@
+// ---
+// summary: "ensures a compatible activity-strip process is launched and waits for overlay readiness"
+// read_when:
+//   - "changing autostart compatibility gates, process spawning, or readiness polling"
+// ---
+
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { assessActivityStripCompatibility } from "../common/compatibility.mjs";

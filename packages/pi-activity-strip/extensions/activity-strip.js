@@ -1,3 +1,9 @@
+// ---
+// summary: "registers activity-strip commands and forwards Pi lifecycle telemetry to the local broker"
+// read_when:
+//   - "changing extension commands, autostart behavior, or telemetry event wiring"
+// ---
+
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

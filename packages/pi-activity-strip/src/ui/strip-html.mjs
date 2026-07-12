@@ -1,3 +1,9 @@
+// ---
+// summary: "generates the self-contained activity-strip renderer with responsive cards and escaped live session details"
+// read_when:
+//   - "changing strip markup, styling, state rendering, or snapshot presentation"
+// ---
+
 export function createStripHtml({ interactive = false } = {}) {
   const pointerEvents = interactive ? "auto" : "none";
 

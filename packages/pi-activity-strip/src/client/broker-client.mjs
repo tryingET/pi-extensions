@@ -1,3 +1,9 @@
+// ---
+// summary: "sends newline-delimited broker requests for status, shutdown, session publication, and removal"
+// read_when:
+//   - "changing client socket transport, reply timeouts, or broker request helpers"
+// ---
+
 import net from "node:net";
 /** @typedef {import("../common/contracts.ts").BrokerClientOptions} BrokerClientOptions */
 /** @typedef {import("../common/contracts.ts").BrokerResponse} BrokerResponse */
