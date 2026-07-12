@@ -1,3 +1,9 @@
+// ---
+// summary: "Observes manifest-driven autoresearch campaigns, persists package projections, and optionally records deduplicated task-anchored AK evidence."
+// read_when:
+//   - "Changing manifest campaign observation, projection persistence, task verification, evidence recording, or next-step guidance."
+// ---
+
 import * as os from "node:os";
 import * as path from "node:path";
 import {

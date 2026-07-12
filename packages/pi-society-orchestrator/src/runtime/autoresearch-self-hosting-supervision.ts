@@ -1,3 +1,9 @@
+// ---
+// summary: "Verifies autoresearch self-hosting contracts and evaluator snapshots, then optionally records task-anchored promotion-posture evidence."
+// read_when:
+//   - "Changing self-hosting artifact verification, projection keys, promotion observation, or AK evidence supervision."
+// ---
+
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import * as os from "node:os";

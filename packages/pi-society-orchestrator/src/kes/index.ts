@@ -1,3 +1,9 @@
+// ---
+// summary: "Re-exports the package-owned KES scaffold functions, constants, artifact contracts, and source types."
+// read_when:
+//   - "Importing or changing the public KES API exposed by pi-society-orchestrator."
+// ---
+
 export {
   createKesArtifactPlan,
   ensureKesRoots,

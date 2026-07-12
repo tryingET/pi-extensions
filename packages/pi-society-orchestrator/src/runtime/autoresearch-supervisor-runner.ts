@@ -1,3 +1,9 @@
+// ---
+// summary: "Implements live autoresearch polling plus candidate-wave, matrix, Level-3, Level-4, review, finalizer, and cleanup supervision contracts."
+// read_when:
+//   - "Changing autoresearch live sessions, campaign choreography, candidate lineage gates, review packets, owner tokens, or closeout planning."
+// ---
+
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";

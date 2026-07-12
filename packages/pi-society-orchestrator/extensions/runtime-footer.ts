@@ -1,3 +1,9 @@
+// ---
+// summary: "Registers runtime status commands and renders health, routing, token, and extension state in the Pi footer."
+// read_when:
+//   - "Changing the orchestrator footer, runtime status display, routing selector, or boundary telemetry commands."
+// ---
+
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";

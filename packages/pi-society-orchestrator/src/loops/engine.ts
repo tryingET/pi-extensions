@@ -1,3 +1,9 @@
+// ---
+// summary: "Defines and executes cognitive loop plugins with agent dispatch, evidence, KES capture, checkpoints, resume gates, and loop UI commands."
+// read_when:
+//   - "Changing loop phase semantics, dispatch execution, checkpoint continuation, vault bindings, or loop command displays."
+// ---
+
 /**
  * Loop Engine — Pluggable iteration frameworks (OODA, Strategic, Kaizen, ADKAR)
  *

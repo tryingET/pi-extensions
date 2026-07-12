@@ -1,3 +1,9 @@
+// ---
+// summary: "Registers the Society Orchestrator extension commands and tools for cognitive dispatch, workflows, loops, evidence, and autoresearch supervision."
+// read_when:
+//   - "Changing the extension entrypoint, tool schemas, command adapters, or top-level orchestration wiring."
+// ---
+
 /**
  * Society Orchestrator — Cognitive-driven multi-agent orchestration
  *

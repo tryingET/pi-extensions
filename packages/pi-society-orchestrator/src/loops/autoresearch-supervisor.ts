@@ -1,3 +1,9 @@
+// ---
+// summary: "Projects pi-autoresearch runtime and ledger observations into fail-closed coarse supervisor milestones."
+// read_when:
+//   - "Changing autoresearch supervisor states, integrity gates, milestone summaries, or projection keys."
+// ---
+
 export const AUTORESEARCH_RUNTIME_STATES = [
   "idle",
   "segment_unconfigured",

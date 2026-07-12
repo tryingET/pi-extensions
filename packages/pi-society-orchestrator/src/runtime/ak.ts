@@ -1,3 +1,9 @@
+// ---
+// summary: "Resolves the AK executable and runs bounded synchronous, asynchronous, and repository-bootstrap commands."
+// read_when:
+//   - "Changing AK path discovery, environment binding, command supervision, timeouts, or bootstrap result parsing."
+// ---
+
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";

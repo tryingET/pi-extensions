@@ -1,3 +1,9 @@
+// ---
+// summary: "Validates autoresearch learning packets and plans or materializes bounded KES diary and candidate-learning artifacts with source snapshots."
+// read_when:
+//   - "Changing the autoresearch learning-owner seam, source evidence hashing, receipt previews, packet validation, or KES materialization."
+// ---
+
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";

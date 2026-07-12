@@ -1,3 +1,9 @@
+// ---
+// summary: "Reads AK strategy, wave, route, task-close, and closeout state and formats a read-only readiness report."
+// read_when:
+//   - "Changing runtime-status AK close-frame queries, readiness interpretation, blockers, or displayed guidance."
+// ---
+
 import { type RunAkCommandParams, resolveAkPath, runAkCommandAsync } from "./ak.ts";
 
 export type AkCloseFrameStatusAvailability = "available" | "unavailable";

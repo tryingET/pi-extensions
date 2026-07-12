@@ -1,3 +1,9 @@
+// ---
+// summary: "Derives autoresearch milestone evidence, anchors it to an AK task, deduplicates projections, and records evidence."
+// read_when:
+//   - "Changing autoresearch milestone payloads, task-repo validation, evidence deduplication, or AK projection behavior."
+// ---
+
 import * as path from "node:path";
 import {
   type AutoresearchSupervisorEvidenceResult,

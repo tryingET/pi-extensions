@@ -1,3 +1,9 @@
+// ---
+// summary: "Completes an anchored AK task only after recorded autoresearch completion and successful local finalization materialization."
+// read_when:
+//   - "Changing autoresearch-to-AK task completion gates, lifecycle keys, task anchoring, or terminal-state handling."
+// ---
+
 import * as path from "node:path";
 import type {
   AutoresearchRuntimeStatus,

@@ -1,3 +1,9 @@
+// ---
+// summary: "Adapts loop start, phase, and completion events into package-owned KES diary and learning-candidate artifacts."
+// read_when:
+//   - "Changing loop KES capture content, package-root verification, output excerpts, or candidate emission rules."
+// ---
+
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

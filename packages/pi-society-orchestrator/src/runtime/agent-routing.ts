@@ -1,3 +1,9 @@
+// ---
+// summary: "Defines agent teams and resolves automatic or requested agents against the active routing scope."
+// read_when:
+//   - "Changing agent-team membership, routing labels, auto-selection heuristics, or loop compatibility checks."
+// ---
+
 import { AGENT_PROFILES } from "./agent-profiles.ts";
 
 export type AgentTeam = "full" | "explore" | "implement" | "quality";

@@ -1,3 +1,9 @@
+// ---
+// summary: "Defines KES contract constants and typed inputs, roots, drafts, plans, and source references."
+// read_when:
+//   - "Changing the shape or version of package-owned KES diary and learning-candidate contracts."
+// ---
+
 import path from "node:path";
 
 export const KES_CONTRACT_VERSION = 1 as const;

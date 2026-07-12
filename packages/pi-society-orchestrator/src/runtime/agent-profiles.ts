@@ -1,3 +1,9 @@
+// ---
+// summary: "Declares the built-in scout, builder, reviewer, and researcher agent profiles and their tool prompts."
+// read_when:
+//   - "Changing orchestrator agent roles, allowed tools, descriptions, or default system prompts."
+// ---
+
 export interface AgentDef {
   name: string;
   description: string;

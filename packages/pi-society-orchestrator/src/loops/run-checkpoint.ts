@@ -1,3 +1,9 @@
+// ---
+// summary: "Persists secure loop-run checkpoints and validates locks, retention, effects, artifacts, and resume lineage."
+// read_when:
+//   - "Changing loop checkpoint storage, pruning, effect receipts, artifact hashing, or fail-closed resume validation."
+// ---
+
 import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";

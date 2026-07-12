@@ -1,3 +1,9 @@
+// ---
+// summary: "Plans, renders, validates, and safely materializes package-owned KES diary and candidate-learning artifacts."
+// read_when:
+//   - "Changing KES paths, frontmatter rendering, input validation, no-clobber writes, or symlink protections."
+// ---
+
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";

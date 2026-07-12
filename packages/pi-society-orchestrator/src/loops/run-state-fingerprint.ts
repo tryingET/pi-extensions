@@ -1,3 +1,9 @@
+// ---
+// summary: "Hashes Git repository state, diffs, index contents, and bounded untracked files for safe loop continuation."
+// read_when:
+//   - "Changing how loop resume detects repository drift or handles unverifiable and oversized state."
+// ---
+
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
