@@ -1,3 +1,9 @@
+// ---
+// summary: "converts broker runtime responses into detailed status text and concise UI notifications"
+// read_when:
+//   - "changing CLI status output or extension-facing readiness summaries"
+// ---
+
 /** @typedef {import("./contracts.ts").BrokerResponse} BrokerResponse */
 
 /** @param {BrokerResponse | null | undefined} result */

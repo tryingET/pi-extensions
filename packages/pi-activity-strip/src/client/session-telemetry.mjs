@@ -1,3 +1,9 @@
+// ---
+// summary: "converts Pi lifecycle and tool events into throttled session snapshots for the broker"
+// read_when:
+//   - "changing session state transitions, heartbeat delivery, or event-derived telemetry"
+// ---
+
 /** @typedef {import("../common/contracts.ts").SessionSnapshot} SessionSnapshot */
 /** @typedef {import("../common/contracts.ts").SessionTelemetryOptions} SessionTelemetryOptions */
 /** @typedef {import("../common/contracts.ts").SessionStartContextLike} SessionStartContextLike */

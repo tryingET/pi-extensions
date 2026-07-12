@@ -1,3 +1,9 @@
+// ---
+// summary: "runs the Electron overlay, broker, primary-display window placement, and Niri top-edge alignment"
+// read_when:
+//   - "changing overlay lifecycle, window behavior, runtime readiness, or desktop alignment"
+// ---
+
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

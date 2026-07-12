@@ -1,3 +1,9 @@
+// ---
+// summary: "stores normalized session snapshots, expires stale entries, and returns display-ready ordering"
+// read_when:
+//   - "changing session retention, upsert semantics, or broker snapshot ordering"
+// ---
+
 import { ACTIVITY_STRIP_STALE_AFTER_MS } from "../common/constants.mjs";
 import { normalizeSessionSnapshot, sortSessions } from "../common/protocol.mjs";
 

@@ -1,3 +1,9 @@
+// ---
+// summary: "defines shared socket paths, window dimensions, timing thresholds, and Electron binary candidates"
+// read_when:
+//   - "tuning activity-strip runtime defaults or locating shared configuration values"
+// ---
+
 import os from "node:os";
 import path from "node:path";
 

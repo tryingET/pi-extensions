@@ -1,3 +1,9 @@
+// ---
+// summary: "declares the public TypeScript shapes shared by activity-strip runtime and JavaScript consumers"
+// read_when:
+//   - "checking emitted declaration contracts for sessions, broker messages, telemetry, or compatibility"
+// ---
+
 export type SessionState = "idle" | "thinking" | "tool" | "waiting" | "success" | "error";
 
 export interface SessionSnapshot {

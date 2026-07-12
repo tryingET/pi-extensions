@@ -1,3 +1,9 @@
+// ---
+// summary: "defines source TypeScript contracts for session telemetry, broker transport, and runtime compatibility"
+// read_when:
+//   - "changing shared activity-strip types or the interfaces consumed through JSDoc imports"
+// ---
+
 export type SessionState = "idle" | "thinking" | "tool" | "waiting" | "success" | "error";
 
 export interface SessionSnapshot {

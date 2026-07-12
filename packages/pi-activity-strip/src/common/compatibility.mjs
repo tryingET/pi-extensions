@@ -1,3 +1,9 @@
+// ---
+// summary: "detects desktop and Electron prerequisites and formats actionable activity-strip compatibility reports"
+// read_when:
+//   - "changing host detection, compatibility blockers, warnings, or doctor output"
+// ---
+
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { locateElectron } from "./electron.mjs";

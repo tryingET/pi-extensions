@@ -1,3 +1,9 @@
+// ---
+// summary: "builds initial session telemetry and describes tool calls and results as strip-ready status updates"
+// read_when:
+//   - "changing session identity, tool activity descriptions, or result summarization"
+// ---
+
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 /** @typedef {import("./contracts.ts").SessionSnapshot} SessionSnapshot */

@@ -1,3 +1,9 @@
+// ---
+// summary: "creates broker messages and normalizes and prioritizes session snapshots for transport and display"
+// read_when:
+//   - "changing message envelopes, session defaults, accepted states, or sort priority"
+// ---
+
 import { randomUUID } from "node:crypto";
 
 /** @typedef {import("./contracts.ts").SessionState} SessionState */

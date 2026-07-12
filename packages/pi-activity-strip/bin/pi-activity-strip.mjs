@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+// ---
+// summary: "command-line entrypoint for opening, inspecting, repairing, and stopping the activity strip runtime"
+// read_when:
+//   - "operating or diagnosing the activity strip from a terminal"
+// ---
+
 import { execFile, spawn } from "node:child_process";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
