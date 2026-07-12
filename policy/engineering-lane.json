@@ -22,6 +22,11 @@
     "loop_validation": {
       "version": "repo-loop-validation-v1",
       "contract_doc": "docs/engineering.local.md#repo-loop-validation",
+      "scope_input": {
+        "environment": "LOOP_PATHS",
+        "format": "newline-separated repo-relative paths",
+        "default": "unstaged, staged, and untracked working-tree paths"
+      },
       "commands": {
         "loop-doctor": "just loop-doctor",
         "loop-verify-fast": "just loop-verify-fast",

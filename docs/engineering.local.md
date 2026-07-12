@@ -58,11 +58,15 @@ Repo-local emphasis:
 pi-extensions adopts `repo-loop-validation-v1` for monorepo control-plane and package fan-out loop work. The machine-readable declaration lives in `policy/engineering-lane.json`.
 
 - `loop-doctor`: `just loop-doctor` (non-failing git/Node/npm/Just diagnostics)
-- `loop-verify-fast`: `just loop-verify-fast` (maps to `just check` / root quality gate)
-- `loop-impact-plan`: `just loop-impact-plan` (changed-file listing plus run/wide recommendation)
-- `loop-impact-run`: `just loop-impact-run` (maps to `just check`)
-- `loop-impact-wide`: `just loop-impact-wide` (maps to `just ci`)
+- `loop-verify-fast`: `just loop-verify-fast` (coherent-slice package pre-commit checks plus root smoke checks)
+- `loop-impact-plan`: `just loop-impact-plan` (classifies the selected paths as bounded, expanded, or wide)
+- `loop-impact-run`: `just loop-impact-run` (package pre-push checks plus root smoke checks; refuses wide scope)
+- `loop-impact-wide`: `LOOP_WIDE_REASON='<reason>' just loop-impact-wide` (explicitly accepted `just ci`)
 - `loop-landing-check`: `just loop-landing-check` (maps to the repo-declared `just ci` gate)
+
+Set `LOOP_PATHS` to a newline-separated list of non-empty repo-relative paths when task scope is narrower than the dirty working tree; paths may contain spaces but not newlines or `..` traversal segments. If `LOOP_PATHS` is absent, loop commands inspect unstaged, staged, and untracked paths using NUL-delimited Git output. This explicit input is important in a shared or already-dirty checkout: unrelated changes must not force a focused package slice into wide validation.
+
+Run `loop-verify-fast` after a coherent implementation slice, not after every write. Package paths are deduplicated to their top-level package roots and use the existing package quality gate. Root documentation/policy paths use the smoke gate. Root runtime, dependency, script, build, or unclassified paths escalate to explicit wide validation at the impact phase. The loop commands never format, auto-fix, activate packages, or infer completion.
 
 These commands produce repo-local evidence for loop orchestration. They do not replace AK task/evidence/decision authority, live Pi extension activation/reload proof, package release approval, publication authority, merge approval, or downstream production activation authority.
 
