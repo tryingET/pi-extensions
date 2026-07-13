@@ -34,6 +34,11 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
+      - name: Setup uv for engineering-core validation
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+
       - name: Upgrade npm for trusted publishing
         run: |
           mkdir -p "$RUNNER_TEMP/npm-global"
