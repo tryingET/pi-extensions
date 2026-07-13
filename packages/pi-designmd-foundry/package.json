@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-designmd-foundry",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi extension and skill package for using DesignMD Foundry as a design-contract tool surface.",
   "type": "module",
   "exports": {
