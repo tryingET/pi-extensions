@@ -13,6 +13,23 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-agent-vent-v0.1.2...pi-agent-vent-v0.2.0) (2026-07-13)
+
+
+### Features
+
+* **agent-vent:** normalize diagnostic category aliases ([d106565](https://github.com/tryingET/pi-extensions/commit/d10656558a1b972927311905713c86627dc8339e))
+* **agent-vent:** preview diagnostic records ([1ff98c5](https://github.com/tryingET/pi-extensions/commit/1ff98c53feb7a17bc8b3b4e4bcee1bd5c31de30e))
+* **extensions:** harden runtime quality across packages ([1ff1eb0](https://github.com/tryingET/pi-extensions/commit/1ff1eb0cf10a3f8f60cf391ccf246b238951a848))
+* migrate pi extensions to pi 0.76 ([93dd0e0](https://github.com/tryingET/pi-extensions/commit/93dd0e0fdc9e23b0fc36661cc0e33972f365bf98))
+
+
+### Bug Fixes
+
+* **agent-vent:** avoid alias schema reload failure ([f1d5f16](https://github.com/tryingET/pi-extensions/commit/f1d5f16179dd61f70ace094a6ab6dd821c9f2f57))
+* align extension runtimes with Pi 0.80 ([1702c25](https://github.com/tryingET/pi-extensions/commit/1702c25f9d31bf4f619fdaa6f7a7f898ca5ee48e))
+* **pi-agent-vent:** pin host contract and isolate release npm policy ([dce9586](https://github.com/tryingET/pi-extensions/commit/dce9586f9389b7283b6195f3ba0ba1319943f070))
+
 ## [0.1.2] - 2026-05-22
 
 ### Fixed
