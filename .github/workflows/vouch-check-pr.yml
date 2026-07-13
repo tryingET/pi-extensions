@@ -17,7 +17,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Enforce vouch trust gate on PR author
-        uses: mitchellh/vouch/action/check-pr@e87054b83fcd2b10d2155b733a10a8aec344176a
+        uses: mitchellh/vouch/action/check-pr@baeb3bf7c7e6c12d6e33bab3870b7e936580a934
         with:
           pr-number: ${{ github.event.pull_request.number }}
           vouched-file: .github/VOUCHED.td
