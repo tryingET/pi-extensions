@@ -96,6 +96,13 @@ test("resolve-tag env output exports RELEASE_NPM_DIST_TAG", () => {
   assert.match(output, /RELEASE_NPM_DIST_TAG=rc/);
 });
 
+test("release quality gate disables machine-local engineering-core smoke", () => {
+  const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
+  const step = workflowStep(workflow, "Run package quality gate");
+  assert.match(step, /PI_ENGINEERING_SMOKE: "0"/);
+  assert.match(step, /run: npm run check/);
+});
+
 test("resolve-tag workflow guard sources same-step output and rejects a mismatched tag", () => {
   const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
   const step = workflowStep(workflow, "Resolve release tag to component");

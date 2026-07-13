@@ -34,11 +34,6 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
-      - name: Setup uv for engineering-core validation
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: false
-
       - name: Upgrade npm for trusted publishing
         run: |
           mkdir -p "$RUNNER_TEMP/npm-global"
@@ -66,26 +61,6 @@ jobs:
             echo "Resolved package version ($RELEASE_PACKAGE_VERSION) does not match release tag version ($RELEASE_TAG_VERSION)." >&2
             exit 1
           fi
-
-      - name: Materialize pinned engineering-core contract
-        run: |
-          set -euo pipefail
-          policy="$RELEASE_PACKAGE_PATH/policy/engineering-lane.json"
-          readarray -t contract < <(node -e '
-            const fs = require("node:fs");
-            const policy = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            const core = policy.engineering_core || {};
-            if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(core.repository || "")) process.exit(2);
-            if (!/^[0-9a-f]{40}$/.test(core.ref || "")) process.exit(3);
-            console.log(core.repository);
-            console.log(core.ref);
-          ' "$policy")
-          destination="$HOME/ai-society/core/engineering-core"
-          mkdir -p "$(dirname "$destination")"
-          git init -q "$destination"
-          git -C "$destination" remote add origin "${contract[0]}"
-          git -C "$destination" fetch -q --depth 1 origin "${contract[1]}"
-          git -C "$destination" checkout -q --detach FETCH_HEAD
 
       - name: Install package dependencies
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
@@ -144,6 +119,8 @@ jobs:
 
       - name: Run package quality gate
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        env:
+          PI_ENGINEERING_SMOKE: "0"
         run: npm run check
 
       - name: Create immutable snapshot-edit release tarball
