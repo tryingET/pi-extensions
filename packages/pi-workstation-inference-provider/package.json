@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-workstation-inference-provider",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read-only Pi provider adapter for workstation lane-op inference endpoints.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
