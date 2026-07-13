@@ -1,0 +1,17 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/tmp/pi-release-automation"
+commit: "55a927dc16f5c5ef0ed5bcd5874a814fbf022435"
+created_at: "2026-07-13T03:16:43Z"
+intent: "Serialize Release Please and dispatch npm publication for each created component tag"
+files:
+  - ".github/workflows/release-please.yml"
+  - "scripts/release-components.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test scripts/release-components.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "node --test scripts/release-components.test.mjs && node scripts/release-components.mjs validate"
+    status: "pass"
