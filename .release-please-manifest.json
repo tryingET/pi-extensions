@@ -18,7 +18,7 @@
   "packages/pi-modes": "0.2.0",
   "packages/pi-ontology-workflows": "0.2.0",
   "packages/pi-peer-messaging": "0.2.0",
-  "packages/pi-prompt-template-accelerator": "0.1.0",
+  "packages/pi-prompt-template-accelerator": "0.2.0",
   "packages/pi-prompt-template-execution": "0.2.0",
   "packages/pi-provenance": "0.2.0",
   "packages/pi-session-compaction": "0.2.0",
