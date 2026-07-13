@@ -1,0 +1,19 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/tmp/pi-vault-publish"
+commit: "6bccc011b6a49085ba32d4c39e37d1e119ea4158"
+created_at: "2026-07-13T02:22:34Z"
+intent: "Install Dolt for pi-vault-client release validation in clean GitHub runners"
+files:
+  - ".github/workflows/publish.yml"
+validation:
+  fast_gate:
+    command: "npm pre-commit quality gate"
+    status: "pass"
+  full_gate:
+    command: "node --test ./scripts/release-components.test.mjs && node ./scripts/release-components.mjs validate"
+    status: "pass"
+links:
+  evidence_ids:
+    - 4322
