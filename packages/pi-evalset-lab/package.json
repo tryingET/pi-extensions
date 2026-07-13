@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-evalset-lab",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "pi extension for fixed-task-set eval runs and prompt/system comparisons",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
