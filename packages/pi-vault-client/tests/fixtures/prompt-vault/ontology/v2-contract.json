@@ -1,0 +1,93 @@
+{
+  "contract_version": "0.1.0",
+  "prompt_vault_schema_target": "v2",
+  "status": "active",
+  "summary": "Canonical ontology contract for the Prompt Vault v2 facet cutover.",
+  "facets": {
+    "artifact_kind": ["cognitive", "procedure", "session"],
+    "control_mode": ["one_shot", "router", "loop"],
+    "formalization_level": ["napkin", "bounded", "structured", "workflow"]
+  },
+  "classification_rules": [
+    "routers classify as artifact_kind=procedure and control_mode=router",
+    "iterative orchestrators classify as artifact_kind=procedure and control_mode=loop",
+    "workflow belongs to formalization_level, never to artifact_kind or control_mode",
+    "legacy prompt_templates.type is not a governing ontology axis in v2",
+    "formalization_level=workflow means workflow-grade specification, not automatic workflow_execute runtime binding",
+    "artifact_kind=session is reserved until positively defined; session-related reusable action prompts normally classify as artifact_kind=procedure",
+    "runtime executor selection belongs in an explicit execution_binding/orchestration_contract, not in artifact_kind, control_mode, formalization_level, owner_company, visibility, or template name"
+  ],
+  "mode_outputs": ["DECIDE", "DIVERGE", "PLAN", "IMPLEMENT", "VERIFY"],
+  "seed_prompts": [
+    {
+      "name": "analysis-router",
+      "artifact_kind": "procedure",
+      "control_mode": "router",
+      "formalization_level": "structured",
+      "purpose": "Route outputs from deep analysis prompts into the single best next operating mode and emit the exact next prompt."
+    },
+    {
+      "name": "post-review-router",
+      "artifact_kind": "procedure",
+      "control_mode": "router",
+      "formalization_level": "structured",
+      "purpose": "Take review findings and convert them into the next exact prompt for action."
+    },
+    {
+      "name": "review-closeout-router",
+      "artifact_kind": "procedure",
+      "control_mode": "router",
+      "formalization_level": "structured",
+      "purpose": "Close the review loop by selecting the best final next mode and exact prompt."
+    }
+  ],
+  "surfaces_expected_to_converge": [
+    "schema/schema.sql",
+    "migrations/*.sql",
+    "scripts/pv",
+    "scripts/export-to-pi.sh",
+    "~/.pi/agent/extensions/vault-client/extensions/vault.ts"
+  ],
+  "golden_queries": [
+    {
+      "description": "All seeded routers are procedure/router/structured",
+      "filters": {
+        "artifact_kind": ["procedure"],
+        "control_mode": ["router"],
+        "formalization_level": ["structured"]
+      },
+      "expected_names": ["analysis-router", "post-review-router", "review-closeout-router"]
+    },
+    {
+      "description": "No seed prompt uses workflow as a prompt kind",
+      "rule": "workflow may appear only in formalization_level"
+    }
+  ],
+  "facet_semantics": {
+    "artifact_kind": {
+      "question": "What kind of reusable Prompt Vault information artifact is this?",
+      "values": {
+        "cognitive": "A reusable cognitive lens or reasoning frame.",
+        "procedure": "A reusable prompt/procedure that prescribes action or routing.",
+        "session": "Reserved legacy value; do not use for live sessions, session JSONL, transcripts, receipts, diary/learnings, evidence-ledger rows, or one-off runtime context until a narrower session-scaffold contract is introduced."
+      }
+    },
+    "control_mode": {
+      "question": "What control topology does the prompt impose?",
+      "values": {
+        "one_shot": "Single-pass application or bounded procedure body.",
+        "router": "Selects a next prompt/procedure and emits an exact transition rather than executing downstream work.",
+        "loop": "Iterative or phase-gated control topology that requires loop semantics when executed."
+      }
+    },
+    "formalization_level": {
+      "question": "How fully specified is the prompt artifact?",
+      "values": {
+        "napkin": "Loose, lightweight prompt sketch.",
+        "bounded": "Bounded prompt with explicit scope/constraints.",
+        "structured": "Structured prompt with stable sections or output expectations.",
+        "workflow": "Workflow-grade specification; not by itself a binding to workflow_execute or any runtime executor."
+      }
+    }
+  }
+}

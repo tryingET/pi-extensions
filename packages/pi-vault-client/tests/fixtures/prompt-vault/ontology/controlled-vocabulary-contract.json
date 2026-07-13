@@ -1,0 +1,99 @@
+{
+  "contract_version": "0.2.0",
+  "status": "active",
+  "summary": "Semantic metamodel for the minimal governed retrieval/orchestration vocabulary layered above Prompt Vault v2 core facets for router prompts.",
+  "applies_to": {
+    "artifact_kind": ["procedure"],
+    "control_mode": ["router"]
+  },
+  "dimension_semantics": {
+    "routing_context": {
+      "ontological_category": "functional_context",
+      "question": "What follow-up situation is this router designed for?",
+      "cardinality": "exactly_one",
+      "must_not_encode": [
+        "core facet identity",
+        "process ordering details",
+        "output formatting obligations"
+      ]
+    },
+    "activity_phase": {
+      "ontological_category": "process_position",
+      "question": "At what point in the surrounding workflow is this router applied?",
+      "cardinality": "exactly_one",
+      "must_not_encode": ["functional purpose", "output target"]
+    },
+    "input_artifact": {
+      "ontological_category": "information_object_type",
+      "question": "What kind of upstream information artifact does this router consume?",
+      "cardinality": "exactly_one",
+      "must_not_encode": ["routing criteria", "downstream target"]
+    },
+    "transition_target_type": {
+      "ontological_category": "transition_relation_target",
+      "question": "What class of downstream thing does the router select or point to?",
+      "cardinality": "exactly_one",
+      "must_not_encode": ["selection rationale", "workflow phase"]
+    },
+    "selection_principles": {
+      "ontological_category": "decision_criteria",
+      "question": "What governed criteria constrain the routing decision?",
+      "cardinality": "one_or_more",
+      "must_not_encode": ["output obligations", "artifact identity"]
+    },
+    "output_commitment": {
+      "ontological_category": "output_obligation",
+      "question": "What required deliverable must the router emit?",
+      "cardinality": "exactly_one",
+      "must_not_encode": ["decision criteria", "context classification"]
+    }
+  },
+  "dimensions": {
+    "routing_context": ["analysis_followup", "review_followup", "review_closeout"],
+    "activity_phase": ["post_analysis", "post_review", "closeout"],
+    "input_artifact": ["analysis_output", "review_findings", "review_summary"],
+    "transition_target_type": ["framework_mode"],
+    "selection_principles": ["evidence_based", "constraint_preserving", "minimal_change"],
+    "output_commitment": ["exact_next_prompt"]
+  },
+  "router_required_dimensions": [
+    "routing_context",
+    "activity_phase",
+    "input_artifact",
+    "transition_target_type",
+    "selection_principles",
+    "output_commitment"
+  ],
+  "fixture_expectations": {
+    "analysis-router": {
+      "routing_context": "analysis_followup",
+      "activity_phase": "post_analysis",
+      "input_artifact": "analysis_output",
+      "transition_target_type": "framework_mode",
+      "selection_principles": ["evidence_based"],
+      "output_commitment": "exact_next_prompt"
+    },
+    "post-review-router": {
+      "routing_context": "review_followup",
+      "activity_phase": "post_review",
+      "input_artifact": "review_findings",
+      "transition_target_type": "framework_mode",
+      "selection_principles": ["constraint_preserving"],
+      "output_commitment": "exact_next_prompt"
+    },
+    "review-closeout-router": {
+      "routing_context": "review_closeout",
+      "activity_phase": "closeout",
+      "input_artifact": "review_summary",
+      "transition_target_type": "framework_mode",
+      "selection_principles": ["minimal_change"],
+      "output_commitment": "exact_next_prompt"
+    }
+  },
+  "rules": [
+    "Controlled vocabulary augments but never replaces artifact_kind/control_mode/formalization_level.",
+    "Each controlled dimension must declare its ontological category before new values are added.",
+    "Routers must always declare transition_target_type and output_commitment.",
+    "Selection criteria must stay separate from output obligations and contextual classifications."
+  ]
+}

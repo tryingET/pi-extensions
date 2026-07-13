@@ -1,0 +1,72 @@
+{
+  "contract_version": "0.1.0",
+  "status": "active",
+  "summary": "Governance contract for prompt/company ownership and visibility boundaries.",
+  "companies": ["core", "software", "finance", "house", "health", "teaching", "holding"],
+  "fields": {
+    "owner_company": {
+      "cardinality": "exactly_one",
+      "description": "Company accountable for the prompt or skill."
+    },
+    "visibility_companies": {
+      "cardinality": "one_or_more",
+      "description": "Companies allowed to query/use the prompt or skill."
+    }
+  },
+  "rules": [
+    "owner_company must be one of the governed companies.",
+    "visibility_companies must be a non-empty list of governed companies.",
+    "visibility_companies must include owner_company.",
+    "Core-owned artifacts are visible to all governed companies unless explicitly re-governed later."
+  ],
+  "defaults": {
+    "owner_company": "core",
+    "visibility_companies": [
+      "core",
+      "software",
+      "finance",
+      "house",
+      "health",
+      "teaching",
+      "holding"
+    ]
+  },
+  "fixture_expectations": {
+    "analysis-router": {
+      "owner_company": "core",
+      "visibility_companies": [
+        "core",
+        "software",
+        "finance",
+        "house",
+        "health",
+        "teaching",
+        "holding"
+      ]
+    },
+    "post-review-router": {
+      "owner_company": "core",
+      "visibility_companies": [
+        "core",
+        "software",
+        "finance",
+        "house",
+        "health",
+        "teaching",
+        "holding"
+      ]
+    },
+    "review-closeout-router": {
+      "owner_company": "core",
+      "visibility_companies": [
+        "core",
+        "software",
+        "finance",
+        "house",
+        "health",
+        "teaching",
+        "holding"
+      ]
+    }
+  }
+}

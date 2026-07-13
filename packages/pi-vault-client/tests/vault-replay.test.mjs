@@ -13,6 +13,7 @@ import {
 function resolvePromptVaultSchema() {
   const candidates = [
     process.env.PROMPT_VAULT_SCHEMA,
+    path.join(PACKAGE_ROOT, "tests/fixtures/prompt-vault/schema/schema.sql"),
     path.resolve(PACKAGE_ROOT, "../../../../../core/prompt-vault/schema/schema.sql"),
     path.join(os.homedir(), "ai-society/core/prompt-vault/schema/schema.sql"),
   ].filter((candidate) => typeof candidate === "string" && candidate.length > 0);
