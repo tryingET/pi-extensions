@@ -25,6 +25,7 @@ import {
   migrateCandidateInventory,
   reconcileMissingResource,
   updateLifecycleRecord,
+  verifyPatchEquivalenceProof,
   withResourceLock,
 } from "../src/candidatePeerLifecycleV2.ts";
 
@@ -293,5 +294,35 @@ test("v2 archive fails closed on post-review drift", async () => {
         createRestorationVerifiedArchive({ record, expectedVersion: record.resourceVersion, env }),
       /drifted/,
     );
+  });
+});
+
+test("v2 patch-equivalence proof binds distinct candidate and target OIDs", async () => {
+  await withTempDir((root) => {
+    const { repoRoot, worktreePath } = setupLinkedWorktree(root);
+    writeFileSync(`${worktreePath}/equivalent.txt`, "same accepted bytes\n");
+    git(worktreePath, "add", "equivalent.txt");
+    git(worktreePath, "commit", "-m", "candidate implementation");
+    const candidateHeadOid = git(worktreePath, "rev-parse", "HEAD");
+    const patchPath = `${root}/candidate.patch`;
+    writeFileSync(patchPath, execFileSync("git", ["-C", repoRoot, "diff", "main..candidate/test"]));
+    execFileSync("git", ["-C", repoRoot, "apply", patchPath]);
+    git(repoRoot, "add", "equivalent.txt");
+    git(repoRoot, "commit", "-m", "integrated equivalent implementation");
+    const targetOid = git(repoRoot, "rev-parse", "HEAD");
+
+    const proof = verifyPatchEquivalenceProof({
+      actor: "owner:test",
+      issuedAt: new Date().toISOString(),
+      candidateRepoRoot: repoRoot,
+      candidateHeadOid,
+      targetRepoRoot: repoRoot,
+      targetOid,
+      validationRefs: ["synthetic patch-equivalence canary"],
+    });
+    assert.equal(proof.form, "patch_equivalence");
+    assert.deepEqual(proof.selectedCommits, [candidateHeadOid]);
+    assert.equal(proof.patchIds.length, 1);
+    assert.match(proof.proofDigest, /^[0-9a-f]{64}$/);
   });
 });

@@ -122,7 +122,10 @@ export type CandidateIntegrationProof = {
   issuedAt: string;
   targetRepoRoot: string;
   targetOid: string;
+  candidateRepoRoot?: string;
+  candidateHeadOid?: string;
   selectedCommits: string[];
+  patchIds?: string[];
   selectedPaths?: string[];
   exclusions?: string[];
   validationRefs: string[];
@@ -645,6 +648,7 @@ export function captureCandidateReviewSnapshot(
 export function createDispositionReceipt(
   input: Omit<CandidateDispositionReceipt, "receiptDigest">,
 ): CandidateDispositionReceipt {
+  // The caller validates review blockers against any explicit ignored-path discards.
   if (!input.actor.trim() || !input.rationale.trim())
     throw new Error("disposition requires actor and rationale");
   if (
@@ -656,6 +660,22 @@ export function createDispositionReceipt(
   if (input.disposition === "deferred" && !input.nextReviewAt)
     throw new Error("deferred disposition requires nextReviewAt");
   return { ...input, receiptDigest: digestObject(input) };
+}
+
+export function unresolvedReviewBlockers(
+  snapshot: CandidateReviewSnapshot,
+  discardIgnoredPaths: string[] = [],
+): string[] {
+  const discard = new Set(discardIgnoredPaths);
+  const ignored = new Set(
+    snapshot.objects.filter((item) => item.source === "ignored").map((item) => item.path),
+  );
+  return snapshot.blockers.filter((blocker) => {
+    const separator = blocker.indexOf(":");
+    const kind = separator < 0 ? blocker : blocker.slice(0, separator);
+    const path = separator < 0 ? "" : blocker.slice(separator + 1);
+    return !(kind === "symlink_escape" && ignored.has(path) && discard.has(path));
+  });
 }
 
 export function verifyCommitInclusionProof(
@@ -674,6 +694,71 @@ export function verifyCommitInclusionProof(
     }
   }
   const proof = { ...input, form: "commit_inclusion" as const, targetOid };
+  return { ...proof, proofDigest: digestObject(proof) };
+}
+
+export function verifyPatchEquivalenceProof(input: {
+  actor: string;
+  issuedAt: string;
+  candidateRepoRoot: string;
+  candidateHeadOid: string;
+  targetRepoRoot: string;
+  targetOid: string;
+  selectedPaths?: string[];
+  exclusions?: string[];
+  validationRefs: string[];
+}): CandidateIntegrationProof {
+  const targetOid = String(
+    git(input.targetRepoRoot, ["rev-parse", `${input.targetOid}^{commit}`]),
+  ).trim();
+  const candidateHeadOid = String(
+    git(input.candidateRepoRoot, ["rev-parse", `${input.candidateHeadOid}^{commit}`]),
+  ).trim();
+  if (targetOid !== input.targetOid || candidateHeadOid !== input.candidateHeadOid) {
+    throw new Error("patch-equivalence proof requires exact immutable candidate and target OIDs");
+  }
+  const cherry = String(git(input.candidateRepoRoot, ["cherry", targetOid, candidateHeadOid]));
+  const lines = cherry
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const nonEquivalent = lines.filter((line) => line.startsWith("+ "));
+  if (nonEquivalent.length > 0) {
+    throw new Error(
+      `candidate commits are not patch-equivalent to target OID: ${nonEquivalent.join(", ")}`,
+    );
+  }
+  const selectedCommits = lines.map((line) => line.slice(2).trim());
+  if (selectedCommits.length === 0) {
+    throw new Error(
+      "patch-equivalence proof has no non-ancestor candidate commits; use commit inclusion",
+    );
+  }
+  const patchIds = selectedCommits.map((commit) => {
+    const patch = git(
+      input.candidateRepoRoot,
+      ["show", "--pretty=format:", "--binary", commit],
+      "buffer",
+    ) as Buffer;
+    const result = execFileSync("git", ["patch-id", "--stable"], {
+      cwd: input.candidateRepoRoot,
+      input: patch,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024 * 1024,
+    }).trim();
+    const patchId = result.split(/\s+/)[0];
+    if (!patchId) throw new Error(`could not derive stable patch-id for ${commit}`);
+    return patchId;
+  });
+  const proof = {
+    ...input,
+    form: "patch_equivalence" as const,
+    targetOid,
+    candidateHeadOid,
+    selectedCommits,
+    patchIds,
+  };
   return { ...proof, proofDigest: digestObject(proof) };
 }
 

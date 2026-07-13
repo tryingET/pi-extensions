@@ -26,6 +26,7 @@ import {
   getCandidateLifecycleRoot,
   readLifecycleRecord,
   stableJson,
+  unresolvedReviewBlockers,
   updateLifecycleRecord,
   withResourceLock,
   writeLockedLifecycleRecord,
@@ -247,8 +248,12 @@ export function createRestorationVerifiedArchive({
   if (record.disposition.disposition === "accepted" && !record.integrationProof) {
     throw new Error("accepted resource requires exact integration proof before archive");
   }
-  if (record.reviewSnapshot.blockers.length > 0) {
-    throw new Error(`review snapshot has blockers: ${record.reviewSnapshot.blockers.join(", ")}`);
+  const unresolvedBlockers = unresolvedReviewBlockers(
+    record.reviewSnapshot,
+    record.disposition.discardIgnoredPaths,
+  );
+  if (unresolvedBlockers.length > 0) {
+    throw new Error(`review snapshot has blockers: ${unresolvedBlockers.join(", ")}`);
   }
   const currentSnapshot = captureCandidateReviewSnapshot(record);
   if (currentSnapshot.contentDigest !== record.reviewSnapshot.contentDigest) {

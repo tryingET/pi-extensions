@@ -13,8 +13,10 @@ import {
   migrateCandidateInventory,
   readLifecycleRecord,
   reconcileMissingResource,
+  unresolvedReviewBlockers,
   updateLifecycleRecord,
   verifyCommitInclusionProof,
+  verifyPatchEquivalenceProof,
 } from "../src/candidatePeerLifecycleV2.ts";
 import { getCandidatePeerRegistryDir } from "../src/candidatePeerRegistry.ts";
 
@@ -126,11 +128,13 @@ if (command === "inventory") {
   const current = readLifecycleRecord(resourceId, env);
   if (current.state !== "review_pending" || !current.reviewSnapshot)
     throw new Error("disposition requires review_pending snapshot");
-  if (current.reviewSnapshot.blockers.length > 0)
-    throw new Error(
-      `review blockers prevent disposition: ${current.reviewSnapshot.blockers.join(",")}`,
-    );
   const input = inputJson(options);
+  const unresolvedBlockers = unresolvedReviewBlockers(
+    current.reviewSnapshot,
+    input.discardIgnoredPaths,
+  );
+  if (unresolvedBlockers.length > 0)
+    throw new Error(`review blockers prevent disposition: ${unresolvedBlockers.join(",")}`);
   const receipt = createDispositionReceipt({
     ...input,
     issuedAt: input.issuedAt ?? new Date().toISOString(),
@@ -157,11 +161,18 @@ if (command === "inventory") {
     throw new Error("integration proof requires accepted disposition");
   const input = inputJson(options);
   const selectedCommits = input.selectedCommits ?? current.disposition.selectedCommits ?? [];
-  const proof = verifyCommitInclusionProof({
-    ...input,
-    selectedCommits,
-    issuedAt: input.issuedAt ?? new Date().toISOString(),
-  });
+  const proof =
+    input.form === "patch_equivalence"
+      ? verifyPatchEquivalenceProof({
+          ...input,
+          candidateHeadOid: input.candidateHeadOid ?? current.reviewSnapshot?.headOid,
+          issuedAt: input.issuedAt ?? new Date().toISOString(),
+        })
+      : verifyCommitInclusionProof({
+          ...input,
+          selectedCommits,
+          issuedAt: input.issuedAt ?? new Date().toISOString(),
+        });
   const next = updateLifecycleRecord({
     resourceId,
     expectedVersion: current.resourceVersion,
