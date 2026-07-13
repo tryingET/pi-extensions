@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/tmp/pi-vault-publish"
+commit: "e3b27dd214245153389a057c82725a929445eb23"
+created_at: "2026-07-13T02:08:27Z"
+intent: "Prepare pi-vault-client 0.2.0 release metadata"
+files:
+  - ".release-please-manifest.json"
+  - "packages/pi-vault-client/CHANGELOG.md"
+  - "packages/pi-vault-client/package.json"
+validation:
+  fast_gate:
+    command: "node scripts/release-components.mjs validate"
+    status: "pass"
+  full_gate:
+    command: "npm run check && npm run release:check:quick"
+    status: "pass"
+links:
+  task_ids:
+    - 3849
+  evidence_ids:
+    - 4322
