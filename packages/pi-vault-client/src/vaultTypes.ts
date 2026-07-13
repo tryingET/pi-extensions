@@ -388,6 +388,7 @@ export interface GroundedNext10PromptSuccess {
   ok: true;
   prompt: string;
   template: Template;
+  members: Template[];
   prepared: PreparedTemplateSuccess;
   currentCompany: string;
   companySource: string;

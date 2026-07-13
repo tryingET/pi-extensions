@@ -168,16 +168,25 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
                     };
                 });
             }
-            catch {
-                // Projection freshness is best-effort; don't block diagnostics
+            catch (error) {
+                projectionResults = [
+                    {
+                        template_name: "projection-inventory",
+                        status: "error",
+                        message: error instanceof Error ? error.message : String(error),
+                    },
+                ];
             }
             const output = formatSchemaDiagnosticsReport(runtime, executionContext.currentCompany, executionContext.companySource, projectionResults.length > 0 ? projectionResults : undefined);
             const report = runtime.checkSchemaCompatibilityDetailed();
             const doltEnvironment = resolveDoltExecutionEnvironmentSnapshot(runtime);
+            const projectionOk = projectionResults.every((item) => item.status === "fresh" ||
+                item.status === "quarantined" ||
+                item.status === "not_exported");
             return {
                 content: [{ type: "text", text: output }],
                 details: {
-                    ok: report.ok,
+                    ok: report.ok && projectionOk,
                     expectedVersion: report.expectedVersion,
                     actualVersion: report.actualVersion,
                     missingPromptTemplateColumns: report.missingPromptTemplateColumns,

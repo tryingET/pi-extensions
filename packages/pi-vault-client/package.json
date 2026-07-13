@@ -17,6 +17,10 @@
       "types": "./src/dispatchRuntime.d.ts",
       "default": "./src/dispatchRuntime.js"
     },
+    "./dispatch-guard": {
+      "types": "./src/dispatchGuard.d.ts",
+      "default": "./src/dispatchGuard.js"
+    },
     "./toolbox-bundle": "./src/toolboxBundle.js"
   },
   "license": "SEE LICENSE IN LICENSE",
@@ -44,6 +48,7 @@
   },
   "scripts": {
     "build:runtime": "node ./scripts/build-runtime.mjs",
+    "check:generated-runtime": "node ./scripts/check-generated-runtime-clean.mjs",
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
     "typecheck": "bash ./scripts/quality-gate.sh typecheck",

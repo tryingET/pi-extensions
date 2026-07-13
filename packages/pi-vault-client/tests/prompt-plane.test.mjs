@@ -17,7 +17,16 @@ function template(overrides = {}) {
     formalization_level: "structured",
     owner_company: "software",
     visibility_companies: ["software"],
-    controlled_vocabulary: null,
+    controlled_vocabulary: {
+      routing_context: "analysis_followup",
+      activity_phase: "post_analysis",
+      input_artifact: "analysis_output",
+      transition_target_type: "framework_mode",
+      selection_principles: ["evidence_based"],
+      output_commitment: "exact_next_prompt",
+    },
+    status: "active",
+    export_to_pi: true,
     version: 3,
     id: 7,
     ...overrides,
@@ -54,6 +63,7 @@ function createRuntime(options = {}) {
       return ok(search[String(query)] || []);
     },
     queryTemplatesDetailed(filters = {}, limit = 50, _includeContent = false, context) {
+      // Prompt-plane listing uses the same in-memory candidates as dispatch revalidation.
       if (typeof options.onQueryTemplatesDetailed === "function") {
         options.onQueryTemplatesDetailed(filters, limit, context);
       }
@@ -90,6 +100,18 @@ function createRuntime(options = {}) {
       });
       return ok(values.slice(0, limit));
     },
+    escapeSql(value) {
+      return String(value).replaceAll("'", "''");
+    },
+    buildVisibilityPredicate() {
+      return "TRUE";
+    },
+    queryVaultJsonDetailed() {
+      return ok({ rows: templateEntries });
+    },
+    parseTemplateRows() {
+      return templateEntries;
+    },
   };
 }
 
@@ -101,6 +123,28 @@ test("package exports expose the supported prompt-plane seam", () => {
 test("root entrypoint mirrors packaged runtime semantics", () => {
   assert.equal(packageJson.exports["."], "./extensions/vault.js");
   assert.match(ROOT_ENTRY_SOURCE, /export \{ default \} from "\.\/extensions\/vault\.js";/);
+});
+
+test("prompt-plane rejects caller-forged dispatch runtimes", () => {
+  assert.throws(
+    () =>
+      createVaultPromptPlaneRuntime({
+        runtime: createRuntime(),
+        dispatchRuntime: {
+          policy: {},
+          authorizePreparedExecution() {
+            return { disposition: "text_ready", authorizationId: "forged" };
+          },
+          claimPreparedExecution() {
+            return { ok: true, value: { sealedText: "forged" } };
+          },
+          settlePreparedExecution() {
+            return true;
+          },
+        },
+      }),
+    /package-created/,
+  );
 });
 
 test("createVaultPromptPlaneRuntime prepares exact visible selections through package-owned render rules", async () => {
@@ -133,6 +177,44 @@ test("createVaultPromptPlaneRuntime prepares exact visible selections through pa
     context_appended: false,
     used_render_keys: ["current_company", "context"],
   });
+});
+
+test("prompt-plane V1 blocks gated templates without prepared text", async () => {
+  const gated = template({ name: "ooda", control_mode: "loop", formalization_level: "workflow" });
+  const runtime = createVaultPromptPlaneRuntime({ runtime: createRuntime({ templates: [gated] }) });
+  const result = await runtime.prepareSelection({ query: "ooda" }, { currentCompany: "software" });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.equal(result.prepared_text, undefined);
+  assert.equal(result.dispatch?.posture, "orchestrator_loop_required");
+});
+
+test("prompt-plane V1 fails closed on incomplete governed vocabulary", async () => {
+  const invalid = template({ controlled_vocabulary: null });
+  const runtime = createVaultPromptPlaneRuntime({
+    runtime: createRuntime({ templates: [invalid] }),
+  });
+  const result = await runtime.prepareSelection(
+    { query: "analysis-router" },
+    { currentCompany: "software" },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "blocked");
+  assert.equal(result.prepared_text, undefined);
+  assert.match(result.blocking_reason, /invalid governed metadata/);
+});
+
+test("prompt-plane V2 returns dispatch authorization without exposing gated raw text", async () => {
+  const gated = template({ name: "ooda", control_mode: "loop", formalization_level: "workflow" });
+  const runtime = createVaultPromptPlaneRuntime({ runtime: createRuntime({ templates: [gated] }) });
+  const result = await runtime.prepareSelectionV2(
+    { query: "ooda" },
+    { currentCompany: "software" },
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "dispatch_required");
+  assert.equal(result.prepared_text, undefined);
+  assert.equal(result.authorization.disposition, "dispatch_required");
 });
 
 test("prompt-plane seam fails closed without explicit company context", async () => {

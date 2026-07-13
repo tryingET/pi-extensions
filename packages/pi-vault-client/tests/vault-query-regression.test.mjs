@@ -52,7 +52,11 @@ test("vault runtime targets Prompt Vault schema v9", () => {
     /summarizeTelemetry: pickerRuntime\.summarizeLiveTriggerTelemetry/,
   );
   assert.match(EXTENSION_SOURCE, /getTelemetryStats: pickerRuntime\.getLiveTriggerTelemetryStats/);
-  assert.match(EXTENSION_SOURCE, /registerVaultCommands\(pi, runtime, receiptManager\)/);
+  assert.match(
+    EXTENSION_SOURCE,
+    /registerVaultCommands\(pi, runtime, receiptManager, dispatchRuntime\)/,
+  );
+  assert.match(EXTENSION_SOURCE, /createVaultDispatchRuntime\(\{ runtime: vaultRuntime \}\)/);
   assert.match(EXTENSION_SOURCE, /formatMissingColumns\("prompt_templates"/);
   assert.match(EXTENSION_SOURCE, /missingPromptTemplateColumns/);
   assert.match(EXTENSION_SOURCE, /formatMissingColumns\("executions"/);

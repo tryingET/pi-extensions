@@ -1,3 +1,4 @@
+import { createVaultDispatchRuntime } from "../src/dispatchRuntime.js";
 import { registerPromptEvaluatorCommands, registerPromptEvaluatorTool, } from "../src/evaluator.js";
 import { registerVaultCommands } from "../src/vaultCommands.js";
 import { createVaultRuntime } from "../src/vaultDb.js";
@@ -13,8 +14,9 @@ function formatMissingColumns(label, columns) {
 export default function registerVaultExtension(pi) {
     unregisterVaultCapabilityBridges();
     const vaultRuntime = createVaultRuntime();
+    const dispatchRuntime = createVaultDispatchRuntime({ runtime: vaultRuntime });
     const receiptManager = createVaultReceiptManager(vaultRuntime);
-    const pickerRuntime = createPickerRuntime(vaultRuntime, receiptManager);
+    const pickerRuntime = createPickerRuntime(vaultRuntime, receiptManager, dispatchRuntime);
     const groundingRuntime = createGroundingRuntime(vaultRuntime);
     const runtime = {
         ...vaultRuntime,
@@ -23,7 +25,7 @@ export default function registerVaultExtension(pi) {
     };
     const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();
     registerVaultDiagnosticsTool(pi, vaultRuntime);
-    registerVaultCommands(pi, runtime, receiptManager);
+    registerVaultCommands(pi, runtime, receiptManager, dispatchRuntime);
     if (!schemaReport.ok) {
         const details = [
             `expected=${SCHEMA_VERSION}`,

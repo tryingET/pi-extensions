@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createVaultDispatchRuntime } from "../src/dispatchRuntime.js";
 import { getBroker, resetBroker } from "../src/triggerAdapter.js";
 import { createPickerRuntime } from "../src/vaultPicker.js";
 import { LIVE_VAULT_TRIGGER_DEBOUNCE_MS, LIVE_VAULT_TRIGGER_ID } from "../src/vaultTypes.js";
@@ -16,6 +17,9 @@ function createTemplate(name, description = `${name} template`) {
     formalization_level: "structured",
     owner_company: "software",
     visibility_companies: ["software"],
+    controlled_vocabulary: null,
+    status: "active",
+    export_to_pi: true,
   };
 }
 
@@ -50,6 +54,31 @@ function createRuntime(templates) {
   };
 }
 
+function createDispatchRuntime(templates = []) {
+  return createVaultDispatchRuntime({
+    runtime: {
+      resolveCurrentCompanyContext() {
+        return { company: "software", source: "test" };
+      },
+      escapeSql(value) {
+        return String(value).replaceAll("'", "''");
+      },
+      buildVisibilityPredicate() {
+        return "TRUE";
+      },
+      queryVaultJsonDetailed(sql) {
+        return {
+          ok: true,
+          value: { rows: templates.filter((item) => String(sql).includes(`'${item.name}'`)) },
+        };
+      },
+      parseTemplateRows() {
+        return templates;
+      },
+    },
+  });
+}
+
 function contextFromText(text, sessionKey = "vault-live-test") {
   return {
     fullText: text,
@@ -66,8 +95,16 @@ function contextFromText(text, sessionKey = "vault-live-test") {
 
 test("picker telemetry stays instance-local across runtime creation", () => {
   const runtime = createRuntime([createTemplate("nexus")]);
-  const first = createPickerRuntime(runtime);
-  const second = createPickerRuntime(runtime);
+  const first = createPickerRuntime(
+    runtime,
+    undefined,
+    createDispatchRuntime([createTemplate("nexus")]),
+  );
+  const second = createPickerRuntime(
+    runtime,
+    undefined,
+    createDispatchRuntime([createTemplate("nexus")]),
+  );
 
   first.recordLiveTriggerTelemetry({ event: "first-instance" });
   assert.deepEqual(first.getLiveTriggerTelemetryStats(), {
@@ -106,7 +143,11 @@ test("vault live trigger executes through the shared broker with exact runtime b
 
   try {
     const runtime = createRuntime(templates);
-    createPickerRuntime(runtime).registerVaultLiveTrigger();
+    createPickerRuntime(
+      runtime,
+      undefined,
+      createDispatchRuntime(templates),
+    ).registerVaultLiveTrigger();
 
     const broker = getBroker();
     const trigger = broker.get(LIVE_VAULT_TRIGGER_ID);

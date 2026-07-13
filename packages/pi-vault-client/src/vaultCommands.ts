@@ -1,4 +1,6 @@
 import type { Message, TextContent } from "@earendil-works/pi-ai";
+import { guardPreparedText } from "./dispatchGuard.js";
+import type { VaultDispatchRuntime } from "./dispatchRuntime.js";
 import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";
 import { runFzfProbe } from "./fuzzySelector.js";
 import {
@@ -214,7 +216,8 @@ async function resolveVaultTemplateSelection(
 export function registerVaultCommands(
   pi: PiExtension,
   runtime: VaultModuleRuntime,
-  receipts?: VaultReceiptManager,
+  receipts: VaultReceiptManager | undefined,
+  dispatchRuntime: VaultDispatchRuntime,
 ): void {
   if (receipts) {
     pi.on("message_end", async (event, ctx) => {
@@ -259,7 +262,7 @@ export function registerVaultCommands(
   }
 
   pi.on("input", async (event, ctx) => {
-    if (event.source === "extension") return { action: "continue" };
+    // Extension-originated governed commands pass through the same final guard.
     const text = event.text.trim();
     const schemaReport = runtime.checkSchemaCompatibilityDetailed();
     const schemaMismatchMessage = schemaReport.ok ? "" : formatSchemaMismatchMessage(runtime);
@@ -297,6 +300,26 @@ export function registerVaultCommands(
         }
         return { action: "transform", text: reason };
       }
+      const guarded = guardPreparedText(
+        {
+          templates: grounded.members,
+          primaryTemplateName: grounded.template.name,
+          preparedText: grounded.prompt,
+          surface: "grounding",
+          currentCompany: grounded.currentCompany,
+          compositionKind: "grounding",
+          renderer: grounded.prepared.engine,
+          context: grounded.inputContext,
+        },
+        dispatchRuntime,
+      );
+      if (!guarded.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(guarded.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: guarded.error };
+      }
       const preparedPrompt = queuePreparedExecution(receipts, {
         queued_at: new Date().toISOString(),
         invocation: {
@@ -317,7 +340,7 @@ export function registerVaultCommands(
           append_context_section: false,
           used_render_keys: grounded.prepared.usedRenderKeys,
         },
-        prepared: { text: grounded.prompt },
+        prepared: { text: guarded.text },
         replay_safe_inputs: grounded.replaySafeInputs,
         input_context: grounded.inputContext,
       });
@@ -378,6 +401,25 @@ export function registerVaultCommands(
         }
         return { action: "transform", text: message };
       }
+      const guarded = guardPreparedText(
+        {
+          templates: [resolved.template],
+          primaryTemplateName: resolved.template.name,
+          preparedText: prepared.prepared,
+          surface: "vault_command",
+          currentCompany: companyContext.currentCompany,
+          renderer: prepared.engine,
+          context: vaultSelectionInput.context,
+        },
+        dispatchRuntime,
+      );
+      if (!guarded.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(guarded.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: guarded.error };
+      }
 
       const preparedPrompt = queuePreparedExecution(receipts, {
         queued_at: new Date().toISOString(),
@@ -399,7 +441,7 @@ export function registerVaultCommands(
           append_context_section: true,
           used_render_keys: prepared.usedRenderKeys,
         },
-        prepared: { text: prepared.prepared },
+        prepared: { text: guarded.text },
         replay_safe_inputs: {
           kind: "vault-selection",
           query: vaultSelectionInput.query,
@@ -520,6 +562,26 @@ export function registerVaultCommands(
         }
         return { action: "transform", text: preparedRoutePrompt.error };
       }
+      const guarded = guardPreparedText(
+        {
+          templates: [meta],
+          primaryTemplateName: meta.name,
+          preparedText: preparedRoutePrompt.prompt,
+          surface: "route",
+          currentCompany: companyContext.currentCompany,
+          compositionKind: "route",
+          renderer: preparedRoutePrompt.prepared.engine,
+          context,
+        },
+        dispatchRuntime,
+      );
+      if (!guarded.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(guarded.error, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: guarded.error };
+      }
       const preparedPrompt = queuePreparedExecution(receipts, {
         queued_at: new Date().toISOString(),
         invocation: {
@@ -540,7 +602,7 @@ export function registerVaultCommands(
           append_context_section: false,
           used_render_keys: preparedRoutePrompt.prepared.usedRenderKeys,
         },
-        prepared: { text: preparedRoutePrompt.prompt },
+        prepared: { text: guarded.text },
         replay_safe_inputs: {
           kind: "route-request",
           context,
@@ -587,6 +649,19 @@ export function registerVaultCommands(
           "error",
         );
       }
+      const guarded = guardPreparedText(
+        {
+          templates: [resolved.template],
+          primaryTemplateName: resolved.template.name,
+          preparedText: prepared.prepared,
+          surface: "vault_command",
+          currentCompany: companyContext.currentCompany,
+          renderer: prepared.engine,
+          context: parsed.context,
+        },
+        dispatchRuntime,
+      );
+      if (!guarded.ok) return ctx.ui.notify(guarded.error, "warning");
 
       const preparedPrompt = queuePreparedExecution(receipts, {
         queued_at: new Date().toISOString(),
@@ -608,7 +683,7 @@ export function registerVaultCommands(
           append_context_section: true,
           used_render_keys: prepared.usedRenderKeys,
         },
-        prepared: { text: prepared.prepared },
+        prepared: { text: guarded.text },
         replay_safe_inputs: {
           kind: "vault-selection",
           query: parsed.query,
@@ -656,6 +731,20 @@ export function registerVaultCommands(
       if (!preparedRoutePrompt.ok) {
         return ctx.ui.notify(preparedRoutePrompt.error, "error");
       }
+      const guarded = guardPreparedText(
+        {
+          templates: [meta],
+          primaryTemplateName: meta.name,
+          preparedText: preparedRoutePrompt.prompt,
+          surface: "route",
+          currentCompany: companyContext.currentCompany,
+          compositionKind: "route",
+          renderer: preparedRoutePrompt.prepared.engine,
+          context,
+        },
+        dispatchRuntime,
+      );
+      if (!guarded.ok) return ctx.ui.notify(guarded.error, "warning");
       const preparedPrompt = queuePreparedExecution(receipts, {
         queued_at: new Date().toISOString(),
         invocation: {
@@ -676,7 +765,7 @@ export function registerVaultCommands(
           append_context_section: false,
           used_render_keys: preparedRoutePrompt.prepared.usedRenderKeys,
         },
-        prepared: { text: preparedRoutePrompt.prompt },
+        prepared: { text: guarded.text },
         replay_safe_inputs: {
           kind: "route-request",
           context,

@@ -104,6 +104,8 @@ Current V3 seam scope:
 - fail closed when `inherit_current_company: false`; cross-company continuation semantics are not part of V3
 - reject `exact_template` continuations that attempt `allow_picker_fallback=true`; exact resolution must stay exact in V3
 - keep V4 continuation-graph persistence explicitly out of scope for this slice
+- V1 returns raw prepared text only for `text_ok`; gated candidates are blocked without text
+- V2 `prepareSelectionV2` / `prepareContinuationV2` return `text_ready | dispatch_required | blocked` authorization results
 
 Use this seam when a downstream package needs deterministic prompt-plane preparation without slash-command or live-trigger wiring.
 
@@ -114,12 +116,29 @@ import { createVaultDispatchRuntime } from "@tryinget/pi-vault-client/dispatch-r
 ```
 
 Current dispatch-runtime scope:
-- exact active visible template metadata lookup without requiring `export_to_pi=true`
-- dispatch posture classification through the package-owned binding registry
+- exact active, visible, and export-eligible template identity lookup
+- immutable, deterministic binding policies
+- aggregate identity over primary and embedded templates plus final prepared bytes
+- fail-closed unknown/missing/partial/mixed/incompatible results
+- single-use `issued -> claimed -> terminal` authorization state
 - known loop bindings for `transcendent-iteration` and `ooda`
-- fail-closed posture for loop/workflow templates without execution binding
 
-Do **not** treat private `src/*` files as the supported integration API.
+The public final-guard and durable handoff adapter is:
+
+```ts
+import {
+  createDispatchActivationPolicy,
+  createDispatchHandoffStore,
+  dispatchAuthorizedExecution,
+  guardPreparedText,
+} from "@tryinget/pi-vault-client/dispatch-guard";
+```
+
+`guardPreparedText` is the last ordinary-text release gate and requires the package-owned dispatch runtime. Gated templates never become raw user prompt text. `dispatchAuthorizedExecution` accepts only a store created by `createDispatchHandoffStore`, fsyncs a `0600` handoff record before execution, verifies the frozen executor surface, and requires the executor to echo the exact handoff identity. Executor lifecycle/outcome remains executor-owned.
+
+Gated execution also requires an explicit package-created activation policy. `createDispatchActivationPolicy(false)` is the rollback posture and leaves gated candidates blocked; no advisory/raw fallback exists.
+
+Do **not** treat other private `src/*` files as supported integration APIs.
 
 ## Command surface
 
@@ -151,6 +170,10 @@ Current `/vault` behavior:
 - canonical Pi-visible reads now centralize on `status='active'` + `export_to_pi=true` + visibility-company filtering
 - `/vault`, live `/vault:`, `/route`, and grounding now queue execution provenance at preparation time but write the actual execution row only when the prepared prompt is sent as a real user message
   - opening a template in the editor no longer counts as a successful execution by itself
+- every command/editor/input/live/route/grounding path now passes a final dispatch guard before releasing executable text
+  - `text_ok` templates retain normal behavior
+  - loop/workflow/unknown/unbound templates return `BLOCKED` and no raw prepared text
+  - extension-originated governed commands use the same guard rather than bypassing it
 
 Tool-query defaults:
 
@@ -194,6 +217,7 @@ Tool-query defaults:
   - `orchestrator_loop_required`
   - `orchestrator_workflow_gate_required`
   - `missing_execution_binding_fail_closed`
+  - `invalid_metadata_fail_closed`
   - known loop bindings: `transcendent-iteration -> loop_execute(loop="transcendent")`, `ooda -> loop_execute(loop="ooda")`
   - workflow-grade templates without explicit bindings are process gates, not inert text: stop, use the owning package surface when one exists, or design the missing execution binding before continuing.
 

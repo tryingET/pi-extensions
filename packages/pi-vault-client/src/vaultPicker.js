@@ -1,3 +1,4 @@
+import { guardPreparedText } from "./dispatchGuard.js";
 import { selectFuzzyCandidate } from "./fuzzySelector.js";
 import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import { registerPickerInteraction, splitQueryAndContext } from "./triggerAdapter.js";
@@ -170,7 +171,7 @@ function queuePreparedExecution(receipts, candidate) {
     });
     return withPreparedExecutionMarker(candidate.prepared.text, executionToken);
 }
-function registerVaultLiveTrigger(runtime, telemetry, receipts) {
+function registerVaultLiveTrigger(runtime, telemetry, receipts, dispatchRuntime) {
     try {
         const registration = registerPickerInteraction({
             id: LIVE_VAULT_TRIGGER_ID,
@@ -251,6 +252,19 @@ function registerVaultLiveTrigger(runtime, telemetry, receipts) {
                     api.notify?.(`Vault live picker render failed (${template.name}): ${prepared.error}`, "error");
                     return;
                 }
+                const guarded = guardPreparedText({
+                    templates: [template],
+                    primaryTemplateName: template.name,
+                    preparedText: prepared.prepared,
+                    surface: "live_trigger",
+                    currentCompany,
+                    renderer: prepared.engine,
+                    context: parsed.context,
+                }, dispatchRuntime);
+                if (!guarded.ok) {
+                    api.notify?.(guarded.error, "warning");
+                    return;
+                }
                 const preparedPrompt = queuePreparedExecution(receipts, {
                     queued_at: new Date().toISOString(),
                     invocation: {
@@ -271,7 +285,7 @@ function registerVaultLiveTrigger(runtime, telemetry, receipts) {
                         append_context_section: true,
                         used_render_keys: prepared.usedRenderKeys,
                     },
-                    prepared: { text: prepared.prepared },
+                    prepared: { text: guarded.text },
                     replay_safe_inputs: {
                         kind: "vault-selection",
                         query: parsed.query,
@@ -318,7 +332,7 @@ function registerVaultLiveTrigger(runtime, telemetry, receipts) {
         });
     }
 }
-export function createPickerRuntime(runtime, receipts) {
+export function createPickerRuntime(runtime, receipts, dispatchRuntime) {
     const telemetry = createLiveTriggerTelemetryState();
     return {
         recordLiveTriggerTelemetry: (event) => recordLiveTriggerTelemetry(telemetry, event),
@@ -328,7 +342,7 @@ export function createPickerRuntime(runtime, receipts) {
         splitVaultQueryAndContext,
         parseVaultSelectionInput,
         pickVaultTemplate: (ctx, query) => pickVaultTemplate(runtime, ctx, query, telemetry),
-        registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime, telemetry, receipts),
+        registerVaultLiveTrigger: () => registerVaultLiveTrigger(runtime, telemetry, receipts, dispatchRuntime),
         prepareVaultPrompt: (template, options) => prepareVaultPrompt(runtime, template, options),
         loadVaultTemplate: (name, context) => loadVaultTemplate(runtime, name, context),
     };

@@ -1,3 +1,6 @@
+import { guardPreparedText } from "./dispatchGuard.js";
+import { classifyDispatchPosture } from "./dispatchPosture.js";
+import { createVaultDispatchRuntime, isVaultDispatchRuntime } from "./dispatchRuntime.js";
 import { prepareTemplateForExecutionCompat } from "./templatePreparationCompat.js";
 import { splitQueryAndContext } from "./triggerAdapter.js";
 import { createVaultRuntime } from "./vaultDb.js";
@@ -34,11 +37,12 @@ function toVisibleTemplate(template) {
     visibility_companies: [...template.visibility_companies],
   };
 }
-function blocked(reason) {
+function blocked(reason, dispatch) {
   return {
     ok: false,
     status: "blocked",
     blocking_reason: reason,
+    ...(dispatch ? { dispatch } : {}),
   };
 }
 function ambiguous(reason) {
@@ -126,6 +130,7 @@ function formatAmbiguousTemplateNames(templates) {
   return hiddenCount > 0 ? `${names}, +${hiddenCount} more` : names;
 }
 function prepareCandidate(template, options) {
+  const dispatch = classifyDispatchPosture(template, options.dispatchRuntime.policy);
   const prepared = prepareTemplateForExecutionCompat(template.content, {
     currentCompany: options.currentCompany,
     context: options.context,
@@ -135,20 +140,96 @@ function prepareCandidate(template, options) {
     allowLegacyPiVarsAutoDetect: false,
   });
   if (!prepared.ok) {
-    return blocked(`Vault template render failed (${template.name}): ${prepared.error}`);
+    return blocked(`Vault template render failed (${template.name}): ${prepared.error}`, dispatch);
   }
+  const guarded = guardPreparedText(
+    {
+      templates: [template],
+      primaryTemplateName: template.name,
+      preparedText: prepared.prepared,
+      surface: options.surface,
+      currentCompany: options.currentCompany,
+      renderer: prepared.engine,
+      context: options.context,
+      args: options.args,
+    },
+    options.dispatchRuntime,
+  );
+  if (!guarded.ok) return blocked(guarded.error, dispatch);
   return {
     ok: true,
     status: "ready",
     selection_mode: options.selectionMode,
     template: toTemplateSnapshot(template),
-    prepared_text: prepared.prepared,
+    prepared_text: guarded.text,
+    dispatch,
     render: {
       engine: prepared.engine,
       explicit_engine: prepared.explicitEngine,
       context_appended: prepared.contextAppended,
       used_render_keys: [...prepared.usedRenderKeys],
     },
+  };
+}
+function prepareCandidateV2(template, options) {
+  const prepared = prepareTemplateForExecutionCompat(template.content, {
+    currentCompany: options.currentCompany,
+    context: options.context,
+    templateName: template.name,
+    args: options.args,
+    appendContextSection: true,
+    allowLegacyPiVarsAutoDetect: false,
+  });
+  if (!prepared.ok) {
+    return {
+      ok: false,
+      status: "blocked",
+      blocking_reason: `Vault template render failed (${template.name}): ${prepared.error}`,
+    };
+  }
+  const authorization = options.dispatchRuntime.authorizePreparedExecution({
+    templates: [template],
+    primaryTemplateName: template.name,
+    finalPreparedText: prepared.prepared,
+    surface: options.surface,
+    currentCompany: options.currentCompany,
+    renderer: prepared.engine,
+    context: options.context,
+    args: options.args,
+  });
+  if (authorization.disposition === "blocked") {
+    return {
+      ok: false,
+      status: "blocked",
+      blocking_reason: authorization.safeMessage,
+      authorization,
+    };
+  }
+  if (authorization.disposition === "text_ready") {
+    const claimed = options.dispatchRuntime.claimPreparedExecution(authorization.authorizationId);
+    if (!claimed.ok) {
+      return {
+        ok: false,
+        status: "blocked",
+        blocking_reason: claimed.error,
+      };
+    }
+    options.dispatchRuntime.settlePreparedExecution(authorization.authorizationId, "handed_off");
+    return {
+      ok: true,
+      status: "text_ready",
+      selection_mode: options.selectionMode,
+      template: toTemplateSnapshot(template),
+      authorization,
+      prepared_text: claimed.value.sealedText,
+    };
+  }
+  return {
+    ok: true,
+    status: "dispatch_required",
+    selection_mode: options.selectionMode,
+    template: toTemplateSnapshot(template),
+    authorization,
   };
 }
 function resolveExactTemplate(runtime, query, ctx) {
@@ -164,6 +245,8 @@ function resolveExactTemplate(runtime, query, ctx) {
     context: ctx.context,
     args: ctx.args,
     selectionMode: "exact",
+    surface: ctx.surface,
+    dispatchRuntime: ctx.dispatchRuntime,
   });
 }
 function resolveSearchSelection(runtime, query, ctx) {
@@ -190,6 +273,8 @@ function resolveSearchSelection(runtime, query, ctx) {
     context: ctx.context,
     args: ctx.args,
     selectionMode: "picker-fallback",
+    surface: ctx.surface,
+    dispatchRuntime: ctx.dispatchRuntime,
   });
 }
 function validateContinuationEnvelope(envelope) {
@@ -291,6 +376,11 @@ function validateContinuationEnvelope(envelope) {
 }
 export function createVaultPromptPlaneRuntime(options = {}) {
   const runtime = options.runtime ?? createVaultRuntime();
+  const dispatchRuntime =
+    options.dispatchRuntime ?? createVaultDispatchRuntime({ runtime: runtime });
+  if (!isVaultDispatchRuntime(dispatchRuntime)) {
+    throw new Error("Prompt-plane dispatch runtime must be package-created.");
+  }
   return {
     async prepareSelection(request, ctx = {}) {
       const companyContext = resolvePromptPlaneCompanyContext(runtime, ctx);
@@ -303,12 +393,16 @@ export function createVaultPromptPlaneRuntime(options = {}) {
         currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
         context: normalized.context,
+        surface: "prompt_plane_selection",
+        dispatchRuntime,
       });
       if (exact) return exact;
       return resolveSearchSelection(runtime, normalized.query, {
         currentCompany: companyContext.currentCompany,
         cwd: ctx.cwd,
         context: normalized.context,
+        surface: "prompt_plane_selection",
+        dispatchRuntime,
       });
     },
     async prepareContinuation(envelope, ctx = {}) {
@@ -337,6 +431,8 @@ export function createVaultPromptPlaneRuntime(options = {}) {
           cwd: ctx.cwd,
           context: continuationContext,
           args: continuationArgs,
+          surface: "prompt_plane_continuation",
+          dispatchRuntime,
         });
         return (
           exact ??
@@ -350,6 +446,131 @@ export function createVaultPromptPlaneRuntime(options = {}) {
         cwd: ctx.cwd,
         context: continuationContext,
         args: continuationArgs,
+        surface: "prompt_plane_continuation",
+        dispatchRuntime,
+      });
+    },
+    async prepareSelectionV2(request, ctx = {}) {
+      const companyContext = resolvePromptPlaneCompanyContext(runtime, ctx);
+      if (!companyContext.ok)
+        return { ok: false, status: "blocked", blocking_reason: companyContext.error };
+      const normalized = normalizeSelectionRequest(request);
+      if (!normalized.query)
+        return {
+          ok: false,
+          status: "blocked",
+          blocking_reason: "Prompt selection requires a non-empty template name or query.",
+        };
+      const exact = runtime.getTemplateDetailed(normalized.query, {
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      });
+      if (!exact.ok) return { ok: false, status: "blocked", blocking_reason: exact.error };
+      let selected = exact.value;
+      let selectionMode = "exact";
+      if (!selected) {
+        const search = runtime.searchTemplatesDetailed(
+          normalized.query,
+          {
+            currentCompany: companyContext.currentCompany,
+            cwd: ctx.cwd,
+            requireExplicitCompany: true,
+          },
+          { includeContent: true },
+        );
+        if (!search.ok) return { ok: false, status: "blocked", blocking_reason: search.error };
+        if (search.value.length !== 1)
+          return {
+            ok: false,
+            status: search.value.length > 1 ? "ambiguous" : "blocked",
+            blocking_reason:
+              search.value.length > 1
+                ? `Multiple visible templates matched "${normalized.query}".`
+                : `No visible template matched "${normalized.query}".`,
+          };
+        selected = search.value[0];
+        selectionMode = "picker-fallback";
+      }
+      return prepareCandidateV2(selected, {
+        currentCompany: companyContext.currentCompany,
+        context: normalized.context,
+        selectionMode,
+        surface: "prompt_plane_selection",
+        dispatchRuntime,
+      });
+    },
+    async prepareContinuationV2(envelope, ctx = {}) {
+      const validated = validateContinuationEnvelope(envelope);
+      if (!validated.ok)
+        return {
+          ok: false,
+          status: "blocked",
+          blocking_reason: `Invalid vault continuation envelope: ${validated.error}`,
+        };
+      if (validated.value.status === "blocked")
+        return {
+          ok: false,
+          status: "blocked",
+          blocking_reason: "Continuation envelope reported blocked status.",
+        };
+      if (validated.value.preparation?.inherit_current_company === false)
+        return {
+          ok: false,
+          status: "blocked",
+          blocking_reason: "Continuation cannot disable current-company inheritance.",
+        };
+      const companyContext = resolvePromptPlaneCompanyContext(runtime, ctx);
+      if (!companyContext.ok)
+        return { ok: false, status: "blocked", blocking_reason: companyContext.error };
+      const query =
+        validated.value.resolution.kind === "exact_template"
+          ? validated.value.resolution.template_name
+          : validated.value.resolution.query;
+      const exact = runtime.getTemplateDetailed(query, {
+        currentCompany: companyContext.currentCompany,
+        cwd: ctx.cwd,
+        requireExplicitCompany: true,
+      });
+      if (!exact.ok) return { ok: false, status: "blocked", blocking_reason: exact.error };
+      let selected = exact.value;
+      let selectionMode = "exact";
+      if (!selected && validated.value.resolution.kind === "picker_query") {
+        const search = runtime.searchTemplatesDetailed(
+          query,
+          {
+            currentCompany: companyContext.currentCompany,
+            cwd: ctx.cwd,
+            requireExplicitCompany: true,
+          },
+          { includeContent: true },
+        );
+        if (!search.ok) return { ok: false, status: "blocked", blocking_reason: search.error };
+        if (search.value.length !== 1)
+          return {
+            ok: false,
+            status: search.value.length > 1 ? "ambiguous" : "blocked",
+            blocking_reason:
+              search.value.length > 1
+                ? `Multiple visible templates matched "${query}".`
+                : `No visible template matched "${query}".`,
+          };
+        selected = search.value[0];
+        selectionMode = "picker-fallback";
+      }
+      if (!selected)
+        return {
+          ok: false,
+          status: "blocked",
+          blocking_reason: `No visible template matched "${query}".`,
+        };
+      return prepareCandidateV2(selected, {
+        currentCompany: companyContext.currentCompany,
+        context: validated.value.preparation?.context ?? "",
+        args: validated.value.preparation?.args ?? [],
+        selectionMode,
+        surface: "prompt_plane_continuation",
+        dispatchRuntime,
       });
     },
     async listVisibleTemplates(request = {}, ctx = {}) {
