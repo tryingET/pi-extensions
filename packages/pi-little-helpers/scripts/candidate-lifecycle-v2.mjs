@@ -16,6 +16,7 @@ import {
   reconcileMissingResource,
   unresolvedReviewBlockers,
   updateLifecycleRecord,
+  verifyAdditiveContentCoverageProof,
   verifyCommitInclusionProof,
   verifyPatchEquivalenceProof,
 } from "../src/candidatePeerLifecycleV2.ts";
@@ -170,11 +171,16 @@ if (command === "inventory") {
           candidateHeadOid: input.candidateHeadOid ?? current.reviewSnapshot?.headOid,
           issuedAt: input.issuedAt ?? new Date().toISOString(),
         })
-      : verifyCommitInclusionProof({
-          ...input,
-          selectedCommits,
-          issuedAt: input.issuedAt ?? new Date().toISOString(),
-        });
+      : input.form === "content_coverage"
+        ? verifyAdditiveContentCoverageProof({
+            ...input,
+            issuedAt: input.issuedAt ?? new Date().toISOString(),
+          })
+        : verifyCommitInclusionProof({
+            ...input,
+            selectedCommits,
+            issuedAt: input.issuedAt ?? new Date().toISOString(),
+          });
   const next = updateLifecycleRecord({
     resourceId,
     expectedVersion: current.resourceVersion,

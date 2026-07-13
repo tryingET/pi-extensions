@@ -125,7 +125,9 @@ export type CandidateIntegrationProof = {
   candidateRepoRoot?: string;
   candidateHeadOid?: string;
   selectedCommits: string[];
+  targetIntegrationCommits?: string[];
   patchIds?: string[];
+  coverageDigest?: string;
   selectedPaths?: string[];
   exclusions?: string[];
   validationRefs: string[];
@@ -758,6 +760,83 @@ export function verifyPatchEquivalenceProof(input: {
     candidateHeadOid,
     selectedCommits,
     patchIds,
+  };
+  return { ...proof, proofDigest: digestObject(proof) };
+}
+
+export function verifyAdditiveContentCoverageProof(input: {
+  actor: string;
+  issuedAt: string;
+  candidateRepoRoot: string;
+  candidateCommitOid: string;
+  targetRepoRoot: string;
+  targetIntegrationCommitOid: string;
+  targetOid: string;
+  validationRefs: string[];
+}): CandidateIntegrationProof {
+  const candidateCommitOid = String(
+    git(input.candidateRepoRoot, ["rev-parse", `${input.candidateCommitOid}^{commit}`]),
+  ).trim();
+  const targetIntegrationCommitOid = String(
+    git(input.targetRepoRoot, ["rev-parse", `${input.targetIntegrationCommitOid}^{commit}`]),
+  ).trim();
+  const targetOid = String(
+    git(input.targetRepoRoot, ["rev-parse", `${input.targetOid}^{commit}`]),
+  ).trim();
+  if (
+    candidateCommitOid !== input.candidateCommitOid ||
+    targetIntegrationCommitOid !== input.targetIntegrationCommitOid ||
+    targetOid !== input.targetOid
+  ) {
+    throw new Error("content-coverage proof requires exact immutable commit OIDs");
+  }
+  git(input.targetRepoRoot, ["merge-base", "--is-ancestor", targetIntegrationCommitOid, targetOid]);
+  const additions = (repoRoot: string, commit: string) => {
+    const diff = String(
+      git(repoRoot, ["diff", "--no-color", "--no-renames", "--unified=0", `${commit}^`, commit]),
+    );
+    const byPath: Record<string, { added: string[]; deleted: string[] }> = {};
+    let path = "";
+    for (const line of diff.split("\n")) {
+      if (line.startsWith("diff --git a/")) {
+        const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+        path = match?.[2] ?? "";
+        if (path) byPath[path] = { added: [], deleted: [] };
+      } else if (line.startsWith("+") && !line.startsWith("+++")) {
+        if (!path) throw new Error("could not bind added diff line to a path");
+        byPath[path]?.added.push(line.slice(1));
+      } else if (line.startsWith("-") && !line.startsWith("---")) {
+        if (!path) throw new Error("could not bind deleted diff line to a path");
+        byPath[path]?.deleted.push(line.slice(1));
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(byPath)
+        .filter(([, lines]) => lines.added.length > 0 || lines.deleted.length > 0)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, lines]) => [
+          key,
+          { added: [...lines.added].sort(), deleted: [...lines.deleted].sort() },
+        ]),
+    );
+  };
+  const candidateDelta = additions(input.candidateRepoRoot, candidateCommitOid);
+  const targetDelta = additions(input.targetRepoRoot, targetIntegrationCommitOid);
+  if (stableJson(candidateDelta) !== stableJson(targetDelta)) {
+    throw new Error(
+      "target integration commit does not exactly cover normalized candidate content",
+    );
+  }
+  const coverageDigest = digestObject(candidateDelta);
+  const proof = {
+    ...input,
+    form: "content_coverage" as const,
+    candidateHeadOid: candidateCommitOid,
+    targetOid,
+    selectedCommits: [candidateCommitOid],
+    targetIntegrationCommits: [targetIntegrationCommitOid],
+    selectedPaths: Object.keys(candidateDelta),
+    coverageDigest,
   };
   return { ...proof, proofDigest: digestObject(proof) };
 }
