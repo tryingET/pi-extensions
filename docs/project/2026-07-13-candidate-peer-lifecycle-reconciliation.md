@@ -26,7 +26,7 @@ The historical table below remains the immutable review snapshot. Execution subs
 - **28 resources / 34 aliases** remain intentionally `deferred`, each bound to a named owner, concrete action, exact reviewed generation, and `2026-07-20` review date. These are the surviving preserve cohort; no unreviewed or implicitly abandoned registered resource remains;
 - all **22 original ACCEPT resources** were integrated and validated against immutable target OIDs before cleanup: DSPx open-decision work, 17 pi-extensions source-metadata tips, two pi-snapshot-edit fixes, the context-packer ablation harness, and SCI structural-evidence receipt v1;
 - the one physical resource added after the original 225-resource review was independently reviewed, restoration-archived, authorized, and cleaned. The other six later registry records were aliases of already reviewed resources;
-- exact measured pre-cleanup footprints total **130,555,973,628 bytes (121.59 GiB) reclaimed**. The 28 retained registered generations occupy **3,543,868,084 bytes (3.30 GiB)**. Lifecycle-v2 restoration archives occupy approximately **2.1 GiB** and remain owner-only;
+- the controller-captured per-resource `du -sb` ledger totals **130,555,973,628 bytes (121.59 GiB) reclaimed**. The 28 retained registered generations occupy **3,543,868,084 bytes (3.30 GiB)**. Seven preserved cohort capture tables deterministically reconcile to all 157 cleaned/deferred resources; terminal resource records do not themselves store footprint bytes. Lifecycle-v2 restoration archives occupy approximately **2.1 GiB** and remain owner-only;
 - current registered-resource states sum exactly to 226: `129 cleaned + 69 reconciled_missing + 28 deferred`.
 
 Canonical local operational evidence:
@@ -35,7 +35,7 @@ Canonical local operational evidence:
 - resource records/events: `~/.local/state/pi-quests/candidate-lifecycle-v2/resources/<resource-id>/`;
 - restoration archives: `~/.local/state/pi-quests/candidate-lifecycle-v2/archives/<resource-id>/<generation-id>/`;
 - cohort authorization and terminal summaries: `~/.local/state/pi-quests/candidate-lifecycle-v2/cohorts/`;
-- final 226-resource aggregate, authorization, terminal, footprint, and checksum summaries: `~/.local/state/pi-quests/candidate-lifecycle-v2/cohorts/final-2026-07-13/`;
+- final 226-resource aggregate, authorization, terminal, controller-captured footprint ledger/provenance, seven cohort measurement sources, and checksum manifest: `~/.local/state/pi-quests/candidate-lifecycle-v2/cohorts/final-2026-07-13/`;
 - active admission hold: `~/.local/state/pi-quests/candidate-spawn.HOLD.json`.
 
 The remaining bytes under the broad `pi-quests/worktrees/` directory include the 28 deliberately retained registered candidates plus paths not represented by this 309-alias candidate registry. They were not silently classified or deleted by this task.
