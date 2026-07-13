@@ -64,6 +64,8 @@ function createTranspiledVaultModules() {
       "src/vaultFeedback.ts",
       "src/vaultDb.ts",
       "src/vaultReceipts.ts",
+      "src/dispatchPosture.ts",
+      "src/dispatchRuntime.ts",
       "src/templateRenderer.js",
     ],
   });
@@ -114,6 +116,56 @@ test("vault runtime prefers repo-local temp before falling back to host tmp", as
       assert.equal(existsSync(path.join(repoDir, ".tmp")), true);
     }
     assert.equal(runtime.checkSchemaVersion(), true);
+  });
+});
+
+test("dispatch authorization queries and revalidates against the real schema-v9 contract", async () => {
+  await withTempVaultRuntime(async ({ importModule }) => {
+    const { createVaultRuntime } = await importModule("src/vaultDb.js");
+    const { createVaultDispatchRuntime } = await importModule("src/dispatchRuntime.js");
+    const runtime = createVaultRuntime();
+
+    const inserted = runtime.insertTemplate(
+      "dispatch-schema-v9",
+      "Dispatch body",
+      "Dispatch schema contract",
+      "procedure",
+      "one_shot",
+      "structured",
+      "software",
+      ["software"],
+      null,
+      { actorCompany: "software", allowAmbientCwdFallback: false },
+    );
+    assert.equal(inserted.status, "ok");
+    const promoted = runtime.execVault(
+      "UPDATE prompt_templates SET status='active', export_to_pi=TRUE WHERE name='dispatch-schema-v9'",
+    );
+    assert.equal(promoted, true);
+
+    const template = runtime.getTemplate("dispatch-schema-v9", { currentCompany: "software" });
+    assert.ok(template);
+    if (!template) return;
+
+    const dispatch = createVaultDispatchRuntime({ runtime });
+    const check = await dispatch.checkTemplates([template.name], { currentCompany: "software" });
+    assert.equal(check.ok, true);
+    assert.equal(check.status, "ready");
+
+    const authorization = dispatch.authorizePreparedExecution({
+      templates: [template],
+      primaryTemplateName: template.name,
+      finalPreparedText: "Dispatch body",
+      surface: "prompt_plane_selection",
+      currentCompany: "software",
+      renderer: "none",
+    });
+    assert.equal(authorization.disposition, "text_ready");
+    if (authorization.disposition !== "text_ready") return;
+
+    const claimed = dispatch.claimPreparedExecution(authorization.authorizationId);
+    assert.equal(claimed.ok, true);
+    if (claimed.ok) assert.equal(claimed.value.sealedText, "Dispatch body");
   });
 });
 

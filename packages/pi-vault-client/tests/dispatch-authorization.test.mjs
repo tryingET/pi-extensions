@@ -10,7 +10,6 @@ function template(overrides = {}) {
     name: "text-template",
     description: "text",
     content: "exact bytes\n",
-    render_engine: "none",
     artifact_kind: "procedure",
     control_mode: "one_shot",
     formalization_level: "structured",
@@ -23,8 +22,16 @@ function template(overrides = {}) {
   };
 }
 
+function realDoltRow(subject) {
+  const row = { ...subject, export_to_pi: subject.export_to_pi ? 1 : 0 };
+  if (row.controlled_vocabulary == null) delete row.controlled_vocabulary;
+  return row;
+}
+
 function fakeRuntime(rows = []) {
+  const queries = [];
   return {
+    queries,
     resolveCurrentCompanyContext() {
       return { company: "software", source: "explicit:test" };
     },
@@ -34,7 +41,8 @@ function fakeRuntime(rows = []) {
     buildVisibilityPredicate() {
       return "TRUE";
     },
-    queryVaultJsonDetailed() {
+    queryVaultJsonDetailed(sql) {
+      queries.push(sql);
       return { ok: true, value: { rows }, error: null };
     },
     parseTemplateRows() {
@@ -54,9 +62,10 @@ function request(templates, overrides = {}) {
   };
 }
 
-test("issues and atomically claims one text authorization", () => {
+test("issues and atomically claims one text authorization against schema-v9 columns", () => {
   const subject = template();
-  const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime([subject]) });
+  const deps = fakeRuntime([realDoltRow(subject)]);
+  const runtime = createVaultDispatchRuntime({ runtime: deps });
   const authorization = runtime.authorizePreparedExecution(request([subject]));
   assert.equal(authorization.disposition, "text_ready");
   const first = runtime.claimPreparedExecution(authorization.authorizationId);
@@ -64,6 +73,8 @@ test("issues and atomically claims one text authorization", () => {
   assert.equal(first.ok, true);
   assert.equal(first.value.sealedText, "exact bytes\n");
   assert.equal(second.ok, false);
+  assert.equal(deps.queries.length, 1);
+  assert.doesNotMatch(deps.queries[0], /\brender_engine\b/);
   assert.equal(runtime.settlePreparedExecution(authorization.authorizationId, "handed_off"), true);
   assert.equal(runtime.claimPreparedExecution(authorization.authorizationId).ok, false);
 });
@@ -250,6 +261,40 @@ test("claim revalidates exact DB identity and permanently blocks drift", () => {
   assert.equal(claimed.reason, "identity_drift");
   rows[0] = subject;
   assert.equal(runtime.claimPreparedExecution(authorization.authorizationId).ok, false);
+});
+
+test("claim detects render frontmatter drift through canonical content identity", () => {
+  const subject = template({ content: "---\nrender_engine: none\n---\nBody" });
+  const rows = [subject];
+  const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime(rows) });
+  const authorization = runtime.authorizePreparedExecution(
+    request([subject], { renderer: "none", finalPreparedText: "Body" }),
+  );
+  rows[0] = {
+    ...subject,
+    content: "---\nrender_engine: nunjucks\n---\nBody",
+  };
+  const claimed = runtime.claimPreparedExecution(authorization.authorizationId);
+  assert.equal(claimed.ok, false);
+  assert.equal(claimed.reason, "identity_drift");
+});
+
+test("non-schema render fields cannot alter governed DB identity", () => {
+  const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
+  const plain = runtime.authorizePreparedExecution(
+    request([template()], { renderer: "package-owned" }),
+  );
+  const extraField = runtime.authorizePreparedExecution(
+    request([template({ render_engine: "non-schema-value" })], { renderer: "package-owned" }),
+  );
+  assert.equal(plain.disposition, "text_ready");
+  assert.equal(extraField.disposition, "text_ready");
+  assert.equal(
+    plain.aggregate.primary.governedMetadataSha256,
+    extraField.aggregate.primary.governedMetadataSha256,
+  );
+  assert.equal(plain.aggregate.preparation.renderer, "package-owned");
+  assert.equal(extraField.aggregate.preparation.renderer, "package-owned");
 });
 
 test("policy construction rejects non-canonical mutable values", () => {
