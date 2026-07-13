@@ -340,6 +340,29 @@ describe("session compaction handler runtime", () => {
     });
   });
 
+  it("uses the production host-owned completion seam with no extension-owned auth", async () => {
+    let observed;
+    const { ctx } = createContext([createModel({ api: "custom-api" })], undefined, {
+      async completeSimple(model, context, options) {
+        observed = { receiver: this, model, context, options };
+        return assistantResponse("host summary");
+      },
+    });
+    const deps = createDeps();
+    delete deps.complete;
+
+    const result = await runSessionCompaction(createEvent(), ctx, deps);
+
+    assert.ok(result && "compaction" in result);
+    assert.equal(observed.receiver, ctx.modelRegistry);
+    assert.equal(observed.model, ctx.model);
+    assert.equal(observed.options.maxTokens, 800);
+    assert.equal(observed.options.signal instanceof AbortSignal, true);
+    assert.equal("apiKey" in observed.options, false);
+    assert.equal("headers" in observed.options, false);
+    assert.equal("env" in observed.options, false);
+  });
+
   it("returns undefined instead of breaking stock compaction when no model or no auth is available", async () => {
     const { ctx } = createContext();
     ctx.model = undefined;

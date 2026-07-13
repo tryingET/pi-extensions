@@ -223,6 +223,7 @@ export async function resolveSummarizerModel(ctx, options = {}) {
       model: ctx.model,
       apiKey: auth.apiKey,
       headers: auth.headers,
+      ...(auth.env ? { env: auth.env } : {}),
       reasoningLevel: ctx.model.reasoning ? effectiveThinkingLevel : undefined,
       warnings,
     };
@@ -250,6 +251,7 @@ export async function resolveSummarizerModel(ctx, options = {}) {
     alreadyActive: selected.alreadyActive,
     apiKey: auth.apiKey,
     headers: auth.headers,
+    ...(auth.env ? { env: auth.env } : {}),
     reasoningLevel,
     warnings,
   };

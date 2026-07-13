@@ -8,9 +8,10 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import { collectFilesTouched, renderFilesTouchedManifestBlock } from "./files-touched.js";
+import { completeWithHostModelRegistry } from "./host-completion.js";
 import { resolveSummarizerModel } from "./model-resolver.js";
 import {
   collectCurrentUserPrompts,
@@ -516,42 +517,8 @@ export function buildSummaryUserPrompt(params) {
   return sections.join("\n\n").trim();
 }
 
-async function importPiAiModule() {
-  try {
-    return await import("@earendil-works/pi-ai");
-  } catch (primaryError) {
-    // Some live Pi extension loader paths have resolved scoped packages to
-    // <package>/index.js instead of honoring package.json#exports/main. The
-    // published @earendil-works/pi-ai package ships dist/index.js, not index.js,
-    // so fall back to the concrete installed runtime file from this package's
-    // own node_modules directory.
-    const fallbackPath = path.join(
-      EXTENSION_DIR,
-      "..",
-      "..",
-      "node_modules",
-      "@earendil-works",
-      "pi-ai",
-      "dist",
-      "index.js",
-    );
-    try {
-      return await import(pathToFileURL(fallbackPath).href);
-    } catch (fallbackError) {
-      const primaryMessage =
-        primaryError instanceof Error ? primaryError.message : String(primaryError);
-      const fallbackMessage =
-        fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-      throw new Error(
-        `Failed to import @earendil-works/pi-ai. Primary import failed: ${primaryMessage}. Fallback import failed from ${fallbackPath}: ${fallbackMessage}`,
-      );
-    }
-  }
-}
-
-async function defaultComplete(model, context, options) {
-  const mod = await importPiAiModule();
-  return mod.completeSimple(model, context, options);
+async function defaultComplete(ctx, model, context, options) {
+  return completeWithHostModelRegistry(ctx, model, context, options);
 }
 
 function toReasoningLevel(level) {
@@ -618,8 +585,6 @@ async function executeSummaryCall(input, deps) {
       ],
     },
     {
-      apiKey: input.summarizer.apiKey,
-      headers: input.summarizer.headers,
       maxTokens: input.reserveTokens,
       signal: input.signal,
       ...(reasoning ? { reasoning } : {}),
@@ -757,9 +722,9 @@ async function resolveRequestedSummarizer(ctx, event, config, presetQuery) {
   return result;
 }
 
-function createDefaultDeps() {
+function createDefaultDeps(ctx) {
   return {
-    complete: defaultComplete,
+    complete: (model, context, options) => defaultComplete(ctx, model, context, options),
     collectFilesTouched,
     loadConfig,
     loadCompactionPrompt: loadCompactionPromptContract,
@@ -768,7 +733,7 @@ function createDefaultDeps() {
 }
 
 export async function runSessionCompaction(event, ctx, deps = {}) {
-  const runtimeDeps = { ...createDefaultDeps(), ...deps };
+  const runtimeDeps = { ...createDefaultDeps(ctx), ...deps };
 
   if (event.signal?.aborted) return { cancel: true };
 

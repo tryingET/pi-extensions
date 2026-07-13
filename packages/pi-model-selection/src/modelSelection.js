@@ -164,6 +164,7 @@ export async function resolveModelAuth(ctx, model) {
       ok: true,
       apiKey: result?.apiKey,
       headers: result?.headers ?? model?.headers,
+      ...(result?.env ? { env: result.env } : {}),
     };
   }
 
@@ -192,7 +193,7 @@ async function hasUsableAuth(model, ctx) {
   }
 
   const auth = await resolveModelAuth(ctx, model);
-  return auth.ok && Boolean(auth.apiKey || auth.headers);
+  return auth.ok && Boolean(auth.apiKey || auth.headers || auth.env);
 }
 
 export async function selectModelCandidate(modelSpecs, currentModel, ctx) {
