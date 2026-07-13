@@ -16,6 +16,30 @@ Before the emergency spawn hold was installed, concurrent sessions increased the
 
 Canonical execution authority for the remediation is AK task **3927**. The registry remains operational metadata, not task/evidence/decision authority.
 
+## Lifecycle-v2 execution closeout
+
+The historical table below remains the immutable review snapshot. Execution subsequently completed through lifecycle v2 against a fresh inventory captured at `2026-07-13T18:02:17.590Z`:
+
+- **309 peer-run aliases** grouped into **226 physical resource generations**;
+- **129 resources / 201 aliases** reached terminal `cleaned` after refreshed review, owner disposition, exact integration proof when accepted, isolated restoration-tested archive, separate expiring authorization, and exact worktree/branch effect receipts;
+- **69 resources / 74 aliases** reached terminal `reconciled_missing` after per-resource path/ref/object/archive investigation. This includes the original 67 missing resources plus two FCOS resources that disappeared after review; absence was recorded as loss/risk, never inferred as successful cleanup;
+- **28 resources / 34 aliases** remain intentionally `deferred`, each bound to a named owner, concrete action, exact reviewed generation, and `2026-07-20` review date. These are the surviving preserve cohort; no unreviewed or implicitly abandoned registered resource remains;
+- all **22 original ACCEPT resources** were integrated and validated against immutable target OIDs before cleanup: DSPx open-decision work, 17 pi-extensions source-metadata tips, two pi-snapshot-edit fixes, the context-packer ablation harness, and SCI structural-evidence receipt v1;
+- the one physical resource added after the original 225-resource review was independently reviewed, restoration-archived, authorized, and cleaned. The other six later registry records were aliases of already reviewed resources;
+- exact measured pre-cleanup footprints total **130,555,973,628 bytes (121.59 GiB) reclaimed**. The 28 retained registered generations occupy **3,543,868,084 bytes (3.30 GiB)**. Lifecycle-v2 restoration archives occupy approximately **2.1 GiB** and remain owner-only;
+- current registered-resource states sum exactly to 226: `129 cleaned + 69 reconciled_missing + 28 deferred`.
+
+Canonical local operational evidence:
+
+- inventory: `~/.local/state/pi-quests/candidate-lifecycle-v2/inventory-2026-07-13.json`;
+- resource records/events: `~/.local/state/pi-quests/candidate-lifecycle-v2/resources/<resource-id>/`;
+- restoration archives: `~/.local/state/pi-quests/candidate-lifecycle-v2/archives/<resource-id>/<generation-id>/`;
+- cohort authorization and terminal summaries: `~/.local/state/pi-quests/candidate-lifecycle-v2/cohorts/`;
+- final 226-resource aggregate, authorization, terminal, footprint, and checksum summaries: `~/.local/state/pi-quests/candidate-lifecycle-v2/cohorts/final-2026-07-13/`;
+- active admission hold: `~/.local/state/pi-quests/candidate-spawn.HOLD.json`.
+
+The remaining bytes under the broad `pi-quests/worktrees/` directory include the 28 deliberately retained registered candidates plus paths not represented by this 309-alias candidate registry. They were not silently classified or deleted by this task.
+
 ## Census
 
 | Recommended disposition | Worktrees | Meaning |
