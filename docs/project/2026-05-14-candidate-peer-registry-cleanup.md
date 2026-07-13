@@ -19,7 +19,7 @@ The record is launch metadata, not authority. It captures the peer run id, paren
 
 The registry census proved that v1 is insufficient for destructive cleanup: reused physical worktrees have multiple peer-run records, lifecycle disposition is absent, and historical archives omitted untracked bytes. At least one historical archive recorded an untracked file name but did not preserve its content.
 
-Therefore `candidate_peer_cleanup` is temporarily **dry-run only**. `execute: true` fails closed and cites AK decision 59. Do not bypass this hold with manual worktree or branch deletion.
+Therefore `candidate_peer_cleanup` is temporarily **dry-run only**. `execute: true` fails closed and cites AK decision 59. The operator backlog hold at `$XDG_STATE_HOME/pi-quests/candidate-spawn.HOLD.json` also blocks `candidate_peer_spawn` and `/parallelquest` before Git mutation in updated/reloaded sessions. Do not bypass either hold with manual worktree creation/removal or branch deletion.
 
 New prospective archive packets preserve untracked bytes, inventory and block on ignored paths, compare tracked/untracked/ignored/HEAD state before and after capture, verify hashes/bundle/compression, use owner-only permissions, and publish an atomic completion marker. They are not yet destructive-cleanup authority, and historical sidecars retain their serialized v1 packets.
 

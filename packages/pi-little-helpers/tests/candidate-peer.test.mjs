@@ -14,7 +14,10 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import { createSidequestExtension } from "../extensions/sidequest.ts";
-import { buildCandidatePeerCleanupPacket } from "../src/candidatePeerRegistry.ts";
+import {
+  buildCandidatePeerCleanupPacket,
+  getCandidatePeerSpawnHoldPath,
+} from "../src/candidatePeerRegistry.ts";
 import {
   createContext,
   extractPiArgs,
@@ -174,6 +177,55 @@ test("/parallelquest launches a human candidate peer worktree", async () => {
       /PI_SESSION_PRESENCE_TITLE_BASE='Parallelquest: Try a workspace candidate'/,
     );
     assert.match(harness.notifications.at(-1)?.message ?? "", /Opened parallelquest/);
+  });
+});
+
+test("candidate spawn hold blocks both /parallelquest and candidate_peer_spawn before git", async () => {
+  await withTempDir(async (stateHome) => {
+    const env = {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+      XDG_STATE_HOME: stateHome,
+    };
+    const holdPath = getCandidatePeerSpawnHoldPath(env);
+    mkdirSync(`${stateHome}/pi-quests`, { recursive: true });
+    writeFileSync(
+      holdPath,
+      `${JSON.stringify({ status: "active", decision: 59, reason: "registry backlog" })}\n`,
+    );
+    const execStub = createCandidatePeerExecStub();
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env,
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty" || path === holdPath;
+      },
+    });
+    const { commands, tools } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("parallelquest").handler("Try another candidate", harness.ctx);
+    const toolResult = await tools
+      .get("candidate_peer_spawn")
+      .execute(
+        "tool-call-spawn-hold",
+        { objective: "Try another candidate" },
+        undefined,
+        undefined,
+        harness.ctx,
+      );
+
+    assert.match(harness.notifications.at(-1)?.message ?? "", /lifecycle backlog hold/);
+    assert.equal(toolResult.details.ok, false);
+    assert.equal(toolResult.details.error, "candidate_spawn_hold_active");
+    assert.equal(toolResult.details.spawnHoldPath, holdPath);
+    assert.equal(
+      execStub.calls.some((call) => call.command === "git"),
+      false,
+    );
   });
 });
 

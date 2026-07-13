@@ -12,6 +12,8 @@ type: "evidence-note"
 
 This is a read-only review result for **302 registry records representing 225 distinct worktrees**. It is not promotion or deletion authority. No worktree, branch, process, registry record, archive, or candidate commit was changed during this census. Refresh a row immediately before acting because live lanes can drift after capture.
 
+Before the emergency spawn hold was installed, concurrent sessions increased the registry to **308 records** and storage to approximately **143 GB**. The 225-row table remains the completed review snapshot; the six later records require the same resource-level inventory/reconciliation process rather than being silently folded into this evidence.
+
 Canonical execution authority for the remediation is AK task **3927**. The registry remains operational metadata, not task/evidence/decision authority.
 
 ## Census

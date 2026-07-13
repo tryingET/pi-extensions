@@ -194,8 +194,9 @@ AK task 3927 landed a pre-decision safety correction:
 - dry-run inventory remains available;
 - prospective new-record archive packets preserve untracked bytes, block ignored files, use owner-only permissions, compare pre/post HEAD/path/content state, and verify hashes/bundle/compression;
 - duplicate aliases are surfaced in dry-run inventory.
+- a state-root backlog marker blocks updated/reloaded `candidate_peer_spawn` and `/parallelquest` paths before Git mutation.
 
-The global hold protects historical unsafe v1 packets. It does not implement v2, authorize cleanup, or make the prospective packet sufficient for restoration-grade v2 archives.
+The global cleanup hold protects historical unsafe v1 packets. The separate spawn hold pauses new candidate creation after the registry grew from 302 to 308 records and from approximately 142 GB to 143 GB during reconciliation. It does not implement v2, authorize cleanup, or make the prospective packet sufficient for restoration-grade v2 archives.
 
 ## Migration, rollout, hold release, and rollback
 

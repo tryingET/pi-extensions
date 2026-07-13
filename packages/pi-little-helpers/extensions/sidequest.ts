@@ -10,6 +10,7 @@ import {
   createCandidatePeerRegistryRecord,
   getCandidatePeerRegistryDir,
   getCandidatePeerRegistryPath,
+  getCandidatePeerSpawnHoldPath,
   writeCandidatePeerRegistryRecord,
 } from "../src/candidatePeerRegistry.ts";
 import {
@@ -2185,6 +2186,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const request: CandidatePeerSpawnRequest = { objective, reportBack: "manual" };
       const env = options.env ?? process.env;
       const pathExists = options.pathExists ?? existsSync;
+      const spawnHoldPath = getCandidatePeerSpawnHoldPath(env);
+      if (pathExists(spawnHoldPath)) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `/${commandName} is temporarily blocked by the candidate lifecycle backlog hold (${spawnHoldPath}). Review AK decision 59 and task 3927.`,
+            "error",
+          );
+        }
+        return;
+      }
       const execRunner: ExecRunner =
         options.exec ??
         ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
@@ -2732,6 +2743,30 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           reportBack,
           error: "blank_objective",
         });
+      }
+
+      const spawnHoldPath = getCandidatePeerSpawnHoldPath(env);
+      if (pathExists(spawnHoldPath)) {
+        let hold: unknown;
+        try {
+          hold = JSON.parse(readFileSync(spawnHoldPath, "utf8"));
+        } catch {
+          hold = { status: "active", reason: "spawn hold file is unreadable or malformed" };
+        }
+        return errorToolResult(
+          `${toolName} is temporarily blocked by the candidate lifecycle backlog hold.`,
+          {
+            ok: false,
+            tool: toolName,
+            canonicalTool: "candidate_peer_spawn",
+            reportBack,
+            error: "candidate_spawn_hold_active",
+            spawnHoldPath,
+            hold,
+            nextStep:
+              "Review AK decision 59 and task 3927. Do not bypass the hold by manually creating another candidate worktree.",
+          },
+        );
       }
 
       if (reportBack === "intercom") {

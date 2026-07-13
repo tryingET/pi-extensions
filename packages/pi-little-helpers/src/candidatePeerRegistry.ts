@@ -96,6 +96,11 @@ export function getCandidatePeerRegistryDir(env: NodeJS.ProcessEnv = process.env
   return join(stateHome, "pi-quests", "peer-registry");
 }
 
+export function getCandidatePeerSpawnHoldPath(env: NodeJS.ProcessEnv = process.env): string {
+  const stateHome = env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
+  return join(stateHome, "pi-quests", "candidate-spawn.HOLD.json");
+}
+
 export function getCandidatePeerArchiveDir(
   peerRunId: string,
   env: NodeJS.ProcessEnv = process.env,
