@@ -19,6 +19,7 @@ This package is now the local live owner for custom `session_before_compact` sum
 - exposes `/compact-handoff` and the `session_compaction_handoff` tool for owner-owned, operator-pasteable fresh-session handoff prompts before compaction/reload; the tool accepts structured discovery/promotion-status records for insights that still need owner-surface promotion
 - does not expose prompt bundles or `package.json#pi.prompts`
 - falls back to stock compaction when the custom summarizer cannot be resolved, except explicit malformed/preset-directed paths that intentionally cancel rather than silently producing the wrong preset summary
+- delegates summary model calls to `ctx.modelRegistry.completeSimple()`, keeping provider registration, authentication, and custom stream overrides in the Pi host rather than importing pi-ai inside the extension
 
 After local install, reload Pi with `/reload` before expecting the current session process to use the new hook.
 
@@ -37,10 +38,8 @@ This package currently implements the compaction-facing foundations and a tested
 - current-session model fallback
 - named preset resolution (`exact`, case-insensitive, prefix, normalized substring)
 - prompt-template-model-aligned model fallback semantics imported from `@tryinget/pi-model-selection`: exact `modelId`, exact `provider/modelId`, comma-separated fallback lists, current-model preservation, and provider-priority ordering for ambiguous bare IDs
-- compatibility with both Pi host auth APIs through `@tryinget/pi-model-selection`:
-  - `modelRegistry.getApiKeyAndHeaders(model)`
-  - `modelRegistry.getApiKey(model)`
-- preservation of model-level `headers`
+- compatibility-aware model availability resolution through `@tryinget/pi-model-selection`, including host-resolved API keys, headers, and provider environment
+- host-owned summary execution through `modelRegistry.completeSimple()`, with no extension-local pi-ai dependency or provider registry
 - normalized thinking levels
 - files-touched collection ported from dot314 grounded-compaction, including read/write/edit/move/delete tracking, no-op edit filtering, move redirects, repo-relative display paths, and manifest rendering
 - user prompt / command preservation ported from legacy `pi-user-prompt-compaction`, including expanded skill-block recovery, timestamp-matched slash command recovery, previous-summary prompt-section recovery, and `/compact <customInstructions>` preservation

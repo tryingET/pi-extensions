@@ -16,11 +16,21 @@ export interface PiModelRegistryLike {
   getAvailable?(): PiModelLike[];
   isUsingOAuth?(model: PiModelLike): boolean;
   getApiKey?(model: PiModelLike): Promise<string | undefined> | string | undefined;
-  getApiKeyAndHeaders?(
-    model: PiModelLike,
-  ):
-    | Promise<{ ok?: boolean; apiKey?: string; headers?: Record<string, unknown>; error?: string }>
-    | { ok?: boolean; apiKey?: string; headers?: Record<string, unknown>; error?: string };
+  getApiKeyAndHeaders?(model: PiModelLike):
+    | Promise<{
+        ok?: boolean;
+        apiKey?: string;
+        headers?: Record<string, unknown>;
+        env?: Record<string, string>;
+        error?: string;
+      }>
+    | {
+        ok?: boolean;
+        apiKey?: string;
+        headers?: Record<string, unknown>;
+        env?: Record<string, string>;
+        error?: string;
+      };
 }
 
 export interface PiModelSelectionContext {
@@ -37,6 +47,7 @@ export interface ResolvedModelAuth {
   ok: boolean;
   apiKey?: string;
   headers?: Record<string, unknown>;
+  env?: Record<string, string>;
   error?: string;
 }
 

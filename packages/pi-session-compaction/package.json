@@ -68,7 +68,6 @@
     "./user-prompts": "./extensions/session-compaction/user-prompts.js"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.80.6",
     "@tryinget/pi-model-selection": "file:../pi-model-selection"
   },
   "peerDependencies": {

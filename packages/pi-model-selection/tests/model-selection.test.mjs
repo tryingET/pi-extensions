@@ -192,6 +192,30 @@ describe("model auth compatibility", () => {
     });
   });
 
+  it("preserves provider environment resolved by the host registry", async () => {
+    const model = createModel();
+    const ctx = createContext({
+      models: [model],
+      registryOverrides: {
+        async getApiKeyAndHeaders() {
+          return {
+            ok: true,
+            apiKey: "new-key",
+            headers: { "x-registry": "new" },
+            env: { AWS_PROFILE: "compaction-test" },
+          };
+        },
+      },
+    });
+
+    assert.deepEqual(await resolveModelAuth(ctx, model), {
+      ok: true,
+      apiKey: "new-key",
+      headers: { "x-registry": "new" },
+      env: { AWS_PROFILE: "compaction-test" },
+    });
+  });
+
   it("uses legacy getApiKey and preserves model headers", async () => {
     const model = createModel({ headers: { authorization: "model-header" } });
     const ctx = createContext({
