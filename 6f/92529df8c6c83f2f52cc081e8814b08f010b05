@@ -1,0 +1,16 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/tmp/pi-vault-publish"
+commit: "6f92529df8c6c83f2f52cc081e8814b08f010b05"
+created_at: "2026-07-13T02:12:34Z"
+intent: "Materialize pinned engineering-core contract in npm release runners"
+files:
+  - ".github/workflows/publish.yml"
+validation:
+  fast_gate:
+    command: "node --test scripts/release-components.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "node scripts/release-components.mjs validate"
+    status: "pass"
