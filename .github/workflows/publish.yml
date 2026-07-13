@@ -67,6 +67,26 @@ jobs:
             exit 1
           fi
 
+      - name: Materialize pinned engineering-core contract
+        run: |
+          set -euo pipefail
+          policy="$RELEASE_PACKAGE_PATH/policy/engineering-lane.json"
+          readarray -t contract < <(node -e '
+            const fs = require("node:fs");
+            const policy = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const core = policy.engineering_core || {};
+            if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(core.repository || "")) process.exit(2);
+            if (!/^[0-9a-f]{40}$/.test(core.ref || "")) process.exit(3);
+            console.log(core.repository);
+            console.log(core.ref);
+          ' "$policy")
+          destination="$HOME/ai-society/core/engineering-core"
+          mkdir -p "$(dirname "$destination")"
+          git init -q "$destination"
+          git -C "$destination" remote add origin "${contract[0]}"
+          git -C "$destination" fetch -q --depth 1 origin "${contract[1]}"
+          git -C "$destination" checkout -q --detach FETCH_HEAD
+
       - name: Install package dependencies
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
