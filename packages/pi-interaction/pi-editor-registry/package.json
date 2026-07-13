@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-editor-registry",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Editor ownership and mount primitives for pi-interaction runtime",
   "type": "module",
   "main": "./index.js",
