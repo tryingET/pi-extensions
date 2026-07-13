@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-prompt-template-execution",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Live prompt-template execution successor for model/thinking/args semantics.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
