@@ -8,6 +8,7 @@ import {
   type CandidatePeerRegistryRecord,
   type CandidatePeerSafeNaming,
   createCandidatePeerRegistryRecord,
+  getCandidatePeerRegistryDir,
   getCandidatePeerRegistryPath,
   writeCandidatePeerRegistryRecord,
 } from "../src/candidatePeerRegistry.ts";
@@ -326,13 +327,13 @@ const candidatePeerCleanupParameters = asPiToolParameters(
     execute: Type.Optional(
       Type.Boolean({
         description:
-          "When false or omitted, return a dry-run cleanup plan. When true, archive then remove only exact registered worktrees/branches.",
+          "When false or omitted, return dry-run inventory. Destructive execution is temporarily blocked until candidate lifecycle v2 is reviewed and landed.",
       }),
     ),
     closeVisibleResources: Type.Optional(
       Type.Boolean({
         description:
-          "When execute=true, first terminate only sidequest/Pi processes whose command line contains the exact registered candidate worktree path. Dry-run output always shows the exact process-close command.",
+          "Reserved for future post-archive exact process closure; destructive execution is currently blocked. Dry-run output shows the prospective exact process-close command.",
       }),
     ),
     integrationCloseoutStatus: Type.Optional(
@@ -2564,6 +2565,17 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           ],
         });
       }
+      if (execute) {
+        return successToolResult("candidate peer cleanup blocked", {
+          ok: false,
+          execution: "blocked_candidate_lifecycle_v2_required",
+          peerRunIds,
+          blockers: [
+            "Destructive candidate cleanup is temporarily disabled after the 2026-07-13 registry census found untracked-file loss, duplicate worktree aliases, and missing disposition state. Use dry-run inventory only until resource-level lifecycle v2 is reviewed and landed.",
+          ],
+          decisionRef: "AK decision 59",
+        });
+      }
 
       const lanes = peerRunIds.map((peerRunId) => {
         const registryPath = getCandidatePeerRegistryPath(peerRunId, env);
@@ -2608,6 +2620,23 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         };
       });
 
+      const registeredAliases = new Map<string, string[]>();
+      const registryDir = getCandidatePeerRegistryDir(env);
+      for (const fileName of readdirSync(registryDir).filter((name) => name.endsWith(".json"))) {
+        const registryPath = join(registryDir, fileName);
+        const record = JSON.parse(
+          readFileSync(registryPath, "utf8"),
+        ) as CandidatePeerRegistryRecord;
+        const aliases = registeredAliases.get(record.worktreePath) ?? [];
+        aliases.push(record.peerRunId);
+        registeredAliases.set(record.worktreePath, aliases);
+      }
+      const duplicateAliasBlockers = lanes.flatMap((lane) => {
+        const aliases = registeredAliases.get(lane.worktreePath) ?? [lane.peerRunId];
+        return aliases.length > 1
+          ? [{ worktreePath: lane.worktreePath, peerRunIds: [...aliases].sort() }]
+          : [];
+      });
       const commandResults: {
         peerRunId: string;
         commandId: string;
@@ -2620,9 +2649,20 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
       if (execute) {
         for (const lane of lanes) {
+          const [archiveCommand, ...destructiveCleanupCommands] = lane.cleanupPacket.commands;
+          if (!archiveCommand || archiveCommand.destructive) {
+            return successToolResult("candidate peer cleanup failed closed", {
+              ok: false,
+              execution: "blocked_invalid_archive_first_packet",
+              lane,
+              boundary:
+                "Cleanup requires one non-destructive archive command before any process termination, worktree removal, or branch deletion.",
+            });
+          }
           const commands = [
+            archiveCommand,
             ...(closeVisibleResources ? lane.visibleResourceCommands : []),
-            ...lane.cleanupPacket.commands,
+            ...destructiveCleanupCommands,
           ];
           for (const command of commands) {
             const result = await execRunner(command.command, command.args, {
@@ -2661,9 +2701,10 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           closeVisibleResources,
           laneCount: lanes.length,
           lanes,
+          duplicateAliasBlockers,
           commandResults,
           boundary:
-            "Candidate cleanup consumes exact registry sidecars only. It can terminate only sidequest/Pi processes matched by the exact registered worktree path, archives first, and removes only named worktrees/branches. It does not fuzzy-close arbitrary tabs or imply merge, promotion, AK/KES/evidence write, release, push, or PR authority.",
+            "Dry-run inventory consumes exact registry sidecars and reports duplicate worktree aliases. Destructive cleanup is temporarily disabled pending resource-level lifecycle v2; no process termination, worktree removal, branch deletion, merge, promotion, AK/KES/evidence write, release, push, or PR occurs.",
         },
       );
     }
@@ -3073,9 +3114,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       name: CANDIDATE_PEER_CLEANUP_TOOL,
       label: "Candidate Peer Cleanup",
       description:
-        "Plan or execute exact candidate peer cleanup from registry sidecars after successful integration closeout.",
+        "Inspect exact candidate peer registry sidecars through dry-run inventory while destructive cleanup is held for lifecycle v2.",
       promptSnippet:
-        "Use after successful candidate integration closeout to consume exact candidate peer registry sidecars and archive/remove only named worktrees/branches. Dry-run by default; execute requires integrationCloseoutStatus=successful.",
+        "Use for read-only candidate registry inventory. Destructive execution is temporarily blocked pending AK decision 59 and resource-level lifecycle v2; do not bypass the hold with manual deletion.",
       parameters: candidatePeerCleanupParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeCandidatePeerCleanup(CANDIDATE_PEER_CLEANUP_TOOL, params, ctx),

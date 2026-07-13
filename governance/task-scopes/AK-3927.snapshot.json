@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-07-13T13:28:41.990152169+00:00",
+  "task_id": 3927,
+  "entity_version": 7,
+  "commit_sha": "HEAD",
+  "scope": {
+    "allowed_paths": [
+      "docs/adr/2026-07-13-candidate-peer-lifecycle.md",
+      "docs/project/2026-05-14-candidate-peer-registry-cleanup.md",
+      "docs/project/2026-07-13-candidate-peer-lifecycle-reconciliation.md",
+      "docs/project/2026-07-13-candidate-peer-lifecycle-review.md",
+      "docs/project/2026-07-13-candidate-peer-lifecycle-rfc.md",
+      "governance/task-scopes/AK-*.snapshot.json",
+      "governance/work-items.json",
+      "packages/pi-little-helpers/**",
+      "packages/pi-society-orchestrator/**"
+    ],
+    "required_paths": [
+      "packages/pi-little-helpers/extensions/sidequest.ts",
+      "packages/pi-little-helpers/src/candidatePeerRegistry.ts",
+      "packages/pi-little-helpers/tests/candidate-peer.test.mjs"
+    ],
+    "forbidden_paths": []
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}

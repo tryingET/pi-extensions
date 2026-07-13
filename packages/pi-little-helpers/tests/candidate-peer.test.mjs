@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
 import { createSidequestExtension } from "../extensions/sidequest.ts";
+import { buildCandidatePeerCleanupPacket } from "../src/candidatePeerRegistry.ts";
 import {
   createContext,
   extractPiArgs,
@@ -568,6 +578,10 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
       result.details.cleanupPacket.commands[0].args[1],
       /show-ref --verify --quiet "refs\/heads\/\$branch_name"/,
     );
+    assert.match(result.details.cleanupPacket.commands[0].args[1], /untracked\.tar\.gz/);
+    assert.match(result.details.cleanupPacket.commands[0].args[1], /ignored\.paths\.z/);
+    assert.match(result.details.cleanupPacket.commands[0].args[1], /manifest\.sha256/);
+    assert.match(result.details.cleanupPacket.commands[0].args[1], /COMPLETE/);
     assert.equal(result.details.cleanupPacket.commands[1].id, "remove-worktree");
     assert.equal(result.details.cleanupPacket.commands[1].destructive, true);
     assert.equal(result.details.cleanupPacket.commands[2].id, "delete-candidate-branch");
@@ -599,7 +613,73 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
   });
 });
 
-test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after closeout", async () => {
+test("candidate peer archive preserves untracked bytes and blocks ignored-file loss", async () => {
+  await withTempDir(async (stateHome) => {
+    const repoRoot = `${stateHome}/repo`;
+    const registryPath = `${stateHome}/registry.json`;
+    const archiveDir = `${stateHome}/archive`;
+    mkdirSync(repoRoot, { recursive: true });
+    execFileSync("git", ["init", "-b", "candidatepeer/archive-test", repoRoot]);
+    execFileSync("git", ["-C", repoRoot, "config", "user.email", "candidate@example.test"]);
+    execFileSync("git", ["-C", repoRoot, "config", "user.name", "Candidate Test"]);
+    writeFileSync(`${repoRoot}/tracked.txt`, "tracked\n");
+    writeFileSync(`${repoRoot}/.gitignore`, "ignored.tmp\n");
+    execFileSync("git", ["-C", repoRoot, "add", "tracked.txt", ".gitignore"]);
+    execFileSync("git", ["-C", repoRoot, "commit", "-m", "base"]);
+    writeFileSync(registryPath, '{"schemaVersion":1}\n');
+    writeFileSync(`${repoRoot}/untracked candidate.txt`, "candidate bytes\n");
+
+    const packet = buildCandidatePeerCleanupPacket({
+      peerRunId: "candidatepeer-archive-test",
+      repoRoot,
+      worktreePath: repoRoot,
+      branchName: "candidatepeer/archive-test",
+      registryPath,
+      archiveDir,
+    });
+    const archiveCommand = packet.commands[0];
+    execFileSync(archiveCommand.command, archiveCommand.args, { cwd: repoRoot });
+
+    assert.equal(existsSync(`${archiveDir}/COMPLETE`), true);
+    assert.match(readFileSync(`${archiveDir}/manifest.sha256`, "utf8"), /untracked\.tar\.gz/);
+    assert.match(
+      execFileSync("tar", ["-tzf", `${archiveDir}/untracked.tar.gz`], {
+        encoding: "utf8",
+      }),
+      /untracked candidate\.txt/,
+    );
+    const extractDir = `${stateHome}/extract`;
+    mkdirSync(extractDir);
+    execFileSync("tar", ["-xzf", `${archiveDir}/untracked.tar.gz`, "-C", extractDir]);
+    assert.equal(
+      readFileSync(`${extractDir}/untracked candidate.txt`, "utf8"),
+      "candidate bytes\n",
+    );
+    assert.equal(statSync(archiveDir).mode & 0o777, 0o700);
+    assert.equal(statSync(`${archiveDir}/untracked.tar.gz`).mode & 0o777, 0o600);
+    assert.equal(readFileSync(`${archiveDir}/COMPLETE`, "utf8"), "verified-complete\n");
+
+    writeFileSync(`${repoRoot}/ignored.tmp`, "must not be discarded implicitly\n");
+    const blockedArchiveDir = `${stateHome}/blocked-archive`;
+    const blockedPacket = buildCandidatePeerCleanupPacket({
+      peerRunId: "candidatepeer-archive-blocked-test",
+      repoRoot,
+      worktreePath: repoRoot,
+      branchName: "candidatepeer/archive-test",
+      registryPath,
+      archiveDir: blockedArchiveDir,
+    });
+    assert.throws(() =>
+      execFileSync(blockedPacket.commands[0].command, blockedPacket.commands[0].args, {
+        cwd: repoRoot,
+        stdio: "pipe",
+      }),
+    );
+    assert.equal(existsSync(blockedArchiveDir), false);
+  });
+});
+
+test("candidate_peer_cleanup dry-runs and blocks destructive cleanup pending lifecycle v2", async () => {
   await withTempDir(async (stateHome) => {
     const calls = [];
     const baseExecStub = createCandidatePeerExecStub({ dirty: "" });
@@ -679,8 +759,9 @@ test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after 
     assert.equal(blocked.details.ok, false);
     assert.equal(blocked.details.execution, "blocked_missing_successful_integration_closeout");
 
+    const callCountBeforeBlockedExecute = calls.length;
     const executed = await tools.get("candidate_peer_cleanup").execute(
-      "tool-call-cleanup-execute",
+      "tool-call-cleanup-v2-blocked",
       {
         peerRunIds: [peerRunId],
         execute: true,
@@ -692,26 +773,73 @@ test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after 
       context,
     );
 
-    assert.equal(executed.details.ok, true);
-    assert.equal(executed.details.execution, "executed_exact_registry_cleanup_commands");
-    assert.equal(executed.details.closeVisibleResources, true);
-    assert.deepEqual(
-      executed.details.commandResults.map((result) => result.commandId),
-      [
-        "terminate-exact-sidequest-process",
-        "archive-metadata-and-diff",
-        "remove-worktree",
-        "delete-candidate-branch",
-      ],
+    assert.equal(executed.details.ok, false);
+    assert.equal(executed.details.execution, "blocked_candidate_lifecycle_v2_required");
+    assert.equal(executed.details.decisionRef, "AK decision 59");
+    assert.equal(calls.length, callCountBeforeBlockedExecute);
+  });
+});
+
+test("candidate_peer_cleanup blocks reused worktrees with multiple registry aliases", async () => {
+  await withTempDir(async (stateHome) => {
+    const execStub = createCandidatePeerExecStub({ dirty: "" });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension);
+    const context = createContext({ cwd: "/repo" }).ctx;
+    const spawn = await tools.get("candidate_peer_spawn").execute(
+      "tool-call-cleanup-alias-spawn",
+      {
+        objective: "try reused cleanup guard",
+        cwd: "/repo",
+        parentPeerTarget: "session-019e10d2-15f5-705a-aea4-01ba49d2bbac",
+        branchName: "candidatepeer/cleanup-alias-guard",
+        workspaceName: "cleanup-alias-guard",
+      },
+      undefined,
+      undefined,
+      context,
     );
-    assert.ok(calls.some((call) => call.command === "git" && call.args.includes("--force")));
-    assert.ok(
-      calls.some(
-        (call) =>
-          call.command === "sh" && call.args.join("\n").includes(spawn.details.worktreePath),
-      ),
+
+    const firstRecord = JSON.parse(readFileSync(spawn.details.registryPath, "utf8"));
+    const aliasPeerRunId = "candidatepeer-alias-reuse-test";
+    writeFileSync(
+      `${stateHome}/pi-quests/peer-registry/${aliasPeerRunId}.json`,
+      `${JSON.stringify({ ...firstRecord, peerRunId: aliasPeerRunId })}\n`,
     );
-    assert.match(executed.details.boundary, /does not fuzzy-close arbitrary tabs/);
+
+    const blocked = await tools.get("candidate_peer_cleanup").execute(
+      "tool-call-cleanup-alias-dry-run",
+      {
+        peerRunIds: [spawn.details.peerRunId],
+      },
+      undefined,
+      undefined,
+      context,
+    );
+
+    assert.equal(blocked.details.ok, true);
+    assert.equal(blocked.details.execution, "dry_run_plan_only");
+    assert.deepEqual(blocked.details.duplicateAliasBlockers[0].peerRunIds, [
+      aliasPeerRunId,
+      spawn.details.peerRunId,
+    ]);
+    assert.equal(
+      execStub.calls.some((call) => call.args?.includes("--force")),
+      false,
+    );
   });
 });
 
