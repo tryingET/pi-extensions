@@ -13,6 +13,21 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.1.0...pi-peer-messaging-v0.2.0) (2026-07-13)
+
+
+### Features
+
+* **extensions:** harden runtime quality across packages ([1ff1eb0](https://github.com/tryingET/pi-extensions/commit/1ff1eb0cf10a3f8f60cf391ccf246b238951a848))
+* migrate pi extensions to pi 0.76 ([93dd0e0](https://github.com/tryingET/pi-extensions/commit/93dd0e0fdc9e23b0fc36661cc0e33972f365bf98))
+* **peer-messaging:** preview pending inbox ([d298338](https://github.com/tryingET/pi-extensions/commit/d2983389611eb4f57bf992af686a52a5e5733f3b))
+* **peer-messaging:** surface peer freshness cues ([5a3b749](https://github.com/tryingET/pi-extensions/commit/5a3b7495ea45cff5880e8018c229359521a4be11))
+
+
+### Bug Fixes
+
+* align extension runtimes with Pi 0.80 ([1702c25](https://github.com/tryingET/pi-extensions/commit/1702c25f9d31bf4f619fdaa6f7a7f898ca5ee48e))
+
 ## [Unreleased]
 
 ## [0.1.0] - 2026-05-17
