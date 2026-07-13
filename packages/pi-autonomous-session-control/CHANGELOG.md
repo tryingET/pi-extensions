@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.2.0...pi-autonomous-session-control-v0.2.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* **asc:** expose canonical subagent resume handles ([c11c5d2](https://github.com/tryingET/pi-extensions/commit/c11c5d2396d759d749cae074734a0a9c5a65f6a0))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.1.5...pi-autonomous-session-control-v0.2.0) (2026-07-11)
 
 
