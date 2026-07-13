@@ -13,6 +13,19 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-accelerator-v0.1.0...pi-prompt-template-accelerator-v0.2.0) (2026-07-13)
+
+
+### Features
+
+* **extensions:** harden runtime quality across packages ([1ff1eb0](https://github.com/tryingET/pi-extensions/commit/1ff1eb0cf10a3f8f60cf391ccf246b238951a848))
+* migrate pi extensions to pi 0.76 ([93dd0e0](https://github.com/tryingET/pi-extensions/commit/93dd0e0fdc9e23b0fc36661cc0e33972f365bf98))
+
+
+### Bug Fixes
+
+* align extension runtimes with Pi 0.80 ([1702c25](https://github.com/tryingET/pi-extensions/commit/1702c25f9d31bf4f619fdaa6f7a7f898ca5ee48e))
+
 ## [Unreleased]
 
 ### Added
