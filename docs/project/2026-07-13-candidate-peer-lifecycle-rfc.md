@@ -198,6 +198,19 @@ AK task 3927 landed a pre-decision safety correction:
 
 The global cleanup hold protects historical unsafe v1 packets. The separate spawn hold pauses new candidate creation after the registry grew from 302 to 308 records and from approximately 142 GB to 143 GB during reconciliation. It does not implement v2, authorize cleanup, or make the prospective packet sufficient for restoration-grade v2 archives.
 
+## Implementation checkpoint — 2026-07-13
+
+The first lifecycle-v2 implementation checkpoint is landed in `pi-little-helpers` without releasing either hold:
+
+- `candidatePeerLifecycleV2.ts` provides deterministic v1 alias grouping, immutable migrated resource/generation identifiers, owner-only records/events, exclusive resource locks, compare-and-swap versions, byte/type/mode review snapshots, disposition receipts, exact commit-inclusion proof, and explicit missing-resource reconciliation;
+- `candidatePeerLifecycleArchive.ts` provides owner-only atomic archives, tracked/staged patches, untracked and explicitly retained ignored bytes, branch bundles, hash manifests, isolated restoration equality, expiring exact cleanup authorization, process-lease checks, effect receipts, and terminal cleanup records;
+- `candidate-lifecycle-v2.mjs` exposes explicit inventory, migration, review, disposition, integration-proof, archive, authorization, cleanup, and missing-reconciliation operations. It never executes v1 packets;
+- synthetic tests prove alias grouping, lock/CAS exclusion, missing reconciliation, post-review drift rejection, restoration of staged/unstaged/untracked bytes, separate authorization, exact worktree/branch removal, and retained verified archives.
+
+The fresh migration inventory captured **309 registry aliases grouped into 226 resources: 157 present and 69 missing**. The seven aliases added after the original 302-record census represent one new physical AK resource plus six additional aliases to previously reviewed DSPx/FCOS resources. The two FCOS resources that were present during review are now missing and therefore moved to `missing_investigation`; they are not presumed cleaned.
+
+The two new implementation modules temporarily exceed the 500-LOC readability ratchet while the P0 contract stabilizes (`candidatePeerLifecycleV2.ts` 732 LOC; `candidatePeerLifecycleArchive.ts` 579 LOC). This is an explicit owner-scoped, warn-only exception for task 3927. Split by inventory/state/snapshot and archive/authorization/execution boundaries before making the repository file-size gate hard; do not delay the loss-prevention canaries merely to reshuffle code.
+
 ## Migration, rollout, hold release, and rollback
 
 1. **Quarantine:** v1 packet execution remains permanently disabled. Import v1 records read-only and assign provisional resource/generation groupings; ambiguous groups require owner reconciliation.

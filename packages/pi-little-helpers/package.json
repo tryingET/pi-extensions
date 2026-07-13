@@ -57,6 +57,8 @@
     "lib/codex-reset.ts",
     "lib/package-utils.ts",
     "src/candidatePeerRegistry.ts",
+    "src/candidatePeerLifecycleV2.ts",
+    "src/candidatePeerLifecycleArchive.ts",
     "src/capabilityManifest.ts",
     "src/selfEvolutionEnvelope.ts",
     "src/selfEvolutionVerification.ts",
@@ -73,10 +75,13 @@
     "examples",
     "policy/security-policy.json",
     "policy/engineering-lane.json",
+    "scripts/candidate-lifecycle-v2.mjs",
     "THIRD_PARTY_NOTICES.md"
   ],
   "exports": {
     "./candidate-peer-registry": "./src/candidatePeerRegistry.ts",
+    "./candidate-peer-lifecycle-v2": "./src/candidatePeerLifecycleV2.ts",
+    "./candidate-peer-lifecycle-archive": "./src/candidatePeerLifecycleArchive.ts",
     "./capability-manifest": "./src/capabilityManifest.ts",
     "./toolbox-bundle": "./src/toolboxBundle.ts",
     "./visible-loop": "./src/visibleLoop.ts",
