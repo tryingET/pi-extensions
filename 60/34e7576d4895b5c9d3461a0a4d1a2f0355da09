@@ -1,0 +1,17 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/tmp/pi-vault-publish"
+commit: "6034e7576d4895b5c9d3461a0a4d1a2f0355da09"
+created_at: "2026-07-13T02:14:41Z"
+intent: "Keep npm release validation portable while preserving structural engineering checks"
+files:
+  - ".github/workflows/publish.yml"
+  - "scripts/release-components.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test scripts/release-components.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "node scripts/release-components.mjs validate"
+    status: "pass"
