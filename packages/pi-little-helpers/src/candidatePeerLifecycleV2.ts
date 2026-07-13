@@ -585,12 +585,12 @@ export function captureCandidateReviewSnapshot(
   ) as Buffer;
   const unstagedPatch = git(
     record.worktreePath,
-    ["diff", "--binary", "--no-ext-diff"],
+    ["diff", "--binary", "--full-index", "--no-ext-diff"],
     "buffer",
   ) as Buffer;
   const stagedPatch = git(
     record.worktreePath,
-    ["diff", "--cached", "--binary", "--no-ext-diff"],
+    ["diff", "--cached", "--binary", "--full-index", "--no-ext-diff"],
     "buffer",
   ) as Buffer;
   const changed = new Set([
@@ -814,4 +814,47 @@ export function reconcileMissingResource({
 
 export function resourceName(resource: CandidateInventoryResource): string {
   return basename(resource.worktreePath);
+}
+
+export function reconcileCandidateOwnerRoot({
+  record,
+  expectedVersion,
+  ownerRoot,
+  actor,
+  rationale,
+  env = process.env,
+}: {
+  record: CandidateLifecycleRecord;
+  expectedVersion: number;
+  ownerRoot: string;
+  actor: string;
+  rationale: string;
+  env?: NodeJS.ProcessEnv;
+}): CandidateLifecycleRecord {
+  if (!actor.trim() || !rationale.trim())
+    throw new Error("owner-root reconciliation requires actor and rationale");
+  if (!existsSync(record.worktreePath))
+    throw new Error("cannot reconcile owner root for missing worktree");
+  const ownerRealPath = realpathSync(ownerRoot);
+  const worktreeRealPath = realpathSync(record.worktreePath);
+  if (ownerRealPath === worktreeRealPath || ownerRealPath.startsWith(`${worktreeRealPath}${sep}`)) {
+    throw new Error("durable owner root cannot be the candidate worktree");
+  }
+  const ownerCommonRaw = String(git(ownerRealPath, ["rev-parse", "--git-common-dir"])).trim();
+  const worktreeCommonRaw = String(git(worktreeRealPath, ["rev-parse", "--git-common-dir"])).trim();
+  const ownerCommonDir = realpathSync(resolve(ownerRealPath, ownerCommonRaw));
+  const worktreeCommonDir = realpathSync(resolve(worktreeRealPath, worktreeCommonRaw));
+  if (ownerCommonDir !== worktreeCommonDir) {
+    throw new Error("owner root and candidate worktree do not share a Git common directory");
+  }
+  return updateLifecycleRecord({
+    resourceId: record.resourceId,
+    expectedVersion,
+    event: "owner_root_reconciled",
+    env,
+    mutate(current) {
+      current.repoRoots = [ownerRealPath];
+      return current;
+    },
+  });
 }

@@ -12,6 +12,7 @@ import {
   inventoryCandidatePeerResources,
   migrateCandidateInventory,
   readLifecycleRecord,
+  reconcileCandidateOwnerRoot,
   reconcileMissingResource,
   unresolvedReviewBlockers,
   updateLifecycleRecord,
@@ -34,6 +35,7 @@ commands:
   authorize --resource ID --input PATH
   cleanup --resource ID
   reconcile-missing --resource ID --input PATH
+  reconcile-owner-root --resource ID --owner-root PATH --input PATH
 
 All mutations use owner-only lifecycle state, resource locks, and resourceVersion CAS.
 V1 cleanup packets remain permanently non-executable.`);
@@ -133,7 +135,7 @@ if (command === "inventory") {
     current.reviewSnapshot,
     input.discardIgnoredPaths,
   );
-  if (unresolvedBlockers.length > 0)
+  if (input.disposition !== "deferred" && unresolvedBlockers.length > 0)
     throw new Error(`review blockers prevent disposition: ${unresolvedBlockers.join(",")}`);
   const receipt = createDispositionReceipt({
     ...input,
@@ -213,6 +215,20 @@ if (command === "inventory") {
   );
 } else if (command === "cleanup") {
   output(executeAuthorizedCandidateCleanup({ resourceId: required(options, "resource"), env }));
+} else if (command === "reconcile-owner-root") {
+  const resourceId = required(options, "resource");
+  const current = readLifecycleRecord(resourceId, env);
+  const input = inputJson(options);
+  output(
+    reconcileCandidateOwnerRoot({
+      record: current,
+      expectedVersion: current.resourceVersion,
+      ownerRoot: required(options, "owner-root"),
+      actor: input.actor,
+      rationale: input.rationale,
+      env,
+    }),
+  );
 } else if (command === "reconcile-missing") {
   const resourceId = required(options, "resource");
   const current = readLifecycleRecord(resourceId, env);

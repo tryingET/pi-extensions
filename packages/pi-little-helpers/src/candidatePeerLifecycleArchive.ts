@@ -287,15 +287,27 @@ export function createRestorationVerifiedArchive({
     writePrivate(join(stage, "payload.paths.z"), pathBuffer(preserve));
     writePrivate(
       join(stage, "diff.patch"),
-      run("git", ["-C", record.worktreePath, "diff", "--binary", "--no-ext-diff"], {
+      run("git", ["-C", record.worktreePath, "diff", "--binary", "--full-index", "--no-ext-diff"], {
         encoding: null,
       }) as Buffer,
     );
     writePrivate(
       join(stage, "staged.diff.patch"),
-      run("git", ["-C", record.worktreePath, "diff", "--cached", "--binary", "--no-ext-diff"], {
-        encoding: null,
-      }) as Buffer,
+      run(
+        "git",
+        [
+          "-C",
+          record.worktreePath,
+          "diff",
+          "--cached",
+          "--binary",
+          "--full-index",
+          "--no-ext-diff",
+        ],
+        {
+          encoding: null,
+        },
+      ) as Buffer,
     );
     run("tar", [
       "-C",
