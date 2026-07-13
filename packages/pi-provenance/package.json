@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-provenance",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi assistant-message/session provenance helpers for source-owned runtime evidence",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
