@@ -12,7 +12,7 @@
   "packages/pi-interaction/pi-interaction": "0.3.0",
   "packages/pi-interaction/pi-interaction-kit": "0.2.0",
   "packages/pi-interaction/pi-runtime-registry": "0.2.0",
-  "packages/pi-interaction/pi-trigger-adapter": "0.1.0",
+  "packages/pi-interaction/pi-trigger-adapter": "0.2.0",
   "packages/pi-little-helpers": "0.4.0",
   "packages/pi-model-selection": "0.2.0",
   "packages/pi-modes": "0.2.0",

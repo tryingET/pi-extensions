@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-trigger-adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Trigger broker and picker registration adapter for pi-interaction runtime",
   "type": "module",
   "main": "./index.js",
