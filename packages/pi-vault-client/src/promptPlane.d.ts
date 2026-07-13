@@ -1,3 +1,6 @@
+import type { DispatchPostureResult } from "./dispatchPosture.js";
+import type { DispatchAuthorizationV1, VaultDispatchRuntime } from "./dispatchRuntime.js";
+
 export interface PromptPlaneExecutionContext {
   cwd?: string;
   currentCompany?: string;
@@ -50,6 +53,7 @@ export interface PreparedPromptPlaneCandidate {
   };
   prepared_text?: string;
   blocking_reason?: string;
+  dispatch?: DispatchPostureResult;
   render?: {
     engine?: string;
     explicit_engine?: string | null;
@@ -57,6 +61,22 @@ export interface PreparedPromptPlaneCandidate {
     used_render_keys?: string[];
   };
 }
+
+export type PreparedPromptPlaneCandidateV2 =
+  | {
+      ok: true;
+      status: "text_ready" | "dispatch_required";
+      selection_mode: "exact" | "picker-fallback";
+      template: NonNullable<PreparedPromptPlaneCandidate["template"]>;
+      authorization: Exclude<DispatchAuthorizationV1, { disposition: "blocked" }>;
+      prepared_text?: string;
+    }
+  | {
+      ok: false;
+      status: "ambiguous" | "blocked";
+      blocking_reason: string;
+      authorization?: Extract<DispatchAuthorizationV1, { disposition: "blocked" }>;
+    };
 
 export interface PromptPlaneTemplateListRequest {
   filters?: {
@@ -96,6 +116,14 @@ export interface VaultPromptPlaneRuntime {
     envelope: VaultContinuationEnvelopeV1,
     ctx?: PromptPlaneExecutionContext,
   ): Promise<PreparedPromptPlaneCandidate>;
+  prepareSelectionV2(
+    request: PromptSelectionRequest,
+    ctx?: PromptPlaneExecutionContext,
+  ): Promise<PreparedPromptPlaneCandidateV2>;
+  prepareContinuationV2(
+    envelope: VaultContinuationEnvelopeV1,
+    ctx?: PromptPlaneExecutionContext,
+  ): Promise<PreparedPromptPlaneCandidateV2>;
   listVisibleTemplates(
     request?: PromptPlaneTemplateListRequest,
     ctx?: PromptPlaneExecutionContext,
@@ -112,11 +140,15 @@ export interface VaultPromptPlaneTemplate {
   owner_company: string;
   visibility_companies: string[];
   controlled_vocabulary: Record<string, unknown> | null;
+  status?: string;
+  export_to_pi?: boolean;
+  render_engine?: string | null;
   version?: number;
   id?: number;
 }
 
 export interface VaultPromptPlaneRuntimeOptions {
+  dispatchRuntime?: VaultDispatchRuntime;
   runtime?: {
     resolveCurrentCompanyContext: (cwd?: string) => { company: string; source: string };
     getTemplateDetailed: (

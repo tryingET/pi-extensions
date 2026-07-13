@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createVaultDispatchRuntime } from "../src/dispatchRuntime.js";
 import {
   registerPromptEvaluatorCommands,
   registerPromptEvaluatorTool,
@@ -24,8 +25,9 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
   unregisterVaultCapabilityBridges();
 
   const vaultRuntime = createVaultRuntime();
+  const dispatchRuntime = createVaultDispatchRuntime({ runtime: vaultRuntime });
   const receiptManager = createVaultReceiptManager(vaultRuntime);
-  const pickerRuntime = createPickerRuntime(vaultRuntime, receiptManager);
+  const pickerRuntime = createPickerRuntime(vaultRuntime, receiptManager, dispatchRuntime);
   const groundingRuntime = createGroundingRuntime(vaultRuntime);
   const runtime = {
     ...vaultRuntime,
@@ -36,7 +38,7 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
   const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();
 
   registerVaultDiagnosticsTool(pi, vaultRuntime);
-  registerVaultCommands(pi, runtime, receiptManager);
+  registerVaultCommands(pi, runtime, receiptManager, dispatchRuntime);
 
   if (!schemaReport.ok) {
     const details = [

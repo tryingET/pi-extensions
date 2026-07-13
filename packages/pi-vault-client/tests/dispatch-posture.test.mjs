@@ -9,14 +9,15 @@ import { describe, it } from "node:test";
 import {
   checkProjectionFreshness,
   classifyDispatchPosture,
+  createDispatchPolicy,
   formatDispatchPosture,
   formatProjectionFreshness,
   getKnownLoopBindings,
   isOrchestratorGateRequired,
   isTextOk,
   registerLoopBinding,
-} from "../src/dispatchPosture.ts";
-import { createVaultDispatchRuntime } from "../src/dispatchRuntime.ts";
+} from "../src/dispatchPosture.js";
+import { createVaultDispatchRuntime } from "../src/dispatchRuntime.js";
 
 // ---------------------------------------------------------------------------
 // classifyDispatchPosture
@@ -185,41 +186,38 @@ describe("formatDispatchPosture", () => {
 // ---------------------------------------------------------------------------
 
 describe("loop binding registry", () => {
-  it("returns known bindings as a copy", () => {
+  it("returns deeply frozen bindings", () => {
     const bindings = getKnownLoopBindings();
-    assert.ok(bindings["transcendent-iteration"]);
-    assert.ok(bindings["ooda"]);
-
-    // Mutating the returned object should not affect the registry
-    const before = Object.keys(bindings).length;
-    bindings["test-entry"] = {
-      execution_required: true,
-      execution_surface: "loop_execute",
-      execution_args: { loop: "test" },
-      on_missing_binding: "fail_closed",
-    };
-    const after = getKnownLoopBindings();
-    assert.equal(Object.keys(after).length, before);
+    assert.ok(Object.isFrozen(bindings));
+    assert.ok(Object.isFrozen(bindings["transcendent-iteration"]));
+    assert.ok(Object.isFrozen(bindings["transcendent-iteration"].execution_args));
+    assert.throws(() => {
+      bindings["transcendent-iteration"].execution_args.loop = "mutated";
+    }, TypeError);
+    assert.equal(
+      getKnownLoopBindings()["transcendent-iteration"].execution_args.loop,
+      "transcendent",
+    );
   });
 
-  it("allows registering new bindings at runtime", () => {
-    registerLoopBinding("test-loop-binding", {
-      execution_required: true,
-      execution_surface: "loop_execute",
-      execution_args: { loop: "test-loop" },
-      on_missing_binding: "fail_closed",
-    });
-    const result = classifyDispatchPosture({
-      name: "test-loop-binding",
-      control_mode: "loop",
-      formalization_level: "workflow",
-    });
-    assert.equal(result.posture, "orchestrator_loop_required");
-    assert.equal(result.binding.execution_args.loop, "test-loop");
-
-    // Clean up
-    const bindings2 = getKnownLoopBindings();
-    delete bindings2["test-loop-binding"];
+  it("rejects runtime registration and supports immutable constructed policies", () => {
+    assert.throws(() => registerLoopBinding("test-loop-binding", {}), /immutable/);
+    const input = {
+      custom: {
+        execution_required: true,
+        execution_surface: "loop_execute",
+        execution_args: { loop: "custom" },
+        on_missing_binding: "fail_closed",
+      },
+    };
+    const policy = createDispatchPolicy({ ontologyContractVersion: "test-v1", bindings: input });
+    input.custom.execution_args.loop = "mutated";
+    const result = classifyDispatchPosture(
+      { name: "custom", control_mode: "loop", formalization_level: "structured" },
+      policy,
+    );
+    assert.equal(result.binding.execution_args.loop, "custom");
+    assert.ok(Object.isFrozen(result.binding));
   });
 });
 
@@ -326,7 +324,7 @@ describe("createVaultDispatchRuntime", () => {
       },
       queryVaultJsonDetailed(sql) {
         assert.match(sql, /status = 'active'/);
-        assert.doesNotMatch(sql, /export_to_pi = true/);
+        assert.match(sql, /export_to_pi = true/);
         return { ok: true, value: { rows }, error: null };
       },
       parseTemplateRows(result) {
@@ -349,21 +347,23 @@ describe("createVaultDispatchRuntime", () => {
     };
   }
 
-  it("checks active visible templates without requiring export_to_pi=true", async () => {
+  it("checks only active visible export-eligible templates", async () => {
     const runtime = createVaultDispatchRuntime({
       runtime: createFakeRuntime([
         {
           id: 1,
           name: "ooda",
           description: "OODA",
-          content: "",
+          content: "OODA content",
+          render_engine: "none",
           artifact_kind: "procedure",
           control_mode: "loop",
           formalization_level: "workflow",
           owner_company: "core",
           visibility_companies: ["core", "software"],
+          controlled_vocabulary: null,
           status: "active",
-          export_to_pi: false,
+          export_to_pi: true,
           version: 1,
         },
       ]),

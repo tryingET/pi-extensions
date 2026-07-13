@@ -100,6 +100,9 @@ async function withCommandModules(run) {
       files: [
         "src/vaultTypes.ts",
         "src/doltDiagnostics.ts",
+        "src/dispatchGuard.ts",
+        "src/dispatchPosture.ts",
+        "src/dispatchRuntime.ts",
         "src/vaultCommands.ts",
         "src/vaultReceipts.ts",
         "src/vaultReplay.ts",
@@ -110,6 +113,10 @@ async function withCommandModules(run) {
         "src/templatePreparationCompat.js",
         "src/templateRenderer.js",
       ],
+      moduleStubs: {
+        "src/vaultDb.js":
+          'export function createVaultRuntime() { throw new Error("test runtime must be injected"); }\n',
+      },
       linkedPackages: [
         {
           packageName: "@tryinget/pi-interaction-kit",
@@ -121,8 +128,42 @@ async function withCommandModules(run) {
         },
       ],
     },
-    run,
+    async (harness) => {
+      const dispatchModule = await harness.importStableModule("src/dispatchRuntime.js");
+      return run({
+        ...harness,
+        makeDispatchRuntime: () => makeDispatchRuntime(dispatchModule),
+      });
+    },
   );
+}
+
+function makeDispatchRuntime(dispatchModule) {
+  let rows = [];
+  const deps = {
+    resolveCurrentCompanyContext() {
+      return { company: "software", source: "test" };
+    },
+    escapeSql(value) {
+      return String(value).replaceAll("'", "''");
+    },
+    buildVisibilityPredicate() {
+      return "TRUE";
+    },
+    queryVaultJsonDetailed() {
+      return { ok: true, value: { rows } };
+    },
+    parseTemplateRows() {
+      return rows;
+    },
+  };
+  const runtime = dispatchModule.createVaultDispatchRuntime({ runtime: deps });
+  const authorize = runtime.authorizePreparedExecution.bind(runtime);
+  runtime.authorizePreparedExecution = (request) => {
+    rows = request.templates;
+    return authorize(request);
+  };
+  return runtime;
 }
 
 function makePiStub() {
@@ -141,8 +182,10 @@ function makePiStub() {
 }
 
 test("live /vault: exact-name path transforms in non-UI mode without picker fallback", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const { createVaultReceiptManager } = await importModule("src/vaultReceipts.js");
     const pi = makePiStub();
     const template = makeTemplate();
@@ -237,9 +280,71 @@ test("live /vault: exact-name path transforms in non-UI mode without picker fall
   });
 });
 
+test("gated /vault input never releases raw prepared text", async () => {
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
+    const pi = makePiStub();
+    const template = makeTemplate({
+      name: "transcendent-iteration",
+      control_mode: "loop",
+      formalization_level: "workflow",
+    });
+    registerVaultCommands(pi, {
+      checkSchemaCompatibilityDetailed() {
+        return {
+          ok: true,
+          expectedVersion: 9,
+          actualVersion: 9,
+          missingPromptTemplateColumns: [],
+          missingExecutionColumns: [],
+          missingFeedbackColumns: [],
+        };
+      },
+      parseVaultSelectionInput(text) {
+        return text.startsWith("/vault:") ? { query: text.slice(7), context: "" } : null;
+      },
+      getCurrentCompany() {
+        return "software";
+      },
+      getTemplateDetailed() {
+        return { ok: true, value: template, error: null };
+      },
+      async pickVaultTemplate() {
+        throw new Error("picker should not run");
+      },
+      prepareVaultPrompt() {
+        return {
+          ok: true,
+          engine: "none",
+          explicitEngine: null,
+          body: "loop bytes",
+          hasFrontmatter: false,
+          error: null,
+          rendered: "loop bytes",
+          prepared: "loop bytes",
+          renderContext: {},
+          usedRenderKeys: [],
+          contextAppended: false,
+        };
+      },
+    });
+    const result = await pi.events.get("input")(
+      { source: "extension", text: "/vault:transcendent-iteration" },
+      { hasUI: false, cwd: "/tmp/software/project" },
+    );
+    assert.equal(result.action, "transform");
+    assert.match(result.text, /^BLOCKED:/);
+    assert.doesNotMatch(result.text, /loop bytes/);
+  });
+});
+
 test("bare /vault fails closed in non-UI mode instead of auto-selecting a template", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
 
     registerVaultCommands(pi, {
@@ -276,8 +381,10 @@ test("bare /vault fails closed in non-UI mode instead of auto-selecting a templa
 });
 
 test("message_end warns when a prepared vault prompt was edited before send", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const { createVaultReceiptManager } = await importModule("src/vaultReceipts.js");
     const pi = makePiStub();
     const template = makeTemplate();
@@ -388,8 +495,10 @@ test("message_end warns when a prepared vault prompt was edited before send", as
 });
 
 test("interactive /vault command loads exact-name templates into the editor", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const { createVaultReceiptManager } = await importModule("src/vaultReceipts.js");
     const pi = makePiStub();
     const template = makeTemplate();
@@ -501,8 +610,10 @@ test("interactive /vault command loads exact-name templates into the editor", as
 });
 
 test("vault command surface degrades to schema diagnostics instead of disappearing on mismatch", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
     const notifications = [];
 
@@ -542,8 +653,10 @@ test("vault command surface degrades to schema diagnostics instead of disappeari
 });
 
 test("interactive /route prepares meta-orchestration through the shared vault renderer", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
     const editorWrites = [];
     const prepareCalls = [];
@@ -607,8 +720,10 @@ test("interactive /route prepares meta-orchestration through the shared vault re
 });
 
 test("non-UI /vault-search returns transformed company-visible results", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
 
     registerVaultCommands(pi, {
@@ -658,8 +773,10 @@ test("non-UI /vault-search returns transformed company-visible results", async (
 });
 
 test("bare non-UI /vault-search and /route return usage instead of falling through", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
 
     registerVaultCommands(pi, {
@@ -700,8 +817,10 @@ test("bare non-UI /vault-search and /route return usage instead of falling throu
 });
 
 test("vault receipt inspection commands respect current company visibility", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
     const notifications = [];
 
@@ -784,8 +903,10 @@ test("vault receipt inspection commands respect current company visibility", asy
 });
 
 test("vault replay command renders a deterministic replay report", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
     const template = makeTemplate({
       name: "replay-match",
@@ -866,8 +987,10 @@ test("vault replay command renders a deterministic replay report", async () => {
 });
 
 test("vault replay command treats non-visible receipts as missing in the current company context", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
     const notifications = [];
     const editors = [];
@@ -937,8 +1060,10 @@ test("vault replay command treats non-visible receipts as missing in the current
 });
 
 test("non-UI /route surfaces shared render failures instead of emitting raw template text", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
 
     registerVaultCommands(pi, {
@@ -983,8 +1108,10 @@ test("non-UI /route surfaces shared render failures instead of emitting raw temp
 });
 
 test("vault-check reports dolt temp environment diagnostics", async () => {
-  await withCommandModules(async ({ importModule }) => {
-    const { registerVaultCommands } = await importModule("src/vaultCommands.js");
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const registerVaultCommands = (pi, runtime, receipts) =>
+      vaultCommandsModule.registerVaultCommands(pi, runtime, receipts, makeDispatchRuntime());
     const pi = makePiStub();
     const editors = [];
     const notifications = [];
