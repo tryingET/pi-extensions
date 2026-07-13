@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/tmp/pi-vault-publish"
+commit: "6a82411a923d82a1399be9b804d2b4b716af05e8"
+created_at: "2026-07-13T02:20:34Z"
+intent: "Make pi-vault-client release validation self-contained with Prompt Vault-owned contract fixtures"
+files:
+  - "packages/pi-vault-client/tests/vault-dolt-integration.test.mjs"
+  - "packages/pi-vault-client/tests/vault-replay.test.mjs"
+  - "packages/pi-vault-client/tests/fixtures/prompt-vault/README.md"
+  - "packages/pi-vault-client/tests/fixtures/prompt-vault/schema/schema.sql"
+  - "packages/pi-vault-client/tests/fixtures/prompt-vault/ontology/company-visibility-contract.json"
+  - "packages/pi-vault-client/tests/fixtures/prompt-vault/ontology/controlled-vocabulary-contract.json"
+  - "packages/pi-vault-client/tests/fixtures/prompt-vault/ontology/v2-contract.json"
+validation:
+  fast_gate:
+    command: "npm pre-commit quality gate"
+    status: "pass"
+  full_gate:
+    command: "PI_ENGINEERING_SMOKE=0 npm run check && npm run release:check:quick"
+    status: "pass"
+links:
+  evidence_ids:
+    - 4322
