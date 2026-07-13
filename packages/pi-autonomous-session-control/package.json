@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-autonomous-session-control",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "pi extension package for autonomy-control workflows in pi",
   "type": "module",
   "exports": {
