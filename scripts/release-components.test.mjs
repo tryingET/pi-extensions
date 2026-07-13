@@ -9,6 +9,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "release-components.mjs");
 const WORKFLOW_PATH = path.join(ROOT, ".github", "workflows", "publish.yml");
+const RELEASE_PLEASE_WORKFLOW_PATH = path.join(
+  ROOT,
+  ".github",
+  "workflows",
+  "release-please.yml",
+);
 const RUNBOOK_PATH = path.join(
   ROOT,
   "packages",
@@ -101,6 +107,19 @@ test("release quality gate disables machine-local engineering-core smoke", () =>
   const step = workflowStep(workflow, "Run package quality gate");
   assert.match(step, /PI_ENGINEERING_SMOKE: "0"/);
   assert.match(step, /run: npm run check/);
+});
+
+test("release-please serializes release creation and dispatches created tags to publish", () => {
+  const workflow = fs.readFileSync(RELEASE_PLEASE_WORKFLOW_PATH, "utf8");
+  assert.match(workflow, /group: release-please-main/);
+  assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(workflow, /actions: write/);
+  assert.match(workflowStep(workflow, "Run release-please"), /id: release/);
+  const dispatch = workflowStep(workflow, "Dispatch npm publication for created releases");
+  assert.match(dispatch, /steps\.release\.outputs\.releases_created == 'true'/);
+  assert.match(dispatch, /PATHS_RELEASED: \$\{\{ steps\.release\.outputs\.paths_released \}\}/);
+  assert.match(dispatch, /gh release view "\$tag"/);
+  assert.match(dispatch, /gh workflow run publish\.yml[\s\S]*-f "tag=\$tag"/);
 });
 
 test("resolve-tag workflow guard sources same-step output and rejects a mismatched tag", () => {
