@@ -13,6 +13,41 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.3.0...pi-society-orchestrator-v0.4.0) (2026-07-13)
+
+
+### Features
+
+* add fail-closed loop continuation checkpoints ([de0c6b6](https://github.com/tryingET/pi-extensions/commit/de0c6b69f85c5632ae370233666a57adf1d395a8))
+* add matrix executor and self continuation ([35d0f6b](https://github.com/tryingET/pi-extensions/commit/35d0f6b993deadf25fe6ff73ece26410e9879df7))
+* adopt engineering-core package surfaces ([c4a28c1](https://github.com/tryingET/pi-extensions/commit/c4a28c12c6077ba5b17909bcde3354bb1249e8d0))
+* bind loop continuation to ASC effect receipts ([4b94648](https://github.com/tryingET/pi-extensions/commit/4b94648a2889c04809bd2e725f3f89aa1f5cd5ad))
+* **cleanup:** close exact candidate peer processes ([9f6a5b1](https://github.com/tryingET/pi-extensions/commit/9f6a5b11546e918ef80a076b5337212c2cdb5bcf))
+* **extensions:** harden runtime quality across packages ([1ff1eb0](https://github.com/tryingET/pi-extensions/commit/1ff1eb0cf10a3f8f60cf391ccf246b238951a848))
+* migrate pi extensions to pi 0.76 ([93dd0e0](https://github.com/tryingET/pi-extensions/commit/93dd0e0fdc9e23b0fc36661cc0e33972f365bf98))
+* **orchestrator:** add finalizer closeout receipt ([a3d0fea](https://github.com/tryingET/pi-extensions/commit/a3d0fea5f7851beda8477dc285968cf89487cf3b))
+* **orchestrator:** add Level-4 candidate closeout packet ([388ff27](https://github.com/tryingET/pi-extensions/commit/388ff27bf93780fc3bbec3d44a3c0b9dd0e6dfca))
+* **orchestrator:** expose Level-4 packet inventory ([e406b52](https://github.com/tryingET/pi-extensions/commit/e406b527d2c9552864ed89e1580b80b45ad57f7b))
+* **orchestrator:** forward model context to ASC subagent for child extension selection ([6c3c72a](https://github.com/tryingET/pi-extensions/commit/6c3c72a911a289168ddf7b245a5770825f13613b))
+* **orchestrator:** render discovery posture without active wave ([6e8b0b7](https://github.com/tryingET/pi-extensions/commit/6e8b0b7dc8e8dd3a1e128b33b561458e7c721578))
+* **orchestrator:** route Level-4 cleanup to cleanup tool ([7d4413c](https://github.com/tryingET/pi-extensions/commit/7d4413ce8d17150dc874170d872cf9f503f4c60d))
+* **orchestrator:** surface cleanup registry status ([2c6aa22](https://github.com/tryingET/pi-extensions/commit/2c6aa2264213571b33074eee6f64ca4e96c5257a))
+* **orchestrator:** surface Level-4 cleanup closeout packet ([b629c6c](https://github.com/tryingET/pi-extensions/commit/b629c6cc5f2375d6a19b7eb45a16822b9cfaeb73))
+* **orchestrator:** surface post-fan-in promotion handoff ([82074cf](https://github.com/tryingET/pi-extensions/commit/82074cf8d83370a0aaf16591016bba8ed8ab778c))
+* **orchestrator:** validate candidate peer registry cleanup ([75708d5](https://github.com/tryingET/pi-extensions/commit/75708d544d1dcd5edd641713e10831ee026fd6ed))
+* prune loop checkpoints after seven days ([caeda34](https://github.com/tryingET/pi-extensions/commit/caeda34ebd9ae80cfb3c45121397149b47081c02))
+* retry provable pre-spawn loop failures ([7382b10](https://github.com/tryingET/pi-extensions/commit/7382b10b779f743bf5b880241aa3842cd9146851))
+
+
+### Bug Fixes
+
+* align extension runtimes with Pi 0.80 ([1702c25](https://github.com/tryingET/pi-extensions/commit/1702c25f9d31bf4f619fdaa6f7a7f898ca5ee48e))
+* enforce workflow concurrency and cancellation ([df146d3](https://github.com/tryingET/pi-extensions/commit/df146d3c7089b48d69bb181184b0269b9b7275f3))
+* **orchestrator:** emit safe candidate peer lane names ([172d7a4](https://github.com/tryingET/pi-extensions/commit/172d7a4fe3084045fcacdd5ed3dedde4ae81b9fb))
+* **orchestrator:** fail closed on missing cognitive tools ([33e2329](https://github.com/tryingET/pi-extensions/commit/33e2329f14426f884661f3f0b189274f8760ee23))
+* **orchestrator:** gate level4 cleanup packets on exact ids ([9b8dd57](https://github.com/tryingET/pi-extensions/commit/9b8dd57eff7f99f46d904c3980b8a7b5b0b3f291))
+* **release:** harden publish workflow package checks ([a55740c](https://github.com/tryingET/pi-extensions/commit/a55740cd55c2e6bfff84968de2793460db5e7acb))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.2.0...pi-society-orchestrator-v0.3.0) (2026-07-11)
 
 
