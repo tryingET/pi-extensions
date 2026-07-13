@@ -1,0 +1,71 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "7e6d4dace9706e016c56d6c5a7efb8b5a23faeaf"
+created_at: "2026-07-13T02:00:00Z"
+intent: "Enforce fail-closed Prompt Vault dispatch authorization across package ingresses"
+files:
+  - "packages/pi-vault-client/README.md"
+  - "packages/pi-vault-client/docs/adr/2026-07-12-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-evidence-note-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-plan-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-problem-brief-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-rereview-2-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-rereview-3-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-review-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-rfc-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/docs/project/2026-07-12-validation-rollout-rollback-fail-closed-dispatch-enforcement.md"
+  - "packages/pi-vault-client/extensions/vault.js"
+  - "packages/pi-vault-client/extensions/vault.ts"
+  - "packages/pi-vault-client/package.json"
+  - "packages/pi-vault-client/scripts/check-generated-runtime-clean.mjs"
+  - "packages/pi-vault-client/scripts/release-smoke.sh"
+  - "packages/pi-vault-client/src/dispatchGuard.d.ts"
+  - "packages/pi-vault-client/src/dispatchGuard.js"
+  - "packages/pi-vault-client/src/dispatchGuard.ts"
+  - "packages/pi-vault-client/src/dispatchPosture.d.ts"
+  - "packages/pi-vault-client/src/dispatchPosture.js"
+  - "packages/pi-vault-client/src/dispatchPosture.ts"
+  - "packages/pi-vault-client/src/dispatchRuntime.d.ts"
+  - "packages/pi-vault-client/src/dispatchRuntime.js"
+  - "packages/pi-vault-client/src/dispatchRuntime.ts"
+  - "packages/pi-vault-client/src/promptPlane.d.ts"
+  - "packages/pi-vault-client/src/promptPlane.js"
+  - "packages/pi-vault-client/src/promptPlane.ts"
+  - "packages/pi-vault-client/src/vaultCommands.js"
+  - "packages/pi-vault-client/src/vaultCommands.ts"
+  - "packages/pi-vault-client/src/vaultGrounding.js"
+  - "packages/pi-vault-client/src/vaultGrounding.ts"
+  - "packages/pi-vault-client/src/vaultPicker.js"
+  - "packages/pi-vault-client/src/vaultPicker.ts"
+  - "packages/pi-vault-client/src/vaultTools.js"
+  - "packages/pi-vault-client/src/vaultTools.ts"
+  - "packages/pi-vault-client/src/vaultTypes.ts"
+  - "packages/pi-vault-client/tests/dispatch-authorization.test.mjs"
+  - "packages/pi-vault-client/tests/dispatch-guard.test.mjs"
+  - "packages/pi-vault-client/tests/dispatch-packed-contract.test.mjs"
+  - "packages/pi-vault-client/tests/dispatch-posture.test.mjs"
+  - "packages/pi-vault-client/tests/dispatch-projection-receipt.test.mjs"
+  - "packages/pi-vault-client/tests/helpers/transpiled-module-harness.mjs"
+  - "packages/pi-vault-client/tests/prompt-plane.test.mjs"
+  - "packages/pi-vault-client/tests/vault-commands.test.mjs"
+  - "packages/pi-vault-client/tests/vault-live-trigger-contract.test.mjs"
+  - "packages/pi-vault-client/tests/vault-query-regression.test.mjs"
+validation:
+  fast_gate:
+    command: "cd packages/pi-vault-client && npm run check"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-vault-client && npm run release:check"
+    status: "pass"
+links:
+  task_ids:
+    - 3847
+    - 3848
+    - 3849
+  evidence_ids:
+    - 4319
+    - 4320
+    - 4322
+    - 4323
