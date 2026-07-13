@@ -13,6 +13,22 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-designmd-foundry-v0.1.0...pi-designmd-foundry-v0.2.0) (2026-07-13)
+
+
+### Features
+
+* adopt engineering-core package surfaces ([c4a28c1](https://github.com/tryingET/pi-extensions/commit/c4a28c12c6077ba5b17909bcde3354bb1249e8d0))
+* **designmd:** expose visual-dossier Pi critique handoff ([6d8e4aa](https://github.com/tryingET/pi-extensions/commit/6d8e4aab40971e5de66fbec13f1724efdd32b6b9))
+* **engineering-core:** add engineering-lane.json and update docs/engineering.local.md with catalog recognition, build-graph-acceleration, and designmd-foundry disciplines ([f87cc91](https://github.com/tryingET/pi-extensions/commit/f87cc9191e23653504272bcd4e40b1eb92f66463))
+* **extensions:** harden runtime quality across packages ([1ff1eb0](https://github.com/tryingET/pi-extensions/commit/1ff1eb0cf10a3f8f60cf391ccf246b238951a848))
+* migrate pi extensions to pi 0.76 ([93dd0e0](https://github.com/tryingET/pi-extensions/commit/93dd0e0fdc9e23b0fc36661cc0e33972f365bf98))
+
+
+### Bug Fixes
+
+* align extension runtimes with Pi 0.80 ([1702c25](https://github.com/tryingET/pi-extensions/commit/1702c25f9d31bf4f619fdaa6f7a7f898ca5ee48e))
+
 ## [0.1.0] - 2026-02-08
 
 ### Added
