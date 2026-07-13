@@ -6,10 +6,10 @@ read_when:
 type: "rfc"
 status: "proposed"
 system4d:
-  container: "Candidate-peer lifecycle control in pi-little-helpers and pi-society-orchestrator."
+  container: "Candidate-peer lifecycle control in pi-little-helpers with owner-review and orchestrator handoff boundaries."
   compass: "Every candidate receives owner review and a terminal disposition without silent promotion or data loss."
-  engine: "inventory -> review -> disposition -> integration proof when accepted -> lossless archive -> exact cleanup -> terminal receipt."
-  fog: "Registry metadata is operational state, not AK evidence or promotion authority."
+  engine: "inventory -> review -> disposition -> integration proof when accepted -> lossless archive -> exact cleanup authorization -> terminal receipt."
+  fog: "Operational lifecycle records enforce cleanup safety; they are not AK evidence or promotion authority."
 ---
 
 # RFC: Candidate peer lifecycle v2
@@ -22,131 +22,220 @@ This is a lifecycle-model failure:
 
 - reused worktrees create several cleanup owners for one physical resource;
 - registry v1 stores launch state but no review disposition or terminal state;
-- cleanup archives omit untracked file bytes and can therefore destroy the only copy of candidate work;
+- historical cleanup archives omitted untracked file bytes and verified loss occurred;
 - ignored files have no explicit preserve/discard decision;
-- process termination happened before archive capture;
-- cleanup accepts an unbound `integrationCloseoutStatus: successful` assertion;
+- cleanup accepted an unbound `integrationCloseoutStatus: successful` assertion;
 - `repoRoot` can point at a transient linked worktree or `/tmp` checkout;
-- no inventory/pressure gate forces fan-in before more candidates are spawned.
+- no inventory/admission gate forces fan-in before more candidates are spawned.
 
-The complete reviewed census is in [candidate-peer-lifecycle-reconciliation.md](2026-07-13-candidate-peer-lifecycle-reconciliation.md).
+The reviewed census is [candidate-peer-lifecycle-reconciliation.md](2026-07-13-candidate-peer-lifecycle-reconciliation.md).
 
 ## Decision requested
 
-Adopt one resource-level lifecycle for candidate worktrees while retaining peer-run attempts as communication lineage.
+Adopt one resource-level lifecycle for candidate worktrees while retaining peer-run attempts as communication lineage. Permanently quarantine v1 cleanup packets from execution. Promotion, integration, disposition, archive, and cleanup remain separate operations.
 
-### Resource identity
+## Owner and authority matrix
 
-A candidate resource is identified on the current machine by the canonical real path of `git rev-parse --git-common-dir`, the canonical real worktree path, branch, and initial base commit. Multiple `peerRunId` attempts may bind to one resource but may not independently own cleanup.
+| Concern | Canonical owner | Lifecycle v2 role |
+|---|---|---|
+| Worktree creation, resource record, lock, archive verification, exact removal | `pi-little-helpers` | Owns local operational enforcement and receipts. |
+| Candidate quality review and disposition | operator/controller acting for the target owner repo | Supplies a signed/hash-bound owner assertion; peer text alone is insufficient. |
+| Target branch, validation, integration commit, accepted-scope coverage | target repository owner | Produces exact integration proof. |
+| Fan-in routing and cleanup handoff projection | `pi-society-orchestrator` | May request/transport typed artifacts; cannot manufacture disposition or authorization. |
+| Task, decision, evidence, lineage | AK | Stores canonical work authority and references when intentionally recorded; does not own worktree bytes. |
+| Peer report and session state | intercom/Pi | Communication and activity hints only. |
 
-The lifecycle record also stores the repository's initial/root commit and normalized configured remotes as relocation evidence. Relocation never silently changes identity: an owner must explicitly reconcile a moved clone before cleanup. The durable owner checkout must resolve outside the generated candidate-worktree root and remain in the same Git common directory. A linked candidate worktree or temporary checkout must not become the owner root.
+`pi-little-helpers` enforces owner assertions but does not become acceptance, promotion, AK, KES, publication, or product-direction authority.
 
-### States
+## Immutable resource identity and generations
 
-```text
-open -> final_reported -> review_pending
+On first candidate creation, `pi-little-helpers` assigns a random immutable `candidateResourceId`. Every physical worktree incarnation receives an immutable `generationId`. Reuse adds a peer-run alias to the same resource/generation; removal followed by recreation at the same path creates a new generation.
 
-review_pending -> deferred -> review_pending
-review_pending -> reconciled_missing       (terminal; no archive/cleanup)
-review_pending -> accepted | rejected | superseded
-accepted | rejected | superseded -> archive_verified
-archive_verified -> cleanup_authorized -> cleaned
-```
+Identity fields:
 
-No transition implies promotion, merge, AK evidence, publication, or deletion.
+- `candidateResourceId` and `generationId` are immutable primary identity;
+- peer-run ids are attempt aliases, never cleanup owners;
+- canonical real paths of the worktree and `git rev-parse --git-common-dir` are verification observations;
+- repository root commit and normalized configured remotes are relocation evidence;
+- branch, base, HEAD, worktree path, owner-root locator, and status are mutable versioned observations, not identity.
 
-### Review binding
+The durable owner checkout must be outside the generated candidate-worktree root and use the same Git common directory. Relocation or remote/path drift requires an explicit owner reconciliation transition. A missing path is never assumed deleted or disposable.
 
-A disposition binds:
+## Resource lock and versioning
 
-- candidate resource id;
-- every peer-run alias;
-- repository identity and owner root;
-- branch, base, reviewed HEAD;
-- tracked-status/diff digest;
-- untracked and ignored path manifests;
+All spawn/reuse, review capture, archive, authorization, cleanup, and reconciliation operations use an exclusive resource lock plus compare-and-swap `resourceVersion`.
+
+- First spawn/admission uses a repository-level admission lock so resource creation and pressure accounting are atomic.
+- The resource lock is created atomically beneath the owner-only lifecycle state root.
+- The lease binds resource/generation, operation, process id plus process-start identity, Pi session when available, actor, acquisition time, and bounded expiry.
+- Ordinary expiry does not authorize breaking a lease. Stale recovery is a separate owner action that proves process-start/session mismatch, records the prior lease, increments `resourceVersion`, and emits a recovery receipt.
+- Destructive execution reacquires the lock and revalidates every bound digest immediately before each effect.
+- Any concurrent alias, review, content, ref, archive, authorization, or relocation change invalidates the operation.
+
+## Normative states and transitions
+
+| From | Event | To | Required effect/evidence |
+|---|---|---|---|
+| — | spawn admitted | `open` | Create resource/generation under lock; reserve pressure budget. |
+| `open` | launch fails, peer exits, or no final report | `review_pending` | Owner may force review; `PEER_FINAL` is not required. |
+| `open` | peer final observed | `final_reported` | Communication receipt only. |
+| `final_reported` | owner begins review | `review_pending` | Capture review snapshot. |
+| `review_pending` | owner defers | `deferred` | Reason and review date; no cleanup eligibility. |
+| `deferred` | owner resumes or drift occurs | `review_pending` | New review snapshot required. |
+| `review_pending` | owner accepts/rejects/supersedes | `accepted` / `rejected` / `superseded` | Immutable disposition assertion bound to reviewed content. |
+| any nonterminal pre-cleanup state | bound content/ref/alias drift | `review_pending` | Revoke disposition, proof, archive, and authorization descendants. |
+| any nonterminal state before the first cleanup effect | resource appears missing | `missing_investigation` | Run absence/recoverability checks; do not infer loss. |
+| `missing_investigation` | resource rediscovered/relocated | `review_pending` | Explicit reconciliation and fresh review. |
+| `missing_investigation` | owner confirms absence | `reconciled_missing` | Terminal receipt records recoverable/lost material; release active reservation and retain historical loss accounting. |
+| `accepted` | target owner proves integration | `integration_verified` | Exact target commit and coverage proof. |
+| `rejected` / `superseded` | archive requested | `archive_pending` | No integration proof required. |
+| `integration_verified` | archive requested | `archive_pending` | Accepted scope/exclusions carried forward. |
+| `archive_pending` | verified archive atomically published | `archive_verified` | Archive digest and restoration verification. |
+| `archive_verified` | owner issues exact authorization | `cleanup_authorized` | Separate immutable authorization with expiry. |
+| `cleanup_authorized` | one or more cleanup effects succeed but sequence incomplete | `cleanup_partial` | Receipt for every attempted effect; retain retry/rollback data. |
+| `cleanup_authorized` / `cleanup_partial` | exact authorized sequence completes | `cleaned` | Terminal receipt; pressure reservation released. |
+| `cleanup_partial` | unchanged authorization remains valid and retry starts | `cleanup_partial` / `cleaned` | Probe and perform only remaining effects; never replay a proven effect. |
+| `cleanup_authorized` before any effect | expiry, revocation, or binding drift | `review_pending` | Append revocation receipt; no destructive effect occurred. |
+| `cleanup_partial` after a receipted effect | expiry, revocation, drift, or remaining-effect mismatch | `cleanup_partial_review` | Preserve completed-effect receipts; stop without pretending the removed worktree is unexpectedly missing. |
+| `cleanup_partial_review` with worktree still present | owner restarts review after content/ref drift | `review_pending` | Carry completed-effect receipts, revoke prior review/proof/archive/authorization lineage, and perform a fresh review/archive cycle; never target the same closed process identity again. |
+| `cleanup_partial_review` with worktree already removed and verified archive unchanged | owner reauthorizes exact remaining effects | `cleanup_partial` | Superseding authorization binds surviving refs/processes, prior receipts, verified archive, expiry, and new nonce. |
+| `cleanup_partial_review` | owner waives any remaining effects | `closed_with_retained_effects` | Terminal receipt names every retained worktree/branch/process resource and rationale; completed effects remain immutable. |
+
+Every mutation is append-receipted and compare-and-swap guarded. A partial sequence that only closed a process does not reuse the stale archive after worktree drift: the still-present worktree returns through fresh review, integration proof where applicable, and restoration-verified archive while retaining the prior process-effect receipt. If the worktree was already removed, only the unchanged verified archive and exact surviving refs can support remaining-effect reauthorization. `cleaned`, `closed_with_retained_effects`, and `reconciled_missing` are terminal and release active pressure reservations. Historical age/bytes/loss/retained-resource metrics remain in inventory without blocking new admission. Rediscovery after a missing terminal receipt creates a new generation linked to the reconciliation anomaly.
+
+## Review snapshot and disposition binding
+
+A review snapshot binds:
+
+- resource/generation, every peer alias, `resourceVersion`, repository identity observations;
+- branch, base, reviewed HEAD, index tree, tracked tree/diff digest;
+- for every staged, modified, untracked, and ignored object: NUL-safe path, object type, mode, size, symlink target without dereference, and content hash where a regular file is readable;
+- submodule/nested-repository/LFS-pointer classification;
 - reviewer/operator identity and timestamp;
-- rationale and validation references;
-- for `accepted`, the intended target branch and later exact integration proof.
+- rationale, selected scope/exclusions, and validation references.
 
-Any drift returns the resource to `review_pending`.
+Sockets, devices, out-of-root traversal, unreadable objects, nested repositories not explicitly handled, symlink escapes, and unsupported LFS material fail closed. Any byte/type/mode/path/ref/alias change revokes the disposition and downstream proof/authorization.
 
-### Archive contract
+A disposition is one of `accepted`, `rejected`, `superseded`, or `deferred`. Acceptance identifies the exact selected commit set or content scope; it never implicitly accepts the whole worktree.
 
-Archive publication is atomic and complete only when a verified manifest and completion marker exist. It contains:
+## Exact integration proof
 
-- every registry alias and lifecycle record;
-- branch bundle and HEAD/base metadata;
+Accepted cleanup requires a proof against an immutable target commit OID, never merely a branch name. The proof declares one or more accepted forms:
+
+1. **Commit inclusion:** every selected candidate commit is an ancestor of the exact target OID.
+2. **Patch equivalence:** selected commit patch ids and exact scoped path coverage match target commits; exclusions are explicit.
+3. **Squash/content coverage:** the normalized accepted tree delta for the declared path scope equals the target tree delta, with explicit exclusions and no candidate-only accepted bytes omitted.
+
+The target owner attaches validation references and an integration-proof digest. Target movement, candidate drift, changed scope/exclusions, or failed validation invalidates the proof. A proof can establish integration only; it cannot authorize cleanup.
+
+## Lossless archive contract
+
+Archive publication is owner-only (`0700` directories, `0600` files), atomic, and complete only when verification and byte-for-byte restoration pass.
+
+It contains:
+
+- lifecycle record and every peer-run alias;
+- disposition, integration proof when applicable, and review snapshot;
+- branch bundle and exact refs/OIDs;
 - tracked/staged binary diffs;
-- untracked file bytes with a NUL-safe path manifest;
-- ignored path inventory plus either archived bytes or explicit path-level discard authorization;
+- untracked bytes and, unless explicitly discarded by the owner, ignored bytes;
+- NUL-safe object manifests including type/mode/size/hash/symlink target;
+- explicit path-level discard assertions naming actor, rationale, and digest;
 - hashes for every archive object;
-- before/after capture checks proving the worktree did not drift.
+- before/after capture snapshots and verification output.
 
-Generated or ignored does not automatically mean disposable.
+Symlinks are archived as links and never dereferenced outside the worktree. Special files, traversal, live mutation, unsupported nested repositories/LFS state, or restoration mismatch block completion. Verification includes hashes, bundle validity, archive integrity, and restoration into an isolated directory whose manifest must match the reviewed archive scope byte-for-byte.
 
-### Cleanup gate
+Existing complete archives are verified and reused on retry; partial staging directories are not authority. V1 archives may be retained as evidence but never upgraded to verified status without recapture/restoration proof.
 
-Cleanup requires:
+## Separate cleanup authorization and effects
 
-1. a cleanup-eligible review disposition: `accepted`, `rejected`, or `superseded`;
-2. a fresh match to the review-bound repository, branch, HEAD, and status digest;
-3. a verified complete archive;
-4. all peer-run aliases included under the one resource;
-5. no live editor/process lease;
-6. for accepted work, exact integration proof against the named target;
-7. an explicit cleanup authorization separate from promotion.
+Cleanup authorization is an immutable owner/operator assertion containing:
 
-Process termination, when requested, occurs only after archive verification. Cleanup remains exact and idempotent. Missing worktrees produce a `reconciled_missing` receipt rather than remaining indefinitely open.
+- resource/generation and current `resourceVersion`;
+- every peer alias;
+- disposition/review/archive digests;
+- integration-proof digest and immutable target OID when accepted;
+- expected worktree real path, Git common-dir observation, branch ref and OID;
+- authorized effects (optional exact process closure, worktree removal, branch deletion);
+- authenticated local-owner actor, issue time, bounded expiry, and nonce.
 
-### Inventory and pressure control
+“Owner-signed” means an authenticated local-owner receipt under the configured owner boundary; cryptographic signatures are optional unless the owner policy requires them. Authorization is immutable. Revocation is a separate append-only receipt bound to its digest, never a mutable field inside the assertion.
 
-Expose a read-only inventory grouped by physical candidate resource, showing age, size, aliases, activity, dirtiness, unique/equivalent patches, archive state, disposition, and blockers.
+Cleanup reacquires the resource lock, verifies authorization and all bindings, confirms no live editor/process lease, and performs effects in this order:
 
-New candidate creation warns at a configurable unresolved-resource threshold and fails closed at a higher owner-set storage/age threshold unless the operator explicitly acknowledges the existing backlog. This is pressure control, not automatic deletion.
+1. verify the already-complete archive again;
+2. optionally close only the exact resource-bound process after archive verification;
+3. remove the exact worktree generation;
+4. delete the exact branch only if its ref still equals the authorized OID;
+5. append and verify the terminal receipt.
 
-## Immediate P0 guard
+Every effect is idempotently probed before execution. Partial success enters `cleanup_partial`. Under unchanged authorization, retry resumes only remaining effects under a fresh lock. Expiry, revocation, or drift after a receipted effect enters `cleanup_partial_review`: completed effects are never replayed and known authorized removals are not misclassified as disappearance. A still-present drifted worktree requires a fresh review/proof/archive lineage; an already-removed worktree may continue only from its unchanged verified archive and exact surviving refs. The owner may instead close with any remaining worktree, branch, or process resources explicitly retained. No operation merges, pushes, opens a PR, mutates AK, publishes, or promotes.
 
-AK task 3927 may land the following noncontroversial safety correction before the full v2 decision is accepted:
+## Missing-resource reconciliation
 
-- temporarily block every destructive `candidate_peer_cleanup` execution and retain dry-run inventory only;
-- generate prospective new-record archive packets that preserve untracked bytes;
-- inventory ignored paths and fail closed rather than discarding them;
-- use owner-only archive permissions;
-- compare tracked state, HEAD, untracked/ignored manifests, and untracked content digests before and after capture;
-- verify hashes, branch bundle, and compressed archive before an atomic completion marker;
-- report reused worktree aliases in dry-run inventory.
+Before `reconciled_missing`, inspect all peer aliases, Git worktree metadata, canonical/common-dir alternatives, refs, reflogs where available, reachable objects, bundles/archives, known relocation evidence, and owner receipts. Distinguish missing path, moved worktree, unavailable storage, stale registry, partial cleanup, and confirmed loss.
 
-The global destructive hold also protects historical v1 sidecars whose serialized cleanup packets remain unsafe. This guard reduces loss risk but does not itself complete lifecycle v2 or authorize execution.
+The owner records what remains recoverable, what is confirmed lost, supporting hashes/locations, and whether a restored/new generation should be opened. Rediscovery after terminal reconciliation is an anomaly linked to a new generation; history is never overwritten.
+
+## Inventory, admission, and pressure control
+
+Expose a read-only inventory grouped by resource/generation with age, size, aliases, activity/lease, dirtiness, unique/equivalent patches, archive/disposition state, pressure reservation, and blockers.
+
+Owner configuration defines repository and global warning/block thresholds for unresolved count, bytes, and age. Admission is evaluated under the repository lock with a fresh inventory and prospective reservation. A warning acknowledgement binds actor, inventory digest, threshold, reason, and short expiry; it does not permit crossing the hard block. Emergency override is a separate authenticated, time-bounded owner artifact and never authorizes cleanup.
+
+`cleaned`, `closed_with_retained_effects`, and `reconciled_missing` release active count/byte reservations atomically with their terminal receipt. Reconciled loss and intentionally retained refs remain visible as historical metrics but do not consume unresolved admission capacity. Migrated v1 records begin with a measured provisional reservation; grouping deduplicates alias reservations, and terminal migration reconciliation releases that provisional reservation exactly once.
+
+## Immediate P0 hold
+
+AK task 3927 landed a pre-decision safety correction:
+
+- every destructive `candidate_peer_cleanup` execution fails before reading/executing serialized packets;
+- dry-run inventory remains available;
+- prospective new-record archive packets preserve untracked bytes, block ignored files, use owner-only permissions, compare pre/post HEAD/path/content state, and verify hashes/bundle/compression;
+- duplicate aliases are surfaced in dry-run inventory.
+
+The global hold protects historical unsafe v1 packets. It does not implement v2, authorize cleanup, or make the prospective packet sufficient for restoration-grade v2 archives.
+
+## Migration, rollout, hold release, and rollback
+
+1. **Quarantine:** v1 packet execution remains permanently disabled. Import v1 records read-only and assign provisional resource/generation groupings; ambiguous groups require owner reconciliation.
+2. **Inventory canary:** prove deterministic grouping of the 302 records into the 225 reviewed resources and preserve an explicit anomaly list.
+3. **Lifecycle canary:** migrate only clean synthetic fixtures; prove locks, CAS, drift revocation, missing reconciliation, and terminal receipts.
+4. **Archive canary:** prove unusual filenames, symlinks, staged/untracked/ignored bytes, restoration equality, confidentiality, races, and retry after partial cleanup.
+5. **Owner canary:** process one rejected fixture and one accepted fixture with exact target-OID integration proof; no production worktree is used.
+6. **Production cohorts:** migrate reviewed resources by owner repo in small refreshed cohorts. The global v1 hold remains; only individually migrated v2 resources can become cleanup-eligible.
+7. **Admission control:** enable warnings, measure false positives, then enable hard thresholds with owner-approved configuration.
+
+Abort a phase on identity ambiguity, lock/CAS failure, drift escape, restoration mismatch, permission leak, authorization mismatch, partial-effect receipt failure, or owner-boundary violation. Rollback disables v2 execution and admission blocking but never reenables v1 packets, deletes lifecycle records, or removes archives. Already completed exact cleanup is not “rolled back”; restoration uses the verified archive through an explicit owner action.
 
 ## Rejected alternatives
 
-- **Automatic merge or acceptance:** peer output is not owner authority.
-- **Automatic deletion after `PEER_FINAL`:** final report is communication, not disposition or integration proof.
-- **Keep v1 and add a cron cleanup:** age does not establish disposability.
-- **Archive only Git diffs/bundles:** this already lost untracked candidate files.
-- **Treat ignored paths as reconstructable by definition:** runtime evidence and experiment outputs may be ignored but unique.
-- **One registry record per peer run remains one cleanup owner:** reuse makes this unsafe and non-idempotent.
-
-## Rollout
-
-1. Land and dogfood the P0 loss guard.
-2. Add resource-level schema and read-only inventory migration over existing sidecars.
-3. Record reviewed dispositions from the census without cleaning.
-4. Integrate accepted candidates in owner repositories one scoped tip at a time.
-5. Archive and clean small, refreshed repository cohorts.
-6. Add spawn pressure control only after inventory and terminal receipts are reliable.
+- Automatic merge/acceptance: peer output is not owner authority.
+- Automatic deletion after `PEER_FINAL`: final report is communication only.
+- Cron cleanup by age: age does not establish disposability.
+- Git diffs/bundles only: this already lost untracked files.
+- Ignored means reconstructable: ignored runtime evidence can be unique.
+- One cleanup owner per peer run: reuse makes this unsafe.
+- Reenable v1 after patching the generator: historical serialized packets remain unsafe.
 
 ## Acceptance tests
 
-- An untracked file with spaces or control-safe unusual characters is recoverable byte-for-byte from the archive.
-- An ignored file blocks cleanup absent explicit archive/discard disposition.
-- Archive drift leaves no complete archive and performs no destructive action.
-- Archive happens before any process termination.
-- Reused worktree aliases cannot independently trigger cleanup.
-- A stale HEAD/status digest blocks cleanup.
-- Accepted cleanup fails without exact integration proof.
-- Rejected/superseded cleanup still requires explicit disposition and verified archive.
-- Missing resources become terminally reconciled with recoverability/loss recorded.
-- Inventory groups 302 historical records into 225 physical resources deterministically.
-- No path performs merge, push, PR, AK mutation, publication, or promotion implicitly.
+- Deterministically group the historical 302 records into 225 resources, with ambiguous cases explicit.
+- Concurrent spawn/reuse/review/archive/cleanup obey resource locks and CAS; stale lease recovery is receipted.
+- Rebranch/rebase/path recreation does not create or reuse the wrong generation.
+- Review binds byte/type/mode/path state for tracked, staged, untracked, ignored, symlink, nested-repo, and LFS cases.
+- Drift revokes disposition, integration proof, archive lineage, and cleanup authorization.
+- Accepted scope proves commit inclusion, patch equivalence, or exact squash/content coverage against a target OID.
+- Untracked and owner-preserved ignored material restores byte-for-byte with unusual filenames.
+- Symlink escape, special file, traversal, unreadable input, mutation race, and restoration mismatch fail closed.
+- Archives and lifecycle state are owner-only and verified before completion.
+- Authorization is separate, exact, expiring, revocable, and effect-scoped.
+- Process closure occurs only after verified archive; partial cleanup is receipted and idempotently retryable.
+- Drift after worktree removal preserves completed-effect receipts, blocks replay, and requires superseding authorization or explicit retained-effect closure.
+- Drift after process closure but before worktree removal forces a fresh review/proof/archive cycle or explicit terminal retained-worktree closure.
+- Missing-resource reconciliation distinguishes relocation, unavailable storage, stale records, partial cleanup, and confirmed loss.
+- Admission thresholds use fresh locked inventory and cannot be bypassed by ordinary acknowledgement.
+- Cleaned, retained-effect, and reconciled-missing terminals release active reservations exactly once while retaining historical metrics.
+- V1 execution remains permanently disabled.
+- No path implicitly merges, pushes, opens a PR, mutates AK, publishes, promotes, or deletes an unreviewed resource.

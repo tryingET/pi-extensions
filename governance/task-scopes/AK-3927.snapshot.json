@@ -2,13 +2,14 @@
   "schema_version": 1,
   "exported_at": "2026-07-13T13:28:41.990152169+00:00",
   "task_id": 3927,
-  "entity_version": 7,
-  "commit_sha": "91a58664",
+  "entity_version": 10,
+  "commit_sha": "fa6ce7b9",
   "scope": {
     "allowed_paths": [
       "docs/adr/2026-07-13-candidate-peer-lifecycle.md",
       "docs/project/2026-05-14-candidate-peer-registry-cleanup.md",
       "docs/project/2026-07-13-candidate-peer-lifecycle-reconciliation.md",
+      "docs/project/2026-07-13-candidate-peer-lifecycle-rereview.md",
       "docs/project/2026-07-13-candidate-peer-lifecycle-review.md",
       "docs/project/2026-07-13-candidate-peer-lifecycle-rfc.md",
       "governance/task-scopes/AK-*.snapshot.json",
