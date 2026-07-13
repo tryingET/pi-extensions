@@ -2,8 +2,8 @@
   "schema_version": 1,
   "exported_at": "2026-07-13T13:28:41.990152169+00:00",
   "task_id": 3927,
-  "entity_version": 12,
-  "commit_sha": "1d107280",
+  "entity_version": 13,
+  "commit_sha": "701cd59e",
   "scope": {
     "allowed_paths": [
       "docs/adr/2026-07-13-candidate-peer-lifecycle.md",
