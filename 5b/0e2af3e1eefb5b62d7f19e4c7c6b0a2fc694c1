@@ -1,0 +1,16 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/tmp/pi-vault-publish"
+commit: "5b0e2af3e1eefb5b62d7f19e4c7c6b0a2fc694c1"
+created_at: "2026-07-13T02:10:26Z"
+intent: "Install uv in npm release workflow for engineering-core validation"
+files:
+  - ".github/workflows/publish.yml"
+validation:
+  fast_gate:
+    command: "node --test scripts/release-components.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "node scripts/release-components.mjs validate"
+    status: "pass"
