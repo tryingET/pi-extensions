@@ -107,7 +107,7 @@ jobs:
           NODE
 
       - name: Install Dolt for package checks that exercise Prompt Vault fixtures
-        if: env.RELEASE_COMPONENT == 'pi-society-orchestrator'
+        if: env.RELEASE_COMPONENT == 'pi-society-orchestrator' || env.RELEASE_COMPONENT == 'pi-vault-client'
         run: |
           if ! command -v dolt >/dev/null 2>&1; then
             curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh -o /tmp/install-dolt.sh
