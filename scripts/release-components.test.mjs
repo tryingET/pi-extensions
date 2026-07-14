@@ -9,6 +9,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "release-components.mjs");
 const WORKFLOW_PATH = path.join(ROOT, ".github", "workflows", "publish.yml");
+const RELEASE_CHECK_WORKFLOW_PATH = path.join(
+  ROOT,
+  ".github",
+  "workflows",
+  "release-check.yml",
+);
 const RELEASE_PLEASE_WORKFLOW_PATH = path.join(
   ROOT,
   ".github",
@@ -70,6 +76,14 @@ test("list reports pi-model-selection as a top-level support package", () => {
   const component = components.find((entry) => entry.component === "pi-model-selection");
   assert.equal(component?.packagePath, "packages/pi-model-selection");
   assert.equal(component?.packageName, "@tryinget/pi-model-selection");
+});
+
+test("list reports pi-modes as a managed release component", () => {
+  const components = listComponents();
+  const component = components.find((entry) => entry.component === "pi-modes");
+  assert.equal(component?.packagePath, "packages/pi-modes");
+  assert.equal(component?.packageName, "@tryinget/pi-modes");
+  assert.equal(component?.changelogPath, "packages/pi-modes/CHANGELOG.md");
 });
 
 test("snapshot-edit component resolves to its public npm package and changelog", () => {
@@ -155,31 +169,36 @@ test("resolve-tag workflow guard sources same-step output and rejects a mismatch
   }
 });
 
-test("snapshot-edit alone retains, verifies, uploads, and publishes one exact tarball", () => {
+test("snapshot-edit and pi-modes retain, verify, upload, and publish one exact tarball", () => {
   const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
-  const snapshotSteps = [
-    "Create immutable snapshot-edit release tarball",
-    "Run snapshot-edit release checks against retained tarball",
-    "Verify snapshot-edit retained tarball after release checks",
-    "Upload snapshot-edit retained release tarball",
-    "Publish snapshot-edit retained tarball to npm (OIDC + provenance)",
-  ];
-  for (const name of snapshotSteps) {
-    assert.match(workflowStep(workflow, name), /if: env\.RELEASE_COMPONENT == 'pi-snapshot-edit'/);
+  for (const name of [
+    "Create immutable retained release tarball",
+    "Verify retained tarball after release checks",
+    "Upload retained release tarball",
+    "Publish retained tarball to npm (OIDC + provenance)",
+  ]) {
+    const step = workflowStep(workflow, name);
+    assert.match(step, /env\.RELEASE_COMPONENT == 'pi-snapshot-edit'/);
+    assert.match(step, /env\.RELEASE_COMPONENT == 'pi-modes'/);
   }
 
+  assert.match(
+    workflowStep(workflow, "Run snapshot-edit release checks against retained tarball"),
+    /npm run release:check:quick -- "\$RELEASE_TARBALL_PATH"/,
+  );
+  assert.match(
+    workflowStep(workflow, "Run pi-modes release checks against retained tarball"),
+    /npm run release:check:ci -- "\$RELEASE_TARBALL_PATH"/,
+  );
+
   const packMatches = workflow.match(/npm pack\b/g) ?? [];
-  assert.equal(packMatches.length, 1, "snapshot workflow path must create its tarball exactly once");
+  assert.equal(packMatches.length, 1, "retained-artifact paths must create the tarball exactly once");
   assert.match(workflow, /RELEASE_TARBALL_PATH=\$tarball_path/);
   assert.match(workflow, /RELEASE_TARBALL_BASENAME=\$tarball_basename/);
   assert.match(workflow, /RELEASE_TARBALL_SHA256=\$tarball_sha256/);
-  const check = workflow.indexOf("npm run release:check:quick -- \"$RELEASE_TARBALL_PATH\"");
   const upload = workflow.indexOf("uses: actions/upload-artifact@v6");
   const publish = workflow.indexOf('npm publish "$RELEASE_TARBALL_PATH" --provenance');
-  assert.ok(
-    check >= 0 && upload > check && publish > upload,
-    "snapshot check, upload, and exact-path publish order must be preserved",
-  );
+  assert.ok(upload >= 0 && publish > upload, "upload must precede exact-path publication");
   assert.ok((workflow.match(/sha256sum --check --status/g) ?? []).length >= 2);
 });
 
@@ -191,12 +210,23 @@ test("generic publish path preserves directory-based release check and publish",
     "Publish generic package directory to npm (OIDC + provenance)",
   );
   for (const step of [check, publish]) {
-    assert.match(step, /if: env\.RELEASE_COMPONENT != 'pi-snapshot-edit'/);
+    assert.match(step, /env\.RELEASE_COMPONENT != 'pi-snapshot-edit'/);
+    assert.match(step, /env\.RELEASE_COMPONENT != 'pi-modes'/);
     assert.doesNotMatch(step, /RELEASE_TARBALL/);
   }
   assert.match(check, /run: npm run release:check:quick\n/);
   assert.match(publish, /run: npm publish --provenance --access public --tag "\$RELEASE_NPM_DIST_TAG"/);
   assert.ok(workflow.indexOf(check) < workflow.indexOf(publish), "generic check must precede publish");
+});
+
+test("release-check CI runs pi-modes credential-free installed-artifact smoke", () => {
+  const workflow = fs.readFileSync(RELEASE_CHECK_WORKFLOW_PATH, "utf8");
+  const modes = workflowStep(workflow, "Run pi-modes credential-free installed-artifact checks");
+  assert.match(modes, /if: matrix\.component == 'pi-modes'/);
+  assert.match(modes, /run: npm run release:check:ci/);
+  const generic = workflowStep(workflow, "Run generic release checks (artifact-only)");
+  assert.match(generic, /if: matrix\.component != 'pi-modes'/);
+  assert.match(generic, /run: npm run release:check:quick/);
 });
 
 test("manual bootstrap requires run identity and verifies run/tag commit before artifact use", () => {

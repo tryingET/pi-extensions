@@ -72,6 +72,12 @@ jobs:
             npm ci
           fi
 
-      - name: Run release checks (artifact-only)
+      - name: Run pi-modes credential-free installed-artifact checks
+        if: matrix.component == 'pi-modes'
+        working-directory: ${{ matrix.package_path }}
+        run: npm run release:check:ci
+
+      - name: Run generic release checks (artifact-only)
+        if: matrix.component != 'pi-modes'
         working-directory: ${{ matrix.package_path }}
         run: npm run release:check:quick

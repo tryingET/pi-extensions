@@ -1,5 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import {
   CONFIG_DIR_NAME,
   type ExtensionAPI,
@@ -9,68 +8,54 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import {
+  MODE_STATUS_ENTRY_TYPE,
+  type ModeCommandServices,
+  type ModeStatusEntryData,
+  registerModeCommands,
+} from "../src/mode-command-handlers.ts";
+import { ancestorPresetDirectories, loadModePresets } from "../src/mode-presets.ts";
+import {
   ancestorModeDirectories,
   BUILTIN_MODES,
-  composeModePrompt,
-  deleteMode,
+  cloneModeSelection,
+  composeModeSelection,
+  createModeState,
+  EMPTY_MODE_SELECTION,
+  type LoadedModes,
   loadModes,
-  MODE_SCHEMA_VERSION,
-  MODE_STATE_TYPE,
-  type ModeDefinition,
-  type ModeScope,
-  modePath,
-  parseModeDefinition,
-  resolveInitialModeSelection,
-  saveMode,
-  selectedModeFromEntries,
+  MODE_STATE_TYPE_V3,
+  type ModeSelection,
+  type ModeStateV3,
+  type ResolvedMode,
+  resolveInitialSelection,
+  resolveModeSelection,
+  type SelectionDiagnostic,
+  selectionFromEntries,
 } from "../src/modes.ts";
+import { selectionDefinitionFingerprint, selectionLabel } from "../src/selection-commands.ts";
 
-const MODE_STATUS_ENTRY_TYPE = "pi-mode-status.v1";
+export const PI_HOST_COMPATIBILITY = ">=0.80.6 <0.81.0";
 
-interface ModeStatusEntryData {
-  summary: string;
-  available: string[];
-  details: string[];
-  diagnostics: string[];
-}
+type AnyContext = ExtensionContext | ExtensionCommandContext;
 
-function directories(ctx: ExtensionContext | ExtensionCommandContext) {
+function directories(ctx: AnyContext) {
   return {
-    globalDir: join(getAgentDir(), "modes"),
-    projectDir: join(ctx.cwd, CONFIG_DIR_NAME, "modes"),
-    projectDirs: ancestorModeDirectories(ctx.cwd, CONFIG_DIR_NAME),
-  };
-}
-
-function parseScopedArguments(args: string): {
-  scope: Exclude<ModeScope, "builtin">;
-  rest: string;
-} {
-  const values = args.trim().split(/\s+/).filter(Boolean);
-  const project = values[0] === "--project";
-  if (project) values.shift();
-  return { scope: project ? "project" : "global", rest: values.join(" ") };
-}
-
-function modeTemplate(key: string): ModeDefinition {
-  return {
-    schemaVersion: MODE_SCHEMA_VERSION,
-    key,
-    label: key
-      .split(/[-_]/)
-      .filter(Boolean)
-      .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-      .join(" "),
-    description: "Describe when this mode should be used.",
-    promptStrategy: "replace_base",
-    systemPrompt: "Define the complete static base system prompt for this mode.",
+    globalModeDir: join(getAgentDir(), "modes"),
+    projectModeDir: join(ctx.cwd, CONFIG_DIR_NAME, "modes"),
+    projectModeDirs: ancestorModeDirectories(ctx.cwd, CONFIG_DIR_NAME),
+    globalPresetDir: join(getAgentDir(), "mode-presets"),
+    projectPresetDir: join(ctx.cwd, CONFIG_DIR_NAME, "mode-presets"),
+    projectPresetDirs: ancestorPresetDirectories(ctx.cwd, CONFIG_DIR_NAME),
   };
 }
 
 export default function modeExtension(pi: ExtensionAPI) {
-  let activeKey: string | null = null;
-  let cachedModeKeys = BUILTIN_MODES.map((mode) => mode.key);
-  const warnedUnavailableKeys = new Set<string>();
+  let activeSelection = cloneModeSelection(EMPTY_MODE_SELECTION);
+  let cachedModes: ResolvedMode[] = BUILTIN_MODES.map((mode) => ({
+    ...mode,
+    scope: "builtin" as const,
+  }));
+  const warnedDiagnostics = new Set<string>();
 
   pi.registerEntryRenderer<ModeStatusEntryData>(
     MODE_STATUS_ENTRY_TYPE,
@@ -90,10 +75,10 @@ export default function modeExtension(pi: ExtensionAPI) {
       ];
       if (expanded) {
         lines.push(...data.details.map((line) => theme.fg("muted", line)));
-        if (data.available.length > 0) {
+        if (data.available.length > 0)
           lines.push(theme.fg("dim", `available: ${data.available.join(", ")}`));
-        }
         lines.push(...data.diagnostics.map((line) => theme.fg("warning", `warning: ${line}`)));
+        lines.push(theme.fg("dim", `supported Pi host: ${PI_HOST_COMPATIBILITY}`));
       }
       const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
       box.addChild(new Text(lines.join("\n"), 0, 0));
@@ -101,284 +86,211 @@ export default function modeExtension(pi: ExtensionAPI) {
     },
   );
 
-  function currentModes(ctx: ExtensionContext | ExtensionCommandContext) {
+  function currentModes(ctx: AnyContext): LoadedModes {
     const dirs = directories(ctx);
     const loaded = loadModes({
-      ...dirs,
+      globalDir: dirs.globalModeDir,
+      projectDir: dirs.projectModeDir,
+      projectDirs: dirs.projectModeDirs,
       projectTrusted: ctx.isProjectTrusted(),
     });
-    cachedModeKeys = loaded.modes.map((mode) => mode.key);
+    cachedModes = loaded.modes;
     return loaded;
   }
 
-  function updateStatus(ctx: ExtensionContext | ExtensionCommandContext) {
+  function replay(ctx: AnyContext, modes = currentModes(ctx).modes) {
+    return selectionFromEntries(ctx.sessionManager.getBranch(), modes);
+  }
+
+  function updateStatus(ctx: AnyContext): void {
     if (!ctx.hasUI) return;
-    if (!activeKey) {
+    const loaded = currentModes(ctx);
+    const replayed = replay(ctx, loaded.modes);
+    activeSelection = replayed.selection;
+    if (!activeSelection.baseKey && activeSelection.overlayKeys.length === 0) {
       ctx.ui.setStatus("pi-modes", undefined);
       return;
     }
-    const mode = currentModes(ctx).modes.find((candidate) => candidate.key === activeKey);
-    const label = mode?.label ?? `${activeKey} (unavailable)`;
-    ctx.ui.setStatus("pi-modes", ctx.ui.theme.fg(mode ? "accent" : "warning", `mode:${label}`));
+    const resolved = resolveModeSelection(
+      replayed.selection,
+      loaded.modes,
+      replayed.state
+        ? { fingerprints: replayed.state.fingerprints, driftPolicy: replayed.state.driftPolicy }
+        : {},
+    );
+    const effective: ModeSelection = {
+      baseKey: resolved.base?.key ?? null,
+      overlayKeys: resolved.overlays.map((mode) => mode.key),
+    };
+    const warning = resolved.blocked || resolved.diagnostics.length > 0;
+    ctx.ui.setStatus(
+      "pi-modes",
+      ctx.ui.theme.fg(
+        warning ? "warning" : "accent",
+        `mode:${selectionLabel(effective)}${warning ? " !" : ""}`,
+      ),
+    );
   }
 
-  function activate(key: string | null, ctx: ExtensionCommandContext): void {
-    activeKey = key;
-    pi.appendEntry(MODE_STATE_TYPE, { key });
-    updateStatus(ctx);
-    if (ctx.hasUI) {
-      ctx.ui.notify(
-        key ? `Prompt mode activated: ${key}` : "Prompt mode cleared; using host prompt",
-        "info",
+  function persistSelection(
+    selection: ModeSelection,
+    ctx: AnyContext,
+    source: ModeStateV3["source"],
+    message?: string,
+    options: {
+      fingerprints?: ModeStateV3["fingerprints"];
+      driftPolicy?: ModeStateV3["driftPolicy"];
+      expectedDefinitionFingerprint?: string;
+    } = {},
+  ): void {
+    const loaded = currentModes(ctx);
+    if (
+      options.expectedDefinitionFingerprint !== undefined &&
+      options.expectedDefinitionFingerprint !==
+        selectionDefinitionFingerprint(selection, loaded.modes)
+    ) {
+      throw new Error(
+        "Mode definitions changed after confirmation; preview and confirm the selection again",
       );
     }
+    const resolution = resolveModeSelection(selection, loaded.modes);
+    if (resolution.blocked || resolution.diagnostics.length > 0) {
+      throw new Error(
+        `Invalid mode composition: ${resolution.diagnostics.map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`).join("; ")}`,
+      );
+    }
+    const state = createModeState(selection, loaded.modes, source, {
+      ...(options.fingerprints ? { fingerprints: options.fingerprints } : {}),
+      ...(options.driftPolicy ? { driftPolicy: options.driftPolicy } : {}),
+    });
+    pi.appendEntry(MODE_STATE_TYPE_V3, state);
+    activeSelection = cloneModeSelection(selection);
+    updateStatus(ctx);
+    if (ctx.hasUI)
+      ctx.ui.notify(message ?? `Prompt modes activated: ${selectionLabel(selection)}`, "info");
   }
 
-  pi.registerCommand("mode", {
-    description: "Select a prompt mode, or use /mode off to restore the host prompt",
-    getArgumentCompletions: (prefix) => {
-      const normalized = prefix.trim().toLowerCase();
-      return ["off", ...currentModeKeys()]
-        .filter((key) => key.startsWith(normalized))
-        .map((key) => ({ value: key, label: key }));
-    },
-    handler: async (args, ctx) => {
-      const loaded = currentModes(ctx);
-      let key = args.trim().toLowerCase();
-      if (!key) {
-        if (!ctx.hasUI) return;
-        const options = [
-          "off — Host default",
-          ...loaded.modes.map(
-            (mode) => `${mode.key} — ${mode.label} [${mode.promptStrategy}/${mode.scope}]`,
-          ),
-        ];
-        const selected = await ctx.ui.select("Select prompt mode", options);
-        if (!selected) return;
-        key = selected.split(" — ", 1)[0] ?? "";
-      }
-      if (key === "off" || key === "default" || key === "none") {
-        activate(null, ctx);
-        return;
-      }
-      if (!loaded.modes.some((mode) => mode.key === key)) {
-        if (ctx.hasUI) ctx.ui.notify(`Unknown prompt mode: ${key}`, "error");
-        return;
-      }
-      activate(key, ctx);
-    },
-  });
-
-  function currentModeKeys(): string[] {
-    return cachedModeKeys;
+  function reapprove(ctx: AnyContext, expectedDefinitionFingerprint: string): void {
+    const loaded = currentModes(ctx);
+    const replayed = replay(ctx, loaded.modes);
+    const resolution = resolveModeSelection(replayed.selection, loaded.modes);
+    if (resolution.blocked || resolution.diagnostics.length > 0) {
+      throw new Error(
+        `Cannot reapprove invalid composition: ${resolution.diagnostics.map((item) => item.message).join("; ")}`,
+      );
+    }
+    persistSelection(
+      replayed.selection,
+      ctx,
+      "reapprove",
+      "Reapproved active prompt mode definitions",
+      { expectedDefinitionFingerprint },
+    );
   }
 
-  pi.registerCommand("mode-status", {
-    description: "Show a durable active-mode status card and discovery diagnostics",
-    handler: async (_args, ctx) => {
-      if (!ctx.hasUI) return;
-      const loaded = currentModes(ctx);
-      const mode = loaded.modes.find((candidate) => candidate.key === activeKey);
-      const summary = mode
-        ? `${mode.key} — ${mode.label} (${mode.promptStrategy}, ${mode.scope})`
-        : activeKey
-          ? `${activeKey} unavailable — native SYSTEM.md / host base active`
-          : "native SYSTEM.md / host base (no named mode)";
-      const details = mode
-        ? [
-            `strategy: ${mode.promptStrategy}`,
-            `scope: ${mode.scope}`,
-            `source: ${mode.path ?? "built-in"}`,
-            ...(mode.description ? [`description: ${mode.description}`] : []),
-          ]
-        : [
-            "Pi resolves project .pi/SYSTEM.md, global ~/.pi/agent/SYSTEM.md, or its built-in base.",
-          ];
-      pi.appendEntry<ModeStatusEntryData>(MODE_STATUS_ENTRY_TYPE, {
-        summary,
-        available: loaded.modes.map((candidate) => candidate.key),
-        details,
-        diagnostics: loaded.diagnostics.map(
-          (diagnostic) => `${diagnostic.path}: ${diagnostic.message}`,
-        ),
+  function setPolicy(ctx: AnyContext, policy: ModeStateV3["driftPolicy"]): void {
+    const loaded = currentModes(ctx);
+    const replayed = replay(ctx, loaded.modes);
+    const resolution = resolveModeSelection(replayed.selection, loaded.modes);
+    if (resolution.blocked || resolution.diagnostics.length > 0) {
+      throw new Error(
+        `Cannot set drift policy for an invalid composition: ${resolution.diagnostics
+          .map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`)
+          .join("; ")}`,
+      );
+    }
+    const state = createModeState(replayed.selection, loaded.modes, "policy", {
+      driftPolicy: policy,
+      ...(replayed.state ? { fingerprints: replayed.state.fingerprints } : {}),
+    });
+    pi.appendEntry(MODE_STATE_TYPE_V3, state);
+    activeSelection = cloneModeSelection(replayed.selection);
+    updateStatus(ctx);
+    if (ctx.hasUI) ctx.ui.notify(`Prompt definition drift policy: ${policy}`, "info");
+  }
+
+  const services: ModeCommandServices = {
+    currentModes: (ctx) => currentModes(ctx),
+    currentPresets: (ctx) => {
+      const dirs = directories(ctx);
+      return loadModePresets({
+        globalDir: dirs.globalPresetDir,
+        projectDirs: dirs.projectPresetDirs,
+        projectTrusted: ctx.isProjectTrusted(),
       });
     },
-  });
-
-  pi.registerCommand("mode-preview", {
-    description: "Preview the final prompt for a mode without activating it",
-    getArgumentCompletions: (prefix) => {
-      const normalized = prefix.trim().toLowerCase();
-      return currentModeKeys()
-        .filter((key) => key.startsWith(normalized))
-        .map((key) => ({ value: key, label: key }));
-    },
-    handler: async (args, ctx) => {
-      const loaded = currentModes(ctx);
-      let key = args.trim().toLowerCase();
-      if (!key) {
-        if (!ctx.hasUI) return;
-        const options = loaded.modes.map(
-          (mode) => `${mode.key} — ${mode.label} [${mode.promptStrategy}/${mode.scope}]`,
-        );
-        const selected = await ctx.ui.select("Select mode to preview", options);
-        if (!selected) return;
-        key = selected.split(" — ", 1)[0] ?? "";
-      }
-      const mode = loaded.modes.find((candidate) => candidate.key === key);
-      if (!mode) {
-        if (ctx.hasUI) ctx.ui.notify("Select or name a valid mode to preview", "error");
-        return;
-      }
-      const preview = composeModePrompt(mode, ctx.getSystemPromptOptions(), ctx.getSystemPrompt());
-      if (ctx.hasUI)
-        await ctx.ui.editor(`Preview: ${mode.label} (${mode.promptStrategy})`, preview);
-    },
-  });
-
-  pi.registerCommand("mode-new", {
-    description: "Create a global mode, or use /mode-new --project <key>",
-    handler: async (args, ctx) => {
-      if (!ctx.hasUI) return;
-      const parsed = parseScopedArguments(args);
-      const key = parsed.rest.trim().toLowerCase();
-      if (!key) {
-        ctx.ui.notify("Usage: /mode-new [--project] <key>", "error");
-        return;
-      }
-      if (parsed.scope === "project" && !ctx.isProjectTrusted()) {
-        ctx.ui.notify("Project modes require a trusted project", "error");
-        return;
-      }
-      const dirs = directories(ctx);
-      const dir = parsed.scope === "project" ? dirs.projectDir : dirs.globalDir;
-      let initial: ModeDefinition;
-      try {
-        initial = modeTemplate(key);
-        modePath(dir, key);
-      } catch (error) {
-        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
-        return;
-      }
-      const edited = await ctx.ui.editor(
-        `Create ${parsed.scope} prompt mode`,
-        JSON.stringify(initial, null, 2),
-      );
-      if (!edited) return;
-      try {
-        const mode = parseModeDefinition(JSON.parse(edited));
-        const path = modePath(dir, mode.key);
-        if (existsSync(path) && !(await ctx.ui.confirm("Overwrite mode?", path))) return;
-        saveMode(dir, mode);
-        activate(mode.key, ctx);
-      } catch (error) {
-        ctx.ui.notify(
-          `Mode not saved: ${error instanceof Error ? error.message : String(error)}`,
-          "error",
-        );
-      }
-    },
-  });
-
-  pi.registerCommand("mode-edit", {
-    description: "Edit a custom prompt mode safely",
-    handler: async (args, ctx) => {
-      if (!ctx.hasUI) return;
-      const key = args.trim().toLowerCase();
-      const loaded = currentModes(ctx);
-      const mode = loaded.modes.find((candidate) => candidate.key === key);
-      if (!mode?.path || mode.scope === "builtin") {
-        ctx.ui.notify("Name a global or project custom mode to edit", "error");
-        return;
-      }
-      const dirs = directories(ctx);
-      if (mode.scope === "project" && resolve(dirname(mode.path)) !== resolve(dirs.projectDir)) {
-        const ownerDir = dirname(dirname(dirname(mode.path)));
-        ctx.ui.notify(`Inherited mode is read-only here; cd to ${ownerDir} to edit it`, "warning");
-        return;
-      }
-      const edited = await ctx.ui.editor(
-        `Edit ${mode.scope} mode: ${mode.key}`,
-        readFileSync(mode.path, "utf8"),
-      );
-      if (!edited) return;
-      try {
-        const next = parseModeDefinition(JSON.parse(edited));
-        if (next.key !== mode.key)
-          throw new Error(
-            "renaming a mode during edit is not supported; create a new mode instead",
-          );
-        saveMode(mode.scope === "project" ? dirs.projectDir : dirs.globalDir, next);
-        ctx.ui.notify(`Saved prompt mode: ${next.key}`, "info");
-      } catch (error) {
-        ctx.ui.notify(
-          `Mode not saved: ${error instanceof Error ? error.message : String(error)}`,
-          "error",
-        );
-      }
-    },
-  });
-
-  pi.registerCommand("mode-delete", {
-    description: "Delete a custom prompt mode safely",
-    handler: async (args, ctx) => {
-      if (!ctx.hasUI) return;
-      const key = args.trim().toLowerCase();
-      const loaded = currentModes(ctx);
-      const mode = loaded.modes.find((candidate) => candidate.key === key);
-      if (!mode?.path || mode.scope === "builtin") {
-        ctx.ui.notify("Name a global or project custom mode to delete", "error");
-        return;
-      }
-      const dirs = directories(ctx);
-      if (mode.scope === "project" && resolve(dirname(mode.path)) !== resolve(dirs.projectDir)) {
-        const ownerDir = dirname(dirname(dirname(mode.path)));
-        ctx.ui.notify(
-          `Inherited mode is read-only here; cd to ${ownerDir} to delete it`,
-          "warning",
-        );
-        return;
-      }
-      if (!(await ctx.ui.confirm(`Delete ${mode.scope} mode?`, mode.path))) return;
-      try {
-        const dir = mode.scope === "project" ? dirs.projectDir : dirs.globalDir;
-        deleteMode(mode.path, dir);
-        if (activeKey === mode.key) activate(null, ctx);
-        ctx.ui.notify(`Deleted prompt mode: ${mode.key}`, "info");
-      } catch (error) {
-        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
-      }
-    },
-  });
+    replay: (ctx, modes) => replay(ctx, modes),
+    persist: (selection, ctx, source, message, options) =>
+      persistSelection(selection, ctx, source, message, options),
+    reapprove: (ctx, expectedDefinitionFingerprint) =>
+      reapprove(ctx, expectedDefinitionFingerprint),
+    setPolicy: (ctx, policy) => setPolicy(ctx, policy),
+    updateStatus: (ctx) => updateStatus(ctx),
+    globalModeDir: join(getAgentDir(), "modes"),
+    projectModeDir: (ctx) => directories(ctx).projectModeDir,
+    globalPresetDir: join(getAgentDir(), "mode-presets"),
+    projectPresetDir: (ctx) => directories(ctx).projectPresetDir,
+    cachedModes: () => cachedModes,
+    activeSelection: () => cloneModeSelection(activeSelection),
+  };
+  registerModeCommands(pi, services);
 
   pi.on("session_start", async (event, ctx) => {
-    const sessionKey = selectedModeFromEntries(ctx.sessionManager.getBranch()).key;
-    activeKey = sessionKey;
+    warnedDiagnostics.clear();
+    if (typeof ctx.getSystemPrompt !== "function") {
+      const warning = `pi-modes requires Pi ${PI_HOST_COMPATIBILITY}; prompt composition APIs are unavailable`;
+      if (ctx.hasUI) ctx.ui.notify(warning, "error");
+      else console.error(warning);
+      return;
+    }
     const loaded = currentModes(ctx);
-    const initial = resolveInitialModeSelection({
+    const replayed = replay(ctx, loaded.modes);
+    const initial = resolveInitialSelection({
       applyEnvironment: event.reason === "startup",
       environmentValue: process.env.PI_MODE,
-      sessionKey,
-      availableKeys: loaded.modes.map((mode) => mode.key),
+      compositionEnvironmentValue: process.env.PI_MODES,
+      sessionSelection: replayed.selection,
+      modes: loaded.modes,
     });
+    activeSelection = initial.selection;
 
     if (initial.source === "environment") {
-      activeKey = initial.key;
-      if (sessionKey !== initial.key) pi.appendEntry(MODE_STATE_TYPE, { key: initial.key });
-      if (ctx.hasUI) {
-        if (initial.error) {
-          ctx.ui.notify(`${initial.error}; using the native SYSTEM.md/host base`, "warning");
-        } else {
-          ctx.ui.notify(
-            initial.key
-              ? `Startup prompt mode from PI_MODE: ${initial.key}`
-              : "PI_MODE=off; using the native SYSTEM.md/host base",
-            "info",
-          );
-        }
-      }
+      const resolution = resolveModeSelection(initial.selection, loaded.modes);
+      const exactConfirmationMissing =
+        resolution.base?.promptStrategy === "replace_final" &&
+        process.env.PI_MODE_CONFIRM_EXACT !== "1";
+      const fallback =
+        resolution.blocked || resolution.diagnostics.length > 0 || exactConfirmationMissing;
+      const safeSelection = fallback ? cloneModeSelection(EMPTY_MODE_SELECTION) : initial.selection;
+      const startupError =
+        initial.error ??
+        (exactConfirmationMissing
+          ? "Startup replace_final activation requires PI_MODE_CONFIRM_EXACT=1"
+          : fallback
+            ? `Startup composition is invalid: ${resolution.diagnostics.map((item) => `${item.key ? `${item.key}: ` : ""}${item.message}`).join("; ")}`
+            : undefined);
+      pi.appendEntry(MODE_STATE_TYPE_V3, createModeState(safeSelection, loaded.modes, "startup"));
+      activeSelection = safeSelection;
+      const startupMessage = startupError
+        ? `${startupError}; using native SYSTEM.md/host base`
+        : `Startup prompt modes: ${selectionLabel(safeSelection)}`;
+      if (ctx.hasUI) ctx.ui.notify(startupMessage, startupError ? "warning" : "info");
+      else if (startupError) console.warn(startupMessage);
+    } else if (replayed.stateVersion === "v1" || replayed.stateVersion === "v2") {
+      const resolution = resolveModeSelection(replayed.selection, loaded.modes);
+      const safeSelection =
+        resolution.blocked || resolution.diagnostics.length > 0
+          ? cloneModeSelection(EMPTY_MODE_SELECTION)
+          : replayed.selection;
+      pi.appendEntry(MODE_STATE_TYPE_V3, createModeState(safeSelection, loaded.modes, "migration"));
+      activeSelection = safeSelection;
+      const warning =
+        safeSelection === replayed.selection
+          ? `Migrated legacy prompt mode state to fingerprinted v3: ${selectionLabel(safeSelection)}`
+          : "Legacy prompt mode state was invalid and migrated to native host";
+      if (ctx.hasUI) ctx.ui.notify(warning, resolution.diagnostics.length > 0 ? "warning" : "info");
+      else console.warn(warning);
     }
-
     updateStatus(ctx);
     if (ctx.hasUI && loaded.diagnostics.length > 0) {
       ctx.ui.notify(
@@ -389,21 +301,34 @@ export default function modeExtension(pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    activeKey = selectedModeFromEntries(ctx.sessionManager.getBranch()).key;
+    const loaded = currentModes(ctx);
+    const replayed = replay(ctx, loaded.modes);
+    activeSelection = replayed.selection;
     updateStatus(ctx);
-    if (!activeKey) return;
-    const mode = currentModes(ctx).modes.find((candidate) => candidate.key === activeKey);
-    if (!mode) {
-      if (ctx.hasUI && !warnedUnavailableKeys.has(activeKey)) {
-        warnedUnavailableKeys.add(activeKey);
-        ctx.ui.notify(
-          `Selected prompt mode is unavailable: ${activeKey}; using host prompt`,
-          "warning",
-        );
+    const composed = composeModeSelection(
+      replayed.selection,
+      loaded.modes,
+      event.systemPromptOptions,
+      event.systemPrompt,
+      replayed.state
+        ? { fingerprints: replayed.state.fingerprints, driftPolicy: replayed.state.driftPolicy }
+        : {},
+    );
+    const diagnostics: SelectionDiagnostic[] = [
+      ...loaded.diagnostics.map((item) => ({ message: `${item.path}: ${item.message}` })),
+      ...replayed.diagnostics,
+      ...composed.resolved.diagnostics,
+    ];
+    for (const diagnostic of diagnostics) {
+      const signature = `${diagnostic.key ?? "selection"}:${diagnostic.message}`;
+      if (!warnedDiagnostics.has(signature)) {
+        warnedDiagnostics.add(signature);
+        const warning = `Prompt mode warning${diagnostic.key ? ` (${diagnostic.key})` : ""}: ${diagnostic.message}`;
+        if (ctx.hasUI) ctx.ui.notify(warning, "warning");
+        else console.warn(warning);
       }
-      return;
     }
-    warnedUnavailableKeys.delete(activeKey);
-    return { systemPrompt: composeModePrompt(mode, event.systemPromptOptions, event.systemPrompt) };
+    if (!replayed.selection.baseKey && replayed.selection.overlayKeys.length === 0) return;
+    return { systemPrompt: composed.prompt };
   });
 }

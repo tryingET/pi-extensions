@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,14 +17,19 @@ import {
   ancestorModeDirectories,
   buildCustomBasePrompt,
   composeModePrompt,
+  composeModeSelection,
   deleteMode,
   loadModes,
   MODE_STATE_TYPE,
+  MODE_STATE_TYPE_V2,
   modePath,
   parseModeDefinition,
   resolveInitialModeSelection,
+  resolveInitialSelection,
+  resolveModeSelection,
   saveMode,
   selectedModeFromEntries,
+  selectionFromEntries,
   startupModeFromEnvironment,
 } from "../src/modes.ts";
 
@@ -193,7 +206,9 @@ test("safe persistence rejects traversal and deletes only selected directory fil
     assert.throws(() => modePath(root, "../../outside"), /invalid mode key/);
     const mode = parseModeDefinition({ key: "safe", label: "Safe", systemPrompt: "safe" });
     const path = saveMode(root, mode);
-    assert.equal(JSON.parse(readFileSync(path, "utf8")).key, "safe");
+    const saved = JSON.parse(readFileSync(path, "utf8")) as { key: string; schemaVersion: number };
+    assert.equal(saved.key, "safe");
+    assert.equal(saved.schemaVersion, 2, "saving upgrades legacy definitions to strict v2");
     assert.throws(() => deleteMode(join(root, "..", "outside.json"), root), /refusing to delete/);
     deleteMode(path, root);
   } finally {
@@ -330,4 +345,199 @@ test("unavailable PI_MODE fails closed to the native SYSTEM.md host base", () =>
   assert.equal(result.source, "environment");
   assert.equal(result.key, null);
   assert.match(result.error ?? "", /unavailable mode/);
+});
+
+const baseMode = {
+  ...parseModeDefinition({
+    key: "builder",
+    label: "Builder",
+    promptStrategy: "replace_base",
+    systemPrompt: "BUILDER BASE",
+  }),
+  scope: "global" as const,
+};
+
+const finalMode = {
+  ...parseModeDefinition({
+    key: "exact",
+    label: "Exact",
+    promptStrategy: "replace_final",
+    systemPrompt: "EXACT FINAL",
+  }),
+  scope: "global" as const,
+};
+
+const resolvedAppendMode = { ...appendMode, scope: "builtin" as const };
+const explainOverlay = {
+  ...parseModeDefinition({
+    key: "explain-more",
+    label: "Explain More",
+    promptStrategy: "append",
+    systemPrompt: "Explain more.",
+  }),
+  scope: "global" as const,
+};
+const compositionModes = [baseMode, finalMode, resolvedAppendMode, explainOverlay];
+
+test("composes one replace_base with flat ordered append overlays", () => {
+  const result = composeModeSelection(
+    { baseKey: "builder", overlayKeys: ["review", "explain-more"] },
+    compositionModes,
+    promptOptions,
+    "HOST PROMPT",
+  );
+  assert.match(result.prompt, /^BUILDER BASE/);
+  assert.doesNotMatch(result.prompt, /HOST PROMPT/);
+  const first = result.prompt.indexOf("Active prompt overlay 1: Review");
+  const second = result.prompt.indexOf("Active prompt overlay 2: Explain More");
+  assert.ok(first > 0 && second > first);
+  assert.equal((result.prompt.match(/Active prompt overlay/g) ?? []).length, 2);
+});
+
+test("native base supports ordered overlays without rebuilding host context", () => {
+  const result = composeModeSelection(
+    { baseKey: null, overlayKeys: ["explain-more", "review"] },
+    compositionModes,
+    promptOptions,
+    "HOST PROMPT",
+  );
+  assert.match(result.prompt, /^HOST PROMPT/);
+  assert.ok(result.prompt.indexOf("Explain More") < result.prompt.indexOf("Review"));
+});
+
+test("replace_final remains exact and omits malformed overlays", () => {
+  const result = composeModeSelection(
+    { baseKey: "exact", overlayKeys: ["review"] },
+    compositionModes,
+    promptOptions,
+    "HOST PROMPT",
+  );
+  assert.equal(result.prompt, "EXACT FINAL");
+  assert.equal(result.resolved.overlays.length, 0);
+  assert.match(result.resolved.diagnostics[0]?.message ?? "", /exclusive/);
+});
+
+test("selection resolution fails closed on a structurally malformed selection", () => {
+  const result = resolveModeSelection(
+    { baseKey: "review", overlayKeys: ["missing", "builder", "review", "review"] },
+    compositionModes,
+  );
+  assert.equal(result.base, undefined);
+  assert.deepEqual(result.overlays, []);
+  assert.equal(result.blocked, true);
+  assert.match(result.diagnostics[0]?.message ?? "", /duplicate|also be an overlay/);
+});
+
+test("v2 state replays ordered overlays and later recognized versions win chronologically", () => {
+  const entries = [
+    { type: "custom", customType: MODE_STATE_TYPE, data: { key: "builder" } },
+    {
+      type: "custom",
+      customType: MODE_STATE_TYPE_V2,
+      data: { baseKey: "builder", overlayKeys: ["review", "explain-more"] },
+    },
+    { type: "custom", customType: MODE_STATE_TYPE, data: { key: "review" } },
+  ];
+  assert.deepEqual(selectionFromEntries(entries, compositionModes).selection, {
+    baseKey: null,
+    overlayKeys: ["review"],
+  });
+});
+
+test("malformed newest v2 state is ignored and preceding valid state remains active", () => {
+  const entries = [
+    {
+      type: "custom",
+      customType: MODE_STATE_TYPE_V2,
+      data: { baseKey: "builder", overlayKeys: ["review"] },
+    },
+    {
+      type: "custom",
+      customType: MODE_STATE_TYPE_V2,
+      data: { baseKey: null, overlayKeys: ["review", "review"] },
+    },
+  ];
+  assert.deepEqual(selectionFromEntries(entries, compositionModes).selection, {
+    baseKey: "builder",
+    overlayKeys: ["review"],
+  });
+});
+
+test("legacy unavailable keys recover when discovery later contains the mode", () => {
+  const entries = [{ type: "custom", customType: MODE_STATE_TYPE, data: { key: "later" } }];
+  assert.deepEqual(selectionFromEntries(entries, compositionModes).selection, {
+    baseKey: null,
+    overlayKeys: [],
+  });
+  const later = { ...appendMode, key: "later", scope: "global" as const };
+  assert.deepEqual(selectionFromEntries(entries, [...compositionModes, later]).selection, {
+    baseKey: null,
+    overlayKeys: ["later"],
+  });
+});
+
+test("PI_MODE translates append/base/final/off into durable v2 selection shapes", () => {
+  const sessionSelection = { baseKey: "builder", overlayKeys: ["review"] };
+  assert.deepEqual(
+    resolveInitialSelection({
+      applyEnvironment: true,
+      environmentValue: "review",
+      sessionSelection,
+      modes: compositionModes,
+    }).selection,
+    { baseKey: null, overlayKeys: ["review"] },
+  );
+  assert.deepEqual(
+    resolveInitialSelection({
+      applyEnvironment: true,
+      environmentValue: "exact",
+      sessionSelection,
+      modes: compositionModes,
+    }).selection,
+    { baseKey: "exact", overlayKeys: [] },
+  );
+  assert.deepEqual(
+    resolveInitialSelection({
+      applyEnvironment: true,
+      environmentValue: "off",
+      sessionSelection,
+      modes: compositionModes,
+    }).selection,
+    { baseKey: null, overlayKeys: [] },
+  );
+});
+
+test("mode discovery diagnoses regular-file directories and atomic saves resist predictable temp symlinks", () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-modes-atomic-"));
+  const regular = join(root, "regular");
+  const victim = join(root, "victim");
+  writeFileSync(regular, "not a directory");
+  writeFileSync(victim, "SAFE");
+  try {
+    const loaded = loadModes({ globalDir: regular, projectTrusted: false });
+    assert.match(loaded.diagnostics[0]?.message ?? "", /not a directory/);
+
+    const target = modePath(root, "atomic");
+    const now = Date.now();
+    for (let offset = -20; offset <= 20; offset += 1) {
+      symlinkSync(victim, `${target}.${process.pid}.${now + offset}.tmp`);
+    }
+    saveMode(root, parseModeDefinition({ key: "atomic", label: "Atomic", systemPrompt: "atomic" }));
+    assert.equal(readFileSync(victim, "utf8"), "SAFE");
+    assert.equal(JSON.parse(readFileSync(target, "utf8")).key, "atomic");
+
+    mkdirSync(modePath(root, "blocked"));
+    assert.throws(() =>
+      saveMode(
+        root,
+        parseModeDefinition({ key: "blocked", label: "Blocked", systemPrompt: "blocked" }),
+      ),
+    );
+    assert.deepEqual(
+      readdirSync(root).filter((name) => name.endsWith(".tmp") && name.includes("blocked")),
+      [],
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

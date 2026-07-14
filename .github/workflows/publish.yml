@@ -123,8 +123,8 @@ jobs:
           PI_ENGINEERING_SMOKE: "0"
         run: npm run check
 
-      - name: Create immutable snapshot-edit release tarball
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
+      - name: Create immutable retained release tarball
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
           set -euo pipefail
@@ -146,12 +146,17 @@ jobs:
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm run release:check:quick -- "$RELEASE_TARBALL_PATH"
 
-      - name: Verify snapshot-edit retained tarball after release checks
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
+      - name: Run pi-modes release checks against retained tarball
+        if: env.RELEASE_COMPONENT == 'pi-modes'
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        run: npm run release:check:ci -- "$RELEASE_TARBALL_PATH"
+
+      - name: Verify retained tarball after release checks
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         run: echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
 
-      - name: Upload snapshot-edit retained release tarball
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
+      - name: Upload retained release tarball
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         uses: actions/upload-artifact@v6
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
@@ -162,18 +167,18 @@ jobs:
           retention-days: 30
 
       - name: Run generic package release checks (artifact-only)
-        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit'
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm run release:check:quick
 
-      - name: Publish snapshot-edit retained tarball to npm (OIDC + provenance)
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
+      - name: Publish retained tarball to npm (OIDC + provenance)
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
 
       - name: Publish generic package directory to npm (OIDC + provenance)
-        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit'
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm publish --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"

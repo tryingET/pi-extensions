@@ -1,5 +1,5 @@
 ---
-summary: "Changelog for scaffold evolution."
+summary: "Changelog for pi-modes releases."
 read_when:
   - "Preparing a release or reviewing history."
 system4d:
@@ -11,14 +11,13 @@ system4d:
 
 # Changelog
 
-All notable changes to this project should be documented here.
+All notable changes to this project are documented here.
 
-## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.1.0...pi-modes-v0.2.0) (2026-07-13)
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.1.0...pi-modes-v0.2.0) - 2026-07-13
 
+### Added
 
-### Features
-
-* **pi-modes:** add prompt mode switching package ([dfaf207](https://github.com/tryingET/pi-extensions/commit/dfaf2071ec6cc59d53594be574d1144110d1e999))
+- Prompt mode switching package with explicit append, base-replacement, and final-replacement semantics.
 
 ## [0.1.0] - 2026-02-08
 
