@@ -272,7 +272,6 @@ function selectDispatchTemplateColumns(): string {
     "name",
     "description",
     "content",
-    "render_engine",
     "artifact_kind",
     "control_mode",
     "formalization_level",
@@ -294,11 +293,24 @@ function parseJsonField(value: unknown): unknown {
   }
 }
 
+function parseDatabaseBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number" && (value === 0 || value === 1)) return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "1" || normalized === "true") return true;
+    if (normalized === "0" || normalized === "false") return false;
+  }
+  return null;
+}
+
 function strictTemplate(raw: Record<string, unknown>): Template | null {
   const id = Number(raw.id);
   const version = Number(raw.version);
   const visibility = parseJsonField(raw.visibility_companies);
-  const vocabulary = parseJsonField(raw.controlled_vocabulary);
+  const vocabulary =
+    raw.controlled_vocabulary == null ? null : parseJsonField(raw.controlled_vocabulary);
+  const exportEligible = parseDatabaseBoolean(raw.export_to_pi);
   if (
     !Number.isInteger(id) ||
     id <= 0 ||
@@ -308,7 +320,7 @@ function strictTemplate(raw: Record<string, unknown>): Template | null {
     !raw.name.trim() ||
     typeof raw.content !== "string" ||
     raw.status !== "active" ||
-    raw.export_to_pi !== true ||
+    exportEligible !== true ||
     typeof raw.artifact_kind !== "string" ||
     !VALID_ARTIFACT_KINDS.has(raw.artifact_kind) ||
     typeof raw.control_mode !== "string" ||
@@ -333,10 +345,6 @@ function strictTemplate(raw: Record<string, unknown>): Template | null {
     name: raw.name,
     description: typeof raw.description === "string" ? raw.description : "",
     content: raw.content,
-    render_engine:
-      typeof raw.render_engine === "string"
-        ? (raw.render_engine as Template["render_engine"])
-        : null,
     artifact_kind: raw.artifact_kind,
     control_mode: raw.control_mode,
     formalization_level: raw.formalization_level,
@@ -417,7 +425,6 @@ function authorizeRequest(
       status: template.status,
       export_to_pi: template.export_to_pi,
       ontology_contract_version: policy.ontologyContractVersion,
-      render_engine: template.render_engine ?? null,
     };
     try {
       canonicalJcsBytes(metadata);
