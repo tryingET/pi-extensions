@@ -43,6 +43,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-toolbox-discovery` (lazy capability discovery/activation broker for keeping heavy custom tools off by default)
   - `packages/pi-designmd-foundry` (DesignMD Foundry skill and CLI-backed tools for DESIGN.md lint/export/prompt/import readiness workflows)
   - `packages/pi-evalset-lab` (`/evalset run|compare` fixed-task-set prompt/system evaluation with JSON + HTML reports)
+  - `packages/pi-evidence-review` (read-only `/evidence-review` TUI for one bounded, normalized SCI evidence review v1 JSON file)
   - `packages/pi-interaction/*`
 - Extra-stack / boundary-heavy starting points:
   - `packages/pi-autoresearch`
@@ -79,6 +80,7 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-ontology-workflows` — ontology inspection/change workflows and ROCS-facing operator surfaces
 - `packages/pi-designmd-foundry` — DESIGN.md-centered design contract handoff, lint/export/prompt/import tools, and verified DesignMD Foundry workflow skill
 - `packages/pi-evalset-lab` — fixed-task-set prompt/system evaluation, `/evalset run|compare`, sample datasets, and JSON-to-HTML eval report export
+- `packages/pi-evidence-review` — inert validation and TUI display of one explicitly named, workspace-contained SCI `evidence_review.v1` JSON file; no normalization, execution, persistence, links, or decisions
 - `packages/pi-society-startup-context` — read-only AI Society startup/session orientation packet and `/society-context refresh`; no AK/KES/evidence writes or repair authority
 - `packages/pi-workstation-inference-provider` — read-only Pi provider adapter over workstation lane-op inference contracts; no model download/build/server/runtime control ownership
 - monorepo root docs — only for package-family selection, release/governance control-plane surfaces, and repo-owned prompts/skills such as `.pi/prompts/commit.md` and `.pi/prompts/pi-extensions-deep-dive.md`
