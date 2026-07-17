@@ -22,7 +22,8 @@ This package owns prompt-template-model-compatible model resolver semantics that
   3. `github-copilot`
   4. `openrouter`
 - auth-aware selection via `getAvailable()`, `isUsingOAuth()`, `getApiKey()`, and `getApiKeyAndHeaders()`
-- preservation of model-level `headers`
+- optional `{ authentication: "host" }` selection that uses `getAvailable()` when present but never returns or directly resolves credential material, for consumers that delegate the request to a host-owned completion boundary
+- preservation of model-level `headers` in the default auth-resolution mode
 
 It intentionally does not own prompt-template slash-command registration, compaction preset parsing, loops/workflows, or subagent execution.
 

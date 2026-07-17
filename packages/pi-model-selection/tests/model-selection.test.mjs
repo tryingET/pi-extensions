@@ -160,6 +160,50 @@ describe("model selection", () => {
 
     assert.equal(await selectModelCandidate("locked", undefined, ctx), undefined);
   });
+
+  it("supports host-owned authentication without reading credential APIs", async () => {
+    const model = createModel({ id: "host-owned" });
+    const ctx = createContext({
+      models: [model],
+      registryOverrides: {
+        getAvailable: undefined,
+        async getApiKeyAndHeaders() {
+          throw new Error("credential material must remain in the host");
+        },
+        async getApiKey() {
+          throw new Error("legacy credential material must remain in the host");
+        },
+      },
+    });
+
+    const selected = await selectModelCandidate("host-owned", undefined, ctx, {
+      authentication: "host",
+    });
+    assert.equal(selected.model, model);
+    assert.equal(selected.alreadyActive, false);
+  });
+
+  it("uses the host availability list without falling back to credential APIs", async () => {
+    const unavailable = createModel({ id: "host-unavailable" });
+    const ctx = createContext({
+      models: [unavailable],
+      registryOverrides: {
+        getAvailable() {
+          return [];
+        },
+        async getApiKeyAndHeaders() {
+          throw new Error("credential material must remain in the host");
+        },
+      },
+    });
+
+    assert.equal(
+      await selectModelCandidate("host-unavailable", undefined, ctx, {
+        authentication: "host",
+      }),
+      undefined,
+    );
+  });
 });
 
 describe("model auth compatibility", () => {
@@ -189,30 +233,6 @@ describe("model auth compatibility", () => {
       ok: true,
       apiKey: "key:anthropic",
       headers: { "x-registry": "new" },
-    });
-  });
-
-  it("preserves provider environment resolved by the host registry", async () => {
-    const model = createModel();
-    const ctx = createContext({
-      models: [model],
-      registryOverrides: {
-        async getApiKeyAndHeaders() {
-          return {
-            ok: true,
-            apiKey: "new-key",
-            headers: { "x-registry": "new" },
-            env: { AWS_PROFILE: "compaction-test" },
-          };
-        },
-      },
-    });
-
-    assert.deepEqual(await resolveModelAuth(ctx, model), {
-      ok: true,
-      apiKey: "new-key",
-      headers: { "x-registry": "new" },
-      env: { AWS_PROFILE: "compaction-test" },
     });
   });
 

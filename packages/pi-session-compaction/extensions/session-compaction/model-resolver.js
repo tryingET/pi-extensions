@@ -1,25 +1,18 @@
 /**
-summary: "Resolves current or preset summarizer models, thinking levels, provider preference, and authentication."
+summary: "Resolves current or preset summarizer models and thinking levels without extracting host authentication."
 read_when:
-  - "Changing compaction preset matching, fallback model selection, thinking-level mapping, or model authentication."
+  - "Changing compaction preset matching, fallback model selection, thinking-level mapping, or host-owned completion."
 */
 import {
   modelSelectionInternals,
   PREFERRED_PROVIDERS,
   parseModelSpecList,
   parseProviderModel,
-  resolveModelAuth,
   resolveModelReference,
   selectModelCandidate,
 } from "@tryinget/pi-model-selection";
 
-export {
-  parseModelSpecList,
-  parseProviderModel,
-  resolveModelAuth,
-  resolveModelReference,
-  selectModelCandidate,
-};
+export { parseModelSpecList, parseProviderModel, resolveModelReference, selectModelCandidate };
 
 const CURRENT_PRESET_SENTINEL = "current";
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
@@ -194,14 +187,6 @@ function resolveRequestedPreset(config = {}, presetQuery) {
   };
 }
 
-async function attachAuth(ctx, model) {
-  const auth = await resolveModelAuth(ctx, model);
-  if (!auth.ok) {
-    throw new Error(auth.error);
-  }
-  return auth;
-}
-
 function thinkingLevelForSelectedSpec(preset, selectedModel) {
   if (!preset.thinkingLevels) return undefined;
   if (preset.thinkingLevels.length === 1) return preset.thinkingLevels[0];
@@ -221,20 +206,18 @@ export async function resolveSummarizerModel(ctx, options = {}) {
       throw new Error("No active session model is available for compaction");
     }
 
-    const auth = await attachAuth(ctx, ctx.model);
     const effectiveThinkingLevel = getEffectiveThinkingLevel(options.branchEntries);
     return {
       source: "current",
       model: ctx.model,
-      apiKey: auth.apiKey,
-      headers: auth.headers,
-      ...(auth.env ? { env: auth.env } : {}),
       reasoningLevel: ctx.model.reasoning ? effectiveThinkingLevel : undefined,
       warnings,
     };
   }
 
-  const selected = await selectModelCandidate(requested.preset.modelSpecs, ctx?.model, ctx);
+  const selected = await selectModelCandidate(requested.preset.modelSpecs, ctx?.model, ctx, {
+    authentication: "host",
+  });
   if (!selected) {
     throw new Error(`No available model from: ${requested.preset.modelSpecs.join(", ")}`);
   }
@@ -248,15 +231,11 @@ export async function resolveSummarizerModel(ctx, options = {}) {
     );
   }
 
-  const auth = await attachAuth(ctx, selected.model);
   return {
     source: "preset",
     presetName: requested.name,
     model: selected.model,
     alreadyActive: selected.alreadyActive,
-    apiKey: auth.apiKey,
-    headers: auth.headers,
-    ...(auth.env ? { env: auth.env } : {}),
     reasoningLevel,
     warnings,
   };

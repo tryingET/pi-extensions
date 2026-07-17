@@ -38,7 +38,7 @@ This package currently implements the compaction-facing foundations and a tested
 - current-session model fallback
 - named preset resolution (`exact`, case-insensitive, prefix, normalized substring)
 - prompt-template-model-aligned model fallback semantics imported from `@tryinget/pi-model-selection`: exact `modelId`, exact `provider/modelId`, comma-separated fallback lists, current-model preservation, and provider-priority ordering for ambiguous bare IDs
-- compatibility-aware model availability resolution through `@tryinget/pi-model-selection`, including host-resolved API keys, headers, and provider environment
+- host-availability-aware model selection through `@tryinget/pi-model-selection` without returning API keys, headers, or provider environment to the extension
 - host-owned summary execution through `modelRegistry.completeSimple()`, with no extension-local pi-ai dependency or provider registry
 - normalized thinking levels
 - files-touched collection ported from dot314 grounded-compaction, including read/write/edit/move/delete tracking, no-op edit filtering, move redirects, repo-relative display paths, and manifest rendering

@@ -368,18 +368,20 @@ describe("session compaction handler runtime", () => {
     assert.equal("env" in observed.options, false);
   });
 
-  it("returns undefined instead of breaking stock compaction when no model or no auth is available", async () => {
+  it("returns undefined instead of breaking stock compaction when no model or host auth is available", async () => {
     const { ctx } = createContext();
     ctx.model = undefined;
     assert.equal(await runSessionCompaction(createEvent(), ctx, createDeps()), undefined);
 
     const unavailable = createContext([createModel()], undefined, {
-      async getApiKeyAndHeaders() {
-        return { ok: false, error: "missing auth" };
+      async completeSimple() {
+        throw new Error("missing host auth");
       },
     });
+    const unavailableDeps = createDeps();
+    delete unavailableDeps.complete;
     assert.equal(
-      await runSessionCompaction(createEvent(), unavailable.ctx, createDeps()),
+      await runSessionCompaction(createEvent(), unavailable.ctx, unavailableDeps),
       undefined,
     );
   });

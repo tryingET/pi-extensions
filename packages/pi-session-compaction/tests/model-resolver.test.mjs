@@ -1,7 +1,7 @@
 /**
-summary: "Tests thinking-level normalization, preset matching, model references, auth compatibility, and summarizer selection."
+summary: "Tests thinking-level normalization, preset matching, model references, and auth-free summarizer selection."
 read_when:
-  - "Changing model-resolution primitives, provider preference, preset fallbacks, reasoning support, or auth APIs."
+  - "Changing model-resolution primitives, provider preference, preset fallbacks, reasoning support, or host-owned completion."
 */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -11,7 +11,6 @@ import {
   normalizeThinkingLevel,
   parseModelSpecList,
   parseProviderModel,
-  resolveModelAuth,
   resolveModelReference,
   resolvePresetMatch,
   resolveSummarizerModel,
@@ -102,60 +101,6 @@ describe("model resolver primitives", () => {
   });
 });
 
-describe("model auth compatibility", () => {
-  it("uses getApiKeyAndHeaders when available and preserves model headers as fallback", async () => {
-    const model = createModel();
-    const ctx = createContext({
-      models: [model],
-      registryOverrides: {
-        async getApiKeyAndHeaders() {
-          return { ok: true, apiKey: "new-key" };
-        },
-      },
-    });
-
-    assert.deepEqual(await resolveModelAuth(ctx, model), {
-      ok: true,
-      apiKey: "new-key",
-      headers: { "x-model-header": "from-model" },
-    });
-  });
-
-  it("uses legacy getApiKey and preserves model headers", async () => {
-    const model = createModel({ headers: { authorization: "model-header" } });
-    const ctx = {
-      model,
-      modelRegistry: {
-        getAll() {
-          return [model];
-        },
-        getAvailable() {
-          return [model];
-        },
-        isUsingOAuth() {
-          return false;
-        },
-        async getApiKey() {
-          return "legacy-key";
-        },
-      },
-    };
-
-    assert.deepEqual(await resolveModelAuth(ctx, model), {
-      ok: true,
-      apiKey: "legacy-key",
-      headers: { authorization: "model-header" },
-    });
-  });
-
-  it("returns a clear failure for unsupported registry APIs", async () => {
-    const model = createModel();
-    const auth = await resolveModelAuth({ modelRegistry: {} }, model);
-    assert.equal(auth.ok, false);
-    assert.match(auth.error, /getApiKeyAndHeaders or getApiKey/);
-  });
-});
-
 describe("model reference resolution", () => {
   it("resolves exact provider/model and bare exact ids", () => {
     const sonnet = createModel();
@@ -177,14 +122,16 @@ describe("model reference resolution", () => {
 });
 
 describe("resolveSummarizerModel", () => {
-  it("resolves the current session model with legacy host auth and latest thinking level", async () => {
+  it("resolves the current model without reading host authentication material", async () => {
     const model = createModel();
     const ctx = createContext({
       models: [model],
       registryOverrides: {
-        getApiKeyAndHeaders: undefined,
+        async getApiKeyAndHeaders() {
+          throw new Error("authentication must remain inside the host completion boundary");
+        },
         async getApiKey() {
-          return "legacy-key";
+          throw new Error("legacy authentication must not be requested");
         },
       },
     });
@@ -199,8 +146,9 @@ describe("resolveSummarizerModel", () => {
 
     assert.equal(result.source, "current");
     assert.equal(result.model, model);
-    assert.equal(result.apiKey, "legacy-key");
-    assert.deepEqual(result.headers, { "x-model-header": "from-model" });
+    assert.equal("apiKey" in result, false);
+    assert.equal("headers" in result, false);
+    assert.equal("env" in result, false);
     assert.equal(result.reasoningLevel, "high");
   });
 
@@ -222,6 +170,35 @@ describe("resolveSummarizerModel", () => {
     assert.equal(result.presetName, "cheap");
     assert.equal(result.model, haiku);
     assert.equal(result.reasoningLevel, undefined);
+  });
+
+  it("resolves preset models without reading host authentication material", async () => {
+    const current = createModel({ id: "current-driver" });
+    const preset = createModel({ id: "host-owned-summary" });
+    const ctx = createContext({
+      models: [current, preset],
+      currentModel: current,
+      registryOverrides: {
+        getAvailable: undefined,
+        async getApiKeyAndHeaders() {
+          throw new Error("authentication must remain inside the host completion boundary");
+        },
+        async getApiKey() {
+          throw new Error("legacy authentication must not be requested");
+        },
+      },
+    });
+
+    const result = await resolveSummarizerModel(ctx, {
+      presetQuery: "host",
+      config: { presets: { host: { model: "anthropic/host-owned-summary" } } },
+    });
+
+    assert.equal(result.source, "preset");
+    assert.equal(result.model, preset);
+    assert.equal("apiKey" in result, false);
+    assert.equal("headers" in result, false);
+    assert.equal("env" in result, false);
   });
 
   it("uses an explicit preset query over defaultPreset", async () => {

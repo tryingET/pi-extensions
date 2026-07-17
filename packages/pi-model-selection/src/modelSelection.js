@@ -1,5 +1,5 @@
 // ---
-// summary: parses model references and selects authenticated candidates with provider-aware fallback ordering.
+// summary: parses model references and selects candidates with provider-aware availability and authentication policies.
 // read_when:
 //   - changing model resolution, authentication compatibility, or fallback selection behavior.
 // ---
@@ -169,7 +169,6 @@ export async function resolveModelAuth(ctx, model) {
       ok: true,
       apiKey: result?.apiKey,
       headers: result?.headers ?? model?.headers,
-      ...(result?.env ? { env: result.env } : {}),
     };
   }
 
@@ -198,11 +197,20 @@ async function hasUsableAuth(model, ctx) {
   }
 
   const auth = await resolveModelAuth(ctx, model);
-  return auth.ok && Boolean(auth.apiKey || auth.headers || auth.env);
+  return auth.ok && Boolean(auth.apiKey || auth.headers);
 }
 
-export async function selectModelCandidate(modelSpecs, currentModel, ctx) {
+function isHostAvailable(model, registry) {
+  const availableModels = getAvailableRegistryModels(registry);
+  return (
+    availableModels === undefined ||
+    availableModels.some((candidate) => sameModel(candidate, model))
+  );
+}
+
+export async function selectModelCandidate(modelSpecs, currentModel, ctx, options = {}) {
   const specs = Array.isArray(modelSpecs) ? modelSpecs : parseModelSpecList(modelSpecs);
+  const hostOwnsAuthentication = options.authentication === "host";
 
   if (currentModel && specs.some((spec) => modelSpecMatches(spec, currentModel))) {
     return { model: currentModel, alreadyActive: true };
@@ -210,7 +218,10 @@ export async function selectModelCandidate(modelSpecs, currentModel, ctx) {
 
   for (const spec of specs) {
     for (const model of getModelCandidates(spec, ctx?.modelRegistry)) {
-      if (await hasUsableAuth(model, ctx)) {
+      const available = hostOwnsAuthentication
+        ? isHostAvailable(model, ctx?.modelRegistry)
+        : await hasUsableAuth(model, ctx);
+      if (available) {
         return { model, alreadyActive: false };
       }
     }

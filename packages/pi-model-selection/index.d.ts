@@ -16,21 +16,11 @@ export interface PiModelRegistryLike {
   getAvailable?(): PiModelLike[];
   isUsingOAuth?(model: PiModelLike): boolean;
   getApiKey?(model: PiModelLike): Promise<string | undefined> | string | undefined;
-  getApiKeyAndHeaders?(model: PiModelLike):
-    | Promise<{
-        ok?: boolean;
-        apiKey?: string;
-        headers?: Record<string, unknown>;
-        env?: Record<string, string>;
-        error?: string;
-      }>
-    | {
-        ok?: boolean;
-        apiKey?: string;
-        headers?: Record<string, unknown>;
-        env?: Record<string, string>;
-        error?: string;
-      };
+  getApiKeyAndHeaders?(
+    model: PiModelLike,
+  ):
+    | Promise<{ ok?: boolean; apiKey?: string; headers?: Record<string, unknown>; error?: string }>
+    | { ok?: boolean; apiKey?: string; headers?: Record<string, unknown>; error?: string };
 }
 
 export interface PiModelSelectionContext {
@@ -43,11 +33,15 @@ export interface SelectedModelCandidate {
   alreadyActive: boolean;
 }
 
+export interface ModelCandidateSelectionOptions {
+  /** Keep credential resolution inside a host-owned completion boundary. */
+  authentication?: "resolve" | "host";
+}
+
 export interface ResolvedModelAuth {
   ok: boolean;
   apiKey?: string;
   headers?: Record<string, unknown>;
-  env?: Record<string, string>;
   error?: string;
 }
 
@@ -64,6 +58,7 @@ export function selectModelCandidate(
   modelSpecs: string[] | string,
   currentModel: PiModelLike | undefined,
   ctx: PiModelSelectionContext,
+  options?: ModelCandidateSelectionOptions,
 ): Promise<SelectedModelCandidate | undefined>;
 
 export const modelSelectionInternals: {

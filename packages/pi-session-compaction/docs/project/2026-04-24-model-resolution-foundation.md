@@ -19,8 +19,8 @@ The package is now a root-managed component and is live-enabled through a guarde
 - At discovery time, that model-frontmatter behavior was owned by the installed `npm:pi-prompt-template-model` extension, visible via `pi list`, not by Pi core prompt-template loading. It is now owned by `packages/pi-prompt-template-execution` after the prompt-template cutover.
 - `pi-prompt-template-model/model-selection.ts` provided the compatibility semantics that were preserved: exact `modelId` or `provider/modelId`, comma fallback, current-model preservation when it matches any listed candidate, auth-aware selection, and provider priority `openai-codex -> anthropic -> github-copilot -> openrouter` for ambiguous bare IDs.
 - `packages/pi-prompt-template-accelerator` has a useful runtime-registry bridge for observed `model_select` lifecycle state, but it does **not** currently expose this reusable LLM model resolver.
-- Dot314 `grounded-compaction` has the right compaction-oriented preset model, but assumes newer host auth via `modelRegistry.getApiKeyAndHeaders(model)`.
-- Local Pi host compatibility still needs legacy `modelRegistry.getApiKey(model)` support and preservation of model-level `headers`.
+- Dot314 `grounded-compaction` supplied the original compaction-oriented preset model, but its extension-owned authentication path is no longer retained.
+- The current Pi host owns summary request routing and authentication through `modelRegistry.completeSimple()`; `pi-session-compaction` must not extract or retain API keys, headers, or provider environment values.
 
 ## Implemented slices
 
@@ -36,8 +36,8 @@ Initial package-local slice:
 Follow-up shared-resolver extraction:
 
 - generic prompt-template-model-compatible resolver semantics moved to `packages/pi-model-selection` (`@tryinget/pi-model-selection`)
-- `pi-session-compaction` now imports shared `parseProviderModel`, `parseModelSpecList`, `selectModelCandidate`, `resolveModelReference`, and `resolveModelAuth`
-- compaction package keeps only compaction-owned preset, thinking-level, and summarizer-specific error behavior
+- `pi-session-compaction` imports shared `parseProviderModel`, `parseModelSpecList`, `selectModelCandidate`, and `resolveModelReference`
+- compaction keeps only preset, thinking-level, and summarizer-specific error behavior; model request authentication remains inside the Pi host completion boundary
 
 Follow-up files-touched foundation:
 

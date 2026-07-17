@@ -442,7 +442,7 @@ For presets:
   2. `anthropic`
   3. `github-copilot`
   4. `openrouter`
-- Auth is checked through host-compatible APIs, including `getApiKeyAndHeaders` and legacy `getApiKey`.
+- Candidate availability may use the host registry's credential-free `getAvailable()` view; request authentication stays inside `modelRegistry.completeSimple()` and is never returned to the extension.
 
 </details>
 
@@ -455,7 +455,7 @@ Failure behavior is intentionally conservative:
 
 | Situation | Behavior |
 |---|---|
-| No model/auth for ordinary compaction | Return `undefined` so stock compaction can proceed. |
+| No model or host completion/auth failure for ordinary compaction | Return `undefined` so stock compaction can proceed. |
 | Configured `defaultPreset` fails | Warn, then fall back to `current`. |
 | Explicit preset request fails | Warn, then fall back to `current`. |
 | Explicit preset request and fallback also fails | Return `{ cancel: true }` to avoid silently producing the wrong preset summary. |
