@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import type { DevelopmentDependencyPackage, DevelopmentSourcePin } from "./preparer.ts";
 import {
@@ -66,8 +67,29 @@ export async function collectDependencies(
       if (!init.includes("__with_libyaml__ = False") || !init.includes("from .cyaml import *"))
         fail("PyYAML pure-Python fallback proof failed");
     }
+    if (dependencyMaterialDigest(output, dependency.path) !== dependency.materialDigest)
+      fail(`dependency material identity mismatch: ${dependency.distribution}`);
   }
   return output;
+}
+
+export function dependencyMaterialDigest(
+  materials: ReadonlyMap<string, Material>,
+  dependencyPath: string,
+): string {
+  const prefix = `${dependencyPath}/`;
+  const entries = [...materials]
+    .filter(([relative]) => relative.startsWith(prefix))
+    .sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+  if (entries.length === 0) fail(`dependency material is empty: ${dependencyPath}`);
+  const hash = createHash("sha256").update("pi-dependency-material.v0\0");
+  for (const [relative, material] of entries) {
+    const header = Buffer.from(
+      `${JSON.stringify([relative, material.mode, material.bytes.byteLength])}\n`,
+    );
+    hash.update(header).update(material.bytes);
+  }
+  return `sha256:${hash.digest("hex")}`;
 }
 
 export async function walk(
@@ -133,26 +155,28 @@ export function proveDependencyClosure(
   } catch {
     fail("dependency lock is not UTF-8");
   }
-  const graph = new Map<string, string[]>();
+  const graph = new Map<string, { dependencies: string[]; version: string }>();
   for (const raw of text.split(/^\[\[package\]\]\s*$/m).slice(1)) {
     const name = raw.match(/^name = "([a-zA-Z0-9._-]+)"$/m)?.[1];
     if (!name) fail("dependency lock package has no valid name");
+    const version = raw.match(/^version = "([A-Za-z0-9][A-Za-z0-9.+_-]{0,127})"$/m)?.[1];
+    if (!version) fail(`dependency lock package has no valid version: ${name}`);
     const dependencyBlock = raw.match(/^dependencies = \[\n([\s\S]*?)^\]$/m)?.[1] ?? "";
     const dependencies = [
       ...dependencyBlock.matchAll(/^\s*\{ name = "([a-zA-Z0-9._-]+)"(?:,.*)? \},$/gm),
     ].map((x) => normalizeDistribution(x[1] ?? ""));
-    graph.set(normalizeDistribution(name), dependencies);
+    graph.set(normalizeDistribution(name), { dependencies, version });
   }
   if (!graph.has("rocs-cli")) fail("dependency lock has no rocs-cli package");
   const closure = new Set<string>();
-  const pending = [...(graph.get("rocs-cli") ?? [])];
+  const pending = [...(graph.get("rocs-cli")?.dependencies ?? [])];
   while (pending.length) {
     const name = pending.pop();
     if (!name || closure.has(name)) continue;
-    const dependencies = graph.get(name);
-    if (!dependencies) fail(`dependency lock closure is incomplete: ${name}`);
+    const dependency = graph.get(name);
+    if (!dependency) fail(`dependency lock closure is incomplete: ${name}`);
     closure.add(name);
-    pending.push(...dependencies);
+    pending.push(...dependency.dependencies);
   }
   const selected = new Set(packages.map((value) => normalizeDistribution(value.distribution)));
   if (
@@ -161,6 +185,11 @@ export function proveDependencyClosure(
     [...closure].some((name) => !selected.has(name))
   )
     fail("selected pure-Python dependency closure is incomplete or has extras");
+  for (const dependency of packages) {
+    const locked = graph.get(normalizeDistribution(dependency.distribution));
+    if (!locked || locked.version !== dependency.version)
+      fail(`dependency version does not match lock: ${dependency.distribution}`);
+  }
 }
 
 export function validatePin(pin: DevelopmentSourcePin): void {
@@ -191,14 +220,16 @@ export function validatePin(pin: DevelopmentSourcePin): void {
     if (
       keys !==
       (dependency.optionalNativeFallback
-        ? "distribution,optionalNativeFallback,path,purePython"
-        : "distribution,path,purePython")
+        ? "distribution,materialDigest,optionalNativeFallback,path,purePython,version"
+        : "distribution,materialDigest,path,purePython,version")
     )
       fail("dependency pin has unknown or missing fields");
     validateRelative(dependency.path, "dependency package path");
     if (
       dependency.purePython !== true ||
-      normalizeDistribution(dependency.distribution) !== dependency.distribution
+      normalizeDistribution(dependency.distribution) !== dependency.distribution ||
+      !/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,127}$/.test(dependency.version) ||
+      !/^sha256:[0-9a-f]{64}$/.test(dependency.materialDigest)
     )
       fail("dependency package is not a normalized pure-Python pin");
     if (

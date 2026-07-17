@@ -1,4 +1,3 @@
-import { homedir } from "node:os";
 import type { RocsCommandContext, RocsDevelopmentPort } from "../ports/rocs-port.ts";
 import {
   type PreparedRuntimeLocation,
@@ -373,7 +372,7 @@ function closedEnv(
   _profile: string,
 ): NodeJS.ProcessEnv {
   return Object.freeze({
-    HOME: homedir(),
+    HOME: "/nonexistent",
     PATH: "/usr/bin:/bin",
     LANG: "C.UTF-8",
     LC_ALL: "C.UTF-8",

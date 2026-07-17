@@ -206,6 +206,7 @@ test("verified descriptor binds exact development argv and a closed environment"
   for (const flag of ["--json", "--no-index-cache", "--no-env-file", "--resolve-refs"])
     assert.equal(argv.includes(flag), true);
   const env = buildClosedRunnerEnv(descriptor, "/workspace", "review");
+  assert.equal(env.HOME, "/nonexistent");
   assert.equal(env.ROCS_WORKSPACE_REF_MODE, "strict");
   assert.equal("PYTHONPATH" in env, false);
   assert.equal("ROCS_BIN" in env, false);

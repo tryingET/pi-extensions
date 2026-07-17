@@ -21,6 +21,7 @@ import {
   type DevelopmentSourcePin,
   prepareDevelopmentRuntime,
 } from "../src/semantic/preparer.ts";
+import { dependencyMaterialDigest } from "../src/semantic/preparer-dependencies.ts";
 import {
   createDevelopmentRocsRunnerDescriptor,
   createVerifiedDevelopmentRocsPort,
@@ -82,11 +83,21 @@ async function fixture(dependencies: string[] = []): Promise<Fixture> {
   });
   const packagePins: DevelopmentDependencyPackage[] = [];
   for (const dependency of dependencies) {
+    const dependencyBytes = Buffer.from("# dependency\n");
     await mkdir(path.join(sitePackages, dependency), { recursive: true, mode: 0o700 });
-    await writeFile(path.join(sitePackages, dependency, "__init__.py"), "# dependency\n", {
+    await writeFile(path.join(sitePackages, dependency, "__init__.py"), dependencyBytes, {
       mode: 0o644,
     });
-    packagePins.push({ distribution: dependency, path: dependency, purePython: true });
+    packagePins.push({
+      distribution: dependency,
+      path: dependency,
+      version: "1.0.0",
+      materialDigest: dependencyMaterialDigest(
+        new Map([[`${dependency}/__init__.py`, { bytes: dependencyBytes, mode: 0o644 }]]),
+        dependency,
+      ),
+      purePython: true,
+    });
   }
   return {
     source,
@@ -150,7 +161,15 @@ test("preparer rejects incomplete pins, path extras, escapes, and overlapping wr
   await assert.rejects(() => prepareDevelopmentRuntime(incomplete.pin), /pin set is incomplete/);
 
   const escaped = await fixture(["dep"]);
-  escaped.pin.dependencyPackages = [{ distribution: "dep", path: "../outside", purePython: true }];
+  escaped.pin.dependencyPackages = [
+    {
+      distribution: "dep",
+      path: "../outside",
+      version: "1.0.0",
+      materialDigest: `sha256:${"0".repeat(64)}`,
+      purePython: true,
+    },
+  ];
   await assert.rejects(
     () => prepareDevelopmentRuntime(escaped.pin),
     /unsafe dependency package path/,
@@ -158,8 +177,20 @@ test("preparer rejects incomplete pins, path extras, escapes, and overlapping wr
 
   const overlapping = await fixture(["dep", "other"]);
   overlapping.pin.dependencyPackages = [
-    { distribution: "dep", path: "dep", purePython: true },
-    { distribution: "other", path: "dep/nested", purePython: true },
+    {
+      distribution: "dep",
+      path: "dep",
+      version: "1.0.0",
+      materialDigest: `sha256:${"0".repeat(64)}`,
+      purePython: true,
+    },
+    {
+      distribution: "other",
+      path: "dep/nested",
+      version: "1.0.0",
+      materialDigest: `sha256:${"1".repeat(64)}`,
+      purePython: true,
+    },
   ];
   await assert.rejects(() => prepareDevelopmentRuntime(overlapping.pin), /paths overlap/);
 });
@@ -226,10 +257,40 @@ test("preparer proves the selected required dependency closure without extras", 
   );
 
   const extra = await fixture();
-  extra.pin.dependencyPackages = [{ distribution: "extra", path: "extra", purePython: true }];
+  extra.pin.dependencyPackages = [
+    {
+      distribution: "extra",
+      path: "extra",
+      version: "1.0.0",
+      materialDigest: `sha256:${"0".repeat(64)}`,
+      purePython: true,
+    },
+  ];
   await assert.rejects(
     () => prepareDevelopmentRuntime(extra.pin),
     /closure is incomplete or has extras/,
+  );
+});
+
+test("preparer binds dependency versions and every staged dependency byte", async () => {
+  const wrongVersion = await fixture(["dep"]);
+  wrongVersion.pin.dependencyPackages = wrongVersion.pin.dependencyPackages.map((dependency) => ({
+    ...dependency,
+    version: "2.0.0",
+  }));
+  await assert.rejects(
+    () => prepareDevelopmentRuntime(wrongVersion.pin),
+    /dependency version does not match lock/,
+  );
+
+  const driftedMaterial = await fixture(["dep"]);
+  await writeFile(
+    path.join(driftedMaterial.sitePackages, "dep", "__init__.py"),
+    "# stale or tampered dependency\n",
+  );
+  await assert.rejects(
+    () => prepareDevelopmentRuntime(driftedMaterial.pin),
+    /dependency material identity mismatch/,
   );
 });
 

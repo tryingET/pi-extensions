@@ -106,15 +106,14 @@ export function createSemanticPreflightRuntime(
 
   const sessionStart = (ctx: RuntimeContext) => {
     reset();
+    if (ctx.mode !== "tui") return;
     const compatibility = hostCompatibility(ctx);
-    if (ctx.mode === "tui") {
-      ctx.ui.setStatus(
-        STATUS_KEY,
-        compatibility.ok
-          ? "semantic preflight: development disabled"
-          : `semantic preflight: ${compatibility.reason}`,
-      );
-    }
+    ctx.ui.setStatus(
+      STATUS_KEY,
+      compatibility.ok
+        ? "semantic preflight: development disabled"
+        : `semantic preflight: ${compatibility.reason}`,
+    );
     const generation = state.generation;
     const signal = state.controller.signal;
     const readiness = resolveOrientationTarget(deps.workspace, ctx.cwd)
@@ -135,6 +134,7 @@ export function createSemanticPreflightRuntime(
   };
 
   const disable = (ctx?: RuntimeContext) => {
+    state.requestEpoch++;
     state.grant = undefined;
     state.promptRun = undefined;
     state.discoveryInFlight = undefined;
@@ -206,7 +206,7 @@ export function createSemanticPreflightRuntime(
       let request = state.discoveryInFlight;
       if (!request || request.key !== key) {
         const promise = runPreflight(ctx, event.prompt, grantState.grant, generation);
-        request = { key, promise };
+        request = { key, epoch: ++state.requestEpoch, promise };
         state.discoveryInFlight = request;
         void promise.finally(() => {
           if (state.discoveryInFlight?.promise === promise) state.discoveryInFlight = undefined;
@@ -216,6 +216,7 @@ export function createSemanticPreflightRuntime(
       const current = currentGrant(ctx, state, now());
       if (
         state.generation !== generation ||
+        state.requestEpoch !== request.epoch ||
         !current.grant ||
         current.grant !== grantState.grant ||
         ctx.cwd !== grantState.grant.cwd
@@ -318,7 +319,7 @@ export function createSemanticPreflightRuntime(
       { timeout: CONFIRM_MS },
     );
     const confirmedAt = now();
-    if (!confirmed || confirmedAt - confirmStarted > CONFIRM_MS)
+    if (!confirmed || confirmedAt - confirmStarted >= CONFIRM_MS)
       return reportEnableFailure(ctx, "confirmation cancelled or expired");
     if (!ctx.isIdle()) return reportEnableFailure(ctx, "Pi is no longer idle");
     if (!sameScope(ctx, generation, cwd, hostKey))

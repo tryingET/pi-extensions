@@ -42,11 +42,13 @@ export interface PromptRun {
 export interface PreflightState {
   generation: number;
   controller: AbortController;
+  requestEpoch: number;
   orientation?: Orientation;
   orientationInFlight?: Promise<Orientation>;
   grant?: DevelopmentGrant;
   discoveryInFlight?: {
     key: string;
+    epoch: number;
     promise: Promise<{
       envelope: SemanticPreflightEnvelope;
       target?: ResolvedOntologyTarget;
@@ -57,7 +59,7 @@ export interface PreflightState {
 }
 
 export function freshState(generation: number): PreflightState {
-  return { generation, controller: new AbortController() };
+  return { generation, controller: new AbortController(), requestEpoch: 0 };
 }
 
 export function currentGrant(

@@ -61,6 +61,10 @@ export interface DevelopmentDependencyPackage {
   distribution: string;
   /** Import-package path relative to site-packages. */
   path: string;
+  /** Exact distribution version selected by the pinned uv.lock closure. */
+  version: string;
+  /** Canonical digest of every staged import-package path, mode, and byte. */
+  materialDigest: string;
   purePython: true;
   /** The sole supported native omission: PyYAML's documented Python fallback. */
   optionalNativeFallback?: "pyyaml";

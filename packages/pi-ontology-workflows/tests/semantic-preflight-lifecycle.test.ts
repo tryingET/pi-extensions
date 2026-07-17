@@ -80,6 +80,7 @@ interface Harness {
   notifications: Array<{ message: string; level?: string }>;
   statuses: string[];
   confirmOptions: Array<{ timeout?: number } | undefined>;
+  orientation: { detects: number; resolves: number };
   setNow(value: number): void;
 }
 
@@ -98,6 +99,7 @@ async function harness(
   let timestamp = 1_000;
   let idle = true;
   let confirm = true;
+  const orientation = { detects: 0, resolves: 0 };
   const ctx: RuntimeContext & { idle?: boolean; confirm?: boolean } = {
     cwd: "/workspace/repo",
     mode: "tui",
@@ -142,6 +144,7 @@ async function harness(
   const runtime = createSemanticPreflightRuntime({
     workspace: {
       async detect(cwd) {
+        orientation.detects++;
         return {
           cwd,
           workspaceRoot: "/workspace",
@@ -154,6 +157,7 @@ async function harness(
         };
       },
       async resolveTarget() {
+        orientation.resolves++;
         return target;
       },
     },
@@ -189,6 +193,7 @@ async function harness(
     notifications,
     statuses,
     confirmOptions,
+    orientation,
     setNow(value) {
       timestamp = value;
     },
@@ -245,6 +250,7 @@ test("session_start performs bounded readiness without validate, build, or disco
   await emit(h, "session_start", { reason: "startup" });
   await Promise.resolve();
   assert.equal(discoveries, 0);
+  assert.deepEqual(h.orientation, { detects: 1, resolves: 1 });
   assert.equal(h.runtime.snapshot().grant, false);
 });
 
@@ -265,6 +271,20 @@ test("fresh idle TUI confirmation enables a generation-scoped 10-minute grant", 
   await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
   assert.equal(h.runtime.snapshot().grant, false);
   assert.match(h.notifications.at(-1)?.message ?? "", /continuing without semantic context/);
+});
+
+test("confirmation resolving at the exact 30-second boundary expires", async () => {
+  const h = await harness();
+  await emit(h, "session_start", { reason: "startup" });
+  h.ctx.ui.confirm = async (_title, _message, options) => {
+    h.confirmOptions.push(options);
+    h.setNow(31_000);
+    return true;
+  };
+  await h.commands.get("ontology-preflight")?.("enable-development", h.ctx);
+  assert.equal(h.runtime.snapshot().grant, false);
+  assert.deepEqual(h.confirmOptions, [{ timeout: 30_000 }]);
+  assert.match(h.notifications.at(-1)?.message ?? "", /confirmation cancelled or expired/);
 });
 
 test("enabled preflight preserves exact query bytes and appends structural-only chained prompt", async () => {
@@ -352,6 +372,39 @@ test("same-key calls coalesce only while in flight and sequential prompt runs do
   assert.equal(calls, 2);
 });
 
+test("a slower earlier prompt cannot overwrite newer prompt-run inspect bindings", async () => {
+  const releases = new Map<string, () => void>();
+  const h = await harness(async (_repo, query) => {
+    await new Promise<void>((resolve) => releases.set(query, resolve));
+    const result = discoveryResult(query);
+    const candidate = result.candidates[0];
+    assert.ok(candidate);
+    candidate.ont_id = query.startsWith("first") ? "core.First" : "core.Second";
+    return { invocation: "ok", result };
+  });
+  await enable(h);
+
+  const first = emit(h, "before_agent_start", {
+    prompt: "first semantic request",
+    systemPrompt: "FIRST",
+  });
+  await Promise.resolve();
+  const second = emit(h, "before_agent_start", {
+    prompt: "second semantic request",
+    systemPrompt: "SECOND",
+  });
+  await Promise.resolve();
+  releases.get("second semantic request")?.();
+  const [secondResult] = await second;
+  assert.match(promptResult(secondResult).systemPrompt, /core\.Second/);
+
+  releases.get("first semantic request")?.();
+  const [staleFirst] = await first;
+  assert.equal(staleFirst, undefined);
+  assert.equal(h.runtime.inspectAccess(h.ctx, { kind: "pack", ontId: "core.Second" }).bound, true);
+  assert.equal(h.runtime.inspectAccess(h.ctx, { kind: "pack", ontId: "core.First" }).bound, false);
+});
+
 test("reload/new/resume/fork/shutdown invalidate grants, prompt bindings, and late completions", async () => {
   let release!: () => void;
   const waiting = new Promise<void>((resolve) => {
@@ -423,6 +476,8 @@ test("mode, immutable host capability, idle, confirm, host, cwd, and expiry gate
     const headless = await harness();
     headless.ctx.mode = mode;
     await emit(headless, "session_start", { reason: "startup" });
+    await Promise.resolve();
+    assert.deepEqual(headless.orientation, { detects: 0, resolves: 0 }, mode);
     const [result] = await emit(headless, "before_agent_start", {
       prompt: "ontology agent",
       systemPrompt: "EXACT",
