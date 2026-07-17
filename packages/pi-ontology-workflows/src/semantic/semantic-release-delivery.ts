@@ -387,11 +387,23 @@ function validateRuntimeIdentity(value: unknown): void {
 }
 function identifiers(value: unknown, label: string): void {
   if (!Array.isArray(value) || value.length > 256) bad(`invalid ${label}`);
-  for (const item of value) identifier(item, label);
+  let prior: string | undefined;
+  for (const item of value) {
+    identifier(item, label);
+    if (prior !== undefined && Buffer.compare(Buffer.from(prior), Buffer.from(item)) >= 0)
+      bad(`invalid ${label} order`);
+    prior = item;
+  }
 }
 function digests(value: unknown, label: string): void {
   if (!Array.isArray(value) || value.length > 256) bad(`invalid ${label}`);
-  for (const item of value) digest(item);
+  let prior: string | undefined;
+  for (const item of value) {
+    digest(item);
+    if (prior !== undefined && Buffer.compare(Buffer.from(prior), Buffer.from(item)) >= 0)
+      bad(`invalid ${label} order`);
+    prior = item;
+  }
 }
 function identifier(value: unknown, label: string): asserts value is string {
   if (typeof value !== "string" || !IDENTIFIER.test(value)) bad(`invalid ${label}`);

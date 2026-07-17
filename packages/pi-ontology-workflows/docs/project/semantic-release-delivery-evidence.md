@@ -28,6 +28,7 @@ Pi owns only exact `delivered`, `suppressed`, and `failed` attestations. It does
   - exports `SEMANTIC_RELEASE_DELIVERY_DEFAULT_ENABLED=false`;
   - exports `LIVE_ACQUISITION_IMPLEMENTED=false`;
   - validates a complete `semantic-rocs-generation-receipt.v0`, including its closed shape, ROCS issuer, recursive fields, and JCS domain digest, instead of trusting caller-supplied generation or execution digests;
+  - enforces the protocol invariant that generation candidate IDs and pack digests are strictly UTF-8 sorted and unique; duplicate or out-of-order arrays fail even when the receipt is correctly resealed;
   - derives the exact revision-3 `softwareco/pi-canary-consumer` identity, one operator-named canary scope, activation head, and effective-execution digest from that checked generation receipt;
   - emits accepted `semantic-pi-delivery-receipt.v0` shapes and domain digests;
   - defaults to policy suppression;
@@ -49,7 +50,7 @@ npm run check
 node --import ./node_modules/tsx/dist/loader.mjs --test tests/semantic-release-delivery.test.ts
 ```
 
-The sanitized dogfood invocation uses the same test file through an explicit Node/tsx path with a closed environment. It proves one isolated delivered receipt plus policy, stale, cancellation, deadline-equality timeout, generation-resolution, canonical-order, scope, issuer, cross-run, and digest failure closure. It is not consumer consent or activation evidence.
+The sanitized dogfood invocation uses the same test file through an explicit Node/tsx path with a closed environment. It proves one isolated delivered receipt plus policy, stale, cancellation, deadline-equality timeout, generation-resolution, strict sorted/unique generation arrays, canonical-order, scope, issuer, cross-run, and digest failure closure. It is not consumer consent or activation evidence.
 
 ## Rollback
 

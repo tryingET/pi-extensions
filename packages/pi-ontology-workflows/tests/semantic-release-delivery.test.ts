@@ -213,6 +213,27 @@ test("generation receipt is fully checked instead of trusting caller-supplied di
   );
 });
 
+test("generation candidate and pack arrays must be UTF-8 sorted and unique", () => {
+  const gate = new SemanticReleaseDeliveryGate({ isolatedDogfood: true, now: () => 1n });
+  const cases: Array<[string, string, string[]]> = [
+    ["duplicate candidate ids", "candidate_ids", ["core.Agent", "core.Agent"]],
+    ["out-of-order candidate ids", "candidate_ids", ["z.Agent", "a.Agent"]],
+    ["duplicate pack digests", "pack_digests", [d("a"), d("a")]],
+    ["out-of-order pack digests", "pack_digests", [d("f"), d("a")]],
+  ];
+  for (const [label, field, values] of cases) {
+    const attempt = context();
+    const generation = attempt.generationReceipt as Record<string, unknown>;
+    generation[field] = values;
+    reseal(generation, "semantic-release.rocs-generation.v0", "rocs_generation_receipt_digest");
+    assert.throws(
+      () => gate.attest({ context: attempt, deadlineNs: 2n }),
+      /candidate ids order|pack digests order/,
+      label,
+    );
+  }
+});
+
 test("scope drift, hostile issuer, unknown fields, and digest tampering reject", () => {
   const gate = new SemanticReleaseDeliveryGate({
     isolatedDogfood: true,
