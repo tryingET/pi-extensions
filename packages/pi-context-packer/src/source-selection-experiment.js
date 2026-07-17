@@ -76,7 +76,7 @@ function matchingTokenCount(text, tokens) {
 function isCanonicalRepositoryPath(value) {
   if (typeof value !== "string" || value.length === 0 || Buffer.byteLength(value, "utf8") > 4096)
     return false;
-  if (value.startsWith("/") || value.includes("\\") || /^[A-Za-z]:\//.test(value)) return false;
+  if (value.startsWith("/") || value.includes("\\") || /^[A-Za-z]:/.test(value)) return false;
   for (const character of value) {
     const code = character.codePointAt(0);
     if (code !== undefined && (code <= 0x1f || code === 0x7f)) return false;
