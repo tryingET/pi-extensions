@@ -1,3 +1,10 @@
+---
+summary: "Release history for the shared pi-interaction-kit package."
+read_when:
+  - "Reviewing pi-interaction-kit releases or preparing its next version."
+type: "changelog"
+---
+
 # Changelog
 
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-interaction-kit-v0.1.0...pi-interaction-kit-v0.2.0) (2026-07-13)

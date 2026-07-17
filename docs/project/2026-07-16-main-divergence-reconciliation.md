@@ -4,7 +4,7 @@ read_when:
   - "Selecting an IW7 recovery slice from the divergent July 2026 local main."
   - "Checking why wholesale merge, candidate-peer recovery, or stale package replay remains unsafe."
 type: "reconciliation-plan"
-status: "refreshed-second-slice-selected"
+status: "second-slice-complete-next-ranked"
 date: "2026-07-16"
 ---
 
@@ -16,7 +16,7 @@ Do **not** merge the legacy local `main` wholesale and do not implement new pack
 
 Recover one completed package/topic at a time in a clean worktree rooted at current `origin/main`. Each recovery requires a fresh bounded AK task, current-target reconciliation, package and root validation, independent review, and an exact integration commit. Generated AK projections are not live authority and must not be replayed as package implementation.
 
-The first bounded slice, `pi-evidence-review`, is complete on `origin/main` at `39ba1716632dead053859a4106b9236f5f4899cc`. The selected second slice is the schema-v9 dispatch-authorization correction from completed AK task `3896`, limited to four `pi-vault-client` runtime/test paths.
+The first bounded slice, `pi-evidence-review`, is complete on `origin/main` at `39ba1716632dead053859a4106b9236f5f4899cc`. The second slice, the four-path schema-v9 dispatch-authorization correction from historical AK task `3896`, is complete on `origin/main` at `b71ebbd1bc1fd9734bb7db930c42766cf8038658`. Later candidates remain ranked below and require fresh bounded authority.
 
 ## Refreshed baseline
 
@@ -25,7 +25,7 @@ Captured after fetching `origin/main` and completing the first recovery slice:
 | Surface | Value |
 | --- | --- |
 | legacy local `main` | `fac45ff6f681172b6fdcc1902bb7aa9155892324` |
-| current `origin/main` | `39ba1716632dead053859a4106b9236f5f4899cc` |
+| `origin/main` at capture | `39ba1716632dead053859a4106b9236f5f4899cc` |
 | merge base | `68885841bd101e2bf42314b9dd8427c2620b13ea` |
 | graph divergence | 83 local-side commits / 92 origin-side commits |
 | patch-equivalent non-merge commits | 12 in each comparison |
@@ -49,11 +49,11 @@ The dirty checkout was not reset, cleaned, staged, or used as integration author
 - scoped root gate, explicit-path TUI, bounded picker TUI, headless fail-closed behavior, and independent review: pass;
 - follow-up AK evidence `4582` records the stable canonical package installation, fresh explicit-path/picker/headless proof, removal of the temporary source, and package-tree equality.
 
-## Selected second slice
+## Completed second slice
 
 ### `pi-vault-client` schema-v9 dispatch authorization correction
 
-Recover the completed correction commit `8065b226dbdf976fafffb8ca59f7cf37904b0655` by reconciling its exact four-path change onto current `origin/main`:
+Historical correction commit `8065b226dbdf976fafffb8ca59f7cf37904b0655` was reconciled as the exact four-path integration commit `b71ebbd1bc1fd9734bb7db930c42766cf8038658` on current `origin/main`:
 
 ```text
 packages/pi-vault-client/src/dispatchRuntime.js
@@ -62,15 +62,14 @@ packages/pi-vault-client/tests/dispatch-authorization.test.mjs
 packages/pi-vault-client/tests/vault-dolt-integration.test.mjs
 ```
 
-Why this is next:
+Why it was selected:
 
-1. AK task `3896` is complete with 53 focused tests, 249 package tests, live canonical-Vault proof, and independent/adversarial review in its result.
-2. The patch is absent from `origin/main`.
-3. Current `origin/main` still asks schema-v9 storage for a nonexistent `render_engine` column. Render selection belongs to content frontmatter and package-owned preparation identity, not a database column.
-4. The correction also normalizes real Dolt boolean values and omitted nullable controlled vocabulary while preserving content-hash drift enforcement.
-5. The four paths overlap the current target lineage: patch-equivalent base feature commit `a81e3dec` touches three, and origin-only fixture commit `6a82411a` touches the real-Dolt test. The correction still applies cleanly with offsets, so the slice must reconcile and retest current target content rather than replaying old snapshots blindly.
+1. AK task `3896` was complete with 53 focused tests, 249 package tests, live canonical-Vault proof, and independent/adversarial review in its result.
+2. Before integration, the correction patch was absent and dispatch authorization asked schema-v9 storage for a nonexistent `render_engine` column. Render selection belongs to content frontmatter and package-owned preparation identity, not a database column.
+3. The correction normalizes real Dolt boolean values and omitted nullable controlled vocabulary while preserving content-hash drift enforcement.
+4. The four paths overlapped the target lineage: patch-equivalent base feature commit `a81e3dec` touched three, and origin-only fixture commit `6a82411a` touched the real-Dolt test. The correction therefore required current-target reconciliation and retesting rather than blind replay.
 
-Do not replay the broader historical vault implementation or release commits. Reconcile only this correction and validate against current package/runtime dependencies.
+The integrated slice passed 249/249 package tests, real-Dolt schema-v9 checks, artifact-aware release validation, clean-room installation, fresh live dispatch proof, independent review, and adversarial falsification. The broader historical vault implementation and release commits were not replayed.
 
 ## Ranked later candidates
 
@@ -86,9 +85,18 @@ These remain candidates, not authorizations:
 
 Adaptive visible-loop and candidate-peer/spawn work are excluded while the emergency candidate-spawn hold remains active.
 
-## Separate root-validation cleanup
+## Root documentation baseline correction
 
-Full strict documentation validation has a small independent baseline failure: four `packages/pi-interaction/*/CHANGELOG.md` files lack required documentation frontmatter/read-when metadata. Repair these only in a separate scoped task after the selected package slice; do not combine them with runtime recovery.
+The historical strict-docs failure reproduced on four release-generated changelogs:
+
+```text
+packages/pi-interaction/pi-editor-registry/CHANGELOG.md
+packages/pi-interaction/pi-interaction-kit/CHANGELOG.md
+packages/pi-interaction/pi-runtime-registry/CHANGELOG.md
+packages/pi-interaction/pi-trigger-adapter/CHANGELOG.md
+```
+
+A separate scoped task added only the required summary/read-when/type frontmatter. Full repository strict documentation validation now passes without changing changelog history or release semantics.
 
 ## Validation and evidence posture
 

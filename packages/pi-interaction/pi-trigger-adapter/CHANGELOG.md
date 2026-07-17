@@ -1,3 +1,10 @@
+---
+summary: "Release history for the pi-trigger-adapter interaction package."
+read_when:
+  - "Reviewing pi-trigger-adapter releases or preparing its next version."
+type: "changelog"
+---
+
 # Changelog
 
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.1.0...pi-trigger-adapter-v0.2.0) (2026-07-13)

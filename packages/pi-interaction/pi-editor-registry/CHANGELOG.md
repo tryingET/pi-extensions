@@ -1,3 +1,10 @@
+---
+summary: "Release history for the pi-editor-registry interaction package."
+read_when:
+  - "Reviewing pi-editor-registry releases or preparing its next version."
+type: "changelog"
+---
+
 # Changelog
 
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-editor-registry-v0.1.0...pi-editor-registry-v0.2.0) (2026-07-13)
