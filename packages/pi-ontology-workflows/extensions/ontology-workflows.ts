@@ -29,6 +29,10 @@ import {
   type OntologyProposalAssessment,
   type OntologyProposalCandidate,
 } from "../src/core/proposal.ts";
+import {
+  createSemanticPreflightRuntime,
+  type RuntimeContext as SemanticRuntimeContext,
+} from "../src/semantic/preflight-runtime.ts";
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 
@@ -147,21 +151,6 @@ const changeSchema = Type.Object({
   validateAfter: Type.Optional(Type.Boolean()),
   buildAfter: Type.Optional(Type.Boolean()),
 });
-
-function buildStartupNotificationText(result: Awaited<ReturnType<typeof inspectOntology>>): string {
-  return [
-    `ontology scope=${result.target.scope}`,
-    `repo=${result.target.repoPath}`,
-    `concepts=${result.status?.counts.concepts ?? "?"} relations=${result.status?.counts.relations ?? "?"}`,
-    `validation=${result.status?.validation?.ok === false ? "fail" : "ok"}`,
-    "",
-    "picker: /ontology:<query>[::scope]",
-    "pack: /ontology-pack:<query>[::scope]",
-    "change: /ontology-change:<query>[::scope]",
-    "bootstrap: /ontology-bootstrap",
-    "manifest: /ontology-manifest",
-  ].join("\n");
-}
 
 function buildBootstrapSuggestionText(repoPath: string): string {
   return [
@@ -365,6 +354,28 @@ export function parseOntologyManifestCommandArgs(raw: string): OntologyManifestC
 
 export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
   registerOntologyInteractionRuntime(pi, runtimeDeps);
+  const semanticPreflight = createSemanticPreflightRuntime({
+    workspace,
+    legacyRocs: rocs,
+  });
+  semanticPreflight.register(pi);
+
+  // Preserve the bounded repo bootstrap orientation without the former startup
+  // validate/build work. Semantic readiness and discovery remain separately gated.
+  pi.on("session_start", async (event, ctx) => {
+    if (!ctx.hasUI) return;
+    ctx.ui.setWidget(ONTOLOGY_STATUS_KEY, undefined);
+    try {
+      const detected = await workspace.detect(ctx.cwd);
+      if (shouldSuggestBootstrap(detected)) {
+        ctx.ui.setStatus(ONTOLOGY_STATUS_KEY, "repo:none");
+        if (event.reason === "startup")
+          ctx.ui.notify(buildBootstrapSuggestionText(detected.currentRepoPath), "info");
+      }
+    } catch {
+      ctx.ui.setStatus(ONTOLOGY_STATUS_KEY, undefined);
+    }
+  });
 
   pi.registerTool({
     name: "ontology_inspect",
@@ -377,14 +388,25 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       "Prefer kind=status to understand current health, kind=search to find matching ids, and kind=pack for exact concept/relation context.",
     ],
     parameters: asPiToolParameters(inspectSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await inspectOntology(
-        params as OntologyInspectRequest,
-        { cwd: ctx.cwd },
-        runtimeDeps,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const request = params as OntologyInspectRequest;
+      const access = semanticPreflight.inspectAccess(
+        ctx as unknown as SemanticRuntimeContext,
+        request,
+        signal,
       );
+      const result = await inspectOntology(request, access.runtime, {
+        ...runtimeDeps,
+        rocs: access.rocs,
+      });
+      if (!access.isCurrent()) throw new Error("semantic inspect generation or grant became stale");
       const text = formatInspectResult(result);
       updateStatusFromInspect(ctx, result);
+      semanticPreflight.noteInspect(
+        ctx as unknown as SemanticRuntimeContext,
+        request,
+        access.bound,
+      );
       return {
         content: [{ type: "text", text }],
         details: result,
@@ -713,74 +735,6 @@ export default function ontologyWorkflowsExtension(pi: ExtensionAPI) {
       }
     },
   });
-
-  pi.on("session_start", async (event, ctx) => {
-    if (!ctx.hasUI) return;
-
-    ctx.ui.setWidget(ONTOLOGY_STATUS_KEY, undefined);
-
-    try {
-      const detected = await workspace.detect(ctx.cwd);
-      if (shouldSuggestBootstrap(detected)) {
-        ctx.ui.setStatus(ONTOLOGY_STATUS_KEY, "repo:none");
-        if ((event as { reason?: string }).reason === "startup") {
-          ctx.ui.notify(buildBootstrapSuggestionText(detected.currentRepoPath), "info");
-        }
-        return;
-      }
-
-      if (
-        !detected.currentRepoHasOntology &&
-        !detected.currentCompany &&
-        detected.currentRepoKind === "none"
-      ) {
-        ctx.ui.setStatus(ONTOLOGY_STATUS_KEY, undefined);
-        return;
-      }
-
-      const result = await inspectOntology(
-        { kind: "status", includeValidation: true },
-        { cwd: ctx.cwd },
-        runtimeDeps,
-      );
-      updateStatusFromInspect(ctx, result);
-
-      if ((event as { reason?: string }).reason === "startup") {
-        ctx.ui.notify(buildStartupNotificationText(result), "info");
-      }
-    } catch (error) {
-      ctx.ui.setStatus(
-        ONTOLOGY_STATUS_KEY,
-        `ontology unavailable: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  });
-
-  pi.on("before_agent_start", async (event, ctx) => {
-    const prompt = event.prompt.toLowerCase();
-    if (!isOntologyRelevantPrompt(prompt)) return;
-
-    let bootstrapHint = "";
-    try {
-      const detected = await workspace.detect(ctx.cwd);
-      if (shouldSuggestBootstrap(detected)) {
-        bootstrapHint = `\n- This repo does not have a repo-local ontology yet; use /ontology-bootstrap or ontology_change with artifactKind=bootstrap and scope=repo before the first repo-scoped ontology changes.`;
-      }
-    } catch {
-      // best-effort hint only
-    }
-
-    return {
-      systemPrompt:
-        `${event.systemPrompt}\n\n` +
-        `Ontology workflow hint:\n` +
-        `- Use ontology_inspect before inventing or changing concepts, relations, invariants, system4d entries, or bridge mappings.\n` +
-        `- If you are unsure whether a missing term deserves ontology at all, use ontology_proposal before ontology_change.\n` +
-        `- Use ontology_change for ontology writes so routing, validation, and build behavior stay explicit.\n` +
-        `- Keep repo/company/core placement explicit when semantic scope matters.` +
-        bootstrapHint,
-    };
-  });
 }
 
 function updateStatusFromInspect(
@@ -793,18 +747,4 @@ function updateStatusFromInspect(
     ? ` concepts=${result.status.counts.concepts} relations=${result.status.counts.relations}`
     : "";
   ctx.ui.setStatus(ONTOLOGY_STATUS_KEY, `${result.target.scope}:${validationState}${counts}`);
-}
-
-function isOntologyRelevantPrompt(prompt: string): boolean {
-  const patterns = [
-    /\bontology\b/,
-    /\bconcept\b/,
-    /\brelation\b/,
-    /\binvariant\b/,
-    /\bsystem4d\b/,
-    /\bsemantic\b/,
-    /\bmeaning\b/,
-    /\bbridge mapping\b/,
-  ];
-  return patterns.some((pattern) => pattern.test(prompt));
 }

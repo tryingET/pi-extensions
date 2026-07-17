@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type { RocsCommandContext, RocsDevelopmentPort } from "../ports/rocs-port.ts";
 import {
   type PreparedRuntimeLocation,
@@ -76,18 +77,29 @@ export async function createVerifiedDevelopmentRocsPort(
   descriptorValue: RocsRunnerDescriptor,
 ): Promise<RocsDevelopmentPort> {
   requireDescriptor(descriptorValue);
-  const caps = await invoke(
-    descriptorValue,
-    ["discover-capabilities", "--json"],
-    undefined,
-    closedEnv(descriptorValue, descriptorValue.cwd, "review"),
-  );
-  consumeProcessOutput(caps, () => {
-    strictUtf8(caps.stdout);
-    strictUtf8(caps.stderr);
-    if (caps.exitCode !== 0) throw new Error("ROCS capability negotiation failed");
-    validateCapabilities(parseJson(caps.stdout));
-  });
+  let negotiated = false;
+  for (let attempt = 0; attempt < 2 && !negotiated; attempt++) {
+    try {
+      const caps = await invoke(
+        descriptorValue,
+        ["discover-capabilities", "--json"],
+        undefined,
+        closedEnv(descriptorValue, descriptorValue.cwd, "review"),
+        { budgetMs: 5_000 },
+      );
+      consumeProcessOutput(caps, () => {
+        strictUtf8(caps.stdout);
+        strictUtf8(caps.stderr);
+        if (caps.exitCode !== 0) throw new Error("ROCS capability negotiation failed");
+        validateCapabilities(parseJson(caps.stdout));
+      });
+      negotiated = true;
+    } catch (error) {
+      if (!(error instanceof ProcessBoundaryError) || error.kind !== "timeout" || attempt > 0)
+        throw error;
+    }
+  }
+  if (!negotiated) throw new Error("ROCS capability negotiation failed");
   return Object.freeze({
     developmentDescriptor: descriptorValue,
     async discover(repoPath: string, query: string, profile: string, context: RocsCommandContext) {
@@ -177,6 +189,7 @@ async function executeDiscovery(
       args,
       raw,
       closedEnv(descriptorValue, context.workspaceRoot, request.profile),
+      context,
     );
     return consumeProcessOutput(output, () => {
       strictUtf8(output.stdout);
@@ -246,6 +259,7 @@ async function executeBoundPack(
       args,
       undefined,
       closedEnv(descriptorValue, context.workspaceRoot, profile),
+      context,
     );
     return consumeProcessOutput(output, () => {
       strictUtf8(output.stdout);
@@ -283,6 +297,7 @@ async function invoke(
   args: string[],
   stdin: Buffer | undefined,
   env: NodeJS.ProcessEnv,
+  context?: Pick<RocsCommandContext, "deadline" | "signal"> & { budgetMs?: number },
 ): Promise<BoundedProcessOutput> {
   requireDescriptor(d);
   const output = await invokePrepared(
@@ -298,6 +313,7 @@ async function invoke(
     args,
     stdin,
     env,
+    context,
   );
   return output;
 }
@@ -357,7 +373,7 @@ function closedEnv(
   _profile: string,
 ): NodeJS.ProcessEnv {
   return Object.freeze({
-    HOME: process.env.HOME ?? "/nonexistent",
+    HOME: homedir(),
     PATH: "/usr/bin:/bin",
     LANG: "C.UTF-8",
     LC_ALL: "C.UTF-8",

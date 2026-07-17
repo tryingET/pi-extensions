@@ -33,6 +33,7 @@ export interface DevelopmentInspectGate {
 export interface InspectRuntime {
   cwd: string;
   developmentGate?: DevelopmentInspectGate;
+  semanticBoundary?: { deadline: number; signal: AbortSignal };
 }
 
 interface LayerArtifact {
@@ -82,6 +83,8 @@ export async function inspectOntology(
     workspaceRoot: target.workspaceRoot,
     workspaceRefMode: target.workspaceRefMode,
     resolveRefs: true,
+    deadline: runtime.semanticBoundary?.deadline,
+    signal: runtime.semanticBoundary?.signal,
   } as const;
 
   if (request.kind === "status") {

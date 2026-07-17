@@ -6,6 +6,7 @@ const STDOUT_CAP = 131_072;
 const STDERR_CAP = 32_768;
 const COMBINED_CAP = 163_840;
 const TOTAL_MS = 750;
+const MAX_TOTAL_MS = 5_000;
 const TERM_MS = 100;
 const KILL_AND_REAP_MS = 100;
 
@@ -43,8 +44,12 @@ export async function invokePrepared(
   args: string[],
   stdin: Buffer | undefined,
   env: NodeJS.ProcessEnv,
+  boundary?: { deadline?: number; signal?: AbortSignal; budgetMs?: number },
 ): Promise<BoundedProcessOutput> {
-  const finalDeadline = performance.now() + TOTAL_MS;
+  if (boundary?.signal?.aborted)
+    throw new ProcessBoundaryError("unavailable", "ROCS invocation generation was invalidated");
+  const budgetMs = Math.min(MAX_TOTAL_MS, Math.max(1, boundary?.budgetMs ?? TOTAL_MS));
+  const finalDeadline = Math.min(performance.now() + budgetMs, boundary?.deadline ?? Infinity);
   const executionDeadline = finalDeadline - TERM_MS - KILL_AND_REAP_MS;
   const verified = await openVerifiedPreparedRuntime(runtime.location, finalDeadline).catch(
     (error) => {
@@ -63,6 +68,8 @@ export async function invokePrepared(
     )
       throw new ProcessBoundaryError("incompatible", "prepared runtime identity drift");
     await verified.reverifyInodes();
+    if (boundary?.signal?.aborted)
+      throw new ProcessBoundaryError("unavailable", "ROCS invocation generation was invalidated");
     if (performance.now() >= executionDeadline)
       throw new ProcessBoundaryError("timeout", "ROCS deadline exhausted before spawn");
     const output = await spawnBounded(
@@ -77,6 +84,7 @@ export async function invokePrepared(
       env,
       executionDeadline,
       finalDeadline,
+      boundary?.signal,
     );
     return { ...output, finalDeadline };
   } finally {
@@ -111,6 +119,7 @@ function spawnBounded(
   env: NodeJS.ProcessEnv,
   executionDeadline: number,
   finalDeadline: number,
+  signal?: AbortSignal,
 ): Promise<{ stdout: Buffer; stderr: Buffer; exitCode: number }> {
   let child: ChildProcess;
   try {
@@ -196,6 +205,12 @@ function spawnBounded(
     resolveClose();
   });
 
+  const onAbort = () => {
+    void stop(
+      new ProcessBoundaryError("unavailable", "ROCS invocation generation was invalidated"),
+    );
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
   const timeout = setTimeout(
     () => {
       void stop(new ProcessBoundaryError("timeout", "ROCS deadline exceeded"));
@@ -210,6 +225,7 @@ function spawnBounded(
     await Promise.race([closedPromise, boundaryPromise]);
     if (stopping) await stopping;
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", onAbort);
     // A bounded reap may intentionally give up; never await the child after the final deadline.
     if (boundaryFailure) throw boundaryFailure;
     if (spawnError) throw new ProcessBoundaryError("unavailable", errorMessage(spawnError));
