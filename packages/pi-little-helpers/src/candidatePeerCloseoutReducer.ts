@@ -11,6 +11,7 @@ import {
   type CloseoutBindings,
   type CloseoutCapsule,
   type CloseoutEffectIntent,
+  type CloseoutEffectObservation,
   type CloseoutEffectSpec,
   type CloseoutJournalEntryV1,
   type CloseoutPayload,
@@ -19,7 +20,9 @@ import {
   digestCloseoutValue,
   closeoutFail as fail,
   nextCloseoutEffectKey as nextEffectKey,
+  type PendingEffectRecoveryV1,
   type PromotionCertificateV1,
+  type RemainingEffectsWaiverV1,
   remainingCloseoutEffects as remainingEffects,
   sealCloseoutCapsuleState as sealState,
   closeoutTimestampMillis as timestampMillis,
@@ -35,7 +38,10 @@ export {
   digestCloseoutValue,
   sealArchiveReceipt,
   sealCleanupPermit,
+  sealCloseoutEffectReceipt,
+  sealPendingEffectRecovery,
   sealPromotionCertificate,
+  sealRemainingEffectsWaiver,
   sealValidationAttestation,
 } from "./candidatePeerCloseoutArtifacts.ts";
 
@@ -71,10 +77,9 @@ export function createCloseoutCapsule(input: {
   const bindingsDigest = digestCloseoutValue(bindings);
   const capsuleId = digestCloseoutValue({
     domain: "candidate-closeout-capsule/v1",
-    resourceId: bindings.resourceId,
-    generationId: bindings.generationId,
-    reviewSnapshotDigest: bindings.reviewSnapshotDigest,
     bindingsDigest,
+    requiredEffects,
+    initialFence: fence,
   });
   const requiredEffectKeys = requiredEffects.map((effect) => closeoutEffectKey(capsuleId, effect));
   const genesis = { capsuleId, bindingsDigest, requiredEffectKeys, fence };
@@ -275,12 +280,174 @@ function validateIntent(
   if (guard.policyDigest !== permit.policyDigest) fail("guard_policy_drift");
   if (guard.holdDigest !== permit.holdDigest) fail("guard_hold_drift");
   if (guard.runtimeDigest !== permit.runtimeDigest) fail("guard_runtime_drift");
-  if (capsule.bindings.disposition === "accepted" && guard.targetRelation !== "same") {
-    fail("guard_target_moved");
+  if (capsule.bindings.disposition === "accepted") {
+    if (guard.targetRelation !== "same") fail("guard_target_moved");
+    const promotion = capsule.promotionCertificate;
+    if (!promotion) fail("guard_promotion_missing");
+    if (guard.targetFullRef !== promotion.fullTargetRef) fail("guard_target_ref_mismatch");
+    if (guard.targetObservedOid !== promotion.observedTargetOid) fail("guard_target_oid_mismatch");
+    assertDigest(guard.targetObservationDigest ?? "", "guard_target_observation");
+  } else {
+    if (guard.targetRelation !== "not_applicable") fail("guard_target_relation_invalid");
+    if (
+      guard.targetFullRef !== undefined ||
+      guard.targetObservedOid !== undefined ||
+      guard.targetObservationDigest !== undefined
+    ) {
+      fail("guard_target_evidence_for_nonaccepted");
+    }
   }
-  if (capsule.bindings.disposition !== "accepted" && guard.targetRelation !== "not_applicable") {
-    fail("guard_target_relation_invalid");
+}
+
+function validateEffectObservation(
+  capsule: CloseoutCapsule,
+  observation: CloseoutEffectObservation,
+  occurredAt: string,
+): void {
+  const pending = capsule.pendingIntent;
+  const permit = capsule.cleanupPermit;
+  if (!pending) fail("observation_without_intent");
+  if (!permit) fail("observation_without_permit");
+  if (observation.effectKey !== pending.effectKey) fail("observation_effect_mismatch");
+  if (observation.intentEntryHash !== pending.intentEntryHash) {
+    fail("observation_intent_hash_mismatch");
   }
+  if (
+    !["completed", "already_satisfied_after_intent", "not_applied"].includes(observation.outcome)
+  ) {
+    fail("observation_outcome_invalid");
+  }
+  const effectIndex = capsule.requiredEffectKeys.indexOf(observation.effectKey);
+  if (effectIndex < 0) fail("observation_effect_unknown");
+  const effect = capsule.requiredEffects[effectIndex];
+  const receipt = observation.receipt;
+  if (receipt.schemaVersion !== 1) fail("effect_receipt_schema_unsupported");
+  assertText(receipt.adapterId, "effect_receipt_adapter");
+  assertText(receipt.adapterSchemaVersion, "effect_receipt_adapter_schema");
+  if (receipt.capsuleId !== capsule.capsuleId) fail("effect_receipt_capsule_mismatch");
+  if (receipt.effectKey !== observation.effectKey) fail("effect_receipt_key_mismatch");
+  if (receipt.effectKind !== effect.kind) fail("effect_receipt_kind_mismatch");
+  if (receipt.effectSpecDigest !== digestCloseoutValue(effect)) {
+    fail("effect_receipt_spec_mismatch");
+  }
+  if (receipt.intentEntryHash !== pending.intentEntryHash) fail("effect_receipt_intent_mismatch");
+  if (receipt.permitDigest !== pending.permitDigest) fail("effect_receipt_permit_mismatch");
+  if (
+    receipt.fenceEpoch !== capsule.fence.epoch ||
+    receipt.fenceTokenDigest !== capsule.fence.tokenDigest
+  ) {
+    fail("effect_receipt_fence_mismatch");
+  }
+  if (receipt.observedAt !== occurredAt) fail("effect_receipt_time_mismatch");
+  if (
+    timestampMillis(receipt.observedAt, "effect_receipt_observed_at") <
+    timestampMillis(pending.guard.observedAt, "guard_observed_at")
+  ) {
+    fail("effect_receipt_precedes_intent");
+  }
+  assertDigest(receipt.preconditionDigest, "effect_receipt_precondition");
+  assertDigest(receipt.postconditionDigest, "effect_receipt_postcondition");
+  if (receipt.outcome !== observation.outcome) fail("effect_receipt_outcome_mismatch");
+  assertArtifactDigest(
+    receipt as unknown as Record<string, unknown>,
+    "receiptDigest",
+    "effect_receipt",
+  );
+}
+
+function validatePendingRecovery(
+  capsule: CloseoutCapsule,
+  recovery: PendingEffectRecoveryV1,
+  occurredAt: string,
+): void {
+  const pending = capsule.pendingIntent;
+  if (!pending) fail("pending_recovery_without_intent");
+  if (recovery.schemaVersion !== 1) fail("pending_recovery_schema_unsupported");
+  if (recovery.capsuleId !== capsule.capsuleId) fail("pending_recovery_capsule_mismatch");
+  if (recovery.resourceId !== capsule.bindings.resourceId)
+    fail("pending_recovery_resource_mismatch");
+  if (recovery.generationId !== capsule.bindings.generationId) {
+    fail("pending_recovery_generation_mismatch");
+  }
+  assertText(recovery.issuer, "pending_recovery_issuer");
+  if (recovery.authorityConfigDigest !== capsule.bindings.piOwnerAuthorityDigest) {
+    fail("pending_recovery_authority_mismatch");
+  }
+  assertDigest(recovery.authenticationReceiptDigest, "pending_recovery_authentication_receipt");
+  const issued = timestampMillis(recovery.issuedAt, "pending_recovery_issued_at");
+  if (issued > timestampMillis(occurredAt, "event_occurred_at")) {
+    fail("pending_recovery_issued_in_future");
+  }
+  if (recovery.pendingIntentEntryHash !== pending.intentEntryHash) {
+    fail("pending_recovery_intent_mismatch");
+  }
+  if (
+    recovery.priorFenceEpoch !== capsule.fence.epoch ||
+    recovery.priorFenceTokenDigest !== capsule.fence.tokenDigest
+  ) {
+    fail("pending_recovery_prior_fence_mismatch");
+  }
+  if (recovery.newFenceEpoch !== capsule.fence.epoch + 1) {
+    fail("pending_recovery_epoch_not_monotonic");
+  }
+  assertDigest(recovery.newFenceTokenDigest, "pending_recovery_new_fence_token");
+  assertArtifactDigest(
+    recovery as unknown as Record<string, unknown>,
+    "recoveryDigest",
+    "pending_recovery",
+  );
+}
+
+function validateWaiver(
+  capsule: CloseoutCapsule,
+  waiver: RemainingEffectsWaiverV1,
+  occurredAt: string,
+): void {
+  const archive = capsule.archiveReceipt;
+  const permit = capsule.cleanupPermit;
+  if (!archive || !permit) fail("waiver_authority_context_missing");
+  if (waiver.schemaVersion !== 1) fail("waiver_schema_unsupported");
+  if (waiver.capsuleId !== capsule.capsuleId) fail("waiver_capsule_mismatch");
+  if (waiver.resourceId !== capsule.bindings.resourceId) fail("waiver_resource_mismatch");
+  if (waiver.generationId !== capsule.bindings.generationId) fail("waiver_generation_mismatch");
+  assertText(waiver.issuer, "waiver_issuer");
+  if (waiver.authorityConfigDigest !== capsule.bindings.piOwnerAuthorityDigest) {
+    fail("waiver_authority_mismatch");
+  }
+  assertDigest(waiver.authenticationReceiptDigest, "waiver_authentication_receipt");
+  const issued = timestampMillis(waiver.issuedAt, "waiver_issued_at");
+  if (issued > timestampMillis(occurredAt, "event_occurred_at")) fail("waiver_issued_in_future");
+  if (waiver.bindingsDigest !== capsule.bindingsDigest) fail("waiver_bindings_mismatch");
+  if (waiver.archiveReceiptDigest !== archive.receiptDigest) fail("waiver_archive_mismatch");
+  if (waiver.promotionCertificateDigest !== capsule.promotionCertificate?.certificateDigest) {
+    fail("waiver_promotion_mismatch");
+  }
+  if (waiver.cleanupPermitDigest !== permit.permitDigest) fail("waiver_permit_mismatch");
+  if (
+    !Number.isInteger(waiver.expectedCapsuleVersion) ||
+    waiver.expectedCapsuleVersion !== capsule.capsuleVersion
+  ) {
+    fail("waiver_capsule_version_mismatch");
+  }
+  assertDigest(waiver.expectedChainHead, "waiver_chain_head");
+  if (waiver.expectedChainHead !== capsule.chainHead) fail("waiver_chain_head_mismatch");
+  if (
+    waiver.fenceEpoch !== capsule.fence.epoch ||
+    waiver.fenceTokenDigest !== capsule.fence.tokenDigest
+  ) {
+    fail("waiver_fence_mismatch");
+  }
+  if (waiver.observationsDigest !== digestCloseoutValue(capsule.observations)) {
+    fail("waiver_observations_mismatch");
+  }
+  assertText(waiver.rationale, "waiver_rationale");
+  const expected = remainingEffects(capsule).map((effect) =>
+    closeoutEffectKey(capsule.capsuleId, effect),
+  );
+  if (canonicalCloseoutJson(waiver.retainedEffectKeys) !== canonicalCloseoutJson(expected)) {
+    fail("waiver_effects_not_exact_remaining");
+  }
+  assertArtifactDigest(waiver as unknown as Record<string, unknown>, "waiverDigest", "waiver");
 }
 
 export function createCloseoutJournalEntry(
@@ -368,26 +535,14 @@ export function applyCloseoutJournalEntry(
     next.pendingIntent = { ...structuredClone(payload.intent), intentEntryHash: entry.entryHash };
     next.phase = "effect_intended";
   } else if (payload.type === "effect_observed") {
-    const pending = next.pendingIntent;
-    if (!pending) fail("observation_without_intent");
-    if (payload.observation.effectKey !== pending.effectKey) fail("observation_effect_mismatch");
-    if (payload.observation.intentEntryHash !== pending.intentEntryHash) {
-      fail("observation_intent_hash_mismatch");
-    }
-    if (
-      !["completed", "already_satisfied_after_intent", "not_applied"].includes(
-        payload.observation.outcome,
-      )
-    ) {
-      fail("observation_outcome_invalid");
-    }
-    assertDigest(payload.observation.observationDigest, "observation");
+    validateEffectObservation(next, payload.observation, entry.occurredAt);
     if (next.observations.some((item) => item.effectKey === payload.observation.effectKey)) {
       fail("observation_replayed");
     }
     const recoveringFromReview = next.phase === "partial_review";
+    const recoveringAfterFence = next.phase === "effect_reconciliation_required";
     const freshReviewRequired = next.phase === "fresh_review_required";
-    next.pendingIntent = undefined;
+    delete next.pendingIntent;
     if (payload.observation.outcome === "not_applied") {
       next.phase = freshReviewRequired ? "fresh_review_required" : "partial_review";
     } else {
@@ -403,7 +558,7 @@ export function applyCloseoutJournalEntry(
           entryHash: entry.entryHash,
         });
       } else {
-        next.phase = recoveringFromReview ? "partial_review" : "ready";
+        next.phase = recoveringFromReview || recoveringAfterFence ? "partial_review" : "ready";
       }
     }
   } else if (payload.type === "block_recorded") {
@@ -454,26 +609,28 @@ export function applyCloseoutJournalEntry(
     if (next.cleanupPermit && !freshReviewRequired) {
       next.phase = next.observations.length > 0 ? "partial_review" : "blocked";
     }
+  } else if (payload.type === "pending_effect_recovered") {
+    if (!["effect_intended", "partial_review", "fresh_review_required"].includes(next.phase)) {
+      fail("pending_recovery_state_invalid");
+    }
+    validatePendingRecovery(next, payload.recovery, entry.occurredAt);
+    const freshReviewRequired = next.phase === "fresh_review_required";
+    next.fence = {
+      epoch: payload.recovery.newFenceEpoch,
+      tokenDigest: payload.recovery.newFenceTokenDigest,
+    };
+    next.phase = freshReviewRequired ? "fresh_review_required" : "effect_reconciliation_required";
   } else if (payload.type === "remaining_effects_waived") {
     if (next.phase !== "partial_review") fail("waiver_state_invalid");
     if (next.pendingIntent) fail("pending_intent_blocks_waiver");
-    assertText(payload.rationale, "waiver_rationale");
-    assertDigest(payload.ownerReceiptDigest, "waiver_owner_receipt");
-    const expected = remainingEffects(next).map((effect) =>
-      closeoutEffectKey(next.capsuleId, effect),
-    );
-    if (canonicalCloseoutJson(payload.retainedEffectKeys) !== canonicalCloseoutJson(expected)) {
-      fail("waiver_effects_not_exact_remaining");
-    }
-    next.retainedEffectKeys = [...payload.retainedEffectKeys];
+    validateWaiver(next, payload.waiver, entry.occurredAt);
+    next.retainedEffectKeys = [...payload.waiver.retainedEffectKeys];
     next.phase = "closed_with_retained_effects";
     next.terminalReceiptDigest = digestCloseoutValue({
       type: "closed_with_retained_effects",
       capsuleId: next.capsuleId,
       observations: next.observations,
-      retainedEffectKeys: next.retainedEffectKeys,
-      rationale: payload.rationale,
-      ownerReceiptDigest: payload.ownerReceiptDigest,
+      waiverDigest: payload.waiver.waiverDigest,
       entryHash: entry.entryHash,
     });
   } else {

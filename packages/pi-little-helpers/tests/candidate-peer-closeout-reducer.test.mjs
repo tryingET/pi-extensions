@@ -9,7 +9,9 @@ import {
   reduceCloseoutJournal,
   sealArchiveReceipt,
   sealCleanupPermit,
+  sealCloseoutEffectReceipt,
   sealPromotionCertificate,
+  sealRemainingEffectsWaiver,
   sealValidationAttestation,
 } from "../src/candidatePeerCloseoutReducer.ts";
 
@@ -200,6 +202,13 @@ function guard(state, observedAt = T4, overrides = {}) {
     holdDigest: state.cleanupPermit.holdDigest,
     runtimeDigest: state.cleanupPermit.runtimeDigest,
     targetRelation: state.bindings.disposition === "accepted" ? "same" : "not_applicable",
+    ...(state.bindings.disposition === "accepted"
+      ? {
+          targetFullRef: state.promotionCertificate.fullTargetRef,
+          targetObservedOid: state.promotionCertificate.observedTargetOid,
+          targetObservationDigest: digest(`target-${observedAt}`),
+        }
+      : {}),
     ...overrides,
   };
 }
@@ -223,7 +232,37 @@ function intendNext(state, eventId = `intent-${state.observations.length}`, guar
   );
 }
 
-function observePending(state, intentEntry, eventId = `observe-${state.observations.length}`) {
+function effectReceipt(state, intentEntry, outcome, observedAt, overrides = {}) {
+  const effectIndex = state.requiredEffectKeys.indexOf(state.pendingIntent.effectKey);
+  const effect = state.requiredEffects[effectIndex];
+  return sealCloseoutEffectReceipt({
+    schemaVersion: 1,
+    adapterId: "synthetic:test",
+    adapterSchemaVersion: "1",
+    capsuleId: state.capsuleId,
+    effectKey: state.pendingIntent.effectKey,
+    effectKind: effect.kind,
+    effectSpecDigest: digestCloseoutValue(effect),
+    intentEntryHash: intentEntry.entryHash,
+    permitDigest: state.pendingIntent.permitDigest,
+    fenceEpoch: state.fence.epoch,
+    fenceTokenDigest: state.fence.tokenDigest,
+    observedAt,
+    preconditionDigest: digest(`precondition-${intentEntry.entryHash}`),
+    postconditionDigest: digest(`postcondition-${intentEntry.entryHash}-${outcome}`),
+    outcome,
+    ...overrides,
+  });
+}
+
+function observePending(
+  state,
+  intentEntry,
+  eventId = `observe-${state.observations.length}`,
+  outcome = "completed",
+  receiptOverrides = {},
+) {
+  const occurredAt = nextTime(state);
   return append(
     state,
     {
@@ -231,13 +270,40 @@ function observePending(state, intentEntry, eventId = `observe-${state.observati
       observation: {
         effectKey: state.pendingIntent.effectKey,
         intentEntryHash: intentEntry.entryHash,
-        outcome: "completed",
-        observationDigest: digest(`${eventId}-postcondition`),
+        outcome,
+        receipt: effectReceipt(state, intentEntry, outcome, occurredAt, receiptOverrides),
       },
     },
     eventId,
-    nextTime(state),
+    occurredAt,
   );
+}
+
+function waiver(state, retainedEffectKeys, rationale, overrides = {}) {
+  return sealRemainingEffectsWaiver({
+    schemaVersion: 1,
+    capsuleId: state.capsuleId,
+    resourceId: state.bindings.resourceId,
+    generationId: state.bindings.generationId,
+    issuer: "pi-owner:test",
+    authorityConfigDigest: state.bindings.piOwnerAuthorityDigest,
+    authenticationReceiptDigest: digest("waiver-owner-authentication"),
+    issuedAt: nextTime(state),
+    bindingsDigest: state.bindingsDigest,
+    archiveReceiptDigest: state.archiveReceipt.receiptDigest,
+    ...(state.promotionCertificate
+      ? { promotionCertificateDigest: state.promotionCertificate.certificateDigest }
+      : {}),
+    cleanupPermitDigest: state.cleanupPermit.permitDigest,
+    expectedCapsuleVersion: state.capsuleVersion,
+    expectedChainHead: state.chainHead,
+    fenceEpoch: state.fence.epoch,
+    fenceTokenDigest: state.fence.tokenDigest,
+    observationsDigest: digestCloseoutValue(state.observations),
+    retainedEffectKeys,
+    rationale,
+    ...overrides,
+  });
 }
 
 function completeOneEffect(state, label) {
@@ -512,9 +578,7 @@ test("block after intent retains uncertainty until that exact postcondition is o
         partial,
         {
           type: "remaining_effects_waived",
-          retainedEffectKeys: partial.requiredEffectKeys,
-          rationale: "cannot waive an unresolved attempt",
-          ownerReceiptDigest: digest("waiver"),
+          waiver: waiver(partial, partial.requiredEffectKeys, "cannot waive an unresolved attempt"),
         },
         "unsafe-waiver",
       ),
@@ -544,9 +608,7 @@ test("owner can terminally retain only the exact remaining effects after partial
         partial,
         {
           type: "remaining_effects_waived",
-          retainedEffectKeys: [remainingKeys[0]],
-          rationale: "incomplete retained inventory",
-          ownerReceiptDigest: digest("owner-waiver"),
+          waiver: waiver(partial, [remainingKeys[0]], "incomplete retained inventory"),
         },
         "bad-waiver",
       ),
@@ -556,9 +618,7 @@ test("owner can terminally retain only the exact remaining effects after partial
     partial,
     {
       type: "remaining_effects_waived",
-      retainedEffectKeys: remainingKeys,
-      rationale: "owner intentionally retains worktree and branch",
-      ownerReceiptDigest: digest("owner-waiver"),
+      waiver: waiver(partial, remainingKeys, "owner intentionally retains worktree and branch"),
     },
     "good-waiver",
   ).state;
@@ -842,18 +902,11 @@ test("journal rejects duplicate event ids, regressed time, and a backdated guard
 test("a not-applied crash probe clears uncertainty without claiming an effect", () => {
   const prepared = prepareReady();
   const intended = intendNext(prepared.state, "intent-before-no-effect-crash");
-  let state = append(
+  let state = observePending(
     intended.state,
-    {
-      type: "effect_observed",
-      observation: {
-        effectKey: intended.state.pendingIntent.effectKey,
-        intentEntryHash: intended.entry.entryHash,
-        outcome: "not_applied",
-        observationDigest: digest("probe-proves-not-applied"),
-      },
-    },
+    intended.entry,
     "probe-not-applied",
+    "not_applied",
   ).state;
   assert.equal(state.phase, "partial_review");
   assert.equal(state.pendingIntent, undefined);
@@ -985,7 +1038,10 @@ test("public reducer inputs contain no operational adapter or path-to-live-state
     "reduceCloseoutJournal",
     "sealArchiveReceipt",
     "sealCleanupPermit",
+    "sealCloseoutEffectReceipt",
+    "sealPendingEffectRecovery",
     "sealPromotionCertificate",
+    "sealRemainingEffectsWaiver",
     "sealValidationAttestation",
   ]);
 });

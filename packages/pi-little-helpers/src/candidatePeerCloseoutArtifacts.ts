@@ -10,6 +10,7 @@ export type CandidateCloseoutPhase =
   | "awaiting_cleanup_permit"
   | "ready"
   | "effect_intended"
+  | "effect_reconciliation_required"
   | "blocked"
   | "fresh_review_required"
   | "partial_review"
@@ -132,6 +133,9 @@ export type CloseoutGuardSnapshot = {
   holdDigest: string;
   runtimeDigest: string;
   targetRelation: "same" | "descendant" | "diverged" | "not_applicable";
+  targetFullRef?: string;
+  targetObservedOid?: string;
+  targetObservationDigest?: string;
 };
 
 export type CloseoutEffectIntent = {
@@ -140,11 +144,72 @@ export type CloseoutEffectIntent = {
   guard: CloseoutGuardSnapshot;
 };
 
+export type CloseoutEffectOutcome = "completed" | "already_satisfied_after_intent" | "not_applied";
+
+export type CloseoutEffectReceiptV1 = {
+  schemaVersion: 1;
+  adapterId: string;
+  adapterSchemaVersion: string;
+  capsuleId: string;
+  effectKey: string;
+  effectKind: CloseoutEffectSpec["kind"];
+  effectSpecDigest: string;
+  intentEntryHash: string;
+  permitDigest: string;
+  fenceEpoch: number;
+  fenceTokenDigest: string;
+  observedAt: string;
+  preconditionDigest: string;
+  postconditionDigest: string;
+  outcome: CloseoutEffectOutcome;
+  receiptDigest: string;
+};
+
 export type CloseoutEffectObservation = {
   effectKey: string;
   intentEntryHash: string;
-  outcome: "completed" | "already_satisfied_after_intent" | "not_applied";
-  observationDigest: string;
+  outcome: CloseoutEffectOutcome;
+  receipt: CloseoutEffectReceiptV1;
+};
+
+export type PendingEffectRecoveryV1 = {
+  schemaVersion: 1;
+  capsuleId: string;
+  resourceId: string;
+  generationId: string;
+  issuer: string;
+  authorityConfigDigest: string;
+  authenticationReceiptDigest: string;
+  issuedAt: string;
+  pendingIntentEntryHash: string;
+  priorFenceEpoch: number;
+  priorFenceTokenDigest: string;
+  newFenceEpoch: number;
+  newFenceTokenDigest: string;
+  recoveryDigest: string;
+};
+
+export type RemainingEffectsWaiverV1 = {
+  schemaVersion: 1;
+  capsuleId: string;
+  resourceId: string;
+  generationId: string;
+  issuer: string;
+  authorityConfigDigest: string;
+  authenticationReceiptDigest: string;
+  issuedAt: string;
+  bindingsDigest: string;
+  archiveReceiptDigest: string;
+  promotionCertificateDigest?: string;
+  cleanupPermitDigest: string;
+  expectedCapsuleVersion: number;
+  expectedChainHead: string;
+  fenceEpoch: number;
+  fenceTokenDigest: string;
+  observationsDigest: string;
+  retainedEffectKeys: string[];
+  rationale: string;
+  waiverDigest: string;
 };
 
 export type CloseoutBlockReason =
@@ -170,12 +235,8 @@ export type CloseoutPayload =
       newTokenDigest: string;
       recoveryReceiptDigest: string;
     }
-  | {
-      type: "remaining_effects_waived";
-      retainedEffectKeys: string[];
-      rationale: string;
-      ownerReceiptDigest: string;
-    };
+  | { type: "pending_effect_recovered"; recovery: PendingEffectRecoveryV1 }
+  | { type: "remaining_effects_waived"; waiver: RemainingEffectsWaiverV1 };
 
 export type CloseoutJournalEntryV1 = {
   schemaVersion: 1;
@@ -218,17 +279,56 @@ export type CloseoutCapsule = {
 
 type WithoutDigest<T, K extends keyof T> = Omit<T, K>;
 
-function canonicalValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalValue);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([, item]) => item !== undefined)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, item]) => [key, canonicalValue(item)]),
-    );
+function canonicalKeyOrder(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalValue(value: unknown, ancestors = new WeakSet<object>()): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) closeoutFail("canonical_number_invalid");
+    return Object.is(value, -0) ? 0 : value;
   }
-  return value;
+  if (!value || typeof value !== "object") closeoutFail("canonical_value_invalid");
+  if (ancestors.has(value)) closeoutFail("canonical_cycle_invalid");
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      const keys = Reflect.ownKeys(value);
+      if (keys.some((key) => typeof key === "symbol") || keys.length !== value.length + 1) {
+        closeoutFail("canonical_array_invalid");
+      }
+      const items: unknown[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+        if (!descriptor?.enumerable || !("value" in descriptor) || descriptor.value === undefined) {
+          closeoutFail("canonical_array_invalid");
+        }
+        items.push(canonicalValue(descriptor.value, ancestors));
+      }
+      return items;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      closeoutFail("canonical_object_invalid");
+    }
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key === "symbol")) closeoutFail("canonical_object_invalid");
+    const entries = (keys as string[]).map((key): [string, unknown] => {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor?.enumerable || !("value" in descriptor) || descriptor.value === undefined) {
+        closeoutFail("canonical_value_invalid");
+      }
+      return [key, descriptor.value];
+    });
+    return Object.fromEntries(
+      entries
+        .sort(([left], [right]) => canonicalKeyOrder(left, right))
+        .map(([key, item]) => [key, canonicalValue(item, ancestors)]),
+    );
+  } finally {
+    ancestors.delete(value);
+  }
 }
 
 export function canonicalCloseoutJson(value: unknown): string {
@@ -363,6 +463,24 @@ export function sealCleanupPermit(
   return sealArtifact(input, "permitDigest");
 }
 
+export function sealCloseoutEffectReceipt(
+  input: WithoutDigest<CloseoutEffectReceiptV1, "receiptDigest">,
+): CloseoutEffectReceiptV1 {
+  return sealArtifact(input, "receiptDigest");
+}
+
+export function sealPendingEffectRecovery(
+  input: WithoutDigest<PendingEffectRecoveryV1, "recoveryDigest">,
+): PendingEffectRecoveryV1 {
+  return sealArtifact(input, "recoveryDigest");
+}
+
+export function sealRemainingEffectsWaiver(
+  input: WithoutDigest<RemainingEffectsWaiverV1, "waiverDigest">,
+): RemainingEffectsWaiverV1 {
+  return sealArtifact(input, "waiverDigest");
+}
+
 export function closeoutEffectKey(capsuleId: string, effect: CloseoutEffectSpec): string {
   return digestCloseoutValue({ domain: "candidate-closeout-effect/v1", capsuleId, effect });
 }
@@ -381,6 +499,13 @@ export function nextCloseoutEffectKey(capsule: CloseoutCapsule): string | undefi
 
 function effectOrder(effect: CloseoutEffectSpec): number {
   return { close_process: 0, remove_worktree: 1, delete_branch: 2 }[effect.kind];
+}
+
+function hasUnsafeBranchRefCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x20 || codePoint === 0x7f || "~^:?*[\\".includes(character);
+  });
 }
 
 export function validateCloseoutEffects(
@@ -406,9 +531,31 @@ export function validateCloseoutEffects(
     } else if (effect.kind === "remove_worktree") {
       if (effect.generationId !== generationId) closeoutFail("worktree_generation_mismatch");
       assertCloseoutText(effect.worktreeRealPath, "worktree_real_path");
+      if (
+        !effect.worktreeRealPath.startsWith("/") ||
+        effect.worktreeRealPath === "/" ||
+        effect.worktreeRealPath.includes("\0") ||
+        effect.worktreeRealPath.endsWith("/") ||
+        effect.worktreeRealPath.includes("//") ||
+        effect.worktreeRealPath.split("/").some((part) => part === "." || part === "..")
+      ) {
+        closeoutFail("worktree_real_path_unsafe");
+      }
       assertCloseoutDigest(effect.gitCommonDirDigest, "git_common_dir");
     } else {
-      if (!effect.fullRef.startsWith("refs/heads/")) closeoutFail("branch_full_ref_invalid");
+      const refParts = effect.fullRef.split("/");
+      if (
+        !effect.fullRef.startsWith("refs/heads/") ||
+        effect.fullRef.endsWith("/") ||
+        effect.fullRef.endsWith(".") ||
+        effect.fullRef.includes("//") ||
+        effect.fullRef.includes("..") ||
+        effect.fullRef.includes("@{") ||
+        refParts.some((part) => part === "" || part.startsWith(".") || part.endsWith(".lock")) ||
+        hasUnsafeBranchRefCharacter(effect.fullRef)
+      ) {
+        closeoutFail("branch_full_ref_invalid");
+      }
       assertCloseoutOid(effect.expectedOid, "branch_oid");
       assertCloseoutDigest(effect.gitCommonDirDigest, "git_common_dir");
     }

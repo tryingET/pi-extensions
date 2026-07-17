@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyCloseoutJournalEntry,
+  canonicalCloseoutJson,
   createCloseoutCapsule,
   createCloseoutJournalEntry,
   digestCloseoutValue,
   sealArchiveReceipt,
   sealCleanupPermit,
+  sealCloseoutEffectReceipt,
+  sealPendingEffectRecovery,
   sealPromotionCertificate,
+  sealRemainingEffectsWaiver,
   sealValidationAttestation,
 } from "../src/candidatePeerCloseoutReducer.ts";
 
@@ -176,6 +180,9 @@ function intend(state, eventId = "intent") {
           holdDigest: state.cleanupPermit.holdDigest,
           runtimeDigest: state.cleanupPermit.runtimeDigest,
           targetRelation: "same",
+          targetFullRef: state.promotionCertificate.fullTargetRef,
+          targetObservedOid: state.promotionCertificate.observedTargetOid,
+          targetObservationDigest: digest(`target-${occurredAt}`),
         },
       },
     },
@@ -184,7 +191,28 @@ function intend(state, eventId = "intent") {
   );
 }
 
-function observe(state, intentEntry, outcome, eventId) {
+function observe(state, intentEntry, outcome, eventId, overrides = {}) {
+  const occurredAt = nextTime(state);
+  const effectIndex = state.requiredEffectKeys.indexOf(state.pendingIntent.effectKey);
+  const effect = state.requiredEffects[effectIndex];
+  const receipt = sealCloseoutEffectReceipt({
+    schemaVersion: 1,
+    adapterId: "synthetic:edge-test",
+    adapterSchemaVersion: "1",
+    capsuleId: state.capsuleId,
+    effectKey: state.pendingIntent.effectKey,
+    effectKind: effect.kind,
+    effectSpecDigest: digestCloseoutValue(effect),
+    intentEntryHash: intentEntry.entryHash,
+    permitDigest: state.pendingIntent.permitDigest,
+    fenceEpoch: state.fence.epoch,
+    fenceTokenDigest: state.fence.tokenDigest,
+    observedAt: occurredAt,
+    preconditionDigest: digest(`pre-${eventId}`),
+    postconditionDigest: digest(`post-${eventId}`),
+    outcome,
+    ...overrides,
+  });
   return append(
     state,
     {
@@ -193,10 +221,11 @@ function observe(state, intentEntry, outcome, eventId) {
         effectKey: state.pendingIntent.effectKey,
         intentEntryHash: intentEntry.entryHash,
         outcome,
-        observationDigest: digest(eventId),
+        receipt,
       },
     },
     eventId,
+    occurredAt,
   ).state;
 }
 
@@ -309,4 +338,219 @@ test("archive and permit timestamps must follow their causal predecessors", () =
       ),
     /permit_precedes_archive/,
   );
+});
+
+test("capsule identity commits to exact effects and initial fence", () => {
+  const first = createGenesis();
+  const changedEffects = structuredClone(first.requiredEffects);
+  changedEffects[0].worktreeRealPath = "/synthetic/other";
+  const second = createCloseoutCapsule({
+    bindings: first.bindings,
+    requiredEffects: changedEffects,
+    fence: first.fence,
+  });
+  const changedFence = createCloseoutCapsule({
+    bindings: first.bindings,
+    requiredEffects: first.requiredEffects,
+    fence: { epoch: first.fence.epoch + 1, tokenDigest: digest("other-fence") },
+  });
+  assert.notEqual(first.capsuleId, second.capsuleId);
+  assert.notEqual(first.capsuleId, changedFence.capsuleId);
+  assert.throws(
+    () =>
+      append(
+        second,
+        { type: "promotion_attached", certificate: promotion(first) },
+        "cross-effect-replay",
+        T1,
+      ),
+    /promotion_capsule_mismatch/,
+  );
+});
+
+test("effect receipt binds adapter, effect, intent, permit, fence, and observation time", () => {
+  const intended = intend(readyState(), "typed-receipt-intent");
+  for (const overrides of [
+    { effectSpecDigest: digest("wrong-effect") },
+    { permitDigest: digest("wrong-permit") },
+    { fenceTokenDigest: digest("wrong-fence") },
+    { adapterId: " " },
+  ]) {
+    assert.throws(
+      () => observe(intended.state, intended.entry, "completed", "bad-receipt", overrides),
+      /candidate_closeout_/,
+    );
+  }
+  const observed = observe(intended.state, intended.entry, "completed", "good-receipt");
+  assert.equal(observed.observations.length, 1);
+  assert.equal(observed.observations[0].receipt.effectKind, "remove_worktree");
+});
+
+test("pending effect recovery rotates the fence and permits reconciliation but not replay", () => {
+  const intended = intend(readyState(), "uncertain-effect-intent");
+  const recoveryTime = nextTime(intended.state);
+  const recovery = sealPendingEffectRecovery({
+    schemaVersion: 1,
+    capsuleId: intended.state.capsuleId,
+    resourceId: intended.state.bindings.resourceId,
+    generationId: intended.state.bindings.generationId,
+    issuer: "pi-owner:test",
+    authorityConfigDigest: intended.state.bindings.piOwnerAuthorityDigest,
+    authenticationReceiptDigest: digest("recovery-auth"),
+    issuedAt: recoveryTime,
+    pendingIntentEntryHash: intended.entry.entryHash,
+    priorFenceEpoch: intended.state.fence.epoch,
+    priorFenceTokenDigest: intended.state.fence.tokenDigest,
+    newFenceEpoch: intended.state.fence.epoch + 1,
+    newFenceTokenDigest: digest("recovered-fence"),
+  });
+  const recovered = append(
+    intended.state,
+    { type: "pending_effect_recovered", recovery },
+    "recover-pending-effect",
+    recoveryTime,
+  ).state;
+  assert.equal(recovered.phase, "effect_reconciliation_required");
+  assert.equal(recovered.fence.epoch, 3);
+  assert.ok(recovered.pendingIntent);
+  assert.throws(() => intend(recovered, "effect-replay"), /intent_state_invalid/);
+
+  const reconciled = observe(
+    recovered,
+    intended.entry,
+    "already_satisfied_after_intent",
+    "reconcile-under-new-fence",
+  );
+  assert.equal(reconciled.phase, "partial_review");
+  assert.equal(reconciled.observations.length, 1);
+  assert.equal(reconciled.pendingIntent, undefined);
+});
+
+test("remaining-effect waiver is sealed by Pi authority and exact current state", () => {
+  const intended = intend(readyState(), "waiver-first-intent");
+  let partial = observe(intended.state, intended.entry, "completed", "waiver-first-observation");
+  partial = append(
+    partial,
+    { type: "block_recorded", reason: "authorization_expired", evidenceDigest: digest("expiry") },
+    "waiver-partial",
+  ).state;
+  const retainedEffectKeys = [partial.requiredEffectKeys[1]];
+  const waiverTime = nextTime(partial);
+  const makeWaiver = (overrides = {}) =>
+    sealRemainingEffectsWaiver({
+      schemaVersion: 1,
+      capsuleId: partial.capsuleId,
+      resourceId: partial.bindings.resourceId,
+      generationId: partial.bindings.generationId,
+      issuer: "pi-owner:test",
+      authorityConfigDigest: partial.bindings.piOwnerAuthorityDigest,
+      authenticationReceiptDigest: digest("waiver-auth"),
+      issuedAt: waiverTime,
+      bindingsDigest: partial.bindingsDigest,
+      archiveReceiptDigest: partial.archiveReceipt.receiptDigest,
+      promotionCertificateDigest: partial.promotionCertificate.certificateDigest,
+      cleanupPermitDigest: partial.cleanupPermit.permitDigest,
+      expectedCapsuleVersion: partial.capsuleVersion,
+      expectedChainHead: partial.chainHead,
+      fenceEpoch: partial.fence.epoch,
+      fenceTokenDigest: partial.fence.tokenDigest,
+      observationsDigest: digestCloseoutValue(partial.observations),
+      retainedEffectKeys,
+      rationale: "retain branch under explicit Pi-owner authority",
+      ...overrides,
+    });
+  assert.throws(
+    () =>
+      append(
+        partial,
+        {
+          type: "remaining_effects_waived",
+          waiver: makeWaiver({ authorityConfigDigest: digest("wrong-owner") }),
+        },
+        "forged-waiver",
+        waiverTime,
+      ),
+    /waiver_authority_mismatch/,
+  );
+  const staleWaiver = makeWaiver();
+  const revoked = append(
+    partial,
+    {
+      type: "block_recorded",
+      reason: "authorization_revoked",
+      evidenceDigest: digest("waiver-revoked"),
+    },
+    "revoke-waiver",
+    waiverTime,
+  ).state;
+  assert.equal(revoked.phase, "partial_review");
+  assert.throws(
+    () =>
+      append(
+        revoked,
+        { type: "remaining_effects_waived", waiver: staleWaiver },
+        "stale-waiver-after-revocation",
+        nextTime(revoked),
+      ),
+    /waiver_capsule_version_mismatch|waiver_chain_head_mismatch/,
+  );
+  const closed = append(
+    partial,
+    { type: "remaining_effects_waived", waiver: makeWaiver() },
+    "valid-waiver",
+    waiverTime,
+  ).state;
+  assert.equal(closed.phase, "closed_with_retained_effects");
+  assert.deepEqual(closed.retainedEffectKeys, retainedEffectKeys);
+});
+
+test("canonical hashing and destructive identifiers reject ambiguous values", () => {
+  const sparse = Array(1);
+  const symbolKeyed = { visible: true };
+  symbolKeyed[Symbol("hidden")] = true;
+  const hiddenProperty = {};
+  Object.defineProperty(hiddenProperty, "hidden", { value: true, enumerable: false });
+  const accessorArray = [];
+  Object.defineProperty(accessorArray, "0", {
+    get: () => "getter-value",
+    enumerable: true,
+  });
+  accessorArray.length = 1;
+  const hiddenArray = [];
+  Object.defineProperty(hiddenArray, "0", { value: "hidden-value", enumerable: false });
+  hiddenArray.length = 1;
+  for (const value of [
+    NaN,
+    Infinity,
+    [undefined],
+    { bad: undefined },
+    new Date(T0),
+    sparse,
+    symbolKeyed,
+    hiddenProperty,
+    accessorArray,
+    hiddenArray,
+  ]) {
+    assert.throws(() => canonicalCloseoutJson(value), /candidate_closeout_canonical_/);
+  }
+  const first = canonicalCloseoutJson({ ä: 1, z: 2, a: 3 });
+  const second = canonicalCloseoutJson({ z: 2, a: 3, ä: 1 });
+  assert.equal(first, second);
+
+  const base = createGenesis();
+  for (const requiredEffects of [
+    [{ ...base.requiredEffects[0], worktreeRealPath: "/" }, base.requiredEffects[1]],
+    [
+      { ...base.requiredEffects[0], worktreeRealPath: "/synthetic//candidate/." },
+      base.requiredEffects[1],
+    ],
+    [base.requiredEffects[0], { ...base.requiredEffects[1], fullRef: "refs/heads/unsafe..branch" }],
+    [base.requiredEffects[0], { ...base.requiredEffects[1], fullRef: "refs/heads/foo.lock/bar" }],
+    [base.requiredEffects[0], { ...base.requiredEffects[1], fullRef: "refs/heads/.hidden" }],
+  ]) {
+    assert.throws(
+      () => createCloseoutCapsule({ bindings: base.bindings, requiredEffects, fence: base.fence }),
+      /worktree_real_path_unsafe|branch_full_ref_invalid/,
+    );
+  }
 });

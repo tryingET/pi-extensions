@@ -10,5 +10,10 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["extensions/**/*.ts", "lib/**/*.ts"]
+  "include": [
+    "extensions/**/*.ts",
+    "lib/**/*.ts",
+    "src/candidatePeerCloseoutArtifacts.ts",
+    "src/candidatePeerCloseoutReducer.ts"
+  ]
 }
