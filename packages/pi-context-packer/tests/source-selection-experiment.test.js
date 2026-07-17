@@ -211,6 +211,12 @@ test("reports eligible availability denominators and aggregates paired available
   assert.equal(result.paired.sci.pairedCaseCount, 10);
   assert.equal(result.paired.fusion.pairedCaseCount, 9);
   assert.equal(result.paired.allFourCaseIds.length, 9);
+  assert.equal(result.repositories[0].caseCount, 11);
+  assert.deepEqual(result.repositories[0].eligibleCases, {
+    sourceList: 10,
+    sci: 11,
+    fusion: 10,
+  });
 });
 
 test("does not mutate prepared artifacts", () => {
@@ -259,6 +265,40 @@ test("enforces preregistered eligibility, question count, coverage, and budget i
   assert.throws(
     () => evaluateSourceSelectionExperiment(duplicateStaleness),
     /sampledPaths must be unique/,
+  );
+});
+
+test("rejects non-canonical and cross-platform-ambiguous repository paths", () => {
+  for (const candidatePath of [
+    "..\\escape",
+    "C:\\Windows\\win.ini",
+    "C:/Windows/win.ini",
+    "./src/a.js",
+    "src//a.js",
+    "src/a.js/",
+    "src/./a.js",
+    "src/../a.js",
+  ]) {
+    const experiment = makeExperiment();
+    experiment.cases[0].candidates[0].path = candidatePath;
+    assert.throws(
+      () => evaluateSourceSelectionExperiment(experiment),
+      /candidate path must be canonical and repository-relative/,
+      candidatePath,
+    );
+  }
+});
+
+test("rejects declared repositories that contribute no question cohort", () => {
+  const experiment = makeExperiment();
+  experiment.repositories.push({
+    id: "unused",
+    metadataCoverage: 0.9,
+    metadataStalenessSample: { sampledPaths: ["src/alpha.js"], stalePaths: [] },
+  });
+  assert.throws(
+    () => evaluateSourceSelectionExperiment(experiment),
+    /unused: every declared repository requires at least 10 questions/,
   );
 });
 

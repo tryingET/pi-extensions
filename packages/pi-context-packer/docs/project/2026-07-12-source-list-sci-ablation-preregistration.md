@@ -15,7 +15,7 @@ system4d:
 
 ## Decision posture
 
-The standing decision remains **REJECT automatic source-list provider adoption now**. This protocol creates evidence; it does not reverse the decision in [the source-list provider pilot](2026-07-11-source-list-provider-pilot.md), authorize production wiring, or make a successful threshold result self-adopting. A later owner review must decide whether any measured value justifies invocation, trust, context, and maintenance costs.
+The standing decision from the historical source-list provider pilot remains **REJECT automatic source-list provider adoption now**. This protocol creates evidence; it does not reverse that decision, authorize production wiring, or make a successful threshold result self-adopting. The pilot artifact is not present in the current reconciled documentation tree, so this preregistration does not retain a broken relative link to it. A later owner review must decide whether any measured value justifies invocation, trust, context, and maintenance costs.
 
 ## Question and frozen unit
 

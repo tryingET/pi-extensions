@@ -73,6 +73,19 @@ function matchingTokenCount(text, tokens) {
   return tokens.reduce((count, token) => count + Number(available.has(token)), 0);
 }
 
+function isCanonicalRepositoryPath(value) {
+  if (typeof value !== "string" || value.length === 0 || Buffer.byteLength(value, "utf8") > 4096)
+    return false;
+  if (value.startsWith("/") || value.includes("\\") || /^[A-Za-z]:\//.test(value)) return false;
+  for (const character of value) {
+    const code = character.codePointAt(0);
+    if (code !== undefined && (code <= 0x1f || code === 0x7f)) return false;
+  }
+  return value
+    .split("/")
+    .every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
+}
+
 function validateCandidate(candidate, caseId) {
   invariant(candidate && typeof candidate === "object", `${caseId}: candidate must be an object`);
   invariant(
@@ -80,8 +93,8 @@ function validateCandidate(candidate, caseId) {
     `${caseId}: candidate path is required`,
   );
   invariant(
-    !candidate.path.startsWith("/") && !candidate.path.split("/").includes(".."),
-    `${caseId}: candidate path must be repository-relative`,
+    isCanonicalRepositoryPath(candidate.path),
+    `${caseId}: candidate path must be canonical and repository-relative`,
   );
   invariant(
     candidate.summary === undefined || typeof candidate.summary === "string",
@@ -270,14 +283,8 @@ function validateRepository(repository) {
     `${repository.id}: stalePaths must be unique`,
   );
   invariant(
-    sample.sampledPaths.every(
-      (path) =>
-        typeof path === "string" &&
-        path.length > 0 &&
-        !path.startsWith("/") &&
-        !path.split("/").includes(".."),
-    ),
-    `${repository.id}: sampledPaths must be repository-relative`,
+    sample.sampledPaths.every(isCanonicalRepositoryPath),
+    `${repository.id}: sampledPaths must be canonical and repository-relative`,
   );
   invariant(
     sample.stalePaths.every((path) => sample.sampledPaths.includes(path)),
@@ -349,7 +356,13 @@ export function evaluateSourceSelectionExperiment(experiment) {
       !item.eligibility.sourceList || repository.metadataCoverage >= 0.6,
       `${item.id}: source-list eligibility requires >=60% repository coverage`,
     );
-    const repositoryCounts = counts.get(item.repositoryId) ?? { sourceList: 0, sci: 0, fusion: 0 };
+    const repositoryCounts = counts.get(item.repositoryId) ?? {
+      total: 0,
+      sourceList: 0,
+      sci: 0,
+      fusion: 0,
+    };
+    repositoryCounts.total += 1;
     if (item.eligibility.sourceList) repositoryCounts.sourceList += 1;
     if (item.eligibility.sci) repositoryCounts.sci += 1;
     if (item.eligibility.sourceList && item.eligibility.sci) repositoryCounts.fusion += 1;
@@ -362,16 +375,22 @@ export function evaluateSourceSelectionExperiment(experiment) {
     }
     metadataCandidates.set(item.repositoryId, metadataPaths);
   }
-  for (const [repositoryId, armCounts] of counts) {
-    for (const [arm, count] of Object.entries(armCounts)) {
+  for (const [repositoryId, repository] of repositories) {
+    const armCounts = counts.get(repositoryId);
+    invariant(
+      armCounts && armCounts.total >= 10,
+      `${repositoryId}: every declared repository requires at least 10 questions`,
+    );
+    for (const arm of ["sourceList", "sci", "fusion"]) {
+      const count = armCounts[arm];
       invariant(
         count === 0 || count >= 10,
         `${repositoryId}: ${arm} eligibility requires at least 10 questions`,
       );
     }
-    const sample = repositories.get(repositoryId).metadataStalenessSample;
+    const metadataPaths = metadataCandidates.get(repositoryId) ?? new Set();
     invariant(
-      sample.sampledPaths.every((path) => metadataCandidates.get(repositoryId).has(path)),
+      repository.metadataStalenessSample.sampledPaths.every((path) => metadataPaths.has(path)),
       `${repositoryId}: staleness sample must reference frozen metadata-bearing candidates`,
     );
   }
@@ -440,6 +459,12 @@ export function evaluateSourceSelectionExperiment(experiment) {
     repositories: experiment.repositories.map((repository) => ({
       id: repository.id,
       metadataCoverage: repository.metadataCoverage,
+      caseCount: counts.get(repository.id).total,
+      eligibleCases: {
+        sourceList: counts.get(repository.id).sourceList,
+        sci: counts.get(repository.id).sci,
+        fusion: counts.get(repository.id).fusion,
+      },
       metadataStalenessSample: {
         sampled: repository.metadataStalenessSample.sampledPaths.length,
         stale: repository.metadataStalenessSample.stalePaths.length,
