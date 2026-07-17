@@ -16,6 +16,8 @@
       "!external/**/*",
       // ontology/ contains generated domain artifacts/snapshots.
       "!ontology/**/*",
+      // Preserve exact source-owner bytes for cross-language protocol fixtures.
+      "!tests/fixtures/semantic-discovery-v0/**/*",
       "!**/*.min.js",
       "!**/*.generated.*"
     ]

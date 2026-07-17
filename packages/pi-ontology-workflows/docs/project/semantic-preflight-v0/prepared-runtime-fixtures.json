@@ -1,0 +1,271 @@
+{
+  "byte_boundaries": [
+    {
+      "expected_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_size": 0,
+      "field": "file",
+      "repeat": 0,
+      "unit_raw_hex": "61"
+    },
+    {
+      "expected_digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+      "expected_size": 1,
+      "field": "file",
+      "repeat": 1,
+      "unit_raw_hex": "61"
+    },
+    {
+      "expected": "accept",
+      "expected_size": 1048576,
+      "field": "file",
+      "repeat": 1048576,
+      "unit_raw_hex": "61"
+    },
+    {
+      "expected": "resource_exhausted",
+      "expected_size": 1048577,
+      "field": "file",
+      "repeat": 1048577,
+      "unit_raw_hex": "61"
+    }
+  ],
+  "invalid": [
+    {
+      "case": "unsorted_files",
+      "expected_invariant": "files sorted by path UTF-8 bytes",
+      "instance": {
+        "dependency_lock_digest": "sha256:36676ffeed4b9c70a4735cc427984f783c21d94a683b6f6e98e0b195480dbb32",
+        "entrypoint_digest": "sha256:1ccc184642ad614a52f7807e2caafe7fdb49af3b907f5d4266356b945092f6b9",
+        "files": [
+          {
+            "digest": "sha256:93b77904c235ff53506d9f066a0b66fca41b0780bfab3a36a6fdface3ab6302b",
+            "mode": 420,
+            "path": "rocs_cli/__main__.py",
+            "size": 37
+          },
+          {
+            "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mode": 420,
+            "path": "rocs_cli/__init__.py",
+            "size": 0
+          }
+        ],
+        "interpreter": {
+          "digest": "sha256:b1a6b91197ce8b56940fff8ba9297fc5b9bfc0cba88a8a3fd574d8da14109cfc",
+          "path": "/usr/bin/python3.12",
+          "version": "3.12.10"
+        },
+        "manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+        "rocs_commit": "e871dc4000000000000000000000000000000000",
+        "schema": "pi-rocs-prepared-runtime-manifest.v0"
+      }
+    },
+    {
+      "case": "duplicate_path",
+      "expected_invariant": "file paths unique",
+      "instance": {
+        "dependency_lock_digest": "sha256:36676ffeed4b9c70a4735cc427984f783c21d94a683b6f6e98e0b195480dbb32",
+        "entrypoint_digest": "sha256:1ccc184642ad614a52f7807e2caafe7fdb49af3b907f5d4266356b945092f6b9",
+        "files": [
+          {
+            "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mode": 420,
+            "path": "rocs_cli/__init__.py",
+            "size": 0
+          },
+          {
+            "digest": "sha256:9d6f965ac832e40a5df6c06afe983e3b449c07b843ff51ce76204de05c690d11",
+            "mode": 420,
+            "path": "rocs_cli/__init__.py",
+            "size": 0
+          }
+        ],
+        "interpreter": {
+          "digest": "sha256:b1a6b91197ce8b56940fff8ba9297fc5b9bfc0cba88a8a3fd574d8da14109cfc",
+          "path": "/usr/bin/python3.12",
+          "version": "3.12.10"
+        },
+        "manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+        "rocs_commit": "e871dc4000000000000000000000000000000000",
+        "schema": "pi-rocs-prepared-runtime-manifest.v0"
+      }
+    },
+    {
+      "case": "relative_interpreter",
+      "expected_instance_path": "/interpreter/path",
+      "expected_keyword": "pattern",
+      "instance": {
+        "dependency_lock_digest": "sha256:36676ffeed4b9c70a4735cc427984f783c21d94a683b6f6e98e0b195480dbb32",
+        "entrypoint_digest": "sha256:1ccc184642ad614a52f7807e2caafe7fdb49af3b907f5d4266356b945092f6b9",
+        "files": [
+          {
+            "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mode": 420,
+            "path": "rocs_cli/__init__.py",
+            "size": 0
+          },
+          {
+            "digest": "sha256:93b77904c235ff53506d9f066a0b66fca41b0780bfab3a36a6fdface3ab6302b",
+            "mode": 420,
+            "path": "rocs_cli/__main__.py",
+            "size": 37
+          }
+        ],
+        "interpreter": {
+          "digest": "sha256:b1a6b91197ce8b56940fff8ba9297fc5b9bfc0cba88a8a3fd574d8da14109cfc",
+          "path": "python3.12",
+          "version": "3.12.10"
+        },
+        "manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+        "rocs_commit": "e871dc4000000000000000000000000000000000",
+        "schema": "pi-rocs-prepared-runtime-manifest.v0"
+      }
+    },
+    {
+      "case": "world_writable_mode",
+      "expected_instance_path": "/files/0/mode",
+      "expected_keyword": "enum",
+      "instance": {
+        "dependency_lock_digest": "sha256:36676ffeed4b9c70a4735cc427984f783c21d94a683b6f6e98e0b195480dbb32",
+        "entrypoint_digest": "sha256:1ccc184642ad614a52f7807e2caafe7fdb49af3b907f5d4266356b945092f6b9",
+        "files": [
+          {
+            "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mode": 438,
+            "path": "rocs_cli/__init__.py",
+            "size": 0
+          },
+          {
+            "digest": "sha256:93b77904c235ff53506d9f066a0b66fca41b0780bfab3a36a6fdface3ab6302b",
+            "mode": 420,
+            "path": "rocs_cli/__main__.py",
+            "size": 37
+          }
+        ],
+        "interpreter": {
+          "digest": "sha256:b1a6b91197ce8b56940fff8ba9297fc5b9bfc0cba88a8a3fd574d8da14109cfc",
+          "path": "/usr/bin/python3.12",
+          "version": "3.12.10"
+        },
+        "manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+        "rocs_commit": "e871dc4000000000000000000000000000000000",
+        "schema": "pi-rocs-prepared-runtime-manifest.v0"
+      }
+    },
+    {
+      "case": "raw_file_digest_mismatch",
+      "expected_invariant": "raw file digest and size match manifest",
+      "instance": {
+        "dependency_lock_digest": "sha256:36676ffeed4b9c70a4735cc427984f783c21d94a683b6f6e98e0b195480dbb32",
+        "entrypoint_digest": "sha256:1ccc184642ad614a52f7807e2caafe7fdb49af3b907f5d4266356b945092f6b9",
+        "files": [
+          {
+            "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mode": 420,
+            "path": "rocs_cli/__init__.py",
+            "size": 0
+          },
+          {
+            "digest": "sha256:93b77904c235ff53506d9f066a0b66fca41b0780bfab3a36a6fdface3ab6302b",
+            "mode": 420,
+            "path": "rocs_cli/__main__.py",
+            "size": 37
+          }
+        ],
+        "interpreter": {
+          "digest": "sha256:b1a6b91197ce8b56940fff8ba9297fc5b9bfc0cba88a8a3fd574d8da14109cfc",
+          "path": "/usr/bin/python3.12",
+          "version": "3.12.10"
+        },
+        "manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+        "rocs_commit": "e871dc4000000000000000000000000000000000",
+        "schema": "pi-rocs-prepared-runtime-manifest.v0"
+      },
+      "raw_material_patch": {
+        "path": "/files/rocs_cli~1__init__.py",
+        "raw_hex": "00"
+      }
+    },
+    {
+      "case": "raw_lock_digest_mismatch",
+      "expected_invariant": "raw dependency lock digest matches manifest",
+      "instance": {
+        "dependency_lock_digest": "sha256:36676ffeed4b9c70a4735cc427984f783c21d94a683b6f6e98e0b195480dbb32",
+        "entrypoint_digest": "sha256:1ccc184642ad614a52f7807e2caafe7fdb49af3b907f5d4266356b945092f6b9",
+        "files": [
+          {
+            "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "mode": 420,
+            "path": "rocs_cli/__init__.py",
+            "size": 0
+          },
+          {
+            "digest": "sha256:93b77904c235ff53506d9f066a0b66fca41b0780bfab3a36a6fdface3ab6302b",
+            "mode": 420,
+            "path": "rocs_cli/__main__.py",
+            "size": 37
+          }
+        ],
+        "interpreter": {
+          "digest": "sha256:b1a6b91197ce8b56940fff8ba9297fc5b9bfc0cba88a8a3fd574d8da14109cfc",
+          "path": "/usr/bin/python3.12",
+          "version": "3.12.10"
+        },
+        "manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+        "rocs_commit": "e871dc4000000000000000000000000000000000",
+        "schema": "pi-rocs-prepared-runtime-manifest.v0"
+      },
+      "raw_material_patch": {
+        "path": "/dependency_lock_raw_hex",
+        "raw_hex": "00"
+      }
+    }
+  ],
+  "raw_digest_rules": {
+    "dependency_lock_digest": "sha256(raw lock bytes), lowercase hex with sha256: prefix; no domain separator",
+    "entrypoint_digest": "sha256(raw generated entrypoint bytes), lowercase hex with sha256: prefix; no domain separator",
+    "file_digest": "sha256(raw file bytes), lowercase hex with sha256: prefix; no domain separator",
+    "interpreter_digest": "sha256(raw interpreter executable bytes), lowercase hex with sha256: prefix; no domain separator"
+  },
+  "schema": "pi-rocs-prepared-runtime-fixtures.v0",
+  "valid": {
+    "expected_manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+    "manifest": {
+      "dependency_lock_digest": "sha256:36676ffeed4b9c70a4735cc427984f783c21d94a683b6f6e98e0b195480dbb32",
+      "entrypoint_digest": "sha256:1ccc184642ad614a52f7807e2caafe7fdb49af3b907f5d4266356b945092f6b9",
+      "files": [
+        {
+          "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "mode": 420,
+          "path": "rocs_cli/__init__.py",
+          "size": 0
+        },
+        {
+          "digest": "sha256:93b77904c235ff53506d9f066a0b66fca41b0780bfab3a36a6fdface3ab6302b",
+          "mode": 420,
+          "path": "rocs_cli/__main__.py",
+          "size": 37
+        }
+      ],
+      "interpreter": {
+        "digest": "sha256:b1a6b91197ce8b56940fff8ba9297fc5b9bfc0cba88a8a3fd574d8da14109cfc",
+        "path": "/usr/bin/python3.12",
+        "version": "3.12.10"
+      },
+      "manifest_digest": "sha256:4a8652b6163065c3764d5fc4ac635fd9bb2dd2289c9ee071828d4f9d5214dc1f",
+      "rocs_commit": "e871dc4000000000000000000000000000000000",
+      "schema": "pi-rocs-prepared-runtime-manifest.v0"
+    },
+    "preimage_byte_length": 728,
+    "preimage_jcs_utf8_hex": "7b22646570656e64656e63795f6c6f636b5f646967657374223a227368613235363a33363637366666656564346239633730613437333563633432373938346637383363323164393461363833623666366539386530623139353438306462623332222c22656e747279706f696e745f646967657374223a227368613235363a31636363313834363432616436313461353266373830376532636161666537666462343961663362393037663564343236363335366239343530393266366239222c2266696c6573223a5b7b22646967657374223a227368613235363a65336230633434323938666331633134396166626634633839393666623932343237616534316534363439623933346361343935393931623738353262383535222c226d6f6465223a3432302c2270617468223a22726f63735f636c692f5f5f696e69745f5f2e7079222c2273697a65223a307d2c7b22646967657374223a227368613235363a39336237373930346332333566663533353036643966303636613062363666636134316230373830626661623361333661366664666163653361623633303262222c226d6f6465223a3432302c2270617468223a22726f63735f636c692f5f5f6d61696e5f5f2e7079222c2273697a65223a33377d5d2c22696e746572707265746572223a7b22646967657374223a227368613235363a62316136623931313937636538623536393430666666386261393239376663356239626663306362613838613861336664353734643864613134313039636663222c2270617468223a222f7573722f62696e2f707974686f6e332e3132222c2276657273696f6e223a22332e31322e3130227d2c22726f63735f636f6d6d6974223a2265383731646334303030303030303030303030303030303030303030303030303030303030303030222c22736368656d61223a2270692d726f63732d70726570617265642d72756e74696d652d6d616e69666573742e7630227d",
+    "raw_material": {
+      "dependency_lock_raw_hex": "76657273696f6e203d20310a72657175697265732d707974686f6e203d20223e3d332e3132220a",
+      "entrypoint_raw_hex": "707974686f6e202d42202d6d20726f63735f636c690a",
+      "files": {
+        "rocs_cli/__init__.py": "",
+        "rocs_cli/__main__.py": "66726f6d20726f63735f636c692e636c6920696d706f7274206d61696e0a6d61696e28290a"
+      },
+      "interpreter_raw_hex": "666978747572652d707974686f6e2d696e7465727072657465722d332e31322e3130"
+    }
+  }
+}

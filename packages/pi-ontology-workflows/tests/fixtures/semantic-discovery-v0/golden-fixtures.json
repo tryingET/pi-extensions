@@ -1,0 +1,428 @@
+{
+  "canonicalization": "RFC8785 with integer-only I-JSON restriction",
+  "digests": {
+    "caller_request_digest": "sha256:1c3d9c7e0b66e075554f659f35d6b1702b2a676f98f17a9e48fcc19e4bc6248e",
+    "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+    "effective_execution_digest": "sha256:df567b6497e9650ac8b4a66f078fb8f17ab91833a06a7a0e1c71a4cf65e45b17",
+    "pack_digest": "sha256:7b6c6faab3a21bbe1b16a4a8e5a101669c532abdab11fb39cdbe03bc8d661ef9",
+    "result_digest": "sha256:0470ab3c71b868a7b8483ef31f03ad6e492a082ec7991bf4bb30dd4d54e70c87",
+    "tool_identity_digest": "sha256:4a36256f4594bedc8a52da02fd6ab65e4042fd5d7a21f1f2f7023b5d3d97d0da"
+  },
+  "invalid": [
+    {
+      "case": "request_unknown_field",
+      "expected": "schema_reject",
+      "instance": {
+        "algorithm": "rocs-lexical-v0",
+        "extra": true,
+        "identity_selector": {
+          "kind": "development_snapshot"
+        },
+        "limits": {
+          "candidates": 12,
+          "collection_items": 10000,
+          "corpus_bytes": 33554432,
+          "corpus_files": 5000,
+          "file_bytes": 1048576,
+          "parser_depth": 32,
+          "query_bytes": 16384,
+          "result_bytes": 65536
+        },
+        "profile": "review",
+        "query": "agent authority",
+        "schema": "semantic-discovery-request.v0"
+      }
+    },
+    {
+      "case": "result_empty_effective_limits",
+      "expected": "schema_reject",
+      "instance": {
+        "algorithm": {
+          "id": "rocs-lexical-v0",
+          "unicode_data": "15.0.0"
+        },
+        "caller_request_digest": "sha256:1c3d9c7e0b66e075554f659f35d6b1702b2a676f98f17a9e48fcc19e4bc6248e",
+        "candidates": [
+          {
+            "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+            "evidence": [
+              {
+                "field": "label",
+                "query_term": "agent",
+                "rule": "token_exact"
+              },
+              {
+                "field": "description",
+                "query_term": "agent",
+                "rule": "token_exact"
+              },
+              {
+                "field": "description",
+                "query_term": "authority",
+                "rule": "token_exact"
+              }
+            ],
+            "kind": "concept",
+            "layer": "core",
+            "matched_query_tokens": [
+              "agent",
+              "authority"
+            ],
+            "ont_id": "core.Agent",
+            "rank": 1,
+            "score": 1100
+          }
+        ],
+        "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+        "effective_execution_digest": "sha256:df567b6497e9650ac8b4a66f078fb8f17ab91833a06a7a0e1c71a4cf65e45b17",
+        "effective_limits": {},
+        "result_digest": "sha256:861e027e4da14c58e7e51e09360a8621029a41fd867e338983325c4e21b3c573",
+        "retrieval": "unique_candidate",
+        "schema": "semantic-discovery-result.v0",
+        "tool_identity": {
+          "digest": "sha256:4a36256f4594bedc8a52da02fd6ab65e4042fd5d7a21f1f2f7023b5d3d97d0da",
+          "kind": "development_runtime",
+          "manifest_digest": "sha256:45bb426eafef58535b5738b86a7b6342915a53f5c6aa4c86ad98a375a259eb0b",
+          "python_version": "3.12.10",
+          "unicode_data": "15.0.0"
+        },
+        "truncated": false
+      }
+    },
+    {
+      "case": "undotted_ontology_id",
+      "expected": "schema_reject",
+      "instance": {
+        "algorithm": {
+          "id": "rocs-lexical-v0",
+          "unicode_data": "15.0.0"
+        },
+        "caller_request_digest": "sha256:1c3d9c7e0b66e075554f659f35d6b1702b2a676f98f17a9e48fcc19e4bc6248e",
+        "candidates": [
+          {
+            "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+            "evidence": [
+              {
+                "field": "label",
+                "query_term": "agent",
+                "rule": "token_exact"
+              },
+              {
+                "field": "description",
+                "query_term": "agent",
+                "rule": "token_exact"
+              },
+              {
+                "field": "description",
+                "query_term": "authority",
+                "rule": "token_exact"
+              }
+            ],
+            "kind": "concept",
+            "layer": "core",
+            "matched_query_tokens": [
+              "agent",
+              "authority"
+            ],
+            "ont_id": "Agent",
+            "rank": 1,
+            "score": 1100
+          }
+        ],
+        "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+        "effective_execution_digest": "sha256:df567b6497e9650ac8b4a66f078fb8f17ab91833a06a7a0e1c71a4cf65e45b17",
+        "effective_limits": {
+          "candidates": 12,
+          "collection_items": 10000,
+          "corpus_bytes": 33554432,
+          "corpus_files": 5000,
+          "file_bytes": 1048576,
+          "parser_depth": 32,
+          "query_bytes": 16384,
+          "result_bytes": 65536
+        },
+        "result_digest": "sha256:861e027e4da14c58e7e51e09360a8621029a41fd867e338983325c4e21b3c573",
+        "retrieval": "unique_candidate",
+        "schema": "semantic-discovery-result.v0",
+        "tool_identity": {
+          "digest": "sha256:4a36256f4594bedc8a52da02fd6ab65e4042fd5d7a21f1f2f7023b5d3d97d0da",
+          "kind": "development_runtime",
+          "manifest_digest": "sha256:45bb426eafef58535b5738b86a7b6342915a53f5c6aa4c86ad98a375a259eb0b",
+          "python_version": "3.12.10",
+          "unicode_data": "15.0.0"
+        },
+        "truncated": false
+      }
+    },
+    {
+      "case": "positive_anti_rule_pair",
+      "expected": "schema_reject",
+      "instance": {
+        "algorithm": {
+          "id": "rocs-lexical-v0",
+          "unicode_data": "15.0.0"
+        },
+        "caller_request_digest": "sha256:1c3d9c7e0b66e075554f659f35d6b1702b2a676f98f17a9e48fcc19e4bc6248e",
+        "candidates": [
+          {
+            "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+            "evidence": [
+              {
+                "field": "label",
+                "query_term": "agent",
+                "rule": "anti_token"
+              }
+            ],
+            "kind": "concept",
+            "layer": "core",
+            "matched_query_tokens": [
+              "agent",
+              "authority"
+            ],
+            "ont_id": "core.Agent",
+            "rank": 1,
+            "score": 1100
+          }
+        ],
+        "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+        "effective_execution_digest": "sha256:df567b6497e9650ac8b4a66f078fb8f17ab91833a06a7a0e1c71a4cf65e45b17",
+        "effective_limits": {
+          "candidates": 12,
+          "collection_items": 10000,
+          "corpus_bytes": 33554432,
+          "corpus_files": 5000,
+          "file_bytes": 1048576,
+          "parser_depth": 32,
+          "query_bytes": 16384,
+          "result_bytes": 65536
+        },
+        "result_digest": "sha256:861e027e4da14c58e7e51e09360a8621029a41fd867e338983325c4e21b3c573",
+        "retrieval": "unique_candidate",
+        "schema": "semantic-discovery-result.v0",
+        "tool_identity": {
+          "digest": "sha256:4a36256f4594bedc8a52da02fd6ab65e4042fd5d7a21f1f2f7023b5d3d97d0da",
+          "kind": "development_runtime",
+          "manifest_digest": "sha256:45bb426eafef58535b5738b86a7b6342915a53f5c6aa4c86ad98a375a259eb0b",
+          "python_version": "3.12.10",
+          "unicode_data": "15.0.0"
+        },
+        "truncated": false
+      }
+    }
+  ],
+  "schema": "semantic-discovery-golden-fixtures.v0",
+  "valid": {
+    "capabilities": {
+      "algorithms": [
+        "rocs-lexical-v0"
+      ],
+      "error_schemas": [
+        "rocs-error.v0"
+      ],
+      "pack_schemas": [
+        "semantic-pack-result.v0"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "request_schemas": [
+        "semantic-discovery-request.v0"
+      ],
+      "result_schemas": [
+        "semantic-discovery-result.v0"
+      ],
+      "schema": "semantic-discovery-capabilities.v0",
+      "unicode_data": [
+        "15.0.0"
+      ]
+    },
+    "corpus_snapshot": {
+      "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+      "entries": [
+        {
+          "document_digest": "sha256:a73759f13eb2c5a9b5d0134f9c133472d0968d24efed2d936c13cc0a571e27d9",
+          "kind": "manifest",
+          "layer": "core",
+          "layer_order": 0,
+          "logical_path": "manifest.yaml",
+          "raw_byte_length": 32
+        },
+        {
+          "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+          "kind": "concept",
+          "layer": "core",
+          "layer_order": 0,
+          "logical_path": "reference/concepts/core.Agent.md",
+          "raw_byte_length": 140
+        }
+      ],
+      "profile": "review",
+      "resolved_refs": [],
+      "roots": [
+        {
+          "kind": "path",
+          "layer": "core",
+          "layer_order": 0,
+          "root_id": "core"
+        }
+      ],
+      "schema": "semantic-corpus-snapshot.v0"
+    },
+    "effective_execution": {
+      "algorithm": {
+        "id": "rocs-lexical-v0",
+        "unicode_data": "15.0.0"
+      },
+      "caller_request_digest": "sha256:1c3d9c7e0b66e075554f659f35d6b1702b2a676f98f17a9e48fcc19e4bc6248e",
+      "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+      "effective_execution_digest": "sha256:df567b6497e9650ac8b4a66f078fb8f17ab91833a06a7a0e1c71a4cf65e45b17",
+      "effective_limits": {
+        "candidates": 12,
+        "collection_items": 10000,
+        "corpus_bytes": 33554432,
+        "corpus_files": 5000,
+        "file_bytes": 1048576,
+        "parser_depth": 32,
+        "query_bytes": 16384,
+        "result_bytes": 65536
+      },
+      "schema": "semantic-effective-execution.v0",
+      "tool_identity": {
+        "digest": "sha256:4a36256f4594bedc8a52da02fd6ab65e4042fd5d7a21f1f2f7023b5d3d97d0da",
+        "kind": "development_runtime",
+        "manifest_digest": "sha256:45bb426eafef58535b5738b86a7b6342915a53f5c6aa4c86ad98a375a259eb0b",
+        "python_version": "3.12.10",
+        "unicode_data": "15.0.0"
+      }
+    },
+    "error": {
+      "error": {
+        "caller_request_digest": null,
+        "kind": "invalid_request",
+        "message": "request is not one I-JSON object",
+        "schema": "rocs-error.v0"
+      },
+      "ok": false
+    },
+    "pack": {
+      "config": {
+        "include_relation_defs": false,
+        "max_bytes": 1048576,
+        "max_depth": 0,
+        "max_docs": 1,
+        "rel_types": []
+      },
+      "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+      "documents": [
+        {
+          "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+          "kind": "concept",
+          "logical_path": "reference/concepts/core.Agent.md",
+          "ont_id": "core.Agent",
+          "text": "---\nont:\n  id: core.Agent\n  type: concept\n  labels: [Agent]\n  description: Agent authority.\n  examples: [agent]\n  anti_examples: [tool]\n---\n"
+        }
+      ],
+      "pack_digest": "sha256:7b6c6faab3a21bbe1b16a4a8e5a101669c532abdab11fb39cdbe03bc8d661ef9",
+      "root_document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+      "root_id": "core.Agent",
+      "schema": "semantic-pack-result.v0"
+    },
+    "request": {
+      "algorithm": "rocs-lexical-v0",
+      "identity_selector": {
+        "kind": "development_snapshot"
+      },
+      "limits": {
+        "candidates": 12,
+        "collection_items": 10000,
+        "corpus_bytes": 33554432,
+        "corpus_files": 5000,
+        "file_bytes": 1048576,
+        "parser_depth": 32,
+        "query_bytes": 16384,
+        "result_bytes": 65536
+      },
+      "profile": "review",
+      "query": "agent authority",
+      "schema": "semantic-discovery-request.v0"
+    },
+    "result": {
+      "algorithm": {
+        "id": "rocs-lexical-v0",
+        "unicode_data": "15.0.0"
+      },
+      "caller_request_digest": "sha256:1c3d9c7e0b66e075554f659f35d6b1702b2a676f98f17a9e48fcc19e4bc6248e",
+      "candidates": [
+        {
+          "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+          "evidence": [
+            {
+              "field": "id",
+              "query_term": "agent",
+              "rule": "token_exact"
+            },
+            {
+              "field": "label",
+              "query_term": "agent",
+              "rule": "token_exact"
+            },
+            {
+              "field": "description",
+              "query_term": "agent",
+              "rule": "token_exact"
+            },
+            {
+              "field": "description",
+              "query_term": "authority",
+              "rule": "token_exact"
+            },
+            {
+              "field": "example",
+              "query_term": "agent",
+              "rule": "token_exact"
+            }
+          ],
+          "kind": "concept",
+          "layer": "core",
+          "matched_query_tokens": [
+            "agent",
+            "authority"
+          ],
+          "ont_id": "core.Agent",
+          "rank": 1,
+          "score": 1150
+        }
+      ],
+      "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+      "effective_execution_digest": "sha256:df567b6497e9650ac8b4a66f078fb8f17ab91833a06a7a0e1c71a4cf65e45b17",
+      "effective_limits": {
+        "candidates": 12,
+        "collection_items": 10000,
+        "corpus_bytes": 33554432,
+        "corpus_files": 5000,
+        "file_bytes": 1048576,
+        "parser_depth": 32,
+        "query_bytes": 16384,
+        "result_bytes": 65536
+      },
+      "result_digest": "sha256:0470ab3c71b868a7b8483ef31f03ad6e492a082ec7991bf4bb30dd4d54e70c87",
+      "retrieval": "unique_candidate",
+      "schema": "semantic-discovery-result.v0",
+      "tool_identity": {
+        "digest": "sha256:4a36256f4594bedc8a52da02fd6ab65e4042fd5d7a21f1f2f7023b5d3d97d0da",
+        "kind": "development_runtime",
+        "manifest_digest": "sha256:45bb426eafef58535b5738b86a7b6342915a53f5c6aa4c86ad98a375a259eb0b",
+        "python_version": "3.12.10",
+        "unicode_data": "15.0.0"
+      },
+      "truncated": false
+    },
+    "tool_identity": {
+      "digest": "sha256:4a36256f4594bedc8a52da02fd6ab65e4042fd5d7a21f1f2f7023b5d3d97d0da",
+      "kind": "development_runtime",
+      "manifest_digest": "sha256:45bb426eafef58535b5738b86a7b6342915a53f5c6aa4c86ad98a375a259eb0b",
+      "python_version": "3.12.10",
+      "unicode_data": "15.0.0"
+    }
+  }
+}

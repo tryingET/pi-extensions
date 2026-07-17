@@ -1,0 +1,619 @@
+{
+  "byte_boundaries": [
+    {
+      "expected": "accept",
+      "expected_utf8_bytes": 16383,
+      "field": "query",
+      "repeat": 16383,
+      "unit_utf8_hex": "61"
+    },
+    {
+      "expected": "accept",
+      "expected_utf8_bytes": 16384,
+      "field": "query",
+      "repeat": 16384,
+      "unit_utf8_hex": "61"
+    },
+    {
+      "expected": "resource_exhausted",
+      "expected_utf8_bytes": 16385,
+      "field": "query",
+      "repeat": 16385,
+      "unit_utf8_hex": "61"
+    },
+    {
+      "expected": "accept",
+      "expected_utf8_bytes": 16384,
+      "field": "query",
+      "repeat": 8192,
+      "unit_utf8_hex": "c3a4"
+    },
+    {
+      "expected": "resource_exhausted",
+      "expected_utf8_bytes": 16386,
+      "field": "query",
+      "repeat": 8193,
+      "unit_utf8_hex": "c3a4"
+    }
+  ],
+  "canonical_preimages": {
+    "caller_request": {
+      "byte_length": 345,
+      "jcs_utf8_hex": "7b22616c676f726974686d223a22726f63732d6c65786963616c2d7630222c226964656e746974795f73656c6563746f72223a7b226b696e64223a22646576656c6f706d656e745f736e617073686f74227d2c226c696d697473223a7b2263616e64696461746573223a31322c22636f6c6c656374696f6e5f6974656d73223a31303030302c22636f727075735f6279746573223a33333535343433322c22636f727075735f66696c6573223a353030302c2266696c655f6279746573223a313034383537362c227061727365725f6465707468223a33322c2271756572795f6279746573223a31363338342c22726573756c745f6279746573223a36353533367d2c2270726f66696c65223a22726576696577222c227175657279223a226167656e7420617574686f72697479222c22736368656d61223a2273656d616e7469632d646973636f766572792d726571756573742e7630227d"
+    },
+    "corpus_snapshot": {
+      "byte_length": 573,
+      "jcs_utf8_hex": "7b22656e7472696573223a5b7b22646f63756d656e745f646967657374223a227368613235363a61373337353966313365623263356139623564303133346639633133333437326430393638643234656665643264393336633133636330613537316532376439222c226b696e64223a226d616e6966657374222c226c61796572223a22636f7265222c226c617965725f6f72646572223a302c226c6f676963616c5f70617468223a226d616e69666573742e79616d6c222c227261775f627974655f6c656e677468223a33327d2c7b22646f63756d656e745f646967657374223a227368613235363a64373632346162626466376231636331303532336239343066363233363832343131323066326336316165303765356566646163373161633935376531303238222c226b696e64223a22636f6e63657074222c226c61796572223a22636f7265222c226c617965725f6f72646572223a302c226c6f676963616c5f70617468223a227265666572656e63652f636f6e63657074732f636f72652e4167656e742e6d64222c227261775f627974655f6c656e677468223a3134307d5d2c2270726f66696c65223a22726576696577222c227265736f6c7665645f72656673223a5b5d2c22726f6f7473223a5b7b226b696e64223a2270617468222c226c61796572223a22636f7265222c226c617965725f6f72646572223a302c22726f6f745f6964223a22636f7265227d5d2c22736368656d61223a2273656d616e7469632d636f727075732d736e617073686f742e7630227d"
+    },
+    "effective_execution": {
+      "byte_length": 761,
+      "jcs_utf8_hex": "7b22616c676f726974686d223a7b226964223a22726f63732d6c65786963616c2d7630222c22756e69636f64655f64617461223a2231352e302e30227d2c2263616c6c65725f726571756573745f646967657374223a227368613235363a31633364396337653062363665303735353534663635396633356436623137303262326136373666393866313761396534386663633139653462633632343865222c22636f727075735f736e617073686f745f646967657374223a227368613235363a38393439336562376237666334616131666537383735353438373634366335336337353530336361303630336634616561663538613363396437326564663130222c226566666563746976655f6c696d697473223a7b2263616e64696461746573223a31322c22636f6c6c656374696f6e5f6974656d73223a31303030302c22636f727075735f6279746573223a33333535343433322c22636f727075735f66696c6573223a353030302c2266696c655f6279746573223a313034383537362c227061727365725f6465707468223a33322c2271756572795f6279746573223a31363338342c22726573756c745f6279746573223a36353533367d2c22736368656d61223a2273656d616e7469632d6566666563746976652d657865637574696f6e2e7630222c22746f6f6c5f6964656e74697479223a7b22646967657374223a227368613235363a34613336323536663435393462656463386135326461303266643661623635653430343266643564376132316631663266373032336235643364393764306461222c226b696e64223a22646576656c6f706d656e745f72756e74696d65222c226d616e69666573745f646967657374223a227368613235363a34356262343236656166656635383533356235373338623836613762363334323931356135336635633661613463383661643938613337356132353965623062222c22707974686f6e5f76657273696f6e223a22332e31322e3130222c22756e69636f64655f64617461223a2231352e302e30227d7d"
+    },
+    "pack": {
+      "byte_length": 714,
+      "jcs_utf8_hex": "7b22636f6e666967223a7b22696e636c7564655f72656c6174696f6e5f64656673223a66616c73652c226d61785f6279746573223a313034383537362c226d61785f6465707468223a302c226d61785f646f6373223a312c2272656c5f7479706573223a5b5d7d2c22636f727075735f736e617073686f745f646967657374223a227368613235363a38393439336562376237666334616131666537383735353438373634366335336337353530336361303630336634616561663538613363396437326564663130222c22646f63756d656e7473223a5b7b22646f63756d656e745f646967657374223a227368613235363a64373632346162626466376231636331303532336239343066363233363832343131323066326336316165303765356566646163373161633935376531303238222c226b696e64223a22636f6e63657074222c226c6f676963616c5f70617468223a227265666572656e63652f636f6e63657074732f636f72652e4167656e742e6d64222c226f6e745f6964223a22636f72652e4167656e74222c2274657874223a222d2d2d5c6e6f6e743a5c6e202069643a20636f72652e4167656e745c6e2020747970653a20636f6e636570745c6e20206c6162656c733a205b4167656e745d5c6e20206465736372697074696f6e3a204167656e7420617574686f726974792e5c6e20206578616d706c65733a205b6167656e745d5c6e2020616e74695f6578616d706c65733a205b746f6f6c5d5c6e2d2d2d5c6e227d5d2c22726f6f745f646f63756d656e745f646967657374223a227368613235363a64373632346162626466376231636331303532336239343066363233363832343131323066326336316165303765356566646163373161633935376531303238222c22726f6f745f6964223a22636f72652e4167656e74222c22736368656d61223a2273656d616e7469632d7061636b2d726573756c742e7630227d"
+    },
+    "result": {
+      "byte_length": 1468,
+      "jcs_utf8_hex": "7b22616c676f726974686d223a7b226964223a22726f63732d6c65786963616c2d7630222c22756e69636f64655f64617461223a2231352e302e30227d2c2263616c6c65725f726571756573745f646967657374223a227368613235363a31633364396337653062363665303735353534663635396633356436623137303262326136373666393866313761396534386663633139653462633632343865222c2263616e64696461746573223a5b7b22646f63756d656e745f646967657374223a227368613235363a64373632346162626466376231636331303532336239343066363233363832343131323066326336316165303765356566646163373161633935376531303238222c2265766964656e6365223a5b7b226669656c64223a226964222c2271756572795f7465726d223a226167656e74222c2272756c65223a22746f6b656e5f6578616374227d2c7b226669656c64223a226c6162656c222c2271756572795f7465726d223a226167656e74222c2272756c65223a22746f6b656e5f6578616374227d2c7b226669656c64223a226465736372697074696f6e222c2271756572795f7465726d223a226167656e74222c2272756c65223a22746f6b656e5f6578616374227d2c7b226669656c64223a226465736372697074696f6e222c2271756572795f7465726d223a22617574686f72697479222c2272756c65223a22746f6b656e5f6578616374227d2c7b226669656c64223a226578616d706c65222c2271756572795f7465726d223a226167656e74222c2272756c65223a22746f6b656e5f6578616374227d5d2c226b696e64223a22636f6e63657074222c226c61796572223a22636f7265222c226d6174636865645f71756572795f746f6b656e73223a5b226167656e74222c22617574686f72697479225d2c226f6e745f6964223a22636f72652e4167656e74222c2272616e6b223a312c2273636f7265223a313135307d5d2c22636f727075735f736e617073686f745f646967657374223a227368613235363a38393439336562376237666334616131666537383735353438373634366335336337353530336361303630336634616561663538613363396437326564663130222c226566666563746976655f657865637574696f6e5f646967657374223a227368613235363a64663536376236343937653936353061633862346136366630373866623866313761623931383333613036613761306531633731613463663635653435623137222c226566666563746976655f6c696d697473223a7b2263616e64696461746573223a31322c22636f6c6c656374696f6e5f6974656d73223a31303030302c22636f727075735f6279746573223a33333535343433322c22636f727075735f66696c6573223a353030302c2266696c655f6279746573223a313034383537362c227061727365725f6465707468223a33322c2271756572795f6279746573223a31363338342c22726573756c745f6279746573223a36353533367d2c2272657472696576616c223a22756e697175655f63616e646964617465222c22736368656d61223a2273656d616e7469632d646973636f766572792d726573756c742e7630222c22746f6f6c5f6964656e74697479223a7b22646967657374223a227368613235363a34613336323536663435393462656463386135326461303266643661623635653430343266643564376132316631663266373032336235643364393764306461222c226b696e64223a22646576656c6f706d656e745f72756e74696d65222c226d616e69666573745f646967657374223a227368613235363a34356262343236656166656635383533356235373338623836613762363334323931356135336635633661613463383661643938613337356132353965623062222c22707974686f6e5f76657273696f6e223a22332e31322e3130222c22756e69636f64655f64617461223a2231352e302e30227d2c227472756e6361746564223a66616c73657d"
+    },
+    "tool_identity": {
+      "byte_length": 173,
+      "jcs_utf8_hex": "7b226b696e64223a22646576656c6f706d656e745f72756e74696d65222c226d616e69666573745f646967657374223a227368613235363a34356262343236656166656635383533356235373338623836613762363334323931356135336635633661613463383661643938613337356132353965623062222c22707974686f6e5f76657273696f6e223a22332e31322e3130222c22756e69636f64655f64617461223a2231352e302e30227d"
+    }
+  },
+  "digest_omission": [
+    {
+      "case": "result_digest_absent",
+      "expected_digest_ref": "golden-fixtures.json#/digests/result_digest",
+      "fixture_ref": "golden-fixtures.json#/valid/result",
+      "omit_key": "result_digest"
+    },
+    {
+      "case": "pack_digest_absent",
+      "expected_digest_ref": "golden-fixtures.json#/digests/pack_digest",
+      "fixture_ref": "golden-fixtures.json#/valid/pack",
+      "omit_key": "pack_digest"
+    },
+    {
+      "case": "tool_digest_absent",
+      "expected_digest_ref": "golden-fixtures.json#/digests/tool_identity_digest",
+      "fixture_ref": "golden-fixtures.json#/valid/tool_identity",
+      "omit_key": "digest"
+    }
+  ],
+  "error_hashing": [
+    {
+      "case": "malformed_json",
+      "expected_caller_request_digest": null,
+      "raw_utf8_hex": "7b"
+    },
+    {
+      "case": "parseable_unknown_schema",
+      "expected_caller_request_digest": "sha256:0a3c26f504b963d82557a2069217fa7d67b001f0fc98bee6573a6cb50506f858",
+      "expected_error_kind": "invalid_request",
+      "raw_json": {
+        "schema": "unknown"
+      }
+    },
+    {
+      "case": "duplicate_key",
+      "expected_caller_request_digest": null,
+      "raw_utf8_hex": "7b22736368656d61223a2261222c22736368656d61223a2262227d"
+    },
+    {
+      "case": "invalid_utf8",
+      "expected_caller_request_digest": null,
+      "raw_utf8_hex": "ff"
+    },
+    {
+      "case": "nonobject_json",
+      "expected_caller_request_digest": null,
+      "raw_utf8_hex": "5b5d"
+    }
+  ],
+  "invariant_invalid": [
+    {
+      "case": "candidate_rank_gap",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "replace",
+            "path": "/candidates/0/rank",
+            "target": "instance",
+            "value": 2
+          }
+        ]
+      },
+      "expected_invariant": "candidate ranks equal 1-based array position",
+      "patch": {
+        "path": "/valid/result/candidates/0/rank",
+        "value": 2
+      }
+    },
+    {
+      "case": "result_digest_present_in_preimage",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "digest_kind": "result",
+        "kind": "digest_preimage_reject"
+      },
+      "expected_invariant": "digest key absent from preimage",
+      "patch": {
+        "path": "/canonical_preimages/result/include_result_digest",
+        "value": true
+      }
+    },
+    {
+      "case": "evidence_wrong_order",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "reverse",
+            "path": "/candidates/0/evidence",
+            "target": "instance"
+          }
+        ]
+      },
+      "expected_invariant": "field/rule/query order",
+      "patch": {
+        "path": "/valid/result/candidates/0/evidence/reverse",
+        "value": true
+      }
+    },
+    {
+      "case": "snapshot_ref_without_root",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/corpus_snapshot",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "append",
+            "path": "/resolved_refs",
+            "target": "instance",
+            "value": {
+              "layer": "company",
+              "layer_order": 1,
+              "locator": "repo:x@y",
+              "resolved_revision": "abc"
+            }
+          }
+        ]
+      },
+      "expected_invariant": "one ref per ref root and none otherwise",
+      "patch": {
+        "path": "/valid/corpus_snapshot/resolved_refs/append",
+        "value": {
+          "layer": "company",
+          "layer_order": 1,
+          "locator": "repo:x@y",
+          "resolved_revision": "abc"
+        }
+      }
+    },
+    {
+      "case": "pack_root_not_first",
+      "execution": {
+        "kind": "validate_instance"
+      },
+      "expected_invariant": "root document first",
+      "instance": {
+        "config": {
+          "include_relation_defs": false,
+          "max_bytes": 1048576,
+          "max_depth": 0,
+          "max_docs": 2,
+          "rel_types": []
+        },
+        "corpus_snapshot_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+        "documents": [
+          {
+            "document_digest": "sha256:91a0b820fb261f4b8b0eb3fd83cd49e4600dcb2bc57c5190560b57a16d5fea16",
+            "kind": "concept",
+            "logical_path": "reference/concepts/core.Other.md",
+            "ont_id": "core.Other",
+            "text": "---\nont:\n  id: core.Other\n  type: concept\n  labels: [Other]\n  description: Other.\n  examples: [other]\n  anti_examples: [agent]\n---\n"
+          },
+          {
+            "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+            "kind": "concept",
+            "logical_path": "reference/concepts/core.Agent.md",
+            "ont_id": "core.Agent",
+            "text": "---\nont:\n  id: core.Agent\n  type: concept\n  labels: [Agent]\n  description: Agent authority.\n  examples: [agent]\n  anti_examples: [tool]\n---\n"
+          }
+        ],
+        "pack_digest": "sha256:032016c3c2c25d267d2ab6a0916c93700c3f7de44d9c58d830141309606025d5",
+        "root_document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+        "root_id": "core.Agent",
+        "schema": "semantic-pack-result.v0"
+      },
+      "mutation_differs_from_valid": true
+    },
+    {
+      "case": "candidate_score_below_threshold",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "replace",
+            "path": "/candidates/0/score",
+            "target": "instance",
+            "value": 99
+          }
+        ]
+      },
+      "expected_invariant": "candidate eligibility threshold"
+    },
+    {
+      "case": "top_k_candidate_drift",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "eligible_candidates_ref": "golden-fixtures.json#/valid/result/candidates",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "replace",
+            "path": "/0/score",
+            "target": "eligible_candidates",
+            "value": 999
+          }
+        ]
+      },
+      "expected_invariant": "exact top-K projection"
+    },
+    {
+      "case": "negative_evidence_query_order",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "replace",
+            "path": "/query",
+            "target": "request",
+            "value": "beta alpha"
+          },
+          {
+            "op": "append",
+            "path": "/candidates/0/evidence",
+            "target": "instance",
+            "value": {
+              "field": "anti_example",
+              "query_term": "alpha",
+              "rule": "anti_token"
+            }
+          },
+          {
+            "op": "append",
+            "path": "/candidates/0/evidence",
+            "target": "instance",
+            "value": {
+              "field": "anti_example",
+              "query_term": "beta",
+              "rule": "anti_token"
+            }
+          }
+        ],
+        "request_ref": "golden-fixtures.json#/valid/request"
+      },
+      "expected_invariant": "field/rule/query order"
+    },
+    {
+      "case": "pack_path_not_nfc",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/pack",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "replace",
+            "path": "/documents/0/logical_path",
+            "target": "instance",
+            "value": "reference/concepts/core.Ägent.md"
+          }
+        ]
+      },
+      "expected_invariant": "pack logical path NFC"
+    },
+    {
+      "case": "top_k_under_emission",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "eligible_candidates_ref": "golden-fixtures.json#/valid/result/candidates",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "append",
+            "path": "",
+            "target": "eligible_candidates",
+            "value": {
+              "document_digest": "sha256:d7624abbdf7b1cc10523b940f62368241120f2c61ae07e5efdac71ac957e1028",
+              "evidence": [
+                {
+                  "field": "id",
+                  "query_term": "agent",
+                  "rule": "token_exact"
+                },
+                {
+                  "field": "label",
+                  "query_term": "agent",
+                  "rule": "token_exact"
+                },
+                {
+                  "field": "description",
+                  "query_term": "agent",
+                  "rule": "token_exact"
+                },
+                {
+                  "field": "description",
+                  "query_term": "authority",
+                  "rule": "token_exact"
+                }
+              ],
+              "kind": "concept",
+              "layer": "core",
+              "matched_query_tokens": [
+                "agent",
+                "authority"
+              ],
+              "ont_id": "core.Other",
+              "rank": 2,
+              "score": 100
+            }
+          }
+        ]
+      },
+      "expected_invariant": "exact top-K cardinality"
+    },
+    {
+      "case": "token_evidence_absent_from_query",
+      "execution": {
+        "base_ref": "golden-fixtures.json#/valid/result",
+        "kind": "mutate_and_validate",
+        "operations": [
+          {
+            "op": "append",
+            "path": "/candidates/0/evidence",
+            "target": "instance",
+            "value": {
+              "field": "anti_example",
+              "query_term": "zzz",
+              "rule": "anti_token"
+            }
+          }
+        ],
+        "request_ref": "golden-fixtures.json#/valid/request"
+      },
+      "expected_invariant": "token evidence belongs to query"
+    }
+  ],
+  "metamorphic": [
+    {
+      "case": "enumeration_permutation",
+      "expected_canonical_order": [
+        "manifest.yaml",
+        "reference/concepts/core.Agent.md"
+      ],
+      "expected_digest": "sha256:89493eb7b7fc4aa1fe78755487646c53c75503ca0603f4aeaf58a3c9d72edf10",
+      "input_logical_paths": [
+        "reference/concepts/core.Agent.md",
+        "manifest.yaml"
+      ]
+    },
+    {
+      "case": "evidence_projection",
+      "expected": [
+        "description.token_exact",
+        "id.token_exact",
+        "label.token_exact"
+      ],
+      "input": [
+        {
+          "field": "id",
+          "query_term": "agent",
+          "rule": "token_exact"
+        },
+        {
+          "field": "label",
+          "query_term": "agent",
+          "rule": "token_exact"
+        },
+        {
+          "field": "description",
+          "query_term": "agent",
+          "rule": "token_exact"
+        },
+        {
+          "field": "description",
+          "query_term": "authority",
+          "rule": "token_exact"
+        }
+      ]
+    },
+    {
+      "case": "top_k_monotonicity",
+      "expected_prefixes": [
+        [
+          "core.A"
+        ],
+        [
+          "core.A",
+          "core.B"
+        ],
+        [
+          "core.A",
+          "core.B",
+          "core.C"
+        ]
+      ],
+      "full_order": [
+        "core.A",
+        "core.B",
+        "core.C"
+      ],
+      "k_values": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "case": "locale_environment_invariance",
+      "environments": [
+        {
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8"
+        },
+        {
+          "LANG": "de_DE.UTF-8",
+          "LC_ALL": "de_DE.UTF-8"
+        }
+      ],
+      "expected_equal_result_digest": true,
+      "expected_normalized": "strasse agent",
+      "query": "Straße Agent"
+    },
+    {
+      "case": "one_byte_identity_drift",
+      "expected_corpus_snapshot_digest_equal": false,
+      "expected_document_digest_equal": false,
+      "raw_a_hex": "61",
+      "raw_b_hex": "62"
+    },
+    {
+      "case": "equivalent_canonical_requests",
+      "expected_digest_equal": true,
+      "expected_jcs_equal": true,
+      "request_a": {
+        "schema": "unknown",
+        "x": 1,
+        "y": 2
+      },
+      "request_b": {
+        "schema": "unknown",
+        "x": 1,
+        "y": 2
+      }
+    }
+  ],
+  "normalization": [
+    {
+      "expected_normalized": "strasse a",
+      "expected_tokens": [
+        "strasse",
+        "a"
+      ],
+      "raw": "Straße Ａ",
+      "unicode_data": "15.0.0"
+    },
+    {
+      "expected_normalized": "z a z",
+      "expected_tokens": [
+        "z",
+        "a"
+      ],
+      "raw": "Z a z",
+      "unicode_data": "15.0.0"
+    }
+  ],
+  "ordering_cases": [
+    {
+      "case": "candidate_total_order",
+      "expected_order": [
+        "core.A:concept",
+        "core.A:relation",
+        "core.B:concept"
+      ],
+      "input": [
+        {
+          "kind": "concept",
+          "ont_id": "core.B",
+          "score": 100
+        },
+        {
+          "kind": "relation",
+          "ont_id": "core.A",
+          "score": 100
+        },
+        {
+          "kind": "concept",
+          "ont_id": "core.A",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "case": "resolved_ref_tie_break",
+      "expected_order": [
+        "a:b",
+        "a:c",
+        "z:b"
+      ],
+      "input": [
+        {
+          "layer": "z",
+          "layer_order": 1,
+          "locator": "b"
+        },
+        {
+          "layer": "a",
+          "layer_order": 1,
+          "locator": "c"
+        },
+        {
+          "layer": "a",
+          "layer_order": 1,
+          "locator": "b"
+        }
+      ]
+    },
+    {
+      "case": "pack_document_order",
+      "expected_order": [
+        "core.Agent:concept",
+        "core.B:concept",
+        "core.rel.uses:relation"
+      ],
+      "input": [
+        "core.rel.uses:relation",
+        "core.B:concept",
+        "core.Agent:concept"
+      ],
+      "root": "core.Agent"
+    }
+  ],
+  "schema": "semantic-discovery-differential-fixtures.v0",
+  "schema_invalid": [
+    {
+      "case": "request_unknown_field",
+      "expected_instance_path": "",
+      "expected_keyword": "additionalProperties",
+      "expected_params": {
+        "additionalProperty": "extra"
+      },
+      "fixture_ref": "golden-fixtures.json#/invalid/0/instance"
+    },
+    {
+      "case": "result_empty_effective_limits",
+      "expected_instance_path": "/effective_limits",
+      "expected_keyword": "required",
+      "fixture_ref": "golden-fixtures.json#/invalid/1/instance"
+    },
+    {
+      "case": "undotted_ontology_id",
+      "expected_instance_path": "/candidates/0/ont_id",
+      "expected_keyword": "pattern",
+      "fixture_ref": "golden-fixtures.json#/invalid/2/instance"
+    },
+    {
+      "case": "positive_anti_rule_pair",
+      "expected_instance_path": "/candidates/0/evidence/0",
+      "expected_keyword": "oneOf",
+      "fixture_ref": "golden-fixtures.json#/invalid/3/instance"
+    }
+  ]
+}

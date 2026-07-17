@@ -1,4 +1,6 @@
 import type { ValidationFinding } from "../core/contracts.ts";
+import type { BoundPackResult, DiscoveryResult } from "../semantic/protocol.ts";
+import type { RocsRunnerDescriptor } from "../semantic/runner.ts";
 
 export interface RocsCommandContext {
   workspaceRoot: string;
@@ -43,6 +45,32 @@ export interface RocsPackResult {
   text: string;
 }
 
+export type RocsProtocolCall<T> =
+  | { invocation: "ok"; result: T }
+  | {
+      invocation: "unavailable" | "timeout" | "incompatible" | "resource_exhausted";
+      message: string;
+    };
+
+export interface RocsDevelopmentPort {
+  readonly developmentDescriptor: RocsRunnerDescriptor;
+  discover(
+    repoPath: string,
+    query: string,
+    profile: string,
+    context: RocsCommandContext,
+  ): Promise<RocsProtocolCall<DiscoveryResult>>;
+  boundPack(
+    repoPath: string,
+    ontId: string,
+    profile: string,
+    expectedSnapshotDigest: string,
+    expectedDocumentDigest: string,
+    context: RocsCommandContext,
+    options?: { depth?: number; maxDocs?: number },
+  ): Promise<RocsProtocolCall<BoundPackResult>>;
+}
+
 export interface RocsPort {
   summary(repoPath: string, context: RocsCommandContext): Promise<RocsSummaryResult>;
   validate(repoPath: string, context: RocsCommandContext): Promise<RocsValidateResult>;
@@ -53,4 +81,7 @@ export interface RocsPort {
     context: RocsCommandContext,
     options?: { depth?: number; maxDocs?: number },
   ): Promise<RocsPackResult>;
+  readonly developmentDescriptor?: RocsRunnerDescriptor;
+  discover?: RocsDevelopmentPort["discover"];
+  boundPack?: RocsDevelopmentPort["boundPack"];
 }

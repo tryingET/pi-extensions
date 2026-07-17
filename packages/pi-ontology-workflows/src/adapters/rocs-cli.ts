@@ -5,6 +5,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { ValidationFinding } from "../core/contracts.ts";
+
+export type { RocsRunnerDescriptor } from "../semantic/runner.ts";
+export {
+  buildClosedRunnerEnv,
+  buildDiscoveryArgv,
+  createDevelopmentRocsRunnerDescriptor,
+  createVerifiedDevelopmentRocsPort,
+} from "../semantic/runner.ts";
+
 import type {
   RocsBuildResult,
   RocsCommandContext,

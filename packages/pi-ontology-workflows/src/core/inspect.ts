@@ -3,6 +3,7 @@ import { ensureStringArray, parseFrontmatterDocument } from "../adapters/frontma
 import type { FilesPort } from "../ports/files-port.ts";
 import type { RocsPort } from "../ports/rocs-port.ts";
 import type { WorkspacePort } from "../ports/workspace-port.ts";
+import { isVerifiedDevelopmentDescriptor, type RocsRunnerDescriptor } from "../semantic/runner.ts";
 import type {
   OntologyInspectRequest,
   OntologyInspectResult,
@@ -13,6 +14,21 @@ interface InspectDeps {
   files: FilesPort;
   rocs: RocsPort;
   workspace: WorkspacePort;
+}
+
+export interface DevelopmentInspectGate {
+  descriptor: RocsRunnerDescriptor;
+  profile: string;
+  boundSelection?: {
+    ontId: string;
+    corpusSnapshotDigest: string;
+    documentDigest: string;
+  };
+}
+
+export interface InspectRuntime {
+  cwd: string;
+  developmentGate?: DevelopmentInspectGate;
 }
 
 interface LayerArtifact {
@@ -48,7 +64,7 @@ interface SearchDoc {
 
 export async function inspectOntology(
   request: OntologyInspectRequest,
-  runtime: { cwd: string },
+  runtime: InspectRuntime,
   deps: InspectDeps,
 ): Promise<OntologyInspectResult> {
   const target = await deps.workspace.resolveTarget({
@@ -94,21 +110,62 @@ export async function inspectOntology(
   if (request.kind === "pack") {
     const ontId = request.ontId?.trim();
     if (!ontId) throw new Error("kind=pack requires ontId");
+    const gate = verifiedGate(runtime.developmentGate, deps.rocs);
+    const selected = gate?.boundSelection;
+    if (gate && selected?.ontId === ontId) {
+      const boundPack = deps.rocs.boundPack;
+      if (!boundPack) throw new Error("verified development ROCS bound-pack capability missing");
+      const result = await boundPack(
+        target.repoPath,
+        ontId,
+        gate.profile,
+        selected.corpusSnapshotDigest,
+        selected.documentDigest,
+        rocsContext,
+        { depth: request.depth, maxDocs: request.maxDocs },
+      );
+      if (result.invocation !== "ok")
+        throw new Error(`ROCS bound pack ${result.invocation}: ${result.message}`);
+      return {
+        target,
+        pack: { ontId, text: result.result.documents.map((document) => document.text).join("\n") },
+        warnings: [],
+      };
+    }
     const pack = await deps.rocs.pack(target.repoPath, ontId, rocsContext, {
       depth: request.depth,
       maxDocs: request.maxDocs,
     });
-    return {
-      target,
-      pack: {
-        ontId,
-        text: pack.text,
-      },
-      warnings: [],
-    };
+    return { target, pack: { ontId, text: pack.text }, warnings: [] };
   }
 
   const query = request.query?.trim() ?? "";
+  const gate = verifiedGate(runtime.developmentGate, deps.rocs);
+  if (gate) {
+    if (!query)
+      return { target, search: { query, hits: [] }, warnings: ["no ontology search hits"] };
+    const discover = deps.rocs.discover;
+    if (!discover) throw new Error("verified development ROCS discovery capability missing");
+    const result = await discover(target.repoPath, query, gate.profile, rocsContext);
+    if (result.invocation !== "ok")
+      throw new Error(`ROCS discovery ${result.invocation}: ${result.message}`);
+    const hits = result.result.candidates.map((candidate) => ({
+      ontId: candidate.ont_id,
+      kind: candidate.kind,
+      layer: candidate.layer,
+      labels: [],
+      title: "",
+      definition: "",
+      path: "",
+      score: candidate.score,
+    }));
+    return {
+      target,
+      search: { query, hits },
+      warnings: hits.length === 0 ? ["no ontology search hits"] : [],
+    };
+  }
+
   const build = await deps.rocs.build(target.repoPath, rocsContext);
   const resolvePath = build.dist.files.resolve;
   const idIndexPath = build.dist.files.id_index;
@@ -126,6 +183,25 @@ export async function inspectOntology(
     },
     warnings: hits.length === 0 ? ["no ontology search hits"] : [],
   };
+}
+
+function verifiedGate(
+  gate: DevelopmentInspectGate | undefined,
+  rocs: RocsPort,
+): DevelopmentInspectGate | undefined {
+  if (!gate) return undefined;
+  if (
+    !isVerifiedDevelopmentDescriptor(gate.descriptor) ||
+    !rocs.developmentDescriptor ||
+    rocs.developmentDescriptor !== gate.descriptor ||
+    typeof rocs.discover !== "function" ||
+    typeof rocs.boundPack !== "function"
+  ) {
+    throw new Error("verified development ROCS descriptor required for gated inspect");
+  }
+  if (!/^[A-Za-z0-9_-]{1,256}$/.test(gate.profile))
+    throw new Error("invalid development discovery profile");
+  return gate;
 }
 
 async function loadSearchCatalog(
