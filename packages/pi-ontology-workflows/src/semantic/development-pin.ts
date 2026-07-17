@@ -1,12 +1,12 @@
-export const DEVELOPMENT_ROCS_COMMIT = "ddbfa70b29c5805c859d32abc3265278cc6ce0d2";
+export const DEVELOPMENT_ROCS_COMMIT = "c0cfb1297ba78f4ca1fe53f488bcb15ad79b7843";
 
 /** Git blob identities for every file copied from the pinned ROCS source tree. */
 export const DEVELOPMENT_ROCS_FILES = Object.freeze([
-  ["src/rocs_cli/__init__.py", "93f86638d80cd644a81af011c64153a35fe6de28"],
+  ["src/rocs_cli/__init__.py", "b6caf65024ed41f4cbcb8a91c89c5ae77001ac11"],
   ["src/rocs_cli/__main__.py", "a4aa898f24346cde1800d7f561c7e370f36c9604"],
   ["src/rocs_cli/_bootstrap_assets/README.md", "5a614fb2097bb911e37ab09d497bbf378f840e88"],
-  ["src/rocs_cli/_bootstrap_assets/pyproject.toml", "7e3f662aa5b271ca54862a326bbca0bce523284c"],
-  ["src/rocs_cli/_bootstrap_assets/uv.lock", "8715b0fd438323762c3d74dbbc141312a512efd9"],
+  ["src/rocs_cli/_bootstrap_assets/pyproject.toml", "30ad36bad7284d6125cde30785d1971e1e0f1ceb"],
+  ["src/rocs_cli/_bootstrap_assets/uv.lock", "c63a57cc4f5efcb601a98511f7f477fe148482d2"],
   ["src/rocs_cli/_semantic_discovery_schema.py", "86f9310238eba9f759629e44485a592d892a85f5"],
   ["src/rocs_cli/authority.py", "5f884cc4bc040f5d5c5873aade549073ce2caeb9"],
   ["src/rocs_cli/cache.py", "44d140070915d29a9fba136bdd410a9cb73efae2"],
@@ -52,13 +52,13 @@ export const DEVELOPMENT_ROCS_FILES = Object.freeze([
   ["src/rocs_cli/validate.py", "7a59c4055b7c894c98208e48d67a60211ea05613"],
   ["src/rocs_cli/validation_service.py", "02e6fedf813fff73dc795f1fe0a5110591e159a4"],
   ["src/rocs_cli/vendored.py", "5a11a473cacc809c253b2e422e6376820cd64bb2"],
-  ["src/rocs_cli/wave1.py", "e9a27ceb5dd49a26ce530b27b4e3b88a9ece84cc"],
-  ["src/rocs_cli/workspace.py", "6d1a90c09ea8b5bfc5747715012727884cc4971a"],
+  ["src/rocs_cli/wave1.py", "28c3ddbf612c0dba8639e4b774e59846d3268bcb"],
+  ["src/rocs_cli/workspace.py", "7a82fab498c57ee9ee5eb1d4ce59a0174aa780d9"],
 ] as const);
 
 export const DEVELOPMENT_ROCS_LOCK = Object.freeze({
   path: "uv.lock",
-  blob: "8715b0fd438323762c3d74dbbc141312a512efd9",
+  blob: "c63a57cc4f5efcb601a98511f7f477fe148482d2",
 });
 
 /** Exact required uv.lock closure, staged as a deliberately pure-Python import closure. */
