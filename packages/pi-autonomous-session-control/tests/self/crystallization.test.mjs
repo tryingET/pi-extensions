@@ -242,6 +242,18 @@ test("self query: recall patterns can filter by topic in natural language", asyn
   assert.ok(result.content[0].text.includes('topic "peer protocol"'));
   assert.deepEqual(result.details.data.topicSummary, [{ topic: "peer protocol", count: 1 }]);
 
+  const explicitTopic = await tool.execute(
+    "tc-explicit-topic",
+    { query: "Recall patterns for topic: validation" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(explicitTopic.details.data.count, 1);
+  assert.equal(explicitTopic.details.data.patterns[0].topic, "validation");
+  assert.ok(explicitTopic.content[0].text.includes('topic "validation"'));
+
   const summary = await tool.execute(
     "tc-topic-summary",
     { query: "topic summary" },

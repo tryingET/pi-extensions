@@ -143,6 +143,33 @@ test("self query: list traps can filter and summarize by topic", async () => {
   assert.ok(result.content[0].text.includes('topic "peer protocol"'));
   assert.deepEqual(result.details.data.topicSummary, [{ topic: "peer protocol", count: 1 }]);
 
+  const explicitTopic = await tool.execute(
+    "tc-topic-trap-explicit",
+    { query: "List traps for topic: validation" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(explicitTopic.details.intent, "protection");
+  assert.equal(explicitTopic.details.data.count, 1);
+  assert.equal(explicitTopic.details.data.traps[0].topic, "validation");
+
+  const topicSummary = await tool.execute(
+    "tc-topic-trap-summary-routing",
+    { query: "List traps with a topic summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(topicSummary.details.intent, "protection");
+  assert.equal(topicSummary.details.data.count, 2);
+  assert.deepEqual(topicSummary.details.data.topicSummary, [
+    { topic: "peer protocol", count: 1 },
+    { topic: "validation", count: 1 },
+  ]);
+
   const proximity = await tool.execute(
     "tc-topic-trap-proximity",
     {

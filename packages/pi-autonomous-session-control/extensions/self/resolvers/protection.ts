@@ -116,7 +116,7 @@ function normalizeTopicKey(topic: string): string {
 function extractTopicFilter(query: string): string | undefined {
   const naturalMatch = query.match(/\b(?:about|for)\s+["']?([^"'?.,;]+)["']?/i);
   const explicitMatch = query.match(/\btopic\s*:\s*["']?([^"'?.,;]+)["']?/i);
-  const topic = (naturalMatch?.[1] ?? explicitMatch?.[1])?.trim();
+  const topic = (explicitMatch?.[1] ?? naturalMatch?.[1])?.trim();
   return topic && topic.length > 0 ? topic : undefined;
 }
 
