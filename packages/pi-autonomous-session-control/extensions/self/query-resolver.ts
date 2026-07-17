@@ -394,7 +394,10 @@ export function classifyIntent(query: string): QueryIntent {
   // Explicit trap-list requests own topic-summary wording. This narrow precedence guard
   // avoids routing "List traps with a topic summary" into pattern crystallization while
   // preserving ordinary pattern recall that merely mentions a trap.
-  if ((lower.includes("list") && lower.includes("trap")) || lower.includes("what trap")) {
+  const explicitTrapList =
+    /\b(?:list|show|summarize)\s+(?:(?:the|my|known)\s+)?traps?\b/.test(lower) ||
+    /\bwhat\s+(?:are\s+)?(?:(?:the|my|known)\s+)?traps?\b/.test(lower);
+  if (explicitTrapList) {
     return { domain: "protection", intent: "list_traps" };
   }
 

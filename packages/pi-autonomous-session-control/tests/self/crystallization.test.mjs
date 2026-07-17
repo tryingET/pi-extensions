@@ -271,3 +271,38 @@ test("self query: recall patterns can filter by topic in natural language", asyn
 
   await cleanup(tempDir);
 });
+
+test("self query: learned pattern list mentioning traps stays in crystallization", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  await tool.execute(
+    "tc-trap-pattern-seed",
+    {
+      query: 'Remember: "Keep trap categories separate from warning triggers"',
+      context: { topic: "trap handling" },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const result = await tool.execute(
+    "tc-trap-pattern-list",
+    { query: "List learned patterns about trap handling" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.intent, "crystallization");
+  assert.equal(result.details.data.count, 1);
+  assert.equal(result.details.data.patterns[0].topic, "trap handling");
+
+  await cleanup(tempDir);
+});
