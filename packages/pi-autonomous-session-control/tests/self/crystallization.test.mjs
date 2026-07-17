@@ -204,3 +204,58 @@ test("self query: exact recall exposes verbatim pattern text for stateless dogfo
 
   await cleanup(tempDir);
 });
+
+test("self query: recall patterns can filter by topic in natural language", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  await tool.execute(
+    "tc-topic-1",
+    { query: 'Remember: "Use bounded peer messages"', context: { topic: "peer protocol" } },
+    null,
+    null,
+    ctx,
+  );
+  await tool.execute(
+    "tc-topic-2",
+    { query: 'Remember: "Run narrow tests first"', context: { topic: "validation" } },
+    null,
+    null,
+    ctx,
+  );
+
+  const result = await tool.execute(
+    "tc-topic-3",
+    { query: "Recall patterns about peer protocol" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(result.details.data.count, 1);
+  assert.equal(result.details.data.patterns[0].topic, "peer protocol");
+  assert.ok(result.content[0].text.includes('topic "peer protocol"'));
+  assert.deepEqual(result.details.data.topicSummary, [{ topic: "peer protocol", count: 1 }]);
+
+  const summary = await tool.execute(
+    "tc-topic-summary",
+    { query: "topic summary" },
+    null,
+    null,
+    ctx,
+  );
+
+  assert.equal(summary.details.data.count, 2);
+  assert.ok(summary.content[0].text.includes("Topics:"));
+  assert.deepEqual(summary.details.data.topicSummary, [
+    { topic: "peer protocol", count: 1 },
+    { topic: "validation", count: 1 },
+  ]);
+
+  await cleanup(tempDir);
+});

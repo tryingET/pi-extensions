@@ -45,15 +45,21 @@ export function resolveProtectionQuery(
     }
 
     case "list_traps": {
-      const traps = Array.from(state.traps.traps.values());
+      const normalizedContext = normalizeInput(query.context);
+      const topic = normalizeString(normalizedContext.topic) || extractTopicFilter(query.query);
+      const traps = filterTrapsByTopic(Array.from(state.traps.traps.values()), topic);
+      const topicSummary = summarizeTrapTopics(traps);
+
       return {
         understood: true,
         intent: "protection",
         answer:
           traps.length > 0
-            ? `${traps.length} trap(s) marked: ${traps.map((t) => `"${t.description.slice(0, 30)}..."`).join("; ")}`
-            : "No traps marked in this session.",
-        data: { traps, count: traps.length },
+            ? `${traps.length} trap(s) marked${topic ? ` for topic "${topic}"` : ""}: ${traps.map((t) => `"${t.description.slice(0, 30)}..."`).join("; ")}. Topics: ${formatTopicSummary(topicSummary)}`
+            : topic
+              ? `No traps marked for topic "${topic}".`
+              : "No traps marked in this session.",
+        data: { traps, count: traps.length, topicSummary },
       };
     }
 
@@ -82,12 +88,14 @@ function handleMarkTrap(query: SelfQuery, state: SelfState): SelfResponse {
   }
 
   const trapId = createEdgeMonotonicId("trap");
+  const topic = normalizeString(normalizedContext.topic);
   const triggers = normalizeStringArray(normalizedContext.triggers) || [];
 
   state.traps.traps.set(trapId, {
     id: trapId,
     description,
     context: `Marked at turn ${state.operations.turnCount}`,
+    topic,
     triggers,
     markedAt: Date.now(),
     encounterCount: 0,
@@ -99,6 +107,55 @@ function handleMarkTrap(query: SelfQuery, state: SelfState): SelfResponse {
     answer: `Trap marked: "${description.slice(0, 100)}". I will warn when approaching this pattern.`,
     data: { trapId },
   };
+}
+
+function normalizeTopicKey(topic: string): string {
+  return topic.trim().toLowerCase();
+}
+
+function extractTopicFilter(query: string): string | undefined {
+  const naturalMatch = query.match(/\b(?:about|for)\s+["']?([^"'?.,;]+)["']?/i);
+  const explicitMatch = query.match(/\btopic\s*:\s*["']?([^"'?.,;]+)["']?/i);
+  const topic = (naturalMatch?.[1] ?? explicitMatch?.[1])?.trim();
+  return topic && topic.length > 0 ? topic : undefined;
+}
+
+function filterTrapsByTopic<T extends { description: string; topic?: string }>(
+  traps: T[],
+  topic?: string,
+): T[] {
+  if (!topic) {
+    return traps;
+  }
+
+  const normalizedTopic = normalizeTopicKey(topic);
+  return traps.filter(
+    (trap) =>
+      (trap.topic !== undefined && normalizeTopicKey(trap.topic) === normalizedTopic) ||
+      trap.description.toLowerCase().includes(normalizedTopic),
+  );
+}
+
+function summarizeTrapTopics(
+  traps: Array<{ topic?: string }>,
+): Array<{ topic: string; count: number }> {
+  const counts = new Map<string, { topic: string; count: number }>();
+
+  for (const trap of traps) {
+    const topic = trap.topic ?? "trap";
+    const key = normalizeTopicKey(topic);
+    const current = counts.get(key) ?? { topic, count: 0 };
+    current.count++;
+    counts.set(key, current);
+  }
+
+  return Array.from(counts.values()).sort(
+    (a, b) => b.count - a.count || a.topic.localeCompare(b.topic),
+  );
+}
+
+function formatTopicSummary(summary: Array<{ topic: string; count: number }>): string {
+  return summary.map((entry) => `${entry.topic} (${entry.count})`).join(", ");
 }
 
 function handleTrapProximity(query: SelfQuery, state: SelfState): SelfResponse {

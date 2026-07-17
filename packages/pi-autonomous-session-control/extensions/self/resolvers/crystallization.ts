@@ -21,6 +21,9 @@ export const CRYSTALLIZATION_KEYWORDS = [
   "what did i learn",
   "recall",
   "what patterns",
+  "memory topic",
+  "memory topics",
+  "topic summary",
   "forget",
   "remove pattern",
   "ontology candidate",
@@ -188,16 +191,16 @@ function formatPatternForRecall(content: string, exactRecall: boolean): string {
 
 function handleRecallPatterns(query: SelfQuery, state: SelfState): SelfResponse {
   const normalizedContext = normalizeInput(query.context);
-  const topic = normalizeString(normalizedContext.topic);
+  const topic = normalizeString(normalizedContext.topic) || extractTopicFilter(query.query);
   const exactRecall = isExactRecallQuery(query);
 
   let patterns = Array.from(state.learnings.patterns.values());
   if (topic) {
-    const topicPatternIds = state.learnings.topicsIndex.get(topic);
-    if (topicPatternIds) {
-      patterns = patterns.filter((p) => topicPatternIds.has(p.id));
-    }
+    const normalizedTopic = normalizeTopicKey(topic);
+    patterns = patterns.filter((pattern) => normalizeTopicKey(pattern.topic) === normalizedTopic);
   }
+
+  const wantsTopicSummary = /\b(topics?|summary|summarize|group)\b/i.test(query.query);
 
   // Sort by strength * recency
   patterns.sort((a, b) => {
@@ -213,6 +216,7 @@ function handleRecallPatterns(query: SelfQuery, state: SelfState): SelfResponse 
   }
 
   const visiblePatterns = patterns.slice(0, exactRecall ? 3 : 5);
+  const topicSummary = summarizePatternTopics(patterns);
 
   return {
     understood: true,
@@ -221,10 +225,47 @@ function handleRecallPatterns(query: SelfQuery, state: SelfState): SelfResponse 
       patterns.length > 0
         ? `${patterns.length} pattern(s) crystallized${topic ? ` for topic "${topic}"` : ""}${exactRecall ? " (verbatim visible recall, capped at 1000 chars each)" : ""}: ${visiblePatterns
             .map((p) => formatPatternForRecall(p.content, exactRecall))
-            .join("; ")}`
+            .join("; ")}${wantsTopicSummary ? `. Topics: ${formatTopicSummary(topicSummary)}` : ""}`
         : "No patterns crystallized yet.",
-    data: { patterns: patterns.slice(0, 10), count: patterns.length, exactRecall },
+    data: {
+      patterns: patterns.slice(0, 10),
+      count: patterns.length,
+      exactRecall,
+      topicSummary,
+    },
   };
+}
+
+function normalizeTopicKey(topic: string): string {
+  return topic.trim().toLowerCase();
+}
+
+function extractTopicFilter(query: string): string | undefined {
+  const naturalMatch = query.match(/\b(?:about|for)\s+["']?([^"'?.,;]+)["']?/i);
+  const explicitMatch = query.match(/\btopic\s*:\s*["']?([^"'?.,;]+)["']?/i);
+  const topic = (naturalMatch?.[1] ?? explicitMatch?.[1])?.trim();
+  return topic && topic.length > 0 ? topic : undefined;
+}
+
+function summarizePatternTopics(
+  patterns: Array<{ topic: string }>,
+): Array<{ topic: string; count: number }> {
+  const counts = new Map<string, { topic: string; count: number }>();
+
+  for (const pattern of patterns) {
+    const key = normalizeTopicKey(pattern.topic || "general");
+    const current = counts.get(key) ?? { topic: pattern.topic || "general", count: 0 };
+    current.count++;
+    counts.set(key, current);
+  }
+
+  return Array.from(counts.values()).sort(
+    (a, b) => b.count - a.count || a.topic.localeCompare(b.topic),
+  );
+}
+
+function formatTopicSummary(summary: Array<{ topic: string; count: number }>): string {
+  return summary.map((entry) => `${entry.topic} (${entry.count})`).join(", ");
 }
 
 function handleForgetPattern(query: SelfQuery, state: SelfState): SelfResponse {

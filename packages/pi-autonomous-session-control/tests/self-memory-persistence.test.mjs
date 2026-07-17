@@ -131,7 +131,7 @@ test("self memory persists crystallization + protection across extension lifecyc
         "tc-trap",
         {
           query: 'Mark as trap: "Roundtrip trap survives restart"',
-          context: { triggers: ["roundtrip", "restart"] },
+          context: { topic: "persistence" },
         },
         null,
         null,
@@ -190,6 +190,20 @@ test("self memory persists crystallization + protection across extension lifecyc
       );
       assert.equal(traps.details.data.count, 1);
       assert.equal(traps.details.data.traps[0].description, "Roundtrip trap survives restart");
+      assert.equal(traps.details.data.traps[0].topic, "persistence");
+      assert.deepEqual(traps.details.data.traps[0].triggers, []);
+
+      const proximity = await secondSelf.execute(
+        "tc-trap-topic-is-not-trigger",
+        {
+          query: "Am I approaching a trap?",
+          context: { currentContext: "persistence" },
+        },
+        null,
+        null,
+        context,
+      );
+      assert.equal(proximity.details.data.approachingTraps.length, 0);
 
       const actions = await secondSelf.execute(
         "tc-action-summary",

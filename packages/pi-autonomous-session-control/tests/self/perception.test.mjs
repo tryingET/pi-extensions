@@ -190,6 +190,14 @@ test("self query: capability discovery", async () => {
   assert.ok(result.content[0].text.includes("Protection"), "should list protection domain");
   assert.ok(result.content[0].text.includes("Action"), "should list action domain");
   assert.ok(result.content[0].text.includes("toolbox"), "should mention toolbox discovery");
+  assert.ok(
+    result.content[0].text.includes("dispatch_subagent"),
+    "should mention dispatch_subagent routing",
+  );
+  assert.ok(
+    result.content[0].text.includes("visible candidate peers"),
+    "should mention visible candidate peer routing",
+  );
   assert.ok(result.content[0].text.includes("capability maps"), "should mention capability maps");
   assert.ok(
     result.content[0].text.includes("repo-capability-map.md"),
@@ -206,6 +214,17 @@ test("self query: capability discovery", async () => {
   );
   assert.ok(result.details.data.domains, "should return domains data");
   assert.ok(result.details.data.discoverySurfaces, "should return discovery surfaces data");
+  assert.ok(
+    result.details.data.discoverySurfaces.some(
+      (surface) => surface.name === "parallel work routing",
+    ),
+    "should return parallel routing surface data",
+  );
+  assert.ok(result.content[0].text.includes("AK/KES/evidence"), "should mention AK authority");
+  assert.ok(
+    result.content[0].text.includes("not canonical authority"),
+    "should keep self memory out of durable authority",
+  );
 
   await cleanup(tempDir);
 });
@@ -229,6 +248,10 @@ test("self query: capability routing variant", async () => {
   assert.ok(result.details.understood, "should understand capability routing query");
   assert.equal(result.details.intent, "meta");
   assert.ok(result.content[0].text.includes("toolbox"), "should mention toolbox discovery");
+  assert.ok(
+    result.content[0].text.includes("dispatch_subagent"),
+    "should mention subagent routing",
+  );
   assert.ok(result.content[0].text.includes("agent_vent"), "should mention agent-vent companion");
   assert.ok(result.content[0].text.includes("capability maps"), "should mention capability maps");
 

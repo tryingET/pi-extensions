@@ -146,11 +146,13 @@ The `self` tool also accepts diagnostic-review queries such as `dogfood self`, `
 
 Loop/stall responses from `self` are mirror-only advisories. Repeated successful validation, provenance-helper, VCS, or AK-completion commands may indicate productive workflow rather than stuckness; stall signals may coexist with recent command evidence when the mirror has not seen a recent file change. The caller decides what the session-local evidence means in task context.
 
-The `self` tool accepts capability meta-queries such as `What can you do?`, `capability discovery`, and `capability routing`. Its response intentionally distinguishes three surfaces:
+The `self` tool accepts capability meta-queries such as `What can you do?`, `capability discovery`, and `capability routing`. Its response intentionally distinguishes five surfaces:
 
 1. `self` query domains: perception, direction, crystallization, protection, and action queries understood by the ASC self mirror. Action-domain checkpoints and follow-ups are restart-persistent and can be reviewed with `action summary` before Level-4 handoff or dogfood closeout.
 2. Toolbox/bundle discovery: use the Pi `toolbox` tool to search, explain, activate, deactivate, or inspect extension bundles. ASC does not add or replace that tool. Recurring agent frustration diagnostics belong to the separate `pi-agent-vent` package and same-named `agent_vent` toolbox bundle/tool, not ASC/self state.
-3. Repo/lane capability-map routing: use documentation surfaces such as `repo-capability-map.md` and `pi-extensions/docs/project/root-capabilities.md` to choose owning repos/packages and read-first docs. These maps are routing guidance, not runtime authority.
+3. Parallel work routing: use ASC-owned `dispatch_subagent` for bounded investigation, review, or testing when parallel cognition reduces risk or latency. Use visible candidate peers only when the controller/operator explicitly wants an isolated worktree mutation lane; candidates propose patches and do not merge, push, or promote themselves.
+4. Repo/lane capability-map routing: use documentation surfaces such as `repo-capability-map.md` and `pi-extensions/docs/project/root-capabilities.md` to choose owning repos/packages and read-first docs. These maps are routing guidance, not runtime authority.
+5. Durable authority boundaries: use AK/KES/evidence systems for canonical work-item, knowledge, and evidence state. `self` memory remains a session mirror/candidate scratchpad, not canonical AK/KES/evidence authority.
 
 ### Public execution contract
 
@@ -452,6 +454,13 @@ PI_SUBAGENT_SESSIONS_DIR=/tmp/pi-sessions pi
 - Crystallization (`remember` / `recall` patterns)
 - Protection (`mark trap` / trap registry)
 
+Retrieval behavior:
+
+- Pattern recall accepts `context.topic` and natural filters such as `Recall patterns about peer protocol`.
+- Pattern recall result details include a non-canonical `topicSummary` for quick topic counts.
+- Trap listing accepts `context.topic` and natural filters such as `List traps about validation`.
+- Trap listing result details include `topicSummary`; a trap's explicit `context.topic` is stored separately from proximity `triggers`, so retrieval categories cannot create warnings.
+
 Persistence behavior:
 
 - `PI_SELF_MEMORY_PATH` — explicit memory snapshot file path override
@@ -459,6 +468,7 @@ Persistence behavior:
   - default Pi-native sessions dir `~/.pi/agent/sessions/--<encoded-cwd>--` ⇒ default memory file `~/.pi/agent/sessions/--<encoded-cwd>--.self-memory.json`
 - Snapshot format is schema-versioned (`schemaVersion: 1`) and validated on load
 - Malformed snapshots fail safe (tool remains usable; snapshot is repaired on next successful scoped persistence)
+- Self memory remains runtime-local mirror state, not canonical AK/KES/evidence authority.
 
 ## Current runtime reality
 

@@ -82,12 +82,20 @@ export function resolveCapabilityQuery(): SelfResponse {
 
 **2. toolbox/bundle discovery** (outside self):
 - Use the \`toolbox\` tool to search, explain, activate, deactivate, or inspect Pi extension bundles when you need extension-provided capabilities.
+- Example: \`toolbox({ action: "search", query: "design tokens" })\` before assuming a design-system tool is active.
 - For recurring agent frustration, repeated bugs, tool failures, or workflow friction, use the separate \`agent_vent\` bundle/tool; do not store vent diagnostics in self/ASC state.
 - Keep toolbox/bundle discovery separate from this self-tool query list; self explains itself, toolbox discovers extension bundles.
 
-**3. repo/lane capability-map routing surfaces** (documentation/read-first routing):
+**3. parallel work routing** (ASC execution runtime):
+- Use \`dispatch_subagent\` for bounded background investigation, review, or testing when parallel cognition reduces risk or latency.
+- Use visible candidate peers only when the operator/controller explicitly wants an isolated worktree mutation lane; candidates propose patches but do not merge, push, or promote themselves.
+
+**4. repo/lane capability-map routing surfaces** (documentation/read-first routing):
 - Use lane and repo capability maps such as \`repo-capability-map.md\` and \`pi-extensions/docs/project/root-capabilities.md\` to choose the owning repo/package and read-first docs.
-- Capability maps are routing surfaces, not new runtime tools or durable authority.`,
+- Capability maps are routing surfaces, not new runtime tools or durable authority.
+
+**5. durable authority boundaries**:
+- For AK/KES/evidence decisions, use the owning AK/KES/evidence systems and their documented commands; self memory is only a session mirror and candidate scratchpad, not canonical authority.`,
     data: {
       domains: [
         {
@@ -178,11 +186,24 @@ export function resolveCapabilityQuery(): SelfResponse {
           name: "toolbox/bundle discovery",
           description:
             "Use the toolbox tool for Pi extension bundle search, explanation, deactivation, and inspection; route recurring agent frustration diagnostics to the separate agent_vent bundle/tool rather than self/ASC state.",
+          example: 'toolbox({ action: "search", query: "design tokens" })',
+        },
+        {
+          name: "parallel work routing",
+          description:
+            "Use dispatch_subagent for bounded background investigation, review, or testing; use visible candidate peers only for explicitly isolated mutation lanes.",
+          example:
+            'dispatch_subagent({ profile: "reviewer", objective: "Review the staged changes for risks and missing tests" })',
         },
         {
           name: "repo/lane capability-map routing",
           description:
             "Use repo-capability-map.md and pi-extensions/docs/project/root-capabilities.md as read-first routing surfaces for repo/package ownership.",
+        },
+        {
+          name: "AK/KES/evidence authority",
+          description:
+            "Use owning AK/KES/evidence systems for durable decisions; self memory is a session mirror, not canonical authority.",
         },
       ],
     },

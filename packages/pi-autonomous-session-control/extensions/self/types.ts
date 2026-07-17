@@ -172,6 +172,7 @@ export interface KnownTrap {
   id: string;
   description: string;
   context: string; // When/why it was marked
+  topic?: string; // Retrieval-only category; never a proximity trigger
   triggers: string[]; // Patterns that indicate proximity
   markedAt: number;
   encounterCount: number;

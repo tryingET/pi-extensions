@@ -57,7 +57,7 @@ function trapMemoryFromState(state: SelfState): Memory[] {
     type: "trap",
     content: trap.description,
     context: trap.context,
-    topic: trap.triggers[0] ?? "trap",
+    topic: trap.topic ?? "trap",
     topics: [...trap.triggers],
     strength: 1,
     createdAt: trap.markedAt,
@@ -65,6 +65,7 @@ function trapMemoryFromState(state: SelfState): Memory[] {
     accessCount: trap.encounterCount,
     source: "crystallized",
     metadata: {
+      topic: trap.topic,
       triggers: [...trap.triggers],
       encounterCount: trap.encounterCount,
       markedAt: trap.markedAt,
@@ -247,6 +248,7 @@ function addTrapFromMemory(state: SelfState, memory: Memory): void {
   const metadata = isRecord(memory.metadata) ? memory.metadata : {};
   const metadataTriggers = toStringArray(metadata.triggers);
   const triggers = metadataTriggers.length > 0 ? metadataTriggers : [...memory.topics];
+  const topic = isNonEmptyString(metadata.topic) ? metadata.topic.trim() : undefined;
   const encounterCount = toNonNegativeInteger(metadata.encounterCount) ?? memory.accessCount;
   const markedAt = toNonNegativeNumber(metadata.markedAt) ?? memory.createdAt;
 
@@ -254,6 +256,7 @@ function addTrapFromMemory(state: SelfState, memory: Memory): void {
     id: memory.id,
     description: memory.content,
     context: memory.context,
+    topic,
     triggers,
     markedAt,
     encounterCount,
