@@ -46,6 +46,12 @@ export type CandidatePeerRegistryInput = {
   parentDirty: boolean;
   parentDirtyWarning?: string;
   reusedExisting: boolean;
+  admission?: {
+    admissionId: string;
+    permitPath: string;
+    reservationBytes: number;
+    inventoryDigest: string;
+  };
   naming?: CandidatePeerSafeNaming;
   reportBack: CandidatePeerReportBack;
   parentPeerTarget?: string;
@@ -135,6 +141,7 @@ export function buildCandidatePeerCleanupPacket({
     archiveDir,
     registryPath,
     manualPreconditions: [
+      "PERMANENT QUARANTINE: this registry-v1 packet is diagnostic only and must never be executed; use candidate lifecycle v2.",
       "Inspect the visible peer final report and candidate diff before cleanup.",
       "Do not run cleanup while the visible candidate peer is still editing the worktree.",
       "Archive commands must complete successfully before destructive cleanup commands.",

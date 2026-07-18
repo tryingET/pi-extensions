@@ -1,16 +1,45 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import { createSidequestExtension } from "../extensions/sidequest.ts";
+import { createSidequestExtension as createProductionSidequestExtension } from "../extensions/sidequest.ts";
 import {
   createContext,
   extractPiArgs,
   extractShellCommand,
   registerExtension,
 } from "./sidequest-harness.mjs";
+
+let admissionSequence = 0;
+
+function createSidequestExtension(options = {}) {
+  const candidateAdmission = options.candidateAdmission ?? {
+    reserve({ repoRoot, objective }) {
+      admissionSequence += 1;
+      const admissionId = `cadm-test-${admissionSequence}`;
+      return {
+        admissionId,
+        permitPath: `/state/permits/${admissionId}.json`,
+        pressure: { inventoryDigest: `inventory-${admissionSequence}` },
+        permit: {
+          admissionId,
+          repoRoot,
+          objective,
+          reservationBytes: 1024,
+        },
+      };
+    },
+    bind(input) {
+      return input;
+    },
+    release(input) {
+      return input;
+    },
+  };
+  return createProductionSidequestExtension({ ...options, candidateAdmission });
+}
 
 function createCandidatePeerExecStub({ repoRoot = "/repo", dirty = "" } = {}) {
   const calls = [];
@@ -196,6 +225,56 @@ test("candidate_peer_spawn rejects a blank objective before git or Ghostty", asy
   assert.equal(blankResult.details.error, "blank_objective");
 
   assert.equal(execStub.calls.length, 0);
+});
+
+test("candidate_peer_spawn fails before worktree mutation when admission is absent", async () => {
+  const execStub = createCandidatePeerExecStub();
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    candidateAdmission: {
+      reserve() {
+        throw new Error("exact owner permit missing");
+      },
+      bind() {
+        throw new Error("unreachable");
+      },
+      release() {
+        throw new Error("unreachable");
+      },
+    },
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const result = await tools
+    .get("candidate_peer_spawn")
+    .execute(
+      "tool-call-admission",
+      { objective: "Try a blocked candidate", reportBack: "none" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "candidate_admission_blocked");
+  assert.match(result.content[0].text, /exact owner permit missing/);
+  assert.equal(
+    execStub.calls.some((call) => call.command === "git" && call.args.includes("worktree")),
+    false,
+  );
+  assert.equal(
+    execStub.calls.some((call) => call.command === "/usr/bin/ghostty"),
+    false,
+  );
 });
 
 test("candidate_peer_spawn reportBack none makes intercom disabled explicit", async () => {
@@ -422,6 +501,49 @@ test("candidate_peer_spawn rejects worktree paths inside the parent checkout", a
   assert.match(result.details.reason, /must not be inside the parent checkout/);
 });
 
+test("candidate_peer_spawn rejects a symlinked workspace root before Git mutation", async () => {
+  await withTempDir(async (root) => {
+    const repoRoot = `${root}/repo`;
+    const redirected = `${repoRoot}/redirected-inside-parent`;
+    const workspaceRoot = `${root}/workspace-link`;
+    mkdirSync(redirected, { recursive: true });
+    symlinkSync(redirected, workspaceRoot, "dir");
+    const execStub = createCandidatePeerExecStub({ repoRoot });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        PI_SIDEQUEST_PI_BIN: "pi",
+        XDG_STATE_HOME: `${root}/state`,
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+    });
+    const { tools } = registerExtension(extension);
+    const result = await tools
+      .get("candidate_peer_spawn")
+      .execute(
+        "tool-call-symlink",
+        { objective: "try symlink escape", cwd: repoRoot, workspaceRoot, reportBack: "none" },
+        undefined,
+        undefined,
+        createContext({ cwd: repoRoot }).ctx,
+      );
+
+    assert.equal(result.isError, true);
+    assert.equal(result.details.error, "worktree_prepare_failed");
+    assert.match(result.details.reason, /symlinked existing ancestor/);
+    assert.equal(
+      execStub.calls.some((call) => call.command === "git" && call.args.includes("worktree")),
+      false,
+    );
+  });
+});
+
 test("candidate_peer_spawn creates an isolated worktree, launches via shared Ghostty path, and prompts boundaries", async () => {
   await withTempDir(async (stateHome) => {
     const execStub = createCandidatePeerExecStub({ dirty: " M pending-parent-change.ts\n" });
@@ -599,7 +721,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
   });
 });
 
-test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after closeout", async () => {
+test("candidate_peer_cleanup dry-runs but permanently quarantines v1 execution", async () => {
   await withTempDir(async (stateHome) => {
     const calls = [];
     const baseExecStub = createCandidatePeerExecStub({ dirty: "" });
@@ -677,7 +799,7 @@ test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after 
         context,
       );
     assert.equal(blocked.details.ok, false);
-    assert.equal(blocked.details.execution, "blocked_missing_successful_integration_closeout");
+    assert.equal(blocked.details.execution, "blocked_permanent_v1_quarantine");
 
     const executed = await tools.get("candidate_peer_cleanup").execute(
       "tool-call-cleanup-execute",
@@ -692,26 +814,17 @@ test("candidate_peer_cleanup dry-runs and executes exact registry cleanup after 
       context,
     );
 
-    assert.equal(executed.details.ok, true);
-    assert.equal(executed.details.execution, "executed_exact_registry_cleanup_commands");
-    assert.equal(executed.details.closeVisibleResources, true);
-    assert.deepEqual(
-      executed.details.commandResults.map((result) => result.commandId),
-      [
-        "terminate-exact-sidequest-process",
-        "archive-metadata-and-diff",
-        "remove-worktree",
-        "delete-candidate-branch",
-      ],
+    assert.equal(executed.details.ok, false);
+    assert.equal(executed.details.execution, "blocked_permanent_v1_quarantine");
+    assert.match(executed.details.blockers.join("\n"), /candidate-lifecycle-v2/);
+    assert.equal(
+      calls.some((call) => call.command === "git" && call.args.includes("--force")),
+      false,
     );
-    assert.ok(calls.some((call) => call.command === "git" && call.args.includes("--force")));
-    assert.ok(
-      calls.some(
-        (call) =>
-          call.command === "sh" && call.args.join("\n").includes(spawn.details.worktreePath),
-      ),
+    assert.equal(
+      calls.some((call) => call.command === "sh"),
+      false,
     );
-    assert.match(executed.details.boundary, /does not fuzzy-close arbitrary tabs/);
   });
 });
 

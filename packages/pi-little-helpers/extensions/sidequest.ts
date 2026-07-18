@@ -1,9 +1,23 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import {
+  bindCandidateAdmission,
+  type CandidateAdmissionReservation,
+  releaseCandidateAdmission,
+  reserveCandidateAdmission,
+} from "../src/candidatePeerAdmission.ts";
 import {
   type CandidatePeerRegistryRecord,
   type CandidatePeerSafeNaming,
@@ -115,6 +129,11 @@ type SidequestOptions = {
   currentGhosttyAncestor?: GhosttyAncestor;
   registerCommands?: boolean;
   registerTools?: boolean;
+  candidateAdmission?: {
+    reserve: typeof reserveCandidateAdmission;
+    bind: typeof bindCandidateAdmission;
+    release: typeof releaseCandidateAdmission;
+  };
 };
 
 type SidequestContext = {
@@ -325,19 +344,19 @@ const candidatePeerCleanupParameters = asPiToolParameters(
     execute: Type.Optional(
       Type.Boolean({
         description:
-          "When false or omitted, return a dry-run cleanup plan. When true, archive then remove only exact registered worktrees/branches.",
+          "When false or omitted, return the historical registry-v1 dry-run projection. true is permanently blocked; use candidate lifecycle v2 for executable cleanup.",
       }),
     ),
     closeVisibleResources: Type.Optional(
       Type.Boolean({
         description:
-          "When execute=true, first terminate only sidequest/Pi processes whose command line contains the exact registered candidate worktree path. Dry-run output always shows the exact process-close command.",
+          "Historical projection only. This option cannot authorize v1 execution and remains visible solely for packet inspection.",
       }),
     ),
     integrationCloseoutStatus: Type.Optional(
       Type.Union([Type.Literal("successful"), Type.Literal("failed"), Type.Literal("missing")], {
         description:
-          "Must be successful when execute=true; this mirrors Level-4 post-integration cleanup readiness.",
+          "Historical compatibility field only. No value authorizes registry-v1 execution.",
       }),
     ),
   }),
@@ -1372,6 +1391,23 @@ function isPathInside(parent: string, child: string): boolean {
   return Boolean(rel) && !rel.startsWith("..") && !rel.includes(`..${sep}`) && !isAbsolute(rel);
 }
 
+function candidateWorkspaceSymlinkBlocker(path: string): string | undefined {
+  let existing = resolve(path);
+  while (!existsSync(existing)) {
+    const parent = resolve(existing, "..");
+    if (parent === existing) break;
+    existing = parent;
+  }
+  try {
+    if (lstatSync(existing).isSymbolicLink() || realpathSync(existing) !== existing) {
+      return `candidate workspace path has a symlinked existing ancestor: ${existing}`;
+    }
+  } catch (error) {
+    return `candidate workspace path ancestor cannot be verified: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  return undefined;
+}
+
 function defaultWorkspaceRoot(repoRoot: string, env: NodeJS.ProcessEnv): string {
   const stateHome = env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
   const repoSlug = slugify(basename(repoRoot), "repo");
@@ -1383,6 +1419,47 @@ async function runGit(execRunner: ExecRunner, cwd: string, args: string[]): Prom
   return runGhosttyLaunch(execRunner, "git", ["-C", cwd, ...args], cwd);
 }
 
+async function resolveCandidateRepoRoot(
+  execRunner: ExecRunner,
+  parentCwd: string,
+): Promise<{ ok: true; repoRoot: string } | { ok: false; error: string }> {
+  const result = await runGit(execRunner, parentCwd, ["rev-parse", "--show-toplevel"]);
+  if (!result.ok) {
+    return { ok: false, error: `failed to locate git repo: ${summarizeLaunchFailure(result)}` };
+  }
+  return { ok: true, repoRoot: resolve(result.stdout.split(/\r?\n/)[0]?.trim() || parentCwd) };
+}
+
+function admissionRegistryBinding(admission: CandidateAdmissionReservation) {
+  return {
+    admissionId: admission.admissionId,
+    permitPath: admission.permitPath,
+    reservationBytes: admission.permit.reservationBytes,
+    inventoryDigest: admission.pressure.inventoryDigest,
+  };
+}
+
+function releasePreparationFailure(
+  admission: CandidateAdmissionReservation,
+  reason: string,
+  env: NodeJS.ProcessEnv,
+  release: typeof releaseCandidateAdmission = releaseCandidateAdmission,
+): string | undefined {
+  try {
+    release(
+      {
+        admissionId: admission.admissionId,
+        outcome: "preparation_failed",
+        terminalReceiptRef: `candidate-preparation-failed:${createHash("sha256").update(reason).digest("hex")}`,
+      },
+      env,
+    );
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 async function prepareCandidatePeerWorktree({
   execRunner,
   pathExists,
@@ -1390,6 +1467,7 @@ async function prepareCandidatePeerWorktree({
   request,
   parentCwd,
   objective,
+  admittedRepoRoot,
 }: {
   execRunner: ExecRunner;
   pathExists: (path: string) => boolean;
@@ -1397,19 +1475,24 @@ async function prepareCandidatePeerWorktree({
   request: CandidatePeerSpawnRequest;
   parentCwd: string;
   objective: string;
+  admittedRepoRoot?: string;
 }): Promise<WorktreePrepareResult> {
   const baseRef = request.baseRef?.trim() || "HEAD";
-  const repoResult = await runGit(execRunner, parentCwd, ["rev-parse", "--show-toplevel"]);
-  if (!repoResult.ok) {
-    return {
-      ok: false,
-      error: `failed to locate git repo: ${summarizeLaunchFailure(repoResult)}`,
-      parentCwd,
-      baseRef,
-    };
+  let repoRoot: string;
+  if (admittedRepoRoot) {
+    repoRoot = resolve(admittedRepoRoot);
+  } else {
+    const repoResult = await runGit(execRunner, parentCwd, ["rev-parse", "--show-toplevel"]);
+    if (!repoResult.ok) {
+      return {
+        ok: false,
+        error: `failed to locate git repo: ${summarizeLaunchFailure(repoResult)}`,
+        parentCwd,
+        baseRef,
+      };
+    }
+    repoRoot = resolve(repoResult.stdout.split(/\r?\n/)[0]?.trim() || parentCwd);
   }
-
-  const repoRoot = resolve(repoResult.stdout.split(/\r?\n/)[0]?.trim() || parentCwd);
   const requestedBranchName = request.branchName?.trim();
   const branchNameBeforeClamp = candidateBranchNameBeforeClamp(request.branchName, objective);
   const branchName = sanitizeBranchName(request.branchName, objective);
@@ -1436,6 +1519,20 @@ async function prepareCandidatePeerWorktree({
     workspaceNameClamped: workspaceNameBeforeClamp.length > MAX_CANDIDATE_WORKSPACE_NAME_LENGTH,
     workspaceRoot,
   };
+
+  const workspaceSymlinkBlocker = candidateWorkspaceSymlinkBlocker(workspaceRoot);
+  if (workspaceSymlinkBlocker) {
+    return {
+      ok: false,
+      error: workspaceSymlinkBlocker,
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+      naming,
+    };
+  }
 
   if (isPathInside(repoRoot, worktreePath) || worktreePath === repoRoot) {
     return {
@@ -1579,6 +1676,22 @@ async function prepareCandidatePeerWorktree({
     return {
       ok: false,
       error: `failed to create workspaceRoot: ${error instanceof Error ? error.message : String(error)}`,
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+      parentDirty,
+      parentDirtyWarning,
+      naming,
+    };
+  }
+
+  const createdWorkspaceBlocker = candidateWorkspaceSymlinkBlocker(workspaceRoot);
+  if (createdWorkspaceBlocker) {
+    return {
+      ok: false,
+      error: createdWorkspaceBlocker,
       parentCwd,
       repoRoot,
       worktreePath,
@@ -1890,6 +2003,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
   return function sidequestExtension(pi: ExtensionAPI) {
     const registerCommands = options.registerCommands ?? true;
     const registerTools = options.registerTools ?? true;
+    const reserveAdmission = options.candidateAdmission?.reserve ?? reserveCandidateAdmission;
+    const bindAdmission = options.candidateAdmission?.bind ?? bindCandidateAdmission;
+    const releaseAdmission = options.candidateAdmission?.release ?? releaseCandidateAdmission;
 
     async function runForkPeerCommand(
       args: string | undefined,
@@ -2182,6 +2298,23 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const execRunner: ExecRunner =
         options.exec ??
         ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
+      const repository = await resolveCandidateRepoRoot(execRunner, parentCwd);
+      if (!repository.ok) {
+        if (ctx.hasUI) ctx.ui.notify(`${commandName} failed: ${repository.error}`, "error");
+        return;
+      }
+      let admission: CandidateAdmissionReservation;
+      try {
+        admission = reserveAdmission({ repoRoot: repository.repoRoot, objective }, env);
+      } catch (error) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `${commandName} admission blocked: ${error instanceof Error ? error.message : String(error)}`,
+            "error",
+          );
+        }
+        return;
+      }
       const worktree = await prepareCandidatePeerWorktree({
         execRunner,
         pathExists,
@@ -2189,14 +2322,45 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         request,
         parentCwd,
         objective,
+        admittedRepoRoot: repository.repoRoot,
       });
 
       if (!worktree.ok) {
-        if (ctx.hasUI) ctx.ui.notify(`${commandName} failed: ${worktree.error}`, "error");
+        const releaseError = releasePreparationFailure(
+          admission,
+          worktree.error,
+          env,
+          releaseAdmission,
+        );
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `${commandName} failed: ${worktree.error}${releaseError ? `; admission release failed: ${releaseError}` : ""}`,
+            "error",
+          );
+        }
         return;
       }
 
       const questId = createQuestId("candidatepeer");
+      try {
+        bindAdmission(
+          {
+            admissionId: admission.admissionId,
+            peerRunId: questId,
+            worktreePath: worktree.worktreePath,
+            branchName: worktree.branchName,
+          },
+          env,
+        );
+      } catch (error) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `${commandName} created a worktree but admission binding failed closed: ${error instanceof Error ? error.message : String(error)}`,
+            "error",
+          );
+        }
+        return;
+      }
       const prompt = buildCandidatePeerSpawnPrompt({
         objective,
         request,
@@ -2230,6 +2394,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             reusedExisting: worktree.reusedExisting,
             naming: worktree.naming,
             reportBack: "manual",
+            admission: admissionRegistryBinding(admission),
             launch: {
               status: "launch_failed",
               launchMode: launch.launchMode,
@@ -2276,6 +2441,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           reusedExisting: worktree.reusedExisting,
           naming: worktree.naming,
           reportBack: "manual",
+          admission: admissionRegistryBinding(admission),
           launch: {
             status: "launched",
             launchMode: launch.launchMode,
@@ -2542,20 +2708,18 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const execute = request.execute === true;
       const closeVisibleResources = request.closeVisibleResources === true;
       const env = options.env ?? process.env;
-      const execRunner: ExecRunner =
-        options.exec ??
-        ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
 
       if (peerRunIds.length === 0) {
         throw new Error("candidate_peer_cleanup requires at least one exact peerRunId.");
       }
-      if (execute && request.integrationCloseoutStatus !== "successful") {
+      if (execute) {
         return successToolResult("candidate peer cleanup blocked", {
           ok: false,
-          execution: "blocked_missing_successful_integration_closeout",
+          execution: "blocked_permanent_v1_quarantine",
           peerRunIds,
           blockers: [
-            "execute=true requires integrationCloseoutStatus=successful so cleanup cannot run before post-integration closeout",
+            "Serialized v1 cleanup packets are permanently non-executable under AK decision 59.",
+            "Use candidate-lifecycle-v2 review, disposition, integration proof, restoration-verified archive, authorization, and cleanup for the exact resource generation.",
           ],
         });
       }
@@ -2603,64 +2767,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         };
       });
 
-      const commandResults: {
-        peerRunId: string;
-        commandId: string;
-        command: string;
-        args: string[];
-        code: number;
-        stdout?: string;
-        stderr?: string;
-      }[] = [];
-
-      if (execute) {
-        for (const lane of lanes) {
-          const commands = [
-            ...(closeVisibleResources ? lane.visibleResourceCommands : []),
-            ...lane.cleanupPacket.commands,
-          ];
-          for (const command of commands) {
-            const result = await execRunner(command.command, command.args, {
-              cwd: command.cwd ?? lane.repoRoot,
-              timeout: 60_000,
-            });
-            commandResults.push({
-              peerRunId: lane.peerRunId,
-              commandId: command.id,
-              command: command.command,
-              args: command.args,
-              code: result.code,
-              stdout: result.stdout,
-              stderr: result.stderr,
-            });
-            if (result.code !== 0) {
-              return successToolResult("candidate peer cleanup failed closed", {
-                ok: false,
-                execution: "failed_closed_after_exact_command_failure",
-                failedCommand: command.id,
-                lanes,
-                commandResults,
-                boundary:
-                  "Only exact registry cleanup commands were attempted; no fuzzy tab/process cleanup, merge, promotion, AK/KES/evidence write, push, or PR was executed.",
-              });
-            }
-          }
-        }
-      }
-
-      return successToolResult(
-        execute ? "candidate peer cleanup executed" : "candidate peer cleanup dry run",
-        {
-          ok: true,
-          execution: execute ? "executed_exact_registry_cleanup_commands" : "dry_run_plan_only",
-          closeVisibleResources,
-          laneCount: lanes.length,
-          lanes,
-          commandResults,
-          boundary:
-            "Candidate cleanup consumes exact registry sidecars only. It can terminate only sidequest/Pi processes matched by the exact registered worktree path, archives first, and removes only named worktrees/branches. It does not fuzzy-close arbitrary tabs or imply merge, promotion, AK/KES/evidence write, release, push, or PR authority.",
-        },
-      );
+      return successToolResult("candidate peer cleanup dry run", {
+        ok: true,
+        execution: "dry_run_plan_only",
+        closeVisibleResources,
+        laneCount: lanes.length,
+        lanes,
+        commandResults: [],
+        boundary:
+          "Registry-v1 cleanup is permanently non-executable. This result projects exact historical sidecar commands for inspection only; lifecycle-v2 owner tooling is the sole executable cleanup path.",
+      });
     }
 
     async function executeCandidatePeerSpawn(
@@ -2693,6 +2809,35 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         if (!parentPeerTarget.ok) return parentPeerTargetFailureResult(toolName, parentPeerTarget);
       }
 
+      const repository = await resolveCandidateRepoRoot(execRunner, parentCwd);
+      if (!repository.ok) {
+        return errorToolResult(`${toolName} failed: ${repository.error}`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "candidate_peer_spawn",
+          reportBack,
+          parentCwd,
+          error: "candidate_repo_resolution_failed",
+        });
+      }
+      let admission: CandidateAdmissionReservation;
+      try {
+        admission = reserveAdmission({ repoRoot: repository.repoRoot, objective }, env);
+      } catch (error) {
+        return errorToolResult(
+          `${toolName} admission blocked: ${error instanceof Error ? error.message : String(error)}`,
+          {
+            ok: false,
+            tool: toolName,
+            canonicalTool: "candidate_peer_spawn",
+            reportBack,
+            parentCwd,
+            repoRoot: repository.repoRoot,
+            error: "candidate_admission_blocked",
+          },
+        );
+      }
+
       const worktree = await prepareCandidatePeerWorktree({
         execRunner,
         pathExists,
@@ -2700,9 +2845,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         request,
         parentCwd,
         objective,
+        admittedRepoRoot: repository.repoRoot,
       });
 
       if (!worktree.ok) {
+        const admissionReleaseError = releasePreparationFailure(
+          admission,
+          worktree.error,
+          env,
+          releaseAdmission,
+        );
         return errorToolResult(`${toolName} failed: ${worktree.error}`, {
           ok: false,
           tool: toolName,
@@ -2716,12 +2868,40 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           parentDirty: worktree.parentDirty,
           parentDirtyWarning: worktree.parentDirtyWarning,
           naming: worktree.naming,
+          admissionId: admission.admissionId,
+          admissionReleaseError,
           error: "worktree_prepare_failed",
           reason: worktree.error,
         });
       }
 
       const questId = createQuestId("candidatepeer");
+      try {
+        bindAdmission(
+          {
+            admissionId: admission.admissionId,
+            peerRunId: questId,
+            worktreePath: worktree.worktreePath,
+            branchName: worktree.branchName,
+          },
+          env,
+        );
+      } catch (error) {
+        return errorToolResult(
+          `${toolName} created a worktree but admission binding failed closed: ${error instanceof Error ? error.message : String(error)}`,
+          {
+            ok: false,
+            tool: toolName,
+            canonicalTool: "candidate_peer_spawn",
+            reportBack,
+            repoRoot: worktree.repoRoot,
+            worktreePath: worktree.worktreePath,
+            branchName: worktree.branchName,
+            admissionId: admission.admissionId,
+            error: "candidate_admission_binding_failed",
+          },
+        );
+      }
       const prompt = buildCandidatePeerSpawnPrompt({
         objective,
         request,
@@ -2755,6 +2935,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             reusedExisting: worktree.reusedExisting,
             naming: worktree.naming,
             reportBack,
+            admission: admissionRegistryBinding(admission),
             parentPeerTarget: request.parentPeerTarget?.trim(),
             filesInScope: normalizeStringArray(request.filesInScope),
             offLimits: normalizeStringArray(request.offLimits),
@@ -2834,6 +3015,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           reusedExisting: worktree.reusedExisting,
           naming: worktree.naming,
           reportBack,
+          admission: admissionRegistryBinding(admission),
           parentPeerTarget: request.parentPeerTarget?.trim(),
           filesInScope: normalizeStringArray(request.filesInScope),
           offLimits: normalizeStringArray(request.offLimits),
@@ -2881,6 +3063,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         reusedExisting: worktree.reusedExisting,
         naming: worktree.naming,
         sessionMode: launch.sessionMode,
+        admission: admissionRegistryBinding(admission),
         sourceSessionFile: launch.sourceSessionFile,
         titleBase: launch.titleBase,
         promptSummary: launch.promptSummary,
@@ -3068,9 +3251,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       name: CANDIDATE_PEER_CLEANUP_TOOL,
       label: "Candidate Peer Cleanup",
       description:
-        "Plan or execute exact candidate peer cleanup from registry sidecars after successful integration closeout.",
+        "Inspect historical candidate registry-v1 cleanup projections without executing them.",
       promptSnippet:
-        "Use after successful candidate integration closeout to consume exact candidate peer registry sidecars and archive/remove only named worktrees/branches. Dry-run by default; execute requires integrationCloseoutStatus=successful.",
+        "Use for read-only inspection of exact registry-v1 sidecars. execute=true is permanently blocked by Decision 59; use lifecycle-v2 owner tooling for cleanup.",
       parameters: candidatePeerCleanupParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeCandidatePeerCleanup(CANDIDATE_PEER_CLEANUP_TOOL, params, ctx),
