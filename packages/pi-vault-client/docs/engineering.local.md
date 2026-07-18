@@ -15,13 +15,14 @@ system4d:
 Primary lane:
 
 - `engineering-core show pi-ts --prefer-repo`
+- Upstream release: `engineering-core` v0.8.0 at immutable commit `8f59f4178f0c40f73d64c417e7a591de42a0f0d2`.
 
 Catalog/list commands:
 
 ```bash
-uv tool -n run --from ~/ai-society/core/engineering-core engineering-core catalog --pretty
-uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-disciplines
-uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list-templates
+uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core catalog --pretty
+uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core list-disciplines
+uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core list-templates
 ```
 
 Selected disciplines:
