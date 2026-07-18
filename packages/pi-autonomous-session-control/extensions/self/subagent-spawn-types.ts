@@ -31,6 +31,7 @@ export type SubagentStatus = "done" | "error" | "timeout" | "aborted";
 export interface TransportExecutionState {
   kind: "transport";
   exitCode: number;
+  signal?: string;
   aborted: boolean;
   timedOut: boolean;
   rawChildPid?: number;
@@ -50,6 +51,7 @@ export interface AssistantProtocolParseErrorState {
 export interface AssistantProtocolIncompleteState {
   kind: "assistant_protocol_incomplete";
   errorMessage: string;
+  transportExitedBeforeSettlement?: true;
 }
 
 export type ProtocolExecutionState =

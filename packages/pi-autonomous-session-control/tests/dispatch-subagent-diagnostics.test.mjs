@@ -15,7 +15,10 @@ import {
   registerSubagentTool,
   spawnSubagentWithSpawn,
 } from "../extensions/self/subagent.ts";
-import { getSessionStatusPath } from "../extensions/self/subagent-session.ts";
+import {
+  getSessionStatusPath,
+  parseSubagentSessionStatusPayload,
+} from "../extensions/self/subagent-session.ts";
 
 const MODERN_HANDSHAKE = `${JSON.stringify({
   type: "transport_ready",
@@ -89,6 +92,99 @@ test("dispatch_subagent surfaces diagnostics when spawner errors with empty outp
     assert.equal(error.result.details.status, "error");
     assert.equal(error.result.details.failureKind, "transport_error");
     assert.match(error.result.text, /exited with code 17 without output/i);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent distinguishes a nonzero transport exit before settlement", async () => {
+  const harness = await setup(async () => ({
+    output:
+      "partial child work\n\nSubagent transport stderr:\nfatal: child transport broke\nExpected finality for settlementMode=agent_settled",
+    stderr:
+      "Subagent transport stderr:\nfatal: child transport broke\nExpected finality for settlementMode=agent_settled",
+    exitCode: 1,
+    elapsed: 100,
+    status: "error",
+    executionState: {
+      transport: {
+        kind: "transport",
+        exitCode: 1,
+        aborted: false,
+        timedOut: false,
+      },
+      protocol: {
+        kind: "assistant_protocol_incomplete",
+        errorMessage: "Expected finality for settlementMode=agent_settled",
+        transportExitedBeforeSettlement: true,
+      },
+    },
+  }));
+
+  try {
+    const error = await harness.tool
+      .execute(
+        "tc-d1-presettlement",
+        {
+          profile: "reviewer",
+          objective: "Review changes",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw a tool error"),
+        (caught) => caught,
+      );
+
+    assert.equal(error.result.details.status, "error");
+    assert.equal(error.result.details.failureKind, "transport_exited_before_settlement");
+    assert.match(error.message, /transport_exited_before_settlement/);
+    assert.match(error.result.text, /fatal: child transport broke/);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent keeps post-outcome missing settlement as protocol incomplete", async () => {
+  const harness = await setup(async () => ({
+    output: "terminal output without settlement",
+    exitCode: 1,
+    elapsed: 100,
+    status: "error",
+    executionState: {
+      transport: {
+        kind: "transport",
+        exitCode: 1,
+        aborted: false,
+        timedOut: false,
+      },
+      protocol: {
+        kind: "assistant_protocol_incomplete",
+        errorMessage: "terminal outcome was observed but settlement was missing",
+      },
+    },
+  }));
+
+  try {
+    const error = await harness.tool
+      .execute(
+        "tc-d1-post-outcome",
+        {
+          profile: "reviewer",
+          objective: "Review changes",
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected dispatch_subagent to throw a tool error"),
+        (caught) => caught,
+      );
+
+    assert.equal(error.result.details.failureKind, "assistant_protocol_incomplete");
   } finally {
     await harness.cleanup();
   }
@@ -181,13 +277,53 @@ test("spawnSubagentWithSpawn fails closed on exit without a terminal assistant e
   assert.equal(runningStatus.parentRepoRoot, process.cwd());
 
   stdout.emit("data", `${MODERN_HANDSHAKE}{"type":"assistant_text_delta","delta":"hello"}\n`);
-  await emitChildEvent(child, "exit", 0);
+  stderr.emit(
+    "data",
+    [
+      "fatal: child transport broke token=sk-012345678901234567890123",
+      "Authorization: Bearer bearer01234567890123456789",
+      '{"token":"json01234567890123456789"}',
+      '{"access_token":"access01234567890123456789"}',
+      '{"client_secret":"client01234567890123456789"}',
+      "raw sk-proj-012345678901234567890123",
+      "raw eyJabcde.abcdefgh.ijklmnop",
+      '{"refresh_token":"unterminated01234567890123456789',
+    ].join("\n"),
+  );
+  await emitChildEvent(child, "exit", 1);
 
   const result = await resultPromise;
   assert.equal(result.status, "error");
   assert.match(result.output, /hello/);
+  assert.match(result.output, /Subagent transport stderr:/);
+  assert.match(result.output, /fatal: child transport broke/);
+  assert.match(result.output, /token=\[REDACTED\]/);
+  assert.doesNotMatch(result.output, /sk-012345678901234567890123/);
+  assert.match(result.output, /Authorization: \[REDACTED\]/);
+  assert.match(result.output, /"token":"\[REDACTED\]"/);
+  assert.match(result.output, /"access_token":"\[REDACTED\]"/);
+  assert.match(result.output, /"client_secret":"\[REDACTED\]"/);
+  assert.match(result.output, /"refresh_token":"\[REDACTED\]"/);
+  assert.match(result.output, /\[REDACTED API TOKEN\]/);
+  assert.match(result.output, /\[REDACTED JWT\]/);
+  assert.doesNotMatch(result.output, /bearer01234567890123456789/);
+  assert.doesNotMatch(result.output, /json01234567890123456789/);
+  assert.doesNotMatch(result.output, /access01234567890123456789/);
+  assert.doesNotMatch(result.output, /client01234567890123456789/);
+  assert.doesNotMatch(result.output, /sk-proj-012345678901234567890123/);
+  assert.doesNotMatch(result.output, /eyJabcde\.abcdefgh\.ijklmnop/);
+  assert.doesNotMatch(result.output, /unterminated01234567890123456789/);
   assert.match(result.output, /Expected finality for settlementMode=agent_settled/);
   assert.match(result.output, /outcomes=0/);
+  assert.match(result.output, /transportExit=1\./);
+  assert.match(result.stderr, /fatal: child transport broke/);
+  assert.equal(result.executionState?.transport.exitCode, 1);
+  assert.equal(
+    result.executionState?.protocol?.kind === "assistant_protocol_incomplete"
+      ? result.executionState.protocol.transportExitedBeforeSettlement
+      : undefined,
+    true,
+  );
   assert.equal(state.activeCount, 0);
   assert.equal(state.completedCount, 1);
 
@@ -196,10 +332,17 @@ test("spawnSubagentWithSpawn fails closed on exit without a terminal assistant e
   );
   assert.equal(finalStatus.status, "error");
   assert.equal(finalStatus.exitCode, 1);
+  assert.equal(finalStatus.failureKind, "transport_exited_before_settlement");
+  assert.equal(finalStatus.exitSignal, undefined);
   assert.equal(finalStatus.parentSessionKey, "live-session-42");
   assert.equal(finalStatus.parentRepoRoot, process.cwd());
   assert.match(finalStatus.resultPreview, /hello/);
-  assert.match(finalStatus.resultPreview, /Expected finality for settlementMode=agent_settled/);
+  assert.match(finalStatus.resultPreview, /fatal: child transport broke/);
+  assert.match(finalStatus.stderrPreview, /fatal: child transport broke/);
+  assert.doesNotMatch(finalStatus.stderrPreview, /sk-012345678901234567890123/);
+  const parsedFinalStatus = parseSubagentSessionStatusPayload(finalStatus);
+  assert.equal(parsedFinalStatus?.failureKind, "transport_exited_before_settlement");
+  assert.match(parsedFinalStatus?.stderrPreview || "", /fatal: child transport broke/);
 
   await rm(state.sessionsDir, { recursive: true, force: true });
 });
@@ -535,6 +678,56 @@ test("spawnSubagentWithSpawn bounds assistant output and marks truncation", asyn
       delete process.env.PI_SUBAGENT_OUTPUT_CHARS;
     } else {
       process.env.PI_SUBAGENT_OUTPUT_CHARS = previous;
+    }
+    await rm(state.sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("spawnSubagentWithSpawn bounds transport stderr while preserving failure context", async () => {
+  const state = createSubagentState(join(tmpdir(), `subagent-stderr-truncation-${Date.now()}`));
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  stdout.setEncoding = () => stdout;
+  stderr.setEncoding = () => stderr;
+  const previous = process.env.PI_SUBAGENT_STDERR_CHARS;
+
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.kill = () => true;
+  child.pid = 460460;
+
+  try {
+    process.env.PI_SUBAGENT_STDERR_CHARS = "16";
+
+    const resultPromise = spawnSubagentWithSpawn(
+      {
+        name: "stderr-truncated",
+        objective: "Review changes",
+        tools: "read,bash",
+        sessionFile: join(state.sessionsDir, "stderr-truncated.json"),
+      },
+      "test/model",
+      { cwd: process.cwd() },
+      state,
+      () => child,
+    );
+
+    stdout.emit("data", MODERN_HANDSHAKE);
+    stderr.emit("data", `fatal:${"x".repeat(64)}`);
+    await emitChildEvent(child, "close", 1);
+
+    const result = await resultPromise;
+    assert.equal(result.status, "error");
+    assert.match(result.output, /Subagent transport stderr:/);
+    assert.match(result.output, /fatal:x{10}/);
+    assert.doesNotMatch(result.output, /x{17}/);
+    assert.match(result.stderr || "", /stderr truncated to 16 characters/);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PI_SUBAGENT_STDERR_CHARS;
+    } else {
+      process.env.PI_SUBAGENT_STDERR_CHARS = previous;
     }
     await rm(state.sessionsDir, { recursive: true, force: true });
   }

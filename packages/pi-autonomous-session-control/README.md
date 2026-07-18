@@ -385,6 +385,7 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - `/subagent-cancel <dispatchId> [reason]` and public `runtime.cancel(...)` target one live child with verified process-start identity. Unsupported identity fails closed, failed signals roll back cancellation intent, and custom-spawner sidecars are observable but cannot signal the parent Pi process.
 - Progress updates expose bounded phase/sequence, latest-tool, activity, and usage metadata. The helper probes `pi --version` and declares settlement capability in `transport_ready`: Pi >=0.80 requires exactly one authoritative `agent_settled` after the final terminal assistant outcome. The retained Pi 0.76 mode instead requires clean foreground JSON-mode exit plus final `agent_end.willRetry=false` after that outcome; undeclared streams cannot select this fallback, and unclassified versions fail closed.
 - The public runtime returns structured failure results. The `dispatch_subagent` tool adapter throws those failures so Pi records the tool invocation as an error rather than a successful tool call containing `{ status: "error" }`.
+- A nonzero transport exit before a valid terminal assistant outcome and settlement is classified as `transport_exited_before_settlement`, not collapsed into generic protocol incompleteness. Its model-visible failure output and status sidecar preserve bounded transport stderr, exit code, and exit signal when present; partial child work still remains effect-indeterminate and never becomes success.
 
 **Request env policy:**
 - `DispatchSubagentRequest.env` is a per-dispatch child environment overlay for provenance sidecars only.
@@ -407,6 +408,7 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - `PI_SUBAGENT_FILE_LOCK_SESSION_NAMES` — set to `false` to disable only cross-process file-lock reservation while keeping in-memory reservation (default: enabled; ignored when `PI_SUBAGENT_RESERVE_SESSION_NAMES=false`)
 - `PI_SUBAGENT_LOCK_STALE_AFTER_MS` — stale-lock reclamation threshold in milliseconds for orphaned subagent locks that no longer have a live owning PID (default: `3600000`)
 - `PI_SUBAGENT_EVENT_BUFFER_BYTES` — buffer for the filtered assistant-only subagent protocol consumed by ASC (default: `262144`)
+- `PI_SUBAGENT_STDERR_CHARS` — maximum retained transport stderr characters for model-visible failure diagnostics and bounded status previews (default: `16000`)
 - `PI_SUBAGENT_RAW_PI_EVENT_BUFFER_BYTES` — raw upstream `pi --mode json` line buffer inside the filter helper before aggregate events are dropped (default: `8388608`)
 
 **Session artifact notes:**
@@ -425,7 +427,7 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - Parent-side startup remains independently bounded; execution timeouts arm only after the helper emits one complete `transport_ready` handshake with the probed Pi version and settlement mode. The parent independently reclassifies that version, rejects missing/mismatched handshakes and pre-handshake lifecycle events, and does not let stdout noise or malformed startup output consume the execution budget.
 - Helper shutdown now tears down the raw `pi` child process group before parent-side force kill, preventing orphaned raw subprocesses on timeout/abort.
 - Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.
-- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned` plus dispatch/attempt identity, resumability/cancellation metadata, timeout phase, session file path, profile, model, tools, parent session key, parent repo root, and bounded result preview; dead running sessions are reconciled to `abandoned` on next startup.
+- Status sidecars (`<session>.status.json`) record `running|done|error|timeout|aborted|abandoned` plus dispatch/attempt identity, resumability/cancellation metadata, timeout phase, session file path, profile, model, tools, parent session key, parent repo root, bounded result/stderr previews, and pre-settlement transport failure classification; dead running sessions are reconciled to `abandoned` on next startup.
 - Status sidecars now also keep a bounded `resultPreview` plus the originating live `parentSessionKey` when available so dashboard/inspection views can stay session-aware without parsing the whole session log.
 - `subagent-status` now reports counts by terminal/runtime status for faster operator diagnosis.
 - A read-only widget surfaces recent subagent sessions for the current live session only, appears only after this session dispatches a subagent, and auto-clears once entries age past 1 hour.

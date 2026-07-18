@@ -48,6 +48,7 @@ export type DispatchSubagentFailureKind =
   | "assistant_protocol_error"
   | "assistant_protocol_parse_error"
   | "assistant_protocol_incomplete"
+  | "transport_exited_before_settlement"
   | "transport_error"
   | "startup_timed_out"
   | "extension_bootstrap_missing"

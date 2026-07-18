@@ -20,10 +20,13 @@ export interface SubagentSessionStatus {
   cancelReason?: string;
   cancelSupported?: boolean;
   exitCode?: number;
+  exitSignal?: string;
+  failureKind?: "transport_exited_before_settlement";
   elapsed?: number;
   parentSessionKey?: string;
   parentRepoRoot?: string;
   resultPreview?: string;
+  stderrPreview?: string;
   sessionKind?: "subagent";
   sessionFile?: string;
   pidStartedAt?: number;
@@ -93,6 +96,9 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
     "cancelRequestedAt",
     "cancelRequestedBy",
     "cancelReason",
+    "exitSignal",
+    "resultPreview",
+    "stderrPreview",
   ] as const) {
     if (candidate[key] !== undefined && typeof candidate[key] !== "string") return null;
   }
@@ -101,6 +107,12 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
   }
   if (candidate.resumed !== undefined && typeof candidate.resumed !== "boolean") return null;
   if (candidate.cancelSupported !== undefined && typeof candidate.cancelSupported !== "boolean") {
+    return null;
+  }
+  if (
+    candidate.failureKind !== undefined &&
+    candidate.failureKind !== "transport_exited_before_settlement"
+  ) {
     return null;
   }
   if (

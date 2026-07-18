@@ -41,7 +41,9 @@ export function getDispatchSubagentFailureKind(params: {
         return "assistant_protocol_parse_error";
       }
       if (params.executionState?.protocol?.kind === "assistant_protocol_incomplete") {
-        return "assistant_protocol_incomplete";
+        return params.executionState.protocol.transportExitedBeforeSettlement === true
+          ? "transport_exited_before_settlement"
+          : "assistant_protocol_incomplete";
       }
       if (params.executionState?.protocol?.kind === "assistant_protocol") {
         return "assistant_protocol_error";

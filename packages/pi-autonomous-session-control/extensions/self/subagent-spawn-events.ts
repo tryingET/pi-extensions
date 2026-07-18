@@ -282,11 +282,13 @@ export function getSemanticStatus(params: {
 
 export function createExecutionState(params: {
   transportExitCode: number;
+  transportSignal?: string;
   aborted: boolean;
   timedOut: boolean;
   rawChildPid?: number;
   protocolFailed: boolean;
   protocolIncomplete: boolean;
+  transportExitedBeforeSettlement?: boolean;
   protocolFailureOutput: string;
   finalAssistantStopReason?: AssistantStopReason;
   finalAssistantErrorMessage?: string;
@@ -295,6 +297,7 @@ export function createExecutionState(params: {
     transport: {
       kind: "transport",
       exitCode: params.transportExitCode,
+      ...(params.transportSignal ? { signal: params.transportSignal } : {}),
       aborted: params.aborted,
       timedOut: params.timedOut,
       ...(typeof params.rawChildPid === "number" ? { rawChildPid: params.rawChildPid } : {}),
@@ -311,6 +314,9 @@ export function createExecutionState(params: {
             errorMessage:
               params.protocolFailureOutput ||
               "Subagent transport ended without exactly one terminal assistant event.",
+            ...(params.transportExitedBeforeSettlement
+              ? { transportExitedBeforeSettlement: true as const }
+              : {}),
           }
         : params.finalAssistantStopReason
           ? {

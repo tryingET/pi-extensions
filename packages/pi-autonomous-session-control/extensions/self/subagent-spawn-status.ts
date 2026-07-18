@@ -16,6 +16,13 @@ export function getSubagentSessionFile(def: SubagentDef, state: SubagentState): 
   return def.sessionFile || join(state.sessionsDir, `${def.name}.jsonl`);
 }
 
+function exitedBeforeSettlement(result: SubagentResult): boolean {
+  return (
+    result.executionState?.protocol?.kind === "assistant_protocol_incomplete" &&
+    result.executionState.protocol.transportExitedBeforeSettlement === true
+  );
+}
+
 export function writeRunningSubagentStatus(params: {
   state: SubagentState;
   def: SubagentDef;
@@ -86,10 +93,15 @@ export function writeCompletedSubagentStatus(params: {
     cancelReason: cancelRequest?.reason ?? prior?.cancelReason,
     cancelSupported: prior?.cancelSupported,
     exitCode: params.result.exitCode,
+    exitSignal: params.result.executionState?.transport.signal,
+    failureKind: exitedBeforeSettlement(params.result)
+      ? "transport_exited_before_settlement"
+      : undefined,
     elapsed: params.result.elapsed,
     parentSessionKey: params.def.parentSessionKey,
     parentRepoRoot: params.def.parentRepoRoot,
     resultPreview: toStatusResultPreview(params.result.output),
+    stderrPreview: toStatusResultPreview(params.result.stderr),
     sessionKind: "subagent",
     sessionFile: getSubagentSessionFile(params.def, params.state),
     profile: params.def.profile,

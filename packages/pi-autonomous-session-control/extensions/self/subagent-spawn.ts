@@ -19,7 +19,11 @@ import {
   writeRunningSubagentStatus,
 } from "./subagent-spawn-status.ts";
 import type { AssistantStopReason, SubagentDef, SubagentResult } from "./subagent-spawn-types.ts";
-import { appendBoundedString, readNonNegativeIntEnv } from "./subagent-spawn-utils.ts";
+import {
+  appendBoundedString,
+  readNonNegativeIntEnv,
+  redactSubagentDiagnosticText,
+} from "./subagent-spawn-utils.ts";
 
 export * from "./subagent-spawn-env.ts";
 export * from "./subagent-spawn-types.ts";
@@ -28,6 +32,7 @@ const DEFAULT_SUBAGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_SUBAGENT_STARTUP_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_SUBAGENT_PROGRESS_HEARTBEAT_MS = 2 * 1000;
 const DEFAULT_SUBAGENT_OUTPUT_CHARS = 64_000;
+const DEFAULT_SUBAGENT_STDERR_CHARS = 16_000;
 const DEFAULT_SUBAGENT_EVENT_BUFFER_BYTES = 256 * 1024;
 const SUBAGENT_CLOSE_GRACE_MS = 250;
 const SUBAGENT_STOP_REQUESTED_CLOSE_GRACE_MS = 25;
@@ -47,6 +52,10 @@ export function spawnSubagentWithSpawn(
   const maxOutputChars = readNonNegativeIntEnv(
     ["PI_SUBAGENT_OUTPUT_CHARS", "PI_ORCH_SUBAGENT_OUTPUT_CHARS"],
     DEFAULT_SUBAGENT_OUTPUT_CHARS,
+  );
+  const maxStderrChars = readNonNegativeIntEnv(
+    ["PI_SUBAGENT_STDERR_CHARS", "PI_ORCH_SUBAGENT_STDERR_CHARS"],
+    DEFAULT_SUBAGENT_STDERR_CHARS,
   );
   const maxEventBufferBytes = readNonNegativeIntEnv(
     ["PI_SUBAGENT_EVENT_BUFFER_BYTES", "PI_ORCH_SUBAGENT_EVENT_BUFFER_BYTES"],
@@ -73,6 +82,7 @@ export function spawnSubagentWithSpawn(
     let closeGraceHandle: ReturnType<typeof setTimeout> | null = null;
     let forceKillHandle: ReturnType<typeof setTimeout> | null = null;
     let observedExitCode: number | null = null;
+    let observedExitSignal: NodeJS.Signals | null = null;
     let abortHandler: (() => void) | null = null;
     let aborted = false;
     let timedOut = false;
@@ -107,7 +117,8 @@ export function spawnSubagentWithSpawn(
       cost: 0,
       contextTokens: 0,
     };
-    const stderrChunks: string[] = [];
+    let stderrText = "";
+    let stderrTruncated = false;
     const parseErrors: string[] = [];
     const reportedProtocolErrors: string[] = [];
     const stdoutNoiseLines: string[] = [];
@@ -379,7 +390,10 @@ export function spawnSubagentWithSpawn(
       forceKillHandle.unref?.();
     };
 
-    const finalizeFromExitCode = (exitCode: number | null) => {
+    const finalizeFromExitCode = (
+      exitCode: number | null,
+      exitSignal: NodeJS.Signals | null = observedExitSignal,
+    ) => {
       consumeBufferedLine();
       const cancelRequest = getMatchingSubagentCancelRequest({
         sessionsDir: state.sessionsDir,
@@ -423,24 +437,35 @@ export function spawnSubagentWithSpawn(
         finalAgentRunEndEventOrdinal > lastTerminalAssistantEventOrdinal;
       const terminalSequenceValid = modernHostSettled || legacyHostSettled;
       const protocolIncomplete = !aborted && !timedOut && !protocolFailed && !terminalSequenceValid;
+      const transportSignalDetail = exitSignal ? `, transportSignal=${exitSignal}` : "";
       const incompleteSummary = protocolIncomplete
-        ? `Expected finality for settlementMode=${settlementMode ?? "undeclared"}: Pi >=0.80 requires exactly one agent_settled after the final terminal assistant outcome; explicit Pi 0.76 compatibility requires clean exit plus final agent_end.willRetry=false after that outcome. Observed piVersion=${piVersion ?? "undeclared"}, settlements=${agentSettledEventCount}, settlementOrdinal=${agentSettledEventOrdinal}, outcomes=${terminalAssistantEventCount}, finalOutcomeOrdinal=${lastTerminalAssistantEventOrdinal}, agentEnds=${agentRunEndEventCount}, finalAgentEndOrdinal=${finalAgentRunEndEventOrdinal}, finalWillRetry=${String(finalAgentRunWillRetry)}, transportExit=${String(exitCode)}.`
+        ? `Expected finality for settlementMode=${settlementMode ?? "undeclared"}: Pi >=0.80 requires exactly one agent_settled after the final terminal assistant outcome; explicit Pi 0.76 compatibility requires clean exit plus final agent_end.willRetry=false after that outcome. Observed piVersion=${piVersion ?? "undeclared"}, settlements=${agentSettledEventCount}, settlementOrdinal=${agentSettledEventOrdinal}, outcomes=${terminalAssistantEventCount}, finalOutcomeOrdinal=${lastTerminalAssistantEventOrdinal}, agentEnds=${agentRunEndEventCount}, finalAgentEndOrdinal=${finalAgentRunEndEventOrdinal}, finalWillRetry=${String(finalAgentRunWillRetry)}, transportExit=${String(transportExitCode)}${transportSignalDetail}.`
         : "";
       const truncationSummary = assistantOutputTruncated
         ? `Assistant output truncated to ${maxOutputChars} characters.`
         : "";
-      const combinedStderr = [
-        stderrChunks.join("").trim(),
-        stdoutNoiseSummary,
-        stdoutNoiseDetails,
-        reportedProtocolErrorDetails,
-        parseErrorSummary,
-        parseErrorDetails,
-        incompleteSummary,
-        truncationSummary,
-      ]
-        .filter(Boolean)
-        .join("\n");
+      const stderrTruncationSummary = stderrTruncated
+        ? `Subagent transport stderr truncated to ${maxStderrChars} characters.`
+        : "";
+      const childStderrText = redactSubagentDiagnosticText(stderrText.trim());
+      const childStderrDetails = childStderrText
+        ? `Subagent transport stderr:\n${childStderrText}`
+        : "";
+      const combinedStderr = redactSubagentDiagnosticText(
+        [
+          childStderrDetails,
+          stderrTruncationSummary,
+          stdoutNoiseSummary,
+          stdoutNoiseDetails,
+          reportedProtocolErrorDetails,
+          parseErrorSummary,
+          parseErrorDetails,
+          incompleteSummary,
+          truncationSummary,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
       const fallbackOutput = aborted
         ? "Subagent aborted."
         : timedOut
@@ -463,7 +488,7 @@ export function spawnSubagentWithSpawn(
         .join("\n");
       const protocolAwareOutput =
         protocolFailed || protocolIncomplete
-          ? [streamedAssistantText || finalAssistantText, protocolFailureOutput]
+          ? [streamedAssistantText || finalAssistantText, combinedStderr]
               .filter(Boolean)
               .join("\n\n") || fallbackOutput
           : streamedAssistantText || finalAssistantText || fallbackOutput;
@@ -488,11 +513,14 @@ export function spawnSubagentWithSpawn(
       });
       const executionState = createExecutionState({
         transportExitCode,
+        transportSignal: exitSignal ?? undefined,
         aborted,
         timedOut,
         rawChildPid,
         protocolFailed,
         protocolIncomplete,
+        transportExitedBeforeSettlement:
+          protocolIncomplete && transportExitCode !== 0 && terminalAssistantEventCount === 0,
         protocolFailureOutput,
         finalAssistantStopReason,
         finalAssistantErrorMessage,
@@ -609,27 +637,28 @@ export function spawnSubagentWithSpawn(
 
     proc.stderr?.setEncoding("utf-8");
     proc.stderr?.on("data", (chunk: string) => {
-      stderrChunks.push(chunk);
-      if (stderrChunks.length > 50) {
-        stderrChunks.splice(0, stderrChunks.length - 50);
-      }
+      const bounded = appendBoundedString(stderrText, chunk, maxStderrChars);
+      stderrText = bounded.value;
+      stderrTruncated = stderrTruncated || bounded.truncated;
     });
 
-    proc.on("exit", (code) => {
+    proc.on("exit", (code, exitSignal) => {
       observedExitCode = code ?? observedExitCode ?? null;
+      observedExitSignal = exitSignal ?? observedExitSignal;
       if (closeGraceHandle || settled) return;
       const closeGraceMs = stopRequested
         ? SUBAGENT_STOP_REQUESTED_CLOSE_GRACE_MS
         : SUBAGENT_CLOSE_GRACE_MS;
       closeGraceHandle = setTimeout(() => {
-        finalizeFromExitCode(observedExitCode);
+        finalizeFromExitCode(observedExitCode, observedExitSignal);
       }, closeGraceMs);
       closeGraceHandle.unref?.();
     });
 
-    proc.on("close", (code) => {
+    proc.on("close", (code, exitSignal) => {
       observedExitCode = code ?? observedExitCode ?? null;
-      finalizeFromExitCode(observedExitCode);
+      observedExitSignal = exitSignal ?? observedExitSignal;
+      finalizeFromExitCode(observedExitCode, observedExitSignal);
     });
 
     proc.on("error", (err) => {
