@@ -175,16 +175,25 @@ test("renders fast startup packet with explicit pending warning and no posture c
 
 test("replacement and shutdown abort in-flight full-refresh subprocesses", async () => {
   const root = mkdtempSync(join(tmpdir(), "society-context-abort-"));
-  const marker = join(root, "aborted");
+  const readyMarker = join(root, "ready");
+  const abortMarker = join(root, "aborted");
   const executable = join(root, "fake-ak");
   writeFileSync(
     executable,
-    `#!/usr/bin/env node\nconst fs = require("node:fs");\nprocess.on("SIGTERM", () => { fs.appendFileSync(${JSON.stringify(marker)}, "aborted\\n"); process.exit(0); });\nsetTimeout(() => process.stdout.write('{"ok":true,"payload":{}}\\n'), 5000);\n`,
+    `#!/usr/bin/env node\nimport("node:fs").then(({ appendFileSync }) => {\n  if (process.argv[2] !== "doctor") { process.stdout.write('{"ok":true,"payload":{}}\\n'); return; }\n  process.on("SIGTERM", () => { appendFileSync(${JSON.stringify(abortMarker)}, "aborted\\n"); process.exit(0); });\n  appendFileSync(${JSON.stringify(readyMarker)}, "ready\\n");\n  setTimeout(() => process.stdout.write('{"ok":true,"payload":{}}\\n'), 5000);\n});\n`,
   );
   chmodSync(executable, 0o755);
   const oldAk = process.env.PI_SOCIETY_CONTEXT_AK;
   process.env.PI_SOCIETY_CONTEXT_AK = executable;
   const events = new Map<string, (...args: unknown[]) => Promise<void>>();
+  const markerCount = (path: string) =>
+    existsSync(path) ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).length : 0;
+  const waitForMarkerCount = async (path: string, expectedCount: number) => {
+    const deadline = Date.now() + 4_000;
+    while (markerCount(path) < expectedCount && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  };
   try {
     societyStartupContextExtension({
       on(name: string, handler: (...args: unknown[]) => Promise<void>) {
@@ -194,25 +203,19 @@ test("replacement and shutdown abort in-flight full-refresh subprocesses", async
     } as never);
     const context = { cwd: process.cwd(), hasUI: false, ui: {} };
     await events.get("session_start")?.({}, context);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitForMarkerCount(readyMarker, 1);
+    assert.equal(markerCount(readyMarker), 1, "initial refresh subprocess should be ready");
+
     await events.get("session_start")?.({}, context);
-    for (let attempt = 0; attempt < 20 && !existsSync(marker); attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    assert.equal(existsSync(marker), true, "replacement should abort the prior refresh");
-    const replacementAbortCount = readFileSync(marker, "utf8").trim().split("\n").length;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitForMarkerCount(abortMarker, 1);
+    assert.equal(markerCount(abortMarker), 1, "replacement should abort the prior refresh");
+    const replacementAbortCount = markerCount(abortMarker);
+    await waitForMarkerCount(readyMarker, 2);
+    assert.equal(markerCount(readyMarker), 2, "replacement refresh subprocess should be ready");
 
     await events.get("session_shutdown")?.();
-    let shutdownAbortCount = replacementAbortCount;
-    for (
-      let attempt = 0;
-      attempt < 20 && shutdownAbortCount <= replacementAbortCount;
-      attempt += 1
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-      shutdownAbortCount = readFileSync(marker, "utf8").trim().split("\n").length;
-    }
+    await waitForMarkerCount(abortMarker, replacementAbortCount + 1);
+    const shutdownAbortCount = markerCount(abortMarker);
     assert.ok(
       shutdownAbortCount > replacementAbortCount,
       "shutdown should abort the replacement refresh",
