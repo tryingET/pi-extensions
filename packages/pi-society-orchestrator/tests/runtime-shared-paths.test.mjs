@@ -2625,9 +2625,9 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
           "UNIQUE KEY prompt_templates_name (name)",
           ");",
           "INSERT INTO prompt_templates VALUES",
-          "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',false,4),",
-          "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',false,1),",
-          "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',false,1);",
+          "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',true,4),",
+          "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',true,1),",
+          "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1);",
         ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
@@ -2678,9 +2678,20 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
       { cwd: process.cwd(), model: undefined },
     );
     assert.equal(workflowResult.details.ok, false);
-    assert.equal(workflowResult.details.error, "vault-template-not-executable-through-bridge");
-    assert.match(workflowResult.content[0].text, /workflow-grade but has no executable binding/);
-    assert.match(workflowResult.content[0].text, /No owner-specific route is registered/);
+    assert.equal(workflowResult.details.error, "vault-dispatch-check-failed");
+    assert.equal(workflowResult.details.dispatchCheck.status, "blocked");
+    assert.equal(
+      workflowResult.details.dispatchCheck.results[0].posture,
+      "orchestrator_workflow_gate_required",
+    );
+    assert.match(
+      workflowResult.details.dispatchCheck.results[0].reason,
+      /formalization_level=workflow.*no concrete workflow executor binding is verified/i,
+    );
+    assert.match(
+      workflowResult.content[0].text,
+      /workflow-procedure.*cannot execute through a verified binding/i,
+    );
 
     const autoresearchSetupResult = await vaultExecuteTool.execute(
       "tool-call-id-3",
@@ -2693,13 +2704,20 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
       { cwd: process.cwd(), model: undefined },
     );
     assert.equal(autoresearchSetupResult.details.ok, false);
+    assert.equal(autoresearchSetupResult.details.error, "vault-dispatch-check-failed");
+    assert.equal(autoresearchSetupResult.details.dispatchCheck.status, "blocked");
     assert.equal(
-      autoresearchSetupResult.details.error,
-      "vault-template-not-executable-through-bridge",
+      autoresearchSetupResult.details.dispatchCheck.results[0].posture,
+      "orchestrator_workflow_gate_required",
     );
-    assert.match(autoresearchSetupResult.content[0].text, /Owner-specific lawful route/);
-    assert.match(autoresearchSetupResult.content[0].text, /autoresearch_runtime_status/);
-    assert.match(autoresearchSetupResult.content[0].text, /loop back to discovery\/design/);
+    assert.match(
+      autoresearchSetupResult.details.dispatchCheck.results[0].reason,
+      /formalization_level=workflow.*no concrete workflow executor binding is verified/i,
+    );
+    assert.match(
+      autoresearchSetupResult.content[0].text,
+      /pi-autoresearch-setup.*cannot execute through a verified binding/i,
+    );
   } finally {
     if (previousVaultDir === undefined) {
       delete process.env.VAULT_DIR;
