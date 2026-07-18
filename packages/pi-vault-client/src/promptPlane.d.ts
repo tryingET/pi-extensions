@@ -1,5 +1,7 @@
-import type { DispatchPostureResult } from "./dispatchPosture.js";
-import type { DispatchAuthorizationV1, VaultDispatchRuntime } from "./dispatchRuntime.js";
+import type { DispatchAuthorizationV1, VaultDispatchRuntime } from "./dispatchRuntime.d.js";
+import type { DispatchPostureResult } from "./vaultTypes.d.js";
+
+// The explicit .d.js targets keep NodeNext consumers inside the declaration island.
 
 export interface PromptPlaneExecutionContext {
   cwd?: string;

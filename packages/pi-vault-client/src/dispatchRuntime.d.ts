@@ -2,8 +2,10 @@ import type {
   DispatchPostureResult,
   ExecutionBinding,
   FrozenDispatchPolicy,
-} from "./dispatchPosture.js";
-import type { Template } from "./vaultTypes.js";
+  Template,
+} from "./vaultTypes.d.js";
+
+// The explicit .d.js target keeps NodeNext consumers inside the declaration island.
 
 export type ExecutionSurface =
   | "vault_command"
@@ -130,4 +132,7 @@ export declare function createVaultDispatchRuntime(
   options?: VaultDispatchRuntimeOptions,
 ): VaultDispatchRuntime;
 export declare function isVaultDispatchRuntime(value: unknown): value is VaultDispatchRuntime;
-export { createDispatchPolicy } from "./dispatchPosture.js";
+export declare function createDispatchPolicy(options: {
+  ontologyContractVersion: string;
+  bindings: Record<string, ExecutionBinding>;
+}): FrozenDispatchPolicy;
