@@ -1,3 +1,6 @@
+// summary: expose vault tools through read, diagnostic, and mutating toolbox profiles.
+// read_when:
+//   - registering the vault toolbox bundle or changing profile-to-tool risk summaries.
 import registerVaultExtension from "../extensions/vault.js";
 
 const PROFILE_TOOLS = {

@@ -1,3 +1,6 @@
+// summary: infer and resolve the active company from environment variables and workspace paths.
+// read_when:
+//   - debugging company-scoped visibility context or cwd inference precedence.
 const COMPANY_CONTEXT_ANCHOR_SEGMENTS = new Set(["ai-society", "work", "workspace"]);
 const COMPANY_LANE_SEGMENTS = new Set(["owned", "infra", "contrib", "agents", "fork"]);
 const COMPANY_PATH_SEGMENT_ALIASES = {

@@ -1,3 +1,6 @@
+// summary: capture a non-mutating snapshot of Dolt temporary-directory resolution and probe attempts.
+// read_when:
+//   - rendering vault diagnostics when Dolt execution environment setup is unavailable or failing.
 function formatAttempt(attempt) {
   if (!attempt.ok) return `${attempt.source}:error=${attempt.error || "unknown"}`;
   if (attempt.created) return `${attempt.source}:ok-created`;

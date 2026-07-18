@@ -1,3 +1,6 @@
+// summary: persist company-scoped prompt variants and run local-model A/B evaluations through Pi tools and commands.
+// read_when:
+//   - changing prompt_eval storage, judging, scoring, or extension registration behavior.
 /**
  * Prompt Evaluator: A/B test prompts with judge evaluation.
  *

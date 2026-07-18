@@ -1,3 +1,6 @@
+// summary: compose vault runtimes and register the extension's commands, tools, evaluators, and capability bridges.
+// read_when:
+//   - tracing pi-vault-client startup wiring or schema-gated registrations.
 import { createVaultDispatchRuntime } from "../src/dispatchRuntime.js";
 import { registerPromptEvaluatorCommands, registerPromptEvaluatorTool, } from "../src/evaluator.js";
 import { registerVaultCommands } from "../src/vaultCommands.js";

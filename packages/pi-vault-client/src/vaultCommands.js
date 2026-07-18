@@ -1,3 +1,6 @@
+// summary: register interactive vault commands, input transforms, execution receipts, replay, telemetry, and health views.
+// read_when:
+//   - changing slash-command behavior, template preparation, receipt handling, or session notifications.
 import { guardPreparedText } from "./dispatchGuard.js";
 import { resolveDoltExecutionEnvironmentSnapshot } from "./doltDiagnostics.js";
 import { runFzfProbe } from "./fuzzySelector.js";
