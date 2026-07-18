@@ -18,12 +18,14 @@ import {
   type CandidateAdmissionWarningAcknowledgement,
   candidateAdmissionPermitPath,
   candidateObjectiveDigest,
+  commitCandidateAdmissionActivation,
   getCandidateAdmissionConfigPath,
   getCandidateAdmissionRoot,
   getCandidateSpawnHoldPath,
   listCandidateAdmissionPermits,
   readAdmissionJson,
   readCandidateAdmissionConfig,
+  recoverCandidateAdmissionActivation,
   withCandidateAdmissionLock,
   writeAdmissionJson,
 } from "./candidatePeerAdmissionState.ts";
@@ -590,6 +592,7 @@ function verifyAdmissionDecisionArtifact(
   config: CandidateAdmissionConfig,
   canary: CandidateAdmissionPermit,
   env: NodeJS.ProcessEnv,
+  expectedAdmissionConfigDigest = digestObject(config),
 ): void {
   const artifact = readVerifiedOwnerArtifact<CandidateAdmissionDecisionArtifact>(
     input.decisionArtifactPath,
@@ -607,7 +610,7 @@ function verifyAdmissionDecisionArtifact(
     decision.taskRef !== canary.taskRef ||
     decision.canaryAdmissionId !== canary.admissionId ||
     decision.terminalReceiptDigest !== canary.terminalReceiptDigest ||
-    decision.admissionConfigDigest !== digestObject(config) ||
+    decision.admissionConfigDigest !== expectedAdmissionConfigDigest ||
     reviewedAt < releasedAt
   ) {
     throw new Error(
@@ -630,8 +633,12 @@ export function activateCandidateAdmission(
   return withCandidateAdmissionLock(env, () => {
     if (!/^AK decision \d+$/.test(input.decisionRef))
       throw new Error("activation requires an exact AK decision reference");
+    const requestDigest = digestObject(input);
+    const recovery = recoverCandidateAdmissionActivation(requestDigest, env);
+    if (recovery.status === "completed") {
+      return { config: recovery.config, holdPath: recovery.holdPath };
+    }
     const config = readCandidateAdmissionConfig(env);
-    if (config.mode !== "canary") throw new Error("candidate admission is not in canary mode");
     const canary = readAdmissionJson<CandidateAdmissionPermit>(
       candidateAdmissionPermitPath(input.canaryAdmissionId, env),
     );
@@ -643,9 +650,26 @@ export function activateCandidateAdmission(
     ) {
       throw new Error("candidate admission canary lacks exact successful terminal evidence");
     }
-    verifyAdmissionDecisionArtifact(input, config, canary, env);
     const holdPath = getCandidateSpawnHoldPath(env);
     const hold = readAdmissionJson<Record<string, unknown>>(holdPath);
+    if (config.mode === "active") {
+      if (
+        config.ownerDecisionRef !== input.decisionRef ||
+        config.canaryAdmissionId !== input.canaryAdmissionId ||
+        config.canaryTerminalReceiptRef !== input.terminalReceiptRef ||
+        config.canaryTerminalReceiptDigest !== canary.terminalReceiptDigest ||
+        config.canaryConfigDigest !== canary.configDigest ||
+        hold.status !== "superseded_by_admission_v2" ||
+        hold.supersededByDecisionRef !== input.decisionRef ||
+        hold.admissionConfigDigest !== digestObject(config)
+      ) {
+        throw new Error("active candidate admission does not match the requested activation");
+      }
+      verifyAdmissionDecisionArtifact(input, config, canary, env, config.canaryConfigDigest);
+      return { config, holdPath };
+    }
+    if (config.mode !== "canary") throw new Error("candidate admission is not in canary mode");
+    verifyAdmissionDecisionArtifact(input, config, canary, env);
     if (hold.status !== "active") throw new Error("historical candidate spawn hold is not active");
     const active: CandidateAdmissionConfig = {
       ...config,
@@ -656,17 +680,23 @@ export function activateCandidateAdmission(
       canaryAdmissionId: input.canaryAdmissionId,
       canaryTerminalReceiptRef: input.terminalReceiptRef,
       canaryTerminalReceiptDigest: canary.terminalReceiptDigest,
+      canaryConfigDigest: digestObject(config),
     };
-    writeAdmissionJson(getCandidateAdmissionConfigPath(env), active);
-    writeAdmissionJson(holdPath, {
-      ...hold,
-      status: "superseded_by_admission_v2",
-      supersededAt: now,
-      supersededByDecisionRef: input.decisionRef,
-      admissionConfigPath: getCandidateAdmissionConfigPath(env),
-      admissionConfigDigest: digestObject(active),
-      preservedBoundary: "Historical v1 cleanup remains permanently non-executable.",
-    });
-    return { config: active, holdPath };
+    return commitCandidateAdmissionActivation(
+      {
+        requestDigest,
+        activeConfig: active,
+        activeHold: {
+          ...hold,
+          status: "superseded_by_admission_v2",
+          supersededAt: now,
+          supersededByDecisionRef: input.decisionRef,
+          admissionConfigPath: getCandidateAdmissionConfigPath(env),
+          admissionConfigDigest: digestObject(active),
+          preservedBoundary: "Historical v1 cleanup remains permanently non-executable.",
+        },
+      },
+      env,
+    );
   });
 }

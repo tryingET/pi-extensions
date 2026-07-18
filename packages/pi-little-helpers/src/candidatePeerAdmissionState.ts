@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   closeSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
   openSync,
   readdirSync,
@@ -58,6 +59,7 @@ export type CandidateAdmissionConfig = {
   canaryAdmissionId?: string;
   canaryTerminalReceiptRef?: string;
   canaryTerminalReceiptDigest?: string;
+  canaryConfigDigest?: string;
   activatedAt?: string;
 };
 
@@ -147,11 +149,33 @@ function assertOwnerOnlyDirectory(path: string): void {
   }
 }
 
+function syncDirectory(path: string): void {
+  const descriptor = openSync(path, "r");
+  try {
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
 export function writeAdmissionJson(path: string, value: unknown): void {
-  assertOwnerOnlyDirectory(dirname(path));
+  const parent = dirname(path);
+  assertOwnerOnlyDirectory(parent);
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+  const descriptor = openSync(temporary, "wx", 0o600);
+  try {
+    writeFileSync(descriptor, `${JSON.stringify(value, null, 2)}\n`);
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
   renameSync(temporary, path);
+  syncDirectory(parent);
+}
+
+function removeAdmissionJson(path: string): void {
+  unlinkSync(path);
+  syncDirectory(dirname(path));
 }
 
 export function readAdmissionJson<T>(path: string): T {
@@ -236,6 +260,128 @@ export function writeCandidateAdmissionConfig(
   }
   writeAdmissionJson(path, normalized);
   return { path, digest: digestObject(normalized) };
+}
+
+type CandidateAdmissionActivationJournal = {
+  schemaVersion: 1;
+  requestDigest: string;
+  configPath: string;
+  holdPath: string;
+  previousConfig: CandidateAdmissionConfig;
+  previousHold: Record<string, unknown>;
+  activeConfig: CandidateAdmissionConfig;
+  activeHold: Record<string, unknown>;
+  createdAt: string;
+  journalDigest: string;
+};
+
+function activationJournalPath(env: NodeJS.ProcessEnv): string {
+  return join(getCandidateAdmissionRoot(env), "activation.pending.json");
+}
+
+function activationJournalDigest(
+  journal: Omit<CandidateAdmissionActivationJournal, "journalDigest">,
+): string {
+  return digestObject(journal);
+}
+
+export function recoverCandidateAdmissionActivation(
+  requestDigest: string,
+  env: NodeJS.ProcessEnv = process.env,
+):
+  | { status: "none" | "rolled_back" }
+  | { status: "completed"; config: CandidateAdmissionConfig; holdPath: string } {
+  const journalPath = activationJournalPath(env);
+  if (!existsSync(journalPath)) return { status: "none" };
+  const journal = readAdmissionJson<CandidateAdmissionActivationJournal>(journalPath);
+  const { journalDigest, ...unsigned } = journal;
+  const configPath = getCandidateAdmissionConfigPath(env);
+  const holdPath = getCandidateSpawnHoldPath(env);
+  if (
+    journal.schemaVersion !== 1 ||
+    journal.requestDigest !== requestDigest ||
+    journal.configPath !== configPath ||
+    journal.holdPath !== holdPath ||
+    journalDigest !== activationJournalDigest(unsigned)
+  ) {
+    throw new Error("candidate admission activation journal binding or digest mismatch");
+  }
+  assertOwnerOnlyDirectory(dirname(configPath));
+  assertOwnerOnlyDirectory(dirname(holdPath));
+  const currentConfig = readAdmissionJson<CandidateAdmissionConfig>(configPath);
+  const currentHold = readAdmissionJson<Record<string, unknown>>(holdPath);
+  const currentConfigDigest = digestObject(currentConfig);
+  const currentHoldDigest = digestObject(currentHold);
+  const previousConfigDigest = digestObject(journal.previousConfig);
+  const previousHoldDigest = digestObject(journal.previousHold);
+  const activeConfigDigest = digestObject(journal.activeConfig);
+  const activeHoldDigest = digestObject(journal.activeHold);
+
+  if (currentConfigDigest === activeConfigDigest && currentHoldDigest === activeHoldDigest) {
+    removeAdmissionJson(journalPath);
+    return { status: "completed", config: normalizeConfig(journal.activeConfig), holdPath };
+  }
+  if (
+    ![previousConfigDigest, activeConfigDigest].includes(currentConfigDigest) ||
+    ![previousHoldDigest, activeHoldDigest].includes(currentHoldDigest)
+  ) {
+    throw new Error("candidate admission activation state drifted during recovery");
+  }
+  writeAdmissionJson(configPath, journal.previousConfig);
+  writeAdmissionJson(holdPath, journal.previousHold);
+  if (
+    digestObject(readAdmissionJson(configPath)) !== previousConfigDigest ||
+    digestObject(readAdmissionJson(holdPath)) !== previousHoldDigest
+  ) {
+    throw new Error("candidate admission activation rollback verification failed");
+  }
+  removeAdmissionJson(journalPath);
+  return { status: "rolled_back" };
+}
+
+export function commitCandidateAdmissionActivation(
+  input: {
+    requestDigest: string;
+    activeConfig: CandidateAdmissionConfig;
+    activeHold: Record<string, unknown>;
+  },
+  env: NodeJS.ProcessEnv = process.env,
+): { config: CandidateAdmissionConfig; holdPath: string } {
+  const configPath = getCandidateAdmissionConfigPath(env);
+  const holdPath = getCandidateSpawnHoldPath(env);
+  const journalPath = activationJournalPath(env);
+  assertOwnerOnlyDirectory(dirname(configPath));
+  assertOwnerOnlyDirectory(dirname(holdPath));
+  if (existsSync(journalPath)) {
+    throw new Error("candidate admission activation recovery is required before commit");
+  }
+  const previousConfig = readAdmissionJson<CandidateAdmissionConfig>(configPath);
+  const previousHold = readAdmissionJson<Record<string, unknown>>(holdPath);
+  const unsigned = {
+    schemaVersion: 1 as const,
+    requestDigest: input.requestDigest,
+    configPath,
+    holdPath,
+    previousConfig,
+    previousHold,
+    activeConfig: normalizeConfig(input.activeConfig),
+    activeHold: input.activeHold,
+    createdAt: new Date().toISOString(),
+  };
+  writeAdmissionJson(journalPath, {
+    ...unsigned,
+    journalDigest: activationJournalDigest(unsigned),
+  });
+  writeAdmissionJson(configPath, unsigned.activeConfig);
+  writeAdmissionJson(holdPath, unsigned.activeHold);
+  if (
+    digestObject(readAdmissionJson(configPath)) !== digestObject(unsigned.activeConfig) ||
+    digestObject(readAdmissionJson(holdPath)) !== digestObject(unsigned.activeHold)
+  ) {
+    throw new Error("candidate admission activation commit verification failed");
+  }
+  removeAdmissionJson(journalPath);
+  return { config: unsigned.activeConfig, holdPath };
 }
 
 export function listCandidateAdmissionPermits(env: NodeJS.ProcessEnv): CandidateAdmissionPermit[] {

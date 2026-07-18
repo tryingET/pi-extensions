@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -16,6 +23,11 @@ import {
   reserveCandidateAdmission,
   writeCandidateAdmissionConfig,
 } from "../src/candidatePeerAdmission.ts";
+import {
+  commitCandidateAdmissionActivation,
+  recoverCandidateAdmissionActivation,
+  writeAdmissionJson,
+} from "../src/candidatePeerAdmissionState.ts";
 import {
   digestObject,
   getCandidateLifecycleEventsPath,
@@ -216,21 +228,133 @@ test("canary admission reserves, binds, releases, and supersedes only the spawn 
     reviewedAt: "2026-07-18T00:03:30.000Z",
   };
   writeFileSync(decisionPath, `${JSON.stringify(decisionArtifact, null, 2)}\n`, { mode: 0o600 });
-  activateCandidateAdmission(
-    {
-      decisionRef: "AK decision 60",
-      canaryAdmissionId: permit.admissionId,
-      terminalReceiptRef: receipt.path,
-      decisionArtifactPath: decisionPath,
-      decisionArtifactDigest: digestObject(decisionArtifact),
-    },
-    env,
-    "2026-07-18T00:04:00.000Z",
-  );
+  const activationInput = {
+    decisionRef: "AK decision 60",
+    canaryAdmissionId: permit.admissionId,
+    terminalReceiptRef: receipt.path,
+    decisionArtifactPath: decisionPath,
+    decisionArtifactDigest: digestObject(decisionArtifact),
+  };
+  activateCandidateAdmission(activationInput, env, "2026-07-18T00:04:00.000Z");
+  const retry = activateCandidateAdmission(activationInput, env, "2026-07-18T00:05:00.000Z");
+  assert.equal(retry.config.mode, "active");
   assert.equal(readCandidateAdmissionConfig(env).mode, "active");
   const hold = JSON.parse(readFileSync(holdPath, "utf8"));
   assert.equal(hold.status, "superseded_by_admission_v2");
   assert.equal(hold.preservedBoundary, "Historical v1 cleanup remains permanently non-executable.");
+});
+
+test("activation preflights hold ownership before mutating canary config", () => {
+  const { env, config, holdPath } = setup();
+  const beforeConfig = readCandidateAdmissionConfig(env);
+  const beforeHold = JSON.parse(readFileSync(holdPath, "utf8"));
+  chmodSync(dirname(holdPath), 0o755);
+  assert.throws(
+    () =>
+      commitCandidateAdmissionActivation(
+        {
+          requestDigest: "a".repeat(64),
+          activeConfig: { ...config, mode: "active" },
+          activeHold: { ...beforeHold, status: "superseded_by_admission_v2" },
+        },
+        env,
+      ),
+    /not owner-only/,
+  );
+  assert.deepEqual(readCandidateAdmissionConfig(env), beforeConfig);
+  assert.deepEqual(JSON.parse(readFileSync(holdPath, "utf8")), beforeHold);
+});
+
+test("activation journal rolls back a crash after only config publication", () => {
+  const { env, config, holdPath } = setup();
+  const requestDigest = "b".repeat(64);
+  const configPath = getCandidateAdmissionConfigPath(env);
+  const previousHold = JSON.parse(readFileSync(holdPath, "utf8"));
+  const activeConfig = { ...config, mode: "active" };
+  const activeHold = { ...previousHold, status: "superseded_by_admission_v2" };
+  const unsigned = {
+    schemaVersion: 1,
+    requestDigest,
+    configPath,
+    holdPath,
+    previousConfig: config,
+    previousHold,
+    activeConfig,
+    activeHold,
+    createdAt: "2026-07-18T00:04:00.000Z",
+  };
+  const journalPath = join(getCandidateAdmissionRoot(env), "activation.pending.json");
+  writeAdmissionJson(journalPath, { ...unsigned, journalDigest: digestObject(unsigned) });
+  writeAdmissionJson(configPath, activeConfig);
+
+  assert.equal(recoverCandidateAdmissionActivation(requestDigest, env).status, "rolled_back");
+  assert.equal(readCandidateAdmissionConfig(env).mode, "canary");
+  assert.deepEqual(JSON.parse(readFileSync(holdPath, "utf8")), previousHold);
+  assert.equal(existsSync(journalPath), false);
+});
+
+test("activation journal recognizes a fully published pair and rejects unexpected drift", () => {
+  const complete = setup();
+  const completeRequestDigest = "c".repeat(64);
+  const completeConfigPath = getCandidateAdmissionConfigPath(complete.env);
+  const completePreviousHold = JSON.parse(readFileSync(complete.holdPath, "utf8"));
+  const completeActiveConfig = { ...complete.config, mode: "active" };
+  const completeActiveHold = {
+    ...completePreviousHold,
+    status: "superseded_by_admission_v2",
+  };
+  const completeUnsigned = {
+    schemaVersion: 1,
+    requestDigest: completeRequestDigest,
+    configPath: completeConfigPath,
+    holdPath: complete.holdPath,
+    previousConfig: complete.config,
+    previousHold: completePreviousHold,
+    activeConfig: completeActiveConfig,
+    activeHold: completeActiveHold,
+    createdAt: "2026-07-18T00:04:00.000Z",
+  };
+  const completeJournal = join(getCandidateAdmissionRoot(complete.env), "activation.pending.json");
+  writeAdmissionJson(completeJournal, {
+    ...completeUnsigned,
+    journalDigest: digestObject(completeUnsigned),
+  });
+  writeAdmissionJson(completeConfigPath, completeActiveConfig);
+  writeAdmissionJson(complete.holdPath, completeActiveHold);
+  assert.equal(
+    recoverCandidateAdmissionActivation(completeRequestDigest, complete.env).status,
+    "completed",
+  );
+  assert.equal(existsSync(completeJournal), false);
+
+  const drift = setup();
+  const driftRequestDigest = "d".repeat(64);
+  const driftConfigPath = getCandidateAdmissionConfigPath(drift.env);
+  const driftPreviousHold = JSON.parse(readFileSync(drift.holdPath, "utf8"));
+  const driftActiveConfig = { ...drift.config, mode: "active" };
+  const driftActiveHold = { ...driftPreviousHold, status: "superseded_by_admission_v2" };
+  const driftUnsigned = {
+    schemaVersion: 1,
+    requestDigest: driftRequestDigest,
+    configPath: driftConfigPath,
+    holdPath: drift.holdPath,
+    previousConfig: drift.config,
+    previousHold: driftPreviousHold,
+    activeConfig: driftActiveConfig,
+    activeHold: driftActiveHold,
+    createdAt: "2026-07-18T00:04:00.000Z",
+  };
+  const driftJournal = join(getCandidateAdmissionRoot(drift.env), "activation.pending.json");
+  writeAdmissionJson(driftJournal, {
+    ...driftUnsigned,
+    journalDigest: digestObject(driftUnsigned),
+  });
+  writeAdmissionJson(driftConfigPath, { ...drift.config, updatedAt: "unexpected" });
+  assert.throws(
+    () => recoverCandidateAdmissionActivation(driftRequestDigest, drift.env),
+    /state drifted during recovery/,
+  );
+  assert.equal(existsSync(driftJournal), true);
 });
 
 test("reservation rejects inventory drift after owner authorization", () => {

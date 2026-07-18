@@ -237,6 +237,8 @@ Candidate creation is fail-closed behind an owner-only lifecycle-v2 admission me
 6. Active mode is lawful only after a separate accepted owner decision and successful terminal canary. Activation preserves the hold artifact with status `superseded_by_admission_v2`, the exact decision, and the admission configuration digest.
 7. Registry-v1 cleanup packets remain diagnostic and permanently non-executable. Admission activation never restores v1 cleanup authority.
 
+Activation preflights owner-only state directories and commits the active configuration plus preserved hold through a digest-bound recovery journal. A crash or write failure before both files match either recovers the exact prior canary state on retry or fails closed on unexpected drift; a retry recognizes an already-complete pair idempotently.
+
 The operator CLI is `packages/pi-little-helpers/scripts/candidate-admission-v2.mjs`; it configures, reports pressure, authorizes exact permits, releases reservations against terminal receipts, and activates the post-canary decision. It does not create peers, worktrees, refs, processes, merges, pushes, PRs, publications, or AK records.
 
 ## Rejected alternatives
