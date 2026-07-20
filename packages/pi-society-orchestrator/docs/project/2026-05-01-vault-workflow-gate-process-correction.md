@@ -57,9 +57,12 @@ Do not turn `vault_execute_template` into a generic workflow executor.
 Instead:
 
 1. keep fail-closed dispatch posture for workflow-grade templates without a bridge binding;
-2. for known package-owned workflow templates, report the exact lawful owner route;
-3. tell the agent/operator not to interpret retrieved workflow prose as execution;
-4. leave actual execution with the owner package until a specific executable bridge is designed.
+2. permit only template-specific, immutable, owner-reviewed bindings—not a generic prose executor;
+3. for known package-owned workflow templates without a binding, report the exact lawful owner route;
+4. tell the agent/operator not to interpret retrieved workflow prose as execution;
+5. leave actual execution with the owner package until a specific executable bridge is designed.
+
+The first accepted template-specific bridge is `deep-review.v1`: Prompt Vault classifies it as `workflow_execute`, prompt-plane V2 seals and authorizes the exact content, the Vault handoff is durably persisted before execution, and the orchestrator injects those sealed bytes into one explicit reviewer workflow. Completion fails closed unless ASC's private persisted effect receipt verifies as `settled` and cites that exact Vault handoff correlation. This does not create a generic workflow binding for other templates.
 
 ## UX/AX contract
 
@@ -82,10 +85,11 @@ For the current `pi-autoresearch` templates:
 
 ## Verification target
 
-A regression test should prove both cases:
+Regression tests should prove all cases:
 
 1. generic workflow template: still fails closed and says no owner route is registered;
-2. known `pi-autoresearch-setup` template: fails closed but reports the lawful owner route and process-loop wording.
+2. known `pi-autoresearch-setup` template: fails closed but reports the lawful owner route and process-loop wording;
+3. `deep-review` executes only through its exact immutable workflow binding, sealed Vault bytes, durable handoff identity, and correlated executor result.
 
 ## Non-goals
 

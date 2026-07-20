@@ -128,6 +128,7 @@ import {
   formatTsQualityReleaseWorkflowResult,
   TsQualityReleaseWorkflowRunner,
 } from "../src/runtime/ts-quality-release-workflow.ts";
+import { materializeVaultWorkflowBinding } from "../src/runtime/vault-workflow-binding.ts";
 import { validateWorkflowRequest, WORKFLOW_AGENT_NAMES } from "../src/runtime/workflow.ts";
 import {
   createWorkflowExecutor,
@@ -4558,9 +4559,74 @@ and failureKind truth, and produces a structured aggregated output with workflow
   // LOOP ENGINE REGISTRATION
   // ===========================================================================
 
-  // Register loop tools (loop_execute)
-  registerLoopTools(pi, undefined, resolveVaultDir(), (agent, ctx) =>
-    resolveAgentForTeam(agent, sessionTeams.getTeam(ctx)),
+  // Register loop tools and exact Prompt Vault workflow bindings.
+  registerLoopTools(
+    pi,
+    undefined,
+    resolveVaultDir(),
+    (agent, ctx) => resolveAgentForTeam(agent, sessionTeams.getTeam(ctx)),
+    {
+      async executeVaultWorkflow(request) {
+        const materialized = materializeVaultWorkflowBinding(
+          request.templateName,
+          request.executionArgs,
+          request.objective,
+        );
+        if (!materialized.ok) {
+          return {
+            accepted: false,
+            handoffId: request.handoffId,
+            status: "error",
+            details: { error: materialized.error },
+          };
+        }
+
+        const workflowExecutor = workflowExecutorFactory({
+          sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "workflows"),
+        });
+        const model = request.ctx.model
+          ? `${request.ctx.model.provider}/${request.ctx.model.id}`
+          : "openrouter/google/gemini-2.5-flash-preview";
+
+        try {
+          const result = await workflowExecutor.execute({
+            request: materialized.request,
+            activeTeam: sessionTeams.getTeam(request.ctx),
+            model,
+            cwd: request.cwd,
+            cognitiveToolContent: request.sealedText,
+            cognitiveToolName: request.templateName,
+            contextHeading: "GOVERNED PROMPT VAULT WORKFLOW",
+            contextBody: `Vault handoff: ${request.handoffId}\nAuthorization: ${request.authorizationId}`,
+            promptName: request.templateName,
+            promptContent: request.sealedText,
+            promptTags: ["prompt-vault", "governed-workflow", materialized.workflowId],
+            promptSource: "prompt-vault",
+            effectCorrelationId: request.handoffId,
+            signal: request.signal,
+          });
+          return {
+            accepted: result.status === "done",
+            handoffId: request.handoffId,
+            runId: result.runId,
+            status: result.status,
+            output: result.aggregatedOutput,
+            details: {
+              workflowId: materialized.workflowId,
+              stepCount: result.steps.length,
+              stepStatuses: result.steps.map((step) => step.status),
+            },
+          };
+        } catch (error) {
+          return {
+            accepted: false,
+            handoffId: request.handoffId,
+            status: "error",
+            details: { error: error instanceof Error ? error.message : String(error) },
+          };
+        }
+      },
+    },
   );
 
   // Register loop commands (/loop, /loops)

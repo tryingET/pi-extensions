@@ -63,6 +63,80 @@ function cleanupRepo(repoDir) {
   }
 }
 
+test("workflow effect correlation requires an exact settled ASC receipt", async () => {
+  const sessionsDir = fs.mkdtempSync(path.join(os.tmpdir(), "workflow-effect-receipt-"));
+  let receiptMode = "missing";
+  let attempt = 0;
+  const executor = createWorkflowExecutor({
+    sessionsDir,
+    executor: {
+      state: {},
+      async execute(params) {
+        attempt += 1;
+        const result = createFakeDispatchResult({ status: "done", output: "review complete" });
+        const attemptId = `attempt-${attempt}`;
+        const sessionName = "workflow-reviewer";
+        const consumerCorrelationId =
+          receiptMode === "wrong-correlation" ? "wrong-handoff" : params.effectCorrelationId;
+        Object.assign(result.details, {
+          dispatchId: `dispatch-${attempt}`,
+          attemptId,
+          sessionName,
+          effectCorrelationId: consumerCorrelationId,
+        });
+        if (receiptMode !== "missing") {
+          const receiptPath = path.join(
+            sessionsDir,
+            `${sessionName}.${attemptId}.effect-receipt.json`,
+          );
+          const receipt = {
+            schema: "asc.dispatch_effect_receipt.v1",
+            dispatchId: result.details.dispatchId,
+            attemptId,
+            sessionName,
+            consumerCorrelationId,
+            disposition: "settled",
+            receiptPath,
+            recordedAt: new Date().toISOString(),
+          };
+          fs.writeFileSync(receiptPath, JSON.stringify(receipt), { mode: 0o600 });
+          result.details.effectReceipt = receipt;
+        }
+        return result;
+      },
+    },
+  });
+  const execute = () =>
+    executor.execute({
+      activeTeam: "full",
+      model: "mock/model",
+      cwd: "/repo",
+      cognitiveToolContent: "SEALED DEEP REVIEW",
+      effectCorrelationId: "vault-handoff-1",
+      request: {
+        mode: "chain",
+        steps: [{ kind: "step", agent: "reviewer", objective: "Review the change" }],
+      },
+    });
+
+  try {
+    const missing = await execute();
+    assert.equal(missing.status, "error");
+    assert.match(missing.steps[0].displayOutput, /effect receipt did not verify/);
+
+    receiptMode = "wrong-correlation";
+    const wrongCorrelation = await execute();
+    assert.equal(wrongCorrelation.status, "error");
+
+    receiptMode = "exact";
+    const exact = await execute();
+    assert.equal(exact.status, "done");
+    assert.equal(exact.steps[0].status, "done");
+  } finally {
+    fs.rmSync(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("workflow executor runs chain steps through the ASC-backed subagent executor and preserves step truth", async () => {
   const calls = [];
   const executor = createWorkflowExecutor({

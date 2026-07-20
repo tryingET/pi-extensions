@@ -21,6 +21,8 @@ import {
 import {
   DEFAULT_VISIBLE_LOOP_PROMPTS,
   expandVisibleLoopPromptTemplate,
+  GOVERNED_DEEP_REVIEW_OBJECTIVE,
+  GOVERNED_DEEP_REVIEW_PROMPT,
   renderVisibleLoopCommitDelegationPrompt,
   renderVisibleLoopCompletionPrompt,
   type VisibleLoopPromptExpansion,
@@ -65,6 +67,8 @@ export {
   DEFAULT_NEXUS_LOOP_PROMPTS,
   DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   DEFAULT_VISIBLE_LOOP_PROMPTS,
+  GOVERNED_DEEP_REVIEW_OBJECTIVE,
+  GOVERNED_DEEP_REVIEW_PROMPT,
   listMissingVisibleLoopPromptTemplates,
   type VisibleLoopPromptExpansion,
 } from "./visibleLoopPromptTemplates.ts";
@@ -268,6 +272,13 @@ export async function startVisibleLoopChildRunner(
     intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
     stopped: false,
     followupsQueuedForIteration: null,
+    currentPromptIndex: 0,
+    completionPromptQueued: false,
+    pendingDeliveryPrompt: null,
+    currentPromptObserved: false,
+    currentPromptAgentStarted: false,
+    governedDeepReviewToolCallId: null,
+    governedDeepReviewSucceededIteration: null,
     continueInNewSession: runnerOptions.continueInNewSession,
   };
   appendVisibleLoopStatus(
@@ -302,20 +313,160 @@ export async function startVisibleLoopChildRunner(
   queueVisibleLoopIteration(state, ctx, env);
 }
 
+export function handleVisibleLoopMessageStart(
+  event: { message?: unknown },
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const state = activeVisibleLoop;
+  if (!state || state.stopped || !state.pendingDeliveryPrompt) return;
+  const message = event.message;
+  if (!message || typeof message !== "object" || Array.isArray(message)) return;
+  const record = message as Record<string, unknown>;
+  if (record.role !== "user") return;
+  const content = record.content;
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .filter((item): item is { type: "text"; text: string } =>
+              Boolean(
+                item &&
+                  typeof item === "object" &&
+                  !Array.isArray(item) &&
+                  (item as Record<string, unknown>).type === "text" &&
+                  typeof (item as Record<string, unknown>).text === "string",
+              ),
+            )
+            .map((item) => item.text)
+            .join("\n")
+        : undefined;
+  if (text !== state.pendingDeliveryPrompt) return;
+
+  state.pendingDeliveryPrompt = null;
+  state.currentPromptObserved = true;
+  // Pi emits agent_start before the first user message_start for the run. Observing the
+  // exact queued user text supplies the correlation that the earlier event lacks.
+  state.currentPromptAgentStarted = true;
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "prompt_delivery_observed",
+      iteration: state.completedIterations + 1,
+      promptIndex: state.completionPromptQueued
+        ? getVisibleLoopPrompts(state.config).length + 1
+        : state.currentPromptIndex + 1,
+    },
+    env,
+  );
+  persistActiveVisibleLoopState(state, ctx, env);
+}
+
 export function handleVisibleLoopAgentStart(
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
   runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
+  // Follow-ups are deliberately delivered one-at-a-time from agent_settled. A settled
+  // event may advance only after the queued prompt has caused a new agent run to start.
   const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
-  if (!state || state.stopped || state.followupsQueuedForIteration === state.completedIterations) {
+  if (!state || state.stopped || !state.currentPromptObserved) return;
+  state.currentPromptAgentStarted = true;
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "prompt_agent_started",
+      iteration: state.completedIterations + 1,
+      promptIndex: state.currentPromptIndex + 1,
+    },
+    env,
+  );
+  persistActiveVisibleLoopState(state, ctx, env);
+}
+
+export function handleVisibleLoopToolExecutionStart(
+  event: { toolCallId?: string; toolName?: string; args?: unknown },
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const state = activeVisibleLoop;
+  if (!state || state.stopped || event.toolName !== "vault_execute_template") return;
+  const prompts = getVisibleLoopPrompts(state.config);
+  if (!isGovernedDeepReviewPrompt(state.config, prompts[state.currentPromptIndex])) return;
+  const args = event.args;
+  if (!args || typeof args !== "object" || Array.isArray(args)) return;
+  const record = args as Record<string, unknown>;
+  if (
+    typeof event.toolCallId !== "string" ||
+    !event.toolCallId.trim() ||
+    record.template_name !== "deep-review" ||
+    record.objective !== GOVERNED_DEEP_REVIEW_OBJECTIVE
+  ) {
     return;
   }
-
-  state.followupsQueuedForIteration = state.completedIterations;
+  state.governedDeepReviewToolCallId = event.toolCallId;
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "governed_deep_review_tool_started",
+      iteration: state.completedIterations + 1,
+      promptIndex: state.currentPromptIndex + 1,
+      toolCallId: event.toolCallId,
+    },
+    env,
+  );
   persistActiveVisibleLoopState(state, ctx, env);
-  queueVisibleLoopFollowups(state, ctx, env);
+}
+
+export function handleVisibleLoopToolExecutionEnd(
+  event: {
+    toolCallId?: string;
+    toolName?: string;
+    result?: { details?: unknown };
+    isError?: boolean;
+  },
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const state = activeVisibleLoop;
+  if (!state || state.stopped || event.toolName !== "vault_execute_template") return;
+  const prompts = getVisibleLoopPrompts(state.config);
+  if (!isGovernedDeepReviewPrompt(state.config, prompts[state.currentPromptIndex])) return;
+  if (
+    typeof event.toolCallId !== "string" ||
+    event.toolCallId !== state.governedDeepReviewToolCallId
+  ) {
+    return;
+  }
+  state.governedDeepReviewToolCallId = null;
+  const details = event.result?.details;
+  if (!details || typeof details !== "object" || Array.isArray(details)) return;
+  const record = details as Record<string, unknown>;
+  if (
+    event.isError !== true &&
+    record.ok === true &&
+    record.templateName === "deep-review" &&
+    record.executionSurface === "workflow_execute" &&
+    typeof record.handoffId === "string" &&
+    record.handoffId.trim() &&
+    record.status === "done"
+  ) {
+    state.governedDeepReviewSucceededIteration = state.completedIterations + 1;
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "governed_deep_review_succeeded",
+        iteration: state.completedIterations + 1,
+        promptIndex: state.currentPromptIndex + 1,
+        handoffId: record.handoffId,
+        runId: record.runId ?? null,
+      },
+      env,
+    );
+    persistActiveVisibleLoopState(state, ctx, env);
+  }
 }
 
 export function handleVisibleLoopAgentSettled(
@@ -326,7 +477,21 @@ export function handleVisibleLoopAgentSettled(
 ): void {
   const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
   if (!state || state.stopped) return;
+  if (!state.currentPromptAgentStarted) {
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "agent_settled_ignored",
+        reason: "queued prompt has not started an agent run",
+        iteration: state.completedIterations + 1,
+        promptIndex: state.currentPromptIndex + 1,
+      },
+      env,
+    );
+    return;
+  }
 
+  state.currentPromptAgentStarted = false;
   state.completedPromptCount += 1;
   appendVisibleLoopStatus(
     state.config,
@@ -336,11 +501,107 @@ export function handleVisibleLoopAgentSettled(
       pendingMessages: Boolean(ctx.hasPendingMessages?.()),
       completedPromptCount: state.completedPromptCount,
       completedIterations: state.completedIterations,
-      completionMode: "explicit_completion_prompt",
+      currentPromptIndex: state.currentPromptIndex + 1,
+      completionMode: "sequential_explicit_completion_prompt",
     },
     env,
   );
+
+  const prompts = getVisibleLoopPrompts(state.config);
+  const iteration = state.completedIterations + 1;
+  const completedPrompt = prompts[state.currentPromptIndex];
+  if (
+    isGovernedDeepReviewPrompt(state.config, completedPrompt) &&
+    state.governedDeepReviewSucceededIteration !== iteration
+  ) {
+    state.stopped = true;
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "governed_deep_review_failed_closed",
+        iteration,
+        promptIndex: state.currentPromptIndex + 1,
+        reason: "missing successful vault_execute_template workflow receipt",
+      },
+      env,
+    );
+    persistActiveVisibleLoopState(state, ctx, env);
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(state.config)} stopped: governed deep-review did not complete successfully`,
+      "error",
+    );
+    return;
+  }
+
+  if (state.currentPromptIndex + 1 < prompts.length) {
+    queueVisibleLoopPromptAtIndex(state, ctx, state.currentPromptIndex + 1, env);
+    return;
+  }
+
+  if (visibleLoopDelegatesCompletion(state.config, prompts.slice(1))) {
+    appendVisibleLoopStatus(
+      state.config,
+      { event: "delegated_completion_awaited", iteration },
+      env,
+    );
+    persistActiveVisibleLoopState(state, ctx, env);
+    return;
+  }
+
+  if (!state.completionPromptQueued) {
+    state.completionPromptQueued = true;
+    state.currentPromptObserved = false;
+    state.currentPromptAgentStarted = false;
+    const completionPrompt = renderVisibleLoopCompletionPrompt({
+      configPath: state.configPath,
+      iteration,
+      promptCount: prompts.length,
+      productPosturePath: state.config.productPostureTarget?.productPosturePath,
+      productPostureExists: state.config.productPostureTarget?.productPostureExists,
+      visionPath: state.config.productPostureTarget?.visionPath,
+      visionExists: state.config.productPostureTarget?.visionExists,
+      selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
+    });
+    state.pendingDeliveryPrompt = completionPrompt;
+    appendVisibleLoopStatus(
+      state.config,
+      { event: "completion_prompt_queued", iteration, promptIndex: prompts.length + 1 },
+      env,
+    );
+    try {
+      state.sendUserMessage(completionPrompt);
+    } catch (error) {
+      state.stopped = true;
+      appendVisibleLoopStatus(
+        state.config,
+        {
+          event: "prompt_delivery_failed_closed",
+          iteration,
+          promptIndex: prompts.length + 1,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        env,
+      );
+      persistActiveVisibleLoopState(state, ctx, env);
+      ctx.ui?.notify?.(
+        `${getVisibleLoopHumanLabel(state.config)} stopped: completion prompt delivery failed`,
+        "error",
+      );
+    }
+    return;
+  }
+
+  state.stopped = true;
+  appendVisibleLoopStatus(
+    state.config,
+    { event: "completion_checkpoint_failed_closed", iteration },
+    env,
+  );
   persistActiveVisibleLoopState(state, ctx, env);
+  ctx.ui?.notify?.(
+    `${getVisibleLoopHumanLabel(state.config)} stopped: completion checkpoint settled without acceptance`,
+    "error",
+  );
 }
 
 interface ActiveVisibleLoopState {
@@ -355,6 +616,13 @@ interface ActiveVisibleLoopState {
   intercomSendTimeoutMs: number;
   stopped: boolean;
   followupsQueuedForIteration: number | null;
+  currentPromptIndex: number;
+  completionPromptQueued: boolean;
+  pendingDeliveryPrompt: string | null;
+  currentPromptObserved: boolean;
+  currentPromptAgentStarted: boolean;
+  governedDeepReviewToolCallId: string | null;
+  governedDeepReviewSucceededIteration: number | null;
   continueInNewSession?: ContinueVisibleLoopInNewSession;
 }
 
@@ -367,6 +635,9 @@ interface PersistedActiveVisibleLoopState {
   completedPromptCount: number;
   completedIterations: number;
   followupsQueuedForIteration: number | null;
+  currentPromptIndex?: number;
+  completionPromptQueued?: boolean;
+  governedDeepReviewSucceededIteration?: number | null;
   stopped: boolean;
 }
 
@@ -402,6 +673,9 @@ function persistActiveVisibleLoopState(
       completedPromptCount: state.completedPromptCount,
       completedIterations: state.completedIterations,
       followupsQueuedForIteration: state.followupsQueuedForIteration,
+      currentPromptIndex: state.currentPromptIndex,
+      completionPromptQueued: state.completionPromptQueued,
+      governedDeepReviewSucceededIteration: state.governedDeepReviewSucceededIteration,
       stopped: state.stopped,
     };
     writeFileSync(path, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
@@ -455,6 +729,19 @@ function restoreActiveVisibleLoopState(
         typeof persisted.followupsQueuedForIteration === "number"
           ? persisted.followupsQueuedForIteration
           : null,
+      currentPromptIndex: Number.isInteger(persisted.currentPromptIndex)
+        ? Number(persisted.currentPromptIndex)
+        : 0,
+      completionPromptQueued: Boolean(persisted.completionPromptQueued),
+      pendingDeliveryPrompt: null,
+      currentPromptObserved: false,
+      currentPromptAgentStarted: false,
+      governedDeepReviewToolCallId: null,
+      governedDeepReviewSucceededIteration: Number.isInteger(
+        persisted.governedDeepReviewSucceededIteration,
+      )
+        ? Number(persisted.governedDeepReviewSucceededIteration)
+        : null,
       continueInNewSession: runnerOptions.continueInNewSession,
     };
     activeVisibleLoop = state;
@@ -517,113 +804,84 @@ function queueVisibleLoopIteration(
     env,
   );
   state.followupsQueuedForIteration = null;
-  persistActiveVisibleLoopState(state, ctx, env);
-  appendVisibleLoopStatus(
-    state.config,
-    {
-      event: "initial_prompt_queued",
-      iteration,
-      promptIndex: 1,
-      promptCount: prompts.length,
-    },
-    env,
-  );
-  const initialPrompt = expandVisibleLoopPromptTemplate(prompts[0], state.config.cwd);
-  if (!initialPrompt.ok) {
-    stopVisibleLoopForPromptExpansionFailure(state, ctx, initialPrompt, iteration, 1, env);
-    return;
-  }
-  state.sendUserMessage(initialPrompt.prompt);
-  const queuedCompletedIterations = state.completedIterations;
-  setTimeout(() => {
-    if (
-      activeVisibleLoop === state &&
-      !state.stopped &&
-      state.completedIterations === queuedCompletedIterations &&
-      state.followupsQueuedForIteration !== queuedCompletedIterations
-    ) {
-      state.followupsQueuedForIteration = queuedCompletedIterations;
-      persistActiveVisibleLoopState(state, ctx, env);
-      queueVisibleLoopFollowups(state, ctx, env);
-    }
-  }, 1000);
+  state.currentPromptIndex = 0;
+  state.completionPromptQueued = false;
+  state.pendingDeliveryPrompt = null;
+  state.currentPromptObserved = false;
+  state.currentPromptAgentStarted = false;
+  state.governedDeepReviewToolCallId = null;
+  state.governedDeepReviewSucceededIteration = null;
+  queueVisibleLoopPromptAtIndex(state, ctx, 0, env);
 }
 
-function queueVisibleLoopFollowups(
+function queueVisibleLoopPromptAtIndex(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext | undefined,
+  promptIndex: number,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
+  if (activeVisibleLoop !== state || state.stopped) return;
   const prompts = getVisibleLoopPrompts(state.config);
+  const prompt = prompts[promptIndex];
+  if (prompt === undefined) return;
   const iteration = state.completedIterations + 1;
-  const realFollowups = prompts.slice(1);
-  const completionPrompt = renderVisibleLoopCompletionPrompt({
-    configPath: state.configPath,
+  const expandedPrompt = expandVisibleLoopPromptTemplate(prompt, state.config.cwd);
+  if (!expandedPrompt.ok) {
+    stopVisibleLoopForPromptExpansionFailure(
+      state,
+      ctx,
+      expandedPrompt,
+      iteration,
+      promptIndex + 1,
+      env,
+    );
+    return;
+  }
+  const deliveryPrompt = maybeRenderDelegatedVisibleLoopPrompt(
+    state,
+    ctx,
+    expandedPrompt,
     iteration,
-    promptCount: prompts.length,
-    productPosturePath: state.config.productPostureTarget?.productPosturePath,
-    productPostureExists: state.config.productPostureTarget?.productPostureExists,
-    visionPath: state.config.productPostureTarget?.visionPath,
-    visionExists: state.config.productPostureTarget?.visionExists,
-    selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
-  });
-  const delegatesCompletion = visibleLoopDelegatesCompletion(state.config, realFollowups);
-  const followups = delegatesCompletion ? [...realFollowups] : [...realFollowups, completionPrompt];
+    promptIndex + 1,
+    env,
+  );
+  if (!deliveryPrompt) return;
+  state.currentPromptIndex = promptIndex;
+  state.pendingDeliveryPrompt = deliveryPrompt;
+  state.currentPromptObserved = false;
+  state.currentPromptAgentStarted = false;
+  state.governedDeepReviewToolCallId = null;
   appendVisibleLoopStatus(
     state.config,
     {
-      event: "followups_queued",
+      event: promptIndex === 0 ? "initial_prompt_queued" : "followup_prompt_queued",
       iteration,
-      promptFollowupCount: realFollowups.length,
-      completionPromptQueued: !delegatesCompletion,
-      delegatedCompletion: delegatesCompletion,
-      completionCommand: true,
+      promptIndex: promptIndex + 1,
+      promptCount: prompts.length,
+      deliveryMode: "sequential_after_agent_settled",
     },
     env,
   );
-
-  followups.forEach((prompt, index) => {
-    setTimeout(() => {
-      if (activeVisibleLoop !== state || state.stopped) return;
-      const isCompletionPrompt = index >= realFollowups.length;
-      appendVisibleLoopStatus(
-        state.config,
-        {
-          event: isCompletionPrompt ? "completion_prompt_queued" : "followup_prompt_queued",
-          iteration,
-          promptIndex: isCompletionPrompt ? prompts.length + 1 : index + 2,
-          promptCount: prompts.length,
-        },
-        env,
-      );
-      if (isCompletionPrompt) {
-        state.sendUserMessage(prompt, { deliverAs: "followUp" });
-        return;
-      }
-      const expandedPrompt = expandVisibleLoopPromptTemplate(prompt, state.config.cwd);
-      if (!expandedPrompt.ok) {
-        stopVisibleLoopForPromptExpansionFailure(
-          state,
-          ctx,
-          expandedPrompt,
-          iteration,
-          index + 2,
-          env,
-        );
-        return;
-      }
-      const deliveryPrompt = maybeRenderDelegatedVisibleLoopPrompt(
-        state,
-        ctx,
-        expandedPrompt,
+  try {
+    state.sendUserMessage(deliveryPrompt);
+  } catch (error) {
+    state.stopped = true;
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "prompt_delivery_failed_closed",
         iteration,
-        index + 2,
-        env,
-      );
-      if (!deliveryPrompt) return;
-      state.sendUserMessage(deliveryPrompt, { deliverAs: "followUp" });
-    }, 150 * index);
-  });
+        promptIndex: promptIndex + 1,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      env,
+    );
+    if (ctx) persistActiveVisibleLoopState(state, ctx, env);
+    ctx?.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(state.config)} stopped: queued prompt delivery failed`,
+      "error",
+    );
+  }
 }
 
 function visibleLoopDelegatesCompletion(
@@ -735,6 +993,46 @@ function completeVisibleLoopIteration(
         expectedIteration,
         nextIteration,
         completedIterations: state.completedIterations,
+      },
+      env,
+    );
+    return { accepted: false, reason };
+  }
+
+  const prompts = getVisibleLoopPrompts(state.config);
+  const hasGovernedDeepReview = prompts.some((prompt) =>
+    isGovernedDeepReviewPrompt(state.config, prompt),
+  );
+  if (hasGovernedDeepReview && state.governedDeepReviewSucceededIteration !== nextIteration) {
+    const reason = "governed deep-review workflow receipt is missing";
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "completion_ignored",
+        source,
+        reason,
+        expectedIteration: expectedIteration ?? null,
+        nextIteration,
+      },
+      env,
+    );
+    return { accepted: false, reason };
+  }
+
+  if (hasGovernedDeepReview && !hasReachedVisibleLoopCompletionCheckpoint(state, prompts)) {
+    const reason =
+      "governed visible-loop prompt sequence has not reached its completion checkpoint";
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "completion_ignored",
+        source,
+        reason,
+        expectedIteration: expectedIteration ?? null,
+        nextIteration,
+        currentPromptIndex: state.currentPromptIndex + 1,
+        promptCount: prompts.length,
+        completionPromptQueued: state.completionPromptQueued,
       },
       env,
     );
@@ -868,6 +1166,35 @@ function getVisibleLoopPrompts(config: VisibleLoopRunConfig): string[] {
   return config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
 }
 
+function isGovernedDeepReviewPrompt(
+  config: VisibleLoopRunConfig,
+  prompt: string | undefined,
+): boolean {
+  if (!prompt) return false;
+  const normalized = prompt.trim();
+  if (normalized === GOVERNED_DEEP_REVIEW_PROMPT) return true;
+  if (!config.selfEvolutionEnvelope) return false;
+  return (
+    normalized ===
+    `${renderSelfEvolutionExecutionMembrane(config.selfEvolutionEnvelope)}\n\n${GOVERNED_DEEP_REVIEW_PROMPT}`
+  );
+}
+
+function hasReachedVisibleLoopCompletionCheckpoint(
+  state: ActiveVisibleLoopState,
+  prompts: string[],
+): boolean {
+  if (
+    prompts.length === 0 ||
+    state.currentPromptIndex !== prompts.length - 1 ||
+    !state.currentPromptAgentStarted
+  ) {
+    return false;
+  }
+  if (visibleLoopDelegatesCompletion(state.config, prompts.slice(1))) return true;
+  return state.completionPromptQueued;
+}
+
 function recreateActiveVisibleLoopState(
   config: VisibleLoopRunConfig,
   configPath: string,
@@ -889,6 +1216,13 @@ function recreateActiveVisibleLoopState(
     intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
     stopped: false,
     followupsQueuedForIteration: null,
+    currentPromptIndex: 0,
+    completionPromptQueued: false,
+    pendingDeliveryPrompt: null,
+    currentPromptObserved: false,
+    currentPromptAgentStarted: false,
+    governedDeepReviewToolCallId: null,
+    governedDeepReviewSucceededIteration: null,
     createPeerRuntime: runnerOptions.createPeerRuntime,
     continueInNewSession: runnerOptions.continueInNewSession,
   };

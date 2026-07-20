@@ -57,6 +57,7 @@ export interface WorkflowWorktreeSummary {
 }
 
 export interface WorkflowResult {
+  runId?: string;
   mode: WorkflowMode;
   status: WorkflowStatus;
   steps: WorkflowStepResult[];

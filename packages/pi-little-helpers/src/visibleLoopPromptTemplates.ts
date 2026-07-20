@@ -40,6 +40,9 @@ export const DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT = [
   "Keep the main work focus on the bounded implementation and its direct proof.",
 ].join("\n");
 
+export const GOVERNED_DEEP_REVIEW_OBJECTIVE =
+  "Perform the full governed adversarial deep review of the current implementation and repository state. Return ranked, evidence-backed findings for the next bounded Nexus fixup.";
+
 export const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Update the owning product-posture.md before loop completion.",
   "",
@@ -61,8 +64,20 @@ export const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Do not commit yet.",
 ].join("\n");
 
+export const GOVERNED_DEEP_REVIEW_PROMPT = [
+  "Governed deep-review execution step.",
+  "",
+  "Call `vault_execute_template` exactly once with:",
+  '- `template_name`: `"deep-review"`',
+  `- \`objective\`: \`"${GOVERNED_DEEP_REVIEW_OBJECTIVE}"\``,
+  "",
+  "The tool must execute the Prompt Vault template through its verified workflow binding and return `details.ok=true`, `executionSurface=workflow_execute`, an exact Vault `handoffId`, and `status=done`.",
+  "Do not use `vault_retrieve` content or a local `deep-review.md` file as execution.",
+  "If the tool is unavailable, blocked, fails, times out, or returns any other status, report the blocker and stop. Do not proceed to Nexus fixup, posture refresh, commit, or loop completion.",
+].join("\n");
+
 export const DEFAULT_NEXUS_LOOP_PROMPTS = [
-  "/deep-review",
+  GOVERNED_DEEP_REVIEW_PROMPT,
   [
     "proceed with nexus implementation until completion and verification",
     "",
@@ -152,7 +167,7 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
   "proceed",
   "proceed",
   "proceed",
-  "/deep-review",
+  GOVERNED_DEEP_REVIEW_PROMPT,
   [
     "proceed with nexus implementation until completion and verification",
     "",

@@ -60,7 +60,7 @@ describe("classifyDispatchPosture", () => {
     });
     assert.equal(result.posture, "missing_execution_binding_fail_closed");
     assert.equal(result.binding, null);
-    assert.ok(result.reason.includes("no known execution binding"));
+    assert.ok(result.reason.includes("no verified loop_execute binding"));
     assert.ok(result.reason.includes("fail closed"));
   });
 
@@ -83,6 +83,23 @@ describe("classifyDispatchPosture", () => {
       formalization_level: "workflow",
     });
     assert.equal(result.posture, "orchestrator_workflow_gate_required");
+  });
+
+  it("classifies deep-review with its verified workflow_execute binding", () => {
+    const result = classifyDispatchPosture({
+      name: "deep-review",
+      control_mode: "one_shot",
+      formalization_level: "workflow",
+    });
+    assert.equal(result.posture, "orchestrator_workflow_gate_required");
+    assert.equal(result.binding.execution_surface, "workflow_execute");
+    assert.equal(result.binding.execution_args.workflow_id, "deep-review.v1");
+    assert.deepEqual(result.binding.execution_args.request, {
+      mode: "chain",
+      steps: [{ kind: "step", agent: "reviewer", objective: "$OBJECTIVE" }],
+    });
+    assert.match(result.reason, /verified workflow_execute binding/);
+    assert.match(result.reason, /raw text execution is not lawful/);
   });
 
   it("classifies plain one_shot/structured as text_ok", () => {
@@ -284,10 +301,11 @@ describe("formatProjectionFreshness", () => {
 // ---------------------------------------------------------------------------
 
 describe("known loop template bindings completeness", () => {
-  it("transcendent-iteration and ooda both have bindings", () => {
+  it("known loop and workflow templates have bindings", () => {
     const bindings = getKnownLoopBindings();
     assert.ok(bindings["transcendent-iteration"], "transcendent-iteration must have a binding");
-    assert.ok(bindings["ooda"], "ooda must have a binding");
+    assert.ok(bindings.ooda, "ooda must have a binding");
+    assert.ok(bindings["deep-review"], "deep-review must have a binding");
 
     for (const [name, binding] of Object.entries(bindings)) {
       assert.equal(binding.execution_required, true, `${name} must have execution_required=true`);

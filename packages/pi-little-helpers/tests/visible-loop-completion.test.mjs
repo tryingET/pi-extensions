@@ -6,6 +6,7 @@ import test from "node:test";
 import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {
   createVisibleLoopRunConfig,
+  GOVERNED_DEEP_REVIEW_OBJECTIVE,
   startVisibleLoopChildCompleteRunner,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
@@ -13,9 +14,54 @@ import {
   createContext,
   createExecStub,
   extractPiArgs,
+  observeLatestVisibleLoopMessage,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
+
+async function settleVisibleLoopPromptSequence(events, config, userMessages, ctx) {
+  const agentStart = events.get("agent_start")[0];
+  const settled = events.get("agent_settled")[0];
+  const toolExecutionStart = events.get("tool_execution_start")[0];
+  const toolExecutionEnd = events.get("tool_execution_end")[0];
+  for (const prompt of config.prompts) {
+    await observeLatestVisibleLoopMessage(events, userMessages, ctx);
+    await agentStart({}, ctx);
+    if (prompt.includes("Governed deep-review execution step.")) {
+      await toolExecutionStart(
+        {
+          toolCallId: "vault-completion-test",
+          toolName: "vault_execute_template",
+          args: {
+            template_name: "deep-review",
+            objective: GOVERNED_DEEP_REVIEW_OBJECTIVE,
+          },
+        },
+        ctx,
+      );
+      await toolExecutionEnd(
+        {
+          toolCallId: "vault-completion-test",
+          toolName: "vault_execute_template",
+          isError: false,
+          result: {
+            details: {
+              ok: true,
+              templateName: "deep-review",
+              executionSurface: "workflow_execute",
+              handoffId: "handoff-completion-test",
+              status: "done",
+            },
+          },
+        },
+        ctx,
+      );
+    }
+    await settled({}, ctx);
+  }
+  await observeLatestVisibleLoopMessage(events, userMessages, ctx);
+  await agentStart({}, ctx);
+}
 
 test("visible-loop manual completion command advances non-final iterations", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-command-next-state-`);
@@ -43,7 +89,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, userMessages } = registerExtension(extension);
+    const { commands, events, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
     await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
@@ -62,10 +108,12 @@ test("visible-loop manual completion command advances non-final iterations", asy
     assert.match(config.prompts.at(-3), /Prompt Vault/);
     assert.match(config.prompts.at(-2), /product-posture\.md/);
     assert.equal(config.prompts.at(-1), "/commit");
+    await settleVisibleLoopPromptSequence(events, config, userMessages, harness.ctx);
+    assert.match(userMessages.at(-1).message, /Visible-loop internal completion checkpoint/);
     await commands.get("visible-loop-child-complete").handler("", harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 360));
 
-    assert.equal(userMessages.length, 1);
+    assert.equal(userMessages.length, config.prompts.length + 1);
     const visibleLoopLaunches = execStub.calls.filter(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -121,7 +169,7 @@ test("visible-loop manual completion command finalizes", async () => {
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, tools, userMessages } = registerExtension(extension);
+    const { commands, events, tools, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
     await commands.get("visible-loop").handler("--count 1 --manual", harness.ctx);
@@ -143,6 +191,8 @@ test("visible-loop manual completion command finalizes", async () => {
     assert.doesNotMatch(config.prompts.at(-1), /visible_loop_child_complete/);
     assert.equal(commands.has("visible-loop-child-complete"), true);
     assert.equal(tools.has("visible_loop_child_complete"), false);
+    await settleVisibleLoopPromptSequence(events, config, userMessages, harness.ctx);
+    assert.match(userMessages.at(-1).message, /Visible-loop internal completion checkpoint/);
     await commands.get("visible-loop-child-complete").handler("", harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 80));
 

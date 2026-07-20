@@ -80,6 +80,7 @@ The package currently owns:
 - `autoresearch_self_hosting_supervision` for exact self-hosting artifact observation and evidence-only projection;
 - owner-routed `autoresearch_learning_kes_adapter` for KES diary/learning-candidate materialization from `pi-autoresearch` learning packets;
 - workflow/loop surfaces over the public ASC seam, specifically cognitive/control-plane loops rather than visible Ghostty child-session loops;
+- exact governed `deep-review.v1` execution through `vault_execute_template`: immutable Prompt Vault binding, prompt-plane V2 sealed bytes, durable Vault handoff, one explicit reviewer workflow, and ASC effect correlation; all other unbound workflow-grade templates remain process gates;
 - package-owned KES materialization for loop outputs;
 - read-only runtime/status, AK close-frame, and boundary-inspection UX.
 
@@ -109,6 +110,7 @@ Above-seam recommendations are trustworthy only when:
 5. **Projection** — evidence/KES writes are deduped, scoped, and routed through the owning surface.
 6. **Boundary report** — output says what was not done: no promotion, merge, pre-closeout worktree cleanup, AK direction mutation, or hidden peer launch.
 7. **Cleanup readiness** — post-integration cleanup dry-runs require exact peer run ids backed by valid candidate-peer registry sidecars, and executable cleanup/fallback commands require exact peer run ids/worktrees/branches from registry/controller-verified sidecars plus successful integration closeout.
+8. **Vault workflow identity** — a bound workflow executes only after exact template/binding authorization, durable handoff persistence, and executor correlation; missing bindings, identity drift, disabled dispatch, or mismatched handoff ids fail closed without raw-template fallback.
 
 ## Current strategic line
 

@@ -3,9 +3,10 @@ import type {
   DispatchAuthorizationV1,
   ExecutionSurface,
   VaultDispatchRuntime,
-} from "./dispatchRuntime.js";
-import type { ExecutionBinding } from "./dispatchPosture.js";
-import type { Template } from "./vaultTypes.js";
+} from "./dispatchRuntime.d.js";
+import type { ExecutionBinding, Template } from "./vaultTypes.d.js";
+
+// The explicit .d.js targets keep NodeNext consumers inside the declaration island.
 export interface GuardPreparedTextRequest {
   templates: Template[];
   primaryTemplateName: string;

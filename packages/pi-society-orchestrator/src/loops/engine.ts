@@ -1187,13 +1187,82 @@ interface VaultDispatchRuntimeResult {
   blocking_reason?: string;
 }
 
+interface VaultDispatchRuntimeLike {
+  checkTemplates: (
+    templateNames: string[],
+    ctx?: { cwd?: string; currentCompany?: string },
+  ) => Promise<VaultDispatchRuntimeResult>;
+}
+
 interface VaultDispatchRuntimeModule {
-  createVaultDispatchRuntime: () => {
-    checkTemplates: (
-      templateNames: string[],
-      ctx?: { cwd?: string; currentCompany?: string },
-    ) => Promise<VaultDispatchRuntimeResult>;
+  createVaultDispatchRuntime: () => VaultDispatchRuntimeLike;
+}
+
+interface VaultPromptPlaneRuntimeModule {
+  createVaultPromptPlaneRuntime: (options: { dispatchRuntime: VaultDispatchRuntimeLike }) => {
+    prepareSelectionV2: (
+      request: { query: string; context: string },
+      ctx?: { cwd?: string },
+    ) => Promise<{
+      ok: boolean;
+      status: "text_ready" | "dispatch_required" | "ambiguous" | "blocked";
+      blocking_reason?: string;
+      authorization?: { authorizationId?: string; disposition?: string };
+    }>;
   };
+}
+
+interface VaultDispatchGuardModule {
+  createDispatchActivationPolicy: (enabled: boolean) => unknown;
+  createDispatchHandoffStore: (options?: { filePath?: string }) => unknown;
+  dispatchAuthorizedExecution: (options: {
+    runtime: VaultDispatchRuntimeLike;
+    authorizationId: string;
+    intendedExecutor: "workflow_execute";
+    activation: unknown;
+    receiptStore: unknown;
+    execute: (input: {
+      handoffId: string;
+      authorizationId: string;
+      sealedText: string;
+      binding: Readonly<{
+        execution_surface: string;
+        execution_args: Record<string, unknown>;
+      }>;
+    }) => Promise<VaultWorkflowExecutorResult>;
+  }) => Promise<
+    | { ok: true; handoffId: string; result: VaultWorkflowExecutorResult }
+    | { ok: false; error: string; handoffId?: string }
+  >;
+}
+
+export interface VaultWorkflowExecutorResult {
+  accepted: boolean;
+  handoffId: string;
+  runId?: string;
+  status?: string;
+  output?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface VaultWorkflowExecutionRequest {
+  templateName: string;
+  objective: string;
+  cwd: string;
+  sealedText: string;
+  handoffId: string;
+  authorizationId: string;
+  executionArgs: Readonly<Record<string, unknown>>;
+  signal?: AbortSignal;
+  ctx: LoopToolContext;
+}
+
+export interface RegisterLoopToolsOptions {
+  executeVaultWorkflow?: (
+    request: VaultWorkflowExecutionRequest,
+  ) => Promise<VaultWorkflowExecutorResult>;
+  gatedDispatchEnabled?: boolean;
+  dispatchReceiptPath?: string;
 }
 
 const WORKFLOW_TEMPLATE_OWNER_ROUTES: Record<
@@ -1265,10 +1334,13 @@ export function registerLoopTools(
   vaultDir: string = process.env.VAULT_DIR ||
     path.join(os.homedir(), "ai-society", "core", "prompt-vault", "prompt-vault-db"),
   resolveAgent?: (agent: string, ctx: TeamScopedContext & { cwd: string }) => AgentResolution,
+  options: RegisterLoopToolsOptions = {},
 ): void {
   const subagentExecutor = createOrchestratorSubagentExecutor({
     sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "loops"),
   });
+  const gatedDispatchEnabled =
+    options.gatedDispatchEnabled ?? process.env.PI_VAULT_GATED_DISPATCH !== "0";
 
   const executeLoopToolRequest = async (
     params: Record<string, unknown>,
@@ -1751,6 +1823,134 @@ Unknown loop templates and workflow-grade templates without an execution binding
           onUpdate,
           ctx,
         );
+      }
+
+      if (
+        posture.posture === "orchestrator_workflow_gate_required" &&
+        posture.binding?.execution_surface === "workflow_execute"
+      ) {
+        if (!options.executeVaultWorkflow) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Vault template ${templateName} has a verified workflow binding, but the orchestrator workflow executor adapter is unavailable. Failing closed.`,
+              },
+            ],
+            details: { ok: false, error: "vault-workflow-executor-unavailable", dispatchCheck },
+          };
+        }
+
+        let promptPlaneModule: VaultPromptPlaneRuntimeModule;
+        let guardModule: VaultDispatchGuardModule;
+        try {
+          [promptPlaneModule, guardModule] = (await Promise.all([
+            import("@tryinget/pi-vault-client/prompt-plane"),
+            import("@tryinget/pi-vault-client/dispatch-guard"),
+          ])) as unknown as [VaultPromptPlaneRuntimeModule, VaultDispatchGuardModule];
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Vault authorization runtime is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+              },
+            ],
+            details: { ok: false, error: "vault-authorization-runtime-unavailable" },
+          };
+        }
+
+        const promptPlane = promptPlaneModule.createVaultPromptPlaneRuntime({ dispatchRuntime });
+        const prepared = await promptPlane.prepareSelectionV2(
+          { query: templateName, context: objective },
+          { cwd: ctx.cwd },
+        );
+        const authorizationId = prepared.authorization?.authorizationId;
+        if (
+          !prepared.ok ||
+          prepared.status !== "dispatch_required" ||
+          prepared.authorization?.disposition !== "dispatch_required" ||
+          typeof authorizationId !== "string"
+        ) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Vault authorization preparation failed for ${templateName}: ${prepared.blocking_reason || "dispatch authorization was not issued"}`,
+              },
+            ],
+            details: {
+              ok: false,
+              error: "vault-workflow-authorization-failed",
+              preparedStatus: prepared.status,
+            },
+          };
+        }
+
+        const dispatched = await guardModule.dispatchAuthorizedExecution({
+          runtime: dispatchRuntime,
+          authorizationId,
+          intendedExecutor: "workflow_execute",
+          activation: guardModule.createDispatchActivationPolicy(gatedDispatchEnabled),
+          receiptStore: guardModule.createDispatchHandoffStore(
+            options.dispatchReceiptPath ? { filePath: options.dispatchReceiptPath } : undefined,
+          ),
+          execute: ({ handoffId, authorizationId: claimedAuthorizationId, sealedText, binding }) =>
+            options.executeVaultWorkflow?.({
+              templateName,
+              objective,
+              cwd: ctx.cwd,
+              sealedText,
+              handoffId,
+              authorizationId: claimedAuthorizationId,
+              executionArgs: binding.execution_args,
+              signal,
+              ctx,
+            }) ??
+            Promise.resolve({
+              accepted: false,
+              handoffId,
+              status: "error",
+            }),
+        });
+
+        if (!dispatched.ok) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Governed workflow dispatch failed for ${templateName}: ${dispatched.error}`,
+              },
+            ],
+            details: {
+              ok: false,
+              error: "vault-workflow-dispatch-failed",
+              templateName,
+              handoffId: dispatched.handoffId ?? null,
+            },
+          };
+        }
+
+        const workflowStatus = dispatched.result.status ?? "unknown";
+        const workflowOk = workflowStatus === "done";
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${workflowOk ? "✓" : "✗"} Governed ${templateName} workflow — ${workflowStatus}${dispatched.result.output ? `\n\n${dispatched.result.output}` : ""}`,
+            },
+          ],
+          details: {
+            ok: workflowOk,
+            templateName,
+            executionSurface: "workflow_execute",
+            handoffId: dispatched.handoffId,
+            authorizationId,
+            runId: dispatched.result.runId ?? null,
+            status: workflowStatus,
+            executorDetails: dispatched.result.details ?? null,
+          },
+        };
       }
 
       return {

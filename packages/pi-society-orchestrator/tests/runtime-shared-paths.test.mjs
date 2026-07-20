@@ -2627,13 +2627,16 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
           "INSERT INTO prompt_templates VALUES",
           "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',true,4),",
           "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',true,1),",
-          "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1);",
+          "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1),",
+          "(4,'deep-review','Deep review','GOVERNED DEEP REVIEW BODY','cognitive','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',true,2);",
         ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
     );
     process.env.VAULT_DIR = tempVaultDir;
     process.env.PI_COMPANY = "software";
+
+    let capturedWorkflowRequest;
 
     const registeredTools = new Map();
     registerLoopTools(
@@ -2651,6 +2654,20 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
         allowedAgents: ["builder"],
         error: `test resolver blocked ${agent}`,
       }),
+      {
+        dispatchReceiptPath: path.join(tempVaultDir, "dispatch-handoffs.jsonl"),
+        async executeVaultWorkflow(request) {
+          capturedWorkflowRequest = request;
+          return {
+            accepted: true,
+            handoffId: request.handoffId,
+            runId: "workflow-run-deep-review",
+            status: "done",
+            output: "governed review complete",
+            details: { stepCount: 1 },
+          };
+        },
+      },
     );
 
     const vaultExecuteTool = registeredTools.get("vault_execute_template");
@@ -2669,6 +2686,27 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
       result.content[0].text,
       /Loop 'transcendent' is incompatible with the active team:/,
     );
+
+    const deepReviewResult = await vaultExecuteTool.execute(
+      "tool-call-id-deep-review",
+      { template_name: "deep-review", objective: "Review the current implementation" },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined },
+    );
+    assert.equal(deepReviewResult.details.ok, true);
+    assert.equal(deepReviewResult.details.templateName, "deep-review");
+    assert.equal(deepReviewResult.details.executionSurface, "workflow_execute");
+    assert.equal(deepReviewResult.details.status, "done");
+    assert.equal(deepReviewResult.details.runId, "workflow-run-deep-review");
+    assert.match(deepReviewResult.content[0].text, /governed review complete/);
+    assert.equal(capturedWorkflowRequest.templateName, "deep-review");
+    assert.equal(capturedWorkflowRequest.objective, "Review the current implementation");
+    assert.match(capturedWorkflowRequest.sealedText, /GOVERNED DEEP REVIEW BODY/);
+    assert.match(capturedWorkflowRequest.sealedText, /Review the current implementation/);
+    assert.equal(capturedWorkflowRequest.executionArgs.workflow_id, "deep-review.v1");
+    assert.ok(capturedWorkflowRequest.handoffId);
+    assert.ok(fs.existsSync(path.join(tempVaultDir, "dispatch-handoffs.jsonl")));
 
     const workflowResult = await vaultExecuteTool.execute(
       "tool-call-id-2",

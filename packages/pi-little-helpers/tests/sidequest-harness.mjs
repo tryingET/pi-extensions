@@ -61,6 +61,22 @@ export function registerExtension(extension, { thinkingLevel = "medium" } = {}) 
   return { commands, tools, events, userMessages };
 }
 
+export async function observeLatestVisibleLoopMessage(events, userMessages, ctx) {
+  const latest = userMessages.at(-1);
+  assert.ok(latest, "expected a queued visible-loop user message");
+  const handlers = events.get("message_start") ?? [];
+  assert.ok(handlers.length > 0, "expected a message_start handler");
+  for (const handler of handlers) {
+    await handler(
+      {
+        type: "message_start",
+        message: { role: "user", content: latest.message, timestamp: Date.now() },
+      },
+      ctx,
+    );
+  }
+}
+
 export function createContext(options = {}) {
   const cwd = options.cwd ?? "/repo";
   const sessionFile = Object.hasOwn(options, "sessionFile")
@@ -105,7 +121,6 @@ export function createContext(options = {}) {
 export function setTemporaryHomeWithPromptTemplates(homePath) {
   const originalHome = process.env.HOME;
   mkdirSync(`${homePath}/.pi/agent/prompts`, { recursive: true });
-  writeFileSync(`${homePath}/.pi/agent/prompts/deep-review.md`, "GLOBAL DEEP REVIEW\n", "utf8");
   writeFileSync(`${homePath}/.pi/agent/prompts/commit.md`, "GLOBAL COMMIT\n", "utf8");
   process.env.HOME = homePath;
   return () => {

@@ -11,7 +11,15 @@ const allowedAscConsumer = {
 const allowedVaultConsumers = [
   {
     file: "src/loops/engine.ts",
+    specifier: "@tryinget/pi-vault-client/dispatch-guard",
+  },
+  {
+    file: "src/loops/engine.ts",
     specifier: "@tryinget/pi-vault-client/dispatch-runtime",
+  },
+  {
+    file: "src/loops/engine.ts",
+    specifier: "@tryinget/pi-vault-client/prompt-plane",
   },
   {
     file: "src/runtime/cognitive-tools.ts",

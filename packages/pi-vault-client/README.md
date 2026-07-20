@@ -219,6 +219,7 @@ Tool-query defaults:
   - `missing_execution_binding_fail_closed`
   - `invalid_metadata_fail_closed`
   - known loop bindings: `transcendent-iteration -> loop_execute(loop="transcendent")`, `ooda -> loop_execute(loop="ooda")`
+  - known workflow binding: `deep-review -> workflow_execute(deep-review.v1)`; raw prompt projection/execution remains quarantined, and consumers must use the claimed authorization plus durable handoff adapter
   - workflow-grade templates without explicit bindings are process gates, not inert text: stop, use the owning package surface when one exists, or design the missing execution binding before continuing.
 
 ### Receipt and replay operator workflow

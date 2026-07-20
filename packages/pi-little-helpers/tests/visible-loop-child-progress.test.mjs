@@ -15,6 +15,7 @@ import {
   createContext,
   createExecStub,
   extractPiArgs,
+  observeLatestVisibleLoopMessage,
   registerExtension,
 } from "./sidequest-harness.mjs";
 
@@ -69,8 +70,15 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
       ["nonsense prompt alpha: count the purple spoons"],
     );
 
-    await events.get("agent_start")[0]({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    const agentStart = events.get("agent_start")[0];
+    const agentSettled = events.get("agent_settled")[0];
+    for (let promptIndex = 0; promptIndex < config.prompts.length; promptIndex += 1) {
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+      await agentSettled({}, harness.ctx);
+    }
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+    await agentStart({}, harness.ctx);
 
     assert.deepEqual(
       userMessages.map((entry) => entry.message),
@@ -83,10 +91,7 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
     );
     assert.match(userMessages[3].message, /Visible-loop internal completion checkpoint/);
     assert.match(userMessages[3].message, /visible_loop_child_complete/);
-    assert.deepEqual(
-      userMessages.slice(1).map((entry) => entry.options),
-      [{ deliverAs: "followUp" }, { deliverAs: "followUp" }, { deliverAs: "followUp" }],
-    );
+    assert.ok(userMessages.every((entry) => entry.options === undefined));
 
     let visibleLoopLaunches = execStub.calls.filter(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
@@ -95,19 +100,6 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
       visibleLoopLaunches.length,
       0,
       "nonsense loop must not launch iteration 2 before explicit completion",
-    );
-
-    const agentEnd = events.get("agent_settled")[0];
-    await agentEnd({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 360));
-
-    visibleLoopLaunches = execStub.calls.filter(
-      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
-    );
-    assert.equal(
-      visibleLoopLaunches.length,
-      0,
-      "agent_settled must not launch iteration 2 before the checkpoint command/tool completes",
     );
 
     await commands
@@ -144,7 +136,7 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
         (entry) =>
           entry.event === "iteration_completed" &&
           entry.source === "completion_command" &&
-          entry.completedPromptCount === 1 &&
+          entry.completedPromptCount === 3 &&
           entry.completedIterations === 1,
       ),
     );

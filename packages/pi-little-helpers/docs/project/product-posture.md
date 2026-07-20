@@ -51,7 +51,8 @@ launch visible helper work; do not make helper output authority
 - slash commands for `/sidequest`, `/scoutpeer`, `/parallelquest`, `/visible-loop`, and `/nexus-loop`;
 - model-callable visible peer spawn tools for bounded peer launch surfaces;
 - visible-loop state files, visible child launch, prompt queue delivery, intercom report-back, explicit completion checkpointing, candidate-bound self-evolution envelopes, and a narrow extension-originated `sendUserMessage` bridge for pi-little-helpers-owned `/visible-loop` / `/nexus-loop` commands;
-- deterministic expansion of configured slash prompt templates such as `/deep-review` and `/commit` from repo-local and global prompt directories;
+- sequential one-turn-at-a-time prompt delivery, with governed deep-review executed through `vault_execute_template` and later prompts withheld until an exact successful workflow handoff receipt is observed;
+- deterministic expansion of remaining text-safe slash prompt templates such as `/commit` from repo-local and global prompt directories, without accepting raw `deep-review.md` execution;
 - commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion, with command-aware delegation prompt names and run-id wording;
 - default visible-loop prompts that read `docs/project/vision.md` and `docs/project/product-posture.md`, implement a bounded slice, run review/fixup/validation, refresh product posture, and only then commit/complete;
 - package-local implementation of the visible execution loop category defined by the root loop taxonomy boundary contract.
@@ -98,6 +99,7 @@ A visible-loop result is trustworthy only when:
 7. **Dirty worktree is protected** — unrelated files are not staged or overwritten.
 8. **Candidate provenance is correlated but non-authoritative** — a candidate route must match an assistant `self` tool call and its `self` tool result in the active branch; the resulting envelope remains untrusted session-mirror transport, not evidence or authority.
 9. **Closeout brakes survive transport** — full source guard snapshots remain in config for audit, while the first child prompt gets only guard requirements and validated typed owner-artifact fields. Required reflection/live-proof/promotion evidence must correlate to host-observed command results, ordered ASC ledger events, or the canonical bound artifact; free-form status labels, invented receipt IDs, missing/stale artifacts, and cross-session/expired configs cannot advance completion.
+10. **Governed review is receipt-gated** — deep-review advances only after `vault_execute_template` returns the exact `deep-review` / `workflow_execute` identity, a non-empty Vault handoff id, and `status=done`; missing, failed, timed-out, or raw-file review paths stop before Nexus, posture refresh, commit, and completion.
 
 ## Next product bets
 

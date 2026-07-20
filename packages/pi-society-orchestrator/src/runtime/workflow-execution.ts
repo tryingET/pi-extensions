@@ -80,6 +80,7 @@ export interface WorkflowExecutionParams {
   promptContent?: string;
   promptTags?: string[];
   promptSource?: string;
+  effectCorrelationId?: string;
   signal?: AbortSignal;
 }
 
@@ -138,6 +139,7 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
             params,
             executor,
             executionRunId,
+            trustedSessionsDir: options.sessionsDir,
           });
           stepResults.push(stepResult);
 
@@ -163,6 +165,7 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
               executor,
               executionRunId,
               worktreePatchRootDir,
+              trustedSessionsDir: options.sessionsDir,
               startIndex: stepResults.length,
             })
           : {
@@ -173,6 +176,7 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
                 params,
                 executor,
                 executionRunId,
+                trustedSessionsDir: options.sessionsDir,
               })),
               worktreeSummary: undefined,
             };
@@ -204,6 +208,7 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
       });
 
       return {
+        runId: executionRunId,
         mode: request.mode,
         status: workflowStatus,
         steps: stepResults,
@@ -226,6 +231,7 @@ async function executeWorktreeParallelGroup(input: {
   params: WorkflowExecutionParams;
   executor: OrchestratorSubagentExecutor;
   executionRunId: string;
+  trustedSessionsDir: string;
   worktreePatchRootDir: string;
   startIndex: number;
 }): Promise<{
@@ -240,6 +246,7 @@ async function executeWorktreeParallelGroup(input: {
     params,
     executor,
     executionRunId,
+    trustedSessionsDir,
     worktreePatchRootDir,
     startIndex,
   } = input;
@@ -283,6 +290,7 @@ async function executeWorktreeParallelGroup(input: {
         executor,
         executionRunId,
         cwdOverrides,
+        trustedSessionsDir,
       });
       results = parallelExecution.results;
       queuedDispatchCancelled = parallelExecution.queuedDispatchCancelled;
@@ -317,9 +325,19 @@ async function executeParallelGroup(input: {
   params: WorkflowExecutionParams;
   executor: OrchestratorSubagentExecutor;
   executionRunId: string;
+  trustedSessionsDir: string;
   cwdOverrides?: string[];
 }): Promise<{ results: WorkflowStepResult[]; queuedDispatchCancelled: boolean }> {
-  const { group, startIndex, request, params, executor, executionRunId, cwdOverrides } = input;
+  const {
+    group,
+    startIndex,
+    request,
+    params,
+    executor,
+    executionRunId,
+    trustedSessionsDir,
+    cwdOverrides,
+  } = input;
 
   const scheduling = await allSettledWithConcurrency(
     group.tasks.map(
@@ -332,6 +350,7 @@ async function executeParallelGroup(input: {
           executor,
           executionRunId,
           cwdOverride: cwdOverrides?.[parallelTaskIndex],
+          trustedSessionsDir,
         }),
     ),
     group.concurrency ?? group.tasks.length,
@@ -414,9 +433,19 @@ async function executeWorkflowStep(input: {
   params: WorkflowExecutionParams;
   executor: OrchestratorSubagentExecutor;
   executionRunId: string;
+  trustedSessionsDir: string;
   cwdOverride?: string;
 }): Promise<WorkflowStepResult> {
-  const { step, index, request, params, executor, executionRunId, cwdOverride } = input;
+  const {
+    step,
+    index,
+    request,
+    params,
+    executor,
+    executionRunId,
+    trustedSessionsDir,
+    cwdOverride,
+  } = input;
   const agentProfile = AGENT_PROFILES[step.agent];
   if (!agentProfile) {
     throw new WorkflowExecutionError(
@@ -459,11 +488,17 @@ async function executeWorkflowStep(input: {
     promptContent: params.promptContent,
     promptTags: params.promptTags,
     promptSource: params.promptSource,
+    effectCorrelationId: params.effectCorrelationId,
     signal: params.signal,
   });
 
-  const executionLike = toExecutionLike(result);
-  const stepStatus = getExecutionStatus(executionLike);
+  const executionLike = toExecutionLike(result, trustedSessionsDir);
+  const requiresEffectCorrelation = Boolean(params.effectCorrelationId);
+  const hasSettledCorrelatedReceipt =
+    executionLike.effectReceipt?.disposition === "settled" &&
+    executionLike.effectReceipt.consumerCorrelationId === params.effectCorrelationId;
+  const correlationFailure = requiresEffectCorrelation && !hasSettledCorrelatedReceipt;
+  const stepStatus = correlationFailure ? "error" : getExecutionStatus(executionLike);
   const provenance = readReviewLaneProvenanceResult({
     request: provenanceRequest,
     stepStatus,
@@ -473,7 +508,9 @@ async function executeWorkflowStep(input: {
     index,
     agent: step.agent,
     status: stepStatus,
-    displayOutput: executionLike.output,
+    displayOutput: correlationFailure
+      ? `${executionLike.output}\n\nWorkflow step failed closed: the ASC effect receipt did not verify against the required correlation.`.trim()
+      : executionLike.output,
     failureKind: result.details.failureKind,
     elapsedMs: result.details.elapsed,
     ...(provenance ? { provenance } : {}),

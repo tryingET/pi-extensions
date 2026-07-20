@@ -277,6 +277,19 @@ const DEFAULT_BINDINGS: Record<string, ExecutionBinding> = {
     on_missing_binding: "fail_closed",
     compositeCapable: false,
   },
+  "deep-review": {
+    execution_required: true,
+    execution_surface: "workflow_execute",
+    execution_args: {
+      workflow_id: "deep-review.v1",
+      request: {
+        mode: "chain",
+        steps: [{ kind: "step", agent: "reviewer", objective: "$OBJECTIVE" }],
+      },
+    },
+    on_missing_binding: "fail_closed",
+    compositeCapable: false,
+  },
 };
 
 export const DEFAULT_DISPATCH_POLICY = createDispatchPolicy({
@@ -311,12 +324,12 @@ export function classifyDispatchPosture(
   }
   if (controlMode === "loop") {
     const binding = policy.bindings[name] ?? null;
-    if (!binding) {
+    if (!binding || binding.execution_surface !== "loop_execute") {
       return {
         ...base,
         posture: "missing_execution_binding_fail_closed",
         binding: null,
-        reason: `Template "${name}" has control_mode=loop but no known execution binding. Execution must fail closed until an owner-approved binding exists.`,
+        reason: `Template "${name}" has control_mode=loop but no verified loop_execute binding. Execution must fail closed until an owner-approved binding exists.`,
       };
     }
     return {
@@ -327,6 +340,15 @@ export function classifyDispatchPosture(
     };
   }
   if (formalizationLevel === "workflow") {
+    const binding = policy.bindings[name] ?? null;
+    if (binding?.execution_surface === "workflow_execute") {
+      return {
+        ...base,
+        posture: "orchestrator_workflow_gate_required",
+        binding,
+        reason: `Template "${name}" requires the verified workflow_execute binding ${JSON.stringify(binding.execution_args)}; raw text execution is not lawful.`,
+      };
+    }
     return {
       ...base,
       posture: "orchestrator_workflow_gate_required",

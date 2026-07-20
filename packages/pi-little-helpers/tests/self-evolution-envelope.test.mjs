@@ -23,10 +23,12 @@ import {
   _selfEvolutionVerificationTest,
   validatePersistedSelfEvolutionBinding,
 } from "../src/selfEvolutionVerification.ts";
+import { GOVERNED_DEEP_REVIEW_OBJECTIVE } from "../src/visibleLoop.ts";
 import {
   createContext,
   createExecStub,
   extractPiArgs,
+  observeLatestVisibleLoopMessage,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
@@ -77,6 +79,50 @@ const candidate = {
 };
 
 const selfToolCallId = "call-self-evolution-1";
+
+async function settleCandidateVisibleLoopPromptSequence(events, config, userMessages, ctx) {
+  const agentStart = events.get("agent_start")[0];
+  const settled = events.get("agent_settled")[0];
+  const toolExecutionStart = events.get("tool_execution_start")[0];
+  const toolExecutionEnd = events.get("tool_execution_end")[0];
+  for (const prompt of config.prompts) {
+    await observeLatestVisibleLoopMessage(events, userMessages, ctx);
+    await agentStart({}, ctx);
+    if (prompt.includes("Governed deep-review execution step.")) {
+      await toolExecutionStart(
+        {
+          toolCallId: "vault-candidate-closeout-test",
+          toolName: "vault_execute_template",
+          args: {
+            template_name: "deep-review",
+            objective: GOVERNED_DEEP_REVIEW_OBJECTIVE,
+          },
+        },
+        ctx,
+      );
+      await toolExecutionEnd(
+        {
+          toolCallId: "vault-candidate-closeout-test",
+          toolName: "vault_execute_template",
+          isError: false,
+          result: {
+            details: {
+              ok: true,
+              templateName: "deep-review",
+              executionSurface: "workflow_execute",
+              handoffId: "handoff-candidate-closeout-test",
+              status: "done",
+            },
+          },
+        },
+        ctx,
+      );
+    }
+    await settled({}, ctx);
+  }
+  await observeLatestVisibleLoopMessage(events, userMessages, ctx);
+  await agentStart({}, ctx);
+}
 
 function findEnvelope(entries, candidateId = candidate.candidateId, now = Date.now()) {
   return findSelfEvolutionExecutionEnvelope(entries, candidateId, {
@@ -561,6 +607,62 @@ test("visible-loop candidate route persists the typed envelope and prepends it t
   }
 });
 
+test("candidate-bound nexus-loop recognizes the prefixed governed review and fails closed", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/nexus-loop-candidate-gate-state-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "/usr/bin/ghostty" && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (command === "/usr/bin/ghostty") return { code: 0, stdout: "", stderr: "" };
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_BIN_DIR: "/usr/bin",
+        XDG_STATE_HOME: stateHome,
+      },
+      exec: execStub.exec,
+      pathExists(path) {
+        return path === "/usr/bin/ghostty";
+      },
+      currentSessionGhosttyBin: "/usr/bin/ghostty",
+    });
+    const { commands, events, userMessages } = registerExtension(extension);
+    const repo = `${stateHome}/repo`;
+    writeOwnerArtifact(repo);
+    const harness = createContext({ cwd: repo, branchEntries: selfToolExchange() });
+
+    await commands
+      .get("nexus-loop")
+      .handler(`--count 1 --candidate ${candidate.candidateId}`, harness.ctx);
+    const ghosttyCall = execStub.calls.find(
+      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
+    );
+    const configPath = extractPiArgs(ghosttyCall.args)
+      .at(-1)
+      .replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.match(config.prompts[0], /^SELF-EVOLUTION EXECUTION MEMBRANE/);
+    assert.match(config.prompts[0], /Governed deep-review execution step/);
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    assert.equal(userMessages.length, 1);
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+    await events.get("agent_start")[0]({}, harness.ctx);
+    await events.get("agent_settled")[0]({}, harness.ctx);
+
+    assert.equal(userMessages.length, 1, "Nexus fixup must remain withheld without a receipt");
+    assert.match(harness.notifications.at(-1).message, /governed deep-review did not complete/);
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("candidate-bound visible-loop completion rejects missing closeout and accepts resolved guards", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-candidate-closeout-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
@@ -585,7 +687,7 @@ test("candidate-bound visible-loop completion rejects missing closeout and accep
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, tools } = registerExtension(extension);
+    const { commands, events, tools, userMessages } = registerExtension(extension);
     const repo = `${stateHome}/repo`;
     writeOwnerArtifact(repo);
     const branchEntries = [...selfToolExchange(), ...bashCheckExchange(), ...liveProofEntries()];
@@ -610,6 +712,8 @@ test("candidate-bound visible-loop completion rejects missing closeout and accep
     const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
     assert.ok(existsSync(statusPath), JSON.stringify(harness.notifications));
     assert.match(readFileSync(statusPath, "utf8"), /candidate closeout is missing/);
+
+    await settleCandidateVisibleLoopPromptSequence(events, config, userMessages, harness.ctx);
 
     const acceptedResult = await tools.get("visible_loop_child_complete").execute(
       "accepted-closeout",

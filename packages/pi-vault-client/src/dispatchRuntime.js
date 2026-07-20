@@ -281,12 +281,16 @@ function authorizeRequest(request, policy) {
     postures.some(
       (posture) =>
         posture.posture === "missing_execution_binding_fail_closed" ||
-        posture.posture === "orchestrator_workflow_gate_required",
+        (posture.posture === "orchestrator_workflow_gate_required" && !posture.binding),
     )
   ) {
     return blocked("missing_binding", "A governed execution binding is missing.");
   }
-  const gated = postures.filter((posture) => posture.posture === "orchestrator_loop_required");
+  const gated = postures.filter(
+    (posture) =>
+      posture.posture === "orchestrator_loop_required" ||
+      (posture.posture === "orchestrator_workflow_gate_required" && posture.binding),
+  );
   if (gated.length > 0 && gated.length !== postures.length)
     return blocked("mixed_disposition", "Mixed text and dispatch dispositions are not executable.");
   let binding = null;
@@ -432,7 +436,7 @@ export function createVaultDispatchRuntime(options = {}) {
           (item) =>
             item.posture === "invalid_metadata_fail_closed" ||
             item.posture === "missing_execution_binding_fail_closed" ||
-            item.posture === "orchestrator_workflow_gate_required",
+            (item.posture === "orchestrator_workflow_gate_required" && !item.binding),
         )
       ) {
         return {

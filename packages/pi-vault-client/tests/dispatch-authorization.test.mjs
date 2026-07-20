@@ -153,6 +153,22 @@ test("issues dispatch_required only for a verified binding", () => {
   assert.deepEqual(result.binding.execution_args, { loop: "ooda" });
 });
 
+test("issues dispatch_required for the verified deep-review workflow binding", () => {
+  const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
+  const workflow = template({
+    id: 3,
+    name: "deep-review",
+    control_mode: "one_shot",
+    formalization_level: "workflow",
+  });
+  const result = runtime.authorizePreparedExecution(request([workflow]));
+  assert.equal(result.disposition, "dispatch_required");
+  assert.equal(result.binding.execution_surface, "workflow_execute");
+  assert.equal(result.binding.execution_args.workflow_id, "deep-review.v1");
+  assert.equal(result.binding.execution_args.request.steps[0].objective, "$OBJECTIVE");
+  assert.equal("prepared_text" in result, false);
+});
+
 test("blocks unbound workflow and unknown governed values", () => {
   const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
   const workflow = runtime.authorizePreparedExecution(
