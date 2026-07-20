@@ -54,6 +54,33 @@ Candidate peer worktrees are intentionally left for controller/operator review. 
 
 Do not manually remove candidate worktrees or branches. Use `scripts/candidate-lifecycle-v2.mjs` so exact resource identity, drift checks, restoration-grade archives, authorization expiry, effect receipts, and terminal state remain bound.
 
+### Adopt one existing unregistered worktree
+
+An owner may bring one clean, linked, unregistered Git worktree under lifecycle-v2 control with an expiry-bound JSON authorization:
+
+```json
+{
+  "schemaVersion": 2,
+  "action": "adopt_existing_worktree",
+  "worktreePath": "/absolute/canonical/path/to/candidate",
+  "repoRoot": "/absolute/canonical/path/to/durable-owner-worktree",
+  "gitCommonDir": "/absolute/canonical/path/to/shared/.git",
+  "branchName": "candidate/exact-branch",
+  "headOid": "0123456789abcdef0123456789abcdef01234567",
+  "actor": "owner:identity",
+  "rationale": "why this pre-existing candidate should enter lifecycle-v2",
+  "expiresAt": "2026-07-20T14:00:00.000Z"
+}
+```
+
+The object must contain exactly those keys. Paths, branch, and immutable HEAD must match Git's live identity; `expiresAt` must be a future canonical UTC timestamp. Run:
+
+```bash
+node scripts/candidate-lifecycle-v2.mjs adopt --input /absolute/path/to/owner-adoption.json
+```
+
+Adoption rejects symlink or path ambiguity (including lifecycle publication roots), non-linked/detached/dirty worktrees, registry or lifecycle duplicates, identity drift or mismatches, expiry, and lexical resource/generation/archive collisions including dangling symlinks. It holds the exact resource lock while atomically publishing one owner-only native v2 record at `resourceVersion: 1` in `review_pending` and while re-verifying the bound snapshot, Git identity, registry identity, and expiry, so concurrent lifecycle updates fail closed. A catchable race or post-publication error atomically withdraws the record before releasing that lock. A hard process termination cannot run catchable rollback and may leave the provisional resource plus resource lock fail-closed for explicit owner recovery; it is not claimed as automatic rollback. Adoption does not clean anything and creates no alternate cleanup path: continue only through lifecycle-v2 review, disposition, integration proof when accepted, restoration archive, cleanup authorization, and cleanup.
+
 Shared utilities live in [lib/package-utils.ts](lib/package-utils.ts).
 
 ## Codex reset credits

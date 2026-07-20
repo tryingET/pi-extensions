@@ -7,6 +7,7 @@ import {
   executeAuthorizedCandidateCleanup,
 } from "../src/candidatePeerLifecycleArchive.ts";
 import {
+  adoptExistingCandidateWorktree,
   assertIntegrationProofCoversDisposition,
   captureCandidateReviewSnapshot,
   createDispositionReceipt,
@@ -35,6 +36,7 @@ function usage(message) {
   if (message) console.error(`error: ${message}`);
   console.error(`usage: candidate-lifecycle-v2.mjs <command> [options]
 commands:
+  adopt --input PATH
   inventory [--measure] [--out PATH]
   migrate --inventory PATH
   show --resource ID
@@ -91,7 +93,15 @@ if (!command || command === "help" || command === "--help") usage();
 const options = argsMap(rest);
 const env = process.env;
 
-if (command === "inventory") {
+if (command === "adopt") {
+  output(
+    adoptExistingCandidateWorktree({
+      input: inputJson(options),
+      registryDir: getCandidatePeerRegistryDir(env),
+      env,
+    }),
+  );
+} else if (command === "inventory") {
   const inventory = inventoryCandidatePeerResources({
     registryDir: getCandidatePeerRegistryDir(env),
     measureBytes: options.measure === true,
