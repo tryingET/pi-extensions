@@ -41,6 +41,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-prompt-template-execution` (live successor for prompt-template model/thinking/args semantics; minimal extension entrypoint, no prompt bundle)
   - `packages/pi-session-compaction` (live local compaction owner after guarded cutover; tested handler, registration guard, and non-live branch augmentation helpers)
   - `packages/pi-toolbox-discovery` (lazy capability discovery/activation broker for keeping heavy custom tools off by default)
+  - `packages/pi-semantic-code-intelligence` (native composite-first SCI tools over a session-scoped MCP stdio bridge)
   - `packages/pi-designmd-foundry` (DesignMD Foundry skill and CLI-backed tools for DESIGN.md lint/export/prompt/import readiness workflows)
   - `packages/pi-evalset-lab` (`/evalset run|compare` fixed-task-set prompt/system evaluation with JSON + HTML reports)
   - `packages/pi-evidence-review` (read-only `/evidence-review` TUI for one bounded, normalized SCI evidence review v1 JSON file)
@@ -75,6 +76,7 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-prompt-template-execution` — prompt-template execution semantics such as `model`, `thinking`, `restore`, `skill`, conditionals, args, Pi host adapter behavior, dry-run diagnostics, compatibility canaries, and `/commit` live execution ownership after replacing `npm:pi-prompt-template-model`
 - `packages/pi-session-compaction` — custom `session_before_compact` summary ownership, summarizer model resolution, user-prompt/command preservation, and files-touched manifests (live local owner; do not enable alongside another compaction override)
 - `packages/pi-toolbox-discovery` — lazy custom-tool discovery/activation broker; route here when reducing default active tool count or activating capability bundles on demand
+- `packages/pi-semantic-code-intelligence` — Pi-side registration and MCP stdio bridging for SCI's composite impact, definition, rename, structural patch, and preview/check workflows; SCI remains the workflow owner
 - `packages/pi-autoresearch` — bounded experiment-loop runtime ownership, manifest-campaign planning/control, and local campaign receipt/machine surfaces
 - `packages/pi-vault-client` — Prompt Vault query/retrieve/mutate/rate flows, schema compatibility, and prompt-plane governance
 - `packages/pi-ontology-workflows` — ontology inspection/change workflows and ROCS-facing operator surfaces

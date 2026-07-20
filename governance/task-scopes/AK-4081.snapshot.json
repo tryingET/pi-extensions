@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-07-20T03:09:09.915913663+00:00",
+  "task_id": 4081,
+  "entity_version": 2,
+  "commit_sha": null,
+  "scope": {
+    "allowed_paths": [
+      "README.md",
+      "README.terse.md",
+      "governance/task-scopes/AK-*.snapshot.json",
+      "packages/pi-semantic-code-intelligence/**",
+      "packages/pi-toolbox-discovery/README.md",
+      "packages/pi-toolbox-discovery/src/toolbox-catalog.ts",
+      "packages/pi-toolbox-discovery/tests/**"
+    ],
+    "required_paths": [
+      "packages/pi-semantic-code-intelligence/README.md",
+      "packages/pi-semantic-code-intelligence/extensions/semantic-code-intelligence.ts",
+      "packages/pi-semantic-code-intelligence/tests/extension.test.ts",
+      "packages/pi-toolbox-discovery/src/toolbox-catalog.ts"
+    ],
+    "forbidden_paths": []
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}
