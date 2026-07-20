@@ -4,6 +4,7 @@ import {
   activateCandidateAdmission,
   authorizeCandidateAdmission,
   captureCandidateAdmissionPressure,
+  expireCandidateAdmission,
   readCandidateAdmissionConfig,
   releaseCandidateAdmission,
   writeCandidateAdmissionConfig,
@@ -15,6 +16,7 @@ commands:
   configure --input PATH [--expected-digest SHA256]
   status
   authorize --input PATH
+  expire --input PATH
   release --input PATH
   activate --input PATH
 
@@ -64,6 +66,9 @@ try {
     );
   } else if (command === "authorize") {
     const permit = authorizeCandidateAdmission(readInput(values.input));
+    console.log(JSON.stringify({ ok: true, command, permit }, null, 2));
+  } else if (command === "expire") {
+    const permit = expireCandidateAdmission(readInput(values.input));
     console.log(JSON.stringify({ ok: true, command, permit }, null, 2));
   } else if (command === "release") {
     const permit = releaseCandidateAdmission(readInput(values.input));

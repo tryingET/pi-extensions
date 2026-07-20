@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -10,11 +11,13 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   activateCandidateAdmission,
   authorizeCandidateAdmission,
   bindCandidateAdmission,
   captureCandidateAdmissionPressure,
+  expireCandidateAdmission,
   getCandidateAdmissionConfigPath,
   getCandidateAdmissionRoot,
   getCandidateSpawnHoldPath,
@@ -24,6 +27,7 @@ import {
   writeCandidateAdmissionConfig,
 } from "../src/candidatePeerAdmission.ts";
 import {
+  candidateAdmissionPermitPath,
   commitCandidateAdmissionActivation,
   recoverCandidateAdmissionActivation,
   writeAdmissionJson,
@@ -242,6 +246,204 @@ test("canary admission reserves, binds, releases, and supersedes only the spawn 
   const hold = JSON.parse(readFileSync(holdPath, "utf8"));
   assert.equal(hold.status, "superseded_by_admission_v2");
   assert.equal(hold.preservedBoundary, "Historical v1 cleanup remains permanently non-executable.");
+});
+
+test("owner expiry records an authorized permit only at or after its canonical expiry", () => {
+  const { env, repoRoot, now } = setup();
+  const permit = authorize({ env, repoRoot, now });
+  assert.throws(
+    () => expireCandidateAdmission({ admissionId: permit.admissionId }, env, "not-a-date"),
+    /canonical UTC timestamp/,
+  );
+  assert.throws(
+    () =>
+      expireCandidateAdmission(
+        { admissionId: permit.admissionId },
+        env,
+        "2026-07-18T00:59:59.999Z",
+      ),
+    /unexpired candidate admission/,
+  );
+
+  assert.equal(captureCandidateAdmissionPressure(env, now).activeAdmissions, 0);
+  const expiredAt = "2026-07-18T01:00:00.000Z";
+  const expired = expireCandidateAdmission({ admissionId: permit.admissionId }, env, expiredAt);
+  assert.equal(expired.status, "expired");
+  assert.equal(expired.expiredAt, expiredAt);
+  assert.deepEqual(
+    JSON.parse(readFileSync(candidateAdmissionPermitPath(permit.admissionId, env), "utf8")),
+    expired,
+  );
+  assert.equal(captureCandidateAdmissionPressure(env, expiredAt).activeAdmissions, 0);
+  assert.throws(
+    () => expireCandidateAdmission({ admissionId: permit.admissionId }, env, expiredAt),
+    /already expired/,
+  );
+
+  const replacement = authorize({
+    env,
+    repoRoot,
+    now: expiredAt,
+    expiresAt: "2026-07-18T02:00:00.000Z",
+  });
+  const reservation = reserveCandidateAdmission(
+    { repoRoot, objective: replacement.objective },
+    env,
+    "2026-07-18T01:00:00.001Z",
+  );
+  assert.equal(reservation.admissionId, replacement.admissionId);
+  assert.equal(reservation.permit.status, "reserved");
+});
+
+test("candidate-admission-v2 exposes the owner expiry command", () => {
+  const { root, env, repoRoot, now } = setup();
+  const permit = authorize({ env, repoRoot, now });
+  const inputPath = join(root, "expire-input.json");
+  writeFileSync(inputPath, `${JSON.stringify({ admissionId: permit.admissionId })}\n`, {
+    mode: 0o600,
+  });
+  const scriptPath = fileURLToPath(
+    new URL("../scripts/candidate-admission-v2.mjs", import.meta.url),
+  );
+  const result = spawnSync(process.execPath, [scriptPath, "expire", "--input", inputPath], {
+    encoding: "utf8",
+    env,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.command, "expire");
+  assert.equal(output.permit.status, "expired");
+  assert.ok(output.permit.expiredAt);
+});
+
+test("owner expiry rejects authorized permits carrying reservation or binding fields", () => {
+  const malformedFields = {
+    reservedAt: "2026-07-18T00:01:00.000Z",
+    peerRunId: "candidatepeer-malformed-authorized",
+    worktreePath: "/tmp/malformed-authorized-worktree",
+    branchName: "candidatepeer/malformed-authorized",
+  };
+  for (const [field, value] of Object.entries(malformedFields)) {
+    const { env, repoRoot, now } = setup();
+    const permit = authorize({ env, repoRoot, now });
+    const path = candidateAdmissionPermitPath(permit.admissionId, env);
+    writeAdmissionJson(path, { ...permit, [field]: value });
+
+    assert.throws(
+      () =>
+        expireCandidateAdmission(
+          { admissionId: permit.admissionId },
+          env,
+          "2026-07-18T01:00:00.000Z",
+        ),
+      /reservation or binding fields/,
+      field,
+    );
+    const persisted = JSON.parse(readFileSync(path, "utf8"));
+    assert.equal(persisted.status, "authorized", field);
+    assert.equal(persisted[field], value, field);
+  }
+});
+
+test("owner expiry rejects reserved, bound, and released permits", () => {
+  const reservedSetup = setup();
+  const reservedPermit = authorize(reservedSetup);
+  reserveCandidateAdmission(
+    { repoRoot: reservedSetup.repoRoot, objective: reservedPermit.objective },
+    reservedSetup.env,
+    "2026-07-18T00:01:00.000Z",
+  );
+  assert.throws(
+    () =>
+      expireCandidateAdmission(
+        { admissionId: reservedPermit.admissionId },
+        reservedSetup.env,
+        "2026-07-18T01:00:00.000Z",
+      ),
+    /reserved candidate admission/,
+  );
+
+  const boundSetup = setup();
+  const boundPermit = authorize(boundSetup);
+  reserveCandidateAdmission(
+    { repoRoot: boundSetup.repoRoot, objective: boundPermit.objective },
+    boundSetup.env,
+    "2026-07-18T00:01:00.000Z",
+  );
+  bindCandidateAdmission(
+    {
+      admissionId: boundPermit.admissionId,
+      peerRunId: "candidatepeer-expiry-bound",
+      worktreePath: join(boundSetup.repoRoot, "expiry-bound-worktree"),
+      branchName: "candidatepeer/expiry-bound",
+    },
+    boundSetup.env,
+  );
+  assert.throws(
+    () =>
+      expireCandidateAdmission(
+        { admissionId: boundPermit.admissionId },
+        boundSetup.env,
+        "2026-07-18T01:00:00.000Z",
+      ),
+    /bound candidate admission/,
+  );
+
+  const releasedSetup = setup();
+  const releasedPermit = authorize(releasedSetup);
+  reserveCandidateAdmission(
+    { repoRoot: releasedSetup.repoRoot, objective: releasedPermit.objective },
+    releasedSetup.env,
+    "2026-07-18T00:01:00.000Z",
+  );
+  releaseCandidateAdmission(
+    {
+      admissionId: releasedPermit.admissionId,
+      outcome: "preparation_failed",
+      terminalReceiptRef: `candidate-preparation-failed:${"a".repeat(64)}`,
+    },
+    releasedSetup.env,
+    "2026-07-18T00:02:00.000Z",
+  );
+  assert.throws(
+    () =>
+      expireCandidateAdmission(
+        { admissionId: releasedPermit.admissionId },
+        releasedSetup.env,
+        "2026-07-18T01:00:00.000Z",
+      ),
+    /released candidate admission/,
+  );
+});
+
+test("owner expiry requires owner-only state and the exclusive admission lock", () => {
+  const ownerSetup = setup();
+  const ownerPermit = authorize(ownerSetup);
+  chmodSync(getCandidateAdmissionRoot(ownerSetup.env), 0o755);
+  assert.throws(
+    () =>
+      expireCandidateAdmission(
+        { admissionId: ownerPermit.admissionId },
+        ownerSetup.env,
+        "2026-07-18T01:00:00.000Z",
+      ),
+    /not owner-only/,
+  );
+
+  const lockedSetup = setup();
+  const lockedPermit = authorize(lockedSetup);
+  writeFileSync(join(getCandidateAdmissionRoot(lockedSetup.env), "admission.lock"), "held\n", {
+    mode: 0o600,
+  });
+  assert.throws(
+    () =>
+      expireCandidateAdmission(
+        { admissionId: lockedPermit.admissionId },
+        lockedSetup.env,
+        "2026-07-18T01:00:00.000Z",
+      ),
+    /lock is held or stale/,
+  );
 });
 
 test("activation preflights hold ownership before mutating canary config", () => {

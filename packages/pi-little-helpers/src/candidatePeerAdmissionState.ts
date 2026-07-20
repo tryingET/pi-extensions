@@ -66,7 +66,7 @@ export type CandidateAdmissionConfig = {
 export type CandidateAdmissionPermit = {
   schemaVersion: 2;
   admissionId: string;
-  status: "authorized" | "reserved" | "released";
+  status: "authorized" | "reserved" | "released" | "expired";
   canary: boolean;
   actor: string;
   taskRef: string;
@@ -77,6 +77,7 @@ export type CandidateAdmissionPermit = {
   authorizedAt: string;
   expiresAt: string;
   configDigest: string;
+  expiredAt?: string;
   admissionStateDigest: string;
   inventoryDigest: string;
   warningAcknowledgement?: CandidateAdmissionWarningAcknowledgement;

@@ -388,6 +388,40 @@ export function authorizeCandidateAdmission(
   });
 }
 
+export function expireCandidateAdmission(
+  input: { admissionId: string },
+  env: NodeJS.ProcessEnv = process.env,
+  now = new Date().toISOString(),
+): CandidateAdmissionPermit {
+  return withCandidateAdmissionLock(env, () => {
+    const path = candidateAdmissionPermitPath(input.admissionId, env);
+    const permit = readAdmissionJson<CandidateAdmissionPermit>(path);
+    if (permit.status === "expired") throw new Error("candidate admission is already expired");
+    if (permit.status === "released") throw new Error("released candidate admission cannot expire");
+    if (permit.status === "reserved") {
+      if (permit.peerRunId || permit.worktreePath || permit.branchName)
+        throw new Error("bound candidate admission cannot expire");
+      throw new Error("reserved candidate admission cannot expire");
+    }
+    if (permit.status !== "authorized")
+      throw new Error(`candidate admission has unsupported status: ${String(permit.status)}`);
+    if (
+      [permit.reservedAt, permit.peerRunId, permit.worktreePath, permit.branchName].some(
+        (value) => value !== undefined,
+      )
+    ) {
+      throw new Error("candidate admission with reservation or binding fields cannot expire");
+    }
+    const expiryTime = finiteTimestamp(now, "candidate admission expiry transition time");
+    const permitExpiresAt = finiteTimestamp(permit.expiresAt, "candidate admission permit expiry");
+    if (expiryTime < permitExpiresAt)
+      throw new Error("unexpired candidate admission cannot expire");
+    const expired: CandidateAdmissionPermit = { ...permit, status: "expired", expiredAt: now };
+    writeAdmissionJson(path, expired);
+    return expired;
+  });
+}
+
 export function reserveCandidateAdmission(
   input: { repoRoot: string; objective: string },
   env: NodeJS.ProcessEnv = process.env,
