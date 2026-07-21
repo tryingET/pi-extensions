@@ -50,3 +50,7 @@ export type VisibleLoopCommandParseResult =
 export type VisibleLoopCompletionParseResult =
   | { ok: true; configPath?: string; iteration?: number }
   | { ok: false; error: string };
+
+export type VisibleLoopChildParseResult =
+  | { ok: true; configPath: string; claimToken?: string }
+  | { ok: false; error: string; usage: string };

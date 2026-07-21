@@ -46,6 +46,7 @@ import {
   listMissingVisibleLoopPromptTemplates,
   NEXUS_LOOP_COMMAND,
   parseVisibleLoopCommandArgs,
+  renderVisibleLoopChildCommand,
   resolveParentPeerTarget,
   type SelfEvolutionCandidateCloseout,
   startVisibleLoopChildCompleteRunner,
@@ -2119,13 +2120,13 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     }
 
     function createVisibleLoopContinuation(ctx: PiCommandContext): ContinueVisibleLoopInNewSession {
-      return async ({ config, configPath, nextIteration }) => {
+      return async ({ config, configPath, nextIteration, claimToken }) => {
         const titlePrefix = config.title ?? "Visible loop";
         const launch = await launchPiQuestSession({
           pi,
           ctx,
           options,
-          prompt: `/${VISIBLE_LOOP_CHILD_COMMAND} ${configPath}`,
+          prompt: renderVisibleLoopChildCommand(configPath, claimToken),
           titlePrompt: `${titlePrefix.toLowerCase()} ${nextIteration}/${config.loopCount}`,
           titlePrefix,
           cwd: config.cwd || ctx.cwd || process.cwd(),
@@ -2248,7 +2249,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         title: titlePrefix,
       });
       const configPath = writeVisibleLoopRunConfig(config, options.env ?? process.env);
-      const childPrompt = `/${VISIBLE_LOOP_CHILD_COMMAND} ${configPath}`;
+      const childPrompt = renderVisibleLoopChildCommand(configPath);
       const launch = await launchPiQuestSession({
         pi,
         ctx,
@@ -3166,15 +3167,24 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     });
 
     pi.on?.("message_start", async (event, ctx) => {
-      handleVisibleLoopMessageStart(event, ctx ?? {}, options.env ?? process.env);
+      const commandCtx = ctx ?? {};
+      handleVisibleLoopMessageStart(event, pi, commandCtx, options.env ?? process.env, {
+        continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+      });
     });
 
     pi.on?.("tool_execution_start", async (event, ctx) => {
-      handleVisibleLoopToolExecutionStart(event, ctx ?? {}, options.env ?? process.env);
+      const commandCtx = ctx ?? {};
+      handleVisibleLoopToolExecutionStart(event, pi, commandCtx, options.env ?? process.env, {
+        continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+      });
     });
 
     pi.on?.("tool_execution_end", async (event, ctx) => {
-      handleVisibleLoopToolExecutionEnd(event, ctx ?? {}, options.env ?? process.env);
+      const commandCtx = ctx ?? {};
+      handleVisibleLoopToolExecutionEnd(event, pi, commandCtx, options.env ?? process.env, {
+        continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+      });
     });
 
     pi.on?.("agent_settled", async (_event, ctx) => {

@@ -34,24 +34,63 @@ export function getVisibleLoopStatusPath(
   return join(getVisibleLoopStateDir(env), `${runId}.status.jsonl`);
 }
 
+function writeVisibleLoopStatus(
+  config: VisibleLoopRunConfig,
+  event: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+): Record<string, unknown> {
+  mkdirSync(getVisibleLoopStateDir(env), { recursive: true });
+  const entry = {
+    timestamp: new Date().toISOString(),
+    runId: config.runId,
+    ...event,
+  };
+  writeFileSync(getVisibleLoopStatusPath(config, env), `${JSON.stringify(entry)}\n`, {
+    encoding: "utf8",
+    flag: "a",
+  });
+  return entry;
+}
+
 export function appendVisibleLoopStatus(
   config: VisibleLoopRunConfig,
   event: Record<string, unknown>,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
   try {
-    mkdirSync(getVisibleLoopStateDir(env), { recursive: true });
-    const entry = {
-      timestamp: new Date().toISOString(),
-      runId: config.runId,
-      ...event,
-    };
-    writeFileSync(getVisibleLoopStatusPath(config, env), `${JSON.stringify(entry)}\n`, {
-      encoding: "utf8",
-      flag: "a",
-    });
+    writeVisibleLoopStatus(config, event, env);
   } catch {
-    // Status sidecar is diagnostic only. Never break the visible loop for it.
+    // Non-authoritative diagnostics must not break the visible loop.
+  }
+}
+
+export function appendAuthoritativeVisibleLoopStatus(
+  config: VisibleLoopRunConfig,
+  event: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): { ok: true } | { ok: false; error: string } {
+  try {
+    const statusPath = getVisibleLoopStatusPath(config, env);
+    if (existsSync(statusPath)) {
+      const before = readFileSync(statusPath, "utf8");
+      if (before && !before.endsWith("\n")) {
+        throw new Error("status ledger ends with a partial JSONL record");
+      }
+    }
+    const expected = writeVisibleLoopStatus(config, event, env);
+    const lines = readFileSync(statusPath, "utf8").trimEnd().split("\n");
+    const observed = JSON.parse(lines.at(-1) ?? "") as Record<string, unknown>;
+    if (
+      observed.runId !== config.runId ||
+      Object.entries(expected).some(
+        ([key, value]) => JSON.stringify(observed[key]) !== JSON.stringify(value),
+      )
+    ) {
+      throw new Error("authoritative status record could not be read back exactly");
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 

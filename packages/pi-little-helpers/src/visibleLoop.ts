@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
@@ -10,7 +10,45 @@ import {
   validateSelfEvolutionCandidateCloseout,
 } from "./selfEvolutionEnvelope.ts";
 import { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
-import { normalizeOptionalString, parseVisibleLoopCompletionArgs } from "./visibleLoopArgs.ts";
+import { parseVisibleLoopChildArgs, parseVisibleLoopCompletionArgs } from "./visibleLoopArgs.ts";
+import { continueVisibleLoopAfterFinalizedIteration } from "./visibleLoopContinuation.ts";
+import {
+  bindVisibleLoopActivePlan,
+  completeVisibleLoopIterationLease,
+  enterVisibleLoopIterationLease,
+  readVisibleLoopIterationLease,
+  type VisibleLoopLeaseOwner,
+} from "./visibleLoopContinuationClaim.ts";
+import {
+  armVisibleLoopDeliveryAckWatchdog as armDeliveryAckWatchdog,
+  claimVisibleLoopRuntimeGeneration,
+  clearVisibleLoopDeliveryAckWatchdog,
+  DEFAULT_VISIBLE_LOOP_TIMER,
+  getVisibleLoopUserMessageText,
+  ownsVisibleLoopRuntimeGeneration,
+  resolveVisibleLoopDeliveryAckTimeoutMs,
+  VISIBLE_LOOP_PROCESS_INCARNATION,
+  type VisibleLoopTimerRuntime,
+} from "./visibleLoopDelivery.ts";
+import {
+  beginVisibleLoopBarrierAttempt,
+  beginVisibleLoopFrontierSubmission,
+  completeVisibleLoopBarrierAttempt,
+  createVisibleLoopPlanProgress,
+  failVisibleLoopPlan,
+  finalizeVisibleLoopPlan,
+  getVisibleLoopCompletionTurnCount,
+  getVisibleLoopPlanCounts,
+  getVisibleLoopPrompts,
+  hasVisibleLoopBarrierSuccess,
+  labelVisibleLoopPlanStep,
+  markVisibleLoopFrontierSubmitted,
+  observeVisibleLoopPlanStep,
+  renderVisibleLoopPlan,
+  settleRunningVisibleLoopPlanStep,
+  type VisibleLoopPlanStep,
+  visibleLoopDelegatesCompletion,
+} from "./visibleLoopPlan.ts";
 import {
   getVisibleLoopCommandName,
   getVisibleLoopHumanLabel,
@@ -28,18 +66,29 @@ import {
   type VisibleLoopPromptExpansion,
 } from "./visibleLoopPromptTemplates.ts";
 import {
+  type ActiveVisibleLoopState,
+  type ContinueVisibleLoopInNewSession,
+  type CreateVisibleLoopPeerRuntime,
+  normalizeVisibleLoopOwnerSessionId,
+  type PeerMessagingRuntime,
+  persistActiveVisibleLoopState,
+  removeActiveVisibleLoopState,
+  restoreActiveVisibleLoopState as restorePersistedActiveVisibleLoopState,
+  type SendUserMessage,
+  type VisibleLoopContext,
+} from "./visibleLoopRecovery.ts";
+import {
+  appendAuthoritativeVisibleLoopStatus,
   appendVisibleLoopStatus,
-  getVisibleLoopStateDir,
   hasVisibleLoopAlreadyCompleted,
   loadVisibleLoopRunConfig,
   readCompletedVisibleLoopIterations,
 } from "./visibleLoopState.ts";
-import {
-  VISIBLE_LOOP_CHILD_COMMAND,
-  type VisibleLoopCommitDelegation,
-  type VisibleLoopProductPostureTarget,
-  type VisibleLoopReportBack,
-  type VisibleLoopRunConfig,
+import type {
+  VisibleLoopCommitDelegation,
+  VisibleLoopProductPostureTarget,
+  VisibleLoopReportBack,
+  VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
 
 export {
@@ -53,7 +102,15 @@ export {
   validateSelfEvolutionCandidateCloseout,
 } from "./selfEvolutionEnvelope.ts";
 export { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
-export { parseVisibleLoopCommandArgs } from "./visibleLoopArgs.ts";
+export {
+  parseVisibleLoopChildArgs,
+  parseVisibleLoopCommandArgs,
+  renderVisibleLoopChildCommand,
+} from "./visibleLoopArgs.ts";
+export type {
+  VisibleLoopTimerHandle,
+  VisibleLoopTimerRuntime,
+} from "./visibleLoopDelivery.ts";
 export {
   DEFAULT_NEXUS_LOOP_PROFILE,
   DEFAULT_VISIBLE_LOOP_PROFILE,
@@ -72,6 +129,7 @@ export {
   listMissingVisibleLoopPromptTemplates,
   type VisibleLoopPromptExpansion,
 } from "./visibleLoopPromptTemplates.ts";
+export type { ContinueVisibleLoopInNewSession } from "./visibleLoopRecovery.ts";
 export {
   getVisibleLoopStateDir,
   getVisibleLoopStatusPath,
@@ -88,47 +146,14 @@ export {
   type VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
 
-type SendUserMessageOptions = { deliverAs?: "followUp" | "steer" };
-type SendUserMessage = (message: string, options?: SendUserMessageOptions) => void;
-
-export type ContinueVisibleLoopInNewSession = (input: {
-  config: VisibleLoopRunConfig;
-  configPath: string;
-  completedIterations: number;
-  nextIteration: number;
-}) => Promise<void> | void;
-
 export interface VisibleLoopChildRunnerOptions {
   continueInNewSession?: ContinueVisibleLoopInNewSession;
   createPeerRuntime?: CreateVisibleLoopPeerRuntime;
   intercomSendTimeoutMs?: number;
+  deliveryAckTimeoutMs?: number;
+  deliveryAckTimer?: VisibleLoopTimerRuntime;
   candidateCloseout?: SelfEvolutionCandidateCloseout;
 }
-
-type VisibleLoopContext = {
-  cwd?: string;
-  hasUI?: boolean;
-  model?: { id?: string };
-  ui?: {
-    notify?(message: string, type?: string): void;
-    setStatus?(key: string, value: unknown): void;
-  };
-  sessionManager?: {
-    getSessionId?(): string;
-    getSessionName?(): string | undefined;
-    getCwd?(): string;
-    getBranch?(): unknown;
-  };
-  hasPendingMessages?(): boolean;
-};
-
-type PeerMessagingRuntime = {
-  send(request: {
-    to: string;
-    message: { id: string; timestamp: number; content: { text: string } };
-  }): Promise<{ delivered: boolean; reason?: string }>;
-  disconnect?(): Promise<void>;
-};
 
 type PeerMessagingModule = {
   createPeerMessagingRuntime(options: {
@@ -140,14 +165,13 @@ type PeerMessagingModule = {
   }): Promise<PeerMessagingRuntime>;
 };
 
-type CreateVisibleLoopPeerRuntime = (
-  config: VisibleLoopRunConfig,
-  ctx: VisibleLoopContext,
-) => Promise<PeerMessagingRuntime> | PeerMessagingRuntime;
-
 const DEFAULT_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 10_000;
-const MAX_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 120_000;
+let visibleLoopRuntimeGeneration = claimVisibleLoopRuntimeGeneration();
 
+function isCurrentVisibleLoopRuntime(): boolean {
+  return ownsVisibleLoopRuntimeGeneration(visibleLoopRuntimeGeneration);
+}
+const MAX_VISIBLE_LOOP_INTERCOM_SEND_TIMEOUT_MS = 120_000;
 export function createVisibleLoopRunConfig(input: {
   loopCount: number;
   cwd: string;
@@ -220,6 +244,16 @@ export function resolveParentPeerTarget(ctx: VisibleLoopContext): string | undef
   return normalized.replace(/[^a-zA-Z0-9-]/g, "-");
 }
 
+function getVisibleLoopLeaseOwner(ctx: VisibleLoopContext): VisibleLoopLeaseOwner | undefined {
+  const sessionId = normalizeVisibleLoopOwnerSessionId(ctx.sessionManager?.getSessionId?.());
+  if (!sessionId) return undefined;
+  return {
+    sessionId,
+    processId: process.pid,
+    processIncarnation: VISIBLE_LOOP_PROCESS_INCARNATION,
+  };
+}
+
 export async function startVisibleLoopChildRunner(
   configPathArg: string | undefined,
   pi: ExtensionAPI,
@@ -227,11 +261,13 @@ export async function startVisibleLoopChildRunner(
   env: NodeJS.ProcessEnv = process.env,
   runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): Promise<void> {
-  const configPath = normalizeOptionalString(configPathArg);
-  if (!configPath) {
-    ctx.ui?.notify?.(`Usage: /${VISIBLE_LOOP_CHILD_COMMAND} <config-path>`, "warning");
+  if (!isCurrentVisibleLoopRuntime()) return;
+  const childArgs = parseVisibleLoopChildArgs(configPathArg);
+  if (!childArgs.ok) {
+    ctx.ui?.notify?.(`${childArgs.error}\n${childArgs.usage}`, "warning");
     return;
   }
+  const { configPath, claimToken } = childArgs;
 
   const configResult = loadVisibleLoopRunConfig(configPath, env);
   if (!configResult.ok) {
@@ -240,6 +276,21 @@ export async function startVisibleLoopChildRunner(
   }
 
   const config = configResult.config;
+  const pointerAtEntry = resolveActiveVisibleLoopPointer(ctx, env);
+  if (pointerAtEntry.kind === "blocked") {
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} child ignored: another session owns the active visible-loop runtime`,
+      "warning",
+    );
+    return;
+  }
+  if (pointerAtEntry.kind === "owned" && pointerAtEntry.state.config.runId !== config.runId) {
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} child ignored: this session already owns another active visible-loop run`,
+      "warning",
+    );
+    return;
+  }
   const candidateBinding = validatePersistedSelfEvolutionBinding(config.selfEvolutionEnvelope, {
     cwd: config.cwd,
     parentPeerTarget: config.parentPeerTarget,
@@ -256,11 +307,105 @@ export async function startVisibleLoopChildRunner(
 
   const restoredIterations = readCompletedVisibleLoopIterations(config, env);
   if (restoredIterations >= config.loopCount) {
+    ctx.ui?.setWidget?.(`${getVisibleLoopCommandName(config)}-plan`, undefined);
     ctx.ui?.notify?.("visible-loop child ignored: loop is already complete", "warning");
     return;
   }
 
+  const owner = getVisibleLoopLeaseOwner(ctx);
+  if (!owner) {
+    ctx.ui?.notify?.("visible-loop child failed: session identity is unavailable", "error");
+    return;
+  }
+  const leaseEntry = enterVisibleLoopIterationLease({
+    runId: config.runId,
+    iteration: restoredIterations + 1,
+    owner,
+    ...(claimToken ? { claimToken } : {}),
+    env,
+  });
+  if (!leaseEntry.ok) {
+    ctx.ui?.notify?.(`visible-loop child rejected: ${leaseEntry.error}`, "error");
+    return;
+  }
+
+  const pointerAfterLease = resolveActiveVisibleLoopPointer(ctx, env);
+  if (pointerAfterLease.kind === "blocked") {
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} child ignored: active runtime ownership changed`,
+      "warning",
+    );
+    return;
+  }
+  const existingState =
+    (pointerAfterLease.kind === "owned" && pointerAfterLease.state.config.runId === config.runId
+      ? pointerAfterLease.state
+      : null) ??
+    (pointerAfterLease.kind === "missing"
+      ? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions)
+      : null);
+  if (existingState?.config.runId === config.runId && !existingState.stopped) {
+    const expectedIteration = restoredIterations + 1;
+    const existingPlan = existingState.plan;
+    const resumeBinding =
+      leaseEntry.value === "resumed_owner" && existingPlan?.iteration === expectedIteration
+        ? bindVisibleLoopActivePlan({
+            runId: config.runId,
+            iteration: expectedIteration,
+            planId: existingPlan.planId,
+            owner,
+            env,
+          })
+        : { ok: false as const, error: "active snapshot does not match the resumed run lease" };
+    if (!resumeBinding.ok) {
+      ctx.ui?.notify?.(
+        `${getVisibleLoopHumanLabel(config)} recovery failed closed: ${resumeBinding.error}`,
+        "error",
+      );
+      return;
+    }
+    if (!existingPlan) return;
+    if (!installActiveVisibleLoopPointer(existingState, ctx, env)) return;
+    renderVisibleLoopPlan(existingState, ctx);
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} resumed without duplicate prompt submission`,
+      "info",
+    );
+    if (!existingPlan.frontier) {
+      submitNextVisibleLoopFrontier(existingState, ctx, env);
+    } else {
+      armVisibleLoopDeliveryAckWatchdog(existingState, ctx, env);
+    }
+    return;
+  }
+  const finalizedPriorIteration = Boolean(
+    existingState?.plan?.lifecycle === "finalized" &&
+      existingState.plan.iteration === restoredIterations,
+  );
+  if (
+    leaseEntry.value === "resumed_owner" &&
+    (!existingState || existingState.config.runId !== config.runId)
+  ) {
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} cannot restart automatically: active owner snapshot is unavailable`,
+      "error",
+    );
+    return;
+  }
+  if ((existingState || lastVisibleLoopRecoveryFailure) && !finalizedPriorIteration) {
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} cannot restart automatically: ${
+        lastVisibleLoopRecoveryFailure ??
+        existingState?.plan?.failureReason ??
+        "prior plan failed closed"
+      }`,
+      "error",
+    );
+    return;
+  }
+
   const state: ActiveVisibleLoopState = {
+    ownerSessionId: owner.sessionId,
     config,
     configPath,
     completedPromptCount: restoredIterations * getVisibleLoopCompletionTurnCount(config),
@@ -270,15 +415,13 @@ export async function startVisibleLoopChildRunner(
     createPeerRuntime: runnerOptions.createPeerRuntime,
     intercomSendTail: Promise.resolve(),
     intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
+    deliveryAckTimeoutMs: resolveVisibleLoopDeliveryAckTimeoutMs(env, runnerOptions),
+    deliveryAckTimer: runnerOptions.deliveryAckTimer ?? DEFAULT_VISIBLE_LOOP_TIMER,
+    deliveryAckWatchdog: null,
     stopped: false,
-    followupsQueuedForIteration: null,
-    currentPromptIndex: 0,
-    completionPromptQueued: false,
-    pendingDeliveryPrompt: null,
-    currentPromptObserved: false,
-    currentPromptAgentStarted: false,
-    governedDeepReviewToolCallId: null,
-    governedDeepReviewSucceededIteration: null,
+    plan: null,
+    hostProcessId: process.pid,
+    hostProcessIncarnation: VISIBLE_LOOP_PROCESS_INCARNATION,
     continueInNewSession: runnerOptions.continueInNewSession,
   };
   appendVisibleLoopStatus(
@@ -291,9 +434,24 @@ export async function startVisibleLoopChildRunner(
     },
     env,
   );
-  persistActiveVisibleLoopState(state, ctx, env);
+  const initialPersistence = persistVisibleLoopStateAndRetireFailedOwner(state, ctx, env);
+  if (!initialPersistence.ok) {
+    state.stopped = true;
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} stopped: active-state persistence failed: ${initialPersistence.error}`,
+      "error",
+    );
+    return;
+  }
 
-  activeVisibleLoop = state;
+  if (!installActiveVisibleLoopPointer(state, ctx, env)) {
+    state.stopped = true;
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} stopped: active runtime pointer ownership changed`,
+      "error",
+    );
+    return;
+  }
   const statusKey = getVisibleLoopCommandName(config);
   const loopLabel = getVisibleLoopHumanLabel(config);
   ctx.ui?.setStatus?.(statusKey, `loop ${restoredIterations}/${config.loopCount}`);
@@ -315,52 +473,31 @@ export async function startVisibleLoopChildRunner(
 
 export function handleVisibleLoopMessageStart(
   event: { message?: unknown },
+  pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
-  const state = activeVisibleLoop;
-  if (!state || state.stopped || !state.pendingDeliveryPrompt) return;
-  const message = event.message;
-  if (!message || typeof message !== "object" || Array.isArray(message)) return;
-  const record = message as Record<string, unknown>;
-  if (record.role !== "user") return;
-  const content = record.content;
-  const text =
-    typeof content === "string"
-      ? content
-      : Array.isArray(content)
-        ? content
-            .filter((item): item is { type: "text"; text: string } =>
-              Boolean(
-                item &&
-                  typeof item === "object" &&
-                  !Array.isArray(item) &&
-                  (item as Record<string, unknown>).type === "text" &&
-                  typeof (item as Record<string, unknown>).text === "string",
-              ),
-            )
-            .map((item) => item.text)
-            .join("\n")
-        : undefined;
-  if (text !== state.pendingDeliveryPrompt) return;
+  if (!isCurrentVisibleLoopRuntime()) return;
+  const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state || state.stopped || !state.plan) return;
+  const text = getVisibleLoopUserMessageText(event.message);
+  if (!text) return;
+  const observation = observeVisibleLoopPlanStep(state.plan, text);
+  if (!observation || !observation.changed) return;
+  clearVisibleLoopDeliveryAckWatchdog(state, state.plan.planId, observation.step.index);
 
-  state.pendingDeliveryPrompt = null;
-  state.currentPromptObserved = true;
-  // Pi emits agent_start before the first user message_start for the run. Observing the
-  // exact queued user text supplies the correlation that the earlier event lacks.
-  state.currentPromptAgentStarted = true;
   appendVisibleLoopStatus(
     state.config,
     {
       event: "prompt_delivery_observed",
-      iteration: state.completedIterations + 1,
-      promptIndex: state.completionPromptQueued
-        ? getVisibleLoopPrompts(state.config).length + 1
-        : state.currentPromptIndex + 1,
+      iteration: state.plan.iteration,
+      promptIndex: observation.step.index + 1,
+      ...getVisibleLoopPlanCounts(state.plan),
     },
     env,
   );
-  persistActiveVisibleLoopState(state, ctx, env);
+  persistAndRenderVisibleLoopPlan(state, ctx, env);
 }
 
 export function handleVisibleLoopAgentStart(
@@ -369,32 +506,24 @@ export function handleVisibleLoopAgentStart(
   env: NodeJS.ProcessEnv = process.env,
   runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
-  // Follow-ups are deliberately delivered one-at-a-time from agent_settled. A settled
-  // event may advance only after the queued prompt has caused a new agent run to start.
-  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
-  if (!state || state.stopped || !state.currentPromptObserved) return;
-  state.currentPromptAgentStarted = true;
-  appendVisibleLoopStatus(
-    state.config,
-    {
-      event: "prompt_agent_started",
-      iteration: state.completedIterations + 1,
-      promptIndex: state.currentPromptIndex + 1,
-    },
-    env,
-  );
-  persistActiveVisibleLoopState(state, ctx, env);
+  if (!isCurrentVisibleLoopRuntime()) return;
+  const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (state?.plan) renderVisibleLoopPlan(state, ctx);
 }
 
 export function handleVisibleLoopToolExecutionStart(
   event: { toolCallId?: string; toolName?: string; args?: unknown },
+  pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
-  const state = activeVisibleLoop;
-  if (!state || state.stopped || event.toolName !== "vault_execute_template") return;
-  const prompts = getVisibleLoopPrompts(state.config);
-  if (!isGovernedDeepReviewPrompt(state.config, prompts[state.currentPromptIndex])) return;
+  if (!isCurrentVisibleLoopRuntime()) return;
+  const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state || state.stopped || !state.plan || event.toolName !== "vault_execute_template") return;
+  const frontier = state.plan.frontier;
+  const runningStep = frontier ? state.plan.steps[frontier.stepIndex] : undefined;
+  if (frontier?.state !== "running" || !runningStep?.governedBarrier) return;
   const args = event.args;
   if (!args || typeof args !== "object" || Array.isArray(args)) return;
   const record = args as Record<string, unknown>;
@@ -406,18 +535,39 @@ export function handleVisibleLoopToolExecutionStart(
   ) {
     return;
   }
-  state.governedDeepReviewToolCallId = event.toolCallId;
+  const outcome = beginVisibleLoopBarrierAttempt(state.plan, runningStep.index, event.toolCallId);
+  if (outcome === "duplicate_call") {
+    clearVisibleLoopDeliveryAckWatchdog(state);
+    state.stopped = true;
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "governed_deep_review_duplicate_failed_closed",
+        iteration: state.plan.iteration,
+        promptIndex: runningStep.index + 1,
+        toolCallId: event.toolCallId,
+      },
+      env,
+    );
+    persistAndRenderVisibleLoopPlan(state, ctx, env);
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(state.config)} stopped: duplicate governed deep-review call`,
+      "error",
+    );
+    return;
+  }
+  if (outcome !== "started") return;
   appendVisibleLoopStatus(
     state.config,
     {
       event: "governed_deep_review_tool_started",
-      iteration: state.completedIterations + 1,
-      promptIndex: state.currentPromptIndex + 1,
+      iteration: state.plan.iteration,
+      promptIndex: runningStep.index + 1,
       toolCallId: event.toolCallId,
     },
     env,
   );
-  persistActiveVisibleLoopState(state, ctx, env);
+  persistAndRenderVisibleLoopPlan(state, ctx, env);
 }
 
 export function handleVisibleLoopToolExecutionEnd(
@@ -427,46 +577,71 @@ export function handleVisibleLoopToolExecutionEnd(
     result?: { details?: unknown };
     isError?: boolean;
   },
+  pi: ExtensionAPI,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
-  const state = activeVisibleLoop;
-  if (!state || state.stopped || event.toolName !== "vault_execute_template") return;
-  const prompts = getVisibleLoopPrompts(state.config);
-  if (!isGovernedDeepReviewPrompt(state.config, prompts[state.currentPromptIndex])) return;
-  if (
-    typeof event.toolCallId !== "string" ||
-    event.toolCallId !== state.governedDeepReviewToolCallId
-  ) {
-    return;
-  }
-  state.governedDeepReviewToolCallId = null;
+  if (!isCurrentVisibleLoopRuntime()) return;
+  const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state || state.stopped || !state.plan || event.toolName !== "vault_execute_template") return;
+  const frontier = state.plan.frontier;
+  if (frontier?.state !== "running" || typeof event.toolCallId !== "string") return;
   const details = event.result?.details;
-  if (!details || typeof details !== "object" || Array.isArray(details)) return;
-  const record = details as Record<string, unknown>;
-  if (
+  const record =
+    details && typeof details === "object" && !Array.isArray(details)
+      ? (details as Record<string, unknown>)
+      : null;
+  const validReceipt = Boolean(
     event.isError !== true &&
-    record.ok === true &&
-    record.templateName === "deep-review" &&
-    record.executionSurface === "workflow_execute" &&
-    typeof record.handoffId === "string" &&
-    record.handoffId.trim() &&
-    record.status === "done"
-  ) {
-    state.governedDeepReviewSucceededIteration = state.completedIterations + 1;
+      record?.ok === true &&
+      record.templateName === "deep-review" &&
+      record.executionSurface === "workflow_execute" &&
+      typeof record.handoffId === "string" &&
+      record.handoffId.trim() &&
+      record.status === "done",
+  );
+  const outcome = completeVisibleLoopBarrierAttempt(
+    state.plan,
+    frontier.stepIndex,
+    event.toolCallId,
+    validReceipt
+      ? {
+          ok: true,
+          handoffId: String(record?.handoffId),
+          ...(typeof record?.runId === "string" ? { runId: record.runId } : {}),
+        }
+      : { ok: false, reason: "missing successful vault_execute_template workflow receipt" },
+  );
+  if (outcome === "ignored") return;
+  if (outcome === "failed_closed") {
+    clearVisibleLoopDeliveryAckWatchdog(state);
+    state.stopped = true;
     appendVisibleLoopStatus(
       state.config,
       {
-        event: "governed_deep_review_succeeded",
-        iteration: state.completedIterations + 1,
-        promptIndex: state.currentPromptIndex + 1,
-        handoffId: record.handoffId,
-        runId: record.runId ?? null,
+        event: "governed_deep_review_failed_closed",
+        iteration: state.plan.iteration,
+        promptIndex: frontier.stepIndex + 1,
+        reason: state.plan.failureReason,
       },
       env,
     );
-    persistActiveVisibleLoopState(state, ctx, env);
+    persistAndRenderVisibleLoopPlan(state, ctx, env);
+    return;
   }
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "governed_deep_review_succeeded",
+      iteration: state.plan.iteration,
+      promptIndex: frontier.stepIndex + 1,
+      handoffId: record?.handoffId,
+      workflowRunId: record?.runId ?? null,
+    },
+    env,
+  );
+  persistAndRenderVisibleLoopPlan(state, ctx, env);
 }
 
 export function handleVisibleLoopAgentSettled(
@@ -475,24 +650,26 @@ export function handleVisibleLoopAgentSettled(
   env: NodeJS.ProcessEnv = process.env,
   runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): void {
-  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
-  if (!state || state.stopped) return;
-  if (!state.currentPromptAgentStarted) {
+  if (!isCurrentVisibleLoopRuntime()) return;
+  const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state || state.stopped || !state.plan) return;
+  const settledStep = settleRunningVisibleLoopPlanStep(state.plan);
+  if (!settledStep) {
     appendVisibleLoopStatus(
       state.config,
       {
         event: "agent_settled_ignored",
-        reason: "queued prompt has not started an agent run",
-        iteration: state.completedIterations + 1,
-        promptIndex: state.currentPromptIndex + 1,
+        reason: "no exact correlated visible-loop frontier is running",
+        iteration: state.plan.iteration,
+        ...getVisibleLoopPlanCounts(state.plan),
       },
       env,
     );
     return;
   }
 
-  state.currentPromptAgentStarted = false;
-  state.completedPromptCount += 1;
+  state.completedPromptCount =
+    state.completedIterations * state.plan.steps.length + state.plan.settledCount;
   appendVisibleLoopStatus(
     state.config,
     {
@@ -501,187 +678,120 @@ export function handleVisibleLoopAgentSettled(
       pendingMessages: Boolean(ctx.hasPendingMessages?.()),
       completedPromptCount: state.completedPromptCount,
       completedIterations: state.completedIterations,
-      currentPromptIndex: state.currentPromptIndex + 1,
-      completionMode: "sequential_explicit_completion_prompt",
+      promptIndex: settledStep.index + 1,
+      completionMode: "single_executable_frontier_with_explicit_completion_prompt",
+      ...getVisibleLoopPlanCounts(state.plan),
     },
     env,
   );
 
-  const prompts = getVisibleLoopPrompts(state.config);
-  const iteration = state.completedIterations + 1;
-  const completedPrompt = prompts[state.currentPromptIndex];
-  if (
-    isGovernedDeepReviewPrompt(state.config, completedPrompt) &&
-    state.governedDeepReviewSucceededIteration !== iteration
-  ) {
-    state.stopped = true;
-    appendVisibleLoopStatus(
-      state.config,
-      {
-        event: "governed_deep_review_failed_closed",
-        iteration,
-        promptIndex: state.currentPromptIndex + 1,
-        reason: "missing successful vault_execute_template workflow receipt",
-      },
+  if (settledStep.governedBarrier && !hasVisibleLoopBarrierSuccess(state.plan, settledStep.index)) {
+    stopVisibleLoopPlanFailedClosed(
+      state,
+      ctx,
       env,
-    );
-    persistActiveVisibleLoopState(state, ctx, env);
-    ctx.ui?.notify?.(
-      `${getVisibleLoopHumanLabel(state.config)} stopped: governed deep-review did not complete successfully`,
-      "error",
+      "missing successful vault_execute_template workflow receipt",
+      "governed deep-review did not complete successfully",
     );
     return;
   }
-
-  if (state.currentPromptIndex + 1 < prompts.length) {
-    queueVisibleLoopPromptAtIndex(state, ctx, state.currentPromptIndex + 1, env);
+  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) return;
+  if (state.plan.settledCount < state.plan.steps.length) {
+    submitNextVisibleLoopFrontier(state, ctx, env);
     return;
   }
 
-  if (visibleLoopDelegatesCompletion(state.config, prompts.slice(1))) {
-    appendVisibleLoopStatus(
-      state.config,
-      { event: "delegated_completion_awaited", iteration },
-      env,
-    );
-    persistActiveVisibleLoopState(state, ctx, env);
-    return;
-  }
-
-  if (!state.completionPromptQueued) {
-    state.completionPromptQueued = true;
-    state.currentPromptObserved = false;
-    state.currentPromptAgentStarted = false;
-    const completionPrompt = renderVisibleLoopCompletionPrompt({
-      configPath: state.configPath,
-      iteration,
-      promptCount: prompts.length,
-      productPosturePath: state.config.productPostureTarget?.productPosturePath,
-      productPostureExists: state.config.productPostureTarget?.productPostureExists,
-      visionPath: state.config.productPostureTarget?.visionPath,
-      visionExists: state.config.productPostureTarget?.visionExists,
-      selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
-    });
-    state.pendingDeliveryPrompt = completionPrompt;
-    appendVisibleLoopStatus(
-      state.config,
-      { event: "completion_prompt_queued", iteration, promptIndex: prompts.length + 1 },
-      env,
-    );
-    try {
-      state.sendUserMessage(completionPrompt);
-    } catch (error) {
-      state.stopped = true;
-      appendVisibleLoopStatus(
-        state.config,
-        {
-          event: "prompt_delivery_failed_closed",
-          iteration,
-          promptIndex: prompts.length + 1,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        env,
-      );
-      persistActiveVisibleLoopState(state, ctx, env);
-      ctx.ui?.notify?.(
-        `${getVisibleLoopHumanLabel(state.config)} stopped: completion prompt delivery failed`,
-        "error",
-      );
-    }
-    return;
-  }
-
-  state.stopped = true;
-  appendVisibleLoopStatus(
-    state.config,
-    { event: "completion_checkpoint_failed_closed", iteration },
+  stopVisibleLoopPlanFailedClosed(
+    state,
+    ctx,
     env,
+    "completion checkpoint settled without accepted completion",
+    "completion checkpoint settled without acceptance",
   );
-  persistActiveVisibleLoopState(state, ctx, env);
-  ctx.ui?.notify?.(
-    `${getVisibleLoopHumanLabel(state.config)} stopped: completion checkpoint settled without acceptance`,
-    "error",
-  );
-}
-
-interface ActiveVisibleLoopState {
-  config: VisibleLoopRunConfig;
-  configPath: string;
-  completedPromptCount: number;
-  completedIterations: number;
-  sendUserMessage: SendUserMessage;
-  peerRuntime: PeerMessagingRuntime | null;
-  createPeerRuntime?: CreateVisibleLoopPeerRuntime;
-  intercomSendTail: Promise<void>;
-  intercomSendTimeoutMs: number;
-  stopped: boolean;
-  followupsQueuedForIteration: number | null;
-  currentPromptIndex: number;
-  completionPromptQueued: boolean;
-  pendingDeliveryPrompt: string | null;
-  currentPromptObserved: boolean;
-  currentPromptAgentStarted: boolean;
-  governedDeepReviewToolCallId: string | null;
-  governedDeepReviewSucceededIteration: number | null;
-  continueInNewSession?: ContinueVisibleLoopInNewSession;
 }
 
 let activeVisibleLoop: ActiveVisibleLoopState | null = null;
+let lastVisibleLoopRecoveryFailure: string | null = null;
 
-interface PersistedActiveVisibleLoopState {
-  schemaVersion: 1;
-  runId: string;
-  configPath: string;
-  completedPromptCount: number;
-  completedIterations: number;
-  followupsQueuedForIteration: number | null;
-  currentPromptIndex?: number;
-  completionPromptQueued?: boolean;
-  governedDeepReviewSucceededIteration?: number | null;
-  stopped: boolean;
-}
+type ActiveVisibleLoopPointerResolution =
+  | { kind: "missing" }
+  | { kind: "blocked" }
+  | { kind: "owned"; state: ActiveVisibleLoopState };
 
-function getVisibleLoopSessionKey(ctx: VisibleLoopContext): string | undefined {
-  const raw = ctx.sessionManager?.getSessionId?.()?.trim();
-  if (!raw) return undefined;
-  const normalized = raw.startsWith("session-") ? raw : `session-${raw}`;
-  return normalized.replace(/[^a-zA-Z0-9-]/g, "-");
-}
-
-function getActiveVisibleLoopStatePath(
-  ctx: VisibleLoopContext,
-  env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
-  const sessionKey = getVisibleLoopSessionKey(ctx);
-  if (!sessionKey) return undefined;
-  return join(getVisibleLoopStateDir(env), "active", `${sessionKey}.json`);
-}
-
-function persistActiveVisibleLoopState(
+function contextOwnsActiveVisibleLoopState(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  const path = getActiveVisibleLoopStatePath(ctx, env);
-  if (!path) return;
-  try {
-    mkdirSync(dirname(path), { recursive: true });
-    const persisted: PersistedActiveVisibleLoopState = {
-      schemaVersion: 1,
-      runId: state.config.runId,
-      configPath: state.configPath,
-      completedPromptCount: state.completedPromptCount,
-      completedIterations: state.completedIterations,
-      followupsQueuedForIteration: state.followupsQueuedForIteration,
-      currentPromptIndex: state.currentPromptIndex,
-      completionPromptQueued: state.completionPromptQueued,
-      governedDeepReviewSucceededIteration: state.governedDeepReviewSucceededIteration,
-      stopped: state.stopped,
-    };
-    writeFileSync(path, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
-  } catch {
-    // Diagnostic persistence only; keep visible loop running.
+  env: NodeJS.ProcessEnv,
+): boolean {
+  const currentSessionId = normalizeVisibleLoopOwnerSessionId(ctx.sessionManager?.getSessionId?.());
+  if (!currentSessionId || currentSessionId !== state.ownerSessionId) return false;
+  const lease = readVisibleLoopIterationLease(state.config.runId, env);
+  return Boolean(
+    lease.ok &&
+      lease.value?.status === "ACTIVE" &&
+      lease.value.owner.sessionId === state.ownerSessionId &&
+      lease.value.owner.processId === state.hostProcessId &&
+      lease.value.owner.processIncarnation === state.hostProcessIncarnation,
+  );
+}
+
+function resolveActiveVisibleLoopPointer(
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+): ActiveVisibleLoopPointerResolution {
+  const candidate = activeVisibleLoop;
+  if (!candidate) return { kind: "missing" };
+  if (!contextOwnsActiveVisibleLoopState(candidate, ctx, env)) return { kind: "blocked" };
+  return { kind: "owned", state: candidate };
+}
+
+function installActiveVisibleLoopPointer(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  if (!contextOwnsActiveVisibleLoopState(state, ctx, env)) return false;
+  const existing = activeVisibleLoop;
+  if (existing && existing !== state && !contextOwnsActiveVisibleLoopState(existing, ctx, env)) {
+    return false;
   }
+  activeVisibleLoop = state;
+  return true;
+}
+
+function clearOwnedActiveVisibleLoopPointer(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  const resolved = resolveActiveVisibleLoopPointer(ctx, env);
+  if (resolved.kind !== "owned" || resolved.state !== state) return false;
+  activeVisibleLoop = null;
+  return true;
+}
+
+function retireActiveVisibleLoopPointer(state: ActiveVisibleLoopState): void {
+  if (activeVisibleLoop === state) activeVisibleLoop = null;
+}
+
+function getOrRestoreActiveVisibleLoopState(
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+  runnerOptions: VisibleLoopChildRunnerOptions,
+): ActiveVisibleLoopState | null {
+  const resolved = resolveActiveVisibleLoopPointer(ctx, env);
+  if (resolved.kind === "owned") return resolved.state;
+  if (resolved.kind === "blocked") return null;
+  return restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+}
+
+/** Test/reload harness hook: production reload naturally recreates module memory. */
+export function resetVisibleLoopRuntimeForRecoveryTest(): void {
+  visibleLoopRuntimeGeneration = claimVisibleLoopRuntimeGeneration();
+  if (activeVisibleLoop) clearVisibleLoopDeliveryAckWatchdog(activeVisibleLoop);
+  activeVisibleLoop = null;
+  lastVisibleLoopRecoveryFailure = null;
 }
 
 function restoreActiveVisibleLoopState(
@@ -690,87 +800,28 @@ function restoreActiveVisibleLoopState(
   env: NodeJS.ProcessEnv = process.env,
   runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): ActiveVisibleLoopState | null {
-  const path = getActiveVisibleLoopStatePath(ctx, env);
-  if (!path || !existsSync(path)) return null;
-  const sendUserMessage = getSendUserMessage(pi);
-  if (!sendUserMessage) return null;
-
-  try {
-    const persisted = JSON.parse(
-      readFileSync(path, "utf8"),
-    ) as Partial<PersistedActiveVisibleLoopState>;
-    if (persisted.schemaVersion !== 1 || !persisted.configPath) return null;
-    const configResult = loadVisibleLoopRunConfig(persisted.configPath, env);
-    if (!configResult.ok) return null;
-    const candidateBinding = validatePersistedSelfEvolutionBinding(
-      configResult.config.selfEvolutionEnvelope,
-      {
-        cwd: configResult.config.cwd,
-        parentPeerTarget: configResult.config.parentPeerTarget,
-      },
-    );
-    if (!candidateBinding.ok) return null;
-    const state: ActiveVisibleLoopState = {
-      config: configResult.config,
-      configPath: persisted.configPath,
-      completedPromptCount: Number.isInteger(persisted.completedPromptCount)
-        ? Number(persisted.completedPromptCount)
-        : 0,
-      completedIterations: Number.isInteger(persisted.completedIterations)
-        ? Number(persisted.completedIterations)
-        : 0,
-      sendUserMessage,
-      peerRuntime: null,
-      createPeerRuntime: runnerOptions.createPeerRuntime,
-      intercomSendTail: Promise.resolve(),
-      intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
-      stopped: Boolean(persisted.stopped),
-      followupsQueuedForIteration:
-        typeof persisted.followupsQueuedForIteration === "number"
-          ? persisted.followupsQueuedForIteration
-          : null,
-      currentPromptIndex: Number.isInteger(persisted.currentPromptIndex)
-        ? Number(persisted.currentPromptIndex)
-        : 0,
-      completionPromptQueued: Boolean(persisted.completionPromptQueued),
-      pendingDeliveryPrompt: null,
-      currentPromptObserved: false,
-      currentPromptAgentStarted: false,
-      governedDeepReviewToolCallId: null,
-      governedDeepReviewSucceededIteration: Number.isInteger(
-        persisted.governedDeepReviewSucceededIteration,
-      )
-        ? Number(persisted.governedDeepReviewSucceededIteration)
-        : null,
-      continueInNewSession: runnerOptions.continueInNewSession,
-    };
-    activeVisibleLoop = state;
-    appendVisibleLoopStatus(
-      state.config,
-      {
-        event: "active_state_restored",
-        completedPromptCount: state.completedPromptCount,
-        completedIterations: state.completedIterations,
-      },
-      env,
-    );
-    return state;
-  } catch {
-    return null;
-  }
-}
-
-function removeActiveVisibleLoopState(
-  ctx: VisibleLoopContext,
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  const path = getActiveVisibleLoopStatePath(ctx, env);
-  if (!path) return;
-  try {
-    rmSync(path, { force: true });
-  } catch {
-    // Diagnostic persistence only; ignore cleanup failures.
-  }
+  const result = restorePersistedActiveVisibleLoopState(ctx, env, {
+    sendUserMessage: getSendUserMessage(pi),
+    createPeerRuntime: runnerOptions.createPeerRuntime,
+    intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
+    deliveryAckTimeoutMs: resolveVisibleLoopDeliveryAckTimeoutMs(env, runnerOptions),
+    deliveryAckTimer: runnerOptions.deliveryAckTimer ?? DEFAULT_VISIBLE_LOOP_TIMER,
+    continueInNewSession: runnerOptions.continueInNewSession,
+    processIncarnation: VISIBLE_LOOP_PROCESS_INCARNATION,
+    setActiveState(state) {
+      installActiveVisibleLoopPointer(state, ctx, env);
+    },
+    persistAndRender(state) {
+      return persistAndRenderVisibleLoopPlan(state, ctx, env);
+    },
+    armDeliveryAckWatchdog(state) {
+      armVisibleLoopDeliveryAckWatchdog(state, ctx, env);
+    },
+  });
+  lastVisibleLoopRecoveryFailure = result.failure;
+  if (!result.state) return null;
+  const resolved = resolveActiveVisibleLoopPointer(ctx, env);
+  return resolved.kind === "owned" && resolved.state === result.state ? result.state : null;
 }
 
 function queueVisibleLoopIteration(
@@ -786,48 +837,21 @@ function queueVisibleLoopIteration(
   }
 
   const iteration = state.completedIterations + 1;
-  ctx.ui?.notify?.(
-    `${getVisibleLoopHumanLabel(state.config)} queueing iteration ${iteration}/${state.config.loopCount}`,
-    "info",
-  );
-  appendVisibleLoopStatus(
-    state.config,
-    {
-      event: "iteration_queued",
-      iteration,
-      promptCount: getVisibleLoopCompletionTurnCount(state.config),
-      sourcePromptCount: prompts.length,
-      queuedFollowupCount: prompts.length,
-      completionCommand: true,
-      completionMode: "explicit_completion_prompt",
-    },
-    env,
-  );
-  state.followupsQueuedForIteration = null;
-  state.currentPromptIndex = 0;
-  state.completionPromptQueued = false;
-  state.pendingDeliveryPrompt = null;
-  state.currentPromptObserved = false;
-  state.currentPromptAgentStarted = false;
-  state.governedDeepReviewToolCallId = null;
-  state.governedDeepReviewSucceededIteration = null;
-  queueVisibleLoopPromptAtIndex(state, ctx, 0, env);
-}
-
-function queueVisibleLoopPromptAtIndex(
-  state: ActiveVisibleLoopState,
-  ctx: VisibleLoopContext | undefined,
-  promptIndex: number,
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  if (activeVisibleLoop !== state || state.stopped) return;
-  const prompts = getVisibleLoopPrompts(state.config);
-  const prompt = prompts[promptIndex];
-  if (prompt === undefined) return;
-  const iteration = state.completedIterations + 1;
-  const expandedPrompt = expandVisibleLoopPromptTemplate(prompt, state.config.cwd);
-  if (!expandedPrompt.ok) {
-    stopVisibleLoopForPromptExpansionFailure(
+  const steps: VisibleLoopPlanStep[] = [];
+  for (const [promptIndex, prompt] of prompts.entries()) {
+    const expandedPrompt = expandVisibleLoopPromptTemplate(prompt, state.config.cwd);
+    if (!expandedPrompt.ok) {
+      stopVisibleLoopForPromptExpansionFailure(
+        state,
+        ctx,
+        expandedPrompt,
+        iteration,
+        promptIndex + 1,
+        env,
+      );
+      return;
+    }
+    const deliveryPrompt = maybeRenderDelegatedVisibleLoopPrompt(
       state,
       ctx,
       expandedPrompt,
@@ -835,63 +859,218 @@ function queueVisibleLoopPromptAtIndex(
       promptIndex + 1,
       env,
     );
+    if (!deliveryPrompt) return;
+    steps.push({
+      index: steps.length,
+      prompt: deliveryPrompt,
+      label: labelVisibleLoopPlanStep(expandedPrompt, deliveryPrompt),
+      kind: "prompt",
+      governedBarrier: isGovernedDeepReviewPrompt(state.config, prompt),
+    });
+  }
+
+  if (!visibleLoopDelegatesCompletion(state.config, prompts.slice(1))) {
+    const completionPrompt = renderVisibleLoopCompletionPrompt({
+      configPath: state.configPath,
+      iteration,
+      promptCount: prompts.length,
+      productPosturePath: state.config.productPostureTarget?.productPosturePath,
+      productPostureExists: state.config.productPostureTarget?.productPostureExists,
+      visionPath: state.config.productPostureTarget?.visionPath,
+      visionExists: state.config.productPostureTarget?.visionExists,
+      selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
+    });
+    steps.push({
+      index: steps.length,
+      prompt: completionPrompt,
+      label: "Explicit completion checkpoint",
+      kind: "completion",
+      governedBarrier: false,
+    });
+  }
+
+  state.plan = createVisibleLoopPlanProgress(
+    steps,
+    iteration,
+    `${state.config.runId}:${iteration}:${randomUUID()}`,
+  );
+  const owner = getVisibleLoopLeaseOwner(ctx);
+  const planBinding = owner
+    ? bindVisibleLoopActivePlan({
+        runId: state.config.runId,
+        iteration,
+        planId: state.plan.planId,
+        owner,
+        env,
+      })
+    : { ok: false as const, error: "visible-loop session identity is unavailable" };
+  if (!planBinding.ok) {
+    failVisibleLoopPlan(state.plan, planBinding.error);
+    state.stopped = true;
+    persistAndRenderVisibleLoopPlan(state, ctx, env);
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(state.config)} stopped: ${planBinding.error}`,
+      "error",
+    );
     return;
   }
-  const deliveryPrompt = maybeRenderDelegatedVisibleLoopPrompt(
-    state,
-    ctx,
-    expandedPrompt,
-    iteration,
-    promptIndex + 1,
-    env,
-  );
-  if (!deliveryPrompt) return;
-  state.currentPromptIndex = promptIndex;
-  state.pendingDeliveryPrompt = deliveryPrompt;
-  state.currentPromptObserved = false;
-  state.currentPromptAgentStarted = false;
-  state.governedDeepReviewToolCallId = null;
   appendVisibleLoopStatus(
     state.config,
     {
-      event: promptIndex === 0 ? "initial_prompt_queued" : "followup_prompt_queued",
+      event: "iteration_planned",
       iteration,
-      promptIndex: promptIndex + 1,
-      promptCount: prompts.length,
-      deliveryMode: "sequential_after_agent_settled",
+      planId: state.plan.planId,
+      sourcePromptCount: prompts.length,
+      completionCommand: true,
+      completionMode: "single_executable_frontier",
+      ...getVisibleLoopPlanCounts(state.plan),
     },
     env,
   );
-  try {
-    state.sendUserMessage(deliveryPrompt);
-  } catch (error) {
-    state.stopped = true;
-    appendVisibleLoopStatus(
-      state.config,
-      {
-        event: "prompt_delivery_failed_closed",
-        iteration,
-        promptIndex: promptIndex + 1,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      env,
-    );
-    if (ctx) persistActiveVisibleLoopState(state, ctx, env);
-    ctx?.ui?.notify?.(
-      `${getVisibleLoopHumanLabel(state.config)} stopped: queued prompt delivery failed`,
-      "error",
-    );
-  }
+  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) return;
+  ctx.ui?.notify?.(
+    `${getVisibleLoopHumanLabel(state.config)} planned iteration ${iteration}/${state.config.loopCount}; exactly one frontier step is executable`,
+    "info",
+  );
+  submitNextVisibleLoopFrontier(state, ctx, env);
 }
 
-function visibleLoopDelegatesCompletion(
-  config: VisibleLoopRunConfig,
-  realFollowups: string[],
+function submitNextVisibleLoopFrontier(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+): void {
+  const plan = state.plan;
+  if (!plan || state.stopped) return;
+  const step = beginVisibleLoopFrontierSubmission(plan);
+  if (!step) return;
+  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) return;
+  const nativeFollowUp = step.index > 0;
+  try {
+    state.sendUserMessage(step.prompt, nativeFollowUp ? { deliverAs: "followUp" } : undefined);
+  } catch (error) {
+    stopVisibleLoopPlanFailedClosed(
+      state,
+      ctx,
+      env,
+      `prompt submission failed: ${error instanceof Error ? error.message : String(error)}`,
+      "prompt submission failed",
+    );
+    return;
+  }
+  if (!markVisibleLoopFrontierSubmitted(plan)) {
+    stopVisibleLoopPlanFailedClosed(
+      state,
+      ctx,
+      env,
+      "prompt submission state transition failed",
+      "prompt submission state transition failed",
+    );
+    return;
+  }
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: step.kind === "completion" ? "completion_prompt_submitted" : "prompt_submitted",
+      iteration: plan.iteration,
+      planId: plan.planId,
+      promptIndex: step.index + 1,
+      deliveryMode: nativeFollowUp ? "pi_native_followUp" : "immediate_initial",
+      deliveryAcknowledged: false,
+      ...getVisibleLoopPlanCounts(plan),
+    },
+    env,
+  );
+  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) {
+    state.stopped = true;
+    failVisibleLoopPlan(
+      plan,
+      "prompt submission effect is indeterminate after persistence failure",
+    );
+    renderVisibleLoopPlan(state, ctx);
+    return;
+  }
+  armVisibleLoopDeliveryAckWatchdog(state, ctx, env);
+}
+
+function armVisibleLoopDeliveryAckWatchdog(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+): void {
+  armDeliveryAckWatchdog(
+    state,
+    ctx,
+    env,
+    () => {
+      const resolved = resolveActiveVisibleLoopPointer(ctx, env);
+      return resolved.kind === "owned" && resolved.state === state;
+    },
+    (reason, operatorMessage) =>
+      stopVisibleLoopPlanFailedClosed(state, ctx, env, reason, operatorMessage),
+  );
+}
+
+function persistVisibleLoopStateAndRetireFailedOwner(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+): ReturnType<typeof persistActiveVisibleLoopState> {
+  const persisted = persistActiveVisibleLoopState(state, ctx, env);
+  if (persisted.ok && state.stopped && state.plan?.lifecycle === "failed_closed") {
+    clearVisibleLoopDeliveryAckWatchdog(state);
+    retireActiveVisibleLoopPointer(state);
+  }
+  return persisted;
+}
+
+function persistAndRenderVisibleLoopPlan(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
 ): boolean {
-  const delegation = config.commitDelegation;
-  if (!delegation) return false;
-  const delegatedSlash = `/${delegation.promptTemplate}`;
-  return realFollowups.some((prompt) => prompt.trim().split(/\s+/u)[0] === delegatedSlash);
+  const persisted = persistVisibleLoopStateAndRetireFailedOwner(state, ctx, env);
+  renderVisibleLoopPlan(state, ctx);
+  if (persisted.ok) return true;
+  clearVisibleLoopDeliveryAckWatchdog(state);
+  state.stopped = true;
+  if (state.plan)
+    failVisibleLoopPlan(state.plan, `active-state persistence failed: ${persisted.error}`);
+  appendVisibleLoopStatus(
+    state.config,
+    { event: "active_state_persistence_failed_closed", error: persisted.error },
+    env,
+  );
+  persistVisibleLoopStateAndRetireFailedOwner(state, ctx, env);
+  renderVisibleLoopPlan(state, ctx);
+  ctx.ui?.notify?.(
+    `${getVisibleLoopHumanLabel(state.config)} stopped: active-state persistence failed: ${persisted.error}`,
+    "error",
+  );
+  return false;
+}
+
+function stopVisibleLoopPlanFailedClosed(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+  reason: string,
+  operatorMessage: string,
+): void {
+  clearVisibleLoopDeliveryAckWatchdog(state);
+  state.stopped = true;
+  if (state.plan) failVisibleLoopPlan(state.plan, reason);
+  appendVisibleLoopStatus(
+    state.config,
+    { event: "visible_loop_failed_closed", reason, iteration: state.plan?.iteration ?? null },
+    env,
+  );
+  persistVisibleLoopStateAndRetireFailedOwner(state, ctx, env);
+  renderVisibleLoopPlan(state, ctx);
+  ctx.ui?.notify?.(
+    `${getVisibleLoopHumanLabel(state.config)} stopped: ${operatorMessage}`,
+    "error",
+  );
 }
 
 function maybeRenderDelegatedVisibleLoopPrompt(
@@ -910,7 +1089,7 @@ function maybeRenderDelegatedVisibleLoopPrompt(
   appendVisibleLoopStatus(
     state.config,
     {
-      event: "commit_delegation_prompt_queued",
+      event: "commit_delegation_planned",
       iteration,
       promptIndex,
       promptTemplate: expansion.templateName,
@@ -939,6 +1118,7 @@ function stopVisibleLoopForPromptExpansionFailure(
   promptIndex: number,
   env: NodeJS.ProcessEnv,
 ): void {
+  clearVisibleLoopDeliveryAckWatchdog(state);
   state.stopped = true;
   const detail = expansion.error ?? "prompt template expansion failed";
   appendVisibleLoopStatus(
@@ -980,8 +1160,18 @@ function completeVisibleLoopIteration(
     return { accepted: false, reason };
   }
 
-  const promptCount = getVisibleLoopCompletionTurnCount(state.config);
   const nextIteration = state.completedIterations + 1;
+  const plan = state.plan;
+  if (!plan || plan.steps.length === 0) {
+    const reason = "durable visible-loop plan state is missing";
+    appendVisibleLoopStatus(
+      state.config,
+      { event: "completion_ignored", source, reason, nextIteration },
+      env,
+    );
+    return { accepted: false, reason };
+  }
+  const promptCount = plan.steps.length;
   if (expectedIteration !== undefined && expectedIteration !== nextIteration) {
     const reason = "stale or out-of-order iteration";
     appendVisibleLoopStatus(
@@ -999,11 +1189,10 @@ function completeVisibleLoopIteration(
     return { accepted: false, reason };
   }
 
-  const prompts = getVisibleLoopPrompts(state.config);
-  const hasGovernedDeepReview = prompts.some((prompt) =>
-    isGovernedDeepReviewPrompt(state.config, prompt),
+  const missingBarrier = plan.steps.find(
+    (step) => step.governedBarrier && !hasVisibleLoopBarrierSuccess(plan, step.index),
   );
-  if (hasGovernedDeepReview && state.governedDeepReviewSucceededIteration !== nextIteration) {
+  if (missingBarrier) {
     const reason = "governed deep-review workflow receipt is missing";
     appendVisibleLoopStatus(
       state.config,
@@ -1013,15 +1202,23 @@ function completeVisibleLoopIteration(
         reason,
         expectedIteration: expectedIteration ?? null,
         nextIteration,
+        promptIndex: missingBarrier.index + 1,
       },
       env,
     );
     return { accepted: false, reason };
   }
 
-  if (hasGovernedDeepReview && !hasReachedVisibleLoopCompletionCheckpoint(state, prompts)) {
+  const terminalIndex = plan.steps.length - 1;
+  if (
+    plan.lifecycle !== "active" ||
+    plan.iteration !== nextIteration ||
+    plan.frontier?.state !== "running" ||
+    plan.frontier.stepIndex !== terminalIndex ||
+    plan.settledCount !== terminalIndex
+  ) {
     const reason =
-      "governed visible-loop prompt sequence has not reached its completion checkpoint";
+      "governed visible-loop prompt sequence has not reached its exact completion frontier";
     appendVisibleLoopStatus(
       state.config,
       {
@@ -1030,27 +1227,78 @@ function completeVisibleLoopIteration(
         reason,
         expectedIteration: expectedIteration ?? null,
         nextIteration,
-        currentPromptIndex: state.currentPromptIndex + 1,
-        promptCount: prompts.length,
-        completionPromptQueued: state.completionPromptQueued,
+        planIteration: plan.iteration,
+        terminalPromptIndex: terminalIndex + 1,
+        ...getVisibleLoopPlanCounts(plan),
       },
       env,
     );
     return { accepted: false, reason };
   }
 
-  state.completedIterations = nextIteration;
-  state.completedPromptCount = Math.max(state.completedPromptCount, nextIteration * promptCount);
-  appendVisibleLoopStatus(
+  clearVisibleLoopDeliveryAckWatchdog(state);
+  finalizeVisibleLoopPlan(plan);
+  state.stopped = true;
+  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) {
+    return { accepted: false, reason: "failed to durably finalize the visible-loop plan" };
+  }
+  const completedPromptCount = Math.max(state.completedPromptCount, nextIteration * promptCount);
+  if (nextIteration >= state.config.loopCount) {
+    if (!clearOwnedActiveVisibleLoopPointer(state, ctx, env)) {
+      return { accepted: false, reason: "active visible-loop owner changed before completion" };
+    }
+    const owner = getVisibleLoopLeaseOwner(ctx);
+    const completedLease = owner
+      ? completeVisibleLoopIterationLease({
+          runId: state.config.runId,
+          iteration: nextIteration,
+          planId: plan.planId,
+          owner,
+          env,
+        })
+      : { ok: false as const, error: "visible-loop session identity is unavailable" };
+    if (!completedLease.ok) {
+      failVisibleLoopPlan(plan, `final lease transition failed: ${completedLease.error}`);
+      persistAndRenderVisibleLoopPlan(state, ctx, env);
+      ctx.ui?.notify?.(
+        `${getVisibleLoopHumanLabel(state.config)} completion failed closed: ${completedLease.error}`,
+        "error",
+      );
+      return { accepted: false, reason: "final visible-loop lease transition failed" };
+    }
+  }
+  const authoritative = appendAuthoritativeVisibleLoopStatus(
     state.config,
     {
       event: "iteration_completed",
       source,
-      completedPromptCount: state.completedPromptCount,
-      completedIterations: state.completedIterations,
+      planId: plan.planId,
+      completedPromptCount,
+      completedIterations: nextIteration,
     },
     env,
   );
+  if (!authoritative.ok) {
+    failVisibleLoopPlan(
+      plan,
+      `authoritative completion persistence failed: ${authoritative.error}`,
+    );
+    persistAndRenderVisibleLoopPlan(state, ctx, env);
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(state.config)} completion failed closed: ${authoritative.error}`,
+      "error",
+    );
+    return { accepted: false, reason: "authoritative iteration-completion persistence failed" };
+  }
+
+  state.completedIterations = nextIteration;
+  state.completedPromptCount = completedPromptCount;
+  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) {
+    return {
+      accepted: false,
+      reason: "completed iteration could not persist finalized active state",
+    };
+  }
   ctx.ui?.setStatus?.(
     getVisibleLoopCommandName(state.config),
     `loop ${state.completedIterations}/${state.config.loopCount}`,
@@ -1064,18 +1312,17 @@ function completeVisibleLoopIteration(
   );
 
   if (state.completedIterations >= state.config.loopCount) {
-    state.stopped = true;
     appendVisibleLoopStatus(
       state.config,
       {
         event: "loop_completed",
         source,
+        planId: plan.planId,
         completedPromptCount: state.completedPromptCount,
         completedIterations: state.completedIterations,
       },
       env,
     );
-    persistActiveVisibleLoopState(state, ctx, env);
     void progressReport
       .then(() =>
         enqueueVisibleLoopIntercom(
@@ -1087,83 +1334,42 @@ function completeVisibleLoopIteration(
       )
       .finally(async () => {
         await disconnectVisibleLoopPeerRuntime(state.peerRuntime);
-        removeActiveVisibleLoopState(ctx, env);
-        if (activeVisibleLoop === state) activeVisibleLoop = null;
-        ctx.ui?.setStatus?.(getVisibleLoopCommandName(state.config), undefined);
+        if (removeActiveVisibleLoopState(state, ctx, env)) {
+          ctx.ui?.setStatus?.(getVisibleLoopCommandName(state.config), undefined);
+          ctx.ui?.setWidget?.(`${getVisibleLoopCommandName(state.config)}-plan`, undefined);
+        }
       });
     return { accepted: true };
   }
 
-  persistActiveVisibleLoopState(state, ctx, env);
-
-  if (state.continueInNewSession) {
-    const nextIteration = state.completedIterations + 1;
-    state.stopped = true;
-    persistActiveVisibleLoopState(state, ctx, env);
-    void progressReport
-      .then(() => {
-        appendVisibleLoopStatus(
-          state.config,
-          { event: "next_iteration_launch_requested", nextIteration },
-          env,
-        );
-        return Promise.resolve(
-          state.continueInNewSession?.({
-            config: state.config,
-            configPath: state.configPath,
-            completedIterations: state.completedIterations,
-            nextIteration,
-          }),
-        );
-      })
-      .then(() => {
-        appendVisibleLoopStatus(
-          state.config,
-          { event: "next_iteration_launch_dispatched", nextIteration },
-          env,
-        );
-        removeActiveVisibleLoopState(ctx, env);
-        if (activeVisibleLoop === state) activeVisibleLoop = null;
-        ctx.ui?.setStatus?.(getVisibleLoopCommandName(state.config), undefined);
-      })
-      .catch((error) => {
-        state.stopped = false;
-        persistActiveVisibleLoopState(state, ctx, env);
-        appendVisibleLoopStatus(
-          state.config,
-          {
-            event: "next_iteration_spawn_failed",
-            nextIteration,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          env,
-        );
-        ctx.ui?.notify?.(
-          `${getVisibleLoopHumanLabel(state.config)} failed to launch iteration ${nextIteration}/${state.config.loopCount}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-          "error",
-        );
-      });
-    return { accepted: true };
+  const continuation = continueVisibleLoopAfterFinalizedIteration(
+    state,
+    plan,
+    ctx,
+    env,
+    progressReport,
+    {
+      getActiveState: () => {
+        const resolved = resolveActiveVisibleLoopPointer(ctx, env);
+        return resolved.kind === "owned" ? resolved.state : null;
+      },
+      isCurrentRuntime: isCurrentVisibleLoopRuntime,
+      clearActiveState: () => {
+        clearOwnedActiveVisibleLoopPointer(state, ctx, env);
+      },
+      queueIteration: (continuationState) => queueVisibleLoopIteration(continuationState, ctx, env),
+    },
+  );
+  if (!continuation.ok) {
+    failVisibleLoopPlan(plan, `continuation lease transition failed: ${continuation.error}`);
+    persistAndRenderVisibleLoopPlan(state, ctx, env);
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(state.config)} completion failed closed: ${continuation.error}`,
+      "error",
+    );
+    return { accepted: false, reason: "continuation lease transition failed" };
   }
-
-  void progressReport.finally(() => {
-    setTimeout(() => {
-      if (activeVisibleLoop === state && !state.stopped) {
-        queueVisibleLoopIteration(state, ctx, env);
-      }
-    }, 250);
-  });
   return { accepted: true };
-}
-
-function getVisibleLoopCompletionTurnCount(_config: VisibleLoopRunConfig): number {
-  return 1;
-}
-
-function getVisibleLoopPrompts(config: VisibleLoopRunConfig): string[] {
-  return config.prompts.map((prompt) => prompt.trim()).filter(Boolean);
 }
 
 function isGovernedDeepReviewPrompt(
@@ -1178,65 +1384,6 @@ function isGovernedDeepReviewPrompt(
     normalized ===
     `${renderSelfEvolutionExecutionMembrane(config.selfEvolutionEnvelope)}\n\n${GOVERNED_DEEP_REVIEW_PROMPT}`
   );
-}
-
-function hasReachedVisibleLoopCompletionCheckpoint(
-  state: ActiveVisibleLoopState,
-  prompts: string[],
-): boolean {
-  if (
-    prompts.length === 0 ||
-    state.currentPromptIndex !== prompts.length - 1 ||
-    !state.currentPromptAgentStarted
-  ) {
-    return false;
-  }
-  if (visibleLoopDelegatesCompletion(state.config, prompts.slice(1))) return true;
-  return state.completionPromptQueued;
-}
-
-function recreateActiveVisibleLoopState(
-  config: VisibleLoopRunConfig,
-  configPath: string,
-  pi: ExtensionAPI,
-  ctx: VisibleLoopContext,
-  env: NodeJS.ProcessEnv = process.env,
-  runnerOptions: VisibleLoopChildRunnerOptions = {},
-): ActiveVisibleLoopState | null {
-  const sendUserMessage = getSendUserMessage(pi);
-  if (!sendUserMessage) return null;
-  const state: ActiveVisibleLoopState = {
-    config,
-    configPath,
-    completedPromptCount: 0,
-    completedIterations: 0,
-    sendUserMessage,
-    peerRuntime: null,
-    intercomSendTail: Promise.resolve(),
-    intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
-    stopped: false,
-    followupsQueuedForIteration: null,
-    currentPromptIndex: 0,
-    completionPromptQueued: false,
-    pendingDeliveryPrompt: null,
-    currentPromptObserved: false,
-    currentPromptAgentStarted: false,
-    governedDeepReviewToolCallId: null,
-    governedDeepReviewSucceededIteration: null,
-    createPeerRuntime: runnerOptions.createPeerRuntime,
-    continueInNewSession: runnerOptions.continueInNewSession,
-  };
-  activeVisibleLoop = state;
-  appendVisibleLoopStatus(
-    config,
-    {
-      event: "active_state_recreated",
-      reason: "completion_command_without_active_state",
-      sessionKey: getVisibleLoopSessionKey(ctx) ?? null,
-    },
-    env,
-  );
-  return state;
 }
 
 function enqueueVisibleLoopIntercom(
@@ -1510,14 +1657,23 @@ export async function startVisibleLoopChildCompleteRunner(
   env: NodeJS.ProcessEnv = process.env,
   runnerOptions: VisibleLoopChildRunnerOptions = {},
 ): Promise<VisibleLoopCompletionOutcome> {
+  if (!isCurrentVisibleLoopRuntime()) {
+    return rejectedCompletion("stale visible-loop runtime callback");
+  }
   const parsed = parseVisibleLoopCompletionArgs(args);
   if (!parsed.ok) {
     ctx.ui?.notify?.(`visible-loop completion ignored: ${parsed.error}`, "warning");
     return rejectedCompletion(parsed.error);
   }
 
+  const pointer = resolveActiveVisibleLoopPointer(ctx, env);
+  if (pointer.kind === "blocked") {
+    return rejectedCompletion("active visible-loop state belongs to another session");
+  }
   const existingState =
-    activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+    pointer.kind === "owned"
+      ? pointer.state
+      : restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
   if (!parsed.configPath) {
     if (!existingState) {
       const reason = "missing config path and no active visible-loop state";
@@ -1580,7 +1736,7 @@ export async function startVisibleLoopChildCompleteRunner(
   }
 
   if (
-    !activeVisibleLoop &&
+    pointer.kind === "missing" &&
     !existingState &&
     hasVisibleLoopAlreadyCompleted(configResult.config, env)
   ) {
@@ -1598,16 +1754,7 @@ export async function startVisibleLoopChildCompleteRunner(
     return rejectedCompletion(reason, configResult.config);
   }
 
-  const state =
-    existingState ??
-    recreateActiveVisibleLoopState(
-      configResult.config,
-      parsed.configPath,
-      pi,
-      ctx,
-      env,
-      runnerOptions,
-    );
+  const state = existingState;
   if (!state) {
     const reason = "active state unavailable";
     appendVisibleLoopStatus(

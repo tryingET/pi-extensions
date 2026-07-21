@@ -1,5 +1,7 @@
 import {
+  VISIBLE_LOOP_CHILD_COMMAND,
   VISIBLE_LOOP_COMMAND,
+  type VisibleLoopChildParseResult,
   type VisibleLoopCommandParseResult,
   type VisibleLoopCompletionParseResult,
   type VisibleLoopReportBack,
@@ -121,6 +123,108 @@ function parseCandidateId(value: string | undefined): string | undefined {
     return undefined;
   }
   return value;
+}
+
+export function parseVisibleLoopChildArgs(args: string | undefined): VisibleLoopChildParseResult {
+  const usage = `Usage: /${VISIBLE_LOOP_CHILD_COMMAND} <config-path> [--claim-token TOKEN]`;
+  const tokenized = tokenizeArgsStrict(args ?? "");
+  if (!tokenized.ok) return { ok: false, error: tokenized.error, usage };
+  let configPath: string | undefined;
+  let claimToken: string | undefined;
+  for (let index = 0; index < tokenized.tokens.length; index += 1) {
+    const token = tokenized.tokens[index];
+    if (token === "--claim-token") {
+      if (claimToken) return { ok: false, error: "duplicate claim token", usage };
+      index += 1;
+      claimToken = parseClaimToken(tokenized.tokens[index]);
+      if (!claimToken) return { ok: false, error: "missing or invalid claim token", usage };
+      continue;
+    }
+    if (token?.startsWith("--claim-token=")) {
+      if (claimToken) return { ok: false, error: "duplicate claim token", usage };
+      claimToken = parseClaimToken(token.slice("--claim-token=".length));
+      if (!claimToken) return { ok: false, error: "missing or invalid claim token", usage };
+      continue;
+    }
+    if (!token?.startsWith("-") && !configPath) {
+      configPath = normalizeOptionalString(token);
+      if (!configPath || hasControlCharacters(configPath)) {
+        return { ok: false, error: "invalid config path", usage };
+      }
+      continue;
+    }
+    return { ok: false, error: `unknown argument: ${token ?? ""}`, usage };
+  }
+  if (!configPath) return { ok: false, error: "missing config path", usage };
+  return { ok: true, configPath, ...(claimToken ? { claimToken } : {}) };
+}
+
+export function renderVisibleLoopChildCommand(configPath: string, claimToken?: string): string {
+  if (!configPath.trim() || hasControlCharacters(configPath)) {
+    throw new Error("invalid visible-loop child config path");
+  }
+  const token = claimToken ? parseClaimToken(claimToken) : undefined;
+  if (claimToken && !token) throw new Error("invalid visible-loop continuation claim token");
+  return `/${VISIBLE_LOOP_CHILD_COMMAND} ${quoteVisibleLoopCommandArg(configPath)}${
+    token ? ` --claim-token ${quoteVisibleLoopCommandArg(token)}` : ""
+  }`;
+}
+
+function parseClaimToken(value: string | undefined): string | undefined {
+  return value && /^[A-Za-z0-9_-]{32,128}$/u.test(value) ? value : undefined;
+}
+
+function hasControlCharacters(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 31 || codePoint === 127;
+  });
+}
+
+function quoteVisibleLoopCommandArg(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/u.test(value)) return value;
+  return JSON.stringify(value);
+}
+
+function tokenizeArgsStrict(
+  input: string,
+): { ok: true; tokens: string[] } | { ok: false; error: string } {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  for (const char of input) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = null;
+      else current += char;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (/\s/u.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (escaped) return { ok: false, error: "unterminated escape in child arguments" };
+  if (quote) return { ok: false, error: "unterminated quote in child arguments" };
+  if (current) tokens.push(current);
+  return { ok: true, tokens };
 }
 
 export function parseVisibleLoopCompletionArgs(

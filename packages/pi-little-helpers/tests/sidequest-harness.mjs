@@ -61,20 +61,24 @@ export function registerExtension(extension, { thinkingLevel = "medium" } = {}) 
   return { commands, tools, events, userMessages };
 }
 
-export async function observeLatestVisibleLoopMessage(events, userMessages, ctx) {
-  const latest = userMessages.at(-1);
-  assert.ok(latest, "expected a queued visible-loop user message");
+export async function observeVisibleLoopMessageAt(events, userMessages, index, ctx) {
+  const entry = userMessages[index];
+  assert.ok(entry, `expected visible-loop user message ${index + 1}`);
   const handlers = events.get("message_start") ?? [];
   assert.ok(handlers.length > 0, "expected a message_start handler");
   for (const handler of handlers) {
     await handler(
       {
         type: "message_start",
-        message: { role: "user", content: latest.message, timestamp: Date.now() },
+        message: { role: "user", content: entry.message, timestamp: Date.now() },
       },
       ctx,
     );
   }
+}
+
+export async function observeLatestVisibleLoopMessage(events, userMessages, ctx) {
+  await observeVisibleLoopMessageAt(events, userMessages, userMessages.length - 1, ctx);
 }
 
 export function createContext(options = {}) {
@@ -84,10 +88,13 @@ export function createContext(options = {}) {
     : "/sessions/main.jsonl";
   const model = options.model ?? { provider: "openai", id: "gpt-4o" };
   const notifications = [];
+  const widgets = [];
   const branchEntries = options.branchEntries ?? [];
+  const sessionId = options.sessionId ?? "019e10d2-15f5-705a-aea4-01ba49d2bbac";
 
   return {
     notifications,
+    widgets,
     ctx: {
       cwd,
       hasUI: true,
@@ -96,13 +103,16 @@ export function createContext(options = {}) {
         notify(message, type = "info") {
           notifications.push({ message, type });
         },
+        setWidget(key, value, widgetOptions) {
+          widgets.push({ key, value, options: widgetOptions });
+        },
       },
       sessionManager: {
         getSessionFile() {
           return sessionFile;
         },
         getSessionId() {
-          return "019e10d2-15f5-705a-aea4-01ba49d2bbac";
+          return sessionId;
         },
         getSessionName() {
           return "controller";

@@ -29,6 +29,7 @@ import {
   createExecStub,
   extractPiArgs,
   observeLatestVisibleLoopMessage,
+  observeVisibleLoopMessageAt,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
@@ -81,13 +82,12 @@ const candidate = {
 const selfToolCallId = "call-self-evolution-1";
 
 async function settleCandidateVisibleLoopPromptSequence(events, config, userMessages, ctx) {
-  const agentStart = events.get("agent_start")[0];
-  const settled = events.get("agent_settled")[0];
+  const agentSettled = events.get("agent_settled")[0];
   const toolExecutionStart = events.get("tool_execution_start")[0];
   const toolExecutionEnd = events.get("tool_execution_end")[0];
-  for (const prompt of config.prompts) {
-    await observeLatestVisibleLoopMessage(events, userMessages, ctx);
-    await agentStart({}, ctx);
+  for (let index = 0; index < config.prompts.length + 1; index += 1) {
+    await observeVisibleLoopMessageAt(events, userMessages, index, ctx);
+    const prompt = userMessages[index].message;
     if (prompt.includes("Governed deep-review execution step.")) {
       await toolExecutionStart(
         {
@@ -118,10 +118,8 @@ async function settleCandidateVisibleLoopPromptSequence(events, config, userMess
         ctx,
       );
     }
-    await settled({}, ctx);
+    if (index < config.prompts.length) await agentSettled({}, ctx);
   }
-  await observeLatestVisibleLoopMessage(events, userMessages, ctx);
-  await agentStart({}, ctx);
 }
 
 function findEnvelope(entries, candidateId = candidate.candidateId, now = Date.now()) {

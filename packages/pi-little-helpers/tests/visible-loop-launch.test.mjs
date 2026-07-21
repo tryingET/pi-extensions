@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import { createSidequestExtension } from "../extensions/sidequest.ts";
-import { GOVERNED_DEEP_REVIEW_OBJECTIVE } from "../src/visibleLoop.ts";
+import {
+  GOVERNED_DEEP_REVIEW_OBJECTIVE,
+  resetVisibleLoopRuntimeForRecoveryTest,
+} from "../src/visibleLoop.ts";
 import {
   assertLoopValidationGuidance,
   createContext,
@@ -12,6 +15,7 @@ import {
   escapeRegExp,
   extractPiArgs,
   observeLatestVisibleLoopMessage,
+  observeVisibleLoopMessageAt,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
@@ -457,6 +461,7 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
 });
 
 test("visible-loop can delegate commit with --delegate-commit", async () => {
+  resetVisibleLoopRuntimeForRecoveryTest();
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-delegate-commit-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
@@ -511,51 +516,44 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
     assert.equal(config.prompts[8], "/commit");
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
-    const agentStart = events.get("agent_start")[0];
     const agentSettled = events.get("agent_settled")[0];
     const toolExecutionStart = events.get("tool_execution_start")[0];
     const toolExecutionEnd = events.get("tool_execution_end")[0];
-    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
-    await agentStart({}, harness.ctx);
-    assert.equal(userMessages.length, 1);
-    for (let completed = 0; completed < 4; completed += 1) {
-      await agentSettled({}, harness.ctx);
-      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
-      await agentStart({}, harness.ctx);
-    }
-    await toolExecutionStart(
-      {
-        toolCallId: "delegate-deep-review",
-        toolName: "vault_execute_template",
-        args: {
-          template_name: "deep-review",
-          objective: GOVERNED_DEEP_REVIEW_OBJECTIVE,
-        },
-      },
-      harness.ctx,
-    );
-    await toolExecutionEnd(
-      {
-        toolCallId: "delegate-deep-review",
-        toolName: "vault_execute_template",
-        isError: false,
-        result: {
-          details: {
-            ok: true,
-            templateName: "deep-review",
-            executionSurface: "workflow_execute",
-            handoffId: "delegate-handoff",
-            runId: "delegate-workflow",
-            status: "done",
+    for (let index = 0; index < 9; index += 1) {
+      assert.equal(userMessages.length, index + 1, "only one frontier may be submitted");
+      await observeVisibleLoopMessageAt(events, userMessages, index, harness.ctx);
+      if (index === 4) {
+        await toolExecutionStart(
+          {
+            toolCallId: "delegate-deep-review",
+            toolName: "vault_execute_template",
+            args: {
+              template_name: "deep-review",
+              objective: GOVERNED_DEEP_REVIEW_OBJECTIVE,
+            },
           },
-        },
-      },
-      harness.ctx,
-    );
-    for (let completed = 4; completed < 8; completed += 1) {
-      await agentSettled({}, harness.ctx);
-      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
-      await agentStart({}, harness.ctx);
+          harness.ctx,
+        );
+        await toolExecutionEnd(
+          {
+            toolCallId: "delegate-deep-review",
+            toolName: "vault_execute_template",
+            isError: false,
+            result: {
+              details: {
+                ok: true,
+                templateName: "deep-review",
+                executionSurface: "workflow_execute",
+                handoffId: "delegate-handoff",
+                runId: "delegate-workflow",
+                status: "done",
+              },
+            },
+          },
+          harness.ctx,
+        );
+      }
+      if (index < 8) await agentSettled({}, harness.ctx);
     }
 
     assert.equal(userMessages.length, 9);
@@ -585,6 +583,7 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
     assert.doesNotMatch(userMessages[8].message, /^\/commit$/m);
     assert.doesNotMatch(userMessages[8].message, /Visible-loop internal completion checkpoint/);
   } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
   }

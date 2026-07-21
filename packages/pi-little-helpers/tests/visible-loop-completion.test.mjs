@@ -7,26 +7,29 @@ import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {
   createVisibleLoopRunConfig,
   GOVERNED_DEEP_REVIEW_OBJECTIVE,
+  parseVisibleLoopChildArgs,
+  resetVisibleLoopRuntimeForRecoveryTest,
   startVisibleLoopChildCompleteRunner,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
+import { readVisibleLoopIterationLease } from "../src/visibleLoopContinuationClaim.ts";
+import { getActiveVisibleLoopSnapshotPath } from "../src/visibleLoopRecovery.ts";
 import {
   createContext,
   createExecStub,
   extractPiArgs,
-  observeLatestVisibleLoopMessage,
+  observeVisibleLoopMessageAt,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
 
 async function settleVisibleLoopPromptSequence(events, config, userMessages, ctx) {
-  const agentStart = events.get("agent_start")[0];
-  const settled = events.get("agent_settled")[0];
+  const agentSettled = events.get("agent_settled")[0];
   const toolExecutionStart = events.get("tool_execution_start")[0];
   const toolExecutionEnd = events.get("tool_execution_end")[0];
-  for (const prompt of config.prompts) {
-    await observeLatestVisibleLoopMessage(events, userMessages, ctx);
-    await agentStart({}, ctx);
+  for (let index = 0; index < config.prompts.length + 1; index += 1) {
+    await observeVisibleLoopMessageAt(events, userMessages, index, ctx);
+    const prompt = userMessages[index].message;
     if (prompt.includes("Governed deep-review execution step.")) {
       await toolExecutionStart(
         {
@@ -57,10 +60,8 @@ async function settleVisibleLoopPromptSequence(events, config, userMessages, ctx
         ctx,
       );
     }
-    await settled({}, ctx);
+    if (index < config.prompts.length) await agentSettled({}, ctx);
   }
-  await observeLatestVisibleLoopMessage(events, userMessages, ctx);
-  await agentStart({}, ctx);
 }
 
 test("visible-loop manual completion command advances non-final iterations", async () => {
@@ -118,7 +119,15 @@ test("visible-loop manual completion command advances non-final iterations", asy
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
     assert.equal(visibleLoopLaunches.length, 2);
-    assert.match(extractPiArgs(visibleLoopLaunches[1].args).at(-1), /^\/visible-loop-child /);
+    const continuationCommand = extractPiArgs(visibleLoopLaunches[1].args).at(-1);
+    assert.match(continuationCommand, /^\/visible-loop-child /);
+    assert.match(continuationCommand, / --claim-token [A-Za-z0-9_-]{32,128}$/u);
+    const continuationArgs = parseVisibleLoopChildArgs(
+      continuationCommand.replace(/^\/visible-loop-child\s+/u, ""),
+    );
+    assert.equal(continuationArgs.ok, true);
+    assert.equal(continuationArgs.configPath, configPath);
+    assert.match(continuationArgs.claimToken, /^[A-Za-z0-9_-]{32,128}$/u);
 
     const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
     const statusEntries = readFileSync(statusPath, "utf8")
@@ -138,6 +147,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
       false,
     );
   } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
   }
@@ -211,9 +221,19 @@ test("visible-loop manual completion command finalizes", async () => {
         (entry) => entry.event === "loop_completed" && entry.source === "completion_command",
       ),
     );
+    const completedLease = readVisibleLoopIterationLease(config.runId, {
+      ...process.env,
+      XDG_STATE_HOME: stateHome,
+    });
+    assert.equal(completedLease.ok, true);
+    assert.equal(completedLease.value.status, "COMPLETED");
+    assert.equal(completedLease.value.iteration, 1);
     assert.equal(
       existsSync(
-        `${stateHome}/pi-little-helpers/visible-loop/active/session-019e10d2-15f5-705a-aea4-01ba49d2bbac.json`,
+        getActiveVisibleLoopSnapshotPath(harness.ctx.sessionManager.getSessionId(), {
+          ...process.env,
+          XDG_STATE_HOME: stateHome,
+        }),
       ),
       false,
     );
@@ -234,12 +254,13 @@ test("visible-loop manual completion command finalizes", async () => {
       ),
     );
   } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
   }
 });
 
-test("visible-loop completion recreates continuation after active state is unavailable", async () => {
+test("visible-loop completion fails closed when durable active plan state is unavailable", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-recreate-continuation-state-`);
   try {
     const env = { ...process.env, XDG_STATE_HOME: stateHome };
@@ -257,32 +278,24 @@ test("visible-loop completion recreates continuation after active state is unava
     const configPath = writeVisibleLoopRunConfig(config, env);
     let continuationCount = 0;
 
-    await startVisibleLoopChildCompleteRunner(`${configPath} --iteration 1`, pi, harness.ctx, env, {
-      continueInNewSession: ({ nextIteration }) => {
-        continuationCount += 1;
-        assert.equal(nextIteration, 2);
+    const outcome = await startVisibleLoopChildCompleteRunner(
+      `${configPath} --iteration 1`,
+      pi,
+      harness.ctx,
+      env,
+      {
+        continueInNewSession: () => {
+          continuationCount += 1;
+        },
       },
-    });
+    );
     await new Promise((resolve) => setTimeout(resolve, 40));
 
-    assert.equal(continuationCount, 1);
-    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
-    const statusEntries = readFileSync(statusPath, "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line));
-    assert.ok(statusEntries.some((entry) => entry.event === "active_state_recreated"));
-    assert.ok(
-      statusEntries.some(
-        (entry) => entry.event === "next_iteration_launch_requested" && entry.nextIteration === 2,
-      ),
-    );
-    assert.ok(
-      statusEntries.some(
-        (entry) => entry.event === "next_iteration_launch_dispatched" && entry.nextIteration === 2,
-      ),
-    );
+    assert.equal(outcome.accepted, false);
+    assert.match(outcome.reason, /active state unavailable/);
+    assert.equal(continuationCount, 0);
   } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
     rmSync(stateHome, { recursive: true, force: true });
   }
 });
