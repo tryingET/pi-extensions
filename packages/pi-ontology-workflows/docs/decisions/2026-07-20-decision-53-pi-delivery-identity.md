@@ -9,7 +9,7 @@ system4d:
   engine: "Owner decision -> successor protocol review -> default-off implementation -> isolated Pi-host dogfood."
   fog: "A fixture role label or host runtime can be mistaken for a repository product or complete delivery authority."
 type: "decision"
-status: "proposed"
+status: "accepted"
 ---
 
 # Decision — Pi semantic-delivery component identity
@@ -134,6 +134,12 @@ Absent such evidence, extraction is architecture without a product.
 ## Non-authorizations
 
 This decision does not authorize live owner acquisition, semantic publication, consumer adoption, activation, defaults, startup enforcement, fleet rollout, or recovery execution. It issues only the Pi-owner product/component identity and the boundary required for successor protocol review.
+
+## Review evidence
+
+- Independent Pi-owner review: `ACCEPT`, dispatch `dispatch-1784658092396`.
+- Separate Pi-owner review: `ACCEPT`, dispatch `dispatch-1784658106914`.
+- Both reviews bind corrected commit `83b9e1eefa7938a735665087cd7a061459100a8c` and explicitly grant no implementation, dogfood, or live authority.
 
 ## Rollback
 
