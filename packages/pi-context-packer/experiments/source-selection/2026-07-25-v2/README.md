@@ -17,7 +17,7 @@ system4d:
 
 This directory is the durable, package-owned evidence bundle for AK-4173 and FCOS coordination item `context-packer-source-selection-adoption`.
 
-The standing decision remains **REJECT automatic source-list invocation** until the prepared input is ranked once, the result is independently reviewed against the current adoption gates, and the owner records `ADOPT`, `REFINE`, or `REJECT` in `docs/project/2026-07-25-source-selection-adoption-decision.md`.
+The owner decision is **REFINE the evidence program while REJECTING automatic source-list invocation and production wiring**. The one frozen ranking was independently reviewed and failed the required unnecessary-selection reduction gate. See `docs/project/2026-07-25-source-selection-adoption-decision.md`.
 
 FCOS coordinates cross-owner meaning only. Agent Scripts owns `source-list.v1`; SCI owns `semantic-code-intelligence.structural_evidence_receipt.v1`; pi-context-packer owns consumer ranking, budgeting, metrics, and adoption interpretation; AK owns task/evidence lineage.
 
@@ -115,6 +115,18 @@ The current gates live in `docs/project/2026-07-12-source-list-sci-ablation-prer
 
 Passing metrics do not self-authorize wiring. An `ADOPT` result creates a separate implementation task.
 
+## Result and decision
+
+The one exact result is `source-selection-ablation-results.generated.json`, SHA-256 `5421fd6a29329263f9922b7e2ce4eac20a010434c7cd04c6d2630df641c6b275`.
+
+On the 3-repository / 30-case eligible population:
+
+- precision: 0.338333 → 0.445000, delta +0.106667 — PASS;
+- unnecessary selections per case: 2.700000 → 2.266667, reduction 16.0494% — **FAIL** versus 20%;
+- omissions per case: 0.733333 → 0.300000 — PASS.
+
+The independent post-ranking review `scoutpeer-ms0bhtu6-52277a97` recommends **REFINE** with automatic invocation still rejected. Structural and fusion diagnostics cannot substitute for the failed source-list gate. No production-wiring task is authorized.
+
 ## Files
 
 - `canonical-case-source.generated.json` — exact checksummed reviewed case-source JSON; the only preparation case input.
@@ -126,7 +138,8 @@ Passing metrics do not self-authorize wiring. An `ADOPT` result creates a separa
 - `prepare-and-run.mjs` and support modules — bounded preparation/run reproduction.
 - `source-selection-ablation-results.generated.json` — generated exactly once after the execution gate.
 - `independent-review.md` — post-ranking review.
-- `SHA256SUMS` — strict complete pre-run allowlist, including `../../../docs/project/2026-07-12-source-list-sci-ablation-preregistration.md`.
+- `SHA256SUMS.pre-run` — exact strict pre-run allowlist used by the one execution.
+- `SHA256SUMS` — final evidence manifest including the result, reviews, and owner decision.
 
 ## Non-authorizations
 
