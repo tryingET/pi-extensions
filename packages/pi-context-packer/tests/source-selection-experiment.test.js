@@ -2,318 +2,273 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  EXPERIMENT_PROTOCOL,
   evaluateSourceSelectionExperiment,
   experimentInternals,
-  SCI_RECEIPT_PROTOCOL,
 } from "../src/source-selection-experiment.js";
+import {
+  ARMS,
+  makeCases,
+  makeExperiment,
+  makeRepository,
+  rebuildQuestionIdentity,
+  refreshExecutionObservation,
+  resignObservation,
+  resignReceipt,
+} from "./source-selection-experiment-fixtures.test.js";
 
-const COMMIT = "a".repeat(40);
-
-function makeExperiment(overrides = {}) {
-  const candidates = overrides.candidates ?? [
-    { path: "src/alpha.js", summary: "ordinary implementation" },
-    { path: "src/beta.js", summary: "secondary implementation" },
-    { path: "src/zeta.js", summary: "alpha task owner" },
-  ];
-  const rankings =
-    overrides.rankings ?? candidates.map(({ path }, index) => ({ path, rank: index }));
-  const cases = Array.from({ length: overrides.caseCount ?? 10 }, (_, index) => {
-    const id = `R${index + 1}`;
-    const candidateSetHash = experimentInternals.candidateSetHash(candidates);
-    const rankingHash = experimentInternals.rankingHash(rankings);
-    return {
-      id,
-      repositoryId: "repo",
-      repoCommit: COMMIT,
-      question: "Change alpha behavior and focused tests.",
-      maxItems: overrides.maxItems ?? 2,
-      candidates: structuredClone(candidates),
-      truth: overrides.truth ?? ["src/alpha.js"],
-      eligibility: overrides.eligibility ?? { sourceList: true, sci: true },
-      sci: {
-        rankings: structuredClone(rankings),
-        receipt: {
-          protocol: SCI_RECEIPT_PROTOCOL,
-          caseId: id,
-          repoCommit: COMMIT,
-          candidateSetHash,
-          rankingHash,
-          executable: "/usr/bin/sci",
-          sandboxMode: "read-only",
-          noIndex: true,
-          ontologyStateBefore: "absent",
-          ontologyStateAfter: "absent",
-          cleanupCompleted: true,
-        },
-      },
-    };
-  });
-  return {
-    protocol: EXPERIMENT_PROTOCOL,
-    repositories: [
-      {
-        id: "repo",
-        metadataCoverage: overrides.metadataCoverage ?? 0.75,
-        metadataStalenessSample: { sampledPaths: [candidates[0].path], stalePaths: [] },
-      },
-    ],
-    cases,
-  };
+function assertStructuralFailed(experiment, message = "failure") {
+  const arms = evaluateSourceSelectionExperiment(experiment).cases[0].arms;
+  assert.equal(arms.structural.available, false, message);
+  assert.equal(arms.fusion.available, false, message);
+  assert.equal(arms.structural.metrics, null, message);
+  assert.equal(arms.fusion.metrics, null, message);
+  assert.equal(arms.source_list.available, true, message);
 }
 
-function reevaluateReceipt(caseDefinition) {
-  caseDefinition.sci.receipt.caseId = caseDefinition.id;
-  caseDefinition.sci.receipt.candidateSetHash = experimentInternals.candidateSetHash(
-    caseDefinition.candidates,
-  );
-  caseDefinition.sci.receipt.rankingHash = experimentInternals.rankingHash(
-    caseDefinition.sci.rankings,
-  );
-}
-
-test("uses deterministic UTF-8 byte ordering and the explicit budget", () => {
-  const experiment = makeExperiment({
-    candidates: [{ path: "é.js", summary: "sampled metadata" }, { path: "z.js" }, { path: "a.js" }],
-    rankings: [
-      { path: "é.js", rank: 0 },
-      { path: "z.js", rank: 0 },
-      { path: "a.js", rank: 0 },
-    ],
-    truth: ["a.js"],
-    maxItems: 2,
-  });
-  for (const item of experiment.cases) item.question = "unmatched question";
-
+test("uses one raw owner artifact and explicit budget for every arm", () => {
+  const experiment = makeExperiment({ maxItems: 1, evidencePaths: ["src/beta.js"] });
   const result = evaluateSourceSelectionExperiment(experiment);
-
-  assert.deepEqual(result.cases[0].arms.paths.metrics.selected, ["a.js", "z.js"]);
-  assert.equal(result.cases[0].arms.paths.metrics.selected.length, 2);
-  assert.deepEqual(result.cases[0].arms.sci.metrics.selected, ["a.js", "z.js"]);
+  assert.equal(result.rankingOwner, "pi-context-packer");
+  assert.equal(result.structuralEvidenceOrderSemantics, "none");
+  assert.equal(result.standingDecision, "REJECT_AUTOMATIC_SOURCE_LIST_ADOPTION");
+  assert.equal(
+    result.candidateUniversePolicy,
+    "validated_raw_source_list_v1_artifact_shared_by_all_arms",
+  );
+  for (const arm of ARMS) {
+    assert.equal(result.cases[0].arms[arm].maxItems, 1);
+    assert.equal(result.cases[0].arms[arm].candidateCount, 12);
+    assert.equal(
+      result.cases[0].arms[arm].sourceListArtifactSha256,
+      result.repositories[0].rawSourceListArtifactSha256,
+    );
+  }
+  assert.deepEqual(result.cases[0].arms.structural.metrics.selected, ["src/beta.js"]);
+  assert.deepEqual(result.cases[0].arms.fusion.metrics.selected, ["src/beta.js"]);
+  assert.equal(result.repositories[0].rawEvidenceRetainedInPreparedInput, true);
+  assert.equal(result.cases[0].structuralEvidence.rawEvidenceRetainedInPreparedInput, true);
 });
 
-test("keeps truth out of all ranking arms", () => {
-  const experiment = makeExperiment();
+test("truth is metrics-only and receipt order has no relevance semantics", () => {
+  const experiment = makeExperiment({ evidencePaths: ["src/beta.js", "src/alpha.js"] });
   const first = evaluateSourceSelectionExperiment(experiment);
-  experiment.cases.forEach((item) => {
-    item.truth = ["src/zeta.js"];
-  });
+  experiment.cases[0].truth = ["src/security.js", "src/zeta.js"];
+  rebuildQuestionIdentity(experiment.cases[0], experiment.repositories[0]);
+  for (const item of experiment.cases) {
+    item.structuralEvidence.receipt.evidence.reverse();
+    resignReceipt(item.structuralEvidence.receipt);
+    refreshExecutionObservation(item);
+  }
   const second = evaluateSourceSelectionExperiment(experiment);
-
-  for (const arm of ["paths", "source_list", "sci", "fusion"]) {
+  for (const arm of ARMS) {
     assert.deepEqual(
       first.cases[0].arms[arm].metrics.selected,
       second.cases[0].arms[arm].metrics.selected,
     );
   }
   assert.notEqual(first.cases[0].arms.paths.metrics.hits, second.cases[0].arms.paths.metrics.hits);
+  assert.deepEqual(
+    first.cases[0].structuralEvidence.candidateIds,
+    second.cases[0].structuralEvidence.candidateIds,
+  );
 });
 
-test("SCI rank has precedence and fusion uses metadata/path only as a tie-break", () => {
-  const experiment = makeExperiment({
-    rankings: [
-      { path: "src/alpha.js", rank: 1 },
-      { path: "src/beta.js", rank: 0 },
-      { path: "src/zeta.js", rank: 0 },
-    ],
-  });
-
-  const result = evaluateSourceSelectionExperiment(experiment);
-
-  assert.deepEqual(result.cases[0].arms.sci.metrics.selected, ["src/beta.js", "src/zeta.js"]);
-  assert.deepEqual(result.cases[0].arms.fusion.metrics.selected, ["src/zeta.js", "src/beta.js"]);
-  assert.equal(result.cases[0].arms.fusion.metrics.selected.includes("src/alpha.js"), false);
-});
-
-test("fails SCI and fusion closed for every unsafe receipt condition", () => {
-  const mutations = {
-    protocol_mismatch(receipt) {
-      receipt.protocol = "wrong";
+test("fails structural and fusion closed for adversarial SCI v1 receipt gaps", () => {
+  const mutations = [
+    (item) => {
+      item.structuralEvidence.receipt.schema = "invented";
+      resignReceipt(item.structuralEvidence.receipt);
     },
-    case_id_mismatch(receipt) {
-      receipt.caseId = "wrong";
+    (item) => {
+      item.structuralEvidence.receipt.unknown = true;
+      resignReceipt(item.structuralEvidence.receipt);
     },
-    repo_commit_mismatch(receipt) {
-      receipt.repoCommit = "b".repeat(40);
+    (item) => {
+      item.structuralEvidence.receipt.request.question = "Different question";
+      resignReceipt(item.structuralEvidence.receipt, true);
     },
-    candidate_set_hash_mismatch(receipt) {
-      receipt.candidateSetHash = "0".repeat(64);
+    (item) => {
+      item.structuralEvidence.receipt.receiptDigest = `sha256:${"0".repeat(64)}`;
     },
-    ranking_hash_mismatch(receipt) {
-      receipt.rankingHash = "0".repeat(64);
+    (item) => {
+      item.structuralEvidence.receipt.evidence[0].id = `candidate:sha256:${"0".repeat(64)}`;
+      resignReceipt(item.structuralEvidence.receipt);
     },
-    untrusted_executable(receipt) {
-      receipt.executable = "/tmp/sci";
+    (item) => {
+      item.structuralEvidence.receipt.evidence[0].provenance.backend = "other";
+      resignReceipt(item.structuralEvidence.receipt);
     },
-    sandbox_not_read_only(receipt) {
-      receipt.sandboxMode = "writable";
+    (item) => {
+      item.structuralEvidence.receipt.summary.returnedCount = 2;
+      resignReceipt(item.structuralEvidence.receipt);
     },
-    indexing_not_disabled(receipt) {
-      receipt.noIndex = false;
+    (item) => {
+      item.structuralEvidence.receipt.summary.totalObservedCount = 2;
+      item.structuralEvidence.receipt.summary.capped = true;
+      item.structuralEvidence.receipt.summary.complete = false;
+      resignReceipt(item.structuralEvidence.receipt);
     },
-    ontology_absence_not_proven(receipt) {
-      receipt.ontologyStateAfter = "present";
-    },
-    cleanup_not_completed(receipt) {
-      receipt.cleanupCompleted = false;
-    },
-  };
-
-  for (const [failure, mutate] of Object.entries(mutations)) {
+  ];
+  for (const [index, mutate] of mutations.entries()) {
     const experiment = makeExperiment();
-    mutate(experiment.cases[0].sci.receipt);
-    const arm = evaluateSourceSelectionExperiment(experiment).cases[0].arms;
-    assert.equal(arm.sci.available, false, failure);
-    assert.equal(arm.fusion.available, false, failure);
-    assert.equal(arm.sci.metrics, null, failure);
-    assert.equal(arm.fusion.metrics, null, failure);
-    assert.ok(arm.sci.failures.includes(failure), failure);
-    assert.equal(arm.source_list.available, true, failure);
+    mutate(experiment.cases[0]);
+    assertStructuralFailed(experiment, `receipt mutation ${index}`);
   }
 });
 
-test("rejects malformed or non-canonical owner rankings without inferring SCI semantics", () => {
-  const experiment = makeExperiment();
-  experiment.cases[0].sci.rankings.pop();
-  experiment.cases[0].sci.receipt.rankingHash = experimentInternals.rankingHash(
-    experiment.cases[0].sci.rankings,
+test("requires exact expected request and complete external execution observation", () => {
+  const request = makeExperiment();
+  request.cases[0].structuralEvidence.expectedRequest.seeds[1].value = "$OTHER";
+  request.cases[0].structuralEvidence.expectedRequestDigest = experimentInternals.sha256Digest(
+    request.cases[0].structuralEvidence.expectedRequest,
   );
+  assertStructuralFailed(request, "expected request mismatch");
 
-  const arms = evaluateSourceSelectionExperiment(experiment).cases[0].arms;
-
-  assert.equal(arms.sci.available, false);
-  assert.ok(arms.sci.failures.includes("rankings_not_canonical_candidate_set"));
-  assert.equal(arms.fusion.available, false);
-});
-
-test("fails closed rather than throwing for structurally malformed rankings", () => {
-  const experiment = makeExperiment();
-  experiment.cases[0].sci.rankings[0] = null;
-
-  const arms = evaluateSourceSelectionExperiment(experiment).cases[0].arms;
-
-  assert.equal(arms.sci.available, false);
-  assert.ok(arms.sci.failures.includes("rankings_malformed"));
-  assert.equal(arms.fusion.available, false);
-});
-
-test("reports eligible availability denominators and aggregates paired available cases only", () => {
-  const experiment = makeExperiment({ caseCount: 11 });
-  experiment.cases[0].sci.receipt.cleanupCompleted = false;
-  experiment.cases[1].eligibility = { sourceList: false, sci: true };
-
-  const result = evaluateSourceSelectionExperiment(experiment);
-
-  assert.deepEqual(result.availability.source_list, { eligible: 10, available: 10 });
-  assert.deepEqual(result.availability.sci, { eligible: 11, available: 10 });
-  assert.deepEqual(result.availability.fusion, { eligible: 10, available: 9 });
-  assert.equal(result.paired.source_list.pairedCaseCount, 10);
-  assert.equal(result.paired.sci.pairedCaseCount, 10);
-  assert.equal(result.paired.fusion.pairedCaseCount, 9);
-  assert.equal(result.paired.allFourCaseIds.length, 9);
-  assert.equal(result.repositories[0].caseCount, 11);
-  assert.deepEqual(result.repositories[0].eligibleCases, {
-    sourceList: 10,
-    sci: 11,
-    fusion: 10,
-  });
-});
-
-test("does not mutate prepared artifacts", () => {
-  const experiment = makeExperiment();
-  const before = structuredClone(experiment);
-
-  evaluateSourceSelectionExperiment(experiment);
-
-  assert.deepEqual(experiment, before);
-});
-
-test("enforces preregistered eligibility, question count, coverage, and budget invariants", () => {
-  const tooFew = makeExperiment();
-  tooFew.cases.pop();
-  assert.throws(() => evaluateSourceSelectionExperiment(tooFew), /at least 10 questions/);
-
-  const lowCoverage = makeExperiment({ metadataCoverage: 0.59 });
-  assert.throws(() => evaluateSourceSelectionExperiment(lowCoverage), />=60%/);
-
-  const badBudget = makeExperiment();
-  badBudget.cases[0].maxItems = 4;
-  assert.throws(() => evaluateSourceSelectionExperiment(badBudget), /maxItems/);
-
-  const mixedEligibility = makeExperiment();
-  mixedEligibility.cases[0].eligibility = { sourceList: true, sci: false };
-  mixedEligibility.cases.slice(1).forEach((item) => {
-    item.eligibility = { sourceList: false, sci: true };
-  });
-  assert.throws(
-    () => evaluateSourceSelectionExperiment(mixedEligibility),
-    /sourceList eligibility requires at least 10/,
-  );
-
-  const unrelatedStaleness = makeExperiment();
-  unrelatedStaleness.repositories[0].metadataStalenessSample.sampledPaths = ["src/unrelated.js"];
-  assert.throws(
-    () => evaluateSourceSelectionExperiment(unrelatedStaleness),
-    /metadata-bearing candidates/,
-  );
-
-  const duplicateStaleness = makeExperiment();
-  duplicateStaleness.repositories[0].metadataStalenessSample.sampledPaths = [
-    "src/alpha.js",
-    "src/alpha.js",
+  const mutations = [
+    (observation) => {
+      observation.receiptDigest = `sha256:${"0".repeat(64)}`;
+    },
+    (observation) => {
+      observation.sciArtifact.sha256 = "bad";
+    },
+    (observation) => {
+      observation.targetState.cleanAfter = false;
+    },
+    (observation) => {
+      observation.targetState.noIndex = false;
+    },
+    (observation) => {
+      observation.process.processGroupTerminationConfirmed = false;
+    },
+    (observation) => {
+      observation.cleanup.temporaryRootsRemoved = false;
+    },
   ];
-  assert.throws(
-    () => evaluateSourceSelectionExperiment(duplicateStaleness),
-    /sampledPaths must be unique/,
-  );
+  for (const [index, mutate] of mutations.entries()) {
+    const experiment = makeExperiment();
+    const observation = experiment.cases[0].structuralEvidence.executionObservation;
+    mutate(observation);
+    resignObservation(observation);
+    assertStructuralFailed(experiment, `observation mutation ${index}`);
+  }
+  const missing = makeExperiment();
+  missing.cases[0].structuralEvidence.executionObservation = null;
+  assertStructuralFailed(missing, "missing observation");
 });
 
-test("rejects non-canonical and cross-platform-ambiguous repository paths", () => {
-  for (const candidatePath of [
-    "..\\escape",
-    "C:\\Windows\\win.ini",
-    "C:/Windows/win.ini",
-    "C:relative.js",
-    "C:",
-    "z:src/a.js",
-    "./src/a.js",
-    "src//a.js",
-    "src/a.js/",
-    "src/./a.js",
-    "src/../a.js",
+test("derives coverage only from source-list status and rejects projected coverage", () => {
+  const asserted = makeExperiment();
+  asserted.repositories[0].metadataCoverage = 1;
+  assert.throws(() => evaluateSourceSelectionExperiment(asserted), /metadataCoverage is unknown/);
+  const low = makeExperiment({
+    records: [
+      { path: "a.js", status: "present", summary: "alpha" },
+      { path: "b.js", status: "absent" },
+      { path: "c.js", status: "absent" },
+      { path: "d.js", status: "absent" },
+    ],
+    truths: [
+      ["a.js"],
+      ["b.js"],
+      ["c.js"],
+      ["d.js"],
+      ["a.js", "b.js"],
+      ["a.js", "c.js"],
+      ["a.js", "d.js"],
+      ["b.js", "c.js"],
+      ["b.js", "d.js"],
+      ["c.js", "d.js"],
+    ],
+    evidencePaths: ["a.js"],
+  });
+  const result = evaluateSourceSelectionExperiment(low);
+  assert.equal(result.repositories[0].metadataCoverage, 1 / 4);
+  assert.equal(result.cases[0].arms.source_list.eligible, false);
+  assert.equal(result.cases[0].arms.fusion.metrics, null);
+});
+
+test("rejects mixed source artifacts, stale question identity, case metadata, and too few cases", () => {
+  for (const [field, value] of [
+    ["repositoryCommit", "b".repeat(40)],
+    ["sourceListArtifactSha256", `sha256:${"0".repeat(64)}`],
   ]) {
     const experiment = makeExperiment();
-    experiment.cases[0].candidates[0].path = candidatePath;
-    assert.throws(
-      () => evaluateSourceSelectionExperiment(experiment),
-      /candidate path must be canonical and repository-relative/,
-      candidatePath,
-    );
+    experiment.cases[0][field] = value;
+    assert.throws(() => evaluateSourceSelectionExperiment(experiment), /mixed/);
   }
-});
-
-test("rejects declared repositories that contribute no question cohort", () => {
-  const experiment = makeExperiment();
-  experiment.repositories.push({
-    id: "unused",
-    metadataCoverage: 0.9,
-    metadataStalenessSample: { sampledPaths: ["src/alpha.js"], stalePaths: [] },
-  });
+  for (const field of ["questionId", "intentSignature", "targetBasisDigest"]) {
+    const experiment = makeExperiment();
+    experiment.cases[0][field] = `sha256:${"0".repeat(64)}`;
+    assert.throws(() => evaluateSourceSelectionExperiment(experiment), new RegExp(field));
+  }
+  const metadata = makeExperiment();
+  metadata.cases[0].candidates = [];
+  assert.throws(() => evaluateSourceSelectionExperiment(metadata), /candidates is unknown/);
   assert.throws(
-    () => evaluateSourceSelectionExperiment(experiment),
-    /unused: every declared repository requires at least 10 questions/,
+    () => evaluateSourceSelectionExperiment(makeExperiment({ caseCount: 9 })),
+    /at least 10 cases with distinct intents and truth targets/,
   );
 });
 
-test("binds the receipt to case, commit, canonical candidate set, protocol, and owner ranking", () => {
-  const experiment = makeExperiment();
-  experiment.cases[0].candidates[0].path = "src/renamed.js";
-  experiment.cases[0].truth = ["src/renamed.js"];
-  experiment.cases[0].sci.rankings[0].path = "src/renamed.js";
-  reevaluateReceipt(experiment.cases[0]);
-
+test("reports true all-four populations, per-repo math, and equal-repository macro", () => {
+  const repositoryA = makeRepository("repo-a");
+  const repositoryB = makeRepository("repo-b");
+  const paths = [
+    "src/alpha.js",
+    "src/beta.js",
+    "src/cache.js",
+    "src/config.js",
+    "src/exporter.js",
+    "src/graph.js",
+    "src/parser.js",
+    "src/ranking.js",
+    "src/receipt.js",
+    "src/runner.js",
+  ];
+  const misses = [
+    ["src/security.js"],
+    ["src/security.js", "src/zeta.js"],
+    ["src/beta.js", "src/security.js"],
+    ["src/cache.js", "src/security.js"],
+    ["src/config.js", "src/security.js"],
+    ["src/exporter.js", "src/security.js"],
+    ["src/graph.js", "src/security.js"],
+    ["src/parser.js", "src/security.js"],
+    ["src/ranking.js", "src/security.js"],
+    ["src/receipt.js", "src/security.js"],
+  ];
+  const experiment = {
+    protocol: "pi-context-packer-source-selection-ablation/v2",
+    repositories: [repositoryA, repositoryB],
+    cases: [
+      ...makeCases(repositoryA, 10, {
+        maxItems: 1,
+        truths: paths.map((itemPath, index) =>
+          index === 0 ? ["src/alpha.js"] : ["src/alpha.js", itemPath],
+        ),
+      }),
+      ...makeCases(repositoryB, 10, {
+        maxItems: 1,
+        truths: misses,
+      }),
+    ],
+  };
+  experiment.cases[0].structuralEvidence.executionObservation.cleanup.completed = false;
+  resignObservation(experiment.cases[0].structuralEvidence.executionObservation);
   const result = evaluateSourceSelectionExperiment(experiment);
+  assert.deepEqual(result.availability.structural, { eligible: 20, available: 19, unavailable: 1 });
+  assert.equal(result.pairwise.source_list.denominators.availableCaseCount, 20);
+  assert.equal(result.pairwise.structural.denominators.availableCaseCount, 19);
+  assert.equal(result.allFour.denominators.availableCaseCount, 19);
+  assert.equal(result.allFour.perRepository["repo-a"].caseCount, 9);
+  assert.equal(result.allFour.perRepository["repo-b"].caseCount, 10);
+  assert.equal(result.allFour.equalRepositoryMacro.arms.paths.macroPrecision, 0.5);
+  assert.equal(result.allFour.deltasFromPaths.structural.macroPrecision, 0);
+});
 
-  assert.equal(result.cases[0].arms.sci.available, true);
-  assert.equal(result.cases[0].candidateSetHash, experiment.cases[0].sci.receipt.candidateSetHash);
+test("does not mutate the prepared artifact", () => {
+  const experiment = makeExperiment();
+  const before = structuredClone(experiment);
+  evaluateSourceSelectionExperiment(experiment);
+  assert.deepEqual(experiment, before);
 });
