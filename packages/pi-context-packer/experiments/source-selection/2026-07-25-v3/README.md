@@ -14,7 +14,7 @@ system4d:
 
 ## Current state
 
-**Pre-ranking case-review gate. Fifty fresh candidate cases exist; no prepared input, rankings, result, or adoption decision exists. Preparation remains blocked until independent case/truth review accepts every repository.**
+**Preparation-ready, ranking forbidden. Fifty fresh cases and all repository-specific truth reviews are accepted; no prepared input, rankings, result, or adoption decision exists.**
 
 The v2 owner decision was **REFINE**, with automatic `source-list` invocation and production wiring still **REJECTED**. V3 is a fresh non-production experiment under AK task `4207`; it does not rerun or overwrite v2.
 
@@ -31,7 +31,7 @@ Candidate case source:
 - deterministic exact-commit validator: `validate-cases.mjs`
 - authoring sessions: `dispatch-1784989778336`, `dispatch-1784989778336-1`, `dispatch-1784989778337`, `dispatch-1784989778338`, `dispatch-1784989778339`
 
-Case authors did not inspect rankings or compute scores. Their proposals are not accepted truth until independent review.
+Case authors did not inspect rankings or compute scores. Independent repository reviews are recorded in `pre-ranking-review.md`; all five cohorts are accepted after bounded corrections.
 
 ## Frozen hypothesis
 
@@ -69,9 +69,9 @@ No metadata changes or cohort replacement are allowed after case authoring.
 
 1. Commit preregistration, treatment code, tests, and this index — complete.
 2. Independent review accepts the frozen treatment and cost interpretation — complete.
-3. Author 50 fresh cases with no v2 per-case ranking leakage — candidate set complete.
-4. **Now:** independent reviewers accept or reject questions and truth before preparation.
-5. Prepare new exact artifacts without retaining or printing rankings only after step 4 passes.
+3. Author 50 fresh cases with no v2 per-case ranking leakage — complete.
+4. Independent reviewers accept questions and truth before preparation — complete; see `pre-ranking-review.md`.
+5. **Now:** prepare new exact artifacts without retaining or printing rankings.
 6. Commit strict pre-run hashes while the result path is absent.
 7. Independent pre-run review accepts integrity and population.
 8. Execute exactly once through the explicit ranking gate.
@@ -79,4 +79,4 @@ No metadata changes or cohort replacement are allowed after case authoring.
 
 ## Non-authorizations
 
-This directory currently authorizes no preparation, ranking, production wiring, provider registration, metadata editing, source-owner mutation, SCI expansion, or result claim. Passing a future experiment would still require a separate production task.
+This directory authorizes bounded evidence preparation only. It authorizes no ranking, production wiring, provider registration, metadata editing, source-owner mutation, SCI expansion, or result claim. Passing a future experiment would still require a separate production task.
