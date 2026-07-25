@@ -2,7 +2,7 @@
 // read_when:
 //   - changing visible-loop settled handling, progress report messages, completion commands, or intercom timeouts.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -20,6 +20,105 @@ import {
   extractPiArgs,
   registerExtension,
 } from "./sidequest-harness.mjs";
+
+test("visible-loop child rejects an unbound persisted config before prompt delivery", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-unbound-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const stateDir = `${stateHome}/pi-little-helpers/visible-loop`;
+    mkdirSync(stateDir, { recursive: true });
+    const configPath = `${stateDir}/visible-loop-unbound-test.json`;
+    writeFileSync(
+      configPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        runId: "visible-loop-unbound-test",
+        loopCount: 1,
+        cwd: `${stateHome}/repo`,
+        prompts: ["must not run"],
+        reportBack: "manual",
+        createdAt: new Date().toISOString(),
+      })}\n`,
+    );
+    const userMessages = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env);
+
+    assert.equal(userMessages.length, 0);
+    assert.match(harness.notifications.at(-1).message, /executionBinding is required/);
+    assert.match(harness.notifications.at(-1).message, /--task, --objective, or --candidate/);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop child rejects candidate binding without its matching envelope", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-candidate-mismatch-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const stateDir = `${stateHome}/pi-little-helpers/visible-loop`;
+    mkdirSync(stateDir, { recursive: true });
+    const configPath = `${stateDir}/visible-loop-candidate-mismatch-test.json`;
+    writeFileSync(
+      configPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        runId: "visible-loop-candidate-mismatch-test",
+        loopCount: 1,
+        cwd: `${stateHome}/repo`,
+        prompts: ["must not run"],
+        reportBack: "manual",
+        executionBinding: {
+          mode: "self_evolution_candidate",
+          candidateId: "evolution-missing-envelope",
+        },
+        createdAt: new Date().toISOString(),
+      })}\n`,
+    );
+    const userMessages = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env);
+
+    assert.equal(userMessages.length, 0);
+    assert.match(harness.notifications.at(-1).message, /requires a matching selfEvolutionEnvelope/);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop config creation is no-replace", () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-no-replace-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: `${stateHome}/repo`,
+      reportBack: "manual",
+      executionBinding: { mode: "operator_objective", objective: "no replace test" },
+      runId: "visible-loop-no-replace-test",
+      prompts: ["bounded work"],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    const original = readFileSync(configPath, "utf8");
+
+    assert.throws(() => writeVisibleLoopRunConfig(config, env), /EEXIST/);
+    assert.equal(readFileSync(configPath, "utf8"), original);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
 
 test("visible-loop waits for explicit checkpoint after nonsense prompts before launching next iteration", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-nonsense-state-`);
@@ -52,6 +151,7 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
       loopCount: 2,
       cwd: harness.ctx.cwd,
       reportBack: "manual",
+      executionBinding: { mode: "operator_objective", objective: "nonsense queue test" },
       runId: "visible-loop-nonsense-test",
       prompts: [
         "nonsense prompt alpha: count the purple spoons",
@@ -67,23 +167,20 @@ test("visible-loop waits for explicit checkpoint after nonsense prompts before l
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 60));
 
-    assert.deepEqual(
-      userMessages.map((entry) => entry.message),
-      ["nonsense prompt alpha: count the purple spoons"],
-    );
+    assert.equal(userMessages.length, 1);
+    assert.match(userMessages[0].message, /EXECUTION BINDING — FAIL CLOSED/);
+    assert.match(userMessages[0].message, /nonsense prompt alpha: count the purple spoons/);
 
     await events.get("agent_start")[0]({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 400));
 
-    assert.deepEqual(
-      userMessages.map((entry) => entry.message),
-      [
-        "nonsense prompt alpha: count the purple spoons",
-        "nonsense prompt beta: report the imaginary aardvark",
-        "nonsense prompt gamma: close the banana loop",
-        userMessages[3].message,
-      ],
-    );
+    assert.equal(userMessages.length, 4);
+    for (const message of userMessages) {
+      assert.match(message.message, /EXECUTION BINDING — FAIL CLOSED/);
+    }
+    assert.match(userMessages[0].message, /nonsense prompt alpha: count the purple spoons/);
+    assert.match(userMessages[1].message, /nonsense prompt beta: report the imaginary aardvark/);
+    assert.match(userMessages[2].message, /nonsense prompt gamma: close the banana loop/);
     assert.match(userMessages[3].message, /Visible-loop internal completion checkpoint/);
     assert.match(userMessages[3].message, /visible_loop_child_complete/);
     assert.deepEqual(
@@ -182,6 +279,7 @@ test("nexus-loop child uses nexus-loop labels for intercom progress", async () =
       loopCount: 1,
       cwd: harness.ctx.cwd,
       reportBack: "intercom",
+      executionBinding: { mode: "operator_objective", objective: "nexus label test" },
       parentPeerTarget: "session-parent-nexus-label-test",
       runId: "nexus-loop-label-test",
       runIdPrefix: "nexus-loop",
@@ -200,10 +298,9 @@ test("nexus-loop child uses nexus-loop labels for intercom progress", async () =
       }),
     });
 
-    assert.deepEqual(
-      userMessages.map((entry) => entry.message),
-      ["finish this nexus turn"],
-    );
+    assert.equal(userMessages.length, 1);
+    assert.match(userMessages[0].message, /EXECUTION BINDING — FAIL CLOSED/);
+    assert.match(userMessages[0].message, /finish this nexus turn/);
 
     await startVisibleLoopChildCompleteRunner(`${configPath} --iteration 1`, pi, ctx, env);
     await new Promise((resolve) => setTimeout(resolve, 80));
@@ -244,6 +341,7 @@ test("visible-loop intercom timeout does not block prompt queue or next iteratio
       loopCount: 2,
       cwd: harness.ctx.cwd,
       reportBack: "intercom",
+      executionBinding: { mode: "operator_objective", objective: "intercom timeout test" },
       parentPeerTarget: "session-parent-timeout-test",
       runId: "visible-loop-intercom-timeout-test",
       prompts: ["finish this turn"],
@@ -266,11 +364,13 @@ test("visible-loop intercom timeout does not block prompt queue or next iteratio
       intercomSendTimeoutMs: 15,
     });
 
-    assert.deepEqual(
-      userMessages.map((entry) => entry.message),
-      ["finish this turn"],
+    assert.equal(
+      userMessages.length,
+      1,
       "ACK report-back timeout must not prevent the child from receiving its first prompt",
     );
+    assert.match(userMessages[0].message, /EXECUTION BINDING — FAIL CLOSED/);
+    assert.match(userMessages[0].message, /finish this turn/);
 
     handleVisibleLoopAgentSettled(pi, ctx, env);
     await new Promise((resolve) => setTimeout(resolve, 80));

@@ -47,6 +47,7 @@ import {
   validatePersistedSelfEvolutionBinding,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
+import { checkAkTaskExecutionBinding } from "../src/visibleLoopTaskBinding.ts";
 
 export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
 
@@ -2176,6 +2177,21 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
 
       const cwd = ctx.cwd || process.cwd();
+      if (parsed.taskId) {
+        const execRunner: ExecRunner =
+          options.exec ??
+          ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
+        const taskBindingError = await checkAkTaskExecutionBinding(execRunner, cwd, parsed.taskId);
+        if (taskBindingError) {
+          if (ctx.hasUI) {
+            ctx.ui.notify(
+              `/${commandName} cannot launch: ${taskBindingError}. Re-run direction-to-execution or choose a current owner-authorized binding.`,
+              "error",
+            );
+          }
+          return;
+        }
+      }
       const resolvedSelfEvolutionEnvelope = parsed.candidateId
         ? findSelfEvolutionExecutionEnvelope(ctx.sessionManager.getBranch(), parsed.candidateId, {
             sessionId: ctx.sessionManager.getSessionId(),
@@ -2238,6 +2254,22 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const adaptiveController = resolveVisibleLoopAdaptiveControllerConfig(
         options.env ?? process.env,
       );
+      const executionBinding = parsed.taskId
+        ? ({ mode: "ak_task", taskId: parsed.taskId } as const)
+        : parsed.objective
+          ? ({ mode: "operator_objective", objective: parsed.objective } as const)
+          : parsed.candidateId
+            ? ({ mode: "self_evolution_candidate", candidateId: parsed.candidateId } as const)
+            : undefined;
+      if (!executionBinding) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(
+            `/${commandName} cannot launch without an explicit execution binding. Run direction-to-execution or choose an owner-authorized task, then use --objective, --task, or --candidate.`,
+            "error",
+          );
+        }
+        return;
+      }
       const config = createVisibleLoopRunConfig({
         loopCount: parsed.loopCount,
         cwd,
@@ -2245,6 +2277,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         parentPeerTarget,
         commandName,
         prompts,
+        executionBinding,
         ...(shouldDelegateCommit
           ? { commitDelegation: { mode: "dispatch_subagent", promptTemplate: "commit" } as const }
           : {}),
@@ -2253,7 +2286,19 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         runIdPrefix: commandName,
         title: titlePrefix,
       });
-      const configPath = writeVisibleLoopRunConfig(config, options.env ?? process.env);
+      let configPath: string;
+      try {
+        configPath = writeVisibleLoopRunConfig(config, options.env ?? process.env);
+      } catch (error) {
+        if (ctx.hasUI) {
+          const reason = error instanceof Error ? error.message : String(error);
+          ctx.ui.notify(
+            `/${commandName} cannot persist its private run config: ${reason}`,
+            "error",
+          );
+        }
+        return;
+      }
       const childPrompt = `/${VISIBLE_LOOP_CHILD_COMMAND} ${configPath}`;
       const launch = await launchPiQuestSession({
         pi,

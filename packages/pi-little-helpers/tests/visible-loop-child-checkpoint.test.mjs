@@ -58,7 +58,9 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       "utf8",
     );
 
-    await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler('--count 2 --manual --objective "checkpoint bounded slice"', harness.ctx);
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -71,18 +73,25 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
 
     assert.equal(userMessages.length, 1);
     assert.equal(userMessages[0].options, undefined);
+    assert.match(userMessages[0].message, /EXECUTION BINDING — FAIL CLOSED/);
+    assert.match(userMessages[0].message, /operator objective "checkpoint bounded slice"/);
 
     const agentStart = events.get("agent_start")[0];
     await agentStart({}, harness.ctx);
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     assert.equal(userMessages.length, 7);
+    for (const message of userMessages) {
+      assert.match(message.message, /EXECUTION BINDING — FAIL CLOSED/);
+    }
     assert.match(
       userMessages[1].message,
       /Audit the current implementation against the original design membrane/,
     );
+    assert.match(userMessages[1].message, /EXECUTION BINDING — FAIL CLOSED/);
     assert.notEqual(userMessages[2].message, "/deep-review");
     assert.match(userMessages[2].message, /DEEP REVIEW/);
+    assert.match(userMessages[2].message, /must not choose product direction/);
     assert.match(userMessages[3].message, /Prompt Vault/);
     assert.match(userMessages[3].message, /Do not stop after retrieving the template/);
     assert.match(userMessages[4].message, /Update the owning product-posture\.md/);
@@ -92,6 +101,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     assert.notEqual(userMessages[5].message, "/commit");
     assert.match(userMessages[5].message, /commit orchestrator|EXPANDED COMMIT/i);
     assert.match(userMessages[6].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[6].message, /EXECUTION BINDING — FAIL CLOSED/);
     assert.match(userMessages[6].message, /visible_loop_child_complete/);
     assert.match(userMessages[6].message, /product-posture refresh or \/commit prompt failed/);
     assert.match(userMessages[6].message, /Adaptive controller mode is active/);

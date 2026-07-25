@@ -36,6 +36,7 @@ test("adaptive restart rejects missing controller state after run history exists
       loopCount: 1,
       cwd: "/repo",
       reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "adaptive restart test" },
       prompts: ["bounded work"],
       adaptiveController,
       runId: "visible-loop-adaptive-missing-state",
@@ -74,6 +75,7 @@ test("adaptive completion fails closed when controller persistence fails", async
       loopCount: 2,
       cwd: "/repo",
       reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "persistence failure test" },
       prompts: ["bounded work"],
       adaptiveController,
       runId: "visible-loop-adaptive-persist-failure",
@@ -129,6 +131,7 @@ test("adaptive continuation launch failure falls back to a full same-session ite
       loopCount: 2,
       cwd: "/repo",
       reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "fallback test" },
       prompts: ["bounded work"],
       adaptiveController,
       runId: "visible-loop-adaptive-fallback",
@@ -166,7 +169,8 @@ test("adaptive continuation launch failure falls back to a full same-session ite
     assert.equal(outcome.accepted, true);
     assert.equal(outcome.continuationDecision?.method, "new_session");
     assert.equal(userMessages.length, 3);
-    assert.equal(userMessages[2].message, "bounded work");
+    assert.match(userMessages[2].message, /EXECUTION BINDING — FAIL CLOSED/);
+    assert.match(userMessages[2].message, /bounded work/);
     const statusEntries = readFileSync(
       `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`,
       "utf8",
@@ -222,7 +226,9 @@ test("baseline rollback manual completion advances non-final iterations", async 
     const { commands, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
-    await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler('--count 2 --manual --objective "baseline continuation"', harness.ctx);
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -301,7 +307,9 @@ test("baseline rollback manual completion finalizes", async () => {
     const { commands, tools, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
-    await commands.get("visible-loop").handler("--count 1 --manual", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler('--count 1 --manual --objective "baseline completion"', harness.ctx);
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -378,6 +386,7 @@ test("visible-loop completion recreates continuation after active state is unava
       loopCount: 2,
       cwd: harness.ctx.cwd,
       reportBack: "manual",
+      executionBinding: { mode: "operator_objective", objective: "continuation recreation" },
       runId: "visible-loop-recreate-continuation-test",
       prompts: ["finish this turn"],
     });

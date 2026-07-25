@@ -70,6 +70,7 @@
     "src/visibleLoopPromptTemplates.ts",
     "src/visibleLoopProfiles.ts",
     "src/visibleLoopState.ts",
+    "src/visibleLoopTaskBinding.ts",
     "src/visibleLoopTypes.ts",
     "prompts",
     "examples",
@@ -128,6 +129,9 @@
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"
+  },
+  "dependencies": {
+    "typebox": "^1.0.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

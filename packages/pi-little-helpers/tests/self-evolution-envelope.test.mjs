@@ -26,6 +26,7 @@ import {
   _selfEvolutionVerificationTest,
   validatePersistedSelfEvolutionBinding,
 } from "../src/selfEvolutionVerification.ts";
+import { createVisibleLoopRunConfig } from "../src/visibleLoop.ts";
 import {
   createContext,
   createExecStub,
@@ -558,6 +559,44 @@ test("visible-loop candidate route persists the typed envelope and prepends it t
     assert.match(config.prompts[0], new RegExp(candidate.candidateId));
     assert.match(config.prompts[0], /read @docs\/project\/vision\.md/);
     assert.equal(config.selfEvolutionEnvelope.ownerArtifact.candidateId, candidate.candidateId);
+    const configInput = {
+      loopCount: 1,
+      cwd: repo,
+      reportBack: "manual",
+      prompts: ["bounded candidate work"],
+    };
+    assert.throws(
+      () =>
+        createVisibleLoopRunConfig({
+          ...configInput,
+          executionBinding: {
+            mode: "self_evolution_candidate",
+            candidateId: "evolution-other",
+          },
+          selfEvolutionEnvelope: config.selfEvolutionEnvelope,
+        }),
+      /requires a matching selfEvolutionEnvelope/,
+    );
+    assert.throws(
+      () =>
+        createVisibleLoopRunConfig({
+          ...configInput,
+          executionBinding: {
+            mode: "self_evolution_candidate",
+            candidateId: candidate.candidateId,
+          },
+        }),
+      /requires a matching selfEvolutionEnvelope/,
+    );
+    assert.throws(
+      () =>
+        createVisibleLoopRunConfig({
+          ...configInput,
+          executionBinding: { mode: "operator_objective", objective: "wrong binding mode" },
+          selfEvolutionEnvelope: config.selfEvolutionEnvelope,
+        }),
+      /requires self_evolution_candidate binding mode/,
+    );
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });

@@ -12,13 +12,20 @@ export function parseVisibleLoopCommandArgs(
   args: string | undefined,
   commandName = VISIBLE_LOOP_COMMAND,
 ): VisibleLoopCommandParseResult {
-  const usage = `Usage: /${commandName} [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none] [--delegate-commit] [--candidate evolution-...]`;
-  const tokens = tokenizeArgs(args ?? "");
+  const usage = `Usage: /${commandName} (--objective "bounded objective"|--task AK-ID|--candidate evolution-...) [--count N|N] [--parentPeerTarget session-...] [--reportBack intercom|manual|none] [--delegate-commit]`;
+  const rawArgs = args ?? "";
+  if (hasUnmatchedQuote(rawArgs)) {
+    return { ok: false, error: "Unterminated quoted argument.", usage };
+  }
+  const tokens = tokenizeArgs(rawArgs);
   let loopCount: number | undefined;
   let parentPeerTarget: string | undefined;
   let reportBack: VisibleLoopReportBack | undefined;
   let delegateCommit = false;
   let candidateId: string | undefined;
+  let objective: string | undefined;
+  let taskId: number | undefined;
+  let bindingOccurrences = 0;
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -87,6 +94,7 @@ export function parseVisibleLoopCommandArgs(
     }
 
     if (token === "--candidate") {
+      bindingOccurrences += 1;
       index += 1;
       candidateId = parseCandidateId(tokens[index]);
       if (!candidateId) return { ok: false, error: "Missing or invalid candidate id.", usage };
@@ -94,8 +102,43 @@ export function parseVisibleLoopCommandArgs(
     }
 
     if (token.startsWith("--candidate=")) {
+      bindingOccurrences += 1;
       candidateId = parseCandidateId(token.slice("--candidate=".length));
       if (!candidateId) return { ok: false, error: "Missing or invalid candidate id.", usage };
+      continue;
+    }
+
+    if (token === "--objective") {
+      bindingOccurrences += 1;
+      index += 1;
+      const value = tokens[index];
+      if (value?.startsWith("-")) {
+        return { ok: false, error: "Missing or invalid objective.", usage };
+      }
+      objective = parseObjective(value);
+      if (!objective) return { ok: false, error: "Missing or invalid objective.", usage };
+      continue;
+    }
+
+    if (token.startsWith("--objective=")) {
+      bindingOccurrences += 1;
+      objective = parseObjective(token.slice("--objective=".length));
+      if (!objective) return { ok: false, error: "Missing or invalid objective.", usage };
+      continue;
+    }
+
+    if (token === "--task") {
+      bindingOccurrences += 1;
+      index += 1;
+      taskId = parseTaskId(tokens[index]);
+      if (!taskId) return { ok: false, error: "Missing or invalid AK task id.", usage };
+      continue;
+    }
+
+    if (token.startsWith("--task=")) {
+      bindingOccurrences += 1;
+      taskId = parseTaskId(token.slice("--task=".length));
+      if (!taskId) return { ok: false, error: "Missing or invalid AK task id.", usage };
       continue;
     }
 
@@ -109,6 +152,24 @@ export function parseVisibleLoopCommandArgs(
     return { ok: false, error: `Unknown argument: ${token}`, usage };
   }
 
+  const bindingCount = [candidateId, objective, taskId].filter(
+    (value) => value !== undefined,
+  ).length;
+  if (bindingCount === 0) {
+    return {
+      ok: false,
+      error: `/${commandName} requires one explicit execution binding: --objective, --task, or --candidate. Run direction-to-execution or choose an owner-authorized task before launching an execution loop.`,
+      usage,
+    };
+  }
+  if (bindingCount > 1 || bindingOccurrences > 1) {
+    return {
+      ok: false,
+      error: "Choose exactly one execution binding: --objective, --task, or --candidate.",
+      usage,
+    };
+  }
+
   return {
     ok: true,
     loopCount: loopCount ?? 1,
@@ -116,7 +177,22 @@ export function parseVisibleLoopCommandArgs(
     parentPeerTarget,
     ...(delegateCommit ? { delegateCommit } : {}),
     ...(candidateId ? { candidateId } : {}),
+    ...(objective ? { objective } : {}),
+    ...(taskId ? { taskId } : {}),
   };
+}
+
+function parseObjective(value: string | undefined): string | undefined {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized || normalized.length > 2_000 || normalized.includes("\u0000")) return undefined;
+  return normalized;
+}
+
+function parseTaskId(value: string | undefined): number | undefined {
+  const normalized = value?.trim().replace(/^AK-/iu, "");
+  if (!normalized || !/^\d+$/u.test(normalized)) return undefined;
+  const taskId = Number(normalized);
+  return Number.isSafeInteger(taskId) && taskId > 0 ? taskId : undefined;
 }
 
 function parseCandidateId(value: string | undefined): string | undefined {
@@ -129,7 +205,9 @@ function parseCandidateId(value: string | undefined): string | undefined {
 export function parseVisibleLoopCompletionArgs(
   args: string | undefined,
 ): VisibleLoopCompletionParseResult {
-  const tokens = tokenizeArgs(args ?? "");
+  const rawArgs = args ?? "";
+  if (hasUnmatchedQuote(rawArgs)) return { ok: false, error: "unterminated quoted argument" };
+  const tokens = tokenizeArgs(rawArgs);
   let configPath: string | undefined;
   let iteration: number | undefined;
 
@@ -169,6 +247,18 @@ export function parseReportBack(value: string | undefined): VisibleLoopReportBac
 
 export function normalizeOptionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function hasUnmatchedQuote(input: string): boolean {
+  let quote: '"' | "'" | null = null;
+  for (const char of input) {
+    if (quote) {
+      if (char === quote) quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    }
+  }
+  return quote !== null;
 }
 
 function tokenizeArgs(input: string): string[] {

@@ -29,6 +29,7 @@ import {
   normalizeVisibleLoopCommandName,
 } from "./visibleLoopProfiles.ts";
 import {
+  bindVisibleLoopExecutionPrompt,
   DEFAULT_VISIBLE_LOOP_PROMPTS,
   expandVisibleLoopPromptTemplate,
   renderVisibleLoopCommitDelegationPrompt,
@@ -51,6 +52,7 @@ import {
   type VisibleLoopCommitDelegation,
   type VisibleLoopContinuationDecision,
   type VisibleLoopControllerState,
+  type VisibleLoopExecutionBinding,
   type VisibleLoopProductPostureTarget,
   type VisibleLoopReportBack,
   type VisibleLoopRunConfig,
@@ -97,6 +99,7 @@ export {
   VISIBLE_LOOP_COMMAND,
   type VisibleLoopCommandParseResult,
   type VisibleLoopCommitDelegation,
+  type VisibleLoopExecutionBinding,
   type VisibleLoopReportBack,
   type VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
@@ -174,8 +177,10 @@ export function createVisibleLoopRunConfig(input: {
   title?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
   adaptiveController?: VisibleLoopAdaptiveControllerConfig;
+  executionBinding: VisibleLoopExecutionBinding;
   selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
 }): VisibleLoopRunConfig {
+  assertExecutionBindingEnvelopeConsistency(input.executionBinding, input.selfEvolutionEnvelope);
   const commandName = normalizeVisibleLoopCommandName(input.commandName ?? input.runIdPrefix);
   const runIdPrefix = normalizeRunIdPrefix(input.runIdPrefix ?? commandName ?? "visible-loop");
   return {
@@ -189,6 +194,7 @@ export function createVisibleLoopRunConfig(input: {
       input.selfEvolutionEnvelope,
     ),
     reportBack: input.reportBack,
+    executionBinding: input.executionBinding,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
     ...(input.commitDelegation ? { commitDelegation: input.commitDelegation } : {}),
     ...(input.adaptiveController ? { adaptiveController: input.adaptiveController } : {}),
@@ -197,6 +203,23 @@ export function createVisibleLoopRunConfig(input: {
     title: input.title ?? "Visible loop",
     createdAt: new Date().toISOString(),
   };
+}
+
+function assertExecutionBindingEnvelopeConsistency(
+  binding: VisibleLoopExecutionBinding,
+  envelope: SelfEvolutionExecutionEnvelope | undefined,
+): void {
+  if (binding.mode === "self_evolution_candidate") {
+    if (!envelope || envelope.candidateId !== binding.candidateId) {
+      throw new TypeError(
+        "self-evolution candidate binding requires a matching selfEvolutionEnvelope",
+      );
+    }
+    return;
+  }
+  if (envelope) {
+    throw new TypeError("selfEvolutionEnvelope requires self_evolution_candidate binding mode");
+  }
 }
 
 function buildVisibleLoopPrompts(
@@ -631,7 +654,9 @@ function queueVisibleLoopIteration(
     stopVisibleLoopForPromptExpansionFailure(state, ctx, initialPrompt, iteration, 1, env);
     return;
   }
-  state.sendUserMessage(initialPrompt.prompt);
+  state.sendUserMessage(
+    bindVisibleLoopExecutionPrompt(initialPrompt.prompt, state.config.executionBinding),
+  );
   if (
     !recordVisibleLoopControllerEvent(
       state,
@@ -707,7 +732,10 @@ function queueVisibleLoopFollowups(
         env,
       );
       if (isCompletionPrompt) {
-        state.sendUserMessage(prompt, { deliverAs: "followUp" });
+        state.sendUserMessage(
+          bindVisibleLoopExecutionPrompt(prompt, state.config.executionBinding),
+          { deliverAs: "followUp" },
+        );
         recordVisibleLoopControllerEvent(
           state,
           { kind: "completion_checkpoint_delivered", iteration },
@@ -737,7 +765,10 @@ function queueVisibleLoopFollowups(
         env,
       );
       if (!deliveryPrompt) return;
-      state.sendUserMessage(deliveryPrompt, { deliverAs: "followUp" });
+      state.sendUserMessage(
+        bindVisibleLoopExecutionPrompt(deliveryPrompt, state.config.executionBinding),
+        { deliverAs: "followUp" },
+      );
       if (
         !recordVisibleLoopControllerEvent(
           state,

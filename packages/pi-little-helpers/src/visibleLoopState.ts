@@ -11,6 +11,7 @@ import { normalizeVisibleLoopCommandName } from "./visibleLoopProfiles.ts";
 import type {
   VisibleLoopCommitDelegation,
   VisibleLoopControllerState,
+  VisibleLoopExecutionBinding,
   VisibleLoopProductPostureTarget,
   VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
@@ -27,7 +28,11 @@ export function writeVisibleLoopRunConfig(
   const dir = getVisibleLoopStateDir(env);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `${requireSafeRunId(config.runId)}.json`);
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+    mode: 0o600,
+  });
   return path;
 }
 
@@ -190,6 +195,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   if (!prompts || prompts.length === 0) throw new TypeError("prompts must be a non-empty array.");
   const reportBack = parseReportBack(String(record.reportBack ?? "manual"));
   if (!reportBack) throw new TypeError("reportBack must be intercom, manual, or none.");
+  const executionBinding = parseExecutionBinding(record.executionBinding);
   const commandName = normalizeVisibleLoopCommandName(record.commandName);
   const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
   const commitDelegation = parseCommitDelegation(record.commitDelegation);
@@ -202,6 +208,18 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   if (record.selfEvolutionEnvelope !== undefined && !selfEvolutionEnvelope) {
     throw new TypeError("selfEvolutionEnvelope is invalid.");
   }
+  if (executionBinding.mode === "self_evolution_candidate") {
+    if (
+      !selfEvolutionEnvelope ||
+      selfEvolutionEnvelope.candidateId !== executionBinding.candidateId
+    ) {
+      throw new TypeError(
+        "self-evolution candidate binding requires a matching selfEvolutionEnvelope",
+      );
+    }
+  } else if (selfEvolutionEnvelope) {
+    throw new TypeError("selfEvolutionEnvelope requires self_evolution_candidate binding mode");
+  }
   const title = normalizeOptionalString(record.title);
   const createdAt = requireNonEmptyString(record.createdAt, "createdAt");
 
@@ -213,6 +231,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     ...(commandName ? { commandName } : {}),
     prompts,
     reportBack,
+    executionBinding,
     ...(parentPeerTarget ? { parentPeerTarget } : {}),
     ...(commitDelegation ? { commitDelegation } : {}),
     ...(adaptiveController ? { adaptiveController } : {}),
@@ -221,6 +240,37 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     ...(title ? { title } : {}),
     createdAt,
   };
+}
+
+function parseExecutionBinding(value: unknown): VisibleLoopExecutionBinding {
+  if (value === undefined || value === null) {
+    throw new TypeError(
+      "executionBinding is required; restart the loop with --task, --objective, or --candidate.",
+    );
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("executionBinding must be an object.");
+  }
+  const record = value as Record<string, unknown>;
+  if (record.mode === "operator_objective") {
+    const objective = requireNonEmptyString(record.objective, "executionBinding.objective");
+    if (objective.length > 2_000 || objective.includes("\u0000")) {
+      throw new TypeError("executionBinding.objective is invalid.");
+    }
+    return { mode: "operator_objective", objective };
+  }
+  if (record.mode === "ak_task") {
+    const taskId = requirePositiveInteger(record.taskId, "executionBinding.taskId");
+    return { mode: "ak_task", taskId };
+  }
+  if (record.mode === "self_evolution_candidate") {
+    const candidateId = requireNonEmptyString(record.candidateId, "executionBinding.candidateId");
+    if (candidateId.length > 160 || !/^evolution-[A-Za-z0-9._-]+$/u.test(candidateId)) {
+      throw new TypeError("executionBinding.candidateId is invalid.");
+    }
+    return { mode: "self_evolution_candidate", candidateId };
+  }
+  throw new TypeError("executionBinding.mode is invalid.");
 }
 
 function parseAdaptiveController(value: unknown): VisibleLoopRunConfig["adaptiveController"] {
