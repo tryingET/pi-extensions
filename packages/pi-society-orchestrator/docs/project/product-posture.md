@@ -63,7 +63,8 @@ The package is product-healthy when:
 3. exact `taskId + cwd` identity is visible wherever authority depends on it;
 4. evidence writes are deduped, scoped, and tied to verified owner artifacts;
 5. workflows and loops expose owner-specific gates instead of hiding them inside generic execution;
-6. matrix/candidate-wave campaigns produce reviewable above-seam summaries without owning pi-autoresearch receipts or promotion.
+6. Layer-12 direction-to-execution inspection reuses AK's existing controller and exposes generated-program availability without claiming advisory DSPx output ran or acquired authority;
+7. matrix/candidate-wave campaigns produce reviewable above-seam summaries without owning pi-autoresearch receipts or promotion.
 
 ## Current landed capability baseline
 
@@ -82,6 +83,8 @@ The package currently owns:
 - workflow/loop surfaces over the public ASC seam, specifically cognitive/control-plane loops rather than visible Ghostty child-session loops;
 - package-owned KES materialization for loop outputs;
 - read-only runtime/status, AK close-frame, and boundary-inspection UX.
+- `direction_controller_readback`, a read-only Pi adapter over AK `direction-controller status -> propose -> transition-check`; it validates the existing authority/no-apply contract and reports DSPx generated-program readiness without invoking DSPx, dispatching an owner route, selecting policy, materializing work, or applying a transition;
+- an explicit Prompt Vault owner route for `layer12-040-direction-to-execution-ak-native`: `vault_execute_template` remains fail-closed because the full workflow has no verified executable binding, but now directs the operator to the truthful AK readback instead of implying that another D2E state machine must be invented.
 
 Adjacent lower-plane capability exists in `pi-autoresearch`: bounded runtime, candidate binding, measurement receipts, candidate-result packets, dashboards, closeouts, learning exports, and self-hosting runtime. Those are not orchestrator ownership claims.
 

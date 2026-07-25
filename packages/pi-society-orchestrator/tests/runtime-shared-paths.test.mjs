@@ -2625,9 +2625,10 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
           "UNIQUE KEY prompt_templates_name (name)",
           ");",
           "INSERT INTO prompt_templates VALUES",
-          "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',false,4),",
-          "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',false,1),",
-          "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',false,1);",
+          "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',true,4),",
+          "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',true,1),",
+          "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1),",
+          "(4,'layer12-040-direction-to-execution-ak-native','D2E','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,4);",
         ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
@@ -2678,7 +2679,7 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
       { cwd: process.cwd(), model: undefined },
     );
     assert.equal(workflowResult.details.ok, false);
-    assert.equal(workflowResult.details.error, "vault-template-not-executable-through-bridge");
+    assert.equal(workflowResult.details.error, "vault-template-workflow-owner-route-required");
     assert.match(workflowResult.content[0].text, /workflow-grade but has no executable binding/);
     assert.match(workflowResult.content[0].text, /No owner-specific route is registered/);
 
@@ -2695,11 +2696,27 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
     assert.equal(autoresearchSetupResult.details.ok, false);
     assert.equal(
       autoresearchSetupResult.details.error,
-      "vault-template-not-executable-through-bridge",
+      "vault-template-workflow-owner-route-required",
     );
     assert.match(autoresearchSetupResult.content[0].text, /Owner-specific lawful route/);
     assert.match(autoresearchSetupResult.content[0].text, /autoresearch_runtime_status/);
     assert.match(autoresearchSetupResult.content[0].text, /loop back to discovery\/design/);
+
+    const d2eResult = await vaultExecuteTool.execute(
+      "tool-call-id-4",
+      {
+        template_name: "layer12-040-direction-to-execution-ak-native",
+        objective: "Find the next lawful DSPx execution boundary",
+      },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined },
+    );
+    assert.equal(d2eResult.details.ok, false);
+    assert.equal(d2eResult.details.error, "vault-template-workflow-owner-route-required");
+    assert.match(d2eResult.content[0].text, /Owner-specific lawful route/);
+    assert.match(d2eResult.content[0].text, /direction_controller_readback/);
+    assert.match(d2eResult.content[0].text, /without claiming DSPx execution/);
   } finally {
     if (previousVaultDir === undefined) {
       delete process.env.VAULT_DIR;
