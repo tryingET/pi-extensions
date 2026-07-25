@@ -1,0 +1,30 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "pi"
+actor: "pi-d2e-readback"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "22ee40e135ecf7af3ec3cadc0b94fb538410546d"
+created_at: "2026-07-25T14:14:14Z"
+intent: "Expose the existing AK direction-controller through a fail-closed Pi readback and route the gated Layer-12 workflow to that lawful owner seam without claiming DSPx execution."
+files:
+  - "packages/pi-society-orchestrator/README.md"
+  - "packages/pi-society-orchestrator/docs/project/product-posture.md"
+  - "packages/pi-society-orchestrator/extensions/society-orchestrator.ts"
+  - "packages/pi-society-orchestrator/src/loops/engine.ts"
+  - "packages/pi-society-orchestrator/src/runtime/direction-controller-readback.ts"
+  - "packages/pi-society-orchestrator/src/toolboxBundle.ts"
+  - "packages/pi-society-orchestrator/tests/direction-controller-readback.test.mjs"
+  - "packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test tests/direction-controller-readback.test.mjs tests/runtime-shared-paths.test.mjs && biome check scoped files && targeted tsc direction-controller-readback.ts"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-society-orchestrator && npm run check"
+    status: "fail"
+group:
+  index: 1
+  total: 1
+  rationale: "Atomic read-only adapter, owner-route, toolbox, tests, and product documentation; full gate is blocked by pre-existing pi-vault-client TypeScript errors outside task scope."
+links:
+  task_ids:
+    - 4206
