@@ -258,6 +258,13 @@ function registerVaultLiveTrigger(
       },
       minQueryLength: LIVE_VAULT_MIN_QUERY,
       loadCandidates: ({ context }: { context?: { cwd?: string } }) => {
+        if (!runtime.checkSchemaCompatibilityDetailed().ok) {
+          return {
+            candidates: [],
+            reason: "schema-mismatch",
+            metadata: { templateCount: 0 },
+          };
+        }
         const companyContext = resolvePickerCompanyContext(runtime, context);
         if (!companyContext.ok) {
           return {
@@ -313,6 +320,13 @@ function registerVaultLiveTrigger(
         selection: { mode: "fzf" | "fallback"; reason?: string };
       }) => {
         const companyContext = resolvePickerCompanyContext(runtime, context);
+        if (!runtime.checkSchemaCompatibilityDetailed().ok) {
+          api.notify?.(
+            "Vault schema mismatch. Use /vault-check or vault_schema_diagnostics.",
+            "warning",
+          );
+          return;
+        }
         if (!companyContext.ok) {
           api.notify?.(PICKER_READ_CONTEXT_ERROR, "warning");
           return;

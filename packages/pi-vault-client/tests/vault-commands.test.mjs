@@ -652,6 +652,34 @@ test("vault command surface degrades to schema diagnostics instead of disappeari
   });
 });
 
+test("ordinary input does not probe the vault schema", async () => {
+  await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
+    const vaultCommandsModule = await importModule("src/vaultCommands.js");
+    const pi = makePiStub();
+    let schemaChecks = 0;
+    vaultCommandsModule.registerVaultCommands(
+      pi,
+      {
+        checkSchemaCompatibilityDetailed() {
+          schemaChecks += 1;
+          throw new Error("ordinary input must not probe schema");
+        },
+        parseVaultSelectionInput() {
+          return null;
+        },
+      },
+      undefined,
+      makeDispatchRuntime(),
+    );
+
+    const inputHandler = pi.events.get("input");
+    assert.ok(inputHandler);
+    const result = await inputHandler({ text: "hello world" }, { hasUI: false });
+    assert.deepEqual(result, { action: "continue" });
+    assert.equal(schemaChecks, 0);
+  });
+});
+
 test("interactive /route prepares meta-orchestration through the shared vault renderer", async () => {
   await withCommandModules(async ({ importModule, makeDispatchRuntime }) => {
     const vaultCommandsModule = await importModule("src/vaultCommands.js");

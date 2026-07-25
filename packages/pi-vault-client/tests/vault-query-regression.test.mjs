@@ -57,28 +57,28 @@ test("vault runtime targets Prompt Vault schema v9", () => {
     /registerVaultCommands\(pi, runtime, receiptManager, dispatchRuntime\)/,
   );
   assert.match(EXTENSION_SOURCE, /createVaultDispatchRuntime\(\{ runtime: vaultRuntime \}\)/);
-  assert.match(EXTENSION_SOURCE, /formatMissingColumns\("prompt_templates"/);
-  assert.match(EXTENSION_SOURCE, /missingPromptTemplateColumns/);
-  assert.match(EXTENSION_SOURCE, /formatMissingColumns\("executions"/);
-  assert.match(EXTENSION_SOURCE, /missingExecutionColumns/);
-  assert.match(EXTENSION_SOURCE, /checkSchemaCompatibilityDetailed\(\)/);
-  assert.match(EXTENSION_SOURCE, /expected=\$\{SCHEMA_VERSION\}/);
-  assert.match(EXTENSION_SOURCE, /actual=\$\{schemaReport\.actualVersion \?\? "unknown"\}/);
+  assert.match(
+    EXTENSION_SOURCE,
+    /registerVaultTools\(createSchemaGatedToolApi\(pi, vaultRuntime\), runtime, receiptManager\)/,
+  );
+  assert.match(EXTENSION_SOURCE, /registerPromptEvaluatorTool\(pi, evalConfig, vaultOps\)/);
+  assert.match(EXTENSION_SOURCE, /const report = runtime\.checkSchemaCompatibilityDetailed\(\)/);
+  assert.doesNotMatch(EXTENSION_SOURCE, /execVault\(/);
+  assert.doesNotMatch(EXTENSION_SOURCE, /queryVaultJson\(/);
 });
 
-test("extension registers capability bridges only after schema-gated startup and root export mirrors packaged js entrypoint", () => {
-  const schemaCheckIndex = EXTENSION_SOURCE.indexOf(
-    "const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();",
+test("extension factory stays registration-only and root export mirrors packaged js entrypoint", () => {
+  const registerDiagnosticsIndex = EXTENSION_SOURCE.indexOf(
+    "registerVaultDiagnosticsTool(pi, vaultRuntime);",
   );
   const registerToolsIndex = EXTENSION_SOURCE.indexOf(
-    "registerVaultTools(pi, runtime, receiptManager);",
+    "registerVaultTools(createSchemaGatedToolApi(pi, vaultRuntime), runtime, receiptManager);",
   );
   const registerBridgesIndex = EXTENSION_SOURCE.lastIndexOf("registerVaultCapabilityBridges(");
-  assert.ok(schemaCheckIndex >= 0);
-  assert.ok(registerToolsIndex >= 0);
-  assert.ok(registerBridgesIndex >= 0);
-  assert.ok(registerBridgesIndex > schemaCheckIndex);
+  assert.ok(registerDiagnosticsIndex >= 0);
+  assert.ok(registerToolsIndex > registerDiagnosticsIndex);
   assert.ok(registerBridgesIndex > registerToolsIndex);
+  assert.doesNotMatch(EXTENSION_SOURCE, /const schemaReport/);
   assert.match(ROOT_INDEX_SOURCE, /export \{ default \} from "\.\/extensions\/vault\.js";/);
 });
 
@@ -345,13 +345,11 @@ test("vault exposes a schema diagnostics tool that remains useful during mismatc
   assert.match(TOOLS_SOURCE, /missing_feedback_columns:/);
 });
 
-test("session_start reports schema mismatch or vault unavailability instead of empty counts", () => {
-  assert.match(COMMANDS_SOURCE, /Vault schema mismatch \(/);
-  assert.match(COMMANDS_SOURCE, /Vault unavailable:/);
-  assert.doesNotMatch(
-    COMMANDS_SOURCE,
-    /Vault: \$\{cognitive\} cognitive, \$\{procedure\} procedure templates/,
-  );
+test("startup defers schema and template reads until an explicit vault operation", () => {
+  assert.doesNotMatch(COMMANDS_SOURCE, /pi\.on\("session_start"/);
+  assert.match(COMMANDS_SOURCE, /pi\.registerCommand\("vault-check"/);
+  assert.match(COMMANDS_SOURCE, /runtime\.checkSchemaCompatibilityDetailed\(\)/);
+  assert.doesNotMatch(COMMANDS_SOURCE, /Vault \(\$\{currentCompany\}\):/);
 });
 
 test("vault selection parsing delegates :: context handling to helper", () => {
