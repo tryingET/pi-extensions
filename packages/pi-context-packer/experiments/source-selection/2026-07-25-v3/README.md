@@ -26,7 +26,7 @@ Canonical preregistration:
 Candidate case source:
 
 - `canonical-case-source.generated.json`
-- SHA-256: `57e247bdbb29be8d80532b743c0f254b48533c3fe0edcabd43677eac17c0a8ce`
+- SHA-256: `d2a19efd67058d54d250371860a2ec08af07eebc744a393dff00600b9f6cd6e5`
 - 5 repositories / 50 cases / 50 unique normalized questions / 50 unique truth sets
 - deterministic exact-commit validator: `validate-cases.mjs`
 - authoring sessions: `dispatch-1784989778336`, `dispatch-1784989778336-1`, `dispatch-1784989778337`, `dispatch-1784989778338`, `dispatch-1784989778339`

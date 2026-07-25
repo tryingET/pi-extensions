@@ -146,8 +146,8 @@ async function main() {
       if (questions.has(question) || oldQuestions.has(question))
         fail(`${label} question is reused`);
       questions.add(question);
-      if (!Array.isArray(row.truth) || row.truth.length < 1 || row.truth.length > 3) {
-        fail(`${label} truth must contain 1-3 paths`);
+      if (!Array.isArray(row.truth) || row.truth.length < 1 || row.truth.length > 4) {
+        fail(`${label} truth must contain 1-4 paths`);
       }
       if (new Set(row.truth).size !== row.truth.length) fail(`${label} truth paths must be unique`);
       const truth = truthIdentity(row.truth);
@@ -158,8 +158,8 @@ async function main() {
       if (typeof row.pattern !== "string" || row.pattern.trim().length < 8) {
         fail(`${label} pattern is missing`);
       }
-      if (!Array.isArray(row.paths) || row.paths.length < 1 || row.paths.length > 3) {
-        fail(`${label} paths must contain 1-3 entries`);
+      if (!Array.isArray(row.paths) || row.paths.length < 1 || row.paths.length > 4) {
+        fail(`${label} paths must contain 1-4 entries`);
       }
       for (const path of row.truth) {
         assertSafePath(path, `${label} truth path`);

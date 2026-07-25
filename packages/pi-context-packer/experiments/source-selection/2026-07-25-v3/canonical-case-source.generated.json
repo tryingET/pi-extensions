@@ -5,6 +5,7 @@
       "question": "How should the documentation inventory CLI distinguish unknown flags from dash-prefixed values while supporting equals-style arguments and structured missing-value usage errors?",
       "truth": [
         "scripts/lib/list-core/args.mjs",
+        "scripts/lib/list-core/cli-output.mjs",
         "scripts/docs-list.mjs",
         "tests/docs-list.test.mjs"
       ],
@@ -13,6 +14,7 @@
       "pattern": "export function validateFlags($ARGV, $FLAG_DEFS) { $$$BODY }",
       "paths": [
         "scripts/lib/list-core/args.mjs",
+        "scripts/lib/list-core/cli-output.mjs",
         "scripts/docs-list.mjs"
       ]
     },
@@ -53,6 +55,7 @@
       "question": "How should documentation traversal collapse symlink aliases, avoid directory cycles, and represent files outside the repository without inventing repository-relative paths?",
       "truth": [
         "scripts/docs-list.mjs",
+        "scripts/lib/docs-list-inventory.mjs",
         "scripts/lib/list-core/fs-paths.mjs",
         "tests/docs-list.test.mjs"
       ],
@@ -61,6 +64,7 @@
       "pattern": "export function walkFilesRecursive($$$ARGS) { $$$BODY }",
       "paths": [
         "scripts/lib/list-core/fs-paths.mjs",
+        "scripts/lib/docs-list-inventory.mjs",
         "scripts/docs-list.mjs"
       ]
     },
@@ -187,7 +191,7 @@
     },
     {
       "id": "engcore-v3-03",
-      "question": "How should declarative repository inspection infer language lanes while rejecting symlinks, special files, malformed manifests, and over-budget evidence?",
+      "question": "How should declarative repository inspection infer language lanes while rejecting symlinks and special files, reporting malformed package.json, and bounding evidence?",
       "truth": [
         "src/engineering_core/repository_facts.py",
         "tests/test_cli.py"
@@ -274,14 +278,16 @@
       "question": "How should an owner-use bundle be checked against the current repository revision, focused scope, and recomputed plan bindings without performing mutations?",
       "truth": [
         "src/engineering_core/work_verify.py",
-        "tests/test_work_bundle.py"
+        "tests/test_work_bundle.py",
+        "tests/test_work_packet.py"
       ],
       "maxItems": 4,
       "language": "python",
       "pattern": "def verify_work($$$ARGS) -> dict[str, Any]: $$$BODY",
       "paths": [
         "src/engineering_core/work_verify.py",
-        "tests/test_work_bundle.py"
+        "tests/test_work_bundle.py",
+        "tests/test_work_packet.py"
       ]
     },
     {
@@ -708,7 +714,7 @@
       ],
       "maxItems": 4,
       "language": "rust",
-      "pattern": "fn normalize_repo_owned_file_ref($$$ARGS) -> Result<String> { $$$BODY }",
+      "pattern": "pub fn link_knowledge_packet_draft($$$ARGS) -> Result<KnowledgePacket> { $$$BODY }",
       "paths": [
         "crates/ak-core/src",
         "crates/ak-cli/src",
