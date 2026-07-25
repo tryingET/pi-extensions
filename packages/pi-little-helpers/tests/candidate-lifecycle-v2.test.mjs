@@ -10,6 +10,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -562,7 +563,7 @@ test("v2 inventory groups aliases by physical worktree and migrates owner-only r
   });
 });
 
-test("v2 rejected fixture restores byte-for-byte before exact authorized cleanup", async () => {
+test("v2 cleanup skips a large irrelevant review event and preserves exact recovery", async () => {
   await withTempDir((root) => {
     const env = { XDG_STATE_HOME: `${root}/state` };
     const registryDir = `${root}/state/pi-quests/peer-registry`;
@@ -663,15 +664,24 @@ test("v2 rejected fixture restores byte-for-byte before exact authorized cleanup
     });
     assert.equal(record.state, "cleanup_authorized");
     const authorization = record.cleanupAuthorization;
+    appendLifecycleEvent(
+      record.resourceId,
+      {
+        event: "review_captured",
+        at: new Date().toISOString(),
+        record: { payload: "x".repeat(17 * 1024 * 1024) },
+      },
+      env,
+    );
     const attemptId = "crash-after-remove-worktree";
     appendLifecycleEvent(
       record.resourceId,
       {
-        event: "cleanup_effect_intent",
+        at: new Date().toISOString(),
         effect: "remove_worktree",
+        event: "cleanup_effect_intent",
         authorizationDigest: authorization.authorizationDigest,
         attemptId,
-        at: new Date().toISOString(),
       },
       env,
     );
@@ -708,9 +718,62 @@ test("v2 rejected fixture restores byte-for-byte before exact authorized cleanup
     const cleaned = executeAuthorizedCandidateCleanup({ resourceId: record.resourceId, env });
     assert.equal(cleaned.state, "cleaned");
     assert.equal(verifyCleanedCandidateTerminalRecord(cleaned, env), digestObject(cleaned));
+    assert.ok(
+      statSync(`${getCandidateLifecycleRoot(env)}/resources/${record.resourceId}/events.jsonl`)
+        .size >
+        17 * 1024 * 1024,
+    );
     assert.equal(existsSync(worktreePath), false);
     assert.throws(() => git(repoRoot, "rev-parse", "refs/heads/candidate/test"));
     assert.equal(existsSync(`${archived.receipt.archiveDir}/COMPLETE`), true);
+    const eventsPath = `${getCandidateLifecycleRoot(env)}/resources/${record.resourceId}/events.jsonl`;
+    const terminalSize = statSync(eventsPath).size;
+    writeFileSync(eventsPath, `{"at":"now","event":"cleanup_effect_intent",]\n`, { flag: "a" });
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /malformed lifecycle event/,
+    );
+    truncateSync(eventsPath, terminalSize);
+
+    writeFileSync(eventsPath, `{"event":"review_captured","event":"cleanup_effect_observed"}\n`, {
+      flag: "a",
+    });
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /non-unique top-level event identity/,
+    );
+    truncateSync(eventsPath, terminalSize);
+
+    writeFileSync(
+      eventsPath,
+      `{"event":"review_captured","payload":${"[".repeat(257)}0${"]".repeat(257)}}\n`,
+      { flag: "a" },
+    );
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /malformed lifecycle event/,
+    );
+    truncateSync(eventsPath, terminalSize);
+
+    appendLifecycleEvent(record.resourceId, { event: "post_cleaned_probe", at: "now" }, env);
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /not the final cleaned lifecycle event/,
+    );
+    truncateSync(eventsPath, terminalSize);
+
+    writeFileSync(
+      eventsPath,
+      `${JSON.stringify({
+        padding: "x".repeat(17 * 1024 * 1024),
+        event: "cleanup_effect_observed",
+      })}\n`,
+      { flag: "a" },
+    );
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /relevant cleanup lifecycle event exceeds bounded read limit/,
+    );
   });
 });
 

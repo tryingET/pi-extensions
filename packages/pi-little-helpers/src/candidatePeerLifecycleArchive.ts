@@ -2,13 +2,16 @@ import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
   chmodSync,
+  closeSync,
   existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   readlinkSync,
+  readSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -551,16 +554,254 @@ type CleanupEffectEvent = {
   observationDigest?: string;
 };
 
-function readCleanupEvents(
-  resourceId: string,
-  env: NodeJS.ProcessEnv,
-): Array<Record<string, unknown>> {
+const CLEANUP_EVENT_READ_CHUNK_BYTES = 64 * 1024;
+const MAX_RELEVANT_CLEANUP_EVENT_BYTES = 16 * 1024 * 1024;
+const MAX_EVENT_IDENTITY_BYTES = 256;
+const MAX_EVENT_NESTING_DEPTH = 256;
+const RELEVANT_CLEANUP_EVENTS = new Set([
+  "cleanup_effect_intent",
+  "cleanup_effect_observed",
+  "cleaned",
+]);
+
+type CleanupEventScanResult = {
+  events: Array<Record<string, unknown>>;
+  finalEvent?: Record<string, unknown>;
+};
+
+type EventIdentityScanner = {
+  state: "start" | "key" | "colon" | "value" | "primitive" | "comma" | "done";
+  currentKey?: string;
+  event?: string;
+  eventSeen: boolean;
+  malformed: boolean;
+  stringRole?: "key" | "event-value" | "other-value";
+  stringBytes: number[];
+  stringEscaped: boolean;
+  nestedClosers: number[];
+  nestedString: boolean;
+  nestedEscaped: boolean;
+};
+
+function newEventIdentityScanner(): EventIdentityScanner {
+  return {
+    state: "start",
+    eventSeen: false,
+    malformed: false,
+    stringBytes: [],
+    stringEscaped: false,
+    nestedClosers: [],
+    nestedString: false,
+    nestedEscaped: false,
+  };
+}
+
+function decodeIdentityString(scanner: EventIdentityScanner): string | undefined {
+  try {
+    const value = JSON.parse(`"${Buffer.from(scanner.stringBytes).toString("utf8")}"`);
+    return typeof value === "string" ? value : undefined;
+  } catch {
+    scanner.malformed = true;
+    return undefined;
+  }
+}
+
+function scanTopLevelEventIdentity(scanner: EventIdentityScanner, bytes: Buffer): void {
+  if (scanner.malformed) return;
+  const whitespace = (byte: number): boolean =>
+    byte === 0x20 || byte === 0x09 || byte === 0x0d || byte === 0x0a;
+  for (const byte of bytes) {
+    if (scanner.nestedClosers.length > 0) {
+      if (scanner.nestedString) {
+        if (scanner.nestedEscaped) scanner.nestedEscaped = false;
+        else if (byte === 0x5c) scanner.nestedEscaped = true;
+        else if (byte === 0x22) scanner.nestedString = false;
+        continue;
+      }
+      if (byte === 0x22) scanner.nestedString = true;
+      else if (byte === 0x7b || byte === 0x5b) {
+        if (scanner.nestedClosers.length >= MAX_EVENT_NESTING_DEPTH) {
+          scanner.malformed = true;
+          return;
+        }
+        scanner.nestedClosers.push(byte === 0x7b ? 0x7d : 0x5d);
+      } else if (byte === 0x7d || byte === 0x5d) {
+        if (scanner.nestedClosers.pop() !== byte) {
+          scanner.malformed = true;
+          return;
+        }
+        if (scanner.nestedClosers.length === 0) scanner.state = "comma";
+      }
+      continue;
+    }
+
+    if (scanner.stringRole) {
+      if (scanner.stringEscaped) {
+        scanner.stringEscaped = false;
+        if (scanner.stringRole !== "other-value") scanner.stringBytes.push(byte);
+      } else if (byte === 0x5c) {
+        scanner.stringEscaped = true;
+        if (scanner.stringRole !== "other-value") scanner.stringBytes.push(byte);
+      } else if (byte === 0x22) {
+        const role = scanner.stringRole;
+        const value = role === "other-value" ? undefined : decodeIdentityString(scanner);
+        scanner.stringRole = undefined;
+        scanner.stringBytes = [];
+        if (scanner.malformed) return;
+        if (role === "key") {
+          scanner.currentKey = value;
+          scanner.state = "colon";
+        } else {
+          if (role === "event-value") {
+            if (scanner.eventSeen) {
+              scanner.malformed = true;
+              return;
+            }
+            scanner.eventSeen = true;
+            scanner.event = value;
+          }
+          scanner.state = "comma";
+        }
+      } else if (scanner.stringRole !== "other-value") {
+        if (scanner.stringBytes.length >= MAX_EVENT_IDENTITY_BYTES) {
+          scanner.malformed = true;
+          return;
+        }
+        scanner.stringBytes.push(byte);
+      }
+      continue;
+    }
+
+    if (scanner.state === "start") {
+      if (whitespace(byte)) continue;
+      if (byte !== 0x7b) scanner.malformed = true;
+      else scanner.state = "key";
+    } else if (scanner.state === "key") {
+      if (whitespace(byte)) continue;
+      if (byte === 0x7d) scanner.state = "done";
+      else if (byte === 0x22) {
+        scanner.stringRole = "key";
+        scanner.stringBytes = [];
+      } else scanner.malformed = true;
+    } else if (scanner.state === "colon") {
+      if (whitespace(byte)) continue;
+      if (byte !== 0x3a) scanner.malformed = true;
+      else scanner.state = "value";
+    } else if (scanner.state === "value") {
+      if (whitespace(byte)) continue;
+      if (byte === 0x22) {
+        scanner.stringRole = scanner.currentKey === "event" ? "event-value" : "other-value";
+        scanner.stringBytes = [];
+      } else if (byte === 0x7b || byte === 0x5b) {
+        if (scanner.currentKey === "event") {
+          scanner.malformed = true;
+          return;
+        }
+        scanner.nestedClosers.push(byte === 0x7b ? 0x7d : 0x5d);
+      } else {
+        if (scanner.currentKey === "event") {
+          scanner.malformed = true;
+          return;
+        }
+        scanner.state = "primitive";
+      }
+    } else if (scanner.state === "primitive") {
+      if (byte === 0x2c) scanner.state = "key";
+      else if (byte === 0x7d) scanner.state = "done";
+    } else if (scanner.state === "comma") {
+      if (whitespace(byte)) continue;
+      if (byte === 0x2c) scanner.state = "key";
+      else if (byte === 0x7d) scanner.state = "done";
+      else scanner.malformed = true;
+    } else if (!whitespace(byte)) {
+      scanner.malformed = true;
+    }
+    if (scanner.malformed) return;
+  }
+}
+
+function readCleanupEvents(resourceId: string, env: NodeJS.ProcessEnv): CleanupEventScanResult {
   const path = getCandidateLifecycleEventsPath(resourceId, env);
-  if (!existsSync(path)) return [];
-  return readFileSync(path, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  if (!existsSync(path)) return { events: [] };
+
+  const events: Array<Record<string, unknown>> = [];
+  let finalEvent: Record<string, unknown> | undefined;
+  const fd = openSync(path, "r");
+  const buffer = Buffer.allocUnsafe(CLEANUP_EVENT_READ_CHUNK_BYTES);
+  let lineChunks: Buffer[] = [];
+  let lineBytes = 0;
+  let lineRelevant: boolean | undefined;
+  let identity = newEventIdentityScanner();
+
+  const appendLineBytes = (bytes: Buffer): void => {
+    if (bytes.length === 0) return;
+    if (lineRelevant !== false && lineBytes + bytes.length <= MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
+      lineChunks.push(Buffer.from(bytes));
+    } else if (lineBytes + bytes.length > MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
+      lineChunks = [];
+    }
+    scanTopLevelEventIdentity(identity, bytes);
+    if (lineRelevant === undefined && identity.event !== undefined) {
+      lineRelevant = RELEVANT_CLEANUP_EVENTS.has(identity.event);
+      if (!lineRelevant) lineChunks = [];
+    }
+    lineBytes += bytes.length;
+  };
+
+  const finishLine = (): void => {
+    if (lineBytes === 0) return;
+    if (identity.malformed || identity.event === undefined) {
+      throw new Error("malformed lifecycle event or non-unique top-level event identity");
+    }
+    const relevant = RELEVANT_CLEANUP_EVENTS.has(identity.event);
+    let event: Record<string, unknown>;
+    if (relevant) {
+      if (lineBytes > MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
+        throw new Error("relevant cleanup lifecycle event exceeds bounded read limit");
+      }
+      try {
+        event = JSON.parse(Buffer.concat(lineChunks, lineBytes).toString("utf8")) as Record<
+          string,
+          unknown
+        >;
+      } catch (error) {
+        throw new Error(`malformed relevant cleanup lifecycle event: ${String(error)}`);
+      }
+      if (event.event !== identity.event) {
+        throw new Error("relevant cleanup lifecycle event identity changed during decoding");
+      }
+    } else {
+      event = { event: identity.event };
+    }
+    finalEvent = event;
+    if (typeof event.event === "string" && RELEVANT_CLEANUP_EVENTS.has(event.event)) {
+      events.push(event);
+    }
+    lineChunks = [];
+    lineBytes = 0;
+    lineRelevant = undefined;
+    identity = newEventIdentityScanner();
+  };
+
+  try {
+    for (;;) {
+      const bytesRead = readSync(fd, buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+      let start = 0;
+      while (start < bytesRead) {
+        const newline = buffer.indexOf(0x0a, start);
+        const end = newline === -1 || newline >= bytesRead ? bytesRead : newline;
+        appendLineBytes(buffer.subarray(start, end));
+        if (newline === -1 || newline >= bytesRead) break;
+        finishLine();
+        start = newline + 1;
+      }
+    }
+    if (lineBytes > 0) finishLine();
+  } finally {
+    closeSync(fd);
+  }
+  return { events, finalEvent };
 }
 
 function branchOid(repoRoot: string, branchName: string): string | undefined {
@@ -662,7 +903,7 @@ export function executeAuthorizedCandidateCleanup({
     verifyPublishedArchive(current);
     const repoRoot = current.repoRoots[0];
     if (!repoRoot) throw new Error("owner repo root is ambiguous or missing");
-    let events = readCleanupEvents(resourceId, env);
+    let events = readCleanupEvents(resourceId, env).events;
     const observations = cleanupObservations(events, auth.authorizationDigest);
     const removeObserved = observations.has("remove_worktree");
     if (existsSync(current.worktreePath)) {
@@ -844,10 +1085,8 @@ export function verifyCleanedCandidateTerminalRecord(
     throw new Error("candidate terminal receipt identity or chronology mismatch");
   }
   verifyPublishedArchive(record);
-  const observations = cleanupObservations(
-    readCleanupEvents(record.resourceId, env),
-    auth.authorizationDigest,
-  );
+  const eventScan = readCleanupEvents(record.resourceId, env);
+  const observations = cleanupObservations(eventScan.events, auth.authorizationDigest);
   for (const effect of REQUIRED_CLEANUP_EFFECTS) {
     const observation = observations.get(effect);
     if (!observation) throw new Error(`candidate terminal effect observation missing: ${effect}`);
@@ -869,7 +1108,7 @@ export function verifyCleanedCandidateTerminalRecord(
   const repoRoot = record.repoRoots[0];
   if (!repoRoot || existsSync(record.worktreePath) || branchOid(repoRoot, auth.branchName))
     throw new Error("candidate terminal cleanup postconditions are not satisfied");
-  const finalEvent = readCleanupEvents(record.resourceId, env).at(-1);
+  const finalEvent = eventScan.finalEvent;
   if (finalEvent?.event !== "cleaned" || digestObject(finalEvent.record) !== digestObject(record))
     throw new Error("candidate terminal record is not the final cleaned lifecycle event");
   return digestObject(record);
