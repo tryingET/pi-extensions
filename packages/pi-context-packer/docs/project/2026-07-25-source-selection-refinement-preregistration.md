@@ -190,7 +190,40 @@ unknown    otherwise
 
 Errors, malformed envelopes, duplicates, mismatched total counts, target drift, or bounds become `unknown`. Page records never replace the full ranking artifact.
 
-Run five deterministic AB/BA fresh-subprocess pairs per repository. Separate first and repeated observations. Do not call them cache-cold unless the environment proves cache control.
+Run exactly five deterministic fresh-subprocess pairs per repository in the frozen order `P→F`, `F→P`, `P→F`, `F→P`, `P→F`, where `P` is the bounded-output probe and `F` is the full baseline. Do not retry or replace a failed observation. Report pair 1 separately as the first-run observation and pairs 2–5 separately as repeated observations; the frozen gate statistic still uses the median of all five pair values. Do not call any observation cache-cold unless the environment proves cache control.
+
+### Exact cost accounting
+
+For each invocation observation, measure these non-overlapping monotonic durations:
+
+```text
+producerNs       = subprocess spawn-to-exit duration
+parseValidateNs  = JSON parse plus contract/eligibility validation duration
+fingerprintNs    = required before/after HEAD, status, and index fingerprint duration
+runtimeCostNs    = producerNs + parseValidateNs + fingerprintNs
+transportBytes   = stdoutBytes + stderrBytes
+```
+
+`runtimeCostNs` is the sole gating cost metric. Transport bytes use the same formulas only as a separately labeled diagnostic. Retained evidence bytes are measured separately and never added to deploy-like policy cost. Model-input bytes and tokens are zero unless bytes are actually sent to a model; `ceil(bytes/4)` remains a disclosure proxy and never enters a gate.
+
+For repository `r` and pair `j`:
+
+```text
+F[r,j] = full runtimeCostNs
+P[r,j] = probe runtimeCostNs
+
+policy[r,j] =
+  P[r,j] + F[r,j]  when the probe says eligible
+  P[r,j]           when the probe says ineligible
+  P[r,j]           when the probe says unknown/error, with source-list unavailable
+
+ineligibleReduction[r,j] = (F[r,j] - policy[r,j]) / F[r,j]
+eligibleTax[r,j]         = (policy[r,j] - F[r,j]) / F[r,j]
+```
+
+The independent full invocation used to establish experimental ground truth is represented by `F[r,j]` but is not silently charged to an ineligible or unknown deploy-like policy. Conversely, every probe-confirmed eligible policy must pay `P + F` because page records cannot replace the full ranking artifact.
+
+For each repository, the preregistered statistic is the median of its five pair ratios. The equal-repository macro is the arithmetic mean of repository medians, never a pooled invocation-weighted value. Ineligible reduction includes both declared ineligible controls; eligible tax includes every ground-truth eligible repository. A missing/failed pair, zero/non-positive full baseline, false classification, or unknown classification makes the applicable repository statistic and the overall gate `not demonstrated`; it is never removed from the denominator. Negative savings and taxes above 100% remain visible.
 
 ### Cost gates for automatic-invocation evidence
 
@@ -198,11 +231,13 @@ Automatic invocation remains rejected unless all of these are demonstrated:
 
 1. zero false-eligible and zero false-ineligible probe decisions;
 2. conclusive probe decisions for every declared repository, including both large ineligible controls and the large eligible repository;
-3. equal-repository macro ineligible policy-cost reduction `>= 20%` versus the full baseline;
-4. equal-repository macro eligible policy tax `<= 10%`;
-5. no hidden full invocation is charged outside the policy denominator;
-6. output, retained-evidence, and model-input bytes are reported separately;
-7. staleness, executable identity, trust, and maintenance obligations are independently reviewed.
+3. the arithmetic mean of the two ineligible-control median `ineligibleReduction` values is `>= 20%`;
+4. the arithmetic mean of all eligible-repository median `eligibleTax` values is `<= 10%`;
+5. all five frozen pairs per repository are valid, with strictly positive full `runtimeCostNs` baselines;
+6. no hidden full invocation is charged outside the policy formula or omitted from an eligible policy;
+7. runtime, transport, retained-evidence, and model-input costs are reported separately;
+8. first-run and repeated observations are disclosed separately even though the frozen median uses all five;
+9. staleness, executable identity, trust, and maintenance obligations are independently reviewed.
 
 Because the existing page mode performs full inventory work, failure or `unknown` on these gates is expected to remain honest evidence. It must not be reclassified as a successful preflight or used to request production wiring.
 
