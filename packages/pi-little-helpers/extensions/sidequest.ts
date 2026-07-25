@@ -584,6 +584,26 @@ async function supportsGhosttySurfaceId(
   }
 }
 
+function buildGhosttyExecArgs({
+  cwd,
+  title,
+  piArgs,
+}: {
+  cwd: string;
+  title: string;
+  piArgs: string[];
+}): string[] {
+  return [
+    `--working-directory=${cwd}`,
+    "-e",
+    "/bin/sh",
+    "-lc",
+    buildPiShellCommand(title, cwd),
+    "sidequest-pi",
+    ...piArgs,
+  ];
+}
+
 function buildGhosttyArgs({
   cwd,
   title,
@@ -601,16 +621,84 @@ function buildGhosttyArgs({
   if (launchMode === "tab" && surfaceId) {
     args.push(`--surface-id=${surfaceId}`);
   }
-  args.push(
-    `--working-directory=${cwd}`,
-    "-e",
-    "/bin/sh",
-    "-lc",
-    buildPiShellCommand(title, cwd),
-    "sidequest-pi",
-    ...piArgs,
-  );
+  args.push(...buildGhosttyExecArgs({ cwd, title, piArgs }));
   return args;
+}
+
+function normalizeGhosttySurfaceIdUint64(surfaceId: string): string | undefined {
+  try {
+    const value = BigInt(surfaceId);
+    return value >= 0n && value <= 18_446_744_073_709_551_615n ? value.toString(10) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+type ControllerGhosttyDbusTarget = {
+  busName: string;
+  surfaceId: string;
+};
+
+async function resolveControllerGhosttyDbusTarget({
+  execRunner,
+  controllerGhostty,
+  surfaceId,
+}: {
+  execRunner: ExecRunner;
+  controllerGhostty: GhosttyAncestor | undefined;
+  surfaceId: string | undefined;
+}): Promise<ControllerGhosttyDbusTarget | undefined> {
+  if (!controllerGhostty?.exe || !isLocalGhosttySidequestBin(controllerGhostty.exe) || !surfaceId) {
+    return undefined;
+  }
+  const normalizedSurfaceId = normalizeGhosttySurfaceIdUint64(surfaceId);
+  if (!normalizedSurfaceId) return undefined;
+
+  try {
+    const result = await execRunner("busctl", ["--user", "list", "--no-pager", "--no-legend"], {
+      timeout: GHOSTTY_PROBE_TIMEOUT_MS,
+    });
+    if (result.code !== 0) return undefined;
+    const matchingNames = String(result.stdout || "")
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/))
+      .filter(
+        (fields) =>
+          fields.length >= 2 &&
+          fields[0]?.startsWith(":") &&
+          Number.parseInt(fields[1] || "", 10) === controllerGhostty.pid,
+      )
+      .map((fields) => fields[0] as string);
+    if (matchingNames.length !== 1) return undefined;
+    return { busName: matchingNames[0] as string, surfaceId: normalizedSurfaceId };
+  } catch {
+    return undefined;
+  }
+}
+
+function buildControllerGhosttyDbusArgs({
+  target,
+  execArgs,
+}: {
+  target: ControllerGhosttyDbusTarget;
+  execArgs: string[];
+}): string[] {
+  return [
+    "--user",
+    "call",
+    target.busName,
+    "/com/tryinget/ghosttysidequest",
+    "org.gtk.Actions",
+    "Activate",
+    "sava{sv}",
+    "new-tab",
+    "1",
+    "(tas)",
+    target.surfaceId,
+    String(execArgs.length),
+    ...execArgs,
+    "0",
+  ];
 }
 
 function normalizeExecResult(result: ExecResult): LaunchResult {
@@ -924,8 +1012,10 @@ async function launchPiQuestSession({
   const pathExists = options.pathExists ?? existsSync;
   const execRunner: ExecRunner =
     options.exec ?? ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
-  const currentSessionGhosttyBin =
-    options.currentSessionGhosttyBin ?? findGhosttyAncestorBin(options.processId ?? process.pid);
+  const controllerGhostty =
+    options.currentGhosttyAncestor ??
+    (options.exec ? undefined : findGhosttyAncestor(options.processId ?? process.pid));
+  const currentSessionGhosttyBin = options.currentSessionGhosttyBin ?? controllerGhostty?.exe;
   let ghosttyBin = resolveGhosttyBin({ env, pathExists, currentSessionGhosttyBin });
   const piBin = env.PI_SIDEQUEST_PI_BIN?.trim() || DEFAULT_PI_BIN;
   const thinkingLevel = pi.getThinkingLevel();
@@ -964,21 +1054,45 @@ async function launchPiQuestSession({
     ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
     : [piBin, ...modelArgs, prompt];
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
+  const controllerDbusTarget =
+    launchMode === "tab"
+      ? await resolveControllerGhosttyDbusTarget({
+          execRunner,
+          controllerGhostty,
+          surfaceId,
+        })
+      : undefined;
   await waitForPeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
   const launchedAfterMs = Date.now();
-  let launchResult = await runGhosttyLaunch(
-    execRunner,
-    ghosttyBin,
-    buildGhosttyArgs({
-      cwd,
-      title,
-      launchMode,
-      surfaceId,
-      piArgs,
-    }),
-    cwd,
+  const ghosttyExecArgs = buildGhosttyExecArgs({ cwd, title, piArgs });
+  let launchResult = controllerDbusTarget
+    ? await runGhosttyLaunch(
+        execRunner,
+        "busctl",
+        buildControllerGhosttyDbusArgs({
+          target: controllerDbusTarget,
+          execArgs: ghosttyExecArgs,
+        }),
+        cwd,
+      )
+    : await runGhosttyLaunch(
+        execRunner,
+        ghosttyBin,
+        buildGhosttyArgs({
+          cwd,
+          title,
+          launchMode,
+          surfaceId,
+          piArgs,
+        }),
+        cwd,
+      );
+  let launchNote = joinLaunchNotes(
+    windowFallbackReason ?? wrapperTabAttachNote,
+    controllerDbusTarget
+      ? `targeted controller Ghostty process ${controllerGhostty?.pid} through ${controllerDbusTarget.busName}`
+      : undefined,
   );
-  let launchNote = windowFallbackReason ?? wrapperTabAttachNote;
 
   if (!launchResult.ok && launchMode === "tab") {
     const tabFailure = summarizeLaunchFailure(launchResult);

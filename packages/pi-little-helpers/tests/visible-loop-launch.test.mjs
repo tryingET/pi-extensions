@@ -13,6 +13,9 @@ import {
   createExecStub,
   escapeRegExp,
   extractPiArgs,
+  isLocalGhosttyBin,
+  isLocalGhosttyWrapper,
+  LOCAL_GHOSTTY_BIN,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
@@ -122,6 +125,77 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.match(config.prompts[4], /Do not commit yet/);
     assert.equal(config.prompts[5], "/commit");
     assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
+  } finally {
+    restoreHome();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("visible-loop targets the controller Ghostty process instead of the sidequest broker", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-controller-dbus-`);
+  const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+        return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
+      }
+      if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
+        return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1", stderr: "" };
+      }
+      if (command === "busctl" && args[1] === "list") {
+        return {
+          code: 0,
+          stdout:
+            ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
+            "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
+        };
+      }
+      if (command === "busctl" && args[1] === "call") {
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected command ${command} ${args.join(" ")}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_SURFACE_ID: "0x1234",
+        XDG_STATE_HOME: stateHome,
+      },
+      currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
+      currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+      exec: execStub.exec,
+      pathExists(path) {
+        return isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
+      },
+    });
+    const { commands } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("visible-loop").handler("--count 1", harness.ctx);
+
+    const activation = execStub.calls.find(
+      ({ command, args }) => command === "busctl" && args[1] === "call",
+    );
+    assert.ok(activation);
+    assert.equal(activation.args[2], ":1.42");
+    assert.equal(activation.args[9], "(tas)");
+    assert.equal(activation.args[10], "4660");
+    assert.ok(activation.args.includes("sidequest-pi"));
+    const childCommand = extractPiArgs(activation.args).find((arg) =>
+      arg.startsWith("/visible-loop-child "),
+    );
+    assert.match(childCommand, /^\/visible-loop-child /);
+    const configPath = childCommand.replace(/^\/visible-loop-child\s+/, "");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    assert.equal(config.loopCount, 1);
+    assert.equal(config.cwd, "/repo");
+    assert.ok(
+      !execStub.calls.some(
+        ({ command, args }) => isLocalGhosttyWrapper(command) && args[0] === "+new-tab",
+      ),
+    );
+    assert.match(harness.notifications.at(-1).message, /targeted controller Ghostty process 111/);
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
