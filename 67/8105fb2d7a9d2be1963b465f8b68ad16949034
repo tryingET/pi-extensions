@@ -1,0 +1,40 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "pi"
+actor: "pi-d2e-loop-gate"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "678105fb2d7a9d2be1963b465f8b68ad16949034"
+created_at: "2026-07-25T13:22:02Z"
+intent: "Require explicit owner-bound execution identity before visible-loop or nexus-loop launch and preserve that binding through completion."
+files:
+  - "packages/pi-little-helpers/README.md"
+  - "packages/pi-little-helpers/docs/project/2026-05-05-visible-peer-capability-contract.md"
+  - "packages/pi-little-helpers/docs/project/product-posture.md"
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/package-lock.json"
+  - "packages/pi-little-helpers/package.json"
+  - "packages/pi-little-helpers/src/visibleLoop.ts"
+  - "packages/pi-little-helpers/src/visibleLoopArgs.ts"
+  - "packages/pi-little-helpers/src/visibleLoopPromptTemplates.ts"
+  - "packages/pi-little-helpers/src/visibleLoopState.ts"
+  - "packages/pi-little-helpers/src/visibleLoopTaskBinding.ts"
+  - "packages/pi-little-helpers/src/visibleLoopTypes.ts"
+  - "packages/pi-little-helpers/tests/self-evolution-envelope.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-child-checkpoint.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-child-progress.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-completion.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-launch.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-task-binding.test.mjs"
+validation:
+  fast_gate:
+    command: "cd packages/pi-little-helpers && npm run check"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-little-helpers && npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Single package-scoped atomic contract, runtime, tests, dependency, and product-posture update."
+links:
+  task_ids:
+    - 4187
