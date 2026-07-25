@@ -3,5 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+git_local_env_vars="$(git rev-parse --local-env-vars)"
+while IFS= read -r git_local_env_var; do
+  [[ -n "$git_local_env_var" ]] && unset "$git_local_env_var"
+done <<< "$git_local_env_vars"
+
 cd "$ROOT_DIR"
 npm run quality:pre-push
