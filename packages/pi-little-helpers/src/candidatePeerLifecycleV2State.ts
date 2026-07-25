@@ -11,11 +11,11 @@ import {
 } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import {
-  type CandidateLifecycleInventory,
-  type CandidateLifecycleRecord,
   assertCandidateResourceId,
   assertOwnerOnlyDirectory,
   atomicJson,
+  type CandidateLifecycleInventory,
+  type CandidateLifecycleRecord,
   digestObject,
   getCandidateLifecycleEventsPath,
   getCandidateLifecycleRecordPath,

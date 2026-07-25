@@ -1,6 +1,5 @@
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import type { CandidatePeerRegistryRecord } from "./candidatePeerRegistry.ts";
 import {
   CANDIDATE_LIFECYCLE_SCHEMA_VERSION,
   type CandidateInventoryResource,
@@ -9,6 +8,7 @@ import {
   safeRealpath,
   sha256,
 } from "./candidatePeerLifecycleV2Core.ts";
+import type { CandidatePeerRegistryRecord } from "./candidatePeerRegistry.ts";
 
 function directorySize(path: string): number {
   let total = 0;

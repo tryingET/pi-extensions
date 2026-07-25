@@ -3,16 +3,8 @@
  *
  * Public runtime and type exports remain anchored here; implementation modules are internal.
  */
-export {
-  CANDIDATE_LIFECYCLE_SCHEMA_VERSION,
-  assertCandidateGenerationId,
-  assertCandidateResourceId,
-  digestObject,
-  getCandidateLifecycleEventsPath,
-  getCandidateLifecycleRecordPath,
-  getCandidateLifecycleRoot,
-  stableJson,
-} from "./candidatePeerLifecycleV2Core.ts";
+
+export { adoptExistingCandidateWorktree } from "./candidatePeerLifecycleV2Adoption.ts";
 export type {
   CandidateDisposition,
   CandidateDispositionReceipt,
@@ -26,7 +18,16 @@ export type {
   CandidateReviewSnapshot,
   CandidateSnapshotObject,
 } from "./candidatePeerLifecycleV2Core.ts";
-export { adoptExistingCandidateWorktree } from "./candidatePeerLifecycleV2Adoption.ts";
+export {
+  assertCandidateGenerationId,
+  assertCandidateResourceId,
+  CANDIDATE_LIFECYCLE_SCHEMA_VERSION,
+  digestObject,
+  getCandidateLifecycleEventsPath,
+  getCandidateLifecycleRecordPath,
+  getCandidateLifecycleRoot,
+  stableJson,
+} from "./candidatePeerLifecycleV2Core.ts";
 export {
   inventoryCandidatePeerResources,
   resourceName,

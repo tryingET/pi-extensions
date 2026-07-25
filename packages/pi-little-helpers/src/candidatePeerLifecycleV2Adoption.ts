@@ -1,11 +1,10 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -13,11 +12,11 @@ import {
 } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import {
+  assertOwnerOnlyDirectory,
   type CandidateLifecycleAdoptionInput,
   type CandidateLifecycleInventory,
   type CandidateLifecycleRecord,
   type CandidateReviewSnapshot,
-  assertOwnerOnlyDirectory,
   digestObject,
   getCandidateLifecycleRoot,
   git,
@@ -283,7 +282,6 @@ function assertNoAdoptionCollisions(
     }
   }
 }
-
 
 export function adoptExistingCandidateWorktree({
   input,
