@@ -8,6 +8,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+PI_BIN="$(command -v pi)"
+[[ -x "$PI_BIN" ]] || { echo "pi CLI is not executable: ${PI_BIN:-<not found>}" >&2; exit 1; }
+NODE_BIN="$(command -v node)"
+[[ -x "$NODE_BIN" ]] || { echo "node is not executable: ${NODE_BIN:-<not found>}" >&2; exit 1; }
+SMOKE_PATH="$(dirname "$NODE_BIN"):/usr/bin:/bin"
+SMOKE_HOME="$PI_CODING_AGENT_DIR/release-smoke-home"
+SMOKE_TMPDIR="$PI_CODING_AGENT_DIR/release-smoke-tmp"
+SMOKE_CACHE_HOME="$SMOKE_HOME/.cache"
+mkdir -p -m 700 "$SMOKE_HOME" "$SMOKE_TMPDIR" "$SMOKE_CACHE_HOME"
+chmod 700 "$SMOKE_HOME" "$SMOKE_TMPDIR" "$SMOKE_CACHE_HOME"
+
 PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 LEGACY_NODE_MODULES="$(npm root -g)"
@@ -60,14 +71,35 @@ NODE
 run_phase() {
   local phase="$1"
   local output
-  output="$(
-    PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" \
-    NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" npm_config_prefix="$NPM_CONFIG_PREFIX" \
-    PI_SNAPSHOT_EDIT_RELEASE_SMOKE=1 PI_SNAPSHOT_EDIT_RELEASE_SMOKE_PHASE="$phase" \
-    pi --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates \
-      --no-context-files --no-themes -p "/snapshot-edit-release-smoke" 2>&1
-  )"
+  local rc
+  if output="$(
+    env -i \
+      PATH="$SMOKE_PATH" \
+      HOME="$SMOKE_HOME" \
+      TMPDIR="$SMOKE_TMPDIR" \
+      TMP="$SMOKE_TMPDIR" \
+      TEMP="$SMOKE_TMPDIR" \
+      XDG_CACHE_HOME="$SMOKE_CACHE_HOME" \
+      PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" \
+      NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" \
+      npm_config_prefix="$NPM_CONFIG_PREFIX" \
+      PI_OFFLINE=1 \
+      PI_SNAPSHOT_EDIT_RELEASE_SMOKE=1 \
+      PI_SNAPSHOT_EDIT_RELEASE_SMOKE_PHASE="$phase" \
+      "$PI_BIN" --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates \
+        --no-context-files --no-themes --no-extensions \
+        --extension "$INSTALLED_PACKAGE_ROOT/extensions/snapshot-edit.ts" \
+        -p "/snapshot-edit-release-smoke" </dev/null 2>&1
+  )"; then
+    rc=0
+  else
+    rc=$?
+  fi
   printf '%s\n' "$output"
+  if [[ "$rc" -ne 0 ]]; then
+    echo "snapshot-edit packed release smoke ${phase} failed with exit $rc" >&2
+    return "$rc"
+  fi
   grep -q "snapshot-edit packed release smoke ${phase} OK" <<<"$output"
 }
 
