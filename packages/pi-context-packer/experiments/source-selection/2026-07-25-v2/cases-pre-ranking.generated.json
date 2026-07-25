@@ -1,0 +1,1528 @@
+{
+  "schema": "pi-context-packer.source_selection_cases_pre_ranking.v1",
+  "inputCaseFile": {
+    "path": "canonical-case-source.generated.json",
+    "sha256": "sha256:7badfe24d8d951c06fcf0bc34c573bf564c39e0aad3e1db52ccc1692543fe8fb",
+    "repositories": 4,
+    "cases": 40
+  },
+  "status": "pre-ranking",
+  "truthChangedAfterReview": false,
+  "questionsChangedAfterReview": false,
+  "cases": [
+    {
+      "id": "as-source-metadata-grammar",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should source-list leading-comment metadata parsing change while preserving duplicate-summary and control-character rejection plus BOM and shebang handling?",
+      "truth": [
+        "scripts/lib/source-list-core.mjs",
+        "tests/source-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:cd66992aa9b2f3d307ec28792f813a1189e6c898a4f82c9161a98e557da6339f",
+      "intentSignature": "sha256:e7d1c00f7b037723333cd4d194a6799b7586cd28014abe621ae5b0d893c11595",
+      "targetBasisDigest": "sha256:aa3f23a805ba82bca1620694dba526487b2bd9fc93264df0c3abdec4f86469f1",
+      "expectedRequestDigest": "sha256:2110dadb3510107698ebb07ce6a91f5cb5a7f8dd8cbcbeaaa848ff93b77d21f3",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:a12b65ce5af32db3b0b47ac5111c3a6b27d0e763513a0c6850d546065ba3fbe6",
+      "executionObservationDigest": "sha256:a2d011382faf37e2a02d9175dc83ad71645aa8ddf6bed47e329199a4a055b295",
+      "rawEvidence": {
+        "requestSha256": "sha256:33ec3665890a8087a33c9f70916e47f41017adcc3d668df9cea5f4b74d8c6625",
+        "receiptSha256": "sha256:1f4b314f7005cee8505a9a7f2bd7946db740644b69d35200bfef625f06bdaa3f",
+        "stdoutSha256": "sha256:1f4b314f7005cee8505a9a7f2bd7946db740644b69d35200bfef625f06bdaa3f",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:885562b4fc93c907921cbc83b5a3d3f26da474e8f520a0aa7c4ea5f9797e24b6"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-source-pagination-lint",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should source-list pagination preserve page-bounded visible items and strict diagnostics while retaining correct global inventory and violation counts?",
+      "truth": [
+        "scripts/source-list.mjs",
+        "tests/source-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:d4f7071403b6c07e03af1ecbd94de32e1f29a16a628076c9df0a11d50130a38d",
+      "intentSignature": "sha256:a4752e7f51a58bba6b5d8e13d0c3639c44e9ad2a5ad740b138d3e97104fed9e3",
+      "targetBasisDigest": "sha256:4cb46436ec83645451087551031cd4bb1b76235afb56ba28b500bc5b33569f95",
+      "expectedRequestDigest": "sha256:1e8b473053893a54e781603bd88bc280adf0ee855b42e251ef7395714842884c",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:a60ca6e99f409a2d00e465e06f1704d0988edb3f66a38ca0c588e5f71cc18b83",
+      "executionObservationDigest": "sha256:5dcba884d6ee82e80a0a85bc9cc27578976595badd443fdb9e83fe50b06f843e",
+      "rawEvidence": {
+        "requestSha256": "sha256:95fc4cb1a198d8f9f59e3a0f0ae8f2c554afd6cdc30539cb39a1e988973f3f6f",
+        "receiptSha256": "sha256:dd0553b1853d0585777e5354903effa62932ebd78761bdeddaa4fb912088c8c7",
+        "stdoutSha256": "sha256:dd0553b1853d0585777e5354903effa62932ebd78761bdeddaa4fb912088c8c7",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:1b7728a641f1a955c66259de62d0bab800bbb37ce2fed268862fc15a9087fa82"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-docs-lexical-ranking",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should docs-list lexical task ranking change without losing field weights, phrase bonuses, Unicode tokenization, deterministic ties, and top-result bounds?",
+      "truth": [
+        "scripts/lib/docs-list-selection.mjs",
+        "tests/docs-list-ranking.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:1479dc262d5b4e4745fa5174b9a47b20cde033f0f7f4a75ced0e8d113eb21df3",
+      "intentSignature": "sha256:344bd10a24d6b726520b7054fd5f48c5b272253e6cedaefcff9e7fad74e1aaab",
+      "targetBasisDigest": "sha256:7de2d22ab8c29e888ae7c7e2069f8968b4f9b31fc45ee9cc89052dfb6210ca36",
+      "expectedRequestDigest": "sha256:9d7c7521b7505c134d66ef692270b1d9db3d1c0691c0fd4a209c49f05fa9ae25",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:468d3a1b1b405aeb2bbdc1a5b17f4a2f1076dc85050ce3d60223aab27663ec6a",
+      "executionObservationDigest": "sha256:8de152d34a9019e00b7d62f39f4c953fa827fc4e04ff1fba8ccd040c9428855d",
+      "rawEvidence": {
+        "requestSha256": "sha256:64684b683f96390060bcf7ce389fc18da02ac433bf568b4a402ec493e11df254",
+        "receiptSha256": "sha256:7f5d59eb89cb90ed842e14447aea2aea5288ae4c48835261f00578a9fa6c01e5",
+        "stdoutSha256": "sha256:7f5d59eb89cb90ed842e14447aea2aea5288ae4c48835261f00578a9fa6c01e5",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:259eeb2ad0899d1b2f75a88f17f0bf269071497deaa06f5f6c8f28643d25cf98"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-prompt-read-first-scope",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should docs-list parse and scope prompt Read first references across compatibility headings, directories, and mixed absolute and relative paths?",
+      "truth": [
+        "scripts/lib/docs-list-prompt-scope.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:50f8987518af0839951b4c8ccf7635caff5b5fc826dd0c640c4904c663c7d19b",
+      "intentSignature": "sha256:1a620c42b53f10ef691ec982add0ba7d699a4befefdb726961636803a985fc99",
+      "targetBasisDigest": "sha256:8805ffd8844db19e3dff6759ec74c1cf84adfedc15ead9391acd31e2dd8f002e",
+      "expectedRequestDigest": "sha256:ff5212bbf22c089cfdf6f714182281e9e8e2f3a215e455d1b9d95369ac329558",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:8634a7f98f5fe4ffde1997c2995f3e831d236a978a7f3dd3b30fbfdddbd86465",
+      "executionObservationDigest": "sha256:258b92e02fd5a19822b2cc609911bd0508eed25616b563cfa129bceb4c9d66db",
+      "rawEvidence": {
+        "requestSha256": "sha256:19c36c592f0716c729d195a63eec12a07e883676404c487f93c69234c258cd98",
+        "receiptSha256": "sha256:e2531f1bf26a7cb0d331135b196f18c943510d6506f0cfc0bb6a02e33a6bf09c",
+        "stdoutSha256": "sha256:e2531f1bf26a7cb0d331135b196f18c943510d6506f0cfc0bb6a02e33a6bf09c",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:cd23a8fde0bd2acfc381aa8b3725673a2149ef035cd0c141650d6d093a54522d"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-docs-strict-frontmatter",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should docs-list strict frontmatter validation change for Diataxis and System4D requirements while preserving deterministic violation collection?",
+      "truth": [
+        "scripts/lib/docs-list-metadata.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:1a612c4a197769b1f27bc655c9b003fd55157a4ffde996adfaacf1a389c04c7b",
+      "intentSignature": "sha256:84e218a706a258ca5698c19f6f4320107db4c6945f34bfd17a14a2f907f5410c",
+      "targetBasisDigest": "sha256:0be2e8e0eb3852ee328801d5b41ab3663de9452b42871e2603c21e883d49869a",
+      "expectedRequestDigest": "sha256:f87739bf6e8ef00dfcb3cbf671f6a0e59b7a495e39214ac4862e902bdeb256cc",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:9ca776b389cd6077f7d93f790f420041db471ab0480213edc34a753524e8e398",
+      "executionObservationDigest": "sha256:1f15fd7e3e64041adc05040319f2a0955789805af7285a92d6d7de1ed169495d",
+      "rawEvidence": {
+        "requestSha256": "sha256:a23a39c332b4f944c710be58059b501c858d4fc2f1481eec31dfd29a3a1faa43",
+        "receiptSha256": "sha256:6cc18050c245aea1c7910ed7e5b519edb670add3b9f66b69b7df3d410c996007",
+        "stdoutSha256": "sha256:6cc18050c245aea1c7910ed7e5b519edb670add3b9f66b69b7df3d410c996007",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:83ce3dda0562be57dc7805924a376e22cae7c9f18fd6e01e0c41b9422d2209ef"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-docs-reference-grammar",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should docs-ref-check local-reference extraction change for Markdown links, code spans, escapes, fenced blocks, and ignored non-local forms?",
+      "truth": [
+        "scripts/lib/docs-ref-check-core.mjs",
+        "tests/docs-ref-check-adversarial.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:6bc53e46b4bf641af859b9d2eabb2403bbdcf455b5d20b12ebb8dcfd0d02c13b",
+      "intentSignature": "sha256:5d2f9d8ae3946e49d152635027392f3c9135c42bc22d5cd2f24539dfe0d56951",
+      "targetBasisDigest": "sha256:621962bb6fd6271183ecd6c73b5e12fc0cbb43740fa494fa496f33f2166300fe",
+      "expectedRequestDigest": "sha256:bbdbf02621d9f3a99b10f4a5bbc3a8b0d169e6ad1aaa184c2f93ed6df7ef6c8e",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:bf6adadab1b246cdd20d58206d227a35850181cc402f4776d7fb0d53261c6fa1",
+      "executionObservationDigest": "sha256:fdd7c8c23155e98819602275732b2e40739ce1562ea7edc5d38b4e177df4da28",
+      "rawEvidence": {
+        "requestSha256": "sha256:03f1bbcfcdbc3a102538047a8c213c6e9965d46ec1a3a6a1ad830d79fe8521ab",
+        "receiptSha256": "sha256:4d1b13093318b31effe70be3e01766062f1cfef74fa9ad600cabb475a7a1efc2",
+        "stdoutSha256": "sha256:4d1b13093318b31effe70be3e01766062f1cfef74fa9ad600cabb475a7a1efc2",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:15566a72823054cb84f6e3e7d900a3c1636037c1d329f69092994de82294696a"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-docs-tracked-git-state",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should docs-ref-check tracked-file verification and caching fail closed on Git-root or Git-check errors while permitting explicit cache reset?",
+      "truth": [
+        "scripts/docs-ref-check.mjs",
+        "tests/docs-ref-check.test.mjs",
+        "tests/docs-ref-check-adversarial.test.mjs"
+      ],
+      "maxItems": 5,
+      "questionId": "question:sha256:2629be28972e0feccdcce14c0ad477018db82ffe02884e6b63a707d959f63569",
+      "intentSignature": "sha256:084af8bfcd0611978267a180209808f6b950fc3b6d7b52703a064ae5833e4ef6",
+      "targetBasisDigest": "sha256:f0081c16e8f00fe6de01f94b6f440892ddbb3632fc5246f13bc6f2bc797387f2",
+      "expectedRequestDigest": "sha256:2e0f30d87edc31e034c592f04f69b918ccf65981cda0cb93134590e1fc6c77c0",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:849b66d34fef8942e2eafc5067d3d11ab925a124e3d865193ccf567b79b96e3b",
+      "executionObservationDigest": "sha256:0e2a4103b178c8fbb250cb9757808ae7e03d0d15af1581db270ed637a858805a",
+      "rawEvidence": {
+        "requestSha256": "sha256:820a8ba75ba96382201d03acc6f7366d0f6b20b23bd53bbc007fffa28f053a30",
+        "receiptSha256": "sha256:e194215e73a88d894f1e397ed8256a0542361b8298b99a4bdf0740bb37f14a4f",
+        "stdoutSha256": "sha256:e194215e73a88d894f1e397ed8256a0542361b8298b99a4bdf0740bb37f14a4f",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:161e8c3a9abaed0caccd55a9121861b79e64b618d1a28229b78a8cbc311eb30f"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-ak-partial-mutation",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should ak-task-stack report and recover from failures after partial task creation, contract, guardrail, or dependency mutations?",
+      "truth": [
+        "scripts/lib/ak-task-stack-execution.mjs",
+        "tests/ak-task-stack.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:0a7eb242a9146372838b6ff3d6eac8c60a9357fae7128e3137a675b59d5c6863",
+      "intentSignature": "sha256:b1335c46b152fc45a74d508ca120cd1bd3e5c01f137abd68e751a82f28a04340",
+      "targetBasisDigest": "sha256:8dbf70a0725b3f9f31c95586bdd68a838a7d996b60c9e1083d126481f360efc9",
+      "expectedRequestDigest": "sha256:ad5d4bcb701b74dac042f9c0a8862655a122301c92e5eee225c6322c1dc88da4",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:6a552a4e9c95b6bf180425be767a208ef2556bf2dd393bc0d33daef43c8508a8",
+      "executionObservationDigest": "sha256:d422d9c56a0c510e963936eb2f08ce210787c9649d889e4b7ba41bb9969ee4ff",
+      "rawEvidence": {
+        "requestSha256": "sha256:59b3aff90b36e38a519f23f9ce388d07d1aae6411f7a28cdd1376629539ca173",
+        "receiptSha256": "sha256:783f8e9424e4b9b19ce11f1274d87a0c172d4b88d0ca662b130a982f744d6763",
+        "stdoutSha256": "sha256:783f8e9424e4b9b19ce11f1274d87a0c172d4b88d0ca662b130a982f744d6763",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:8d848d75ab23f6a01598b01ff18e2caaec1d2c95d2ff8f455417d3e1145e25ef"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-provenance-v1-verification",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should commit-provenance v1 verification reject malformed or prototype-key mappings while preserving strict target and changed-file consistency checks?",
+      "truth": [
+        "scripts/lib/commit-provenance-verify.mjs",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:19cff0c211bafd5f6dce602e2f0e65fcc662f40f3fb68bbf6a77ab678423566f",
+      "intentSignature": "sha256:1fcc0e951819c93e8df8b75124312c81545898d42fc194ee2def897eb5588c62",
+      "targetBasisDigest": "sha256:8641bee7e5f50c74471fa52046b8ee09c762f70725cb886cfc03ea7a421d98ad",
+      "expectedRequestDigest": "sha256:3565c34cf1ab37bba76dd4b4f9fee0e32b9c9ea36a42d4943068241b25a7fbf9",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:15047aa2fb13a041a20252264ed107e5bc62e902c4dbc01802276a4efaef8c45",
+      "executionObservationDigest": "sha256:719c3e696a9bf80d5ae8aa86e0aba94f4242cdaed256ced0659c7e0eab79a5a9",
+      "rawEvidence": {
+        "requestSha256": "sha256:cfcb7ac1de302092f6bddd1afa6d62c9f03d5af63a26b9366ddf2c048128aaf7",
+        "receiptSha256": "sha256:ffc8af7f18b0fe048784d7a4fcf2d24a18814fed06d2848c69bceb250aabad9f",
+        "stdoutSha256": "sha256:ffc8af7f18b0fe048784d7a4fcf2d24a18814fed06d2848c69bceb250aabad9f",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:b60cef06efb4c2339573438acafdc633ccf342456d2d7ed629208008fdabc243"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-push-notes-recovery",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should git-push-with-notes report known partial state and exact notes-only recovery when branch push succeeds but notes push fails?",
+      "truth": [
+        "scripts/git-push-with-notes.sh",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:b1116de6347f3b0772f5063d075caaf87c30c2de9f111a31f617fbc50769c674",
+      "intentSignature": "sha256:537a775bfa09075f133cec2dee99163ab3cb3e9aa9473d96f9874948ecd24340",
+      "targetBasisDigest": "sha256:1b134f6eca78bb27291f01d33301dd9faa0efb973c22b9c7562a8087cc452b20",
+      "expectedRequestDigest": "sha256:ddd635074224c85753301c8dd2b1be49e8891a99e8bbcb79c4daec9e7936be7a",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:d85edcb5afa9533d59babe6400d4459e7e09a036552840cc4d3df06097b8a61e",
+      "executionObservationDigest": "sha256:97dc07caa1c55144f4667d121bcb168f7129ac00ab63f91540d3cbad597d3c38",
+      "rawEvidence": {
+        "requestSha256": "sha256:6d9adce9400a9b98bb0c5a112f195aa11239135781a0f36308abdafcb4c14339",
+        "receiptSha256": "sha256:0c8eeb92a8b7aac2da45bbbc0e278183ccc7ebaf25d72bd8f9764cb1ab097062",
+        "stdoutSha256": "sha256:0c8eeb92a8b7aac2da45bbbc0e278183ccc7ebaf25d72bd8f9764cb1ab097062",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:6c781251e834733be654f65a5690429a55ec397e84a3a38472fc3255aaac4638",
+        "transcriptSha256": "sha256:6c3113d2276083eeddb004870e0c6ff5467b11bcd1c7247fb288b2cb22fc9ea3"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-01",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should recursive adoption discovery enforce depth and file budgets and report omissions?",
+      "truth": [
+        "src/engineering_core/adoption_discovery.py",
+        "src/engineering_core/adoption_scan.py",
+        "tests/test_adoption_scan.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:8440189b4cc157cd5a6202d8e760406ac5de33182e6b032a5e2d2aeb0cb28405",
+      "intentSignature": "sha256:c512cb0ef3a5483c7861794ee3a9be30d85ca4ba90e1f460bd88d010983155a0",
+      "targetBasisDigest": "sha256:cff1144ccf8083d10723492c6f82ebab60b5465adf259fbc8c8b391f94df3e3b",
+      "expectedRequestDigest": "sha256:18074db704361580af6d3cd24775f374c4783f15a137a06b2864edff0501aacc",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:4a80e258f55d1610f575b0e8d78ec0d92974ecaf7b998ca9c58e9f8be689fd3a",
+      "executionObservationDigest": "sha256:ef2dc861b03ebd1fb9eb3309c8e7fe77e730c13110307a358c54c984035d08a7",
+      "rawEvidence": {
+        "requestSha256": "sha256:026f63c34bcc1a922f9eef0bd6670f9592e7fdb3e6f945feb0471e3adf6982b9",
+        "receiptSha256": "sha256:a8bb47b52187c9114b83d6979fdc98cdf8362a901171767d084da8a1c29b6c88",
+        "stdoutSha256": "sha256:a8bb47b52187c9114b83d6979fdc98cdf8362a901171767d084da8a1c29b6c88",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:f594bf5712a39f52fd154ae6a711988287d8ef11834455c9fb51226d7ed93b69"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-02",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should adoption-report Markdown table cells escape untrusted content?",
+      "truth": [
+        "src/engineering_core/adoption_render.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:6835729ebe9b0939607965f0ded4e81738fe9c8a572f74f8f8a6de93ba858cb6",
+      "intentSignature": "sha256:790506589e2d6d7c6ec4d1592daa0ebaf0aa20ef8d84c2454cfc942b940ce2a8",
+      "targetBasisDigest": "sha256:8584dace630156dcf4f641818d8e527506b1842ce5a84a68cb55cbfd0e641c94",
+      "expectedRequestDigest": "sha256:d8d47e7beda956289821be57cfa5a79a4cd99b1352c484674dc4cac4ee8b15f4",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:bb9704e9011e82424e33ac59d24202007dc30de96674e1561fe83b803a9d60e9",
+      "executionObservationDigest": "sha256:900cbc3616fcd1d95c76c090b3b52bed90e4092d1300ff5f0deb1561c2ad66ae",
+      "rawEvidence": {
+        "requestSha256": "sha256:56cfddf5ec385f8003ec144285f8e5c49b89bd51ff8f599dd0209db19fff6267",
+        "receiptSha256": "sha256:6839b0fac4a3016693a9590d9a814ed2b93cd7c5b30a08e588635785af74c998",
+        "stdoutSha256": "sha256:6839b0fac4a3016693a9590d9a814ed2b93cd7c5b30a08e588635785af74c998",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:30ba0a2f51843db365d552dd33a70f7b249d4cd25b0ca3d54101347b4880b7a9"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-03",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should advisor evidence redact secrets and email addresses while preserving disclosure-budget accounting?",
+      "truth": [
+        "src/engineering_core/advisor.py",
+        "tests/test_advisor.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:870bd77275ee6d26d66d01f85d80774bca26370000cbd462044f3809a5e7b115",
+      "intentSignature": "sha256:196fc8bacd9e29a3e00886e49edfbc09677c5659b5af9bb7bce96877ad09f999",
+      "targetBasisDigest": "sha256:e7e41a6b1b33d418b9b2d340eb37127ff202fae849bab40ffc0c50dd9e846abe",
+      "expectedRequestDigest": "sha256:1bda04c8b8428076df0e192e7f3993e6d28dbe96614abe3fa48c681dbd255847",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:09e3929be252dac8cb33bae96e232248390aa6b0ead9137583ea64d34e199121",
+      "executionObservationDigest": "sha256:b0dbaf9526f402aa132882eab5f1dcf8da6db9d50d01cb8c7dd64b393025332f",
+      "rawEvidence": {
+        "requestSha256": "sha256:16dcfff80011dc0b7d261413bf709fdb881178967f0ccd66462643408b23d546",
+        "receiptSha256": "sha256:7dc935ac19e9df1a90b8cbfb7cffa69b7867499166fb01a16ec9ce7ba9aef48b",
+        "stdoutSha256": "sha256:7dc935ac19e9df1a90b8cbfb7cffa69b7867499166fb01a16ec9ce7ba9aef48b",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:82d00ab54ed075a2f166a763de030b200b536ca9e78e572ec3472e1454716384"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-04",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should capability declaration, observation, and evidence state transitions be revised?",
+      "truth": [
+        "src/engineering_core/capabilities.py",
+        "tests/test_capabilities.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:d9c50ba3542432491f9d2b9e17619d4bbcc3ef0dc495fbf28d3b6a88a9ee6ac3",
+      "intentSignature": "sha256:b058dbbe2bb13a004dbf55bca0228139d392e10abc2a977b5624c232e6e791d0",
+      "targetBasisDigest": "sha256:42cdf1111706b7a4dfdf525a554da49ad75ea1fb82d74c84ba835dfcb7084ffc",
+      "expectedRequestDigest": "sha256:4df59bd054922ed3e086e820a1d2f59acdf949472ad023a37aaf6ece03fe4d5a",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:9eaf5fdb9a6385e057f5f7dcedacc16176f15cf9237fc5efcc067d009ece6dd3",
+      "executionObservationDigest": "sha256:e0e2b24bdc4dbb382244eec712bf9f682be04d0032c51f4ebd5fa8b62d5f1a3c",
+      "rawEvidence": {
+        "requestSha256": "sha256:9185029f6b6b6f3ad03d558d75e60b691702ef97ff2b308f468a4744a6665f21",
+        "receiptSha256": "sha256:24d479d77a1ea1b79b01ae5fcf0356e8d5c16f4305871fb7ba2e4443755222e5",
+        "stdoutSha256": "sha256:24d479d77a1ea1b79b01ae5fcf0356e8d5c16f4305871fb7ba2e4443755222e5",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:115e130d5db10e4244fc90f2e7409f9e12c46857b5a95c4c7c3ab1f9b37799be"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-05",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should explicit capability-scan repository populations handle list-file safety, deduplication, and repository limits?",
+      "truth": [
+        "src/engineering_core/capability_scan.py",
+        "tests/test_capability_scan.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:0489d63142f0f5949da980ab9d4503dd4553a3fcc0ddee8e5b8913fb25ccc666",
+      "intentSignature": "sha256:5e253f9b5d5c0e51c97eacaa4be2907cec8dfcf462b175cd60eeb76cfd1565b6",
+      "targetBasisDigest": "sha256:89548dbf00420da37257343701c9ec7b0a7da6f347bdde7cc41984abea6c1509",
+      "expectedRequestDigest": "sha256:4851b243c6afc351cf77b9ce6a700167c664f60667b4e7e6ea399b77c5d06eba",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:2208c52af3283425c654dcbe7e788cd56010aa520564ea9137c5e7c23e37a8c5",
+      "executionObservationDigest": "sha256:256c0d2fbb7205c15cb356326666fe20394330a0c1c4c5afd861b094d924e7e1",
+      "rawEvidence": {
+        "requestSha256": "sha256:5d0b4f0af9317c00b740b2bf5b5dd44d625df58f8d18362635e8529a29bd0cff",
+        "receiptSha256": "sha256:5eeedc608bca3a1cd6c52127b010a0b1bdaffc220d33bf7ba681ba938aded560",
+        "stdoutSha256": "sha256:5eeedc608bca3a1cd6c52127b010a0b1bdaffc220d33bf7ba681ba938aded560",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:0485d0ef186f09922b58631cb379038d1402426be3e6ffeaf55b6bd034d3f7cc"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-06",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should catalog protocol validation and legacy protocol defaults evolve?",
+      "truth": [
+        "src/engineering_core/catalog.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:4ec6636072442a2e97745bbe8d3521d23a6bd67469462861b35c7502b3bb2625",
+      "intentSignature": "sha256:814c81375733318f6a07f64911d4a505ff7cc055adf07b7b394b087c9ba51837",
+      "targetBasisDigest": "sha256:e45af26556434aed1a0faf87a64b6ca93ea8510cf5d29d7d072dcc194960daa3",
+      "expectedRequestDigest": "sha256:055771ad5dbcd9c1e4ff5671e4edfd662a0e339669629f1982d274e034f6a254",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:3e3fba3c3785778f5cccf59427ea2f6c86594c7fb551d82857f132fce0076252",
+      "executionObservationDigest": "sha256:e3711e7abca60a1642d6818be1b97d3c48af2c2c249fbbadceedbd92bc97a48e",
+      "rawEvidence": {
+        "requestSha256": "sha256:e6d853c95c33fa31107504dbe56e98547d6bc92cdcb762e5269fa86095e81e75",
+        "receiptSha256": "sha256:6c9548c6e61c6653359ed8b443b64b742546971962ba4bae3ab4600e9215670f",
+        "stdoutSha256": "sha256:6c9548c6e61c6653359ed8b443b64b742546971962ba4bae3ab4600e9215670f",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:da9b6a75d365b7853bb305011aa71e99135f268b1f0ff999a339f21cf1ec1cde"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-07",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should evidence reconciliation distinguish matched, stale, and mismatched receipts while validating artifact integrity?",
+      "truth": [
+        "src/engineering_core/evidence_reconcile.py",
+        "tests/test_evidence_reconcile.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:12dc44bea45e5186db2836f0bd9e4e134c19b0a5d5bebecaa18c67a4512dae3a",
+      "intentSignature": "sha256:c214d1b878ba5768eb93465e4da115d4d97527b94e1525fb36e2356736e2f444",
+      "targetBasisDigest": "sha256:111b21e0c599f839722c6a10626132b47816b3e8fd5ce61a1e8a1efb76c68976",
+      "expectedRequestDigest": "sha256:6103063f0330598ae87839199a75ecadae7e69e822e31ef26a3ae662d1d2683e",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:971ab275bdb62894fb86d9dc10d0a8e98de26532d548dd3e4188923211244bc0",
+      "executionObservationDigest": "sha256:55a93014f9911fde83153cabd35f5319ebe44604fc6b3ac9420a3f8dfd579df3",
+      "rawEvidence": {
+        "requestSha256": "sha256:a3656bb33145ea52f72218e57f828690cd424f4fbffaef8a56d0060be6524e78",
+        "receiptSha256": "sha256:bd52323c48619606da5e6a8b2508d76d92489bcf97c3d53a00b54d97dc5423c0",
+        "stdoutSha256": "sha256:bd52323c48619606da5e6a8b2508d76d92489bcf97c3d53a00b54d97dc5423c0",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:0939c81ee15773354c627d3c17a2a6ca70917dc0b286b971f2d57ed892a8bf4e"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-08",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should bounded no-follow JSON input reject duplicate members, non-finite numbers, and special files?",
+      "truth": [
+        "src/engineering_core/safe_io.py",
+        "tests/test_safe_io.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:5484351cb30f0bb26fb67bebacef5e2f5d9be5a988c5923fbfbe27c99f4e3a95",
+      "intentSignature": "sha256:ec7f1ca845fc5cb1950b6ca58dd3b4b18776332a43f89c49eaac5bfa5973d1b5",
+      "targetBasisDigest": "sha256:da1be4cb3b462d3c78889d1b3d5a8da385c1724e84314b640f5a33f3afc8d452",
+      "expectedRequestDigest": "sha256:cce3544ef0966ce95e6d27c2ac13028fcb2ad4114b328b4792d8f51ea42d4c8c",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:a73816f0f9331c336968427bda5622105377648474b129f04f039683fcde499c",
+      "executionObservationDigest": "sha256:ba1a471cb96898085f2e25f87857d071564ee5801c37d77ef25f97771b8996e8",
+      "rawEvidence": {
+        "requestSha256": "sha256:7810ac91e8acc949b601989da0a0d25f739fda2d8297a16b1d9e7104e2ba3958",
+        "receiptSha256": "sha256:18528f69a7764ec56f3a14790b4db5e0f6aa58ddcab05d95704e7eb81a0ef1a2",
+        "stdoutSha256": "sha256:18528f69a7764ec56f3a14790b4db5e0f6aa58ddcab05d95704e7eb81a0ef1a2",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:9534b198f90ce169cbfd17c4209d93d63a91ef61184269792530bd20971715e9"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-09",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should prepare-work scope snapshots bind focused files and Git status while rejecting unsafe focus paths?",
+      "truth": [
+        "src/engineering_core/work_packet.py",
+        "tests/test_work_packet.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:090ea0e3e5fbd4e670da23eb5112ec897bdbb3a7329179b92b72c03c496f5d1f",
+      "intentSignature": "sha256:239eb41ddada77ce2468f1b2a48334012ee0bac49957974279f48044abde81fe",
+      "targetBasisDigest": "sha256:b6648d260d8d83f11ec62d1c08797518071347118f36aff2272387c2f991c470",
+      "expectedRequestDigest": "sha256:63473eb872eefa7a90e6b5a9dc3d61f96503f64cb91eed88c240743f46257da3",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:a7ee2d18fbffb5ddea600889a9d3593f57e2228e797a666a597dfbf8e69b5baa",
+      "executionObservationDigest": "sha256:5ff41d162680a6060b16028a9cd4bdecdcad1eb4b1ba17592460241405d66fc9",
+      "rawEvidence": {
+        "requestSha256": "sha256:6e726e473ea04d9422e94726594a53df3804eb451e45afba6fe38c331cba1218",
+        "receiptSha256": "sha256:8aafd37048cbe095d109d70fa29db08a0e60f87a067bad030071184c82b40241",
+        "stdoutSha256": "sha256:8aafd37048cbe095d109d70fa29db08a0e60f87a067bad030071184c82b40241",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:c0f536ae092b2c5a65fbabbf62915d49f5fccfc901d1cf5e1317ddea57166adf"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-10",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should closed-loop pattern synthesis enforce provenance matching, duplicate rejection, and unapplied doctrine boundaries?",
+      "truth": [
+        "src/engineering_core/closed_loop.py",
+        "tests/test_closed_loop.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:692f03e768924ac45e494caf5ab86b6e49bdec048e9e046cbc327e0c1ddb3143",
+      "intentSignature": "sha256:8d60ca91c39cb620bc751c32e3592a0d0260a5b26f8d2353a04a93a876a35d39",
+      "targetBasisDigest": "sha256:c5ed4a810df796408b39b5897d817c752e30e21f164ef162041582ac88d77ac1",
+      "expectedRequestDigest": "sha256:1af95bcaa95bf7b4a894ae9f01bd1b801a8e697eb2f39c038e40a3c35e4164af",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:ade90674b639cb6167d8305e9b8a6d10292743db3a1c531576a3653b2731cd8f",
+      "executionObservationDigest": "sha256:3557318157488f4dc0e246d51648120852a8aead352453ec790d1cb70cbe1ece",
+      "rawEvidence": {
+        "requestSha256": "sha256:ea8219586cdfd6a2eff63198593bf3e84c9cd7d153cbdc6b32ec14a2fc2a23b9",
+        "receiptSha256": "sha256:aad5465b9aab3b98ae1ad1ea86576be2589e93d484b74b97ef6913dbec13fdf2",
+        "stdoutSha256": "sha256:aad5465b9aab3b98ae1ad1ea86576be2589e93d484b74b97ef6913dbec13fdf2",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:8b57c34427ca3bf1dd326143fe2eeb801b5dca34566d9b9bea17340fa95d39df",
+        "transcriptSha256": "sha256:df4067c13d1e6b87d904429523bc53b3e3d3ba6e4e1fd874bbf542e25e624892"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-auth-defaults",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change the server authentication default while preserving the loopback-only development bypass and fail-closed token loading.",
+      "truth": [
+        "packages/dspx-core/src/dspx/server/security.py",
+        "tests/test_server_auth.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:1b8a7ee7e59680bc7bec9ca0bb72989fa9afeb298e1a173a0bcb853e021dd4df",
+      "intentSignature": "sha256:12eb3ac08718d21bea54e68e358de5a7f9c09667d753ecd12fa150127e159a2f",
+      "targetBasisDigest": "sha256:0b239821522a8abe52acd1758084c1df964161340ada6851315c1bc601d4597c",
+      "expectedRequestDigest": "sha256:da1c4867155406a0705ffccbda09c88616ca9329101e8b04188eb11aa782c0b9",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:8e4305024f94dc515a8104b2ad0431606b3a18dad3b45d360566ba9c65c21c5a",
+      "executionObservationDigest": "sha256:4542186456f5caa58b3943fa66bd1f0b59f41bb5d35919aed605720bcb70ab6a",
+      "rawEvidence": {
+        "requestSha256": "sha256:018f7c168482ae743c04a302f5c5a3d57f46668b2e256447d2688239e73aa181",
+        "receiptSha256": "sha256:3a79ea873bee0fed4b7c49a359cd1b205c10d18c444ffa240a1d558b9e03c6c9",
+        "stdoutSha256": "sha256:3a79ea873bee0fed4b7c49a359cd1b205c10d18c444ffa240a1d558b9e03c6c9",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:be98ef08244ee21168141b2eb5a7ae4ae813955d0efcfb21dfbf865580f876dd"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-body-size-streaming",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change streamed request-body size enforcement, including duplicate Content-Length rejection, middleware wiring, and HTTP 413 metrics.",
+      "truth": [
+        "packages/dspx-core/src/dspx/server/security.py",
+        "packages/dspx-core/src/dspx/server/app.py",
+        "tests/test_server_body_size.py"
+      ],
+      "maxItems": 5,
+      "questionId": "question:sha256:6859b5c4571d090f98d320e5fe8f030fc05f7e2b8083a3ae1c7a466284ad0294",
+      "intentSignature": "sha256:975666bef547a609c4c57028a0e970392040c7329730dc0bded939c406de23ef",
+      "targetBasisDigest": "sha256:e1839a7544c3148dd07e76f5b405436e34f7e49556ea9d5d1ad9aada0bb28285",
+      "expectedRequestDigest": "sha256:9a5cef6541d4208436f76413307be4a0b923b18f5273437c270fb7865ba71ce3",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:f93aab9f1b7795e89d67d8a2be019992273770c344610b72950c4aa1f53cfcdd",
+      "executionObservationDigest": "sha256:8d5b8d3d0a46cef746ca150507f0271282a4b3e1910996635d33d9541500cd4e",
+      "rawEvidence": {
+        "requestSha256": "sha256:9ec2683194149ad81618352e2cbb8b752d8ce38767c0576b8a148046ab199344",
+        "receiptSha256": "sha256:ab0925f88d375e69af6a3342dbeef0d14af2648baddf8fb4aae561122df8449c",
+        "stdoutSha256": "sha256:ab0925f88d375e69af6a3342dbeef0d14af2648baddf8fb4aae561122df8449c",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:9d4370349863c077613f7a1c60e5f5ea75361e4e15eeb2a217845fe01090289b"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-generated-code-isolation",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Tighten generated DSPy code validation and runtime isolation against reflective filesystem, process, and network escapes without leaking exception contents.",
+      "truth": [
+        "packages/dspx-core/src/dspx/generated_code_guard.py",
+        "tests/test_generated_code_guard_adversarial.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:035d6100debe31d537bbdb070c40dee5da5c567dcc3b4d769101ff8261a2d15f",
+      "intentSignature": "sha256:f00b73737791519a84317bdd505541a8705d785e6bb493c7e0481464308cc752",
+      "targetBasisDigest": "sha256:631109b24481c1de39b2a9759617df747a02dd31e6b1229f7098edc0a3f5872c",
+      "expectedRequestDigest": "sha256:ed7ee815dc3d1d1ea42cb067d16b634615496225f0de904ad5b7995fa461236e",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:cf8bed394a95485292515e09512c86554db0a8dfd5f32b0d217a3dc1fba021a2",
+      "executionObservationDigest": "sha256:660e40cfc530f1d233e5d870577412a95dac260123958fbf22613c0c7a0dec38",
+      "rawEvidence": {
+        "requestSha256": "sha256:d6a5300d19303633b5582576117a64d6733c0c5d006785e25f3a4544607bf1f8",
+        "receiptSha256": "sha256:0c3b46010d126ad2a27ed30d7e3fb18353f80da1cb916ac33d76256b799b1394",
+        "stdoutSha256": "sha256:0c3b46010d126ad2a27ed30d7e3fb18353f80da1cb916ac33d76256b799b1394",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:260f5984222ae52425fa0e59476e91490582da36ba72a172e96afb56dcd75850"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-diagnostic-redaction",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Extend shared diagnostic redaction for compound secret keys, bearer and authorization values, and credential-bearing URLs while retaining bounded previews.",
+      "truth": [
+        "packages/dspx-core/src/dspx/redaction.py",
+        "tests/test_redaction.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:1f9440bcc7809888bff9ee041613704023f85932ca29420b2faab288f56ea61c",
+      "intentSignature": "sha256:d91e8d31df63e3b9fee2720ce6a855a13d1452ac8b9b34f9d28c3974aeeef82e",
+      "targetBasisDigest": "sha256:c7d8d2921d3a9c399291cf92dacf80f06828b7fe97a4c38d5eabaafbfa456998",
+      "expectedRequestDigest": "sha256:2ea9852eb44ebcfa5cdbc2a8dcf331431aca8298011b095fea4977b6f2cc1133",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:a7b895b33fd0a8a75c95634722bf47d2aa8abc9472df3beb8bb52b7450a5c24c",
+      "executionObservationDigest": "sha256:0e00f0b471106bfcac5c155662c7dce1fa625e36b44f4ef110d5cd7a53ffd8ae",
+      "rawEvidence": {
+        "requestSha256": "sha256:87d52f5012cc3da59bc57040c7a0001fbe7af99c38e254910bc29bd8507e3c02",
+        "receiptSha256": "sha256:fe4bdb3abb11546bff6ce13da95802b0d37a369c4512baed6f968e8e0a3e5e3a",
+        "stdoutSha256": "sha256:fe4bdb3abb11546bff6ce13da95802b0d37a369c4512baed6f968e8e0a3e5e3a",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:9f2fde282a7d3b85c645173b1acbdfd1c5bd5e67e682ccb0210bab2c7189fbad"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-provider-failure-normalization",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change provider health and invocation failure normalization so explicit failure envelopes fail closed while successful error-looking model text remains valid output.",
+      "truth": [
+        "packages/dspx-core/src/dspx/provider_runtime.py",
+        "tests/test_provider_failure_semantics.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:9c0d1bb371f55fe3f5fbc5b5195648a6aa740d4170a151ffaff556a37831c0df",
+      "intentSignature": "sha256:db45fc6facfaf8c516f272d2213762e9d73b8613c5c621b949bef8cb7b39fe5d",
+      "targetBasisDigest": "sha256:ad20088c72fe903c6d1b1b432c20652cc455e9016e85f402a8bcc52328209080",
+      "expectedRequestDigest": "sha256:579ae973ce5f92aaa0f05c21ed47c963d408e23b9811d39b7bb7f0b01c6aee0e",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:308f7d6aa33b9a9bb0a257a248f46d456651ce81382368c6f134b9bd379596d3",
+      "executionObservationDigest": "sha256:e6ef7fe90e0624e3e05b090c3c535ddf6dc6c22bca1a16c6193fbe48f4673fa3",
+      "rawEvidence": {
+        "requestSha256": "sha256:e831d7f7b0cde8eebb92543082b8c6050fceab04ecd34c52758c064b93a41530",
+        "receiptSha256": "sha256:28b2fb26718613f748814fa932c2213b4f4f5ea98d14f3d9621e54167c447801",
+        "stdoutSha256": "sha256:28b2fb26718613f748814fa932c2213b4f4f5ea98d14f3d9621e54167c447801",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:63666f0010dab890a0e1775c10b1e95d99df315d67192993a7a1fda339d19b10"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-task-scope-working-tree",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change working-tree task-scope path discovery to preserve unusual filenames and combine dirty changes with recent provenance-linked commit groups.",
+      "truth": [
+        "packages/dspx-core/src/dspx/task_scope.py",
+        "tests/test_task_scope_working_tree.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:a4affa87569e8938d7cee1556551a64e5d24be05ac110213b2292d9bc78876d6",
+      "intentSignature": "sha256:df155bc7c9d6768c687adfd9a27212cff5aa9bf1881baf85b11e54db566b87df",
+      "targetBasisDigest": "sha256:4b71902313c1d334d251511b36d906a2afad07b027c6d523a76382e8656360d8",
+      "expectedRequestDigest": "sha256:88739859eaa7c57b30e1a592f29717b75f65a69ac9ebe49d1cf1880ef601b468",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:7d5512998a10af91848d07665c2d7c725a8e449f67a40fa4a9dd77ac38cfe9b4",
+      "executionObservationDigest": "sha256:be302389a71bb6d1743b2fccd2c0345e3093d3fc677483c72adaf9be77cf47a6",
+      "rawEvidence": {
+        "requestSha256": "sha256:ba8b0e2ee0b4342f9fd68c3d0463306297eb319e0bc7847d67320b412381e168",
+        "receiptSha256": "sha256:0ab0f6a731a4067e4c080bfbd497c86a0a7efdef96f0bd37cbe2eddcee5a57e6",
+        "stdoutSha256": "sha256:0ab0f6a731a4067e4c080bfbd497c86a0a7efdef96f0bd37cbe2eddcee5a57e6",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:e443ed46b64f92da1f468299e72fa94544c886aef86e3fa9bd262d676ab9c65f"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-receipt-identity-lineage",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change run-receipt canonical identity precedence and causal-lineage normalization across receipt schema versions.",
+      "truth": [
+        "packages/dspx-core/src/dspx/run_receipts.py",
+        "tests/test_run_receipts_identity_lineage.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:dbf87112c23c1f3e83ef909cb900c3998518ddcc95a14dd1fab1a53dba3fe9ee",
+      "intentSignature": "sha256:c59c117ba82c5d5cb09378ba27e1b72279ba6560341b84e690bb20426c08cdb3",
+      "targetBasisDigest": "sha256:2e188c7c00461a6cda8701107c9758d06af76bbc3567ff7ee0c2b34da493208e",
+      "expectedRequestDigest": "sha256:6f6d0380e2bc21c0b3c1a472f40911a6cd39d6a0cf7d63bdb728244ba10c6759",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:1b7c0737c2f57e2e9e1d465161428c1d935b9bf70bde9a11d5c52772e0cca8b1",
+      "executionObservationDigest": "sha256:2161a955c14ef4fae1ac26d88108f697a60b46d1dcb621dec3c3c3d77c56551f",
+      "rawEvidence": {
+        "requestSha256": "sha256:773312998915d97d7297a99a188a4b8f20b8f834ee9e8a54aa34967aa0b9dc7b",
+        "receiptSha256": "sha256:31ae51cf57050e4badeb3f0f0046fa9a7e892a2fcdaff3c9e3b991719abb0d6e",
+        "stdoutSha256": "sha256:31ae51cf57050e4badeb3f0f0046fa9a7e892a2fcdaff3c9e3b991719abb0d6e",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:b14d925a23b1d91b4a197b9d5d19501fed8a1021ed4fcc913706af9fe25f00f1"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-oracle-secret-custody",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change Oracle publication custody handling so 1Password references remain unresolved and redacted while publisher assertions reject pasted secrets.",
+      "truth": [
+        "packages/dspx-core/src/dspx/services/program_oracle_secret_policy.py",
+        "tests/test_program_oracle_secret_policy.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:0d37ba4aaf225e6ce19b10a36371b70e012e6c1eaa6a3216d4ec6a9461015e46",
+      "intentSignature": "sha256:b22c83f58ea711bd73d16bcf6fc52f00d60a1d8e1d8f2a9ef8d1b2648f466448",
+      "targetBasisDigest": "sha256:3c994b1e709dd83725f2b1f16127851b8f05c06d69bd0c60db7a2391f00cc0d3",
+      "expectedRequestDigest": "sha256:22347f11d86916c9a555225484109b673967925063c5c5a500923f41cd90b66f",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:b85c4a16b1dd4a3ea8c3d921a7003ecafa36df3e400cce4484075337816da970",
+      "executionObservationDigest": "sha256:a1537d79df1f8edf2170e7059e2f91b80ba126659924835b16818e72a7158806",
+      "rawEvidence": {
+        "requestSha256": "sha256:e16d4fbff5a68a553d330e936a8a5fc4a230d7db35c40ea5a2deb20a4ccd5a09",
+        "receiptSha256": "sha256:1c6845fabb89a733672b10ca8bfe69cb69fe1cb4a04cd38753cd3b69ca5057a0",
+        "stdoutSha256": "sha256:1c6845fabb89a733672b10ca8bfe69cb69fe1cb4a04cd38753cd3b69ca5057a0",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:1c27a6b67a8c14fa01da86faeecb5416900c0b27476148bddc09bdca593ecfd5"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-openapi-local-refs",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change local OpenAPI JSON Pointer resolution and parameter or request-body reference extraction, including escaped component names.",
+      "truth": [
+        "packages/dspx-core/src/dspx/tools/openapi/loader.py",
+        "tests/test_openapi_schema_refs_allof.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:b6dbdecafef959ba68e2341ceb00a577cc4e468058b223415d03d632b07b9dd6",
+      "intentSignature": "sha256:a64635b23e31c7c1ffe911b273bce030fce47bdd3c602055ec3b198e4771deec",
+      "targetBasisDigest": "sha256:e0595b3154a8e76bad9c1bd82178c12e89c7acf63351d3780932776701fd9d3d",
+      "expectedRequestDigest": "sha256:3f7247e72a1053bed3683634d0a1b0e8e98f7af76d089877afe3d87514b78821",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:78f32e7e8d4a44ebddccd248f84534bc5ca0b6cec3d95102f45f25a1caba5d0e",
+      "executionObservationDigest": "sha256:bd04a4fdc50177079f267256e73e6c19c0d24c7385844bdef852e79e17759c81",
+      "rawEvidence": {
+        "requestSha256": "sha256:db7e6e2bd48f88950103f466342efd3cbdc82e7de31878c69fa853a4b28c3cfe",
+        "receiptSha256": "sha256:4b10d0bd9368ca636715aecabb3cc44506bdf082bbe8997b9d5315eaa49ad93c",
+        "stdoutSha256": "sha256:4b10d0bd9368ca636715aecabb3cc44506bdf082bbe8997b9d5315eaa49ad93c",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:88ae4e057014f7b487906870de12aeebaa3a7b179c1d174b3e4700c90b0e7099"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-resolved-environment-sbom",
+      "repositoryId": "dspx",
+      "repositoryCommit": "cc21bc7e04ec15241b5fc86f0cc3863d0fd19a27",
+      "question": "Change deterministic resolved-environment SBOM closure construction so marker and extras propagation, dependency reachability, and retained subject binding remain fail closed.",
+      "truth": [
+        "scripts/ci/core_release_environment_sbom.py",
+        "scripts/ci/core_release_environment_sbom_contract.py",
+        "tests/test_release_environment_sbom.py"
+      ],
+      "maxItems": 5,
+      "questionId": "question:sha256:97bc2372adca822db09f436251f965da84ec6b7a72da97053fce1a9314e763b4",
+      "intentSignature": "sha256:dc5c7c325aad7537f1c2d923840fc76bcf575a83ff6906dc7e043b9c38a4f9d6",
+      "targetBasisDigest": "sha256:138d45203d520299097e97f4449c9d63401deacc95120f3ceea8895944b31b14",
+      "expectedRequestDigest": "sha256:cb5da551c85660fa3dd8d970e32806b1b5d1fd9e54324718ca987c50e9659174",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:2a29847ff0cf22f407a2480850cbb1f80282b21c99ed01516cfc63669136f75a",
+      "executionObservationDigest": "sha256:a7c189b73146a672e9a07b8738990bdb8681d0d8eabb2a2bcafb69eeaef4c06e",
+      "rawEvidence": {
+        "requestSha256": "sha256:8814a0d3936a9bb0285b9dc8f50ef573154c00a7dfeceb86a390bca2dda7263a",
+        "receiptSha256": "sha256:5e2338210f1cdb204c592a1b841480744d2c09d4f277f108710f59a2f7037a41",
+        "stdoutSha256": "sha256:5e2338210f1cdb204c592a1b841480744d2c09d4f277f108710f59a2f7037a41",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:06335db168ba4de4558301da2497bee6f232a959234883c603c1392e1feb9b60",
+        "transcriptSha256": "sha256:98f07a85b50a18f9f10766d187af5b64db82beaefffd5850d41bc34412921efc"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-01",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "update context overlay token estimation for tool calls and summary messages",
+      "truth": [
+        "packages/pi-context-overlay/src/token-estimator.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:acb49e290207791a576492229b2adb22171df68405ee7923744f3f5f26c592de",
+      "intentSignature": "sha256:390f1a3b9d822302afe21c1cd15637e85bcebb5e079417fb1d2e0fe7927c2752",
+      "targetBasisDigest": "sha256:a832eaf69956e7660cb0aab52e5136ac59a8432342a2841a085522f488dd6d90",
+      "expectedRequestDigest": "sha256:d4f85747226ff3c629b9c85901c3dfceba9e643edaecb21a2c5c57185be1ad45",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:0fcaff854a7c0606d7dde7fe6402b927142c9fbbbd4895295ad7a99fbe85c7ad",
+      "executionObservationDigest": "sha256:1775673872179375dddcc0d2c1cbef1682f738958e6ab292880bd490fece524f",
+      "rawEvidence": {
+        "requestSha256": "sha256:9be42984dbb9aaeca8619cffb45ae7b092332b3d63fffa7845725a09576eb0fe",
+        "receiptSha256": "sha256:162467f28913935308ec92cad35b465a12044a2d611b33d2f972c3aae96ed345",
+        "stdoutSha256": "sha256:162467f28913935308ec92cad35b465a12044a2d611b33d2f972c3aae96ed345",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:9257531f12a5bff4e6811f42c336c49d9048ca78f56072c3525d02b5f9772a15"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-02",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "enforce evidence review reference integrity for claims limitations decisions and artifacts",
+      "truth": [
+        "packages/pi-evidence-review/src/validation.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:df1413bd65033f40948234c6a0284a7cac3eab83560e63049843659bb964b162",
+      "intentSignature": "sha256:4f52a10d92e8660b6fe7bc2d8565b28395b5372210dfb58388526461478b10b2",
+      "targetBasisDigest": "sha256:6e358381f3fdef5f335d16dbe916b4f77928332e675fef08b48ac5afdea889ad",
+      "expectedRequestDigest": "sha256:731009c1a3cec381864732443199ea97e8470a5c11a98c14c90779f761602498",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:6b7a13d9c5357838c40f0dc3caf1c895bef9bfbbc7c9084ccb85e2b58fe85e97",
+      "executionObservationDigest": "sha256:85818bbea7c8ccd4649bb7d2c5c6788563e21accdaab5af9c14b4b8860dcc883",
+      "rawEvidence": {
+        "requestSha256": "sha256:77334afe1e6ffd3d4b27b1ca92508454d184cd9945d4cdece880f00a31475941",
+        "receiptSha256": "sha256:e54be472eaa6db4179b7609d7f7b4496e1f79c31f9e7612bffb49b4606637f62",
+        "stdoutSha256": "sha256:e54be472eaa6db4179b7609d7f7b4496e1f79c31f9e7612bffb49b4606637f62",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:c207e5725e989ec38928ad22e6c92727b98390cec1cc96ff75e6dd70fcd1fb14"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-03",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "sanitize peer messaging named pipe segments derived from runtime directories",
+      "truth": [
+        "packages/pi-peer-messaging/src/paths.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:7d42b9344908a5f8815d8a8e4f39dc20da1ec41211a1938e5aebcfe3dd8657fc",
+      "intentSignature": "sha256:94e8059af306ff7111da0f14184f1e6ffd7aa7292d1c816f0598ddd898d22466",
+      "targetBasisDigest": "sha256:42668e8ebb53bb9860f43bd6a9810fee65119bc085b2dcc7f6a66eeb5da0f12f",
+      "expectedRequestDigest": "sha256:9bd268ed0bbcfe1fd3101eda871995ff91175eb819ab92c945adf169ea17cdd6",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:8a0f169f538adc55c0e30f7ad16f9cc1556135264b369e91009cdaaf8c65dcb9",
+      "executionObservationDigest": "sha256:025f5c57df4208c11511bd77c81bb4f2df4217d5ee528f0ce0cf190c5d1e5a02",
+      "rawEvidence": {
+        "requestSha256": "sha256:fdd6a8c14aa20ac40fda3569b6284c4b4c46d7733f76025fd5b02c1e9190dbd9",
+        "receiptSha256": "sha256:fd0887adc5e90579a33541cea477337a19aa1871730d2ea2b1877b43ba025a81",
+        "stdoutSha256": "sha256:fd0887adc5e90579a33541cea477337a19aa1871730d2ea2b1877b43ba025a81",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:2156d26beca9e2567cdffe7f6aed89da03743b08715de6eada3f9427b8550307"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-04",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "parse startup mode composition environment values into base and overlay selections",
+      "truth": [
+        "packages/pi-modes/src/modes.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:ceb78c1cf27c296a005c02347a6867fe963bd15568139dd6d47f1559d37672dd",
+      "intentSignature": "sha256:24a5ff95303908f7183210cf4413803339fa25e7bb22c1a17d5dcbb9548a7714",
+      "targetBasisDigest": "sha256:2a34c898c8b7cebb0095847e12c5597e3fe9028ea418a72ee5a47ffe1e1d6b25",
+      "expectedRequestDigest": "sha256:4615e541a891a4d7a1a490e78a4276c89a4637fa25a2e0f07523782c4396369c",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:67af1407cd9c241b5ec0ca1f7b5ba58da00cd80fb55617aec4ea7aada11a3bd1",
+      "executionObservationDigest": "sha256:3597d1c5ece87805f14ae08f101fd8ec54ba24375d520dbaed2c6b00c7fc0fa5",
+      "rawEvidence": {
+        "requestSha256": "sha256:e80e0ee1393630ebc4dc3c3640014b67197abc9fbf68b39e9e1c7693bf7b0dbf",
+        "receiptSha256": "sha256:9ae6694eb25562edb773cd25997ebe20d8e04cba3a812416d4865a47a0b7988d",
+        "stdoutSha256": "sha256:9ae6694eb25562edb773cd25997ebe20d8e04cba3a812416d4865a47a0b7988d",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:97d72ec8556bfda62128cb62b46be45f36463c3269b10add6d2791b5b9eda763"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-05",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "expire unpinned toolbox activation leases after their turn ttl",
+      "truth": [
+        "packages/pi-toolbox-discovery/src/toolbox-runtime.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:0eb80cb4c3c228c4c954627a298f9e469f6eafeb18d0b53e5cf428d1eaf1bcca",
+      "intentSignature": "sha256:9dff8c34fffcebe6656bdc2e37672b83bc55e99250ddbeccf64946a8d0240887",
+      "targetBasisDigest": "sha256:481cbb734f337262ddd119c94e528d8a5e6dd8954c2d43114b3b4305330e283e",
+      "expectedRequestDigest": "sha256:f805fc3359c787b5e7278a4d6edec586120fb44a2b3852c0b61904489d3b2236",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:dc13ffeb423e46a5e5140d704e103cd77829052ddb805272645844c39a5b7620",
+      "executionObservationDigest": "sha256:1b0eccc5514cdceb985c982c5890a59382aad59585bc170235757900e7d39322",
+      "rawEvidence": {
+        "requestSha256": "sha256:fd4f862c864e6c9e2b6f962ae798c8d90079a42111daa4d6b78ad87c09d898ad",
+        "receiptSha256": "sha256:c05afbf1b1c1303c7889be28d291deee59ab631de5a211f489bb402f8441dba6",
+        "stdoutSha256": "sha256:c05afbf1b1c1303c7889be28d291deee59ab631de5a211f489bb402f8441dba6",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:5fd7854ba9f63689ba747dd0737bfc8e7912919c8a0b3365db7691b2df787aea"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-06",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "apply pinned unicode 15 case folding during ontology semantic canonicalization",
+      "truth": [
+        "packages/pi-ontology-workflows/src/semantic/unicode-casefold-15.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:bdd4b80ca05057ce5ece33e53adf03d9c3be75993d15a748808050854cc31976",
+      "intentSignature": "sha256:ba4ad2e8ea5276b445e98bc0b4e430e917c95f9a0434b54a46d196cdeafb9621",
+      "targetBasisDigest": "sha256:2e914a2badd115cb1040dcbb929ddb8f5ae768770ba7323b73f6881eebe5e440",
+      "expectedRequestDigest": "sha256:4b510663755e62dc470c36567a2c824ae83ffd7bc15e460e8b4bae38591643b7",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:fcaba1c2a011a8ebf25e274ee0553868dec23ce7d2400ef1232bb93c40644867",
+      "executionObservationDigest": "sha256:d4bea7651845c2191e582ab294cd3288f1ffc6f69a25bf6859431f038b25044d",
+      "rawEvidence": {
+        "requestSha256": "sha256:5a45272797fa0336b3d8745326f27ee7f6ef47a8ae5e83fc990c0abe63133177",
+        "receiptSha256": "sha256:ee8264c1c70adda5466363e4551f0ae9f84248d4b7cb925157ba5c07e37750e9",
+        "stdoutSha256": "sha256:ee8264c1c70adda5466363e4551f0ae9f84248d4b7cb925157ba5c07e37750e9",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:e14d541e7b477e20d8b56d49da3061bc402fda3799eb9d3401c7327c0a64225c"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-07",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "validate self evolution candidate closeout evidence before completion",
+      "truth": [
+        "packages/pi-little-helpers/src/selfEvolutionEnvelope.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:17f302326674421243ba2d95eb0c7a5cdf7632bbec539074ca40631024c75b6e",
+      "intentSignature": "sha256:ae09b62b065cf9d9f916444e77a9fe03b16c296712d4175615949f09f8429d1a",
+      "targetBasisDigest": "sha256:35c88eb47e1c995ed17186987a6f1a839b1c873ac9ee7d21fedf758d58aaed98",
+      "expectedRequestDigest": "sha256:73d1d23b030e3d41c507c0e19d5a4393a81de8e5ce7a081076b32699f551578b",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:e72df574934a3a23de8793e685117f6fb68d08d0aa81a31dbbb383782fedfaba",
+      "executionObservationDigest": "sha256:4a6619c55661ed93fc445574fdb34e55fbee9d331407e1447ce05fc47d62f658",
+      "rawEvidence": {
+        "requestSha256": "sha256:12bfabc69e1272388efa4657ca6a6fa786a7188cf332f1cd3e97535cda713b29",
+        "receiptSha256": "sha256:3149d1a276b296a113c1e4066a71ed11fc8b32d12914fa1c4f954e144a67cd91",
+        "stdoutSha256": "sha256:3149d1a276b296a113c1e4066a71ed11fc8b32d12914fa1c4f954e144a67cd91",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:1cdd5ec10390669c0d61a8bbaf211537cfcadfa108c658260bbee6cbb89189c5"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-08",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "plan archival cleanup of autoresearch candidate runtime inventory artifacts",
+      "truth": [
+        "packages/pi-autoresearch/src/core/runtime-candidate-cleanup.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:9e63bfb31fd61681b894ede6ce49e6a3a41f2ebc45ce3ae4b04b65b0ef3f98d4",
+      "intentSignature": "sha256:720fb888537565f24e92356beed385fc604f69e0ff08c8c6156763a11f4c395d",
+      "targetBasisDigest": "sha256:f140df0b14f55c0a8990949c81417e8d755e40bcc7ac63793c3206040573615b",
+      "expectedRequestDigest": "sha256:2fb0b28ba7df71e8694aacc0511445b65be0c565e93aa90fa5598a67bb1a8deb",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:c74dc5b771bf128545ad1e0a8d0ef0c4e6184a0b9257639b7006cb96f3469660",
+      "executionObservationDigest": "sha256:550f3aac2d11cb4503b219c111851fe624a8d72838344359a533650350012fff",
+      "rawEvidence": {
+        "requestSha256": "sha256:b05a484f908fd38372a0a2fb46762ac818f6b14b3c699d1012a7f5f44c326685",
+        "receiptSha256": "sha256:a19aaf29bf07dd3eaa92e41fef7e261124a7568df328ec9b836108b31ae9d1c3",
+        "stdoutSha256": "sha256:a19aaf29bf07dd3eaa92e41fef7e261124a7568df328ec9b836108b31ae9d1c3",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:ae2c363ebb118761c60dc25a97cbc93cee1755ff44ecb6e45c57800d4ae820c6"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-09",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "protect kes diary and learning roots from symlinked directories during materialization",
+      "truth": [
+        "packages/pi-society-orchestrator/src/kes/scaffold.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:f270c3799c1dc8d6c27fd82513c5fc52c88af58908c1b47b46fb7cb3ee1adc92",
+      "intentSignature": "sha256:d4ccb29c34864e677a4682c8001c6f6fbc63fc27b56f35ea4378b69638d80a76",
+      "targetBasisDigest": "sha256:247ef666d254dd4220d0ed7b4a0c85e3d9e35533045eafa241436140f66bfdbd",
+      "expectedRequestDigest": "sha256:a219a3d1a14c0c879b6ed5fbef0b61ad89ddd77369cd19db55a7b6555e07b9e7",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:6672385bf0d96b44340500b92ecfc56ecedd9dd2126085d2fd76b0493922bf1f",
+      "executionObservationDigest": "sha256:d26d98afbdf913483d9aa130dfd4e8f9bcbbdeee93faffff9b6f47ef8c59bccc",
+      "rawEvidence": {
+        "requestSha256": "sha256:e048855d5b6f993faf69e378ffb4be72e560f0dd78e621be455d401e22276c44",
+        "receiptSha256": "sha256:4599b4e4efe849b058b5c49646c166e63c2b74d69eac7bd3b1fcecde30559c48",
+        "stdoutSha256": "sha256:4599b4e4efe849b058b5c49646c166e63c2b74d69eac7bd3b1fcecde30559c48",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:e08f6a180b29c3b497178d45ee952c329c244142feb7501161ac802de61d23d8"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-ctrl-10",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "e67b1071dbdd2c8139da60432fb019d8dd991597",
+      "question": "parse better openai provider model keys from layered configuration",
+      "truth": [
+        "packages/pi-better-openai/src/config.ts"
+      ],
+      "maxItems": 1,
+      "questionId": "question:sha256:b8d75ecdd1fa9a0554f256fb0404de08a6007eccded0edcd821cd0d323137a94",
+      "intentSignature": "sha256:06fe1377ce97b96c9545c3098462b62393d30ddc0ce4e1fa3008937b644a3461",
+      "targetBasisDigest": "sha256:5f3853393d412ab83c46c4ceb15f77ec3d0a8a637da082e9520fcdb7ee6a264d",
+      "expectedRequestDigest": "sha256:0f66c39bf9154291776964d1aa6b58b83a9a035c64011fe5503dd398b8892930",
+      "expectedProvenance": {
+        "producerName": "semantic-code-intelligence",
+        "producerVersion": "2.0.0",
+        "producerWorkflow": "structural-evidence-export-v1",
+        "backendName": "ast-grep",
+        "backendVersion": "0.42.0",
+        "executableName": "ast-grep",
+        "executableVersion": "0.42.0"
+      },
+      "receiptDigest": "sha256:f10dad2b2d0f41fdd2d37fa7e98a5d38e106c80d0c59ba5fb27c5b1e65bfe844",
+      "executionObservationDigest": "sha256:ed2a1fdb234650f29281a0e2e5a2a99633e647d1c3a7b160018abb5990923e13",
+      "rawEvidence": {
+        "requestSha256": "sha256:beaa23539b375f4ffb564cbf835136525ca6c668d469e8fd276b7e83d511836a",
+        "receiptSha256": "sha256:730014b7ec222347837c0a1bb07aece46c1718462e7a2a6e13c2092efd8faac1",
+        "stdoutSha256": "sha256:730014b7ec222347837c0a1bb07aece46c1718462e7a2a6e13c2092efd8faac1",
+        "stderrSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "processSha256": "sha256:2974ebbacd8c9b9feae97af13c3a2ec659440a720b8ffa4f479ff976b75c734f",
+        "stateSha256": "sha256:ba428552c8b2d028da7b7b69e6912db3b1a4c09c9970f216140b5094902476b8",
+        "transcriptSha256": "sha256:7e4b8500d679b1a31ccb52ffaa3f2c1330972837e057eeed104033d5875c93eb"
+      },
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    }
+  ]
+}

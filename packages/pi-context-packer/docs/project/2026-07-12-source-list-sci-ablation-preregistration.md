@@ -25,6 +25,23 @@ Ownership remains explicit:
 
 Neither owner artifact is authenticated by this harness. Raw bytes, commands, observations, revisions, and artifact hashes are retained so an independent reviewer can assess the external preparation boundary. Hashes detect content mismatch; they are not signatures.
 
+## Adoption decision gates
+
+The historical pilot's numeric reconsideration gates are promoted here so the current v2 protocol has one reviewable decision contract. Automatic `source-list` invocation remains **REJECTED** unless every condition below is satisfied:
+
+1. at least three independently owned representative repositories each derive at least 60% `present` metadata coverage from their frozen raw `source-list.v1` artifact without a workspace metadata mandate;
+2. every declared repository contributes at least 10 pre-ranking-reviewed maintenance questions with distinct normalized intent signatures and distinct canonical truth target sets;
+3. all arms use identical frozen candidate universes and positive per-case `maxItems` budgets, with truth entering only post-selection metrics;
+4. on the `paths ∩ source_list` eligible-and-available population, equal-repository macro precision improves by at least `0.10`, the equal-repository unnecessary-selection/read proxy has a positive `pathsMacroUnnecessary` baseline and falls by at least `20%` under the formula `(pathsMacroUnnecessary - sourceListMacroUnnecessary) / pathsMacroUnnecessary`, and equal-repository target omissions do not increase;
+5. metadata staleness is independently sampled and reported for every repository, while repositories below 60% coverage remain visible as ineligible controls rather than positive metadata evidence;
+6. structural and fusion arms use actual fail-closed SCI owner receipts and retained execution observations, remain separate from source-list semantics, and report provider availability without fallback;
+7. preparation and execution report source-list/SCI latency, raw artifact bytes, approximate context/token cost, executable identity, and maintenance/trust limitations; and
+8. an independent post-ranking review concludes that automatic invocation is worth those costs and records an explicit `ADOPT`, `REFINE`, or `REJECT` owner decision.
+
+For the 20% gate, `pathsMacroUnnecessary` and `sourceListMacroUnnecessary` are the equal-repository macro unnecessary-selection/read quantities on that same disclosed intersection. The percentage reduction is exactly `(pathsMacroUnnecessary - sourceListMacroUnnecessary) / pathsMacroUnnecessary`. `pathsMacroUnnecessary` must be strictly positive. A zero paths baseline makes the percentage reduction undefined and the 20% improvement **not demonstrated**; it is not treated as a pass, zero reduction, or infinite improvement.
+
+The source-list adoption gate compares `source_list` against `paths`; a structural or fusion improvement cannot substitute for a failed metadata gate. Clearing every numeric gate still does not self-authorize production wiring. `ADOPT` only permits creation of a separate scoped implementation task and owner review.
+
 ## Frozen case and four arms
 
 Input protocol `pi-context-packer-source-selection-ablation/v2` compares:
@@ -166,6 +183,6 @@ The output must not exist. Retain the prepared input, raw artifacts/evidence, ou
 
 ## Non-authorizations and limits
 
-This protocol authorizes no provider registration, production wiring, metadata campaign, source-list or SCI behavior change, owner invocation, indexing, `.ontology` creation, repository discovery, AK mutation, external mutation, merge, push, PR, authentication claim, or adoption decision.
+This protocol by itself authorizes no provider registration, production wiring, metadata campaign, source-list or SCI behavior change, owner invocation, indexing, `.ontology` creation, repository discovery, AK mutation, external mutation, merge, push, PR, authentication claim, or adoption decision. A concrete experiment run requires separate operator and AK/source-owner authority; that authority remains bounded to its frozen preparation, execution, evidence, and review artifacts.
 
 The experiment remains a file-selection proxy. Metadata may be stale or benchmark-aware; contract completeness is not whole-program semantic accuracy; and metrics do not price latency, tokens, review, or maintenance. These limits preserve the conservative **REJECT** posture.
