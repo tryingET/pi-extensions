@@ -664,7 +664,7 @@ STOP_CONDITION:
   if ("failureStage" in outcome) {
     const environmentBoundPromptPlaneFailure =
       outcome.failureStage === "prompt_plane" &&
-      /(No visible template matched|Explicit company context is required|no such table|database is locked|unable to open database file)/iu.test(
+      /(No visible template matched|Explicit company context is required|no such table|database is locked|unable to open database file|A governed execution binding is missing\.)/iu.test(
         outcome.blockingReason,
       );
     if (environmentBoundPromptPlaneFailure) {
