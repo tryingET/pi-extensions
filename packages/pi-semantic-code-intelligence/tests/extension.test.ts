@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   createSemanticCodeExtension,
   SCI_COMPOSITE_TOOL_NAMES,
 } from "../extensions/semantic-code-intelligence.ts";
-import { assertSciSchemaCompatibility, type SciBridge } from "../src/mcp-bridge.ts";
+import { assertSciSchemaCompatibility, type SciBridge, SciMcpBridge } from "../src/mcp-bridge.ts";
 import { SCI_COMPOSITE_TOOL_SPECS } from "../src/tool-definitions.ts";
 import { registerToolboxBundle } from "../src/toolboxBundle.ts";
 
@@ -87,6 +90,15 @@ function fakeBridge() {
   };
 }
 
+async function exists(target: string): Promise<boolean> {
+  try {
+    await access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 test("registers the six composite workflows as native Pi tools with preferred routing", () => {
   const fake = fakeBridge();
   const harness = createHarness(fake.bridge);
@@ -99,6 +111,49 @@ test("registers the six composite workflows as native Pi tools with preferred ro
     assert.ok(tool.parameters);
     assert.ok(tool.promptGuidelines.some((entry: string) => entry.includes(name)));
   }
+});
+
+test("registering and startup-selecting SCI reads does not spawn MCP before execution", async (t) => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-sci-lazy-startup-"));
+  t.after(async () => {
+    await rm(tempRoot, { recursive: true, force: true });
+  });
+  const workspace = path.join(tempRoot, "workspace");
+  const marker = path.join(tempRoot, "spawned.marker");
+  const command = path.join(tempRoot, "semantic-code-mcp-sentinel");
+  const runtimeDir = path.join(workspace, ".ontology", "pi-mcp");
+  await mkdir(workspace);
+  await writeFile(command, '#!/bin/sh\nprintf "spawned" > "$SCI_SENTINEL_MARKER"\nexit 1\n', {
+    mode: 0o700,
+  });
+
+  const bridge = new SciMcpBridge({
+    command,
+    environment: { SCI_SENTINEL_MARKER: marker },
+  });
+  const harness = createHarness(bridge);
+  const startupSelectedReads = ["explore_symbol_impact", "locate_confirm_definition"] as const;
+  for (const name of startupSelectedReads) assert.ok(harness.tools.get(name));
+
+  assert.equal(await exists(marker), false);
+  assert.equal(await exists(runtimeDir), false);
+
+  const tool = harness.tools.get("explore_symbol_impact");
+  assert.ok(tool);
+  await assert.rejects(
+    tool.execute(
+      "call-lazy-startup",
+      { symbol: "ToolWorkflowRouter" },
+      new AbortController().signal,
+      undefined,
+      { cwd: workspace },
+    ),
+    /Could not start installed semantic-code-mcp/,
+  );
+
+  assert.equal(await exists(marker), true);
+  assert.equal(await exists(runtimeDir), true);
+  await bridge.close();
 });
 
 test("native tool execution delegates one composite MCP call and records utilization evidence", async () => {

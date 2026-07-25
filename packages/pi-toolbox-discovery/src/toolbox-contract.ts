@@ -95,6 +95,8 @@ export const ALWAYS_ACTIVE_TOOLS = [
   "visible_loop_child_complete",
   "context_plan",
   "loop_execute",
+  "explore_symbol_impact",
+  "locate_confirm_definition",
   "toolbox",
 ];
 

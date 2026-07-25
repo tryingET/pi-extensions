@@ -27,6 +27,8 @@ const ALWAYS_ACTIVE_TOOLS = [
   "visible_loop_child_complete",
   "context_plan",
   "loop_execute",
+  "explore_symbol_impact",
+  "locate_confirm_definition",
   "toolbox",
 ];
 
@@ -150,6 +152,41 @@ test("session start enforces standard active profile", async () => {
   await harness.runEvent("session_start");
   assert.deepEqual(harness.activeTools, ALWAYS_ACTIVE_TOOLS);
 });
+
+test("session start activates registered SCI reads while keeping check workflows latent", async () => {
+  const harness = createHarness();
+  harness.setActiveTools(["read", "safe_write"]);
+
+  await harness.runEvent("session_start");
+
+  assert.equal(harness.activeTools.includes("explore_symbol_impact"), true);
+  assert.equal(harness.activeTools.includes("locate_confirm_definition"), true);
+  for (const tool of [
+    "patch_checks_in_snapshot",
+    "structural_patch_checks",
+    "rename_safely",
+    "safe_write",
+  ]) {
+    assert.equal(harness.activeTools.includes(tool), false);
+  }
+});
+
+for (const missingReads of [
+  ["explore_symbol_impact"],
+  ["explore_symbol_impact", "locate_confirm_definition"],
+]) {
+  test(`session start omits unregistered SCI reads: ${missingReads.join(", ")}`, async () => {
+    const harness = createHarness({ omitRegisteredTools: missingReads });
+
+    await harness.runEvent("session_start");
+
+    for (const tool of missingReads) assert.equal(harness.activeTools.includes(tool), false);
+    assert.deepEqual(
+      harness.activeTools,
+      ALWAYS_ACTIVE_TOOLS.filter((tool) => !missingReads.includes(tool)),
+    );
+  });
+}
 
 test("recommend suggests matching bundles without changing active tools", async () => {
   const harness = createHarness();
@@ -687,10 +724,9 @@ test("catalog routes composite-first SCI read and risk-gated snapshot profiles",
     bundle: "sci",
     profile: "read",
   });
-  assert.deepEqual(activated.details.activatedNewTools, [
-    "explore_symbol_impact",
-    "locate_confirm_definition",
-  ]);
+  assert.deepEqual(activated.details.activatedNewTools, []);
+  assert.equal(activated.details.continuation.queued, false);
+  assert.equal(activated.details.continuation.reason, "active-set-unchanged");
 
   const refused = await executeToolbox(harness.tools.get("toolbox"), {
     action: "activate",
