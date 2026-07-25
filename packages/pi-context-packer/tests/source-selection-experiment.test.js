@@ -210,6 +210,15 @@ test("rejects mixed source artifacts, stale question identity, case metadata, an
   );
 });
 
+test("rejects every declared repository without a complete question cohort", () => {
+  const experiment = makeExperiment();
+  experiment.repositories.push(makeRepository("unused"));
+  assert.throws(
+    () => evaluateSourceSelectionExperiment(experiment),
+    /unused: eligibility requires at least 10 cases with distinct intents and truth targets/,
+  );
+});
+
 test("reports true all-four populations, per-repo math, and equal-repository macro", () => {
   const repositoryA = makeRepository("repo-a");
   const repositoryB = makeRepository("repo-b");
