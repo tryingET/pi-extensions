@@ -81,6 +81,51 @@ export const CATALOG: ToolboxBundle[] = [
     ],
   },
   {
+    id: "sci",
+    title: "Semantic Code Intelligence composite tools",
+    description:
+      "Composite-first code impact, definition, rename, structural patch, and snapshot preview/check workflows through SCI MCP stdio.",
+    ownerPackage: "packages/pi-semantic-code-intelligence",
+    ownerSemantics:
+      "pi-semantic-code-intelligence owns Pi tool registration and MCP stdio bridging; semantic-code-intelligence owns workflow behavior and code-analysis contracts; toolbox only discovers and risk-gates the already-registered native tools.",
+    keywords: [
+      "semantic code intelligence",
+      "sci",
+      "code impact",
+      "definition",
+      "rename",
+      "safe write",
+      "patch checks",
+      "structural patch",
+      "unfamiliar code",
+    ],
+    profiles: [
+      {
+        id: "read",
+        description:
+          "Read-only composite discovery for unfamiliar symbols, impact analysis, and confirmed definitions.",
+        tools: ["explore_symbol_impact", "locate_confirm_definition"],
+        risk: "read",
+        defaultTtlTurns: 6,
+        requiresExplicitUserIntent: false,
+      },
+      {
+        id: "mutating",
+        description:
+          "Preview-only snapshot/check workflows that may execute caller-selected local commands; require explicit operator intent even though the Pi schemas omit apply.",
+        tools: [
+          "patch_checks_in_snapshot",
+          "structural_patch_checks",
+          "rename_safely",
+          "safe_write",
+        ],
+        risk: "mutating",
+        defaultTtlTurns: 4,
+        requiresExplicitUserIntent: true,
+      },
+    ],
+  },
+  {
     id: "ontology",
     title: "Ontology workflow tools",
     description: "ROCS-backed ontology inspect, proposal, and governed change workflows.",

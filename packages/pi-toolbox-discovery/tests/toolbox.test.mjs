@@ -656,6 +656,50 @@ test("catalog includes context-packer read profile", async () => {
   assert.equal(harness.activeTools.includes("context_dogfood_summarize"), true);
 });
 
+test("catalog routes composite-first SCI read and risk-gated snapshot profiles", async () => {
+  const sci = CATALOG.find((bundle) => bundle.id === "sci");
+  const read = sci?.profiles.find((profile) => profile.id === "read");
+  const mutating = sci?.profiles.find((profile) => profile.id === "mutating");
+  assert.ok(read);
+  assert.ok(mutating);
+  assert.deepEqual(read.tools, ["explore_symbol_impact", "locate_confirm_definition"]);
+  assert.equal(read.risk, "read");
+  assert.equal(read.requiresExplicitUserIntent, false);
+  assert.deepEqual(mutating.tools, [
+    "patch_checks_in_snapshot",
+    "structural_patch_checks",
+    "rename_safely",
+    "safe_write",
+  ]);
+  assert.equal(mutating.risk, "mutating");
+  assert.equal(mutating.requiresExplicitUserIntent, true);
+
+  const harness = createHarness();
+  const recommendation = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "recommend",
+    query: "understand impact of an unfamiliar code symbol",
+  });
+  assert.equal(recommendation.details.recommendations[0].bundle, "sci");
+  assert.equal(recommendation.details.recommendations[0].profile, "read");
+
+  const activated = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    bundle: "sci",
+    profile: "read",
+  });
+  assert.deepEqual(activated.details.activatedNewTools, [
+    "explore_symbol_impact",
+    "locate_confirm_definition",
+  ]);
+
+  const refused = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    bundle: "sci",
+    profile: "mutating",
+  });
+  assert.match(refused.content[0].text, /Refusing to activate sci\/mutating/);
+});
+
 test("catalog includes agent_vent as diagnostic companion to ASC", async () => {
   const agentVent = CATALOG.find((bundle) => bundle.id === "agent_vent");
   const profile = agentVent?.profiles.find((entry) => entry.id === "default");

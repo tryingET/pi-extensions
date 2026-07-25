@@ -61,6 +61,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-prompt-template-execution` | yes | own prompt-template execution semantics | live successor for external `pi-prompt-template-model`; owns `/commit` extension execution semantics through a minimal guarded entrypoint, with no prompt bundle and no loop/chain/subagent runtime |
 | `pi-session-compaction` | yes | own custom compaction summaries | live local `session_before_compact` owner after guarded cutover; handler and fail-closed registration guard are tested, branch augmentation helpers remain non-live |
 | `pi-toolbox-discovery` | yes | discover and activate custom-tool bundles on demand | keeps `self`, `interview`, and `toolbox` small/active while heavy package tools stay latent |
+| `pi-semantic-code-intelligence` | with installed SCI | expose SCI composites as native Pi tools | long-lived MCP stdio bridge; composite-first; preview/check tools remain risk-gated |
 | `pi-evidence-review` | yes | validate and inertly display normalized SCI evidence review v1 | read-only TUI; one explicit workspace JSON file; no normalization, effects, links, or decisions |
 | `pi-interaction/pi-interaction` | yes | shared interaction features | host-facing interaction layer |
 | `pi-interaction/pi-editor-registry` | yes | provide editor integration seams | lower-level building block |
