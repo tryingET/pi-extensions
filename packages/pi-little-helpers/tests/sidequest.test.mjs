@@ -375,6 +375,86 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
 });
 
+test("sidequest targets the controller Ghostty process instead of the sidequest broker", async () => {
+  const execStub = createExecStub(({ command, args }) => {
+    if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
+    }
+    if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
+      return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
+    }
+    if (command === "busctl" && args[1] === "list") {
+      return {
+        code: 0,
+        stdout:
+          ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
+          "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
+      };
+    }
+    if (command === "busctl" && args[1] === "call") {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected launch call: ${command} ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_SURFACE_ID: "0x1234",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
+    currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+    exec: execStub.exec,
+    pathExists(path) {
+      return isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const sidequest = commands.get("sidequest");
+  const harness = createContext();
+
+  await sidequest.handler("stay with the controller", harness.ctx);
+
+  const activation = execStub.calls.find(
+    ({ command, args }) => command === "busctl" && args[1] === "call",
+  );
+  assert.ok(activation);
+  assert.deepEqual(activation.args.slice(0, 12), [
+    "--user",
+    "call",
+    ":1.42",
+    "/com/tryinget/ghosttysidequest",
+    "org.gtk.Actions",
+    "Activate",
+    "sava{sv}",
+    "new-tab",
+    "1",
+    "(tas)",
+    "4660",
+    activation.args[11],
+  ]);
+  assert.deepEqual(extractPiArgs(activation.args), [
+    "pi",
+    "--fork",
+    "/sessions/main.jsonl",
+    "--model",
+    "openai/gpt-4o",
+    "--thinking",
+    "medium",
+    "stay with the controller",
+    "0",
+  ]);
+  assert.ok(
+    !execStub.calls.some(
+      ({ command, args }) => isLocalGhosttyWrapper(command) && args[0] === "+new-tab",
+    ),
+  );
+  assert.match(harness.notifications[0].message, /current Ghostty tab/);
+  assert.match(harness.notifications[0].message, /targeted controller Ghostty process 111/);
+});
+
 test("sidequest reports a post-launch Ghostty window placement mismatch", async () => {
   const presenceDir = mkdtempSync(`${tmpdir()}/sidequest-placement-`);
 
