@@ -68,6 +68,7 @@ export type CandidateCleanupAuthorization = {
   expectedGitCommonDir: string;
   branchName: string;
   branchOid: string;
+  reissuedFromAuthorizationDigest?: string;
   effects: CandidateCleanupEffect[];
   authorizationDigest: string;
 };
@@ -815,6 +816,151 @@ function branchOid(repoRoot: string, branchName: string): string | undefined {
 function candidateGitCommonDir(worktreePath: string): string {
   const raw = String(run("git", ["-C", worktreePath, "rev-parse", "--git-common-dir"])).trim();
   return realpathSync(resolve(worktreePath, raw));
+}
+
+export function reissueExpiredCandidateCleanupAuthorization({
+  record,
+  expectedVersion,
+  actor,
+  expiresAt,
+  env = process.env,
+}: {
+  record: CandidateLifecycleRecord;
+  expectedVersion: number;
+  actor: string;
+  expiresAt: string;
+  env?: NodeJS.ProcessEnv;
+}): CandidateLifecycleRecord {
+  assertCandidateResourceId(record.resourceId);
+  assertCandidateGenerationId(record.generationId);
+  return withResourceLock(record.resourceId, "cleanup_authorization_reissue", env, () => {
+    const current = readLifecycleRecord(record.resourceId, env);
+    if (
+      current.resourceVersion !== expectedVersion ||
+      digestObject(current) !== digestObject(record)
+    ) {
+      throw new Error("cleanup reissue supplied record or expectedVersion is stale");
+    }
+    if (current.state !== "cleanup_authorized")
+      throw new Error("cleanup authorization reissue requires cleanup_authorized state");
+    if (!actor.trim()) throw new Error("cleanup authorization reissue requires an actor");
+    const issuedAt = new Date().toISOString();
+    const issuedAtMs = canonicalTimestamp(issuedAt, "cleanup authorization reissue time");
+    const expiryMs = canonicalTimestamp(expiresAt, "reissued cleanup authorization expiry");
+    if (expiryMs <= issuedAtMs)
+      throw new Error("reissued cleanup authorization expiry must be in the future");
+    if (expiryMs - issuedAtMs > 30 * 60 * 1000)
+      throw new Error("reissued cleanup authorization expiry exceeds the 30 minute bound");
+
+    const prior = current.cleanupAuthorization as CandidateCleanupAuthorization | undefined;
+    if (!prior) throw new Error("cleanup authorization reissue requires a prior authorization");
+    const priorUnsigned = Object.fromEntries(
+      Object.entries(prior).filter(([key]) => key !== "authorizationDigest"),
+    );
+    if (prior.authorizationDigest !== digestObject(priorUnsigned))
+      throw new Error("expired cleanup authorization digest mismatch");
+    exactCleanupEffects(prior.effects);
+    if (
+      prior.resourceId !== current.resourceId ||
+      prior.generationId !== current.generationId ||
+      prior.authorizedResourceVersion !== current.resourceVersion ||
+      stableJson(prior.aliases) !== stableJson([...current.aliases].sort())
+    ) {
+      throw new Error("expired cleanup authorization identity or lineage mismatch");
+    }
+    if (canonicalTimestamp(prior.expiresAt, "expired cleanup authorization expiry") > issuedAtMs)
+      throw new Error("cleanup authorization cannot be reissued before expiry");
+    if (
+      !current.reviewSnapshot ||
+      !current.archive ||
+      current.disposition?.disposition !== "accepted" ||
+      !current.integrationProof
+    ) {
+      throw new Error("cleanup authorization reissue bindings are incomplete");
+    }
+    if (current.terminalReceipt)
+      throw new Error("cleanup authorization cannot be reissued after any terminal effect receipt");
+    if (
+      prior.reviewSnapshotDigest !== current.reviewSnapshot.snapshotDigest ||
+      prior.dispositionDigest !== current.disposition.receiptDigest ||
+      prior.integrationProofDigest !== current.integrationProof.proofDigest ||
+      prior.targetOid !== current.integrationProof.targetOid ||
+      prior.archiveDigest !== current.archive.archiveDigest ||
+      prior.expectedWorktreeRealPath !== current.reviewSnapshot.worktreeRealPath ||
+      prior.expectedGitCommonDir !== current.reviewSnapshot.gitCommonDir ||
+      prior.branchName !== current.reviewSnapshot.branchName ||
+      prior.branchOid !== current.reviewSnapshot.headOid
+    ) {
+      throw new Error("cleanup authorization reissue binding mismatch");
+    }
+    assertIntegrationProofCoversDisposition(
+      current.disposition,
+      current.reviewSnapshot,
+      current.integrationProof,
+    );
+    verifyPublishedArchive(current);
+    const eventScan = readCleanupEvents(current.resourceId, env);
+    if (eventScan.events.length > 0)
+      throw new Error("cleanup authorization cannot be reissued after cleanup effect activity");
+    if (!existsSync(current.worktreePath))
+      throw new Error("cleanup authorization reissue requires the exact candidate worktree");
+    if (realpathSync(current.worktreePath) !== prior.expectedWorktreeRealPath)
+      throw new Error("candidate worktree realpath drifted before cleanup authorization reissue");
+    if (candidateGitCommonDir(current.worktreePath) !== prior.expectedGitCommonDir)
+      throw new Error(
+        "candidate Git common directory drifted before cleanup authorization reissue",
+      );
+    const repoRoot = current.repoRoots[0];
+    if (!repoRoot) throw new Error("cleanup authorization reissue owner repo root is missing");
+    const currentBranchOid = branchOid(repoRoot, prior.branchName);
+    if (!currentBranchOid || currentBranchOid !== prior.branchOid)
+      throw new Error("candidate branch identity drifted before cleanup authorization reissue");
+    const currentSnapshot = captureCandidateReviewSnapshot(current);
+    if (
+      currentSnapshot.contentDigest !== current.reviewSnapshot.contentDigest ||
+      currentSnapshot.headOid !== prior.branchOid ||
+      currentSnapshot.branchName !== prior.branchName ||
+      currentSnapshot.worktreeRealPath !== prior.expectedWorktreeRealPath ||
+      currentSnapshot.gitCommonDir !== prior.expectedGitCommonDir
+    ) {
+      throw new Error("candidate drifted before cleanup authorization reissue");
+    }
+    const pids = activeProcessPids(prior.expectedWorktreeRealPath);
+    if (pids.length > 0) throw new Error(`candidate has active process leases: ${pids.join(",")}`);
+    if (expiryMs <= Date.now())
+      throw new Error("reissued cleanup authorization expired during validation");
+
+    const unsigned = {
+      schemaVersion: 2 as const,
+      resourceId: current.resourceId,
+      generationId: current.generationId,
+      authorizedResourceVersion: expectedVersion + 1,
+      aliases: [...current.aliases].sort(),
+      actor: actor.trim(),
+      issuedAt,
+      expiresAt,
+      nonce: randomUUID(),
+      dispositionDigest: current.disposition.receiptDigest,
+      reviewSnapshotDigest: current.reviewSnapshot.snapshotDigest,
+      integrationProofDigest: current.integrationProof.proofDigest,
+      targetOid: current.integrationProof.targetOid,
+      archiveDigest: current.archive.archiveDigest,
+      expectedWorktreeRealPath: prior.expectedWorktreeRealPath,
+      expectedGitCommonDir: prior.expectedGitCommonDir,
+      branchName: prior.branchName,
+      branchOid: prior.branchOid,
+      reissuedFromAuthorizationDigest: prior.authorizationDigest,
+      effects: exactCleanupEffects(prior.effects),
+    };
+    const authorization: CandidateCleanupAuthorization = {
+      ...unsigned,
+      authorizationDigest: digestObject(unsigned),
+    };
+    const next = structuredClone(current);
+    next.resourceVersion = current.resourceVersion + 1;
+    next.cleanupAuthorization = authorization;
+    return writeLockedLifecycleRecord(current, next, "cleanup_authorization_reissued", env);
+  });
 }
 
 function cleanupObservations(

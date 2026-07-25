@@ -19,6 +19,7 @@ import {
   authorizeCandidateCleanup,
   createRestorationVerifiedArchive,
   executeAuthorizedCandidateCleanup,
+  reissueExpiredCandidateCleanupAuthorization,
   verifyCleanedCandidateTerminalRecord,
 } from "../src/candidatePeerLifecycleArchive.ts";
 import {
@@ -35,6 +36,7 @@ import {
   reconcileMissingResource,
   updateLifecycleRecord,
   verifyAdditiveContentCoverageProof,
+  verifyCommitInclusionProof,
   verifyPatchEquivalenceProof,
   withResourceLock,
 } from "../src/candidatePeerLifecycleV2.ts";
@@ -774,6 +776,128 @@ test("v2 cleanup skips a large irrelevant review event and preserves exact recov
       () => verifyCleanedCandidateTerminalRecord(cleaned, env),
       /relevant cleanup lifecycle event exceeds bounded read limit/,
     );
+  });
+});
+
+test("expired cleanup authorization reissues only from zero-effect accepted state", async () => {
+  await withTempDir((root) => {
+    const env = { XDG_STATE_HOME: `${root}/state` };
+    const registryDir = `${root}/state/pi-quests/peer-registry`;
+    const { repoRoot, worktreePath } = setupLinkedWorktree(root);
+    writeRegistry(
+      registryDir,
+      registryRecord({ peerRunId: "candidatepeer-reissue", repoRoot, worktreePath }),
+    );
+    let record = migrateCandidateInventory(
+      inventoryCandidatePeerResources({ registryDir }),
+      env,
+    )[0];
+    const snapshot = captureCandidateReviewSnapshot(record);
+    record = updateLifecycleRecord({
+      resourceId: record.resourceId,
+      expectedVersion: record.resourceVersion,
+      event: "review_captured",
+      env,
+      mutate(current) {
+        current.reviewSnapshot = snapshot;
+        current.state = "review_pending";
+        return current;
+      },
+    });
+    const headOid = git(worktreePath, "rev-parse", "HEAD");
+    const disposition = createDispositionReceipt({
+      disposition: "accepted",
+      actor: "owner:test",
+      rationale: "accepted reissue fixture",
+      issuedAt: new Date().toISOString(),
+      reviewSnapshotDigest: snapshot.snapshotDigest,
+      selectedCommits: [headOid],
+      validationRefs: ["test fixture"],
+    });
+    record = updateLifecycleRecord({
+      resourceId: record.resourceId,
+      expectedVersion: record.resourceVersion,
+      event: "disposition_accepted",
+      env,
+      mutate(current) {
+        current.disposition = disposition;
+        current.state = "accepted";
+        return current;
+      },
+    });
+    const integrationProof = verifyCommitInclusionProof({
+      actor: "owner:test",
+      issuedAt: new Date().toISOString(),
+      candidateRepoRoot: worktreePath,
+      candidateHeadOid: headOid,
+      targetRepoRoot: repoRoot,
+      targetOid: headOid,
+      selectedCommits: [headOid],
+      validationRefs: ["test fixture"],
+    });
+    record = updateLifecycleRecord({
+      resourceId: record.resourceId,
+      expectedVersion: record.resourceVersion,
+      event: "integration_verified",
+      env,
+      mutate(current) {
+        current.integrationProof = integrationProof;
+        current.state = "integration_verified";
+        return current;
+      },
+    });
+    record = createRestorationVerifiedArchive({
+      record,
+      expectedVersion: record.resourceVersion,
+      env,
+    }).record;
+    record = authorizeCandidateCleanup({
+      record,
+      expectedVersion: record.resourceVersion,
+      actor: "owner:test",
+      expiresAt: new Date(Date.now() + 200).toISOString(),
+      effects: ["remove_worktree", "delete_branch"],
+      env,
+    });
+    const priorDigest = record.cleanupAuthorization.authorizationDigest;
+    assert.throws(
+      () =>
+        reissueExpiredCandidateCleanupAuthorization({
+          record,
+          expectedVersion: record.resourceVersion,
+          actor: "owner:test",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          env,
+        }),
+      /cannot be reissued before expiry/,
+    );
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+    const priorVersion = record.resourceVersion;
+    record = reissueExpiredCandidateCleanupAuthorization({
+      record,
+      expectedVersion: record.resourceVersion,
+      actor: "owner:test",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      env,
+    });
+    assert.equal(record.resourceVersion, priorVersion + 1);
+    assert.equal(record.state, "cleanup_authorized");
+    assert.equal(record.cleanupAuthorization.reissuedFromAuthorizationDigest, priorDigest);
+    assert.notEqual(record.cleanupAuthorization.authorizationDigest, priorDigest);
+    const events = readFileSync(
+      `${getCandidateLifecycleRoot(env)}/resources/${record.resourceId}/events.jsonl`,
+      "utf8",
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(events.at(-1).event, "cleanup_authorization_reissued");
+    assert.equal(
+      events.at(-1).record.cleanupAuthorization.reissuedFromAuthorizationDigest,
+      priorDigest,
+    );
+    const cleaned = executeAuthorizedCandidateCleanup({ resourceId: record.resourceId, env });
+    assert.equal(verifyCleanedCandidateTerminalRecord(cleaned, env), digestObject(cleaned));
   });
 });
 

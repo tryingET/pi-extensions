@@ -5,6 +5,7 @@ import {
   authorizeCandidateCleanup,
   createRestorationVerifiedArchive,
   executeAuthorizedCandidateCleanup,
+  reissueExpiredCandidateCleanupAuthorization,
 } from "../src/candidatePeerLifecycleArchive.ts";
 import {
   adoptExistingCandidateWorktree,
@@ -45,6 +46,7 @@ commands:
   integration --resource ID --input PATH
   archive --resource ID
   authorize --resource ID --input PATH
+  reissue-authorization --resource ID --input PATH
   cleanup --resource ID
   reconcile-missing --resource ID --input PATH
   reconcile-owner-root --resource ID --owner-root PATH --input PATH
@@ -262,6 +264,19 @@ if (command === "adopt") {
       actor: input.actor,
       expiresAt: input.expiresAt,
       effects: input.effects,
+      env,
+    }),
+  );
+} else if (command === "reissue-authorization") {
+  const resourceId = required(options, "resource");
+  const current = readLifecycleRecord(resourceId, env);
+  const input = inputJson(options);
+  output(
+    reissueExpiredCandidateCleanupAuthorization({
+      record: current,
+      expectedVersion: current.resourceVersion,
+      actor: input.actor,
+      expiresAt: input.expiresAt,
       env,
     }),
   );
