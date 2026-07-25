@@ -67,6 +67,13 @@ system4d:
   - `scripts/engineering-review-surfaces.mjs`
 - keep this surface repo-specific; these prompts encode monorepo workflow + routing, while installable package prompts belong in package-local `prompts/` directories exposed via `package.json#pi.prompts`
 
+### Package-selection routing registry
+- `packages/pi-context-packer`
+  - route `context_plan`, `context_pack`, context-window packet assembly, source-selection ablation, and source-list/SCI adoption evaluation here;
+  - package owner: read-only provider planning, bounded packet assembly, consumer-side ranking/fusion, measurement, and adoption evidence;
+  - read first: `packages/pi-context-packer/README.md` and `packages/pi-context-packer/docs/project/product-posture.md`;
+  - boundary: Agent Scripts owns factual docs/source inventory, SCI owns structural evidence, and AK/FCOS retain canonical authority; the monorepo root owns routing and shared validation only.
+
 ### Review / governance feedback
 - `.github/pull_request_template.md`
 - `.github/CODEOWNERS`
@@ -138,6 +145,7 @@ Use package/group roots for:
 - package-specific docs and stack deviations
 - package-owned local diagnostic surfaces, such as `packages/pi-agent-vent` for agent frustration/recurrence capture
 - package-owned bounded consumer surfaces, such as `packages/pi-evidence-review` for schema/semantic validation and inert TUI rendering of normalized SCI evidence review v1 files; the root owns only its shared validation/release routing
+- package-owned context advisory surfaces, such as `packages/pi-context-packer` for read-only provider planning, bounded packet assembly, and consumer-side selection experiments; the root does not own provider semantics or adoption decisions
 - canonicalized legacy runtime ownership, such as `packages/pi-evalset-lab` for `/evalset` datasets, compare runs, and report export
 
 ## Deletion rule for legacy standalone repos
