@@ -268,18 +268,18 @@ export function registerVaultCommands(
   pi.on("input", async (event, ctx) => {
     // Extension-originated governed commands pass through the same final guard.
     const text = event.text.trim();
-    const schemaReport = runtime.checkSchemaCompatibilityDetailed();
-    const schemaMismatchMessage = schemaReport.ok ? "" : formatSchemaMismatchMessage(runtime);
-
-    if (
-      !schemaReport.ok &&
-      /^\/(vault(?::|\s|$)|vault-search\b|route\b|next-10-expert-suggestions\b)/.test(text)
-    ) {
-      if (ctx.hasUI) {
-        ctx.ui.notify(schemaMismatchMessage, "warning");
-        return { action: "handled" };
+    const isVaultInput =
+      /^\/(vault(?::|\s|$)|vault-search\b|route\b|next-10-expert-suggestions\b)/.test(text);
+    if (isVaultInput) {
+      const schemaReport = runtime.checkSchemaCompatibilityDetailed();
+      if (!schemaReport.ok) {
+        const schemaMismatchMessage = formatSchemaMismatchMessage(runtime);
+        if (ctx.hasUI) {
+          ctx.ui.notify(schemaMismatchMessage, "warning");
+          return { action: "handled" };
+        }
+        return { action: "transform", text: schemaMismatchMessage };
       }
-      return { action: "transform", text: schemaMismatchMessage };
     }
 
     if (text.startsWith("/next-10-expert-suggestions")) {
@@ -961,41 +961,6 @@ export function registerVaultCommands(
       },
     });
   }
-
-  pi.on("session_start", async (_event, ctx) => {
-    if (!ctx.hasUI) return;
-    const schemaReport = runtime.checkSchemaCompatibilityDetailed();
-    if (!schemaReport.ok) {
-      ctx.ui.notify(formatSchemaMismatchMessage(runtime), "warning");
-      return;
-    }
-    const companyContext = runtime.resolveCurrentCompanyContext(ctx.cwd);
-    if (companyContext.source === "contract-default") {
-      ctx.ui.notify(COMMAND_READ_CONTEXT_ERROR, "warning");
-      return;
-    }
-    const executionContext = {
-      currentCompany: companyContext.company,
-      cwd: ctx.cwd,
-      requireExplicitCompany: true,
-    };
-    const templatesResult = runtime.listTemplatesDetailed(undefined, executionContext, {
-      includeContent: false,
-    });
-    if (!templatesResult.ok) {
-      ctx.ui.notify(`Vault unavailable: ${templatesResult.error}`, "warning");
-      return;
-    }
-    const templates = templatesResult.value;
-    const cognitive = templates.filter((t) => t.artifact_kind === "cognitive").length;
-    const procedure = templates.filter((t) => t.artifact_kind === "procedure").length;
-    const session = templates.filter((t) => t.artifact_kind === "session").length;
-    const currentCompany = companyContext.company;
-    ctx.ui.notify(
-      `Vault (${currentCompany}): ${cognitive} cognitive, ${procedure} procedure, ${session} session templates - /vault loads exact matches or opens picker; live /vault: uses shared interaction runtime`,
-      "info",
-    );
-  });
 
   pi.registerCommand("vault-stats", {
     description: "Show vault execution statistics",

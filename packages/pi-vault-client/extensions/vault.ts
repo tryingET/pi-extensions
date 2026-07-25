@@ -19,10 +19,40 @@ import {
   unregisterVaultCapabilityBridges,
 } from "../src/vaultRuntimeRegistry.js";
 import { registerVaultDiagnosticsTool, registerVaultTools } from "../src/vaultTools.js";
-import { SCHEMA_VERSION, VAULT_DIR, VLLM_ENDPOINT, VLLM_MODEL } from "../src/vaultTypes.js";
+import { VAULT_DIR, VLLM_ENDPOINT, VLLM_MODEL } from "../src/vaultTypes.js";
 
-function formatMissingColumns(label: string, columns: string[]): string {
-  return columns.length > 0 ? `${label} missing [${columns.join(", ")}]` : "";
+type RegisteredTool = Parameters<ExtensionAPI["registerTool"]>[0];
+
+function createSchemaGatedToolApi(
+  pi: ExtensionAPI,
+  runtime: ReturnType<typeof createVaultRuntime>,
+): ExtensionAPI {
+  return {
+    registerTool(tool: RegisteredTool) {
+      const execute = tool.execute;
+      pi.registerTool({
+        ...tool,
+        async execute(...args) {
+          const report = runtime.checkSchemaCompatibilityDetailed();
+          if (!report.ok) {
+            const message = `Vault schema mismatch (expected ${report.expectedVersion}, got ${report.actualVersion ?? "unknown"}). Run vault_schema_diagnostics for details.`;
+            return {
+              content: [{ type: "text", text: message }],
+              details: {
+                ok: false,
+                expectedVersion: report.expectedVersion,
+                actualVersion: report.actualVersion,
+                missingPromptTemplateColumns: report.missingPromptTemplateColumns,
+                missingExecutionColumns: report.missingExecutionColumns,
+                missingFeedbackColumns: report.missingFeedbackColumns,
+              },
+            };
+          }
+          return execute(...args);
+        },
+      });
+    },
+  } as unknown as ExtensionAPI;
 }
 
 export default function registerVaultExtension(pi: ExtensionAPI) {
@@ -39,24 +69,10 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
     ...groundingRuntime,
   };
 
-  const schemaReport = vaultRuntime.checkSchemaCompatibilityDetailed();
-
+  // Keep extension startup registration-only. Schema and vault I/O stay lazy in
+  // command/tool handlers so loading this package never spawns Dolt.
   registerVaultDiagnosticsTool(pi, vaultRuntime);
   registerVaultCommands(pi, runtime, receiptManager, dispatchRuntime);
-
-  if (!schemaReport.ok) {
-    const details = [
-      `expected=${SCHEMA_VERSION}`,
-      `actual=${schemaReport.actualVersion ?? "unknown"}`,
-      formatMissingColumns("prompt_templates", schemaReport.missingPromptTemplateColumns),
-      formatMissingColumns("executions", schemaReport.missingExecutionColumns),
-      formatMissingColumns("feedback", schemaReport.missingFeedbackColumns),
-    ]
-      .filter(Boolean)
-      .join("; ");
-    console.error(`Vault schema version mismatch. ${details}`);
-    return;
-  }
 
   const vaultOps: VaultOps = {
     queryJson: vaultRuntime.queryVaultJson,
@@ -74,7 +90,7 @@ export default function registerVaultExtension(pi: ExtensionAPI) {
   registerPromptEvaluatorTool(pi, evalConfig, vaultOps);
   registerPromptEvaluatorCommands(pi, evalConfig, vaultOps);
   runtime.registerVaultLiveTrigger();
-  registerVaultTools(pi, runtime, receiptManager);
+  registerVaultTools(createSchemaGatedToolApi(pi, vaultRuntime), runtime, receiptManager);
   registerVaultCapabilityBridges({
     receiptManager,
     summarizeTelemetry: pickerRuntime.summarizeLiveTriggerTelemetry,

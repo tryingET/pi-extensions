@@ -23,8 +23,18 @@ function createTemplate(name, description = `${name} template`) {
   };
 }
 
-function createRuntime(templates) {
+function createRuntime(templates, schemaOk = true) {
   return {
+    checkSchemaCompatibilityDetailed() {
+      return {
+        ok: schemaOk,
+        expectedVersion: 9,
+        actualVersion: schemaOk ? 9 : 8,
+        missingPromptTemplateColumns: [],
+        missingExecutionColumns: schemaOk ? [] : ["output_text"],
+        missingFeedbackColumns: [],
+      };
+    },
     resolveCurrentCompanyContext(cwd) {
       return {
         company: "software",
@@ -129,6 +139,51 @@ test("picker telemetry stays instance-local across runtime creation", () => {
     failures: 0,
     eventCount: 1,
   });
+});
+
+test("vault live trigger fails closed on schema mismatch", async () => {
+  resetBroker();
+  const templates = [createTemplate("nexus")];
+  createPickerRuntime(
+    createRuntime(templates, false),
+    undefined,
+    createDispatchRuntime(templates),
+  ).registerVaultLiveTrigger();
+
+  const broker = getBroker();
+  let editorText = "/vault:nex";
+  const notifications = [];
+  broker.setAPI({
+    setText(text) {
+      editorText = text;
+    },
+    insertText() {},
+    notify(message, level) {
+      notifications.push({ message, level });
+    },
+    async select() {
+      throw new Error("schema mismatch must not open the picker");
+    },
+    async confirm() {
+      return false;
+    },
+    async input() {
+      throw new Error("schema mismatch must not prompt for input");
+    },
+    getText() {
+      return editorText;
+    },
+    close() {},
+    ctx: { sessionKey: "vault-schema-mismatch" },
+  });
+
+  assert.equal(
+    await broker.checkAndFire(contextFromText(editorText, "vault-schema-mismatch")),
+    true,
+  );
+  assert.equal(editorText, "/vault:nex");
+  assert.ok(notifications.some((entry) => /schema-mismatch/.test(entry.message)));
+  resetBroker();
 });
 
 test("vault live trigger executes through the shared broker with exact runtime behavior", async () => {
