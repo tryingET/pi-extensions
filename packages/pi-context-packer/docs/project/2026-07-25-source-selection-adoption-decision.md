@@ -1,8 +1,7 @@
 ---
-summary: "Owner decision from the real source-list and SCI source-selection benchmark: refine evidence while rejecting automatic invocation."
+summary: "Historical v2 owner decision: refine evidence while rejecting automatic invocation."
 read_when:
-  - "Deciding whether pi-context-packer should invoke source-list automatically."
-  - "Planning any follow-up source-selection experiment or provider wiring."
+  - "Auditing the v2 source-selection result or the evidence lineage behind the durable acquisition posture."
 type: "reference"
 system4d:
   container: "Owner adoption decision for source-list-assisted context selection."
@@ -49,15 +48,8 @@ The result establishes that authored source metadata can materially improve prec
 
 Only DSPx clears the 20% reduction independently. The pi-extensions control remains metadata-ineligible at 18.33% and demonstrates that eligibility discovery itself has nonzero large-repository cost.
 
-## Allowed next work
+## Historical disposition
 
-A new scoped **non-production experiment** may be proposed only if it:
+This decision's generic REFINE direction was completed by AK-4207 and is no longer an open next step. The durable owner policy is [Source-evidence acquisition posture — 2026-07-26](./2026-07-26-source-evidence-acquisition-posture.md): no automatic `source-list` acquisition, no adoption-driven successor experiment, and separate evaluation of concrete evidence need, acquisition economics, selection-policy value, and operational authorization.
 
-1. uses new preregistered bytes and review before ranking;
-2. does not edit metadata or ranking against this visible result to manufacture a pass;
-3. targets the identified unnecessary-selection and eligibility/cost failure modes;
-4. preserves at least three independent eligible repositories and honest controls;
-5. prices invocation, bytes/tokens, staleness, trust, and maintenance; and
-6. records a new explicit decision.
-
-Manual or caller-requested `source-list` use remains available through Agent Scripts. The current result does not justify an automatic adapter, provider registration, broad metadata campaign, or source-list/SCI semantic expansion.
+Manual or caller-requested `source-list` use remains available by invoking Agent Scripts directly, outside pi-context-packer. Pi-context-packer has no explicit-request invocation exception. This result does not justify an adapter, provider registration, broad metadata campaign, or source-list/SCI semantic expansion.

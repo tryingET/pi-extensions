@@ -1,8 +1,8 @@
 ---
 summary: "Owner decision to reject the v4 positive-evidence treatment after a valid single quality ranking."
 read_when:
-  - "Deciding whether to implement positive-evidence filtering or automatic source-list invocation."
-  - "Planning any successor source-selection experiment after v4."
+  - "Auditing why positive-evidence filtering and automatic source-list invocation were rejected."
+  - "Reviewing the v4 evidence lineage behind the durable source-evidence acquisition posture."
 type: "reference"
 system4d:
   container: "Owner disposition of the valid single-run v4 quality-only experiment."
@@ -45,7 +45,11 @@ Overall: 8/10 conjunctive gates passed; the quality gate failed.
 
 The treatment was designed to remove zero-evidence backfill. It did not activate on the fresh eligible population: every eligible case had at least five positive-evidence candidates for a four-item budget. Consequently, `source_list_positive` selected exactly the same paths as `source_list_full` in all 30 eligible cases, with identical precision, recall, unnecessary selections, and omissions.
 
-This is not evidence that arbitrary threshold tuning should follow. V4 outcomes are now visible. Any revised threshold, adaptive budget, confidence rule, or abstention policy requires a new experiment identity, a leakage-safe hypothesis not chosen to fit v4 case outcomes, fresh review, and explicit authority.
+This is not evidence that arbitrary threshold tuning should follow. V4 outcomes are now visible. Threshold 1 is retired as a pi-context-packer policy candidate because it supplied no incremental behavior in the valid test; that does not prove it is universally inert outside the tested population.
+
+## Durable disposition
+
+There is no standing successor experiment. [Source-evidence acquisition posture — 2026-07-26](./2026-07-26-source-evidence-acquisition-posture.md) supersedes the provider-adoption/refinement frame: begin with a concrete unmet evidence need, then evaluate acquisition economics and selection-policy value separately. Any new risky experiment requires independent justification and authority; this decision does not create it.
 
 ## Non-authorizations
 
@@ -60,4 +64,4 @@ This decision does not authorize:
 - selecting a new threshold from v4 per-case score or ranking outcomes; or
 - creating a successor task without a separately justified, preregistered hypothesis.
 
-Manual or caller-requested use of the existing deterministic `source-list.v1` inventory remains unchanged.
+Manual or caller-requested use of the deterministic `source-list.v1` inventory remains available directly through Agent Scripts, outside pi-context-packer; it creates no pi-context-packer invocation exception.
