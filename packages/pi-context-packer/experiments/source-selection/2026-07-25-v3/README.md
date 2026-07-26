@@ -14,7 +14,15 @@ system4d:
 
 ## Current state
 
-**Source-list observations and metadata-staleness reviews are complete; SCI/prepared-input construction is next and ranking remains forbidden. No ranking, result, or adoption decision exists.**
+**Prepared bytes are frozen and awaiting independent pre-run review; ranking remains forbidden. No ranking, result, or adoption decision exists.**
+
+Prepared evidence:
+
+- 50/50 complete SCI receipts with trace and cleanup evidence;
+- prepared gzip SHA-256 `29cb2b91f398e935baf3ab092d836b249859208723548d7746ae043e9fa9531b`;
+- uncompressed input SHA-256 `cb5e2a8f4c6799c07ff2ff988ab03c58e4b7bbcb2c878dd6313a5ffaefa6a94f`;
+- trace bundle SHA-256 `48270861e414bb2f92fc9963e4dc87dad7c7d44919473708fd25740d363639a8`; and
+- `SHA256SUMS.pre-review` binds the 31-file review surface.
 
 The v2 owner decision was **REFINE**, with automatic `source-list` invocation and production wiring still **REJECTED**. V3 is a fresh non-production experiment under AK task `4207`; it does not rerun or overwrite v2.
 
@@ -83,10 +91,10 @@ No metadata changes or cohort replacement are allowed after case authoring.
 3. Author 50 fresh cases with no v2 per-case ranking leakage — complete.
 4. Independent reviewers accept questions and truth before preparation — complete; see `pre-ranking-review.md`.
 5. Collect exact full/probe observations and independent metadata-staleness review — complete; cost gate not demonstrated.
-6. **Now:** collect SCI receipts/trace evidence and build prepared bytes without retaining or printing rankings.
-7. Commit strict pre-run hashes while the result path is absent.
-8. Independent pre-run review accepts integrity, population, and the disclosed discarded collector attempt.
-9. Execute exactly once through the explicit ranking gate.
+6. Collect 50 SCI receipts/trace evidence and build prepared bytes without ranking — complete.
+7. Commit strict pre-review hashes while the result path is absent — **now**.
+8. Independent pre-run review must accept integrity, population, and the disclosed discarded collector attempt.
+9. Freeze final `SHA256SUMS`, resume independent verification, then execute exactly once through the explicit ranking gate.
 10. Independently review arithmetic and record `ADOPT`, `REFINE`, or `REJECT`.
 
 ## Non-authorizations

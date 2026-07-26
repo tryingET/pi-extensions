@@ -1,0 +1,4900 @@
+{
+  "schema": "pi-context-packer.source_selection_preparation_summary.v3",
+  "protocol": "pi-context-packer-source-selection-refinement/v3",
+  "status": "prepared-awaiting-independent-pre-run-review",
+  "repositories": 5,
+  "cases": 50,
+  "preregistration": {
+    "relativePath": "../../../docs/project/2026-07-25-source-selection-refinement-preregistration.md",
+    "rawSha256": "sha256:77d120a1b8785d879e9518ab72b4e5289e6de1510b9f9a2fd59c70a561cf01ac"
+  },
+  "canonicalCaseSource": {
+    "relativePath": "canonical-case-source.generated.json",
+    "rawSha256": "sha256:d2a19efd67058d54d250371860a2ec08af07eebc744a393dff00600b9f6cd6e5"
+  },
+  "retainedCostStudy": {
+    "path": "source-list-cost-observations.generated.json",
+    "rawSha256": "sha256:641d954542e562681a57dc3ba2675c9dfc0daba475473cd8220b56ab0755766a",
+    "gates": {
+      "zeroFalseDecisions": true,
+      "allDeclaredRepositoriesConclusive": false,
+      "ineligibleControlReductionAtLeast20Percent": false,
+      "eligibleTaxAtMost10Percent": false,
+      "allPairsValid": true
+    },
+    "automaticInvocationEvidence": "not-demonstrated"
+  },
+  "metadataStaleness": {
+    "candidatesSha256": "sha256:4076ec2c1dc1ab970b87e70fef82b8f74cfb3e7a942faa74cda3ca8556ea64c0",
+    "reviewSha256": "sha256:80004ecee88712da9a1eca23ea54db48fb254906e0879c5e5ba1d13c359a1ecd",
+    "reviews": {
+      "agent-scripts": "dispatch-1785037127241",
+      "engineering-core": "dispatch-1785037127242",
+      "dspx": "dispatch-1785037127243",
+      "pi-extensions": "dispatch-1785037127243-1",
+      "agent-kernel": "dispatch-1785037127244"
+    },
+    "stalePaths": []
+  },
+  "discardedCollectorAttempt": {
+    "disclosed": true,
+    "logSha256": "sha256:b214dad773447657f26f527be1bad7535ed622763ffd0e3b3d4cab3ad65b1a12",
+    "admissibilityReviewRequired": true
+  },
+  "preparationImplementation": [
+    {
+      "path": "experiment-config.mjs",
+      "sha256": "sha256:3a82175cdc9fece56868c19e6be59d9c4baa16803e3130368e8a692d473244c2"
+    },
+    {
+      "path": "experiment-process.mjs",
+      "sha256": "sha256:899424483449c70328e12fbbea64ac2540aed9bd1fd42ce035b701b7cfb50459"
+    },
+    {
+      "path": "experiment-cases.mjs",
+      "sha256": "sha256:8f42951f512cfb76a2fe844606f909401a196ef18293d206de4e5e171d22ea78"
+    },
+    {
+      "path": "experiment-runtime.mjs",
+      "sha256": "sha256:4c413243b79ad58de62c7d6130d69f4ab6ed80625e6d4d76c03a9dccae0d17d9"
+    },
+    {
+      "path": "producer-preparation.mjs",
+      "sha256": "sha256:6fc0af3c6113125d7873ac3548f43255b42cc9c5cfdf7970aa54f4268c9333eb"
+    },
+    {
+      "path": "trace-evidence.mjs",
+      "sha256": "sha256:68291e675fe2dab0bf58eba25237c0553520632b96465a5b2f738ef4aa1f4d2d"
+    },
+    {
+      "path": "preparation-artifacts.mjs",
+      "sha256": "sha256:da9c3c1c9a380df178bf19b6daa1fe3bcfba665ba2a02112ed0b7af215e8fdf3"
+    },
+    {
+      "path": "v3-experiment.mjs",
+      "sha256": "sha256:1738dafa830d61950e55acc8cd3a7f2e08d407a6f9e52ab60e4f63a056107ffc"
+    },
+    {
+      "path": "experiment-preparation.mjs",
+      "sha256": "sha256:bbd1613da1d1bebce953c51f2a9e934c543350dd54a63f5e4fa28edc1436b7ac"
+    },
+    {
+      "path": "prepare-and-run.mjs",
+      "sha256": "sha256:185e1e473653e8d9f7d14ef4f13fa1e752979f538c3e5030b91b865a578b1bac"
+    },
+    {
+      "path": "run-ranking.mjs",
+      "sha256": "sha256:51cba9d0f574df5fe81dda8f3ad899c864b57727df47a29468dd1c30998434e7"
+    },
+    {
+      "path": "run-v3-ranking.mjs",
+      "sha256": "sha256:82bb5e991fa4a6fc3eb316913f23f7233b74d76761a259911006a915d56cfa69"
+    },
+    {
+      "path": "freeze-pre-run.mjs",
+      "sha256": "sha256:7d45b2d87d0d69c5fab1074512afc1704b9989055c372d2c1ee0d0af24760539"
+    },
+    {
+      "path": "ranking-treatment.mjs",
+      "sha256": "sha256:0a22a9d0413cb2a248385d4dd43898c10c9fdb9c6b05aefda225b6330f53b427"
+    }
+  ],
+  "sourceList": {
+    "executableSha256": "sha256:bf9234a9f797be23e808ed852a1806aae07078363e669b59d17ba7defd8f0c01",
+    "repositories": [
+      {
+        "id": "agent-scripts",
+        "commit": "36792de9195c86e6e8ae521efb5c952492278088",
+        "candidateCount": 43,
+        "metadataPresentCount": 43,
+        "metadataCoverage": 1,
+        "sourceListEligible": true,
+        "sourceListRawArtifactSha256": "sha256:ffd945069a3f00939127257551cab509bf2cef0c446e492c6b16d097435493f1",
+        "sourceListPreparationObservationDigest": "sha256:3a34b4a0e46465cb46cfc30d7f2ea0bc2ab34187c06b9a2703015ac410f169a9",
+        "stalenessReviewDispatchId": "dispatch-1785037127241",
+        "stalenessSampleCount": 10,
+        "stalePathCount": 0,
+        "caseObservations": [
+          {
+            "id": "as-v3-cli-flag-values",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-docs-text-pagination",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-docs-compact-paths",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-docs-symlink-traversal",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-source-git-protocol",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-ak-manifest-plan",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-provenance-yaml-authoring",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-notes-setup-convergence",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-workspace-notes-discovery",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "as-v3-standalone-notes-push",
+            "indexSha256Before": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "indexSha256After": "sha256:bcbb477124819d98511f7d12b4e27ba6236731d732b21251f8deb38cc5c0ae0b",
+            "producerTempRootRemovedAndAbsent": true
+          }
+        ],
+        "targetCleanAndCommitStable": true
+      },
+      {
+        "id": "engineering-core",
+        "commit": "f084fcc4981339893c302e13c8266313233a0e2b",
+        "candidateCount": 42,
+        "metadataPresentCount": 38,
+        "metadataCoverage": 0.9047619047619048,
+        "sourceListEligible": true,
+        "sourceListRawArtifactSha256": "sha256:077a20eaa453b3330d4428de9f27e3f92df3f71e99472dccb52d76a734ec28fb",
+        "sourceListPreparationObservationDigest": "sha256:45f8ba3d8698c288fc2e950a77947567ecf5f33fc14033a8814010d23b90949f",
+        "stalenessReviewDispatchId": "dispatch-1785037127242",
+        "stalenessSampleCount": 10,
+        "stalePathCount": 0,
+        "caseObservations": [
+          {
+            "id": "engcore-v3-01",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-02",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-03",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-04",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-05",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-06",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-07",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-08",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-09",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "engcore-v3-10",
+            "indexSha256Before": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "indexSha256After": "sha256:051fcdbdb38021491901cb71788d8f82188440621309ae3d1aa403cd2947432e",
+            "producerTempRootRemovedAndAbsent": true
+          }
+        ],
+        "targetCleanAndCommitStable": true
+      },
+      {
+        "id": "dspx",
+        "commit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+        "candidateCount": 559,
+        "metadataPresentCount": 515,
+        "metadataCoverage": 0.9212880143112702,
+        "sourceListEligible": true,
+        "sourceListRawArtifactSha256": "sha256:65bf8d79f73a0d6d9e1a2fc85b857caf1955c570b437dcd6c97023898452693e",
+        "sourceListPreparationObservationDigest": "sha256:3b5a37a47b485c277267217f5ca572b51e39af38b1e05c6bec2de4c2458b1302",
+        "stalenessReviewDispatchId": "dispatch-1785037127243",
+        "stalenessSampleCount": 10,
+        "stalePathCount": 0,
+        "caseObservations": [
+          {
+            "id": "dspx-v3-config-env-transaction",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-cache-confinement",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-group-stratified-splits",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-model-role-routing",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-coordinate-clustering",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-openapi-numeric-contracts",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-pipeline-graph-validation",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-yaml-schema-diagnostics",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-candidate-state-atomic-write",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "dspx-v3-forge-issue-pagination",
+            "indexSha256Before": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "indexSha256After": "sha256:80d60cae7f997845d8c87e9026b7fd4cdcb169bbd842433db03f5a483cca587d",
+            "producerTempRootRemovedAndAbsent": true
+          }
+        ],
+        "targetCleanAndCommitStable": true
+      },
+      {
+        "id": "pi-extensions",
+        "commit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+        "candidateCount": 1088,
+        "metadataPresentCount": 195,
+        "metadataCoverage": 0.1792279411764706,
+        "sourceListEligible": false,
+        "sourceListRawArtifactSha256": "sha256:5475ddf7d92a21dacc4d293c7fed336ac47737a7b0014eb41ee3ad4ca28ac536",
+        "sourceListPreparationObservationDigest": "sha256:e78ea2daf80cf7899ddc6779034521880a7f45f2e0a3de3bdf111aef0dd37de3",
+        "stalenessReviewDispatchId": "dispatch-1785037127243-1",
+        "stalenessSampleCount": 10,
+        "stalePathCount": 0,
+        "caseObservations": [
+          {
+            "id": "pxc-v3-ctrl-01",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-02",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-03",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-04",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-05",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-06",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-07",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-08",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-09",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "pxc-v3-ctrl-10",
+            "indexSha256Before": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "indexSha256After": "sha256:8a2b591f0568e43d031b402753a12f141c130bae9b575e5a9b4e8dadf3d1b151",
+            "producerTempRootRemovedAndAbsent": true
+          }
+        ],
+        "targetCleanAndCommitStable": true
+      },
+      {
+        "id": "agent-kernel",
+        "commit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+        "candidateCount": 715,
+        "metadataPresentCount": 0,
+        "metadataCoverage": 0,
+        "sourceListEligible": false,
+        "sourceListRawArtifactSha256": "sha256:42bfefd71392db8dac7a8f209ca8e8742256bc24e7d86757be64acb4f7da2d91",
+        "sourceListPreparationObservationDigest": "sha256:f8e1768665aa7200b62d8cb5114bb185c256e0e020f68c9955fdc7bc4d501997",
+        "stalenessReviewDispatchId": "dispatch-1785037127244",
+        "stalenessSampleCount": 0,
+        "stalePathCount": 0,
+        "caseObservations": [
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-01",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-02",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-03",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-04",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-05",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-06",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-07",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-08",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-09",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          },
+          {
+            "id": "agent-kernel-8b9264a-ineligible-control-10",
+            "indexSha256Before": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "indexSha256After": "sha256:4469782cc0167b0e26f587036fd0ebbcd7117bd94e594cdb867fbc48189155f0",
+            "producerTempRootRemovedAndAbsent": true
+          }
+        ],
+        "targetCleanAndCommitStable": true
+      }
+    ]
+  },
+  "structuralEvidence": {
+    "command": "/home/tryinget/.bun/bin/semantic-code-intelligence experimental structural-evidence-receipt --request-file <external-request-file>",
+    "expectedProvenance": {
+      "producerName": "semantic-code-intelligence",
+      "producerVersion": "2.0.0",
+      "producerWorkflow": "structural-evidence-export-v1",
+      "backendName": "ast-grep",
+      "backendVersion": "0.42.0",
+      "executableName": "ast-grep",
+      "executableVersion": "0.42.0"
+    },
+    "attempted": 50,
+    "exitZero": 50,
+    "receiptCount": 50,
+    "available": 50,
+    "complete": 50,
+    "emptyStderr": 50,
+    "processGroupsTerminated": 50,
+    "temporaryRootsRemoved": 50,
+    "noTargetIndexMutation": true,
+    "noTargetOntologyState": true,
+    "invocations": [
+      {
+        "id": "as-v3-cli-flag-values",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 454776807,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 962,
+            "approximateTokensCeilBytesDiv4": 241
+          },
+          "stdout": {
+            "bytes": 3380,
+            "approximateTokensCeilBytesDiv4": 845
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4342,
+            "approximateTokensCeilBytesDiv4": 1086
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 962,
+            "approximateTokensCeilBytesDiv4": 241
+          },
+          "receiptJson": {
+            "bytes": 3380,
+            "approximateTokensCeilBytesDiv4": 845
+          },
+          "stdout": {
+            "bytes": 3380,
+            "approximateTokensCeilBytesDiv4": 845
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 945,
+            "approximateTokensCeilBytesDiv4": 237
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:8f69749023a4ce8cae595d3e7a934fa460db26981a3db679dc57f4cd1321d991",
+          "rawCost": {
+            "bytes": 666557,
+            "approximateTokensCeilBytesDiv4": 166640
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4822,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 666557,
+            "approximateTraceTokensCeilBytesDiv4": 166640
+          }
+        }
+      },
+      {
+        "id": "as-v3-docs-text-pagination",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 452441001,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 841,
+            "approximateTokensCeilBytesDiv4": 211
+          },
+          "stdout": {
+            "bytes": 3560,
+            "approximateTokensCeilBytesDiv4": 890
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4401,
+            "approximateTokensCeilBytesDiv4": 1101
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 841,
+            "approximateTokensCeilBytesDiv4": 211
+          },
+          "receiptJson": {
+            "bytes": 3560,
+            "approximateTokensCeilBytesDiv4": 890
+          },
+          "stdout": {
+            "bytes": 3560,
+            "approximateTokensCeilBytesDiv4": 890
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 950,
+            "approximateTokensCeilBytesDiv4": 238
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:40bb13c311d75dd87ac4b2d6d2435bda29fd8c3e64c984b41daa249fb7c19bb2",
+          "rawCost": {
+            "bytes": 670558,
+            "approximateTokensCeilBytesDiv4": 167640
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4830,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 670558,
+            "approximateTraceTokensCeilBytesDiv4": 167640
+          }
+        }
+      },
+      {
+        "id": "as-v3-docs-compact-paths",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 455654990,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 846,
+            "approximateTokensCeilBytesDiv4": 212
+          },
+          "stdout": {
+            "bytes": 3701,
+            "approximateTokensCeilBytesDiv4": 926
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4547,
+            "approximateTokensCeilBytesDiv4": 1137
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 846,
+            "approximateTokensCeilBytesDiv4": 212
+          },
+          "receiptJson": {
+            "bytes": 3701,
+            "approximateTokensCeilBytesDiv4": 926
+          },
+          "stdout": {
+            "bytes": 3701,
+            "approximateTokensCeilBytesDiv4": 926
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 948,
+            "approximateTokensCeilBytesDiv4": 237
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:b6322ed8d765e1291ca6a851c1cffeecf6df6199d01f58cf9f41a54dbcda1396",
+          "rawCost": {
+            "bytes": 668335,
+            "approximateTokensCeilBytesDiv4": 167084
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4826,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 668335,
+            "approximateTraceTokensCeilBytesDiv4": 167084
+          }
+        }
+      },
+      {
+        "id": "as-v3-docs-symlink-traversal",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 454803998,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 955,
+            "approximateTokensCeilBytesDiv4": 239
+          },
+          "stdout": {
+            "bytes": 3956,
+            "approximateTokensCeilBytesDiv4": 989
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4911,
+            "approximateTokensCeilBytesDiv4": 1228
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 955,
+            "approximateTokensCeilBytesDiv4": 239
+          },
+          "receiptJson": {
+            "bytes": 3956,
+            "approximateTokensCeilBytesDiv4": 989
+          },
+          "stdout": {
+            "bytes": 3956,
+            "approximateTokensCeilBytesDiv4": 989
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 952,
+            "approximateTokensCeilBytesDiv4": 238
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:0f8897f022375071e456ad027e9896aabcfb905b2c86272a5ba71e37df81bfdd",
+          "rawCost": {
+            "bytes": 672545,
+            "approximateTokensCeilBytesDiv4": 168137
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4807,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 672545,
+            "approximateTraceTokensCeilBytesDiv4": 168137
+          }
+        }
+      },
+      {
+        "id": "as-v3-source-git-protocol",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 445638623,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 870,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "stdout": {
+            "bytes": 3319,
+            "approximateTokensCeilBytesDiv4": 830
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4189,
+            "approximateTokensCeilBytesDiv4": 1048
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 870,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "receiptJson": {
+            "bytes": 3319,
+            "approximateTokensCeilBytesDiv4": 830
+          },
+          "stdout": {
+            "bytes": 3319,
+            "approximateTokensCeilBytesDiv4": 830
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 949,
+            "approximateTokensCeilBytesDiv4": 238
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:f2169fa010c00a6d5f0d551969467b2a20775137321c6fd36bc41faa74251529",
+          "rawCost": {
+            "bytes": 668634,
+            "approximateTokensCeilBytesDiv4": 167159
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4814,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 668634,
+            "approximateTraceTokensCeilBytesDiv4": 167159
+          }
+        }
+      },
+      {
+        "id": "as-v3-ak-manifest-plan",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 451181828,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 854,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "stdout": {
+            "bytes": 5511,
+            "approximateTokensCeilBytesDiv4": 1378
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 6365,
+            "approximateTokensCeilBytesDiv4": 1592
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 854,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "receiptJson": {
+            "bytes": 5511,
+            "approximateTokensCeilBytesDiv4": 1378
+          },
+          "stdout": {
+            "bytes": 5511,
+            "approximateTokensCeilBytesDiv4": 1378
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 946,
+            "approximateTokensCeilBytesDiv4": 237
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:46dde493727c97544258d31103ca886b9b25092fa36bd60efb3b2fdd61110db6",
+          "rawCost": {
+            "bytes": 665294,
+            "approximateTokensCeilBytesDiv4": 166324
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4811,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 665294,
+            "approximateTraceTokensCeilBytesDiv4": 166324
+          }
+        }
+      },
+      {
+        "id": "as-v3-provenance-yaml-authoring",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 444127568,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 761,
+            "approximateTokensCeilBytesDiv4": 191
+          },
+          "stdout": {
+            "bytes": 4958,
+            "approximateTokensCeilBytesDiv4": 1240
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 5719,
+            "approximateTokensCeilBytesDiv4": 1430
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 761,
+            "approximateTokensCeilBytesDiv4": 191
+          },
+          "receiptJson": {
+            "bytes": 4958,
+            "approximateTokensCeilBytesDiv4": 1240
+          },
+          "stdout": {
+            "bytes": 4958,
+            "approximateTokensCeilBytesDiv4": 1240
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 955,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:aa8d5c1128236b2a816a224a5402d09d656c9d0a7b0cd2fc0ade1c0e1c212ecf",
+          "rawCost": {
+            "bytes": 672918,
+            "approximateTokensCeilBytesDiv4": 168230
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4812,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 672918,
+            "approximateTraceTokensCeilBytesDiv4": 168230
+          }
+        }
+      },
+      {
+        "id": "as-v3-notes-setup-convergence",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 452840816,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 768,
+            "approximateTokensCeilBytesDiv4": 192
+          },
+          "stdout": {
+            "bytes": 4114,
+            "approximateTokensCeilBytesDiv4": 1029
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4882,
+            "approximateTokensCeilBytesDiv4": 1221
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 768,
+            "approximateTokensCeilBytesDiv4": 192
+          },
+          "receiptJson": {
+            "bytes": 4114,
+            "approximateTokensCeilBytesDiv4": 1029
+          },
+          "stdout": {
+            "bytes": 4114,
+            "approximateTokensCeilBytesDiv4": 1029
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 953,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:26b738eaeae04b21c4b1aff771431d74830e8aefcb9da3ce57d042b6769ed724",
+          "rawCost": {
+            "bytes": 671054,
+            "approximateTokensCeilBytesDiv4": 167764
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4813,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 671054,
+            "approximateTraceTokensCeilBytesDiv4": 167764
+          }
+        }
+      },
+      {
+        "id": "as-v3-workspace-notes-discovery",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 434638820,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 760,
+            "approximateTokensCeilBytesDiv4": 190
+          },
+          "stdout": {
+            "bytes": 3141,
+            "approximateTokensCeilBytesDiv4": 786
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3901,
+            "approximateTokensCeilBytesDiv4": 976
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 760,
+            "approximateTokensCeilBytesDiv4": 190
+          },
+          "receiptJson": {
+            "bytes": 3141,
+            "approximateTokensCeilBytesDiv4": 786
+          },
+          "stdout": {
+            "bytes": 3141,
+            "approximateTokensCeilBytesDiv4": 786
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 955,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:dbed63d192d2a0d1feddd5285b2d9915be0bf4213a7299ef4a0a2d7603ba905d",
+          "rawCost": {
+            "bytes": 673066,
+            "approximateTokensCeilBytesDiv4": 168267
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4815,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 673066,
+            "approximateTraceTokensCeilBytesDiv4": 168267
+          }
+        }
+      },
+      {
+        "id": "as-v3-standalone-notes-push",
+        "repositoryId": "agent-scripts",
+        "monotonicDurationNanoseconds": 439640674,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 802,
+            "approximateTokensCeilBytesDiv4": 201
+          },
+          "stdout": {
+            "bytes": 3612,
+            "approximateTokensCeilBytesDiv4": 903
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4414,
+            "approximateTokensCeilBytesDiv4": 1104
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 802,
+            "approximateTokensCeilBytesDiv4": 201
+          },
+          "receiptJson": {
+            "bytes": 3612,
+            "approximateTokensCeilBytesDiv4": 903
+          },
+          "stdout": {
+            "bytes": 3612,
+            "approximateTokensCeilBytesDiv4": 903
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 951,
+            "approximateTokensCeilBytesDiv4": 238
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:a3fae4c2185c93022d79d8de7075e6577e7a90684428e041d4904d8e9ee4cc1c",
+          "rawCost": {
+            "bytes": 670341,
+            "approximateTokensCeilBytesDiv4": 167586
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 4832,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 670341,
+            "approximateTraceTokensCeilBytesDiv4": 167586
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-01",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 476131086,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 794,
+            "approximateTokensCeilBytesDiv4": 199
+          },
+          "stdout": {
+            "bytes": 8523,
+            "approximateTokensCeilBytesDiv4": 2131
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 9317,
+            "approximateTokensCeilBytesDiv4": 2330
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 794,
+            "approximateTokensCeilBytesDiv4": 199
+          },
+          "receiptJson": {
+            "bytes": 8523,
+            "approximateTokensCeilBytesDiv4": 2131
+          },
+          "stdout": {
+            "bytes": 8523,
+            "approximateTokensCeilBytesDiv4": 2131
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:c58851353c8819d72a5c2ef5a789b36c602ae30581de05f8f6382d480fd05643",
+          "rawCost": {
+            "bytes": 736247,
+            "approximateTokensCeilBytesDiv4": 184062
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5282,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 736247,
+            "approximateTraceTokensCeilBytesDiv4": 184062
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-02",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 492341458,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 821,
+            "approximateTokensCeilBytesDiv4": 206
+          },
+          "stdout": {
+            "bytes": 4680,
+            "approximateTokensCeilBytesDiv4": 1170
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 5501,
+            "approximateTokensCeilBytesDiv4": 1376
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 821,
+            "approximateTokensCeilBytesDiv4": 206
+          },
+          "receiptJson": {
+            "bytes": 4680,
+            "approximateTokensCeilBytesDiv4": 1170
+          },
+          "stdout": {
+            "bytes": 4680,
+            "approximateTokensCeilBytesDiv4": 1170
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:de6736e3ff62414574cec590988df17bfd75df5b1bd0c63edfc866adac5a4964",
+          "rawCost": {
+            "bytes": 735621,
+            "approximateTokensCeilBytesDiv4": 183906
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5271,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 735621,
+            "approximateTraceTokensCeilBytesDiv4": 183906
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-03",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 497557908,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 846,
+            "approximateTokensCeilBytesDiv4": 212
+          },
+          "stdout": {
+            "bytes": 6711,
+            "approximateTokensCeilBytesDiv4": 1678
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 7557,
+            "approximateTokensCeilBytesDiv4": 1890
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 846,
+            "approximateTokensCeilBytesDiv4": 212
+          },
+          "receiptJson": {
+            "bytes": 6711,
+            "approximateTokensCeilBytesDiv4": 1678
+          },
+          "stdout": {
+            "bytes": 6711,
+            "approximateTokensCeilBytesDiv4": 1678
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:f6cd321390e373613b7234c758294a3971903fc339c6e718df16ecf0f8d0d300",
+          "rawCost": {
+            "bytes": 735911,
+            "approximateTokensCeilBytesDiv4": 183978
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5275,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 735911,
+            "approximateTraceTokensCeilBytesDiv4": 183978
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-04",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 486958254,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 700,
+            "approximateTokensCeilBytesDiv4": 175
+          },
+          "stdout": {
+            "bytes": 3137,
+            "approximateTokensCeilBytesDiv4": 785
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3837,
+            "approximateTokensCeilBytesDiv4": 960
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 700,
+            "approximateTokensCeilBytesDiv4": 175
+          },
+          "receiptJson": {
+            "bytes": 3137,
+            "approximateTokensCeilBytesDiv4": 785
+          },
+          "stdout": {
+            "bytes": 3137,
+            "approximateTokensCeilBytesDiv4": 785
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:434053566f443a9cf2c362274e690a2c0d6c80e5d84efaeb847e39f4b8dacc77",
+          "rawCost": {
+            "bytes": 735126,
+            "approximateTokensCeilBytesDiv4": 183782
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5279,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 735126,
+            "approximateTraceTokensCeilBytesDiv4": 183782
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-05",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 503032549,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 805,
+            "approximateTokensCeilBytesDiv4": 202
+          },
+          "stdout": {
+            "bytes": 7657,
+            "approximateTokensCeilBytesDiv4": 1915
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 8462,
+            "approximateTokensCeilBytesDiv4": 2116
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 805,
+            "approximateTokensCeilBytesDiv4": 202
+          },
+          "receiptJson": {
+            "bytes": 7657,
+            "approximateTokensCeilBytesDiv4": 1915
+          },
+          "stdout": {
+            "bytes": 7657,
+            "approximateTokensCeilBytesDiv4": 1915
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:e747b654c069417e3bf2af0183924b0294d4baaa893620ae379e786ce0880e23",
+          "rawCost": {
+            "bytes": 736379,
+            "approximateTokensCeilBytesDiv4": 184095
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5283,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 736379,
+            "approximateTraceTokensCeilBytesDiv4": 184095
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-06",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 508918896,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 734,
+            "approximateTokensCeilBytesDiv4": 184
+          },
+          "stdout": {
+            "bytes": 4746,
+            "approximateTokensCeilBytesDiv4": 1187
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 5480,
+            "approximateTokensCeilBytesDiv4": 1370
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 734,
+            "approximateTokensCeilBytesDiv4": 184
+          },
+          "receiptJson": {
+            "bytes": 4746,
+            "approximateTokensCeilBytesDiv4": 1187
+          },
+          "stdout": {
+            "bytes": 4746,
+            "approximateTokensCeilBytesDiv4": 1187
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:572929143148c245ad65368a00c6762b66a8b6203fae80e77d295a623f69c622",
+          "rawCost": {
+            "bytes": 734359,
+            "approximateTokensCeilBytesDiv4": 183590
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5265,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 734359,
+            "approximateTraceTokensCeilBytesDiv4": 183590
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-07",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 490469685,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 720,
+            "approximateTokensCeilBytesDiv4": 180
+          },
+          "stdout": {
+            "bytes": 7640,
+            "approximateTokensCeilBytesDiv4": 1910
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 8360,
+            "approximateTokensCeilBytesDiv4": 2090
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 720,
+            "approximateTokensCeilBytesDiv4": 180
+          },
+          "receiptJson": {
+            "bytes": 7640,
+            "approximateTokensCeilBytesDiv4": 1910
+          },
+          "stdout": {
+            "bytes": 7640,
+            "approximateTokensCeilBytesDiv4": 1910
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:fe8de2974495566cb60410214f35b6505612bea81402e1e010e2d44f51058933",
+          "rawCost": {
+            "bytes": 735008,
+            "approximateTokensCeilBytesDiv4": 183752
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5284,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 735008,
+            "approximateTraceTokensCeilBytesDiv4": 183752
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-08",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 478247549,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 832,
+            "approximateTokensCeilBytesDiv4": 208
+          },
+          "stdout": {
+            "bytes": 3158,
+            "approximateTokensCeilBytesDiv4": 790
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3990,
+            "approximateTokensCeilBytesDiv4": 998
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 832,
+            "approximateTokensCeilBytesDiv4": 208
+          },
+          "receiptJson": {
+            "bytes": 3158,
+            "approximateTokensCeilBytesDiv4": 790
+          },
+          "stdout": {
+            "bytes": 3158,
+            "approximateTokensCeilBytesDiv4": 790
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:f191e4da27bf4b9e699ed1d730e52e045e9140efeb403cf39df11b06c403ed07",
+          "rawCost": {
+            "bytes": 736330,
+            "approximateTokensCeilBytesDiv4": 184083
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5283,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 736330,
+            "approximateTraceTokensCeilBytesDiv4": 184083
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-09",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 507048726,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 934,
+            "approximateTokensCeilBytesDiv4": 234
+          },
+          "stdout": {
+            "bytes": 7656,
+            "approximateTokensCeilBytesDiv4": 1914
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 8590,
+            "approximateTokensCeilBytesDiv4": 2148
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 934,
+            "approximateTokensCeilBytesDiv4": 234
+          },
+          "receiptJson": {
+            "bytes": 7656,
+            "approximateTokensCeilBytesDiv4": 1914
+          },
+          "stdout": {
+            "bytes": 7656,
+            "approximateTokensCeilBytesDiv4": 1914
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:b2a2bfc1c407f8dbb8a7b879efb6ef252229817d18f2ec896a1bbb32e400ad26",
+          "rawCost": {
+            "bytes": 737309,
+            "approximateTokensCeilBytesDiv4": 184328
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5283,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 737309,
+            "approximateTraceTokensCeilBytesDiv4": 184328
+          }
+        }
+      },
+      {
+        "id": "engcore-v3-10",
+        "repositoryId": "engineering-core",
+        "monotonicDurationNanoseconds": 485389221,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 815,
+            "approximateTokensCeilBytesDiv4": 204
+          },
+          "stdout": {
+            "bytes": 5685,
+            "approximateTokensCeilBytesDiv4": 1422
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 6500,
+            "approximateTokensCeilBytesDiv4": 1625
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 815,
+            "approximateTokensCeilBytesDiv4": 204
+          },
+          "receiptJson": {
+            "bytes": 5685,
+            "approximateTokensCeilBytesDiv4": 1422
+          },
+          "stdout": {
+            "bytes": 5685,
+            "approximateTokensCeilBytesDiv4": 1422
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 937,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:dcf2e5bcfb98887391b71079548208a4c4bc3ac0d939f816707f7a4e2e0d02d7",
+          "rawCost": {
+            "bytes": 735404,
+            "approximateTokensCeilBytesDiv4": 183851
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 5266,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 735404,
+            "approximateTraceTokensCeilBytesDiv4": 183851
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-config-env-transaction",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2259534154,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 862,
+            "approximateTokensCeilBytesDiv4": 216
+          },
+          "stdout": {
+            "bytes": 13707,
+            "approximateTokensCeilBytesDiv4": 3427
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 14569,
+            "approximateTokensCeilBytesDiv4": 3643
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 862,
+            "approximateTokensCeilBytesDiv4": 216
+          },
+          "receiptJson": {
+            "bytes": 13707,
+            "approximateTokensCeilBytesDiv4": 3427
+          },
+          "stdout": {
+            "bytes": 13707,
+            "approximateTokensCeilBytesDiv4": 3427
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 954,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:08517c0a8da63bcd2953679174335e525d6cc110a5305ffdc03f69bd4a03f94f",
+          "rawCost": {
+            "bytes": 5168193,
+            "approximateTokensCeilBytesDiv4": 1292049
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35363,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5168193,
+            "approximateTraceTokensCeilBytesDiv4": 1292049
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-cache-confinement",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2235203599,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 853,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "stdout": {
+            "bytes": 3164,
+            "approximateTokensCeilBytesDiv4": 791
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4017,
+            "approximateTokensCeilBytesDiv4": 1005
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 853,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "receiptJson": {
+            "bytes": 3164,
+            "approximateTokensCeilBytesDiv4": 791
+          },
+          "stdout": {
+            "bytes": 3164,
+            "approximateTokensCeilBytesDiv4": 791
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 949,
+            "approximateTokensCeilBytesDiv4": 238
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:b8111b67aff114057918e4d2807edb534b643de30da3c8cd16bc7285a0e564cd",
+          "rawCost": {
+            "bytes": 5111916,
+            "approximateTokensCeilBytesDiv4": 1277979
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35194,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5111916,
+            "approximateTraceTokensCeilBytesDiv4": 1277979
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-group-stratified-splits",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2312325775,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 927,
+            "approximateTokensCeilBytesDiv4": 232
+          },
+          "stdout": {
+            "bytes": 10992,
+            "approximateTokensCeilBytesDiv4": 2748
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 11919,
+            "approximateTokensCeilBytesDiv4": 2980
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 927,
+            "approximateTokensCeilBytesDiv4": 232
+          },
+          "receiptJson": {
+            "bytes": 10992,
+            "approximateTokensCeilBytesDiv4": 2748
+          },
+          "stdout": {
+            "bytes": 10992,
+            "approximateTokensCeilBytesDiv4": 2748
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 955,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:57a9fa41f33d5e3a3b34dc6b80013ad6ee5579341ebdd619309a413502e63685",
+          "rawCost": {
+            "bytes": 5174455,
+            "approximateTokensCeilBytesDiv4": 1293614
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35297,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5174455,
+            "approximateTraceTokensCeilBytesDiv4": 1293614
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-model-role-routing",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2301351196,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 864,
+            "approximateTokensCeilBytesDiv4": 216
+          },
+          "stdout": {
+            "bytes": 3442,
+            "approximateTokensCeilBytesDiv4": 861
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4306,
+            "approximateTokensCeilBytesDiv4": 1077
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 864,
+            "approximateTokensCeilBytesDiv4": 216
+          },
+          "receiptJson": {
+            "bytes": 3442,
+            "approximateTokensCeilBytesDiv4": 861
+          },
+          "stdout": {
+            "bytes": 3442,
+            "approximateTokensCeilBytesDiv4": 861
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 950,
+            "approximateTokensCeilBytesDiv4": 238
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:58be428f2704bfd71a24e1b661a3d15d6c0d39cdf1dcf874546cc25ee9e2e0ec",
+          "rawCost": {
+            "bytes": 5127667,
+            "approximateTokensCeilBytesDiv4": 1281917
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35316,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5127667,
+            "approximateTraceTokensCeilBytesDiv4": 1281917
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-coordinate-clustering",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2232002913,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 872,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "stdout": {
+            "bytes": 9405,
+            "approximateTokensCeilBytesDiv4": 2352
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 10277,
+            "approximateTokensCeilBytesDiv4": 2570
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 872,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "receiptJson": {
+            "bytes": 9405,
+            "approximateTokensCeilBytesDiv4": 2352
+          },
+          "stdout": {
+            "bytes": 9405,
+            "approximateTokensCeilBytesDiv4": 2352
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 953,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:784949ff376d9b6523abe83074b26d439b5d4f2b2c32a151f3d65480b7677f5f",
+          "rawCost": {
+            "bytes": 5159958,
+            "approximateTokensCeilBytesDiv4": 1289990
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35376,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5159958,
+            "approximateTraceTokensCeilBytesDiv4": 1289990
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-openapi-numeric-contracts",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2263158319,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 894,
+            "approximateTokensCeilBytesDiv4": 224
+          },
+          "stdout": {
+            "bytes": 2946,
+            "approximateTokensCeilBytesDiv4": 737
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3840,
+            "approximateTokensCeilBytesDiv4": 960
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 894,
+            "approximateTokensCeilBytesDiv4": 224
+          },
+          "receiptJson": {
+            "bytes": 2946,
+            "approximateTokensCeilBytesDiv4": 737
+          },
+          "stdout": {
+            "bytes": 2946,
+            "approximateTokensCeilBytesDiv4": 737
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 957,
+            "approximateTokensCeilBytesDiv4": 240
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:10950fd0d482dac0cdb75f689ce2ee71613c5e104bc5379adf1cecf225aa2445",
+          "rawCost": {
+            "bytes": 5186788,
+            "approximateTokensCeilBytesDiv4": 1296697
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35152,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5186788,
+            "approximateTraceTokensCeilBytesDiv4": 1296697
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-pipeline-graph-validation",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2306361347,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 900,
+            "approximateTokensCeilBytesDiv4": 225
+          },
+          "stdout": {
+            "bytes": 7661,
+            "approximateTokensCeilBytesDiv4": 1916
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 8561,
+            "approximateTokensCeilBytesDiv4": 2141
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 900,
+            "approximateTokensCeilBytesDiv4": 225
+          },
+          "receiptJson": {
+            "bytes": 7661,
+            "approximateTokensCeilBytesDiv4": 1916
+          },
+          "stdout": {
+            "bytes": 7661,
+            "approximateTokensCeilBytesDiv4": 1916
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 957,
+            "approximateTokensCeilBytesDiv4": 240
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:4a632abaaaed081f14f4282b4e20eecafeeb40cfbf40f3fafad208637020171f",
+          "rawCost": {
+            "bytes": 5195641,
+            "approximateTokensCeilBytesDiv4": 1298911
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35332,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5195641,
+            "approximateTraceTokensCeilBytesDiv4": 1298911
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-yaml-schema-diagnostics",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2280025155,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 869,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "stdout": {
+            "bytes": 4052,
+            "approximateTokensCeilBytesDiv4": 1013
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4921,
+            "approximateTokensCeilBytesDiv4": 1231
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 869,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "receiptJson": {
+            "bytes": 4052,
+            "approximateTokensCeilBytesDiv4": 1013
+          },
+          "stdout": {
+            "bytes": 4052,
+            "approximateTokensCeilBytesDiv4": 1013
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 955,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:e4e6cc1ace496fd57d38dbaadafbb3bd90734a76d65bd54afd90bc7fb43b00d4",
+          "rawCost": {
+            "bytes": 5174500,
+            "approximateTokensCeilBytesDiv4": 1293625
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35303,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5174500,
+            "approximateTraceTokensCeilBytesDiv4": 1293625
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-candidate-state-atomic-write",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2321887658,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 932,
+            "approximateTokensCeilBytesDiv4": 233
+          },
+          "stdout": {
+            "bytes": 6012,
+            "approximateTokensCeilBytesDiv4": 1503
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 6944,
+            "approximateTokensCeilBytesDiv4": 1736
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 932,
+            "approximateTokensCeilBytesDiv4": 233
+          },
+          "receiptJson": {
+            "bytes": 6012,
+            "approximateTokensCeilBytesDiv4": 1503
+          },
+          "stdout": {
+            "bytes": 6012,
+            "approximateTokensCeilBytesDiv4": 1503
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 960,
+            "approximateTokensCeilBytesDiv4": 240
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:983dbfa4542fe84e759b3702c4eef7e961b7c12f5c145df9d1745f1d6bc20991",
+          "rawCost": {
+            "bytes": 5208573,
+            "approximateTokensCeilBytesDiv4": 1302144
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35036,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5208573,
+            "approximateTraceTokensCeilBytesDiv4": 1302144
+          }
+        }
+      },
+      {
+        "id": "dspx-v3-forge-issue-pagination",
+        "repositoryId": "dspx",
+        "monotonicDurationNanoseconds": 2305373161,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 854,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "stdout": {
+            "bytes": 4021,
+            "approximateTokensCeilBytesDiv4": 1006
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4875,
+            "approximateTokensCeilBytesDiv4": 1219
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 854,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "receiptJson": {
+            "bytes": 4021,
+            "approximateTokensCeilBytesDiv4": 1006
+          },
+          "stdout": {
+            "bytes": 4021,
+            "approximateTokensCeilBytesDiv4": 1006
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 954,
+            "approximateTokensCeilBytesDiv4": 239
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:f59d2ab0fd1653f5e8f2f6adbb62b4ec32dfc25d8dab3d416d5f8cc5dcb03d19",
+          "rawCost": {
+            "bytes": 5170174,
+            "approximateTokensCeilBytesDiv4": 1292544
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 35398,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 5170174,
+            "approximateTraceTokensCeilBytesDiv4": 1292544
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-01",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4890217297,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 972,
+            "approximateTokensCeilBytesDiv4": 243
+          },
+          "stdout": {
+            "bytes": 4224,
+            "approximateTokensCeilBytesDiv4": 1056
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 5196,
+            "approximateTokensCeilBytesDiv4": 1299
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 972,
+            "approximateTokensCeilBytesDiv4": 243
+          },
+          "receiptJson": {
+            "bytes": 4224,
+            "approximateTokensCeilBytesDiv4": 1056
+          },
+          "stdout": {
+            "bytes": 4224,
+            "approximateTokensCeilBytesDiv4": 1056
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:46e91f1b19cd869e14106bc503613a16d7d6de273f2b289dda4de54124c2aad3",
+          "rawCost": {
+            "bytes": 11657240,
+            "approximateTokensCeilBytesDiv4": 2914310
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 80196,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11657240,
+            "approximateTraceTokensCeilBytesDiv4": 2914310
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-02",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4857993510,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 865,
+            "approximateTokensCeilBytesDiv4": 217
+          },
+          "stdout": {
+            "bytes": 6924,
+            "approximateTokensCeilBytesDiv4": 1731
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 7789,
+            "approximateTokensCeilBytesDiv4": 1948
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 865,
+            "approximateTokensCeilBytesDiv4": 217
+          },
+          "receiptJson": {
+            "bytes": 6924,
+            "approximateTokensCeilBytesDiv4": 1731
+          },
+          "stdout": {
+            "bytes": 6924,
+            "approximateTokensCeilBytesDiv4": 1731
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:93657dd840406dea126f3868ec3fe4ea33768eb42d8a8d0c83db2771f172b542",
+          "rawCost": {
+            "bytes": 11648869,
+            "approximateTokensCeilBytesDiv4": 2912218
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 80108,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11648869,
+            "approximateTraceTokensCeilBytesDiv4": 2912218
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-03",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4906912526,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 858,
+            "approximateTokensCeilBytesDiv4": 215
+          },
+          "stdout": {
+            "bytes": 3016,
+            "approximateTokensCeilBytesDiv4": 754
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3874,
+            "approximateTokensCeilBytesDiv4": 969
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 858,
+            "approximateTokensCeilBytesDiv4": 215
+          },
+          "receiptJson": {
+            "bytes": 3016,
+            "approximateTokensCeilBytesDiv4": 754
+          },
+          "stdout": {
+            "bytes": 3016,
+            "approximateTokensCeilBytesDiv4": 754
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:e66ce4d13e0c96b950be7307a3fbd635bd58dfde6a18407cc11546f69b50f266",
+          "rawCost": {
+            "bytes": 11653616,
+            "approximateTokensCeilBytesDiv4": 2913404
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 80069,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11653616,
+            "approximateTraceTokensCeilBytesDiv4": 2913404
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-04",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4786625259,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 869,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "stdout": {
+            "bytes": 12746,
+            "approximateTokensCeilBytesDiv4": 3187
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 13615,
+            "approximateTokensCeilBytesDiv4": 3404
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 869,
+            "approximateTokensCeilBytesDiv4": 218
+          },
+          "receiptJson": {
+            "bytes": 12746,
+            "approximateTokensCeilBytesDiv4": 3187
+          },
+          "stdout": {
+            "bytes": 12746,
+            "approximateTokensCeilBytesDiv4": 3187
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:4ec1b5c6ffcced2400dd0cbfb45b28c3f55a62d6f1fbcab63bc2a7172419d5f7",
+          "rawCost": {
+            "bytes": 11652982,
+            "approximateTokensCeilBytesDiv4": 2913246
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 80167,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11652982,
+            "approximateTraceTokensCeilBytesDiv4": 2913246
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-05",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4817634325,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 880,
+            "approximateTokensCeilBytesDiv4": 220
+          },
+          "stdout": {
+            "bytes": 3473,
+            "approximateTokensCeilBytesDiv4": 869
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4353,
+            "approximateTokensCeilBytesDiv4": 1089
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 880,
+            "approximateTokensCeilBytesDiv4": 220
+          },
+          "receiptJson": {
+            "bytes": 3473,
+            "approximateTokensCeilBytesDiv4": 869
+          },
+          "stdout": {
+            "bytes": 3473,
+            "approximateTokensCeilBytesDiv4": 869
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:26375606dccbe35794c7269a298c17a82400040e85c14c070453fac9cc90d43d",
+          "rawCost": {
+            "bytes": 11641429,
+            "approximateTokensCeilBytesDiv4": 2910358
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 79983,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11641429,
+            "approximateTraceTokensCeilBytesDiv4": 2910358
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-06",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 5003819822,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 907,
+            "approximateTokensCeilBytesDiv4": 227
+          },
+          "stdout": {
+            "bytes": 3926,
+            "approximateTokensCeilBytesDiv4": 982
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4833,
+            "approximateTokensCeilBytesDiv4": 1209
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 907,
+            "approximateTokensCeilBytesDiv4": 227
+          },
+          "receiptJson": {
+            "bytes": 3926,
+            "approximateTokensCeilBytesDiv4": 982
+          },
+          "stdout": {
+            "bytes": 3926,
+            "approximateTokensCeilBytesDiv4": 982
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:d8304ede6e2f357babe30a4627fbac2d01f4744381a5cebdbac694619a88ecee",
+          "rawCost": {
+            "bytes": 11657251,
+            "approximateTokensCeilBytesDiv4": 2914313
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 80200,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11657251,
+            "approximateTraceTokensCeilBytesDiv4": 2914313
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-07",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4841733687,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 942,
+            "approximateTokensCeilBytesDiv4": 236
+          },
+          "stdout": {
+            "bytes": 5391,
+            "approximateTokensCeilBytesDiv4": 1348
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 6333,
+            "approximateTokensCeilBytesDiv4": 1584
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 942,
+            "approximateTokensCeilBytesDiv4": 236
+          },
+          "receiptJson": {
+            "bytes": 5391,
+            "approximateTokensCeilBytesDiv4": 1348
+          },
+          "stdout": {
+            "bytes": 5391,
+            "approximateTokensCeilBytesDiv4": 1348
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:2ea92ece34f51ee357be151dc593c8457913ca6b8d15c3ade826074bc96dcb70",
+          "rawCost": {
+            "bytes": 11642420,
+            "approximateTokensCeilBytesDiv4": 2910605
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 79996,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11642420,
+            "approximateTraceTokensCeilBytesDiv4": 2910605
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-08",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4763974190,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 914,
+            "approximateTokensCeilBytesDiv4": 229
+          },
+          "stdout": {
+            "bytes": 7041,
+            "approximateTokensCeilBytesDiv4": 1761
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 7955,
+            "approximateTokensCeilBytesDiv4": 1989
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 914,
+            "approximateTokensCeilBytesDiv4": 229
+          },
+          "receiptJson": {
+            "bytes": 7041,
+            "approximateTokensCeilBytesDiv4": 1761
+          },
+          "stdout": {
+            "bytes": 7041,
+            "approximateTokensCeilBytesDiv4": 1761
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:8501e0a62af8318484c3990fde59b07e099ccd70c361298079a55adacf554011",
+          "rawCost": {
+            "bytes": 11662948,
+            "approximateTokensCeilBytesDiv4": 2915737
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 80307,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11662948,
+            "approximateTraceTokensCeilBytesDiv4": 2915737
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-09",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4827963477,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 853,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "stdout": {
+            "bytes": 4382,
+            "approximateTokensCeilBytesDiv4": 1096
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 5235,
+            "approximateTokensCeilBytesDiv4": 1309
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 853,
+            "approximateTokensCeilBytesDiv4": 214
+          },
+          "receiptJson": {
+            "bytes": 4382,
+            "approximateTokensCeilBytesDiv4": 1096
+          },
+          "stdout": {
+            "bytes": 4382,
+            "approximateTokensCeilBytesDiv4": 1096
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:55e3a3bbcc2a4a0d5622d4d066f9f76d7e0128ed266f91de1edbd00a21d85d28",
+          "rawCost": {
+            "bytes": 11647730,
+            "approximateTokensCeilBytesDiv4": 2911933
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 80066,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11647730,
+            "approximateTraceTokensCeilBytesDiv4": 2911933
+          }
+        }
+      },
+      {
+        "id": "pxc-v3-ctrl-10",
+        "repositoryId": "pi-extensions",
+        "monotonicDurationNanoseconds": 4754789032,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 952,
+            "approximateTokensCeilBytesDiv4": 238
+          },
+          "stdout": {
+            "bytes": 3990,
+            "approximateTokensCeilBytesDiv4": 998
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4942,
+            "approximateTokensCeilBytesDiv4": 1236
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 952,
+            "approximateTokensCeilBytesDiv4": 238
+          },
+          "receiptJson": {
+            "bytes": 3990,
+            "approximateTokensCeilBytesDiv4": 998
+          },
+          "stdout": {
+            "bytes": 3990,
+            "approximateTokensCeilBytesDiv4": 998
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 938,
+            "approximateTokensCeilBytesDiv4": 235
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:06793848f9ffc51d0d3e43e09db79eff0e8e70cbf4a60d07acb878cbca4c1c9a",
+          "rawCost": {
+            "bytes": 11638862,
+            "approximateTokensCeilBytesDiv4": 2909716
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 79930,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 11638862,
+            "approximateTraceTokensCeilBytesDiv4": 2909716
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-01",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3888925902,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 721,
+            "approximateTokensCeilBytesDiv4": 181
+          },
+          "stdout": {
+            "bytes": 2946,
+            "approximateTokensCeilBytesDiv4": 737
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3667,
+            "approximateTokensCeilBytesDiv4": 917
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 721,
+            "approximateTokensCeilBytesDiv4": 181
+          },
+          "receiptJson": {
+            "bytes": 2946,
+            "approximateTokensCeilBytesDiv4": 737
+          },
+          "stdout": {
+            "bytes": 2946,
+            "approximateTokensCeilBytesDiv4": 737
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:ee0c7ecde1cd691de8d658ed176a596f42333ea584d521e509b2307c9babf596",
+          "rawCost": {
+            "bytes": 8190260,
+            "approximateTokensCeilBytesDiv4": 2047565
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51719,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8190260,
+            "approximateTraceTokensCeilBytesDiv4": 2047565
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-02",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3628983558,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 794,
+            "approximateTokensCeilBytesDiv4": 199
+          },
+          "stdout": {
+            "bytes": 3708,
+            "approximateTokensCeilBytesDiv4": 927
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 4502,
+            "approximateTokensCeilBytesDiv4": 1126
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 794,
+            "approximateTokensCeilBytesDiv4": 199
+          },
+          "receiptJson": {
+            "bytes": 3708,
+            "approximateTokensCeilBytesDiv4": 927
+          },
+          "stdout": {
+            "bytes": 3708,
+            "approximateTokensCeilBytesDiv4": 927
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:a4a2e94504a59d887f76f0cde324085bde89d1c1b9659bb47cdb7aa439208c07",
+          "rawCost": {
+            "bytes": 8182457,
+            "approximateTokensCeilBytesDiv4": 2045615
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51480,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8182457,
+            "approximateTraceTokensCeilBytesDiv4": 2045615
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-03",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3598051315,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 810,
+            "approximateTokensCeilBytesDiv4": 203
+          },
+          "stdout": {
+            "bytes": 7231,
+            "approximateTokensCeilBytesDiv4": 1808
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 8041,
+            "approximateTokensCeilBytesDiv4": 2011
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 810,
+            "approximateTokensCeilBytesDiv4": 203
+          },
+          "receiptJson": {
+            "bytes": 7231,
+            "approximateTokensCeilBytesDiv4": 1808
+          },
+          "stdout": {
+            "bytes": 7231,
+            "approximateTokensCeilBytesDiv4": 1808
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:f86790ecc3bb649899e3242f7dbffab38915306fae452e16efafbee671cbba4c",
+          "rawCost": {
+            "bytes": 8192803,
+            "approximateTokensCeilBytesDiv4": 2048201
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51673,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8192803,
+            "approximateTraceTokensCeilBytesDiv4": 2048201
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-04",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3590122897,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 768,
+            "approximateTokensCeilBytesDiv4": 192
+          },
+          "stdout": {
+            "bytes": 6927,
+            "approximateTokensCeilBytesDiv4": 1732
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 7695,
+            "approximateTokensCeilBytesDiv4": 1924
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 768,
+            "approximateTokensCeilBytesDiv4": 192
+          },
+          "receiptJson": {
+            "bytes": 6927,
+            "approximateTokensCeilBytesDiv4": 1732
+          },
+          "stdout": {
+            "bytes": 6927,
+            "approximateTokensCeilBytesDiv4": 1732
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:db09d598af765b622c7367e95e5f5993d4f5be2104fe927579fb6c9c0d466a97",
+          "rawCost": {
+            "bytes": 8200923,
+            "approximateTokensCeilBytesDiv4": 2050231
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51820,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8200923,
+            "approximateTraceTokensCeilBytesDiv4": 2050231
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-05",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3581704174,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 791,
+            "approximateTokensCeilBytesDiv4": 198
+          },
+          "stdout": {
+            "bytes": 11406,
+            "approximateTokensCeilBytesDiv4": 2852
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 12197,
+            "approximateTokensCeilBytesDiv4": 3050
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 791,
+            "approximateTokensCeilBytesDiv4": 198
+          },
+          "receiptJson": {
+            "bytes": 11406,
+            "approximateTokensCeilBytesDiv4": 2852
+          },
+          "stdout": {
+            "bytes": 11406,
+            "approximateTokensCeilBytesDiv4": 2852
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:bccfbc3d5eb1ef764b2cc7612f3be9870b991a7a947c08c1a181a3ad2436511c",
+          "rawCost": {
+            "bytes": 8194842,
+            "approximateTokensCeilBytesDiv4": 2048711
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51708,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8194842,
+            "approximateTraceTokensCeilBytesDiv4": 2048711
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-06",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3842708213,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 952,
+            "approximateTokensCeilBytesDiv4": 238
+          },
+          "stdout": {
+            "bytes": 8944,
+            "approximateTokensCeilBytesDiv4": 2236
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 9896,
+            "approximateTokensCeilBytesDiv4": 2474
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 952,
+            "approximateTokensCeilBytesDiv4": 238
+          },
+          "receiptJson": {
+            "bytes": 8944,
+            "approximateTokensCeilBytesDiv4": 2236
+          },
+          "stdout": {
+            "bytes": 8944,
+            "approximateTokensCeilBytesDiv4": 2236
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:e3451c6938dbd3d8533b0d81995b84a3b047d1bfceff345ed42528d95b6c4fce",
+          "rawCost": {
+            "bytes": 8199137,
+            "approximateTokensCeilBytesDiv4": 2049785
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51690,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8199137,
+            "approximateTraceTokensCeilBytesDiv4": 2049785
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-07",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3838651520,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 964,
+            "approximateTokensCeilBytesDiv4": 241
+          },
+          "stdout": {
+            "bytes": 4234,
+            "approximateTokensCeilBytesDiv4": 1059
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 5198,
+            "approximateTokensCeilBytesDiv4": 1300
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 964,
+            "approximateTokensCeilBytesDiv4": 241
+          },
+          "receiptJson": {
+            "bytes": 4234,
+            "approximateTokensCeilBytesDiv4": 1059
+          },
+          "stdout": {
+            "bytes": 4234,
+            "approximateTokensCeilBytesDiv4": 1059
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:cc823fe55b7a2dd3a95c4bd62c92c1c71491bb7a4d8a32c3113d8a3d79071484",
+          "rawCost": {
+            "bytes": 8197749,
+            "approximateTokensCeilBytesDiv4": 2049438
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51669,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8197749,
+            "approximateTraceTokensCeilBytesDiv4": 2049438
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-08",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3567570320,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 803,
+            "approximateTokensCeilBytesDiv4": 201
+          },
+          "stdout": {
+            "bytes": 4738,
+            "approximateTokensCeilBytesDiv4": 1185
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 5541,
+            "approximateTokensCeilBytesDiv4": 1386
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 803,
+            "approximateTokensCeilBytesDiv4": 201
+          },
+          "receiptJson": {
+            "bytes": 4738,
+            "approximateTokensCeilBytesDiv4": 1185
+          },
+          "stdout": {
+            "bytes": 4738,
+            "approximateTokensCeilBytesDiv4": 1185
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:d07fe7fba53215136e45ddbe3a9aac7ba1622f0cbb06c16167ddb2d757c5755a",
+          "rawCost": {
+            "bytes": 8197824,
+            "approximateTokensCeilBytesDiv4": 2049456
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51767,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8197824,
+            "approximateTraceTokensCeilBytesDiv4": 2049456
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-09",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3681395745,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 738,
+            "approximateTokensCeilBytesDiv4": 185
+          },
+          "stdout": {
+            "bytes": 2792,
+            "approximateTokensCeilBytesDiv4": 698
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3530,
+            "approximateTokensCeilBytesDiv4": 883
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 738,
+            "approximateTokensCeilBytesDiv4": 185
+          },
+          "receiptJson": {
+            "bytes": 2792,
+            "approximateTokensCeilBytesDiv4": 698
+          },
+          "stdout": {
+            "bytes": 2792,
+            "approximateTokensCeilBytesDiv4": 698
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:2e2d33ec76c2c593e9561535a9af69109b7e893196f01bb1cce8e62a54b21eb7",
+          "rawCost": {
+            "bytes": 8195437,
+            "approximateTokensCeilBytesDiv4": 2048860
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51724,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8195437,
+            "approximateTraceTokensCeilBytesDiv4": 2048860
+          }
+        }
+      },
+      {
+        "id": "agent-kernel-8b9264a-ineligible-control-10",
+        "repositoryId": "agent-kernel",
+        "monotonicDurationNanoseconds": 3722624135,
+        "producerInvocationCost": {
+          "request": {
+            "bytes": 765,
+            "approximateTokensCeilBytesDiv4": 192
+          },
+          "stdout": {
+            "bytes": 3089,
+            "approximateTokensCeilBytesDiv4": 773
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "total": {
+            "bytes": 3854,
+            "approximateTokensCeilBytesDiv4": 964
+          }
+        },
+        "retainedRawEvidenceCosts": {
+          "requestJson": {
+            "bytes": 765,
+            "approximateTokensCeilBytesDiv4": 192
+          },
+          "receiptJson": {
+            "bytes": 3089,
+            "approximateTokensCeilBytesDiv4": 773
+          },
+          "stdout": {
+            "bytes": 3089,
+            "approximateTokensCeilBytesDiv4": 773
+          },
+          "stderr": {
+            "bytes": 0,
+            "approximateTokensCeilBytesDiv4": 0
+          },
+          "processJson": {
+            "bytes": 85,
+            "approximateTokensCeilBytesDiv4": 22
+          },
+          "stateJson": {
+            "bytes": 333,
+            "approximateTokensCeilBytesDiv4": 84
+          },
+          "transcriptJson": {
+            "bytes": 966,
+            "approximateTokensCeilBytesDiv4": 242
+          }
+        },
+        "cleanup": {
+          "producerTempRootRemovedAndAbsent": true
+        },
+        "trace": {
+          "rawSha256": "sha256:aa6b1e2cc9bcf8bef8e58e7aa73538deaf10dcd4db5c73c79c89141b1f6cb3c8",
+          "rawCost": {
+            "bytes": 8195378,
+            "approximateTokensCeilBytesDiv4": 2048845
+          },
+          "corroboration": {
+            "schema": "pi-context-packer.sci_file_access_corroboration.v1",
+            "scope": "subject exporter argv and descendants under strace trace=%file",
+            "characterization": "bounded-file-access-corroboration-not-authentication",
+            "syscallRecordCount": 51719,
+            "prohibitedSciIndexOrStateAccessCount": 0,
+            "prohibitedPathClasses": [
+              "any .ontology path segment",
+              "any .semantic-graph path segment",
+              "any .sci path segment",
+              ".semantic-code-ignore",
+              ".semantic-code-intelligence-config.yaml",
+              "index.scip or any *.scip path"
+            ],
+            "gitIndexAccessRecordCount": 3,
+            "targetGitIndexAccessRecordCount": 3,
+            "gitIndexClassification": "Git .git/index access is Git clean-state plumbing, not an SCI semantic index; preparation-harness Git index reads occur outside this subject trace.",
+            "traceByteCount": 8195378,
+            "approximateTraceTokensCeilBytesDiv4": 2048845
+          }
+        }
+      }
+    ],
+    "fileAccessCorroboration": {
+      "path": "sci-file-access-traces.tar.gz",
+      "gzipSha256": "sha256:48270861e414bb2f92fc9963e4dc87dad7c7d44919473708fd25740d363639a8",
+      "gzipCost": {
+        "bytes": 14336876,
+        "approximateTokensCeilBytesDiv4": 3584219
+      },
+      "uncompressedTarSha256": "sha256:4e662cc6d161ee4ad60f09953251ef2ac802873191d70dfb04199d55978810ee",
+      "uncompressedTarCost": {
+        "bytes": 264345600,
+        "approximateTokensCeilBytesDiv4": 66086400
+      },
+      "manifestSha256": "sha256:03d3067ec6064e4bc212b5b535e36a10bc100bc4dff54655cae2cfa281ce8cd7",
+      "manifestCost": {
+        "bytes": 115759,
+        "approximateTokensCeilBytesDiv4": 28940
+      },
+      "deterministicTarArgv": [
+        "/usr/bin/tar",
+        "--sort=name",
+        "--mtime=@0",
+        "--owner=0",
+        "--group=0",
+        "--numeric-owner",
+        "--mode=u+rwX,go+rX",
+        "--format=ustar",
+        "--create",
+        "--file",
+        "/home/tryinget/.local/state/pi-quests/tmp/pi-context-packer-source-selection-2026-07-25-v3/sci-file-access-traces.tar",
+        "--directory",
+        "/home/tryinget/.local/state/pi-quests/tmp/pi-context-packer-source-selection-2026-07-25-v3/traces",
+        "manifest.json",
+        "raw"
+      ],
+      "deterministicGzipArgv": [
+        "/usr/bin/gzip",
+        "--no-name",
+        "--best",
+        "--stdout",
+        "/home/tryinget/.local/state/pi-quests/tmp/pi-context-packer-source-selection-2026-07-25-v3/sci-file-access-traces.tar"
+      ],
+      "traces": 50,
+      "prohibitedSciIndexOrStateAccessCount": 0,
+      "characterization": "bounded-file-access-corroboration-not-authentication",
+      "subjectExporterTraces": 50,
+      "targetGitIndexAccessRecordCount": 150,
+      "authenticationClaim": false
+    }
+  },
+  "measurementMethod": {
+    "duration": "Actual monotonic nanoseconds around each producer subprocess.",
+    "rawBytes": "Exact retained producer input/output/evidence byte lengths.",
+    "approximateTokenCost": "ceil(bytes/4), disclosure-only.",
+    "modelInput": {
+      "bytes": 0,
+      "tokens": 0
+    },
+    "tracingOverhead": "SCI durations include strace trace=%file instrumentation."
+  },
+  "executableArtifacts": {
+    "node": {
+      "name": "node",
+      "path": "/usr/bin/node",
+      "version": "v26.1.0",
+      "sha256": "sha256:307ecf7726e330e53d68df6698c8a44f4799dfde9607104a3793448e896c9ce6"
+    },
+    "git": {
+      "name": "git",
+      "path": "/usr/bin/git",
+      "version": "git version 2.54.0",
+      "sha256": "sha256:bb6007e89e15dad35cf623a203db26dde9e042cb2df844320055cad3cd2eb5d0"
+    },
+    "gzip": {
+      "name": "gzip",
+      "path": "/usr/bin/gzip",
+      "version": "gzip 1.14-modified",
+      "sha256": "sha256:3e0aa8ddb52c009c608d2f1669c195925b0d9208b699f48b45132dc86fd209dd"
+    },
+    "bun": {
+      "name": "bun",
+      "path": "/home/tryinget/.bun/bin/bun",
+      "version": "1.3.12",
+      "sha256": "sha256:92a1cd8b6185f676010bb18e767dfc65c772273e79ae9984480843261939eeaa"
+    },
+    "sci": {
+      "name": "semantic-code-intelligence",
+      "path": "/home/tryinget/.bun/bin/semantic-code-intelligence",
+      "version": "2.0.0",
+      "sha256": "sha256:a93a54c7363151e9c87eced3381d97a39bf735d514e6bd272540dbac3d3c51ae",
+      "revision": "518d7cf473d5e9bd2c7c0b962d062adec300375d",
+      "resolvedPath": "/home/tryinget/ai-society/softwareco/owned/semantic-code-intelligence/bin/semantic-code-intelligence"
+    },
+    "backend": {
+      "name": "ast-grep",
+      "path": "/usr/bin/ast-grep",
+      "version": "ast-grep 0.42.0",
+      "sha256": "sha256:5cdd704eab6a0e390d93f30b951ab0f5eafae81c7ebb119277f12be2c7995d58"
+    },
+    "strace": {
+      "name": "strace",
+      "path": "/usr/bin/strace",
+      "version": "strace -- version 7.0",
+      "sha256": "sha256:ca7daa61ec8d0c765ded1d80bdd81820d2d6433272a1bffb2b6111f244a47361"
+    },
+    "tar": {
+      "name": "tar",
+      "path": "/usr/bin/tar",
+      "version": "tar (GNU tar) 1.35",
+      "sha256": "sha256:bb23828bebad4f06500eab34890570ff692344ca1d507d2ae299b27f170e6979"
+    },
+    "sciDistCli": {
+      "name": "semantic-code-intelligence-dist-cli",
+      "path": "/home/tryinget/ai-society/softwareco/owned/semantic-code-intelligence/dist/cli/cli.js",
+      "version": null,
+      "sha256": "sha256:f4d2c183659ee5eaf6c492f6ea686c13960ac3827ba1dbe2e226328cb45f4fb4"
+    },
+    "sciPackage": {
+      "name": "semantic-code-intelligence-package",
+      "path": "/home/tryinget/ai-society/softwareco/owned/semantic-code-intelligence/package.json",
+      "version": null,
+      "sha256": "sha256:8a705600b8d1cfffcb2f3ca0b0d2c00bbec85d9b3755758e4309650d37f78a7f"
+    }
+  },
+  "sourceAndProducerState": {
+    "unchanged": true,
+    "before": {
+      "agent-scripts": {
+        "head": "36792de9195c86e6e8ae521efb5c952492278088",
+        "statusSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "statusByteCount": 0,
+        "clean": true
+      },
+      "engineering-core": {
+        "head": "f084fcc4981339893c302e13c8266313233a0e2b",
+        "statusSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "statusByteCount": 0,
+        "clean": true
+      },
+      "dspx": {
+        "head": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+        "statusSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "statusByteCount": 0,
+        "clean": true
+      },
+      "pi-extensions": {
+        "head": "eeac7cda88df4027f89c4f0348420b5d051c055e",
+        "statusSha256": "sha256:fd5273c3c687bbc0107b00ddbd725a8c8c0acd46382205660149c308c8d32b81",
+        "statusByteCount": 48645,
+        "clean": false
+      },
+      "agent-kernel": {
+        "head": "d287063c5efd10eaed0738176de91176b39ee47b",
+        "statusSha256": "sha256:ec79a725f2366d8a438f0d9504909e6b42b0edeecc42de1647bbaf310981bac9",
+        "statusByteCount": 206,
+        "clean": false
+      },
+      "semantic-code-intelligence": {
+        "head": "518d7cf473d5e9bd2c7c0b962d062adec300375d",
+        "statusSha256": "sha256:8647cca92dedf28047929960a5d8c1f8c6434b015503dbc57e852c74f4371c7f",
+        "statusByteCount": 116,
+        "clean": false
+      }
+    },
+    "after": {
+      "agent-scripts": {
+        "head": "36792de9195c86e6e8ae521efb5c952492278088",
+        "statusSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "statusByteCount": 0,
+        "clean": true
+      },
+      "engineering-core": {
+        "head": "f084fcc4981339893c302e13c8266313233a0e2b",
+        "statusSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "statusByteCount": 0,
+        "clean": true
+      },
+      "dspx": {
+        "head": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+        "statusSha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "statusByteCount": 0,
+        "clean": true
+      },
+      "pi-extensions": {
+        "head": "eeac7cda88df4027f89c4f0348420b5d051c055e",
+        "statusSha256": "sha256:fd5273c3c687bbc0107b00ddbd725a8c8c0acd46382205660149c308c8d32b81",
+        "statusByteCount": 48645,
+        "clean": false
+      },
+      "agent-kernel": {
+        "head": "d287063c5efd10eaed0738176de91176b39ee47b",
+        "statusSha256": "sha256:ec79a725f2366d8a438f0d9504909e6b42b0edeecc42de1647bbaf310981bac9",
+        "statusByteCount": 206,
+        "clean": false
+      },
+      "semantic-code-intelligence": {
+        "head": "518d7cf473d5e9bd2c7c0b962d062adec300375d",
+        "statusSha256": "sha256:8647cca92dedf28047929960a5d8c1f8c6434b015503dbc57e852c74f4371c7f",
+        "statusByteCount": 116,
+        "clean": false
+      }
+    },
+    "sciTrackedExecutableArtifactsClean": true
+  },
+  "preparedInput": {
+    "gzipPath": "source-selection-refinement-input.json.gz",
+    "gzipSha256": "sha256:29cb2b91f398e935baf3ab092d836b249859208723548d7746ae043e9fa9531b",
+    "gzipCost": {
+      "bytes": 865177,
+      "approximateTokensCeilBytesDiv4": 216295
+    },
+    "uncompressedSha256": "sha256:cb5e2a8f4c6799c07ff2ff988ab03c58e4b7bbcb2c878dd6313a5ffaefa6a94f",
+    "uncompressedCost": {
+      "bytes": 5264326,
+      "approximateTokensCeilBytesDiv4": 1316082
+    },
+    "uncompressedRetained": false
+  },
+  "validation": {
+    "contractValidatorCalled": true,
+    "rankingRowsBuilt": false,
+    "rankingsRetained": false,
+    "rankingsPrinted": false,
+    "rankingsInspected": false
+  },
+  "preReviewChecksumManifest": {
+    "path": "SHA256SUMS.pre-review",
+    "approvedEntryCount": 31
+  },
+  "ranking": {
+    "executed": false,
+    "resultPath": "source-selection-refinement-results.generated.json",
+    "resultAbsent": true,
+    "runModeRequiresExplicitExecuteRankingFlag": true
+  },
+  "limitations": [
+    "The discarded non-ranking collector attempt requires independent admissibility review.",
+    "The page probe performs complete producer inventory work before output slicing.",
+    "Hashes and strace are integrity/corroboration, not producer authentication.",
+    "Host-local monotonic timings are not cache-cold or production-latency claims."
+  ]
+}

@@ -1,0 +1,1027 @@
+{
+  "schema": "pi-context-packer.source_selection_cases_pre_ranking.v3",
+  "inputCaseFile": {
+    "path": "canonical-case-source.generated.json",
+    "sha256": "sha256:d2a19efd67058d54d250371860a2ec08af07eebc744a393dff00600b9f6cd6e5",
+    "repositories": 5,
+    "cases": 50
+  },
+  "status": "pre-ranking",
+  "truthChangedAfterReview": false,
+  "questionsChangedAfterReview": false,
+  "cases": [
+    {
+      "id": "as-v3-cli-flag-values",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should the documentation inventory CLI distinguish unknown flags from dash-prefixed values while supporting equals-style arguments and structured missing-value usage errors?",
+      "truth": [
+        "scripts/lib/list-core/args.mjs",
+        "scripts/lib/list-core/cli-output.mjs",
+        "scripts/docs-list.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:d2369fc17ca3d3d771e80ed52ae5e7b8882188af6fa02814b64073735f35df28",
+      "intentSignature": "sha256:c05a0d070d13bcc886188c94d751790dd6b36956b84828dd2645e4d8676c62d6",
+      "targetBasisDigest": "sha256:b0a82c26537888e79489be3e4ef32adc71c9d95f19b02f9f0e90b130a68cb257",
+      "expectedRequestDigest": "sha256:cab81ded2a87d03da520525452fcfc842922f7d5e09188affe6daa1ea9fb9681",
+      "receiptDigest": "sha256:2ff52248fa47e1ac58bbd1f59d759a1ec6b11e022190c8c8979ed8c48a5553ff",
+      "executionObservationDigest": "sha256:abd7b27cf1a52cb6d53e8cf471568e46b3403ef2d01be0e525e47aa4085a3d7f",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-docs-text-pagination",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should human-readable documentation pagination and rerun guidance change while keeping verbose details page-bounded and machine or paths-only output unpaginated?",
+      "truth": [
+        "scripts/lib/docs-list-text-output.mjs",
+        "scripts/docs-list.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:67d17632000c10571ef2e7da55378d25821827b1194d50a71f66914e601733b5",
+      "intentSignature": "sha256:9ac149e9b56d1a08487213c756957400cad76a74b48d28f10436d3b883dee8e7",
+      "targetBasisDigest": "sha256:fe3cd850ee60f785218886aec6cfd9edcd6e149890c33aa6eda6dc8c6328020b",
+      "expectedRequestDigest": "sha256:3d0a925f196646787411ada0f4cef56878c01d7ea6d5f12589fdec4e7ea9e896",
+      "receiptDigest": "sha256:74d15393a36fdbf0e5d843d01e733e6634dbcf30c2db8881ebebc8bb6c95e07b",
+      "executionObservationDigest": "sha256:c926c6a060a7b08df326a4ea54db02a33957fc84a8e8ab49a25356f66dfb4b87",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-docs-compact-paths",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should compact paths-only machine output distinguish query and no-query envelopes, normalize blank queries, reject non-finite score fields, and retain optional diagnostics?",
+      "truth": [
+        "scripts/lib/docs-list-output.mjs",
+        "scripts/docs-list.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:5c8c17e5b3fb9502fa77f211d9d5e8bf1351d46809b0ce3bf1f1a8703339492d",
+      "intentSignature": "sha256:b51cc102f20c006206d3dd4cccd189c9a3783588cd71174711dc7f09b6586308",
+      "targetBasisDigest": "sha256:a35e37dcce1a7603df956cdefbd80f22b59d1ae6648b2fc7f885459bd81e4e44",
+      "expectedRequestDigest": "sha256:5ad92a72e0045c2246cecd1a401267176c012409090eba37d673a1271f4597fa",
+      "receiptDigest": "sha256:4cec8bbaf1537380ad542ce3ec3226e77144de990291f4428e261e8c1f9cb18a",
+      "executionObservationDigest": "sha256:9479b74c7f6fb950b981c761f6be29444df9a7b22c6b0e3e085f685b5a16e4ed",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-docs-symlink-traversal",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should documentation traversal collapse symlink aliases, avoid directory cycles, and represent files outside the repository without inventing repository-relative paths?",
+      "truth": [
+        "scripts/docs-list.mjs",
+        "scripts/lib/docs-list-inventory.mjs",
+        "scripts/lib/list-core/fs-paths.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:c10ac8acd2b9ccd0a9ceed6ac4131b64cfff078762dea9e16ff9eef936f31ddf",
+      "intentSignature": "sha256:15d228f46b774f5ab1f5b11603724918e1f505b2640f8686592f5c8d019f6008",
+      "targetBasisDigest": "sha256:a8072a902a79dbf790de495a1096e5839998be84cd649fe2a45bab4b87a2a14c",
+      "expectedRequestDigest": "sha256:1dfabdce49690a3be965ddeb4b54050646f6e884d52b27a3061f915f7e54ee13",
+      "receiptDigest": "sha256:a0bf20618164a3c819a4674c5f4627e2cfbdab5fc67d5d9951525897f26e31b3",
+      "executionObservationDigest": "sha256:ef8f07609f09f43e1ce4a67ec71ba86e351d72e062bd06bad63d55bcfc04c043",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-source-git-protocol",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should source inventory Git invocation and diagnostic handling change while preserving the selected executable, exact NUL-delimited index protocol, bounded hostile stderr, and schema-valid runtime failures?",
+      "truth": [
+        "scripts/lib/source-list-core.mjs",
+        "scripts/source-list.mjs",
+        "tests/source-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:e8d4d3145ecd3325b5b6ea38c74c4be791b61fa727e41219e14702d9fcdae9e1",
+      "intentSignature": "sha256:fbe48978484262e5fe5a56a1ed32d9a05064f4db09cf8f4e211ebe5454512e52",
+      "targetBasisDigest": "sha256:2e900822f8132d91857e3af1fe9a4ed2efda9194b9a4fd23aa5a77ed2be9d7d2",
+      "expectedRequestDigest": "sha256:901436fa2970ffe9eea1bc44e79e3f2bd9f155862f4b0e76e29114634cb6e356",
+      "receiptDigest": "sha256:ccaaf2ef855456d8eec8ea77a16eceb76f9f6c59f22d02ae4e14cb63459f0abb",
+      "executionObservationDigest": "sha256:9a462a51b9aa1a4e5f8c0dc6df308bfc6a04e9f66cf9b041dc9e51684f580806",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-ak-manifest-plan",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should task-stack manifest normalization and plan construction evolve for scope policy, safe external IDs, and key-based dependencies before any task mutation occurs?",
+      "truth": [
+        "scripts/ak-task-stack.mjs",
+        "scripts/lib/ak-task-stack-execution.mjs",
+        "tests/ak-task-stack.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:467cfcd4708c98a092d9628d7f79d1eefd5bc08926ef668b1ccb0934630f8a62",
+      "intentSignature": "sha256:8c220bffa2dcfd321ff3918ed1ec742123c0192c1c51279a116afe4ec5c5af88",
+      "targetBasisDigest": "sha256:16e33dee09697d419a98c693a121248192a38266747419dcc90ebd5deb266b91",
+      "expectedRequestDigest": "sha256:f393a4dfb904f9364016551daf8d1901348c0d9944ed896f9c058a3183989d6f",
+      "receiptDigest": "sha256:19bd5d499e5e17a8b12d02dbdf33b24f5f7af30aba3d36f864754864a01d6c31",
+      "executionObservationDigest": "sha256:0d5bc675a4b80588875d9e03a3c8e1ec2575b81aec8258477f17fcf5b61cb753",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-provenance-yaml-authoring",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should provenance-note authoring change optional group and link emission, lexical path normalization, empty collections, and caller-asserted gate fields?",
+      "truth": [
+        "scripts/git-note-provenance.sh",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:23aec3d6f4f82f6b39b116fca38ba67d9cd6e43ba518a0387ba13bdf06ab4084",
+      "intentSignature": "sha256:9aa48a50286ce615731c5af046f4996c3c6fcf14c712bb24bc74443435be2709",
+      "targetBasisDigest": "sha256:9fe96a58f73d60f3fee96843f36ff8b16e2b3f6d83c2d3d21208ef934b7cca12",
+      "expectedRequestDigest": "sha256:b85d1dbd9936b353d78984213b595c2303c60f0b2b68e7d7820508dde6cd4d06",
+      "receiptDigest": "sha256:3e9cc61b3a3a99cd800b11634f5a4851d40c143a3d87d1163aba1769358cbffc",
+      "executionObservationDigest": "sha256:76e4dfa21e5ecd0ad1ef22664a9a66c1f1608069062b25d3e7a48ae11c41daaa",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-notes-setup-convergence",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should per-repository notes configuration preflight every read before mutation and report retryable known-partial state when the second convergent write fails?",
+      "truth": [
+        "scripts/git-notes-setup.sh",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:fbf803f88bf790cdb688b6657d489ea495a002bf54dd1a17da143692e279a1cb",
+      "intentSignature": "sha256:e68c28b631cef49cc7c4caff8e970b10156040e252ed413a0fb256775ef9c893",
+      "targetBasisDigest": "sha256:bea42414d82a59713d6125c901d1382744adc29bdf3d615bc8833bfb88f8f191",
+      "expectedRequestDigest": "sha256:edc1f84a5a176aba7e2ed171122ec2739db69de76ab571230103bdef5861eb3b",
+      "receiptDigest": "sha256:b5d03453001178aae502c72b3283fd6a06534a34d7df2f816eb6d5a4d8ccf2df",
+      "executionObservationDigest": "sha256:8d8dbd0c0fb570d9885a8c8584e2a20b7fad785ed9d4e2b8130a2182c0252444",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-workspace-notes-discovery",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should workspace-wide notes setup discover linked worktrees and newline-bearing repository names while isolating per-repository failures and reporting a final summary?",
+      "truth": [
+        "scripts/git-notes-setup-workspace.sh",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:1c928b5dcaa9e812e96f886380f19fc3bd125ddef4a8ddfc8a92d7f18982a56a",
+      "intentSignature": "sha256:9538a649cacf83358cb7a5279b3dde6af80790b7cb394cecaecdb804ed7ec721",
+      "targetBasisDigest": "sha256:6dc9ef871b3db1b40f0b18bbeeb33c5a6abe21cdd6f62d0304e292a119b7b991",
+      "expectedRequestDigest": "sha256:10d95e3c1acd1c64618a4c4795bc1ed89e63872410dab0c932f735cc4919bf95",
+      "receiptDigest": "sha256:5611ea77123a7ed8020a65dca81ad565e4f553b5ed37113a7cb3ee136387ef5e",
+      "executionObservationDigest": "sha256:e9d23ef0338d510f5e717d003a60ac2ecdf9b8340cac0709da8072556a97ea96",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "as-v3-standalone-notes-push",
+      "repositoryId": "agent-scripts",
+      "repositoryCommit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "question": "How should standalone notes publication preflight remote and ref existence, treat dash-prefixed remote names literally, and emit exact inspection arguments after an indeterminate push failure?",
+      "truth": [
+        "scripts/git-notes-push.sh",
+        "scripts/lib/git-provenance-common.sh",
+        "tests/shell-cli-contracts.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:110faea764b013dedd66747e13c8246bd510c7ec2c544723cd7ae98c23f20194",
+      "intentSignature": "sha256:1567efefdf5d51e7b07bc519c49fc283439fa3a66f997c0e963cd21f56ff0a21",
+      "targetBasisDigest": "sha256:6a6cbbb7b96f00b06bee883400e19adafd98a27115e589abb846d8e892d5ea6d",
+      "expectedRequestDigest": "sha256:560466dad6756c1e46c240229ff2c0c58bc176ce5d05907f8ccd163f4601e92d",
+      "receiptDigest": "sha256:79104d67d5490b6f5ec570b19237022458a4a8fe5719b7114e574999a922b78e",
+      "executionObservationDigest": "sha256:825d3827d70877c367341a40924fee5c183f0e55cbaa70c2ca1cd1cde14d11ba",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-01",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should the diagnostic report classify blocked, degraded, and healthy repositories while remaining non-executing and non-mutating?",
+      "truth": [
+        "src/engineering_core/doctor.py",
+        "tests/test_doctor.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:4ad2f7dfd83e6ee71b1cd49b4425e8b430e2d206bf7211a8cfdea6ba7ceac627",
+      "intentSignature": "sha256:6709a02d681079a20e8aaccc65e92ad15cda621d93258f7f28aeb39b4adf2bbe",
+      "targetBasisDigest": "sha256:2c398765970e2042401a5a8008bdab5c1a6bd9b606b93e5ee63b38b12754491c",
+      "expectedRequestDigest": "sha256:fccfeb67900b181ef88835e129f15dae7a9bdff642177df6885d99bdf5248303",
+      "receiptDigest": "sha256:fcf9e95b4820aa7f0c7b6f6405d0b4bc4e51bff40c179466c241aeb9592fae84",
+      "executionObservationDigest": "sha256:e2eeb301d87f0621ba8b049d2590943982a8f84904e579017eb5b3c455c2613c",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-02",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should engineering policy parsing deduplicate selections while preserving field-level validation errors for malformed declarations?",
+      "truth": [
+        "src/engineering_core/policy.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:dccb4dc8034fec2b9f6342b28740c304290576e797a1ed241a230f8b36419338",
+      "intentSignature": "sha256:a9e92299898d827939bfc2c1c9955f05c00ba54ea40d5a87a8e154b4a7aa42ee",
+      "targetBasisDigest": "sha256:ed65d60ca453f5d3649dda08351b4e90cb5fc76d87b5587a21b088abdd84b7f9",
+      "expectedRequestDigest": "sha256:e33c23f04a70e882ab766ea1a5163d2cafcaf864c051cb3bd6cf47e8f74cbcc7",
+      "receiptDigest": "sha256:07443af70cc8241478eafda3cee926f75b3c12f3e0fb7453e4f535e4daa4628e",
+      "executionObservationDigest": "sha256:70352e8a6b6545bb90e2fff587b46b82f4a92edaacf01134ac0f486bb2b87b1f",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-03",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should declarative repository inspection infer language lanes while rejecting symlinks and special files, reporting malformed package.json, and bounding evidence?",
+      "truth": [
+        "src/engineering_core/repository_facts.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:00b8a9396b21946dd196e78b4569df7f260c0964ff0a1631db3f74d1eab838d3",
+      "intentSignature": "sha256:1a2015cd2685a8cc5f5907e78ea93bebe9bacf880c18b628f3e97e275ad9e68a",
+      "targetBasisDigest": "sha256:cc132f59f6f12dbf62fd8f0b09866ee9357bdaf0ab95feddfc84bdc715dc2bac",
+      "expectedRequestDigest": "sha256:236d1fc54c348e7e011bbb8d200b5910997af0824cc76580978b8b9d79e34325",
+      "receiptDigest": "sha256:a5078189aca4660b26ed3e27d952657f39f73b1fe065e3817990558aaec295c4",
+      "executionObservationDigest": "sha256:083b5c485f5903c476e8bb6294fb65f158f87fda599d7a517c8ec9195535aa0d",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-04",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should fixed read-only Git probes disable optional writes, filesystem monitors, caches, and pathspec interpretation while normalizing failures?",
+      "truth": [
+        "src/engineering_core/safe_git.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:150058606442094b62974440190d7ec7afaae8de552733b0f726c36753de3f73",
+      "intentSignature": "sha256:4b4d9d5086ff848e1c58d7aa933bcd06d12dd6de0b693bb279b6e3d58a45e95c",
+      "targetBasisDigest": "sha256:bb81a66a897e546d6504830012672a92cd6695bc0cf1924fc9a8b4e6f29d1ad4",
+      "expectedRequestDigest": "sha256:14a7248d6878a72d4e6e3dba518b01583bcfc266be78f0ffd43f0cb1df973284",
+      "receiptDigest": "sha256:50664d5fdfbc5863f3977e678877c56ab16266bc2be05befea14554dc00f9939",
+      "executionObservationDigest": "sha256:7c564fcd9a6dbe57e7bb99fb8c1d85350ceb0947ad318eaa77c18d1c0afae1f3",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-05",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should deterministic advisory plans resolve transitive catalog requirements and expose contradictory, unknown, or omitted selections?",
+      "truth": [
+        "src/engineering_core/engineering_plan.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:2527473020a472f18ecd920eae3d84c3bca4b54c411fa48e1365fe5e7adb641b",
+      "intentSignature": "sha256:d355d97023dac28b4b2f72ecc6c986804640a7e8ffd56d85858cd87afcf43207",
+      "targetBasisDigest": "sha256:0d37ef8f7736fc8cdc86b00438e01de4d7347814233b614290ed920c47940768",
+      "expectedRequestDigest": "sha256:e375a12eaaef990387c25e058f2e2fb04eb55032eb284f7cfcac3fef3ce75066",
+      "receiptDigest": "sha256:c1e54babece5e6f4585b1cdb9b75643500d6f59fa49bdfa2af2c2409d3315178",
+      "executionObservationDigest": "sha256:39a61faea34ea563cec096b6ca36f3836a936c9cc68d6ba91ae470c69c2eb415",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-06",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should owner-use command dispatch preserve raw input digests, bound repeated records, choose deterministic output formats, and return failure for non-matching verification?",
+      "truth": [
+        "src/engineering_core/work_cli.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:bbb7945b097cf3a390f5afd68476c7f3291935821f59e12dc2cf88b19a95a07b",
+      "intentSignature": "sha256:144bc02cea536014104c2c63acc1a4d65ea81fe8840d40507760d1f22b27e6b1",
+      "targetBasisDigest": "sha256:51be71b15b53daa8c8735468e1cdbd97e566b4724f4aa9d150da54125e96ccdf",
+      "expectedRequestDigest": "sha256:0c79a2f22c2b15e543edb72d84cdac5600b1a61dc7d7335abc6a99f8677a13a0",
+      "receiptDigest": "sha256:f505e199f7047a82b27f994aa9d299236008718320d0f578993e661f5d37e5b6",
+      "executionObservationDigest": "sha256:fd24ed5931c5ad6920dde838b9a3a15e991ac4054d30868e29292a6a4363298f",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-07",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should local release verification enforce synchronized versions and release docs, replay historical catalog proofs, run required canaries, and inspect built artifact contents?",
+      "truth": [
+        "scripts/release-local.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:426bbd15be2a7a2970295ff1dbb5130c217e61124726ddc14c05c5996f4c0351",
+      "intentSignature": "sha256:9a42477ca663a47ddc9fc5250c3c291db6f31885487fdd70edabb48b690a48e4",
+      "targetBasisDigest": "sha256:73b3dcdefb16f849b8c210f0174e0a7e62586ae9922fda07fc9091b60a846230",
+      "expectedRequestDigest": "sha256:6de204fdaaece3af3e0fa1a296ce6c7264f373569a46e4858618dae67854007d",
+      "receiptDigest": "sha256:567c7ba8371b952043c75e66842867463aa34cd92c0ca6b35563c76517ae21ad",
+      "executionObservationDigest": "sha256:7b2d84beb3d8e922532cb7b70b3d8dc29c1aaed941ad8aae7bb8d32f3cbc444c",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-08",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should finalization bind advice, owner decisions, and receipts into a deterministic bundle while rejecting duplicate identities and cross-repository claims?",
+      "truth": [
+        "src/engineering_core/work_bundle.py",
+        "tests/test_work_bundle.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:2a6ad351c50c362c94a7573e39f247df570ec1ff6b7f33dcf32323c9999ec5f7",
+      "intentSignature": "sha256:23ca52aca760e318fe3bbca0d9c080ad9b0354bc84018af906f04e9c8c908497",
+      "targetBasisDigest": "sha256:e75f0d572f02a80cdca8c05ca851c9990e92924dc6476493354a7db93b814d1a",
+      "expectedRequestDigest": "sha256:8bb725b11137fddf7cc9306d615e31cde3f5e38071840a4014cd6c00af93772b",
+      "receiptDigest": "sha256:02eb1436befb515bb4f27c8357beaac20b84d22bccb4bec9fa55b61fe2fd3e81",
+      "executionObservationDigest": "sha256:f5b99f0de660949ffe1d18bcaab7c101227c45cc6dc6ea744a9755ec7256f481",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-09",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should an owner-use bundle be checked against the current repository revision, focused scope, and recomputed plan bindings without performing mutations?",
+      "truth": [
+        "src/engineering_core/work_verify.py",
+        "tests/test_work_bundle.py",
+        "tests/test_work_packet.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:d5fa4b5fe9d63ff0e08b10c635801d0ac5510620cb346e5255832e14d06a9530",
+      "intentSignature": "sha256:7a69b8bea165b2b0bebcf1fd9a7aacbba2db6cf0c615344f87db2a78e405955f",
+      "targetBasisDigest": "sha256:f5abaafece3f947c3e96aaed26c2c7b652b6416ea73a90d0d7dbd47f99f83694",
+      "expectedRequestDigest": "sha256:7b2f104e70f2dd37a4359f36d92e281128db1f089e407c628221c4fb4f7bf8aa",
+      "receiptDigest": "sha256:0001f9ae9fa5296f3a61aacb102cc723c8ab4da324a401ee358ed95e1ed0e5b0",
+      "executionObservationDigest": "sha256:07f9171066db2dd58dda7d62db2fdd3dd47139d29b60e86349452476f29ba966",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "engcore-v3-10",
+      "repositoryId": "engineering-core",
+      "repositoryCommit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "question": "How should an owner handoff choose actionable next steps for pending recommendations, absent evidence, optional advice, and bound verification?",
+      "truth": [
+        "src/engineering_core/work_render.py",
+        "tests/test_work_bundle.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:fbc29bd37aaedcc5bbed79b196eb504df53274aa375f4fe1fad67128a71d0bb2",
+      "intentSignature": "sha256:43e1a113717df5f881e989b1229372da29ebbe668fef2fc3decf20487453e922",
+      "targetBasisDigest": "sha256:d40e60f5761a4b3b3f7b5c4c7e04bc9c7d1988acbdc2b85336c79f9c629df388",
+      "expectedRequestDigest": "sha256:6a6fac6067bc390af8a3934b09237545f6752f69659b895a60fa4364493cc2c1",
+      "receiptDigest": "sha256:30789c8b1f946dabf37484a8cf065d1173e67ff7b21a00a3a88e67aa5c034e90",
+      "executionObservationDigest": "sha256:be9b42e7dd9e14c7615a84cec0063c91b8aaa784881f08f19e3bd51532e594fc",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-config-env-transaction",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should configuration-driven environment refresh change while preserving explicit overrides, removal of stale managed values, and complete rollback after validation failures?",
+      "truth": [
+        "packages/dspx-core/src/dspx/config_loader.py",
+        "tests/test_config_loader.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:ab41b1789f034f85f55a2d242354d24210108849fb99a6e5e7913eec92435014",
+      "intentSignature": "sha256:90a5526d89f1e95b3121cd4e1c4266c90a71e41459434ac7d2a9b6a1f49f221d",
+      "targetBasisDigest": "sha256:55b0641ed9cbeded2f4a6be509ecda5c209340686ad9c980e098ac9607b2e798",
+      "expectedRequestDigest": "sha256:43367dcc5edb0060268770db33b41ba74faaf2a89f206dd9c9524537926cb310",
+      "receiptDigest": "sha256:c0d61afaee0834dd5797e64b79b8f0391837afa48eb007b4fa141a634fa261af",
+      "executionObservationDigest": "sha256:cc1f383a7fad785ff68890e0ab6d94edf808018427111e4c85975aca22704f7d",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-cache-confinement",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should on-disk cache I/O change while preserving canonical keys, confined path segments, private permissions, non-creating misses, and rejection of malformed entries?",
+      "truth": [
+        "packages/dspx-core/src/dspx/cache.py",
+        "tests/test_cache.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:cd0f36fed5c3fb547a3002eb9a3d78424e1c8cd0eb089ec8fb224542c8ca6cbb",
+      "intentSignature": "sha256:37339be2ee1be27a3575b38f5b0534acdfb66fe1a6d1139cef38e7a7db029c37",
+      "targetBasisDigest": "sha256:20eebd2da02aa344f8dff9065ce1d1d365e37ee156d19c5fb9935eec95efc5a6",
+      "expectedRequestDigest": "sha256:d0debd874e9f0f31648847e65f23572b1f1c3e61706d3fa4daccdc0bf23207bc",
+      "receiptDigest": "sha256:07dcc6646970dffc303774b064d89235f2d260b9453c5a6ff3fa3bbe447c037e",
+      "executionObservationDigest": "sha256:10d89558a6d7d7684af82af703a3658c8243f0baca57512fdd340729edceb78c",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-group-stratified-splits",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should group-aware stratified splitting evolve while keeping groups intact, balancing labels by instances or groups, honoring minimum label coverage, and remaining deterministic by seed?",
+      "truth": [
+        "packages/dspx-core/src/dspx/adapters/datasets.py",
+        "tests/test_dataset_splits.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:660a83581dfacba3e2f8f3ac087a94a1e89a3b1edd57d572d3e64b5e0546180d",
+      "intentSignature": "sha256:21e8c493ab4201302ef751f26386f84644862c1fe9c946665863a715abdc46fb",
+      "targetBasisDigest": "sha256:0b0b45f4c6fb9bccc95c9e3e6914429b4f80e677caf004135650bbd9ade9a351",
+      "expectedRequestDigest": "sha256:50ea551d4fa3c4f1c14e88c8dea639aa93ad49afa93e0f70cf4830ae81cccc5e",
+      "receiptDigest": "sha256:1bef81f0bcfa19af889ce069cce3ba78721d49e0cc2c78ee4f648096da534eca",
+      "executionObservationDigest": "sha256:835ba92c975f30ea994c6250eeeeaabdd158b35ec720cff120049c613f49108b",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-model-role-routing",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should foundry model-role resolution change while preserving explicit environment overrides, Codex-only routes, validated reasoning efforts, and declared-not-live-verified evidence?",
+      "truth": [
+        "packages/dspx-core/src/dspx/model_roles.py",
+        "tests/test_model_roles.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:e94bc6ef99aadad34c968447af17aa21c7ab603536b7bfb947a8e59ea37c31a4",
+      "intentSignature": "sha256:13deac3f5721a73eeef28134bf9f2596259577eae98a54d547af7e9cbf3b232f",
+      "targetBasisDigest": "sha256:8490ced352f09e37e14283d28fce0cd7e24a45e48906d0c0e3c9abf804fc26ee",
+      "expectedRequestDigest": "sha256:db500da73d1ded8c53ad94f167b5d6bc429eb3e8f39655564cbefac39c0ce7e9",
+      "receiptDigest": "sha256:10747d9c4104d1e1111dc20ebd74e87631f76e0124321568ccad3f62dff2cec2",
+      "executionObservationDigest": "sha256:8f377e3d8e686e1370a6b71272b586be0f03d930c3b285469af23e50ed00d110",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-coordinate-clustering",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should behavioral-coordinate clustering change while preserving normalized centroids, complete member assignment, sequential cluster identifiers, and dimension mismatch rejection?",
+      "truth": [
+        "packages/dspx-core/src/dspx/coordinates/clustering.py",
+        "tests/test_coordinates.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:10b8731b5bfdb87a1faff812e5ea10d5af1b49e4e13c7a1638556761e973266a",
+      "intentSignature": "sha256:7f7d8ccbc2d2e7b848eca0716248b722c73eb680f9502aee19481b6326bf422f",
+      "targetBasisDigest": "sha256:6ef05ad87ada88575f935039d8de10580d03d9e307ae9a67e3fa2cabcb8fee6f",
+      "expectedRequestDigest": "sha256:484e19f49911374da7e8ef86e792e37e205ccb174404441f843f4d3616da16d4",
+      "receiptDigest": "sha256:16b1219eaadb61bf9b4e24c2c52ece2a54118f1a845770f59699bcca09a8fc58",
+      "executionObservationDigest": "sha256:aa9b708af4e79f5b71db25b1744ae85aa2d817a98f4c80a725d6cd5565df5f91",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-openapi-numeric-contracts",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should numeric operation validation change while preserving strict integer typing, finite-number checks, inclusive and exclusive bounds across protocol versions, and multiple-of enforcement?",
+      "truth": [
+        "packages/dspx-core/src/dspx/tools/openapi/caller.py",
+        "tests/test_openapi_numeric_bounds.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:c6bb19ed22fa2968a4d3067162ec178f6237c6cbc0a4b4760560ff0d6bed61e5",
+      "intentSignature": "sha256:2f097414fbfda0945847f530f4644764e5915f661779a195f5af0bfd148715e9",
+      "targetBasisDigest": "sha256:2c86149896efefca451cf4db3e82702684ed1de1c303b27e401ba151ce9c0dc1",
+      "expectedRequestDigest": "sha256:3d2a42154079ccb5b1ac5fdc2e02cc18f20ad29438b0d1d704684223a6b90e88",
+      "receiptDigest": "sha256:9bd6df6fbe9e49fa61a45aeb11d19af2e8c72724b450ee874ba911e568d94f60",
+      "executionObservationDigest": "sha256:98b128aa64b6ee4500e4afa1c855a55ee74cad22944ca11d80f03c6be9a2a77b",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-pipeline-graph-validation",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should materializable pipeline graph validation evolve while preserving acyclicity, direct data dependencies, inbound-edge requirements, and declared-output reachability?",
+      "truth": [
+        "packages/dspx-core/src/dspx/services/program_topology.py",
+        "tests/test_program_topology_intent_validation.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:27074b0f21eecef0a5bc167ef335a3309b3f6ccf64d5fd9c326b806a264e0281",
+      "intentSignature": "sha256:97eafdf9dc8ce744d5b4ecf4de4d5af69cbf95e0db016968bd060ee6c0f21ab1",
+      "targetBasisDigest": "sha256:7d7d7176704b0902abf76a14530a12f2409fa3a7ede6010ea12c5ce6d44ead1b",
+      "expectedRequestDigest": "sha256:facf06a855070fcdfe693808fb8b3e8011635397dc1b57d8f9873dc304fbb8ec",
+      "receiptDigest": "sha256:e86fbd489fa0d0e6df9e3e139e1bc68a5631c5e0b0ac42e1fd87e86bca232195",
+      "executionObservationDigest": "sha256:fc1ed98b73c53ffb5e65539fb5704df214958b8045e6138c4bc4cdcd06fb397a",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-yaml-schema-diagnostics",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should YAML configuration validation evolve while preserving path and string inputs, distinct parse and missing-schema failures, and structured contextual diagnostics?",
+      "truth": [
+        "packages/dspx-core/src/dspx/schema_validation.py",
+        "tests/test_schema_validation.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:62625f934d2e636492749940bd3aa6aecdeee97ca73d112d68696aec07a831ee",
+      "intentSignature": "sha256:d4e6d0a01ecf9d548cbe883b484d11ace7c8d9e3c031d1766425ec1fb6730544",
+      "targetBasisDigest": "sha256:4fc5798032bbcc0b57b4f58d5e48b695bb411a1803daade98b72bc1a8f7bc5e9",
+      "expectedRequestDigest": "sha256:39dc0c5a94df4938d4335d14d0d87d567a4c49341629c6ef1a5cccc1ac385698",
+      "receiptDigest": "sha256:2122d9a267f7651ab10cbc081d4a898b2c9e8585ad2d5f12d9f664c661d571f2",
+      "executionObservationDigest": "sha256:0d3f7f63737ac91ae742a257368a9c1330cf984514beadd0d7635aa757d7e9a1",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-candidate-state-atomic-write",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should local candidate-state persistence change while preserving short-write handling, atomic replacement, symlink-safe output confinement, cleanup, and indeterminate post-commit durability reporting?",
+      "truth": [
+        "packages/dspx-core/src/dspx/services/program_candidate_state.py",
+        "tests/test_program_candidate_state.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:a03f52a988cf471a88421680e80057ca433fe84d47db979e1fd0e3615b6e030f",
+      "intentSignature": "sha256:de26597fd5bb53a476582a794bae51b902b189ecf86f1978739b126b4601306d",
+      "targetBasisDigest": "sha256:14e275b04c356fc7d595407bd735f2b3852f3cfebd233e2f57f300000f0acf17",
+      "expectedRequestDigest": "sha256:4dc18e657942486f7db1fdcb602badb60a44bed84711226e22f02572b1b0cb9b",
+      "receiptDigest": "sha256:052fff7172c5c489b4a8bca4b49b4d45c2b476d5bdde4d8ed4e89e5ebf935de7",
+      "executionObservationDigest": "sha256:057f2e3cef67fbd0d1ff52ab95a10212ca8bcaf41b25f555ed7774d30352df66",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "dspx-v3-forge-issue-pagination",
+      "repositoryId": "dspx",
+      "repositoryCommit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "question": "How should remote issue listing pagination change while preserving label query forwarding, ordered multi-page accumulation, and explicit next-page header handling?",
+      "truth": [
+        "apps/forge/src/dspx_forge/gitlab_client.py",
+        "tests/test_forge_gitlab_client.py"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:d618d3021c80e15fa8f8ddde5f96b41944c86989dd7eb2e8d0584a24ac07d164",
+      "intentSignature": "sha256:13c0f64f2bcaba4fe066e92d248016d9f0b4fc8df5451f36e4a583fe6017f11b",
+      "targetBasisDigest": "sha256:3bdb2027e36304bc190d482726b59db2d8490945b7e83134c0c4e2c119a9416c",
+      "expectedRequestDigest": "sha256:53260a2cb4f20fcb08aab29a0846e7338ed6cbaa3617f58ad2b61bc32d151fca",
+      "receiptDigest": "sha256:24e11421e576a6285913ca6cae58bf5f2b999f867dcb92f72d2cad65ceb870e0",
+      "executionObservationDigest": "sha256:6670fda28fb0842ce709ca391ba15a70c8ef9c3b159aceceebd34af49e7cd27b",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-01",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should activity-strip broker snapshots change while preserving session normalization, active-state ordering, deterministic recency ties, and stale-session purging?",
+      "truth": [
+        "packages/pi-activity-strip/src/common/protocol.mjs",
+        "packages/pi-activity-strip/src/broker/session-store.mjs",
+        "packages/pi-activity-strip/tests/session-store.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:9496a4986679d69e4f19c558499fc2422cb02e9253e3f7bd522c90c5124ce905",
+      "intentSignature": "sha256:56807085252b362e6ecdf350ba24bd058321f410bb1de52c37b45c818a17bba6",
+      "targetBasisDigest": "sha256:ec82e645bc603b5fdba49e460365fbdf8cdcc9bf850562301887bf38d69d726b",
+      "expectedRequestDigest": "sha256:52cc78485a7a8cafb1d5d76061370f1b34900fc9d20ac24d3df722be5d92f207",
+      "receiptDigest": "sha256:6825c868535c9c7b9fe7820eb09f66c23f7ac65c142fc3b2bdd33c5686704ff9",
+      "executionObservationDigest": "sha256:b5fba9ce8cfaf6a991fd0f4e3a0e75f3d94b9f2a0f266b6420fca673ed3daefd",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-02",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should agent-vent recurrence archival and restoration change while preserving review-bound confirmation tokens, backup confinement, hash integrity, locking, and rollback after receipt failures?",
+      "truth": [
+        "packages/pi-agent-vent/src/vent-store.js",
+        "packages/pi-agent-vent/tests/vent-store.test.js"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:eb4ea49b95db8fa3d184730b1eeabde6ceefbba3d7c15cf29ec6a1cf48072595",
+      "intentSignature": "sha256:2fb604b0ceafafc1569d55e017701eaf12cecfa77ac07ff73e5eac9da8439f5f",
+      "targetBasisDigest": "sha256:99d3d8cb25f29618f3400e0c23ee05c91bfa8f97b7178fd6d21e0703652b6a1d",
+      "expectedRequestDigest": "sha256:1993ee68719a61b24076966cef20cedb5f1e3fee49f384fc3afa192ff14c37e6",
+      "receiptDigest": "sha256:d38405553af11b60feda2e14fce336bef358f4d294045b59c5a7c29c98b74cdc",
+      "executionObservationDigest": "sha256:508d540028b86eb7fb2c0c2e5edcbcc43bdd31d5ca79d7ae3152d6ce5404ac97",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-03",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should context-packer owner-surface recommendations change while preserving bounded signal matching, selected-provider routing, deterministic order, and explicit non-authorization guidance?",
+      "truth": [
+        "packages/pi-context-packer/src/owner-surface-routing.js",
+        "packages/pi-context-packer/tests/owner-surface-routing.test.js"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:8714c2ae9cad330285840356f87686a21c5a25c1cb067e13776a0818b665c471",
+      "intentSignature": "sha256:9ae4b0fd80cb960f81abb5e971a41367c5a76b0802047b6f8d5eae2ababdb96d",
+      "targetBasisDigest": "sha256:9d49aa912a542897d849cb8a3a74878d5beae0af2ed716210ceffdbb59fd57c9",
+      "expectedRequestDigest": "sha256:df542ec1c4539b49dc1dd53ec738332e8cd3e8e6ef7de5e29eadfde9fb0f0abf",
+      "receiptDigest": "sha256:6baaa4596988dcc547ef1f96abdad6470d6ee15a9fd6e18972dca6970d200bcd",
+      "executionObservationDigest": "sha256:dfa20e93e793bd01679a9192d0f93f5ac2ec3c50f8241ba3cf6a8233c8dc15d5",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-04",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should trigger dispatch debouncing change while preserving per-session isolation, captured dispatch APIs, settlement of superseded promises, priority ordering, and timer cleanup?",
+      "truth": [
+        "packages/pi-interaction/pi-trigger-adapter/src/TriggerBroker.js",
+        "packages/pi-interaction/pi-trigger-adapter/tests/trigger-broker.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:c45eea90de724c228e90ec6c97d5ca37979a0d60f6d22e8cf7ec58c199d2c3a1",
+      "intentSignature": "sha256:5da996c352cf64ccc19499e4e15ccfc36cb0e4643623f4319f8dc5119703441d",
+      "targetBasisDigest": "sha256:8b969341e511849955e8aeed3312f65071585a622621b56baf9047752159ed8f",
+      "expectedRequestDigest": "sha256:8f4ecc93286a60306baa995a72f2875d557b9daf1b317ff4d4644b76fcb5fa59",
+      "receiptDigest": "sha256:288e287a3a584230c6cdc0d236a35c4b7e698d11d49d3528149101fdabadcc92",
+      "executionObservationDigest": "sha256:a5809085c3828144793d933ff28d53a91828e297421105f77e8b57141b6eb9af",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-05",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should shared model candidate selection change while preserving current-model reuse, provider-prioritized bare IDs, ordered fallbacks, legacy authentication, and host-owned credential isolation?",
+      "truth": [
+        "packages/pi-model-selection/src/modelSelection.js",
+        "packages/pi-model-selection/tests/model-selection.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:05c61b55492e33c73c056dda03d636a77be9d0414d42c6ae26e210cea59a72f6",
+      "intentSignature": "sha256:bc618f5b272df1f33a513f3a285cbeee87e7514b08aac70ccf4929ca57bf278c",
+      "targetBasisDigest": "sha256:da823e18805ee7d20a2e84e3c5e0f92edb04f53de855bd7716ae704a514f3458",
+      "expectedRequestDigest": "sha256:68da1d5e98af239a5162c92511c1d9cf98817f49000e79c69cb760a5bbf52992",
+      "receiptDigest": "sha256:8a781a6a663a9937c5cae76fef24a9e406c034909649df6839fc6aa6e4f5cba8",
+      "executionObservationDigest": "sha256:f5d995a5f6dc9e980ab9762730791cbf40a771289bdfc387879dfe50911ef5a1",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-06",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should prompt-template discovery change while preserving deterministic recursive traversal, directory-cycle diagnostics, same-source collision handling, project-over-user precedence, and ownership exclusions?",
+      "truth": [
+        "packages/pi-prompt-template-execution/src/loader.js",
+        "packages/pi-prompt-template-execution/tests/loader.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:91fd964f1b93c2e1db92f1d202d62b24bdbe5106f2a1c4fc3cb66a4ab5508e05",
+      "intentSignature": "sha256:02bff72226e98d7442f7c7ebbf6cca6054ebf99617493ad673081d30821febf7",
+      "targetBasisDigest": "sha256:5cfaed4c613c3e1c94ab0c5bac133b3c25da4d882dfe95b8e1bf2aa2049605ef",
+      "expectedRequestDigest": "sha256:83628d6d0ba37dd27ceb798de14ef6ad8aa677a15a4a9688807eabd067dfdf3a",
+      "receiptDigest": "sha256:22a5484ff769d96740dda49a141377f33635a253b87a6727e27ae23b1e98e982",
+      "executionObservationDigest": "sha256:52696b6ac4cfc76ffaf8aed59a6b7255d89e7eefe84d853e0ff1bb8b1f9d19f6",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-07",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should the fast AI Society startup packet change while preserving path-inferred identity, bounded read-first hints, outside-workspace handling, and explicit warnings that AK and Git posture remain unchecked?",
+      "truth": [
+        "packages/pi-society-startup-context/extensions/society-context.ts",
+        "packages/pi-society-startup-context/tests/society-context.test.ts"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:f458cbf15629d0109f93a3fc035b86271f0915b714f5c32f68c98a988e832b70",
+      "intentSignature": "sha256:d39bef420defa61c8c64c88182807ef7c089268ec59828bdd77794ae3c696fc2",
+      "targetBasisDigest": "sha256:d3b763a792a620e7b713c5480c58ad504ca534ef278d97f351c067eb8d4f1192",
+      "expectedRequestDigest": "sha256:21f77aef86eac7425c68bf56a6895a6f144ba8cb36590ffb30607f20fed7e39d",
+      "receiptDigest": "sha256:7c347856d665fe5b3f5af3b742f7af70595532e2b7c3afdf55a7794b159bce7b",
+      "executionObservationDigest": "sha256:432c6d136c8ddfa99d4a6ccdf286923be93bd75b77dcdd0d66de0bbe3e0802c9",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-08",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should session-compaction recover files touched while preserving successful tool-result correlation, shell and rp action parsing, no-op filtering, move redirects, path normalization, and merged operation codes?",
+      "truth": [
+        "packages/pi-session-compaction/extensions/session-compaction/files-touched.js",
+        "packages/pi-session-compaction/tests/files-touched.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:df598af38ceeaa0a935bd75f30532508a90f77ca7620a336c23f208278906c7b",
+      "intentSignature": "sha256:0d7ff829b73c3f31e32597d9cad0292dda6a5218e66f97aaf0f3d943fbad843a",
+      "targetBasisDigest": "sha256:7d29cbb105ecb7fb365e3a32c381ba590042ab5dabe83cc25cc7ea5824396f33",
+      "expectedRequestDigest": "sha256:af565eac9893d1ffde1d4f93978d0b9e724c2a2322d7020135767d1e0b1584fd",
+      "receiptDigest": "sha256:9a708ed399d454ff0715991f4a32ce25e7d48c3ff13056909c9dc952e27d84b9",
+      "executionObservationDigest": "sha256:117bea073c9d786e7852ce99baa10b0160881b5f9af79adef9b615ee91718a6f",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-09",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should snapshot-edit atomic replacement change while preserving digest and inode checks, hard-link rejection, pre-commit cancellation, mode retention, and temporary-file cleanup?",
+      "truth": [
+        "packages/pi-snapshot-edit/src/text-file.js",
+        "packages/pi-snapshot-edit/tests/snapshot-service.test.js"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:1c214f64a796cd8fd9468b1a75c363785e43cc137ee6e01aff36af73d3a4aa37",
+      "intentSignature": "sha256:c36fd7f2b691279ae2e6cfad53926a9b094b4c4de9cfa10238d84495fd4170b4",
+      "targetBasisDigest": "sha256:0e4b339a4dc608b9addc75c150050e9e5aa928d2ecbfbd3630bfa06598743128",
+      "expectedRequestDigest": "sha256:12cf2b4a711f0e87eccd07f6294187a49c8fc3a31d3a47ae2cf031df3567641e",
+      "receiptDigest": "sha256:aaf1bf5b255d535eb972e56ce0f821b19308645a77763cd954ad6227f1df1f40",
+      "executionObservationDigest": "sha256:17e482048c0429380a388609f76eef842ea1488ddbe02ca9f54ef135f7d3dd22",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "pxc-v3-ctrl-10",
+      "repositoryId": "pi-extensions",
+      "repositoryCommit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "question": "How should workstation inference status checks change while preserving bounded health-cache TTLs, caller cancellation, stale-but-usable contracts, normalized failure status, and provider contract visibility?",
+      "truth": [
+        "packages/pi-workstation-inference-provider/extensions/workstation-inference.ts",
+        "packages/pi-workstation-inference-provider/tests/workstation-inference.test.mjs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:7651991cd21f17d5c1d92e2e951a56d9a0135a67eb4aa8654955410566eedf23",
+      "intentSignature": "sha256:9b39dc54db7efac168e6f5500ec6fe638915ec072fcef174cb5e383a2a03e354",
+      "targetBasisDigest": "sha256:599805bc7dc0b4dc2fef5c0c9d087530af190aa58cf506712d89a89ec9e75a6c",
+      "expectedRequestDigest": "sha256:435ab559eb1ec0b598eaa3226a7c89983faad7857fdf6a0b05476a624e1e5d8d",
+      "receiptDigest": "sha256:8f0288a3b7d1a278e39a3ea56364333e7a7deacad21e5f90be9c3ad053c36b7a",
+      "executionObservationDigest": "sha256:573f79f29a8951f2bcecdf1fc1d5ca6dd477d8c5401ba471bfa581b577f860d8",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-01",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "How should build-time Git identity collection be hardened so linked worktrees, dirty files, and inherited repository-redirection variables are handled correctly?",
+      "truth": [
+        "crates/ak-cli/build_git.rs",
+        "crates/ak-cli/git_env.rs",
+        "crates/ak-cli/tests/build_git_paths.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:f7d1011c2dbf292f5024dc0e10fa4668081bd03658caf23b5d37d48bbbb03b34",
+      "intentSignature": "sha256:44736531c2f947190305793f66720f51c6b792ec67c06cc7ee14aa87950740bc",
+      "targetBasisDigest": "sha256:300864e656a185695702824f75169ec782527bacc522d358449ca067fc58e05d",
+      "expectedRequestDigest": "sha256:ece6cc2479920ba716560a0757deeb29e5d507b18c9229399fa53b773292416d",
+      "receiptDigest": "sha256:a7a0b7549f596d29048310a21c829c47fcacbcec59d792ff9c17b65c845628d8",
+      "executionObservationDigest": "sha256:57d0166682f48bee1233d99656aea2f121ecd7eb4ee877277fd54d377defe3b1",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-02",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "Where should strict retirement-manifest parsing be changed to reject ambiguous YAML, unsafe paths, invalid lineage shapes, and noncanonical content identities while preserving JSON/YAML digest parity?",
+      "truth": [
+        "crates/ak-core/src/direction_retirement_manifest.rs",
+        "crates/ak-core/src/direction_retirement_manifest_parse.rs",
+        "crates/ak-core/src/direction_retirement_manifest_tests.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:4ae58409b7ebf71532a1f59ff1c0a2498b5e5e7a2a544665ced439d88eddd285",
+      "intentSignature": "sha256:2e420c406280332fb7b1db0b53a3ce0aa71debe6e91b633a1cbf2cbdb2186765",
+      "targetBasisDigest": "sha256:9f3a57eb6837d5bf3fd89b1e4cddb7298e226139572a9c5001f68b95fb41a720",
+      "expectedRequestDigest": "sha256:12340671f43a26d964107b8df8245fa12714684aac6e24709620b775611ed64e",
+      "receiptDigest": "sha256:6d516bacbd1143902e7d532574ddc507083d007933c3b7f726feee6963b49b79",
+      "executionObservationDigest": "sha256:cbef0392a867aa542c74df7e60f3b8fcf01e4e864a5151c0e7c15b41df0d63ca",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-03",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "How can repository-operational projections remain fail-safe when cached or corrupt evaluations are encountered, including canonical reason ordering and refusal to recover exclusion authority through deserialization?",
+      "truth": [
+        "crates/ak-core/src/repository_operational_projection.rs",
+        "crates/ak-core/src/repository_operational_projection_wire.rs",
+        "crates/ak-core/src/repository_operational_projection_tests.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:bebfe201b8af0525d8da6b7b8183f0b150d503b51acbc564234db930aee8137d",
+      "intentSignature": "sha256:f8ad78b2f0569ec1369b3a0fb7427c3acd693632322422fb6999f7d67ba89195",
+      "targetBasisDigest": "sha256:6abaa08828f21ab07f67a556496be98497aaf45e05802b73ba6cf227d68fac5c",
+      "expectedRequestDigest": "sha256:a16be8d28e85f0606c27618027011602a4b733ccded84d0dfe075b79b37a971a",
+      "receiptDigest": "sha256:2fe1bd5cb1452997d358dc85073ccbbdb331ab3de88141b443fc4321d3c90929",
+      "executionObservationDigest": "sha256:f48772b8af2100a81ce02ac2b521020ba345fbae67723bce4674562a1787d424",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-04",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "Where should replay readback checks be updated to bind immutable read traces, observation currentness, checker inventories, failure reasons, and explicit non-authorizations?",
+      "truth": [
+        "crates/ak-core/src/layer12_replay_readback.rs",
+        "crates/ak-core/src/layer12_replay_readback_types.rs",
+        "crates/ak-core/src/layer12_replay_readback_tests.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:5e561cb6c6ff4a3d36f286a6519da7a7cc8e438f5d4fe93514d6b74976b03fc4",
+      "intentSignature": "sha256:89a78cae9e511640b315657c8816758acc90f04624d162a6016d5b05f8039394",
+      "targetBasisDigest": "sha256:8b4763b676adfe02c57871954ec601f1ba7787fc66a7835fae9daa55c3791396",
+      "expectedRequestDigest": "sha256:f0c27943a215e65a4362118a1c34ec37b4e0a68b6c2041e83547e75d760b5a96",
+      "receiptDigest": "sha256:0803a25b4393936b3719556fb9181b10a10c24541e850e3f0a9379c3b7deb09f",
+      "executionObservationDigest": "sha256:d6c0c06a1b0bb0019f1f24f393c54355d5da7a445c07f3fe83e3f0caed4d9716",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-05",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "How should fixed-family imports verify exact cross-owner bytes, signatures, trust pins, and withdrawal isolation while preventing owner self-authorization or co-substitution?",
+      "truth": [
+        "crates/ak-core/src/layer12_fixed_family_import.rs",
+        "crates/ak-core/src/layer12_fixed_family_import_tests.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:0916925cdd7f23e027ac2ebf570a4052aa9ea3ad06373348e3b0ad475259edcb",
+      "intentSignature": "sha256:57b9b7c6cd963236433e4f79e89d4d73704ca11d2c7decef6e253c16be5717a7",
+      "targetBasisDigest": "sha256:b461cf044eeb27f764ba637372427fa5e03a78ab089d7b38605260c43553ecee",
+      "expectedRequestDigest": "sha256:fa9e580b4fdccb2a75198c6b6051963b7ae4e245578e1078b255d6d8a5d50c5e",
+      "receiptDigest": "sha256:8870d1844f04ac6dbe980ac348f36a0533694bc2bd6e6d4500328bd71bc5a9d1",
+      "executionObservationDigest": "sha256:f3288c83e2c24fdc6acf62b45180236f7bfde2dabc400880b6c48b0ce22c8635",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-06",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "Where should managed executable-artifact propagation metadata be validated and exposed so capability filtering and JSON output retain bundle fingerprints, member mappings, and downstream posture?",
+      "truth": [
+        "crates/ak-core/src/repo_capabilities.rs",
+        "crates/ak-cli/src/main.rs",
+        "crates/ak-cli/tests/repo_capabilities_managed.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:9f7cdd8f5259eda178ba0d83157a587233fbd0546e0215f4c90f1c53230c43c8",
+      "intentSignature": "sha256:3e7e21b2bee72eb2bc7932e946a5bc0d34540c334b55aaef45dbd84935b25c02",
+      "targetBasisDigest": "sha256:d8e7570965a92e643bc40f4b261deef348699939123edff1e353805115099e26",
+      "expectedRequestDigest": "sha256:fbdf02c63e732d5646fdc6d6af370db234a4a46e654a7529f726df02f5ffb8b8",
+      "receiptDigest": "sha256:7a27fb56b556a39324c6c97799618a82707a9f44d97a269b36852eb7a27303a9",
+      "executionObservationDigest": "sha256:8b6a03da197e4e382666877fb48453e2f6dbde9f605236341f3347b12f871072",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-07",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "How should knowledge-packet draft linking reject absolute, missing, or unresolved repository outputs while preserving the approval and supersession lifecycle through the command interface?",
+      "truth": [
+        "crates/ak-core/src/knowledge.rs",
+        "crates/ak-cli/src/main.rs",
+        "crates/ak-cli/tests/knowledge_cli.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:1ee270bafa3a3bd86cee7628d2e8e5d5e27b3359449ad00e25e9f3d98bcd7357",
+      "intentSignature": "sha256:bdccd4fdb79bbb068938ed6fc642f5d23bfda58d714ba8ad4e8efa0b9bfc38c1",
+      "targetBasisDigest": "sha256:aab0f933c810448d696f4b5d8ef61d943de02d3bb5b0238263870cdbd7cbe9d3",
+      "expectedRequestDigest": "sha256:e0ad4a7dea5fa704e221881135f754b3ef239e9c08dcfc976ce6b010225097b9",
+      "receiptDigest": "sha256:1ff2606b61934288a553feff7385bea7881860ac84f7f2e5e91404f2658b27fa",
+      "executionObservationDigest": "sha256:1791ecb22efa4ecc3b2b7b7bc05e6447ca3b89dda451a115884b362939df819b",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-08",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "Where should asynchronous database cancellation semantics be maintained so queued work can cancel before dispatch, reads remain cancellable, and committed mutations still return their result after cancellation?",
+      "truth": [
+        "crates/ak-core/src/async_db.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:c87599cf9c862c4c1c0385d2f6a01585eb60dfc802b8508a9fdccb7184df5219",
+      "intentSignature": "sha256:b9103901a012958eac5a8f92fd763c096ea37eb2639756e43247ba071a7de565",
+      "targetBasisDigest": "sha256:40254844e4f21610c6a6d50479165897274032530c77a475832733510d7aedd0",
+      "expectedRequestDigest": "sha256:5a2bee8dcaa4aed002a43c5bdf5a371b937e5fed508c5de3ebd77d512d74b245",
+      "receiptDigest": "sha256:d5cd53ecebfe1e66bc141443ffb4b4e64ef7dd078b1b681073e764359bb0e0a0",
+      "executionObservationDigest": "sha256:4f63f4092a293fbfd017b9d48937b36cd46b1cb4f40a7f26e7354cc6ec8301ba",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-09",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "How should repository-owned text I/O be hardened against symlink escapes, FIFOs, hard-linked files, and concurrent atomic writers without losing existing file permissions?",
+      "truth": [
+        "crates/ak-core/src/fs_util.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:0d804431b066c830761ae62a66596b3a276e471047791c213ece8441ff7d9aac",
+      "intentSignature": "sha256:0f7b2f51a9874b50d47fb2d31a3b76df6008361e1d38d6e887a6d7c9ae62539a",
+      "targetBasisDigest": "sha256:ebe34f847dc5e500316b3a9ecc005816c164060a9b611d886cb806a5a1e87fdb",
+      "expectedRequestDigest": "sha256:2f314fbc6266aec6852262251e6cd84c8b85310cea52050efbeee202377a4eae",
+      "receiptDigest": "sha256:88c4c46a97e1249699366eea4d00c4ca19efd38d6b7607d83b7f60f988802935",
+      "executionObservationDigest": "sha256:f08ee683bd841c0720612534eec8f5d32eeb3766da3115c0aeab1cfc89438813",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-10",
+      "repositoryId": "agent-kernel",
+      "repositoryCommit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "question": "Where should repository rebind and deletion preflights be changed so historical operational references block unsafe mutations with deterministic precedence regardless of foreign-key enforcement?",
+      "truth": [
+        "crates/ak-core/src/repository_operational_history.rs",
+        "crates/ak-core/src/repository_operational_history_tests.rs",
+        "crates/ak-core/src/repo.rs"
+      ],
+      "maxItems": 4,
+      "questionId": "question:sha256:af1260be2a68305dec177feaf25f1136baa99bd6d9624726ca05a1814ed8b7ce",
+      "intentSignature": "sha256:dc62ee42987835ff60c9831cb6c63ce098dc603bcbdc3fa0e0b8bac6b57c5d38",
+      "targetBasisDigest": "sha256:0535775e0291182125ad68cab661bd0ee21ac4734ff67e4bf6739052516afeae",
+      "expectedRequestDigest": "sha256:bee3d9c22f0d53361ee5e427aa37974f62f9ae2f4a12b5020c68efd942d47d8e",
+      "receiptDigest": "sha256:d5e520a7204fe0ff55a861c99dba82516265bfedd03d8632b5788534a15b5f0d",
+      "executionObservationDigest": "sha256:b051f96bfd5aaa7cc700d943a514ed1ad0773b66d6c0535de6afcc1550e054db",
+      "receiptAvailable": true,
+      "receiptComplete": true,
+      "evidenceCount": 1
+    }
+  ]
+}
