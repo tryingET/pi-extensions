@@ -12,6 +12,7 @@
     "compat:canary": "node ./scripts/pi-host-compatibility-canary.mjs run",
     "compat:canary:list": "node ./scripts/pi-host-compatibility-canary.mjs list",
     "compat:canary:validate": "node ./scripts/pi-host-compatibility-canary.mjs validate",
+    "governed:runtime": "node ./scripts/governed-deep-review-canary.mjs",
     "release:components:list": "node ./scripts/release-components.mjs list",
     "release:components:check": "node ./scripts/release-components.mjs validate",
     "release:components:sync": "node ./scripts/release-components.mjs sync"

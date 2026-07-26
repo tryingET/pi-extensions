@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 
@@ -126,6 +127,41 @@ export function createContext(options = {}) {
       },
     },
   };
+}
+
+let latestGovernedDeepReviewPreflightReceipt = null;
+
+export function createGovernedDeepReviewPreflightStub() {
+  const stub = async ({ nonce, runId, cwd }) => {
+    const unsigned = {
+      schema: "pi.governed-deep-review-preflight.v1",
+      nonce,
+      runId,
+      cwd,
+      processId: process.pid,
+      sourceRoot: cwd,
+      sourceCommit: "0".repeat(40),
+      orchestratorModuleUrl: "file:///test/pi-society-orchestrator/preflight.ts",
+      registryId: "test-governed-deep-review-registry",
+      bindingWorkflowId: "deep-review.v1",
+      activeTools: ["toolbox", "workflow_execute", "vault_execute_template"],
+      activatedTools: [],
+      issuedAt: new Date().toISOString(),
+    };
+    latestGovernedDeepReviewPreflightReceipt = {
+      ...unsigned,
+      receiptDigest: createHash("sha256").update(JSON.stringify(unsigned)).digest("hex"),
+    };
+    return { ok: true, receipt: latestGovernedDeepReviewPreflightReceipt };
+  };
+  stub.bindToolCall = () => true;
+  stub.cancel = () => true;
+  return stub;
+}
+
+export function getLatestGovernedDeepReviewPreflightReceipt() {
+  assert.ok(latestGovernedDeepReviewPreflightReceipt, "expected governed preflight receipt");
+  return latestGovernedDeepReviewPreflightReceipt;
 }
 
 export function setTemporaryHomeWithPromptTemplates(homePath) {

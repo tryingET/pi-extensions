@@ -67,6 +67,7 @@
     "src/candidatePeerAdmission.ts",
     "src/candidatePeerAdmissionState.ts",
     "src/capabilityManifest.ts",
+    "src/governedDeepReviewPreflight.ts",
     "src/selfEvolutionEnvelope.ts",
     "src/selfEvolutionVerification.ts",
     "src/toolboxBundle.ts",

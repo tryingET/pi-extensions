@@ -46,6 +46,7 @@ import {
   listMissingVisibleLoopPromptTemplates,
   NEXUS_LOOP_COMMAND,
   parseVisibleLoopCommandArgs,
+  type RunVisibleLoopGovernedPreflight,
   renderVisibleLoopChildCommand,
   resolveParentPeerTarget,
   type SelfEvolutionCandidateCloseout,
@@ -133,6 +134,7 @@ type SidequestOptions = {
   currentGhosttyAncestor?: GhosttyAncestor;
   registerCommands?: boolean;
   registerTools?: boolean;
+  governedDeepReviewPreflight?: RunVisibleLoopGovernedPreflight;
   candidateAdmission?: {
     reserve: typeof reserveCandidateAdmission;
     bind: typeof bindCandidateAdmission;
@@ -3138,6 +3140,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         handler: (args, ctx) =>
           startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env, {
             continueInNewSession: createVisibleLoopContinuation(ctx),
+            governedDeepReviewPreflight: options.governedDeepReviewPreflight,
           }),
       });
 
@@ -3163,6 +3166,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const commandCtx = ctx ?? {};
       handleVisibleLoopAgentStart(pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
 
@@ -3170,6 +3174,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const commandCtx = ctx ?? {};
       handleVisibleLoopMessageStart(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
 
@@ -3177,6 +3182,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const commandCtx = ctx ?? {};
       handleVisibleLoopToolExecutionStart(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
 
@@ -3184,6 +3190,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const commandCtx = ctx ?? {};
       handleVisibleLoopToolExecutionEnd(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
 
@@ -3191,6 +3198,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       const commandCtx = ctx ?? {};
       handleVisibleLoopAgentSettled(pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });
     });
 

@@ -2637,6 +2637,13 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
     process.env.PI_COMPANY = "software";
 
     let capturedWorkflowRequest;
+    const preflightReceipt = {
+      nonce: "test-preflight-nonce",
+      receiptDigest: "test-preflight-digest",
+      registryId: "test-preflight-registry",
+    };
+    const preflightSettlements = [];
+    let preflightSettlementSucceeds = true;
 
     const registeredTools = new Map();
     registerLoopTools(
@@ -2656,6 +2663,30 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
       }),
       {
         dispatchReceiptPath: path.join(tempVaultDir, "dispatch-handoffs.jsonl"),
+        governedDeepReviewPreflight: {
+          ownerModuleUrl: "file:///test/governed-preflight.ts",
+          verifyReceipt() {
+            return true;
+          },
+          async prepare() {
+            throw new Error("not used by loop tool test");
+          },
+          bindToolCall() {
+            return true;
+          },
+          claimForExecution({ templateName }) {
+            return templateName === "deep-review"
+              ? { ok: true, receipt: preflightReceipt }
+              : { ok: true, receipt: null };
+          },
+          settleExecution(nonce, outcome) {
+            preflightSettlements.push({ nonce, outcome });
+            return preflightSettlementSucceeds;
+          },
+          cancel() {
+            return false;
+          },
+        },
         async executeVaultWorkflow(request) {
           capturedWorkflowRequest = request;
           return {
@@ -2699,6 +2730,10 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
     assert.equal(deepReviewResult.details.executionSurface, "workflow_execute");
     assert.equal(deepReviewResult.details.status, "done");
     assert.equal(deepReviewResult.details.runId, "workflow-run-deep-review");
+    assert.equal(deepReviewResult.details.preflightNonce, preflightReceipt.nonce);
+    assert.equal(deepReviewResult.details.preflightReceiptDigest, preflightReceipt.receiptDigest);
+    assert.equal(deepReviewResult.details.preflightRegistryId, preflightReceipt.registryId);
+    assert.deepEqual(preflightSettlements, [{ nonce: preflightReceipt.nonce, outcome: "done" }]);
     assert.match(deepReviewResult.content[0].text, /governed review complete/);
     assert.equal(capturedWorkflowRequest.templateName, "deep-review");
     assert.equal(capturedWorkflowRequest.objective, "Review the current implementation");
@@ -2707,6 +2742,22 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
     assert.equal(capturedWorkflowRequest.executionArgs.workflow_id, "deep-review.v1");
     assert.ok(capturedWorkflowRequest.handoffId);
     assert.ok(fs.existsSync(path.join(tempVaultDir, "dispatch-handoffs.jsonl")));
+
+    preflightSettlementSucceeds = false;
+    const unsettledDeepReview = await vaultExecuteTool.execute(
+      "tool-call-id-deep-review-unsettled",
+      { template_name: "deep-review", objective: "Exercise settlement failure" },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined },
+    );
+    assert.equal(unsettledDeepReview.details.ok, false);
+    assert.equal(
+      unsettledDeepReview.details.error,
+      "governed-deep-review-preflight-settlement-failed",
+    );
+    assert.match(unsettledDeepReview.content[0].text, /preflight settlement failed/);
+    preflightSettlementSucceeds = true;
 
     const workflowResult = await vaultExecuteTool.execute(
       "tool-call-id-2",

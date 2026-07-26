@@ -120,6 +120,7 @@ import {
   recordEvidence,
 } from "../src/runtime/evidence.ts";
 import { getExecutionIcon } from "../src/runtime/execution-status.ts";
+import { createGovernedDeepReviewPreflightRuntime } from "../src/runtime/governed-deep-review-preflight.ts";
 import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/ontology.ts";
 import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
@@ -186,6 +187,10 @@ export interface SocietyOrchestratorExtensionOptions {
   autoresearchLearningKesPackageRoot?: string;
   workflowCognitiveToolLookup?: typeof getCognitiveToolByName;
   workflowExecutorFactory?: typeof createWorkflowExecutor;
+  governedDeepReviewPreflight?: {
+    requireMaterializationManifest?: boolean;
+    dispatchReceiptPath?: string;
+  };
 }
 
 function workflowCognitiveToolUnavailable(
@@ -2062,6 +2067,10 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   );
   const workflowCognitiveToolLookup = options.workflowCognitiveToolLookup || getCognitiveToolByName;
   const workflowExecutorFactory = options.workflowExecutorFactory || createWorkflowExecutor;
+  const governedDeepReviewPreflight = createGovernedDeepReviewPreflightRuntime(
+    pi,
+    options.governedDeepReviewPreflight,
+  );
 
   // ===========================================================================
   // TOOL: society_query
@@ -4566,6 +4575,8 @@ and failureKind truth, and produces a structured aggregated output with workflow
     resolveVaultDir(),
     (agent, ctx) => resolveAgentForTeam(agent, sessionTeams.getTeam(ctx)),
     {
+      governedDeepReviewPreflight,
+      dispatchReceiptPath: options.governedDeepReviewPreflight?.dispatchReceiptPath,
       async executeVaultWorkflow(request) {
         const materialized = materializeVaultWorkflowBinding(
           request.templateName,

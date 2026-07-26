@@ -49,6 +49,7 @@ import {
   type ExecutionStatus,
   getExecutionStatus,
 } from "../runtime/execution-status.ts";
+import type { GovernedDeepReviewPreflightRuntime } from "../runtime/governed-deep-review-preflight.ts";
 import {
   createOrchestratorSubagentExecutor,
   isVerifiedDispatchEffectReceipt,
@@ -1263,6 +1264,7 @@ export interface RegisterLoopToolsOptions {
   ) => Promise<VaultWorkflowExecutorResult>;
   gatedDispatchEnabled?: boolean;
   dispatchReceiptPath?: string;
+  governedDeepReviewPreflight?: GovernedDeepReviewPreflightRuntime;
 }
 
 const WORKFLOW_TEMPLATE_OWNER_ROUTES: Record<
@@ -1887,52 +1889,142 @@ Unknown loop templates and workflow-grade templates without an execution binding
           };
         }
 
-        const dispatched = await guardModule.dispatchAuthorizedExecution({
-          runtime: dispatchRuntime,
-          authorizationId,
-          intendedExecutor: "workflow_execute",
-          activation: guardModule.createDispatchActivationPolicy(gatedDispatchEnabled),
-          receiptStore: guardModule.createDispatchHandoffStore(
-            options.dispatchReceiptPath ? { filePath: options.dispatchReceiptPath } : undefined,
-          ),
-          execute: ({ handoffId, authorizationId: claimedAuthorizationId, sealedText, binding }) =>
-            options.executeVaultWorkflow?.({
-              templateName,
-              objective,
-              cwd: ctx.cwd,
-              sealedText,
-              handoffId,
-              authorizationId: claimedAuthorizationId,
-              executionArgs: binding.execution_args,
-              signal,
-              ctx,
-            }) ??
-            Promise.resolve({
-              accepted: false,
-              handoffId,
-              status: "error",
-            }),
-        });
-
-        if (!dispatched.ok) {
+        const preflightClaim = options.governedDeepReviewPreflight?.claimForExecution({
+          templateName,
+          cwd: ctx.cwd,
+          toolCallId: _toolCallId,
+        }) ?? { ok: true as const, receipt: null };
+        if (!preflightClaim.ok) {
           return {
             content: [
               {
                 type: "text",
-                text: `Governed workflow dispatch failed for ${templateName}: ${dispatched.error}`,
+                text: `Governed workflow preflight claim failed for ${templateName}: ${preflightClaim.error}`,
               },
             ],
             details: {
               ok: false,
-              error: "vault-workflow-dispatch-failed",
+              error: "governed-deep-review-preflight-claim-failed",
+              templateName,
+            },
+          };
+        }
+        const preflightReceipt = preflightClaim.receipt;
+
+        let dispatched: Awaited<
+          ReturnType<VaultDispatchGuardModule["dispatchAuthorizedExecution"]>
+        >;
+        try {
+          dispatched = await guardModule.dispatchAuthorizedExecution({
+            runtime: dispatchRuntime,
+            authorizationId,
+            intendedExecutor: "workflow_execute",
+            activation: guardModule.createDispatchActivationPolicy(gatedDispatchEnabled),
+            receiptStore: guardModule.createDispatchHandoffStore(
+              options.dispatchReceiptPath ? { filePath: options.dispatchReceiptPath } : undefined,
+            ),
+            execute: ({
+              handoffId,
+              authorizationId: claimedAuthorizationId,
+              sealedText,
+              binding,
+            }) =>
+              options.executeVaultWorkflow?.({
+                templateName,
+                objective,
+                cwd: ctx.cwd,
+                sealedText,
+                handoffId,
+                authorizationId: claimedAuthorizationId,
+                executionArgs: binding.execution_args,
+                signal,
+                ctx,
+              }) ??
+              Promise.resolve({
+                accepted: false,
+                handoffId,
+                status: "error",
+              }),
+          });
+        } catch (error) {
+          const preflightSettled = preflightReceipt
+            ? options.governedDeepReviewPreflight?.settleExecution(
+                preflightReceipt.nonce,
+                "failed",
+              ) === true
+            : true;
+          return {
+            content: [
+              {
+                type: "text",
+                text: preflightSettled
+                  ? `Governed workflow dispatch threw for ${templateName}: ${error instanceof Error ? error.message : String(error)}`
+                  : `Governed workflow dispatch threw and preflight settlement failed for ${templateName}; reload before governed execution.`,
+              },
+            ],
+            details: {
+              ok: false,
+              error: preflightSettled
+                ? "vault-workflow-dispatch-threw"
+                : "governed-deep-review-preflight-settlement-failed",
+              templateName,
+              preflightNonce: preflightReceipt?.nonce ?? null,
+            },
+          };
+        }
+
+        if (!dispatched.ok) {
+          const preflightSettled = preflightReceipt
+            ? options.governedDeepReviewPreflight?.settleExecution(
+                preflightReceipt.nonce,
+                "failed",
+              ) === true
+            : true;
+          return {
+            content: [
+              {
+                type: "text",
+                text: preflightSettled
+                  ? `Governed workflow dispatch failed for ${templateName}: ${dispatched.error}`
+                  : `Governed workflow dispatch and preflight settlement failed for ${templateName}; reload before governed execution.`,
+              },
+            ],
+            details: {
+              ok: false,
+              error: preflightSettled
+                ? "vault-workflow-dispatch-failed"
+                : "governed-deep-review-preflight-settlement-failed",
               templateName,
               handoffId: dispatched.handoffId ?? null,
+              preflightNonce: preflightReceipt?.nonce ?? null,
             },
           };
         }
 
         const workflowStatus = dispatched.result.status ?? "unknown";
         const workflowOk = workflowStatus === "done";
+        if (preflightReceipt) {
+          const settled = options.governedDeepReviewPreflight?.settleExecution(
+            preflightReceipt.nonce,
+            workflowOk ? "done" : "failed",
+          );
+          if (!settled) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Governed workflow preflight settlement failed for ${templateName}.`,
+                },
+              ],
+              details: {
+                ok: false,
+                error: "governed-deep-review-preflight-settlement-failed",
+                templateName,
+                handoffId: dispatched.handoffId,
+              },
+            };
+          }
+        }
         return {
           content: [
             {
@@ -1949,6 +2041,9 @@ Unknown loop templates and workflow-grade templates without an execution binding
             runId: dispatched.result.runId ?? null,
             status: workflowStatus,
             executorDetails: dispatched.result.details ?? null,
+            preflightNonce: preflightReceipt?.nonce ?? null,
+            preflightReceiptDigest: preflightReceipt?.receiptDigest ?? null,
+            preflightRegistryId: preflightReceipt?.registryId ?? null,
           },
         };
       }

@@ -43,6 +43,14 @@ export interface DispatchHandoffStore {
 export declare function createDispatchHandoffStore(options?: {
   filePath?: string;
 }): DispatchHandoffStore;
+export interface DispatchHandoffStoreReadiness {
+  ok: boolean;
+  filePath: string;
+  error?: string;
+}
+export declare function probeDispatchHandoffStoreReadiness(
+  store: DispatchHandoffStore,
+): DispatchHandoffStoreReadiness;
 export interface DispatchActivationPolicy {
   readonly mode: "enabled" | "disable_gated_dispatch";
   readonly enabled: boolean;

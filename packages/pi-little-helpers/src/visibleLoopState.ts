@@ -139,6 +139,29 @@ export function hasVisibleLoopAlreadyCompleted(
   }
 }
 
+export function hasVisibleLoopGovernedPreflightFailed(
+  config: VisibleLoopRunConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const statusPath = getVisibleLoopStatusPath(config, env);
+  if (!existsSync(statusPath)) return false;
+  try {
+    return readFileSync(statusPath, "utf8")
+      .split("\n")
+      .some((line) => {
+        if (!line.trim()) return false;
+        try {
+          const entry = JSON.parse(line) as { event?: unknown };
+          return entry.event === "governed_deep_review_preflight_failed_closed";
+        } catch {
+          return false;
+        }
+      });
+  } catch {
+    return true;
+  }
+}
+
 export function readCompletedVisibleLoopIterations(
   config: VisibleLoopRunConfig,
   env: NodeJS.ProcessEnv = process.env,

@@ -27,7 +27,9 @@ import { GOVERNED_DEEP_REVIEW_OBJECTIVE } from "../src/visibleLoop.ts";
 import {
   createContext,
   createExecStub,
+  createGovernedDeepReviewPreflightStub,
   extractPiArgs,
+  getLatestGovernedDeepReviewPreflightReceipt,
   observeLatestVisibleLoopMessage,
   observeVisibleLoopMessageAt,
   registerExtension,
@@ -112,6 +114,9 @@ async function settleCandidateVisibleLoopPromptSequence(events, config, userMess
               executionSurface: "workflow_execute",
               handoffId: "handoff-candidate-closeout-test",
               status: "done",
+              preflightNonce: getLatestGovernedDeepReviewPreflightReceipt().nonce,
+              preflightReceiptDigest: getLatestGovernedDeepReviewPreflightReceipt().receiptDigest,
+              preflightRegistryId: getLatestGovernedDeepReviewPreflightReceipt().registryId,
             },
           },
         },
@@ -565,6 +570,7 @@ test("visible-loop candidate route persists the typed envelope and prepends it t
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -618,6 +624,7 @@ test("candidate-bound nexus-loop recognizes the prefixed governed review and fai
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -674,6 +681,7 @@ test("candidate-bound visible-loop completion rejects missing closeout and accep
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -787,6 +795,7 @@ test("visible-loop candidate route fails closed when the session result is missi
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: { XDG_STATE_HOME: stateHome },
       exec: execStub.exec,
       pathExists() {

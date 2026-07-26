@@ -11,6 +11,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import {
+  type VisibleLoopGovernedPreflightReceipt,
+  validateVisibleLoopGovernedPreflightReceipt,
+} from "./governedDeepReviewPreflight.ts";
 import { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
 import { readVisibleLoopIterationLease } from "./visibleLoopContinuationClaim.ts";
 import type { VisibleLoopTimerHandle, VisibleLoopTimerRuntime } from "./visibleLoopDelivery.ts";
@@ -21,6 +25,7 @@ import {
   type VisibleLoopPlanProgress,
 } from "./visibleLoopPlan.ts";
 import { getVisibleLoopHumanLabel } from "./visibleLoopProfiles.ts";
+import { GOVERNED_DEEP_REVIEW_PROMPT } from "./visibleLoopPromptTemplates.ts";
 import {
   appendVisibleLoopStatus,
   getVisibleLoopStateDir,
@@ -188,10 +193,12 @@ export interface ActiveVisibleLoopState {
   hostProcessId: number;
   hostProcessIncarnation: string;
   continueInNewSession?: ContinueVisibleLoopInNewSession;
+  governedDeepReviewPreflight?: VisibleLoopGovernedPreflightReceipt;
+  bindGovernedDeepReviewPreflightToolCall?: (nonce: string, toolCallId: string) => boolean;
 }
 
 export interface PersistedActiveVisibleLoopState {
-  schemaVersion: 5;
+  schemaVersion: 6;
   ownerSessionId: string;
   runId: string;
   configPath: string;
@@ -201,13 +208,14 @@ export interface PersistedActiveVisibleLoopState {
   hostProcessId: number;
   hostProcessIncarnation: string;
   stopped: boolean;
+  governedDeepReviewPreflight?: VisibleLoopGovernedPreflightReceipt;
 }
 
 export function serializeActiveVisibleLoopState(
   state: ActiveVisibleLoopState,
 ): PersistedActiveVisibleLoopState {
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     ownerSessionId: state.ownerSessionId,
     runId: state.config.runId,
     configPath: state.configPath,
@@ -217,6 +225,9 @@ export function serializeActiveVisibleLoopState(
     hostProcessId: state.hostProcessId,
     hostProcessIncarnation: state.hostProcessIncarnation,
     stopped: state.stopped,
+    ...(state.governedDeepReviewPreflight
+      ? { governedDeepReviewPreflight: state.governedDeepReviewPreflight }
+      : {}),
   };
 }
 
@@ -257,7 +268,7 @@ export function removeActiveVisibleLoopState(
   }
   const persisted = snapshot.value as Partial<PersistedActiveVisibleLoopState>;
   if (
-    persisted.schemaVersion !== 5 ||
+    persisted.schemaVersion !== 6 ||
     persisted.ownerSessionId !== state.ownerSessionId ||
     persisted.runId !== state.config.runId ||
     persisted.hostProcessId !== state.hostProcessId ||
@@ -278,6 +289,8 @@ export interface RestoreActiveVisibleLoopDependencies {
   deliveryAckTimer: VisibleLoopTimerRuntime;
   continueInNewSession?: ContinueVisibleLoopInNewSession;
   processIncarnation: string;
+  freshGovernedDeepReviewPreflight?: VisibleLoopGovernedPreflightReceipt;
+  bindGovernedDeepReviewPreflightToolCall?: (nonce: string, toolCallId: string) => boolean;
   setActiveState(state: ActiveVisibleLoopState): void;
   persistAndRender(state: ActiveVisibleLoopState): boolean;
   armDeliveryAckWatchdog(state: ActiveVisibleLoopState): void;
@@ -313,7 +326,7 @@ export function restoreActiveVisibleLoopState(
   try {
     const persisted = snapshot.value as Partial<PersistedActiveVisibleLoopState>;
     if (
-      persisted.schemaVersion !== 5 ||
+      persisted.schemaVersion !== 6 ||
       persisted.ownerSessionId !== currentSessionId ||
       typeof persisted.configPath !== "string" ||
       typeof persisted.runId !== "string" ||
@@ -327,6 +340,38 @@ export function restoreActiveVisibleLoopState(
     if (!configResult.ok) throw new Error(configResult.error);
     if (configResult.config.runId !== persisted.runId) {
       throw new Error("active snapshot run id does not match its config");
+    }
+    const requiresGovernedDeepReviewPreflight = configResult.config.prompts.some((prompt) => {
+      const normalized = prompt.trim();
+      return (
+        normalized === GOVERNED_DEEP_REVIEW_PROMPT ||
+        normalized.endsWith(`\n\n${GOVERNED_DEEP_REVIEW_PROMPT}`)
+      );
+    });
+    const governedDeepReviewPreflight = requiresGovernedDeepReviewPreflight
+      ? dependencies.freshGovernedDeepReviewPreflight
+      : undefined;
+    if (requiresGovernedDeepReviewPreflight && !governedDeepReviewPreflight) {
+      throw new Error(
+        "persisted governed deep-review state cannot authorize recovery without a fresh owner preflight",
+      );
+    }
+    if (!requiresGovernedDeepReviewPreflight && persisted.governedDeepReviewPreflight) {
+      throw new Error("active snapshot contains an unexpected governed deep-review receipt");
+    }
+    if (governedDeepReviewPreflight) {
+      const verifiedPreflight = validateVisibleLoopGovernedPreflightReceipt(
+        governedDeepReviewPreflight,
+        {
+          nonce: governedDeepReviewPreflight.nonce,
+          runId: configResult.config.runId,
+          cwd: configResult.config.cwd,
+        },
+      );
+      if (!verifiedPreflight.ok) throw new Error(verifiedPreflight.error);
+      if (!dependencies.bindGovernedDeepReviewPreflightToolCall) {
+        throw new Error("fresh governed deep-review preflight has no owner binding capability");
+      }
     }
     const lease = readVisibleLoopIterationLease(configResult.config.runId, env);
     if (
@@ -385,7 +430,10 @@ export function restoreActiveVisibleLoopState(
       hostProcessId: Number(persisted.hostProcessId),
       hostProcessIncarnation: persisted.hostProcessIncarnation,
       continueInNewSession: dependencies.continueInNewSession,
+      governedDeepReviewPreflight,
     };
+    state.bindGovernedDeepReviewPreflightToolCall =
+      dependencies.bindGovernedDeepReviewPreflightToolCall;
     const recovery = getVisibleLoopRecoveryDisposition(
       plan,
       state.hostProcessIncarnation === dependencies.processIncarnation,

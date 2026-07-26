@@ -4,7 +4,8 @@
   "description": "Cognitive-driven multi-agent orchestration for society.db, prompt-vault, and agent-kernel",
   "type": "module",
   "exports": {
-    "./toolbox-bundle": "./src/toolboxBundle.ts"
+    "./toolbox-bundle": "./src/toolboxBundle.ts",
+    "./governed-deep-review-preflight": "./src/runtime/governed-deep-review-preflight.ts"
   },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {

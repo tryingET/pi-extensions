@@ -12,8 +12,10 @@ import {
   assertLoopValidationGuidance,
   createContext,
   createExecStub,
+  createGovernedDeepReviewPreflightStub,
   escapeRegExp,
   extractPiArgs,
+  getLatestGovernedDeepReviewPreflightReceipt,
   observeLatestVisibleLoopMessage,
   observeVisibleLoopMessageAt,
   registerExtension,
@@ -45,6 +47,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -143,6 +146,7 @@ test("extension-originated sendUserMessage slash input can launch visible-loop",
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -200,6 +204,7 @@ test("extension-originated sendUserMessage slash input can launch nexus-loop", a
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -253,6 +258,7 @@ test("extension-originated slash bridge ignores non-extension visible-loop text"
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -297,6 +303,7 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -402,6 +409,9 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
             handoffId: "nexus-handoff",
             runId: "nexus-workflow",
             status: "done",
+            preflightNonce: getLatestGovernedDeepReviewPreflightReceipt().nonce,
+            preflightReceiptDigest: getLatestGovernedDeepReviewPreflightReceipt().receiptDigest,
+            preflightRegistryId: getLatestGovernedDeepReviewPreflightReceipt().registryId,
           },
         },
       },
@@ -476,6 +486,7 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -547,6 +558,9 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
                 handoffId: "delegate-handoff",
                 runId: "delegate-workflow",
                 status: "done",
+                preflightNonce: getLatestGovernedDeepReviewPreflightReceipt().nonce,
+                preflightReceiptDigest: getLatestGovernedDeepReviewPreflightReceipt().receiptDigest,
+                preflightRegistryId: getLatestGovernedDeepReviewPreflightReceipt().registryId,
               },
             },
           },
@@ -601,6 +615,7 @@ test("nexus-loop fails closed before launch when required slash prompt templates
     });
     const extension = createSidequestExtension({
       registerTools: true,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",

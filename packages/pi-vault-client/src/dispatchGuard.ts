@@ -1,6 +1,8 @@
 import * as crypto from "node:crypto";
 import {
+  accessSync,
   closeSync,
+  constants,
   existsSync,
   fsyncSync,
   lstatSync,
@@ -141,6 +143,96 @@ export function createDispatchHandoffStore(
     }
   });
   return store;
+}
+
+export interface DispatchHandoffStoreReadiness {
+  ok: boolean;
+  filePath: string;
+  error?: string;
+}
+
+function findSymlinkPathComponent(targetPath: string): string | null {
+  const absolute = path.resolve(targetPath);
+  const parsed = path.parse(absolute);
+  let cursor = parsed.root;
+  for (const component of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
+    cursor = path.join(cursor, component);
+    try {
+      const stat = lstatSync(cursor);
+      if (stat.isSymbolicLink()) return cursor;
+    } catch {
+      break;
+    }
+  }
+  return null;
+}
+
+/**
+ * Verify that the exact package-owned handoff store can be materialized later without writing a
+ * success-shaped receipt during preflight. The real dispatch remains the only receipt writer.
+ */
+export function probeDispatchHandoffStoreReadiness(
+  store: DispatchHandoffStore,
+): DispatchHandoffStoreReadiness {
+  if (!ownedStoreWriters.has(store)) {
+    return {
+      ok: false,
+      filePath: "",
+      error: "A package-owned durable handoff store is required.",
+    };
+  }
+  const filePath = path.resolve(store.filePath);
+  try {
+    const symlinkComponent = findSymlinkPathComponent(filePath);
+    if (symlinkComponent) {
+      return {
+        ok: false,
+        filePath,
+        error: `Dispatch handoff path traverses a symlink component: ${symlinkComponent}.`,
+      };
+    }
+    if (existsSync(filePath)) {
+      const stat = lstatSync(filePath);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        return {
+          ok: false,
+          filePath,
+          error: "Dispatch handoff path must be a regular non-symlink file.",
+        };
+      }
+      accessSync(filePath, constants.R_OK | constants.W_OK);
+      return { ok: true, filePath };
+    }
+
+    let cursor = path.dirname(filePath);
+    while (!existsSync(cursor)) {
+      const parent = path.dirname(cursor);
+      if (parent === cursor) {
+        return {
+          ok: false,
+          filePath,
+          error: "Dispatch handoff path has no existing writable ancestor.",
+        };
+      }
+      cursor = parent;
+    }
+    const ancestor = lstatSync(cursor);
+    if (!ancestor.isDirectory() || ancestor.isSymbolicLink()) {
+      return {
+        ok: false,
+        filePath,
+        error: "Dispatch handoff path ancestor must be a non-symlink directory.",
+      };
+    }
+    accessSync(cursor, constants.W_OK | constants.X_OK);
+    return { ok: true, filePath };
+  } catch (error) {
+    return {
+      ok: false,
+      filePath,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export interface DispatchActivationPolicy {

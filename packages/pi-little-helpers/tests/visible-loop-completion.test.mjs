@@ -17,7 +17,9 @@ import { getActiveVisibleLoopSnapshotPath } from "../src/visibleLoopRecovery.ts"
 import {
   createContext,
   createExecStub,
+  createGovernedDeepReviewPreflightStub,
   extractPiArgs,
+  getLatestGovernedDeepReviewPreflightReceipt,
   observeVisibleLoopMessageAt,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
@@ -54,6 +56,9 @@ async function settleVisibleLoopPromptSequence(events, config, userMessages, ctx
               executionSurface: "workflow_execute",
               handoffId: "handoff-completion-test",
               status: "done",
+              preflightNonce: getLatestGovernedDeepReviewPreflightReceipt().nonce,
+              preflightReceiptDigest: getLatestGovernedDeepReviewPreflightReceipt().receiptDigest,
+              preflightRegistryId: getLatestGovernedDeepReviewPreflightReceipt().registryId,
             },
           },
         },
@@ -79,6 +84,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
     });
     const extension = createSidequestExtension({
       registerTools: false,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
@@ -168,6 +174,7 @@ test("visible-loop manual completion command finalizes", async () => {
     });
     const extension = createSidequestExtension({
       registerTools: false,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
       env: {
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",

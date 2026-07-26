@@ -185,9 +185,10 @@ This is a static same-root execution-path proof; AK-4265 still must prove the in
 
 ### Required source layout
 
-Create or select one clean detached runtime worktree at exact `0a4025a6b895b65e2128b972be8169cc99640428`.
-The directory name must include `0a4025a6`, and preflight must verify actual `HEAD` equals the full selected hash.
-Do not reuse the dirty path named `pi-extensions-f5384ff5`.
+Exact `0a4025a6b895b65e2128b972be8169cc99640428` remains the validated Wave-1 base and rollback point. The production recurrence-prevention runtime must use a separately reviewed immutable descendant that contains the accepted AK-4267 preflight/canary implementation. AK-4265 must record that full descendant hash before materialization or settings mutation; this note does not invent it before commit/review.
+
+The directory name must include the selected commit prefix, and preflight must verify actual `HEAD` and the generated materialization manifest match that full hash.
+Do not reuse the dirty path named `pi-extensions-f5384ff5` or mutate the currently installed `0a4025a6` rollback source in place.
 
 All governed-loop packages and transitive local owners must come from that one root:
 
@@ -212,34 +213,34 @@ The list is closed for this snapshot. Adding another selected-root dependency re
 
 A clean Git worktree does not contain `node_modules`, and `pi install <local-path>` records the source path rather than materializing that package's dependencies. AK-4265 must therefore prepare dependencies before changing Pi settings.
 
-In the fresh selected root:
+The earlier direct `npm ci --omit=dev --omit=peer` recipe was proven incomplete: `pi-trigger-adapter` synchronously imports non-optional peer `typebox`, while the selected runtime packages carry it only as development/peer metadata. Hydrated development checks therefore passed while a clean production topology failed.
 
-1. record hashes of every selected package manifest and lockfile;
-2. run `npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund` for each listed package that has a lockfile;
-3. because orchestrator currently declares ASC as a registry range rather than a local `file:` dependency, replace only its installed ASC dependency with the selected sibling using `npm install --no-save --package-lock=false ../pi-autonomous-session-control`;
-4. rerun package-manifest and lockfile hashes and fail on any tracked change;
-5. use `import.meta.resolve`, `realpath`, and module-owned provenance output to verify every local owner import below resolves beneath the selected root:
-   - orchestrator -> Vault;
-   - orchestrator -> ASC;
-   - orchestrator -> autoresearch;
-   - autoresearch -> Vault;
-   - autoresearch -> trigger-adapter;
-   - Vault -> interaction-kit;
-   - Vault -> runtime-registry;
-   - Vault -> trigger-adapter;
-   - trigger-adapter -> interaction-kit;
-   - interaction -> editor-registry;
-   - interaction -> interaction-kit;
-   - interaction -> trigger-adapter;
-   - editor-registry -> trigger-adapter;
-   - ontology-workflows -> editor-registry;
-   - ontology-workflows -> trigger-adapter;
-   - prompt-template-accelerator -> runtime-registry;
-   - prompt-template-accelerator -> trigger-adapter;
-   - little-helpers peer-messaging fallback/direct owner;
-6. reject duplicate physical copies of runtime-registry or any resolved local owner outside the selected root.
+Use the AK-4267 root owner executable instead of reconstructing the sequence manually:
 
-Materialization occurs only in the new snapshot. Existing live source trees and their dependency state remain untouched.
+```bash
+npm run governed:runtime -- materialize \
+  --source-root /absolute/path/to/clean-immutable-worktree \
+  --expected-commit <full-selected-sha>
+
+npm run governed:runtime -- verify \
+  --source-root /absolute/path/to/materialized-worktree \
+  --expected-commit <same-full-sha>
+```
+
+The executable:
+
+1. requires an explicit full expected SHA, verifies that exact commit and immutable path name, and rejects staged, unstaged, or ordinary untracked source;
+2. records the exact 28-file hash map for `package.json` plus `package-lock.json` across all 14 selected packages;
+3. materializes production dependencies with development and peer packages omitted;
+4. accepts only the exact pre-repair `MODULE_NOT_FOUND` for `typebox` from `pi-trigger-adapter`;
+5. installs one integrity-pinned `typebox@1.1.38` peer layer and links every runtime consumer to that single physical package;
+6. aligns orchestrator ASC and little-helpers peer messaging to selected siblings;
+7. reruns package-manifest and lockfile hashes and fails on tracked change;
+8. resolves every closed-list local edge from the real consumer context, requires its exact package name/root, and rejects cross-root owners or registry duplication across the enumerated registry consumers;
+9. imports the actual autoresearch trigger picker and requires a functional trigger surface;
+10. writes the mode-`0600` v2 manifest at `packages/pi-society-orchestrator/node_modules/.tryinget-governed-runtime.json`; verification and production preflight independently reconstruct cleanliness, package-input, resolution-owner, registry, and Typebox root/version/SRI/tree-digest proofs instead of trusting declarative fields.
+
+Materialization occurs only in the new snapshot. Existing live source trees, settings, and dependency state remain untouched. The executable has no Pi install, reload, Git cleanup, or worktree deletion behavior.
 
 ### Pre-effect manifest
 
@@ -257,7 +258,7 @@ Do not delete or repoint old live paths during Wave 1.
 
 ### Activation proof
 
-After aligned install and `/reload`, require one same-process provenance probe and one real governed call.
+After aligned install and `/reload`, require the production same-process preflight, one real governed call, and visible/Nexus release proof.
 The call must return:
 
 ```text
@@ -265,10 +266,13 @@ details.ok = true
 executionSurface = workflow_execute
 handoffId = non-empty exact Vault handoff
 status = done
+preflightNonce = exact pending loop nonce
+preflightReceiptDigest = exact fresh owner-branded loop receipt digest
+preflightRegistryId = exact loaded Vault policy registry id
 ```
 
-The proof must show the tool registration owner and every closed-list transitive owner import resolve beneath the selected root. It must also prove direct Vault/ASC tools and orchestrator-internal Vault/ASC imports share the same physical module lineage.
-A success-shaped result without matching source provenance is insufficient.
+The proof must show the little-helpers caller, Toolbox registration, orchestrator tools, direct Vault/ASC tools, deferred orchestrator Vault/ASC imports, and every closed-list transitive owner resolve beneath the selected root. The loop must release the Nexus frontier exactly once after receipt correlation.
+A success-shaped result without matching source provenance is insufficient. Implementation contract: `docs/project/2026-07-26-governed-deep-review-preflight-canary.md`.
 
 ### Rollback
 
@@ -286,6 +290,6 @@ This selection does not authorize:
 - integrating or rejecting unrelated history topics;
 - deleting the old live worktrees;
 - bypassing the candidate lifecycle hold for candidate execution;
-- claiming the production preflight/cross-package canary is implemented;
+- claiming the implemented preflight/cross-package canary is installed or live-proven before AK-4265 reload and dogfood;
 - completing AK-4257 or AK-4263;
 - treating package checks or static binding materialization as live governed execution.

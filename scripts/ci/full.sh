@@ -66,6 +66,10 @@ if [ -f "./scripts/root-doc-alignment.test.mjs" ]; then
   node --test ./scripts/root-doc-alignment.test.mjs
 fi
 
+if [ -f "./scripts/governed-deep-review-canary.mjs" ]; then
+  node ./scripts/governed-deep-review-canary.mjs test --source-root "$repo_root"
+fi
+
 if [ -x "./scripts/ci/packages.sh" ]; then
   if [ "${PI_SKIP_PACKAGES:-0}" = "1" ]; then
     echo "skipping aggregate package quality gates: dedicated release-check matrix owns CI coverage"

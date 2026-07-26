@@ -25,6 +25,8 @@ import {
 import { getActiveVisibleLoopSnapshotPath } from "../src/visibleLoopRecovery.ts";
 import {
   createContext,
+  createGovernedDeepReviewPreflightStub,
+  getLatestGovernedDeepReviewPreflightReceipt,
   observeVisibleLoopMessageAt,
   registerExtension,
 } from "./sidequest-harness.mjs";
@@ -49,6 +51,9 @@ function vaultSuccess(toolCallId) {
         handoffId: `handoff-${toolCallId}`,
         runId: `run-${toolCallId}`,
         status: "done",
+        preflightNonce: getLatestGovernedDeepReviewPreflightReceipt().nonce,
+        preflightReceiptDigest: getLatestGovernedDeepReviewPreflightReceipt().receiptDigest,
+        preflightRegistryId: getLatestGovernedDeepReviewPreflightReceipt().registryId,
       },
     },
     isError: false,
@@ -58,7 +63,11 @@ function vaultSuccess(toolCallId) {
 function setup(prompts, options = {}) {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-frontier-`);
   const env = { ...process.env, XDG_STATE_HOME: stateHome };
-  const extension = createSidequestExtension({ env, ...(options.extensionOptions ?? {}) });
+  const extension = createSidequestExtension({
+    env,
+    governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
+    ...(options.extensionOptions ?? {}),
+  });
   const registered = registerExtension(extension);
   const harness = createContext({
     cwd: `${stateHome}/repo`,
@@ -388,6 +397,7 @@ test("cross-session events cannot observe, settle, submit, or complete the activ
 });
 
 test("same-session reload resumes without replay while fresh restart and indeterminate effects fail closed", async () => {
+  // Non-governed recovery remains available without a fresh owner capability.
   const run = setup(["alpha", "beta"]);
   try {
     const { commands, userMessages } = run.registered;
@@ -426,6 +436,38 @@ test("same-session reload resumes without replay while fresh restart and indeter
     await commands.get("visible-loop-child").handler(run.configPath, run.harness.ctx);
     assert.equal(userMessages.length, 1);
     assert.ok(run.harness.notifications.some((entry) => entry.message.includes("indeterminate")));
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    rmSync(run.stateHome, { recursive: true, force: true });
+  }
+});
+
+test("persisted governed state cannot recover from a missing receipt or without fresh owner preflight", async () => {
+  const run = setup([GOVERNED_DEEP_REVIEW_PROMPT, "after review"], {
+    runId: "governed-recovery-fresh-owner",
+  });
+  try {
+    const { commands, events, userMessages } = run.registered;
+    await commands.get("visible-loop-child").handler(run.configPath, run.harness.ctx);
+    assert.equal(userMessages.length, 1);
+    const activePath = getActiveSnapshotPath(run);
+    assert.ok(activePath);
+    const persisted = JSON.parse(readFileSync(activePath, "utf8"));
+    delete persisted.governedDeepReviewPreflight;
+    writeFileSync(activePath, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
+
+    resetVisibleLoopRuntimeForRecoveryTest();
+    await events.get("agent_start")[0]({}, run.harness.ctx);
+    assert.equal(userMessages.length, 1);
+    assert.ok(
+      run.harness.notifications.some((entry) =>
+        entry.message.includes("cannot authorize recovery without a fresh owner preflight"),
+      ),
+    );
+
+    await commands.get("visible-loop-child").handler(run.configPath, run.harness.ctx);
+    assert.equal(userMessages.length, 1, "fresh preflight recovery does not replay the prompt");
+    assert.ok(run.harness.notifications.at(-1).message.includes("resumed without duplicate"));
   } finally {
     resetVisibleLoopRuntimeForRecoveryTest();
     rmSync(run.stateHome, { recursive: true, force: true });
@@ -570,7 +612,11 @@ for (const scenario of retiredFailureScenarios) {
     const failedPi = {
       sendUserMessage: (message, options) => failedMessages.push({ message, options }),
     };
-    const failedOptions = { deliveryAckTimeoutMs: 7, deliveryAckTimer: timer.runtime };
+    const failedOptions = {
+      deliveryAckTimeoutMs: 7,
+      deliveryAckTimer: timer.runtime,
+      governedDeepReviewPreflight: createGovernedDeepReviewPreflightStub(),
+    };
     const unrelatedMessages = [];
     const unrelatedPi = {
       sendUserMessage: (message, options) => unrelatedMessages.push({ message, options }),
