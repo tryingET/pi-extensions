@@ -185,9 +185,13 @@ All governed-loop packages and transitive local owners must come from that one r
 - `pi-autonomous-session-control`;
 - `pi-peer-messaging`;
 - `pi-autoresearch`;
+- `pi-interaction/pi-interaction`;
+- `pi-interaction/pi-editor-registry`;
 - `pi-interaction/pi-interaction-kit`;
 - `pi-interaction/pi-runtime-registry`;
-- `pi-interaction/pi-trigger-adapter`.
+- `pi-interaction/pi-trigger-adapter`;
+- `pi-ontology-workflows`;
+- `pi-prompt-template-accelerator`.
 
 The list is closed for this snapshot. Adding another selected-root dependency requires updating the manifest and provenance probe before activation.
 
@@ -210,6 +214,14 @@ In the fresh selected root:
    - Vault -> runtime-registry;
    - Vault -> trigger-adapter;
    - trigger-adapter -> interaction-kit;
+   - interaction -> editor-registry;
+   - interaction -> interaction-kit;
+   - interaction -> trigger-adapter;
+   - editor-registry -> trigger-adapter;
+   - ontology-workflows -> editor-registry;
+   - ontology-workflows -> trigger-adapter;
+   - prompt-template-accelerator -> runtime-registry;
+   - prompt-template-accelerator -> trigger-adapter;
    - little-helpers peer-messaging fallback/direct owner;
 6. reject duplicate physical copies of runtime-registry or any resolved local owner outside the selected root.
 
@@ -219,7 +231,7 @@ Materialization occurs only in the new snapshot. Existing live source trees and 
 
 Before `pi install` or settings mutation, record:
 
-1. current `pi list` source for every replaced package;
+1. current `pi list` source for every replaced top-level package: little-helpers, Toolbox, orchestrator, Vault, ASC, peer-messaging, autoresearch, interaction, ontology-workflows, and prompt-template-accelerator;
 2. exact current settings entries without secret values;
 3. current source HEAD and tracked/dirty state;
 4. selected replacement paths and full selected hash;
