@@ -15,7 +15,6 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -121,30 +120,53 @@ function npmCi(packageRoot) {
 
 function assertMissingTypeboxFailureBeforePeerRepair(sourceRoot) {
   const consumer = "packages/pi-interaction/pi-trigger-adapter";
-  const triggerAdapter = resolve(sourceRoot, consumer);
-  const require = createRequire(resolve(triggerAdapter, "package.json"));
+  const parentManifest = resolve(sourceRoot, consumer, "package.json");
+  const probe = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `const { createRequire } = require("node:module");
+try {
+  const resolvedPath = createRequire(process.argv[1]).resolve("typebox");
+  console.log(JSON.stringify({ ok: true, resolvedPath }));
+} catch (error) {
+  console.log(JSON.stringify({ ok: false, code: error?.code, message: error?.message }));
+  process.exitCode = 42;
+}`,
+      parentManifest,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let observed;
   try {
-    const unexpected = realpathSync(require.resolve("typebox"));
+    observed = JSON.parse((probe.stdout ?? "").trim());
+  } catch {
     throw new Error(
-      `Missing-peer reproduction failed: trigger-adapter unexpectedly resolved typebox at ${unexpected}.`,
+      `Missing-peer probe produced invalid output: ${(probe.stderr || probe.stdout || "").trim()}`,
     );
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      error.code === "MODULE_NOT_FOUND" &&
-      error instanceof Error &&
-      error.message.includes("Cannot find module 'typebox'")
-    ) {
-      return {
-        consumer,
-        specifier: "typebox",
-        code: "MODULE_NOT_FOUND",
-        phase: "before_peer_repair",
-      };
-    }
-    throw error;
   }
+  if (probe.status === 0 && observed.ok === true) {
+    throw new Error(
+      `Missing-peer reproduction failed: trigger-adapter unexpectedly resolved typebox at ${observed.resolvedPath}.`,
+    );
+  }
+  if (
+    probe.status !== 42 ||
+    observed.ok !== false ||
+    observed.code !== "MODULE_NOT_FOUND" ||
+    typeof observed.message !== "string" ||
+    !observed.message.includes("Cannot find module 'typebox'")
+  ) {
+    throw new Error(
+      `Missing-peer probe failed for an unexpected reason: ${observed.code ?? "unknown"} ${observed.message ?? probe.stderr ?? ""}`,
+    );
+  }
+  return {
+    consumer,
+    specifier: "typebox",
+    code: "MODULE_NOT_FOUND",
+    phase: "before_peer_repair",
+  };
 }
 
 function linkPackage(consumerRoot, packageName, ownerRoot) {
