@@ -14,7 +14,7 @@ system4d:
 
 ## Current state
 
-**Prepared bytes are frozen and awaiting independent pre-run review; ranking remains forbidden. No ranking, result, or adoption decision exists.**
+**REJECTED at the independent pre-run integrity gate. Ranking is permanently forbidden for v3; no ranking or result exists.**
 
 Prepared evidence:
 
@@ -23,6 +23,8 @@ Prepared evidence:
 - uncompressed input SHA-256 `cb5e2a8f4c6799c07ff2ff988ab03c58e4b7bbcb2c878dd6313a5ffaefa6a94f`;
 - trace bundle SHA-256 `48270861e414bb2f92fc9963e4dc87dad7c7d44919473708fd25740d363639a8`; and
 - `SHA256SUMS.pre-review` binds the 31-file review surface.
+
+Independent review `dispatch-1785039595040` rejected the first ranking run because the exactly-five cost budget had already been exhausted by a discarded collector attempt, imported evaluator dependencies were not checksum-bound, the standalone runner bypassed one-shot enforcement, and pooled totals were missing. See `pre-run-integrity-review.md`. These blockers require a new experiment identity and cannot be repaired in place.
 
 The v2 owner decision was **REFINE**, with automatic `source-list` invocation and production wiring still **REJECTED**. V3 is a fresh non-production experiment under AK task `4207`; it does not rerun or overwrite v2.
 
@@ -70,7 +72,7 @@ The retained five-pair observations already make the eligibility-cost gate **not
 - equal-control median reduction was `1.3106%`, below the `20%` minimum; and
 - no conclusive false-eligible or false-ineligible decision occurred.
 
-Therefore automatic invocation and production wiring cannot be adopted from v3 regardless of the future quality result. The quality treatment may still be evaluated once for the preregistered refinement question. Exact observations are retained in `source-list-cost-observations.generated.json`; review receipts are in `metadata-staleness-review.md`. `preparation-attempt-log.md` discloses one discarded non-ranking collector attempt and must be considered by the independent pre-run reviewer.
+Automatic invocation and production wiring cannot be adopted from v3. The retained cost arithmetic is internally consistent but is not confirmatory evidence because the exactly-five execution budget was violated. Exact observations remain preserved for audit only. No v3 quality ranking may be executed.
 
 ## Frozen repositories
 
@@ -92,11 +94,11 @@ No metadata changes or cohort replacement are allowed after case authoring.
 4. Independent reviewers accept questions and truth before preparation — complete; see `pre-ranking-review.md`.
 5. Collect exact full/probe observations and independent metadata-staleness review — complete; cost gate not demonstrated.
 6. Collect 50 SCI receipts/trace evidence and build prepared bytes without ranking — complete.
-7. Commit strict pre-review hashes while the result path is absent — **now**.
-8. Independent pre-run review must accept integrity, population, and the disclosed discarded collector attempt.
-9. Freeze final `SHA256SUMS`, resume independent verification, then execute exactly once through the explicit ranking gate.
-10. Independently review arithmetic and record `ADOPT`, `REFINE`, or `REJECT`.
+7. Commit strict pre-review hashes while the result path is absent — complete.
+8. Independent pre-run review — **REJECT** (`dispatch-1785039595040`).
+9. Final `SHA256SUMS` and ranking — forbidden; do not execute.
+10. Successor work requires a new experiment identity and fresh review.
 
 ## Non-authorizations
 
-This directory authorizes bounded evidence preparation only. It authorizes no ranking, production wiring, provider registration, metadata editing, source-owner mutation, SCI expansion, or result claim. Passing a future experiment would still require a separate production task.
+This directory is a frozen, unranked rejection record. It authorizes no further preparation, checksum freeze, ranking, production wiring, provider registration, metadata editing, source-owner mutation, SCI expansion, or result claim.
