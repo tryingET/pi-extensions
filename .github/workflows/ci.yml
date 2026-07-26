@@ -32,7 +32,14 @@ jobs:
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
           dolt version
 
+      - name: Create immutable CI worktree
+        run: |
+          runtime_root="$RUNNER_TEMP/pi-extensions-${GITHUB_SHA:0:8}"
+          git worktree add --detach "$runtime_root" "$GITHUB_SHA"
+          echo "GOVERNED_CI_ROOT=$runtime_root" >> "$GITHUB_ENV"
+
       - name: Install dependencies
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
         run: |
           if [[ -f package-lock.json ]]; then
             npm ci
@@ -41,7 +48,15 @@ jobs:
             npm ci
           fi
 
+      - name: Materialize governed runtime canary dependencies
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: >-
+          node ./scripts/governed-deep-review-canary.mjs materialize
+          --source-root "$GOVERNED_CI_ROOT"
+          --expected-commit "$GITHUB_SHA"
+
       - name: Run quality gate (ci)
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
         # ROCS is workspace-owned and unavailable in this standalone GitHub checkout.
         # Package release contracts run in the dedicated release-check matrix with package deps.
         # Developer pre-push validation still runs both checks from the owning workspace.
