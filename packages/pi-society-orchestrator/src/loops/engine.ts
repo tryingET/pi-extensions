@@ -1271,6 +1271,14 @@ const WORKFLOW_TEMPLATE_OWNER_ROUTES: Record<
   string,
   { owner: string; tool: string; purpose: string; example: (objective: string) => string }
 > = {
+  "layer12-040-direction-to-execution-ak-native": {
+    owner: "Agent Kernel direction-controller through Pi readback",
+    tool: "direction_controller_readback({ repo, intent })",
+    purpose:
+      "inspect the existing AK direction-to-execution state machine and generated-program readiness; this readback does not claim DSPx execution or apply a transition",
+    example: (objective) =>
+      `direction_controller_readback({ repo: cwd, intent: ${JSON.stringify(objective)} })`,
+  },
   "pi-autoresearch-setup": {
     owner: "packages/pi-autoresearch",
     tool: "autoresearch_runtime_status(action=setup)",
@@ -1768,6 +1776,26 @@ Unknown loop templates and workflow-grade templates without an execution binding
 
       const dispatchRuntime = dispatchModule.createVaultDispatchRuntime();
       const dispatchCheck = await dispatchRuntime.checkTemplates([templateName], { cwd: ctx.cwd });
+      const blockedWorkflowPosture = dispatchCheck.results?.find(
+        (result) =>
+          result.posture === "orchestrator_workflow_gate_required" &&
+          result.binding?.execution_surface !== "workflow_execute",
+      );
+      if (blockedWorkflowPosture) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: formatWorkflowGateFailure(templateName, objective),
+            },
+          ],
+          details: {
+            ok: false,
+            error: "vault-template-workflow-owner-route-required",
+            dispatchCheck,
+          },
+        };
+      }
       if (!dispatchCheck.ok || dispatchCheck.status !== "ready") {
         return {
           content: [

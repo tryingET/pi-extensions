@@ -661,6 +661,42 @@ test("catalog includes autoresearch foreground resume executor", () => {
   assert.equal(mutating.tools.includes("autoresearch_runtime_resume_apply"), true);
 });
 
+test("orchestrator read activation includes direction-controller readback without acknowledgement", async () => {
+  const orchestrator = CATALOG.find((bundle) => bundle.id === "orchestrator");
+  const read = orchestrator?.profiles.find((profile) => profile.id === "read");
+  assert.ok(read);
+  assert.equal(read.tools.includes("direction_controller_readback"), true);
+  assert.equal(read.risk, "read");
+  assert.equal(read.requiresExplicitUserIntent, false);
+
+  const harness = createHarness();
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    bundle: "orchestrator",
+    profile: "read",
+    autoContinue: false,
+  });
+
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.acknowledgementSemantics, "not-required");
+  assert.equal(result.details.risks.includes("read"), true);
+  assert.equal(result.details.activated.includes("direction_controller_readback"), true);
+  assert.equal(harness.activeTools.includes("direction_controller_readback"), true);
+});
+
+test("registered unknown explicit tools remain external-mutation risk gated", async () => {
+  const harness = createHarness({ registeredTools: ["unknown_registered_tool"] });
+  const result = await executeToolbox(harness.tools.get("toolbox"), {
+    action: "activate",
+    tools: ["unknown_registered_tool"],
+  });
+
+  assert.equal(result.details.ok, false);
+  assert.deepEqual(result.details.risks, ["external-mutation"]);
+  assert.equal(harness.activeTools.includes("unknown_registered_tool"), false);
+  assert.match(result.content[0].text, /without riskAcknowledged=true and riskJustification/);
+});
+
 test("catalog includes context-packer read profile", async () => {
   const contextPacker = CATALOG.find((bundle) => bundle.id === "context-packer");
   const read = contextPacker?.profiles.find((profile) => profile.id === "read");

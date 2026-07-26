@@ -38,6 +38,7 @@
  *   society_query                  — Bounded read-only diagnostic SQL against society.db
  *   evidence_record                — Record evidence
  *   orchestrator_boundary_telemetry — Inspect lower-plane boundary telemetry
+ *   direction_controller_readback  — Read existing AK D2E state and controls without mutation
  *   ontology_context               — Get relevant ontology
  *   autoresearch_live_supervision  — Observe/start/status/stop live pi-autoresearch sessions and start bounded campaigns before attaching supervision
  *   autoresearch_manifest_campaign_supervision — Observe one exact manifest-driven campaign and optionally record bounded AK evidence
@@ -114,6 +115,7 @@ import {
   summarizeBoundaryTelemetry,
 } from "../src/runtime/boundaries.ts";
 import { getCognitiveToolByName } from "../src/runtime/cognitive-tools.ts";
+import { registerDirectionControllerReadbackTool } from "../src/runtime/direction-controller-readback.ts";
 import {
   type EvidenceEntry,
   finalizeExecutionEffects,
@@ -2032,6 +2034,7 @@ function formatWorkflowWrapperGuide(): string {
 
 export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtensionOptions = {}) {
   runtimeFooterExtension(pi);
+  registerDirectionControllerReadbackTool(pi);
 
   const sessionTeams = getGlobalSessionTeamStore();
   const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions", "society-orchestrator");
