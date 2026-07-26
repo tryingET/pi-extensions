@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ---
+// summary: "validates package manifest identity, scripts, dependencies, and engineering lane metadata"
+// read_when:
+//   - "changing scaffold structure requirements enforced through node"
+// ---
 
 import fs from "node:fs";
 

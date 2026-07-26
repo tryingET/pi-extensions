@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ---
+# summary: "locates and delegates to the monorepo package quality gate"
+# read_when:
+#   - "running package checks outside the normal monorepo layout"
+# ---
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
