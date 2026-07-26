@@ -320,9 +320,11 @@ test("visible-loop targets the controller Ghostty process instead of the sideque
       ({ command, args }) => command === "busctl" && args[1] === "call",
     );
     assert.ok(activation);
-    assert.equal(activation.args[2], ":1.42");
-    assert.equal(activation.args[9], "(tas)");
-    assert.equal(activation.args[10], "4660");
+    assert.equal(activation.args[2], "--expect-reply=no");
+    assert.equal(activation.args[3], ":1.42");
+    assert.equal(activation.args[10], "(tas)");
+    assert.equal(activation.args[11], "4660");
+    assert.equal(activation.args[13], "--");
     assert.ok(activation.args.includes("sidequest-pi"));
     const childCommand = extractPiArgs(activation.args).find((arg) =>
       arg.startsWith("/visible-loop-child "),
