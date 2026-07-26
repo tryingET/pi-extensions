@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "pi/dispatch_subagent"
+actor: "pi-toolbox-d2e-reconcile"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "d310ac0403ad36f628991f1c41dbc3ff574acc17"
+created_at: "2026-07-26T03:28:55Z"
+intent: "Catalog the read-only AK direction-controller readback in the orchestrator Toolbox read profile while preserving unknown-tool risk gates."
+files:
+  - "packages/pi-toolbox-discovery/src/toolbox-catalog.ts"
+  - "packages/pi-toolbox-discovery/tests/toolbox.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test packages/pi-toolbox-discovery/tests/toolbox.test.mjs && node --test packages/pi-society-orchestrator/tests/toolbox-bundle.test.mjs packages/pi-society-orchestrator/tests/direction-controller-readback.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "cd packages/pi-toolbox-discovery && PI_EXTENSIONS_TMPDIR=\"$PWD/node_modules/.tmp\" npm run check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Toolbox Discovery owns catalog risk metadata; Society Orchestrator already registered the tool and declared it read-only."
