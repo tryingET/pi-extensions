@@ -159,6 +159,18 @@ test("runtime cleanliness rejects source drift but excludes node_modules", () =>
   }
 });
 
+test("a newer owner runtime revokes stale same-root runtime attestation", () => {
+  const first = createGovernedDeepReviewPreflightRuntime(createPiRuntime(), {
+    requireMaterializationManifest: false,
+  });
+  assert.equal(isGovernedDeepReviewPreflightRuntimeOwner(first), true);
+  const second = createGovernedDeepReviewPreflightRuntime(createPiRuntime(), {
+    requireMaterializationManifest: false,
+  });
+  assert.equal(isGovernedDeepReviewPreflightRuntimeOwner(first), false);
+  assert.equal(isGovernedDeepReviewPreflightRuntimeOwner(second), true);
+});
+
 test("owner preflight binds the exact tool call and owner-brands its receipt", async () => {
   await withFixture(async (scratch) => {
     const pi = createPiRuntime();

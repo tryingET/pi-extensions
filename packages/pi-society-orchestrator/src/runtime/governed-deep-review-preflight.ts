@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createOwnedRuntime, isOwnedRuntime } from "./governed-deep-review-owner-registry.mjs";
 import {
   GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH,
   GovernedRuntimeMaterializationError,
@@ -33,7 +34,6 @@ const MATERIALIZATION_MANIFEST_PATH = resolve(
   GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH,
 );
 const ownedPreflightReceipts = new WeakSet<object>();
-const ownedPreflightRuntimes = new WeakSet<object>();
 
 type PiRuntimeTools = Pick<ExtensionAPI, "getAllTools" | "getActiveTools" | "setActiveTools">;
 
@@ -177,10 +177,17 @@ export function getGovernedDeepReviewPreflightRuntime():
 export function isGovernedDeepReviewPreflightRuntimeOwner(
   value: unknown,
 ): value is GovernedDeepReviewPreflightRuntime {
-  return Boolean(value && typeof value === "object" && ownedPreflightRuntimes.has(value));
+  return isOwnedRuntime(value);
 }
 
 export function createGovernedDeepReviewPreflightRuntime(
+  pi: PiRuntimeTools,
+  options: PreflightRuntimeOptions = {},
+): GovernedDeepReviewPreflightRuntime {
+  return createOwnedRuntime(() => createGovernedDeepReviewPreflightRuntimeLocal(pi, options));
+}
+
+function createGovernedDeepReviewPreflightRuntimeLocal(
   pi: PiRuntimeTools,
   options: PreflightRuntimeOptions = {},
 ): GovernedDeepReviewPreflightRuntime {
@@ -515,7 +522,6 @@ export function createGovernedDeepReviewPreflightRuntime(
     },
   };
 
-  ownedPreflightRuntimes.add(runtime);
   setGlobalSlot(runtime);
   return runtime;
 }

@@ -21,7 +21,8 @@ test("a forged process-global preflight runtime cannot mint an owner-branded rec
     globalThis[symbol] = {
       generation: 999,
       runtime: {
-        ownerModuleUrl: new URL("../src/governedDeepReviewPreflight.ts", import.meta.url).href,
+        ownerModuleUrl:
+          "data:text/javascript,export const isGovernedDeepReviewPreflightRuntimeOwner=()=>true",
         verifyReceipt: () => true,
         bindToolCall: () => true,
         cancel: () => true,
@@ -34,6 +35,41 @@ test("a forged process-global preflight runtime cannot mint an owner-branded rec
     const result = await runOwnerVisibleLoopGovernedPreflight({
       nonce: "55555555-5555-4555-8555-555555555555",
       runId: "forged-owner",
+      cwd: process.cwd(),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.failureClass, "preflight_owner_module_mismatch");
+    assert.equal(prepareCalls, 0);
+  } finally {
+    if (previous === undefined) delete globalThis[symbol];
+    else globalThis[symbol] = previous;
+  }
+});
+
+test("a canonical-URL forged runtime fails without an initialized native owner runtime", async () => {
+  const symbol = Symbol.for("tryinget.pi.governed-deep-review-preflight.v1");
+  const previous = globalThis[symbol];
+  let prepareCalls = 0;
+  try {
+    globalThis[symbol] = {
+      generation: 999,
+      runtime: {
+        ownerModuleUrl: new URL(
+          "../../pi-society-orchestrator/src/runtime/governed-deep-review-preflight.ts",
+          import.meta.url,
+        ).href,
+        verifyReceipt: () => true,
+        bindToolCall: () => true,
+        cancel: () => true,
+        async prepare() {
+          prepareCalls += 1;
+          throw new Error("forged prepare must not run");
+        },
+      },
+    };
+    const result = await runOwnerVisibleLoopGovernedPreflight({
+      nonce: "66666666-6666-4666-8666-666666666666",
+      runId: "forged-canonical-owner",
       cwd: process.cwd(),
     });
     assert.equal(result.ok, false);

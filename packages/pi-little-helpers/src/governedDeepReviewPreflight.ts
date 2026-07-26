@@ -3,9 +3,23 @@
 //   - changing visible/Nexus startup gates or governed receipt correlation.
 
 import { createHash } from "node:crypto";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const GLOBAL_PREFLIGHT_SYMBOL = Symbol.for("tryinget.pi.governed-deep-review-preflight.v1");
 const PREFLIGHT_SCHEMA = "pi.governed-deep-review-preflight.v1" as const;
+const EXPECTED_OWNER_MODULE_URL = pathToFileURL(
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../pi-society-orchestrator/src/runtime/governed-deep-review-preflight.ts",
+  ),
+).href;
+const EXPECTED_OWNER_REGISTRY_URL = pathToFileURL(
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../pi-society-orchestrator/src/runtime/governed-deep-review-owner-registry.mjs",
+  ),
+).href;
 
 export interface VisibleLoopGovernedPreflightReceipt {
   schema: typeof PREFLIGHT_SCHEMA;
@@ -52,8 +66,8 @@ type OwnerRuntime = {
   cancel(nonce: string): boolean;
 };
 
-type OwnerModule = {
-  isGovernedDeepReviewPreflightRuntimeOwner(value: unknown): value is OwnerRuntime;
+type OwnerRegistry = {
+  isOwnedRuntime(value: unknown): boolean;
 };
 
 const attestedReceiptOwners = new Map<string, OwnerRuntime>();
@@ -91,21 +105,24 @@ export async function runOwnerVisibleLoopGovernedPreflight(input: {
       rollbackSucceeded: true,
     };
   }
-  let ownerModule: OwnerModule;
+  if (slot.runtime.ownerModuleUrl !== EXPECTED_OWNER_MODULE_URL) {
+    return invalid(
+      `The governed deep-review preflight owner module path is not canonical: ${slot.runtime.ownerModuleUrl}.`,
+      "preflight_owner_module_mismatch",
+    );
+  }
+  let ownerRegistry: OwnerRegistry;
   try {
-    ownerModule = (await import(slot.runtime.ownerModuleUrl)) as OwnerModule;
+    ownerRegistry = (await import(EXPECTED_OWNER_REGISTRY_URL)) as OwnerRegistry;
   } catch (error) {
     return invalid(
-      `The governed deep-review preflight owner module could not be loaded: ${
+      `The governed deep-review preflight owner registry could not be loaded: ${
         error instanceof Error ? error.message : String(error)
       }`,
       "preflight_owner_module_unavailable",
     );
   }
-  if (
-    typeof ownerModule.isGovernedDeepReviewPreflightRuntimeOwner !== "function" ||
-    !ownerModule.isGovernedDeepReviewPreflightRuntimeOwner(slot.runtime)
-  ) {
+  if (!ownerRegistry.isOwnedRuntime(slot.runtime)) {
     return invalid(
       "The process-global governed deep-review preflight capability is not branded by its owner module.",
       "preflight_owner_attestation_failed",
