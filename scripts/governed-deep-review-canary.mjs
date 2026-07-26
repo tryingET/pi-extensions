@@ -76,7 +76,7 @@ function run(command, args, options = {}) {
       `${command} ${args.join(" ")} failed (${String(result.status)}): ${(result.stderr || result.stdout || "").trim()}`,
     );
   }
-  return result.stdout.trim();
+  return (result.stdout ?? "").trim();
 }
 
 function git(sourceRoot, args) {
@@ -636,6 +636,7 @@ async function canary(options) {
 async function test(options) {
   assert.equal(PACKAGES.length, 14);
   assert.equal(TYPEBOX_CONSUMERS.includes("packages/pi-interaction/pi-trigger-adapter"), true);
+  assert.equal(run(process.execPath, ["-e", ""], { stdio: "inherit" }), "");
   assert.equal(
     LOCAL_EDGES.some(
       ({ consumer, specifier }) =>
