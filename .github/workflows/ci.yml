@@ -24,6 +24,14 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
+      - name: Install Dolt for governed deep-review canary
+        run: |
+          curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh -o "$RUNNER_TEMP/install-dolt.sh"
+          sudo bash "$RUNNER_TEMP/install-dolt.sh"
+          dolt config --global --set user.name "github-actions[bot]"
+          dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          dolt version
+
       - name: Install dependencies
         run: |
           if [[ -f package-lock.json ]]; then
