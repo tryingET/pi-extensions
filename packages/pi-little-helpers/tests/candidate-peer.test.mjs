@@ -1,3 +1,6 @@
+// summary: verifies isolated candidate-peer worktree launch, report-back contracts, naming, registry data, and cleanup gates.
+// read_when:
+//   - changing candidate_peer_spawn, parallelquest, candidate cleanup, or candidate prompt boundaries.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";

@@ -1,3 +1,6 @@
+// summary: verifies explicit child progress gates, nexus intercom labels, and timeout-tolerant iteration continuation.
+// read_when:
+//   - changing visible-loop settled handling, progress report messages, completion commands, or intercom timeouts.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

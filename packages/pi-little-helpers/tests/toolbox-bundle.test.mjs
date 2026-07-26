@@ -1,3 +1,6 @@
+// summary: verifies the toolbox bundle exposes the declared peer-spawn tools without registering commands.
+// read_when:
+//   - changing little-helpers capability projections, peer tool names, or toolbox bundle registration.
 import assert from "node:assert/strict";
 import test from "node:test";
 

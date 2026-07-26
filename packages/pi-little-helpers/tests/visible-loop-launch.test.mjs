@@ -1,3 +1,6 @@
+// summary: verifies visible-loop and nexus-loop launch configs, prompt queues, slash bridging, and delegated commit prompts.
+// read_when:
+//   - changing loop command launch, config defaults, prompt expansion, adaptive budgets, or commit delegation.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

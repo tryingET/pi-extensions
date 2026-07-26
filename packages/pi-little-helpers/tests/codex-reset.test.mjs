@@ -1,3 +1,6 @@
+// summary: verifies codex reset parsing, authenticated api calls, confirmations, and idempotent retry behavior.
+// read_when:
+//   - changing codex reset credit status, redemption requests, cancellation, or ambiguous failure recovery.
 import assert from "node:assert/strict";
 import test from "node:test";
 

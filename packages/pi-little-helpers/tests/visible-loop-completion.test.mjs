@@ -1,3 +1,6 @@
+// summary: verifies adaptive and baseline completion recovery, persistence failure gates, fallbacks, and finalization.
+// read_when:
+//   - changing visible-loop completion acceptance, controller restoration, continuation fallback, or duplicate handling.
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

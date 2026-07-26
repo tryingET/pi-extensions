@@ -1,3 +1,6 @@
+// summary: declares shared visible-loop commands, configuration, controller proofs, and parse-result contracts.
+// read_when:
+//   - changing visible-loop serialized shapes, controller event types, or command parsing interfaces.
 import type { SelfEvolutionExecutionEnvelope } from "./selfEvolutionEnvelope.ts";
 
 export const VISIBLE_LOOP_COMMAND = "visible-loop";

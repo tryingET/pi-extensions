@@ -1,3 +1,6 @@
+// summary: verifies fork and scout peer launch modes, exact intercom targets, prompt contracts, and tool boundaries.
+// read_when:
+//   - changing fork_peer_spawn, scout_peer_spawn, scoutpeer, or peer report-back prompts.
 import assert from "node:assert/strict";
 import test from "node:test";
 

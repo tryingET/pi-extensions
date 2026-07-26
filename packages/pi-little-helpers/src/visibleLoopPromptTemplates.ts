@@ -1,3 +1,6 @@
+// summary: defines visible-loop prompt queues and safely expands slash templates and delegated commit checkpoints.
+// read_when:
+//   - changing default loop prompts, prompt-template resolution, commit delegation, or completion checkpoint text.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
