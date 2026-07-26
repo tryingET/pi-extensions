@@ -202,7 +202,6 @@ export class PeerMessagingClient extends EventEmitter {
       const cleanupConnectListeners = () => {
         clearTimeout(connectTimeout);
         socket.off("connect", onConnect);
-        socket.off("error", onSocketError);
       };
 
       const cleanupSocketListeners = () => {

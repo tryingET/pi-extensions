@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import type { Socket } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -16,6 +17,8 @@ import {
   type PeerMessage,
   type PeerPresence,
 } from "../index.ts";
+import { PeerMessagingBroker } from "../src/broker.ts";
+import { PeerMessagingClient } from "../src/client.ts";
 import { resolvePeerMessagingPaths } from "../src/paths.ts";
 
 async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<void> {
@@ -36,6 +39,12 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<voi
 async function waitForBrokerShutdown(runtimeDir: string): Promise<void> {
   const paths = resolvePeerMessagingPaths({ runtimeDir });
   await waitFor(() => !fs.existsSync(paths.pidPath), 3_000);
+}
+
+function requireClientSocket(client: PeerMessagingClient): Socket {
+  const socket = (client as unknown as { socket: Socket | null }).socket;
+  assert.ok(socket);
+  return socket;
 }
 
 function createMessage(text: string, options: { id?: string; replyTo?: string } = {}): PeerMessage {
@@ -96,6 +105,75 @@ test("createPeerMessagingRuntime auto-spawns the broker and exposes self presenc
     await runtime.disconnect();
     await waitForBrokerShutdown(runtimeDir);
   } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
+test("registered clients retain transport error handling through close and reconnect", async () => {
+  const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-peer-messaging-reset-"));
+  const broker = new PeerMessagingBroker({
+    runtimeDir,
+    idleShutdownMs: 60_000,
+  });
+  const client = new PeerMessagingClient({ runtimeDir });
+  const clientErrors: Error[] = [];
+
+  client.on("error", (error: Error) => {
+    clientErrors.push(error);
+  });
+
+  const registration = {
+    name: "planner",
+    cwd: "/repo/planner",
+    model: "openai/gpt-4.1",
+    pid: process.pid,
+    startedAt: Date.now(),
+  };
+
+  try {
+    await broker.start();
+    const initialPresence = await client.connect(registration);
+    const initialSocket = requireClientSocket(client);
+    assert.ok(initialSocket.listenerCount("error") > 0);
+
+    const disconnected = new Promise<Error>((resolve) => {
+      client.once("disconnected", resolve);
+    });
+    const resetError = Object.assign(new Error("read ECONNRESET"), {
+      code: "ECONNRESET",
+    });
+
+    assert.doesNotThrow(() => {
+      initialSocket.emit("error", resetError);
+    });
+    initialSocket.destroy();
+
+    assert.equal(await disconnected, resetError);
+    assert.deepEqual(clientErrors, [resetError]);
+    assert.equal(initialSocket.listenerCount("error"), 0);
+    assert.equal(client.isConnected(), false);
+    assert.equal(client.sessionId, null);
+    assert.equal(client.selfPresence, null);
+
+    const reconnectedPresence = await client.connect(registration);
+    assert.notEqual(reconnectedPresence.id, initialPresence.id);
+    assert.equal(client.isConnected(), true);
+
+    const reconnectedSocket = requireClientSocket(client);
+    assert.ok(reconnectedSocket.listenerCount("error") > 0);
+    await client.disconnect();
+    assert.equal(reconnectedSocket.listenerCount("error"), 0);
+  } finally {
+    try {
+      await client.disconnect();
+    } catch {
+      // Best-effort cleanup for tests.
+    }
+    try {
+      await broker.stop();
+    } catch {
+      // Best-effort cleanup for tests.
+    }
     fs.rmSync(runtimeDir, { recursive: true, force: true });
   }
 });
