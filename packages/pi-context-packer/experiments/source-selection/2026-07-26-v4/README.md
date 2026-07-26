@@ -14,11 +14,12 @@ system4d:
 
 ## Current state
 
-**Preregistration review required. No v4 prepared input, checksum manifest, attempt sentinel, ranking, result, or decision exists.**
+**Preregistration accepted for preparation by `dispatch-1785040580010`. No v4 prepared input, checksum manifest, attempt sentinel, ranking, result, or decision exists.**
 
 Canonical preregistration:
 
 - `../../../docs/project/2026-07-26-source-selection-positive-evidence-quality-preregistration.md`
+- independent review: `preregistration-review.md` — ACCEPT for preparation only
 
 V3 remains frozen and unranked after independent pre-run rejection `dispatch-1785039595040`. V4 is a new quality-only identity under AK task `4207`.
 
