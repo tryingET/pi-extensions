@@ -491,15 +491,18 @@ export function verifyGovernedRuntimeHostPeers(
     }
     const observedRoots = new Set<string>();
     for (const consumer of expected.consumers) {
-      const require = createRequire(resolve(root, consumer, "package.json"));
-      const resolvedOwner = ownerPackageRoot(realpathSync(require.resolve(packageName)));
+      const linkedRoot = realpathSync(
+        resolve(root, consumer, "node_modules", ...packageName.split("/")),
+      );
+      const resolvedOwner = ownerPackageRoot(resolve(linkedRoot, "package.json"));
       if (
         resolvedOwner.name !== packageName ||
-        resolvedOwner.version !== GOVERNED_RUNTIME_HOST_VERSION
+        resolvedOwner.version !== GOVERNED_RUNTIME_HOST_VERSION ||
+        linkedRoot !== packageRoot
       ) {
         throw new GovernedRuntimeMaterializationError(
           "materialization_host_peer_consumer_mismatch",
-          `${consumer} resolves ${resolvedOwner.name}@${resolvedOwner.version ?? "unknown"} instead of ${packageName}@${GOVERNED_RUNTIME_HOST_VERSION}.`,
+          `${consumer} links ${resolvedOwner.name}@${resolvedOwner.version ?? "unknown"} at ${linkedRoot} instead of ${packageName}@${GOVERNED_RUNTIME_HOST_VERSION} at ${packageRoot}.`,
         );
       }
       observedRoots.add(resolvedOwner.root);
