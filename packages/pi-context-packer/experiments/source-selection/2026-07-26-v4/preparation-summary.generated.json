@@ -1,0 +1,145 @@
+{
+  "schema": "pi-context-packer.source_selection_quality_preparation.v4",
+  "protocol": "pi-context-packer-source-selection-positive-quality/v4",
+  "status": "prepared-awaiting-independent-pre-run-review",
+  "repositories": 5,
+  "cases": 50,
+  "eligibleRepositories": 3,
+  "preregistration": {
+    "relativePath": "../../../docs/project/2026-07-26-source-selection-positive-evidence-quality-preregistration.md",
+    "sha256": "sha256:7810a4bc58a2f9daac54ea95626aa8898fd3a64131eb8cff634bab51de98efbc",
+    "reviewDispatch": "dispatch-1785040580010"
+  },
+  "reuse": {
+    "v3PreparedGzipSha256": "sha256:29cb2b91f398e935baf3ab092d836b249859208723548d7746ae043e9fa9531b",
+    "v3PreparedInputSha256": "sha256:cb5e2a8f4c6799c07ff2ff988ab03c58e4b7bbcb2c878dd6313a5ffaefa6a94f",
+    "v3TraceBundleSha256": "sha256:48270861e414bb2f92fc9963e4dc87dad7c7d44919473708fd25740d363639a8",
+    "v3SummarySha256": "sha256:86746a92f24599d70f3bb8270f5ca79a3a3b337466ac1dbe35cc1ec7cba53156",
+    "caseSourceSha256": "sha256:d2a19efd67058d54d250371860a2ec08af07eebc744a393dff00600b9f6cd6e5",
+    "sourceListArtifactsReused": 5,
+    "sciReceiptsReused": 50,
+    "costStudyExcluded": true,
+    "producerReinvoked": false
+  },
+  "dependencyClosure": {
+    "experimentAndSourceFiles": [
+      {
+        "path": "experiment-config.mjs",
+        "sha256": "sha256:9e47f9d5c85e7fcd18dc51b168b6e6b37bfe963d4f214ce0e6cde2b0bca926db"
+      },
+      {
+        "path": "experiment-process.mjs",
+        "sha256": "sha256:899424483449c70328e12fbbea64ac2540aed9bd1fd42ce035b701b7cfb50459"
+      },
+      {
+        "path": "preparation-artifacts.mjs",
+        "sha256": "sha256:c58dfcf75be792ea3ce127a75506b1953bdd1a2c38523c6f031c8bf2943fcb0e"
+      },
+      {
+        "path": "ranking-treatment.mjs",
+        "sha256": "sha256:0a22a9d0413cb2a248385d4dd43898c10c9fdb9c6b05aefda225b6330f53b427"
+      },
+      {
+        "path": "v4-experiment.mjs",
+        "sha256": "sha256:757e3fde2fa1323a5d31ab25bf0e6bb2462f29e75da4d0931438ab479131b725"
+      },
+      {
+        "path": "prepare-v4.mjs",
+        "sha256": "sha256:dedcd9943441093c917215613fc52cdfaca284106dce4c368e79ff34109bc927"
+      },
+      {
+        "path": "execute-v4-ranking.mjs",
+        "sha256": "sha256:7cf7b3a97296562fe2fb91c0d9f44ca475e38dbd56de2e55be25b5514e5d1df9"
+      },
+      {
+        "path": "freeze-pre-run.mjs",
+        "sha256": "sha256:72566a49d9222efffad539f7fad7ad21f84dc8d694b01cc515abd9d1b268ce7c"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-aggregate.js",
+        "sha256": "sha256:823982fd45f0725cc5ad5d700b92a3a1c5d54abb12e145e775add24d8bba6f5d"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-observation.js",
+        "sha256": "sha256:93af66049fa452e2a42c8a2b04d9273b810f16cf13b01a1c2cad97192ef08b62"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-preparation.js",
+        "sha256": "sha256:41e043511ed25ed672678a058e3c8d1faf01ff8033477297009227d5ea2a55df"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-question.js",
+        "sha256": "sha256:5c1141a31d282c79a234b5a9681622a34cf8f7e768a2f1cffad35388801c18ac"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-ranking.js",
+        "sha256": "sha256:a6e3d0b37b4c22dd962604f9a825491766836304188e4f700bbba1d77b96c6a1"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-raw.js",
+        "sha256": "sha256:c24c6d69635980be29af5a7c8241dce21f47d3acfb6dd0caf55c4d0e82b0c92c"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-receipt.js",
+        "sha256": "sha256:d6c67e4dc873984bb7dd6822c5e84806c992a2113a6ad8a477c38b021ab5aab7"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-repository.js",
+        "sha256": "sha256:fa632ab39fb093e9301e55dc04bd63f685dffaafc93bc1eff2cddff52fcabc04"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-source-list.js",
+        "sha256": "sha256:0cc71187b1cf2ca6bf5d0f0a6669238196d6c8e8939aaae1fbd542bf82d94c45"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-structural.js",
+        "sha256": "sha256:fe88a475dbbe68d655215acfb65fe96380039c912c47c47e06578941a3965dce"
+      },
+      {
+        "path": "../../../src/source-selection-experiment-utils.js",
+        "sha256": "sha256:d08e0fd594667069ab1e0b9a619ab11bb2bf85ef8e63e5332cb4ae36877276d5"
+      },
+      {
+        "path": "../../../src/source-selection-experiment.js",
+        "sha256": "sha256:d9e7d59475ac56fb95529d934ddf9fb80afeeb59897721b9cb3ebbf2b51a95c1"
+      }
+    ],
+    "sourceClosureCount": 12,
+    "completeTransitiveClosureRequired": true
+  },
+  "preparedInput": {
+    "path": "source-selection-quality-input.json.gz",
+    "gzipSha256": "sha256:c8802e5bdfb5936fde8f31cc8b8469622df378af4fd5ca4eefd3dacbddd0402b",
+    "uncompressedSha256": "sha256:286373698b4a41596a7076d5c296fbc60985e5900acbaf142b32927d407114ae",
+    "uncompressedBytes": 3140370
+  },
+  "traceBundle": {
+    "path": "sci-file-access-traces.tar.gz",
+    "sha256": "sha256:48270861e414bb2f92fc9963e4dc87dad7c7d44919473708fd25740d363639a8",
+    "traces": 50,
+    "prohibitedSciIndexOrStateAccessCount": 0
+  },
+  "validation": {
+    "contractValidatorCalled": true,
+    "rankingRowsBuilt": false,
+    "rankingsRetained": false,
+    "rankingsPrinted": false,
+    "rankingsInspected": false
+  },
+  "oneShot": {
+    "fixedRunner": "execute-v4-ranking.mjs --execute-ranking",
+    "arbitraryInputOrOutputCli": false,
+    "durableExclusiveAttemptSentinelRequiredBeforeDecompression": true,
+    "sentinelPath": "ranking-attempt.json"
+  },
+  "ranking": {
+    "executed": false,
+    "attemptSentinelAbsent": true,
+    "resultAbsent": true,
+    "resultPath": "source-selection-quality-results.generated.json"
+  },
+  "automaticInvocation": {
+    "status": "REJECTED_OUT_OF_SCOPE",
+    "productionWiringAuthorized": false
+  }
+}

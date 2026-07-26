@@ -1,0 +1,766 @@
+{
+  "agent-scripts": [
+    {
+      "id": "as-v3-cli-flag-values",
+      "question": "How should the documentation inventory CLI distinguish unknown flags from dash-prefixed values while supporting equals-style arguments and structured missing-value usage errors?",
+      "truth": [
+        "scripts/lib/list-core/args.mjs",
+        "scripts/lib/list-core/cli-output.mjs",
+        "scripts/docs-list.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function validateFlags($ARGV, $FLAG_DEFS) { $$$BODY }",
+      "paths": [
+        "scripts/lib/list-core/args.mjs",
+        "scripts/lib/list-core/cli-output.mjs",
+        "scripts/docs-list.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-docs-text-pagination",
+      "question": "How should human-readable documentation pagination and rerun guidance change while keeping verbose details page-bounded and machine or paths-only output unpaginated?",
+      "truth": [
+        "scripts/lib/docs-list-text-output.mjs",
+        "scripts/docs-list.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function paginateTextItems($ITEMS, $OPTIONS) { $$$BODY }",
+      "paths": [
+        "scripts/lib/docs-list-text-output.mjs",
+        "scripts/docs-list.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-docs-compact-paths",
+      "question": "How should compact paths-only machine output distinguish query and no-query envelopes, normalize blank queries, reject non-finite score fields, and retain optional diagnostics?",
+      "truth": [
+        "scripts/lib/docs-list-output.mjs",
+        "scripts/docs-list.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function buildCompactPathsPayload($OPTIONS) { $$$BODY }",
+      "paths": [
+        "scripts/lib/docs-list-output.mjs",
+        "scripts/docs-list.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-docs-symlink-traversal",
+      "question": "How should documentation traversal collapse symlink aliases, avoid directory cycles, and represent files outside the repository without inventing repository-relative paths?",
+      "truth": [
+        "scripts/docs-list.mjs",
+        "scripts/lib/docs-list-inventory.mjs",
+        "scripts/lib/list-core/fs-paths.mjs",
+        "tests/docs-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function walkFilesRecursive($$$ARGS) { $$$BODY }",
+      "paths": [
+        "scripts/lib/list-core/fs-paths.mjs",
+        "scripts/lib/docs-list-inventory.mjs",
+        "scripts/docs-list.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-source-git-protocol",
+      "question": "How should source inventory Git invocation and diagnostic handling change while preserving the selected executable, exact NUL-delimited index protocol, bounded hostile stderr, and schema-valid runtime failures?",
+      "truth": [
+        "scripts/lib/source-list-core.mjs",
+        "scripts/source-list.mjs",
+        "tests/source-list.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function parseGitIndex($BUFFER) { $$$BODY }",
+      "paths": [
+        "scripts/lib/source-list-core.mjs",
+        "scripts/source-list.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-ak-manifest-plan",
+      "question": "How should task-stack manifest normalization and plan construction evolve for scope policy, safe external IDs, and key-based dependencies before any task mutation occurs?",
+      "truth": [
+        "scripts/ak-task-stack.mjs",
+        "scripts/lib/ak-task-stack-execution.mjs",
+        "tests/ak-task-stack.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "function normalizeManifest($MANIFEST, $MANIFEST_PATH) { $$$BODY }",
+      "paths": [
+        "scripts/ak-task-stack.mjs",
+        "scripts/lib/ak-task-stack-execution.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-provenance-yaml-authoring",
+      "question": "How should provenance-note authoring change optional group and link emission, lexical path normalization, empty collections, and caller-asserted gate fields?",
+      "truth": [
+        "scripts/git-note-provenance.sh",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "test('git-note-provenance dry-run matches v1 schema and normalizes file and diary paths', () => { $$$BODY })",
+      "paths": [
+        "tests/git-notes.test.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-notes-setup-convergence",
+      "question": "How should per-repository notes configuration preflight every read before mutation and report retryable known-partial state when the second convergent write fails?",
+      "truth": [
+        "scripts/git-notes-setup.sh",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "test('git-notes-setup preflights all config reads and reports recoverable partial writes', () => { $$$BODY })",
+      "paths": [
+        "tests/git-notes.test.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-workspace-notes-discovery",
+      "question": "How should workspace-wide notes setup discover linked worktrees and newline-bearing repository names while isolating per-repository failures and reporting a final summary?",
+      "truth": [
+        "scripts/git-notes-setup-workspace.sh",
+        "tests/git-notes.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "test('git-notes-setup-workspace preserves newline-bearing worktree paths', () => { $$$BODY })",
+      "paths": [
+        "tests/git-notes.test.mjs"
+      ]
+    },
+    {
+      "id": "as-v3-standalone-notes-push",
+      "question": "How should standalone notes publication preflight remote and ref existence, treat dash-prefixed remote names literally, and emit exact inspection arguments after an indeterminate push failure?",
+      "truth": [
+        "scripts/git-notes-push.sh",
+        "scripts/lib/git-provenance-common.sh",
+        "tests/shell-cli-contracts.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "test('git-notes-push standalone failure is indeterminate with exact inspection argv', () => { $$$BODY })",
+      "paths": [
+        "tests/shell-cli-contracts.test.mjs"
+      ]
+    }
+  ],
+  "engineering-core": [
+    {
+      "id": "engcore-v3-01",
+      "question": "How should the diagnostic report classify blocked, degraded, and healthy repositories while remaining non-executing and non-mutating?",
+      "truth": [
+        "src/engineering_core/doctor.py",
+        "tests/test_doctor.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def build_doctor($$$ARGS) -> dict[str, Any]: $$$BODY",
+      "paths": [
+        "src/engineering_core/doctor.py",
+        "tests/test_doctor.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-02",
+      "question": "How should engineering policy parsing deduplicate selections while preserving field-level validation errors for malformed declarations?",
+      "truth": [
+        "src/engineering_core/policy.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def parse_policy($$$ARGS) -> tuple[EngineeringPolicy | None, list[str]]: $$$BODY",
+      "paths": [
+        "src/engineering_core/policy.py",
+        "tests/test_cli.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-03",
+      "question": "How should declarative repository inspection infer language lanes while rejecting symlinks and special files, reporting malformed package.json, and bounding evidence?",
+      "truth": [
+        "src/engineering_core/repository_facts.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def extract_repository_facts($$$ARGS) -> dict[str, Any]: $$$BODY",
+      "paths": [
+        "src/engineering_core/repository_facts.py",
+        "tests/test_cli.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-04",
+      "question": "How should fixed read-only Git probes disable optional writes, filesystem monitors, caches, and pathspec interpretation while normalizing failures?",
+      "truth": [
+        "src/engineering_core/safe_git.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def read_git($$$ARGS) -> str | bytes: $$$BODY",
+      "paths": [
+        "src/engineering_core/safe_git.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-05",
+      "question": "How should deterministic advisory plans resolve transitive catalog requirements and expose contradictory, unknown, or omitted selections?",
+      "truth": [
+        "src/engineering_core/engineering_plan.py",
+        "tests/test_cli.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def compile_plan($$$ARGS) -> dict[str, Any]: $$$BODY",
+      "paths": [
+        "src/engineering_core/engineering_plan.py",
+        "tests/test_cli.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-06",
+      "question": "How should owner-use command dispatch preserve raw input digests, bound repeated records, choose deterministic output formats, and return failure for non-matching verification?",
+      "truth": [
+        "src/engineering_core/work_cli.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def run(args: argparse.Namespace) -> bool: $$$BODY",
+      "paths": [
+        "src/engineering_core/work_cli.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-07",
+      "question": "How should local release verification enforce synchronized versions and release docs, replay historical catalog proofs, run required canaries, and inspect built artifact contents?",
+      "truth": [
+        "scripts/release-local.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def verify(version: str) -> None: $$$BODY",
+      "paths": [
+        "scripts/release-local.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-08",
+      "question": "How should finalization bind advice, owner decisions, and receipts into a deterministic bundle while rejecting duplicate identities and cross-repository claims?",
+      "truth": [
+        "src/engineering_core/work_bundle.py",
+        "tests/test_work_bundle.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def finalize_work($$$ARGS) -> dict[str, Any]: $$$BODY",
+      "paths": [
+        "src/engineering_core/work_bundle.py",
+        "tests/test_work_bundle.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-09",
+      "question": "How should an owner-use bundle be checked against the current repository revision, focused scope, and recomputed plan bindings without performing mutations?",
+      "truth": [
+        "src/engineering_core/work_verify.py",
+        "tests/test_work_bundle.py",
+        "tests/test_work_packet.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def verify_work($$$ARGS) -> dict[str, Any]: $$$BODY",
+      "paths": [
+        "src/engineering_core/work_verify.py",
+        "tests/test_work_bundle.py",
+        "tests/test_work_packet.py"
+      ]
+    },
+    {
+      "id": "engcore-v3-10",
+      "question": "How should an owner handoff choose actionable next steps for pending recommendations, absent evidence, optional advice, and bound verification?",
+      "truth": [
+        "src/engineering_core/work_render.py",
+        "tests/test_work_bundle.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def build_summary($$$ARGS) -> dict[str, Any]: $$$BODY",
+      "paths": [
+        "src/engineering_core/work_render.py",
+        "tests/test_work_bundle.py"
+      ]
+    }
+  ],
+  "dspx": [
+    {
+      "id": "dspx-v3-config-env-transaction",
+      "question": "How should configuration-driven environment refresh change while preserving explicit overrides, removal of stale managed values, and complete rollback after validation failures?",
+      "truth": [
+        "packages/dspx-core/src/dspx/config_loader.py",
+        "tests/test_config_loader.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def load_config_env($$$ARGS) -> Dict[str, Any]:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/config_loader.py",
+        "tests/test_config_loader.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-cache-confinement",
+      "question": "How should on-disk cache I/O change while preserving canonical keys, confined path segments, private permissions, non-creating misses, and rejection of malformed entries?",
+      "truth": [
+        "packages/dspx-core/src/dspx/cache.py",
+        "tests/test_cache.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def write(kind: str, key: str, data: Dict[str, Any]) -> Path:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/cache.py",
+        "tests/test_cache.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-group-stratified-splits",
+      "question": "How should group-aware stratified splitting evolve while keeping groups intact, balancing labels by instances or groups, honoring minimum label coverage, and remaining deterministic by seed?",
+      "truth": [
+        "packages/dspx-core/src/dspx/adapters/datasets.py",
+        "tests/test_dataset_splits.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def stratified_train_test_split($$$ARGS) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/adapters/datasets.py",
+        "tests/test_dataset_splits.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-model-role-routing",
+      "question": "How should foundry model-role resolution change while preserving explicit environment overrides, Codex-only routes, validated reasoning efforts, and declared-not-live-verified evidence?",
+      "truth": [
+        "packages/dspx-core/src/dspx/model_roles.py",
+        "tests/test_model_roles.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def resolve_model_role($$$ARGS) -> ModelRole:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/model_roles.py",
+        "tests/test_model_roles.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-coordinate-clustering",
+      "question": "How should behavioral-coordinate clustering change while preserving normalized centroids, complete member assignment, sequential cluster identifiers, and dimension mismatch rejection?",
+      "truth": [
+        "packages/dspx-core/src/dspx/coordinates/clustering.py",
+        "tests/test_coordinates.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def simple_kmeans($$$ARGS) -> list[Cluster]:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/coordinates/clustering.py",
+        "tests/test_coordinates.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-openapi-numeric-contracts",
+      "question": "How should numeric operation validation change while preserving strict integer typing, finite-number checks, inclusive and exclusive bounds across protocol versions, and multiple-of enforcement?",
+      "truth": [
+        "packages/dspx-core/src/dspx/tools/openapi/caller.py",
+        "tests/test_openapi_numeric_bounds.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def _validate_numeric_schema($$$ARGS) -> None:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/tools/openapi/caller.py",
+        "tests/test_openapi_numeric_bounds.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-pipeline-graph-validation",
+      "question": "How should materializable pipeline graph validation evolve while preserving acyclicity, direct data dependencies, inbound-edge requirements, and declared-output reachability?",
+      "truth": [
+        "packages/dspx-core/src/dspx/services/program_topology.py",
+        "tests/test_program_topology_intent_validation.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def _validate_pipeline_graph_contract($$$ARGS) -> None:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/services/program_topology.py",
+        "tests/test_program_topology_intent_validation.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-yaml-schema-diagnostics",
+      "question": "How should YAML configuration validation evolve while preserving path and string inputs, distinct parse and missing-schema failures, and structured contextual diagnostics?",
+      "truth": [
+        "packages/dspx-core/src/dspx/schema_validation.py",
+        "tests/test_schema_validation.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def validate_yaml_config($$$ARGS) -> dict[str, Any]:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/schema_validation.py",
+        "tests/test_schema_validation.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-candidate-state-atomic-write",
+      "question": "How should local candidate-state persistence change while preserving short-write handling, atomic replacement, symlink-safe output confinement, cleanup, and indeterminate post-commit durability reporting?",
+      "truth": [
+        "packages/dspx-core/src/dspx/services/program_candidate_state.py",
+        "tests/test_program_candidate_state.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def write_program_candidate_state($$$ARGS) -> dict[str, Any]:\n    $$$BODY",
+      "paths": [
+        "packages/dspx-core/src/dspx/services/program_candidate_state.py",
+        "tests/test_program_candidate_state.py"
+      ]
+    },
+    {
+      "id": "dspx-v3-forge-issue-pagination",
+      "question": "How should remote issue listing pagination change while preserving label query forwarding, ordered multi-page accumulation, and explicit next-page header handling?",
+      "truth": [
+        "apps/forge/src/dspx_forge/gitlab_client.py",
+        "tests/test_forge_gitlab_client.py"
+      ],
+      "maxItems": 4,
+      "language": "python",
+      "pattern": "def list_issues($$$ARGS) -> list[dict[str, Any]]:\n    $$$BODY",
+      "paths": [
+        "apps/forge/src/dspx_forge/gitlab_client.py",
+        "tests/test_forge_gitlab_client.py"
+      ]
+    }
+  ],
+  "pi-extensions": [
+    {
+      "id": "pxc-v3-ctrl-01",
+      "question": "How should activity-strip broker snapshots change while preserving session normalization, active-state ordering, deterministic recency ties, and stale-session purging?",
+      "truth": [
+        "packages/pi-activity-strip/src/common/protocol.mjs",
+        "packages/pi-activity-strip/src/broker/session-store.mjs",
+        "packages/pi-activity-strip/tests/session-store.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function normalizeSessionSnapshot($$$ARGS) { $$$BODY }",
+      "paths": [
+        "packages/pi-activity-strip/src/common",
+        "packages/pi-activity-strip/src/broker",
+        "packages/pi-activity-strip/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-02",
+      "question": "How should agent-vent recurrence archival and restoration change while preserving review-bound confirmation tokens, backup confinement, hash integrity, locking, and rollback after receipt failures?",
+      "truth": [
+        "packages/pi-agent-vent/src/vent-store.js",
+        "packages/pi-agent-vent/tests/vent-store.test.js"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function archiveRecurrenceGroup($$$ARGS) { $$$BODY }",
+      "paths": [
+        "packages/pi-agent-vent/src",
+        "packages/pi-agent-vent/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-03",
+      "question": "How should context-packer owner-surface recommendations change while preserving bounded signal matching, selected-provider routing, deterministic order, and explicit non-authorization guidance?",
+      "truth": [
+        "packages/pi-context-packer/src/owner-surface-routing.js",
+        "packages/pi-context-packer/tests/owner-surface-routing.test.js"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "const guidanceMatches = ($$$ARGS) => { $$$BODY }",
+      "paths": [
+        "packages/pi-context-packer/src",
+        "packages/pi-context-packer/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-04",
+      "question": "How should trigger dispatch debouncing change while preserving per-session isolation, captured dispatch APIs, settlement of superseded promises, priority ordering, and timer cleanup?",
+      "truth": [
+        "packages/pi-interaction/pi-trigger-adapter/src/TriggerBroker.js",
+        "packages/pi-interaction/pi-trigger-adapter/tests/trigger-broker.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export class TriggerBroker { $$$BODY }",
+      "paths": [
+        "packages/pi-interaction/pi-trigger-adapter/src",
+        "packages/pi-interaction/pi-trigger-adapter/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-05",
+      "question": "How should shared model candidate selection change while preserving current-model reuse, provider-prioritized bare IDs, ordered fallbacks, legacy authentication, and host-owned credential isolation?",
+      "truth": [
+        "packages/pi-model-selection/src/modelSelection.js",
+        "packages/pi-model-selection/tests/model-selection.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export async function selectModelCandidate($$$ARGS) { $$$BODY }",
+      "paths": [
+        "packages/pi-model-selection/src",
+        "packages/pi-model-selection/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-06",
+      "question": "How should prompt-template discovery change while preserving deterministic recursive traversal, directory-cycle diagnostics, same-source collision handling, project-over-user precedence, and ownership exclusions?",
+      "truth": [
+        "packages/pi-prompt-template-execution/src/loader.js",
+        "packages/pi-prompt-template-execution/tests/loader.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export function loadPromptTemplates($$$ARGS) { $$$BODY }",
+      "paths": [
+        "packages/pi-prompt-template-execution/src",
+        "packages/pi-prompt-template-execution/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-07",
+      "question": "How should the fast AI Society startup packet change while preserving path-inferred identity, bounded read-first hints, outside-workspace handling, and explicit warnings that AK and Git posture remain unchecked?",
+      "truth": [
+        "packages/pi-society-startup-context/extensions/society-context.ts",
+        "packages/pi-society-startup-context/tests/society-context.test.ts"
+      ],
+      "maxItems": 4,
+      "language": "ts",
+      "pattern": "export function createFastStartupContextPacket($$$ARGS): StartupContextPacket { $$$BODY }",
+      "paths": [
+        "packages/pi-society-startup-context/extensions",
+        "packages/pi-society-startup-context/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-08",
+      "question": "How should session-compaction recover files touched while preserving successful tool-result correlation, shell and rp action parsing, no-op filtering, move redirects, path normalization, and merged operation codes?",
+      "truth": [
+        "packages/pi-session-compaction/extensions/session-compaction/files-touched.js",
+        "packages/pi-session-compaction/tests/files-touched.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "function collectFilesTouched($$$ARGS) { $$$BODY }",
+      "paths": [
+        "packages/pi-session-compaction/extensions/session-compaction",
+        "packages/pi-session-compaction/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-09",
+      "question": "How should snapshot-edit atomic replacement change while preserving digest and inode checks, hard-link rejection, pre-commit cancellation, mode retention, and temporary-file cleanup?",
+      "truth": [
+        "packages/pi-snapshot-edit/src/text-file.js",
+        "packages/pi-snapshot-edit/tests/snapshot-service.test.js"
+      ],
+      "maxItems": 4,
+      "language": "js",
+      "pattern": "export async function atomicReplace($$$ARGS) { $$$BODY }",
+      "paths": [
+        "packages/pi-snapshot-edit/src",
+        "packages/pi-snapshot-edit/tests"
+      ]
+    },
+    {
+      "id": "pxc-v3-ctrl-10",
+      "question": "How should workstation inference status checks change while preserving bounded health-cache TTLs, caller cancellation, stale-but-usable contracts, normalized failure status, and provider contract visibility?",
+      "truth": [
+        "packages/pi-workstation-inference-provider/extensions/workstation-inference.ts",
+        "packages/pi-workstation-inference-provider/tests/workstation-inference.test.mjs"
+      ],
+      "maxItems": 4,
+      "language": "ts",
+      "pattern": "export async function resolveContractStatus($$$ARGS): Promise<ContractStatus> { $$$BODY }",
+      "paths": [
+        "packages/pi-workstation-inference-provider/extensions",
+        "packages/pi-workstation-inference-provider/tests"
+      ]
+    }
+  ],
+  "agent-kernel": [
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-01",
+      "question": "How should build-time Git identity collection be hardened so linked worktrees, dirty files, and inherited repository-redirection variables are handled correctly?",
+      "truth": [
+        "crates/ak-cli/build_git.rs",
+        "crates/ak-cli/git_env.rs",
+        "crates/ak-cli/tests/build_git_paths.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub(crate) fn rerun_if_changed_paths($$$ARGS) -> Vec<PathBuf> { $$$BODY }",
+      "paths": [
+        "crates/ak-cli"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-02",
+      "question": "Where should strict retirement-manifest parsing be changed to reject ambiguous YAML, unsafe paths, invalid lineage shapes, and noncanonical content identities while preserving JSON/YAML digest parity?",
+      "truth": [
+        "crates/ak-core/src/direction_retirement_manifest.rs",
+        "crates/ak-core/src/direction_retirement_manifest_parse.rs",
+        "crates/ak-core/src/direction_retirement_manifest_tests.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub fn parse_direction_retirement_manifest($$$ARGS) -> Result<DirectionRetirementManifest> { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-03",
+      "question": "How can repository-operational projections remain fail-safe when cached or corrupt evaluations are encountered, including canonical reason ordering and refusal to recover exclusion authority through deserialization?",
+      "truth": [
+        "crates/ak-core/src/repository_operational_projection.rs",
+        "crates/ak-core/src/repository_operational_projection_wire.rs",
+        "crates/ak-core/src/repository_operational_projection_tests.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub(crate) fn project_repository_operational_at($$$ARGS) -> RepositoryOperationalProjection { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-04",
+      "question": "Where should replay readback checks be updated to bind immutable read traces, observation currentness, checker inventories, failure reasons, and explicit non-authorizations?",
+      "truth": [
+        "crates/ak-core/src/layer12_replay_readback.rs",
+        "crates/ak-core/src/layer12_replay_readback_types.rs",
+        "crates/ak-core/src/layer12_replay_readback_tests.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub fn check_sf14_transition_program_readback($$$ARGS) -> Result<(), ReplayReadbackFailure> { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-05",
+      "question": "How should fixed-family imports verify exact cross-owner bytes, signatures, trust pins, and withdrawal isolation while preventing owner self-authorization or co-substitution?",
+      "truth": [
+        "crates/ak-core/src/layer12_fixed_family_import.rs",
+        "crates/ak-core/src/layer12_fixed_family_import_tests.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub(crate) fn import_fixed_family_publication($$$ARGS) -> Result<FixedFamilyImportResult, FixedFamilyImportError> { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-06",
+      "question": "Where should managed executable-artifact propagation metadata be validated and exposed so capability filtering and JSON output retain bundle fingerprints, member mappings, and downstream posture?",
+      "truth": [
+        "crates/ak-core/src/repo_capabilities.rs",
+        "crates/ak-cli/src/main.rs",
+        "crates/ak-cli/tests/repo_capabilities_managed.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "fn validate_managed_artifact($$$ARGS) -> Result<()> { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src",
+        "crates/ak-cli/src",
+        "crates/ak-cli/tests"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-07",
+      "question": "How should knowledge-packet draft linking reject absolute, missing, or unresolved repository outputs while preserving the approval and supersession lifecycle through the command interface?",
+      "truth": [
+        "crates/ak-core/src/knowledge.rs",
+        "crates/ak-cli/src/main.rs",
+        "crates/ak-cli/tests/knowledge_cli.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub fn link_knowledge_packet_draft($$$ARGS) -> Result<KnowledgePacket> { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src",
+        "crates/ak-cli/src",
+        "crates/ak-cli/tests"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-08",
+      "question": "Where should asynchronous database cancellation semantics be maintained so queued work can cancel before dispatch, reads remain cancellable, and committed mutations still return their result after cancellation?",
+      "truth": [
+        "crates/ak-core/src/async_db.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "async fn run_file_backed_commit_aware<T, F>($$$ARGS) -> Outcome<T, Error> where $$$BOUNDS { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-09",
+      "question": "How should repository-owned text I/O be hardened against symlink escapes, FIFOs, hard-linked files, and concurrent atomic writers without losing existing file permissions?",
+      "truth": [
+        "crates/ak-core/src/fs_util.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub fn write_text_atomically_within_root($$$ARGS) -> Result<()> { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src"
+      ]
+    },
+    {
+      "id": "agent-kernel-8b9264a-ineligible-control-10",
+      "question": "Where should repository rebind and deletion preflights be changed so historical operational references block unsafe mutations with deterministic precedence regardless of foreign-key enforcement?",
+      "truth": [
+        "crates/ak-core/src/repository_operational_history.rs",
+        "crates/ak-core/src/repository_operational_history_tests.rs",
+        "crates/ak-core/src/repo.rs"
+      ],
+      "maxItems": 4,
+      "language": "rust",
+      "pattern": "pub(crate) fn preflight_repository_rebind_tx($$$ARGS) -> Result<()> { $$$BODY }",
+      "paths": [
+        "crates/ak-core/src"
+      ]
+    }
+  ]
+}
