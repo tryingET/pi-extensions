@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 import { runOwnerVisibleLoopGovernedPreflight } from "../src/governedDeepReviewPreflight.ts";
@@ -96,6 +96,263 @@ test("governed preflight failure invalidates the run before lease, child_started
     assert.ok(
       harness.notifications.some((entry) => entry.message.includes("run config was invalidated")),
     );
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("failed owner preflight cannot retry when terminal invalidation persistence fails", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/governed-preflight-invalidation-write-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const userMessages = [];
+    const pi = { sendUserMessage: (message) => userMessages.push(message) };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "manual",
+      runId: "governed-preflight-invalidation-write",
+      prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    let preflightCalls = 0;
+    const options = {
+      governedDeepReviewPreflight: async () => {
+        preflightCalls += 1;
+        appendFileSync(statusPath, '{"partial"', "utf8");
+        return {
+          ok: false,
+          error: "injected owner failure before an unwritable terminal record",
+          failureClass: "injected_owner_failure",
+          rollbackAttempted: false,
+          rollbackSucceeded: true,
+        };
+      },
+    };
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, options);
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, options);
+
+    assert.equal(preflightCalls, 1);
+    assert.deepEqual(userMessages, []);
+    const status = readFileSync(statusPath, "utf8");
+    assert.match(status, /governed_deep_review_preflight_started/);
+    assert.doesNotMatch(status, /governed_deep_review_preflight_failed_closed/);
+    const lease = readVisibleLoopIterationLease(config.runId, env);
+    assert.equal(lease.ok, true);
+    assert.equal(lease.value, null);
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("missing preflight binder cannot retry when terminal invalidation persistence fails", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/governed-preflight-binder-write-`);
+  let cancelCalls = 0;
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const userMessages = [];
+    const pi = { sendUserMessage: (message) => userMessages.push(message) };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "manual",
+      runId: "governed-preflight-binder-write",
+      prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
+    const prepareOwnerReceipt = createGovernedDeepReviewPreflightStub();
+    let preflightCalls = 0;
+    const prepare = async (input) => {
+      preflightCalls += 1;
+      const result = await prepareOwnerReceipt(input);
+      appendFileSync(statusPath, '{"partial"', "utf8");
+      return result;
+    };
+    prepare.cancel = () => {
+      cancelCalls += 1;
+      return true;
+    };
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, {
+      governedDeepReviewPreflight: prepare,
+    });
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, {
+      governedDeepReviewPreflight: prepare,
+    });
+
+    assert.equal(preflightCalls, 1);
+    assert.equal(cancelCalls, 1);
+    assert.deepEqual(userMessages, []);
+    const status = readFileSync(statusPath, "utf8");
+    assert.match(status, /governed_deep_review_preflight_started/);
+    assert.doesNotMatch(status, /governed_deep_review_preflight_failed_closed/);
+    const lease = readVisibleLoopIterationLease(config.runId, env);
+    assert.equal(lease.ok, true);
+    assert.equal(lease.value, null);
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("concurrent child starts admit exactly one governed owner preflight", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/governed-preflight-concurrent-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const userMessages = [];
+    const pi = { sendUserMessage: (message) => userMessages.push(message) };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "manual",
+      runId: "governed-preflight-concurrent",
+      prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    let preflightCalls = 0;
+    let markStarted;
+    const started = new Promise((resolve) => {
+      markStarted = resolve;
+    });
+    let releasePreflight;
+    const preflightGate = new Promise((resolve) => {
+      releasePreflight = resolve;
+    });
+    const options = {
+      governedDeepReviewPreflight: async () => {
+        preflightCalls += 1;
+        markStarted();
+        await preflightGate;
+        return {
+          ok: false,
+          error: "injected concurrent owner failure",
+          failureClass: "injected_concurrent_failure",
+          rollbackAttempted: false,
+          rollbackSucceeded: true,
+        };
+      },
+    };
+
+    const first = startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, options);
+    await started;
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, options);
+    releasePreflight();
+    await first;
+
+    assert.equal(preflightCalls, 1);
+    assert.deepEqual(userMessages, []);
+    const lease = readVisibleLoopIterationLease(config.runId, env);
+    assert.equal(lease.ok, true);
+    assert.equal(lease.value, null);
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("an active lease blocks post-transfer preflight from another session", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/governed-preflight-active-lease-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const firstHarness = createContext({
+      cwd: `${stateHome}/repo`,
+      sessionId: "session-first-owner",
+    });
+    const secondHarness = createContext({
+      cwd: firstHarness.ctx.cwd,
+      sessionId: "session-second-owner",
+    });
+    const userMessages = [];
+    const pi = { sendUserMessage: (message) => userMessages.push(message) };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: firstHarness.ctx.cwd,
+      reportBack: "manual",
+      runId: "governed-preflight-active-lease",
+      prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+    const prepareOwnerReceipt = createGovernedDeepReviewPreflightStub();
+    let preflightCalls = 0;
+    const prepare = async (input) => {
+      preflightCalls += 1;
+      return prepareOwnerReceipt(input);
+    };
+    prepare.bindToolCall = prepareOwnerReceipt.bindToolCall;
+    prepare.cancel = prepareOwnerReceipt.cancel;
+
+    await startVisibleLoopChildRunner(configPath, pi, firstHarness.ctx, env, {
+      governedDeepReviewPreflight: prepare,
+    });
+    assert.equal(userMessages.length, 1);
+    resetVisibleLoopRuntimeForRecoveryTest();
+    await startVisibleLoopChildRunner(configPath, pi, secondHarness.ctx, env, {
+      governedDeepReviewPreflight: prepare,
+    });
+
+    assert.equal(preflightCalls, 1);
+    assert.equal(userMessages.length, 1);
+    assert.ok(
+      secondHarness.notifications.some((entry) =>
+        entry.message.includes("persisted iteration lease does not admit this session"),
+      ),
+    );
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("failed post-success cleanup leaves the run non-retryable", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/governed-preflight-cancel-failure-`);
+  let cancelCalls = 0;
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    harness.ctx.sessionManager.getSessionId = () => "";
+    const prepareOwnerReceipt = createGovernedDeepReviewPreflightStub();
+    let preflightCalls = 0;
+    const prepare = async (input) => {
+      preflightCalls += 1;
+      return prepareOwnerReceipt(input);
+    };
+    prepare.bindToolCall = () => true;
+    prepare.cancel = () => {
+      cancelCalls += 1;
+      return false;
+    };
+    const userMessages = [];
+    const pi = { sendUserMessage: (message) => userMessages.push(message) };
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "manual",
+      runId: "governed-preflight-cancel-failure",
+      prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, {
+      governedDeepReviewPreflight: prepare,
+    });
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, {
+      governedDeepReviewPreflight: prepare,
+    });
+
+    assert.equal(preflightCalls, 1);
+    assert.equal(cancelCalls, 1);
+    assert.deepEqual(userMessages, []);
+    const lease = readVisibleLoopIterationLease(config.runId, env);
+    assert.equal(lease.ok, true);
+    assert.equal(lease.value, null);
   } finally {
     resetVisibleLoopRuntimeForRecoveryTest();
     rmSync(stateHome, { recursive: true, force: true });

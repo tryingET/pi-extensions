@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import fs, { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import test from "node:test";
 import {
@@ -7,6 +8,7 @@ import {
   createDispatchHandoffStore,
   dispatchAuthorizedExecution,
   guardPreparedText,
+  probeDispatchHandoffStoreReadiness,
 } from "../src/dispatchGuard.js";
 import { createVaultDispatchRuntime } from "../src/dispatchRuntime.js";
 import { createPackageTempDir } from "./helpers/transpiled-module-harness.mjs";
@@ -132,6 +134,56 @@ test("durable receipt failure is terminal and executor is not called", async () 
   assert.equal(result.ok, false);
   assert.equal(executed, 0);
 });
+
+test(
+  "dispatch rejects final-component symlink replacement at open time",
+  { skip: process.platform === "win32" },
+  async () => {
+    const { runtime, authorization } = authorizeLoop();
+    const root = createPackageTempDir("dispatch-open-symlink-");
+    const filePath = path.join(root, "handoffs.jsonl");
+    const sentinelPath = path.join(root, "sentinel.txt");
+    writeFileSync(filePath, "", "utf8");
+    writeFileSync(sentinelPath, "sentinel\n", "utf8");
+    const receiptStore = createDispatchHandoffStore({ filePath });
+    assert.equal(probeDispatchHandoffStoreReadiness(receiptStore).ok, true);
+
+    const originalOpenSync = fs.openSync;
+    let replaced = false;
+    let executed = 0;
+    fs.openSync = (...args) => {
+      if (!replaced && path.resolve(String(args[0])) === path.resolve(filePath)) {
+        replaced = true;
+        rmSync(filePath);
+        symlinkSync(sentinelPath, filePath);
+      }
+      return originalOpenSync(...args);
+    };
+    syncBuiltinESMExports();
+    let result;
+    try {
+      result = await dispatchAuthorizedExecution({
+        runtime,
+        authorizationId: authorization.authorizationId,
+        intendedExecutor: "loop_execute",
+        activation: createDispatchActivationPolicy(true),
+        receiptStore,
+        execute: async ({ handoffId }) => {
+          executed += 1;
+          return { accepted: true, handoffId };
+        },
+      });
+    } finally {
+      fs.openSync = originalOpenSync;
+      syncBuiltinESMExports();
+    }
+
+    assert.equal(replaced, true);
+    assert.equal(result.ok, false);
+    assert.equal(executed, 0);
+    assert.equal(readFileSync(sentinelPath, "utf8"), "sentinel\n");
+  },
+);
 
 test("package store persists before executor and exact handoff citation is required", async () => {
   const { runtime, authorization } = authorizeLoop();

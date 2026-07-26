@@ -88,10 +88,12 @@ import {
 import {
   appendAuthoritativeVisibleLoopStatus,
   appendVisibleLoopStatus,
+  claimVisibleLoopGovernedPreflightAttempt,
   hasVisibleLoopAlreadyCompleted,
   hasVisibleLoopGovernedPreflightFailed,
   loadVisibleLoopRunConfig,
   readCompletedVisibleLoopIterations,
+  releaseVisibleLoopGovernedPreflightAttempt,
 } from "./visibleLoopState.ts";
 import type {
   VisibleLoopCommitDelegation,
@@ -330,36 +332,106 @@ export async function startVisibleLoopChildRunner(
   let governedDeepReviewPreflight: VisibleLoopGovernedPreflightReceipt | undefined =
     pointerAtEntry.kind === "owned" ? pointerAtEntry.state.governedDeepReviewPreflight : undefined;
   let preflightPreparedHere = false;
+  let governedDeepReviewAttemptNonce: string | undefined;
   let bindGovernedDeepReviewPreflightToolCall =
     pointerAtEntry.kind === "owned"
       ? pointerAtEntry.state.bindGovernedDeepReviewPreflightToolCall
       : undefined;
-  const cancelPreparedPreflight = (reason: string): void => {
-    if (!preflightPreparedHere || !governedDeepReviewPreflight) return;
+  const releaseGovernedDeepReviewAttempt = (): boolean => {
+    if (!governedDeepReviewAttemptNonce) return true;
+    const released = releaseVisibleLoopGovernedPreflightAttempt(
+      config,
+      governedDeepReviewAttemptNonce,
+      env,
+    );
+    if (released) governedDeepReviewAttemptNonce = undefined;
+    return released;
+  };
+  const cancelPreparedPreflight = (reason: string): boolean => {
+    if (!preflightPreparedHere || !governedDeepReviewPreflight) return true;
     const cancelled = runnerOptions.governedDeepReviewPreflight
       ? runnerOptions.governedDeepReviewPreflight.cancel?.(governedDeepReviewPreflight.nonce) ===
         true
       : cancelOwnerVisibleLoopGovernedPreflight(governedDeepReviewPreflight.nonce);
     preflightPreparedHere = false;
-    if (!cancelled) {
+    const attemptReleased = cancelled && releaseGovernedDeepReviewAttempt();
+    if (!cancelled || !attemptReleased) {
       ctx.ui?.notify?.(
         `${getVisibleLoopHumanLabel(config)} preflight cleanup is unverified after ${reason}; reload before governed execution`,
         "error",
       );
     }
+    return cancelled && attemptReleased;
   };
   const requiresGovernedDeepReviewPreflight = config.prompts.some((prompt) =>
     isGovernedDeepReviewPrompt(config, prompt),
   );
   if (requiresGovernedDeepReviewPreflight && !governedDeepReviewPreflight) {
-    if (hasVisibleLoopGovernedPreflightFailed(config, env)) {
+    const preflightOwner = getVisibleLoopLeaseOwner(ctx);
+    if (preflightOwner) {
+      const leaseBeforePreflight = readVisibleLoopIterationLease(config.runId, env);
+      if (!leaseBeforePreflight.ok) {
+        ctx.ui?.notify?.(
+          `${getVisibleLoopHumanLabel(config)} child rejected before governed preflight: ${leaseBeforePreflight.error}`,
+          "error",
+        );
+        return;
+      }
+      const lease = leaseBeforePreflight.value;
+      const expectedIteration = restoredIterations + 1;
+      const sameOwner = Boolean(
+        lease &&
+          lease.owner.sessionId === preflightOwner.sessionId &&
+          lease.owner.processId === preflightOwner.processId &&
+          lease.owner.processIncarnation === preflightOwner.processIncarnation,
+      );
+      const canEnterLease = lease
+        ? (lease.status === "ACTIVE" &&
+            lease.iteration === expectedIteration &&
+            !claimToken &&
+            sameOwner) ||
+          (lease.status === "LAUNCHING" &&
+            lease.iteration === expectedIteration &&
+            claimToken === lease.claimToken) ||
+          (lease.status === "FAILED" && lease.iteration === expectedIteration && !claimToken)
+        : expectedIteration === 1 && !claimToken;
+      if (!canEnterLease) {
+        ctx.ui?.notify?.(
+          `${getVisibleLoopHumanLabel(config)} child rejected before governed preflight: the persisted iteration lease does not admit this session`,
+          "error",
+        );
+        return;
+      }
+    }
+    const nonce = randomUUID();
+    const claimed = claimVisibleLoopGovernedPreflightAttempt(config, nonce, env);
+    if (!claimed.ok) {
       ctx.ui?.notify?.(
-        `${getVisibleLoopHumanLabel(config)} child rejected: this run config was invalidated by a prior governed deep-review preflight failure`,
+        `${getVisibleLoopHumanLabel(config)} child rejected: this run config was invalidated or another governed deep-review preflight attempt is already authoritative (${claimed.error})`,
         "error",
       );
       return;
     }
-    const nonce = randomUUID();
+    governedDeepReviewAttemptNonce = nonce;
+    if (hasVisibleLoopGovernedPreflightFailed(config, env)) {
+      ctx.ui?.notify?.(
+        `${getVisibleLoopHumanLabel(config)} child rejected: this run config was invalidated by a prior governed deep-review preflight failure or indeterminate attempt`,
+        "error",
+      );
+      return;
+    }
+    const armed = appendAuthoritativeVisibleLoopStatus(
+      config,
+      { event: "governed_deep_review_preflight_started", nonce },
+      env,
+    );
+    if (!armed.ok) {
+      ctx.ui?.notify?.(
+        `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review preflight could not be armed durably: ${armed.error}`,
+        "error",
+      );
+      return;
+    }
     const preflight = await (
       runnerOptions.governedDeepReviewPreflight ?? runOwnerVisibleLoopGovernedPreflight
     )({
@@ -369,10 +441,11 @@ export async function startVisibleLoopChildRunner(
       callerModuleUrl: import.meta.url,
     });
     if (!preflight.ok) {
-      appendAuthoritativeVisibleLoopStatus(
+      const invalidated = appendAuthoritativeVisibleLoopStatus(
         config,
         {
           event: "governed_deep_review_preflight_failed_closed",
+          nonce,
           failureClass: preflight.failureClass ?? "unknown",
           reason: preflight.error,
           rollbackAttempted: preflight.rollbackAttempted ?? false,
@@ -381,7 +454,9 @@ export async function startVisibleLoopChildRunner(
         env,
       );
       ctx.ui?.notify?.(
-        `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review preflight failed closed: ${preflight.error}`,
+        invalidated.ok
+          ? `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review preflight failed closed: ${preflight.error}`
+          : `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review preflight failed closed and terminal invalidation could not persist (${invalidated.error}); the armed attempt blocks retry`,
         "error",
       );
       return;
@@ -392,25 +467,28 @@ export async function startVisibleLoopChildRunner(
       ? runnerOptions.governedDeepReviewPreflight.bindToolCall
       : bindOwnerVisibleLoopGovernedPreflightToolCall;
     if (!bindGovernedDeepReviewPreflightToolCall) {
-      runnerOptions.governedDeepReviewPreflight?.cancel?.(preflight.receipt.nonce);
-      appendAuthoritativeVisibleLoopStatus(
+      const rollbackSucceeded = cancelPreparedPreflight("missing exact tool-call binder");
+      const invalidated = appendAuthoritativeVisibleLoopStatus(
         config,
         {
           event: "governed_deep_review_preflight_failed_closed",
+          nonce,
           failureClass: "preflight_tool_call_binder_missing",
           reason: "Governed deep-review preflight owner provided no exact tool-call binder.",
           rollbackAttempted: true,
-          rollbackSucceeded: false,
+          rollbackSucceeded,
         },
         env,
       );
       ctx.ui?.notify?.(
-        `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review tool-call binding is unavailable`,
+        invalidated.ok
+          ? `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review tool-call binding is unavailable`
+          : `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review tool-call binding is unavailable and terminal invalidation could not persist (${invalidated.error}); the armed attempt blocks retry`,
         "error",
       );
       return;
     }
-    appendVisibleLoopStatus(
+    const succeeded = appendAuthoritativeVisibleLoopStatus(
       config,
       {
         event: "governed_deep_review_preflight_succeeded",
@@ -423,6 +501,14 @@ export async function startVisibleLoopChildRunner(
       },
       env,
     );
+    if (!succeeded.ok) {
+      cancelPreparedPreflight("authoritative success persistence failure");
+      ctx.ui?.notify?.(
+        `${getVisibleLoopHumanLabel(config)} child failed before start: governed deep-review success could not persist authoritatively (${succeeded.error}); the armed attempt blocks retry`,
+        "error",
+      );
+      return;
+    }
   }
 
   const owner = getVisibleLoopLeaseOwner(ctx);
@@ -468,13 +554,16 @@ export async function startVisibleLoopChildRunner(
         )
       : null);
   if (existingState?.config.runId === config.runId && !existingState.stopped) {
-    if (
+    const preparedPreflightTransferred = Boolean(
       preflightPreparedHere &&
-      existingState.governedDeepReviewPreflight?.nonce === governedDeepReviewPreflight?.nonce
-    ) {
-      preflightPreparedHere = false;
-    } else {
-      cancelPreparedPreflight("existing-state recovery");
+        existingState.governedDeepReviewPreflight?.nonce === governedDeepReviewPreflight?.nonce,
+    );
+    if (!preparedPreflightTransferred && !cancelPreparedPreflight("existing-state recovery")) {
+      ctx.ui?.notify?.(
+        `${getVisibleLoopHumanLabel(config)} recovery failed closed: replacement preflight cleanup is unverified`,
+        "error",
+      );
+      return;
     }
     const expectedIteration = restoredIterations + 1;
     const existingPlan = existingState.plan;
@@ -489,14 +578,30 @@ export async function startVisibleLoopChildRunner(
           })
         : { ok: false as const, error: "active snapshot does not match the resumed run lease" };
     if (!resumeBinding.ok) {
+      if (preparedPreflightTransferred) cancelPreparedPreflight("recovery lease binding failure");
       ctx.ui?.notify?.(
         `${getVisibleLoopHumanLabel(config)} recovery failed closed: ${resumeBinding.error}`,
         "error",
       );
       return;
     }
-    if (!existingPlan) return;
-    if (!installActiveVisibleLoopPointer(existingState, ctx, env)) return;
+    if (!existingPlan) {
+      if (preparedPreflightTransferred) cancelPreparedPreflight("missing recovery plan");
+      return;
+    }
+    if (!installActiveVisibleLoopPointer(existingState, ctx, env)) {
+      if (preparedPreflightTransferred) cancelPreparedPreflight("recovery pointer installation");
+      return;
+    }
+    if (preparedPreflightTransferred) {
+      preflightPreparedHere = false;
+      if (!releaseGovernedDeepReviewAttempt()) {
+        ctx.ui?.notify?.(
+          `${getVisibleLoopHumanLabel(config)} resumed with an unreleased preflight attempt claim; reload recovery will remain blocked`,
+          "error",
+        );
+      }
+    }
     renderVisibleLoopPlan(existingState, ctx);
     ctx.ui?.notify?.(
       `${getVisibleLoopHumanLabel(config)} resumed without duplicate prompt submission`,
@@ -580,6 +685,12 @@ export async function startVisibleLoopChildRunner(
     return;
   }
   preflightPreparedHere = false;
+  if (!releaseGovernedDeepReviewAttempt()) {
+    ctx.ui?.notify?.(
+      `${getVisibleLoopHumanLabel(config)} started with an unreleased preflight attempt claim; reload recovery will remain blocked`,
+      "error",
+    );
+  }
   appendVisibleLoopStatus(
     config,
     {

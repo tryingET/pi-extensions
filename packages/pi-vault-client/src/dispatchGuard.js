@@ -4,6 +4,7 @@ import {
   closeSync,
   constants,
   existsSync,
+  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
@@ -73,7 +74,15 @@ export function createDispatchHandoffStore(options = {}) {
         const stat = lstatSync(filePath);
         if (!stat.isFile() || stat.isSymbolicLink()) return false;
       }
-      fd = openSync(filePath, "a", 0o600);
+      const noFollow = constants.O_NOFOLLOW;
+      if (!Number.isInteger(noFollow) || noFollow === 0) return false;
+      fd = openSync(
+        filePath,
+        constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | noFollow,
+        0o600,
+      );
+      const opened = fstatSync(fd);
+      if (!opened.isFile()) return false;
       const bytes = Buffer.from(`${JSON.stringify(receipt)}\n`, "utf8");
       let offset = 0;
       while (offset < bytes.length) {

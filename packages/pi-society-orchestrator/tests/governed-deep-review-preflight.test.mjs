@@ -113,6 +113,32 @@ test("runtime cleanliness rejects source drift but excludes node_modules", () =>
     execFileSync("git", ["commit", "-qm", "initial"], { cwd: root });
     assert.equal(inspectGovernedRuntimeCleanliness(root).clean, true);
 
+    execFileSync("git", ["update-index", "--assume-unchanged", "tracked.txt"], { cwd: root });
+    const assumeUnchanged = inspectGovernedRuntimeCleanliness(root);
+    assert.equal(assumeUnchanged.clean, false);
+    assert.ok(assumeUnchanged.trackedChanges.includes("index-flag:assume-unchanged:tracked.txt"));
+    execFileSync("sh", ["-c", "printf hidden-drift >> tracked.txt"], { cwd: root });
+    assert.ok(
+      inspectGovernedRuntimeCleanliness(root).trackedChanges.some((entry) =>
+        entry.includes("tracked-byte-drift:M:tracked.txt"),
+      ),
+    );
+    execFileSync("git", ["update-index", "--no-assume-unchanged", "tracked.txt"], { cwd: root });
+    execFileSync("git", ["checkout", "--", "tracked.txt"], { cwd: root });
+
+    execFileSync("git", ["update-index", "--skip-worktree", "tracked.txt"], { cwd: root });
+    const skipWorktree = inspectGovernedRuntimeCleanliness(root);
+    assert.equal(skipWorktree.clean, false);
+    assert.ok(skipWorktree.trackedChanges.includes("index-flag:skip-worktree:tracked.txt"));
+    execFileSync("sh", ["-c", "printf hidden-drift >> tracked.txt"], { cwd: root });
+    assert.ok(
+      inspectGovernedRuntimeCleanliness(root).trackedChanges.some((entry) =>
+        entry.includes("tracked-byte-drift:M:tracked.txt"),
+      ),
+    );
+    execFileSync("git", ["update-index", "--no-skip-worktree", "tracked.txt"], { cwd: root });
+    execFileSync("git", ["checkout", "--", "tracked.txt"], { cwd: root });
+
     execFileSync("sh", ["-c", "printf drift >> tracked.txt"], { cwd: root });
     assert.equal(inspectGovernedRuntimeCleanliness(root).clean, false);
     execFileSync("git", ["checkout", "--", "tracked.txt"], { cwd: root });

@@ -17,7 +17,7 @@ system4d:
 
 ## Authority and boundary
 
-AK task `4267` owns this implementation. AK task `4265` still owns Pi package installation, settings, reload, live dogfood, and rollback. This note records implementation and local verification; it does not claim the current Pi process reloaded the new code or that canonical history is converged.
+AK task `4267` owns the original implementation. AK task `4282` owns the fail-closed hardening discovered during AK-4265 dogfood. AK task `4265` still owns Pi package installation, settings, reload, live dogfood, and rollback. This note records implementation and local verification; it does not claim the current Pi process reloaded the new code or that canonical history is converged.
 
 The implementation does not execute Prompt Vault bytes from raw retrieval. The only executable route remains:
 
@@ -51,7 +51,7 @@ The owner verifies:
 - the v3 materialization manifest matches the loaded Git root/commit, while production preflight independently recomputes source cleanliness, 28 package-input hashes, every closed-list resolution and expected owner, the bounded registry singleton, and pinned Typebox plus Pi-host peer roots/versions/integrities/tree digests;
 - `toolbox`, `workflow_execute`, and `vault_execute_template` are registered and active after an exact active-set readback.
 
-If activation mutates and any later preflight check fails, the exact previous active set is restored and verified. A failed preflight writes one terminal invalidation record and cannot be retried from the same run config. The failure path creates no loop lease, child start, ACK, or prompt.
+If activation mutates and any later preflight check fails, the exact previous active set is restored and verified. Before owner preflight, Little Helpers atomically claims one run-scoped attempt and authoritatively records `started`. A terminal `succeeded` or `failed_closed` record must pair with that nonce. Malformed JSONL, an unmatched start, failed failure-record persistence, failed receipt cancellation, a concurrent attempt, an `ACTIVE` lease not owned by the exact process/session, or a `LAUNCHING` lease without its exact claim token all block retry before another owner preflight. The existing explicit `FAILED`-lease recovery contract remains eligible. The attempt claim is released only after verified cancellation or safe transfer into installed active state. The failure path creates no loop lease, child start, ACK, or prompt.
 
 A successful preflight issues an owner-branded receipt with a SHA-256 corruption digest bound to:
 
@@ -84,7 +84,7 @@ npm run governed:runtime -- verify \
 
 The materializer deliberately has no `pi install`, settings edit, reload, Git cleanup, worktree removal, or branch operation.
 
-It requires an explicit full `--expected-commit`, a clean exact Git commit, and a path containing the commit prefix. Clean means no staged/unstaged changes and no ordinary untracked source; generated `node_modules` paths are excluded. It hashes the exact `package.json` and `package-lock.json` pair for all 14 closed-list packages and runs production installs with dev and peer dependencies omitted. Before repair it accepts only the exact `MODULE_NOT_FOUND` for `typebox` from `pi-trigger-adapter`; that historical observation is recorded but is not treated as current-state authentication. It then creates one pinned peer layer containing `typebox@1.1.38` and the three Pi host packages at `0.80.6`, verifies npm SRI plus installed-tree digests, and links each declared or observed runtime consumer to the one physical owner. It also aligns orchestrator ASC to the selected sibling and aligns little-helpers peer messaging.
+It requires an explicit full `--expected-commit`, a clean exact Git commit, and a path containing the commit prefix. Clean means no staged/index changes, no `assume-unchanged` or `skip-worktree` bits, no working-tree byte or mode drift against a fresh alternate index populated from `HEAD`, and no ordinary untracked source; generated `node_modules` paths are excluded. The fresh-HEAD comparison does not trust the live index stat cache or its concealment flags. It hashes the exact `package.json` and `package-lock.json` pair for all 14 closed-list packages and runs production installs with dev and peer dependencies omitted. Before repair it accepts only the exact `MODULE_NOT_FOUND` for `typebox` from `pi-trigger-adapter`; that historical observation is recorded but is not treated as current-state authentication. It then creates one pinned peer layer containing `typebox@1.1.38` and the three Pi host packages at `0.80.6`, verifies npm SRI plus installed-tree digests, and links each declared or observed runtime consumer to the one physical owner. It also aligns orchestrator ASC to the selected sibling and aligns little-helpers peer messaging.
 
 Verification reconstructs the v3 proof instead of trusting declarative manifest fields. It resolves every closed-list imported surface from its consumer context, requires the exact package name and canonical owner root for each edge, and requires one physical `pi-runtime-registry` across the enumerated registry consumer contexts. It rechecks Typebox and Pi-host peer root/version/SRI/tree digests plus every consumer resolution, and imports the actual autoresearch trigger picker to require a functional post-repair surface. Source, package-input, resolution, registry, Typebox, or host-peer drift is fatal.
 
@@ -101,7 +101,9 @@ A reinstall that removes this manifest intentionally causes production preflight
 Command:
 
 ```bash
-npm run governed:runtime -- canary --source-root "$PWD"
+npm run governed:runtime -- canary \
+  --source-root /absolute/path/to/materialized-immutable-worktree \
+  --expected-commit <full-40-char-sha>
 ```
 
 The canary uses an inert Dolt fixture and a deterministic reviewer executor; it does not launch a model reviewer. Everything around that deterministic leaf is real package owner code:
@@ -121,6 +123,8 @@ real Toolbox orchestrator-gated activation
 
 The canary does not inject a success-shaped `vault_execute_template` event. It calls the registered owner tool and forwards its actual result to Little Helpers.
 
+Public `canary` always verifies source identity and the production materialization manifest before building its fixture, then requires the owner preflight to verify that manifest again. There is no CLI flag that disables this gate. The separate public `test` action is explicitly labeled `development-test`; it exercises the deterministic integration harness without claiming canary authority and includes a negative missing-manifest assertion.
+
 Observed local proof on the AK-4267 implementation worktree:
 
 ```text
@@ -134,6 +138,8 @@ nexusReleaseCount=1
 ```
 
 Handoff ids are volatile per run. The latest local run produced a non-empty durable handoff; no observed handoff is reusable authorization.
+
+AK-4282 also closes the durable handoff final-component race: Vault opens the receipt with `O_NOFOLLOW`, checks the opened descriptor is a regular file with `fstat`, and invokes no executor if a symlink is substituted between readiness/lstat and open. Unsupported `O_NOFOLLOW` platforms fail closed.
 
 ## Failure expectations
 

@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseSelfEvolutionExecutionEnvelope } from "./selfEvolutionEnvelope.ts";
@@ -32,6 +33,62 @@ export function getVisibleLoopStatusPath(
 ): string {
   const runId = typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId;
   return join(getVisibleLoopStateDir(env), `${runId}.status.jsonl`);
+}
+
+function getVisibleLoopGovernedPreflightAttemptPath(runId: string, env: NodeJS.ProcessEnv): string {
+  const key = createHash("sha256").update(runId).digest("hex");
+  return join(getVisibleLoopStateDir(env), "governed-preflight-attempts", `${key}.json`);
+}
+
+export function claimVisibleLoopGovernedPreflightAttempt(
+  config: VisibleLoopRunConfig,
+  nonce: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { ok: true } | { ok: false; error: string } {
+  const attemptPath = getVisibleLoopGovernedPreflightAttemptPath(config.runId, env);
+  const expected = { schemaVersion: 1, runId: config.runId, nonce };
+  try {
+    mkdirSync(join(getVisibleLoopStateDir(env), "governed-preflight-attempts"), {
+      recursive: true,
+      mode: 0o700,
+    });
+    writeFileSync(attemptPath, `${JSON.stringify(expected)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
+    const observed = JSON.parse(readFileSync(attemptPath, "utf8")) as Record<string, unknown>;
+    if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+      throw new Error("governed preflight attempt claim read-back drift");
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export function releaseVisibleLoopGovernedPreflightAttempt(
+  config: VisibleLoopRunConfig,
+  nonce: string,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const attemptPath = getVisibleLoopGovernedPreflightAttemptPath(config.runId, env);
+  try {
+    const stat = lstatSync(attemptPath);
+    if (!stat.isFile() || stat.isSymbolicLink()) return false;
+    const observed = JSON.parse(readFileSync(attemptPath, "utf8")) as Record<string, unknown>;
+    if (
+      observed.schemaVersion !== 1 ||
+      observed.runId !== config.runId ||
+      observed.nonce !== nonce
+    ) {
+      return false;
+    }
+    rmSync(attemptPath);
+    return !existsSync(attemptPath);
+  } catch {
+    return false;
+  }
 }
 
 function writeVisibleLoopStatus(
@@ -146,17 +203,27 @@ export function hasVisibleLoopGovernedPreflightFailed(
   const statusPath = getVisibleLoopStatusPath(config, env);
   if (!existsSync(statusPath)) return false;
   try {
-    return readFileSync(statusPath, "utf8")
-      .split("\n")
-      .some((line) => {
-        if (!line.trim()) return false;
-        try {
-          const entry = JSON.parse(line) as { event?: unknown };
-          return entry.event === "governed_deep_review_preflight_failed_closed";
-        } catch {
-          return false;
-        }
-      });
+    const status = readFileSync(statusPath, "utf8");
+    if (status && !status.endsWith("\n")) return true;
+    const pendingAttempts = new Set<string>();
+    for (const line of status.split("\n")) {
+      if (!line.trim()) continue;
+      let entry: { event?: unknown; nonce?: unknown };
+      try {
+        entry = JSON.parse(line) as { event?: unknown; nonce?: unknown };
+      } catch {
+        return true;
+      }
+      if (entry.event === "governed_deep_review_preflight_failed_closed") return true;
+      if (entry.event === "governed_deep_review_preflight_started") {
+        if (typeof entry.nonce !== "string" || !entry.nonce.trim()) return true;
+        pendingAttempts.add(entry.nonce);
+      } else if (entry.event === "governed_deep_review_preflight_succeeded") {
+        if (typeof entry.nonce !== "string" || !entry.nonce.trim()) return true;
+        pendingAttempts.delete(entry.nonce);
+      }
+    }
+    return pendingAttempts.size > 0;
   } catch {
     return true;
   }

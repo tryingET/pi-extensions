@@ -54,13 +54,11 @@ function parseArgs(argv) {
     action,
     sourceRoot: SCRIPT_ROOT,
     expectedCommit: undefined,
-    allowDevelopmentRoot: false,
   };
   for (let index = 0; index < rest.length; index += 1) {
     const value = rest[index];
     if (value === "--source-root") options.sourceRoot = resolve(rest[++index] ?? "");
     else if (value === "--expected-commit") options.expectedCommit = rest[++index];
-    else if (value === "--allow-development-root") options.allowDevelopmentRoot = true;
     else throw new Error(`Unknown argument: ${value}`);
   }
   return options;
@@ -93,14 +91,14 @@ function sameObject(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function assertSourceIdentity(sourceRoot, expectedCommit, allowDevelopmentRoot) {
+function assertSourceIdentity(sourceRoot, expectedCommit) {
   const root = realpathSync(sourceRoot);
   const commit = git(root, ["rev-parse", "HEAD"]);
   if (!/^[a-f0-9]{40}$/u.test(commit)) throw new Error("Source HEAD is not a full commit hash.");
   if (expectedCommit && commit !== expectedCommit) {
     throw new Error(`Source HEAD ${commit} does not match expected commit ${expectedCommit}.`);
   }
-  if (!allowDevelopmentRoot && !root.toLowerCase().includes(commit.slice(0, 8))) {
+  if (!root.toLowerCase().includes(commit.slice(0, 8))) {
     throw new Error(
       `Runtime source path must include immutable commit prefix ${commit.slice(0, 8)}: ${root}`,
     );
@@ -302,21 +300,25 @@ function manifestPath(sourceRoot) {
   return resolve(sourceRoot, MANIFEST_RELATIVE_PATH);
 }
 
+function verifyCanaryProductionMaterialization(
+  sourceRoot,
+  selectedManifestPath = manifestPath(sourceRoot),
+) {
+  const sourceCommit = git(sourceRoot, ["rev-parse", "HEAD"]);
+  return verifyGovernedRuntimeMaterialization(sourceRoot, sourceCommit, selectedManifestPath);
+}
+
 function requireExpectedCommit(options) {
   if (!/^[a-f0-9]{40}$/u.test(options.expectedCommit ?? "")) {
     throw new Error(
-      "materialize/verify requires --expected-commit with one full 40-character SHA.",
+      "materialize/verify/canary requires --expected-commit with one full 40-character SHA.",
     );
   }
   return options.expectedCommit;
 }
 
 async function materialize(options) {
-  const identity = assertSourceIdentity(
-    options.sourceRoot,
-    requireExpectedCommit(options),
-    options.allowDevelopmentRoot,
-  );
+  const identity = assertSourceIdentity(options.sourceRoot, requireExpectedCommit(options));
   const beforeHashes = collectTrackedInputHashes(identity.sourceRoot);
   for (const packagePath of PACKAGES) {
     const packageRoot = resolve(identity.sourceRoot, packagePath);
@@ -336,7 +338,7 @@ async function materialize(options) {
   const typebox = verifyTypebox(identity.sourceRoot, typeboxRoot);
   const hostPeers = verifyGovernedRuntimeHostPeers(identity.sourceRoot);
   await verifyAutoresearchTriggerSurface(identity.sourceRoot);
-  assertSourceIdentity(identity.sourceRoot, identity.sourceCommit, true);
+  assertSourceIdentity(identity.sourceRoot, identity.sourceCommit);
   const manifest = {
     schema: MANIFEST_SCHEMA,
     sourceRoot: identity.sourceRoot,
@@ -359,11 +361,7 @@ async function materialize(options) {
 }
 
 async function verify(options) {
-  const identity = assertSourceIdentity(
-    options.sourceRoot,
-    requireExpectedCommit(options),
-    options.allowDevelopmentRoot,
-  );
+  const identity = assertSourceIdentity(options.sourceRoot, requireExpectedCommit(options));
   const manifest = verifyGovernedRuntimeMaterialization(
     identity.sourceRoot,
     identity.sourceCommit,
@@ -486,7 +484,10 @@ function deterministicWorkflowExecutorFactory() {
   };
 }
 
-async function canary(options) {
+async function runGovernedDeepReviewHarness(
+  options,
+  { action, requireMaterializationManifest },
+) {
   if (!existsSync(run("sh", ["-lc", "command -v dolt"]))) {
     throw new Error("dolt is required for the governed deep-review canary.");
   }
@@ -533,7 +534,7 @@ async function canary(options) {
     harness.load(orchestratorExtensionPath, orchestratorExtension, {
       workflowExecutorFactory: deterministicWorkflowExecutorFactory,
       governedDeepReviewPreflight: {
-        requireMaterializationManifest: false,
+        requireMaterializationManifest,
         dispatchReceiptPath: resolve(scratch, "dispatch-handoffs.jsonl"),
       },
     });
@@ -663,9 +664,10 @@ async function canary(options) {
       JSON.stringify(
         {
           ok: true,
-          action: "canary",
+          action,
           ownerExecution: true,
           syntheticToolReceipt: false,
+          productionMaterializationManifestEnforced: requireMaterializationManifest,
           handoffId: result.details.handoffId,
           preflightNonce: result.details.preflightNonce,
           registryId: result.details.preflightRegistryId,
@@ -684,6 +686,16 @@ async function canary(options) {
   }
 }
 
+async function canary(options) {
+  const sourceRoot = realpathSync(options.sourceRoot);
+  assertSourceIdentity(sourceRoot, requireExpectedCommit(options));
+  verifyCanaryProductionMaterialization(sourceRoot);
+  return runGovernedDeepReviewHarness(options, {
+    action: "canary",
+    requireMaterializationManifest: true,
+  });
+}
+
 async function test(options) {
   assert.equal(PACKAGES.length, 14);
   assert.equal(TYPEBOX_CONSUMERS.includes("packages/pi-interaction/pi-trigger-adapter"), true);
@@ -696,14 +708,25 @@ async function test(options) {
     ),
     true,
   );
-  await canary({ ...options, allowDevelopmentRoot: true });
+  const missingManifestPath = resolve(
+    process.env.TMPDIR?.trim() || join(homedir(), ".local/state/pi-quests/tmp"),
+    `missing-governed-runtime-${process.pid}-${Date.now()}.json`,
+  );
+  assert.throws(
+    () => verifyCanaryProductionMaterialization(realpathSync(options.sourceRoot), missingManifestPath),
+    (error) => error?.failureClass === "materialization_manifest_missing",
+  );
+  await runGovernedDeepReviewHarness(options, {
+    action: "development-test",
+    requireMaterializationManifest: false,
+  });
 }
 
 function help() {
   console.log(`Usage:
   node scripts/governed-deep-review-canary.mjs materialize --source-root <clean-immutable-worktree> --expected-commit <full-sha>
   node scripts/governed-deep-review-canary.mjs verify --source-root <materialized-worktree> --expected-commit <full-sha>
-  node scripts/governed-deep-review-canary.mjs canary [--source-root <root>]
+  node scripts/governed-deep-review-canary.mjs canary --source-root <materialized-worktree> --expected-commit <full-sha>
   node scripts/governed-deep-review-canary.mjs test [--source-root <root>]
 
 materialize/verify never edit Pi settings, install Pi packages, reload Pi, or clean old worktrees.`);

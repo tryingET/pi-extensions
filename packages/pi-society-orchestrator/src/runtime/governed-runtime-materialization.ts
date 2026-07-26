@@ -7,12 +7,15 @@ import { createHash } from "node:crypto";
 import {
   existsSync,
   lstatSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   readlinkSync,
   realpathSync,
+  rmSync,
 } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 export const GOVERNED_RUNTIME_MATERIALIZATION_SCHEMA =
@@ -300,11 +303,70 @@ function edge(
   return { consumer, specifier, expectedOwnerName, expectedOwnerPath } as const;
 }
 
+function parseTaggedGitPaths(output: string): Array<{ marker: string; path: string }> {
+  return output
+    .split("\0")
+    .filter(Boolean)
+    .map((record) => {
+      if (record.length < 3 || record[1] !== " ") {
+        throw new GovernedRuntimeMaterializationError(
+          "materialization_git_inspection_failed",
+          "Git returned a malformed tagged-path inventory.",
+        );
+      }
+      return { marker: record[0], path: record.slice(2) };
+    });
+}
+
+function inspectGovernedRuntimeIndexFlags(sourceRoot: string): string[] {
+  const assumeUnchanged = parseTaggedGitPaths(gitRaw(sourceRoot, ["ls-files", "-v", "-z"]))
+    .filter(({ marker }) => /^[a-z]$/u.test(marker))
+    .map(({ path }) => `index-flag:assume-unchanged:${path}`);
+  const skipWorktree = parseTaggedGitPaths(gitRaw(sourceRoot, ["ls-files", "-t", "-z"]))
+    .filter(({ marker }) => marker === "S")
+    .map(({ path }) => `index-flag:skip-worktree:${path}`);
+  return [...assumeUnchanged, ...skipWorktree];
+}
+
+function inspectGovernedRuntimeTrackedBytes(sourceRoot: string): string[] {
+  const scratch = mkdtempSync(resolve(tmpdir(), "governed-runtime-cleanliness-"));
+  const indexPath = resolve(scratch, "head.index");
+  const env = { GIT_INDEX_FILE: indexPath };
+  try {
+    gitRaw(sourceRoot, ["read-tree", "HEAD"], env);
+    const records = gitRaw(
+      sourceRoot,
+      ["diff", "--no-ext-diff", "--name-status", "-z", "HEAD", "--"],
+      env,
+    )
+      .split("\0")
+      .filter(Boolean);
+    if (records.length % 2 !== 0) {
+      throw new GovernedRuntimeMaterializationError(
+        "materialization_git_inspection_failed",
+        "Git returned a malformed tracked-byte comparison.",
+      );
+    }
+    const changes: string[] = [];
+    for (let index = 0; index < records.length; index += 2) {
+      changes.push(`tracked-byte-drift:${records[index]}:${records[index + 1]}`);
+    }
+    return changes;
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 export function inspectGovernedRuntimeCleanliness(sourceRoot: string): GovernedRuntimeCleanliness {
   const root = realpathSync(sourceRoot);
   const trackedOutput = git(root, ["status", "--porcelain=v1", "--untracked-files=no"]);
   const untrackedOutput = git(root, ["ls-files", "--others", "--exclude-standard", "-z"]);
-  const trackedChanges = trackedOutput ? trackedOutput.split("\n").filter(Boolean) : [];
+  const trackedChanges = [
+    ...(trackedOutput ? trackedOutput.split("\n").filter(Boolean) : []),
+    ...inspectGovernedRuntimeIndexFlags(root),
+    ...inspectGovernedRuntimeTrackedBytes(root),
+  ];
+  const uniqueTrackedChanges = [...new Set(trackedChanges)];
   const untrackedSourcePaths = untrackedOutput
     ? untrackedOutput
         .split("\0")
@@ -312,9 +374,9 @@ export function inspectGovernedRuntimeCleanliness(sourceRoot: string): GovernedR
         .filter((path) => !path.split(/[\\/]/u).includes("node_modules"))
     : [];
   return {
-    trackedChanges,
+    trackedChanges: uniqueTrackedChanges,
     untrackedSourcePaths,
-    clean: trackedChanges.length === 0 && untrackedSourcePaths.length === 0,
+    clean: uniqueTrackedChanges.length === 0 && untrackedSourcePaths.length === 0,
   };
 }
 
@@ -620,18 +682,23 @@ export function verifyGovernedRuntimeMaterialization(
   return manifest;
 }
 
-function git(sourceRoot: string, args: string[]): string {
+function gitRaw(sourceRoot: string, args: string[], env: Record<string, string> = {}): string {
   try {
     return execFileSync("git", ["-C", sourceRoot, ...args], {
       encoding: "utf8",
+      env: { ...process.env, ...env },
       stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+    });
   } catch (error) {
     throw new GovernedRuntimeMaterializationError(
       "materialization_git_inspection_failed",
       error instanceof Error ? error.message : String(error),
     );
   }
+}
+
+function git(sourceRoot: string, args: string[]): string {
+  return gitRaw(sourceRoot, args).trim();
 }
 
 function ownerPackageRoot(modulePath: string): {

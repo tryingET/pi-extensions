@@ -229,7 +229,7 @@ npm run governed:runtime -- verify \
 
 The executable:
 
-1. requires an explicit full expected SHA, verifies that exact commit and immutable path name, and rejects staged, unstaged, or ordinary untracked source;
+1. requires an explicit full expected SHA, verifies that exact commit and immutable path name, rejects `assume-unchanged`/`skip-worktree`, and compares tracked working bytes and modes against a fresh alternate index populated from `HEAD` rather than trusting the live index before rejecting staged, unstaged, or ordinary untracked source;
 2. records the exact 28-file hash map for `package.json` plus `package-lock.json` across all 14 selected packages;
 3. materializes production dependencies with development and peer packages omitted;
 4. accepts only the exact pre-repair `MODULE_NOT_FOUND` for `typebox` from `pi-trigger-adapter`;
@@ -239,6 +239,8 @@ The executable:
 8. resolves every closed-list local edge from the real consumer context, requires its exact package name/root, and rejects cross-root owners or registry duplication across the enumerated registry consumers;
 9. imports the actual autoresearch trigger picker and requires a functional trigger surface;
 10. writes the mode-`0600` v3 manifest at `packages/pi-society-orchestrator/node_modules/.tryinget-governed-runtime.json`; verification and production preflight independently reconstruct cleanliness, package-input, resolution-owner, registry, Typebox, and Pi-host peer root/version/SRI/tree-digest proofs instead of trusting declarative fields.
+
+The public `canary` action cannot disable manifest enforcement: it first verifies immutable source identity and the production manifest, then the real owner preflight verifies the manifest again. The separately labeled `development-test` harness is ordinary deterministic integration coverage and is not activation evidence.
 
 Materialization occurs only in the new snapshot. Existing live source trees, settings, and dependency state remain untouched. The executable has no Pi install, reload, Git cleanup, or worktree deletion behavior.
 
@@ -272,6 +274,7 @@ preflightRegistryId = exact loaded Vault policy registry id
 ```
 
 The proof must show the little-helpers caller, Toolbox registration, orchestrator tools, direct Vault/ASC tools, deferred orchestrator Vault/ASC imports, and every closed-list transitive owner resolve beneath the selected root. The loop must release the Nexus frontier exactly once after receipt correlation.
+The startup ledger must also show one atomically claimed preflight attempt with paired nonce state; failed terminal persistence, failed cancellation, concurrent starts, or an active lease owned by another session must remain non-retryable. The Vault handoff write must reject final-component symlink replacement at open time before executor invocation.
 A success-shaped result without matching source provenance is insufficient. Implementation contract: `docs/project/2026-07-26-governed-deep-review-preflight-canary.md`.
 
 ### Rollback
