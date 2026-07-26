@@ -46,6 +46,7 @@ jobs:
           else
             npm install --package-lock-only --ignore-scripts
             npm ci
+            rm -f package-lock.json
           fi
 
       - name: Materialize governed runtime canary dependencies
