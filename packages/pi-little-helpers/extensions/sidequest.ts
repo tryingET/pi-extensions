@@ -32,6 +32,9 @@ import {
   getVisibleLoopStatusPath,
   handleVisibleLoopAgentSettled,
   handleVisibleLoopAgentStart,
+  handleVisibleLoopMessageStart,
+  handleVisibleLoopToolExecutionEnd,
+  handleVisibleLoopToolExecutionStart,
   listMissingVisibleLoopPromptTemplates,
   NEXUS_LOOP_COMMAND,
   parseVisibleLoopCommandArgs,
@@ -3221,6 +3224,18 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       handleVisibleLoopAgentStart(pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
       });
+    });
+
+    pi.on?.("message_start", async (event, ctx) => {
+      handleVisibleLoopMessageStart(event, ctx ?? {}, options.env ?? process.env);
+    });
+
+    pi.on?.("tool_execution_start", async (event, ctx) => {
+      handleVisibleLoopToolExecutionStart(event, ctx ?? {}, options.env ?? process.env);
+    });
+
+    pi.on?.("tool_execution_end", async (event, ctx) => {
+      handleVisibleLoopToolExecutionEnd(event, ctx ?? {}, options.env ?? process.env);
     });
 
     pi.on?.("agent_settled", async (_event, ctx) => {

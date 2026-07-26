@@ -8,9 +8,16 @@ import test from "node:test";
 
 import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {
+  createVisibleLoopRunConfig,
+  DEFAULT_NEXUS_LOOP_PROMPTS,
+  GOVERNED_DEEP_REVIEW_OBJECTIVE,
+  writeVisibleLoopRunConfig,
+} from "../src/visibleLoop.ts";
+import {
   createContext,
   createExecStub,
   extractPiArgs,
+  observeLatestVisibleLoopMessage,
   registerExtension,
 } from "./sidequest-harness.mjs";
 
@@ -48,11 +55,6 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     writeFileSync(`${harness.ctx.cwd}/docs/project/product-posture.md`, "# posture\n", "utf8");
     writeFileSync(`${harness.ctx.cwd}/docs/project/vision.md`, "# vision\n", "utf8");
     writeFileSync(
-      `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
-      "EXPANDED DEEP REVIEW $ARGUMENTS\n",
-      "utf8",
-    );
-    writeFileSync(
       `${harness.ctx.cwd}/.pi/prompts/commit.md`,
       "EXPANDED COMMIT $ARGUMENTS\n",
       "utf8",
@@ -69,7 +71,6 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       .replace(/^\/visible-loop-child\s+/, "");
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 60));
 
     assert.equal(userMessages.length, 1);
     assert.equal(userMessages[0].options, undefined);
@@ -77,8 +78,47 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     assert.match(userMessages[0].message, /operator objective "checkpoint bounded slice"/);
 
     const agentStart = events.get("agent_start")[0];
+    const agentSettled = events.get("agent_settled")[0];
+    const toolExecutionStart = events.get("tool_execution_start")[0];
+    const toolExecutionEnd = events.get("tool_execution_end")[0];
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
     await agentStart({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    for (let completed = 0; completed < 2; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
+    await toolExecutionStart(
+      {
+        toolCallId: "checkpoint-deep-review",
+        toolName: "vault_execute_template",
+        args: { template_name: "deep-review", objective: GOVERNED_DEEP_REVIEW_OBJECTIVE },
+      },
+      harness.ctx,
+    );
+    await toolExecutionEnd(
+      {
+        toolCallId: "checkpoint-deep-review",
+        toolName: "vault_execute_template",
+        isError: false,
+        result: {
+          details: {
+            ok: true,
+            templateName: "deep-review",
+            executionSurface: "workflow_execute",
+            handoffId: "checkpoint-handoff",
+            runId: "checkpoint-workflow",
+            status: "done",
+          },
+        },
+      },
+      harness.ctx,
+    );
+    for (let completed = 2; completed < 6; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
 
     assert.equal(userMessages.length, 7);
     for (const message of userMessages) {
@@ -90,7 +130,8 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     );
     assert.match(userMessages[1].message, /EXECUTION BINDING — FAIL CLOSED/);
     assert.notEqual(userMessages[2].message, "/deep-review");
-    assert.match(userMessages[2].message, /DEEP REVIEW/);
+    assert.match(userMessages[2].message, /Governed deep-review execution step/);
+    assert.match(userMessages[2].message, /vault_execute_template/);
     assert.match(userMessages[2].message, /must not choose product direction/);
     assert.match(userMessages[3].message, /Prompt Vault/);
     assert.match(userMessages[3].message, /Do not stop after retrieving the template/);
@@ -117,10 +158,7 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       userMessages[6].message,
       new RegExp(configPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
-    assert.deepEqual(
-      userMessages.slice(1).map((entry) => entry.options),
-      Array(6).fill({ deliverAs: "followUp" }),
-    );
+    assert.ok(userMessages.every((entry) => entry.options === undefined));
     await new Promise((resolve) => setTimeout(resolve, 360));
     assert.equal(
       userMessages.length,
@@ -131,18 +169,6 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
     assert.equal(visibleLoopLaunches.length, 1);
-
-    const agentEnd = events.get("agent_settled")[0];
-    await agentEnd({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 360));
-    visibleLoopLaunches = execStub.calls.filter(
-      (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
-    );
-    assert.equal(
-      visibleLoopLaunches.length,
-      1,
-      "agent_settled must not launch the next iteration before the completion tool runs",
-    );
 
     await commands
       .get("visible-loop-child-complete")
@@ -179,7 +205,44 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
     await new Promise((resolve) => setTimeout(resolve, 60));
     const restoredCost = JSON.parse(readFileSync(controllerStatePath, "utf8")).weightedCost;
     assert.ok(restoredCost > firstIterationCost, "new child must retain and extend run cost");
-    await new Promise((resolve) => setTimeout(resolve, 1900));
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+    await agentStart({}, harness.ctx);
+    for (let completed = 0; completed < 2; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
+    await toolExecutionStart(
+      {
+        toolCallId: "checkpoint-deep-review-2",
+        toolName: "vault_execute_template",
+        args: { template_name: "deep-review", objective: GOVERNED_DEEP_REVIEW_OBJECTIVE },
+      },
+      harness.ctx,
+    );
+    await toolExecutionEnd(
+      {
+        toolCallId: "checkpoint-deep-review-2",
+        toolName: "vault_execute_template",
+        isError: false,
+        result: {
+          details: {
+            ok: true,
+            templateName: "deep-review",
+            executionSurface: "workflow_execute",
+            handoffId: "checkpoint-handoff-2",
+            runId: "checkpoint-workflow-2",
+            status: "done",
+          },
+        },
+      },
+      harness.ctx,
+    );
+    for (let completed = 2; completed < 6; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
     const finalResult = await tools
       .get("visible_loop_child_complete")
       .execute("adaptive-final", { configPath, iteration: 2 }, null, null, harness.ctx);
@@ -193,6 +256,170 @@ test("visible-loop child queues an explicit completion checkpoint before launchi
       .split("\n")
       .map((line) => JSON.parse(line));
     assert.ok(finalEntries.some((entry) => entry.event === "loop_completed"));
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("governed deep-review with no verified workflow receipt stops before Nexus", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-deep-review-missing-receipt-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const extension = createSidequestExtension({ registerTools: true, env });
+    const { commands, events, tools, userMessages } = registerExtension(extension);
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "missing receipt test" },
+      prompts: DEFAULT_NEXUS_LOOP_PROMPTS,
+      runId: "visible-loop-missing-deep-review-receipt",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+    await events.get("agent_start")[0]({}, harness.ctx);
+    await events.get("agent_settled")[0]({}, harness.ctx);
+
+    assert.equal(userMessages.length, 1, "Nexus must remain withheld without a receipt");
+    assert.match(harness.notifications.at(-1).message, /governed deep-review did not complete/);
+    const completion = await tools
+      .get("visible_loop_child_complete")
+      .execute("missing-receipt", { configPath, iteration: 1 }, null, null, harness.ctx);
+    assert.equal(completion.details.accepted, false);
+    assert.match(completion.details.reason, /loop already stopped/);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("a duplicate governed deep-review execution fails closed", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-deep-review-duplicate-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const extension = createSidequestExtension({ registerTools: true, env });
+    const { commands, events, tools, userMessages } = registerExtension(extension);
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "duplicate review test" },
+      prompts: DEFAULT_NEXUS_LOOP_PROMPTS,
+      runId: "visible-loop-duplicate-deep-review",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+    await events.get("agent_start")[0]({}, harness.ctx);
+    const start = events.get("tool_execution_start")[0];
+    const args = { template_name: "deep-review", objective: GOVERNED_DEEP_REVIEW_OBJECTIVE };
+    await start(
+      { toolCallId: "first-review", toolName: "vault_execute_template", args },
+      harness.ctx,
+    );
+    await start(
+      { toolCallId: "second-review", toolName: "vault_execute_template", args },
+      harness.ctx,
+    );
+
+    assert.match(harness.notifications.at(-1).message, /duplicate governed deep-review/);
+    const completion = await tools
+      .get("visible_loop_child_complete")
+      .execute("duplicate-review", { configPath, iteration: 1 }, null, null, harness.ctx);
+    assert.equal(completion.details.accepted, false);
+    assert.match(completion.details.reason, /loop already stopped/);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("a duplicate governed deep-review end receipt fails closed", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-deep-review-duplicate-receipt-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const extension = createSidequestExtension({ registerTools: true, env });
+    const { commands, events, tools, userMessages } = registerExtension(extension);
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: harness.ctx.cwd,
+      reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "duplicate receipt test" },
+      prompts: DEFAULT_NEXUS_LOOP_PROMPTS,
+      runId: "visible-loop-duplicate-deep-review-receipt",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+    await events.get("agent_start")[0]({}, harness.ctx);
+    const start = events.get("tool_execution_start")[0];
+    const end = events.get("tool_execution_end")[0];
+    await start(
+      {
+        toolCallId: "duplicate-receipt-review",
+        toolName: "vault_execute_template",
+        args: { template_name: "deep-review", objective: GOVERNED_DEEP_REVIEW_OBJECTIVE },
+      },
+      harness.ctx,
+    );
+    const receipt = {
+      toolCallId: "duplicate-receipt-review",
+      toolName: "vault_execute_template",
+      isError: false,
+      result: {
+        details: {
+          ok: true,
+          templateName: "deep-review",
+          executionSurface: "workflow_execute",
+          handoffId: "duplicate-receipt-handoff",
+          status: "done",
+        },
+      },
+    };
+    await end(receipt, harness.ctx);
+    await end(receipt, harness.ctx);
+
+    assert.match(harness.notifications.at(-1).message, /duplicate governed deep-review receipt/);
+    await events.get("agent_settled")[0]({}, harness.ctx);
+    assert.equal(userMessages.length, 1, "duplicate receipt must not release Nexus");
+    const completion = await tools
+      .get("visible_loop_child_complete")
+      .execute("duplicate-receipt", { configPath, iteration: 1 }, null, null, harness.ctx);
+    assert.equal(completion.details.accepted, false);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("raw deep-review slash prompts are rejected even when a local file exists", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-raw-deep-review-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const extension = createSidequestExtension({ registerTools: true, env });
+    const { commands, userMessages } = registerExtension(extension);
+    const repo = `${stateHome}/repo`;
+    const harness = createContext({ cwd: repo });
+    mkdirSync(`${repo}/.pi/prompts`, { recursive: true });
+    writeFileSync(`${repo}/.pi/prompts/deep-review.md`, "RAW REVIEW MUST NOT EXECUTE\n", "utf8");
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: repo,
+      reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "raw review rejection" },
+      prompts: ["CANDIDATE EXECUTION MEMBRANE\n\n/deep-review", "must not run"],
+      runId: "visible-loop-raw-deep-review",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+
+    assert.equal(userMessages.length, 0);
+    assert.match(harness.notifications.at(-1).message, /raw \/deep-review.*forbidden/);
   } finally {
     rmSync(stateHome, { recursive: true, force: true });
   }

@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import { createSidequestExtension } from "../extensions/sidequest.ts";
-import { parseVisibleLoopCommandArgs } from "../src/visibleLoop.ts";
+import { GOVERNED_DEEP_REVIEW_OBJECTIVE, parseVisibleLoopCommandArgs } from "../src/visibleLoop.ts";
 import {
   assertLoopValidationGuidance,
   createContext,
@@ -25,6 +25,7 @@ import {
   isLocalGhosttyBin,
   isLocalGhosttyWrapper,
   LOCAL_GHOSTTY_BIN,
+  observeLatestVisibleLoopMessage,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
@@ -244,7 +245,9 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     );
     assert.match(config.prompts[1], /do not select or begin another product slice/);
     assert.match(config.prompts[1], /rerun only the invalidated focused proof/);
-    assert.equal(config.prompts[2], "/deep-review");
+    assert.match(config.prompts[2], /Governed deep-review execution step/);
+    assert.match(config.prompts[2], /vault_execute_template/);
+    assert.match(config.prompts[2], /Do not use `vault_retrieve` content/);
     assert.match(config.prompts[3], /highest-leverage Nexus implementation/);
     assert.match(config.prompts[3], /one independent read-only review/);
     assert.match(config.prompts[3], /atomic-completion pass/);
@@ -588,11 +591,6 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
     writeFileSync(`${harness.ctx.cwd}/docs/project/product-posture.md`, "# posture\n", "utf8");
     writeFileSync(`${harness.ctx.cwd}/docs/project/vision.md`, "# vision\n", "utf8");
     writeFileSync(
-      `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
-      "EXPANDED DEEP REVIEW LOCAL_SENTINEL $ARGUMENTS\n",
-      "utf8",
-    );
-    writeFileSync(
       `${harness.ctx.cwd}/.pi/prompts/commit.md`,
       "EXPANDED COMMIT LOCAL_SENTINEL $ARGUMENTS\n",
       "utf8",
@@ -632,7 +630,9 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
     });
     assert.equal(config.commandName, "nexus-loop");
     assert.equal(config.prompts.length, 4);
-    assert.equal(config.prompts[0], "/deep-review");
+    assert.match(config.prompts[0], /Governed deep-review execution step/);
+    assert.match(config.prompts[0], /vault_execute_template/);
+    assert.match(config.prompts[0], /Do not use `vault_retrieve` content/);
     assert.match(config.prompts[1], /highest-leverage Nexus implementation/);
     assert.match(config.prompts[1], /one independent read-only review/);
     assert.match(config.prompts[1], /atomic-completion pass/);
@@ -649,11 +649,45 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
     assert.equal(userMessages.length, 1);
     assert.match(userMessages[0].message, /EXECUTION BINDING — FAIL CLOSED/);
-    assert.match(userMessages[0].message, /EXPANDED DEEP REVIEW LOCAL_SENTINEL/);
+    assert.match(userMessages[0].message, /Governed deep-review execution step/);
 
     const agentStart = events.get("agent_start")[0];
+    const agentSettled = events.get("agent_settled")[0];
+    const toolExecutionStart = events.get("tool_execution_start")[0];
+    const toolExecutionEnd = events.get("tool_execution_end")[0];
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
     await agentStart({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await toolExecutionStart(
+      {
+        toolCallId: "nexus-deep-review",
+        toolName: "vault_execute_template",
+        args: { template_name: "deep-review", objective: GOVERNED_DEEP_REVIEW_OBJECTIVE },
+      },
+      harness.ctx,
+    );
+    await toolExecutionEnd(
+      {
+        toolCallId: "nexus-deep-review",
+        toolName: "vault_execute_template",
+        isError: false,
+        result: {
+          details: {
+            ok: true,
+            templateName: "deep-review",
+            executionSurface: "workflow_execute",
+            handoffId: "nexus-handoff",
+            runId: "nexus-workflow",
+            status: "done",
+          },
+        },
+      },
+      harness.ctx,
+    );
+    for (let completed = 0; completed < 3; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
 
     assert.equal(userMessages.length, 4);
     for (const message of userMessages) {
@@ -733,11 +767,6 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
     const harness = createContext({ cwd: repoRoot });
     mkdirSync(`${harness.ctx.cwd}/.pi/prompts`, { recursive: true });
     writeFileSync(
-      `${harness.ctx.cwd}/.pi/prompts/deep-review.md`,
-      "EXPANDED DEEP REVIEW $ARGUMENTS\n",
-      "utf8",
-    );
-    writeFileSync(
       `${harness.ctx.cwd}/.pi/prompts/commit.md`,
       "EXPANDED COMMIT $ARGUMENTS\n",
       "utf8",
@@ -768,8 +797,47 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
     const agentStart = events.get("agent_start")[0];
+    const agentSettled = events.get("agent_settled")[0];
+    const toolExecutionStart = events.get("tool_execution_start")[0];
+    const toolExecutionEnd = events.get("tool_execution_end")[0];
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
     await agentStart({}, harness.ctx);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    for (let completed = 0; completed < 2; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
+    await toolExecutionStart(
+      {
+        toolCallId: "delegate-deep-review",
+        toolName: "vault_execute_template",
+        args: { template_name: "deep-review", objective: GOVERNED_DEEP_REVIEW_OBJECTIVE },
+      },
+      harness.ctx,
+    );
+    await toolExecutionEnd(
+      {
+        toolCallId: "delegate-deep-review",
+        toolName: "vault_execute_template",
+        isError: false,
+        result: {
+          details: {
+            ok: true,
+            templateName: "deep-review",
+            executionSurface: "workflow_execute",
+            handoffId: "delegate-handoff",
+            runId: "delegate-workflow",
+            status: "done",
+          },
+        },
+      },
+      harness.ctx,
+    );
+    for (let completed = 2; completed < 5; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
 
     assert.equal(userMessages.length, 6);
     assert.match(userMessages[4].message, /Update the owning product-posture\.md/);
@@ -835,7 +903,7 @@ test("nexus-loop fails closed before launch when required slash prompt templates
 
     assert.equal(execStub.calls.length, 0);
     assert.match(harness.notifications.at(-1).message, /missing required prompt template/);
-    assert.match(harness.notifications.at(-1).message, /\/deep-review/);
+    assert.doesNotMatch(harness.notifications.at(-1).message, /\/deep-review/);
     assert.match(harness.notifications.at(-1).message, /\/commit/);
   } finally {
     if (originalHome === undefined) delete process.env.HOME;

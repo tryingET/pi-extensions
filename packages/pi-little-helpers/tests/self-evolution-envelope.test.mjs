@@ -26,11 +26,12 @@ import {
   _selfEvolutionVerificationTest,
   validatePersistedSelfEvolutionBinding,
 } from "../src/selfEvolutionVerification.ts";
-import { createVisibleLoopRunConfig } from "../src/visibleLoop.ts";
+import { createVisibleLoopRunConfig, GOVERNED_DEEP_REVIEW_OBJECTIVE } from "../src/visibleLoop.ts";
 import {
   createContext,
   createExecStub,
   extractPiArgs,
+  observeLatestVisibleLoopMessage,
   registerExtension,
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
@@ -628,7 +629,7 @@ test("baseline rollback candidate completion rejects missing closeout and accept
       },
       currentSessionGhosttyBin: "/usr/bin/ghostty",
     });
-    const { commands, tools } = registerExtension(extension);
+    const { commands, events, tools, userMessages } = registerExtension(extension);
     const repo = `${stateHome}/repo`;
     writeOwnerArtifact(repo);
     const branchEntries = [...selfToolExchange(), ...bashCheckExchange(), ...liveProofEntries()];
@@ -653,6 +654,49 @@ test("baseline rollback candidate completion rejects missing closeout and accept
     const statusPath = `${stateHome}/pi-little-helpers/visible-loop/${config.runId}.status.jsonl`;
     assert.ok(existsSync(statusPath), JSON.stringify(harness.notifications));
     assert.match(readFileSync(statusPath, "utf8"), /candidate closeout is missing/);
+
+    const agentStart = events.get("agent_start")[0];
+    const agentSettled = events.get("agent_settled")[0];
+    const toolExecutionStart = events.get("tool_execution_start")[0];
+    const toolExecutionEnd = events.get("tool_execution_end")[0];
+    await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+    await agentStart({}, harness.ctx);
+    for (let completed = 0; completed < 2; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
+    await toolExecutionStart(
+      {
+        toolCallId: "candidate-deep-review",
+        toolName: "vault_execute_template",
+        args: { template_name: "deep-review", objective: GOVERNED_DEEP_REVIEW_OBJECTIVE },
+      },
+      harness.ctx,
+    );
+    await toolExecutionEnd(
+      {
+        toolCallId: "candidate-deep-review",
+        toolName: "vault_execute_template",
+        isError: false,
+        result: {
+          details: {
+            ok: true,
+            templateName: "deep-review",
+            executionSurface: "workflow_execute",
+            handoffId: "candidate-handoff",
+            runId: "candidate-workflow",
+            status: "done",
+          },
+        },
+      },
+      harness.ctx,
+    );
+    for (let completed = 2; completed < 6; completed += 1) {
+      await agentSettled({}, harness.ctx);
+      await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
+      await agentStart({}, harness.ctx);
+    }
 
     const acceptedResult = await tools.get("visible_loop_child_complete").execute(
       "accepted-closeout",

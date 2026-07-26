@@ -66,6 +66,23 @@ export const DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT = [
   "Keep the main work focus on the bounded implementation and its direct proof.",
 ].join("\n");
 
+export const GOVERNED_DEEP_REVIEW_OBJECTIVE =
+  "Perform the full governed adversarial deep review of the current implementation and repository state. Return ranked, evidence-backed findings for the next bounded Nexus fixup.";
+
+export const GOVERNED_DEEP_REVIEW_PROMPT = [
+  "Governed deep-review execution step.",
+  "",
+  "The Prompt Vault `deep-review` template is orchestrator-gated and must not be executed from raw retrieved text or a local `deep-review.md` file.",
+  "If `vault_execute_template` is not currently available, activate the `orchestrator` bundle with its `orchestrator-gated` profile through `toolbox`, using this bound review as the risk justification. Treat activation as tool exposure only, not as review completion.",
+  "Then call `vault_execute_template` exactly once with:",
+  '- `template_name`: `"deep-review"`',
+  `- \`objective\`: \`"${GOVERNED_DEEP_REVIEW_OBJECTIVE}"\``,
+  "",
+  "The tool must execute the Prompt Vault template through its verified workflow binding and return `details.ok=true`, `executionSurface=workflow_execute`, an exact non-empty Vault `handoffId`, and `status=done`.",
+  "Do not use `vault_retrieve` content, manually call a reviewer substitute, or create a local `deep-review.md` as execution.",
+  "If activation or execution is unavailable, blocked, fails, times out, or returns any other status, report the blocker and stop. Do not proceed to Nexus fixup, posture refresh, commit, or loop completion.",
+].join("\n");
+
 export const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
   "Update the owning product-posture.md before loop completion.",
   "",
@@ -109,7 +126,7 @@ export const DEFAULT_NEXUS_FIXUP_PROMPT = [
 ].join("\n");
 
 export const DEFAULT_NEXUS_LOOP_PROMPTS = [
-  "/deep-review",
+  GOVERNED_DEEP_REVIEW_PROMPT,
   DEFAULT_NEXUS_FIXUP_PROMPT,
   DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   "/commit",
@@ -188,7 +205,7 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "Proceed until completed and validated.",
   ].join("\n"),
   DEFAULT_COMPLETION_AUDIT_PROMPT,
-  "/deep-review",
+  GOVERNED_DEEP_REVIEW_PROMPT,
   DEFAULT_NEXUS_FIXUP_PROMPT,
   DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   "/commit",
@@ -403,6 +420,15 @@ export function expandVisibleLoopPromptTemplate(
   cwd: string,
 ): VisibleLoopPromptExpansion {
   const templateName = getVisibleLoopSlashTemplateName(prompt);
+  if (hasForbiddenRawDeepReviewInvocation(prompt)) {
+    return {
+      ok: false,
+      prompt,
+      templateName: "deep-review",
+      error:
+        "raw /deep-review prompt expansion is forbidden; use the governed vault_execute_template workflow step",
+    };
+  }
   if (!templateName) return { ok: true, prompt };
   const resolved = resolveVisibleLoopPromptTemplate(prompt, cwd);
   if (!resolved) {
@@ -426,6 +452,7 @@ export function listMissingVisibleLoopPromptTemplates(
     prompts
       .map((prompt) => getVisibleLoopSlashTemplateName(prompt))
       .filter((name): name is string => name !== null)
+      .filter((name) => name !== "deep-review")
       .filter((name) => !templateNames.has(name)),
   );
 }
@@ -458,6 +485,10 @@ function getVisibleLoopSlashTemplateName(prompt: string): string | null {
   const spaceIndex = prompt.indexOf(" ");
   const templateName = spaceIndex === -1 ? prompt.slice(1) : prompt.slice(1, spaceIndex);
   return templateName.trim() || null;
+}
+
+export function hasForbiddenRawDeepReviewInvocation(prompt: string): boolean {
+  return /(?:^|\n\n)\/deep-review(?:\s|$)/u.test(prompt.trim());
 }
 
 function loadVisibleLoopPromptTemplates(cwd: string): VisibleLoopPromptTemplate[] {
