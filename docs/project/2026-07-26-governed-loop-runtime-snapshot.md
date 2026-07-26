@@ -1,8 +1,8 @@
 ---
-summary: "AK-4264 selection and proof of the immutable origin/main snapshot for temporary governed-loop runtime stabilization."
+summary: "AK-4264/4276 selection and proof of the immutable promoted snapshot for temporary governed-loop runtime stabilization."
 read_when:
   - "Executing AK-4265 live governed-loop runtime alignment."
-  - "Checking why 7ae6b344 was selected instead of the older 29199dd1 live worktree."
+  - "Checking why 0a4025a6 superseded validated base 7ae6b344 and older live worktree 29199dd1."
 type: "evidence-note"
 status: "selected-awaiting-live-alignment"
 date: "2026-07-26"
@@ -17,28 +17,29 @@ system4d:
 
 ## Authority
 
-AK task `4264` owns this read-only selection artifact.
-AK task `4265` owns any later install, settings, reload, and dogfood effects.
-This note does not activate a runtime or declare final canonical history.
+AK task `4264` owns the initial read-only selection at `7ae6b344`.
+AK task `4276` owns the reviewed supersession after governed dogfood found an undeclared autoresearch dependency and AK-4274 repaired it.
+AK task `4265` owns install, settings, reload, rollback, and dogfood effects.
+This note does not declare final canonical history.
 
 ## Decision
 
 Select exact commit:
 
 ```text
-7ae6b3440fd6606593b7243d6782158703a6e278
+0a4025a6b895b65e2128b972be8169cc99640428
 ```
 
 for the temporary Wave-1 governed-loop runtime package family.
+It contains validated origin snapshot `7ae6b3440fd6606593b7243d6782158703a6e278` plus the accepted AK-4274 autoresearch dependency repair.
 The selected commit is protected by:
 
 ```text
-refs/preserve/ak-4263/origin-main-7ae6b344
+refs/preserve/ak-4263/runtime-snapshot-0a4025a6
 ```
 
-The selection is an immutable commit identity, not the moving name `origin/main`.
-If the remote-tracking ref advances, AK-4265 continues to use the selected hash unless a new review explicitly supersedes it.
-
+Initial selection `7ae6b344` remains protected by `refs/preserve/ak-4263/origin-main-7ae6b344`; it is superseded, not rewritten or concealed.
+The selection is an immutable commit identity, not a moving branch name.
 This does not decide the final consensus baseline for canonical history.
 
 ## Candidate comparison
@@ -86,6 +87,16 @@ Observed caveat:
 - local-only accepted topics, including later bound-loop and D2E work, still require consensus review and reconciliation;
 - final canonical runtime activation remains a later AK-4263 wave.
 
+Disposition: `covered` as the validated base for the promoted runtime snapshot.
+
+### Candidate C — `0a4025a6`
+
+A fresh Pi process loaded the aligned `7ae6b344` sources and successfully executed governed deep-review through `workflow_execute`, returning handoff `dc7685c6-1add-46c0-897c-a8274b2abaec`. The review then found a partial-runtime defect: `pi-autoresearch` dynamically imported the trigger surface without declaring a resolvable package dependency.
+
+AK-4274 added the precise required `@tryinget/pi-trigger-adapter` dependency, regenerated the lockfile from a clean package graph, added direct functional resolution coverage, passed 235 package tests with one environment-dependent skip plus release quick checks, and received independent ACCEPT review.
+
+Exact commit `0a4025a6b895b65e2128b972be8169cc99640428` contains the validated base and that repair.
+
 Disposition: `accept_exact` for reversible Wave-1 runtime stabilization only.
 
 ## Validation evidence
@@ -95,6 +106,7 @@ Disposition: `accept_exact` for reversible Wave-1 runtime stabilization only.
 Observed:
 
 ```text
+0a4025a6 contains 7ae6b344: yes
 7ae6b344 contains f5384ff5: yes
 7ae6b344 contains 29199dd1: yes
 tracked diff after validation: none
@@ -114,6 +126,7 @@ Exact selected-source checks:
 | `pi-society-orchestrator` | pass on `29199dd1`; package tree unchanged through `7ae6b344` |
 | `pi-vault-client` | pass on `29199dd1`; package tree unchanged through `7ae6b344` |
 | `pi-autonomous-session-control` | pass on `29199dd1`; package tree unchanged through `7ae6b344` |
+| `pi-autoresearch` dependency repair | pass at `0a4025a6`; 235 tests passed, one environment-dependent test skipped, release quick pass |
 
 The little-helpers check was rerun in the real selected Git worktree because archive-only validation cannot execute its restoration-verified `git bundle verify` tests.
 The first archive probe failed only because the extracted tree intentionally had no Git repository; the same source passed all 143 tests in the real worktree.
@@ -172,8 +185,8 @@ This is a static same-root execution-path proof; AK-4265 still must prove the in
 
 ### Required source layout
 
-Create or select one clean detached runtime worktree at exact `7ae6b344`.
-The directory name must include `7ae6b344`, and preflight must verify actual `HEAD` equals the full selected hash.
+Create or select one clean detached runtime worktree at exact `0a4025a6b895b65e2128b972be8169cc99640428`.
+The directory name must include `0a4025a6`, and preflight must verify actual `HEAD` equals the full selected hash.
 Do not reuse the dirty path named `pi-extensions-f5384ff5`.
 
 All governed-loop packages and transitive local owners must come from that one root:
@@ -202,7 +215,7 @@ A clean Git worktree does not contain `node_modules`, and `pi install <local-pat
 In the fresh selected root:
 
 1. record hashes of every selected package manifest and lockfile;
-2. run `npm ci --ignore-scripts --no-audit --no-fund` for each listed package that has a lockfile;
+2. run `npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund` for each listed package that has a lockfile;
 3. because orchestrator currently declares ASC as a registry range rather than a local `file:` dependency, replace only its installed ASC dependency with the selected sibling using `npm install --no-save --package-lock=false ../pi-autonomous-session-control`;
 4. rerun package-manifest and lockfile hashes and fail on any tracked change;
 5. use `import.meta.resolve`, `realpath`, and module-owned provenance output to verify every local owner import below resolves beneath the selected root:
@@ -210,6 +223,7 @@ In the fresh selected root:
    - orchestrator -> ASC;
    - orchestrator -> autoresearch;
    - autoresearch -> Vault;
+   - autoresearch -> trigger-adapter;
    - Vault -> interaction-kit;
    - Vault -> runtime-registry;
    - Vault -> trigger-adapter;
