@@ -30,6 +30,10 @@ All notable changes to this project should be documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the registered peer client's transport-error listener attached until socket close so a Unix-socket `ECONNRESET` follows the existing disconnect/reconnect path instead of escaping as a Pi-level uncaught exception.
+
 ## [0.1.0] - 2026-05-17
 
 ### Added
