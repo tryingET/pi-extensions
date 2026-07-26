@@ -110,7 +110,7 @@ const AUTORESEARCH_CANDIDATE_BIND_TRIGGER_CANDIDATES: AutoresearchCandidateBindT
     },
   ];
 
-async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
+export async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
   try {
     const interactionModuleName = "@tryinget/pi-interaction";
     return (await import(interactionModuleName)) as AutoresearchTriggerSurface;

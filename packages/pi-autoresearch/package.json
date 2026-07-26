@@ -78,6 +78,7 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
+    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter",
     "@tryinget/pi-vault-client": "file:../pi-vault-client",
     "xstate": "^5.30.0"
   },
