@@ -20,6 +20,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   collectGovernedRuntimePackageInputHashes,
+  GOVERNED_RUNTIME_HOST_PEERS,
+  GOVERNED_RUNTIME_HOST_VERSION,
   GOVERNED_RUNTIME_LOCAL_EDGES,
   GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH,
   GOVERNED_RUNTIME_MATERIALIZATION_SCHEMA,
@@ -30,6 +32,7 @@ import {
   GOVERNED_RUNTIME_TYPEBOX_VERSION,
   inspectGovernedRuntimeCleanliness,
   resolveGovernedRuntimeGraph,
+  verifyGovernedRuntimeHostPeers,
   verifyGovernedRuntimeMaterialization,
   verifyGovernedRuntimeTypebox,
 } from "../packages/pi-society-orchestrator/src/runtime/governed-runtime-materialization.ts";
@@ -183,7 +186,22 @@ function materializePeerLayer(sourceRoot) {
   mkdirSync(peerLayer, { recursive: true });
   writeFileSync(
     resolve(peerLayer, "package.json"),
-    `${JSON.stringify({ private: true, dependencies: { typebox: TYPEBOX_VERSION } }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        private: true,
+        dependencies: {
+          typebox: TYPEBOX_VERSION,
+          ...Object.fromEntries(
+            Object.keys(GOVERNED_RUNTIME_HOST_PEERS).map((name) => [
+              name,
+              GOVERNED_RUNTIME_HOST_VERSION,
+            ]),
+          ),
+        },
+      },
+      null,
+      2,
+    )}\n`,
     "utf8",
   );
   run(
@@ -195,6 +213,9 @@ function materializePeerLayer(sourceRoot) {
       "--no-audit",
       "--no-fund",
       `typebox@${TYPEBOX_VERSION}`,
+      ...Object.keys(GOVERNED_RUNTIME_HOST_PEERS).map(
+        (name) => `${name}@${GOVERNED_RUNTIME_HOST_VERSION}`,
+      ),
     ],
     { cwd: peerLayer, stdio: "inherit" },
   );
@@ -217,6 +238,12 @@ function materializePeerLayer(sourceRoot) {
   }
   for (const consumer of TYPEBOX_CONSUMERS) {
     linkPackage(resolve(sourceRoot, consumer), "typebox", typeboxRoot);
+  }
+  for (const [packageName, contract] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
+    const packageRoot = realpathSync(resolve(peerLayer, "node_modules", ...packageName.split("/")));
+    for (const consumer of contract.consumers) {
+      linkPackage(resolve(sourceRoot, consumer), packageName, packageRoot);
+    }
   }
   return typeboxRoot;
 }
@@ -307,6 +334,7 @@ async function materialize(options) {
   }
   const graph = resolveRuntimeGraph(identity.sourceRoot);
   const typebox = verifyTypebox(identity.sourceRoot, typeboxRoot);
+  const hostPeers = verifyGovernedRuntimeHostPeers(identity.sourceRoot);
   await verifyAutoresearchTriggerSurface(identity.sourceRoot);
   assertSourceIdentity(identity.sourceRoot, identity.sourceCommit, true);
   const manifest = {
@@ -318,6 +346,7 @@ async function materialize(options) {
     packageInputs: afterHashes,
     packages: PACKAGES,
     typebox,
+    hostPeers,
     resolutions: graph.resolutions,
     runtimeRegistryRoot: graph.runtimeRegistryRoot,
     materializedAt: new Date().toISOString(),

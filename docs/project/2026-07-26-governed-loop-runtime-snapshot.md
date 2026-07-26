@@ -233,12 +233,12 @@ The executable:
 2. records the exact 28-file hash map for `package.json` plus `package-lock.json` across all 14 selected packages;
 3. materializes production dependencies with development and peer packages omitted;
 4. accepts only the exact pre-repair `MODULE_NOT_FOUND` for `typebox` from `pi-trigger-adapter`;
-5. installs one integrity-pinned `typebox@1.1.38` peer layer and links every runtime consumer to that single physical package;
+5. installs one integrity-pinned peer layer containing `typebox@1.1.38` plus Pi AI/coding-agent/TUI host packages at `0.80.6`, then links each runtime consumer to the corresponding single physical owner;
 6. aligns orchestrator ASC and little-helpers peer messaging to selected siblings;
 7. reruns package-manifest and lockfile hashes and fails on tracked change;
 8. resolves every closed-list local edge from the real consumer context, requires its exact package name/root, and rejects cross-root owners or registry duplication across the enumerated registry consumers;
 9. imports the actual autoresearch trigger picker and requires a functional trigger surface;
-10. writes the mode-`0600` v2 manifest at `packages/pi-society-orchestrator/node_modules/.tryinget-governed-runtime.json`; verification and production preflight independently reconstruct cleanliness, package-input, resolution-owner, registry, and Typebox root/version/SRI/tree-digest proofs instead of trusting declarative fields.
+10. writes the mode-`0600` v3 manifest at `packages/pi-society-orchestrator/node_modules/.tryinget-governed-runtime.json`; verification and production preflight independently reconstruct cleanliness, package-input, resolution-owner, registry, Typebox, and Pi-host peer root/version/SRI/tree-digest proofs instead of trusting declarative fields.
 
 Materialization occurs only in the new snapshot. Existing live source trees, settings, and dependency state remain untouched. The executable has no Pi install, reload, Git cleanup, or worktree deletion behavior.
 

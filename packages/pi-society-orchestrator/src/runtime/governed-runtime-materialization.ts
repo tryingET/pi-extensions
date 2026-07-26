@@ -16,7 +16,7 @@ import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 export const GOVERNED_RUNTIME_MATERIALIZATION_SCHEMA =
-  "pi.governed-loop-runtime-materialization.v2" as const;
+  "pi.governed-loop-runtime-materialization.v3" as const;
 export const GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH =
   "packages/pi-society-orchestrator/node_modules/.tryinget-governed-runtime.json";
 export const GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH =
@@ -24,6 +24,55 @@ export const GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH =
 export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.1.38";
 export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
   "sha512-pZ0aQPmMmXoUvSbeuWf/Hzsc+avNw/Zd6VeE8CFgkVGWyuHPJvqeJJDeJqLve+K70LvjYIoleGcoJHPT17cWoA==";
+export const GOVERNED_RUNTIME_HOST_VERSION = "0.80.6";
+export const GOVERNED_RUNTIME_HOST_PEERS = {
+  "@earendil-works/pi-ai": {
+    integrity:
+      "sha512-7xfLk8sANBp+bpPEbjoOZTbPxsa+++b1JXAoSJsNa3vbs9AHHEclmvg54XLQcxH+fuwaeti/g2jeIfJ+mVYLpA==",
+    consumers: [
+      "packages/pi-little-helpers",
+      "packages/pi-toolbox-discovery",
+      "packages/pi-society-orchestrator",
+      "packages/pi-vault-client",
+      "packages/pi-autonomous-session-control",
+      "packages/pi-peer-messaging",
+      "packages/pi-autoresearch",
+      "packages/pi-interaction/pi-interaction",
+      "packages/pi-ontology-workflows",
+      "packages/pi-prompt-template-accelerator",
+    ],
+  },
+  "@earendil-works/pi-coding-agent": {
+    integrity:
+      "sha512-vcfD6tOk402isLl3Cm/qbn2O10TvgroMp1+/fEGM24ZdvETFCdOYv5VZ7m59EI5fPsjfSJh+CpQ5bhBrhfOg7g==",
+    consumers: [
+      "packages/pi-little-helpers",
+      "packages/pi-toolbox-discovery",
+      "packages/pi-society-orchestrator",
+      "packages/pi-vault-client",
+      "packages/pi-autonomous-session-control",
+      "packages/pi-peer-messaging",
+      "packages/pi-autoresearch",
+      "packages/pi-interaction/pi-interaction",
+      "packages/pi-interaction/pi-editor-registry",
+      "packages/pi-ontology-workflows",
+      "packages/pi-prompt-template-accelerator",
+    ],
+  },
+  "@earendil-works/pi-tui": {
+    integrity:
+      "sha512-bSuzS4EVSqEPj/Qr/p9eqCESfKsGuDNbl77EGci8Iaqqt/C/XCBZL1MjXaxSWW1NsT5afjp/Cb0NTPzOLv/aPA==",
+    consumers: [
+      "packages/pi-little-helpers",
+      "packages/pi-society-orchestrator",
+      "packages/pi-vault-client",
+      "packages/pi-autonomous-session-control",
+      "packages/pi-interaction/pi-interaction",
+      "packages/pi-interaction/pi-editor-registry",
+      "packages/pi-interaction/pi-interaction-kit",
+    ],
+  },
+} as const;
 
 export const GOVERNED_RUNTIME_PACKAGES = [
   "packages/pi-little-helpers",
@@ -205,6 +254,14 @@ export interface GovernedRuntimeTypeboxProof {
   treeDigest: string;
 }
 
+export interface GovernedRuntimeHostPeerProof {
+  version: string;
+  integrity: string;
+  root: string;
+  consumers: readonly string[];
+  treeDigest: string;
+}
+
 export interface GovernedRuntimeMaterializationManifest {
   schema: typeof GOVERNED_RUNTIME_MATERIALIZATION_SCHEMA;
   sourceRoot: string;
@@ -219,6 +276,7 @@ export interface GovernedRuntimeMaterializationManifest {
   packageInputs: Record<string, string>;
   packages: readonly string[];
   typebox: GovernedRuntimeTypeboxProof;
+  hostPeers: Record<string, GovernedRuntimeHostPeerProof>;
   resolutions: Record<string, GovernedRuntimeResolution>;
   runtimeRegistryRoot: string;
   materializedAt: string;
@@ -401,6 +459,68 @@ export function verifyGovernedRuntimeTypebox(sourceRoot: string): GovernedRuntim
   };
 }
 
+export function verifyGovernedRuntimeHostPeers(
+  sourceRoot: string,
+): Record<string, GovernedRuntimeHostPeerProof> {
+  const root = realpathSync(sourceRoot);
+  const peerLayer = resolve(root, GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH);
+  const hiddenLock = JSON.parse(
+    readFileSync(resolve(peerLayer, "node_modules/.package-lock.json"), "utf8"),
+  ) as { packages?: Record<string, { version?: string; integrity?: string }> };
+  const proof: Record<string, GovernedRuntimeHostPeerProof> = {};
+  for (const [packageName, expected] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
+    const packageRoot = realpathSync(resolve(peerLayer, "node_modules", ...packageName.split("/")));
+    const owner = ownerPackageRoot(resolve(packageRoot, "package.json"));
+    const locked = hiddenLock.packages?.[`node_modules/${packageName}`];
+    if (
+      owner.name !== packageName ||
+      owner.version !== GOVERNED_RUNTIME_HOST_VERSION ||
+      locked?.version !== GOVERNED_RUNTIME_HOST_VERSION ||
+      locked.integrity !== expected.integrity
+    ) {
+      throw new GovernedRuntimeMaterializationError(
+        "materialization_host_peer_identity_mismatch",
+        `${packageName} does not match the pinned ${GOVERNED_RUNTIME_HOST_VERSION} host peer identity.`,
+      );
+    }
+    if (!pathInside(root, packageRoot)) {
+      throw new GovernedRuntimeMaterializationError(
+        "materialization_host_peer_root_mismatch",
+        `${packageName} resolves outside the selected runtime root: ${packageRoot}.`,
+      );
+    }
+    const observedRoots = new Set<string>();
+    for (const consumer of expected.consumers) {
+      const require = createRequire(resolve(root, consumer, "package.json"));
+      const resolvedOwner = ownerPackageRoot(realpathSync(require.resolve(packageName)));
+      if (
+        resolvedOwner.name !== packageName ||
+        resolvedOwner.version !== GOVERNED_RUNTIME_HOST_VERSION
+      ) {
+        throw new GovernedRuntimeMaterializationError(
+          "materialization_host_peer_consumer_mismatch",
+          `${consumer} resolves ${resolvedOwner.name}@${resolvedOwner.version ?? "unknown"} instead of ${packageName}@${GOVERNED_RUNTIME_HOST_VERSION}.`,
+        );
+      }
+      observedRoots.add(resolvedOwner.root);
+    }
+    if (observedRoots.size !== 1 || !observedRoots.has(packageRoot)) {
+      throw new GovernedRuntimeMaterializationError(
+        "materialization_host_peer_not_singleton",
+        `${packageName} consumers do not share the pinned peer layer: ${[...observedRoots].join(", ")}.`,
+      );
+    }
+    proof[packageName] = {
+      version: GOVERNED_RUNTIME_HOST_VERSION,
+      integrity: expected.integrity,
+      root: packageRoot,
+      consumers: [...expected.consumers],
+      treeDigest: digestDirectory(packageRoot),
+    };
+  }
+  return proof;
+}
+
 export function verifyGovernedRuntimeMaterialization(
   sourceRoot: string,
   sourceCommit: string,
@@ -479,6 +599,13 @@ export function verifyGovernedRuntimeMaterialization(
     throw new GovernedRuntimeMaterializationError(
       "materialization_typebox_proof_drift",
       "Governed runtime Typebox proof drifted.",
+    );
+  }
+  const hostPeers = verifyGovernedRuntimeHostPeers(root);
+  if (!sameJson(manifest.hostPeers, hostPeers)) {
+    throw new GovernedRuntimeMaterializationError(
+      "materialization_host_peer_proof_drift",
+      "Governed runtime host peer proof drifted.",
     );
   }
   if (typeof manifest.materializedAt !== "string" || !manifest.materializedAt.trim()) {
