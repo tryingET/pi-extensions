@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-07-26T10:03:45.088187565+00:00",
+  "task_id": 4266,
+  "entity_version": 2,
+  "commit_sha": null,
+  "scope": {
+    "allowed_paths": [
+      "docs/project/2026-07-26-divergent-topic-cohort-disposition.md",
+      "governance/task-scopes/AK-4266.snapshot.json"
+    ],
+    "required_paths": [
+      "docs/project/2026-07-26-divergent-topic-cohort-disposition.md"
+    ],
+    "forbidden_paths": [
+      "apps/**",
+      "ontology/**",
+      "packages/**",
+      "tools/**"
+    ]
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}
