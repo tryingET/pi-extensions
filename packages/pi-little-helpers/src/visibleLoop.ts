@@ -69,6 +69,7 @@ import {
   normalizeVisibleLoopCommandName,
 } from "./visibleLoopProfiles.ts";
 import {
+  bindVisibleLoopExecutionPrompt,
   DEFAULT_VISIBLE_LOOP_PROMPTS,
   expandVisibleLoopPromptTemplate,
   GOVERNED_DEEP_REVIEW_OBJECTIVE,
@@ -101,6 +102,7 @@ import {
 } from "./visibleLoopState.ts";
 import type {
   VisibleLoopCommitDelegation,
+  VisibleLoopExecutionBinding,
   VisibleLoopProductPostureTarget,
   VisibleLoopReportBack,
   VisibleLoopRunConfig,
@@ -162,6 +164,7 @@ export {
   VISIBLE_LOOP_COMMAND,
   type VisibleLoopCommandParseResult,
   type VisibleLoopCommitDelegation,
+  type VisibleLoopExecutionBinding,
   type VisibleLoopReportBack,
   type VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
@@ -204,8 +207,10 @@ export function createVisibleLoopRunConfig(input: {
   runIdPrefix?: string;
   title?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
+  executionBinding: VisibleLoopExecutionBinding;
   selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
 }): VisibleLoopRunConfig {
+  assertExecutionBindingEnvelopeConsistency(input.executionBinding, input.selfEvolutionEnvelope);
   const commandName = normalizeVisibleLoopCommandName(input.commandName ?? input.runIdPrefix);
   const runIdPrefix = normalizeRunIdPrefix(input.runIdPrefix ?? commandName ?? "visible-loop");
   return {
@@ -219,6 +224,7 @@ export function createVisibleLoopRunConfig(input: {
       input.selfEvolutionEnvelope,
     ),
     reportBack: input.reportBack,
+    executionBinding: input.executionBinding,
     ...(input.parentPeerTarget ? { parentPeerTarget: input.parentPeerTarget } : {}),
     ...(input.commitDelegation ? { commitDelegation: input.commitDelegation } : {}),
     productPostureTarget: resolveVisibleLoopProductPostureTarget(input.cwd),
@@ -226,6 +232,23 @@ export function createVisibleLoopRunConfig(input: {
     title: input.title ?? "Visible loop",
     createdAt: new Date().toISOString(),
   };
+}
+
+function assertExecutionBindingEnvelopeConsistency(
+  binding: VisibleLoopExecutionBinding,
+  envelope: SelfEvolutionExecutionEnvelope | undefined,
+): void {
+  if (binding.mode === "self_evolution_candidate") {
+    if (!envelope || envelope.candidateId !== binding.candidateId) {
+      throw new TypeError(
+        "self-evolution candidate binding requires a matching selfEvolutionEnvelope",
+      );
+    }
+    return;
+  }
+  if (envelope) {
+    throw new TypeError("selfEvolutionEnvelope requires self_evolution_candidate binding mode");
+  }
 }
 
 function buildVisibleLoopPrompts(
@@ -1158,7 +1181,7 @@ function queueVisibleLoopIteration(
     if (!deliveryPrompt) return;
     steps.push({
       index: steps.length,
-      prompt: deliveryPrompt,
+      prompt: bindVisibleLoopExecutionPrompt(deliveryPrompt, state.config.executionBinding),
       label: labelVisibleLoopPlanStep(expandedPrompt, deliveryPrompt),
       kind: "prompt",
       governedBarrier: isGovernedDeepReviewPrompt(state.config, prompt),
@@ -1178,7 +1201,7 @@ function queueVisibleLoopIteration(
     });
     steps.push({
       index: steps.length,
-      prompt: completionPrompt,
+      prompt: bindVisibleLoopExecutionPrompt(completionPrompt, state.config.executionBinding),
       label: "Explicit completion checkpoint",
       kind: "completion",
       governedBarrier: false,

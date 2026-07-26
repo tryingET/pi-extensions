@@ -82,6 +82,10 @@ function setup(prompts, options = {}) {
     cwd: harness.ctx.cwd,
     reportBack: "manual",
     runId: options.runId ?? `frontier-${Date.now()}-${Math.random()}`,
+    executionBinding: {
+      mode: "operator_objective",
+      objective: options.objective ?? "frontier checkpoint test",
+    },
     prompts,
   });
   const configPath = writeVisibleLoopRunConfig(config, env);
@@ -262,7 +266,8 @@ test("followUpMode=all cannot skip a duplicate-text frontier or complete early",
     assert.equal(userMessages.length, 1);
     await events.get("agent_settled")[0]({}, run.harness.ctx);
     assert.equal(userMessages.length, 2);
-    assert.equal(userMessages[1].message, "same prompt");
+    assert.match(userMessages[1].message, /^EXECUTION BINDING — FAIL CLOSED/u);
+    assert.ok(userMessages[1].message.endsWith("same prompt"));
     assert.equal(userMessages[1].options?.deliverAs, "followUp");
 
     await events.get("agent_settled")[0]({}, run.harness.ctx);
@@ -282,7 +287,8 @@ test("followUpMode=all cannot skip a duplicate-text frontier or complete early",
     assert.equal(reviewSuccess.workflowRunId, "run-review-1");
     await events.get("agent_settled")[0]({}, run.harness.ctx);
     assert.equal(userMessages.length, 4);
-    assert.equal(userMessages[3].message, "after review");
+    assert.match(userMessages[3].message, /^EXECUTION BINDING — FAIL CLOSED/u);
+    assert.ok(userMessages[3].message.endsWith("after review"));
 
     await observeAndSettle(run, 3);
     assert.equal(userMessages.length, 5);
@@ -392,7 +398,8 @@ test("cross-session events cannot observe, settle, submit, or complete the activ
     await events.get("tool_execution_end")[0](vaultSuccess("owner-review"), run.harness.ctx);
     await events.get("agent_settled")[0]({}, run.harness.ctx);
     assert.equal(userMessages.length, 2, "session A still owns and advances its exact frontier");
-    assert.equal(userMessages[1].message, "after review");
+    assert.match(userMessages[1].message, /^EXECUTION BINDING — FAIL CLOSED/u);
+    assert.ok(userMessages[1].message.endsWith("after review"));
   } finally {
     resetVisibleLoopRuntimeForRecoveryTest();
     rmSync(run.stateHome, { recursive: true, force: true });

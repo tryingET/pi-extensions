@@ -42,11 +42,14 @@ test("visible-loop reports submitted/pending separately and advances one frontie
       cwd: harness.ctx.cwd,
       reportBack: "manual",
       runId: "progress-one-frontier",
+      executionBinding: { mode: "operator_objective", objective: "progress frontier test" },
       prompts: ["alpha", "beta"],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);
     await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env);
     assert.equal(userMessages.length, 1);
+    assert.match(userMessages[0].message, /^EXECUTION BINDING — FAIL CLOSED/u);
+    assert.match(userMessages[0].message, /operator objective "progress frontier test"/u);
     assert.ok(harness.widgets.at(-1).value[1].includes("submitted/pending 1"));
     assert.ok(harness.widgets.at(-1).value[1].includes("host queued 0"));
 
@@ -54,6 +57,7 @@ test("visible-loop reports submitted/pending separately and advances one frontie
     assert.ok(harness.widgets.at(-1).value[1].includes("running 1"));
     handleVisibleLoopAgentSettled(pi, harness.ctx, env);
     assert.equal(userMessages.length, 2);
+    assert.match(userMessages[1].message, /^EXECUTION BINDING — FAIL CLOSED/u);
     assert.equal(userMessages[1].options?.deliverAs, "followUp");
 
     observe(userMessages[1].message, pi, harness.ctx, env);
@@ -105,6 +109,7 @@ test("nexus-loop labels remain canonical through single-frontier completion", as
       parentPeerTarget: "session-parent",
       commandName: "nexus-loop",
       runId: "nexus-loop-label-test",
+      executionBinding: { mode: "operator_objective", objective: "nexus label test" },
       prompts: ["finish this nexus turn"],
       commitDelegation: { mode: "dispatch_subagent", promptTemplate: "commit" },
     });
@@ -159,6 +164,7 @@ test("intercom timeout does not weaken accepted completion or frontier ordering"
       reportBack: "intercom",
       parentPeerTarget: "session-parent",
       runId: "timeout-test",
+      executionBinding: { mode: "operator_objective", objective: "timeout test" },
       prompts: ["finish"],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);

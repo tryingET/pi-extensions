@@ -10,6 +10,11 @@ export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete"
 
 export type VisibleLoopReportBack = "intercom" | "manual" | "none";
 
+export type VisibleLoopExecutionBinding =
+  | { mode: "operator_objective"; objective: string }
+  | { mode: "ak_task"; taskId: number }
+  | { mode: "self_evolution_candidate"; candidateId: string };
+
 export interface VisibleLoopRunConfig {
   schemaVersion: 1;
   runId: string;
@@ -18,6 +23,7 @@ export interface VisibleLoopRunConfig {
   commandName?: string;
   prompts: string[];
   reportBack: VisibleLoopReportBack;
+  executionBinding: VisibleLoopExecutionBinding;
   parentPeerTarget?: string;
   commitDelegation?: VisibleLoopCommitDelegation;
   productPostureTarget?: VisibleLoopProductPostureTarget;
@@ -47,6 +53,8 @@ export type VisibleLoopCommandParseResult =
       parentPeerTarget?: string;
       delegateCommit?: boolean;
       candidateId?: string;
+      objective?: string;
+      taskId?: number;
     }
   | { ok: false; error: string; usage: string };
 

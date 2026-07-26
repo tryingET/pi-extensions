@@ -102,7 +102,9 @@ test("visible-loop manual completion command advances non-final iterations", asy
     const { commands, events, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
-    await commands.get("visible-loop").handler("--count 2 --manual", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler('--count 2 --manual --objective "manual continuation test"', harness.ctx);
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -192,7 +194,9 @@ test("visible-loop manual completion command finalizes", async () => {
     const { commands, events, tools, userMessages } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
-    await commands.get("visible-loop").handler("--count 1 --manual", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler('--count 1 --manual --objective "manual completion test"', harness.ctx);
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
     );
@@ -283,6 +287,7 @@ test("visible-loop completion fails closed when durable active plan state is una
       cwd: harness.ctx.cwd,
       reportBack: "manual",
       runId: "visible-loop-recreate-continuation-test",
+      executionBinding: { mode: "operator_objective", objective: "recreate test" },
       prompts: ["finish this turn"],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);

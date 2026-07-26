@@ -95,6 +95,7 @@ test("governed preflight failure invalidates the run before lease, child_started
       reportBack: "intercom",
       parentPeerTarget: "session-parent",
       runId: "governed-preflight-failure",
+      executionBinding: { mode: "operator_objective", objective: "governed failure test" },
       prompts: [GOVERNED_DEEP_REVIEW_PROMPT, "must-not-run"],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);
@@ -150,6 +151,7 @@ test("failed owner preflight cannot retry when terminal invalidation persistence
       cwd: harness.ctx.cwd,
       reportBack: "manual",
       runId: "governed-preflight-invalidation-write",
+      executionBinding: { mode: "operator_objective", objective: "invalidation write test" },
       prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);
@@ -199,6 +201,7 @@ test("missing preflight binder cannot retry when terminal invalidation persisten
       cwd: harness.ctx.cwd,
       reportBack: "manual",
       runId: "governed-preflight-binder-write",
+      executionBinding: { mode: "operator_objective", objective: "binder write test" },
       prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);
@@ -250,6 +253,7 @@ test("concurrent child starts admit exactly one governed owner preflight", async
       cwd: harness.ctx.cwd,
       reportBack: "manual",
       runId: "governed-preflight-concurrent",
+      executionBinding: { mode: "operator_objective", objective: "concurrent preflight test" },
       prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);
@@ -313,6 +317,7 @@ test("an active lease blocks post-transfer preflight from another session", asyn
       cwd: firstHarness.ctx.cwd,
       reportBack: "manual",
       runId: "governed-preflight-active-lease",
+      executionBinding: { mode: "operator_objective", objective: "active lease test" },
       prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);
@@ -372,6 +377,7 @@ test("failed post-success cleanup leaves the run non-retryable", async () => {
       cwd: harness.ctx.cwd,
       reportBack: "manual",
       runId: "governed-preflight-cancel-failure",
+      executionBinding: { mode: "operator_objective", objective: "cancel failure test" },
       prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);
@@ -414,6 +420,7 @@ test("successful owner preflight is cancelled when later startup validation fail
       cwd: harness.ctx.cwd,
       reportBack: "manual",
       runId: "governed-preflight-cancel",
+      executionBinding: { mode: "operator_objective", objective: "cancel startup test" },
       prompts: [GOVERNED_DEEP_REVIEW_PROMPT],
     });
     const configPath = writeVisibleLoopRunConfig(config, env);

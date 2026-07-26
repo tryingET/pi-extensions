@@ -81,6 +81,7 @@
     "src/visibleLoopProfiles.ts",
     "src/visibleLoopRecovery.ts",
     "src/visibleLoopState.ts",
+    "src/visibleLoopTaskBinding.ts",
     "src/visibleLoopTypes.ts",
     "prompts",
     "examples",
@@ -136,18 +137,19 @@
     "@earendil-works/pi-tui": "^0.80.6",
     "@types/node": "22.14.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
-    "typebox": "^1.0.0",
     "typescript": "5.9.2"
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"
   },
+  "dependencies": {
+    "typebox": "^1.0.0"
+  },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
-    "@tryinget/pi-peer-messaging": "*",
-    "typebox": "*"
+    "@tryinget/pi-peer-messaging": "*"
   },
   "peerDependenciesMeta": {
     "@tryinget/pi-peer-messaging": {

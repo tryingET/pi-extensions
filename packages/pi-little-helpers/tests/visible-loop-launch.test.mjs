@@ -2,7 +2,7 @@
 // read_when:
 //   - changing loop command launch, config defaults, prompt expansion, adaptive budgets, or commit delegation.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -11,6 +11,7 @@ import {
   GOVERNED_DEEP_REVIEW_OBJECTIVE,
   resetVisibleLoopRuntimeForRecoveryTest,
 } from "../src/visibleLoop.ts";
+import { parseVisibleLoopCommandArgs } from "../src/visibleLoopArgs.ts";
 import {
   assertLoopValidationGuidance,
   createContext,
@@ -37,6 +38,103 @@ function assertImplementationVerificationFocus(prompt) {
   assert.doesNotMatch(prompt, /loop-impact-plan/);
   assert.doesNotMatch(prompt, /loop-landing-check/);
 }
+
+test("visible-loop launch arguments require exactly one explicit execution binding", () => {
+  const missing = parseVisibleLoopCommandArgs("--count 1");
+  assert.equal(missing.ok, false);
+  assert.match(missing.error, /requires one explicit execution binding/);
+  assert.match(missing.error, /Run direction-to-execution/);
+
+  const conflicting = parseVisibleLoopCommandArgs('--task AK-4187 --objective "different slice"');
+  assert.equal(conflicting.ok, false);
+  assert.match(conflicting.error, /Choose exactly one execution binding/);
+
+  const duplicate = parseVisibleLoopCommandArgs("--task AK-4187 --task=9999");
+  assert.equal(duplicate.ok, false);
+  assert.match(duplicate.error, /Choose exactly one execution binding/);
+
+  const optionAsObjective = parseVisibleLoopCommandArgs("--objective --manual");
+  assert.equal(optionAsObjective.ok, false);
+  assert.match(optionAsObjective.error, /Missing or invalid objective/);
+
+  const unterminated = parseVisibleLoopCommandArgs('--objective "unterminated');
+  assert.equal(unterminated.ok, false);
+  assert.match(unterminated.error, /Unterminated quoted argument/);
+
+  assert.deepEqual(parseVisibleLoopCommandArgs("--task AK-4187"), {
+    ok: true,
+    loopCount: 1,
+    reportBack: "intercom",
+    parentPeerTarget: undefined,
+    taskId: 4187,
+  });
+});
+
+test("unbound visible-loop command creates no config or Ghostty launch", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-unbound-launch-state-`);
+  try {
+    const execStub = createExecStub(({ command }) => {
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: { XDG_STATE_HOME: stateHome },
+      exec: execStub.exec,
+      pathExists() {
+        return false;
+      },
+    });
+    const { commands } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("visible-loop").handler("--count 1", harness.ctx);
+
+    assert.equal(execStub.calls.length, 0);
+    assert.match(harness.notifications.at(-1).message, /requires one explicit execution binding/);
+    assert.equal(existsSync(`${stateHome}/pi-little-helpers/visible-loop`), false);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("deferred AK task binding fails before config or Ghostty launch", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-deferred-task-state-`);
+  try {
+    const execStub = createExecStub(({ command, args }) => {
+      if (command === "ak" && args.slice(0, 2).join(" ") === "task show") {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            id: 4187,
+            repo: "/repo",
+            status: "pending",
+            active_deferral: { kind: "until_decision" },
+          }),
+          stderr: "",
+        };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+    const extension = createSidequestExtension({
+      registerTools: true,
+      env: { XDG_STATE_HOME: stateHome },
+      exec: execStub.exec,
+      pathExists() {
+        return false;
+      },
+    });
+    const { commands } = registerExtension(extension);
+    const harness = createContext({ cwd: "/repo" });
+
+    await commands.get("visible-loop").handler("--task 4187", harness.ctx);
+
+    assert.equal(execStub.calls.filter((call) => call.command !== "ak").length, 0);
+    assert.match(harness.notifications.at(-1).message, /AK task #4187 is actively deferred/);
+    assert.equal(existsSync(`${stateHome}/pi-little-helpers/visible-loop`), false);
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
 
 test("visible-loop writes config and launches one clean Ghostty tab with the child command", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-state-`);
@@ -68,7 +166,9 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     const { commands } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
-    await commands.get("visible-loop").handler("--count 2", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler('--count 2 --objective "bounded visible-loop launch"', harness.ctx);
 
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
@@ -83,6 +183,10 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assert.equal(config.loopCount, 2);
     assert.equal(config.cwd, "/repo");
     assert.equal(config.reportBack, "intercom");
+    assert.deepEqual(config.executionBinding, {
+      mode: "operator_objective",
+      objective: "bounded visible-loop launch",
+    });
     assert.equal(config.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
     assert.equal(config.commitDelegation, undefined);
     assert.deepEqual(config.productPostureTarget, {
@@ -178,7 +282,9 @@ test("visible-loop targets the controller Ghostty process instead of the sideque
     const { commands } = registerExtension(extension);
     const harness = createContext({ cwd: "/repo" });
 
-    await commands.get("visible-loop").handler("--count 1", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler('--count 1 --objective "target controller tab"', harness.ctx);
 
     const activation = execStub.calls.find(
       ({ command, args }) => command === "busctl" && args[1] === "call",
@@ -242,7 +348,10 @@ test("extension-originated sendUserMessage slash input can launch visible-loop",
     assert.ok(inputHandler);
 
     const result = await inputHandler(
-      { text: "/visible-loop --count 2 --delegate-commit", source: "extension" },
+      {
+        text: '/visible-loop --count 2 --delegate-commit --objective "bounded extension slice"',
+        source: "extension",
+      },
       harness.ctx,
     );
 
@@ -300,7 +409,10 @@ test("extension-originated sendUserMessage slash input can launch nexus-loop", a
     assert.ok(inputHandler);
 
     const result = await inputHandler(
-      { text: "/nexus-loop --count 1", source: "extension" },
+      {
+        text: '/nexus-loop --count 1 --objective "harden bounded extension slice"',
+        source: "extension",
+      },
       harness.ctx,
     );
 
@@ -406,7 +518,9 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
       "utf8",
     );
 
-    await commands.get("nexus-loop").handler("--count 3 --manual", harness.ctx);
+    await commands
+      .get("nexus-loop")
+      .handler('--count 3 --manual --objective "harden release seam"', harness.ctx);
 
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
@@ -586,7 +700,12 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
       "utf8",
     );
 
-    await commands.get("visible-loop").handler("--count 2 --manual --delegate-commit", harness.ctx);
+    await commands
+      .get("visible-loop")
+      .handler(
+        '--count 2 --manual --delegate-commit --objective "delegate bounded commit"',
+        harness.ctx,
+      );
 
     const ghosttyCall = execStub.calls.find(
       (call) => call.command === "/usr/bin/ghostty" && call.args.includes("sidequest-pi"),
@@ -708,7 +827,9 @@ test("nexus-loop fails closed before launch when required slash prompt templates
     const { commands } = registerExtension(extension);
     const harness = createContext({ cwd: `${stateHome}/repo` });
 
-    await commands.get("nexus-loop").handler("--count 1 --manual", harness.ctx);
+    await commands
+      .get("nexus-loop")
+      .handler('--count 1 --manual --objective "missing prompt test"', harness.ctx);
 
     assert.equal(execStub.calls.length, 0);
     assert.match(harness.notifications.at(-1).message, /missing required prompt template/);

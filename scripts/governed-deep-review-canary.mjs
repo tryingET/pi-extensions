@@ -568,6 +568,10 @@ async function runGovernedDeepReviewHarness(
       pathToFileURL(resolve(sourceRoot, "packages/pi-little-helpers/src/visibleLoop.ts")).href
     );
     visible.resetVisibleLoopRuntimeForRecoveryTest();
+    const executionBinding = {
+      mode: "operator_objective",
+      objective: "AK-4267 inert governed deep-review cross-package canary",
+    };
     const config = visible.createVisibleLoopRunConfig({
       loopCount: 1,
       cwd: sourceRoot,
@@ -575,6 +579,7 @@ async function runGovernedDeepReviewHarness(
       commandName: "nexus-loop",
       runId: `ak-4267-canary-${Date.now().toString(36)}`,
       prompts: [visible.GOVERNED_DEEP_REVIEW_PROMPT, "nexus release canary"],
+      executionBinding,
     });
     const configPath = visible.writeVisibleLoopRunConfig(config, process.env);
     const notifications = [];
@@ -600,7 +605,9 @@ async function runGovernedDeepReviewHarness(
 
     await visible.startVisibleLoopChildRunner(configPath, harness.pi, ctx, process.env);
     assert.equal(harness.userMessages.length, 1, JSON.stringify(notifications));
-    assert.equal(harness.userMessages[0].message, visible.GOVERNED_DEEP_REVIEW_PROMPT);
+    assert.match(harness.userMessages[0].message, /^EXECUTION BINDING — FAIL CLOSED/u);
+    assert.match(harness.userMessages[0].message, /AK-4267 inert governed deep-review/u);
+    assert.ok(harness.userMessages[0].message.endsWith(visible.GOVERNED_DEEP_REVIEW_PROMPT));
     visible.handleVisibleLoopMessageStart(
       { message: { role: "user", content: harness.userMessages[0].message } },
       harness.pi,
@@ -646,7 +653,8 @@ async function runGovernedDeepReviewHarness(
     );
     visible.handleVisibleLoopAgentSettled(harness.pi, ctx, process.env);
     assert.equal(harness.userMessages.length, 2, "Nexus frontier must release exactly once");
-    assert.equal(harness.userMessages[1].message, "nexus release canary");
+    assert.match(harness.userMessages[1].message, /^EXECUTION BINDING — FAIL CLOSED/u);
+    assert.ok(harness.userMessages[1].message.endsWith("nexus release canary"));
     visible.handleVisibleLoopAgentSettled(harness.pi, ctx, process.env);
     assert.equal(
       harness.userMessages.length,

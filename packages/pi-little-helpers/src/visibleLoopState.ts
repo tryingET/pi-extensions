@@ -10,6 +10,7 @@ import { normalizeOptionalString, parseReportBack } from "./visibleLoopArgs.ts";
 import { normalizeVisibleLoopCommandName } from "./visibleLoopProfiles.ts";
 import type {
   VisibleLoopCommitDelegation,
+  VisibleLoopExecutionBinding,
   VisibleLoopProductPostureTarget,
   VisibleLoopRunConfig,
 } from "./visibleLoopTypes.ts";
@@ -25,8 +26,12 @@ export function writeVisibleLoopRunConfig(
 ): string {
   const dir = getVisibleLoopStateDir(env);
   mkdirSync(dir, { recursive: true });
-  const path = join(dir, `${config.runId}.json`);
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  const path = join(dir, `${requireSafeRunId(config.runId)}.json`);
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+    mode: 0o600,
+  });
   return path;
 }
 
@@ -34,7 +39,9 @@ export function getVisibleLoopStatusPath(
   configOrRunId: Pick<VisibleLoopRunConfig, "runId"> | string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const runId = typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId;
+  const runId = requireSafeRunId(
+    typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId,
+  );
   return join(getVisibleLoopStateDir(env), `${runId}.status.jsonl`);
 }
 
@@ -265,7 +272,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   }
   const record = value as Record<string, unknown>;
   if (record.schemaVersion !== 1) throw new TypeError("Unsupported visible-loop schemaVersion.");
-  const runId = requireNonEmptyString(record.runId, "runId");
+  const runId = requireSafeRunId(record.runId);
   const loopCount = requirePositiveInteger(record.loopCount, "loopCount");
   const cwd = requireNonEmptyString(record.cwd, "cwd");
   const prompts = Array.isArray(record.prompts)
@@ -274,6 +281,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   if (!prompts || prompts.length === 0) throw new TypeError("prompts must be a non-empty array.");
   const reportBack = parseReportBack(String(record.reportBack ?? "manual"));
   if (!reportBack) throw new TypeError("reportBack must be intercom, manual, or none.");
+  const executionBinding = parseExecutionBinding(record.executionBinding);
   const commandName = normalizeVisibleLoopCommandName(record.commandName);
   const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
   const commitDelegation = parseCommitDelegation(record.commitDelegation);
@@ -284,6 +292,18 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
       : parseSelfEvolutionExecutionEnvelope(record.selfEvolutionEnvelope);
   if (record.selfEvolutionEnvelope !== undefined && !selfEvolutionEnvelope) {
     throw new TypeError("selfEvolutionEnvelope is invalid.");
+  }
+  if (executionBinding.mode === "self_evolution_candidate") {
+    if (
+      !selfEvolutionEnvelope ||
+      selfEvolutionEnvelope.candidateId !== executionBinding.candidateId
+    ) {
+      throw new TypeError(
+        "self-evolution candidate binding requires a matching selfEvolutionEnvelope",
+      );
+    }
+  } else if (selfEvolutionEnvelope) {
+    throw new TypeError("selfEvolutionEnvelope requires self_evolution_candidate binding mode");
   }
   const title = normalizeOptionalString(record.title);
   const createdAt = requireNonEmptyString(record.createdAt, "createdAt");
@@ -296,6 +316,7 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     ...(commandName ? { commandName } : {}),
     prompts,
     reportBack,
+    executionBinding,
     ...(parentPeerTarget ? { parentPeerTarget } : {}),
     ...(commitDelegation ? { commitDelegation } : {}),
     ...(productPostureTarget ? { productPostureTarget } : {}),
@@ -303,6 +324,39 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
     ...(title ? { title } : {}),
     createdAt,
   };
+}
+
+function parseExecutionBinding(value: unknown): VisibleLoopExecutionBinding {
+  if (value === undefined || value === null) {
+    throw new TypeError(
+      "executionBinding is required; restart the loop with --task, --objective, or --candidate.",
+    );
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("executionBinding must be an object.");
+  }
+  const record = value as Record<string, unknown>;
+  if (record.mode === "operator_objective") {
+    const objective = requireNonEmptyString(record.objective, "executionBinding.objective");
+    if (objective.length > 2_000 || objective.includes("\u0000")) {
+      throw new TypeError("executionBinding.objective is invalid.");
+    }
+    return { mode: "operator_objective", objective };
+  }
+  if (record.mode === "ak_task") {
+    return {
+      mode: "ak_task",
+      taskId: requirePositiveSafeInteger(record.taskId, "executionBinding.taskId"),
+    };
+  }
+  if (record.mode === "self_evolution_candidate") {
+    const candidateId = requireNonEmptyString(record.candidateId, "executionBinding.candidateId");
+    if (candidateId.length > 160 || !/^evolution-[A-Za-z0-9._-]+$/u.test(candidateId)) {
+      throw new TypeError("executionBinding.candidateId is invalid.");
+    }
+    return { mode: "self_evolution_candidate", candidateId };
+  }
+  throw new TypeError("executionBinding.mode is invalid.");
 }
 
 function parseProductPostureTarget(value: unknown): VisibleLoopProductPostureTarget | undefined {
@@ -350,6 +404,21 @@ function parseCommitDelegation(value: unknown): VisibleLoopCommitDelegation | un
     );
   }
   return { mode: "dispatch_subagent", promptTemplate: "commit" };
+}
+
+function requireSafeRunId(value: unknown): string {
+  const runId = requireNonEmptyString(value, "runId");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u.test(runId)) {
+    throw new TypeError("runId must be a safe visible-loop identifier");
+  }
+  return runId;
+}
+
+function requirePositiveSafeInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
+    throw new TypeError(`${label} must be a positive safe integer.`);
+  }
+  return value;
 }
 
 function requireNonEmptyString(value: unknown, label: string): string {

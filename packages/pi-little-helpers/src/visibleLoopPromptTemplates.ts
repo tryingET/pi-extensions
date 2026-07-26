@@ -8,6 +8,29 @@ import {
   renderSelfEvolutionCandidateCloseoutTemplate,
   type SelfEvolutionExecutionEnvelope,
 } from "./selfEvolutionEnvelope.ts";
+import type { VisibleLoopExecutionBinding } from "./visibleLoopTypes.ts";
+
+export function bindVisibleLoopExecutionPrompt(
+  prompt: string,
+  binding: VisibleLoopExecutionBinding,
+): string {
+  const bindingText =
+    binding.mode === "ak_task"
+      ? `AK task #${binding.taskId}`
+      : binding.mode === "self_evolution_candidate"
+        ? `self-evolution candidate ${binding.candidateId}`
+        : `operator objective ${JSON.stringify(binding.objective)}`;
+  return [
+    "EXECUTION BINDING — FAIL CLOSED",
+    `This loop is bound to ${bindingText}.`,
+    "Verify that binding against the owning repo/runtime before mutation. The binding fixes the slice; it does not grant missing owner authority, expand task scope, or make session text canonical.",
+    "If the binding is missing, stale, completed, ambiguous, outside the repo, or blocked on an owner/decision gate, stop before implementation. Do not select an adjacent slice, execute later queued review/fixup/posture/commit prompts, or signal loop completion.",
+    "Every queued turn remains inside this same binding. Deep review and Nexus may harden the bound implementation only; they must not choose product direction or create a replacement task.",
+    "Do not place secrets in loop objectives or reports; the binding is persisted in local loop state.",
+    "",
+    prompt,
+  ].join("\n");
+}
 
 const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
@@ -102,9 +125,9 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "If you route work from a monorepo root into a package, identify the owning package's docs/project/product-posture.md as the posture target before implementation.",
     "The visible-loop config records cwd-level product-posture/vision paths and launch-time existence flags; treat them as launch hints and correct them explicitly if package routing chooses a different owner.",
     "",
-    "From current repo state, identify the next highest-impact slice.",
-    "Treat the apparent slice as a hypothesis until discovery confirms it.",
-    "Reason from first principles and consider multi-order effects.",
+    "Use the explicit execution binding supplied by the loop as the fixed slice.",
+    "Test that bound slice against current repo state before mutation; do not select a different or adjacent product slice.",
+    "Reason from first principles and consider multi-order effects within the bound scope.",
     "",
     "Before implementation, produce a compact design membrane:",
     "",
