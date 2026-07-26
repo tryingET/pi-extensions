@@ -421,9 +421,10 @@ test("sidequest targets the controller Ghostty process instead of the sidequest 
     ({ command, args }) => command === "busctl" && args[1] === "call",
   );
   assert.ok(activation);
-  assert.deepEqual(activation.args.slice(0, 12), [
+  assert.deepEqual(activation.args.slice(0, 13), [
     "--user",
     "call",
+    "--expect-reply=no",
     ":1.42",
     "/com/tryinget/ghosttysidequest",
     "org.gtk.Actions",
@@ -433,8 +434,9 @@ test("sidequest targets the controller Ghostty process instead of the sidequest 
     "1",
     "(tas)",
     "4660",
-    activation.args[11],
+    activation.args[12],
   ]);
+  assert.equal(activation.args[13], "--");
   assert.deepEqual(extractPiArgs(activation.args), [
     "pi",
     "--fork",
@@ -453,6 +455,57 @@ test("sidequest targets the controller Ghostty process instead of the sidequest 
   );
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
   assert.match(harness.notifications[0].message, /targeted controller Ghostty process 111/);
+});
+
+test("sidequest rejects a killed D-Bus activation even when the executor reports code zero", async () => {
+  const execStub = createExecStub(({ command, args }) => {
+    if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
+    }
+    if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
+      return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
+    }
+    if (command === "busctl" && args[1] === "list") {
+      return { code: 0, stdout: ":1.42 111 ghostty user :1.42 user@1000.service - -\n" };
+    }
+    if (command === "busctl" && args[1] === "call") {
+      return { code: 0, stdout: "", killed: true };
+    }
+    if (isLocalGhosttyWrapper(command) && args[0]?.startsWith("--working-directory=")) {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected launch call: ${command} ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_SURFACE_ID: "0x1234",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
+    currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+    exec: execStub.exec,
+    pathExists(path) {
+      return isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const sidequest = commands.get("sidequest");
+  const harness = createContext();
+
+  await sidequest.handler("preserve the peer", harness.ctx);
+
+  assert.ok(execStub.calls.some(({ command, args }) => command === "busctl" && args[1] === "call"));
+  assert.ok(
+    execStub.calls.some(
+      ({ command, args }) =>
+        isLocalGhosttyWrapper(command) && args[0]?.startsWith("--working-directory="),
+    ),
+  );
+  assert.match(harness.notifications[0].message, /Ghostty launch timed out/);
+  assert.match(harness.notifications[0].message, /opened a new window instead/);
 });
 
 test("sidequest reports a post-launch Ghostty window placement mismatch", async () => {

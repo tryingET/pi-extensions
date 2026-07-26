@@ -708,6 +708,7 @@ function buildControllerGhosttyDbusArgs({
   return [
     "--user",
     "call",
+    "--expect-reply=no",
     target.busName,
     "/com/tryinget/ghosttysidequest",
     "org.gtk.Actions",
@@ -718,6 +719,7 @@ function buildControllerGhosttyDbusArgs({
     "(tas)",
     target.surfaceId,
     String(execArgs.length),
+    "--",
     ...execArgs,
     "0",
   ];
@@ -725,7 +727,7 @@ function buildControllerGhosttyDbusArgs({
 
 function normalizeExecResult(result: ExecResult): LaunchResult {
   return {
-    ok: result.code === 0,
+    ok: result.code === 0 && !result.killed,
     code: result.code,
     stdout: String(result.stdout || "").trim(),
     stderr: String(result.stderr || "").trim(),

@@ -21,6 +21,8 @@ All notable changes to this project should be documented here.
 
 ### Changed
 
+- Make controller-targeted Ghostty D-Bus tab activation fire-and-return, and treat timed-out/killed launch processes as failures so visible peers are not terminated by the launcher's 15-second timeout.
+
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.3.1...pi-little-helpers-v0.4.0) (2026-07-11)
