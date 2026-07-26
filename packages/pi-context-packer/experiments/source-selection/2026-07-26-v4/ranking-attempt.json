@@ -1,0 +1,9 @@
+{
+  "schema": "pi-context-packer.ranking_attempt.v1",
+  "experiment": "2026-07-26-v4",
+  "manifestSha256": "sha256:6e73ac83b4d1a425da390c3faed69877125c9a6f971a00b258d509d0dbf4870e",
+  "preparedInputGzipSha256": "sha256:c8802e5bdfb5936fde8f31cc8b8469622df378af4fd5ca4eefd3dacbddd0402b",
+  "preparedInputUncompressedSha256": "sha256:286373698b4a41596a7076d5c296fbc60985e5900acbaf142b32927d407114ae",
+  "state": "attempted-before-decompression-and-evaluation",
+  "retryAuthorized": false
+}
