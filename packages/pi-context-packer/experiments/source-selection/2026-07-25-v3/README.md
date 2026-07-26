@@ -14,7 +14,7 @@ system4d:
 
 ## Current state
 
-**Preparation-ready, ranking forbidden. Fifty fresh cases and all repository-specific truth reviews are accepted; no prepared input, rankings, result, or adoption decision exists.**
+**Source-list observations and metadata-staleness reviews are complete; SCI/prepared-input construction is next and ranking remains forbidden. No ranking, result, or adoption decision exists.**
 
 The v2 owner decision was **REFINE**, with automatic `source-list` invocation and production wiring still **REJECTED**. V3 is a fresh non-production experiment under AK task `4207`; it does not rerun or overwrite v2.
 
@@ -53,6 +53,17 @@ V3 also measures the existing `source-list.v1` page contract with `--page 1 --pa
 
 Automatic invocation remains rejected unless the preregistered quality and eligibility/cost gates both pass.
 
+The retained five-pair observations already make the eligibility-cost gate **not demonstrated**:
+
+- all 25 retained pairs were valid;
+- Agent Scripts and Engineering Core were conclusive eligible decisions;
+- DSPx, pi-extensions, and Agent Kernel were `unknown` from the first 100 records;
+- equal-eligible-repository median tax was `66.5721%`, above the `10%` maximum;
+- equal-control median reduction was `1.3106%`, below the `20%` minimum; and
+- no conclusive false-eligible or false-ineligible decision occurred.
+
+Therefore automatic invocation and production wiring cannot be adopted from v3 regardless of the future quality result. The quality treatment may still be evaluated once for the preregistered refinement question. Exact observations are retained in `source-list-cost-observations.generated.json`; review receipts are in `metadata-staleness-review.md`. `preparation-attempt-log.md` discloses one discarded non-ranking collector attempt and must be considered by the independent pre-run reviewer.
+
 ## Frozen repositories
 
 | Repository | Commit | Planned cases | Initial role; preparation revalidates coverage |
@@ -71,11 +82,12 @@ No metadata changes or cohort replacement are allowed after case authoring.
 2. Independent review accepts the frozen treatment and cost interpretation — complete.
 3. Author 50 fresh cases with no v2 per-case ranking leakage — complete.
 4. Independent reviewers accept questions and truth before preparation — complete; see `pre-ranking-review.md`.
-5. **Now:** prepare new exact artifacts without retaining or printing rankings.
-6. Commit strict pre-run hashes while the result path is absent.
-7. Independent pre-run review accepts integrity and population.
-8. Execute exactly once through the explicit ranking gate.
-9. Independently review arithmetic and record `ADOPT`, `REFINE`, or `REJECT`.
+5. Collect exact full/probe observations and independent metadata-staleness review — complete; cost gate not demonstrated.
+6. **Now:** collect SCI receipts/trace evidence and build prepared bytes without retaining or printing rankings.
+7. Commit strict pre-run hashes while the result path is absent.
+8. Independent pre-run review accepts integrity, population, and the disclosed discarded collector attempt.
+9. Execute exactly once through the explicit ranking gate.
+10. Independently review arithmetic and record `ADOPT`, `REFINE`, or `REJECT`.
 
 ## Non-authorizations
 

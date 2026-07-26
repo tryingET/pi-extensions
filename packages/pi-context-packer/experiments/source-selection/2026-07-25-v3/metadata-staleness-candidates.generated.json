@@ -1,0 +1,346 @@
+{
+  "schema": "pi-context-packer.metadata_staleness_candidates.v3",
+  "status": "independent-review-required-before-prepared-input",
+  "sourceObservationSha256": "sha256:641d954542e562681a57dc3ba2675c9dfc0daba475473cd8220b56ab0755766a",
+  "rankingExecuted": false,
+  "truthOrRankingUsedForSampling": false,
+  "repositories": [
+    {
+      "id": "agent-scripts",
+      "commit": "36792de9195c86e6e8ae521efb5c952492278088",
+      "sourceListArtifactSha256": "sha256:ffd945069a3f00939127257551cab509bf2cef0c446e492c6b16d097435493f1",
+      "totalCount": 43,
+      "metadataPresentCount": 43,
+      "metadataCoverage": 1,
+      "method": "First up to 10 UTF-8-ordered metadata-present paths from the retained full source-list.v1 artifact; independent review must inspect exact frozen Git blobs without ranking output.",
+      "sampledItems": [
+        {
+          "path": "scripts/ak-task-stack.mjs",
+          "summary": "Create a bounded stack of AK tasks from a manifest using deterministic ID resolution and explicit dependency wiring.",
+          "readWhen": [
+            "You need to create multiple AK tasks at once without ad-hoc shell choreography.",
+            "You want a manifest-driven helper over existing AK task create/list/add-deps/contract commands."
+          ]
+        },
+        {
+          "path": "scripts/ci-verify.sh",
+          "summary": "Run the complete provider-neutral agent-scripts validation contract.",
+          "readWhen": [
+            "You change repository tests, documentation validation, syntax checks, or CI verification behavior."
+          ]
+        },
+        {
+          "path": "scripts/docs-list.mjs",
+          "summary": "List docs markdown files with metadata and task/prompt-aware filters.",
+          "readWhen": [
+            "You need doc shortlist suggestions before coding.",
+            "You want strict metadata checks for docs frontmatter."
+          ]
+        },
+        {
+          "path": "scripts/docs-ref-check.mjs",
+          "summary": "Check repository-local documentation references for resolvable and optionally tracked file targets.",
+          "readWhen": [
+            "You need a deterministic dead-reference check for canonical docs, READMEs, or generated projections.",
+            "You want docs path integrity before merging or regenerating templates/projections."
+          ]
+        },
+        {
+          "path": "scripts/git-note-provenance.sh",
+          "summary": "Create or replace a verified commit-provenance Git note under the canonical notes ref.",
+          "readWhen": [
+            "You change provenance payload generation, commit-file verification, or note-write failure semantics."
+          ]
+        },
+        {
+          "path": "scripts/git-note-show.sh",
+          "summary": "Show and optionally verify the commit-provenance Git note for a selected commit.",
+          "readWhen": [
+            "You change note display, structure verification, target identity, or commit-file consistency checks."
+          ]
+        },
+        {
+          "path": "scripts/git-notes-push.sh",
+          "summary": "Push the canonical provenance notes ref to one explicitly resolved Git remote.",
+          "readWhen": [
+            "You change standalone notes push preflight, remote selection, or indeterminate recovery guidance."
+          ]
+        },
+        {
+          "path": "scripts/git-notes-setup-workspace.sh",
+          "summary": "Apply provenance-note display and fetch configuration across discovered workspace repositories.",
+          "readWhen": [
+            "You change workspace repository discovery, per-repo setup delegation, or failure isolation."
+          ]
+        },
+        {
+          "path": "scripts/git-notes-setup.sh",
+          "summary": "Configure one repository to display and fetch canonical provenance Git notes.",
+          "readWhen": [
+            "You change Git notes configuration preflight, convergent writes, or partial-state reporting."
+          ]
+        },
+        {
+          "path": "scripts/git-push-with-notes.sh",
+          "summary": "Push a Git branch and canonical provenance notes with explicit partial-effect recovery semantics.",
+          "readWhen": [
+            "You change branch/notes push ordering, remote resolution, effect disposition, or recovery commands."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "engineering-core",
+      "commit": "f084fcc4981339893c302e13c8266313233a0e2b",
+      "sourceListArtifactSha256": "sha256:077a20eaa453b3330d4428de9f27e3f92df3f71e99472dccb52d76a734ec28fb",
+      "totalCount": 42,
+      "metadataPresentCount": 38,
+      "metadataCoverage": 0.9047619047619048,
+      "method": "First up to 10 UTF-8-ordered metadata-present paths from the retained full source-list.v1 artifact; independent review must inspect exact frozen Git blobs without ranking output.",
+      "sampledItems": [
+        {
+          "path": "scripts/check-justfile-addenda.py",
+          "summary": "Validates that every catalog lane ships a standardized Justfile addendum and links it from lane and README documentation.",
+          "readWhen": [
+            "Maintaining lane addendum names, required Justfile guidance, catalog lane membership, or the README companion convention."
+          ]
+        },
+        {
+          "path": "scripts/dogfood-capabilities.py",
+          "summary": "Exercises capability declarations, population resolution, doctor integration, CLI exit codes, and unsafe-input rejection with deterministic fixtures.",
+          "readWhen": [
+            "Changing capability contract schemas, population safety limits, doctor status rules, or scan-capabilities CLI behavior."
+          ]
+        },
+        {
+          "path": "scripts/dogfood-closed-loop.py",
+          "summary": "Runs a deterministic closed-loop fixture from engineering plans and advisor output through owner dispositions, evidence receipts, calibration, and unapplied doctrine proposals.",
+          "readWhen": [
+            "Changing advisor validation, closed-loop record schemas, calibration and synthesis rules, or doctrine proposal safety guarantees."
+          ]
+        },
+        {
+          "path": "scripts/dogfood-evidence-reconcile.py",
+          "summary": "Builds a temporary Git repository to verify evidence reconciliation across matched, stale, mismatched, and unsafe owner-receipt inputs.",
+          "readWhen": [
+            "Changing evidence receipt bindings, reconciliation state classification, Git revision checks, or unsafe receipt-path handling."
+          ]
+        },
+        {
+          "path": "scripts/release-local.py",
+          "summary": "Plans, verifies, and optionally creates local engineering-core release tags after checking versions, release documentation, catalog history, tests, CLI behavior, and built artifacts.",
+          "readWhen": [
+            "Preparing a local release or changing version consistency, release proof commands, packaged-file requirements, or tag creation safeguards."
+          ]
+        },
+        {
+          "path": "src/engineering_core/__init__.py",
+          "summary": "Defines the engineering_core package's public version export and installed package version value.",
+          "readWhen": [
+            "Bumping the package release version or changing the package-root public API."
+          ]
+        },
+        {
+          "path": "src/engineering_core/adoption_discovery.py",
+          "summary": "Discovers repository and package adoption surfaces while enforcing skip rules, nested-repository ownership, traversal budgets, and budgeted text reads.",
+          "readWhen": [
+            "Changing adoption scan traversal modes, excluded directories, package-surface ownership, or depth, file, and byte budget behavior."
+          ]
+        },
+        {
+          "path": "src/engineering_core/adoption_render.py",
+          "summary": "Renders adoption scan records as escaped Markdown tables and a generated coverage report with structural, semantic, and loop-validation summaries.",
+          "readWhen": [
+            "Changing adoption scan output fields, report sections or columns, review-candidate presentation, or Markdown escaping rules."
+          ]
+        },
+        {
+          "path": "src/engineering_core/adoption_scan.py",
+          "summary": "Discovers repository and package adoption surfaces, validates policy selections, and reports structural, semantic, and loop-validation coverage.",
+          "readWhen": [
+            "Changing adoption status taxonomy, scan budgets, discovery behavior, or policy-derived review criteria."
+          ]
+        },
+        {
+          "path": "src/engineering_core/advisor.py",
+          "summary": "Builds bounded redacted advice requests and validates provider responses, citations, provenance, and owner-local patch proposals.",
+          "readWhen": [
+            "Changing advisor schemas, disclosure budgets, redaction rules, or response trust boundaries."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dspx",
+      "commit": "326b2a555aac9f24ff54afcfd4adc87293b5218f",
+      "sourceListArtifactSha256": "sha256:65bf8d79f73a0d6d9e1a2fc85b857caf1955c570b437dcd6c97023898452693e",
+      "totalCount": 559,
+      "metadataPresentCount": 515,
+      "metadataCoverage": 0.9212880143112702,
+      "method": "First up to 10 UTF-8-ordered metadata-present paths from the retained full source-list.v1 artifact; independent review must inspect exact frozen Git blobs without ranking output.",
+      "sampledItems": [
+        {
+          "path": "apps/forge/src/dspx_forge/__init__.py",
+          "summary": "Marks the DSPx Forge application package.",
+          "readWhen": [
+            "Changing Forge package initialization or top-level exports."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/cli.py",
+          "summary": "Defines Forge CLI commands for work-order intake, planning, routing, overlap review, and GitLab issue operations.",
+          "readWhen": [
+            "Changing Forge commands, options, environment setup, or mutation gates."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/fingerprints.py",
+          "summary": "Provides deterministic JSON hashing, slug generation, and work-order identifier construction.",
+          "readWhen": [
+            "Changing Forge fingerprints, slugs, or work-order ID stability."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/gitlab_client.py",
+          "summary": "Implements policy-guarded GitLab configuration, request handling, and issue CRUD for Forge.",
+          "readWhen": [
+            "Changing Forge GitLab authentication, allowlists, network policy, retries, or issue operations."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/io.py",
+          "summary": "Reads and writes Forge JSON and YAML artifacts.",
+          "readWhen": [
+            "Changing Forge artifact serialization or filesystem output behavior."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/issue_text.py",
+          "summary": "Builds and updates the Forge-managed section of GitLab issue descriptions.",
+          "readWhen": [
+            "Changing managed issue markers, rendered context, or preservation of human-authored issue text."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/issues.py",
+          "summary": "Builds Forge issue specs and manifests, then safely creates, updates, or closes GitLab issues.",
+          "readWhen": [
+            "Changing issue identity, manifests, apply resumption, duplicate closure, or GitLab mutation safeguards."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/models.py",
+          "summary": "Defines Pydantic contracts for Forge work orders, issue specs, plans, and manifests.",
+          "readWhen": [
+            "Changing Forge artifact schemas, routing fields, requirements, or capability status models."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/overlaps.py",
+          "summary": "Finds Forge issue overlap candidates by stable label while retaining an offline-safe result.",
+          "readWhen": [
+            "Changing overlap lookup, candidate evidence, offline fallback, or overlaps.json output."
+          ]
+        },
+        {
+          "path": "apps/forge/src/dspx_forge/plan.py",
+          "summary": "Builds Forge execution plans from capability implementation, configuration, and policy status.",
+          "readWhen": [
+            "Changing Forge capability checks, reported gaps, plan steps, or plan.json output."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pi-extensions",
+      "commit": "61ef4d2874e8ed3807667ae9edbc2e8c262575d5",
+      "sourceListArtifactSha256": "sha256:5475ddf7d92a21dacc4d293c7fed336ac47737a7b0014eb41ee3ad4ca28ac536",
+      "totalCount": 1088,
+      "metadataPresentCount": 195,
+      "metadataCoverage": 0.1792279411764706,
+      "method": "First up to 10 UTF-8-ordered metadata-present paths from the retained full source-list.v1 artifact; independent review must inspect exact frozen Git blobs without ranking output.",
+      "sampledItems": [
+        {
+          "path": "packages/pi-activity-strip/tests/broker-client.test.mjs",
+          "summary": "Tests broker-client upserts and ping replies with session and runtime status data.",
+          "readWhen": [
+            "Changing activity-strip broker messaging, snapshots, or ping responses."
+          ]
+        },
+        {
+          "path": "packages/pi-activity-strip/tests/broker-server.test.mjs",
+          "summary": "Checks broker handling of expected disconnects and reporting of unexpected socket write failures.",
+          "readWhen": [
+            "Changing activity-strip broker connection error or reply-write handling."
+          ]
+        },
+        {
+          "path": "packages/pi-activity-strip/tests/compatibility.test.mjs",
+          "summary": "Validates display detection and activity-strip compatibility reports for headless, niri, and multi-display sessions.",
+          "readWhen": [
+            "Changing graphical-session detection, compatibility blockers, warnings, or report formatting."
+          ]
+        },
+        {
+          "path": "packages/pi-activity-strip/tests/launcher.test.mjs",
+          "summary": "Tests launcher reuse, spawn readiness polling, compatibility failures, and starting-state timeouts.",
+          "readWhen": [
+            "Changing activity-strip startup, broker readiness checks, or launcher error reporting."
+          ]
+        },
+        {
+          "path": "packages/pi-activity-strip/tests/session-store.test.mjs",
+          "summary": "Verifies activity-strip session ordering and stale-session purging in the broker store.",
+          "readWhen": [
+            "Changing session-store sorting, freshness thresholds, or snapshot contents."
+          ]
+        },
+        {
+          "path": "packages/pi-autonomous-session-control/execution.ts",
+          "summary": "re-exports the public autonomous session control execution runtime, dispatch contracts, profiles, and session helpers.",
+          "readWhen": [
+            "consuming the package-level execution API without importing extension internals."
+          ]
+        },
+        {
+          "path": "packages/pi-autonomous-session-control/extensions/self.ts",
+          "summary": "registers the self-perception tool, delegation runtime, rewind support, and compatibility commands for the autonomy extension.",
+          "readWhen": [
+            "changing the extension entry point or the self tool's action-delivery policy."
+          ]
+        },
+        {
+          "path": "packages/pi-autonomous-session-control/extensions/self/context-pressure.ts",
+          "summary": "evaluates mirror-only session pressure from turn counts and repeated lifecycle commands.",
+          "readWhen": [
+            "changing handoff-pressure thresholds or the signals reported by self context diagnostics."
+          ]
+        },
+        {
+          "path": "packages/pi-autonomous-session-control/extensions/self/continuation-candidate.ts",
+          "summary": "records, expires, selects, and rehydrates mirror-only continuation candidates for the current workspace.",
+          "readWhen": [
+            "changing continuation candidate retention, freshness, deduplication, or slice conversion."
+          ]
+        },
+        {
+          "path": "packages/pi-autonomous-session-control/extensions/self/cross-extension-harness.ts",
+          "summary": "resolves Prompt Vault client paths, checks cross-extension readiness, and parses template query envelopes.",
+          "readWhen": [
+            "changing vault-client discovery, dependency readiness checks, or retrieved-template output parsing."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-kernel",
+      "commit": "8b9264a4032a79ff2194b6413de62f9ca410385c",
+      "sourceListArtifactSha256": "sha256:42bfefd71392db8dac7a8f209ca8e8742256bc24e7d86757be64acb4f7da2d91",
+      "totalCount": 715,
+      "metadataPresentCount": 0,
+      "metadataCoverage": 0,
+      "method": "The retained full source-list.v1 artifact contains zero metadata-present paths; independent review must confirm that exact frozen-commit absence without ranking output.",
+      "sampledItems": []
+    }
+  ]
+}
