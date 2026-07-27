@@ -91,6 +91,12 @@ export async function assessActivityStripCompatibility(options = {}) {
     );
   }
 
+  if (windowManager === "niri" && displayCount === 0) {
+    blockers.push(
+      "Niri reports no connected display outputs. Turn on or reconnect the monitor before opening the activity strip.",
+    );
+  }
+
   try {
     electronPath = await locateElectronImpl();
   } catch (error) {
