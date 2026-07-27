@@ -8,20 +8,33 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { createActivityStripBroker } from "../broker/server.mjs";
 import { detectDisplayServer, detectWindowManager } from "../common/compatibility.mjs";
-import { ACTIVITY_STRIP_HEIGHT, ACTIVITY_STRIP_WIDTH_PADDING } from "../common/constants.mjs";
+import {
+  ACTIVITY_STRIP_EXPANDED_HEIGHT,
+  ACTIVITY_STRIP_HEIGHT,
+  ACTIVITY_STRIP_WIDTH_PADDING,
+  ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
+} from "../common/constants.mjs";
+import {
+  focusNiriSession,
+  resolveActivityStripWindow,
+  resolveFocusedNiriWorkspace,
+} from "../common/niri-focus.mjs";
 import { createStripHtml } from "../ui/strip-html.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const preloadPath = path.join(__dirname, "preload.cjs");
-const interactive = process.env.PI_ACTIVITY_STRIP_CLICK_THROUGH === "0";
+const interactive = process.env.PI_ACTIVITY_STRIP_CLICK_THROUGH !== "1";
 const execFileAsync = promisify(execFile);
 
 let browserWindow = null;
 let broker = null;
+let workspaceFollowTimer = null;
+let expanded = false;
+let workspaceFollowInFlight = false;
 let latestSnapshot = { generatedAt: Date.now(), sessions: [] };
 const runtimeStatus = {
   state: "starting",
@@ -54,23 +67,78 @@ function readNiriPosition(window) {
   };
 }
 
-async function getNiriWindowByPid(pid) {
-  if (!isNiriSession()) return null;
-
+async function getNiriWindows() {
+  if (!isNiriSession()) return [];
   try {
     const { stdout } = await execFileAsync("niri", ["msg", "-j", "windows"], {
       env: process.env,
     });
     const windows = JSON.parse(stdout);
-    if (!Array.isArray(windows)) return null;
-
-    return (
-      windows.find((window) => window?.pid === pid && window?.is_floating) ??
-      windows.find((window) => window?.pid === pid) ??
-      null
-    );
+    return Array.isArray(windows) ? windows : [];
   } catch {
-    return null;
+    return [];
+  }
+}
+
+async function getNiriWorkspaces() {
+  if (!isNiriSession()) return [];
+  try {
+    const { stdout } = await execFileAsync("niri", ["msg", "-j", "workspaces"], {
+      env: process.env,
+    });
+    const workspaces = JSON.parse(stdout);
+    return Array.isArray(workspaces) ? workspaces : [];
+  } catch {
+    return [];
+  }
+}
+
+async function getNiriWindowByPid(pid) {
+  const windows = await getNiriWindows();
+  return resolveActivityStripWindow(windows.filter((window) => window?.pid === pid));
+}
+
+async function followFocusedNiriWorkspace() {
+  if (workspaceFollowInFlight || !browserWindow || browserWindow.isDestroyed() || !isNiriSession())
+    return;
+  workspaceFollowInFlight = true;
+  try {
+    await followFocusedNiriWorkspaceOnce();
+  } finally {
+    workspaceFollowInFlight = false;
+  }
+}
+
+async function followFocusedNiriWorkspaceOnce() {
+  const [windows, workspaces] = await Promise.all([getNiriWindows(), getNiriWorkspaces()]);
+  const stripWindow = resolveActivityStripWindow(
+    windows.filter((window) => window?.pid === process.pid),
+  );
+  const focusedWorkspace = resolveFocusedNiriWorkspace(workspaces);
+  if (!stripWindow?.id || !focusedWorkspace || stripWindow.workspace_id === focusedWorkspace.id) {
+    return;
+  }
+
+  try {
+    const reference = focusedWorkspace.name || focusedWorkspace.idx;
+    if (reference == null) return;
+    await execFileAsync(
+      "niri",
+      [
+        "msg",
+        "action",
+        "move-window-to-workspace",
+        "--window-id",
+        String(stripWindow.id),
+        "--focus",
+        "false",
+        String(reference),
+      ],
+      { env: process.env },
+    );
+    scheduleTopAlignment();
+  } catch {
+    // Workspace following is best effort and must never move an arbitrary window.
   }
 }
 
@@ -199,8 +267,19 @@ function currentBounds() {
     x: bounds.x + ACTIVITY_STRIP_WIDTH_PADDING / 2,
     y: bounds.y,
     width: Math.max(420, bounds.width - ACTIVITY_STRIP_WIDTH_PADDING),
-    height: ACTIVITY_STRIP_HEIGHT,
+    height: expanded ? ACTIVITY_STRIP_EXPANDED_HEIGHT : ACTIVITY_STRIP_HEIGHT,
   };
+}
+
+async function setExpanded(nextExpanded) {
+  if (!interactive || !browserWindow || browserWindow.isDestroyed()) return { ok: false };
+  const next = Boolean(nextExpanded);
+  if (expanded === next) return { ok: true, expanded };
+  expanded = next;
+  const bounds = currentBounds();
+  browserWindow.setSize(bounds.width, bounds.height, false);
+  scheduleTopAlignment();
+  return { ok: true, expanded };
 }
 
 function updateWindowBounds() {
@@ -235,7 +314,6 @@ async function createWindow() {
   });
 
   browserWindow.setAlwaysOnTop(true, "screen-saver");
-  browserWindow.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true });
   browserWindow.setIgnoreMouseEvents(!interactive, { forward: true });
 
   browserWindow.once("ready-to-show", () => {
@@ -272,12 +350,18 @@ async function main() {
     return;
   }
 
+  const focusSession = (sessionId) => focusNiriSession(sessionId, execFileAsync, process.env);
   broker = await createActivityStripBroker({
+    focusSession,
     getRuntimeStatus: () => ({
       ...runtimeStatus,
       warnings: [...runtimeStatus.warnings],
     }),
   });
+  ipcMain.handle("pi-activity-strip:focus", (_event, sessionId) => focusSession(String(sessionId)));
+  ipcMain.handle("pi-activity-strip:set-expanded", (_event, nextExpanded) =>
+    setExpanded(Boolean(nextExpanded)),
+  );
   broker.on("snapshot", (snapshot) => {
     latestSnapshot = snapshot;
     browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
@@ -296,6 +380,12 @@ async function main() {
   screen.on("display-metrics-changed", () => updateWindowBounds());
   screen.on("display-added", () => updateWindowBounds());
   screen.on("display-removed", () => updateWindowBounds());
+  if (isNiriSession()) {
+    workspaceFollowTimer = setInterval(() => {
+      followFocusedNiriWorkspace().catch(() => {});
+    }, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
+    workspaceFollowTimer.unref?.();
+  }
 
   app.on("second-instance", () => {
     browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
@@ -303,6 +393,9 @@ async function main() {
   });
 
   app.on("before-quit", async () => {
+    if (workspaceFollowTimer) clearInterval(workspaceFollowTimer);
+    ipcMain.removeHandler("pi-activity-strip:focus");
+    ipcMain.removeHandler("pi-activity-strip:set-expanded");
     await broker?.stop();
   });
 

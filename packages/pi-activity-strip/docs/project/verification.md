@@ -102,10 +102,43 @@ What is now proven:
 - the operator/agent can capture the strip directly for visual inspection
 - the strip can be forced back to the top edge with an explicit repair command
 
+## AK #4317 live acceptance boundary
+
+The package's deterministic tests cover ordering reconciliation, fail-closed Niri selection, broker delegation, bridge allowlisting, and generated-renderer interaction wiring. They do **not** prove Electron rendering, compositor behavior, or real keyboard/pointer use.
+
+Before claiming live acceptance, run this on the target Niri desktop and record the observations separately:
+
+1. Reload at least two installed Pi sessions whose Ghostty titles carry distinct `· <session-id-short>` suffixes.
+2. Confirm live text/timers update without card-node flicker and that active/settled regrouping happens only after the 15-second boundary.
+3. Hover one card, move directly to another, then traverse cards with Tab and Left/Right; confirm expansion follows the engaged card and collapses only after pointer/focus leaves all cards.
+4. Activate one exact card with click and Enter. Then create zero-match and duplicate-title conditions and confirm both do nothing.
+5. Bind and invoke `focus-strip` from Niri; confirm it follows the focused workspace, receives keyboard focus, and remains top-aligned in compact and expanded states.
+6. Start once normally (interactive) and once with `--click-through`; confirm the latter passes pointer input through and is intentionally not keyboard-interactive.
+
+Known boundary: placement still uses Electron's primary-display bounds. Workspace following is implemented, but cross-output/multi-monitor alignment remains explicitly unsupported and must not be claimed.
+
 ## Remaining manual/operator verification
 
-Still worth checking in normal use:
-- reload several already-open interactive Ghostty Pi tabs and confirm they all appear as separate cards
-- judge whether the current detail level is rich enough for long-running sessions
-- decide whether the strip should remain primary-display-only or grow multi-monitor behavior
-- decide whether click-through should stay the default for your workstation
+- Perform and retain the AK #4317 live acceptance observations above.
+- Judge whether the expanded detail density is calm enough for long-running sessions.
+- Decide whether a later owner-scoped task should add cross-output geometry instead of the current primary-display-only contract.
+
+## AK #4317 verification on 2026-07-27
+
+Deterministic implementation evidence:
+
+- completed transcendent lineage `transcendent-1785180277721` across all eight phases after an earlier indeterminate timed-out lineage was inspected and reconciled rather than mechanically retried;
+- targeted interaction/order/focus suite passed (`28/28`);
+- `npm run check` passed (`37/37`) including formatting, file-budget, packaging, and quick release checks;
+- an explicit `npm run release:check:quick` rerun passed; the npm registry correctly rejected republishing existing version `0.2.0`, and the package gate treats that known dry-run version guard as non-fatal;
+- local `pi install "$PWD"` completed successfully;
+- task scope remained limited to `packages/pi-activity-strip/**`, with `git diff --check` clean.
+
+Live-runtime disposition is **blocked, not accepted**:
+
+- restarting the installed strip reached the package launch timeout and `npm run smoke:headless-live` reproduced the same timeout;
+- the old long-running strip process was stopped during the requested restart, so no new live window is currently claimed;
+- a minimal Electron application and the unmodified `HEAD` activity-strip Electron entrypoint both stalled before Electron's `app.whenReady()` resolved under `/usr/bin/electron39` `v39.8.10` in this desktop session;
+- therefore current live hover, pointer, keyboard, workspace-follow, and exact click-to-Ghostty behavior remain unverified. The control-plane unit tests pass, but they are not a substitute for a rendered compositor proof.
+
+This isolates the immediate blocker below the package diff: Electron application readiness on the current host session. Do not describe AK #4317 as live-accepted until Electron can create a window again and the manual acceptance sequence above is completed.

@@ -13,6 +13,18 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## Unreleased
+
+### Features
+
+- Add calm 15-second active-first ordering with live keyed card updates and manual keyboard movement.
+- Add rich hover/focus detail, accessible card navigation, exact fail-closed Ghostty focus, and a compositor-bindable `focus-strip` command.
+- Follow the focused Niri workspace and keep compact/expanded strip states top-aligned.
+
+### Changes
+
+- Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.1.0...pi-activity-strip-v0.2.0) (2026-07-11)
 
 

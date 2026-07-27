@@ -74,6 +74,7 @@ export interface ActivityStripBrokerOptions {
     remove(sessionId: string): boolean;
   };
   getRuntimeStatus?: () => ActivityStripRuntimeStatus | undefined;
+  focusSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; windowId?: number }>;
 }
 
 export interface ToolCallDescription {
@@ -100,6 +101,9 @@ export interface SessionStartContextLike {
   ui?: {
     notify?: (message: string, level?: "info" | "warning" | "error") => void;
     editor?: (title: string, text: string) => Promise<unknown>;
+  };
+  sessionManager?: {
+    getSessionId?: () => string;
   };
 }
 

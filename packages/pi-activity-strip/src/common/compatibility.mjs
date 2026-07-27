@@ -117,7 +117,7 @@ export async function assessActivityStripCompatibility(options = {}) {
     displayCount,
     alignmentMode: windowManager === "niri" ? "niri" : "generic",
     primaryDisplayOnly: true,
-    clickThroughDefault: env.PI_ACTIVITY_STRIP_CLICK_THROUGH !== "0",
+    clickThroughDefault: env.PI_ACTIVITY_STRIP_CLICK_THROUGH === "1",
     blockers,
     warnings,
   };
@@ -134,7 +134,7 @@ export function formatCompatibilityReport(report) {
     `Electron: ${report.electronPath || "not found"}`,
     `Alignment mode: ${report.alignmentMode}`,
     `Primary-display only: ${report.primaryDisplayOnly ? "yes" : "no"}`,
-    `Click-through default: ${report.clickThroughDefault ? "yes" : "no"}`,
+    `Click-through mode: ${report.clickThroughDefault ? "enabled by environment" : "disabled (interactive default)"}`,
   ];
 
   if (typeof report.displayCount === "number") {

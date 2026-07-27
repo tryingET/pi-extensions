@@ -22,6 +22,7 @@ import {
 } from "../src/common/compatibility.mjs";
 import { ACTIVITY_STRIP_START_TIMEOUT_MS } from "../src/common/constants.mjs";
 import { locateElectron } from "../src/common/electron.mjs";
+import { focusNiriStrip, resolveActivityStripWindow } from "../src/common/niri-focus.mjs";
 import { makeMessage } from "../src/common/protocol.mjs";
 import { formatBrokerRuntimeStatus } from "../src/common/status-report.mjs";
 
@@ -32,7 +33,7 @@ const execFileAsync = promisify(execFile);
 
 function usage() {
   console.log(
-    `Usage: pi-activity-strip <open|status|doctor|snapshot|fix-top|stop|serve> [--json]\n\nCommands:\n  open      Start the top-row activity strip if it is not already running\n  status    Check broker + overlay readiness and surface runtime warnings\n  doctor    Inspect host compatibility assumptions before opening the strip\n  snapshot  Print the current broker snapshot as JSON\n  fix-top   Move the strip window flush to the top edge in Niri\n  stop      Ask the running strip to shut down\n  serve     Internal helper; starts the Electron shell in the foreground\n`,
+    `Usage: pi-activity-strip <open|focus-strip|focus-session|status|doctor|snapshot|fix-top|stop|serve> [options]\n\nCommands:\n  open              Start the interactive top-row activity strip (--click-through opts out)\n  focus-strip       Move the strip to the focused Niri workspace and focus it (key-binding entry)\n  focus-session ID  Focus the one Ghostty/Niri window matching an exact Pi session identity\n  status            Check broker + overlay readiness and surface runtime warnings\n  doctor            Inspect host compatibility assumptions before opening the strip\n  snapshot          Print the current broker snapshot as JSON\n  fix-top           Move the strip window flush to the top edge in Niri\n  stop              Ask the running strip to shut down\n  serve             Internal helper; starts the Electron shell in the foreground\n`,
   );
 }
 
@@ -45,12 +46,15 @@ async function moveStripToTop() {
     throw new Error("Unexpected niri windows payload");
   }
 
-  const stripWindow = windows.find((window) => window?.title === "Pi Activity Strip");
-  if (!stripWindow?.id) {
-    throw new Error("Could not find Pi Activity Strip window in niri");
+  const stripWindow = resolveActivityStripWindow(windows);
+  if (!stripWindow) {
+    throw new Error("Could not find one unique Pi Activity Strip window in niri");
   }
 
-  const currentY = Number(stripWindow.layout?.tile_pos_in_workspace_view?.[1] ?? 0);
+  const layout = /** @type {{ tile_pos_in_workspace_view?: unknown[] }} */ (
+    stripWindow.layout ?? {}
+  );
+  const currentY = Number(layout.tile_pos_in_workspace_view?.[1] ?? 0);
   if (Math.abs(currentY) < 1) {
     return 0;
   }
@@ -143,6 +147,9 @@ async function openStrip({ detached = true } = {}) {
 async function main() {
   const command = process.argv[2] ?? "open";
   const jsonOutput = process.argv.includes("--json");
+  if (process.argv.includes("--click-through")) {
+    process.env.PI_ACTIVITY_STRIP_CLICK_THROUGH = "1";
+  }
 
   switch (command) {
     case "open":
@@ -151,6 +158,32 @@ async function main() {
     case "serve":
       process.exitCode = await openStrip({ detached: false });
       return;
+    case "focus-strip": {
+      const result = await focusNiriStrip(execFileAsync, process.env);
+      if (!result.ok) console.error(result.error || "Strip focus did nothing.");
+      process.exitCode = result.ok ? 0 : 1;
+      return;
+    }
+    case "focus":
+    case "focus-session": {
+      const sessionId = String(process.argv[3] ?? "").trim();
+      if (!sessionId) {
+        console.error("focus-session requires the full Pi session id");
+        process.exitCode = 2;
+        return;
+      }
+      try {
+        const result = await sendBrokerMessage(makeMessage("focus", { sessionId }), {
+          expectReply: true,
+        });
+        if (!result?.ok) console.error(result?.error || "Focus did nothing.");
+        process.exitCode = result?.ok ? 0 : 1;
+      } catch {
+        console.error("Activity strip is not running; focus did nothing.");
+        process.exitCode = 1;
+      }
+      return;
+    }
     case "status": {
       try {
         const result = await getBrokerStatus({ expectReply: true });

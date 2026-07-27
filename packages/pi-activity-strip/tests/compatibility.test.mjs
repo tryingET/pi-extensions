@@ -73,4 +73,16 @@ test("assessActivityStripCompatibility reports multi-display warnings and niri a
   assert.equal(report.clickThroughDefault, false);
   assert.match(report.warnings.join("\n"), /primary display only/i);
   assert.match(formatCompatibilityReport(report), /Compatibility: compatible/);
+
+  const clickThroughReport = await assessActivityStripCompatibility({
+    env: {
+      WAYLAND_DISPLAY: "wayland-1",
+      PI_ACTIVITY_STRIP_CLICK_THROUGH: "1",
+    },
+    async locateElectronImpl() {
+      return "/tmp/electron";
+    },
+  });
+  assert.equal(clickThroughReport.clickThroughDefault, true);
+  assert.match(formatCompatibilityReport(clickThroughReport), /Click-through mode: enabled/);
 });

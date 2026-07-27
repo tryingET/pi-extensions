@@ -67,11 +67,15 @@ export function createSessionId() {
   return `${os.hostname()}-${process.pid}-${Date.now()}-${randomUUID().slice(0, 6)}`;
 }
 
-/** @param {{ cwd?: string; sessionName?: string }} [options] @returns {SessionSnapshot} */
-export function createInitialSnapshot({ cwd = process.cwd(), sessionName = "" } = {}) {
+/** @param {{ cwd?: string; sessionName?: string; sessionId?: string }} [options] @returns {SessionSnapshot} */
+export function createInitialSnapshot({
+  cwd = process.cwd(),
+  sessionName = "",
+  sessionId = "",
+} = {}) {
   const now = Date.now();
   return {
-    sessionId: createSessionId(),
+    sessionId: sessionId.trim() || createSessionId(),
     processId: process.pid,
     cwd,
     repoLabel: formatRepoLabel(cwd, sessionName),

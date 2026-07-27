@@ -7,6 +7,12 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("activityStrip", {
+  activate(sessionId) {
+    return ipcRenderer.invoke("pi-activity-strip:focus", String(sessionId ?? ""));
+  },
+  setExpanded(expanded) {
+    return ipcRenderer.invoke("pi-activity-strip:set-expanded", Boolean(expanded));
+  },
   subscribe(handler) {
     if (typeof handler !== "function") return () => {};
     const listener = (_event, snapshot) => handler(snapshot);
