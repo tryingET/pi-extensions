@@ -5,7 +5,7 @@ read_when:
   - "Selecting an integration topic from local main versus origin/main."
   - "Changing live Pi package sources or cleaning pi-extensions worktrees."
 type: "reconciliation-plan"
-status: "active-controller-projection"
+status: "completed"
 date: "2026-07-26"
 system4d:
   container: "AK-4263 projection for IW7 convergence."
@@ -24,7 +24,7 @@ This document is a reviewable projection of that task, not a parallel task, evid
 AK task `4257` remains a bounded pending Toolbox leaf. Its scope is not broadened by this controller.
 Package implementation requires separately scoped owner leaves.
 
-Current controller posture:
+Controller posture applied during execution:
 
 - consensus-first history selection;
 - no wholesale merge, reset, rebase, force push, or mass cherry-pick;
@@ -32,9 +32,30 @@ Current controller posture:
 - conservative archive-before-cleanup;
 - no completion claim until the AK done contract is satisfied.
 
+## Completed closeout projection
+
+Observed closeout state on 2026-07-26 and finalized after interactive reload on 2026-07-27:
+
+- canonical remote `main` was fast-forwarded from audited `7ae6b3440fd6606593b7243d6782158703a6e278` through the reviewed controller lineage; no divergent local-main merge, rebase, reset, or force push was used;
+- accepted local cohorts were integrated through AK owner leaves `4285`–`4292`; explicit owner deferrals for L03, L06, and L22 are recorded in AK evidence `5482` against their original owner tasks and non-authorizations;
+- the final runtime package snapshot is the immutable `ee469a8e66f4b7bdba37f3cc4ff635de7b5daead` worktree at `~/.local/share/pi/live-worktrees/pi-extensions-ee469a8e`;
+- exactly ten governed package settings select that snapshot, no governed setting retains `a0a72e4c` or `53481dbc`, and `~/.pi/agent/settings.json` remains mode `0600` with SHA-256 `dcec2a0dede94710313f4929aab5a74482e22ada439c15bf8baf1cc530b7702e`;
+- production materialization and verification report 20 resolved runtime edges, and the production canary completed once with handoff `97a879b6-db39-41f4-a2ed-5ef7e235bde7`;
+- a fresh Pi process exposed 79 tools: all 54 closed-owner tools resolve from `ee469a8e`, while the six separately retained SCI tools remain explicitly pinned to `26fd79e5`; no closed-owner tool resolved from an old or mixed lineage;
+- real governed deep review executed once through `workflow_execute`, returned `status=done`, handoff `75b7d789-a0c0-4f21-b69a-5c7906798845`, preflight nonce `e1f0a7a3-8401-4982-a4af-e6d69ba9db39`, receipt digest `8a89fde229672cae3a96c362857714af1adce44d238a6c6bf6a08bbe5ea3a919`, registry `a6b456f3e4598520030e83b6b69b453fca65f49517fba26197c55ed4ddbd03f2`, and exactly one Nexus release;
+- after the operator explicitly reloaded this interactive Pi session, a second governed `vault_execute_template` deep review returned `details.ok=true`, `executionSurface=workflow_execute`, non-empty handoff `71455971-5f80-4018-b661-8e5be51b4e72`, and `status=done`; AK evidence `5494` records the exact current-session tool call and links it to prior preflight and exactly-once Nexus proof `5490`;
+- GitHub runs `30217291692` (CI), `30217291693` (release-check), `30217291695` (compatibility canary), and `30217291705` (release-please) passed after CI began production-materializing the mandatory governed canary in an exact SHA-named detached worktree;
+- cleanup removed only the 20 independently reviewed absent-filesystem Git worktree metadata records. Registered worktrees moved from 100 to 80 at cleanup time; zero filesystem directories, branch refs, Git objects, dirty trees, active trees, runtime roots, rollback roots, or owner-retained trees were deleted. The separately added final-main runtime worktree brings the final retained registry count to 81;
+- rollback roots `53481dbc`, `a0a72e4c`, `edb96b46`, `c70967ac`, and `0a4025a6`, the retained SCI root `26fd79e5`, ambiguous `f5384ff5`, detached `9982214e`, and the dirty local-main checkout remain preserved;
+- the local `main` ref/worktree intentionally remains at preserved `b6b5dcef` because it carries extensive staged, unstaged, and untracked owner state. Remote `main` is canonical; moving the dirty local worktree would violate the lossless cleanup membrane.
+
+On 2026-07-27 the operator explicitly reloaded the interactive Pi process. That same session then exposed the governed owner tools and completed the exact `deep-review.v1` workflow contract through `vault_execute_template`; evidence `5494` closes the reload gap without superseding the stronger preflight and exactly-once Nexus proof in evidence `5490`.
+
+The remaining sections preserve the controller's opening observations and execution plan as historical context. Terms such as candidate, unreviewed, and before Wave describe that planning state unless a passage is explicitly marked as closeout state.
+
 ## Observed facts
 
-### Divergence chronology
+### Divergence chronology at controller opening
 
 | Event | Observed result |
 | --- | --- |
@@ -42,10 +63,13 @@ Current controller posture:
 | Local reconciliation merge | `d05dedf04a99c46c08e1dfba27c12f471e5dd93d`, combining local `238da631...` with shared remote `68885841...` |
 | Remote continuation | `origin/main` continued independently from `68885841...` through `4b3d3a3d...` and later commits |
 | AK-3970 inventory | wholesale merge rejected at approximately 83 local / 91 remote commits |
-| Current local main | `b6b5dcef8cffa8a677fe0f1f7b0b74a5ce55ad68` |
-| Current origin main | `7ae6b3440fd6606593b7243d6782158703a6e278` |
-| Current merge base | `68885841bd101e2bf42314b9dd8427c2620b13ea` |
-| Current graph divergence | 97 local-side / 162 origin-side commits |
+| Audited local `main` at controller opening | `b6b5dcef8cffa8a677fe0f1f7b0b74a5ce55ad68` |
+| Audited `origin/main` at controller opening | `7ae6b3440fd6606593b7243d6782158703a6e278` |
+| Audited merge base at controller opening | `68885841bd101e2bf42314b9dd8427c2620b13ea` |
+| Audited graph divergence at controller opening | 97 local-side / 162 origin-side commits |
+| Closeout local `main` | preserved dirty at `b6b5dcef8cffa8a677fe0f1f7b0b74a5ce55ad68` |
+| Closeout `origin/main` and remote-advertised `main` | `ee469a8e66f4b7bdba37f3cc4ff635de7b5daead` |
+| Closeout divergence | 97 preserved local-side / 207 canonical remote-side commits |
 
 The split persisted because bounded recovery work continued on `origin/main` while new local work continued on the divergent local `main`.
 Completed package tasks proved individual slices; none owned whole-repository convergence or final installed-runtime identity.
@@ -58,7 +82,7 @@ AK-4078 produced the complete three-owner repair at:
 f5384ff524a92e78ea9af07c4d5c634bb31356d1
 ```
 
-That commit is an ancestor of current `origin/main` but not local `main`.
+That commit was an ancestor of the audited `origin/main` at controller opening, remains an ancestor of canonical closeout `origin/main`, and is not an ancestor of the preserved divergent local `main`.
 It added:
 
 - the immutable `deep-review -> workflow_execute` Vault binding;
@@ -351,7 +375,7 @@ The 21 already-prunable entries authorize only later registry cleanup, not delet
 ## Required owner leaves
 
 AK-4263 should coordinate, not absorb implementation ownership.
-AK runtime currently reports a registered done contract and guardrails (`ak task contract show 4263`) plus an `IW7` execution-task link (`ak direction check`). The controller currently has document-only repo scope; preservation refs are its only pre-leaf Git effect. No owner-leaf dependencies, evidence, result, or reconciliation packet are claimed yet.
+At controller opening, AK runtime reported a registered done contract and guardrails (`ak task contract show 4263`) plus an `IW7` execution-task link (`ak direction check`). At that time the controller had document-only repo scope, preservation refs were its only pre-leaf Git effect, and no owner-leaf dependencies, evidence, result, or reconciliation packet had been recorded. At closeout all nine dependencies are done, evidence `5482`, `5489`–`5491`, and `5494` covers the required classes, and reconciliation packet version 4 is closed with no unresolved gaps and a ready-to-close recommendation.
 
 Before Wave 1, create, scope, link, and dependency-order owner leaves for:
 
