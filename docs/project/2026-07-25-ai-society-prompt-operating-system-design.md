@@ -595,23 +595,23 @@ Create one link per exact target using `ak packet link --repo <repo> --kind <kin
 | `task` | `task:4168` | `reference_only` | Convergence-closeout leaf |
 | `decision` | `decision:44` | `reference_only` | Checkpointed campaign-automation context |
 | `decision` | `decision:56` | `reference_only` | Fail-closed Vault dispatch context |
-| `packet` | `pi-vault-fail-closed-dispatch-v1` | `reference_only` | Existing binding design precedent |
-| `prompt_vault` | `meta-orchestration` | `reference_only` | Existing phase-navigation procedure |
-| `prompt_vault` | `many-of-the-greats` | `reference_only` | Text-safe diversity baseline |
-| `prompt_vault` | `deep-review` | `reference_only` | Adversarial closure procedure |
-| `prompt_vault` | `goal-convergence-audit` | `reference_only` | Convergence closeout procedure |
-| `prompt_vault` | `prompt-reality-convergence` | `reference_only` | Real-surface convergence procedure |
-| `prompt_vault` | `pi-autoresearch-setup` | `reference_only` | Measured setup procedure |
-| `prompt_vault` | `pi-autoresearch-next-hypothesis` | `reference_only` | Family-local next-move procedure |
-| `prompt_vault` | `pi-autoresearch-finalize` | `reference_only` | Measured finalization procedure |
-| `prompt_vault` | `layer12-040-direction-to-execution-ak-native` | `reference_only` | AK-native D2E procedure |
-| `prompt_vault` | `repo-direction-to-execution` | `reference_only` | Repo D2E procedure |
-| `prompt_vault` | `execution-memory-transfer` | `reference_only` | Execution-memory handoff procedure |
-| `prompt_vault` | `execution-chain-overview` | `reference_only` | Earliest-entry procedure |
-| `prompt_vault` | `adaptive-portfolio-plan` | `reference_only` | Proposed text-safe owner artifact |
-| `prompt_vault` | `adaptive-portfolio-execute` | `reference_only` | Proposed quarantined workflow artifact |
-| `fcos` | `ai-society-prompt-operating-system-d2e` | `projection_only` | Layer-5 coordination identity only |
-| `source_owner` | `softwareco/infra/provisioning` | `reference_only` | Espanso/Chezmoi owner handoff |
+| `source_doc` | `packages/pi-vault-client/docs/project/2026-07-12-rfc-fail-closed-dispatch-enforcement.md` | `reference_only` | Source document for the existing binding design precedent |
+| `procedure_ref` | `meta-orchestration` | `reference_only` | Existing phase-navigation procedure |
+| `procedure_ref` | `many-of-the-greats` | `reference_only` | Text-safe diversity baseline |
+| `procedure_ref` | `deep-review` | `reference_only` | Adversarial closure procedure |
+| `procedure_ref` | `goal-convergence-audit` | `reference_only` | Convergence closeout procedure |
+| `procedure_ref` | `prompt-reality-convergence` | `reference_only` | Real-surface convergence procedure |
+| `procedure_ref` | `pi-autoresearch-setup` | `reference_only` | Measured setup procedure |
+| `procedure_ref` | `pi-autoresearch-next-hypothesis` | `reference_only` | Family-local next-move procedure |
+| `procedure_ref` | `pi-autoresearch-finalize` | `reference_only` | Measured finalization procedure |
+| `procedure_ref` | `layer12-040-direction-to-execution-ak-native` | `reference_only` | AK-native D2E procedure |
+| `procedure_ref` | `repo-direction-to-execution` | `reference_only` | Repo D2E procedure |
+| `procedure_ref` | `execution-memory-transfer` | `reference_only` | Execution-memory handoff procedure |
+| `procedure_ref` | `execution-chain-overview` | `reference_only` | Earliest-entry procedure |
+| `procedure_ref` | `adaptive-portfolio-plan` | `reference_only` | Proposed text-safe owner artifact |
+| `procedure_ref` | `adaptive-portfolio-execute` | `reference_only` | Proposed quarantined workflow artifact |
+| `steward_ref` | `ai-society-prompt-operating-system-d2e` | `projection_only` | FCOS Layer-5 coordination identity only |
+| `owner_layer_ref` | `softwareco/infra/provisioning` | `reference_only` | Espanso/Chezmoi owner handoff |
 
 Task `4162` must use these exact rows and verify the canonical accepted link kinds with `ak packet check`; it may not group targets or replace them with placeholders.
 
