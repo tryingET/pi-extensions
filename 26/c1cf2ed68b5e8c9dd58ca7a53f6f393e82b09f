@@ -1,0 +1,31 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/.local/state/pi-quests/tmp/pi-extensions-ak4322-visible-loop-timeout"
+commit: "26c1cf2ed68b5e8c9dd58ca7a53f6f393e82b09f"
+created_at: "2026-07-28T19:12:18Z"
+intent: "Bound delegated visible-loop commit dispatch with timeout-aware completion handling."
+files:
+  - "packages/pi-little-helpers/README.md"
+  - "packages/pi-little-helpers/docs/project/2026-05-05-visible-peer-capability-contract.md"
+  - "packages/pi-little-helpers/docs/project/product-posture.md"
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/scripts/release-smoke.sh"
+  - "packages/pi-little-helpers/src/visibleLoop.ts"
+  - "packages/pi-little-helpers/src/visibleLoopPromptTemplates.ts"
+  - "packages/pi-little-helpers/tests/visible-loop-completion.test.mjs"
+  - "packages/pi-little-helpers/tests/visible-loop-launch.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "fail"
+group:
+  index: 1
+  total: 1
+  rationale: "All task-owned changes form one package-local visible-loop dispatch fix."
+links:
+  task_ids:
+    - 4322
