@@ -18,6 +18,12 @@ const ORDER_RUNTIME = [
   moveOrderItem.toString(),
 ].join("\n");
 
+export function shouldRetainExpandedCard({ hovered, activeElement, documentFocused }) {
+  return Boolean(hovered || (documentFocused && activeElement));
+}
+
+const INTERACTION_RUNTIME = shouldRetainExpandedCard.toString();
+
 export function createStripHtml({ interactive = true } = {}) {
   const pointerEvents = interactive ? "auto" : "none";
 
@@ -42,7 +48,7 @@ export function createStripHtml({ interactive = true } = {}) {
         --waiting: #ff9f7a;
         --success: #57d9a3;
         --error: #ff7d7d;
-        --shadow: 0 16px 42px rgba(0, 0, 0, 0.42);
+        --shadow: none;
       }
 
       * { box-sizing: border-box; }
@@ -186,6 +192,7 @@ export function createStripHtml({ interactive = true } = {}) {
 
     <script>
       ${ORDER_RUNTIME}
+      ${INTERACTION_RUNTIME}
       const ORDER_REFRESH_MS = ${ACTIVITY_STRIP_ORDER_REFRESH_MS};
       const meta = document.getElementById("meta");
       const cards = document.getElementById("cards");
@@ -193,6 +200,7 @@ export function createStripHtml({ interactive = true } = {}) {
       const api = window.activityStrip || {
         activate: async () => ({ ok: false, error: "Activity bridge unavailable" }),
         setExpanded: async () => {},
+        onCollapse() { return () => {}; },
         subscribe() { return () => {}; },
       };
       let snapshot = { generatedAt: Date.now(), sessions: [] };
@@ -327,8 +335,12 @@ export function createStripHtml({ interactive = true } = {}) {
       function scheduleCollapse() {
         if (collapseTimer) clearTimeout(collapseTimer);
         collapseTimer = setTimeout(() => {
-          const engagedCard = [...cards.querySelectorAll(".card")].find(
-            (candidate) => candidate.matches(":hover") || candidate === document.activeElement,
+          const engagedCard = [...cards.querySelectorAll(".card")].find((candidate) =>
+            shouldRetainExpandedCard({
+              hovered: candidate.matches(":hover"),
+              activeElement: candidate === document.activeElement,
+              documentFocused: document.hasFocus(),
+            }),
           );
           if (engagedCard) {
             setExpanded(engagedCard, true).catch(() => {});
@@ -371,6 +383,13 @@ export function createStripHtml({ interactive = true } = {}) {
         const card = event.target.closest?.(".card");
         if (card && !card.contains(event.relatedTarget)) scheduleCollapse();
       });
+      window.addEventListener("blur", () => setExpanded(null, false).catch(() => {}));
+      document.addEventListener("pointerleave", () =>
+        setExpanded(null, false).catch(() => {}),
+      );
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) setExpanded(null, false).catch(() => {});
+      });
       cards.addEventListener("click", (event) => {
         const card = event.target.closest?.(".card");
         if (card) activate(card).catch(() => {});
@@ -401,6 +420,7 @@ export function createStripHtml({ interactive = true } = {}) {
         if (Date.now() >= nextOrderRefreshAt) syncOrder(true);
         render();
       }, 1000);
+      api.onCollapse?.(() => setExpanded(null, false).catch(() => {}));
       api.subscribe((nextSnapshot) => {
         snapshot = nextSnapshot || { generatedAt: Date.now(), sessions: [] };
         syncOrder(orderedIds.length === 0);

@@ -21,6 +21,7 @@ import {
   focusNiriSession,
   resolveActivityStripWindow,
   resolveFocusedNiriWorkspace,
+  resolveSnapshotSession,
 } from "../common/niri-focus.mjs";
 import { createStripHtml } from "../ui/strip-html.mjs";
 
@@ -294,6 +295,7 @@ async function createWindow() {
     title: "Pi Activity Strip",
     frame: false,
     transparent: true,
+    hasShadow: false,
     resizable: false,
     movable: false,
     minimizable: false,
@@ -338,6 +340,10 @@ async function createWindow() {
 
   browserWindow.on("show", () => refreshRuntimeStatus());
   browserWindow.on("hide", () => refreshRuntimeStatus());
+  browserWindow.on("blur", () => {
+    browserWindow?.webContents.send("pi-activity-strip:collapse");
+    setExpanded(false).catch(() => {});
+  });
   browserWindow.on("closed", () => {
     browserWindow = null;
     refreshRuntimeStatus();
@@ -350,7 +356,16 @@ async function main() {
     return;
   }
 
-  const focusSession = (sessionId) => focusNiriSession(sessionId, execFileAsync, process.env);
+  const focusSession = (sessionId) => {
+    const session = resolveSnapshotSession(latestSnapshot.sessions, sessionId);
+    if (!session) {
+      return Promise.resolve({
+        ok: false,
+        error: "Session is no longer present or is ambiguous; focus did nothing.",
+      });
+    }
+    return focusNiriSession(session, execFileAsync, process.env);
+  };
   broker = await createActivityStripBroker({
     focusSession,
     getRuntimeStatus: () => ({

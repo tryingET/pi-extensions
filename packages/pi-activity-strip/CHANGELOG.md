@@ -23,6 +23,9 @@ All notable changes to this project should be documented here.
 
 ### Changes
 
+- Collapse expanded detail when pointer/focus leaves the strip or another desktop window becomes active, and disable compositor/CSS shadows on the transparent overlay.
+- Recover exact Pi identities for already-running tabs only through validated process-bound `pi-session-presence` sidecars; otherwise retain the `/reload` fail-closed path.
+
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.1.0...pi-activity-strip-v0.2.0) (2026-07-11)

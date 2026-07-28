@@ -127,9 +127,9 @@ In Pi with UI support:
 ## Interaction model
 
 - **Ordering:** active tool/thinking/waiting cards group ahead of settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
-- **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Single click asks Niri to focus the one Ghostty title carrying that exact Pi session-id suffix.
+- **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the one Ghostty title carrying that exact Pi session-id suffix.
 - **Keyboard inside the strip:** Left/Right changes card focus, Enter activates the focused card, and Shift+Left/Right manually moves it. Manual movement lasts until a later activity regroup or runtime restart.
-- **Fail-closed focus:** no repo-name or arbitrary-PID fallback exists. If the session identity matches zero or multiple Ghostty windows, focus does nothing and the card explains why.
+- **Fail-closed focus:** current telemetry uses the exact Pi identity directly. For already-running tabs that still publish a legacy broker id, the strip may recover only the process-bound `pi-session-presence` sidecar when its source, PID, and cwd all agree; this is not repo-name guessing or arbitrary-PID focusing. If identity still matches zero or multiple Ghostty windows, focus does nothing and asks for one `/reload`.
 
 ### Keyboard-only entry on Niri
 

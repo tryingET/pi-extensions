@@ -144,3 +144,13 @@ Live-runtime disposition is **blocked, not accepted**:
 This isolates the immediate blocker below the package diff: Electron application readiness on the current host session. Do not describe AK #4317 as live-accepted until Electron can create a window again and the manual acceptance sequence above is completed.
 
 Follow-up diagnosis found the concrete host condition: `niri msg -j outputs` returned `{}` and every DRM DisplayPort connector reported `disconnected`. Electron 39's Wayland path did not reach `app.whenReady()` without a compositor output, while an X11 probe did; the X11 probe is not an accepted fallback because its Xwayland window identity breaks the package's exact Niri alignment/focus contract. AK #4320 therefore makes `doctor` and `open` fail fast with an actionable blocker when Niri reports zero connected outputs. Turn on or reconnect the monitor, confirm Niri reports an output, then restart and execute the live acceptance sequence.
+
+## AK #4323 live defect follow-up
+
+The reconnected-display run supplied real evidence that deterministic tests had missed:
+
+- exact click-to-Ghostty worked for a newly loaded DSPx peer, while older tabs still emitted legacy `steve-…` broker identities;
+- moving to another desktop window could leave a focused card expanded at 252px because DOM focus remained on the card after the Electron window blurred;
+- the transparent overlay retained both Electron/compositor and CSS panel shadows.
+
+The bounded repair collapses on renderer and BrowserWindow blur, ignores stale DOM focus when the document is not focused, collapses on pointer leave/visibility loss, disables both window and panel shadows, and resolves legacy telemetry only through the existing process-bound `pi-session-presence` sidecar after validating its source, PID, cwd, and full Pi session UUID. Missing, stale, mismatched, or ambiguous identity still does nothing and requests `/reload`.

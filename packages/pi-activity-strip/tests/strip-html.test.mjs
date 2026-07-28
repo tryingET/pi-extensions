@@ -5,7 +5,7 @@ read_when:
 */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createStripHtml } from "../src/ui/strip-html.mjs";
+import { createStripHtml, shouldRetainExpandedCard } from "../src/ui/strip-html.mjs";
 
 test("strip keeps freshness live while ordering refreshes on a calm cadence", () => {
   const html = createStripHtml();
@@ -15,6 +15,21 @@ test("strip keeps freshness live while ordering refreshes on a calm cadence", ()
   assert.match(html, /const ORDER_REFRESH_MS = 15000/);
   assert.match(html, /reconcileActivityOrder\(sessions, orderedIds, \{ regroup \}\)/);
   assert.match(html, /Date\.now\(\) >= nextOrderRefreshAt/);
+});
+
+test("stale card focus cannot retain expansion after the strip loses focus", () => {
+  assert.equal(
+    shouldRetainExpandedCard({ hovered: false, activeElement: true, documentFocused: false }),
+    false,
+  );
+  assert.equal(
+    shouldRetainExpandedCard({ hovered: false, activeElement: true, documentFocused: true }),
+    true,
+  );
+  assert.equal(
+    shouldRetainExpandedCard({ hovered: true, activeElement: false, documentFocused: false }),
+    true,
+  );
 });
 
 test("interactive cards expose hover detail, exact activation, and focus-scoped keyboard control", () => {
@@ -36,11 +51,16 @@ test("interactive cards expose hover detail, exact activation, and focus-scoped 
   assert.doesNotMatch(html, /cards\.append\(card\)/);
   assert.match(html, /!cards\.querySelector\('\.card\[data-open="true"\]'\)/);
   assert.match(html, /const engagedCard = \[\.\.\.cards\.querySelectorAll/);
+  assert.match(html, /shouldRetainExpandedCard\(\{/);
+  assert.match(html, /window\.addEventListener\("blur"/);
+  assert.match(html, /document\.addEventListener\("pointerleave"/);
+  assert.match(html, /api\.onCollapse/);
   assert.match(html, /!card\.contains\(event\.relatedTarget\)/);
   assert.match(html, /Focus bridge failed; nothing focused/);
   assert.match(html, /height: 60px/);
   assert.match(html, /height: 228px/);
   assert.match(html, /prefers-reduced-motion/);
+  assert.match(html, /--shadow: none/);
 });
 
 test("click-through rendering remains an explicit escape hatch", () => {

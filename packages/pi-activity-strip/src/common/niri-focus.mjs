@@ -4,14 +4,66 @@
 //   - "changing card activation, CLI focus, Ghostty matching, or Niri workspace following"
 // ---
 
+import fs from "node:fs";
+import path from "node:path";
+
 const GHOSTTY_APP_IDS = new Set(["com.mitchellh.ghostty", "com.tryinget.ghosttysidequest"]);
 const PI_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SESSION_PRESENCE_SOURCE = "@tryinget/pi-little-helpers/session-presence";
+
+/**
+ * Resolve the exact Pi identity carried by current telemetry. Sessions that
+ * started before the activity-strip upgrade retain a legacy broker id, so use
+ * their process-bound session-presence sidecar as the only migration bridge.
+ * The sidecar must agree on source, pid, and cwd; otherwise fail closed.
+ * @param {string | Record<string, unknown>} session
+ * @param {{env?: NodeJS.ProcessEnv; readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
+ */
+export function resolvePiSessionIdentity(session, options = {}) {
+  const record =
+    session && typeof session === "object" ? session : { sessionId: String(session ?? "") };
+  const directId = String(record.sessionId ?? "").trim();
+  if (PI_SESSION_ID.test(directId)) return directId;
+
+  const processId = Number(record.processId ?? 0);
+  const runtimeDir = String(
+    options.env?.XDG_RUNTIME_DIR ?? process.env.XDG_RUNTIME_DIR ?? "",
+  ).trim();
+  if (!Number.isInteger(processId) || processId <= 0 || !runtimeDir) return null;
+  const expectedCwd = String(record.cwd ?? "").trim();
+  if (!expectedCwd) return null;
+  const existsSync = options.existsSync ?? fs.existsSync;
+  if (!existsSync(path.join("/proc", String(processId)))) return null;
+
+  const readFileSync = options.readFileSync ?? fs.readFileSync;
+  let presence;
+  try {
+    const filePath = path.join(runtimeDir, "pi-session-presence", `${processId}.json`);
+    presence = JSON.parse(readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+
+  if (!presence || typeof presence !== "object") return null;
+  if (presence.source !== SESSION_PRESENCE_SOURCE || Number(presence.pid) !== processId)
+    return null;
+  if (String(presence.cwd ?? "").trim() !== expectedCwd) return null;
+  const presenceId = String(presence.sessionId ?? "").trim();
+  return PI_SESSION_ID.test(presenceId) ? presenceId : null;
+}
 
 /** @param {string} value */
 export function shortSessionId(value) {
   return String(value ?? "")
     .trim()
     .slice(0, 8);
+}
+
+/** @param {Array<Record<string, unknown>>} sessions @param {string} sessionId */
+export function resolveSnapshotSession(sessions, sessionId) {
+  const requestedId = String(sessionId ?? "");
+  const matches = sessions.filter((session) => session?.sessionId === requestedId);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /**
@@ -109,12 +161,24 @@ export async function focusNiriStrip(execFileAsync, env = process.env) {
 }
 
 /**
- * @param {string} sessionId
+ * @param {string | Record<string, unknown>} session
  * @param {(file: string, args: string[], options: object) => Promise<{stdout?: string}>} execFileAsync
  * @param {NodeJS.ProcessEnv} [env]
+ * @param {{readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
  */
-export async function focusNiriSession(sessionId, execFileAsync, env = process.env) {
+export async function focusNiriSession(session, execFileAsync, env = process.env, options = {}) {
   if (!env.NIRI_SOCKET) return { ok: false, error: "Niri is not available; focus did nothing." };
+  const sessionId = resolvePiSessionIdentity(session, {
+    env,
+    readFileSync: options.readFileSync,
+    existsSync: options.existsSync,
+  });
+  if (!sessionId) {
+    return {
+      ok: false,
+      error: "Exact Pi identity is unavailable; reload that Pi tab and try again.",
+    };
+  }
   let windows;
   try {
     const result = await execFileAsync("niri", ["msg", "-j", "windows"], { env });

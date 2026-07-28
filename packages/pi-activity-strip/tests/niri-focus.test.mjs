@@ -6,6 +6,8 @@ import {
   resolveActivityStripWindow,
   resolveExactGhosttyWindow,
   resolveFocusedNiriWorkspace,
+  resolvePiSessionIdentity,
+  resolveSnapshotSession,
 } from "../src/common/niri-focus.mjs";
 
 const sessionId = "019fa4d0-7142-7fb4-8d30-f98e951f0513";
@@ -41,6 +43,74 @@ test("session focus resolves only one exact Ghostty title suffix", () => {
   assert.equal(resolveExactGhosttyWindow([exact], sessionId.slice(0, 8)), null);
 });
 
+test("legacy telemetry resolves through a process-bound session-presence sidecar", () => {
+  const legacy = {
+    sessionId: "steve-1997373-legacy",
+    processId: 1997373,
+    cwd: "/workspace/agent-scripts",
+  };
+  const readFileSync = (filePath, encoding) => {
+    assert.equal(filePath, "/run/user/1000/pi-session-presence/1997373.json");
+    assert.equal(encoding, "utf8");
+    return JSON.stringify({
+      source: "@tryinget/pi-little-helpers/session-presence",
+      pid: 1997373,
+      cwd: legacy.cwd,
+      sessionId,
+    });
+  };
+
+  assert.equal(
+    resolvePiSessionIdentity(legacy, {
+      env: { XDG_RUNTIME_DIR: "/run/user/1000" },
+      readFileSync,
+      existsSync: () => true,
+    }),
+    sessionId,
+  );
+  assert.equal(
+    resolvePiSessionIdentity(legacy, {
+      env: { XDG_RUNTIME_DIR: "/run/user/1000" },
+      readFileSync: () =>
+        JSON.stringify({
+          source: "@tryinget/pi-little-helpers/session-presence",
+          pid: legacy.processId,
+          cwd: "/different/repo",
+          sessionId,
+        }),
+      existsSync: () => true,
+    }),
+    null,
+    "cwd drift must fail closed",
+  );
+  assert.equal(
+    resolvePiSessionIdentity({ ...legacy, processId: 0 }, { readFileSync }),
+    null,
+    "arbitrary or absent process ids must fail closed",
+  );
+  assert.equal(
+    resolvePiSessionIdentity(
+      { ...legacy, cwd: "" },
+      {
+        env: { XDG_RUNTIME_DIR: "/run/user/1000" },
+        readFileSync,
+        existsSync: () => true,
+      },
+    ),
+    null,
+    "missing telemetry cwd must fail closed",
+  );
+  assert.equal(
+    resolvePiSessionIdentity(legacy, {
+      env: { XDG_RUNTIME_DIR: "/run/user/1000" },
+      readFileSync,
+      existsSync: () => false,
+    }),
+    null,
+    "a stale sidecar for a dead process must fail closed",
+  );
+});
+
 test("focusNiriSession invokes focus only after an unambiguous lookup", async () => {
   const calls = [];
   const exec = async (_file, args) => {
@@ -55,6 +125,23 @@ test("focusNiriSession invokes focus only after an unambiguous lookup", async ()
   });
   assert.deepEqual(calls.at(-1), ["msg", "action", "focus-window", "--id", "44"]);
 
+  const legacyResult = await focusNiriSession(
+    { sessionId: "steve-legacy", processId: 1997373, cwd: "/workspace/agent-scripts" },
+    exec,
+    { NIRI_SOCKET: "socket", XDG_RUNTIME_DIR: "/run/user/1000" },
+    {
+      readFileSync: () =>
+        JSON.stringify({
+          source: "@tryinget/pi-little-helpers/session-presence",
+          pid: 1997373,
+          cwd: "/workspace/agent-scripts",
+          sessionId,
+        }),
+      existsSync: () => true,
+    },
+  );
+  assert.deepEqual(legacyResult, { ok: true, windowId: 44 });
+
   const ambiguous = async (_file, args) => ({
     stdout:
       args.at(-1) === "windows"
@@ -62,6 +149,13 @@ test("focusNiriSession invokes focus only after an unambiguous lookup", async ()
         : "",
   });
   assert.equal((await focusNiriSession(sessionId, ambiguous, { NIRI_SOCKET: "socket" })).ok, false);
+});
+
+test("snapshot focus selection rejects missing and duplicate session ids", () => {
+  const session = { sessionId, processId: 44, cwd: "/workspace/dspx" };
+  assert.equal(resolveSnapshotSession([session], sessionId), session);
+  assert.equal(resolveSnapshotSession([], sessionId), null);
+  assert.equal(resolveSnapshotSession([session, { ...session }], sessionId), null);
 });
 
 test("focused-workspace resolution is exact and supports empty focused workspaces", () => {

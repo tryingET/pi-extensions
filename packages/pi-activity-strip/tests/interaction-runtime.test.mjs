@@ -11,6 +11,8 @@ test("sandbox bridge allowlists only snapshot, activation, and expansion interac
   assert.match(preload, /pi-activity-strip:focus/);
   assert.match(preload, /setExpanded\(expanded\)/);
   assert.match(preload, /pi-activity-strip:set-expanded/);
+  assert.match(preload, /onCollapse\(handler\)/);
+  assert.match(preload, /pi-activity-strip:collapse/);
   assert.match(preload, /subscribe\(handler\)/);
   assert.doesNotMatch(preload, /execFile/);
 });
@@ -23,6 +25,10 @@ test("Electron runtime follows focused Niri workspaces and keeps expansion top-a
   assert.match(main, /expanded \? ACTIVITY_STRIP_EXPANDED_HEIGHT : ACTIVITY_STRIP_HEIGHT/);
   assert.match(main, /pi-activity-strip:set-expanded/);
   assert.match(main, /scheduleTopAlignment\(\)/);
+  assert.match(main, /hasShadow: false/);
+  assert.match(main, /browserWindow\.on\("blur"/);
+  assert.match(main, /pi-activity-strip:collapse/);
+  assert.match(main, /resolveSnapshotSession\(latestSnapshot\.sessions, sessionId\)/);
 });
 
 test("keyboard-only strip entry is an explicit compositor-bindable CLI command", () => {
