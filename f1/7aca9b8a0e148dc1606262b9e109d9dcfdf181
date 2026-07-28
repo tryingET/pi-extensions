@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/.local/state/pi-quests/tmp/pi-extensions-ak4322-visible-loop-timeout"
 commit: "f17aca9b8a0e148dc1606262b9e109d9dcfdf181"
-created_at: "2026-07-28T19:11:48Z"
+created_at: "2026-07-28T19:12:18Z"
 intent: "Bound delegated visible-loop commit dispatch with timeout-aware completion handling."
 files:
   - "packages/pi-little-helpers/README.md"
@@ -21,7 +21,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "fail"
 group:
   index: 1
   total: 1
