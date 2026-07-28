@@ -21,11 +21,18 @@ test("Electron runtime follows focused Niri workspaces and keeps expansion top-a
   assert.match(main, /followFocusedNiriWorkspace/);
   assert.match(main, /resolveActivityStripWindow/);
   assert.match(main, /move-window-to-workspace/);
+  assert.match(main, /move-window-to-floating/);
+  assert.match(main, /niriWindow\.is_floating !== true/);
+  assert.match(main, /createLatestOnlyRunner/);
+  assert.match(main, /if \(!isCurrent\(\)\) return/);
   assert.match(main, /ACTIVITY_STRIP_WORKSPACE_SYNC_MS/);
   assert.match(main, /expanded \? ACTIVITY_STRIP_EXPANDED_HEIGHT : ACTIVITY_STRIP_HEIGHT/);
   assert.match(main, /pi-activity-strip:set-expanded/);
   assert.match(main, /scheduleTopAlignment\(\)/);
   assert.match(main, /hasShadow: false/);
+  assert.match(main, /resizable: true/);
+  assert.doesNotMatch(main, /if \(expanded === next\) return/);
+  assert.match(main, /Always reconcile the native surface/);
   assert.match(main, /browserWindow\.on\("blur"/);
   assert.match(main, /pi-activity-strip:collapse/);
   assert.match(main, /resolveSnapshotSession\(latestSnapshot\.sessions, sessionId\)/);

@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  createLatestOnlyRunner,
+  hasNiriFloatingPosition,
+} from "../src/common/alignment-controller.mjs";
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+test("floating-position readiness tolerates a transient missing Niri window", () => {
+  const sequence = [
+    { is_floating: false, layout: { tile_pos_in_workspace_view: null } },
+    undefined,
+    { is_floating: true, layout: { tile_pos_in_workspace_view: [8, 0] } },
+  ];
+
+  assert.deepEqual(sequence.map(hasNiriFloatingPosition), [false, false, true]);
+});
+
+test("latest-only alignment invalidates stale asynchronous geometry work", async () => {
+  const firstStarted = deferred();
+  const releaseFirst = deferred();
+  const observations = [];
+  const runner = createLatestOnlyRunner(async ({ generation, isCurrent }) => {
+    observations.push({ generation, stage: "start", current: isCurrent() });
+    if (generation === 1) {
+      firstStarted.resolve();
+      await releaseFirst.promise;
+      observations.push({ generation, stage: "resume", current: isCurrent() });
+    }
+  });
+
+  assert.equal(runner.request(), 1);
+  await firstStarted.promise;
+  assert.equal(runner.request(), 2);
+  assert.equal(runner.request(), 3);
+  releaseFirst.resolve();
+  await runner.waitForIdle();
+
+  assert.deepEqual(observations, [
+    { generation: 1, stage: "start", current: true },
+    { generation: 1, stage: "resume", current: false },
+    { generation: 3, stage: "start", current: true },
+  ]);
+});
+
+test("alignment runner recovers after a best-effort attempt fails", async () => {
+  const generations = [];
+  const runner = createLatestOnlyRunner(async ({ generation }) => {
+    generations.push(generation);
+    if (generation === 1) throw new Error("transient compositor failure");
+  });
+
+  runner.request();
+  await runner.waitForIdle();
+  runner.request();
+  await runner.waitForIdle();
+
+  assert.deepEqual(generations, [1, 2]);
+});

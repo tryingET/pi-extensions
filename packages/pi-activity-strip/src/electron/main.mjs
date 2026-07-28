@@ -10,6 +10,10 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { createActivityStripBroker } from "../broker/server.mjs";
+import {
+  createLatestOnlyRunner,
+  hasNiriFloatingPosition,
+} from "../common/alignment-controller.mjs";
 import { detectDisplayServer, detectWindowManager } from "../common/compatibility.mjs";
 import {
   ACTIVITY_STRIP_EXPANDED_HEIGHT,
@@ -49,6 +53,7 @@ const runtimeStatus = {
   warnings: [],
   error: null,
 };
+const alignmentController = createLatestOnlyRunner(({ isCurrent }) => alignWindowToTop(isCurrent));
 
 function isNiriSession() {
   return Boolean(process.env.NIRI_SOCKET);
@@ -143,16 +148,36 @@ async function followFocusedNiriWorkspaceOnce() {
   }
 }
 
-async function moveWindowToTopViaNiri() {
-  if (!browserWindow || browserWindow.isDestroyed() || !isNiriSession()) return false;
+async function moveWindowToTopViaNiri(isCurrent) {
+  if (!isCurrent() || !browserWindow || browserWindow.isDestroyed() || !isNiriSession()) {
+    return false;
+  }
+
+  let niriWindow = await getNiriWindowByPid(process.pid);
+  if (!isCurrent() || !niriWindow?.id) return false;
+
+  if (niriWindow.is_floating !== true) {
+    try {
+      await execFileAsync(
+        "niri",
+        ["msg", "action", "move-window-to-floating", "--id", String(niriWindow.id)],
+        { env: process.env },
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  let currentPosition = readNiriPosition(niriWindow);
+  for (let attempt = 0; attempt < 8 && !hasNiriFloatingPosition(niriWindow); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    if (!isCurrent()) return false;
+    niriWindow = await getNiriWindowByPid(process.pid);
+    currentPosition = readNiriPosition(niriWindow);
+  }
+  if (!isCurrent() || !hasNiriFloatingPosition(niriWindow) || !currentPosition) return false;
 
   const target = currentBounds();
-  const niriWindow = await getNiriWindowByPid(process.pid);
-  if (!niriWindow?.id) return false;
-
-  const currentPosition = readNiriPosition(niriWindow);
-  if (!currentPosition) return false;
-
   let deltaX = target.x - currentPosition.x;
   let deltaY = target.y - currentPosition.y;
   if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return true;
@@ -179,9 +204,10 @@ async function moveWindowToTopViaNiri() {
     }
 
     await new Promise((resolve) => setTimeout(resolve, 80));
+    if (!isCurrent()) return false;
     const refreshedWindow = await getNiriWindowByPid(process.pid);
     const refreshedPosition = readNiriPosition(refreshedWindow);
-    if (!refreshedPosition) return false;
+    if (!isCurrent() || refreshedWindow?.is_floating !== true || !refreshedPosition) return false;
 
     deltaX = target.x - refreshedPosition.x;
     deltaY = target.y - refreshedPosition.y;
@@ -191,16 +217,17 @@ async function moveWindowToTopViaNiri() {
   return false;
 }
 
-async function alignWindowToTop() {
-  if (!browserWindow || browserWindow.isDestroyed()) return;
+async function alignWindowToTop(isCurrent) {
+  if (!isCurrent() || !browserWindow || browserWindow.isDestroyed()) return;
 
-  const target = currentBounds();
   if (!isNiriSession()) {
-    browserWindow.setBounds(target, false);
+    if (isCurrent()) browserWindow.setBounds(currentBounds(), false);
     return;
   }
 
   const niriWindow = await getNiriWindowByPid(process.pid);
+  if (!isCurrent()) return;
+  const target = currentBounds();
   const currentSize = niriWindow?.layout?.window_size;
   const widthMatches = Array.isArray(currentSize) && Number(currentSize[0]) === target.width;
   const heightMatches = Array.isArray(currentSize) && Number(currentSize[1]) === target.height;
@@ -208,21 +235,25 @@ async function alignWindowToTop() {
   if (!widthMatches || !heightMatches) {
     browserWindow.setSize(target.width, target.height, false);
     await new Promise((resolve) => setTimeout(resolve, 120));
+    if (!isCurrent()) return;
   }
 
   for (let attempt = 0; attempt < 16; attempt += 1) {
-    if (await moveWindowToTopViaNiri()) return;
+    if (await moveWindowToTopViaNiri(isCurrent)) return;
+    if (!isCurrent()) return;
     await new Promise((resolve) => setTimeout(resolve, 90));
   }
 }
 
+function requestTopAlignment() {
+  alignmentController.request();
+}
+
 function scheduleTopAlignment() {
-  alignWindowToTop().catch(() => {});
+  requestTopAlignment();
 
   for (const delayMs of [150, 450, 900, 1500, 2400]) {
-    setTimeout(() => {
-      alignWindowToTop().catch(() => {});
-    }, delayMs);
+    setTimeout(requestTopAlignment, delayMs);
   }
 }
 
@@ -275,9 +306,10 @@ function currentBounds() {
 async function setExpanded(nextExpanded) {
   if (!interactive || !browserWindow || browserWindow.isDestroyed()) return { ok: false };
   const next = Boolean(nextExpanded);
-  if (expanded === next) return { ok: true, expanded };
   expanded = next;
   const bounds = currentBounds();
+  // Always reconcile the native surface, even when the logical state already matches. BrowserWindow
+  // blur can collapse main-process state before the renderer has removed its expanded layout.
   browserWindow.setSize(bounds.width, bounds.height, false);
   scheduleTopAlignment();
   return { ok: true, expanded };
@@ -296,7 +328,9 @@ async function createWindow() {
     frame: false,
     transparent: true,
     hasShadow: false,
-    resizable: false,
+    // Keep the Wayland surface resizable so Electron can honor both grow and shrink configure
+    // requests. The application still owns and continuously supplies the exact two legal heights.
+    resizable: true,
     movable: false,
     minimizable: false,
     maximizable: false,
@@ -404,7 +438,7 @@ async function main() {
 
   app.on("second-instance", () => {
     browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
-    alignWindowToTop().catch(() => {});
+    requestTopAlignment();
   });
 
   app.on("before-quit", async () => {
