@@ -10,6 +10,8 @@ import path from "node:path";
 const GHOSTTY_APP_IDS = new Set(["com.mitchellh.ghostty", "com.tryinget.ghosttysidequest"]);
 const PI_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SESSION_PRESENCE_SOURCE = "@tryinget/pi-little-helpers/session-presence";
+const SESSION_TITLE_TOKEN_HEX_LENGTH = 32;
+const LEGACY_SESSION_TITLE_TOKEN_HEX_LENGTH = 8;
 
 /**
  * Resolve the exact Pi identity carried by current telemetry. Sessions that
@@ -52,11 +54,13 @@ export function resolvePiSessionIdentity(session, options = {}) {
   return PI_SESSION_ID.test(presenceId) ? presenceId : null;
 }
 
-/** @param {string} value */
-export function shortSessionId(value) {
+/** @param {string} value @param {number} [hexLength] */
+export function shortSessionId(value, hexLength = SESSION_TITLE_TOKEN_HEX_LENGTH) {
   return String(value ?? "")
     .trim()
-    .slice(0, 8);
+    .replaceAll("-", "")
+    .slice(0, hexLength)
+    .toLowerCase();
 }
 
 /** @param {Array<Record<string, unknown>>} sessions @param {string} sessionId */
@@ -67,24 +71,34 @@ export function resolveSnapshotSession(sessions, sessionId) {
 }
 
 /**
- * Title matching is deliberately exact at the identity suffix emitted by Pi's title
- * bridge (" · <first-eight-session-id>"). The app id must also identify a known
- * Ghostty build, and ambiguity always returns no match.
+ * Title matching prefers the full hyphenless 32-hex identity suffix emitted by current Pi session
+ * presence. The legacy 8-hex suffix remains a migration fallback only when it is unambiguous. The app id
+ * must also identify a known Ghostty build, and ambiguity always returns no match.
  * @param {Array<Record<string, unknown>>} windows
  * @param {string} sessionId
  */
 export function resolveExactGhosttyWindow(windows, sessionId) {
   const fullId = String(sessionId ?? "").trim();
-  const token = shortSessionId(fullId);
-  if (!PI_SESSION_ID.test(fullId) || token.length !== 8) return null;
-  const suffix = ` · ${token}`;
-  const matches = windows.filter(
-    (window) =>
-      Number.isInteger(window?.id) &&
-      GHOSTTY_APP_IDS.has(String(window?.app_id ?? "")) &&
-      String(window?.title ?? "").endsWith(suffix),
-  );
-  return matches.length === 1 ? matches[0] : null;
+  if (!PI_SESSION_ID.test(fullId)) return null;
+
+  /** @param {string} token */
+  const matchesForToken = (token) => {
+    const suffix = ` · ${token}`;
+    return windows.filter(
+      (window) =>
+        Number.isInteger(window?.id) &&
+        GHOSTTY_APP_IDS.has(String(window?.app_id ?? "")) &&
+        String(window?.title ?? "").endsWith(suffix),
+    );
+  };
+
+  const currentToken = shortSessionId(fullId);
+  const currentMatches = matchesForToken(currentToken);
+  if (currentMatches.length > 0) return currentMatches.length === 1 ? currentMatches[0] : null;
+
+  const legacyToken = shortSessionId(fullId, LEGACY_SESSION_TITLE_TOKEN_HEX_LENGTH);
+  const legacyMatches = matchesForToken(legacyToken);
+  return legacyMatches.length === 1 ? legacyMatches[0] : null;
 }
 
 /** @param {Array<Record<string, unknown>>} workspaces */

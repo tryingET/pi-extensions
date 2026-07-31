@@ -19,9 +19,20 @@ const ghostty = (id, title) => ({
 });
 
 test("session focus resolves only one exact Ghostty title suffix", () => {
-  const exact = ghostty(44, "π - dspx · 019fa4d0");
+  const exact = ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513");
   assert.equal(resolveExactGhosttyWindow([exact], sessionId)?.id, 44);
-  assert.equal(resolveExactGhosttyWindow([ghostty(45, "π - dspx · 019fa4d1")], sessionId), null);
+  assert.equal(
+    resolveExactGhosttyWindow([ghostty(43, "π - dspx · 019fa4d0")], sessionId)?.id,
+    43,
+    "an unambiguous legacy title remains focusable during migration",
+  );
+  assert.equal(
+    resolveExactGhosttyWindow(
+      [ghostty(45, "π - dspx · 019fa4d171427fb48d30f98e951f0513")],
+      sessionId,
+    ),
+    null,
+  );
   assert.equal(resolveExactGhosttyWindow([exact, ghostty(46, exact.title)], sessionId), null);
   assert.equal(resolveExactGhosttyWindow([{ ...exact, app_id: "brave-browser" }], sessionId), null);
   assert.equal(resolveExactGhosttyWindow([{ ...exact, app_id: "not-ghostty" }], sessionId), null);
@@ -41,6 +52,28 @@ test("session focus resolves only one exact Ghostty title suffix", () => {
     "the identity token must be the literal final title suffix",
   );
   assert.equal(resolveExactGhosttyWindow([exact], sessionId.slice(0, 8)), null);
+});
+
+test("session focus rejects colliding legacy prefixes and resolves full identity titles", () => {
+  const rocsSessionId = "019f4f3f-5d94-751e-a458-ddbc430dc568";
+  const ontologySessionId = "019f4f3f-acde-751e-a458-ddbc430dc568";
+  const legacyWindows = [
+    ghostty(645, "π - rocs-cli · 019f4f3f"),
+    ghostty(641, "π - ontology-kernel · 019f4f3f"),
+  ];
+  assert.equal(resolveExactGhosttyWindow(legacyWindows, rocsSessionId), null);
+  assert.equal(resolveExactGhosttyWindow(legacyWindows, ontologySessionId), null);
+
+  const currentWindows = [
+    ghostty(645, "π - rocs-cli · 019f4f3f5d94751ea458ddbc430dc568"),
+    ghostty(641, "π - ontology-kernel · 019f4f3facde751ea458ddbc430dc568"),
+  ];
+  assert.equal(resolveExactGhosttyWindow(currentWindows, rocsSessionId)?.id, 645);
+  assert.equal(resolveExactGhosttyWindow(currentWindows, ontologySessionId)?.id, 641);
+
+  const mixedVersionWindows = [currentWindows[0], ...legacyWindows];
+  assert.equal(resolveExactGhosttyWindow(mixedVersionWindows, rocsSessionId)?.id, 645);
+  assert.equal(resolveExactGhosttyWindow(mixedVersionWindows, ontologySessionId), null);
 });
 
 test("legacy telemetry resolves through a process-bound session-presence sidecar", () => {
@@ -116,7 +149,9 @@ test("focusNiriSession invokes focus only after an unambiguous lookup", async ()
   const exec = async (_file, args) => {
     calls.push(args);
     if (args.at(-1) === "windows")
-      return { stdout: JSON.stringify([ghostty(44, "π - dspx · 019fa4d0")]) };
+      return {
+        stdout: JSON.stringify([ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513")]),
+      };
     return { stdout: "" };
   };
   assert.deepEqual(await focusNiriSession(sessionId, exec, { NIRI_SOCKET: "socket" }), {
@@ -145,7 +180,10 @@ test("focusNiriSession invokes focus only after an unambiguous lookup", async ()
   const ambiguous = async (_file, args) => ({
     stdout:
       args.at(-1) === "windows"
-        ? JSON.stringify([ghostty(44, "π - dspx · 019fa4d0"), ghostty(45, "π - dspx · 019fa4d0")])
+        ? JSON.stringify([
+            ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513"),
+            ghostty(45, "π - dspx · 019fa4d071427fb48d30f98e951f0513"),
+          ])
         : "",
   });
   assert.equal((await focusNiriSession(sessionId, ambiguous, { NIRI_SOCKET: "socket" })).ok, false);

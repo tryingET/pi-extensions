@@ -11,6 +11,7 @@ const SESSION_PRESENCE_SCHEMA_VERSION = 1;
 const DEFAULT_TITLE_PREFIX = "π - ";
 const DEFAULT_TITLE_MODE = "session-short-id";
 const DEFAULT_TITLE_REFRESH_DELAYS_MS = [0, 250, 1000, 3000, 8000];
+const SESSION_IDENTITY_TOKEN_HEX_LENGTH = 32;
 
 export type SessionPresenceTitleMode = "session-short-id" | "off";
 
@@ -33,6 +34,7 @@ export interface SessionPresenceState {
   cwdLabel: string;
   sessionId: string;
   sessionIdShort: string;
+  sessionIdentityToken: string;
   sessionFile?: string;
   sessionName?: string;
   tty?: string;
@@ -195,13 +197,17 @@ function buildWindowTitleBase(cwd: string): string {
   return `${DEFAULT_TITLE_PREFIX}${deriveCwdLabel(cwd)}`;
 }
 
+function buildSessionIdentityToken(sessionId: string): string {
+  return sessionId.replaceAll("-", "").slice(0, SESSION_IDENTITY_TOKEN_HEX_LENGTH).toLowerCase();
+}
+
 function buildWindowTitle(
   baseTitle: string,
-  sessionIdShort: string,
+  sessionIdentityToken: string,
   titleMode: SessionPresenceTitleMode,
 ): string | undefined {
   if (titleMode === "off") return undefined;
-  return `${baseTitle} · ${sessionIdShort}`;
+  return `${baseTitle} · ${sessionIdentityToken}`;
 }
 
 function buildSessionPresenceState(
@@ -213,9 +219,10 @@ function buildSessionPresenceState(
   const sessionFile = ctx.sessionManager.getSessionFile();
   const sessionName = ctx.sessionManager.getSessionName();
   const sessionIdShort = sessionId.slice(0, 8);
+  const sessionIdentityToken = buildSessionIdentityToken(sessionId);
   const windowTitleBase = resolveTitleBase(cwd, options);
   const titleMode = resolveTitleMode(options);
-  const windowTitle = buildWindowTitle(windowTitleBase, sessionIdShort, titleMode);
+  const windowTitle = buildWindowTitle(windowTitleBase, sessionIdentityToken, titleMode);
   const piBin = resolvePiBin(options);
   const ghosttyAncestor = findGhosttyAncestor(resolveProcessId(options));
   const ghosttySurfaceId = resolveGhosttySurfaceId(options.env ?? process.env);
@@ -228,6 +235,7 @@ function buildSessionPresenceState(
     cwdLabel: deriveCwdLabel(cwd),
     sessionId,
     sessionIdShort,
+    sessionIdentityToken,
     sessionFile,
     sessionName,
     tty: safeReadLink("/proc/self/fd/0"),

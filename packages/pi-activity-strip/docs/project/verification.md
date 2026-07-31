@@ -108,7 +108,7 @@ The package's deterministic tests cover ordering reconciliation, fail-closed Nir
 
 Before claiming live acceptance, run this on the target Niri desktop and record the observations separately:
 
-1. Reload at least two installed Pi sessions whose Ghostty titles carry distinct `· <session-id-short>` suffixes.
+1. Reload at least two installed Pi sessions whose Ghostty titles carry distinct `· <full-32-hex-session-id-token>` suffixes.
 2. Confirm live text/timers update without card-node flicker and that active/settled regrouping happens only after the 15-second boundary.
 3. Hover one card, move directly to another, then traverse cards with Tab and Left/Right; confirm expansion follows the engaged card and collapses only after pointer/focus leaves all cards.
 4. Activate one exact card with click and Enter. Then create zero-match and duplicate-title conditions and confirm both do nothing.
@@ -156,3 +156,5 @@ The reconnected-display run supplied real evidence that deterministic tests had 
 The bounded repair collapses on renderer and BrowserWindow blur, ignores stale DOM focus when the document is not focused, collapses on pointer leave/visibility loss, disables both window and panel shadows, and resolves legacy telemetry only through the existing process-bound `pi-session-presence` sidecar after validating its source, PID, cwd, and full Pi session UUID. Missing, stale, mismatched, or ambiguous identity still does nothing and requests `/reload`.
 
 A subsequent live run exposed a second compositor boundary: the renderer could close the card while the non-resizable Wayland surface remained at 252px, leaving a transparent input mask over the desktop. The follow-up keeps the native surface resize-capable, explicitly moves it to Niri's floating layout, and reapplies its target size on every expansion/collapse request rather than treating matching logical state as proof of matching compositor geometry. Live acceptance requires observing the Niri `window_size` return from `1904×252` to `1904×84` after pointer leave.
+
+A later focus failure exposed an identity collision rather than a focus-command failure: `rocs-cli` and `ontology-kernel` both had the legacy UUIDv7 prefix `019f4f3f`. Current session-presence titles therefore use the full 32 hexadecimal UUID characters with hyphens removed. Activity Strip prefers that identity, retains unique 8-hex titles as a migration fallback, and still rejects duplicate legacy prefixes. Install/restart Activity Strip first, then reload affected Pi tabs before claiming collision repair live.

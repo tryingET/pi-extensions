@@ -221,7 +221,7 @@ If you want this for all current tabs:
 2. run `/reload` inside each already-open Pi tab
 3. open the strip once with `/activity-strip` or `npm run strip:open`
 4. from then on, every loaded Pi session should report into the same top-row ribbon
-5. ensure `pi-little-helpers` session presence is loaded when you want exact click-to-Ghostty focus; its `· <session-id-short>` title suffix is the fail-closed identity seam
+5. ensure `pi-little-helpers` session presence is loaded when you want exact click-to-Ghostty focus; its `· <full-32-hex-session-id-token>` title suffix is the preferred fail-closed identity seam (unique legacy 8-hex titles remain supported during migration)
 
 ## References
 

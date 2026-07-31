@@ -111,14 +111,15 @@ test("session presence publishes exact session metadata and updates the title", 
     assert.equal(state.cwd, "/home/tryinget/ai-society/softwareco/owned/agent-kernel");
     assert.equal(state.cwdLabel, "agent-kernel");
     assert.equal(state.sessionIdShort, "77bc82bb");
-    assert.equal(state.windowTitle, "π - agent-kernel · 77bc82bb");
+    assert.equal(state.sessionIdentityToken, "77bc82bb21b84651a0588b6e4d50636c");
+    assert.equal(state.windowTitle, "π - agent-kernel · 77bc82bb21b84651a0588b6e4d50636c");
     assert.equal(state.ghosttySurfaceId, undefined);
     assert.deepEqual(state.resumeArgv, [
       "pi",
       "--session",
       "/home/tryinget/.pi/agent/sessions/--home-tryinget-ai-society-softwareco-owned-agent-kernel--/2026-04-11T19-25-03-681Z_77bc82bb-21b8-4651-a058-8b6e4d50636c.jsonl",
     ]);
-    assert.deepEqual(titles, ["π - agent-kernel · 77bc82bb"]);
+    assert.deepEqual(titles, ["π - agent-kernel · 77bc82bb21b84651a0588b6e4d50636c"]);
   } finally {
     rmSync(presenceDir, { recursive: true, force: true });
   }
@@ -184,7 +185,7 @@ test("/session-presence path reports the exact session file after refreshing pre
       "/home/tryinget/.pi/agent/sessions/--home-tryinget-mito-s3-direction-lab--/2026-04-12T02-00-00-000Z_12345678-0000-4000-8000-abcdefabcdef.jsonl",
     );
     const state = JSON.parse(readFileSync(path.join(presenceDir, "525252.json"), "utf8"));
-    assert.equal(state.windowTitle, "π - mito-s3-direction-lab · 12345678");
+    assert.equal(state.windowTitle, "π - mito-s3-direction-lab · 12345678000040008000abcdefabcdef");
   } finally {
     rmSync(presenceDir, { recursive: true, force: true });
   }
@@ -220,11 +221,14 @@ test("session presence can override the base title and reapply it after startup"
 
     const state = JSON.parse(readFileSync(path.join(presenceDir, "626262.json"), "utf8"));
     assert.equal(state.windowTitleBase, "Sidequest: trace this failure");
-    assert.equal(state.windowTitle, "Sidequest: trace this failure · 6e7c38f0");
+    assert.equal(
+      state.windowTitle,
+      "Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4",
+    );
     assert.deepEqual(harness.titles, [
-      "Sidequest: trace this failure · 6e7c38f0",
-      "Sidequest: trace this failure · 6e7c38f0",
-      "Sidequest: trace this failure · 6e7c38f0",
+      "Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4",
+      "Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4",
+      "Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4",
     ]);
 
     if (typeof sessionShutdown === "function") {
@@ -264,9 +268,9 @@ test("session presence delayed refresh restores the session hash title after hos
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     assert.deepEqual(harness.titles, [
-      "π - template-propagator · bebad8f0",
+      "π - template-propagator · bebad8f0d3244ed9aedad0fbeb787a35",
       "π - template-propagator",
-      "π - template-propagator · bebad8f0",
+      "π - template-propagator · bebad8f0d3244ed9aedad0fbeb787a35",
     ]);
 
     if (typeof sessionShutdown === "function") {

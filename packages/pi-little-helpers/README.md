@@ -88,9 +88,9 @@ This package now includes a deliberately **Steve-specific** helper for exact Pi 
 The `session-presence` extension does two things:
 
 1. writes a live sidecar JSON for the current Pi process under `$XDG_RUNTIME_DIR/pi-session-presence/` (fallback `~/.local/state/pi-session-presence/`)
-2. sets and briefly re-applies the terminal title so it keeps the short Pi session id, for example `π - agent-kernel · 77bc82bb`
+2. sets and briefly re-applies the terminal title with the full hyphenless 32-hex Pi session UUID, for example `π - agent-kernel · 77bc82bb21b84651a0588b6e4d50636c`
 
-The title base can also be overridden for special flows such as `/sidequest`, so a forked tab/window can read like `Sidequest: trace this failure · 6e7c38f0` instead of only using the cwd label.
+Using the full identity avoids truncated UUIDv7 timestamp-prefix collisions. The title base can also be overridden for special flows such as `/sidequest`, so a forked tab/window can read like `Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4` instead of only using the cwd label.
 
 This lets the workstation hourly observer join:
 

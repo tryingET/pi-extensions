@@ -21,6 +21,8 @@ All notable changes to this project should be documented here.
 
 ### Changed
 
+- Replace the truncated Ghostty title suffix with the full hyphenless 32-hex session UUID, while retaining the legacy 8-character sidecar field for compatibility.
+
 - Make controller-targeted Ghostty D-Bus tab activation fire-and-return, and treat timed-out/killed launch processes as failures so visible peers are not terminated by the launcher's 15-second timeout.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.

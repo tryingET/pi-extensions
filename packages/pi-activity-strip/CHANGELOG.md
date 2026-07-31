@@ -26,6 +26,7 @@ All notable changes to this project should be documented here.
 - Collapse expanded detail when pointer/focus leaves the strip or another desktop window becomes active, and disable compositor/CSS shadows on the transparent overlay.
 - Keep the Wayland surface resize-capable, explicitly floating, and reconcile its native dimensions on every collapse request, so the transparent input mask returns to compact height with the card content.
 - Recover exact Pi identities for already-running tabs only through validated process-bound `pi-session-presence` sidecars; otherwise retain the `/reload` fail-closed path.
+- Prefer full hyphenless 32-hex Ghostty session identities while retaining unambiguous 8-hex titles as a migration fallback; colliding legacy titles still fail closed until reload.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 

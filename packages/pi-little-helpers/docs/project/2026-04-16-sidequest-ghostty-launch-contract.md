@@ -29,7 +29,7 @@ If the active Ghostty session cannot prove that, `/sidequest` must open a **new 
    - Pi is running inside Ghostty (`TERM_PROGRAM=ghostty`)
    - the chosen Ghostty command advertises `+new-tab`
 6. `GHOSTTY_SURFACE_ID` is an optional targeting hint, not a hard prerequisite. Pass it only when present **and** the chosen Ghostty build supports the `+new-tab --surface-id` action flag (Ghostty 1.4+); do not force a window fallback solely because it is absent or unsupported.
-7. Do **not** force Ghostty `--title=...` for sidequest launches, because Ghostty treats that as a fixed title and will ignore later dynamic title updates. Seed the desired base title through `PI_SESSION_PRESENCE_TITLE_BASE` instead so `session-presence` can append the live `· <session-id-short>` suffix.
+7. Do **not** force Ghostty `--title=...` for sidequest launches, because Ghostty treats that as a fixed title and will ignore later dynamic title updates. Seed the desired base title through `PI_SESSION_PRESENCE_TITLE_BASE` instead so `session-presence` can append the live `· <full-32-hex-session-id-token>` suffix.
 8. Do not trust Ghostty `+new-tab --working-directory=...` alone for peer cwd correctness; receiving tabs can inherit the current surface cwd. The launched shell command must explicitly `cd` into the requested cwd before starting Pi.
 9. For **new window** launches, do **not** rely on `ghostty +new-window -e ...` to carry the command payload. Launch a fresh Ghostty window directly with `ghostty -e ...` (plus working-directory/config args) so Pi actually starts in that window.
 10. If any hard prerequisite is missing, launch a new Ghostty window directly instead of attempting same-window tab attach.

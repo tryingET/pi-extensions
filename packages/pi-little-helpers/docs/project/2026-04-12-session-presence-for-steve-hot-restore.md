@@ -55,6 +55,7 @@ Example payload:
   "cwdLabel": "agent-kernel",
   "sessionId": "77bc82bb-21b8-4651-a058-8b6e4d50636c",
   "sessionIdShort": "77bc82bb",
+  "sessionIdentityToken": "77bc82bb21b84651a0588b6e4d50636c",
   "sessionFile": "/home/tryinget/.pi/agent/sessions/--home-tryinget-ai-society-softwareco-owned-agent-kernel--/2026-04-11T19-25-03-681Z_77bc82bb-21b8-4651-a058-8b6e4d50636c.jsonl",
   "sessionName": "AK hotfix",
   "tty": "/dev/pts/6",
@@ -65,30 +66,32 @@ Example payload:
     "/home/tryinget/.pi/agent/sessions/--home-tryinget-ai-society-softwareco-owned-agent-kernel--/2026-04-11T19-25-03-681Z_77bc82bb-21b8-4651-a058-8b6e4d50636c.jsonl"
   ],
   "windowTitleBase": "π - agent-kernel",
-  "windowTitle": "π - agent-kernel · 77bc82bb",
+  "windowTitle": "π - agent-kernel · 77bc82bb21b84651a0588b6e4d50636c",
   "publishedAt": "2026-04-12T02:30:00.000Z"
 }
 ```
 
-### 2. Sets the terminal title to include the short session id
+### 2. Sets the terminal title to include the full 32-hex session identity
 
 Default title format:
 
 ```text
-π - <cwd basename> · <session-id-short>
+π - <cwd basename> · <session-id-token>
 ```
 
 Example:
 
 ```text
-π - agent-kernel · 77bc82bb
+π - agent-kernel · 77bc82bb21b84651a0588b6e4d50636c
 ```
+
+The token is the full 32 hexadecimal characters of the session UUID after removing hyphens. The sidecar retains `sessionIdShort` for compatibility, but exact window identity no longer relies on a truncated UUIDv7 timestamp prefix.
 
 The base title can also be overridden through `PI_SESSION_PRESENCE_TITLE_BASE`.
 That is how special launchers such as `/sidequest` can keep a descriptive base title while still appending the dynamic Pi session suffix, for example:
 
 ```text
-Sidequest: trace this failure · 6e7c38f0
+Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4
 ```
 
 That title is intentionally chosen so the surrounding desktop stack can correlate:
@@ -163,7 +166,7 @@ For Steve's hot-restore flow, the important distinction is:
 If the hourly observer has already recorded the exact `sessionFile`, then the truthful restore command is:
 
 ```bash
-ghostty --title='π - agent-kernel · 77bc82bb' \
+ghostty --title='π - agent-kernel · 77bc82bb21b84651a0588b6e4d50636c' \
   -e bash -ic 'cd /home/tryinget/ai-society/softwareco/owned/agent-kernel && exec pi --session /home/tryinget/.pi/agent/sessions/--home-tryinget-ai-society-softwareco-owned-agent-kernel--/2026-04-11T19-25-03-681Z_77bc82bb-21b8-4651-a058-8b6e4d50636c.jsonl'
 ```
 
@@ -198,7 +201,7 @@ Sidequest: trace this failure
 This produces a final title such as:
 
 ```text
-Sidequest: trace this failure · 6e7c38f0
+Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4
 ```
 
 ### `PI_SESSION_PRESENCE_TITLE_MODE`
