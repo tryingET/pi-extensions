@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3cf07b5ce326aa56ee6267bade4b48fe267aff8b"
+created_at: "2026-07-31T13:38:43Z"
+intent: "Update release-please workflows and release-components test."
+files:
+  - ".github/workflows/publish.yml"
+  - ".github/workflows/release-check.yml"
+  - ".github/workflows/release-please.yml"
+  - ".release-please-manifest.json"
+  - "scripts/release-components.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test scripts/release-components.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "node --test scripts/release-components.test.mjs (7/7 pass)"
+    status: "pass"
+group:
+  index: 4
+  total: 7
+  rationale: "Release-please workflow + manifest + component test; SCI-ref-free."
