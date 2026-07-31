@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5d54d0d687f0f753ff9b3e2f3c3903e2b752b385"
+created_at: "2026-07-31T13:38:43Z"
+intent: "Remove default-off semantic release-delivery feature from pi-ontology-workflows."
+files:
+  - "packages/pi-ontology-workflows/src/semantic/semantic-release-delivery.ts"
+  - "packages/pi-ontology-workflows/tests/semantic-release-delivery.test.ts"
+  - "packages/pi-ontology-workflows/docs/project/semantic-release-delivery-evidence.md"
+  - "packages/pi-ontology-workflows/docs/project/semantic-preflight-adapter-v0.md"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-ontology-workflows run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-ontology-workflows run check (pass)"
+    status: "pass"
+group:
+  index: 5
+  total: 7
+  rationale: "Reverts the default-off semantic-release-delivery attestations added in 7d558db3."
