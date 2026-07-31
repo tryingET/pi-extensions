@@ -70,6 +70,6 @@ A visible interaction candidate was requested but `candidate_peer_spawn` failed 
 
 The reusable dogfood path is implemented as `scripts/startup-latency/dogfood-vault-rpc.mjs`. A fresh offline RPC process verified Vault commands, schema v9, company context `software`, 71 visible templates, and an exact `inversion` read without invoking a model or changing settings. `npm --prefix packages/pi-vault-client run check` passed 251 tests plus packaging and clean-room checks.
 
-The benchmark now pins the canonical `openai-codex/gpt-5.4` model scope declared in `models.json`, eliminating unrelated startup warnings. With explicit operator direction, obsolete `openai-codex-2` and `openai-codex2` entries were removed from user model configuration while canonical `openai-codex` remained.
+The 2026-07-31 closeout measurements pinned `openai-codex/gpt-5.4`, eliminating unrelated startup warnings. After closeout, the startup-probe default was corrected to the operator's active `openai-codex/gpt-5.6-sol`; the historical medians remain labeled with the model scope actually used. With explicit operator direction, obsolete `openai-codex-2` and `openai-codex2` entries were removed from user model configuration while canonical `openai-codex` remained.
 
 Campaign control is `stop`. This is a truthful partial closeout: accepted Vault improvement, verified cleanup and live/fresh-process behavior, target not met, and one visible residual task.

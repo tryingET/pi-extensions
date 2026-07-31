@@ -11,6 +11,8 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../..");
 const agentDir = process.env.PI_CODING_AGENT_DIR ?? resolve(homedir(), ".pi/agent");
 const configPaths = [resolve(agentDir, "models.json"), resolve(agentDir, "settings.json")];
+const modelScope = process.env.PI_STARTUP_MODEL_SCOPE ?? "openai-codex/gpt-5.6-sol";
+if (!modelScope.trim()) throw new Error("PI_STARTUP_MODEL_SCOPE must not be empty");
 
 function configDigests() {
   return Object.fromEntries(
@@ -31,6 +33,10 @@ Options:
   --output PATH      JSON evidence output path
   --timeout-ms N     per-operation timeout (default: 30000)
   -h, --help         show this help
+
+Environment:
+  PI_STARTUP_MODEL_SCOPE  no-invocation model scope used for startup resolution
+                          (default: openai-codex/gpt-5.6-sol)
 
 The probe starts a fresh offline RPC Pi process with only the repo-local Vault
 entrypoint. It verifies command registration, /vault-check schema/company
@@ -82,7 +88,7 @@ const piArgs = [
   "--no-themes",
   "--no-context-files",
   "--models",
-  "openai-codex/gpt-5.4",
+  modelScope,
   "--no-extensions",
   "-e",
   extension,

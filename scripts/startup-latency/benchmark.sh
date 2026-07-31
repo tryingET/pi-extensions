@@ -10,7 +10,7 @@ Emits: METRIC startup_elapsed_ms_median=<integer>
 
 Environment:
   PI_STARTUP_MODEL_SCOPE  model scope used only to suppress unrelated global
-                          enabledModels warnings (default: openai-codex/gpt-5.4)
+                          enabledModels warnings (default: openai-codex/gpt-5.6-sol)
 
 Profiles:
   current        current user-configured Pi resource set
@@ -43,7 +43,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 default_repo_root=$(cd "$script_dir/../.." && pwd -P)
 repo_root=$(cd "${PI_STARTUP_REPO_ROOT:-$default_repo_root}" && pwd -P)
 probe="$script_dir/shutdown-probe.ts"
-model_scope=${PI_STARTUP_MODEL_SCOPE:-openai-codex/gpt-5.4}
+model_scope=${PI_STARTUP_MODEL_SCOPE:-openai-codex/gpt-5.6-sol}
 [[ -n "$model_scope" ]] || { echo "PI_STARTUP_MODEL_SCOPE must not be empty" >&2; exit 2; }
 
 changed_paths() {
@@ -129,9 +129,9 @@ else
   median=$(((lower + upper) / 2))
 fi
 
-node - "$run_dir/summary.json" "$profile" "$mode" "$trials" "$median" "$run_dir/trials.tsv" <<'NODE'
+node - "$run_dir/summary.json" "$profile" "$mode" "$trials" "$median" "$model_scope" "$run_dir/trials.tsv" <<'NODE'
 const fs = require("node:fs");
-const [out, profile, mode, trials, median, tsv] = process.argv.slice(2);
+const [out, profile, mode, trials, median, modelScope, tsv] = process.argv.slice(2);
 const rows = fs.readFileSync(tsv, "utf8").trim().split("\n").slice(1).map((line) => {
   const [trial, elapsedMs] = line.split("\t").map(Number);
   return { trial, elapsedMs };
@@ -142,6 +142,7 @@ fs.writeFileSync(out, `${JSON.stringify({
   profile,
   mode,
   trials: Number(trials),
+  modelScope,
   metric: { name: "startup_elapsed_ms_median", direction: "lower", unit: "ms", value: Number(median) },
   samples: rows,
 }, null, 2)}\n`);
@@ -150,5 +151,6 @@ NODE
 printf 'PROFILE %s\n' "$profile"
 printf 'MODE %s\n' "$mode"
 printf 'TRIALS %s\n' "$trials"
+printf 'MODEL_SCOPE %s\n' "$model_scope"
 printf 'RUN_DIR %s\n' "$run_dir"
 printf 'METRIC startup_elapsed_ms_median=%s\n' "$median"

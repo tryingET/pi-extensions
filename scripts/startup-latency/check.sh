@@ -7,5 +7,6 @@ test -s "$script_dir/shutdown-probe.ts"
 node --check "$script_dir/dogfood-vault-rpc.mjs"
 node "$script_dir/dogfood-vault-rpc.mjs" --help >/dev/null
 output=$(bash "$script_dir/benchmark.sh" --profile no-extensions --mode json --trials 1)
+grep -Fxq 'MODEL_SCOPE openai-codex/gpt-5.6-sol' <<<"$output"
 grep -Eq '^METRIC startup_elapsed_ms_median=[0-9]+$' <<<"$output"
 printf 'startup latency harness check: pass\n'

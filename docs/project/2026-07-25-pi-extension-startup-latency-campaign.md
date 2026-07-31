@@ -109,7 +109,9 @@ The original full check reported 251 passing tests plus packaging/release checks
 
 ## 2026-07-31 dogfood closeout
 
-The resumed campaign used the checked-in harness and a fresh offline RPC process. `benchmark.sh` now pins `--models openai-codex/gpt-5.4`, a model declared by `~/.pi/agent/models.json`, so no-model startup probes do not inherit unrelated `enabledModels` warnings. The operator-directed config correction removed obsolete `openai-codex-2` and `openai-codex2` provider/selector entries while preserving canonical `openai-codex`.
+The resumed campaign used the checked-in harness and a fresh offline RPC process. The 2026-07-31 closeout measurements pinned `--models openai-codex/gpt-5.4`, which prevented no-model startup probes from inheriting unrelated `enabledModels` warnings. After closeout, the probe default was corrected to the operator's active `openai-codex/gpt-5.6-sol`; this does not retroactively change the recorded medians. The operator-directed config correction removed obsolete `openai-codex-2` and `openai-codex2` provider/selector entries while preserving canonical `openai-codex`.
+
+A five-trial post-closeout repeat with `openai-codex/gpt-5.6-sol` measured a configured-extension median of **2253 ms**, only 11 ms above the closeout median. This is a no-change drift datapoint, not candidate evidence or a startup improvement. The benchmark summary now records `modelScope` explicitly, and fresh Vault RPC dogfood also passed under the corrected scope with empty stderr and unchanged model/settings hashes.
 
 | Current condition | Trials | RPC median |
 |---|---:|---:|
