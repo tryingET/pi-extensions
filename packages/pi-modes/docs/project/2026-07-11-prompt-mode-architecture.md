@@ -1,88 +1,101 @@
 ---
-summary: "Architecture for prompt modes that replace Pi's static base prompt without confusing mode selection with autonomy."
+summary: "Architecture for composable, drift-aware prompt modes without execution authority."
 read_when:
-  - "Changing prompt composition, mode storage, activation, or cross-package boundaries."
+  - "Changing prompt composition, mode/preset storage, state replay, activation, or cross-package boundaries."
   - "Evaluating whether a mode may trigger autonomous behavior."
 system4d:
-  container: "Session-local prompt-mode extension."
-  compass: "Make complete base-prompt replacement first-class while preserving Pi's dynamic envelope by default."
-  engine: "Discover -> validate -> activate -> compose -> persist session selection."
-  fog: "A final-prompt override can be mistaken for a base-prompt override, and a mode name can be mistaken for execution authority."
+  container: "Session-local prompt composition extension."
+  compass: "Make base, overlay, exact-final, portability, and definition drift explicit."
+  engine: "Discover -> strict validate -> select/preset -> fingerprint -> compose -> observe -> reapprove."
+  fog: "Inherited prompt definitions and extension ordering can change model context without changing a selected key."
 ---
 
 # Prompt-mode architecture
 
 ## Decision
 
-`pi-modes` owns prompt-profile discovery, validation, selection, prompt composition, session-local persistence, and operator visibility.
+`pi-modes` owns prompt-profile and preset discovery, strict bounded validation, atomic selection, prompt composition, session-local replay, drift detection, and operator visibility.
 
-It supports three explicit strategies:
+| Strategy | Role | Result |
+|---|---|---|
+| `append` | ordered overlay | Retain the selected base and append one flat labelled section. |
+| `replace_base` | base | Replace the static base while preserving Pi append/context/skills/date/cwd. |
+| `replace_final` | exclusive base | Return configured bytes exactly at this handler; retain no host envelope or overlay. |
 
-| Strategy | Result |
-|---|---|
-| `append` | Keep Pi's assembled prompt and append mode instructions. |
-| `replace_base` | Replace Pi's static base, then preserve the documented dynamic envelope: append prompt, trusted context files, visible skills, date, and cwd. |
-| `replace_final` | Send exactly the configured mode prompt. No dynamic section is retained automatically. |
+A selection contains zero or one base plus zero or more ordered overlays. Native host is the default base. Later-loaded `before_agent_start` handlers can still modify any result, so provider-payload exactness is a full extension-chain property.
 
-`replace_base` is the primary strategy. It matches the intent of Pi's `--system-prompt` and `SYSTEM.md` surfaces. `replace_final` is an explicit expert escape hatch rather than an accidental side effect.
-
-Pi's native `<project>/.pi/SYSTEM.md` and `~/.pi/agent/SYSTEM.md` remain the default base-prompt authority. This package does not add a second project-default selector. Named `replace_base` modes are explicit alternatives; no active mode and `/mode off` both return control to the native host assembly unchanged.
-
-## Why this package exists
-
-Pi exposes complete base-prompt replacement at process start, while `before_agent_start` exposes the already assembled prompt. A session mode therefore needs to distinguish changing the base from replacing the final assembly. The extension reconstructs Pi's documented custom-base branch from `event.systemPromptOptions` until Pi exposes a supported host builder or a `systemPromptOptions` return patch.
+Pi's native project/global `SYSTEM.md` remains default base authority. No active component, `/mode off`, blocked drift, or failed replay-time contracts return native host assembly.
 
 ## Runtime flow
 
 ```text
-native <cwd>/.pi/SYSTEM.md or ~/.pi/agent/SYSTEM.md host base
-+ global built-ins
+native SYSTEM.md / host base
++ builtins
 + ~/.pi/agent/modes/*.json
-+ trusted ancestor .pi/modes/*.json from filesystem root to cwd
--> validate each mode file independently
--> deepest project overrides shallower project, global, then builtin by key
--> explicit PI_MODE launch selection, otherwise latest session selection
--> append changed selection to the active session branch
--> before_agent_start composes the selected strategy
--> no selection/off returns the native host base unchanged
--> footer shows an active named mode
++ trusted ancestor .pi/modes/*.json root -> cwd
+-> strict per-file validation and deepest-key precedence
+-> PI_MODES JSON, else PI_MODE, else active-branch v1/v2/v3 replay
+-> validate exact candidate and composition contracts
+-> capture semantic/provenance SHA-256 fingerprints
+-> append one pi-mode-state.v3 entry
+-> before_agent_start re-resolves trusted definitions and checks drift
+-> compose once or return native host with diagnostics
+-> status/preview expose effective components, hashes, estimates, and fallback
 ```
 
-Ancestor discovery mirrors Pi's `AGENTS.md` load order: filesystem root down to cwd, with the deepest matching key winning. Project mode files are ignored unless `ctx.isProjectTrusted()` is true. Invalid files produce diagnostics without preventing other modes from loading. `/mode-new --project` writes only at the active cwd. Writes use validated keys and atomic same-directory rename; edit/delete never accept a raw path.
+Global and trusted ancestor `mode-presets` use the same layering, trust, bounds, and symlink rules. Presets contain only base/overlay keys and order. Import/use never embeds prompt text or grants authority.
 
-A non-blank `PI_MODE` is an explicit process-start override and therefore takes precedence over the restored session selection. `off`, `default`, and `none` select the native host base. Invalid or unavailable values fail closed to that native base with a warning. When `PI_MODE` is absent or blank, session branch replay remains authoritative. Interactive `/mode` commands may change the resolved startup selection for later turns.
+## Definition contract
 
-## Mode contract
+Schema v2 requires explicit `promptStrategy`, canonical key, bounded display/prompt text, and known fields only. Legacy v1 remains readable; its omitted strategy retains the historical `replace_base` default.
+
+Append overlays may declare:
+
+- `requires`: named components must be explicitly selected;
+- `conflictsWith`: named selected components invalidate the candidate;
+- `before` / `after`: ordering assertions when both overlays are selected.
+
+Contracts validate exact operator candidates. They never auto-add, auto-remove, auto-reorder, execute, or mutate. Direct incremental commands can therefore fail where one atomic `set` or preset succeeds.
+
+## State and drift
+
+New writes use `pi-mode-state.v3`:
 
 ```json
 {
-  "schemaVersion": 1,
-  "key": "focused-builder",
-  "label": "Focused Builder",
-  "description": "Complete coding-agent identity for focused implementation.",
-  "promptStrategy": "replace_base",
-  "systemPrompt": "You are ..."
+  "baseKey": "focused-builder",
+  "overlayKeys": ["review"],
+  "fingerprints": {
+    "focused-builder": { "digest": "<sha256>", "scope": "global", "path": "<path>" },
+    "review": { "digest": "<sha256>", "scope": "builtin", "path": null }
+  },
+  "driftPolicy": "block",
+  "activatedAt": "<ISO-8601>",
+  "source": "selector"
 }
 ```
 
-A missing `promptStrategy` defaults to `replace_base`, making simple custom modes behave like Pi's custom system-prompt feature.
+Fingerprints cover normalized semantic content, strategy, contracts, resolved scope, and source path. JSON whitespace and mtime do not matter. `block` is default and returns native host until explicit reactivation or `/mode-reapprove`. `warn` and `allow` are explicit operator choices and never bypass slot or contract rules; a drifted `replace_final` base remains blocked under every policy until confirmed reactivation.
 
-## Trust and authority boundary
+Replay scans the active branch chronologically. The newest well-formed recognized v1, v2, or v3 entry wins. Malformed recognized entries are ignored. Valid legacy state migrates once to v3; invalid legacy state freezes to native host. Historical entries are not rewritten.
 
-Mode activation changes prompt policy only. It does not:
+## Operator and automation surfaces
 
-- call `pi.sendUserMessage`;
-- continue after `agent_settled`;
-- dispatch subagents or peers;
-- start visible loops or autoresearch campaigns;
-- mutate AK, Prompt Vault, KES, ROCS, or evidence;
-- grant mutation, promotion, or publication authority.
+- `/mode` is a searchable atomic selector with details and live composition summary.
+- Direct `+`, `-`, and `set` forms are semantic and completion-aware.
+- Interactive `replace_final` activation/reapproval confirms; headless commands require `--confirm-exact`, and startup exact-final requires `PI_MODE_CONFIRM_EXACT=1`.
+- Confirmation is bound to the semantic/provenance snapshot that is persisted; a definition change during the confirmation gap rejects the action.
+- `/mode-status --json` and `/mode-preview --json` provide deterministic machine output.
+- New/edit authoring saves without implicit activation; edits to active definitions become visible drift.
+- Deleting an inactive definition never rewrites active state; active deletion persists only the confirmed valid remainder.
+- Named compositions support save/use/export/import with global/project trust boundaries.
+- `PI_MODES` is strict JSON and precedes legacy single-key `PI_MODE`.
 
-Future autonomy work must consume a separate explicit handoff request through its owning runtime. A mode name such as `research` or `autonomous` is never authorization.
+## Host compatibility
 
-## Future host improvement
+`replace_base` reconstructs Pi's documented custom-base branch from `BuildSystemPromptOptions` until Pi exposes a supported builder or return patch. The package constrains peers to `>=0.80.6 <0.81.0`, compares complete output against the pinned host builder, and runs credential-free installed-artifact smoke. Publication creates, hashes, checks, uploads, and publishes one retained tarball. Expanding the host range requires the parity and artifact proofs.
 
-Prefer an upstream Pi API equivalent to one of:
+Prefer an upstream seam such as:
 
 ```ts
 ctx.buildSystemPrompt({ ...event.systemPromptOptions, customPrompt })
@@ -94,8 +107,14 @@ or:
 return { systemPromptOptions: { customPrompt } };
 ```
 
-Once supported and compatibility-tested, replace the package-local parity builder with the host builder to eliminate composition drift.
+## Trust and authority boundary
+
+Mode activation does not send messages, continue, dispatch agents/peers, start campaigns, invoke tools, mutate AK/Prompt Vault/KES/ROCS/evidence, or grant mutation/publication/promotion authority. A mode, preset, prompt, contract, fingerprint, or environment variable is never an authorization token.
+
+## Rollback
+
+`/mode off`, package disable/removal, or native host are rollback. A pre-v3 downgrade may reveal an older v2 entry; explicitly use that version's `/mode off` or disable the package.
 
 ## Attribution
 
-The product concept and command vocabulary were informed by Maxime Rivest's MIT-licensed [`pi-modes`](https://github.com/MaximeRivest/pi-modes). This implementation is independently structured around explicit prompt-composition strategies, project trust, safe persistence, and package-local tests.
+The product concept and command vocabulary were informed by Maxime Rivest's MIT-licensed [`pi-modes`](https://github.com/MaximeRivest/pi-modes). This implementation is independently structured around explicit composition, trust, safe persistence, drift, presets, observability, and tests.

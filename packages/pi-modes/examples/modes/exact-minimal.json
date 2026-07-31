@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "key": "exact-minimal",
   "label": "Exact Minimal",
   "description": "Demonstrate exact final-prompt replacement for controlled experiments.",

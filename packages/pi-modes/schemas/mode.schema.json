@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tryingET/pi-extensions/packages/pi-modes/schemas/mode.schema.json",
+  "title": "pi-modes definition v2",
+  "$comment": "Runtime validation remains authoritative for UTF-8 byte limits and cross-field self-reference/overlap rules that JSON Schema cannot fully express.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "key", "label", "promptStrategy", "systemPrompt"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "key": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^(?=.*\\S)[^\\r\\n\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "promptStrategy": { "enum": ["append", "replace_base", "replace_final"] },
+    "systemPrompt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 131072,
+      "pattern": "\\S",
+      "$comment": "The runtime additionally enforces a 131072-byte UTF-8 limit."
+    },
+    "requires": { "$ref": "#/$defs/keyList" },
+    "conflictsWith": { "$ref": "#/$defs/keyList" },
+    "before": { "$ref": "#/$defs/keyList" },
+    "after": { "$ref": "#/$defs/keyList" }
+  },
+  "$defs": {
+    "keyList": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "promptStrategy": { "not": { "const": "append" } } } },
+      "then": {
+        "properties": {
+          "before": { "maxItems": 0 },
+          "after": { "maxItems": 0 }
+        }
+      }
+    }
+  ]
+}

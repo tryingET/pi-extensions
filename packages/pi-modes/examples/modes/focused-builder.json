@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "key": "focused-builder",
   "label": "Focused Builder",
   "description": "Replace the static base while retaining Pi's dynamic project envelope.",

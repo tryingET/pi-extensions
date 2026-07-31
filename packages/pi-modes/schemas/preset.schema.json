@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tryingET/pi-extensions/packages/pi-modes/schemas/preset.schema.json",
+  "title": "pi-modes named composition preset v1",
+  "$comment": "Runtime validation remains authoritative for the cross-field rule that baseKey cannot also appear in overlayKeys.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "key", "label", "selection"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "key": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^(?=.*\\S)[^\\r\\n\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^(?=.*\\S)[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseKey", "overlayKeys"],
+      "properties": {
+        "baseKey": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" }]
+        },
+        "overlayKeys": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" }
+        }
+      }
+    }
+  }
+}

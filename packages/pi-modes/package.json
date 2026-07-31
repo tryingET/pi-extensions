@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-modes",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Prompt mode switching for Pi with explicit append, replace-base, and replace-final semantics",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
@@ -40,8 +40,10 @@
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "mode:lint": "node ./scripts/mode-lint.mjs",
     "release:check": "bash ./scripts/release-check.sh",
-    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
+    "release:check:ci": "RELEASE_CHECK_REQUIRE_REGISTRY=1 bash ./scripts/release-check.sh"
   },
   "files": [
     "extensions/mode.ts",
@@ -49,10 +51,13 @@
     "tests",
     "docs/project/2026-07-11-prompt-mode-architecture.md",
     "docs/project/2026-07-11-implementation-plan.md",
+    "docs/project/2026-07-13-base-plus-append-overlay-composition.md",
     "prompts",
     "examples",
     "policy/security-policy.json",
-    "policy/engineering-lane.json"
+    "policy/engineering-lane.json",
+    "schemas",
+    "scripts/mode-lint.mjs"
   ],
   "pi": {
     "extensions": [
@@ -81,8 +86,8 @@
     "fast-xml-parser": "5.3.6"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*"
+    "@earendil-works/pi-ai": ">=0.80.6 <0.81.0",
+    "@earendil-works/pi-coding-agent": ">=0.80.6 <0.81.0",
+    "@earendil-works/pi-tui": ">=0.80.6 <0.81.0"
   }
 }

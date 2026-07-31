@@ -4,6 +4,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if [[ "$#" -gt 1 ]]; then
+  echo "Usage: $0 [retained-release-tarball]" >&2
+  exit 2
+fi
+PROVIDED_TARBALL_PATH=""
+if [[ -n "${1:-}" ]]; then
+  if [[ ! -f "$1" ]]; then
+    echo "Retained release tarball does not exist: $1" >&2
+    exit 1
+  fi
+  PROVIDED_TARBALL_PATH="$(realpath "$1")"
+fi
+
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 REPOSITORY_URL="$(node -p "(() => { const pkg = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); const repo = pkg.repository; if (typeof repo === 'string') return repo.trim(); if (repo && typeof repo === 'object' && typeof repo.url === 'string') return repo.url.trim(); return ''; })()")"
@@ -18,6 +31,65 @@ fi
 if [[ "$NAME" != "${NAME,,}" ]]; then
   echo "Invalid npm package name: must be lowercase: $NAME" >&2
   exit 1
+fi
+
+REGISTRY_VERSION=""
+echo "== npm registry version guard"
+set +e
+REGISTRY_VIEW_OUTPUT="$(npm view "$NAME" version --json --registry https://registry.npmjs.org/ 2>&1)"
+REGISTRY_VIEW_EXIT=$?
+set -e
+if [[ "$REGISTRY_VIEW_EXIT" -eq 0 ]]; then
+  REGISTRY_VERSION="$(REGISTRY_VIEW_OUTPUT="$REGISTRY_VIEW_OUTPUT" node -e 'const raw = JSON.parse(process.env.REGISTRY_VIEW_OUTPUT || "null"); const value = Array.isArray(raw) ? raw.at(-1) : raw; if (typeof value === "string") process.stdout.write(value);')"
+  echo "registry: ${REGISTRY_VERSION:-unknown}"
+  LOCAL_VERSION="$VERSION" REGISTRY_VERSION="$REGISTRY_VERSION" node <<'NODE'
+const local = process.env.LOCAL_VERSION;
+const registry = process.env.REGISTRY_VERSION;
+
+function parse(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(version ?? "");
+  if (!match) throw new Error(`release-check requires valid SemVer; received ${JSON.stringify(version)}`);
+  return { core: match.slice(1, 4).map(Number), prerelease: match[4]?.split(".") ?? [] };
+}
+
+function compare(leftVersion, rightVersion) {
+  const left = parse(leftVersion);
+  const right = parse(rightVersion);
+  for (let index = 0; index < 3; index += 1) {
+    if (left.core[index] !== right.core[index]) return left.core[index] - right.core[index];
+  }
+  if (left.prerelease.length === 0 || right.prerelease.length === 0) {
+    return left.prerelease.length === right.prerelease.length ? 0 : left.prerelease.length === 0 ? 1 : -1;
+  }
+  const length = Math.max(left.prerelease.length, right.prerelease.length);
+  for (let index = 0; index < length; index += 1) {
+    if (left.prerelease[index] === undefined) return -1;
+    if (right.prerelease[index] === undefined) return 1;
+    const leftPart = left.prerelease[index];
+    const rightPart = right.prerelease[index];
+    if (leftPart === rightPart) continue;
+    const leftNumeric = /^\d+$/.test(leftPart);
+    const rightNumeric = /^\d+$/.test(rightPart);
+    if (leftNumeric && rightNumeric) return Number(leftPart) - Number(rightPart);
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftPart.localeCompare(rightPart);
+  }
+  return 0;
+}
+
+if (registry && compare(local, registry) < 0) {
+  console.error(`Local package version ${local} is behind registry version ${registry}. Reconcile release history before continuing.`);
+  process.exit(1);
+}
+NODE
+else
+  if [[ "${RELEASE_CHECK_REQUIRE_REGISTRY:-0}" == "1" ]]; then
+    echo "npm registry version unavailable (exit ${REGISTRY_VIEW_EXIT}) in strict release mode." >&2
+    printf '%s\n' "$REGISTRY_VIEW_OUTPUT" >&2
+    exit "$REGISTRY_VIEW_EXIT"
+  fi
+  echo "npm registry version unavailable (exit ${REGISTRY_VIEW_EXIT}); continuing only because strict registry verification is disabled."
+  printf '%s\n' "$REGISTRY_VIEW_OUTPUT"
 fi
 
 echo "== npm pack --dry-run --json"
@@ -124,37 +196,49 @@ console.log(`File whitelist OK (${actual.length} files).`);
 NODE
 
 echo "== npm publish --dry-run"
+PUBLISH_TARGET=()
+if [[ -n "$PROVIDED_TARBALL_PATH" ]]; then
+  PUBLISH_TARGET=("$PROVIDED_TARBALL_PATH")
+fi
 set +e
-PUBLISH_DRY_RUN_OUTPUT="$(npm publish --dry-run 2>&1)"
+PUBLISH_DRY_RUN_OUTPUT="$(npm publish "${PUBLISH_TARGET[@]}" --dry-run 2>&1)"
 PUBLISH_DRY_RUN_EXIT=$?
 set -e
 echo "$PUBLISH_DRY_RUN_OUTPUT"
 if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
-  if grep -qiE "You cannot publish over the previously published versions|previously published version .* is higher than the new version" <<<"$PUBLISH_DRY_RUN_OUTPUT"; then
-    echo "npm publish --dry-run hit registry version guard (${VERSION}); continuing."
+  if [[ -n "$REGISTRY_VERSION" && "$REGISTRY_VERSION" == "$VERSION" ]] &&
+    grep -qiE "You cannot publish over the previously published versions|previously published version .* is higher than the new version" <<<"$PUBLISH_DRY_RUN_OUTPUT"; then
+    echo "npm publish --dry-run hit the already-published same-version guard (${VERSION}); continuing artifact validation."
   else
-    echo "npm publish --dry-run failed." >&2
+    echo "npm publish --dry-run failed; registry version is ${REGISTRY_VERSION:-unknown}, local version is ${VERSION}." >&2
     exit "$PUBLISH_DRY_RUN_EXIT"
   fi
 fi
 
 TEST_AGENT_DIR=""
 TARBALL_PATH=""
+TARBALL_OWNED=0
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
       rm -rf "$TEST_AGENT_DIR"
     fi
-    if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
+    if [[ "$TARBALL_OWNED" == "1" && -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
     fi
   fi
 }
 trap cleanup EXIT
 
-echo "== npm pack"
-TARBALL="$(npm pack --silent | tail -n 1)"
-TARBALL_PATH="$ROOT_DIR/$TARBALL"
+if [[ -n "$PROVIDED_TARBALL_PATH" ]]; then
+  TARBALL_PATH="$PROVIDED_TARBALL_PATH"
+  echo "== retained npm pack"
+else
+  echo "== npm pack"
+  TARBALL="$(npm pack --silent | tail -n 1)"
+  TARBALL_PATH="$ROOT_DIR/$TARBALL"
+  TARBALL_OWNED=1
+fi
 echo "Tarball: $TARBALL_PATH"
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
@@ -164,26 +248,15 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
+  RELEASE_TMP_ROOT="${TMPDIR:-/tmp}"
+  mkdir -p "$RELEASE_TMP_ROOT"
+  TEST_AGENT_DIR="$(mktemp -d "${RELEASE_TMP_ROOT%/}/pi-extension-release-check-XXXXXX")"
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
-
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Allow override via environment variables for different provider configurations
-  PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
-  PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
-  PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
-
-  cat > "$TEST_AGENT_DIR/settings.json" <<JSON
+  # The package smoke imports the installed extension through the pinned local host
+  # packages and performs no provider or model call. Keep publication checks
+  # credential-free so CI never copies operator authentication material.
+  cat > "$TEST_AGENT_DIR/settings.json" <<'JSON'
 {
-  "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
-  "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
-  "enabledModels": ${PI_TEST_ENABLED_MODELS},
   "extensions": []
 }
 JSON
@@ -218,14 +291,7 @@ NODE
   fi
 fi
 
-echo "== npm view ${NAME} version (pre-publish may be 404)"
-set +e
-npm view "$NAME" version --json --registry https://registry.npmjs.org/
-VIEW_EXIT=$?
-set -e
-echo "npm view exit: $VIEW_EXIT"
-if [[ "$VIEW_EXIT" -ne 0 ]]; then
-  echo "Package likely not published yet (expected for first release)."
-fi
+echo "== npm view ${NAME} version"
+printf '%s\n' "${REGISTRY_VERSION:-unavailable}"
 
 echo "release-check done"
