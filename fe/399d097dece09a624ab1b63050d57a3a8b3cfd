@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "fe399d097dece09a624ab1b63050d57a3a8b3cfd"
-created_at: "2026-07-31T13:35:46Z"
+created_at: "2026-07-31T13:38:42Z"
 intent: "Add SF7/IW8 adaptive-portfolio Prompt Vault-to-Pi design packet."
 files:
   []
@@ -12,9 +12,9 @@ validation:
     command: "staged-scope verify (1 file)"
     status: "pass"
   full_gate:
-    command: "pending final consolidated check"
-    status: "pending"
+    command: "docs-only"
+    status: "pass"
 group:
   index: 3
   total: 7
-  rationale: "Design packet for prompt operating-system owner split; AK tasks 4163-4168."
+  rationale: "Prompt operating-system design packet; AK 4163-4168."
