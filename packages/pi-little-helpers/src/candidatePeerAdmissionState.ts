@@ -63,6 +63,38 @@ export type CandidateAdmissionConfig = {
   activatedAt?: string;
 };
 
+export type CandidateLegacyTerminalVerificationProof = {
+  schemaVersion: 1;
+  type: "legacy_july13_terminal_anomaly_verification";
+  verificationSemantics: "legacy_july13_exact";
+  hardenedV2Verified: false;
+  resourceId: string;
+  generationId: string;
+  recordDigest: string;
+  eventsSha256: string;
+  archiveDigest: string;
+  legacyReceiptDigest: string;
+  cleanupAuthorizationDigest: string;
+  transactionAt: string;
+  proofDigest: string;
+};
+
+export type CandidateAdmissionLegacyReconciliationProof = {
+  schemaVersion: 1;
+  type: "legacy_terminal_anomaly_reconciliation";
+  verificationSemantics: "legacy_july13_exact";
+  hardenedV2Verified: false;
+  expectedPermitDigest: string;
+  ownerInputDigest: string;
+  ownerRationale: string;
+  ownerReference: string;
+  lifecycleVerificationProof: CandidateLegacyTerminalVerificationProof;
+  pressureBefore: CandidateAdmissionPressure;
+  pressureAfter: CandidateAdmissionPressure;
+  reconciledAt: string;
+  reconciliationDigest: string;
+};
+
 export type CandidateAdmissionPermit = {
   schemaVersion: 2;
   admissionId: string;
@@ -86,9 +118,14 @@ export type CandidateAdmissionPermit = {
   worktreePath?: string;
   branchName?: string;
   releasedAt?: string;
-  releaseOutcome?: "preparation_failed" | "terminal_cleaned" | "terminal_reconciled";
+  releaseOutcome?:
+    | "preparation_failed"
+    | "terminal_cleaned"
+    | "terminal_reconciled"
+    | "legacy_terminal_anomaly_reconciled";
   terminalReceiptRef?: string;
   terminalReceiptDigest?: string;
+  legacyTerminalReconciliation?: CandidateAdmissionLegacyReconciliationProof;
 };
 
 export type CandidateAdmissionPressure = {

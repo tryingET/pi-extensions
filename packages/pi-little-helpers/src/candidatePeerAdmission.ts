@@ -29,6 +29,13 @@ import {
   withCandidateAdmissionLock,
   writeAdmissionJson,
 } from "./candidatePeerAdmissionState.ts";
+import {
+  type CandidateAdmissionLegacyTerminalReconciliationInput,
+  prepareCandidateAdmissionReconcileRelease,
+  readCandidateAdmissionReconcileInput,
+  reconcileCandidateAdmissionLegacyTerminalReleaseLocked,
+  verifyCandidateAdmissionReconcileInputSemantic,
+} from "./candidatePeerLegacyTerminalReconciliation.ts";
 import { verifyCleanedCandidateTerminalRecord } from "./candidatePeerLifecycleArchive.ts";
 import {
   type CandidateInventoryResource,
@@ -42,10 +49,14 @@ import {
 } from "./candidatePeerLifecycleV2.ts";
 import { getCandidatePeerRegistryDir } from "./candidatePeerRegistry.ts";
 
+export type { CandidateAdmissionLegacyTerminalReconciliationInput };
+export { prepareCandidateAdmissionReconcileRelease, readCandidateAdmissionReconcileInput };
+
 export {
   CANDIDATE_ADMISSION_SCHEMA_VERSION,
   type CandidateAdmissionConfig,
   type CandidateAdmissionDecisionArtifact,
+  type CandidateAdmissionLegacyReconciliationProof,
   type CandidateAdmissionLimits,
   type CandidateAdmissionPermit,
   type CandidateAdmissionPressure,
@@ -204,6 +215,27 @@ export function captureCandidateAdmissionPressure(
     activeAdmissionIds,
     stateDigest: digestObject({ inventoryDigest, activeAdmissionIds }),
   };
+}
+
+export function verifyCandidateAdmissionReconcileInput(
+  inputPath: string,
+  env: NodeJS.ProcessEnv = process.env,
+  transactionAt = new Date().toISOString(),
+): CandidateAdmissionLegacyTerminalReconciliationInput {
+  return verifyCandidateAdmissionReconcileInputSemantic(inputPath, env, transactionAt);
+}
+
+export function reconcileCandidateAdmissionLegacyTerminalRelease(
+  inputPath: string,
+  env: NodeJS.ProcessEnv = process.env,
+  transactionAt = new Date().toISOString(),
+): CandidateAdmissionPermit {
+  return reconcileCandidateAdmissionLegacyTerminalReleaseLocked(
+    inputPath,
+    env,
+    transactionAt,
+    captureCandidateAdmissionPressure,
+  );
 }
 
 function thresholdBlockers(

@@ -66,6 +66,7 @@
     "src/candidatePeerLifecycleArchive.ts",
     "src/candidatePeerAdmission.ts",
     "src/candidatePeerAdmissionState.ts",
+    "src/candidatePeerLegacyTerminalReconciliation.ts",
     "src/capabilityManifest.ts",
     "src/governedDeepReviewPreflight.ts",
     "src/selfEvolutionEnvelope.ts",
