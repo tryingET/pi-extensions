@@ -1,12 +1,16 @@
 // summary: persists and validates visible-loop configs, controller state, completion history, and diagnostic status records.
 // read_when:
 //   - changing visible-loop state paths, serialized config validation, controller persistence, or completion recovery.
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseSelfEvolutionExecutionEnvelope } from "./selfEvolutionEnvelope.ts";
 import { normalizeOptionalString, parseReportBack } from "./visibleLoopArgs.ts";
 import { assertControllerConfig, assertControllerState } from "./visibleLoopController.ts";
+import {
+  parseVisibleLoopTerminalDispositionRecord,
+  type VisibleLoopTerminalDispositionRecord,
+} from "./visibleLoopDisposition.ts";
 import { normalizeVisibleLoopCommandName } from "./visibleLoopProfiles.ts";
 import type {
   VisibleLoopCommitDelegation,
@@ -54,6 +58,94 @@ export function getVisibleLoopControllerStatePath(
     typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId,
   );
   return join(getVisibleLoopStateDir(env), `${runId}.controller.json`);
+}
+
+export function getVisibleLoopTerminalDispositionPath(
+  configOrRunId: Pick<VisibleLoopRunConfig, "runId"> | string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const runId = requireSafeRunId(
+    typeof configOrRunId === "string" ? configOrRunId : configOrRunId.runId,
+  );
+  return join(getVisibleLoopStateDir(env), `${runId}.terminal.json`);
+}
+
+export interface VisibleLoopTransitionLock {
+  path: string;
+  release(): void;
+}
+
+export function acquireVisibleLoopTransitionLock(
+  config: VisibleLoopRunConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): { ok: true; lock: VisibleLoopTransitionLock } | { ok: false; error: string } {
+  const dir = getVisibleLoopStateDir(env);
+  const path = join(dir, `${requireSafeRunId(config.runId)}.transition.lock`);
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      path,
+      `${JSON.stringify({ schemaVersion: 1, runId: config.runId, pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+      { encoding: "utf8", flag: "wx", mode: 0o600 },
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      error: `visible-loop transition lock unavailable: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  let released = false;
+  return {
+    ok: true,
+    lock: {
+      path,
+      release() {
+        if (released) return;
+        released = true;
+        try {
+          rmSync(path, { force: true });
+        } catch {
+          // A retained lock fails later transitions closed rather than risking concurrent effects.
+        }
+      },
+    },
+  };
+}
+
+export function writeVisibleLoopTerminalDisposition(
+  config: VisibleLoopRunConfig,
+  record: VisibleLoopTerminalDispositionRecord,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (record.runId !== config.runId) {
+    throw new TypeError("terminal disposition runId does not match config");
+  }
+  const parsed = parseVisibleLoopTerminalDispositionRecord(record);
+  if (!parsed.ok) throw new TypeError(parsed.error);
+  const path = getVisibleLoopTerminalDispositionPath(config, env);
+  mkdirSync(getVisibleLoopStateDir(env), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(parsed.record, null, 2)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+    mode: 0o600,
+  });
+  return path;
+}
+
+export function loadVisibleLoopTerminalDisposition(
+  config: VisibleLoopRunConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): { ok: true; record?: VisibleLoopTerminalDispositionRecord } | { ok: false; error: string } {
+  const path = getVisibleLoopTerminalDispositionPath(config, env);
+  if (!existsSync(path)) return { ok: true };
+  try {
+    const parsed = parseVisibleLoopTerminalDispositionRecord(
+      JSON.parse(readFileSync(path, "utf8")) as unknown,
+    );
+    return parsed.ok ? { ok: true, record: parsed.record } : parsed;
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export function writeVisibleLoopControllerState(

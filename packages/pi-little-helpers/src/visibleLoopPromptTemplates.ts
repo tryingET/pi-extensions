@@ -13,6 +13,7 @@ import type { VisibleLoopExecutionBinding } from "./visibleLoopTypes.ts";
 export function bindVisibleLoopExecutionPrompt(
   prompt: string,
   binding: VisibleLoopExecutionBinding,
+  terminalContext?: { configPath: string; iteration: number },
 ): string {
   const bindingText =
     binding.mode === "ak_task"
@@ -20,11 +21,24 @@ export function bindVisibleLoopExecutionPrompt(
       : binding.mode === "self_evolution_candidate"
         ? `self-evolution candidate ${binding.candidateId}`
         : `operator objective ${JSON.stringify(binding.objective)}`;
+  const terminalLines = terminalContext
+    ? [
+        "If that fail-closed condition applies, do not merely describe the defer/block and settle. Call `visible_loop_child_defer` exactly once before ending this turn so the controller cancels the remaining queue without claiming completion:",
+        `- configPath: ${JSON.stringify(terminalContext.configPath)}`,
+        `- iteration: ${terminalContext.iteration}`,
+        "- disposition: `deferred` when a named owner/trigger may make the same work lawful later; otherwise `blocked`",
+        "- reason: one bounded, non-secret, single-line explanation",
+        "- items: one or more bounded owner/task/decision/trigger references with state and exact nextAction",
+        "This terminal disposition is local loop-control evidence only. It does not resolve AK deferrals, approve owner decisions, or authorize reuse of this config; later work requires a fresh bound loop after the owning trigger changes.",
+        "If the terminal tool is unavailable or rejects the request, report that blocker and stop; do not execute later queued prompts or call the completion tool.",
+      ]
+    : [];
   return [
     "EXECUTION BINDING — FAIL CLOSED",
     `This loop is bound to ${bindingText}.`,
     "Verify that binding against the owning repo/runtime before mutation. The binding fixes the slice; it does not grant missing owner authority, expand task scope, or make session text canonical.",
     "If the binding is missing, stale, completed, ambiguous, outside the repo, or blocked on an owner/decision gate, stop before implementation. Do not select an adjacent slice, execute later queued review/fixup/posture/commit prompts, or signal loop completion.",
+    ...terminalLines,
     "Every queued turn remains inside this same binding. Deep review and Nexus may harden the bound implementation only; they must not choose product direction or create a replacement task.",
     "Do not place secrets in loop objectives or reports; the binding is persisted in local loop state.",
     "",

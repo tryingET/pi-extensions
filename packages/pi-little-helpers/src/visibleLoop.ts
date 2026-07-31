@@ -22,6 +22,12 @@ import {
 } from "./visibleLoopController.ts";
 import { recordVisibleLoopControllerEvent as applyVisibleLoopControllerEvent } from "./visibleLoopControllerRuntime.ts";
 import {
+  parseVisibleLoopTerminalDispositionRequest,
+  type VisibleLoopDeferredItem,
+  type VisibleLoopTerminalDisposition,
+  type VisibleLoopTerminalDispositionRecord,
+} from "./visibleLoopDisposition.ts";
+import {
   getVisibleLoopCommandName,
   getVisibleLoopHumanLabel,
   getVisibleLoopIntercomEventPrefix,
@@ -40,17 +46,22 @@ import {
   type VisibleLoopPromptExpansion,
 } from "./visibleLoopPromptTemplates.ts";
 import {
+  acquireVisibleLoopTransitionLock,
   appendVisibleLoopStatus,
   getVisibleLoopStateDir,
   getVisibleLoopStatusPath,
+  getVisibleLoopTerminalDispositionPath,
   hasVisibleLoopAlreadyCompleted,
   loadVisibleLoopControllerState,
   loadVisibleLoopRunConfig,
+  loadVisibleLoopTerminalDisposition,
   readCompletedVisibleLoopIterations,
   writeVisibleLoopControllerState,
+  writeVisibleLoopTerminalDisposition,
 } from "./visibleLoopState.ts";
 import {
   VISIBLE_LOOP_CHILD_COMMAND,
+  VISIBLE_LOOP_CHILD_DEFER_TOOL,
   type VisibleLoopAdaptiveControllerConfig,
   type VisibleLoopCommitDelegation,
   type VisibleLoopContinuationDecision,
@@ -74,6 +85,12 @@ export {
 export { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
 export { parseVisibleLoopCommandArgs } from "./visibleLoopArgs.ts";
 export { resolveVisibleLoopAdaptiveControllerConfig } from "./visibleLoopController.ts";
+export type {
+  VisibleLoopDeferredItem,
+  VisibleLoopTerminalDisposition,
+  VisibleLoopTerminalDispositionRecord,
+  VisibleLoopTerminalDispositionRequest,
+} from "./visibleLoopDisposition.ts";
 export {
   DEFAULT_NEXUS_LOOP_PROFILE,
   DEFAULT_VISIBLE_LOOP_PROFILE,
@@ -95,12 +112,14 @@ export {
 export {
   getVisibleLoopStateDir,
   getVisibleLoopStatusPath,
+  getVisibleLoopTerminalDispositionPath,
   writeVisibleLoopRunConfig,
 } from "./visibleLoopState.ts";
 export {
   NEXUS_LOOP_COMMAND,
   VISIBLE_LOOP_CHILD_COMMAND,
   VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
+  VISIBLE_LOOP_CHILD_DEFER_TOOL,
   VISIBLE_LOOP_COMMAND,
   type VisibleLoopCommandParseResult,
   type VisibleLoopCommitDelegation,
@@ -290,6 +309,21 @@ export async function startVisibleLoopChildRunner(
   });
   if (!candidateBinding.ok) {
     ctx.ui?.notify?.(`visible-loop child failed: ${candidateBinding.error}`, "error");
+    return;
+  }
+  const terminal = loadVisibleLoopTerminalDisposition(config, env);
+  if (!terminal.ok) {
+    ctx.ui?.notify?.(
+      `visible-loop child failed: invalid terminal disposition: ${terminal.error}`,
+      "error",
+    );
+    return;
+  }
+  if (terminal.record) {
+    ctx.ui?.notify?.(
+      `visible-loop child ignored: run is already ${terminal.record.disposition}; launch a fresh bound loop after the owning trigger changes`,
+      "warning",
+    );
     return;
   }
   const sendUserMessage = getSendUserMessage(pi);
@@ -600,6 +634,7 @@ export function handleVisibleLoopAgentSettled(
 ): void {
   const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
   if (!state || state.stopped) return;
+  if (stopVisibleLoopIfTerminalDisposition(state, ctx, env)) return;
   if (!state.currentPromptAgentStarted) {
     appendVisibleLoopStatus(
       state.config,
@@ -689,42 +724,63 @@ export function handleVisibleLoopAgentSettled(
     return;
   }
 
-  state.completionPromptQueued = true;
-  state.currentPromptObserved = false;
-  state.currentPromptAgentStarted = false;
-  const completionPrompt = bindVisibleLoopExecutionPrompt(
-    renderVisibleLoopCompletionPrompt({
-      configPath: state.configPath,
-      iteration,
-      promptCount: prompts.length,
-      productPosturePath: state.config.productPostureTarget?.productPosturePath,
-      productPostureExists: state.config.productPostureTarget?.productPostureExists,
-      visionPath: state.config.productPostureTarget?.visionPath,
-      visionExists: state.config.productPostureTarget?.visionExists,
-      adaptiveController: Boolean(state.config.adaptiveController),
-      selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
-    }),
-    state.config.executionBinding,
-  );
-  state.pendingDeliveryPrompt = completionPrompt;
-  appendVisibleLoopStatus(
-    state.config,
-    {
-      event: "completion_prompt_queued",
-      iteration,
-      promptIndex: prompts.length + 1,
-      promptCount: prompts.length,
-      deliveryMode: "sequential_after_agent_settled",
-    },
-    env,
-  );
-  state.sendUserMessage(completionPrompt);
-  recordVisibleLoopControllerEvent(
-    state,
-    { kind: "completion_checkpoint_delivered", iteration },
-    env,
-  );
-  persistActiveVisibleLoopState(state, ctx, env);
+  queueVisibleLoopCompletionPrompt(state, ctx, prompts, iteration, env);
+}
+
+function queueVisibleLoopCompletionPrompt(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  prompts: string[],
+  iteration: number,
+  env: NodeJS.ProcessEnv,
+): void {
+  const transition = acquireVisibleLoopTransitionLock(state.config, env);
+  if (!transition.ok) {
+    stopVisibleLoopForTerminalOrTransition(state, ctx, transition.error, env);
+    return;
+  }
+  try {
+    if (stopVisibleLoopIfTerminalDisposition(state, ctx, env)) return;
+    state.completionPromptQueued = true;
+    state.currentPromptObserved = false;
+    state.currentPromptAgentStarted = false;
+    const completionPrompt = bindVisibleLoopExecutionPrompt(
+      renderVisibleLoopCompletionPrompt({
+        configPath: state.configPath,
+        iteration,
+        promptCount: prompts.length,
+        productPosturePath: state.config.productPostureTarget?.productPosturePath,
+        productPostureExists: state.config.productPostureTarget?.productPostureExists,
+        visionPath: state.config.productPostureTarget?.visionPath,
+        visionExists: state.config.productPostureTarget?.visionExists,
+        adaptiveController: Boolean(state.config.adaptiveController),
+        selfEvolutionEnvelope: state.config.selfEvolutionEnvelope,
+      }),
+      state.config.executionBinding,
+      { configPath: state.configPath, iteration },
+    );
+    state.pendingDeliveryPrompt = completionPrompt;
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "completion_prompt_queued",
+        iteration,
+        promptIndex: prompts.length + 1,
+        promptCount: prompts.length,
+        deliveryMode: "sequential_after_agent_settled",
+      },
+      env,
+    );
+    state.sendUserMessage(completionPrompt);
+    recordVisibleLoopControllerEvent(
+      state,
+      { kind: "completion_checkpoint_delivered", iteration },
+      env,
+    );
+    persistActiveVisibleLoopState(state, ctx, env);
+  } finally {
+    transition.lock.release();
+  }
 }
 
 interface ActiveVisibleLoopState {
@@ -994,7 +1050,88 @@ function queueVisibleLoopIteration(
   queueVisibleLoopPromptAtIndex(state, ctx, 0, env);
 }
 
+function stopVisibleLoopForTerminalOrTransition(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext | undefined,
+  reason: string,
+  env: NodeJS.ProcessEnv,
+): void {
+  state.stopped = true;
+  state.pendingDeliveryPrompt = null;
+  state.currentPromptObserved = false;
+  state.currentPromptAgentStarted = false;
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "loop_stopped_before_prompt_release",
+      iteration: state.completedIterations + 1,
+      promptIndex: state.currentPromptIndex + 1,
+      reason,
+    },
+    env,
+  );
+  if (ctx) persistActiveVisibleLoopState(state, ctx, env);
+  ctx?.ui?.notify?.(`${getVisibleLoopHumanLabel(state.config)} stopped: ${reason}`, "error");
+}
+
+function stopVisibleLoopIfTerminalDisposition(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext | undefined,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  const terminal = loadVisibleLoopTerminalDisposition(state.config, env);
+  if (!terminal.ok) {
+    stopVisibleLoopForTerminalOrTransition(
+      state,
+      ctx,
+      `invalid terminal disposition: ${terminal.error}`,
+      env,
+    );
+    return true;
+  }
+  if (terminal.record) {
+    stopVisibleLoopForTerminalOrTransition(
+      state,
+      ctx,
+      `run already has terminal disposition ${terminal.record.disposition}`,
+      env,
+    );
+    return true;
+  }
+  const currentIteration = state.completedIterations + 1;
+  if (readCompletedVisibleLoopIterations(state.config, env) >= currentIteration) {
+    stopVisibleLoopForTerminalOrTransition(
+      state,
+      ctx,
+      "iteration already completed by another transition",
+      env,
+    );
+    return true;
+  }
+  return false;
+}
+
 function queueVisibleLoopPromptAtIndex(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext | undefined,
+  promptIndex: number,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (activeVisibleLoop !== state || state.stopped) return;
+  const transition = acquireVisibleLoopTransitionLock(state.config, env);
+  if (!transition.ok) {
+    stopVisibleLoopForTerminalOrTransition(state, ctx, transition.error, env);
+    return;
+  }
+  try {
+    if (stopVisibleLoopIfTerminalDisposition(state, ctx, env)) return;
+    queueVisibleLoopPromptAtIndexUnlocked(state, ctx, promptIndex, env);
+  } finally {
+    transition.lock.release();
+  }
+}
+
+function queueVisibleLoopPromptAtIndexUnlocked(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext | undefined,
   promptIndex: number,
@@ -1026,7 +1163,14 @@ function queueVisibleLoopPromptAtIndex(
     env,
   );
   if (!deliveryPrompt) return;
-  const boundPrompt = bindVisibleLoopExecutionPrompt(deliveryPrompt, state.config.executionBinding);
+  const boundPrompt = bindVisibleLoopExecutionPrompt(
+    deliveryPrompt,
+    state.config.executionBinding,
+    {
+      configPath: state.configPath,
+      iteration,
+    },
+  );
   state.currentPromptIndex = promptIndex;
   state.pendingDeliveryPrompt = boundPrompt;
   state.currentPromptObserved = false;
@@ -1169,6 +1313,57 @@ function stopVisibleLoopForPromptExpansionFailure(
 }
 
 function completeVisibleLoopIteration(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+  source: "agent_settled" | "completion_command",
+  expectedIteration?: number,
+):
+  | { accepted: true; continuationDecision?: VisibleLoopContinuationDecision }
+  | { accepted: false; reason: string } {
+  const transition = acquireVisibleLoopTransitionLock(state.config, env);
+  if (!transition.ok) {
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "completion_ignored",
+        source,
+        reason: transition.error,
+        expectedIteration: expectedIteration ?? null,
+      },
+      env,
+    );
+    return { accepted: false, reason: transition.error };
+  }
+  try {
+    const terminal = loadVisibleLoopTerminalDisposition(state.config, env);
+    if (!terminal.ok) {
+      const reason = `invalid terminal disposition: ${terminal.error}`;
+      appendVisibleLoopStatus(state.config, { event: "completion_ignored", source, reason }, env);
+      ctx.ui?.notify?.(`visible-loop completion ignored: ${reason}`, "warning");
+      return { accepted: false, reason };
+    }
+    if (terminal.record) {
+      const reason = `run already has terminal disposition ${terminal.record.disposition}`;
+      appendVisibleLoopStatus(state.config, { event: "completion_ignored", source, reason }, env);
+      ctx.ui?.notify?.(`visible-loop completion ignored: ${reason}`, "warning");
+      return { accepted: false, reason };
+    }
+    const nextIteration = state.completedIterations + 1;
+    const persistedCompleted = readCompletedVisibleLoopIterations(state.config, env);
+    if (persistedCompleted >= nextIteration) {
+      const reason = "iteration already completed by another transition";
+      appendVisibleLoopStatus(state.config, { event: "completion_ignored", source, reason }, env);
+      ctx.ui?.notify?.(`visible-loop completion ignored: ${reason}`, "warning");
+      return { accepted: false, reason };
+    }
+    return completeVisibleLoopIterationUnlocked(state, ctx, env, source, expectedIteration);
+  } finally {
+    transition.lock.release();
+  }
+}
+
+function completeVisibleLoopIterationUnlocked(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv,
@@ -1796,6 +1991,328 @@ function rejectedCompletion(
   };
 }
 
+export interface VisibleLoopTerminalDispositionOutcome {
+  ok: boolean;
+  accepted: boolean;
+  queueStopped?: boolean;
+  reason: string;
+  runId?: string;
+  iteration?: number;
+  disposition?: VisibleLoopTerminalDisposition;
+  items?: VisibleLoopDeferredItem[];
+  remainingPromptCount?: number;
+  terminalRecordPath?: string;
+  statusPath?: string;
+  relaunchGuidance?: string;
+}
+
+function rejectedTerminalDisposition(
+  reason: string,
+  config?: VisibleLoopRunConfig,
+): VisibleLoopTerminalDispositionOutcome {
+  return {
+    ok: false,
+    accepted: false,
+    reason,
+    ...(config ? { runId: config.runId } : {}),
+  };
+}
+
+async function recordBlockedTerminalAfterRejectedRequest(
+  error: string,
+  state: ActiveVisibleLoopState,
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+  runnerOptions: VisibleLoopChildRunnerOptions,
+): Promise<VisibleLoopTerminalDispositionOutcome> {
+  const terminal = loadVisibleLoopTerminalDisposition(state.config, env);
+  if (terminal.ok && terminal.record) {
+    stopVisibleLoopForTerminalOrTransition(
+      state,
+      ctx,
+      `run already has terminal disposition ${terminal.record.disposition}`,
+      env,
+    );
+    return {
+      ...rejectedTerminalDisposition(error, state.config),
+      queueStopped: true,
+      disposition: terminal.record.disposition,
+      terminalRecordPath: getVisibleLoopTerminalDispositionPath(state.config, env),
+    };
+  }
+  const generated = await startVisibleLoopChildTerminalDispositionRunnerUnlocked(
+    {
+      configPath: state.configPath,
+      iteration: state.completedIterations + 1,
+      disposition: "blocked",
+      reason: `terminal disposition request rejected: ${error}`.slice(0, 500),
+      items: [
+        {
+          kind: "other",
+          ref: VISIBLE_LOOP_CHILD_DEFER_TOOL,
+          state: "blocked",
+          nextAction:
+            "Inspect the rejected request, then launch a fresh bound loop; do not resume this terminal config.",
+        },
+      ],
+    },
+    pi,
+    ctx,
+    env,
+    runnerOptions,
+  );
+  if (!generated.accepted) {
+    stopVisibleLoopForTerminalOrTransition(
+      state,
+      ctx,
+      `terminal disposition request rejected: ${error}; ${generated.reason}`,
+      env,
+    );
+  }
+  return {
+    ...generated,
+    ok: false,
+    accepted: false,
+    queueStopped: true,
+    reason: generated.accepted
+      ? `terminal disposition request rejected and loop blocked: ${error}`
+      : `terminal disposition request rejected: ${error}; ${generated.reason}`,
+  };
+}
+
+async function stopVisibleLoopAfterRejectedTerminalRequest(
+  error: string,
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+  runnerOptions: VisibleLoopChildRunnerOptions,
+): Promise<VisibleLoopTerminalDispositionOutcome> {
+  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state || state.stopped || !state.currentPromptObserved || !state.currentPromptAgentStarted) {
+    return rejectedTerminalDisposition(error, state?.config);
+  }
+  const transition = acquireVisibleLoopTransitionLock(state.config, env);
+  if (!transition.ok) {
+    stopVisibleLoopForTerminalOrTransition(state, ctx, transition.error, env);
+    return {
+      ...rejectedTerminalDisposition(`${error}; ${transition.error}`, state.config),
+      queueStopped: true,
+    };
+  }
+  try {
+    return await recordBlockedTerminalAfterRejectedRequest(
+      error,
+      state,
+      pi,
+      ctx,
+      env,
+      runnerOptions,
+    );
+  } finally {
+    transition.lock.release();
+  }
+}
+
+export async function startVisibleLoopChildTerminalDispositionRunner(
+  input: unknown,
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
+): Promise<VisibleLoopTerminalDispositionOutcome> {
+  const parsed = parseVisibleLoopTerminalDispositionRequest(input);
+  if (!parsed.ok) {
+    return stopVisibleLoopAfterRejectedTerminalRequest(parsed.error, pi, ctx, env, runnerOptions);
+  }
+  const configResult = loadVisibleLoopRunConfig(parsed.request.configPath, env);
+  if (!configResult.ok) {
+    return stopVisibleLoopAfterRejectedTerminalRequest(
+      configResult.error,
+      pi,
+      ctx,
+      env,
+      runnerOptions,
+    );
+  }
+  const transition = acquireVisibleLoopTransitionLock(configResult.config, env);
+  if (!transition.ok) {
+    return stopVisibleLoopAfterRejectedTerminalRequest(
+      transition.error,
+      pi,
+      ctx,
+      env,
+      runnerOptions,
+    );
+  }
+  try {
+    const outcome = await startVisibleLoopChildTerminalDispositionRunnerUnlocked(
+      parsed.request,
+      pi,
+      ctx,
+      env,
+      runnerOptions,
+    );
+    if (outcome.accepted || outcome.queueStopped) return outcome;
+    const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+    if (
+      !state ||
+      state.config.runId !== configResult.config.runId ||
+      state.stopped ||
+      !state.currentPromptObserved ||
+      !state.currentPromptAgentStarted
+    ) {
+      return outcome;
+    }
+    return await recordBlockedTerminalAfterRejectedRequest(
+      outcome.reason,
+      state,
+      pi,
+      ctx,
+      env,
+      runnerOptions,
+    );
+  } finally {
+    transition.lock.release();
+  }
+}
+
+async function startVisibleLoopChildTerminalDispositionRunnerUnlocked(
+  input: unknown,
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
+): Promise<VisibleLoopTerminalDispositionOutcome> {
+  const parsed = parseVisibleLoopTerminalDispositionRequest(input);
+  if (!parsed.ok) return rejectedTerminalDisposition(parsed.error);
+  const request = parsed.request;
+  const configResult = loadVisibleLoopRunConfig(request.configPath, env);
+  if (!configResult.ok) return rejectedTerminalDisposition(configResult.error);
+  const config = configResult.config;
+  const terminal = loadVisibleLoopTerminalDisposition(config, env);
+  if (!terminal.ok) return rejectedTerminalDisposition(terminal.error, config);
+  if (terminal.record) {
+    return rejectedTerminalDisposition(
+      `run already has terminal disposition ${terminal.record.disposition}`,
+      config,
+    );
+  }
+  if (hasVisibleLoopAlreadyCompleted(config, env)) {
+    return rejectedTerminalDisposition("loop already completed", config);
+  }
+  if (readCompletedVisibleLoopIterations(config, env) >= request.iteration) {
+    return rejectedTerminalDisposition("iteration already completed by another transition", config);
+  }
+
+  const state = activeVisibleLoop ?? restoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state) return rejectedTerminalDisposition("active state unavailable", config);
+  if (state.config.runId !== config.runId) {
+    return rejectedTerminalDisposition("active state runId mismatch", config);
+  }
+  if (state.stopped) return rejectedTerminalDisposition("loop already stopped", config);
+  const currentIteration = state.completedIterations + 1;
+  if (request.iteration !== currentIteration) {
+    return rejectedTerminalDisposition("stale or out-of-order iteration", config);
+  }
+  if (!state.currentPromptObserved || !state.currentPromptAgentStarted) {
+    return rejectedTerminalDisposition(
+      "terminal disposition requires an observed active loop-owned prompt",
+      config,
+    );
+  }
+
+  const record: VisibleLoopTerminalDispositionRecord = {
+    schemaVersion: 1,
+    runId: config.runId,
+    iteration: request.iteration,
+    disposition: request.disposition,
+    reason: request.reason,
+    items: request.items,
+    createdAt: new Date().toISOString(),
+    authority: "local_loop_control_only_non_authoritative",
+  };
+  let terminalRecordPath: string;
+  try {
+    terminalRecordPath = writeVisibleLoopTerminalDisposition(config, record, env);
+  } catch (error) {
+    return rejectedTerminalDisposition(
+      `terminal disposition could not be persisted: ${error instanceof Error ? error.message : String(error)}`,
+      config,
+    );
+  }
+
+  const prompts = getVisibleLoopPrompts(config);
+  const remainingPromptCount = state.completionPromptQueued
+    ? 0
+    : Math.max(0, prompts.length - state.currentPromptIndex - 1) + 1;
+  state.stopped = true;
+  state.pendingDeliveryPrompt = null;
+  state.currentPromptObserved = false;
+  state.currentPromptAgentStarted = false;
+  appendVisibleLoopStatus(
+    config,
+    {
+      event: "loop_terminal_disposition_recorded",
+      iteration: request.iteration,
+      promptIndex: state.completionPromptQueued ? prompts.length + 1 : state.currentPromptIndex + 1,
+      disposition: request.disposition,
+      reason: request.reason,
+      items: request.items,
+      remainingPromptCount,
+      terminalRecordPath,
+      authority: record.authority,
+    },
+    env,
+  );
+  persistActiveVisibleLoopState(state, ctx, env);
+  ctx.ui?.setStatus?.(
+    getVisibleLoopCommandName(config),
+    `${request.disposition} ${request.iteration}/${config.loopCount}`,
+  );
+  ctx.ui?.notify?.(
+    `${getVisibleLoopHumanLabel(config)} ${request.disposition}: ${request.reason}`,
+    "warning",
+  );
+
+  const refs = request.items.map((item) => item.ref).join(", ");
+  const terminalLabel = request.disposition.toUpperCase();
+  void enqueueVisibleLoopIntercom(
+    state,
+    ctx,
+    `${getVisibleLoopIntercomEventPrefix(config)}_${terminalLabel} peer_run_id=${config.runId}: iteration ${request.iteration}/${config.loopCount}; reason=${request.reason}; refs=${refs}; remaining prompts cancelled=${remainingPromptCount}`,
+    env,
+  )
+    .then(() =>
+      enqueueVisibleLoopIntercom(
+        state,
+        ctx,
+        `PEER_FINAL peer_run_id=${config.runId}: ${getVisibleLoopHumanLabel(config)} ${request.disposition}; launch a fresh bound loop only after the owning trigger changes`,
+        env,
+      ),
+    )
+    .finally(async () => {
+      await disconnectVisibleLoopPeerRuntime(state.peerRuntime);
+      removeActiveVisibleLoopState(ctx, env);
+      if (activeVisibleLoop === state) activeVisibleLoop = null;
+    });
+
+  return {
+    ok: true,
+    accepted: true,
+    reason: "terminal disposition recorded",
+    runId: config.runId,
+    iteration: request.iteration,
+    disposition: request.disposition,
+    items: request.items,
+    remainingPromptCount,
+    terminalRecordPath,
+    statusPath: getVisibleLoopStatusPath(config, env),
+    relaunchGuidance:
+      "Resolve or review the named refs at their owning surfaces, then launch a fresh loop with a newly valid --task, --objective, or --candidate binding; do not reuse this terminal config.",
+  };
+}
+
 function candidateCloseoutAllowsCompletion(
   config: VisibleLoopRunConfig,
   closeout: SelfEvolutionCandidateCloseout | undefined,
@@ -1923,6 +2440,19 @@ export async function startVisibleLoopChildCompleteRunner(
     );
     ctx.ui?.notify?.(`visible-loop completion ignored: ${candidateBinding.error}`, "warning");
     return rejectedCompletion(candidateBinding.error, configResult.config);
+  }
+  const terminal = loadVisibleLoopTerminalDisposition(configResult.config, env);
+  if (!terminal.ok) {
+    return rejectedCompletion(
+      `invalid terminal disposition: ${terminal.error}`,
+      configResult.config,
+    );
+  }
+  if (terminal.record) {
+    return rejectedCompletion(
+      `run already has terminal disposition ${terminal.record.disposition}`,
+      configResult.config,
+    );
   }
 
   if (

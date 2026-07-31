@@ -40,7 +40,7 @@ launch visible helper work; do not make helper output authority
 ## Current product maturity
 
 - maturity: `internal alpha / visible peer and visible-loop harness operational`
-- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as execution harnesses, not evaluators or evidence stores, while preserving candidate-bound objectives and closeout guards through launch, continuation, and completion
+- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as execution harnesses, not evaluators or evidence stores, while preserving bound objectives and typed success/deferred/blocked closeout guards through launch, queue cancellation, continuation, and completion
 - release posture: package has local loop validation scripts and tests for prompt expansion, checkpointing, completion, commit delegation, and visible peer capability registration
 - latest candidate-handoff hardening: `/visible-loop --candidate evolution-...` resolves only a matching fresh candidate from a correlated preceding assistant `self` tool call and `self` tool result in the active Pi branch, requires a canonical direct `packages/<owner>/...json` artifact of kind `self.evolution_owner_artifact.v1` with exact candidate/owner binding, persists the full audit envelope plus parsed artifact, and injects only the safe manifest, owner-approved hypothesis/metric/falsifier/scope/validation data, and guard requirements into the first child prompt; child start/restore/completion recheck age and source-session binding, and candidate completion returns a typed accepted/rejected result after correlating evidence references to host-observed package-check calls, ordered ASC proof-ledger runs, and canonical owner artifacts
 
@@ -51,6 +51,7 @@ launch visible helper work; do not make helper output authority
 - slash commands for `/sidequest`, `/scoutpeer`, `/parallelquest`, `/visible-loop`, and `/nexus-loop`;
 - model-callable visible peer spawn tools for bounded peer launch surfaces;
 - visible-loop state files, visible child launch, prompt queue delivery, intercom report-back, explicit completion checkpointing, candidate-bound self-evolution envelopes, and a narrow extension-originated `sendUserMessage` bridge for pi-little-helpers-owned `/visible-loop` / `/nexus-loop` commands;
+- typed `visible_loop_child_defer` terminal control for owner-gated or otherwise unlawful bound work: bounded deferred-item references and next actions are persisted in a mode-0600 no-replace terminal record, surfaced through tool/UI/status/intercom, and cancel the remaining queue without incrementing completion;
 - deterministic expansion of text-safe slash prompt templates such as `/commit` from repo-local and global prompt directories, while governed `deep-review` dispatches only through `vault_execute_template` and its verified `workflow_execute` binding;
 - commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion, with command-aware delegation prompt names and run-id wording;
 - default visible-loop prompts that read `docs/project/vision.md` and `docs/project/product-posture.md`, implement a bounded slice, run review/fixup/validation, refresh product posture, and only then commit/complete;
@@ -101,6 +102,7 @@ A visible-loop result is trustworthy only when:
 9. **Closeout brakes survive transport** — full source guard snapshots remain in config for audit, while the first child prompt gets only guard requirements and validated typed owner-artifact fields. Required reflection/live-proof/promotion evidence must correlate to host-observed command results, ordered ASC ledger events, or the canonical bound artifact; free-form status labels, invented receipt IDs, missing/stale artifacts, and cross-session/expired configs cannot advance completion.
 10. **Execution scope precedes iteration** — `/visible-loop` and `/nexus-loop` require exactly one `--task`, `--objective`, or `--candidate` binding. Missing/conflicting bindings fail before launch; stale, completed, inaccessible, ambiguous, cross-repo, or owner-gated bindings stop before mutation. Visible-loop does not select a replacement product slice, and Nexus only hardens the bound implementation.
 11. **Governed review precedes fixup** — loop prompts are released sequentially. `deep-review` must produce one exact successful `vault_execute_template` receipt with `executionSurface=workflow_execute`, non-empty handoff identity, and `status=done`; raw local prompt files, duplicate calls, failures, missing receipts, and recovery without the receipt stop before Nexus, posture, commit, or completion.
+12. **Terminal closure differs from success** — when the binding becomes stale, owner-gated, or otherwise unlawful, the child records one typed `deferred` or `blocked` terminal outcome before settling. The runtime cancels later prompts and rejects completion/restart for that config; the recorded refs and next actions are local loop-control diagnostics, not task/decision authority. Lawful continuation requires a fresh binding and run after the owning source changes.
 
 ## Cost-aware prompt posture — 2026-07-11
 
@@ -118,7 +120,15 @@ The typed binding is mandatory at child-config load, so legacy or manually const
 
 The governed-review integration now ports the previously landed remote dispatch membrane into the current bound/adaptive loop architecture. Raw `deep-review.md` is neither required nor accepted as execution. Host-correlated tool start/end events admit exactly one successful Vault workflow handoff per iteration; duplicate starts or end receipts fail closed. Diagnostic active-state files never restore a successful workflow claim, and sequential prompt delivery withholds every downstream turn until a fresh in-process receipt passes the barrier.
 
-`npm run check` passes 160 package tests plus structure, formatting, lint, type checks, package dry-run, and quick release checks. Full `npm run release:check` also packs and installs the exact tarball into an isolated Pi agent directory and passes the extension smoke. The first full release attempt exposed that runtime `typebox` was only peer/dev-declared; promoting it to a packaged runtime dependency made isolated installation truthful. Live in-place `/reload` verification in an already-running operator session remains separate from the isolated tarball proof.
+## Typed terminal disposition — 2026-07-31
+
+A bound loop can now terminate truthfully when discovery finds no lawful implementation slice. Every bound prompt carries the exact internal terminal-tool coordinates. `visible_loop_child_defer` accepts only bounded `deferred` or `blocked` requests with unique owner/task/decision/trigger references and explicit next actions; it requires the exact active run and iteration, persists a no-replace mode-0600 terminal record before stopping the queue, reports remaining prompts as cancelled, and emits no `iteration_completed` or `loop_completed` event.
+
+The terminal record, status JSONL, tool result, UI notification, and intercom report are local loop-control and operator-visibility surfaces only. They do not resolve AK deferrals, accept decisions, satisfy triggers, close tasks, or authorize resuming the old config. To take deferred work through completion, resolve or review it at the owning surface and launch a fresh bound run; AK task mode re-applies the normal live ready/claim admission check. This closes the historical deadlock where a correct prose refusal still released every generic follow-up and then made the success-only checkpoint unreachable.
+
+Live headless Pi RPC dogfood loaded only the package's `sidequest` extension and exercised the real agent/tool lifecycle. A synthetic owner-blocked run invoked `visible_loop_child_defer`, persisted a mode-0600 `blocked` record, reported one cancelled remaining prompt, settled without completion events, and rejected replay before `agent_start`; a separate fresh objective-bound config was then admitted and cleanly recorded its own `deferred` terminal outcome. This proves the runtime stop/replay/fresh-run path without mutating repository or owner-authority state.
+
+`npm run check` passes 171 package tests plus structure, formatting, lint, type checks, package dry-run, and quick release checks. Full `npm run release:check` also packs and installs the exact tarball into an isolated Pi agent directory and passes the extension smoke. The first full release attempt exposed that runtime `typebox` was only peer/dev-declared; promoting it to a packaged runtime dependency made isolated installation truthful. Live in-place `/reload` verification in an already-running operator session remains separate from the isolated tarball proof.
 
 ## Proof-carrying adaptive controller Wave 1 — 2026-07-11
 
@@ -142,7 +152,7 @@ Improve prompt wording and tests so root-launched loops route posture updates to
 
 Keep completion checkpoint wording aligned with the actual prompt queue so child sessions know not to mark a loop complete when product-posture refresh, validation, or commit/delegated commit failed.
 
-Recent proof: the model-facing `visible_loop_child_complete` description now matches the checkpointed completion flow instead of implying ordinary `agent_settled` completion.
+Recent proof: the model-facing `visible_loop_child_complete` description remains success-only, while `visible_loop_child_defer` now provides a separate terminal path that cancels later prompts and preserves non-completion truth.
 
 ### Bet 4 — Readability ratchet for visible-loop internals
 

@@ -43,8 +43,10 @@ import {
   type SelfEvolutionCandidateCloseout,
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
+  startVisibleLoopChildTerminalDispositionRunner,
   VISIBLE_LOOP_CHILD_COMMAND,
   VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
+  VISIBLE_LOOP_CHILD_DEFER_TOOL,
   VISIBLE_LOOP_COMMAND,
   type VisibleLoopCommandProfile,
   validatePersistedSelfEvolutionBinding,
@@ -323,6 +325,42 @@ const visibleLoopChildCompleteToolParameters = asPiToolParameters(
         liveRuntimeProof: visibleLoopCloseoutResolutionParameters,
         insightPromotion: visibleLoopCloseoutResolutionParameters,
       }),
+    ),
+  }),
+);
+
+const visibleLoopChildDeferToolParameters = asPiToolParameters(
+  Type.Object({
+    configPath: Type.String({
+      description: "Exact active visible-loop config path from the execution-binding membrane.",
+      maxLength: 4096,
+    }),
+    iteration: Type.Integer({ minimum: 1, maximum: 100 }),
+    disposition: Type.Unsafe({
+      type: "string",
+      enum: ["deferred", "blocked"],
+      description:
+        "deferred when a named owner/trigger may make the same work lawful later; blocked otherwise",
+    }),
+    reason: Type.String({
+      description: "Bounded non-secret single-line reason for stopping the remaining queue.",
+      minLength: 1,
+      maxLength: 500,
+    }),
+    items: Type.Array(
+      Type.Object({
+        kind: Type.Unsafe({
+          type: "string",
+          enum: ["ak_task", "decision", "owner_gate", "trigger", "other"],
+        }),
+        ref: Type.String({ minLength: 1, maxLength: 200 }),
+        state: Type.Unsafe({
+          type: "string",
+          enum: ["deferred", "blocked", "waiting"],
+        }),
+        nextAction: Type.String({ minLength: 1, maxLength: 500 }),
+      }),
+      { minItems: 1, maxItems: 16 },
     ),
   }),
 );
@@ -3287,6 +3325,41 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
               note: "typed outcome mirrors the completion gate; status sidecar/intercom remain diagnostic",
             },
           );
+        },
+      });
+
+      pi.registerTool({
+        name: VISIBLE_LOOP_CHILD_DEFER_TOOL,
+        label: "Visible Loop Child Defer",
+        description:
+          "Record a typed deferred/blocked terminal outcome for the active visible-loop iteration, cancel remaining prompts, and surface owner/trigger refs without claiming completion.",
+        promptSnippet:
+          "Internal visible-loop terminal tool. Call only when the bound prompt supplies the exact configPath and iteration and no lawful slice remains.",
+        parameters: visibleLoopChildDeferToolParameters,
+        execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
+          const outcome = await startVisibleLoopChildTerminalDispositionRunner(
+            params,
+            pi,
+            ctx,
+            options.env ?? process.env,
+            {
+              continueInNewSession: createVisibleLoopContinuation(ctx as PiCommandContext),
+            },
+          );
+          return {
+            ...successToolResult(
+              outcome.accepted
+                ? `visible-loop ${outcome.disposition} terminal outcome recorded`
+                : outcome.queueStopped
+                  ? `visible-loop blocked after terminal request rejection: ${outcome.reason}`
+                  : `visible-loop terminal outcome rejected: ${outcome.reason}`,
+              {
+                ...outcome,
+                note: "terminal record and status are local loop-control state only; owner refs remain non-authoritative",
+              },
+            ),
+            terminate: outcome.accepted || outcome.queueStopped === true,
+          };
         },
       });
     }

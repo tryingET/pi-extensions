@@ -7,6 +7,7 @@ export const VISIBLE_LOOP_COMMAND = "visible-loop";
 export const NEXUS_LOOP_COMMAND = "nexus-loop";
 export const VISIBLE_LOOP_CHILD_COMMAND = "visible-loop-child";
 export const VISIBLE_LOOP_CHILD_COMPLETE_COMMAND = "visible-loop-child-complete";
+export const VISIBLE_LOOP_CHILD_DEFER_TOOL = "visible_loop_child_defer";
 
 export type VisibleLoopReportBack = "intercom" | "manual" | "none";
 

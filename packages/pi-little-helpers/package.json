@@ -67,6 +67,7 @@
     "src/visibleLoopArgs.ts",
     "src/visibleLoopController.ts",
     "src/visibleLoopControllerRuntime.ts",
+    "src/visibleLoopDisposition.ts",
     "src/visibleLoopPromptTemplates.ts",
     "src/visibleLoopProfiles.ts",
     "src/visibleLoopState.ts",
