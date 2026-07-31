@@ -8,6 +8,10 @@ Usage: benchmark.sh [--profile current|no-extensions|interaction|vault|hotspots|
 
 Emits: METRIC startup_elapsed_ms_median=<integer>
 
+Environment:
+  PI_STARTUP_MODEL_SCOPE  model scope used only to suppress unrelated global
+                          enabledModels warnings (default: openai-codex/gpt-5.4)
+
 Profiles:
   current        current user-configured Pi resource set
   no-extensions host baseline plus the explicit shutdown probe
@@ -39,6 +43,8 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 default_repo_root=$(cd "$script_dir/../.." && pwd -P)
 repo_root=$(cd "${PI_STARTUP_REPO_ROOT:-$default_repo_root}" && pwd -P)
 probe="$script_dir/shutdown-probe.ts"
+model_scope=${PI_STARTUP_MODEL_SCOPE:-openai-codex/gpt-5.4}
+[[ -n "$model_scope" ]] || { echo "PI_STARTUP_MODEL_SCOPE must not be empty" >&2; exit 2; }
 
 changed_paths() {
   local base=""
@@ -80,7 +86,7 @@ stamp=$(date -u +%Y%m%dT%H%M%SZ)
 run_dir="$run_root/${stamp}-${profile}-${mode}-$$"
 mkdir -p "$run_dir"
 
-common=(pi --offline --mode "$mode" --no-session --no-skills --no-prompt-templates --no-themes --no-context-files -e "$probe")
+common=(pi --offline --mode "$mode" --no-session --no-skills --no-prompt-templates --no-themes --no-context-files --models "$model_scope" -e "$probe")
 case "$profile" in
   current)
     command=("${common[@]}")
