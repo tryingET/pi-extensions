@@ -190,18 +190,27 @@ export function isOwnedDispatchPolicy(policy) {
       Object.isFrozen(policy.bindings),
   );
 }
-export const D2E_WORKFLOW_TEMPLATE_NAMES = Object.freeze([
-  "direction-to-execution",
-  "repo-direction-to-execution",
-  "layer12-040-direction-to-execution-ak-native",
-]);
-const D2E_WORKFLOW_BINDING = {
-  execution_required: true,
-  execution_surface: "workflow_execute",
-  execution_args: { workflow_gate: "D2E_TRANSFER_COMPLETE_V1" },
-  on_missing_binding: "fail_closed",
-  compositeCapable: false,
-};
+export const D2E_WORKFLOW_TEMPLATE_OWNERS = Object.freeze({
+  "layer12-040-direction-to-execution-ak-native": "software",
+  "repo-direction-to-execution": "holding",
+  "execution-memory-transfer": "core",
+});
+export const D2E_WORKFLOW_TEMPLATE_NAMES = Object.freeze(Object.keys(D2E_WORKFLOW_TEMPLATE_OWNERS));
+function d2eWorkflowBinding(ownerCompany) {
+  return {
+    execution_required: true,
+    execution_surface: "workflow_execute",
+    execution_args: {
+      workflow_gate: "D2E_TRANSFER_COMPLETE_V1",
+      template_artifact_kind: "procedure",
+      template_control_mode: "one_shot",
+      template_formalization_level: "workflow",
+      template_owner_company: ownerCompany,
+    },
+    on_missing_binding: "fail_closed",
+    compositeCapable: false,
+  };
+}
 const DEFAULT_BINDINGS = {
   "transcendent-iteration": {
     execution_required: true,
@@ -210,7 +219,12 @@ const DEFAULT_BINDINGS = {
     on_missing_binding: "fail_closed",
     compositeCapable: false,
   },
-  ...Object.fromEntries(D2E_WORKFLOW_TEMPLATE_NAMES.map((name) => [name, D2E_WORKFLOW_BINDING])),
+  ...Object.fromEntries(
+    Object.entries(D2E_WORKFLOW_TEMPLATE_OWNERS).map(([name, owner]) => [
+      name,
+      d2eWorkflowBinding(owner),
+    ]),
+  ),
   ooda: {
     execution_required: true,
     execution_surface: "loop_execute",

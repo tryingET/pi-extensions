@@ -87,6 +87,10 @@ function getSessionCarrier(ctx: TeamScopedContext | undefined): object | null {
   return ctx.sessionManager;
 }
 
+export function resolveSessionIdentity(ctx: TeamScopedContext | undefined): string | null {
+  return getSessionKey(ctx);
+}
+
 function getSessionKey(ctx: TeamScopedContext | undefined): string | null {
   const candidates = [
     ctx?.sessionKey,

@@ -2599,6 +2599,7 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-vault-dispatch-"));
   const previousVaultDir = process.env.VAULT_DIR;
   const previousPiCompany = process.env.PI_COMPANY;
+  const previousD2eMode = process.env.PI_ORCH_D2E_TRANSFER_MODE;
 
   try {
     execFileSync("dolt", ["init", "-b", "main"], { cwd: tempVaultDir, stdio: "ignore" });
@@ -2629,14 +2630,15 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
           "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',true,1),",
           "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1),",
           "(4,'layer12-040-direction-to-execution-ak-native','D2E','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,4),",
-          "(5,'repo-direction-to-execution','Repo D2E','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,2),",
-          "(6,'direction-to-execution','D2E transfer','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1);",
+          "(5,'repo-direction-to-execution','Repo D2E','body','procedure','one_shot','workflow','holding','[\"holding\",\"software\"]',NULL,'active',true,2),",
+          "(6,'execution-memory-transfer','Memory transfer','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',true,1);",
         ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
     );
     process.env.VAULT_DIR = tempVaultDir;
     process.env.PI_COMPANY = "software";
+    process.env.PI_ORCH_D2E_TRANSFER_MODE = "enabled";
 
     const registeredTools = new Map();
     registerLoopTools(
@@ -2666,15 +2668,53 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
               code: 0,
             };
           }
+          if (args[0] === "task" && args[1] === "contract") {
+            return {
+              stdout: JSON.stringify({
+                task_id: 4381,
+                repo,
+                title: "Find the next lawful DSPx execution boundary",
+                status: "claimed",
+                done_contract: {
+                  entity_version: 1,
+                  contract: {
+                    completion_kind: "orchestrator_binding",
+                    required_outcomes: ["Preserve the lawful D2E boundary"],
+                    required_validation: ["Run the exact gate checks"],
+                    required_evidence_classes: ["test_receipts"],
+                    review_questions: ["Is applied execution still authorization-bound?"],
+                  },
+                },
+                guardrails: {
+                  entity_version: 1,
+                  guardrails: {
+                    invariants: ["Do not infer authorization"],
+                    anti_goals: ["Do not implement deferred Decision 87 work"],
+                    constraints: ["Read-only proposal only"],
+                    rollback_boundaries: ["Disable the D2E controller"],
+                  },
+                },
+              }),
+              stderr: "",
+              code: 0,
+            };
+          }
           if (args[0] === "task") {
             return {
               stdout: JSON.stringify({
                 id: 4381,
                 repo,
-                status: "pending",
-                claimed_by: null,
-                lease_expires_at: null,
+                title: "Find the next lawful DSPx execution boundary",
+                description: null,
+                status: "claimed",
+                claimed_by: "actor-session-a",
+                lease_expires_at: "2030-01-01T00:00:00Z",
                 entity_version: 1,
+                scope: {
+                  allowed_paths: ["packages/pi-society-orchestrator/src/**"],
+                  required_paths: [],
+                  forbidden_paths: [],
+                },
                 active_deferral: { state: "active" },
               }),
               stderr: "",
@@ -2766,32 +2806,135 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
         packet_key: "decision-87-packet",
         task_id: 4381,
         decision_id: 87,
+        actor: "actor-session-a",
       },
       undefined,
       undefined,
-      { cwd: process.cwd(), model: undefined },
+      { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
     );
-    assert.equal(d2eResult.details.ok, false);
-    assert.equal(d2eResult.details.status, "proposal");
+    assert.equal(d2eResult.details.ok, true);
+    assert.equal(d2eResult.details.kind, "proposal");
+    assert.equal(d2eResult.details.status, "not_ready");
     assert.equal(d2eResult.details.receipt.schema, "D2E_TRANSFER_PROPOSAL_V1");
+    assert.equal(d2eResult.details.receipt.lawful_success, true);
     assert.equal(d2eResult.details.receipt.read_only, true);
+    assert.equal(d2eResult.details.receipt.execution_performed, false);
     assert.equal(d2eResult.details.receipt.applied, false);
+    assert.equal(d2eResult.details.receipt.caller_mode, "proposal");
+    assert.equal(d2eResult.details.receipt.status, "not_ready");
+    assert.equal(d2eResult.details.receipt.effect.disposition, "not_materialized");
+    assert.equal(
+      d2eResult.details.receipt.downstream_implementation_authorization.disposition,
+      "not_authorized",
+    );
+    assert.equal(
+      d2eResult.details.receipt.schema_boundary.inner_workflow_output,
+      "D2E_WORKFLOW_RESULT_V1",
+    );
+    assert.equal(d2eResult.details.receipt.template.artifactKind, "procedure");
+    assert.equal(d2eResult.details.receipt.template.ownerCompany, "software");
+    assert.equal(d2eResult.details.receipt.template.templateVersion, 4);
+    assert.match(d2eResult.details.receipt.template.contentSha256, /^[a-f0-9]{64}$/);
+    assert.match(d2eResult.details.receipt.task_intent_sha256, /^[a-f0-9]{64}$/);
     assert.equal(d2eResult.details.receipt.authorization.blocker, "active_task_deferral");
+
+    const defaultProposalResult = await vaultExecuteTool.execute(
+      "tool-call-id-4-default-proposal",
+      {
+        template_name: "layer12-040-direction-to-execution-ak-native",
+        objective: "Find the next lawful DSPx execution boundary",
+        repo: process.cwd(),
+        packet_key: "decision-87-packet",
+        task_id: 4381,
+        decision_id: 87,
+        actor: "actor-session-a",
+      },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
+    );
+    assert.equal(defaultProposalResult.details.ok, true);
+    assert.equal(defaultProposalResult.details.receipt.caller_mode, "proposal");
+
+    for (const [templateName, expectedOwner] of [
+      ["repo-direction-to-execution", "holding"],
+      ["execution-memory-transfer", "core"],
+    ]) {
+      const crossOwnerProposal = await vaultExecuteTool.execute(
+        `tool-call-${templateName}`,
+        {
+          template_name: templateName,
+          objective: "Find the next lawful DSPx execution boundary",
+          repo: process.cwd(),
+          packet_key: "decision-87-packet",
+          task_id: 4381,
+          decision_id: 87,
+          actor: "actor-session-a",
+        },
+        undefined,
+        undefined,
+        { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
+      );
+      assert.equal(crossOwnerProposal.details.ok, true, JSON.stringify(crossOwnerProposal.details));
+      assert.equal(crossOwnerProposal.details.receipt.template.ownerCompany, expectedOwner);
+      assert.equal(crossOwnerProposal.details.receipt.caller_mode, "proposal");
+    }
+
+    const blockedPacketResult = await vaultExecuteTool.execute(
+      "tool-call-id-4-blocked-packet",
+      {
+        template_name: "layer12-040-direction-to-execution-ak-native",
+        objective: "Find the next lawful DSPx execution boundary",
+        repo: process.cwd(),
+        packet_key: "missing-required-packet",
+        task_id: 4381,
+        decision_id: 87,
+        actor: "actor-session-a",
+      },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
+    );
+    assert.equal(blockedPacketResult.details.ok, false);
+    assert.equal(blockedPacketResult.details.status, "not_ready");
+    assert.equal(blockedPacketResult.details.error, "D2E_TRANSFER_PACKET_MISMATCH");
+    assert.equal(blockedPacketResult.details.caller_mode, "proposal");
+    assert.equal(blockedPacketResult.details.required_packet.disposition, "blocked");
+    assert.equal(blockedPacketResult.details.execution_phase, "initial_readback");
+    assert.equal(
+      blockedPacketResult.details.transfer_materialization_authorization.disposition,
+      "not_authorized",
+    );
+    assert.equal(
+      blockedPacketResult.details.transfer_materialization_authorization.existed_at_dispatch,
+      false,
+    );
+    assert.equal(blockedPacketResult.details.effect.disposition, "not_materialized");
+    assert.equal(blockedPacketResult.details.failure.schema, "D2E_TRANSFER_FAILURE_V1");
+    assert.equal(
+      blockedPacketResult.details.downstream_implementation_authorization.disposition,
+      "not_authorized",
+    );
 
     const appliedD2eResult = await vaultExecuteTool.execute(
       "tool-call-id-5",
       {
-        template_name: "repo-direction-to-execution",
-        objective: "Do not implement Decision 87 without authorization",
+        template_name: "layer12-040-direction-to-execution-ak-native",
+        objective: "Find the next lawful DSPx execution boundary",
         transfer_mode: "applied",
         repo: process.cwd(),
         packet_key: "decision-87-packet",
         task_id: 4381,
         decision_id: 87,
+        actor: "actor-session-a",
+        task_scope_sha256: d2eResult.details.receipt.task_scope_sha256,
+        task_intent_sha256: d2eResult.details.receipt.task_intent_sha256,
+        template_version: d2eResult.details.receipt.template.templateVersion,
+        template_content_sha256: d2eResult.details.receipt.template.contentSha256,
       },
       undefined,
       undefined,
-      { cwd: process.cwd(), model: undefined },
+      { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
     );
     assert.equal(appliedD2eResult.details.ok, false);
     assert.equal(appliedD2eResult.details.error, "D2E_TRANSFER_AUTHORIZATION_REQUIRED");
@@ -2806,6 +2949,11 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
       delete process.env.PI_COMPANY;
     } else {
       process.env.PI_COMPANY = previousPiCompany;
+    }
+    if (previousD2eMode === undefined) {
+      delete process.env.PI_ORCH_D2E_TRANSFER_MODE;
+    } else {
+      process.env.PI_ORCH_D2E_TRANSFER_MODE = previousD2eMode;
     }
     fs.rmSync(tempVaultDir, { recursive: true, force: true });
   }

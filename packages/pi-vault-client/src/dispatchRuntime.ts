@@ -185,6 +185,8 @@ export interface VaultDispatchCheckResult {
   ok: boolean;
   status: "ready" | "blocked";
   results?: DispatchPostureResult[];
+  /** Exact strictly parsed templates used for this dispatch decision. */
+  templates?: Template[];
   missing?: string[];
   current_company?: string;
   current_company_source?: string;
@@ -369,6 +371,22 @@ function bindingBytes(binding: Readonly<ExecutionBinding>): Buffer {
   return canonicalJcsBytes(binding);
 }
 
+function templateMatchesBindingMetadata(
+  template: Template,
+  binding: Readonly<ExecutionBinding>,
+): boolean {
+  const boundKind = binding.execution_args.template_artifact_kind;
+  const boundControlMode = binding.execution_args.template_control_mode;
+  const boundFormalization = binding.execution_args.template_formalization_level;
+  const boundOwner = binding.execution_args.template_owner_company;
+  return (
+    (boundKind === undefined || boundKind === template.artifact_kind) &&
+    (boundControlMode === undefined || boundControlMode === template.control_mode) &&
+    (boundFormalization === undefined || boundFormalization === template.formalization_level) &&
+    (boundOwner === undefined || boundOwner === template.owner_company)
+  );
+}
+
 function authorizeRequest(
   request: PreparedExecutionRequest,
   policy: FrozenDispatchPolicy,
@@ -413,6 +431,13 @@ function authorizeRequest(
       return blocked(
         "unknown_governed_value",
         "An aggregate member has invalid governed metadata.",
+      );
+    }
+    const registeredBinding = policy.bindings[template.name];
+    if (registeredBinding && !templateMatchesBindingMetadata(template, registeredBinding)) {
+      return blocked(
+        "identity_drift",
+        "Template kind, workflow metadata, or owner does not match its immutable execution binding.",
       );
     }
     const metadata = {
@@ -638,6 +663,7 @@ export function createVaultDispatchRuntime(
         ok: true,
         status: "ready",
         results,
+        templates: structuredClone(templates as Template[]),
         missing: [],
         current_company: companyContext.currentCompany,
         current_company_source: companyContext.companySource,
