@@ -54,7 +54,10 @@ test("registered --fast initializes provider injection state in headless session
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(
       path.join(configDir, "better-openai.json"),
-      JSON.stringify({ persistState: false }),
+      JSON.stringify({
+        persistState: false,
+        supportedModels: ["openai/gpt-5.4"],
+      }),
     );
     const pi = harness(true);
     betterOpenAI(pi.api);
