@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "61f888fbf4abf44b33f0d33280564d7b04e5edb7"
+created_at: "2026-07-31T13:35:46Z"
+intent: "Add pi-extension startup-latency level-4 autoresearch campaign artifacts."
+files:
+  []
+validation:
+  fast_gate:
+    command: "staged-scope verify (5 files)"
+    status: "pass"
+  full_gate:
+    command: "pending final consolidated check"
+    status: "pending"
+group:
+  index: 2
+  total: 7
+  rationale: "Campaign doc + analysis diary + benchmark/check scripts + shutdown probe. AK task 4140."
+links:
+  task_ids:
+    - 4140
+  diary:
+    - "diary/2026-07-25--analysis-pi-extension-startup-latency-level4-campaign.md"
