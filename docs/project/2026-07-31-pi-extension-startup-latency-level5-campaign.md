@@ -80,8 +80,10 @@ The reusable `custom` profile now accepts repeated repo-relative or absolute ent
 | `pi-interaction` | 1049 ms | 497 ms |
 | `pi-evidence-review` | 618 ms | 67 ms |
 | `pi-session-compaction` | 602 ms | 53 ms |
+| `pi-semantic-code-intelligence` | 602 ms | 67 ms |
+| `pi-autoresearch` | 605 ms | 64.5 ms |
 
-These are base measurements only. No candidate existed, so they are not improvement evidence.
+The SCI and autoresearch rows were captured as explicit `pi-autoresearch` calibration segments after the operator resumed the campaign. Each segment ran ten fresh RPC trials, passed `scripts/startup-latency/check.sh`, and retained its timing trace and summary under `.autoresearch/startup-latency-level5/`. These are base measurements only. No candidate existed, so they are not improvement evidence.
 
 ## Enabled owned portfolio inventory
 
@@ -158,6 +160,17 @@ Read-only source inspection selected three independent, revertible cells:
 | E1 | evidence review | cached first-use reader/validator/Ajv/schema/render loader after lexical/headless gates | 45–55 ms | registration, valid render, invalid/schema fail-closed behavior |
 | C1 | session compaction | cached default handler import only on first actual compaction; preserve injected handler | 30–45 ms | exactly-one hook, command tracking, real compaction and handoff surfaces |
 
+A late read-only control/intelligence scout added a second candidate wave. Its estimates remain unverified and non-additive:
+
+| Cell | Package | Intervention | Scout estimate | Critical behavior gate |
+|---|---|---|---:|---|
+| SCI1 | semantic code intelligence | keep schemas, registrations, and preview/fail-closed guards eager; cache the default MCP bridge import until first use | 45–58 ms | concurrent first use, shutdown, degraded bridge, and live composite-tool dogfood |
+| AR1 | pi-autoresearch | separate pure registration/schema/status contracts from cached first-use runtime/domain implementations | 35–50 ms | eager schemas/guards, concurrent loading, receipt isolation, and real status/run dogfood |
+| O1 | society orchestrator | defer default autoresearch supervisor/runner and workflow/loop engines while preserving injected instances and schemas | 28–53 ms across two subcells | active controller continuity, injected runtime behavior, and first-use failure semantics |
+| H4-footer | runtime-footer manifest duplication | bundle only with an orchestrator candidate | 3–5 ms | manifest identity and no double registration |
+
+SCI1 and AR1 are the preferred first two admitted cells because they are independent packages and directly satisfy the campaign's multi-package evaluation shape. Admission currently permits only one active resource, so they must execute sequentially and receive independent candidate bindings.
+
 A later H4 micro-bundle may combine context-packer, agent-vent, package-update-notify, and similarly mechanical seams. Their current theoretical import total is only about 13 ms, so they receive no individual saving claim and require a higher paired sample count plus combined remeasurement.
 
 ## Candidate and promotion gates
@@ -173,12 +186,14 @@ A later H4 micro-bundle may combine context-packer, agent-vent, package-update-n
 
 ## Current state
 
-- runtime control: machine `ready`, no hidden continuation selected
-- AK lifecycle: task `4368` is pending under until-event deferral `194`, triggered by lifecycle-v2 candidate admission becoming available
-- baseline contract: satisfied (three unchanged invocations); AK evidence `5653`
+- runtime control: machine `ready`, no hidden continuation selected; the current `pi-autoresearch` segment is the AR1 isolated calibration
+- AK lifecycle: task `4368` was resumed at the operator's instruction and is claimed by `pi-level5-startup-portfolio`
+- baseline contract: configured-set baseline satisfied (three unchanged invocations); AK evidence `5653`
 - portfolio inventory: first pass complete (32 owned entrypoints)
-- candidate discovery: two read-only cluster reports complete; remaining discovery may continue without mutation
-- candidate admission: blocked — all three I1/E1/C1 `candidate_peer_spawn` requests failed closed on the candidate lifecycle backlog hold; no worktree or candidate was created, the controller did not bypass the hold, and AK evidence `5654` records the failed admission gate
-- isolated base measurements: complete for I1/E1/C1 with ten trials each
-- integration/promotion: none authorized
+- candidate discovery: the original package reports plus the late control/intelligence cluster report are complete enough to prefer sequential SCI1 and AR1 cells
+- historical candidate admission: I1/E1/C1 attempts through the stale loaded tool failed on the old hold-file gate; evidence `5654`
+- current candidate admission: Decision 63 has activated admission-v2 and marked the historical hold `superseded_by_admission_v2`, but its single repository slot remains occupied by admission `cadm-27369981-8c40-448b-9136-78f7a4b29228` from AK-4152 even though lifecycle resource `cpr-22e7419e0a7c799d665f77b6` is terminally `cleaned` and its worktree and branch are absent
+- reconciliation: the exact source-owned release attempt failed closed with `candidate terminal receipt schema mismatch`; the legacy cleaned receipt lacks fields required by the hardened verifier, so no permit edit, threshold relaxation, manual worktree, or lifecycle bypass was performed; AK evidence `5666` and `5667` record the two task-facing blocker views
+- isolated base measurements: complete for I1/E1/C1/SCI1/AR1 with ten trials each; SCI1 measured 602 ms wall / 67 ms entrypoint median and AR1 measured 605 ms wall / 64.5 ms entrypoint median
+- candidate implementation and integration/promotion: none authorized or performed
 - target posture: unmet; no candidate evidence yet
