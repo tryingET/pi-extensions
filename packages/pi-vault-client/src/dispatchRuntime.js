@@ -283,7 +283,11 @@ function authorizeRequest(request, policy) {
   ) {
     return blocked("missing_binding", "A governed execution binding is missing.");
   }
-  const gated = postures.filter((posture) => posture.posture === "orchestrator_loop_required");
+  const gated = postures.filter(
+    (posture) =>
+      posture.posture === "orchestrator_loop_required" ||
+      posture.posture === "orchestrator_workflow_required",
+  );
   if (gated.length > 0 && gated.length !== postures.length)
     return blocked("mixed_disposition", "Mixed text and dispatch dispositions are not executable.");
   let binding = null;

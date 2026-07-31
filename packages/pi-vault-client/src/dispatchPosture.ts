@@ -9,6 +9,7 @@ import * as path from "node:path";
 export type DispatchPosture =
   | "text_ok"
   | "orchestrator_loop_required"
+  | "orchestrator_workflow_required"
   | "orchestrator_workflow_gate_required"
   | "missing_execution_binding_fail_closed"
   | "invalid_metadata_fail_closed";
@@ -258,6 +259,20 @@ export function isOwnedDispatchPolicy(policy: unknown): policy is FrozenDispatch
   );
 }
 
+export const D2E_WORKFLOW_TEMPLATE_NAMES = Object.freeze([
+  "direction-to-execution",
+  "repo-direction-to-execution",
+  "layer12-040-direction-to-execution-ak-native",
+] as const);
+
+const D2E_WORKFLOW_BINDING: ExecutionBinding = {
+  execution_required: true,
+  execution_surface: "workflow_execute",
+  execution_args: { workflow_gate: "D2E_TRANSFER_COMPLETE_V1" },
+  on_missing_binding: "fail_closed",
+  compositeCapable: false,
+};
+
 const DEFAULT_BINDINGS: Record<string, ExecutionBinding> = {
   "transcendent-iteration": {
     execution_required: true,
@@ -266,6 +281,7 @@ const DEFAULT_BINDINGS: Record<string, ExecutionBinding> = {
     on_missing_binding: "fail_closed",
     compositeCapable: false,
   },
+  ...Object.fromEntries(D2E_WORKFLOW_TEMPLATE_NAMES.map((name) => [name, D2E_WORKFLOW_BINDING])),
   ooda: {
     execution_required: true,
     execution_surface: "loop_execute",
@@ -323,6 +339,15 @@ export function classifyDispatchPosture(
     };
   }
   if (formalizationLevel === "workflow") {
+    const binding = policy.bindings[name] ?? null;
+    if (binding?.execution_surface === "workflow_execute") {
+      return {
+        ...base,
+        posture: "orchestrator_workflow_required",
+        binding,
+        reason: `Template "${name}" requires ${binding.execution_surface}(${JSON.stringify(binding.execution_args)}); raw text execution is not lawful.`,
+      };
+    }
     return {
       ...base,
       posture: "orchestrator_workflow_gate_required",

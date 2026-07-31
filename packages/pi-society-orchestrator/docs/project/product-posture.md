@@ -84,7 +84,7 @@ The package currently owns:
 - package-owned KES materialization for loop outputs;
 - read-only runtime/status, AK close-frame, and boundary-inspection UX.
 - `direction_controller_readback`, a read-only Pi adapter over AK `direction-controller status -> propose -> transition-check`; it validates the existing authority/no-apply contract and reports DSPx generated-program readiness without invoking DSPx, dispatching an owner route, selecting policy, materializing work, or applying a transition;
-- an explicit Prompt Vault owner route for `layer12-040-direction-to-execution-ak-native`: `vault_execute_template` remains fail-closed because the full workflow has no verified executable binding, but now directs the operator to the truthful AK readback instead of implying that another D2E state machine must be invented.
+- immutable Prompt Vault workflow bindings for `direction-to-execution`, `repo-direction-to-execution`, and `layer12-040-direction-to-execution-ak-native`: `vault_execute_template` proposal mode performs read-only exact AK packet/task/decision/authorization readback, while applied mode fails closed unless that lineage is exact and the task has a live claim with no active deferral; only a completed package workflow emits `D2E_TRANSFER_COMPLETE_V1`.
 
 Adjacent lower-plane capability exists in `pi-autoresearch`: bounded runtime, candidate binding, measurement receipts, candidate-result packets, dashboards, closeouts, learning exports, and self-hosting runtime. Those are not orchestrator ownership claims.
 

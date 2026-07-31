@@ -1,6 +1,7 @@
 export type DispatchPosture =
   | "text_ok"
   | "orchestrator_loop_required"
+  | "orchestrator_workflow_required"
   | "orchestrator_workflow_gate_required"
   | "missing_execution_binding_fail_closed"
   | "invalid_metadata_fail_closed";
@@ -46,6 +47,11 @@ export declare function createDispatchPolicy(options: {
   bindings: Record<string, ExecutionBinding>;
 }): FrozenDispatchPolicy;
 export declare function isOwnedDispatchPolicy(policy: unknown): policy is FrozenDispatchPolicy;
+export declare const D2E_WORKFLOW_TEMPLATE_NAMES: readonly [
+  "direction-to-execution",
+  "repo-direction-to-execution",
+  "layer12-040-direction-to-execution-ak-native",
+];
 export declare const DEFAULT_DISPATCH_POLICY: FrozenDispatchPolicy;
 export declare function classifyDispatchPosture(
   template: {

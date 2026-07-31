@@ -2595,7 +2595,7 @@ test("loop_execute reports loop/team mismatches before execution starts", async 
   assert.match(result.content[0].text, /intelligence: scout/);
 });
 
-test("vault_execute_template dispatches known vault loop bindings into loop execution gate", async () => {
+test("vault_execute_template dispatches known loop and D2E workflow bindings through exact gates", async () => {
   const tempVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-vault-dispatch-"));
   const previousVaultDir = process.env.VAULT_DIR;
   const previousPiCompany = process.env.PI_COMPANY;
@@ -2628,7 +2628,9 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
           "(1,'transcendent-iteration','Transcendent loop','body','procedure','loop','workflow','core','[\"core\",\"software\"]',NULL,'active',true,4),",
           "(2,'workflow-procedure','Workflow procedure','body','procedure','one_shot','workflow','core','[\"core\",\"software\"]',NULL,'active',true,1),",
           "(3,'pi-autoresearch-setup','Autoresearch setup','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1),",
-          "(4,'layer12-040-direction-to-execution-ak-native','D2E','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,4);",
+          "(4,'layer12-040-direction-to-execution-ak-native','D2E','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,4),",
+          "(5,'repo-direction-to-execution','Repo D2E','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,2),",
+          "(6,'direction-to-execution','D2E transfer','body','procedure','one_shot','workflow','software','[\"software\"]',NULL,'active',true,1);",
         ].join(" "),
       ],
       { cwd: tempVaultDir, stdio: "ignore" },
@@ -2641,6 +2643,58 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
       {
         registerTool(tool) {
           registeredTools.set(tool.name, tool);
+        },
+        async exec(_command, args) {
+          const repo = process.cwd();
+          if (args[0] === "packet") {
+            return {
+              stdout: JSON.stringify({
+                packet: {
+                  id: 74,
+                  repo_scope: repo,
+                  packet_key: "decision-87-packet",
+                  lifecycle_state: "assessed",
+                  source_ref: "https://example.test/packet",
+                  entity_version: 1,
+                },
+                links: [
+                  { link_kind: "task", target_ref: "task:4381", authority_mode: "canonical" },
+                  { link_kind: "decision", target_ref: "decision:87", authority_mode: "canonical" },
+                ],
+              }),
+              stderr: "",
+              code: 0,
+            };
+          }
+          if (args[0] === "task") {
+            return {
+              stdout: JSON.stringify({
+                id: 4381,
+                repo,
+                status: "pending",
+                claimed_by: null,
+                lease_expires_at: null,
+                entity_version: 1,
+                active_deferral: { state: "active" },
+              }),
+              stderr: "",
+              code: 0,
+            };
+          }
+          return {
+            stdout: JSON.stringify({
+              decision: {
+                id: 87,
+                repo_scope: repo,
+                state: "unblocked",
+                outcome: "accepted",
+                updated_at: "2026-07-31T17:05:19Z",
+              },
+              linked_tasks: [{ decision_id: 87, task_id: 4381, link_role: "post_adr_execution" }],
+            }),
+            stderr: "",
+            code: 0,
+          };
         },
       },
       BUILT_IN_PLUGINS,
@@ -2707,16 +2761,41 @@ test("vault_execute_template dispatches known vault loop bindings into loop exec
       {
         template_name: "layer12-040-direction-to-execution-ak-native",
         objective: "Find the next lawful DSPx execution boundary",
+        transfer_mode: "proposal",
+        repo: process.cwd(),
+        packet_key: "decision-87-packet",
+        task_id: 4381,
+        decision_id: 87,
       },
       undefined,
       undefined,
       { cwd: process.cwd(), model: undefined },
     );
     assert.equal(d2eResult.details.ok, false);
-    assert.equal(d2eResult.details.error, "vault-template-workflow-owner-route-required");
-    assert.match(d2eResult.content[0].text, /Owner-specific lawful route/);
-    assert.match(d2eResult.content[0].text, /direction_controller_readback/);
-    assert.match(d2eResult.content[0].text, /without claiming DSPx execution/);
+    assert.equal(d2eResult.details.status, "proposal");
+    assert.equal(d2eResult.details.receipt.schema, "D2E_TRANSFER_PROPOSAL_V1");
+    assert.equal(d2eResult.details.receipt.read_only, true);
+    assert.equal(d2eResult.details.receipt.applied, false);
+    assert.equal(d2eResult.details.receipt.authorization.blocker, "active_task_deferral");
+
+    const appliedD2eResult = await vaultExecuteTool.execute(
+      "tool-call-id-5",
+      {
+        template_name: "repo-direction-to-execution",
+        objective: "Do not implement Decision 87 without authorization",
+        transfer_mode: "applied",
+        repo: process.cwd(),
+        packet_key: "decision-87-packet",
+        task_id: 4381,
+        decision_id: 87,
+      },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined },
+    );
+    assert.equal(appliedD2eResult.details.ok, false);
+    assert.equal(appliedD2eResult.details.error, "D2E_TRANSFER_AUTHORIZATION_REQUIRED");
+    assert.match(appliedD2eResult.content[0].text, /active_task_deferral/);
   } finally {
     if (previousVaultDir === undefined) {
       delete process.env.VAULT_DIR;

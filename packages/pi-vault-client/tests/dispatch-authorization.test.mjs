@@ -153,6 +153,22 @@ test("issues dispatch_required only for a verified binding", () => {
   assert.deepEqual(result.binding.execution_args, { loop: "ooda" });
 });
 
+test("issues dispatch_required for an immutable D2E workflow binding", () => {
+  const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
+  const workflow = template({
+    id: 87,
+    name: "repo-direction-to-execution",
+    control_mode: "one_shot",
+    formalization_level: "workflow",
+  });
+  const result = runtime.authorizePreparedExecution(request([workflow]));
+  assert.equal(result.disposition, "dispatch_required");
+  assert.equal(result.binding.execution_surface, "workflow_execute");
+  assert.deepEqual(result.binding.execution_args, {
+    workflow_gate: "D2E_TRANSFER_COMPLETE_V1",
+  });
+});
+
 test("blocks unbound workflow and unknown governed values", () => {
   const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
   const workflow = runtime.authorizePreparedExecution(

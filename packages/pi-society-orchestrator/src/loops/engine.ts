@@ -32,6 +32,7 @@ import type { AgentResolution } from "../runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
 import { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
+import { D2ETransferError, executeD2ETransferWorkflow } from "../runtime/d2e-transfer-workflow.ts";
 import {
   type EvidenceEntry,
   type EvidenceWriteResult,
@@ -50,6 +51,7 @@ import {
   type VerifiedDispatchEffectReceipt,
 } from "../runtime/subagent.ts";
 import type { TeamScopedContext } from "../runtime/team-state.ts";
+import { createWorkflowExecutor } from "../runtime/workflow-execution.ts";
 import { LoopKesWriter, resolveLoopKesPackageRoot } from "./kes.ts";
 import {
   captureLoopArtifactHashes,
@@ -1196,11 +1198,11 @@ const WORKFLOW_TEMPLATE_OWNER_ROUTES: Record<
 > = {
   "layer12-040-direction-to-execution-ak-native": {
     owner: "Agent Kernel direction-controller through Pi readback",
-    tool: "direction_controller_readback({ repo, intent })",
+    tool: "vault_execute_template(transfer_mode=proposal|applied)",
     purpose:
-      "inspect the existing AK direction-to-execution state machine and generated-program readiness without claiming DSPx execution or applying a transition",
+      "read back an exact AK packet/task/decision authorization lineage before any applied workflow handoff",
     example: (objective) =>
-      `direction_controller_readback({ repo: cwd, intent: ${JSON.stringify(objective)} })`,
+      `vault_execute_template({ template_name: "layer12-040-direction-to-execution-ak-native", objective: ${JSON.stringify(objective)}, transfer_mode: "proposal", repo: cwd, packet_key: "<packet-key>", task_id: 1, decision_id: 1 })`,
   },
   "pi-autoresearch-setup": {
     owner: "packages/pi-autoresearch",
@@ -1629,11 +1631,9 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
     description: `Execute a Prompt Vault template through the orchestrator dispatch gate.
 
 This bridge uses pi-vault-client dispatch posture metadata and refuses to treat loop/workflow templates as inert text.
-Known loop bindings execute through loop_execute semantics:
-- transcendent-iteration -> loop_execute({ loop: "transcendent", objective })
-- ooda -> loop_execute({ loop: "ooda", objective })
+Known loop bindings execute through loop_execute semantics. The three direction-to-execution workflow templates execute only through the D2E_TRANSFER_COMPLETE_V1 proposal/applied workflow gate.
 
-Unknown loop templates and workflow-grade templates without an execution binding fail closed with an explicit reason.`,
+Unknown templates and workflow-grade templates without an execution binding fail closed with an explicit reason.`,
     promptSnippet: "Execute a Prompt Vault template through its required orchestrator binding.",
     promptGuidelines: [
       "Use vault_execute_template when the operator asks to run/apply/execute a Prompt Vault template by name.",
@@ -1645,6 +1645,15 @@ Unknown loop templates and workflow-grade templates without an execution binding
       objective: Type.String({
         description: "Objective to pass to the orchestrator execution binding",
       }),
+      transfer_mode: Type.Optional(
+        Type.Union([Type.Literal("proposal"), Type.Literal("applied")], {
+          description: "Required proposal-only or applied mode for a D2E workflow binding.",
+        }),
+      ),
+      repo: Type.Optional(Type.String({ description: "Exact registered repo for D2E readback." })),
+      packet_key: Type.Optional(Type.String({ description: "Exact AK packet key." })),
+      task_id: Type.Optional(Type.Number({ description: "Exact AK execution task id." })),
+      decision_id: Type.Optional(Type.Number({ description: "Exact governing AK decision id." })),
       continue_after_failure: Type.Optional(
         Type.Boolean({
           description:
@@ -1771,6 +1780,88 @@ Unknown loop templates and workflow-grade templates without an execution binding
           onUpdate,
           ctx,
         );
+      }
+
+      if (
+        posture.posture === "orchestrator_workflow_required" &&
+        posture.binding?.execution_surface === "workflow_execute" &&
+        posture.binding.execution_args?.workflow_gate === "D2E_TRANSFER_COMPLETE_V1"
+      ) {
+        const input = params as Record<string, unknown>;
+        const mode = input.transfer_mode;
+        const repo = typeof input.repo === "string" && input.repo.trim() ? input.repo : ctx.cwd;
+        const packetKey = typeof input.packet_key === "string" ? input.packet_key : "";
+        const taskId = Number(input.task_id);
+        const decisionId = Number(input.decision_id);
+        try {
+          const result = await executeD2ETransferWorkflow({
+            request: {
+              templateName,
+              mode: mode as "proposal" | "applied",
+              repo,
+              packetKey,
+              taskId,
+              decisionId,
+              objective,
+            },
+            exec: (command, args, execOptions) => pi.exec(command, args, execOptions),
+            prepareWorkflow:
+              mode === "applied"
+                ? async () => {
+                    const resolution = resolveAgent?.("builder", { ...ctx, cwd: repo });
+                    const toolResult = await getCognitiveToolByName(
+                      "controlled",
+                      { cwd: repo },
+                      signal,
+                    );
+                    if (isBoundaryFailure(toolResult) || !toolResult.value?.content.trim()) {
+                      throw new D2ETransferError(
+                        "D2E_TRANSFER_WORKFLOW_INCOMPLETE",
+                        "Governed cognitive tool 'controlled' is unavailable.",
+                      );
+                    }
+                    return {
+                      workflowExecutor: createWorkflowExecutor({
+                        sessionsDir: path.join(
+                          os.homedir(),
+                          ".pi",
+                          "agent",
+                          "sessions",
+                          "workflows",
+                        ),
+                        executor: subagentExecutor,
+                      }),
+                      workflowExecution: {
+                        activeTeam: resolution?.team ?? "full",
+                        model: ctx.model
+                          ? `${ctx.model.provider}/${ctx.model.id}`
+                          : "openrouter/google/gemini-2.5-flash-preview",
+                        cwd: repo,
+                        cognitiveToolContent: toolResult.value.content,
+                      },
+                    };
+                  }
+                : undefined,
+            signal,
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result.receipt, null, 2) }],
+            details: {
+              ok: result.kind === "complete",
+              status: result.kind,
+              receipt: result.receipt,
+              ...(result.kind === "complete" ? { workflow: result.workflow } : {}),
+            },
+          };
+        } catch (error) {
+          const code =
+            error instanceof D2ETransferError ? error.code : "D2E_TRANSFER_WORKFLOW_INCOMPLETE";
+          const message = error instanceof Error ? error.message : String(error);
+          return {
+            content: [{ type: "text", text: `${code}: ${message}` }],
+            details: { ok: false, error: code },
+          };
+        }
       }
 
       return {

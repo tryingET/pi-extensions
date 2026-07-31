@@ -10,6 +10,7 @@ import {
   checkProjectionFreshness,
   classifyDispatchPosture,
   createDispatchPolicy,
+  D2E_WORKFLOW_TEMPLATE_NAMES,
   formatDispatchPosture,
   formatProjectionFreshness,
   getKnownLoopBindings,
@@ -186,6 +187,35 @@ describe("formatDispatchPosture", () => {
 // ---------------------------------------------------------------------------
 
 describe("loop binding registry", () => {
+  it("binds exactly the three D2E workflow templates to the immutable completion gate", () => {
+    assert.deepEqual(
+      [...D2E_WORKFLOW_TEMPLATE_NAMES],
+      [
+        "direction-to-execution",
+        "repo-direction-to-execution",
+        "layer12-040-direction-to-execution-ak-native",
+      ],
+    );
+    const bindings = getKnownLoopBindings();
+    for (const name of D2E_WORKFLOW_TEMPLATE_NAMES) {
+      const binding = bindings[name];
+      assert.ok(binding, `${name} must have a verified workflow binding`);
+      assert.equal(binding.execution_surface, "workflow_execute");
+      assert.deepEqual(binding.execution_args, {
+        workflow_gate: "D2E_TRANSFER_COMPLETE_V1",
+      });
+      assert.ok(Object.isFrozen(binding));
+      assert.ok(Object.isFrozen(binding.execution_args));
+      const posture = classifyDispatchPosture({
+        name,
+        control_mode: "one_shot",
+        formalization_level: "workflow",
+      });
+      assert.equal(posture.posture, "orchestrator_workflow_required");
+      assert.equal(posture.binding, binding);
+    }
+  });
+
   it("returns deeply frozen bindings", () => {
     const bindings = getKnownLoopBindings();
     assert.ok(Object.isFrozen(bindings));
