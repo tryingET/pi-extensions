@@ -260,7 +260,7 @@ function parseExecutionBinding(value: unknown): VisibleLoopExecutionBinding {
     return { mode: "operator_objective", objective };
   }
   if (record.mode === "ak_task") {
-    const taskId = requirePositiveInteger(record.taskId, "executionBinding.taskId");
+    const taskId = requireSafePositiveInteger(record.taskId, "executionBinding.taskId");
     return { mode: "ak_task", taskId };
   }
   if (record.mode === "self_evolution_candidate") {
@@ -351,6 +351,13 @@ function requireSingleLineAbsolutePath(value: unknown, label: string): string {
 function requirePositiveInteger(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 100) {
     throw new TypeError(`${label} must be an integer between 1 and 100.`);
+  }
+  return value;
+}
+
+function requireSafePositiveInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
+    throw new TypeError(`${label} must be a positive safe integer.`);
   }
   return value;
 }

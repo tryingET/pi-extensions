@@ -59,6 +59,44 @@ test("visible-loop child rejects an unbound persisted config before prompt deliv
   }
 });
 
+test("visible-loop child accepts an AK task id above the loop-count limit", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-ak-task-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const stateDir = `${stateHome}/pi-little-helpers/visible-loop`;
+    mkdirSync(stateDir, { recursive: true });
+    const configPath = `${stateDir}/visible-loop-ak-task-test.json`;
+    writeFileSync(
+      configPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        runId: "visible-loop-ak-task-test",
+        loopCount: 1,
+        cwd: `${stateHome}/repo`,
+        prompts: ["bounded work"],
+        reportBack: "manual",
+        executionBinding: { mode: "ak_task", taskId: 4164 },
+        createdAt: new Date().toISOString(),
+      })}\n`,
+    );
+    const userMessages = [];
+    const pi = {
+      sendUserMessage(message, options) {
+        userMessages.push({ message, options });
+      },
+    };
+    const harness = createContext({ cwd: `${stateHome}/repo` });
+
+    await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env);
+
+    assert.equal(userMessages.length, 1);
+    assert.match(userMessages[0].message, /AK task #4164/);
+    assert.ok(harness.notifications.some(({ message }) => /started: iteration 1\/1/.test(message)));
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
 test("visible-loop child rejects candidate binding without its matching envelope", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-candidate-mismatch-state-`);
   try {
