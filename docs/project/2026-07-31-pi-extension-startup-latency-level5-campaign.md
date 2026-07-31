@@ -173,11 +173,12 @@ A later H4 micro-bundle may combine context-packer, agent-vent, package-update-n
 
 ## Current state
 
-- campaign control: active/continue
-- baseline contract: satisfied (three unchanged invocations)
+- runtime control: machine `ready`, no hidden continuation selected
+- AK lifecycle: task `4368` is pending under until-event deferral `194`, triggered by lifecycle-v2 candidate admission becoming available
+- baseline contract: satisfied (three unchanged invocations); AK evidence `5653`
 - portfolio inventory: first pass complete (32 owned entrypoints)
 - candidate discovery: two read-only cluster reports complete; remaining discovery may continue without mutation
-- candidate admission: blocked — all three I1/E1/C1 `candidate_peer_spawn` requests failed closed on the candidate lifecycle backlog hold; no worktree or candidate was created and the controller did not bypass the hold
+- candidate admission: blocked — all three I1/E1/C1 `candidate_peer_spawn` requests failed closed on the candidate lifecycle backlog hold; no worktree or candidate was created, the controller did not bypass the hold, and AK evidence `5654` records the failed admission gate
 - isolated base measurements: complete for I1/E1/C1 with ten trials each
 - integration/promotion: none authorized
 - target posture: unmet; no candidate evidence yet

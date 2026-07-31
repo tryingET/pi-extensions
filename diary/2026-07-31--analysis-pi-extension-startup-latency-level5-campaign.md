@@ -44,3 +44,11 @@ All three candidate launches failed closed with `candidate_peer_spawn is tempora
 ## Current next legal move
 
 Preserve the active campaign receipts, commit the campaign tooling/narrative independently from target candidates, and retry admitted I1/E1/C1 lanes only after lifecycle-v2 admission is available. Candidate checks and live dogfood remain package-specific, and the final target can be assessed only from a combined configured-set measurement.
+
+The checkpoint landed as `b734587c`. Performance-baseline evidence `5653` and failed candidate-admission evidence `5654` are attached to AK-4368. The task was then released and placed under until-event deferral `194` with trigger `candidate_peer_spawn:lifecycle-v2-admission-available`; the autoresearch runtime remains ready with no hidden continuation.
+
+## Scout startup authentication incident
+
+One concurrently started scout session (`019fb8c3-cf94-780e-b736-e14c3142d4c3`) emitted `Failed to extract accountId from token` twice and never ACKed. Session JSONL shows `openai-codex/gpt-5.6-sol`; `auth.json` was rewritten between that process's session creation and first failed model turn. The failed process retained its bad in-memory credential, while the current stored Codex access JWT and stored account id validate and match without exposing their values. A replacement scout (`019fb8d3-a2a6-7330-99bd-e373c1f62e96`) started after that validation and completed multiple model/tool turns without the account-id error.
+
+Observed source risk: the active host's `openai-codex-responses.ts` decodes the JWT payload with raw `atob(parts[1])`, while JWT payloads use base64url; credential storage also keeps an in-memory snapshot per process. The exact contribution of base64url decoding versus cross-process token rotation remains a hypothesis until a synthetic regression test reproduces it. No auth/model/settings file was edited during diagnosis. Durable owner work is routed to contrib Pi task `4375`; the obsolete failed peer tab can be closed, and it should not be reused.
