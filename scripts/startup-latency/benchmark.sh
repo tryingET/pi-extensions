@@ -3,8 +3,8 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: benchmark.sh [--profile current|no-extensions|interaction|vault|hotspots|auto]
-                    [--mode json|rpc] [--trials N]
+Usage: benchmark.sh [--profile current|no-extensions|interaction|vault|hotspots|custom|auto]
+                    [--extension PATH ...] [--mode json|rpc] [--trials N]
 
 Emits: METRIC startup_elapsed_ms_median=<integer>
 
@@ -18,19 +18,22 @@ Profiles:
   interaction    candidate worktree's pi-interaction entry only
   vault          candidate worktree's pi-vault-client entry only
   hotspots       interaction + vault candidate entries
-  auto           infer interaction/vault/hotspots from candidate git changes;
-                 otherwise use current
+  custom         only the repeated --extension paths, resolved from the selected repo root
+  auto           use custom when --extension is present; otherwise infer
+                 interaction/vault/hotspots from candidate git changes, then current
 EOF
 }
 
 profile="auto"
 mode="rpc"
 trials=5
+custom_extensions=()
 while (($#)); do
   case "$1" in
     --profile) profile=${2:?missing profile}; shift 2 ;;
     --mode) mode=${2:?missing mode}; shift 2 ;;
     --trials) trials=${2:?missing trials}; shift 2 ;;
+    --extension) custom_extensions+=("${2:?missing extension path}"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -46,6 +49,17 @@ probe="$script_dir/shutdown-probe.ts"
 model_scope=${PI_STARTUP_MODEL_SCOPE:-openai-codex/gpt-5.6-sol}
 [[ -n "$model_scope" ]] || { echo "PI_STARTUP_MODEL_SCOPE must not be empty" >&2; exit 2; }
 
+resolved_extensions=()
+for extension in "${custom_extensions[@]}"; do
+  if [[ "$extension" = /* ]]; then
+    resolved="$extension"
+  else
+    resolved="$repo_root/$extension"
+  fi
+  [[ -f "$resolved" ]] || { echo "extension does not exist: $extension" >&2; exit 2; }
+  resolved_extensions+=("$(cd "$(dirname "$resolved")" && pwd -P)/$(basename "$resolved")")
+done
+
 changed_paths() {
   local base=""
   if git -C "$repo_root" show-ref --verify --quiet refs/heads/main; then
@@ -59,24 +73,33 @@ changed_paths() {
 }
 
 if [[ "$profile" == auto ]]; then
-  changes=$(changed_paths)
-  has_interaction=0
-  has_vault=0
-  grep -q '^packages/pi-interaction/pi-interaction/' <<<"$changes" && has_interaction=1 || true
-  grep -q '^packages/pi-vault-client/' <<<"$changes" && has_vault=1 || true
-  if ((has_interaction && has_vault)); then
-    profile=hotspots
-  elif ((has_interaction)); then
-    profile=interaction
-  elif ((has_vault)); then
-    profile=vault
+  if ((${#resolved_extensions[@]})); then
+    profile=custom
   else
-    profile=current
+    changes=$(changed_paths)
+    has_interaction=0
+    has_vault=0
+    grep -q '^packages/pi-interaction/pi-interaction/' <<<"$changes" && has_interaction=1 || true
+    grep -q '^packages/pi-vault-client/' <<<"$changes" && has_vault=1 || true
+    if ((has_interaction && has_vault)); then
+      profile=hotspots
+    elif ((has_interaction)); then
+      profile=interaction
+    elif ((has_vault)); then
+      profile=vault
+    else
+      profile=current
+    fi
   fi
 fi
 
 case "$profile" in
-  current|no-extensions|interaction|vault|hotspots) ;;
+  current|no-extensions|interaction|vault|hotspots)
+    ((${#resolved_extensions[@]} == 0)) || { echo "--extension requires --profile custom or auto" >&2; exit 2; }
+    ;;
+  custom)
+    ((${#resolved_extensions[@]} > 0)) || { echo "custom profile requires at least one --extension" >&2; exit 2; }
+    ;;
   *) echo "invalid profile: $profile" >&2; exit 2 ;;
 esac
 
@@ -105,6 +128,12 @@ case "$profile" in
       -e "$repo_root/packages/pi-interaction/pi-interaction/extensions/input-triggers.ts" \
       -e "$repo_root/packages/pi-vault-client/extensions/vault.js")
     ;;
+  custom)
+    command=("${common[@]}" --no-extensions)
+    for extension in "${resolved_extensions[@]}"; do
+      command+=(-e "$extension")
+    done
+    ;;
 esac
 
 printf 'trial\telapsed_ms\n' >"$run_dir/trials.tsv"
@@ -129,9 +158,9 @@ else
   median=$(((lower + upper) / 2))
 fi
 
-node - "$run_dir/summary.json" "$profile" "$mode" "$trials" "$median" "$model_scope" "$run_dir/trials.tsv" <<'NODE'
+node - "$run_dir/summary.json" "$profile" "$mode" "$trials" "$median" "$model_scope" "$run_dir/trials.tsv" "${resolved_extensions[@]}" <<'NODE'
 const fs = require("node:fs");
-const [out, profile, mode, trials, median, modelScope, tsv] = process.argv.slice(2);
+const [out, profile, mode, trials, median, modelScope, tsv, ...extensions] = process.argv.slice(2);
 const rows = fs.readFileSync(tsv, "utf8").trim().split("\n").slice(1).map((line) => {
   const [trial, elapsedMs] = line.split("\t").map(Number);
   return { trial, elapsedMs };
@@ -143,6 +172,7 @@ fs.writeFileSync(out, `${JSON.stringify({
   mode,
   trials: Number(trials),
   modelScope,
+  extensions,
   metric: { name: "startup_elapsed_ms_median", direction: "lower", unit: "ms", value: Number(median) },
   samples: rows,
 }, null, 2)}\n`);
@@ -152,5 +182,8 @@ printf 'PROFILE %s\n' "$profile"
 printf 'MODE %s\n' "$mode"
 printf 'TRIALS %s\n' "$trials"
 printf 'MODEL_SCOPE %s\n' "$model_scope"
+for extension in "${resolved_extensions[@]}"; do
+  printf 'EXTENSION %s\n' "$extension"
+done
 printf 'RUN_DIR %s\n' "$run_dir"
 printf 'METRIC startup_elapsed_ms_median=%s\n' "$median"
