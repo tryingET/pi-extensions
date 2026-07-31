@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ff1a570bd5b872f4859352f280cd58b1356a9230"
+created_at: "2026-07-31T13:38:43Z"
+intent: "Validate AK task id as safe positive integer in visible-loop state."
+files:
+  - "packages/pi-little-helpers/src/visibleLoopState.ts"
+  - "packages/pi-little-helpers/tests/visible-loop-child-progress.test.mjs"
+validation:
+  fast_gate:
+    command: "npm --prefix packages/pi-little-helpers run check"
+    status: "pass"
+  full_gate:
+    command: "npm --prefix packages/pi-little-helpers run check (162/162 pass)"
+    status: "pass"
+group:
+  index: 6
+  total: 7
+  rationale: "Hardens executionBinding.taskId parsing against non-safe-integer values."
