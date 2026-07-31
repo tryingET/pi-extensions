@@ -65,3 +65,19 @@ The campaign nevertheless advanced lawfully through `pi-autoresearch`. Two prede
 - AR1 unchanged baseline: 605 ms wall-clock median; 64.5 ms entrypoint import/factory median.
 
 These are isolated baselines, not candidate wins. The next mutation remains sequential SCI1 then AR1 after exact once-only stale-terminal admission reconciliation. Each candidate still needs its own lifecycle binding, at least ten trials, package checks, first-use/concurrency/fail-closed dogfood, and a combined configured-set remeasurement before any savings claim.
+
+## Sequential SCI1 and AR1 outcomes
+
+AK-4378 completed the exact legacy-terminal reconciliation and returned admission pressure to zero without changing the ordinary hardened verifier. The campaign then exercised two sequential admitted candidates.
+
+SCI1 reached clean commit `e09912a2978166bcf056a3de0b126cbe954a5211` and passed its package check, but two ten-trial measurements did not improve the 602 ms wall / 67 ms entrypoint baseline. Inspection confirmed that `mcp-bridge.ts` and the MCP SDK imports remained statically eager. The controller rejected, restoration-archived, lifecycle-cleaned, and released SCI1 without integration.
+
+AR1 reached clean commit `f2d7d0f14c3ebb7358f8a2dc3ae5fb015cd51267`. Its 23 changed files stayed under `packages/pi-autoresearch`; eager schemas, names, registrations, guards, and receipt isolation remained at the registration boundary while runtime/domain implementations moved behind cached dynamic imports. Package checks, strict dogfood contracts, and the dedicated lazy-runtime suite passed.
+
+Two independent ten-trial candidate runs each produced an 18 ms autoresearch entrypoint median. A same-time unchanged run produced 64 ms, so the import/factory reduction was repeatable and 46 ms larger than the declared 35 ms candidate floor. Whole-process medians remained noisy at 703–709 ms for the candidate and 707 ms for the unchanged owner, so no process-level saving or configured-set result was claimed.
+
+Independent adversarial review then reproduced a correctness blocker: commands with already-open editor flows and retained picker callbacks could still notify through the old extension context after `session_shutdown`. Existing tests covered delayed imports/widgets, but not a UI await that began before shutdown and resolved afterward. The reviewer also found the new schema regression assertions structurally shallow, although no concrete schema drift was found.
+
+The controller rejected AR1 as-is and did not cherry-pick, merge, push, install, or otherwise integrate it. Lifecycle-v2 captured the exact reviewed head, discarded only the measured ignored `node_modules` paths, published a restoration-verified archive, authorized exact worktree/branch removal, and reached terminal `cleaned`. Cleanup first failed before effects while the visible candidate Pi still leased the worktree; after that process exited, compound invocations whose own shell command line named the worktree also correctly triggered the lease guard. A minimal source-owned cleanup invocation without that path in its parent command line succeeded. The candidate branch and worktree are absent, the owner branch does not contain the candidate commit, and admission pressure is back to zero.
+
+No candidate delta is counted toward portfolio savings. The next AR attempt, if selected, must be a new admitted candidate with post-await and retained-callback liveness guards plus already-open-editor shutdown regressions. The configured-set portfolio remains unchanged until a slice passes both measurement and behavior review.

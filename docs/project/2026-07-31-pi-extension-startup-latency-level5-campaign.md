@@ -184,16 +184,25 @@ A later H4 micro-bundle may combine context-packer, agent-vent, package-update-n
 7. Integration/promotion is an explicit owner action; candidate cleanup is a separate lifecycle action.
 8. Combined configured-set measurement—not arithmetic addition—decides target posture.
 
+## Measured candidate outcomes
+
+| Cell | Candidate | Fresh-process result | Behavioral/review result | Disposition |
+|---|---|---|---|---|
+| SCI1 | `e09912a2978166bcf056a3de0b126cbe954a5211` | 602 ms wall median and 67 ms entrypoint median, equal to the unchanged baseline | package check passed, but the MCP bridge and SDK remained statically eager | rejected; lifecycle cleaned and admission released |
+| AR1 | `f2d7d0f14c3ebb7358f8a2dc3ae5fb015cd51267` | two ten-trial entrypoint medians of 18 ms versus a same-time unchanged 64 ms median; whole-process medians remained 703–709 ms versus 707 ms | package checks and lazy-loader tests passed, but independent review reproduced stale notifications from already-open editor flows and retained picker callbacks after `session_shutdown` | rejected as-is; lifecycle cleaned and admission released |
+
+AR1 therefore established a repeatable **46 ms entrypoint reduction**, but it did not establish a whole-process improvement and failed the behavior-preservation gate. No AR1 commit was integrated. A corrected implementation would be a new admitted candidate and must add post-await/callback liveness guards plus regression tests that begin with an already-open editor. Full schema-contract parity coverage remains a non-blocking follow-up beyond AR1's shallow top-level schema assertions.
+
 ## Current state
 
-- runtime control: machine `ready`, no hidden continuation selected; the current `pi-autoresearch` segment is the AR1 isolated calibration
-- AK lifecycle: task `4368` was resumed at the operator's instruction and is claimed by `pi-level5-startup-portfolio`
+- runtime control: machine `ready`; `pi-autoresearch` remains measurement evidence rather than campaign authority
+- AK lifecycle: task `4368` is claimed by `pi-level5-startup-portfolio`
 - baseline contract: configured-set baseline satisfied (three unchanged invocations); AK evidence `5653`
 - portfolio inventory: first pass complete (32 owned entrypoints)
-- candidate discovery: the original package reports plus the late control/intelligence cluster report are complete enough to prefer sequential SCI1 and AR1 cells
-- historical candidate admission: I1/E1/C1 attempts through the stale loaded tool failed on the old hold-file gate; evidence `5654`
-- current candidate admission: Decision 63 has activated admission-v2 and marked the historical hold `superseded_by_admission_v2`, but its single repository slot remains occupied by admission `cadm-27369981-8c40-448b-9136-78f7a4b29228` from AK-4152 even though lifecycle resource `cpr-22e7419e0a7c799d665f77b6` is terminally `cleaned` and its worktree and branch are absent
-- reconciliation: the exact source-owned release attempt failed closed with `candidate terminal receipt schema mismatch`; the legacy cleaned receipt lacks fields required by the hardened verifier, so no permit edit, threshold relaxation, manual worktree, or lifecycle bypass was performed; AK evidence `5666` and `5667` record the two task-facing blocker views, and narrow P0 task `4378` owns a separate exact legacy-anomaly reconciliation command without weakening the normal verifier
-- isolated base measurements: complete for I1/E1/C1/SCI1/AR1 with ten trials each; SCI1 measured 602 ms wall / 67 ms entrypoint median and AR1 measured 605 ms wall / 64.5 ms entrypoint median
-- candidate implementation and integration/promotion: none authorized or performed
-- target posture: unmet; no candidate evidence yet
+- admission reconciliation: AK-4378 completed the exact legacy-terminal reconciliation without weakening the ordinary hardened verifier
+- evaluated candidate cells: SCI1 and AR1, satisfying the multi-package evaluation requirement but producing no accepted slice
+- lifecycle posture: both candidate branches and worktrees are absent after restoration-verified archives; active admission pressure is zero
+- integration/promotion: none performed
+- combined configured-set portfolio measurement: still pending because no slice has passed both measurement and behavior gates
+- target posture: unmet; the campaign cannot claim savings from rejected candidate deltas
+- next legal move: admit a corrected AR follow-up or another ranked independent cell, run its package-specific behavior gates and fresh-process measurements, and remeasure the full configured set only after at least one slice is lawfully integrated
