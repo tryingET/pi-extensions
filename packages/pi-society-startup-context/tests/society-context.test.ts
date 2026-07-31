@@ -175,6 +175,8 @@ test("renders fast startup packet with explicit pending warning and no posture c
 
 test("replacement and shutdown abort in-flight full-refresh subprocesses", async () => {
   const root = mkdtempSync(join(tmpdir(), "society-context-abort-"));
+  const repoRoot = join(root, "ai-society", "test-repo");
+  mkdirSync(repoRoot, { recursive: true });
   const readyMarker = join(root, "ready");
   const abortMarker = join(root, "aborted");
   const executable = join(root, "fake-ak");
@@ -184,7 +186,9 @@ test("replacement and shutdown abort in-flight full-refresh subprocesses", async
   );
   chmodSync(executable, 0o755);
   const oldAk = process.env.PI_SOCIETY_CONTEXT_AK;
+  const oldHome = process.env.HOME;
   process.env.PI_SOCIETY_CONTEXT_AK = executable;
+  process.env.HOME = root;
   const events = new Map<string, (...args: unknown[]) => Promise<void>>();
   const markerCount = (path: string) =>
     existsSync(path) ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).length : 0;
@@ -201,7 +205,7 @@ test("replacement and shutdown abort in-flight full-refresh subprocesses", async
       },
       registerCommand() {},
     } as never);
-    const context = { cwd: process.cwd(), hasUI: false, ui: {} };
+    const context = { cwd: repoRoot, hasUI: false, ui: {} };
     await events.get("session_start")?.({}, context);
     await waitForMarkerCount(readyMarker, 1);
     assert.equal(markerCount(readyMarker), 1, "initial refresh subprocess should be ready");
@@ -223,6 +227,8 @@ test("replacement and shutdown abort in-flight full-refresh subprocesses", async
   } finally {
     if (oldAk === undefined) delete process.env.PI_SOCIETY_CONTEXT_AK;
     else process.env.PI_SOCIETY_CONTEXT_AK = oldAk;
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
     rmSync(root, { recursive: true, force: true });
   }
 });
