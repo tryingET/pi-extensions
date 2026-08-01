@@ -38,9 +38,13 @@ function createDefaultDecisionRuntime(
 ): AutoresearchDecisionRuntime {
   let runtimePromise: Promise<AutoresearchDecisionRuntime> | null = null;
   const loadRuntime = () => {
-    runtimePromise ??= modules.decisions().then((decisionModule) =>
-      decisionModule.createAutoresearchDecisionRuntime({
+    runtimePromise ??= (async () => {
+      const decisionModule = await modules.decisions();
+      signal?.throwIfAborted();
+      return decisionModule.createAutoresearchDecisionRuntime({
         executePreparedPrompt: async (input) => {
+          const operationSignal = input.signal ?? signal;
+          operationSignal?.throwIfAborted();
           if (!ctx.model) {
             throw new Error(
               "No model selected for live pi-autoresearch Prompt Vault decisions in this session.",
@@ -48,11 +52,13 @@ function createDefaultDecisionRuntime(
           }
 
           const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
+          operationSignal?.throwIfAborted();
           if (!auth.ok || !auth.apiKey) {
             throw new Error(auth.ok ? `No API key for ${ctx.model.provider}` : auth.error);
           }
 
           const { complete } = await modules.piAiCompat();
+          operationSignal?.throwIfAborted();
           const response = await complete(
             ctx.model,
             {
@@ -67,9 +73,10 @@ function createDefaultDecisionRuntime(
             {
               apiKey: auth.apiKey,
               headers: auth.headers,
-              signal: input.signal ?? signal,
+              signal: operationSignal,
             },
           );
+          operationSignal?.throwIfAborted();
 
           if (response.stopReason === "aborted") {
             throw new Error("Prompt Vault decision execution aborted.");
@@ -89,8 +96,8 @@ function createDefaultDecisionRuntime(
             model: ctx.model.id,
           };
         },
-      }),
-    );
+      });
+    })();
     return runtimePromise;
   };
 

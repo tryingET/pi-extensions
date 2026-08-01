@@ -20,6 +20,7 @@ import {
 import {
   type AutoresearchSessionEffects,
   createAutoresearchSessionEffects,
+  isAutoresearchSessionEndedError,
 } from "./pi-autoresearch/sessionEffects.ts";
 import { openAutoresearchShell } from "./pi-autoresearch/shellCommand.ts";
 import { registerAutoresearchLlamacppTools } from "./pi-autoresearch/toolLlamacpp.ts";
@@ -43,7 +44,7 @@ export function registerPiAutoresearchExtension(
   const autoContinuationTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const autoContinuationGenerations = new Map<string, number>();
   let sessionEffects = createAutoresearchSessionEffects();
-  const modules = createAutoresearchLazyModules(options.moduleLoaders);
+  const modules = createAutoresearchLazyModules(options.moduleLoaders, () => sessionEffects);
 
   const registerLiveTriggerForSession = (effects: AutoresearchSessionEffects): void => {
     void maybeRegisterAutoresearchLiveTrigger(options.triggerSurface, modules, effects)
@@ -79,6 +80,7 @@ export function registerPiAutoresearchExtension(
   if (typeof maybeOn === "function") {
     maybeOn.call(pi, "session_start", (_event: unknown, ctx: unknown) => {
       revokeSessionBeforeCleanup();
+      modules.reset();
       sessionEffects = createAutoresearchSessionEffects();
       const effects = sessionEffects;
       registerLiveTriggerForSession(effects);
@@ -123,14 +125,12 @@ export function registerPiAutoresearchExtension(
   pi.registerCommand(AUTORESEARCH_COMMAND_NAME, {
     description: "Open the pi-autoresearch bounded-runtime overview",
     handler: async (args, ctx) => {
-      await openAutoresearchShell(
-        args,
-        ctx,
-        dashboardExportIntervals,
-        options,
-        modules,
-        sessionEffects,
-      );
+      const effects = sessionEffects;
+      try {
+        await openAutoresearchShell(args, ctx, dashboardExportIntervals, options, modules, effects);
+      } catch (error) {
+        if (!isAutoresearchSessionEndedError(error)) throw error;
+      }
     },
   });
 
@@ -140,21 +140,26 @@ export function registerPiAutoresearchExtension(
       const inputContext = ctx as { cwd: string };
       const text = String(inputEvent.text ?? "");
       const bridgeArgs = parseExtensionAutoresearchCommand(text);
-      if (inputEvent.source === "extension") {
-        if (bridgeArgs === undefined) return { action: "continue" as const };
-        const handled = await executeExtensionAutoresearchBridge(
-          bridgeArgs,
-          ctx as ExtensionContext,
-          modules,
-          sessionEffects,
-        );
-        return { action: handled ? ("handled" as const) : ("continue" as const) };
-      }
       const effects = sessionEffects;
-      const transformed = await transformAutoresearchDollarInput(text, inputContext.cwd, modules);
-      if (!effects.isActive()) return { action: "continue" as const };
-      if (!transformed) return { action: "continue" as const };
-      return { action: "transform" as const, text: transformed };
+      try {
+        if (inputEvent.source === "extension") {
+          if (bridgeArgs === undefined) return { action: "continue" as const };
+          const handled = await executeExtensionAutoresearchBridge(
+            bridgeArgs,
+            ctx as ExtensionContext,
+            modules,
+            effects,
+          );
+          return { action: handled ? ("handled" as const) : ("continue" as const) };
+        }
+        const transformed = await transformAutoresearchDollarInput(text, inputContext.cwd, modules);
+        if (!effects.isActive()) return { action: "continue" as const };
+        if (!transformed) return { action: "continue" as const };
+        return { action: "transform" as const, text: transformed };
+      } catch (error) {
+        if (!isAutoresearchSessionEndedError(error)) throw error;
+        return { action: "continue" as const };
+      }
     });
   }
 
@@ -164,6 +169,7 @@ export function registerPiAutoresearchExtension(
     options,
     autoContinuationCounts,
     modules,
+    getSessionEffects: () => sessionEffects,
   });
 
   registerAutoresearchRuntimeExecutionTools(pi, options, modules, () => sessionEffects);

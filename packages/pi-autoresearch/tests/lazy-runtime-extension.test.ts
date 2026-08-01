@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,24 +11,15 @@ import {
   stopAutoresearchDashboardBrowserExport,
 } from "../extensions/pi-autoresearch/dashboardUi.ts";
 import {
-  AUTORESEARCH_AUTOPLAN_TOOL_NAME,
-  AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
-  AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
-  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
-  AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
-  AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
-  AUTORESEARCH_LOOP_TOOL_NAME,
-  AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
-  AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
-  AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
-  AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
-  AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
 } from "../extensions/pi-autoresearch/eagerContract.ts";
-import type { AutoresearchRuntimeModule } from "../extensions/pi-autoresearch/lazyModules.ts";
+import type {
+  AutoresearchFinalizeModule,
+  AutoresearchRuntimeModule,
+} from "../extensions/pi-autoresearch/lazyModules.ts";
 import { createAutoresearchSessionEffects } from "../extensions/pi-autoresearch/sessionEffects.ts";
 import {
   type PiAutoresearchExtensionOptions,
@@ -97,28 +89,22 @@ async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void>
 }
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CANONICAL_EAGER_TOOL_PARAMETERS = JSON.parse(
-  readFileSync(path.join(packageRoot, "tests/fixtures/eager-tool-parameters.json"), "utf8"),
-) as Record<string, unknown>;
-
-const EXPECTED_TOOL_NAMES = [
-  AUTORESEARCH_AUTOPLAN_TOOL_NAME,
-  AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
-  AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
-  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
-  AUTORESEARCH_CONTROL_TOOL_NAME,
-  AUTORESEARCH_FINALIZE_TOOL_NAME,
-  AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
-  AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
-  AUTORESEARCH_LOOP_TOOL_NAME,
-  AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
-  AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
-  AUTORESEARCH_RUN_TOOL_NAME,
-  AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
-  AUTORESEARCH_SETUP_TOOL_NAME,
-  AUTORESEARCH_STATUS_TOOL_NAME,
-  AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
-].sort();
+const eagerParametersPath = path.join(packageRoot, "tests/fixtures/eager-tool-parameters.json");
+const eagerParametersRaw = readFileSync(eagerParametersPath, "utf8");
+const CANONICAL_EAGER_TOOL_PARAMETERS = JSON.parse(eagerParametersRaw) as Record<string, unknown>;
+const EAGER_CONTRACT_PROVENANCE = JSON.parse(
+  readFileSync(
+    path.join(packageRoot, "tests/fixtures/eager-tool-parameters.provenance.json"),
+    "utf8",
+  ),
+) as {
+  schemaVersion: number;
+  sourceBaseCommit: string;
+  fixture: string;
+  fixtureSha256: string;
+  expectedToolNames: string[];
+};
+const EXPECTED_TOOL_NAMES = [...EAGER_CONTRACT_PROVENANCE.expectedToolNames].sort();
 
 test("extension startup sources contain no static value import of core implementations", () => {
   const extensionRoot = path.join(packageRoot, "extensions");
@@ -136,6 +122,17 @@ test("extension startup sources contain no static value import of core implement
 });
 
 test("registration keeps exact canonical names and deep schemas eager without evaluating implementations", () => {
+  assert.equal(EAGER_CONTRACT_PROVENANCE.schemaVersion, 1);
+  assert.equal(
+    EAGER_CONTRACT_PROVENANCE.sourceBaseCommit,
+    "31fec4772687973f67d279878a883632e23554c8",
+  );
+  assert.equal(EAGER_CONTRACT_PROVENANCE.fixture, "eager-tool-parameters.json");
+  assert.equal(
+    createHash("sha256").update(eagerParametersRaw).digest("hex"),
+    EAGER_CONTRACT_PROVENANCE.fixtureSha256,
+  );
+  assert.deepEqual(Object.keys(CANONICAL_EAGER_TOOL_PARAMETERS).sort(), EXPECTED_TOOL_NAMES);
   let runtimeLoadCount = 0;
   const { tools } = registerHarness({
     moduleLoaders: {
@@ -264,6 +261,219 @@ test("concurrent first use shares one in-flight import and caches load failure t
     (error) => error === marker,
   );
   assert.equal(runtimeLoadCount, 1);
+});
+
+test("a replacement session retries a failed lazy import without hiding the old failure", async () => {
+  const marker = new Error("old session runtime import failed");
+  let runtimeLoadCount = 0;
+  const previousWidgetSetting = process.env.PI_AUTORESEARCH_WIDGET;
+  process.env.PI_AUTORESEARCH_WIDGET = "0";
+  try {
+    const { handlers, tools } = registerHarness({
+      moduleLoaders: {
+        runtime: async () => {
+          runtimeLoadCount += 1;
+          if (runtimeLoadCount === 1) throw marker;
+          return {
+            buildAutoresearchRuntimeStatus() {
+              return { state: "replacement-ready" };
+            },
+            formatAutoresearchStatusText() {
+              return "replacement session status";
+            },
+          } as unknown as AutoresearchRuntimeModule;
+        },
+      },
+    });
+    const statusTool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
+    assert.ok(statusTool);
+
+    await assert.rejects(
+      () =>
+        statusTool.execute(
+          "old-status",
+          { action: "status", cwd: "/tmp/old-session" },
+          undefined,
+          undefined,
+          { cwd: "/tmp/old-session" },
+        ),
+      (error) => error === marker,
+    );
+    assert.equal(runtimeLoadCount, 1);
+
+    handlers.get("session_shutdown")?.();
+    handlers.get("session_start")?.({}, { cwd: "/tmp/replacement", hasUI: false, ui: {} });
+    const replacement = await statusTool.execute(
+      "replacement-status",
+      { action: "status", cwd: "/tmp/replacement" },
+      undefined,
+      undefined,
+      { cwd: "/tmp/replacement" },
+    );
+
+    assert.equal(runtimeLoadCount, 2);
+    assert.equal(replacement.content[0]?.text, "replacement session status");
+  } finally {
+    if (previousWidgetSetting === undefined) delete process.env.PI_AUTORESEARCH_WIDGET;
+    else process.env.PI_AUTORESEARCH_WIDGET = previousWidgetSetting;
+  }
+});
+
+test("a real runtime run waiting on its import cannot write receipts after shutdown", async () => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-post-shutdown-run-"));
+  const pendingRuntime = deferred<AutoresearchRuntimeModule>();
+  let runtimeLoadCount = 0;
+  const previousWidgetSetting = process.env.PI_AUTORESEARCH_WIDGET;
+  process.env.PI_AUTORESEARCH_WIDGET = "0";
+  try {
+    const { handlers, tools } = registerHarness({
+      moduleLoaders: {
+        runtime: () => {
+          runtimeLoadCount += 1;
+          return pendingRuntime.promise;
+        },
+      },
+    });
+    const runTool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(runTool);
+    const operation = runTool.execute(
+      "old-real-run",
+      {
+        cwd,
+        description: "must not appear after shutdown",
+        name: "post-shutdown-race",
+        metricName: "score",
+        direction: "higher",
+        benchmarkCommand: `node -e "console.log('METRIC score=7')"`,
+        checksCommand: null,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    await waitFor(() => runtimeLoadCount === 1);
+
+    handlers.get("session_shutdown")?.();
+    handlers.get("session_start")?.({}, { cwd: "/tmp/replacement", hasUI: false, ui: {} });
+    pendingRuntime.resolve(await import("../src/core/runtime.ts"));
+
+    await assert.rejects(() => operation, /session ended/u);
+    assert.equal(existsSync(path.join(cwd, "autoresearch.jsonl")), false);
+    assert.equal(existsSync(path.join(cwd, "autoresearch.events.jsonl")), false);
+  } finally {
+    if (previousWidgetSetting === undefined) delete process.env.PI_AUTORESEARCH_WIDGET;
+    else process.env.PI_AUTORESEARCH_WIDGET = previousWidgetSetting;
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("shutdown aborts an already-started runtime operation through the session signal", async () => {
+  let runtimeStarted = false;
+  let abortObserved = false;
+  let committedAfterAbort = false;
+  const { handlers, tools } = registerHarness({
+    moduleLoaders: {
+      runtime: async () =>
+        ({
+          executeAutoresearchRun(input: { signal?: AbortSignal }) {
+            runtimeStarted = true;
+            return new Promise((_resolve, reject) => {
+              input.signal?.addEventListener(
+                "abort",
+                () => {
+                  abortObserved = true;
+                  reject(input.signal?.reason ?? new Error("session aborted"));
+                },
+                { once: true },
+              );
+            }).then(() => {
+              committedAfterAbort = true;
+              return {};
+            });
+          },
+          formatAutoresearchRunResult() {
+            return "unreachable";
+          },
+        }) as unknown as AutoresearchRuntimeModule,
+    },
+  });
+  const runTool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+  assert.ok(runTool);
+  const operation = runTool.execute(
+    "active-run",
+    { description: "abort with session", cwd: "/tmp/session-signal" },
+    undefined,
+    undefined,
+    { cwd: "/tmp/session-signal" },
+  );
+  await waitFor(() => runtimeStarted);
+
+  handlers.get("session_shutdown")?.();
+  await assert.rejects(() => operation, /abort/u);
+  assert.equal(abortObserved, true);
+  assert.equal(committedAfterAbort, false);
+});
+
+test("status, control, and finalization tools cannot cross a delayed import boundary", async () => {
+  const pendingRuntime = deferred<AutoresearchRuntimeModule>();
+  const pendingFinalize = deferred<AutoresearchFinalizeModule>();
+  let runtimeLoadCount = 0;
+  let finalizeLoadCount = 0;
+  const { handlers, tools } = registerHarness({
+    moduleLoaders: {
+      runtime: () => {
+        runtimeLoadCount += 1;
+        return pendingRuntime.promise;
+      },
+      finalize: () => {
+        finalizeLoadCount += 1;
+        return pendingFinalize.promise;
+      },
+    },
+  });
+  const statusTool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
+  const controlTool = tools.get(AUTORESEARCH_CONTROL_TOOL_NAME);
+  const finalizeTool = tools.get(AUTORESEARCH_FINALIZE_TOOL_NAME);
+  assert.ok(statusTool);
+  assert.ok(controlTool);
+  assert.ok(finalizeTool);
+
+  const operations = [
+    statusTool.execute(
+      "stale-status-export",
+      { action: "candidate_result_export", cwd: "/tmp/stale-status" },
+      undefined,
+      undefined,
+      { cwd: "/tmp/stale-status" },
+    ),
+    controlTool.execute(
+      "stale-control-set",
+      { action: "set", cwd: "/tmp/stale-control", decision: "stop" },
+      undefined,
+      undefined,
+      { cwd: "/tmp/stale-control" },
+    ),
+    finalizeTool.execute(
+      "stale-finalize",
+      { action: "materialize", cwd: "/tmp/stale-finalize" },
+      undefined,
+      undefined,
+      { cwd: "/tmp/stale-finalize" },
+    ),
+  ];
+  await waitFor(() => runtimeLoadCount === 1 && finalizeLoadCount === 1);
+  handlers.get("session_shutdown")?.();
+
+  pendingRuntime.resolve({} as AutoresearchRuntimeModule);
+  pendingFinalize.resolve({} as AutoresearchFinalizeModule);
+  const results = await Promise.allSettled(operations);
+  assert.deepEqual(
+    results.map((result) => result.status),
+    ["rejected", "rejected", "rejected"],
+  );
+  for (const result of results) {
+    if (result.status === "rejected") assert.match(String(result.reason), /session ended/u);
+  }
 });
 
 test("session shutdown prevents a delayed first-use widget load from registering UI", async () => {

@@ -13,14 +13,19 @@ import { resolveDecisionRuntime } from "./extensionOptions.ts";
 import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { assertReadProfileAllowsAction } from "./readProfile.ts";
 import { asPiToolParameters, controlSchema, finalizeSchema, statusSchema } from "./schemas.ts";
+import {
+  type AutoresearchSessionEffects,
+  composeAutoresearchSessionSignal,
+} from "./sessionEffects.ts";
 
 export function registerAutoresearchStatusControlTools(input: {
   pi: ExtensionAPI;
   options: PiAutoresearchExtensionOptions;
   autoContinuationCounts: Map<string, number>;
   modules: AutoresearchLazyModules;
+  getSessionEffects: () => AutoresearchSessionEffects;
 }): void {
-  const { pi, options, autoContinuationCounts, modules } = input;
+  const { pi, options, autoContinuationCounts, modules, getSessionEffects } = input;
   pi.registerTool({
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
@@ -98,6 +103,8 @@ export function registerAutoresearchStatusControlTools(input: {
           "validate_packet",
         ],
       });
+      const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
 
       const runtimeModule = await modules.runtime();
       const {
@@ -176,9 +183,9 @@ export function registerAutoresearchStatusControlTools(input: {
                   }
                 : null,
           },
-          runtime: resolveDecisionRuntime(ctx, signal, options, modules),
+          runtime: resolveDecisionRuntime(ctx, operationSignal, options, modules),
           model: ctx.model?.id,
-          signal,
+          signal: operationSignal,
         });
 
         return {
@@ -363,9 +370,9 @@ export function registerAutoresearchStatusControlTools(input: {
             dependencyNotes: request.dependencyNotes ?? [],
             ideasToLeaveOut: request.ideasToLeaveOut ?? [],
           },
-          runtime: resolveDecisionRuntime(ctx, signal, options, modules),
+          runtime: resolveDecisionRuntime(ctx, operationSignal, options, modules),
           model: ctx.model?.id,
-          signal,
+          signal: operationSignal,
         });
 
         return {
@@ -491,6 +498,8 @@ export function registerAutoresearchStatusControlTools(input: {
         action,
         allowedActions: ["status"],
       });
+      const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { executeAutoresearchFinalization, formatAutoresearchFinalizationResult } =
         await modules.finalize();
       const result = await executeAutoresearchFinalization({
@@ -499,10 +508,10 @@ export function registerAutoresearchStatusControlTools(input: {
         reason: request.reason,
         runtime:
           request.action === "plan"
-            ? resolveDecisionRuntime(ctx, signal, options, modules)
+            ? resolveDecisionRuntime(ctx, operationSignal, options, modules)
             : undefined,
         model: ctx.model?.id,
-        signal,
+        signal: operationSignal,
       });
 
       return {

@@ -20,7 +20,10 @@ import {
   runSchema,
   setupSchema,
 } from "./schemas.ts";
-import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
+import {
+  type AutoresearchSessionEffects,
+  composeAutoresearchSessionSignal,
+} from "./sessionEffects.ts";
 
 export function registerAutoresearchRuntimeExecutionTools(
   pi: ExtensionAPI,
@@ -75,6 +78,8 @@ export function registerAutoresearchRuntimeExecutionTools(
       };
 
       assertReadProfileRejectsTool(options, AUTORESEARCH_RUN_TOOL_NAME);
+      const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { executeAutoresearchRun, formatAutoresearchRunResult } = await modules.runtime();
       const result = await executeAutoresearchRun({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
@@ -110,7 +115,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         reconfigure: request.reconfigure,
         liveDecision: request.decisionGoal
           ? {
-              runtime: resolveDecisionRuntime(ctx, signal, options, modules),
+              runtime: resolveDecisionRuntime(ctx, operationSignal, options, modules),
               goal: request.decisionGoal,
               constraints: request.decisionConstraints,
               filesInScope: request.decisionFilesInScope,
@@ -121,7 +126,7 @@ export function registerAutoresearchRuntimeExecutionTools(
               model: ctx.model?.id,
             }
           : undefined,
-        signal,
+        signal: operationSignal,
       });
 
       return {
@@ -216,6 +221,8 @@ export function registerAutoresearchRuntimeExecutionTools(
         checksTimeoutSeconds?: number;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_SETUP_TOOL_NAME);
+      const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { executeAutoresearchSetup, formatAutoresearchSetupResult } = await modules.runtime();
       const result = await executeAutoresearchSetup({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
@@ -236,7 +243,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         postureTimeoutSeconds: request.postureTimeoutSeconds,
         timeoutSeconds: request.timeoutSeconds,
         checksTimeoutSeconds: request.checksTimeoutSeconds,
-        signal,
+        signal: operationSignal,
       });
       return {
         content: [{ type: "text", text: formatAutoresearchSetupResult(result) }],
@@ -317,6 +324,7 @@ export function registerAutoresearchRuntimeExecutionTools(
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
       const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const runtimeModule = await modules.runtime();
       const { executeAutoresearchCampaignStart, formatAutoresearchCampaignStartResult } =
         runtimeModule;
@@ -352,7 +360,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         postureTimeoutSeconds: request.postureTimeoutSeconds,
         decisionRuntime:
           request.setupMode === "prompt_vault_setup" || request.decisionGoal
-            ? resolveDecisionRuntime(ctx, signal, options, modules)
+            ? resolveDecisionRuntime(ctx, operationSignal, options, modules)
             : undefined,
         decisionGoal: request.decisionGoal,
         decisionConstraints: request.decisionConstraints,
@@ -370,7 +378,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         campaignGoalWallClockMinutesBudget: request.campaignGoalWallClockMinutesBudget,
         campaignGoalTokenBudget: request.campaignGoalTokenBudget,
         campaignGoalAutoContinue: request.campaignGoalAutoContinue,
-        signal,
+        signal: operationSignal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
       return {

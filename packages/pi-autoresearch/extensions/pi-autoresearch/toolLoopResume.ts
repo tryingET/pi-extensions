@@ -13,7 +13,10 @@ import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { emitAutoresearchLoopUpdate } from "./loopProgressUpdate.ts";
 import { assertReadProfileAllowsAction, assertReadProfileRejectsTool } from "./readProfile.ts";
 import { asPiToolParameters, loopSchema, peerAssistSchema, resumeApplySchema } from "./schemas.ts";
-import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
+import {
+  type AutoresearchSessionEffects,
+  composeAutoresearchSessionSignal,
+} from "./sessionEffects.ts";
 
 export function registerAutoresearchLoopResumeTools(
   pi: ExtensionAPI,
@@ -118,6 +121,7 @@ export function registerAutoresearchLoopResumeTools(
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_LOOP_TOOL_NAME);
       const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const runtimeModule = await modules.runtime();
       const { executeAutoresearchLoop, formatAutoresearchLoopResult } = runtimeModule;
       const result = await executeAutoresearchLoop({
@@ -140,7 +144,7 @@ export function registerAutoresearchLoopResumeTools(
         postureTimeoutSeconds: request.postureTimeoutSeconds,
         decisionGoal: request.decisionGoal,
         decisionRuntime: request.decisionGoal
-          ? resolveDecisionRuntime(ctx, signal, options, modules)
+          ? resolveDecisionRuntime(ctx, operationSignal, options, modules)
           : undefined,
         decisionConstraints: request.decisionConstraints,
         decisionFilesInScope: request.decisionFilesInScope,
@@ -156,7 +160,7 @@ export function registerAutoresearchLoopResumeTools(
         campaignGoalWallClockMinutesBudget: request.campaignGoalWallClockMinutesBudget,
         campaignGoalTokenBudget: request.campaignGoalTokenBudget,
         campaignGoalAutoContinue: request.campaignGoalAutoContinue,
-        signal,
+        signal: operationSignal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
       return {
@@ -190,6 +194,7 @@ export function registerAutoresearchLoopResumeTools(
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_RESUME_APPLY_TOOL_NAME);
       const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const runtimeModule = await modules.runtime();
       const { executeAutoresearchResumeApply, formatAutoresearchResumeApplyResult } = runtimeModule;
       const result = await executeAutoresearchResumeApply({
@@ -204,7 +209,7 @@ export function registerAutoresearchLoopResumeTools(
         checksTimeoutSeconds: request.checksTimeoutSeconds,
         postureCommand: request.postureCommand,
         postureTimeoutSeconds: request.postureTimeoutSeconds,
-        signal,
+        signal: operationSignal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
       return {

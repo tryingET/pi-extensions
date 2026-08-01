@@ -18,8 +18,20 @@ import {
   buildAutoresearchCandidateDecisionEditorCall,
   parseAutoresearchCandidateDecisionCommand,
 } from "./commandTextCandidates.ts";
-import type { AutoresearchLazyModules } from "./lazyModules.ts";
+import type { AutoresearchLazyModules, AutoresearchRuntimeModule } from "./lazyModules.ts";
 import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
+
+async function loadRuntimeForActiveSession(
+  modules: AutoresearchLazyModules,
+  effects: AutoresearchSessionEffects,
+): Promise<AutoresearchRuntimeModule | null> {
+  try {
+    return await modules.runtime();
+  } catch (error) {
+    if (!effects.isActive()) return null;
+    throw error;
+  }
+}
 
 type AutoresearchTriggerCandidate = {
   id: string;
@@ -186,8 +198,11 @@ export async function maybeRegisterAutoresearchLiveTrigger(
           const cwd = context?.cwd ?? process.cwd();
           const candidateWorktree = parsed?.candidateWorktree ?? cwd;
           if (!effects.isActive()) return;
-          const runtimeModule = parsed?.mode === "measure" ? await modules.runtime() : undefined;
-          if (!effects.isActive()) return;
+          const runtimeModule =
+            parsed?.mode === "measure"
+              ? await loadRuntimeForActiveSession(modules, effects)
+              : undefined;
+          if (!effects.isActive() || runtimeModule === null) return;
           effects.commit(() =>
             api?.setText?.(
               buildAutoresearchCandidateBindOrMeasureEditorCall(
@@ -246,8 +261,8 @@ export async function maybeRegisterAutoresearchLiveTrigger(
           context?: AutoresearchTriggerContext;
         }) => {
           if (!effects.isActive()) return { candidates: [] };
-          const runtimeModule = await modules.runtime();
-          if (!effects.isActive()) return { candidates: [] };
+          const runtimeModule = await loadRuntimeForActiveSession(modules, effects);
+          if (!effects.isActive() || runtimeModule === null) return { candidates: [] };
           return {
             candidates: buildAutoresearchCandidateDecisionTriggerCandidates({
               cwd: context?.cwd ?? process.cwd(),
@@ -285,8 +300,8 @@ export async function maybeRegisterAutoresearchLiveTrigger(
             return;
           }
           const cwd = context?.cwd ?? process.cwd();
-          const runtimeModule = await modules.runtime();
-          if (!effects.isActive()) return;
+          const runtimeModule = await loadRuntimeForActiveSession(modules, effects);
+          if (!effects.isActive() || runtimeModule === null) return;
           effects.commit(() =>
             api?.setText?.(
               buildAutoresearchCandidateDecisionEditorCall(

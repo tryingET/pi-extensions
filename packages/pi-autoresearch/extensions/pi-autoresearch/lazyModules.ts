@@ -4,6 +4,11 @@
 //   - "Changing dynamic import caching, implementation injection, or lazy-load failure behavior."
 // ---
 
+import {
+  type AutoresearchSessionEffects,
+  assertAutoresearchSessionActive,
+} from "./sessionEffects.ts";
+
 export type AutoresearchRuntimeModule = typeof import("../../src/core/runtime.ts");
 export type AutoresearchFinalizeModule = typeof import("../../src/core/finalize.ts");
 export type AutoresearchSelfHostingModule = typeof import("../../src/core/selfHosting.ts");
@@ -34,36 +39,56 @@ export interface AutoresearchLazyModules {
   autoContinuation: () => Promise<AutoresearchAutoContinuationModule>;
   decisions: () => Promise<AutoresearchDecisionsModule>;
   piAiCompat: () => Promise<PiAiCompatModule>;
+  reset(): void;
 }
 
 export function createAutoresearchLazyModules(
   overrides: Partial<PiAutoresearchModuleLoaders> = {},
+  getSessionEffects?: () => AutoresearchSessionEffects,
 ): AutoresearchLazyModules {
-  return {
-    runtime: createCachedFirstUseLoader(
-      overrides.runtime ?? (() => import("../../src/core/runtime.ts")),
-    ),
-    finalize: createCachedFirstUseLoader(
-      overrides.finalize ?? (() => import("../../src/core/finalize.ts")),
-    ),
-    selfHosting: createCachedFirstUseLoader(
-      overrides.selfHosting ?? (() => import("../../src/core/selfHosting.ts")),
-    ),
-    llamacpp: createCachedFirstUseLoader(
-      overrides.llamacpp ?? (() => import("../../src/core/llamacppCampaign.ts")),
-    ),
-    vllm: createCachedFirstUseLoader(
-      overrides.vllm ?? (() => import("../../src/core/vllmCampaignCockpit.ts")),
-    ),
-    autoContinuation: createCachedFirstUseLoader(
+  const loaders: PiAutoresearchModuleLoaders = {
+    runtime: overrides.runtime ?? (() => import("../../src/core/runtime.ts")),
+    finalize: overrides.finalize ?? (() => import("../../src/core/finalize.ts")),
+    selfHosting: overrides.selfHosting ?? (() => import("../../src/core/selfHosting.ts")),
+    llamacpp: overrides.llamacpp ?? (() => import("../../src/core/llamacppCampaign.ts")),
+    vllm: overrides.vllm ?? (() => import("../../src/core/vllmCampaignCockpit.ts")),
+    autoContinuation:
       overrides.autoContinuation ?? (() => import("../../src/core/autoContinuation.ts")),
-    ),
-    decisions: createCachedFirstUseLoader(
-      overrides.decisions ?? (() => import("../../src/core/decisions.ts")),
-    ),
-    piAiCompat: createCachedFirstUseLoader(
-      overrides.piAiCompat ?? (() => import("@earendil-works/pi-ai/compat")),
-    ),
+    decisions: overrides.decisions ?? (() => import("../../src/core/decisions.ts")),
+    piAiCompat: overrides.piAiCompat ?? (() => import("@earendil-works/pi-ai/compat")),
+  };
+
+  const createSessionLoaders = (): PiAutoresearchModuleLoaders => ({
+    runtime: createCachedFirstUseLoader(loaders.runtime),
+    finalize: createCachedFirstUseLoader(loaders.finalize),
+    selfHosting: createCachedFirstUseLoader(loaders.selfHosting),
+    llamacpp: createCachedFirstUseLoader(loaders.llamacpp),
+    vllm: createCachedFirstUseLoader(loaders.vllm),
+    autoContinuation: createCachedFirstUseLoader(loaders.autoContinuation),
+    decisions: createCachedFirstUseLoader(loaders.decisions),
+    piAiCompat: createCachedFirstUseLoader(loaders.piAiCompat),
+  });
+  let sessionLoaders = createSessionLoaders();
+
+  const loadForCurrentSession = async <T>(loader: () => Promise<T>): Promise<T> => {
+    const effects = getSessionEffects?.();
+    const value = await loader();
+    if (effects) assertAutoresearchSessionActive(effects);
+    return value;
+  };
+
+  return {
+    runtime: () => loadForCurrentSession(sessionLoaders.runtime),
+    finalize: () => loadForCurrentSession(sessionLoaders.finalize),
+    selfHosting: () => loadForCurrentSession(sessionLoaders.selfHosting),
+    llamacpp: () => loadForCurrentSession(sessionLoaders.llamacpp),
+    vllm: () => loadForCurrentSession(sessionLoaders.vllm),
+    autoContinuation: () => loadForCurrentSession(sessionLoaders.autoContinuation),
+    decisions: () => loadForCurrentSession(sessionLoaders.decisions),
+    piAiCompat: () => loadForCurrentSession(sessionLoaders.piAiCompat),
+    reset() {
+      sessionLoaders = createSessionLoaders();
+    },
   };
 }
 

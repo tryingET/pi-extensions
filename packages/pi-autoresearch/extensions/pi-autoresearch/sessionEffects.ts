@@ -21,6 +21,32 @@ export interface AutoresearchSessionEffects {
   ): (...args: Args) => Result | undefined;
 }
 
+export class AutoresearchSessionEndedError extends Error {
+  constructor() {
+    super("Pi-autoresearch session ended before the requested operation could start.");
+    this.name = "AutoresearchSessionEndedError";
+  }
+}
+
+export function isAutoresearchSessionEndedError(
+  error: unknown,
+): error is AutoresearchSessionEndedError {
+  return error instanceof AutoresearchSessionEndedError;
+}
+
+export function assertAutoresearchSessionActive(effects: AutoresearchSessionEffects): void {
+  if (!effects.isActive()) throw new AutoresearchSessionEndedError();
+}
+
+export function composeAutoresearchSessionSignal(
+  effects: AutoresearchSessionEffects,
+  hostSignal: AbortSignal | undefined,
+): AbortSignal {
+  return hostSignal && hostSignal !== effects.signal
+    ? AbortSignal.any([hostSignal, effects.signal])
+    : effects.signal;
+}
+
 export function notifyAutoresearch(
   ctx: ExtensionContext,
   effects: AutoresearchSessionEffects,
