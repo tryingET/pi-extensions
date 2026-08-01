@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.2.0...pi-context-packer-v0.3.0) (2026-08-01)
+
+
+### Features
+
+* **context-packer:** add source selection ablation harness ([da00c3d](https://github.com/tryingET/pi-extensions/commit/da00c3d3af2e76f07ace2109095bcfb698652cb0))
+
+
+### Bug Fixes
+
+* **context-packer:** harden ablation evidence boundaries ([44029ec](https://github.com/tryingET/pi-extensions/commit/44029ecb67494439143a3f54884b85fd887c6655))
+* **context-packer:** rebuild source-selection ablation on remote main ([4ee9f58](https://github.com/tryingET/pi-extensions/commit/4ee9f5821b21e31c5a34368ce5051835e624b514))
+* **context-packer:** reject drive-relative experiment paths ([13c1b2e](https://github.com/tryingET/pi-extensions/commit/13c1b2e446d654a776b9522faa3cabaf1ab00533))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.1.0...pi-context-packer-v0.2.0) (2026-07-11)
 
 
