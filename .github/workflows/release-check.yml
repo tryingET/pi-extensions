@@ -55,6 +55,12 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
+      - name: Prepare managed package release scratch
+        run: |
+          release_tmp="$RUNNER_TEMP/package-release-check"
+          mkdir -p "$release_tmp"
+          echo "TMPDIR=$release_tmp" >> "$GITHUB_ENV"
+
       - name: Upgrade npm for release-check parity
         run: |
           mkdir -p "$RUNNER_TEMP/npm-global"
