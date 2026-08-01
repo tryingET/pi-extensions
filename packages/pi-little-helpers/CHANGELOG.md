@@ -25,6 +25,14 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.5.0...pi-little-helpers-v0.5.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **little-helpers:** retain intercom timeout handle ([bac852e](https://github.com/tryingET/pi-extensions/commit/bac852ecc93f0dc3392fe4a5bfa7f03d94010d17))
+* **little-helpers:** retain intercom timeout handle ([47b171d](https://github.com/tryingET/pi-extensions/commit/47b171d147abe909fdec3e7d7c6e70cf4d30d50d))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.4.0...pi-little-helpers-v0.5.0) (2026-08-01)
 
 
