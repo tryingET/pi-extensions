@@ -23,6 +23,14 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.3.0...pi-ontology-workflows-v0.3.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **ontology-workflows:** make release checks hermetic ([f3c7c34](https://github.com/tryingET/pi-extensions/commit/f3c7c3461f4fcbb7b7f8424ff852cf4b7c0511f5))
+* **ontology-workflows:** make release checks hermetic ([90b2d86](https://github.com/tryingET/pi-extensions/commit/90b2d86e016178d4215fec584dccd00a6da0eed3))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.2.0...pi-ontology-workflows-v0.3.0) (2026-08-01)
 
 
