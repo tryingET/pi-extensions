@@ -1,0 +1,109 @@
+{
+  "name": "@tryinget/pi-code-mode",
+  "version": "0.1.0",
+  "description": "Python and JavaScript code-mode tool with persistent logical state and an explicit host capability registry for Pi",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-code-mode"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-code-mode",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "code-mode",
+    "eval",
+    "python",
+    "javascript",
+    "monorepo"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "npm run quality:ci",
+    "test:unit": "node --import tsx --test tests/*.test.ts",
+    "test:compat:pi-host": "tsc --project tsconfig.pi-host-compat.json",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+  },
+  "files": [
+    "extensions/eval.ts",
+    "src",
+    "runtime",
+    "prompts",
+    "examples",
+    "docs/project/architecture.md",
+    "docs/project/security-model.md",
+    "policy/security-policy.json",
+    "policy/engineering-lane.json"
+  ],
+  "exports": {
+    ".": "./extensions/eval.ts",
+    "./runtime": "./src/index.ts"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/eval.ts"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-code-mode",
+    "releaseComponent": "pi-code-mode",
+    "releaseConfigMode": "component"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@types/node": "22.14.0",
+    "tsx": "4.20.5",
+    "typebox": "1.3.7",
+    "typescript": "5.9.2"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    },
+    "@mariozechner/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-ai": {
+      "optional": true
+    }
+  }
+}

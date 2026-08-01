@@ -55,11 +55,12 @@ Refreshed on 2026-07-11 after registering `packages/pi-snapshot-edit`, which rai
 Refreshed again on 2026-07-11 after adding `packages/pi-modes`, which raised the audited package count to `30`.
 Refreshed on 2026-07-12 after adding `packages/pi-evidence-review`, which raised the audited package count to `31`.
 Refreshed on 2026-07-25 after recovering `packages/pi-semantic-code-intelligence` on the current canonical line, which raised the audited package count to `32`.
+Refreshed on 2026-08-01 after recovering `packages/pi-code-mode` onto the current released line, which raised the audited package count to `33`.
 
 Snapshot summary:
 
-- package entries audited: `32`
-- legacy-full: `23`
+- package entries audited: `33`
+- legacy-full: `24`
 - reduced-form: `1`
 - policy-only: `0`
 - no local surface: `8`
@@ -69,6 +70,7 @@ Snapshot summary:
 - `packages/pi-agent-vent`
 - `packages/pi-autoresearch`
 - `packages/pi-better-openai`
+- `packages/pi-code-mode`
 - `packages/pi-context-overlay`
 - `packages/pi-context-packer`
 - `packages/pi-designmd-foundry`
@@ -113,10 +115,11 @@ Snapshot summary:
 
 The `#601` audit confirmed that the original `legacy-full` bucket was not uniform, and the first routed follow-up wave has now proved that classification in practice:
 
-- the current twenty-three `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
+- the current twenty-four `legacy-full` package-local surfaces still carry both `docs/engineering.local.md` and `policy/engineering-lane.json`:
   - `packages/pi-agent-vent`
   - `packages/pi-autoresearch`
   - `packages/pi-better-openai`
+  - `packages/pi-code-mode`
   - `packages/pi-context-overlay`
   - `packages/pi-context-packer`
   - `packages/pi-designmd-foundry`
@@ -150,6 +153,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
 | `packages/pi-agent-vent` | new simple-package full surface currently present after package introduction | `review-first` | classify whether the local diagnostics package has a real local override before reducing |
 | `packages/pi-autoresearch` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-autoresearch` |
 | `packages/pi-better-openai` | simple-package full surface currently present after package introduction | `review-first` | classify whether the OpenAI/image package has a real local override before reducing |
+| `packages/pi-code-mode` | template-scaffolded full surface for the Python/JavaScript eval package | `review-first` | retain through released-line recovery and classify whether its code-mode-specific engineering notes justify a local override before reducing |
 | `packages/pi-context-overlay` | boilerplate doc copy (`sha256:04a5fb…0241f`) at a simple-package root | `none` | package-local reduction candidate in `packages/pi-context-overlay` |
 | `packages/pi-context-packer` | new simple-package full surface currently present after package introduction | `review-first` | classify whether the context-packer package has a real local override before reducing |
 | `packages/pi-designmd-foundry` | simple-package full surface currently present after package introduction | `review-first` | classify whether the design-tool package has a real local override before reducing |
@@ -168,7 +172,7 @@ The `#601` audit confirmed that the original `legacy-full` bucket was not unifor
 ## Routed next-candidate clusters
 
 - **Cluster A — remaining boilerplate-only `none` targets:** `packages/pi-autoresearch`, `packages/pi-context-overlay`, `packages/pi-little-helpers`, `packages/pi-ontology-workflows`, `packages/pi-society-orchestrator`, and `packages/pi-vault-client` remain explicitly classified as boilerplate-only local surfaces. `#634` and `#635` have already proved the simple-package and monorepo-package reference paths for this cluster, and the next queue should stay narrow instead of opening a blanket migration backlog.
-- **Cluster A2 — newly present full surfaces needing classification:** `packages/pi-agent-vent`, `packages/pi-better-openai`, `packages/pi-context-packer`, `packages/pi-designmd-foundry`, `packages/pi-evalset-lab`, `packages/pi-evidence-review`, `packages/pi-provenance`, `packages/pi-semantic-code-intelligence`, and `packages/pi-toolbox-discovery` currently appear in the `legacy-full` bucket, but their package-specific status should be reviewed before they are folded into the boilerplate-only reduction queue.
+- **Cluster A2 — newly present full surfaces needing classification:** `packages/pi-agent-vent`, `packages/pi-better-openai`, `packages/pi-code-mode`, `packages/pi-context-packer`, `packages/pi-designmd-foundry`, `packages/pi-evalset-lab`, `packages/pi-evidence-review`, `packages/pi-provenance`, `packages/pi-semantic-code-intelligence`, and `packages/pi-toolbox-discovery` currently appear in the `legacy-full` bucket, but their package-specific status should be reviewed before they are folded into the boilerplate-only reduction queue.
 - **Cluster B — completed `reduced-form` reference path:** `packages/pi-interaction/pi-interaction` no longer sits in the `legacy-full` bucket; `#636` now serves as the reference path for the only child-package case that needed to keep a real local override doc while dropping local policy metadata.
 - **Adjacent template/default follow-up:** if the next slice changes what fresh package scaffolds emit, route that change to `~/ai-society/softwareco/owned/pi-extensions-template`, then prove the live template lane through `packages/pi-vault-client` when Nunjucks verification is involved.
 
@@ -221,5 +225,5 @@ Notable refresh outcome for the current alignment wave:
 - `packages/pi-activity-strip` and `packages/pi-autonomous-session-control` sit in the `none` bucket after the two completed `none` pilots.
 - `packages/pi-peer-messaging` now also sits in the `none` bucket as a fresh simple-package scaffold that landed directly in the root-owned steady state without local engineering duplication.
 - `packages/pi-interaction/pi-interaction` remains in the `reduced-form` bucket after `#636`; the surrounding `packages/pi-interaction` package-group root is now a full engineering-core adoption surface.
-- `packages/pi-agent-vent`, `packages/pi-autoresearch`, `packages/pi-better-openai`, `packages/pi-context-overlay`, `packages/pi-context-packer`, `packages/pi-designmd-foundry`, `packages/pi-evalset-lab`, `packages/pi-evidence-review`, `packages/pi-little-helpers`, `packages/pi-model-selection`, `packages/pi-modes`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-semantic-code-intelligence`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, `packages/pi-vault-client`, and `packages/pi-workstation-inference-provider` are among the current `legacy-full` package-local surfaces; `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
+- `packages/pi-agent-vent`, `packages/pi-autoresearch`, `packages/pi-better-openai`, `packages/pi-code-mode`, `packages/pi-context-overlay`, `packages/pi-context-packer`, `packages/pi-designmd-foundry`, `packages/pi-evalset-lab`, `packages/pi-evidence-review`, `packages/pi-little-helpers`, `packages/pi-model-selection`, `packages/pi-modes`, `packages/pi-ontology-workflows`, `packages/pi-provenance`, `packages/pi-semantic-code-intelligence`, `packages/pi-society-orchestrator`, `packages/pi-toolbox-discovery`, `packages/pi-vault-client`, and `packages/pi-workstation-inference-provider` are among the current `legacy-full` package-local surfaces; `packages/pi-prompt-template-execution`, `packages/pi-session-compaction`, and `packages/pi-society-startup-context` also remain in that bucket.
 - no package is currently in a `policy-only` intermediate state.

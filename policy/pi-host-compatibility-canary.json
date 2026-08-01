@@ -82,6 +82,31 @@
       ]
     },
     {
+      "id": "code-mode-extension-factory-contract",
+      "title": "pi-code-mode exact ExtensionFactory contract",
+      "owner": "pi-code-mode",
+      "why": "Compile the extension factory against the selected exact Pi host without persisting the host's shrinkwrapped dependency tree in ordinary package development installs.",
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
+      "packages": [
+        "tools/pi-code-mode-host-contract-fixture"
+      ],
+      "upstreamSurfaces": [
+        "ExtensionFactory and ExtensionAPI assignability",
+        "TypeBox tool schema registration",
+        "tool result and command handler contracts"
+      ],
+      "cwd": "packages/pi-code-mode",
+      "command": [
+        "npm",
+        "run",
+        "test:compat:pi-host"
+      ],
+      "notes": "Compile-only host contract. The runner temporarily installs the exact host set into a dependency-isolated fixture and restores that fixture's lockfile-declared host absence afterward; this does not execute eval or provide code isolation."
+    },
+    {
       "id": "parallel-tool-event-correlation",
       "title": "ASC parallel tool event correlation",
       "owner": "monorepo-root",

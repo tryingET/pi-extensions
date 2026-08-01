@@ -25,6 +25,10 @@
       "release-type": "node",
       "component": "pi-better-openai"
     },
+    "packages/pi-code-mode": {
+      "release-type": "node",
+      "component": "pi-code-mode"
+    },
     "packages/pi-context-overlay": {
       "release-type": "node",
       "component": "pi-context-overlay"

@@ -4,7 +4,7 @@
 //   - "Changing host compatibility profiles, canary scenarios, package roots, or neutral npm handling."
 // ---
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -25,6 +25,47 @@ function runJson(args, env = {}) {
       },
     }),
   );
+}
+
+function runFailure(args) {
+  const result = spawnSync(process.execPath, [SCRIPT, ...args], {
+    cwd: ROOT,
+    encoding: "utf-8",
+  });
+  assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`);
+  return `${result.stdout}\n${result.stderr}`;
+}
+
+function minimalManifest(cwd, packages) {
+  return {
+    schemaVersion: 1,
+    hostPackage: "@earendil-works/pi-coding-agent",
+    hostCompanionPackages: ["@earendil-works/pi-ai", "@earendil-works/pi-tui"],
+    trackedChangelog: "https://example.test/pi-changelog",
+    defaultProfile: "current",
+    profiles: {
+      current: {
+        description: "Test repository path containment.",
+        host: {
+          version: "0.83.0",
+          reviewAnchor: "npm:@earendil-works/pi-coding-agent@0.83.0",
+        },
+      },
+    },
+    scenarios: [
+      {
+        id: "path-containment",
+        title: "Path containment",
+        owner: "monorepo-root",
+        why: "Canary effects must stay inside the repository.",
+        profiles: ["current"],
+        packages,
+        upstreamSurfaces: ["repository path containment"],
+        cwd,
+        command: [process.execPath, "-e", "void 0"],
+      },
+    ],
+  };
 }
 
 test("compatibility canary manifest validates", () => {
@@ -63,6 +104,19 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
   assert.ok(result.scenarios.some((scenario) => scenario.id === "parallel-tool-event-correlation"));
   assert.ok(result.scenarios.some((scenario) => scenario.id === "asc-settlement-and-thinking-contract"));
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
+});
+
+test("compatibility canary covers the pi-code-mode exact extension-factory contract", () => {
+  const result = runJson(["list", "--profile", "current"]);
+  const scenario = result.scenarios.find(
+    (entry) => entry.id === "code-mode-extension-factory-contract",
+  );
+
+  assert.ok(scenario);
+  assert.equal(scenario.owner, "pi-code-mode");
+  assert.deepEqual(scenario.packages, ["tools/pi-code-mode-host-contract-fixture"]);
+  assert.ok(scenario.upstreamSurfaces.includes("ExtensionFactory and ExtensionAPI assignability"));
+  assert.deepEqual(scenario.command, ["npm", "run", "test:compat:pi-host"]);
 });
 
 test("compatibility canary covers direct autoresearch runtime packet exports", () => {
@@ -136,6 +190,33 @@ test("compatibility canary list uses explicit leaf package roots from the manife
       "packages/pi-prompt-template-accelerator",
     ],
   );
+});
+
+test("compatibility canary rejects cwd and package targets outside the repository", () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "pi-host-compat-path-containment-"));
+  const manifestPath = path.join(tempDir, "manifest.json");
+
+  try {
+    writeFileSync(
+      manifestPath,
+      JSON.stringify(minimalManifest(tempDir, ["tools/pi-code-mode-host-contract-fixture"])),
+    );
+    assert.match(
+      runFailure(["validate", "--manifest", manifestPath]),
+      /cwd must stay within repository root/,
+    );
+
+    writeFileSync(
+      manifestPath,
+      JSON.stringify(minimalManifest("packages/pi-code-mode", [tempDir])),
+    );
+    assert.match(
+      runFailure(["list", "--manifest", manifestPath]),
+      /Scenario package target must stay within repository root/,
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("compatibility canary scenario commands ignore ambient npm release-age cutoffs", () => {

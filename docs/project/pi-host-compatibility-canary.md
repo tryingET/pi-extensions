@@ -61,7 +61,7 @@ Run against an explicit candidate Pi host release supplied via:
 
 ## Host/package upgrade boundary
 
-Since Pi 0.79.7, bare `pi update` updates the Pi host only; `pi update --all` is required for managed package updates. Local-path packages in this monorepo are not upgraded by either command: bump their Pi development contract and lockfile, run this canary, reinstall the changed local package with `pi install /absolute/package/path`, and `/reload` before claiming live compatibility. This prevents a new host from running against stale package-local types or helper dependencies.
+Since Pi 0.79.7, bare `pi update` updates the Pi host only; `pi update --all` is required for managed package updates. Local-path packages in this monorepo are not upgraded by either command: align their declared host contract, run this canary, reinstall the changed local package with `pi install /absolute/package/path`, and `/reload` before claiming live compatibility. A package may keep host packages as optional peers and materialize the exact host only inside this canary when persistent host dev dependencies would import unrelated host shrinkwrap risk.
 
 ## Seed scenarios
 
@@ -94,6 +94,23 @@ Protected host surfaces:
 - shared trigger broker behavior
 - live trigger registration
 - picker fallback contract
+
+### `code-mode-extension-factory-contract`
+Anchors `pi-code-mode` to the selected exact host's exported extension types without persisting the host dependency tree in ordinary package installs.
+
+Current command:
+
+```bash
+cd packages/pi-code-mode
+npm run test:compat:pi-host
+```
+
+Protected host surfaces:
+- `ExtensionFactory` and `ExtensionAPI` assignability
+- TypeBox tool schema registration
+- tool-result and asynchronous command-handler contracts
+
+The runner temporarily materializes the selected host packages, compiles the focused contract, and restores the lockfile-declared host absence afterward. This is a compile-time host contract; it neither executes `eval` nor provides code isolation.
 
 ### `parallel-tool-event-correlation`
 Anchors the `pi-autonomous-session-control` seam most exposed to Pi `0.58.x` parallel tool semantics.
@@ -290,6 +307,7 @@ Add a new canary scenario when all are true:
 - Keep scenario descriptions tied to **host surfaces**, not generic package ownership.
 - If a scenario only works in a special environment, make that explicit in `notes`.
 - Treat the manifest as a root-owned contract; package-local details should stay in package tests/scripts.
+- Keep every scenario `cwd` and package target canonically inside the repository; the runner rejects lexical and symlink escapes before commands or package mutations.
 
 ## What this does not replace
 

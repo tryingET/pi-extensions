@@ -49,6 +49,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-context-packer` | yes | plan bounded future context packets across source-owned providers | read-only first slice; preserves SCI/docs/AK/FCOS/etc. authority boundaries |
 | `pi-activity-strip` | yes | show live session/activity strip UI | local desktop/window-manager assumptions may apply |
 | `pi-little-helpers` | yes | add small operator helpers | general-purpose utility package |
+| `pi-code-mode` | yes | aggregate bounded Python/JavaScript programs behind one `eval` call | persistent logical state and explicit capability registry; does not disable Bash; not a sandbox or arbitrary Pi-tool dispatcher |
 | `pi-agent-vent` | yes | capture local agent frustration/recurrence diagnostics | advisory only; no tasks, issues, incidents, evidence, or telemetry writes |
 | `pi-provenance` | yes | extract minimal Pi session/assistant-message provenance | source-owned provider/model/API refs for downstream evidence writers |
 | `pi-peer-messaging` | yes | provide same-machine peer-session messaging and `intercom` adapter | communication-only; not task/evidence/authority state |

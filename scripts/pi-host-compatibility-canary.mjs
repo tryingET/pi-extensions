@@ -5,7 +5,14 @@
 //   - "Reviewing Pi host upgrade coverage, scenario selection, temporary dependency alignment, or restoration behavior."
 // ---
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -109,6 +116,22 @@ function ensureOptionalStringArray(value, fieldName) {
 function loadManifest(manifestPath) {
   const raw = readFileSync(manifestPath, "utf8");
   return JSON.parse(raw);
+}
+
+const CANONICAL_ROOT = realpathSync(ROOT);
+
+function resolveContainedRepoPath(declaredPath, fieldName) {
+  const resolved = path.resolve(ROOT, declaredPath);
+  if (!existsSync(resolved)) {
+    throw new Error(`${fieldName} does not exist: ${declaredPath}`);
+  }
+
+  const canonical = realpathSync(resolved);
+  const relativePath = path.relative(CANONICAL_ROOT, canonical);
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    throw new Error(`${fieldName} must stay within repository root: ${declaredPath}`);
+  }
+  return canonical;
 }
 
 function validateProfileHost(profileHost, profileFieldName) {
@@ -223,7 +246,7 @@ function validateManifest(manifest, manifestPath) {
         `scenarios[${index}].upstreamSurfaces`,
       ),
       cwd,
-      cwdAbs: path.resolve(ROOT, cwd),
+      cwdAbs: resolveContainedRepoPath(cwd, `scenarios[${index}].cwd`),
       command,
       notes:
         scenario.notes === undefined
@@ -249,7 +272,7 @@ function hasPackageJson(dirPath) {
 }
 
 function resolveDeclaredPackageTarget(packagePath) {
-  const packageAbs = path.resolve(ROOT, packagePath);
+  const packageAbs = resolveContainedRepoPath(packagePath, "Scenario package target");
   if (!hasPackageJson(packageAbs)) {
     throw new Error(`Scenario package target is not a package root: ${packagePath}`);
   }

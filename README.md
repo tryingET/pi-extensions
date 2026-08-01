@@ -31,6 +31,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-context-packer` (read-only context-window provider planning over SCI/docs/AGENTS/git/session/AK/FCOS/Prompt Vault)
   - `packages/pi-activity-strip`
   - `packages/pi-little-helpers`
+  - `packages/pi-code-mode` (persistent Python/JavaScript `state` with an explicit capability registry; it does not disable or replace Bash)
   - `packages/pi-agent-vent` (local-only agent frustration capture and recurrence summaries)
   - `packages/pi-provenance`
   - `packages/pi-peer-messaging` (stable same-machine peer-session messaging core and `intercom` adapter)
@@ -67,6 +68,7 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-society-orchestrator` — coordination/control-plane questions that compose lower-plane owners, such as loops, routing selection, runtime-status wording, evidence intent, or exact supervision flows
 - `packages/pi-context-packer` — read-only planning for future context packets across SCI, docs, AGENTS, git, session context, Prompt Vault, AK, and FCOS while preserving provider authority boundaries
 - `packages/pi-autonomous-session-control` — subagent execution/runtime behavior, the `self` operational mirror (including mirror-only handoff/closeout summaries), prompt-envelope application, session artifacts, rewind aliasing, and runtime/operator visibility tied to execution ownership
+- `packages/pi-code-mode` — one model-visible `eval` call backed by disposable Python/JavaScript workers, persistent logical state, and explicit owner-runtime capability adapters; not arbitrary active Pi-tool invocation and not a sandbox
 - `packages/pi-agent-vent` — local-only `agent_vent` capture of recurring agent frustrations, bugs, tool failures, and workflow friction; advisory recurrence/candidate-incident summaries only, with no AK/GitHub/incident/evidence mutations
 - `packages/pi-provenance` — source-owned Pi session/assistant-message provenance extraction for downstream evidence writers, including provider/model/API refs without raw prompt or provider-payload capture
 - `packages/pi-peer-messaging` — stable same-machine peer-session messaging core and `intercom` adapter; communication-only, not authority
