@@ -53,6 +53,7 @@
     "extensions/workstation-inference.ts",
     "extensions/workstation-audio.ts",
     "extensions/workstation-scheduler.ts",
+    "extensions/workstation-scheduler-json.ts",
     "prompts",
     "examples",
     "policy/security-policy.json",

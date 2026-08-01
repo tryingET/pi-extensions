@@ -5,6 +5,7 @@ import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { parseAudioSendArgs } from "./workstation-audio.ts";
+import { canonicalJson, canonicalSchedulerHandoffJson } from "./workstation-scheduler-json.ts";
 
 const AI_CONTROL_ROOT_ENV = "PI_WORKSTATION_INFERENCE_AI_CONTROL_ROOT";
 const DEFAULT_AI_CONTROL_ROOT = join(
@@ -139,17 +140,6 @@ export function parseGovernedAudioSendArgs(raw: string, cwd: string): GovernedAu
   };
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (isRecord(value)) {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
 function stringField(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is invalid`);
   return value;
@@ -186,151 +176,163 @@ export async function readSchedulerHandoff(
     await handle.close();
   }
   let payload: unknown;
+  let rawText: string;
+  const snapshotBytes = Buffer.from(raw);
   try {
-    payload = JSON.parse(raw.toString("utf8"));
+    rawText = snapshotBytes.toString("utf8");
+    payload = JSON.parse(rawText);
   } catch {
+    snapshotBytes.fill(0);
     throw new Error("scheduler handoff is not valid JSON");
   } finally {
     raw.fill(0);
   }
-  if (!isRecord(payload)) throw new Error("scheduler handoff schema is invalid");
-  exactKeys(
-    payload,
-    ["schema_version", "kind", "reservation_token", "claim", "owner_authority", "handoff_digest"],
-    "scheduler handoff",
-  );
-  if (payload.schema_version !== 1 || payload.kind !== "ai-control-external-effect-claim-handoff") {
-    throw new Error("scheduler handoff kind is unsupported");
-  }
-  if (
-    !isRecord(payload.reservation_token) ||
-    !isRecord(payload.claim) ||
-    !isRecord(payload.owner_authority)
-  ) {
-    throw new Error("scheduler handoff binding is invalid");
-  }
-  const token = payload.reservation_token;
-  const claim = payload.claim;
-  exactKeys(
-    token,
-    [
-      "reservation_id",
-      "generation",
-      "plan_digest",
-      "expires_at",
-      "physical_store_id",
-      "deployment_id",
-      "profile_id",
-      "resource_request_digest",
-      "graph_observation_digest",
-      "claim_envelope_digest",
-      "graph_step_ids",
-    ],
-    "scheduler reservation token",
-  );
-  exactKeys(
-    claim,
-    [
-      "claim_generation",
-      "consumer_id",
-      "attempt_nonce",
-      "operation_key",
-      "effect_kind",
-      "graph_step_id",
-      "provider_id",
-      "model_id",
-      "claim_expires_at",
-    ],
-    "scheduler claim",
-  );
-  exactKeys(
-    payload.owner_authority,
-    [
-      "profile_policy_store_id",
-      "profile_policy_revision",
-      "lifecycle_store_id",
-      "lifecycle_revision",
-      "profile_config_digest",
-      "lifecycle_profile_config_digest",
-    ],
-    "scheduler owner authority",
-  );
-  const providerId = stringField(claim.provider_id, "scheduler provider");
-  const modelId = stringField(claim.model_id, "scheduler model");
-  const steps = token.graph_step_ids;
-  if (
-    token.deployment_id !== DEPLOYMENT_ID ||
-    token.profile_id !== PROFILE_ID ||
-    !Array.isArray(steps) ||
-    steps.length !== 1 ||
-    steps[0] !== STEP_ID ||
-    claim.effect_kind !== "graph" ||
-    claim.graph_step_id !== STEP_ID ||
-    claim.consumer_id !== "pi:audio-turn" ||
-    claim.operation_key !== "pi:inkling-audio" ||
-    providerId !== PROVIDER_ID ||
-    modelId !== MODEL_ID ||
-    providerId !== expectedProvider ||
-    modelId !== expectedModel ||
-    typeof claim.claim_generation !== "number" ||
-    !Number.isSafeInteger(claim.claim_generation) ||
-    claim.claim_generation < 1
-  ) {
-    throw new Error("scheduler handoff does not bind the selected Inkling model");
-  }
-  const expiresAt = Date.parse(stringField(claim.claim_expires_at, "scheduler claim expiry"));
-  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
-    throw new Error("scheduler handoff claim is expired");
-  }
-  const handoffDigest = stringField(payload.handoff_digest, "scheduler handoff digest");
-  const attemptNonce = stringField(claim.attempt_nonce, "scheduler attempt nonce");
-  if (!/^[0-9a-f]{64}$/.test(handoffDigest)) {
-    throw new Error("scheduler handoff digest is invalid");
-  }
-  const unsigned = { ...payload };
-  delete unsigned.handoff_digest;
-  const expectedDigest = createHash("sha256").update(canonicalJson(unsigned)).digest("hex");
-  if (handoffDigest !== expectedDigest) throw new Error("scheduler handoff digest is invalid");
-  const reservationId = stringField(token.reservation_id, "scheduler reservation id");
-  const reservationGeneration = token.generation;
-  if (
-    typeof reservationGeneration !== "number" ||
-    !Number.isSafeInteger(reservationGeneration) ||
-    reservationGeneration < 1
-  ) {
-    throw new Error("scheduler reservation generation is invalid");
-  }
-  const snapshotDirectory = await mkdtemp(
-    join(process.env.TMPDIR || tmpdir(), "pi-inkling-handoff-"),
-  );
-  const snapshotPath = join(snapshotDirectory, "handoff.json");
   try {
-    await chmod(snapshotDirectory, 0o700);
-    await writeFile(snapshotPath, JSON.stringify(payload), {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "wx",
-    });
-  } catch (error) {
-    await rm(snapshotDirectory, { recursive: true, force: true });
-    throw error;
+    if (!isRecord(payload)) throw new Error("scheduler handoff schema is invalid");
+    exactKeys(
+      payload,
+      ["schema_version", "kind", "reservation_token", "claim", "owner_authority", "handoff_digest"],
+      "scheduler handoff",
+    );
+    if (
+      payload.schema_version !== 1 ||
+      payload.kind !== "ai-control-external-effect-claim-handoff"
+    ) {
+      throw new Error("scheduler handoff kind is unsupported");
+    }
+    if (
+      !isRecord(payload.reservation_token) ||
+      !isRecord(payload.claim) ||
+      !isRecord(payload.owner_authority)
+    ) {
+      throw new Error("scheduler handoff binding is invalid");
+    }
+    const token = payload.reservation_token;
+    const claim = payload.claim;
+    exactKeys(
+      token,
+      [
+        "reservation_id",
+        "generation",
+        "plan_digest",
+        "expires_at",
+        "physical_store_id",
+        "deployment_id",
+        "profile_id",
+        "resource_request_digest",
+        "graph_observation_digest",
+        "claim_envelope_digest",
+        "graph_step_ids",
+      ],
+      "scheduler reservation token",
+    );
+    exactKeys(
+      claim,
+      [
+        "claim_generation",
+        "consumer_id",
+        "attempt_nonce",
+        "operation_key",
+        "effect_kind",
+        "graph_step_id",
+        "provider_id",
+        "model_id",
+        "claim_expires_at",
+      ],
+      "scheduler claim",
+    );
+    exactKeys(
+      payload.owner_authority,
+      [
+        "profile_policy_store_id",
+        "profile_policy_revision",
+        "lifecycle_store_id",
+        "lifecycle_revision",
+        "profile_config_digest",
+        "lifecycle_profile_config_digest",
+      ],
+      "scheduler owner authority",
+    );
+    const providerId = stringField(claim.provider_id, "scheduler provider");
+    const modelId = stringField(claim.model_id, "scheduler model");
+    const steps = token.graph_step_ids;
+    if (
+      token.deployment_id !== DEPLOYMENT_ID ||
+      token.profile_id !== PROFILE_ID ||
+      !Array.isArray(steps) ||
+      steps.length !== 1 ||
+      steps[0] !== STEP_ID ||
+      claim.effect_kind !== "graph" ||
+      claim.graph_step_id !== STEP_ID ||
+      claim.consumer_id !== "pi:audio-turn" ||
+      claim.operation_key !== "pi:inkling-audio" ||
+      providerId !== PROVIDER_ID ||
+      modelId !== MODEL_ID ||
+      providerId !== expectedProvider ||
+      modelId !== expectedModel ||
+      typeof claim.claim_generation !== "number" ||
+      !Number.isSafeInteger(claim.claim_generation) ||
+      claim.claim_generation < 1
+    ) {
+      throw new Error("scheduler handoff does not bind the selected Inkling model");
+    }
+    const expiresAt = Date.parse(stringField(claim.claim_expires_at, "scheduler claim expiry"));
+    if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
+      throw new Error("scheduler handoff claim is expired");
+    }
+    const handoffDigest = stringField(payload.handoff_digest, "scheduler handoff digest");
+    const attemptNonce = stringField(claim.attempt_nonce, "scheduler attempt nonce");
+    if (!/^[0-9a-f]{64}$/.test(handoffDigest)) {
+      throw new Error("scheduler handoff digest is invalid");
+    }
+    const unsigned = { ...payload };
+    delete unsigned.handoff_digest;
+    const expectedDigest = createHash("sha256")
+      .update(canonicalSchedulerHandoffJson(unsigned, rawText, payload.owner_authority))
+      .digest("hex");
+    if (handoffDigest !== expectedDigest) throw new Error("scheduler handoff digest is invalid");
+    const reservationId = stringField(token.reservation_id, "scheduler reservation id");
+    const reservationGeneration = token.generation;
+    if (
+      typeof reservationGeneration !== "number" ||
+      !Number.isSafeInteger(reservationGeneration) ||
+      reservationGeneration < 1
+    ) {
+      throw new Error("scheduler reservation generation is invalid");
+    }
+    const snapshotDirectory = await mkdtemp(
+      join(process.env.TMPDIR || tmpdir(), "pi-inkling-handoff-"),
+    );
+    const snapshotPath = join(snapshotDirectory, "handoff.json");
+    try {
+      await chmod(snapshotDirectory, 0o700);
+      await writeFile(snapshotPath, snapshotBytes, {
+        mode: 0o600,
+        flag: "wx",
+      });
+    } catch (error) {
+      await rm(snapshotDirectory, { recursive: true, force: true });
+      throw error;
+    }
+    return {
+      handoffPath: snapshotPath,
+      snapshotDirectory,
+      schedulerDb,
+      handoffDigest,
+      claimGeneration: claim.claim_generation,
+      claimExpiresAt: expiresAt,
+      attemptNonce,
+      consumerId: "pi:audio-turn",
+      operationKey: "pi:inkling-audio",
+      reservationId,
+      reservationGeneration,
+      graphStepId: STEP_ID,
+      providerId: PROVIDER_ID,
+      modelId: MODEL_ID,
+    };
+  } finally {
+    snapshotBytes.fill(0);
   }
-  return {
-    handoffPath: snapshotPath,
-    snapshotDirectory,
-    schedulerDb,
-    handoffDigest,
-    claimGeneration: claim.claim_generation,
-    claimExpiresAt: expiresAt,
-    attemptNonce,
-    consumerId: "pi:audio-turn",
-    operationKey: "pi:inkling-audio",
-    reservationId,
-    reservationGeneration,
-    graphStepId: STEP_ID,
-    providerId: PROVIDER_ID,
-    modelId: MODEL_ID,
-  };
 }
 
 function aiControlRoot(): string {
