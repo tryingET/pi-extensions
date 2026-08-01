@@ -15,9 +15,27 @@ import {
   type SimpleStreamOptions,
   streamSimpleOpenAICompletions,
 } from "@earendil-works/pi-ai/compat";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { Value } from "typebox/value";
+import {
+  type ArmedAudio,
+  type AudioInputPolicy,
+  armAudio,
+  clearArmedAudio,
+  hasAudioMarker,
+  latestUserAudioMarker,
+  readBoundedAudio,
+  transformAudioPayload,
+} from "./workstation-audio.ts";
+import {
+  clearSchedulerHandoff,
+  completeSchedulerHandoff,
+  consumeSchedulerHandoff,
+  parseGovernedAudioSendArgs,
+  quarantineSchedulerHandoff,
+  readSchedulerHandoff,
+} from "./workstation-scheduler.ts";
 
 type NotifyLevel = "info" | "warning" | "error";
 
@@ -34,6 +52,27 @@ const ThinkingLevelMapSchema = Type.Object(
   { additionalProperties: false },
 );
 const InputKindSchema = Type.Union([Type.Literal("text"), Type.Literal("image")]);
+const NativeInputKindSchema = Type.Union([
+  Type.Literal("text"),
+  Type.Literal("image"),
+  Type.Literal("audio"),
+]);
+const AudioFormatSchema = Type.Union([
+  Type.Literal("wav"),
+  Type.Literal("mp3"),
+  Type.Literal("flac"),
+]);
+const AudioInputSchema = Type.Object(
+  {
+    request_format: Type.Literal("openai-chat-input-audio"),
+    formats: Type.Array(AudioFormatSchema, { minItems: 1 }),
+    max_bytes: Type.Number({ minimum: 1 }),
+    max_encoded_bytes: Type.Number({ minimum: 1 }),
+    transport: Type.Literal("inline-base64"),
+    authorization_mode: Type.Literal("external-scheduler-claim-required"),
+  },
+  { additionalProperties: false },
+);
 const ContractModelSchema = Type.Object(
   {
     id: OptionalString,
@@ -48,6 +87,8 @@ const ContractModelSchema = Type.Object(
       Type.Union([Type.Literal("qwen"), Type.Literal("qwen-chat-template")]),
     ),
     input: Type.Optional(Type.Array(InputKindSchema, { minItems: 1 })),
+    native_input_modalities: Type.Optional(Type.Array(NativeInputKindSchema, { minItems: 1 })),
+    audio_input: Type.Optional(AudioInputSchema),
   },
   { additionalProperties: true },
 );
@@ -105,6 +146,7 @@ const healthCache = new Map<string, { expiresAt: number; unhealthy?: string }>()
 const DEFAULT_API_KEY = "workstation-local";
 const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
 const CANARY_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CANARY_CONTRACT";
+const INKLING_CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_INKLING_CONTRACT";
 const CONTRACT_JSON_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_JSON";
 const WORKSTATION_ROOT_ENV = "PI_WORKSTATION_ROOT";
 const DEFAULT_WORKSTATION_ROOT = join(
@@ -115,6 +157,7 @@ const DEFAULT_WORKSTATION_ROOT = join(
   "workstation",
 );
 const LANE_OP_SCRIPT = join("scripts", "phasee", "lane-op.py");
+let armedAudio: ArmedAudio | undefined;
 
 function boundedPositiveIntegerEnv(name: string, fallback: number, maximum: number): number {
   const value = process.env[name]?.trim();
@@ -129,6 +172,31 @@ export function clearWorkstationHealthCache(): void {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+const TRUSTED_AUTHORITIES = new Set([
+  "workstation/lane-op",
+  "workstation/runtime-ownership-scheduler",
+]);
+
+function loopbackUrl(value: string, label: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${label} must be an absolute loopback URL`);
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`${label} must be credential-free loopback HTTP without query or fragment`);
+  }
+  return parsed.toString().replace(/\/$/, "");
 }
 
 function schemaErrorSummary(payload: unknown): string {
@@ -161,16 +229,21 @@ function parseContract(payload: unknown): WorkstationInferenceContract {
   const contract = payload as WorkstationInferenceContract;
   const baseUrl = stringValue(contract.base_url);
   if (!baseUrl) throw new Error("base_url is required");
+  const authority = stringValue(contract.authority);
+  if (!authority || !TRUSTED_AUTHORITIES.has(authority)) {
+    throw new Error("contract authority is not a trusted workstation owner");
+  }
+  const healthUrl = stringValue(contract.health_url);
   return {
     ...contract,
-    authority: stringValue(contract.authority),
+    authority,
     family: stringValue(contract.family),
     surface: stringValue(contract.surface),
     generated_at: stringValue(contract.generated_at),
     provider_id: stringValue(contract.provider_id),
     provider_name: stringValue(contract.provider_name),
-    base_url: baseUrl,
-    health_url: stringValue(contract.health_url),
+    base_url: loopbackUrl(baseUrl, "base_url"),
+    health_url: healthUrl ? loopbackUrl(healthUrl, "health_url") : undefined,
     api_key_env: stringValue(contract.api_key_env),
     api_key: stringValue(contract.api_key),
     recovery_hint: stringValue(contract.recovery_hint),
@@ -193,6 +266,15 @@ function defaultContractPath(surface: "canonical" | "canary" = "canonical"): str
   );
 }
 
+function defaultInklingContractPath(): string {
+  return join(
+    workstationRoot(),
+    "phasee",
+    "state",
+    "workstation-inference-provider.inkling-canary.json",
+  );
+}
+
 async function loadContractFromPath(path: string): Promise<LoadedContract> {
   const text = await readFile(path, "utf8");
   return { contract: parseContract(JSON.parse(text)), source: path };
@@ -212,16 +294,28 @@ async function loadAvailableContracts(): Promise<LoadedContract[]> {
   const primary = await loadPrimaryContract();
   if (process.env[CONTRACT_JSON_ENV]?.trim() || process.env[CONTRACT_ENV]?.trim()) return [primary];
 
-  const canaryPath = process.env[CANARY_CONTRACT_ENV]?.trim() || defaultContractPath("canary");
-  try {
-    const canary = await loadContractFromPath(canaryPath);
-    return [primary, canary];
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    if (detail.includes("ENOENT")) return [primary];
-    console.warn(`workstation inference canary contract ignored: ${detail}`);
-    return [primary];
+  const loaded = [primary];
+  const optionalContracts = [
+    {
+      label: "baseline canary",
+      path: process.env[CANARY_CONTRACT_ENV]?.trim() || defaultContractPath("canary"),
+    },
+    {
+      label: "Inkling canary",
+      path: process.env[INKLING_CONTRACT_ENV]?.trim() || defaultInklingContractPath(),
+    },
+  ];
+  for (const candidate of optionalContracts) {
+    try {
+      loaded.push(await loadContractFromPath(candidate.path));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (!detail.includes("ENOENT")) {
+        console.warn(`workstation inference ${candidate.label} contract ignored: ${detail}`);
+      }
+    }
   }
+  return loaded;
 }
 
 function mergeContracts(loadedContracts: LoadedContract[]): LoadedContract {
@@ -416,59 +510,223 @@ function contractApiKey(contract: WorkstationInferenceContract): string {
   );
 }
 
+function audioPolicy(model: ContractModel): AudioInputPolicy | undefined {
+  return model.native_input_modalities?.includes("audio") ? model.audio_input : undefined;
+}
+
+function clearCurrentAudio(expected?: ArmedAudio): void {
+  if (!expected || armedAudio?.nonce === expected.nonce) armedAudio = clearArmedAudio(armedAudio);
+}
+
+async function quarantineCurrentAudio(
+  pi: ExtensionAPI,
+  reason: string,
+  expected?: ArmedAudio,
+): Promise<void> {
+  if (!armedAudio || (expected && armedAudio.nonce !== expected.nonce)) return;
+  const attachment = armedAudio;
+  armedAudio = undefined;
+  try {
+    if (attachment.scheduler) {
+      await quarantineSchedulerHandoff(pi, attachment.scheduler, reason);
+    }
+  } finally {
+    clearArmedAudio(attachment);
+    if (attachment.scheduler) await clearSchedulerHandoff(attachment.scheduler);
+  }
+}
+
+function takeCurrentAudio(marker: string): ArmedAudio | undefined {
+  if (armedAudio?.marker !== marker) return undefined;
+  const attachment = armedAudio;
+  armedAudio = undefined;
+  if (attachment.expiryTimer) {
+    clearTimeout(attachment.expiryTimer);
+    attachment.expiryTimer = undefined;
+  }
+  return attachment;
+}
+
+function assertAudioOwnerContract(
+  contract: WorkstationInferenceContract,
+  policy: AudioInputPolicy,
+): void {
+  if (
+    contract.authority !== "workstation/runtime-ownership-scheduler" ||
+    contract.family !== "native-multimodal" ||
+    contract.surface !== "canary"
+  ) {
+    throw new Error(
+      "audio contract does not carry the exact workstation scheduler authority shape",
+    );
+  }
+  const stale = staleDetail(contract);
+  if (stale) throw new Error(`audio contract is stale: ${stale}`);
+  if (contract.api_key || contract.api_key_env) {
+    throw new Error("audio contracts must not select inline or environment credentials");
+  }
+  if (policy.authorization_mode !== "external-scheduler-claim-required") {
+    throw new Error("audio contract does not require an external scheduler consumer claim");
+  }
+}
+
+function errorEvent(model: Model<Api>, message: string) {
+  return {
+    type: "error" as const,
+    reason: "error" as const,
+    error: {
+      role: "assistant" as const,
+      content: [],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "error" as const,
+      errorMessage: message,
+      timestamp: Date.now(),
+    },
+  };
+}
+
+const AUDIO_OUTCOME_UNKNOWN =
+  "Inkling audio dispatch outcome is unknown. Automatic retry is disabled; explicit workstation owner/scheduler disposition is required.";
+
 export function streamWorkstationInference(
   model: Model<Api>,
   context: Context,
   options?: SimpleStreamOptions,
+  pi?: ExtensionAPI,
 ): AssistantMessageEventStream {
   const stream = createAssistantMessageEventStream();
+  const latestMarker = latestUserAudioMarker(context.messages);
+  const pendingAudio = armedAudio;
+  const attachment = pendingAudio ? takeCurrentAudio(pendingAudio.marker) : undefined;
+  const isAudioAttempt = latestMarker !== undefined || pendingAudio !== undefined;
 
   (async () => {
+    let completionAttempted = false;
+    let dispositionAttempted = false;
     try {
+      if (isAudioAttempt && !attachment) {
+        throw new Error("audio attachment is unavailable or ambiguous; automatic replay denied");
+      }
+      if (latestMarker === "multiple") {
+        throw new Error("multiple audio markers are not an authorized provider turn");
+      }
+      if (attachment && latestMarker !== attachment.marker) {
+        throw new Error("audio marker must bind the latest user message exactly");
+      }
       const selected = await resolveContractForModel(model.id, {
         checkHealth: true,
         signal: (options as (SimpleStreamOptions & { signal?: AbortSignal }) | undefined)?.signal,
       });
+      const providerId = selected.contract.provider_id ?? DEFAULT_PROVIDER_ID;
+      const payloadModel = selected.model.upstream_model ?? model.id;
+      if (attachment) {
+        if (model.provider !== attachment.providerId || providerId !== attachment.providerId) {
+          throw new Error("audio provider identity drifted before dispatch");
+        }
+        if (model.id !== attachment.modelId || payloadModel !== attachment.payloadModel) {
+          throw new Error("audio model identity drifted before dispatch");
+        }
+        const policy = audioPolicy(selected.model);
+        if (!policy) throw new Error("selected model no longer advertises native audio input");
+        assertAudioOwnerContract(selected.contract, policy);
+        if (!hasAudioMarker(context.messages, attachment.marker)) {
+          throw new Error("audio marker disappeared before provider serialization");
+        }
+      }
 
+      const innerModel = {
+        ...model,
+        id: payloadModel,
+        api: "openai-completions",
+        baseUrl: normalizeBaseUrl(selected.contract.base_url),
+        compat: providerModel(selected.model).compat,
+      } as Model<"openai-completions">;
+      const inheritedOnPayload = options?.onPayload;
       const inner = streamSimpleOpenAICompletions(
-        {
-          ...model,
-          api: "openai-completions",
-          baseUrl: normalizeBaseUrl(selected.contract.base_url),
-          compat: providerModel(selected.model).compat,
-        } as Model<"openai-completions">,
-        context,
+        innerModel,
+        attachment ? { ...context, tools: [] } : context,
         {
           ...options,
           apiKey: contractApiKey(selected.contract),
+          maxRetries: attachment ? 0 : options?.maxRetries,
+          onPayload: attachment
+            ? async (payload, callbackModel) => {
+                const inherited = await inheritedOnPayload?.(payload, callbackModel);
+                return transformAudioPayload(inherited ?? payload, attachment);
+              }
+            : inheritedOnPayload,
         },
       );
-      for await (const event of inner) stream.push(event);
+      let providerError = false;
+      let pushAudioTerminal: (() => void) | undefined;
+      for await (const event of inner) {
+        if (attachment && event.type === "error") {
+          providerError = true;
+          pushAudioTerminal = () =>
+            stream.push({
+              ...event,
+              error: { ...event.error, errorMessage: AUDIO_OUTCOME_UNKNOWN },
+            });
+        } else if (attachment && event.type === "done") {
+          pushAudioTerminal = () => stream.push(event);
+        } else {
+          stream.push(event);
+        }
+      }
+      if (attachment) {
+        if (!pi || !attachment.scheduler) {
+          throw new Error("audio scheduler consumer is unavailable");
+        }
+        if (providerError) {
+          dispositionAttempted = true;
+          await quarantineSchedulerHandoff(pi, attachment.scheduler, "provider-error-event");
+        } else {
+          await consumeSchedulerHandoff(pi, attachment.scheduler, "post-effect");
+          completionAttempted = true;
+          await completeSchedulerHandoff(pi, attachment.scheduler);
+        }
+        pushAudioTerminal?.();
+      }
       stream.end();
     } catch (error) {
-      stream.push({
-        type: "error",
-        reason: "error",
-        error: {
-          role: "assistant",
-          content: [],
-          api: model.api,
-          provider: model.provider,
-          model: model.id,
-          usage: {
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-            totalTokens: 0,
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-          },
-          stopReason: "error",
-          errorMessage: error instanceof Error ? error.message : String(error),
-          timestamp: Date.now(),
-        },
-      });
+      if (
+        attachment &&
+        pi &&
+        attachment.scheduler &&
+        !completionAttempted &&
+        !dispositionAttempted
+      ) {
+        dispositionAttempted = true;
+        try {
+          await quarantineSchedulerHandoff(pi, attachment.scheduler, "provider-outcome-unknown");
+        } catch {
+          // A failed disposition is itself indeterminate. Never retry or release from Pi.
+        }
+      }
+      const detail = error instanceof Error ? error.message : String(error);
+      stream.push(errorEvent(model, attachment ? AUDIO_OUTCOME_UNKNOWN : detail));
       stream.end();
+    } finally {
+      if (attachment) {
+        clearArmedAudio(attachment);
+        if (attachment.scheduler) {
+          try {
+            await clearSchedulerHandoff(attachment.scheduler);
+          } catch {
+            // Scratch cleanup failure cannot grant retry or scheduler authority.
+          }
+        }
+      }
     }
   })();
 
@@ -529,18 +787,129 @@ function registerContractProvider(
     apiKey: contractApiKey(contract),
     api: WORKSTATION_API_ID,
     models: contract.models.map(providerModel),
-    streamSimple: streamWorkstationInference,
+    streamSimple: (model, context, options) =>
+      streamWorkstationInference(model, context, options, pi),
   });
   return providerId;
 }
 
+async function sendAudioTurn(
+  pi: ExtensionAPI,
+  rawArgs: string,
+  ctx: ExtensionCommandContext,
+): Promise<void> {
+  if (!ctx.isIdle()) throw new Error("audio-send requires an idle Pi session");
+  await quarantineCurrentAudio(pi, "superseded-before-provider-dispatch");
+  const model = ctx.model;
+  if (!model) throw new Error("select the workstation Inkling model before audio-send");
+  const selected = await resolveContractForModel(model.id, {
+    checkHealth: true,
+    signal: ctx.signal,
+  });
+  const providerId = selected.contract.provider_id ?? DEFAULT_PROVIDER_ID;
+  if (model.provider !== providerId) {
+    throw new Error("select the workstation Inkling model before audio-send");
+  }
+  const policy = audioPolicy(selected.model);
+  if (!policy) throw new Error("selected workstation model does not advertise native audio input");
+  assertAudioOwnerContract(selected.contract, policy);
+  const parsed = parseGovernedAudioSendArgs(rawArgs, ctx.cwd);
+  const scheduler = await readSchedulerHandoff(
+    parsed.handoffPath,
+    parsed.schedulerDb,
+    providerId,
+    model.id,
+  );
+  let audio: Awaited<ReturnType<typeof readBoundedAudio>>;
+  try {
+    audio = await readBoundedAudio(parsed.path, ctx.cwd, policy);
+  } catch (error) {
+    await clearSchedulerHandoff(scheduler);
+    throw error;
+  }
+  const audioBytes = audio.data.length;
+  let preEffectAttempted = false;
+  try {
+    preEffectAttempted = true;
+    await consumeSchedulerHandoff(pi, scheduler, "pre-effect");
+    if (Date.now() >= scheduler.claimExpiresAt) {
+      throw new Error("scheduler claim expired before the provider turn was armed");
+    }
+    const attachment = armAudio({
+      providerId,
+      modelId: model.id,
+      payloadModel: selected.model.upstream_model ?? model.id,
+      format: audio.format,
+      data: audio.data,
+      scheduler,
+      expiresAt: scheduler.claimExpiresAt,
+    });
+    armedAudio = attachment;
+    attachment.expiryTimer = setTimeout(
+      () => {
+        void quarantineCurrentAudio(
+          pi,
+          "attachment-expired-before-provider-dispatch",
+          attachment,
+        ).catch(() => undefined);
+      },
+      Math.max(0, attachment.expiresAt - Date.now()),
+    );
+    attachment.expiryTimer.unref();
+    try {
+      pi.sendUserMessage(`${attachment.marker}\n${parsed.prompt}`);
+    } catch (error) {
+      clearCurrentAudio(attachment);
+      throw error;
+    }
+  } catch (error) {
+    audio.data.fill(0);
+    if (preEffectAttempted) {
+      try {
+        await quarantineSchedulerHandoff(pi, scheduler, "message-dispatch-unknown");
+      } catch {
+        // Never retry, release, or reconcile an indeterminate scheduler disposition.
+      }
+    }
+    await clearSchedulerHandoff(scheduler);
+    throw error;
+  }
+  notifyOrLog(
+    ctx,
+    `audio-send armed ${audio.format} (${audioBytes} bytes) for ${model.provider}/${model.id}; one provider dispatch, no tools, no automatic retry`,
+  );
+}
+
 export default async function (pi: ExtensionAPI) {
+  try {
+    await quarantineCurrentAudio(pi, "extension-reload-before-provider-dispatch");
+  } catch {
+    // A failed disposition is indeterminate and never authorizes retry or release.
+  }
   const initial = await resolveContractStatus({ checkHealth: false });
+
+  if (typeof pi.on === "function") {
+    const dispose = (reason: string) => async () => {
+      try {
+        await quarantineCurrentAudio(pi, reason);
+      } catch {
+        // Lifecycle cleanup failure cannot grant provider or scheduler authority.
+      }
+    };
+    pi.on("agent_end", dispose("agent-ended-before-provider-dispatch"));
+    pi.on("model_select", dispose("model-changed-before-provider-dispatch"));
+    pi.on("session_before_switch", dispose("session-switched-before-provider-dispatch"));
+    pi.on("session_shutdown", dispose("session-shutdown-before-provider-dispatch"));
+  }
 
   pi.registerCommand("workstation-inference", {
     description: "Show read-only workstation inference provider status",
     handler: async (args, ctx) => {
-      const action = args.trim().toLowerCase() || "status";
+      const trimmed = args.trim();
+      const firstSpace = trimmed.search(/\s/);
+      const action =
+        (firstSpace < 0 ? trimmed : trimmed.slice(0, firstSpace)).toLowerCase() || "status";
+      const actionArgs = firstSpace < 0 ? "" : trimmed.slice(firstSpace + 1).trim();
       if (action === "help") {
         notifyOrLog(
           ctx,
@@ -549,6 +918,7 @@ export default async function (pi: ExtensionAPI) {
             "/workstation-inference refresh  Ask lane-op to refresh canonical and canary provider contracts",
             "/workstation-inference lane-status  Show lane-op baseline-text status",
             "/workstation-inference contract  Show the expected contract path/env",
+            "/workstation-inference audio-send --handoff <claim.json> --scheduler-db <scheduler.sqlite3> <audio> -- <prompt>  Consume one external scheduler claim",
           ].join("\n"),
         );
         return;
@@ -559,13 +929,23 @@ export default async function (pi: ExtensionAPI) {
           [
             `contract env: ${CONTRACT_ENV}`,
             `canary contract env: ${CANARY_CONTRACT_ENV}`,
+            `Inkling contract env: ${INKLING_CONTRACT_ENV}`,
             `inline contract env: ${CONTRACT_JSON_ENV}`,
             `workstation root env: ${WORKSTATION_ROOT_ENV}`,
             `default workstation root: ${DEFAULT_WORKSTATION_ROOT}`,
             `default canonical path: ${defaultContractPath("canonical")}`,
             `default canary path: ${defaultContractPath("canary")}`,
+            `default Inkling path: ${defaultInklingContractPath()}`,
           ].join("\n"),
         );
+        return;
+      }
+      if (action === "audio-send") {
+        try {
+          await sendAudioTurn(pi, actionArgs, ctx);
+        } catch (error) {
+          notifyOrLog(ctx, error instanceof Error ? error.message : String(error), "error");
+        }
         return;
       }
       if (action === "refresh") {
@@ -599,10 +979,27 @@ export default async function (pi: ExtensionAPI) {
           );
           return;
         }
+        let inklingWarning: string | undefined;
+        const inklingRefresh = await runLaneOp(pi, [
+          "provider-contract",
+          "inkling",
+          "--surface",
+          "canary",
+          "--write",
+        ]);
+        if (!inklingRefresh.ok) {
+          inklingWarning = `optional Inkling refresh unavailable: ${inklingRefresh.detail}`;
+        }
         const status = await resolveContractStatus({ checkHealth: true });
         if (status.status === "ok" && status.contract)
           registerContractProvider(pi, status.contract);
-        notifyOrLog(ctx, ["refresh: ok", statusText(status)].join("\n"));
+        notifyOrLog(
+          ctx,
+          ["refresh: ok", inklingWarning, statusText(status)]
+            .filter((line): line is string => Boolean(line))
+            .join("\n"),
+          inklingWarning ? "warning" : "info",
+        );
         return;
       }
       if (action === "lane-status") {

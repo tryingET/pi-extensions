@@ -1,7 +1,7 @@
 {
   "name": "@tryinget/pi-workstation-inference-provider",
   "version": "0.2.0",
-  "description": "Read-only Pi provider adapter for workstation lane-op inference endpoints.",
+  "description": "Pi provider adapter for workstation inference with lifecycle-read-only text paths and scheduler-claimed one-shot audio dispatch.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -51,6 +51,8 @@
   },
   "files": [
     "extensions/workstation-inference.ts",
+    "extensions/workstation-audio.ts",
+    "extensions/workstation-scheduler.ts",
     "prompts",
     "examples",
     "policy/security-policy.json",

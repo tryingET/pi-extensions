@@ -1,5 +1,5 @@
 ---
-summary: "Read-only Pi provider adapter for workstation lane-op inference endpoints."
+summary: "Pi provider adapter for workstation inference with lifecycle-read-only text paths and scheduler-claimed one-shot audio dispatch."
 read_when:
   - "Starting work in this package workspace."
   - "Wiring Pi to workstation baseline-text inference without giving Pi runtime authority."
@@ -12,12 +12,14 @@ system4d:
 
 # @tryinget/pi-workstation-inference-provider
 
-Read-only Pi provider adapter for workstation-owned inference endpoints.
+Pi provider adapter for workstation-owned inference endpoints. Ordinary text/provider discovery remains lifecycle-read-only; the explicitly invoked audio path consumes one externally issued scheduler claim.
 
 This package is intentionally **not** a llama.cpp manager. It does not download models, build
 runtimes, start services, stop services, warm models, or decide promotion. Workstation `lane-op`
 remains the runtime authority for baseline/canary/experiment state, GPU/coexistence gates, receipts,
 and rollback.
+
+The audio path is not globally read-only: it mutates only the externally owned scheduler claim through bounded `pre-effect`, `post-effect`, `complete`, or `quarantine` consumer operations. It cannot issue claims, reserve resources, start or stop runtimes, reconcile indeterminate outcomes, or authorize retries.
 
 ## What it does
 
@@ -27,6 +29,7 @@ and rollback.
 - Maps contract models into Pi model entries.
 - Performs read-only health checks before provider requests.
 - Provides `/workstation-inference status` and `/workstation-inference contract`.
+- Implements the Pi 0.83 one-shot Inkling `audio-send` payload membrane; it requires and consumes an exact externally issued scheduler handoff before one provider dispatch.
 
 ## What it must not do
 
@@ -38,11 +41,18 @@ and rollback.
 
 ## Contract source
 
-The extension loads the first available contract source:
+An explicit inline or path contract is loaded alone:
 
 1. `PI_WORKSTATION_INFERENCE_CONTRACT_JSON` — inline JSON for tests/manual smoke.
-2. `PI_WORKSTATION_INFERENCE_CONTRACT` — path to the contract JSON.
-3. Default path:
+2. `PI_WORKSTATION_INFERENCE_CONTRACT` — path to one contract JSON.
+
+Without either override, the extension loads and merges distinct workstation-owned files by model id:
+
+1. canonical baseline: `phasee/state/workstation-inference-provider.json`;
+2. optional baseline canary: `phasee/state/workstation-inference-provider.canary.json`;
+3. optional Inkling canary: `phasee/state/workstation-inference-provider.inkling-canary.json`.
+
+The canonical default path is:
 
 ```text
 ~/ai-society/softwareco/infra/workstation/phasee/state/workstation-inference-provider.json
@@ -75,7 +85,7 @@ Minimal shape:
 }
 ```
 
-If the contract has `generated_at` plus `refresh_after_seconds` (or the legacy `stale_after_seconds`), `/workstation-inference status` reports the refresh warning. Runtime requests fail closed on missing/invalid/unhealthy contracts through the package's custom stream handler.
+Contracts must use credential-free loopback HTTP and a recognized workstation authority. If a contract has `generated_at` plus `refresh_after_seconds` (or the legacy `stale_after_seconds`), `/workstation-inference status` reports the refresh warning. Ordinary runtime requests fail closed on missing/invalid/unhealthy contracts through the package's custom stream handler; audio is stricter and rejects stale contract authority.
 
 Transport ownership membrane: this package must never register its custom `streamSimple` under shared built-in API ids such as `openai-completions`. Workstation models use `api: "workstation-inference"`; the stream handler then delegates internally to OpenAI-compatible transport after it has resolved the selected workstation contract and model.
 
@@ -84,6 +94,7 @@ Current workstation exporter command:
 ```bash
 cd /home/tryinget/ai-society/softwareco/infra/workstation
 python3 scripts/phasee/lane-op.py provider-contract baseline-text --surface canonical --write
+python3 scripts/phasee/lane-op.py provider-contract inkling --surface canary --write
 ```
 
 The exporter is a bounded write to `phasee/state/workstation-inference-provider.json`; runtime service lifecycle still belongs to lane-op's existing plan/apply surfaces.
@@ -95,16 +106,48 @@ The exporter is a bounded write to `phasee/state/workstation-inference-provider.
 /workstation-inference refresh
 /workstation-inference lane-status
 /workstation-inference contract
+/workstation-inference audio-send --handoff <claim.json> --scheduler-db <scheduler.sqlite3> <audio> -- <prompt>
 /workstation-inference help
 ```
 
-`status` reads the contract and probes the configured health URL. `refresh` explicitly asks workstation `lane-op` to rewrite the canonical provider contract, then re-registers the provider if healthy. `lane-status` delegates to read-only `lane-op status baseline-text --surface canonical`.
+`status` reads the contract and probes the configured health URL. `refresh` explicitly asks workstation `lane-op` to rewrite canonical and baseline-canary contracts; it attempts the distinct Inkling export as an optional add-on that cannot block baseline recovery. `lane-status` delegates to read-only `lane-op status baseline-text --surface canonical`.
+
+### Inkling audio input
+
+The model is discoverable as `workstation-inference/inkling-small-iq2m-canary`. Invocation requires a fresh handoff created by the external scheduler owner; Pi cannot issue one:
+
+```text
+/workstation-inference audio-send \
+  --handoff /private/one-turn-handoff.json \
+  --scheduler-db /private/scheduler.sqlite3 \
+  /absolute/or/relative/question.wav \
+  -- What is the pupil asking?
+```
+
+**Current execution status:** implemented and claim-gated. Model visibility, a healthy endpoint, and a fresh contract are still not invocation authorization. Before reading audio, the extension validates that the bounded no-follow handoff binds exactly:
+
+```text
+workstation-capability-graph
+-> inkling-tts-canary
+-> inkling-small:0
+-> workstation-inference/inkling-small-iq2m-canary
+```
+
+It then validates the contract-listed `wav`, `mp3`, or `flac` regular file. Immediately before creating the Pi turn, it invokes only the local-ai-control-plane consumer surface for one `pre-effect` consumption. The extension never invokes `external-claim`, reservation, release, reconciliation, retry, lifecycle, or model-load commands.
+
+The adapter opens the final audio path without following a symlink, verifies format magic and owner-exported raw/encoded size bounds, and keeps bytes only in expiring process memory. A nonce identifies the exact user turn. Inside the provider transport, Pi's inherited payload hook runs first; final validation rejects tools or pre-existing audio and then replaces that nonce with exactly one llama.cpp `input_audio` block immediately before HTTP dispatch.
+
+The audio turn sends no tools and forces provider retries to zero. A successful stream is withheld from terminal completion until `post-effect` revalidation and repository-issued causal completion succeed. The content-free completion result binds one dispatch, the exact handoff digest/attempt, provider/model, and completed stream; its private temporary file is removed immediately. A provider error or interrupted result is quarantined once as outcome unknown. If completion itself becomes indeterminate, Pi does not retry, quarantine, release, or reconcile automatically.
+
+A second session attempt fails before another HTTP request because the one-shot pre-effect consumption and attachment are already consumed. Audio bytes/base64, prompt, transcript, and response content are not written to handoffs, scheduler results, contracts, or AK evidence.
+
+This command never starts the Inkling canary. The external owner must first establish the fresh scheduler reservation/claim and start the runtime through its accepted owner path. Keep the handoff file available until the turn reaches completion or quarantine because each bounded consumer command revalidates it against the scheduler repository.
 
 These commands may call the workstation-owned `lane-op` CLI, but they do not start/stop/switch/warm services or apply lane changes. Runtime lifecycle remains behind lane-op's existing plan/apply surfaces.
 
 ## Runtime dependencies
 
-This package expects Pi host runtime APIs and declares them as peer dependencies:
+This audio path requires Pi 0.83.x host payload callbacks. The package expects Pi host runtime APIs and declares them as peer dependencies:
 
 - `@earendil-works/pi-coding-agent`
 - `@earendil-works/pi-ai`
@@ -126,6 +169,15 @@ Run from monorepo root through the canonical package gate:
 ```bash
 bash ./scripts/package-quality-gate.sh ci packages/pi-workstation-inference-provider
 ```
+
+### Brownfield file-budget exception
+
+`extensions/workstation-inference.ts` remains an existing oversized provider/command module
+(1,025 LOC after this slice). The scheduler consumer, immutable handoff, and disposition
+logic was split into `extensions/workstation-scheduler.ts`; a further behavior-preserving
+provider/command split is explicitly deferred until after the scheduler-governed live
+acceptance so this security-sensitive activation is not mixed with a broad refactor. The
+package gate remains warn-only for this existing file and hard-passes all other checks.
 
 ## Live package activation
 
