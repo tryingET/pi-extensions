@@ -27,8 +27,7 @@
     },
     "packages/pi-code-mode": {
       "release-type": "node",
-      "component": "pi-code-mode",
-      "initial-version": "0.1.0"
+      "component": "pi-code-mode"
     },
     "packages/pi-context-overlay": {
       "release-type": "node",
