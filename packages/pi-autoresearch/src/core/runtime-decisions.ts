@@ -15,12 +15,14 @@ export async function requestAutoresearchSetupDecision(
   input: ExecuteAutoresearchSetupDecisionInput,
 ): Promise<ExecuteAutoresearchSetupDecisionResult> {
   const cwd = path.resolve(input.cwd);
+  input.signal?.throwIfAborted();
   const outcome = await input.runtime.runSetup(enrichSetupDecisionPacket(cwd, input.packet), {
     cwd,
     currentCompany: input.currentCompany,
     model: input.model,
     signal: input.signal,
   });
+  input.signal?.throwIfAborted();
 
   return {
     cwd,
@@ -33,12 +35,14 @@ export async function requestAutoresearchFinalizeDecision(
   input: ExecuteAutoresearchFinalizeDecisionInput,
 ): Promise<ExecuteAutoresearchFinalizeDecisionResult> {
   const cwd = path.resolve(input.cwd);
+  input.signal?.throwIfAborted();
   const outcome = await input.runtime.runFinalize(enrichFinalizeDecisionPacket(cwd, input.packet), {
     cwd,
     currentCompany: input.currentCompany,
     model: input.model,
     signal: input.signal,
   });
+  input.signal?.throwIfAborted();
 
   return {
     cwd,

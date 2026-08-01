@@ -19,6 +19,7 @@ export async function executeAutoresearchResumeApply(
   if (!Number.isFinite(input.maxWallClockMinutes) || input.maxWallClockMinutes <= 0) {
     throw new Error("maxWallClockMinutes must be a positive number");
   }
+  input.signal?.throwIfAborted();
 
   const applyPlan = buildAutoresearchResumeApplyPlan(cwd);
   if (!applyPlan.planReady) {
@@ -49,6 +50,7 @@ export async function executeAutoresearchResumeApply(
     signal: input.signal,
     onProgress: input.onProgress,
   });
+  input.signal?.throwIfAborted();
 
   return {
     cwd,

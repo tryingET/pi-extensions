@@ -72,10 +72,12 @@ export async function executeAutoresearchRun(
       "liveDecision.goal is required when governed post-run Prompt Vault decisions are enabled",
     );
   }
+  input.signal?.throwIfAborted();
 
   const paths = resolveAutoresearchPaths(cwd);
   const loadResult = loadReceiptLog(cwd);
   const entries = [...loadResult.entries];
+  input.signal?.throwIfAborted();
   ensureEventLedgerInitializedFromReceipts(cwd, entries);
 
   let currentSegment = getCurrentSegment(entries);
@@ -121,6 +123,7 @@ export async function executeAutoresearchRun(
       timeoutSeconds: input.postureTimeoutSeconds ?? 15,
       signal: input.signal,
     });
+    input.signal?.throwIfAborted();
   }
   ensureMachineReadyForBoundedRun(cwd, {
     allowBootstrapConfig: createdConfig,
@@ -128,7 +131,9 @@ export async function executeAutoresearchRun(
   });
 
   if (createdConfig) {
+    input.signal?.throwIfAborted();
     appendReceipt(cwd, config);
+    input.signal?.throwIfAborted();
     appendLedgerEvent(
       cwd,
       createLedgerEventEntry(
@@ -137,6 +142,7 @@ export async function executeAutoresearchRun(
       ),
     );
   }
+  input.signal?.throwIfAborted();
   appendLedgerEvent(
     cwd,
     createLedgerEventEntry(
@@ -154,6 +160,7 @@ export async function executeAutoresearchRun(
     timeoutSeconds: input.timeoutSeconds ?? DEFAULT_BENCHMARK_TIMEOUT_SECONDS,
     signal: input.signal,
   });
+  input.signal?.throwIfAborted();
 
   const parsedMetrics = parseMetricLines(joinOutput(benchmark));
   const metricName = config.metricName;
@@ -163,6 +170,7 @@ export async function executeAutoresearchRun(
   const primaryMetric = hasPrimaryMetric ? parsedMetrics[metricName] : 0;
 
   if (benchmarkSucceeded && !metricContractFailed) {
+    input.signal?.throwIfAborted();
     appendLedgerEvent(
       cwd,
       createLedgerEventEntry(
@@ -173,6 +181,7 @@ export async function executeAutoresearchRun(
       ),
     );
   } else {
+    input.signal?.throwIfAborted();
     appendLedgerEvent(
       cwd,
       createLedgerEventEntry(
@@ -190,6 +199,7 @@ export async function executeAutoresearchRun(
       timeoutSeconds: input.checksTimeoutSeconds ?? DEFAULT_CHECKS_TIMEOUT_SECONDS,
       signal: input.signal,
     });
+    input.signal?.throwIfAborted();
     checksPassed = checks.exitCode === 0 && !checks.timedOut;
     appendLedgerEvent(
       cwd,
@@ -252,11 +262,14 @@ export async function executeAutoresearchRun(
         signal: input.signal,
       })
     : null;
+  input.signal?.throwIfAborted();
   if (decisionSummary) {
     runReceipt.decision = decisionSummary;
   }
 
+  input.signal?.throwIfAborted();
   appendReceipt(cwd, runReceipt);
+  input.signal?.throwIfAborted();
   appendLedgerEvent(
     cwd,
     createLedgerEventEntry(
@@ -267,6 +280,7 @@ export async function executeAutoresearchRun(
       runReceipt.timestamp,
     ),
   );
+  input.signal?.throwIfAborted();
   appendLedgerEvent(
     cwd,
     createLedgerEventEntry(
@@ -280,6 +294,9 @@ export async function executeAutoresearchRun(
     ),
   );
 
+  input.signal?.throwIfAborted();
+  const finalStatus = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
+
   return {
     cwd,
     receiptPath: paths.jsonlPath,
@@ -292,7 +309,7 @@ export async function executeAutoresearchRun(
     primaryMetricName: metricName,
     primaryMetric,
     decisionSummary,
-    status: buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true }),
+    status: finalStatus,
   };
 }
 
@@ -351,6 +368,7 @@ async function runAutoresearchPostRunDecision(input: {
   liveDecision: ExecuteAutoresearchRunLiveDecisionInput;
   signal?: AbortSignal;
 }): Promise<AutoresearchRunDecisionSummary> {
+  input.signal?.throwIfAborted();
   const outcome = await input.liveDecision.runtime.runNextHypothesis(
     buildRuntimeNextHypothesisPacket(input),
     {
@@ -360,6 +378,7 @@ async function runAutoresearchPostRunDecision(input: {
       signal: input.signal,
     },
   );
+  input.signal?.throwIfAborted();
   return buildRunDecisionSummary(outcome, input.runReceipt.timestamp);
 }
 

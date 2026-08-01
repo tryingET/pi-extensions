@@ -11,6 +11,7 @@ import {
   stopAutoresearchDashboardBrowserExport,
 } from "../extensions/pi-autoresearch/dashboardUi.ts";
 import {
+  AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
@@ -25,6 +26,10 @@ import {
   type PiAutoresearchExtensionOptions,
   registerPiAutoresearchExtension,
 } from "../extensions/pi-autoresearch.ts";
+import {
+  AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+  createAutoresearchDecisionRuntime,
+} from "../src/core/decisions.ts";
 
 interface RegisteredCommand {
   handler: (args: string, ctx: unknown) => Promise<void>;
@@ -105,6 +110,21 @@ const EAGER_CONTRACT_PROVENANCE = JSON.parse(
   expectedToolNames: string[];
 };
 const EXPECTED_TOOL_NAMES = [...EAGER_CONTRACT_PROVENANCE.expectedToolNames].sort();
+const SESSION_MUTABLE_ARTIFACTS = [
+  "autoresearch.jsonl",
+  "autoresearch.events.jsonl",
+  "autoresearch.goal.json",
+  "autoresearch.runtime.json",
+] as const;
+
+function snapshotSessionMutableArtifacts(cwd: string): Record<string, string | null> {
+  return Object.fromEntries(
+    SESSION_MUTABLE_ARTIFACTS.map((name) => {
+      const artifactPath = path.join(cwd, name);
+      return [name, existsSync(artifactPath) ? readFileSync(artifactPath, "utf8") : null];
+    }),
+  );
+}
 
 test("extension startup sources contain no static value import of core implementations", () => {
   const extensionRoot = path.join(packageRoot, "extensions");
@@ -412,6 +432,245 @@ test("shutdown aborts an already-started runtime operation through the session s
   await assert.rejects(() => operation, /abort/u);
   assert.equal(abortObserved, true);
   assert.equal(committedAfterAbort, false);
+});
+
+test("a real bounded campaign loop preserves exact abort control flow and commits nothing after shutdown", async () => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-real-loop-abort-"));
+  const benchmarkStartedPath = path.join(cwd, "benchmark-started");
+  const benchmarkScript = `require("node:fs").writeFileSync(${JSON.stringify(benchmarkStartedPath)}, "started"); setInterval(() => {}, 1000);`;
+  let operationSignal: AbortSignal | undefined;
+  const previousWidgetSetting = process.env.PI_AUTORESEARCH_WIDGET;
+  process.env.PI_AUTORESEARCH_WIDGET = "0";
+  try {
+    const { handlers, tools } = registerHarness({
+      moduleLoaders: {
+        runtime: async () => {
+          const runtime = await import("../src/core/runtime.ts");
+          return {
+            ...runtime,
+            executeAutoresearchCampaignStart(
+              input: Parameters<typeof runtime.executeAutoresearchCampaignStart>[0],
+            ) {
+              operationSignal = input.signal;
+              return runtime.executeAutoresearchCampaignStart(input);
+            },
+          } as AutoresearchRuntimeModule;
+        },
+      },
+    });
+    const campaignStartTool = tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
+    assert.ok(campaignStartTool);
+
+    const operation = campaignStartTool.execute(
+      "real-loop-abort",
+      {
+        cwd,
+        objective: "preserve shutdown as loop control flow",
+        runMode: "bounded_loop",
+        maxIterations: 1,
+        name: "real-loop-abort",
+        metricName: "score",
+        direction: "higher",
+        benchmarkCommand: `node -e ${JSON.stringify(benchmarkScript)}`,
+        checksCommand: null,
+        timeoutSeconds: 30,
+        peerMode: "off",
+        campaignGoalId: "goal-real-loop-abort",
+        campaignGoalIterationBudget: 2,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    await waitFor(() => existsSync(benchmarkStartedPath), 2_000);
+    assert.ok(operationSignal);
+    const atShutdown = snapshotSessionMutableArtifacts(cwd);
+    assert.notEqual(atShutdown["autoresearch.goal.json"], null);
+    assert.notEqual(atShutdown["autoresearch.jsonl"], null);
+    assert.notEqual(atShutdown["autoresearch.events.jsonl"], null);
+    assert.equal(atShutdown["autoresearch.runtime.json"], null);
+
+    handlers.get("session_shutdown")?.();
+    assert.equal(operationSignal.aborted, true);
+    const exactShutdownReason = operationSignal.reason;
+    handlers.get("session_start")?.({}, { cwd: "/tmp/replacement", hasUI: false, ui: {} });
+
+    await assert.rejects(operation, (error) => error === exactShutdownReason);
+    assert.deepEqual(snapshotSessionMutableArtifacts(cwd), atShutdown);
+  } finally {
+    if (previousWidgetSetting === undefined) delete process.env.PI_AUTORESEARCH_WIDGET;
+    else process.env.PI_AUTORESEARCH_WIDGET = previousWidgetSetting;
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("a composed null host abort reason survives a real runtime command and replacement", async () => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-null-abort-"));
+  const benchmarkStartedPath = path.join(cwd, "benchmark-started");
+  const benchmarkScript = `require("node:fs").writeFileSync(${JSON.stringify(benchmarkStartedPath)}, "started"); setInterval(() => {}, 1000);`;
+  const hostAbort = new AbortController();
+  let operationSignal: AbortSignal | undefined;
+  const previousWidgetSetting = process.env.PI_AUTORESEARCH_WIDGET;
+  process.env.PI_AUTORESEARCH_WIDGET = "0";
+  try {
+    const { handlers, tools } = registerHarness({
+      moduleLoaders: {
+        runtime: async () => {
+          const runtime = await import("../src/core/runtime.ts");
+          return {
+            ...runtime,
+            executeAutoresearchRun(input: Parameters<typeof runtime.executeAutoresearchRun>[0]) {
+              operationSignal = input.signal;
+              return runtime.executeAutoresearchRun(input);
+            },
+          } as AutoresearchRuntimeModule;
+        },
+      },
+    });
+    const runTool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(runTool);
+
+    const operation = runTool.execute(
+      "null-host-abort",
+      {
+        cwd,
+        description: "preserve a null host abort reason",
+        name: "null-host-abort",
+        metricName: "score",
+        direction: "higher",
+        benchmarkCommand: `node -e ${JSON.stringify(benchmarkScript)}`,
+        checksCommand: null,
+        timeoutSeconds: 30,
+      },
+      hostAbort.signal,
+      undefined,
+      { cwd },
+    );
+    await waitFor(() => existsSync(benchmarkStartedPath), 2_000);
+    assert.ok(operationSignal);
+    const atAbort = snapshotSessionMutableArtifacts(cwd);
+
+    hostAbort.abort(null);
+    assert.equal(operationSignal.aborted, true);
+    assert.equal(operationSignal.reason, null);
+    handlers.get("session_shutdown")?.();
+    handlers.get("session_start")?.({}, { cwd: "/tmp/replacement", hasUI: false, ui: {} });
+
+    const settled = await operation.then(
+      () => ({ status: "fulfilled" as const, reason: undefined }),
+      (reason: unknown) => ({ status: "rejected" as const, reason }),
+    );
+    assert.equal(settled.status, "rejected");
+    assert.equal(settled.reason, operationSignal.reason);
+    assert.deepEqual(snapshotSessionMutableArtifacts(cwd), atAbort);
+  } finally {
+    if (previousWidgetSetting === undefined) delete process.env.PI_AUTORESEARCH_WIDGET;
+    else process.env.PI_AUTORESEARCH_WIDGET = previousWidgetSetting;
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("a real governed next-hypothesis decision preserves exact abort and appends nothing after shutdown", async () => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-real-decision-abort-"));
+  const decisionStarted = deferred<void>();
+  const releaseDecision = deferred<void>();
+  let decisionSignal: AbortSignal | undefined;
+  const decisionRuntime = createAutoresearchDecisionRuntime({
+    loadPromptPlaneRuntime: async () => ({
+      async prepareSelection() {
+        return {
+          ok: true as const,
+          status: "ready" as const,
+          selection_mode: "exact" as const,
+          template: {
+            name: AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
+            artifact_kind: "procedure",
+            control_mode: "one_shot",
+            formalization_level: "workflow",
+            owner_company: "software",
+            visibility_companies: ["software"],
+          },
+          prepared_text: "Prepared governed next-hypothesis prompt",
+        };
+      },
+    }),
+    executePreparedPrompt: async (input) => {
+      decisionSignal = input.signal;
+      decisionStarted.resolve();
+      await releaseDecision.promise;
+      return `
+STATUS: ready
+STATE_READ: The real benchmark completed before the governed decision.
+NEXT_HYPOTHESIS: Preserve session abort as control flow.
+WHY_NOW: Shutdown revoked the captured session lease.
+TARGET_FILES:
+- packages/pi-autoresearch/src/core/decisions.ts
+CHANGE_SHAPE:
+- Rethrow the exact abort reason.
+EXPECTED_PRIMARY_EFFECT: No post-shutdown receipt or projection writes.
+RISK_TO_GUARD:
+- Converting abort into a blocked domain result.
+RUN_PLAN:
+- npm run check
+ASI_TO_CAPTURE_IF_KEPT:
+- Abort remains control flow.
+ASI_TO_CAPTURE_IF_DISCARDED:
+- The decision path still converted cancellation.
+STOP_CONDITION:
+- The operation rejects with the captured signal reason.
+`;
+    },
+  });
+  const previousWidgetSetting = process.env.PI_AUTORESEARCH_WIDGET;
+  process.env.PI_AUTORESEARCH_WIDGET = "0";
+  try {
+    const { handlers, tools } = registerHarness({
+      createDecisionRuntime: () => decisionRuntime,
+      moduleLoaders: {
+        runtime: () => import("../src/core/runtime.ts"),
+      },
+    });
+    const runTool = tools.get(AUTORESEARCH_RUN_TOOL_NAME);
+    assert.ok(runTool);
+
+    const operation = runTool.execute(
+      "real-decision-abort",
+      {
+        cwd,
+        description: "hold real governed decision across shutdown",
+        name: "real-decision-abort",
+        metricName: "score",
+        direction: "higher",
+        benchmarkCommand: `node -e "console.log('METRIC score=7')"`,
+        checksCommand: null,
+        decisionGoal: "choose the next bounded hypothesis",
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    await decisionStarted.promise;
+    assert.ok(decisionSignal);
+    const atShutdown = snapshotSessionMutableArtifacts(cwd);
+    assert.notEqual(atShutdown["autoresearch.jsonl"], null);
+    assert.notEqual(atShutdown["autoresearch.events.jsonl"], null);
+    assert.equal(atShutdown["autoresearch.runtime.json"], null);
+    assert.doesNotMatch(atShutdown["autoresearch.jsonl"] ?? "", /hold real governed decision/u);
+
+    handlers.get("session_shutdown")?.();
+    assert.equal(decisionSignal.aborted, true);
+    const exactShutdownReason = decisionSignal.reason;
+    handlers.get("session_start")?.({}, { cwd: "/tmp/replacement", hasUI: false, ui: {} });
+    releaseDecision.resolve();
+
+    await assert.rejects(operation, (error) => error === exactShutdownReason);
+    assert.deepEqual(snapshotSessionMutableArtifacts(cwd), atShutdown);
+  } finally {
+    releaseDecision.resolve();
+    if (previousWidgetSetting === undefined) delete process.env.PI_AUTORESEARCH_WIDGET;
+    else process.env.PI_AUTORESEARCH_WIDGET = previousWidgetSetting;
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("status, control, and finalization tools cannot cross a delayed import boundary", async () => {

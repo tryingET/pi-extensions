@@ -34,6 +34,7 @@ export async function executeAutoresearchLoop(
   if (!Number.isInteger(input.maxIterations) || input.maxIterations < 1) {
     throw new Error("maxIterations must be a positive integer");
   }
+  input.signal?.throwIfAborted();
 
   const startedAt = Date.now();
   const hasCampaignGoalBudget =
@@ -179,10 +180,12 @@ export async function executeAutoresearchLoop(
         signal: input.signal,
       });
     } catch (error) {
+      input.signal?.throwIfAborted();
       stopReason = `run execution stopped: ${formatErrorMessage(error)}`;
       emitAutoresearchLoopStop(input, cwd, goal, startedAt, stopReason);
       break;
     }
+    input.signal?.throwIfAborted();
     runs.push(run);
 
     emitAutoresearchLoopProgress(input, {
@@ -222,6 +225,7 @@ export async function executeAutoresearchLoop(
     }
   }
 
+  input.signal?.throwIfAborted();
   const elapsedSeconds = (Date.now() - startedAt) / 1000;
   const campaignGoal = campaignGoalLedger
     ? recordAutoresearchCampaignGoalSegment({
@@ -251,6 +255,7 @@ export async function executeAutoresearchLoop(
         completedAt: Date.now(),
       })
     : null;
+  input.signal?.throwIfAborted();
   const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
   const peerAssist = buildAutoresearchPeerAssistPlan(
     buildLoopPeerAssistInput(input, cwd, goal, peerMode),
@@ -465,5 +470,6 @@ function emitAutoresearchLoopProgress(
   input: ExecuteAutoresearchLoopInput,
   event: AutoresearchLoopProgressEvent,
 ): void {
+  input.signal?.throwIfAborted();
   input.onProgress?.(event);
 }

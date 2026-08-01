@@ -152,6 +152,7 @@ export async function executeAutoresearchCampaignStart(
   const cwd = path.resolve(input.cwd);
   const objective = input.objective.trim();
   if (!objective) throw new Error("objective is required for autoresearch_campaign_start");
+  input.signal?.throwIfAborted();
 
   const setupMode = input.setupMode ?? "autoplan";
   const runMode = input.runMode ?? "plan_only";
@@ -208,6 +209,7 @@ export async function executeAutoresearchCampaignStart(
       timeoutSeconds: dspxProgramGenTimeoutSeconds,
       signal: input.signal,
     });
+    input.signal?.throwIfAborted();
     if (dspxProgramGenRun.exitCode !== 0 || dspxProgramGenRun.timedOut) {
       throw new Error(
         `DSPx program-gen failed or timed out (exit=${String(dspxProgramGenRun.exitCode)}, timedOut=${String(dspxProgramGenRun.timedOut)}): ${dspxProgramGenRun.outputTail}`,
@@ -254,6 +256,7 @@ export async function executeAutoresearchCampaignStart(
       model: input.model,
       signal: input.signal,
     });
+    input.signal?.throwIfAborted();
   }
 
   const benchmarkScriptProposal = canBenchmarkScriptProposalDriveBaseline(
@@ -306,6 +309,7 @@ export async function executeAutoresearchCampaignStart(
       checksTimeoutSeconds: input.checksTimeoutSeconds,
       signal: input.signal,
     });
+    input.signal?.throwIfAborted();
   }
 
   if (runMode === "bounded_loop") {
@@ -346,8 +350,10 @@ export async function executeAutoresearchCampaignStart(
       signal: input.signal,
       onProgress: input.onProgress,
     });
+    input.signal?.throwIfAborted();
   }
 
+  input.signal?.throwIfAborted();
   const status = loopResult?.status ?? setupResult?.status ?? buildAutoresearchRuntimeStatus(cwd);
   return {
     cwd,

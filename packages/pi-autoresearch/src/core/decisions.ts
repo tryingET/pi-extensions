@@ -148,6 +148,7 @@ async function runDecisionStep<
   ctx: AutoresearchDecisionExecutionContext;
   options: AutoresearchDecisionRuntimeOptions;
 }): Promise<Result | AutoresearchDecisionError<Kind, TemplateName>> {
+  input.ctx.signal?.throwIfAborted();
   const cwd = asNonEmptyString(input.ctx.cwd);
   if (!cwd) {
     return createDecisionError(
@@ -159,12 +160,14 @@ async function runDecisionStep<
   }
 
   const runtimeResult = await getPromptPlaneRuntime(input.options);
+  input.ctx.signal?.throwIfAborted();
   if (!runtimeResult.ok) {
     return createDecisionError(input.kind, input.templateName, "prompt_plane", runtimeResult.error);
   }
 
   let preparedCandidate: PreparedPromptPlaneCandidate;
   try {
+    input.ctx.signal?.throwIfAborted();
     preparedCandidate = await runtimeResult.value.prepareSelection(
       {
         query: input.templateName,
@@ -175,7 +178,9 @@ async function runDecisionStep<
         currentCompany: asNonEmptyString(input.ctx.currentCompany) ?? undefined,
       },
     );
+    input.ctx.signal?.throwIfAborted();
   } catch (error) {
+    input.ctx.signal?.throwIfAborted();
     return createDecisionError(
       input.kind,
       input.templateName,
@@ -207,14 +212,20 @@ async function runDecisionStep<
 
   let rawOutput: string;
   try {
-    rawOutput = normalizeExecutorOutput(await executor(preparedPrompt.value));
+    input.ctx.signal?.throwIfAborted();
+    const executorOutput = await executor(preparedPrompt.value);
+    input.ctx.signal?.throwIfAborted();
+    rawOutput = normalizeExecutorOutput(executorOutput);
   } catch (error) {
+    input.ctx.signal?.throwIfAborted();
     return createDecisionError(input.kind, input.templateName, "executor", describeError(error));
   }
 
   try {
+    input.ctx.signal?.throwIfAborted();
     return input.parseOutput(rawOutput);
   } catch (error) {
+    input.ctx.signal?.throwIfAborted();
     return createDecisionError(
       input.kind,
       input.templateName,

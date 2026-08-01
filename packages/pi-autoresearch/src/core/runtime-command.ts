@@ -97,7 +97,11 @@ async function runSpawnedCommand(input: {
       settled = true;
       cleanup();
       if (aborted) {
-        reject(new Error(`Command aborted: ${input.command}`));
+        reject(
+          input.signal?.aborted
+            ? input.signal.reason
+            : new Error(`Command aborted: ${input.command}`),
+        );
         return;
       }
       const boundedStderr = outputLimitExceeded
@@ -144,6 +148,7 @@ async function runSpawnedCommand(input: {
     });
 
     input.signal?.addEventListener("abort", onAbort, { once: true });
+    if (input.signal?.aborted) onAbort();
 
     const timer = setTimeout(() => {
       requestTermination("timeout");
