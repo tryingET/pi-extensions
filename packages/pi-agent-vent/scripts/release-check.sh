@@ -9,6 +9,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+TMP_ROOT="${TMPDIR:?TMPDIR must name the managed scratch root for release checks}"
+mkdir -p "$TMP_ROOT"
+TMP_ROOT="$(cd "$TMP_ROOT" && pwd -P)"
+case "$TMP_ROOT" in
+  /|"$ROOT_DIR"|"$ROOT_DIR"/*)
+    echo "Release check refused unsafe TMPDIR: $TMP_ROOT" >&2
+    exit 1
+    ;;
+esac
+release_tmp_dir() {
+  local label="$1"
+  mktemp -d "$TMP_ROOT/pi-agent-vent-${label}-XXXXXX"
+}
+
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 REPOSITORY_URL="$(node -p "(() => { const pkg = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); const repo = pkg.repository; if (typeof repo === 'string') return repo.trim(); if (repo && typeof repo === 'object' && typeof repo.url === 'string') return repo.url.trim(); return ''; })()")"
@@ -23,7 +37,7 @@ with_release_npm_policy() {
   local prefix="$2"
   shift 2
   case "$cache" in
-    /tmp/pi-agent-vent-*-npm-cache-*) ;;
+    "$TMP_ROOT"/pi-agent-vent-*-npm-cache-*) ;;
     *)
       echo "Release command refused non-isolated npm cache: $cache" >&2
       return 1
@@ -31,7 +45,7 @@ with_release_npm_policy() {
   esac
   if [[ "$prefix" != "-" ]]; then
     case "$prefix" in
-      /tmp/pi-agent-vent-*-npm-prefix-*) ;;
+      "$TMP_ROOT"/pi-agent-vent-*-npm-prefix-*) ;;
       *)
         echo "Release command refused non-isolated npm prefix: $prefix" >&2
         return 1
@@ -55,10 +69,10 @@ release_npm_install() {
   local prefix="$2"
   shift 2
   with_release_npm_policy "$cache" "$prefix" npm install \
-    --ignore-scripts --no-audit --fund=false "$@"
+    --include=optional --ignore-scripts --no-audit --fund=false "$@"
 }
 
-CONTROL_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-control-npm-cache-XXXXXX)"
+CONTROL_NPM_CACHE="$(release_tmp_dir control-npm-cache)"
 TEST_AGENT_DIR=""
 TEST_NPM_PREFIX=""
 TEST_NPM_CACHE=""
@@ -125,8 +139,8 @@ TARBALL="$(npm --cache "$CONTROL_NPM_CACHE" pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
-TARBALL_CHECK_DIR="$(mktemp -d /tmp/pi-agent-vent-tarball-check-XXXXXX)"
-TARBALL_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-tarball-npm-cache-XXXXXX)"
+TARBALL_CHECK_DIR="$(release_tmp_dir tarball-check)"
+TARBALL_NPM_CACHE="$(release_tmp_dir tarball-npm-cache)"
 echo "== unpacked tarball package contract"
 tar -xzf "$TARBALL_PATH" -C "$TARBALL_CHECK_DIR"
 (
@@ -137,9 +151,9 @@ tar -xzf "$TARBALL_PATH" -C "$TARBALL_CHECK_DIR"
   npm run check
 )
 
-ARTIFACT_NPM_PREFIX="$(mktemp -d /tmp/pi-agent-vent-artifact-npm-prefix-XXXXXX)"
-ARTIFACT_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-artifact-npm-cache-XXXXXX)"
-ARTIFACT_TOOL_VENT_DIR="$(mktemp -d /tmp/pi-agent-vent-artifact-tool-store-XXXXXX)"
+ARTIFACT_NPM_PREFIX="$(release_tmp_dir artifact-npm-prefix)"
+ARTIFACT_NPM_CACHE="$(release_tmp_dir artifact-npm-cache)"
+ARTIFACT_TOOL_VENT_DIR="$(release_tmp_dir artifact-tool-store)"
 ARTIFACT_PACKAGE_ROOT="$(npm --prefix "$ARTIFACT_NPM_PREFIX" root -g)/$NAME"
 
 case "$ARTIFACT_PACKAGE_ROOT" in
@@ -178,9 +192,9 @@ else
     exit 1
   fi
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-agent-vent-pi-agent-dir-XXXXXX)"
-  TEST_NPM_PREFIX="$(mktemp -d /tmp/pi-agent-vent-pi-npm-prefix-XXXXXX)"
-  TEST_NPM_CACHE="$(mktemp -d /tmp/pi-agent-vent-pi-npm-cache-XXXXXX)"
+  TEST_AGENT_DIR="$(release_tmp_dir pi-agent-dir)"
+  TEST_NPM_PREFIX="$(release_tmp_dir pi-npm-prefix)"
+  TEST_NPM_CACHE="$(release_tmp_dir pi-npm-cache)"
 
   cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
 
