@@ -5,6 +5,7 @@ import {
   D2E_WORKFLOW_RESULT_SCHEMA,
   type D2ERepositoryState,
   D2ETransferError,
+  type D2ETransferExec,
   type D2ETransferRequest,
   type JsonRecord,
   type TaskIntentReadback,
@@ -30,6 +31,72 @@ function globRegex(pattern: string): RegExp {
 }
 function pathMatches(pattern: string, candidate: string): boolean {
   return globRegex(pattern).test(candidate);
+}
+
+const MAX_APPLIED_COMMITS = 64;
+
+function nulPaths(value: string): string[] {
+  return value.split("\0").filter(Boolean);
+}
+
+export async function inspectD2ERepository(options: {
+  repo: string;
+  baselineHead?: string;
+  exec: D2ETransferExec;
+  signal?: AbortSignal;
+}): Promise<D2ERepositoryState> {
+  const runGit = async (args: string[]): Promise<string> => {
+    const result = await options.exec("git", args, {
+      cwd: options.repo,
+      signal: options.signal,
+      timeout: 30_000,
+    });
+    if (result.code !== 0) {
+      throw new D2ETransferError(
+        "D2E_TRANSFER_POSTSTATE_INVALID",
+        `git ${args[0]} failed: ${(result.stderr || result.stdout).trim().slice(0, 500)}`,
+      );
+    }
+    return result.stdout;
+  };
+
+  const head = (await runGit(["rev-parse", "HEAD"])).trim();
+  const status = await runGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  if (!options.baselineHead) return { head, worktreeClean: status.length === 0, changedPaths: [] };
+
+  await runGit(["merge-base", "--is-ancestor", options.baselineHead, head]);
+  const commits = (await runGit(["rev-list", "--reverse", `${options.baselineHead}..${head}`]))
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  if (commits.length === 0 || commits.length > MAX_APPLIED_COMMITS) {
+    throw new D2ETransferError(
+      "D2E_TRANSFER_POSTSTATE_INVALID",
+      `Applied repository history must contain 1-${MAX_APPLIED_COMMITS} descendant commits; observed ${commits.length}.`,
+    );
+  }
+
+  const touchedPaths: string[] = [];
+  for (const commit of commits) {
+    const output = await runGit([
+      "diff-tree",
+      "--root",
+      "-m",
+      "--no-commit-id",
+      "--name-only",
+      "-r",
+      "-z",
+      "--no-renames",
+      commit,
+      "--",
+    ]);
+    touchedPaths.push(...nulPaths(output));
+  }
+  return {
+    head,
+    worktreeClean: status.length === 0,
+    changedPaths: sortedUnique(touchedPaths),
+  };
 }
 export function validateChangedPaths(paths: string[], scope: TaskScope): string[] {
   const changed = sortedUnique(paths);

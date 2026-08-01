@@ -38,6 +38,7 @@ import type { AgentResolution } from "../runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
 import { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
+import { inspectD2ERepository } from "../runtime/d2e-transfer-effects.ts";
 import {
   D2E_WORKFLOW_TEMPLATE_OWNERS,
   D2ETransferError,
@@ -1974,36 +1975,13 @@ Unknown templates and workflow-grade templates without an execution binding fail
           contentSha256,
         };
 
-        const inspectRepository = async (baselineHead?: string) => {
-          const runGit = async (args: string[]): Promise<string> => {
-            const result = await pi.exec("git", args, { cwd: repo, signal, timeout: 30_000 });
-            if (result.code !== 0) {
-              throw new D2ETransferError(
-                "D2E_TRANSFER_POSTSTATE_INVALID",
-                `git ${args[0]} failed: ${(result.stderr || result.stdout).trim().slice(0, 500)}`,
-              );
-            }
-            return result.stdout.trim();
-          };
-          const head = await runGit(["rev-parse", "HEAD"]);
-          const status = await runGit(["status", "--porcelain=v1", "--untracked-files=all"]);
-          const worktreePaths = status
-            ? status.split("\n").map((line) => {
-                const raw = line.slice(3).trim();
-                return raw.includes(" -> ") ? (raw.split(" -> ").at(-1) ?? raw) : raw;
-              })
-            : [];
-          const committedPaths = baselineHead
-            ? (await runGit(["diff", "--name-only", `${baselineHead}..${head}`, "--"])).split("\n")
-            : [];
-          return {
-            head,
-            worktreeClean: worktreePaths.length === 0,
-            changedPaths: [
-              ...new Set([...worktreePaths, ...committedPaths.filter(Boolean)]),
-            ].sort(),
-          };
-        };
+        const inspectRepository = (baselineHead?: string) =>
+          inspectD2ERepository({
+            repo,
+            baselineHead,
+            exec: (command, args, execOptions) => pi.exec(command, args, execOptions),
+            signal,
+          });
 
         try {
           if (

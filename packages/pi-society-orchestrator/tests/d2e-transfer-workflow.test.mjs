@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { inspectD2ERepository, validateChangedPaths } from "../src/runtime/d2e-transfer-effects.ts";
 import {
   D2E_TRANSFER_COMPLETE_SCHEMA,
   D2E_WORKFLOW_TEMPLATE_NAMES,
@@ -280,6 +285,70 @@ async function assertFailure(promise, expected) {
     return true;
   });
 }
+
+test("repository inspection proves descendant history and every touched path", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "d2e-repository-effects-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const runGit = (args, input) => {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8", input });
+    assert.equal(result.status, 0, result.stderr || `git ${args[0]} failed`);
+    return result.stdout.trim();
+  };
+  const exec = async (command, args, options) => {
+    const result = spawnSync(command, args, { cwd: options.cwd, encoding: "utf8" });
+    return {
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? "",
+      code: result.status ?? 1,
+    };
+  };
+
+  runGit(["init", "-b", "main"]);
+  runGit(["config", "user.name", "D2E fixture"]);
+  runGit(["config", "user.email", "d2e@example.test"]);
+  fs.mkdirSync(path.join(root, "forbidden"));
+  fs.mkdirSync(path.join(root, "src"));
+  fs.writeFileSync(path.join(root, "forbidden", "secret.txt"), "baseline\n");
+  fs.writeFileSync(path.join(root, "src", "base.txt"), "baseline\n");
+  runGit(["add", "."]);
+  runGit(["commit", "-m", "baseline"]);
+  const baselineHead = runGit(["rev-parse", "HEAD"]);
+
+  fs.writeFileSync(path.join(root, "forbidden", "secret.txt"), "transient forbidden effect\n");
+  runGit(["add", "."]);
+  runGit(["commit", "-m", "touch forbidden path"]);
+  runGit(["checkout", baselineHead, "--", "forbidden/secret.txt"]);
+  fs.writeFileSync(path.join(root, "src", "allowed.txt"), "allowed effect\n");
+  runGit(["add", "."]);
+  runGit(["commit", "-m", "restore forbidden endpoint"]);
+
+  const historyState = await inspectD2ERepository({ repo: root, baselineHead, exec });
+  assert.equal(historyState.worktreeClean, true);
+  assert.deepEqual(historyState.changedPaths, ["forbidden/secret.txt", "src/allowed.txt"]);
+  assert.throws(
+    () =>
+      validateChangedPaths(historyState.changedPaths, {
+        allowed_paths: ["src/**"],
+        required_paths: [],
+        forbidden_paths: ["forbidden/**"],
+      }),
+    /outside exact task scope: forbidden\/secret\.txt/,
+  );
+
+  runGit(["checkout", "-b", "rename-fixture", baselineHead]);
+  runGit(["mv", "forbidden/secret.txt", "src/renamed-secret.txt"]);
+  runGit(["commit", "-m", "rename forbidden source into scope"]);
+  const renameState = await inspectD2ERepository({ repo: root, baselineHead, exec });
+  assert.deepEqual(renameState.changedPaths, ["forbidden/secret.txt", "src/renamed-secret.txt"]);
+
+  const emptyTree = runGit(["mktree"], "");
+  const unrelatedHead = runGit(["commit-tree", emptyTree, "-m", "unrelated root"]);
+  runGit(["checkout", "--detach", unrelatedHead]);
+  await assert.rejects(
+    inspectD2ERepository({ repo: root, baselineHead, exec }),
+    (error) => error instanceof D2ETransferError && error.code === "D2E_TRANSFER_POSTSTATE_INVALID",
+  );
+});
 
 test("all three exact templates share the immutable D2E binding identity", async () => {
   assert.deepEqual(
