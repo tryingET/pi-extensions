@@ -3,20 +3,9 @@
 //   - Reviewing bounded self-hosting execution, progress updates, or external promotion boundaries.
 import { existsSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import {
-  AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
-  classifyAutoresearchSelfHostingApplicability,
-  executeAutoresearchSelfHostingCandidateSubprocess,
-  executeAutoresearchSelfHostingEvaluatorSuite,
-  inspectAutoresearchSelfHostingCandidateScope,
-  loadAutoresearchSelfHostingArtifacts,
-  loadAutoresearchSelfHostingPromotionRecord,
-  prepareAutoresearchSelfHostingCandidateWorktree,
-  prepareAutoresearchSelfHostingPromotionRecord,
-  recordAutoresearchSelfHostingRollback,
-  resolveAutoresearchSelfHostingPromotionRecordPath,
-} from "../../src/core/selfHosting.ts";
+import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "./eagerContract.ts";
 import type { PiAutoresearchExtensionOptions } from "./extensionOptions.ts";
+import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { assertReadProfileRejectsTool } from "./readProfile.ts";
 import { asPiToolParameters, selfHostingSchema } from "./schemas.ts";
 import {
@@ -30,10 +19,13 @@ import {
   normalizeAutoresearchSelfHostingCommand,
   normalizeAutoresearchSelfHostingRegressionPercents,
 } from "./selfHostingFormat.ts";
+import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
 
 export function registerAutoresearchSelfHostingTool(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions,
+  modules: AutoresearchLazyModules,
+  getSessionEffects: () => AutoresearchSessionEffects,
 ): void {
   pi.registerTool({
     name: AUTORESEARCH_SELF_HOSTING_TOOL_NAME,
@@ -75,6 +67,20 @@ export function registerAutoresearchSelfHostingTool(
       const cwd = request.cwd ?? ctx.cwd ?? process.cwd();
       const action = request.action ?? "status";
       assertReadProfileRejectsTool(options, AUTORESEARCH_SELF_HOSTING_TOOL_NAME);
+      const effects = getSessionEffects();
+      const sessionOnUpdate = typeof onUpdate === "function" ? effects.guard(onUpdate) : onUpdate;
+      const {
+        classifyAutoresearchSelfHostingApplicability,
+        executeAutoresearchSelfHostingCandidateSubprocess,
+        executeAutoresearchSelfHostingEvaluatorSuite,
+        inspectAutoresearchSelfHostingCandidateScope,
+        loadAutoresearchSelfHostingArtifacts,
+        loadAutoresearchSelfHostingPromotionRecord,
+        prepareAutoresearchSelfHostingCandidateWorktree,
+        prepareAutoresearchSelfHostingPromotionRecord,
+        recordAutoresearchSelfHostingRollback,
+        resolveAutoresearchSelfHostingPromotionRecordPath,
+      } = await modules.selfHosting();
 
       if (action === "prepare_candidate") {
         const result = prepareAutoresearchSelfHostingCandidateWorktree({
@@ -118,14 +124,14 @@ export function registerAutoresearchSelfHostingTool(
         }
 
         const watchMode = action === "start_and_watch";
-        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "loading_artifacts", {
+        emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "loading_artifacts", {
           action,
           cwd,
           message: `Loading supervised self-hosting artifacts from ${cwd}.`,
         });
         const artifacts = loadAutoresearchSelfHostingArtifacts(cwd);
 
-        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "prepare_candidate", {
+        emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "prepare_candidate", {
           action,
           cwd,
           message: `Preparing candidate worktree ${artifacts.contract.candidate.worktreePath}.`,
@@ -134,22 +140,32 @@ export function registerAutoresearchSelfHostingTool(
           cwd,
           apply: true,
         });
-        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "prepare_candidate_complete", {
-          action,
-          cwd,
-          registered: prepareCandidate.candidate.registered,
-          candidateWorktree: prepareCandidate.candidate.worktreePath,
-          message: `Candidate worktree ${prepareCandidate.candidate.worktreePath} is ${prepareCandidate.candidate.registered ? "ready" : "missing"}.`,
-        });
+        emitAutoresearchSelfHostingUpdate(
+          sessionOnUpdate,
+          watchMode,
+          "prepare_candidate_complete",
+          {
+            action,
+            cwd,
+            registered: prepareCandidate.candidate.registered,
+            candidateWorktree: prepareCandidate.candidate.worktreePath,
+            message: `Candidate worktree ${prepareCandidate.candidate.worktreePath} is ${prepareCandidate.candidate.registered ? "ready" : "missing"}.`,
+          },
+        );
 
         const candidateCommand = normalizeAutoresearchSelfHostingCommand(request.candidateCommand);
         if (candidateCommand) {
-          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "candidate_subprocess_start", {
-            action,
-            cwd,
-            command: candidateCommand,
-            message: `Running candidate subprocess ${formatAutoresearchSelfHostingCommandInvocation(candidateCommand)}.`,
-          });
+          emitAutoresearchSelfHostingUpdate(
+            sessionOnUpdate,
+            watchMode,
+            "candidate_subprocess_start",
+            {
+              action,
+              cwd,
+              command: candidateCommand,
+              message: `Running candidate subprocess ${formatAutoresearchSelfHostingCommandInvocation(candidateCommand)}.`,
+            },
+          );
         }
         const candidateRun = candidateCommand
           ? executeAutoresearchSelfHostingCandidateSubprocess({
@@ -159,15 +175,20 @@ export function registerAutoresearchSelfHostingTool(
             })
           : null;
         if (candidateRun) {
-          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "candidate_subprocess_complete", {
-            action,
-            cwd,
-            command: candidateRun.command.command,
-            exitCode: candidateRun.command.exitCode,
-            timedOut: candidateRun.command.timedOut,
-            signal: candidateRun.command.signal,
-            message: `Candidate subprocess completed with ${formatAutoresearchSelfHostingCommandResult(candidateRun.command)}.`,
-          });
+          emitAutoresearchSelfHostingUpdate(
+            sessionOnUpdate,
+            watchMode,
+            "candidate_subprocess_complete",
+            {
+              action,
+              cwd,
+              command: candidateRun.command.command,
+              exitCode: candidateRun.command.exitCode,
+              timedOut: candidateRun.command.timedOut,
+              signal: candidateRun.command.signal,
+              message: `Candidate subprocess completed with ${formatAutoresearchSelfHostingCommandResult(candidateRun.command)}.`,
+            },
+          );
         }
         const commandFailed =
           candidateRun !== null &&
@@ -186,7 +207,7 @@ export function registerAutoresearchSelfHostingTool(
             promotionError: null,
             nextStep: candidateRun?.nextStep ?? prepareCandidate.nextStep,
           };
-          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "wave_complete", {
+          emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "wave_complete", {
             action,
             cwd,
             nextStep: details.nextStep,
@@ -213,7 +234,7 @@ export function registerAutoresearchSelfHostingTool(
         }
 
         const suiteResults = suiteIds.map((suiteId) => {
-          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "locked_suite_start", {
+          emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "locked_suite_start", {
             action,
             cwd,
             suiteId,
@@ -224,7 +245,7 @@ export function registerAutoresearchSelfHostingTool(
             suiteId,
             timeoutMs: request.suiteTimeoutMs,
           });
-          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "locked_suite_complete", {
+          emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "locked_suite_complete", {
             action,
             cwd,
             suiteId,
@@ -236,7 +257,7 @@ export function registerAutoresearchSelfHostingTool(
           return result;
         });
 
-        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "classify_applicability", {
+        emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "classify_applicability", {
           action,
           cwd,
           message: "Classifying supervised self-hosting applicability.",
@@ -254,7 +275,7 @@ export function registerAutoresearchSelfHostingTool(
           },
           variantTargetProfileImproved: request.variantTargetProfileImproved,
         });
-        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "classification_complete", {
+        emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "classification_complete", {
           action,
           cwd,
           outcome: classification.outcome,
@@ -273,7 +294,7 @@ export function registerAutoresearchSelfHostingTool(
           null;
         let promotionError: string | null = null;
         if (promotionRequested) {
-          emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "promotion_record_start", {
+          emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "promotion_record_start", {
             action,
             cwd,
             message: "Preparing explicit self-hosting promotion record.",
@@ -289,21 +310,31 @@ export function registerAutoresearchSelfHostingTool(
               status: request.promotionStatus,
               apply: request.promotionApply,
             });
-            emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "promotion_record_complete", {
-              action,
-              cwd,
-              status: promotion.record.status,
-              path: promotion.promotionRecordPath,
-              message: `Promotion record is now ${promotion.record.status}.`,
-            });
+            emitAutoresearchSelfHostingUpdate(
+              sessionOnUpdate,
+              watchMode,
+              "promotion_record_complete",
+              {
+                action,
+                cwd,
+                status: promotion.record.status,
+                path: promotion.promotionRecordPath,
+                message: `Promotion record is now ${promotion.record.status}.`,
+              },
+            );
           } catch (error) {
             promotionError = error instanceof Error ? error.message : String(error);
-            emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "promotion_record_failed", {
-              action,
-              cwd,
-              error: promotionError,
-              message: `Promotion record failed: ${promotionError}`,
-            });
+            emitAutoresearchSelfHostingUpdate(
+              sessionOnUpdate,
+              watchMode,
+              "promotion_record_failed",
+              {
+                action,
+                cwd,
+                error: promotionError,
+                message: `Promotion record failed: ${promotionError}`,
+              },
+            );
           }
         }
 
@@ -318,7 +349,7 @@ export function registerAutoresearchSelfHostingTool(
           promotionError,
           nextStep: promotion?.nextStep ?? promotionError ?? classification.nextStep,
         };
-        emitAutoresearchSelfHostingUpdate(onUpdate, watchMode, "wave_complete", {
+        emitAutoresearchSelfHostingUpdate(sessionOnUpdate, watchMode, "wave_complete", {
           action,
           cwd,
           nextStep: details.nextStep,

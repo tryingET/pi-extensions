@@ -3,55 +3,14 @@
 //   - Inspecting autoresearch status actions, operator controls, exports, or finalization workflow.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
-  executeAutoresearchFinalization,
-  formatAutoresearchFinalizationResult,
-} from "../../src/core/finalize.ts";
-import {
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
-  applyAutoresearchCandidateInventoryCleanup,
-  buildAutoresearchAdapterContractCatalog,
-  buildAutoresearchAkEvidencePacket,
-  buildAutoresearchCandidateInventoryCleanupPlan,
-  buildAutoresearchCandidateResultPacket,
-  buildAutoresearchKnowledgeExportPacket,
-  buildAutoresearchOracleEvidencePacket,
-  buildAutoresearchResumeApplyPlan,
-  buildAutoresearchResumePlan,
-  buildAutoresearchRuntimeStatus,
-  buildAutoresearchSegmentCloseout,
-  formatAutoresearchAdapterContractCatalog,
-  formatAutoresearchAdapterPacketValidationResult,
-  formatAutoresearchAkEvidencePacket,
-  formatAutoresearchCampaignGoalStatus,
-  formatAutoresearchCandidateInventoryCleanupPlan,
-  formatAutoresearchCandidateResultExportResult,
-  formatAutoresearchCandidateResultPacket,
-  formatAutoresearchControlResult,
-  formatAutoresearchDashboard,
-  formatAutoresearchDecisionResult,
-  formatAutoresearchKnowledgeExportPacket,
-  formatAutoresearchLearningExportResult,
-  formatAutoresearchOracleEvidenceExportResult,
-  formatAutoresearchOracleEvidencePacket,
-  formatAutoresearchResumeApplyPlan,
-  formatAutoresearchResumePlan,
-  formatAutoresearchSegmentCloseout,
-  formatAutoresearchStatusText,
-  inspectAutoresearchRuntimeControl,
-  requestAutoresearchFinalizeDecision,
-  requestAutoresearchSetupDecision,
-  setAutoresearchCampaignGoalControl,
-  setAutoresearchRuntimeControl,
-  validateAutoresearchAdapterPacket,
-  writeAutoresearchCandidateResultPacket,
-  writeAutoresearchKnowledgeExportPacket,
-  writeAutoresearchOracleEvidencePacket,
-} from "../../src/core/runtime.ts";
+} from "./eagerContract.ts";
 import { buildAutoresearchAutoContinuationSessionGateForCwd } from "./extensionAutoContinuation.ts";
 import type { PiAutoresearchExtensionOptions } from "./extensionOptions.ts";
 import { resolveDecisionRuntime } from "./extensionOptions.ts";
+import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { assertReadProfileAllowsAction } from "./readProfile.ts";
 import { asPiToolParameters, controlSchema, finalizeSchema, statusSchema } from "./schemas.ts";
 
@@ -59,8 +18,9 @@ export function registerAutoresearchStatusControlTools(input: {
   pi: ExtensionAPI;
   options: PiAutoresearchExtensionOptions;
   autoContinuationCounts: Map<string, number>;
+  modules: AutoresearchLazyModules;
 }): void {
-  const { pi, options, autoContinuationCounts } = input;
+  const { pi, options, autoContinuationCounts, modules } = input;
   pi.registerTool({
     name: AUTORESEARCH_STATUS_TOOL_NAME,
     label: "Autoresearch Runtime Status",
@@ -139,6 +99,44 @@ export function registerAutoresearchStatusControlTools(input: {
         ],
       });
 
+      const runtimeModule = await modules.runtime();
+      const {
+        applyAutoresearchCandidateInventoryCleanup,
+        buildAutoresearchAdapterContractCatalog,
+        buildAutoresearchAkEvidencePacket,
+        buildAutoresearchCandidateInventoryCleanupPlan,
+        buildAutoresearchCandidateResultPacket,
+        buildAutoresearchKnowledgeExportPacket,
+        buildAutoresearchOracleEvidencePacket,
+        buildAutoresearchResumeApplyPlan,
+        buildAutoresearchResumePlan,
+        buildAutoresearchRuntimeStatus,
+        buildAutoresearchSegmentCloseout,
+        formatAutoresearchAdapterContractCatalog,
+        formatAutoresearchAdapterPacketValidationResult,
+        formatAutoresearchAkEvidencePacket,
+        formatAutoresearchCampaignGoalStatus,
+        formatAutoresearchCandidateInventoryCleanupPlan,
+        formatAutoresearchCandidateResultExportResult,
+        formatAutoresearchCandidateResultPacket,
+        formatAutoresearchDashboard,
+        formatAutoresearchDecisionResult,
+        formatAutoresearchKnowledgeExportPacket,
+        formatAutoresearchLearningExportResult,
+        formatAutoresearchOracleEvidenceExportResult,
+        formatAutoresearchOracleEvidencePacket,
+        formatAutoresearchResumeApplyPlan,
+        formatAutoresearchResumePlan,
+        formatAutoresearchSegmentCloseout,
+        formatAutoresearchStatusText,
+        requestAutoresearchFinalizeDecision,
+        requestAutoresearchSetupDecision,
+        validateAutoresearchAdapterPacket,
+        writeAutoresearchCandidateResultPacket,
+        writeAutoresearchKnowledgeExportPacket,
+        writeAutoresearchOracleEvidencePacket,
+      } = runtimeModule;
+
       if (action === "dashboard") {
         const status = buildAutoresearchRuntimeStatus(cwd, {
           persistSnapshot: false,
@@ -178,7 +176,7 @@ export function registerAutoresearchStatusControlTools(input: {
                   }
                 : null,
           },
-          runtime: resolveDecisionRuntime(ctx, signal, options),
+          runtime: resolveDecisionRuntime(ctx, signal, options, modules),
           model: ctx.model?.id,
           signal,
         });
@@ -365,7 +363,7 @@ export function registerAutoresearchStatusControlTools(input: {
             dependencyNotes: request.dependencyNotes ?? [],
             ideasToLeaveOut: request.ideasToLeaveOut ?? [],
           },
-          runtime: resolveDecisionRuntime(ctx, signal, options),
+          runtime: resolveDecisionRuntime(ctx, signal, options, modules),
           model: ctx.model?.id,
           signal,
         });
@@ -412,6 +410,15 @@ export function registerAutoresearchStatusControlTools(input: {
         action,
         allowedActions: ["status"],
       });
+
+      const {
+        buildAutoresearchRuntimeStatus,
+        formatAutoresearchCampaignGoalStatus,
+        formatAutoresearchControlResult,
+        inspectAutoresearchRuntimeControl,
+        setAutoresearchCampaignGoalControl,
+        setAutoresearchRuntimeControl,
+      } = await modules.runtime();
 
       if (action === "set") {
         if (!request.decision) {
@@ -484,12 +491,16 @@ export function registerAutoresearchStatusControlTools(input: {
         action,
         allowedActions: ["status"],
       });
+      const { executeAutoresearchFinalization, formatAutoresearchFinalizationResult } =
+        await modules.finalize();
       const result = await executeAutoresearchFinalization({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
         reason: request.reason,
         runtime:
-          request.action === "plan" ? resolveDecisionRuntime(ctx, signal, options) : undefined,
+          request.action === "plan"
+            ? resolveDecisionRuntime(ctx, signal, options, modules)
+            : undefined,
         model: ctx.model?.id,
         signal,
       });

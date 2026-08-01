@@ -6,22 +6,20 @@ import {
   AUTORESEARCH_LOOP_TOOL_NAME,
   AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
   AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
-  buildAutoresearchPeerAssistPlan,
-  executeAutoresearchLoop,
-  executeAutoresearchResumeApply,
-  formatAutoresearchLoopResult,
-  formatAutoresearchPeerAssistPlan,
-  formatAutoresearchResumeApplyResult,
-} from "../../src/core/runtime.ts";
+} from "./eagerContract.ts";
 import type { PiAutoresearchExtensionOptions } from "./extensionOptions.ts";
 import { resolveDecisionRuntime } from "./extensionOptions.ts";
+import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { emitAutoresearchLoopUpdate } from "./loopProgressUpdate.ts";
 import { assertReadProfileAllowsAction, assertReadProfileRejectsTool } from "./readProfile.ts";
 import { asPiToolParameters, loopSchema, peerAssistSchema, resumeApplySchema } from "./schemas.ts";
+import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
 
 export function registerAutoresearchLoopResumeTools(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions,
+  modules: AutoresearchLazyModules,
+  getSessionEffects: () => AutoresearchSessionEffects,
 ): void {
   pi.registerTool({
     name: AUTORESEARCH_PEER_ASSIST_TOOL_NAME,
@@ -47,6 +45,8 @@ export function registerAutoresearchLoopResumeTools(
         action: "plan",
         allowedActions: ["plan"],
       });
+      const { buildAutoresearchPeerAssistPlan, formatAutoresearchPeerAssistPlan } =
+        await modules.runtime();
       const result = buildAutoresearchPeerAssistPlan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         lane: request.lane,
@@ -117,6 +117,9 @@ export function registerAutoresearchLoopResumeTools(
         campaignGoalAutoContinue?: boolean;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_LOOP_TOOL_NAME);
+      const effects = getSessionEffects();
+      const runtimeModule = await modules.runtime();
+      const { executeAutoresearchLoop, formatAutoresearchLoopResult } = runtimeModule;
       const result = await executeAutoresearchLoop({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         goal: request.goal,
@@ -137,7 +140,7 @@ export function registerAutoresearchLoopResumeTools(
         postureTimeoutSeconds: request.postureTimeoutSeconds,
         decisionGoal: request.decisionGoal,
         decisionRuntime: request.decisionGoal
-          ? resolveDecisionRuntime(ctx, signal, options)
+          ? resolveDecisionRuntime(ctx, signal, options, modules)
           : undefined,
         decisionConstraints: request.decisionConstraints,
         decisionFilesInScope: request.decisionFilesInScope,
@@ -154,7 +157,7 @@ export function registerAutoresearchLoopResumeTools(
         campaignGoalTokenBudget: request.campaignGoalTokenBudget,
         campaignGoalAutoContinue: request.campaignGoalAutoContinue,
         signal,
-        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
+        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
       return {
         content: [{ type: "text", text: formatAutoresearchLoopResult(result) }],
@@ -186,6 +189,9 @@ export function registerAutoresearchLoopResumeTools(
         postureTimeoutSeconds?: number;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_RESUME_APPLY_TOOL_NAME);
+      const effects = getSessionEffects();
+      const runtimeModule = await modules.runtime();
+      const { executeAutoresearchResumeApply, formatAutoresearchResumeApplyResult } = runtimeModule;
       const result = await executeAutoresearchResumeApply({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         segmentKey: request.segmentKey,
@@ -199,7 +205,7 @@ export function registerAutoresearchLoopResumeTools(
         postureCommand: request.postureCommand,
         postureTimeoutSeconds: request.postureTimeoutSeconds,
         signal,
-        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
+        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
       return {
         content: [{ type: "text", text: formatAutoresearchResumeApplyResult(result) }],

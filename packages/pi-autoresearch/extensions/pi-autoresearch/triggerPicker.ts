@@ -18,6 +18,8 @@ import {
   buildAutoresearchCandidateDecisionEditorCall,
   parseAutoresearchCandidateDecisionCommand,
 } from "./commandTextCandidates.ts";
+import type { AutoresearchLazyModules } from "./lazyModules.ts";
+import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
 
 type AutoresearchTriggerCandidate = {
   id: string;
@@ -128,10 +130,13 @@ export async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTrig
 }
 
 export async function maybeRegisterAutoresearchLiveTrigger(
-  explicitTriggerSurface?: AutoresearchTriggerSurface | null,
+  explicitTriggerSurface: AutoresearchTriggerSurface | null | undefined,
+  modules: AutoresearchLazyModules,
+  effects: AutoresearchSessionEffects,
 ): Promise<{ unregister: () => void }> {
   try {
     const triggerSurface = explicitTriggerSurface ?? (await loadAutoresearchTriggerSurface());
+    if (!effects.isActive()) return { unregister: () => {} };
     if (typeof triggerSurface?.registerPickerInteraction !== "function") {
       return { unregister: () => {} };
     }
@@ -160,13 +165,15 @@ export async function maybeRegisterAutoresearchLiveTrigger(
           const candidateWorktree = raw && raw.toLowerCase() !== "current" ? raw : cwd;
           return { mode, candidateWorktree, query: raw, raw };
         },
-        loadCandidates: () => ({ candidates: AUTORESEARCH_CANDIDATE_BIND_TRIGGER_CANDIDATES }),
+        loadCandidates: () => ({
+          candidates: effects.isActive() ? AUTORESEARCH_CANDIDATE_BIND_TRIGGER_CANDIDATES : [],
+        }),
         selectTitle: ({ parsed }: { parsed?: AutoresearchCandidateBindTriggerParsedInput }) => {
           const query = parsed?.query ? `: ${parsed.query}` : " current";
           const mode = parsed?.mode ?? "bind";
           return `Autoresearch candidate ${mode}${query}`;
         },
-        applySelection: ({
+        applySelection: async ({
           parsed,
           context,
           api,
@@ -178,21 +185,31 @@ export async function maybeRegisterAutoresearchLiveTrigger(
         }) => {
           const cwd = context?.cwd ?? process.cwd();
           const candidateWorktree = parsed?.candidateWorktree ?? cwd;
-          api?.setText?.(
-            buildAutoresearchCandidateBindOrMeasureEditorCall(
-              cwd,
-              candidateWorktree,
-              parsed?.mode ?? "bind",
+          if (!effects.isActive()) return;
+          const runtimeModule = parsed?.mode === "measure" ? await modules.runtime() : undefined;
+          if (!effects.isActive()) return;
+          effects.commit(() =>
+            api?.setText?.(
+              buildAutoresearchCandidateBindOrMeasureEditorCall(
+                cwd,
+                candidateWorktree,
+                parsed?.mode ?? "bind",
+                runtimeModule,
+              ),
             ),
           );
         },
         onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
-          api?.notify?.("No autoresearch candidate-bind actions are available.", "warning");
+          effects.commit(() =>
+            api?.notify?.("No autoresearch candidate-bind actions are available.", "warning"),
+          );
         },
         onError: ({ error, api }: { error?: unknown; api?: AutoresearchTriggerApi }) => {
-          api?.notify?.(
-            `Autoresearch candidate-bind picker error: ${error instanceof Error ? error.message : String(error)}`,
-            "error",
+          effects.commit(() =>
+            api?.notify?.(
+              `Autoresearch candidate-bind picker error: ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            ),
           );
         },
       }),
@@ -221,23 +238,29 @@ export async function maybeRegisterAutoresearchLiveTrigger(
           const query = direct ? raw : raw.trim();
           return { query, raw, directAction: direct };
         },
-        loadCandidates: ({
+        loadCandidates: async ({
           parsed,
           context,
         }: {
           parsed?: AutoresearchCandidateDecisionTriggerParsedInput;
           context?: AutoresearchTriggerContext;
-        }) => ({
-          candidates: buildAutoresearchCandidateDecisionTriggerCandidates({
-            cwd: context?.cwd ?? process.cwd(),
-            directAction: parsed?.directAction ?? null,
-          }),
-        }),
+        }) => {
+          if (!effects.isActive()) return { candidates: [] };
+          const runtimeModule = await modules.runtime();
+          if (!effects.isActive()) return { candidates: [] };
+          return {
+            candidates: buildAutoresearchCandidateDecisionTriggerCandidates({
+              cwd: context?.cwd ?? process.cwd(),
+              directAction: parsed?.directAction ?? null,
+              runtimeModule,
+            }),
+          };
+        },
         selectTitle: ({ parsed }: { parsed?: AutoresearchCandidateDecisionTriggerParsedInput }) => {
           const query = parsed?.query ? `: ${parsed.query}` : "";
           return `Autoresearch candidate decision${query}`;
         },
-        applySelection: ({
+        applySelection: async ({
           selected,
           parsed,
           context,
@@ -248,6 +271,7 @@ export async function maybeRegisterAutoresearchLiveTrigger(
           context?: AutoresearchTriggerContext;
           api?: AutoresearchTriggerApi;
         }) => {
+          if (!effects.isActive()) return;
           const fallback = parsed?.directAction
             ? AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES.find(
                 (candidate) => candidate.action === parsed.directAction,
@@ -255,21 +279,35 @@ export async function maybeRegisterAutoresearchLiveTrigger(
             : AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES[0];
           const selectedDecision = selected ?? fallback;
           if (!selectedDecision) {
-            api?.notify?.("No autoresearch candidate-decision action is available.", "warning");
+            effects.commit(() =>
+              api?.notify?.("No autoresearch candidate-decision action is available.", "warning"),
+            );
             return;
           }
           const cwd = context?.cwd ?? process.cwd();
-          api?.setText?.(
-            buildAutoresearchCandidateDecisionEditorCall(cwd, selectedDecision.action),
+          const runtimeModule = await modules.runtime();
+          if (!effects.isActive()) return;
+          effects.commit(() =>
+            api?.setText?.(
+              buildAutoresearchCandidateDecisionEditorCall(
+                cwd,
+                selectedDecision.action,
+                runtimeModule,
+              ),
+            ),
           );
         },
         onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
-          api?.notify?.("No autoresearch candidate-decision actions are available.", "warning");
+          effects.commit(() =>
+            api?.notify?.("No autoresearch candidate-decision actions are available.", "warning"),
+          );
         },
         onError: ({ error, api }: { error?: unknown; api?: AutoresearchTriggerApi }) => {
-          api?.notify?.(
-            `Autoresearch candidate-decision picker error: ${error instanceof Error ? error.message : String(error)}`,
-            "error",
+          effects.commit(() =>
+            api?.notify?.(
+              `Autoresearch candidate-decision picker error: ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            ),
           );
         },
       }),
@@ -292,7 +330,7 @@ export async function maybeRegisterAutoresearchLiveTrigger(
           return { objective, query: objective, raw };
         },
         loadCandidates: () => ({
-          candidates: AUTORESEARCH_TRIGGER_CANDIDATES,
+          candidates: effects.isActive() ? AUTORESEARCH_TRIGGER_CANDIDATES : [],
         }),
         selectTitle: ({ parsed }: { parsed?: AutoresearchTriggerParsedInput }) => {
           const objective = parsed?.objective ? `: ${parsed.objective}` : "";
@@ -309,35 +347,44 @@ export async function maybeRegisterAutoresearchLiveTrigger(
           context?: AutoresearchTriggerContext;
           api?: AutoresearchTriggerApi;
         }) => {
+          if (!effects.isActive()) return;
           const objective = parsed?.objective.trim() ?? "";
           if (!objective) {
-            api?.setText?.("$$ autoresearch <objective>");
-            api?.notify?.(
-              "Autoresearch picker needs an objective after '$$ autoresearch'.",
-              "warning",
-            );
+            effects.commit(() => {
+              api?.setText?.("$$ autoresearch <objective>");
+              api?.notify?.(
+                "Autoresearch picker needs an objective after '$$ autoresearch'.",
+                "warning",
+              );
+            });
             return;
           }
 
           const selectedMode = selected ?? AUTORESEARCH_TRIGGER_CANDIDATES[0];
           const cwd = context?.cwd ?? process.cwd();
-          api?.setText?.(
-            buildAutoresearchCampaignStartToolCall({
-              cwd,
-              objective,
-              setupMode: selectedMode.setupMode,
-              runMode: selectedMode.runMode,
-              maxIterations: selectedMode.maxIterations,
-            }),
+          effects.commit(() =>
+            api?.setText?.(
+              buildAutoresearchCampaignStartToolCall({
+                cwd,
+                objective,
+                setupMode: selectedMode.setupMode,
+                runMode: selectedMode.runMode,
+                maxIterations: selectedMode.maxIterations,
+              }),
+            ),
           );
         },
         onNoCandidates: ({ api }: { api?: AutoresearchTriggerApi }) => {
-          api?.notify?.("No autoresearch campaign-start modes are available.", "warning");
+          effects.commit(() =>
+            api?.notify?.("No autoresearch campaign-start modes are available.", "warning"),
+          );
         },
         onError: ({ error, api }: { error?: unknown; api?: AutoresearchTriggerApi }) => {
-          api?.notify?.(
-            `Autoresearch picker error: ${error instanceof Error ? error.message : String(error)}`,
-            "error",
+          effects.commit(() =>
+            api?.notify?.(
+              `Autoresearch picker error: ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            ),
           );
         },
       }),

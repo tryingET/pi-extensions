@@ -7,17 +7,10 @@ import {
   AUTORESEARCH_CAMPAIGN_START_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
   AUTORESEARCH_SETUP_TOOL_NAME,
-  buildAutoresearchAutoplan,
-  executeAutoresearchCampaignStart,
-  executeAutoresearchRun,
-  executeAutoresearchSetup,
-  formatAutoresearchAutoplanResult,
-  formatAutoresearchCampaignStartResult,
-  formatAutoresearchRunResult,
-  formatAutoresearchSetupResult,
-} from "../../src/core/runtime.ts";
+} from "./eagerContract.ts";
 import type { PiAutoresearchExtensionOptions } from "./extensionOptions.ts";
 import { resolveDecisionRuntime } from "./extensionOptions.ts";
+import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { emitAutoresearchLoopUpdate } from "./loopProgressUpdate.ts";
 import { assertReadProfileRejectsTool } from "./readProfile.ts";
 import {
@@ -27,10 +20,13 @@ import {
   runSchema,
   setupSchema,
 } from "./schemas.ts";
+import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
 
 export function registerAutoresearchRuntimeExecutionTools(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions,
+  modules: AutoresearchLazyModules,
+  getSessionEffects: () => AutoresearchSessionEffects,
 ): void {
   pi.registerTool({
     name: AUTORESEARCH_RUN_TOOL_NAME,
@@ -79,6 +75,7 @@ export function registerAutoresearchRuntimeExecutionTools(
       };
 
       assertReadProfileRejectsTool(options, AUTORESEARCH_RUN_TOOL_NAME);
+      const { executeAutoresearchRun, formatAutoresearchRunResult } = await modules.runtime();
       const result = await executeAutoresearchRun({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         description: request.description,
@@ -113,7 +110,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         reconfigure: request.reconfigure,
         liveDecision: request.decisionGoal
           ? {
-              runtime: resolveDecisionRuntime(ctx, signal, options),
+              runtime: resolveDecisionRuntime(ctx, signal, options, modules),
               goal: request.decisionGoal,
               constraints: request.decisionConstraints,
               filesInScope: request.decisionFilesInScope,
@@ -162,6 +159,8 @@ export function registerAutoresearchRuntimeExecutionTools(
         dspxBehaviorPath?: string;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_AUTOPLAN_TOOL_NAME);
+      const { buildAutoresearchAutoplan, formatAutoresearchAutoplanResult } =
+        await modules.runtime();
       const result = buildAutoresearchAutoplan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         objective: request.objective,
@@ -217,6 +216,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         checksTimeoutSeconds?: number;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_SETUP_TOOL_NAME);
+      const { executeAutoresearchSetup, formatAutoresearchSetupResult } = await modules.runtime();
       const result = await executeAutoresearchSetup({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -316,6 +316,10 @@ export function registerAutoresearchRuntimeExecutionTools(
         campaignGoalAutoContinue?: boolean;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
+      const effects = getSessionEffects();
+      const runtimeModule = await modules.runtime();
+      const { executeAutoresearchCampaignStart, formatAutoresearchCampaignStartResult } =
+        runtimeModule;
       const result = await executeAutoresearchCampaignStart({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         objective: request.objective,
@@ -348,7 +352,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         postureTimeoutSeconds: request.postureTimeoutSeconds,
         decisionRuntime:
           request.setupMode === "prompt_vault_setup" || request.decisionGoal
-            ? resolveDecisionRuntime(ctx, signal, options)
+            ? resolveDecisionRuntime(ctx, signal, options, modules)
             : undefined,
         decisionGoal: request.decisionGoal,
         decisionConstraints: request.decisionConstraints,
@@ -367,7 +371,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         campaignGoalTokenBudget: request.campaignGoalTokenBudget,
         campaignGoalAutoContinue: request.campaignGoalAutoContinue,
         signal,
-        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event),
+        onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
       return {
         content: [{ type: "text", text: formatAutoresearchCampaignStartResult(result) }],

@@ -588,7 +588,7 @@ test("$$ autoresearch measure picker applies measure mode for ready worktrees", 
         { cwd },
       );
       let inserted = "";
-      (picker.applySelection as (input: unknown) => void)({
+      await (picker.applySelection as (input: unknown) => Promise<void>)({
         parsed,
         context: { cwd },
         api: {

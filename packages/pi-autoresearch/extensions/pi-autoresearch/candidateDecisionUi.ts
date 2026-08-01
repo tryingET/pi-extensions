@@ -3,7 +3,6 @@
 // read_when:
 //   - "Changing candidate lifecycle review choices, recommendation badges, keyboard handling, or fallback editor behavior."
 // ---
-import { buildAutoresearchCandidateDecisionWorkbench } from "../../src/core/runtime.ts";
 import type {
   AutoresearchCandidateDecisionReviewParsedInput,
   AutoresearchCandidateDecisionTriggerAction,
@@ -14,6 +13,8 @@ import type {
   AutoresearchWidgetContext,
   AutoresearchWidgetTui,
 } from "./extensionUiTypes.ts";
+import type { AutoresearchLazyModules, AutoresearchRuntimeModule } from "./lazyModules.ts";
+import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
 import { borderedLine, borderLine, truncatePlainLine } from "./tuiFormat.ts";
 
 export type AutoresearchCandidateDecisionTriggerCandidate = {
@@ -60,59 +61,82 @@ export const AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_CANDIDATES: AutoresearchCan
 export async function openAutoresearchCandidateDecisionReview(
   ctx: AutoresearchWidgetContext,
   parsed: AutoresearchCandidateDecisionReviewParsedInput,
+  modules: AutoresearchLazyModules,
+  effects: AutoresearchSessionEffects,
 ): Promise<void> {
+  if (!effects.isActive()) return;
+  const runtimeModule = await modules.runtime();
+  if (!effects.isActive()) return;
   const candidates = buildAutoresearchCandidateDecisionTriggerCandidates({
     cwd: ctx.cwd,
     directAction: parsed.directAction,
+    runtimeModule,
   });
   const fallbackAction = candidates[0]?.action ?? parsed.directAction ?? "status";
   if (!ctx.hasUI || typeof ctx.ui.custom !== "function") {
-    await ctx.ui.editor?.(
-      "Review autoresearch candidate decision",
-      buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, fallbackAction),
+    const editor = await effects.commitAsync(() =>
+      ctx.ui.editor?.(
+        "Review autoresearch candidate decision",
+        buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, fallbackAction, runtimeModule),
+      ),
     );
-    ctx.ui.notify?.(
-      "Candidate decision review overlay unavailable; opened the plan-only confirmation in the editor.",
-      "warning",
+    if (!editor.committed) return;
+    effects.commit(() =>
+      ctx.ui.notify?.(
+        "Candidate decision review overlay unavailable; opened the plan-only confirmation in the editor.",
+        "warning",
+      ),
     );
     return;
   }
 
-  const selectedAction = await ctx.ui.custom<AutoresearchCandidateDecisionTriggerAction | null>(
-    (tui, _theme, _keybindings, done) =>
-      createAutoresearchCandidateDecisionReviewOverlay({
-        cwd: ctx.cwd,
-        candidates,
-        tui,
-        done,
-      }),
-    {
-      overlay: true,
-      overlayOptions: {
-        anchor: "center",
-        width: "82%",
-        maxHeight: "75%",
-        margin: 1,
-        visible: (termWidth: number, termHeight: number) => termWidth >= 70 && termHeight >= 16,
+  const selection = await effects.commitAsync(() =>
+    ctx.ui.custom?.<AutoresearchCandidateDecisionTriggerAction | null>(
+      (tui, _theme, _keybindings, done) =>
+        createAutoresearchCandidateDecisionReviewOverlay({
+          cwd: ctx.cwd,
+          candidates,
+          tui,
+          done,
+          effects,
+        }),
+      {
+        overlay: true,
+        overlayOptions: {
+          anchor: "center",
+          width: "82%",
+          maxHeight: "75%",
+          margin: 1,
+          visible: (termWidth: number, termHeight: number) => termWidth >= 70 && termHeight >= 16,
+        },
       },
-    },
+    ),
   );
 
+  if (!selection.committed) return;
+  const selectedAction = selection.value;
   if (!selectedAction) {
-    ctx.ui.notify?.(
-      "Canceled autoresearch candidate decision review; no action was applied.",
-      "info",
+    effects.commit(() =>
+      ctx.ui.notify?.(
+        "Canceled autoresearch candidate decision review; no action was applied.",
+        "info",
+      ),
     );
     return;
   }
 
-  await ctx.ui.editor?.(
-    "Review autoresearch candidate decision",
-    buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, selectedAction),
+  const editor = await effects.commitAsync(() =>
+    ctx.ui.editor?.(
+      "Review autoresearch candidate decision",
+      buildAutoresearchCandidateDecisionEditorCall(ctx.cwd, selectedAction, runtimeModule),
+    ),
   );
-  ctx.ui.notify?.(
-    `Prepared autoresearch_candidate_decision ${selectedAction} confirmation. Review the checklist before any external worktree action.`,
-    "info",
+  if (!editor.committed) return;
+  effects.commit(() =>
+    ctx.ui.notify?.(
+      `Prepared autoresearch_candidate_decision ${selectedAction} confirmation. Review the checklist before any external worktree action.`,
+      "info",
+    ),
   );
 }
 
@@ -121,23 +145,31 @@ function createAutoresearchCandidateDecisionReviewOverlay(input: {
   candidates: readonly AutoresearchCandidateDecisionTriggerCandidate[];
   tui: AutoresearchWidgetTui;
   done: (result: AutoresearchCandidateDecisionTriggerAction | null) => void;
+  effects: AutoresearchSessionEffects;
 }): AutoresearchCandidateDecisionReviewComponent {
+  if (!input.effects.isActive()) {
+    return { render: () => [], handleInput() {}, invalidate() {}, dispose() {} };
+  }
   const candidates = input.candidates.length > 0 ? [...input.candidates] : [];
   let selectedIndex = 0;
   let closed = false;
   const close = (result: AutoresearchCandidateDecisionTriggerAction | null) => {
     if (closed) return;
     closed = true;
+    input.effects.signal.removeEventListener("abort", abort);
     input.done(result);
   };
+  const abort = () => close(null);
+  input.effects.signal.addEventListener("abort", abort, { once: true });
   const move = (delta: number) => {
     if (candidates.length === 0) return;
     selectedIndex = (selectedIndex + delta + candidates.length) % candidates.length;
-    input.tui.requestRender?.();
+    input.effects.commit(() => input.tui.requestRender?.());
   };
 
   return {
     render(width: number): string[] {
+      if (!input.effects.isActive()) return [];
       return formatAutoresearchCandidateDecisionReviewOverlayLines({
         cwd: input.cwd,
         candidates,
@@ -172,6 +204,9 @@ function createAutoresearchCandidateDecisionReviewOverlay(input: {
       }
     },
     invalidate(): void {},
+    dispose(): void {
+      input.effects.signal.removeEventListener("abort", abort);
+    },
   };
 }
 
@@ -216,10 +251,15 @@ function formatAutoresearchCandidateDecisionReviewOverlayLines(input: {
 export function buildAutoresearchCandidateDecisionTriggerCandidates(input: {
   cwd: string;
   directAction: AutoresearchCandidateDecisionTriggerAction | null;
+  runtimeModule: AutoresearchRuntimeModule;
 }): AutoresearchCandidateDecisionTriggerCandidate[] {
-  let recommendation: ReturnType<typeof buildAutoresearchCandidateDecisionWorkbench> | null = null;
+  let recommendation: ReturnType<
+    AutoresearchRuntimeModule["buildAutoresearchCandidateDecisionWorkbench"]
+  > | null = null;
   try {
-    recommendation = buildAutoresearchCandidateDecisionWorkbench({ cwd: input.cwd });
+    recommendation = input.runtimeModule.buildAutoresearchCandidateDecisionWorkbench({
+      cwd: input.cwd,
+    });
   } catch {
     recommendation = null;
   }

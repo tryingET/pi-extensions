@@ -3,19 +3,17 @@
 // read_when:
 //   - "Changing candidate command aliases, packet-review calls, next-action selection, or lifecycle confirmation text."
 // ---
-import {
-  AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
-  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
-  AUTORESEARCH_STATUS_TOOL_NAME,
-  buildAutoresearchCandidateBindPlan,
-  buildAutoresearchCandidateDecisionWorkbench,
-  discoverAutoresearchMatrixCampaignArtifacts,
-  formatAutoresearchCandidateDecisionWorkbench,
-} from "../../src/core/runtime.ts";
+
 import type {
   AutoresearchCandidateBindTriggerMode,
   AutoresearchCandidateDecisionReviewParsedInput,
 } from "./commandText.ts";
+import {
+  AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
+  AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
+  AUTORESEARCH_STATUS_TOOL_NAME,
+} from "./eagerContract.ts";
+import type { AutoresearchRuntimeModule } from "./lazyModules.ts";
 
 export function parseAutoresearchOpenCandidateReviewCommand(value: string): boolean {
   switch (value.trim().toLowerCase()) {
@@ -32,8 +30,11 @@ export function parseAutoresearchOpenCandidateReviewCommand(value: string): bool
   }
 }
 
-export function buildAutoresearchOpenCandidateReviewEditorText(cwd: string): string {
-  const summary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
+export function buildAutoresearchOpenCandidateReviewEditorText(
+  cwd: string,
+  runtimeModule: AutoresearchRuntimeModule,
+): string {
+  const summary = runtimeModule.discoverAutoresearchMatrixCampaignArtifacts(cwd);
   const posture = summary.openCandidateReview;
   const direction = summary.metricDirection ?? "lower";
   const packetPaths = collectOpenCandidateReviewPacketPaths(summary.cells);
@@ -96,7 +97,9 @@ export function buildAutoresearchOpenCandidateReviewEditorText(cwd: string): str
 }
 
 export function collectOpenCandidateReviewPacketPaths(
-  cells: ReturnType<typeof discoverAutoresearchMatrixCampaignArtifacts>["cells"],
+  cells: ReturnType<
+    AutoresearchRuntimeModule["discoverAutoresearchMatrixCampaignArtifacts"]
+  >["cells"],
 ): string[] {
   const packetPaths = new Set<string>();
   for (const cell of cells) {
@@ -157,8 +160,11 @@ export function parseAutoresearchCandidateIntegrationCommand(value: string): boo
   }
 }
 
-export function buildAutoresearchCandidateIntegrationEditorText(cwd: string): string {
-  const summary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
+export function buildAutoresearchCandidateIntegrationEditorText(
+  cwd: string,
+  runtimeModule: AutoresearchRuntimeModule,
+): string {
+  const summary = runtimeModule.discoverAutoresearchMatrixCampaignArtifacts(cwd);
   const direction = summary.metricDirection ?? "lower";
   const packetPaths = collectOpenCandidateReviewPacketPaths(summary.cells);
   return [
@@ -243,17 +249,22 @@ export function buildAutoresearchCandidateBindOrMeasureEditorCall(
   cwd: string,
   candidateWorktree: string,
   mode: AutoresearchCandidateBindTriggerMode,
+  runtimeModule?: AutoresearchRuntimeModule,
 ): string {
-  return mode === "measure"
-    ? buildAutoresearchCandidateMeasureEditorCall(cwd, candidateWorktree)
-    : buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
+  if (mode === "measure") {
+    if (!runtimeModule)
+      throw new Error("Candidate measurement planning requires the runtime module.");
+    return buildAutoresearchCandidateMeasureEditorCall(cwd, candidateWorktree, runtimeModule);
+  }
+  return buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
 }
 
 export function buildAutoresearchCandidateMeasureEditorCall(
   cwd: string,
   candidateWorktree: string,
+  runtimeModule: AutoresearchRuntimeModule,
 ): string {
-  const plan = buildAutoresearchCandidateBindPlan({
+  const plan = runtimeModule.buildAutoresearchCandidateBindPlan({
     cwd,
     action: "plan_run",
     candidateSource: "manual",
@@ -266,22 +277,25 @@ export function buildAutoresearchCandidateMeasureEditorCall(
   return plan.exactNextCalls[0] ?? buildAutoresearchCandidateBindEditorCall(cwd, candidateWorktree);
 }
 
-export function buildAutoresearchCandidateNextEditorCall(cwd: string): string {
-  const matrixSummary = discoverAutoresearchMatrixCampaignArtifacts(cwd);
+export function buildAutoresearchCandidateNextEditorCall(
+  cwd: string,
+  runtimeModule: AutoresearchRuntimeModule,
+): string {
+  const matrixSummary = runtimeModule.discoverAutoresearchMatrixCampaignArtifacts(cwd);
   if (matrixSummary.openCandidateReview.status === "owner_review_required") {
-    return buildAutoresearchOpenCandidateReviewEditorText(cwd);
+    return buildAutoresearchOpenCandidateReviewEditorText(cwd, runtimeModule);
   }
 
-  const decision = buildAutoresearchCandidateDecisionWorkbench({ cwd });
+  const decision = runtimeModule.buildAutoresearchCandidateDecisionWorkbench({ cwd });
   switch (decision.recommendedDecision) {
     case "no_candidate_bound_yet":
       return buildAutoresearchCandidateBindEditorCall(cwd, cwd);
     case "keep":
-      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_keep");
+      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_keep", runtimeModule);
     case "discard":
-      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_discard");
+      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_discard", runtimeModule);
     case "rewind":
-      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_rewind");
+      return buildAutoresearchCandidateDecisionEditorCall(cwd, "plan_rewind", runtimeModule);
     case "finalize":
     case "rebaseline":
     case "collect_more_samples":
@@ -354,13 +368,14 @@ export function parseAutoresearchCandidateDecisionCommand(
 export function buildAutoresearchCandidateDecisionEditorCall(
   cwd: string,
   action: "status" | "plan_keep" | "plan_discard" | "plan_rewind",
+  runtimeModule: AutoresearchRuntimeModule,
 ): string {
   const toolCall = `${AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME}({\n  cwd: ${JSON.stringify(cwd)},\n  action: ${JSON.stringify(action)},\n  candidatePolicy: {\n    mode: "worktree",\n    keep: "preserve_branch",\n    discard: "suggest_cleanup",\n    rewind: "reset_worktree_to_base"\n  }\n})`;
   let review =
     "Candidate decision review unavailable; send the exact tool call below to build a fresh plan.";
   try {
-    review = formatAutoresearchCandidateDecisionWorkbench(
-      buildAutoresearchCandidateDecisionWorkbench({ cwd, action }),
+    review = runtimeModule.formatAutoresearchCandidateDecisionWorkbench(
+      runtimeModule.buildAutoresearchCandidateDecisionWorkbench({ cwd, action }),
     );
   } catch (error) {
     review = `Candidate decision review unavailable: ${error instanceof Error ? error.message : String(error)}`;

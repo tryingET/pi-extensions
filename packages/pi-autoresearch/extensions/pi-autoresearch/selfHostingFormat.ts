@@ -14,7 +14,7 @@ import type {
   prepareAutoresearchSelfHostingPromotionRecord,
   recordAutoresearchSelfHostingRollback,
 } from "../../src/core/selfHosting.ts";
-import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "../../src/core/selfHosting.ts";
+import { AUTORESEARCH_SELF_HOSTING_TOOL_NAME } from "./eagerContract.ts";
 
 type AutoresearchSelfHostingStatusDetails = {
   cwd: string;

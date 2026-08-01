@@ -7,21 +7,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
   AUTORESEARCH_LLAMACPP_CAMPAIGN_TOOL_NAME,
-  advanceLlamacppCampaign,
-  buildLlamacppCampaignAkBinding,
-  buildLlamacppCampaignAkBindingDetails,
-  buildLlamacppCampaignProjection,
-  executeLlamacppCampaignControl,
-  executeLlamacppCampaignStage,
-  formatLlamacppCampaignControlResult,
-  formatLlamacppCampaignResult,
-  inspectLlamacppCampaignControl,
-  persistDerivedLlamacppCampaignProjection,
-  persistLlamacppCampaignProjection,
-  planLlamacppCampaignMatrix,
-  prepareLlamacppCampaignFork,
-} from "../../src/core/llamacppCampaign.ts";
+} from "./eagerContract.ts";
 import type { PiAutoresearchExtensionOptions } from "./extensionOptions.ts";
+import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { assertReadProfileAllowsAction } from "./readProfile.ts";
 import { asPiToolParameters, campaignControlSchema, campaignSchema } from "./schemas.ts";
 
@@ -49,6 +37,7 @@ function formatLlamacppProjectionLines(input: {
 export function registerAutoresearchLlamacppTools(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions,
+  modules: AutoresearchLazyModules,
 ): void {
   pi.registerTool({
     name: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
@@ -83,6 +72,12 @@ export function registerAutoresearchLlamacppTools(
         persistProjection: request.persistProjection,
       });
       const updatedAt = Date.now();
+      const {
+        executeLlamacppCampaignControl,
+        formatLlamacppCampaignControlResult,
+        inspectLlamacppCampaignControl,
+        persistDerivedLlamacppCampaignProjection,
+      } = await modules.llamacpp();
 
       if (action === "status" && request.apply === true) {
         throw new Error(
@@ -183,6 +178,17 @@ export function registerAutoresearchLlamacppTools(
         persistProjection: request.persistProjection,
       });
       const updatedAt = Date.now();
+      const {
+        advanceLlamacppCampaign,
+        buildLlamacppCampaignAkBinding,
+        buildLlamacppCampaignAkBindingDetails,
+        buildLlamacppCampaignProjection,
+        executeLlamacppCampaignStage,
+        formatLlamacppCampaignResult,
+        persistLlamacppCampaignProjection,
+        planLlamacppCampaignMatrix,
+        prepareLlamacppCampaignFork,
+      } = await modules.llamacpp();
       const result =
         action === "prepare_fork"
           ? prepareLlamacppCampaignFork({

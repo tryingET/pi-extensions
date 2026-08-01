@@ -23,6 +23,13 @@ function writeExecutable(cwd: string, name: string, content: string): string {
   return target;
 }
 
+async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 function activeGoal(overrides: Partial<AutoresearchCampaignGoalStatusView> = {}) {
   return {
     exists: true,
@@ -248,7 +255,7 @@ test("extension hook sends one follow-up user message after settled eligible age
     } as never);
 
     handlers.get("agent_settled")?.({}, { cwd });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(() => sentUserMessages.length === 1);
 
     assert.equal(sentUserMessages.length, 1);
     assert.match(sentUserMessages[0]?.content, /PI-AUTORESEARCH AUTO-CONTINUATION REQUEST/);

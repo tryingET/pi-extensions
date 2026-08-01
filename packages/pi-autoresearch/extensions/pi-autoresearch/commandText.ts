@@ -3,13 +3,7 @@
 // read_when:
 //   - "Changing $$ autoresearch routing, resume or learning aliases, generated tool calls, or command notifications."
 // ---
-import type { buildAutoresearchRuntimeStatus } from "../../src/core/runtime.ts";
-import {
-  AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
-  AUTORESEARCH_STATUS_TOOL_NAME,
-  buildAutoresearchResumeApplyPlan,
-  formatAutoresearchResumeApplyPlan,
-} from "../../src/core/runtime.ts";
+
 import {
   buildAutoresearchCandidateBindEditorCall,
   buildAutoresearchCandidateBindOrMeasureEditorCall,
@@ -24,6 +18,11 @@ import {
   parseAutoresearchCandidateNextCommand,
   parseAutoresearchOpenCandidateReviewCommand,
 } from "./commandTextCandidates.ts";
+import {
+  AUTORESEARCH_RESUME_APPLY_TOOL_NAME,
+  AUTORESEARCH_STATUS_TOOL_NAME,
+} from "./eagerContract.ts";
+import type { AutoresearchLazyModules, AutoresearchRuntimeModule } from "./lazyModules.ts";
 
 export type AutoresearchTriggerRunMode = "plan_only" | "baseline" | "bounded_loop";
 
@@ -51,25 +50,29 @@ export function buildAutoresearchCampaignStartEditorCall(cwd: string, objective:
   });
 }
 
-export function transformAutoresearchDollarInput(text: string, cwd: string): string | null {
+export async function transformAutoresearchDollarInput(
+  text: string,
+  cwd: string,
+  modules: AutoresearchLazyModules,
+): Promise<string | null> {
   const match = text.trim().match(/^\$\$\s*(?:autoresearch|ar)(?:\s+([^\n]*))?$/);
   if (!match) return null;
   const raw = String(match[1] ?? "").trim();
   if (!raw) return "$$ autoresearch <objective>";
   if (parseAutoresearchResumeCommand(raw)) {
-    return buildAutoresearchResumeApplyEditorCall(cwd);
+    return buildAutoresearchResumeApplyEditorCall(cwd, await modules.runtime());
   }
   if (parseAutoresearchLearningHandoffCommand(raw)) {
     return buildAutoresearchLearningExportEditorCall(cwd);
   }
   if (parseAutoresearchOpenCandidateReviewCommand(raw)) {
-    return buildAutoresearchOpenCandidateReviewEditorText(cwd);
+    return buildAutoresearchOpenCandidateReviewEditorText(cwd, await modules.runtime());
   }
   if (parseAutoresearchCandidateIntegrationCommand(raw)) {
-    return buildAutoresearchCandidateIntegrationEditorText(cwd);
+    return buildAutoresearchCandidateIntegrationEditorText(cwd, await modules.runtime());
   }
   if (parseAutoresearchCandidateNextCommand(raw)) {
-    return buildAutoresearchCandidateNextEditorCall(cwd);
+    return buildAutoresearchCandidateNextEditorCall(cwd, await modules.runtime());
   }
   const candidateMeasure = parseAutoresearchCandidateMeasureCommand(raw, cwd);
   if (candidateMeasure) {
@@ -77,6 +80,7 @@ export function transformAutoresearchDollarInput(text: string, cwd: string): str
       cwd,
       candidateMeasure.candidateWorktree,
       "measure",
+      await modules.runtime(),
     );
   }
   const candidateBind = parseAutoresearchCandidateBindCommand(raw, cwd);
@@ -85,7 +89,11 @@ export function transformAutoresearchDollarInput(text: string, cwd: string): str
   }
   const candidateDecisionAction = parseAutoresearchCandidateDecisionCommand(raw);
   if (candidateDecisionAction) {
-    return buildAutoresearchCandidateDecisionEditorCall(cwd, candidateDecisionAction);
+    return buildAutoresearchCandidateDecisionEditorCall(
+      cwd,
+      candidateDecisionAction,
+      await modules.runtime(),
+    );
   }
   return buildAutoresearchCampaignStartEditorCall(cwd, raw);
 }
@@ -149,8 +157,11 @@ export function isAutoresearchResumeEditorCall(value: string): boolean {
   );
 }
 
-export function buildAutoresearchResumeApplyEditorCall(cwd: string): string {
-  const plan = buildAutoresearchResumeApplyPlan(cwd);
+export function buildAutoresearchResumeApplyEditorCall(
+  cwd: string,
+  runtimeModule: AutoresearchRuntimeModule,
+): string {
+  const plan = runtimeModule.buildAutoresearchResumeApplyPlan(cwd);
   const exactCall =
     plan.futureForegroundCall ??
     `${AUTORESEARCH_STATUS_TOOL_NAME}({ cwd: ${JSON.stringify(cwd)}, action: "resume_apply_plan" })`;
@@ -159,7 +170,7 @@ export function buildAutoresearchResumeApplyEditorCall(cwd: string): string {
     "",
     "Review this foreground continuation before execution. This editor output does not run benchmarks, resume a loop, spawn peers, mutate candidates, or write external evidence.",
     "",
-    formatAutoresearchResumeApplyPlan(plan),
+    runtimeModule.formatAutoresearchResumeApplyPlan(plan),
     "",
     "## Exact foreground call to review",
     "```ts",
@@ -181,7 +192,7 @@ export function buildAutoresearchCampaignStartToolCall(input: {
 }
 
 export function formatAutoresearchCommandNotification(
-  status: ReturnType<typeof buildAutoresearchRuntimeStatus>,
+  status: ReturnType<AutoresearchRuntimeModule["buildAutoresearchRuntimeStatus"]>,
 ): string {
   return [
     `pi-autoresearch: ${status.runtimeProjection.state}`,

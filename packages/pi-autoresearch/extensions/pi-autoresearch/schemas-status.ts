@@ -4,7 +4,7 @@
 //   - "Changing status packet exports, inventory cleanup authorization, control decisions, or finalization workflow inputs."
 // ---
 import { Type } from "typebox";
-import { AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION } from "../../src/core/runtime.ts";
+import { AUTORESEARCH_CANDIDATE_INVENTORY_CLEANUP_CONFIRMATION } from "./eagerContract.ts";
 import { nullableStringSchema, stringArraySchema } from "./schemas-common.ts";
 
 const statusActionSchema = Type.Union(

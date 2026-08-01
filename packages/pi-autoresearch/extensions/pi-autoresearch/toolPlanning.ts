@@ -5,17 +5,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
   AUTORESEARCH_CANDIDATE_DECISION_TOOL_NAME,
-  buildAutoresearchCandidateBindPlan,
-  buildAutoresearchCandidateDecisionWorkbench,
-  formatAutoresearchCandidateBindPlan,
-  formatAutoresearchCandidateDecisionWorkbench,
-} from "../../src/core/runtime.ts";
-import {
   AUTORESEARCH_VLLM_CAMPAIGN_TOOL_NAME,
-  buildVllmAutoresearchCampaignPlan,
-  formatVllmAutoresearchCampaignPlan,
-} from "../../src/core/vllmCampaignCockpit.ts";
+} from "./eagerContract.ts";
 import type { PiAutoresearchExtensionOptions } from "./extensionOptions.ts";
+import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { assertReadProfileAllowsAction } from "./readProfile.ts";
 import {
   asPiToolParameters,
@@ -27,6 +20,7 @@ import {
 export function registerAutoresearchPlanningTools(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions,
+  modules: AutoresearchLazyModules,
 ): void {
   pi.registerTool({
     name: AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
@@ -52,6 +46,8 @@ export function registerAutoresearchPlanningTools(
         action,
         allowedActions: ["status", "plan_run"],
       });
+      const { buildAutoresearchCandidateBindPlan, formatAutoresearchCandidateBindPlan } =
+        await modules.runtime();
       const result = buildAutoresearchCandidateBindPlan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -93,6 +89,10 @@ export function registerAutoresearchPlanningTools(
         action,
         allowedActions: ["status", "plan_keep", "plan_discard", "plan_rewind"],
       });
+      const {
+        buildAutoresearchCandidateDecisionWorkbench,
+        formatAutoresearchCandidateDecisionWorkbench,
+      } = await modules.runtime();
       const result = buildAutoresearchCandidateDecisionWorkbench({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -134,6 +134,8 @@ export function registerAutoresearchPlanningTools(
         action,
         allowedActions: ["status", "plan", "run_segment_plan", "handoff_prompt"],
       });
+      const { buildVllmAutoresearchCampaignPlan, formatVllmAutoresearchCampaignPlan } =
+        await modules.vllm();
       const result = buildVllmAutoresearchCampaignPlan({
         ...request,
         action,
