@@ -519,18 +519,29 @@ test("picker runtime exposes structured vault prompt preparation", () => {
 test("interaction helpers are consumed through package boundaries without vendored source bridges", () => {
   assert.match(FUZZY_SELECTOR_SOURCE, /from "@tryinget\/pi-interaction-kit"/);
   assert.match(TRIGGER_ADAPTER_SOURCE, /from "@tryinget\/pi-trigger-adapter"/);
-  assert.match(
-    PACKAGE_JSON_SOURCE,
-    /"@tryinget\/pi-interaction-kit": "file:\.\.\/pi-interaction\/pi-interaction-kit"/,
-  );
-  assert.match(
-    PACKAGE_JSON_SOURCE,
-    /"@tryinget\/pi-runtime-registry": "file:\.\.\/pi-interaction\/pi-runtime-registry"/,
-  );
-  assert.match(
-    PACKAGE_JSON_SOURCE,
-    /"@tryinget\/pi-trigger-adapter": "file:\.\.\/pi-interaction\/pi-trigger-adapter"/,
-  );
+
+  const packageJson = JSON.parse(PACKAGE_JSON_SOURCE);
+  const interactionDependencies = new Map([
+    ["@tryinget/pi-interaction-kit", "file:../pi-interaction/pi-interaction-kit"],
+    ["@tryinget/pi-runtime-registry", "file:../pi-interaction/pi-runtime-registry"],
+    ["@tryinget/pi-trigger-adapter", "file:../pi-interaction/pi-trigger-adapter"],
+  ]);
+  const exactPublishedVersion =
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+  assert.match("1.2.3-alpha.1+build.1", exactPublishedVersion);
+  for (const malformed of ["01.2.3", "1.02.3", "1.2.03", "1.2.3-.", "1.2.3-a..b", "1.2.3-01"]) {
+    assert.doesNotMatch(malformed, exactPublishedVersion);
+  }
+
+  for (const [name, localSpecifier] of interactionDependencies) {
+    const specifier = packageJson.dependencies?.[name];
+    assert.equal(typeof specifier, "string", `${name} must remain a runtime dependency`);
+    assert.ok(
+      specifier === localSpecifier || exactPublishedVersion.test(specifier),
+      `${name} must use its canonical monorepo path or an exact published version`,
+    );
+  }
+
   assert.doesNotMatch(PACKAGE_JSON_SOURCE, /"bundleDependencies"/);
   assert.match(PACKAGE_JSON_SOURCE, /prepare-publish-manifest/);
   assert.doesNotMatch(PACKAGE_JSON_SOURCE, /sync:interaction-vendors/);
