@@ -21,7 +21,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Apply vouch / denounce / unvouch from maintainer comments
         uses: mitchellh/vouch/action/manage-by-issue@baeb3bf7c7e6c12d6e33bab3870b7e936580a934
