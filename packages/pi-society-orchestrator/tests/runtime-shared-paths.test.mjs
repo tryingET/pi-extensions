@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -2600,6 +2601,9 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
   const previousVaultDir = process.env.VAULT_DIR;
   const previousPiCompany = process.env.PI_COMPANY;
   const previousD2eMode = process.env.PI_ORCH_D2E_TRANSFER_MODE;
+  const previousExecutionMemoryMode = process.env.PI_ORCH_D2E_EXECUTION_MEMORY_MODE;
+  const previousExecutionMemoryBin = process.env.PI_ORCH_D2E_AK_BIN;
+  const previousExecutionMemorySha = process.env.PI_ORCH_D2E_AK_SHA256;
 
   try {
     execFileSync("dolt", ["init", "-b", "main"], { cwd: tempVaultDir, stdio: "ignore" });
@@ -2641,6 +2645,127 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
     process.env.PI_COMPANY = "software";
     process.env.PI_ORCH_D2E_TRANSFER_MODE = "enabled";
 
+    const executionMemoryBinary = path.join(tempVaultDir, "ak-bin");
+    fs.writeFileSync(executionMemoryBinary, "immutable-ak-fixture\n", { mode: 0o555 });
+    process.env.PI_ORCH_D2E_AK_BIN = executionMemoryBinary;
+    process.env.PI_ORCH_D2E_AK_SHA256 = crypto
+      .createHash("sha256")
+      .update(fs.readFileSync(executionMemoryBinary))
+      .digest("hex");
+    delete process.env.PI_ORCH_D2E_EXECUTION_MEMORY_MODE;
+    let executionMemoryCalls = 0;
+    const executionMemoryPacketSource = `https://github.com/tryingET/agent-kernel/blob/${"a".repeat(40)}/docs/packet.md`;
+    const executionMemoryParams = {
+      template_name: "execution-memory-transfer",
+      objective: "Observe Decision 100 execution memory without authorization inference",
+      repo: process.cwd(),
+      packet_id: 74,
+      packet_key: "decision-100-packet",
+      packet_source: executionMemoryPacketSource,
+      packet_source_sha256: "b".repeat(64),
+      expected_task_ids: [4427],
+      expected_dependencies: ["4427:none"],
+      decision_id: 100,
+    };
+    const executionMemoryEnvelope = {
+      surface: "decision.execution_memory_check",
+      schema_version: 1,
+      emitted_at: "2026-08-01T22:00:00.000000000Z",
+      payload_kind: "d2e_execution_memory_check",
+      schema_locator: "ak machine schema decision-execution-memory-check",
+      ok: true,
+      error: null,
+      payload: {
+        profile: "d2e-transfer-v1",
+        profile_schema_version: 1,
+        read_only: true,
+        evaluated_at: "2026-08-01T22:00:00.000000000Z",
+        database: {
+          canonical_path: "/disposable/society.db",
+          schema_version: 41,
+          supported_schema_min: 41,
+          supported_schema_max: 41,
+          open_mode: "existing_runtime_query_only",
+          transaction_mode: "deferred_single_snapshot",
+          capability_checks: [
+            "repo_registration_v1",
+            "decision_post_adr_v1",
+            "layer12_packet_identity_v1",
+            "task_execution_memory_v1",
+            "task_admission_v1",
+            "task_closeout_v1",
+            "fcos_metadata_boundary_v1",
+          ].map((id) => ({ id, present: true })),
+        },
+        capabilities: {
+          coherent_read_transaction: true,
+          packet_identity_check: true,
+          task_memory_check: true,
+          negative_authorization_gate_proof: true,
+          positive_authorization_proof: false,
+          closeout_projection: true,
+        },
+        request: {
+          decision_id: 100,
+          repo_scope: process.cwd(),
+          packet_id: 74,
+          packet_key: "decision-100-packet",
+          packet_source: executionMemoryPacketSource,
+          packet_source_sha256: "b".repeat(64),
+          expect_task_ids: [4427],
+          expect_dependencies: [{ task_id: 4427, depends_on: [] }],
+          authorization_block_ref: null,
+        },
+        decision_lifecycle: {
+          ready: true,
+          decision: {
+            id: 100,
+            repo_scope: process.cwd(),
+            significance_tier: "architecture",
+            state: "unblocked",
+            outcome: "accepted",
+            adr_ref: "docs/adr/0032.md",
+          },
+          current_implementation_plan: null,
+          current_validation_rollout_rollback: null,
+          active_post_adr_task_ids: [4427],
+          post_adr_execution_history: [],
+          missing_codes: [],
+        },
+        packet_identity: {
+          ready: true,
+          packet: null,
+          source_matches: true,
+          source_verification: null,
+          links: [],
+          relations: [],
+          graph_issues: [],
+          missing_codes: [],
+        },
+        execution_task_memory: {
+          ready: true,
+          expected_set_matches_active_post_adr_set: true,
+          tasks: [],
+          missing_codes: [],
+        },
+        task_admission: { state: "clear", tasks: [] },
+        authorization: {
+          capability: "negative_gate_only",
+          positive_proof_supported: false,
+          state: "unproven",
+          block_ref: null,
+          verified_block: null,
+          finding_codes: [],
+        },
+        closeout: { state: "not_ready", ready: false, tasks: [] },
+        profile_health: { state: "healthy", issues: [] },
+        pre_execution_memory_ready: true,
+        result_state: "memory_ready_authorization_unproven",
+        missing_codes: [],
+        warnings: [],
+      },
+    };
+
     let capturedWorkflowRequest;
     const preflightReceipt = {
       nonce: "test-preflight-nonce",
@@ -2658,6 +2783,14 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
         },
         async exec(_command, args) {
           const repo = process.cwd();
+          if (args[0] === "decision" && args[1] === "execution-memory-check") {
+            executionMemoryCalls += 1;
+            return {
+              stdout: JSON.stringify(executionMemoryEnvelope),
+              stderr: "",
+              code: 0,
+            };
+          }
           if (args[0] === "packet") {
             return {
               stdout: JSON.stringify({
@@ -2987,18 +3120,7 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
 
     const disabledExecutionMemory = await vaultExecuteTool.execute(
       "tool-call-execution-memory-disabled",
-      {
-        template_name: "execution-memory-transfer",
-        objective: "Observe Decision 100 execution memory without authorization inference",
-        repo: process.cwd(),
-        packet_id: 74,
-        packet_key: "decision-100-packet",
-        packet_source: `https://github.com/tryingET/agent-kernel/blob/${"a".repeat(40)}/docs/packet.md`,
-        packet_source_sha256: "b".repeat(64),
-        expected_task_ids: [4427],
-        expected_dependencies: ["4427:none"],
-        decision_id: 100,
-      },
+      executionMemoryParams,
       undefined,
       undefined,
       { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
@@ -3010,6 +3132,33 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
       disabledExecutionMemory.details.downstream_implementation_authorization.disposition,
       "not_authorized",
     );
+
+    assert.equal(executionMemoryCalls, 0);
+    process.env.PI_ORCH_D2E_EXECUTION_MEMORY_MODE = "enabled";
+    const enabledExecutionMemory = await vaultExecuteTool.execute(
+      "tool-call-execution-memory-enabled",
+      executionMemoryParams,
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
+    );
+    assert.equal(
+      enabledExecutionMemory.details.ok,
+      true,
+      JSON.stringify(enabledExecutionMemory.details),
+    );
+    assert.equal(enabledExecutionMemory.details.kind, "observation");
+    assert.equal(
+      enabledExecutionMemory.details.receipt.schema,
+      "D2E_EXECUTION_MEMORY_OBSERVATION_V1",
+    );
+    assert.equal(enabledExecutionMemory.details.receipt.applied_ready, false);
+    assert.equal(enabledExecutionMemory.details.receipt.execution_performed, false);
+    assert.equal(
+      enabledExecutionMemory.details.receipt.transfer_materialization_authorization.disposition,
+      "not_authorized",
+    );
+    assert.equal(executionMemoryCalls, 1);
 
     const blockedPacketResult = await vaultExecuteTool.execute(
       "tool-call-id-4-blocked-packet",
@@ -3085,6 +3234,14 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
       delete process.env.PI_ORCH_D2E_TRANSFER_MODE;
     } else {
       process.env.PI_ORCH_D2E_TRANSFER_MODE = previousD2eMode;
+    }
+    for (const [name, value] of [
+      ["PI_ORCH_D2E_EXECUTION_MEMORY_MODE", previousExecutionMemoryMode],
+      ["PI_ORCH_D2E_AK_BIN", previousExecutionMemoryBin],
+      ["PI_ORCH_D2E_AK_SHA256", previousExecutionMemorySha],
+    ]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
     }
     fs.rmSync(tempVaultDir, { recursive: true, force: true });
   }

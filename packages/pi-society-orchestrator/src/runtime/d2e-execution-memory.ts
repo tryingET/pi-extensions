@@ -16,6 +16,7 @@ import {
   buildExecutionMemoryArgs,
   fail,
   normalizeExecutionMemoryRequest,
+  revalidateExecutionMemoryBinary,
   validateExecutionMemoryBinary,
 } from "./d2e-execution-memory-request.ts";
 import type { D2ETransferExec } from "./d2e-transfer-contract.ts";
@@ -58,6 +59,7 @@ export async function consumeD2EExecutionMemory(options: {
       `Execution-memory producer transport failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+  revalidateExecutionMemoryBinary(binary);
   if (result.killed) {
     fail("D2E_EXECUTION_MEMORY_TRANSPORT_FAILED", "Execution-memory producer was killed.");
   }

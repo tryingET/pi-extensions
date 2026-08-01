@@ -1876,6 +1876,30 @@ Unknown templates and workflow-grade templates without an execution binding fail
         };
       }
 
+      if (
+        templateName === D2E_EXECUTION_MEMORY_TEMPLATE &&
+        process.env.PI_ORCH_D2E_EXECUTION_MEMORY_MODE !== "enabled"
+      ) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "D2E_EXECUTION_MEMORY_DISABLED: Decision 100 execution-memory consumption is disabled; no Vault or AK owner read was performed.",
+            },
+          ],
+          details: {
+            ok: false,
+            error: "D2E_EXECUTION_MEMORY_DISABLED",
+            effect: { disposition: "not_materialized" },
+            downstream_implementation_authorization: {
+              disposition: "not_authorized",
+              granted: false,
+              basis: "separate_downstream_owner_authorization_required",
+            },
+          },
+        };
+      }
+
       let dispatchModule: VaultDispatchRuntimeModule;
       try {
         dispatchModule = (await import(

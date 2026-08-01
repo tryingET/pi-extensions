@@ -86,10 +86,47 @@ function payload(overrides = {}) {
       ],
       authorization_block_ref: "task-deferral:195",
     },
-    decision_lifecycle: { ready: true },
-    packet_identity: { ready: true },
-    execution_task_memory: { ready: true },
-    task_admission: { state: "clear" },
+    decision_lifecycle: {
+      ready: true,
+      decision: {
+        id: 100,
+        repo_scope: repo,
+        significance_tier: "architecture",
+        state: "unblocked",
+        outcome: "accepted",
+        adr_ref: "docs/adr/0032.md",
+      },
+      current_implementation_plan: null,
+      current_validation_rollout_rollback: null,
+      active_post_adr_task_ids: [4427, 4485],
+      post_adr_execution_history: [],
+      missing_codes: [],
+    },
+    packet_identity: {
+      ready: true,
+      packet: {
+        id: 74,
+        repo_scope: repo,
+        packet_key: "decision-100-packet",
+        packet_kind: "design",
+        lifecycle_state: "assessed",
+        source_ref: packetSource,
+        entity_version: 1,
+      },
+      source_matches: true,
+      source_verification: null,
+      links: [],
+      relations: [],
+      graph_issues: [],
+      missing_codes: [],
+    },
+    execution_task_memory: {
+      ready: true,
+      expected_set_matches_active_post_adr_set: true,
+      tasks: [],
+      missing_codes: [],
+    },
+    task_admission: { state: "clear", tasks: [] },
     authorization: {
       capability: "negative_gate_only",
       positive_proof_supported: false,
@@ -284,12 +321,29 @@ test("memory-incomplete and degraded owner projections are preserved without exe
             result_state: "memory_incomplete",
             missing_codes: ["expected_task_set_mismatch"],
             decision_lifecycle: {
-              ready: true,
+              ...payload().decision_lifecycle,
               post_adr_execution_history: [
-                { reevaluation_status: "reframed", active_for_transfer: true },
+                {
+                  task_id: 4427,
+                  link_role: "post_adr_execution",
+                  reevaluation_status: "reframed",
+                  reevaluated_at: "2026-08-01T21:00:00Z",
+                  active_for_transfer: true,
+                },
               ],
             },
-            profile_health: { state: "degraded", issues: [{ reason: "owner_data_unavailable" }] },
+            profile_health: {
+              state: "degraded",
+              issues: [
+                {
+                  code: "close_check_unavailable",
+                  task_id: 4427,
+                  canonical_identity: "task:4427",
+                  reason: "owner_data_unavailable",
+                  owner_input: "evidence",
+                },
+              ],
+            },
           }),
         ),
       ),
@@ -319,6 +373,13 @@ test("unknown shape, positive proof, and request-echo drift fail closed", async 
         authorization: { ...payload().authorization, state: "authorized" },
       }),
     ),
+    envelope(
+      payload({
+        result_state: "memory_ready_authorization_blocked",
+        authorization: { ...payload().authorization, state: "unproven" },
+      }),
+    ),
+    envelope(payload({ decision_lifecycle: { ready: true } })),
     envelope(
       payload({
         request: { ...payload().request, packet_id: 999 },
@@ -365,6 +426,17 @@ test("binary drift, malformed output, exit inconsistency, kill, and transport fa
   drift.value.akBinarySha256 = "0".repeat(64);
   await assertCode(
     consumeD2EExecutionMemory(drift.value),
+    "D2E_EXECUTION_MEMORY_BINARY_IDENTITY_MISMATCH",
+  );
+
+  const replaced = options(t);
+  replaced.value.exec = async () => {
+    fs.chmodSync(replaced.value.akBinaryPath, 0o755);
+    fs.writeFileSync(replaced.value.akBinaryPath, "replacement-bytes\n");
+    return { stdout: JSON.stringify(envelope()), stderr: "", code: 0 };
+  };
+  await assertCode(
+    consumeD2EExecutionMemory(replaced.value),
     "D2E_EXECUTION_MEMORY_BINARY_IDENTITY_MISMATCH",
   );
 

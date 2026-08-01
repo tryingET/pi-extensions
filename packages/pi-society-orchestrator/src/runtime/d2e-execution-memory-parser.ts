@@ -14,6 +14,14 @@ import {
   RESULT_STATES,
 } from "./d2e-execution-memory-contract.ts";
 import {
+  requireArray,
+  validateAdmission,
+  validateCloseout,
+  validateDecisionLifecycle,
+  validateExecutionTaskMemory,
+  validatePacketIdentity,
+} from "./d2e-execution-memory-dimensions.ts";
+import {
   exactRecord,
   fail,
   type NormalizedExecutionMemoryRequest,
@@ -154,6 +162,11 @@ function validatePayload(value: unknown, request: NormalizedExecutionMemoryReque
   }
 
   validateRequestEcho(payload.request, request);
+  validateDecisionLifecycle(payload.decision_lifecycle);
+  validatePacketIdentity(payload.packet_identity);
+  validateExecutionTaskMemory(payload.execution_task_memory);
+  validateAdmission(payload.task_admission);
+  validateCloseout(payload.closeout);
   const authorization = exactRecord(
     payload.authorization,
     [
@@ -182,6 +195,13 @@ function validatePayload(value: unknown, request: NormalizedExecutionMemoryReque
   if (typeof health.state !== "string" || !PROFILE_HEALTH_STATES.has(health.state)) {
     fail("D2E_EXECUTION_MEMORY_ENVELOPE_INVALID", "Producer profile health state drifted.");
   }
+  for (const [index, issue] of requireArray(health.issues, "profile_health.issues").entries()) {
+    exactRecord(
+      issue,
+      ["code", "task_id", "canonical_identity", "reason", "owner_input"],
+      `profile_health.issues[${index}]`,
+    );
+  }
   if (
     typeof payload.result_state !== "string" ||
     !RESULT_STATES.has(payload.result_state) ||
@@ -197,6 +217,26 @@ function validatePayload(value: unknown, request: NormalizedExecutionMemoryReque
       "D2E_EXECUTION_MEMORY_ENVELOPE_INVALID",
       "Producer readiness/result-state invariant drifted.",
     );
+  }
+  const expectedAuthorizationState = {
+    memory_ready_authorization_blocked: "blocked_pending_authorization",
+    memory_ready_authorization_unproven: "unproven",
+    memory_ready_authorization_indeterminate: "indeterminate",
+  }[String(payload.result_state)];
+  if (expectedAuthorizationState && authorization.state !== expectedAuthorizationState) {
+    fail(
+      "D2E_EXECUTION_MEMORY_ENVELOPE_INVALID",
+      "Producer result and negative-authorization states contradict each other.",
+    );
+  }
+  if (health.state === "degraded" && payload.result_state !== "memory_incomplete") {
+    fail(
+      "D2E_EXECUTION_MEMORY_ENVELOPE_INVALID",
+      "A degraded producer profile cannot report memory ready.",
+    );
+  }
+  for (const [index, warning] of payload.warnings.entries()) {
+    exactRecord(warning, ["code", "canonical_identity", "detail"], `warnings[${index}]`);
   }
 
   return {

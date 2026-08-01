@@ -170,9 +170,16 @@ export function validateExecutionMemoryBinary(binaryPath: string, expectedSha256
   }
   let canonicalPath: string;
   let bytes: Buffer;
+  let stat: fs.Stats;
   try {
     canonicalPath = fs.realpathSync(binaryPath);
-    bytes = fs.readFileSync(canonicalPath);
+    const descriptor = fs.openSync(canonicalPath, "r");
+    try {
+      stat = fs.fstatSync(descriptor);
+      bytes = fs.readFileSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
   } catch (error) {
     fail(
       "D2E_EXECUTION_MEMORY_BINARY_IDENTITY_MISMATCH",
@@ -180,13 +187,35 @@ export function validateExecutionMemoryBinary(binaryPath: string, expectedSha256
     );
   }
   const observed = createHash("sha256").update(bytes).digest("hex");
+  if (!stat.isFile() || (stat.mode & 0o111) === 0) {
+    fail(
+      "D2E_EXECUTION_MEMORY_BINARY_IDENTITY_MISMATCH",
+      "Configured AK binary is not one executable regular file.",
+    );
+  }
   if (observed !== expectedSha256) {
     fail(
       "D2E_EXECUTION_MEMORY_BINARY_IDENTITY_MISMATCH",
       `Configured AK binary hash mismatch: expected ${expectedSha256}; got ${observed}.`,
     );
   }
-  return { path: canonicalPath, sha256: observed };
+  return {
+    path: canonicalPath,
+    sha256: observed,
+    fingerprint: `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`,
+  };
+}
+
+export function revalidateExecutionMemoryBinary(
+  binary: ReturnType<typeof validateExecutionMemoryBinary>,
+): void {
+  const current = validateExecutionMemoryBinary(binary.path, binary.sha256);
+  if (current.fingerprint !== binary.fingerprint) {
+    fail(
+      "D2E_EXECUTION_MEMORY_BINARY_IDENTITY_MISMATCH",
+      "Configured AK binary identity changed during producer execution.",
+    );
+  }
 }
 
 export function buildExecutionMemoryArgs(request: NormalizedExecutionMemoryRequest): string[] {
