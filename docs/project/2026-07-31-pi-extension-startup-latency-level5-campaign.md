@@ -190,8 +190,13 @@ A later H4 micro-bundle may combine context-packer, agent-vent, package-update-n
 |---|---|---|---|---|
 | SCI1 | `e09912a2978166bcf056a3de0b126cbe954a5211` | 602 ms wall median and 67 ms entrypoint median, equal to the unchanged baseline | package check passed, but the MCP bridge and SDK remained statically eager | rejected; lifecycle cleaned and admission released |
 | AR1 | `f2d7d0f14c3ebb7358f8a2dc3ae5fb015cd51267` | two ten-trial entrypoint medians of 18 ms versus a same-time unchanged 64 ms median; whole-process medians remained 703–709 ms versus 707 ms | package checks and lazy-loader tests passed, but independent review reproduced stale notifications from already-open editor flows and retained picker callbacks after `session_shutdown` | rejected as-is; lifecycle cleaned and admission released |
+| AR2 | `d7d9e66d0dad0ac02a417b66f6b128cdd13c6b94` | two ten-trial entrypoint medians of 20 ms versus a same-time unchanged 65 ms median; whole-process medians remained 720–744 ms versus 725 ms | full package gate passed 260 local tests with one environment-dependent live Prompt Vault skip; adversarial matrix passed all 16 lazy callbacks, exact host/session abort reasons, zero post-abort effects, cache reset, schema parity, and receipt isolation | accepted, fast-forward integrated, installed, fresh-process dogfooded, lifecycle cleaned, and admission released |
 
 AR1 therefore established a repeatable **46 ms entrypoint reduction**, but it did not establish a whole-process improvement and failed the behavior-preservation gate. No AR1 commit was integrated. A corrected implementation would be a new admitted candidate and must add post-await/callback liveness guards plus regression tests that begin with an already-open editor. Full schema-contract parity coverage remains a non-blocking follow-up beyond AR1's shallow top-level schema assertions.
+
+AR2 preserved a repeatable **45 ms entrypoint reduction** while resolving the AR1 shutdown race and two subsequent rounds of production-path abort findings. The final design gives each session revocable effects, session-local lazy caches, composed host/session cancellation, exact abort-reason propagation, and persistence checks at the core mutation boundary rather than UI-only guards. The final independent matrix exercised every registered lazy callback; passing boundary mocks alone were not accepted as proof.
+
+After exact integration and owner-path installation, three fresh five-trial configured-set invocations measured **2219, 2227, and 2234 ms**. Their 2227 ms median is 41 ms below the original 2268 ms campaign baseline, but intervening Pi 0.83 managed-package updates prevent attributing that entire configured-set difference to AR2. The isolated same-time 45 ms entrypoint result remains the candidate-specific evidence. The 1800 ms configured target is still unmet by 427 ms.
 
 ## Current state
 
@@ -200,9 +205,10 @@ AR1 therefore established a repeatable **46 ms entrypoint reduction**, but it di
 - baseline contract: configured-set baseline satisfied (three unchanged invocations); AK evidence `5653`
 - portfolio inventory: first pass complete (32 owned entrypoints)
 - admission reconciliation: AK-4378 completed the exact legacy-terminal reconciliation without weakening the ordinary hardened verifier
-- evaluated candidate cells: SCI1 and AR1, satisfying the multi-package evaluation requirement but producing no accepted slice
-- lifecycle posture: both candidate branches and worktrees are absent after restoration-verified archives; active admission pressure is zero
-- integration/promotion: none performed
-- combined configured-set portfolio measurement: still pending because no slice has passed both measurement and behavior gates
-- target posture: unmet; the campaign cannot claim savings from rejected candidate deltas
-- next legal move: admit a corrected AR follow-up or another ranked independent cell, run its package-specific behavior gates and fresh-process measurements, and remeasure the full configured set only after at least one slice is lawfully integrated
+- evaluated candidate cells: SCI1, AR1, and AR2 across two packages; SCI1 and AR1 were rejected, while AR2 passed the measured and behavioral gates
+- lifecycle posture: all candidate branches and worktrees are absent after restoration-verified archives; active admission pressure is zero
+- integration/promotion: exact AR2 commit series fast-forwarded to owner head `d7d9e66d0dad0ac02a417b66f6b128cdd13c6b94`; lifecycle commit-inclusion proof verified the accepted selection
+- activation/dogfood: owner-path `pi-autoresearch` is the sole configured package entry; a fresh RPC process registered `/autoresearch`, executed it before and after `new_session`, emitted the ready status both times, produced no `extension_error`, and exited zero
+- combined configured-set portfolio measurement: fresh medians 2219, 2227, and 2234 ms; median 2227 ms versus the historical 2268 ms baseline
+- target posture: unmet by 427 ms; AR2 is one accepted portfolio slice, not campaign completion
+- next legal move: continue the ranked portfolio with another independent admitted cell, preserving AR2's accepted boundary and remeasuring the combined configured set after the next integration
