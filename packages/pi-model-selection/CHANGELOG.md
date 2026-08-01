@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-model-selection-v0.2.0...pi-model-selection-v0.2.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **compaction:** delegate model calls to Pi host ([12a4976](https://github.com/tryingET/pi-extensions/commit/12a4976d287633bd9e86a84b02c0574f87e72dc1))
+* **compaction:** keep model credentials host-owned ([0053376](https://github.com/tryingET/pi-extensions/commit/0053376be1bb6fda561e53e8ea744de685baf2f3))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-model-selection-v0.1.1...pi-model-selection-v0.2.0) (2026-07-13)
 
 
