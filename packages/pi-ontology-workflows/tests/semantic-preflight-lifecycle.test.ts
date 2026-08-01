@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { OntologyInspectRequest, ResolvedOntologyTarget } from "../src/core/contracts.ts";
 import type { RocsDevelopmentPort, RocsPort } from "../src/ports/rocs-port.ts";
+import { buildHandlerObservationRecord as buildObservation } from "../src/semantic/handler-observation.ts";
 import {
   createSemanticPreflightRuntime,
   type PiHostCapabilities,
@@ -84,11 +85,17 @@ interface Harness {
   setNow(value: number): void;
 }
 
+interface ObservationInjections {
+  promptAppendProducer?: (input: string, block: string) => Promise<unknown>;
+  observationBuilder?: (input: { input: string; contribution: string; output: string }) => unknown;
+}
+
 async function harness(
   discover: RocsDevelopmentPort["discover"] = async () => ({
     invocation: "ok",
     result: discoveryResult(),
   }),
+  injections: ObservationInjections = {},
 ): Promise<Harness> {
   const descriptor = await descriptorPromise;
   const notifications: Array<{ message: string; level?: string }> = [];
@@ -174,6 +181,7 @@ async function harness(
     async activate() {
       return { descriptor, port };
     },
+    ...injections,
   });
   runtime.register({
     registerCommand(name: string, definition: { handler: CommandHandler }) {
@@ -258,6 +266,7 @@ test("fresh idle TUI confirmation enables a generation-scoped 10-minute grant", 
   const h = await harness();
   await enable(h);
   assert.equal(h.runtime.snapshot().grant, true);
+  assert.equal(h.runtime.latestObservation(), undefined);
   assert.deepEqual(h.confirmOptions, [{ timeout: 30_000 }]);
   assert.match(h.notifications.map((item) => item.message).join("\n"), /content-addressed cache/i);
   assert.match(
@@ -270,6 +279,7 @@ test("fresh idle TUI confirmation enables a generation-scoped 10-minute grant", 
   h.setNow(601_000);
   await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
   assert.equal(h.runtime.snapshot().grant, false);
+  assert.equal(h.runtime.latestObservation(), undefined);
   assert.match(h.notifications.at(-1)?.message ?? "", /continuing without semantic context/);
 });
 
@@ -311,6 +321,10 @@ test("enabled preflight preserves exact query bytes and appends structural-only 
   assert.doesNotMatch(result.systemPrompt, /DO NOT OBEY|<system>|definition|logical_path/);
   assert.equal((result.systemPrompt.match(/semantic-preflight\.v0 begin/g) ?? []).length, 1);
   assert.equal(h.runtime.snapshot().promptBindings, 1);
+  assert.equal(h.runtime.latestObservation()?.callback_settlement_observed, false);
+  const simulatedLaterPrompt = "later handler removed the contribution";
+  assert.equal(simulatedLaterPrompt.includes("semantic-preflight.v0"), false);
+  assert.equal(h.runtime.latestObservation()?.host_assignment_observed, false);
 
   const access = h.runtime.inspectAccess(h.ctx, {
     kind: "pack",
@@ -432,6 +446,7 @@ test("reload/new/resume/fork/shutdown invalidate grants, prompt bindings, and la
   for (const reason of ["reload", "new", "resume", "fork"]) {
     await emit(h, "session_start", { reason });
     assert.equal(h.runtime.snapshot().grant, false, reason);
+    assert.equal(h.runtime.latestObservation(), undefined, reason);
   }
 });
 
@@ -496,6 +511,21 @@ test("mode, immutable host capability, idle, confirm, host, cwd, and expiry gate
   changedHost.ctx.hostCapabilities = host(["future.capability.v1"]);
   await emit(changedHost, "before_agent_start", { prompt: "agent", systemPrompt: "S" });
   assert.equal(changedHost.runtime.snapshot().grant, false);
+});
+
+test("a same-instance transition out of TUI clears the stale grant and observation", async () => {
+  const h = await harness();
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
+  assert.ok(h.runtime.latestObservation());
+  h.ctx.mode = "rpc";
+  const [result] = await emit(h, "before_agent_start", {
+    prompt: "agent",
+    systemPrompt: "BASE",
+  });
+  assert.equal(result, undefined);
+  assert.equal(h.runtime.latestObservation(), undefined);
+  assert.equal(h.runtime.snapshot().grant, false);
 });
 
 test("inspect and status observations permanently invalidate stale grants and cancel boundaries", async () => {
@@ -568,6 +598,381 @@ test("unavailable discovery fails open with visible readback and no ontology pro
   assert.doesNotMatch(result.systemPrompt, /ignore everything|ontology-controlled|<system>/);
   assert.match(h.statuses.at(-1) ?? "", /preflight=unavailable/);
   assert.equal(h.notifications.at(-1)?.level, "warning");
+  assert.ok(h.runtime.latestObservation());
+});
+
+test("same-instance lifecycle events and shutdown clear a populated slot", async () => {
+  const h = await harness();
+  for (const reason of ["reload", "new", "resume", "fork"]) {
+    await enable(h);
+    await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
+    assert.ok(h.runtime.latestObservation(), reason);
+    await emit(h, "session_start", { reason });
+    assert.equal(h.runtime.latestObservation(), undefined, reason);
+  }
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
+  assert.ok(h.runtime.latestObservation());
+  await emit(h, "session_shutdown", { reason: "shutdown" });
+  assert.equal(h.runtime.latestObservation(), undefined);
+});
+
+test("expiry uses no timer and clears on the next validity evaluation", async () => {
+  const h = await harness();
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
+  const prior = h.runtime.latestObservation();
+  assert.ok(prior);
+  h.setNow(601_000);
+  assert.equal(h.runtime.latestObservation(), prior);
+  await h.commands.get("ontology-preflight")?.("status", h.ctx);
+  assert.equal(h.runtime.latestObservation(), undefined);
+  assert.equal(h.runtime.snapshot().grant, false);
+});
+
+test("disabled legacy behavior creates no observation", async () => {
+  const h = await harness();
+  await emit(h, "session_start", { reason: "startup" });
+  const [rawResult] = await emit(h, "before_agent_start", {
+    prompt: "ontology task",
+    systemPrompt: "BASE",
+  });
+  assert.match(promptResult(rawResult).systemPrompt, /Ontology workflow hint/);
+  assert.equal(h.runtime.latestObservation(), undefined);
+});
+
+test("replacement output forwards unchanged and clears a prior observation", async () => {
+  const h = await harness();
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
+  assert.ok(h.runtime.latestObservation());
+  const [rawResult] = await emit(h, "before_agent_start", {
+    prompt: "agent",
+    systemPrompt:
+      "OLD\n\n<!-- pi-ontology-workflows:semantic-preflight.v0 begin -->\nold\n<!-- pi-ontology-workflows:semantic-preflight.v0 end -->",
+  });
+  const result = promptResult(rawResult);
+  assert.ok(result.systemPrompt.startsWith("OLD\n\n<!--"));
+  assert.equal(h.runtime.latestObservation(), undefined);
+});
+
+test("producer rejection clears the slot and rejects with the same error", async () => {
+  const failure = new Error("append failed");
+  const h = await harness(undefined, {
+    async promptAppendProducer(input, block) {
+      if (input === "FAIL") throw failure;
+      const contribution = `\n\n${block}`;
+      return { contribution, output: input + contribution };
+    },
+  });
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
+  assert.ok(h.runtime.latestObservation());
+  const handler = h.events.get("before_agent_start")?.[0];
+  assert.ok(handler);
+  await assert.rejects(
+    async () => handler({ prompt: "agent", systemPrompt: "FAIL" }, h.ctx),
+    (error: unknown) => error === failure,
+  );
+  assert.equal(h.runtime.latestObservation(), undefined);
+});
+
+test("malformed producer shapes reject without a host return and clear the current slot", async () => {
+  let accessorReads = 0;
+  const accessor = Object.defineProperties(
+    {},
+    {
+      contribution: {
+        enumerable: true,
+        get() {
+          accessorReads++;
+          return "x";
+        },
+      },
+      output: { enumerable: true, value: "BADx" },
+    },
+  );
+  const throwingProxy = new Proxy(
+    { contribution: "x", output: "BADx" },
+    {
+      ownKeys() {
+        throw new Error("proxy inspection failed");
+      },
+    },
+  );
+  const malformed: Array<{ label: string; value: unknown }> = [
+    { label: "null", value: null },
+    { label: "undefined", value: undefined },
+    { label: "array", value: ["x", "BADx"] },
+    { label: "missing", value: { contribution: "x" } },
+    { label: "extra", value: { contribution: "x", output: "BADx", extra: true } },
+    { label: "non-string contribution", value: { contribution: 1, output: "BAD1" } },
+    { label: "non-string output", value: { contribution: "x", output: 1 } },
+    { label: "accessor", value: accessor },
+    { label: "throwing proxy", value: throwingProxy },
+  ];
+  for (const testCase of malformed) {
+    const h = await harness(undefined, {
+      async promptAppendProducer(input, block) {
+        if (input === "SEED") {
+          const contribution = `\n\n${block}`;
+          return { contribution, output: input + contribution };
+        }
+        return testCase.value;
+      },
+    });
+    await enable(h);
+    await emit(h, "before_agent_start", { prompt: "seed", systemPrompt: "SEED" });
+    assert.ok(h.runtime.latestObservation(), testCase.label);
+    await assert.rejects(
+      emit(h, "before_agent_start", { prompt: "bad", systemPrompt: "BAD" }),
+      TypeError,
+      testCase.label,
+    );
+    assert.equal(h.runtime.latestObservation(), undefined, testCase.label);
+  }
+  assert.equal(accessorReads, 0);
+});
+
+test("record failure forwards the exact prepared result and clears the slot", async () => {
+  const h = await harness(undefined, {
+    observationBuilder() {
+      throw new Error("observer failed");
+    },
+  });
+  await enable(h);
+  const [rawResult] = await emit(h, "before_agent_start", {
+    prompt: "agent",
+    systemPrompt: "BASE",
+  });
+  assert.match(promptResult(rawResult).systemPrompt, /^BASE\n\n<!--/);
+  assert.equal(h.runtime.latestObservation(), undefined);
+});
+
+test("malformed producer results forward existing transformations with an empty slot", async () => {
+  for (const produced of [
+    { contribution: "", output: "BASE" },
+    { contribution: "x", output: "wrong" },
+    { contribution: String.fromCharCode(0xd800), output: `BASE${String.fromCharCode(0xd800)}` },
+  ]) {
+    const h = await harness(undefined, {
+      async promptAppendProducer() {
+        return produced;
+      },
+    });
+    await enable(h);
+    const [rawResult] = await emit(h, "before_agent_start", {
+      prompt: "agent",
+      systemPrompt: "BASE",
+    });
+    assert.equal(promptResult(rawResult).systemPrompt, produced.output);
+    assert.equal(h.runtime.latestObservation(), undefined);
+  }
+});
+
+test("producer settles before builder and grant replacement clears the slot", async () => {
+  const order: string[] = [];
+  const h = await harness(undefined, {
+    async promptAppendProducer(input, block) {
+      const contribution = `\n\n${block}`;
+      await Promise.resolve();
+      order.push("producer-settled");
+      return { contribution, output: input + contribution };
+    },
+    observationBuilder(value) {
+      order.push("builder");
+      return buildObservation(value);
+    },
+  });
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "agent", systemPrompt: "BASE" });
+  assert.deepEqual(order, ["producer-settled", "builder"]);
+  assert.ok(h.runtime.latestObservation());
+  await h.commands.get("ontology-preflight")?.("enable-development", h.ctx);
+  assert.equal(h.runtime.latestObservation(), undefined);
+});
+
+test("builder lifecycle reentrancy cannot publish a stale observation", async () => {
+  const command = (h: Harness): CommandHandler => {
+    const handler = h.commands.get("ontology-preflight");
+    assert.ok(handler);
+    return handler;
+  };
+  const scenarios: Array<[string, boolean, (h: Harness) => Promise<unknown>]> = [
+    ["disable", false, (h) => command(h)("disable", h.ctx)],
+    ["reset", false, (h) => emit(h, "session_start", { reason: "reset" })],
+    [
+      "disable and re-enable",
+      true,
+      async (h) => {
+        const handler = command(h);
+        await handler("disable", h.ctx);
+        await handler("enable-development", h.ctx);
+      },
+    ],
+  ];
+  for (const [name, expectedGrant, runMutation] of scenarios) {
+    let mutate!: () => void;
+    let mutation: Promise<unknown> | undefined;
+    const h = await harness(undefined, {
+      observationBuilder(value) {
+        mutate();
+        return buildObservation(value);
+      },
+    });
+    mutate = () => {
+      mutation = runMutation(h);
+    };
+    await enable(h);
+    const [result] = await emit(h, "before_agent_start", {
+      prompt: "agent",
+      systemPrompt: "BASE",
+    });
+    await mutation;
+    assert.equal(result, undefined, name);
+    assert.equal(h.runtime.snapshot().grant, expectedGrant, name);
+    assert.equal(h.runtime.latestObservation(), undefined, name);
+  }
+});
+test("late old success cannot clear a reset, re-enabled, newer observation", async () => {
+  let releaseOld!: () => void;
+  let oldStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    oldStarted = resolve;
+  });
+  const h = await harness(undefined, {
+    async promptAppendProducer(input, block) {
+      const contribution = `\n\n${block}`;
+      if (input === "OLD") {
+        await new Promise<void>((resolve) => {
+          releaseOld = resolve;
+          oldStarted();
+        });
+      }
+      return { contribution, output: input + contribution };
+    },
+  });
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "seed", systemPrompt: "SEED" });
+  const old = emit(h, "before_agent_start", { prompt: "old", systemPrompt: "OLD" });
+  await started;
+  await emit(h, "session_start", { reason: "reset" });
+  await h.commands.get("ontology-preflight")?.("enable-development", h.ctx);
+  await emit(h, "before_agent_start", { prompt: "new", systemPrompt: "NEW" });
+  const newer = h.runtime.latestObservation();
+  assert.ok(newer);
+  releaseOld();
+  assert.deepEqual(await old, [undefined]);
+  assert.equal(h.runtime.latestObservation(), newer);
+});
+
+test("late old rejection cannot clear a reset, re-enabled, newer observation", async () => {
+  const oldFailure = new Error("late old rejection");
+  let rejectOld!: (error: Error) => void;
+  let oldStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    oldStarted = resolve;
+  });
+  const h = await harness(undefined, {
+    async promptAppendProducer(input, block) {
+      if (input === "OLD") {
+        return await new Promise<never>((_resolve, reject) => {
+          rejectOld = reject;
+          oldStarted();
+        });
+      }
+      const contribution = `\n\n${block}`;
+      return { contribution, output: input + contribution };
+    },
+  });
+  await enable(h);
+  await emit(h, "before_agent_start", { prompt: "seed", systemPrompt: "SEED" });
+  const old = emit(h, "before_agent_start", { prompt: "old", systemPrompt: "OLD" });
+  await started;
+  await emit(h, "session_start", { reason: "reset" });
+  await h.commands.get("ontology-preflight")?.("enable-development", h.ctx);
+  await emit(h, "before_agent_start", { prompt: "new", systemPrompt: "NEW" });
+  const newer = h.runtime.latestObservation();
+  assert.ok(newer);
+  rejectOld(oldFailure);
+  await assert.rejects(old, (error: unknown) => error === oldFailure);
+  assert.equal(h.runtime.latestObservation(), newer);
+});
+
+test("same-discovery-key callbacks use one slot with last append completion winning", async () => {
+  let discoveries = 0;
+  const releases = new Map<string, () => void>();
+  const h = await harness(
+    async () => {
+      discoveries++;
+      return { invocation: "ok", result: discoveryResult() };
+    },
+    {
+      async promptAppendProducer(input, block) {
+        await new Promise<void>((resolve) => releases.set(input, resolve));
+        const contribution = `\n\n${block}`;
+        return { contribution, output: input + contribution };
+      },
+    },
+  );
+  await enable(h);
+
+  const first = emit(h, "before_agent_start", {
+    prompt: "shared discovery request",
+    systemPrompt: "FIRST",
+  });
+  const second = emit(h, "before_agent_start", {
+    prompt: "shared discovery request",
+    systemPrompt: "SECOND",
+  });
+  while (releases.size < 2) await Promise.resolve();
+  assert.equal(discoveries, 1);
+
+  releases.get("SECOND")?.();
+  const [rawSecond] = await second;
+  const secondResult = promptResult(rawSecond);
+  assert.deepEqual(
+    h.runtime.latestObservation(),
+    buildObservation({
+      input: "SECOND",
+      contribution: secondResult.systemPrompt.slice("SECOND".length),
+      output: secondResult.systemPrompt,
+    }),
+  );
+
+  releases.get("FIRST")?.();
+  const [rawFirst] = await first;
+  const firstResult = promptResult(rawFirst);
+  assert.deepEqual(
+    h.runtime.latestObservation(),
+    buildObservation({
+      input: "FIRST",
+      contribution: firstResult.systemPrompt.slice("FIRST".length),
+      output: firstResult.systemPrompt,
+    }),
+  );
+});
+
+test("a late earlier request cannot overwrite the newer request observation", async () => {
+  const releases = new Map<string, () => void>();
+  const h = await harness(undefined, {
+    async promptAppendProducer(input, block) {
+      await new Promise<void>((resolve) => releases.set(input, resolve));
+      const contribution = `\n\n${block}`;
+      return { contribution, output: input + contribution };
+    },
+  });
+  await enable(h);
+  const first = emit(h, "before_agent_start", { prompt: "first", systemPrompt: "FIRST" });
+  const second = emit(h, "before_agent_start", { prompt: "second", systemPrompt: "SECOND" });
+  while (releases.size < 2) await Promise.resolve();
+  releases.get("SECOND")?.();
+  await second;
+  const newer = h.runtime.latestObservation();
+  assert.equal(newer?.input_prompt_byte_length, 6);
+  releases.get("FIRST")?.();
+  assert.deepEqual(await first, [undefined]);
+  assert.equal(h.runtime.latestObservation(), newer);
 });
 
 function promptResult(value: unknown): { systemPrompt: string; message?: unknown } {
