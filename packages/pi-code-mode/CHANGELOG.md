@@ -13,18 +13,6 @@ system4d:
 
 All notable changes to this project are documented here.
 
-## 0.1.0 (2026-08-01)
-
-
-### Features
-
-* **pi-code-mode:** add persistent Python and JavaScript eval ([c7ece9c](https://github.com/tryingET/pi-extensions/commit/c7ece9cc54eb5da5133f901cf838dfa3889bf687))
-
-
-### Bug Fixes
-
-* **release:** preserve initial component version ([c676700](https://github.com/tryingET/pi-extensions/commit/c6767007b7ef60703de568db11d905ba1e2f956e))
-
 ## [0.1.0] - 2026-07-31
 
 ### Added
