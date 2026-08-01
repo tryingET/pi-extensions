@@ -1767,7 +1767,6 @@ function withVisibleLoopTimeout<T>(promise: Promise<T>, timeoutMs: number): Prom
     const timer = setTimeout(() => {
       rejectPromise(new VisibleLoopIntercomSendTimeoutError(timeoutMs));
     }, timeoutMs);
-    timer.unref?.();
     promise.then(
       (value) => {
         clearTimeout(timer);
