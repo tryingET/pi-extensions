@@ -102,10 +102,59 @@ What is now proven:
 - the operator/agent can capture the strip directly for visual inspection
 - the strip can be forced back to the top edge with an explicit repair command
 
+## AK #4317 live acceptance boundary
+
+The package's deterministic tests cover ordering reconciliation, fail-closed Niri selection, broker delegation, bridge allowlisting, and generated-renderer interaction wiring. They do **not** prove Electron rendering, compositor behavior, or real keyboard/pointer use.
+
+Before claiming live acceptance, run this on the target Niri desktop and record the observations separately:
+
+1. Reload at least two installed Pi sessions whose Ghostty titles carry distinct `· <full-32-hex-session-id-token>` suffixes.
+2. Confirm live text/timers update without card-node flicker and that active/settled regrouping happens only after the 15-second boundary.
+3. Hover one card, move directly to another, then traverse cards with Tab and Left/Right; confirm expansion follows the engaged card and collapses only after pointer/focus leaves all cards.
+4. Activate one exact card with click and Enter. Then create zero-match and duplicate-title conditions and confirm both do nothing.
+5. Bind and invoke `focus-strip` from Niri; confirm it follows the focused workspace, receives keyboard focus, and remains top-aligned in compact and expanded states.
+6. Start once normally (interactive) and once with `--click-through`; confirm the latter passes pointer input through and is intentionally not keyboard-interactive.
+
+Known boundary: placement still uses Electron's primary-display bounds. Workspace following is implemented, but cross-output/multi-monitor alignment remains explicitly unsupported and must not be claimed.
+
 ## Remaining manual/operator verification
 
-Still worth checking in normal use:
-- reload several already-open interactive Ghostty Pi tabs and confirm they all appear as separate cards
-- judge whether the current detail level is rich enough for long-running sessions
-- decide whether the strip should remain primary-display-only or grow multi-monitor behavior
-- decide whether click-through should stay the default for your workstation
+- Perform and retain the AK #4317 live acceptance observations above.
+- Judge whether the expanded detail density is calm enough for long-running sessions.
+- Decide whether a later owner-scoped task should add cross-output geometry instead of the current primary-display-only contract.
+
+## AK #4317 verification on 2026-07-27
+
+Deterministic implementation evidence:
+
+- completed transcendent lineage `transcendent-1785180277721` across all eight phases after an earlier indeterminate timed-out lineage was inspected and reconciled rather than mechanically retried;
+- targeted interaction/order/focus suite passed (`28/28`);
+- `npm run check` passed (`37/37`) including formatting, file-budget, packaging, and quick release checks;
+- an explicit `npm run release:check:quick` rerun passed; the npm registry correctly rejected republishing existing version `0.2.0`, and the package gate treats that known dry-run version guard as non-fatal;
+- local `pi install "$PWD"` completed successfully;
+- task scope remained limited to `packages/pi-activity-strip/**`, with `git diff --check` clean.
+
+Live-runtime disposition is **blocked, not accepted**:
+
+- restarting the installed strip reached the package launch timeout and `npm run smoke:headless-live` reproduced the same timeout;
+- the old long-running strip process was stopped during the requested restart, so no new live window is currently claimed;
+- a minimal Electron application and the unmodified `HEAD` activity-strip Electron entrypoint both stalled before Electron's `app.whenReady()` resolved under `/usr/bin/electron39` `v39.8.10` in this desktop session;
+- therefore current live hover, pointer, keyboard, workspace-follow, and exact click-to-Ghostty behavior remain unverified. The control-plane unit tests pass, but they are not a substitute for a rendered compositor proof.
+
+This isolates the immediate blocker below the package diff: Electron application readiness on the current host session. Do not describe AK #4317 as live-accepted until Electron can create a window again and the manual acceptance sequence above is completed.
+
+Follow-up diagnosis found the concrete host condition: `niri msg -j outputs` returned `{}` and every DRM DisplayPort connector reported `disconnected`. Electron 39's Wayland path did not reach `app.whenReady()` without a compositor output, while an X11 probe did; the X11 probe is not an accepted fallback because its Xwayland window identity breaks the package's exact Niri alignment/focus contract. AK #4320 therefore makes `doctor` and `open` fail fast with an actionable blocker when Niri reports zero connected outputs. Turn on or reconnect the monitor, confirm Niri reports an output, then restart and execute the live acceptance sequence.
+
+## AK #4323 live defect follow-up
+
+The reconnected-display run supplied real evidence that deterministic tests had missed:
+
+- exact click-to-Ghostty worked for a newly loaded DSPx peer, while older tabs still emitted legacy `steve-…` broker identities;
+- moving to another desktop window could leave a focused card expanded at 252px because DOM focus remained on the card after the Electron window blurred;
+- the transparent overlay retained both Electron/compositor and CSS panel shadows.
+
+The bounded repair collapses on renderer and BrowserWindow blur, ignores stale DOM focus when the document is not focused, collapses on pointer leave/visibility loss, disables both window and panel shadows, and resolves legacy telemetry only through the existing process-bound `pi-session-presence` sidecar after validating its source, PID, cwd, and full Pi session UUID. Missing, stale, mismatched, or ambiguous identity still does nothing and requests `/reload`.
+
+A subsequent live run exposed a second compositor boundary: the renderer could close the card while the non-resizable Wayland surface remained at 252px, leaving a transparent input mask over the desktop. The follow-up keeps the native surface resize-capable, explicitly moves it to Niri's floating layout, and reapplies its target size on every expansion/collapse request rather than treating matching logical state as proof of matching compositor geometry. Live acceptance requires observing the Niri `window_size` return from `1904×252` to `1904×84` after pointer leave.
+
+A later focus failure exposed an identity collision rather than a focus-command failure: `rocs-cli` and `ontology-kernel` both had the legacy UUIDv7 prefix `019f4f3f`. Current session-presence titles therefore use the full 32 hexadecimal UUID characters with hyphens removed. Activity Strip prefers that identity and accepts an 8-hex migration fallback only when neither another legacy title nor a migrated full title shares its prefix. Install/restart Activity Strip first, then reload affected Pi tabs before claiming collision repair live.

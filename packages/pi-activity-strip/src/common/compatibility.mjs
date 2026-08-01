@@ -91,6 +91,12 @@ export async function assessActivityStripCompatibility(options = {}) {
     );
   }
 
+  if (windowManager === "niri" && displayCount === 0) {
+    blockers.push(
+      "Niri reports no connected display outputs. Turn on or reconnect the monitor before opening the activity strip.",
+    );
+  }
+
   try {
     electronPath = await locateElectronImpl();
   } catch (error) {
@@ -117,7 +123,7 @@ export async function assessActivityStripCompatibility(options = {}) {
     displayCount,
     alignmentMode: windowManager === "niri" ? "niri" : "generic",
     primaryDisplayOnly: true,
-    clickThroughDefault: env.PI_ACTIVITY_STRIP_CLICK_THROUGH !== "0",
+    clickThroughDefault: env.PI_ACTIVITY_STRIP_CLICK_THROUGH === "1",
     blockers,
     warnings,
   };
@@ -134,7 +140,7 @@ export function formatCompatibilityReport(report) {
     `Electron: ${report.electronPath || "not found"}`,
     `Alignment mode: ${report.alignmentMode}`,
     `Primary-display only: ${report.primaryDisplayOnly ? "yes" : "no"}`,
-    `Click-through default: ${report.clickThroughDefault ? "yes" : "no"}`,
+    `Click-through mode: ${report.clickThroughDefault ? "enabled by environment" : "disabled (interactive default)"}`,
   ];
 
   if (typeof report.displayCount === "number") {

@@ -47,19 +47,27 @@ export class ActivityStripBroker extends EventEmitter {
     this.socketDir = options.socketDir ?? ACTIVITY_STRIP_SOCKET_DIR;
     this.store = options.store ?? new SessionStore();
     this.getRuntimeStatus = options.getRuntimeStatus ?? (() => undefined);
+    this.focusSession =
+      options.focusSession ?? (async () => ({ ok: false, error: "Focus unavailable" }));
     this.server = net.createServer((socket) => this.handleConnection(socket));
     this.tick = null;
   }
 
   async start() {
-    fs.mkdirSync(this.socketDir, { recursive: true });
+    fs.mkdirSync(this.socketDir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(this.socketDir, 0o700);
     safeUnlink(this.socketPath);
 
     await new Promise((resolve, reject) => {
       this.server.once("error", reject);
       this.server.listen(this.socketPath, () => {
         this.server.off("error", reject);
-        resolve(undefined);
+        try {
+          fs.chmodSync(this.socketPath, 0o600);
+          resolve(undefined);
+        } catch (error) {
+          reject(error);
+        }
       });
     });
 
@@ -129,6 +137,13 @@ export class ActivityStripBroker extends EventEmitter {
           snapshot: this.store.snapshot(),
           runtimeStatus: this.getRuntimeStatus(),
         });
+        return;
+      case "focus":
+        Promise.resolve(this.focusSession(String(message.sessionId ?? "")))
+          .then((result) => this.reply(socket, { type: "focus", ...result }))
+          .catch(() =>
+            this.reply(socket, { ok: false, type: "focus", error: "Focus failed closed." }),
+          );
         return;
       case "shutdown":
         this.reply(socket, { ok: true, type: "shutdown" });

@@ -105,10 +105,13 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
     },
     /** @param {SessionStartContextLike} ctx */
     async onSessionStart(ctx) {
+      const exactSessionId = String(ctx?.sessionManager?.getSessionId?.() ?? "").trim();
+      const nextCwd = ctx?.cwd ?? snapshot.cwd;
       update({
-        cwd: ctx?.cwd ?? snapshot.cwd,
+        ...(exactSessionId ? { sessionId: exactSessionId } : {}),
+        cwd: nextCwd,
         sessionName: pi?.getSessionName?.() ?? snapshot.sessionName,
-        detail: previewPath(ctx?.cwd ?? snapshot.cwd, 72) || "Ready",
+        detail: previewPath(nextCwd, 72) || "Ready",
       });
       startHeartbeat();
       await flush();

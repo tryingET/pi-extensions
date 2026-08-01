@@ -22,6 +22,18 @@ test("createInitialSnapshot seeds an idle session", () => {
   assert.ok(snapshot.sessionId.length > 0);
 });
 
+test("session start adopts Pi's exact session identity for fail-closed window matching", async () => {
+  const telemetry = createSessionTelemetry({ cwd: "/tmp/demo" });
+  await telemetry.onSessionStart({
+    cwd: "/tmp/demo",
+    sessionManager: {
+      getSessionId: () => "019fa4d0-7142-7fb4-8d30-f98e951f0513",
+    },
+  });
+  assert.equal(telemetry.getSnapshot().sessionId, "019fa4d0-7142-7fb4-8d30-f98e951f0513");
+  await telemetry.shutdown();
+});
+
 test("describeToolCall highlights bash and read details", () => {
   const bash = describeToolCall("bash", { command: "npm run verify && npm test" });
   assert.equal(bash.phase, "Running bash");

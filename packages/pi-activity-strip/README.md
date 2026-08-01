@@ -33,6 +33,10 @@ This package is designed for the exact workflow you asked for:
   - elapsed time plus last-seen freshness
   - state color (`thinking`, `tool`, `waiting`, `done`, `error`)
 - keeps a local broker so multiple Pi processes can report into one strip
+- groups active work ahead of settled sessions on a calm 15-second ordering clock, while card details remain live
+- reveals prompt, response, path, and full activity detail on hover or keyboard focus
+- focuses the exact matching Ghostty/Niri window on click or Enter, failing closed when identity is missing or ambiguous
+- follows the focused Niri workspace instead of remaining stranded on an old workspace
 
 ## Architecture
 
@@ -53,12 +57,14 @@ Implemented now:
 - primary-display top-row strip
 - one card per active Pi session
 - headless-safe telemetry publishing
-- explicit open/status/doctor/snapshot/fix-top/stop commands
+- explicit open/focus-strip/focus-session/status/doctor/snapshot/fix-top/stop commands
+- focus-scoped Left/Right navigation and Shift+Left/Right manual card movement
 - local visual capture helpers so the agent can inspect the strip directly
 
 Not implemented yet:
 - multi-monitor strip replication
-- historical timeline / expand-on-hover detail
+- historical timeline
+- persisted manual card order across strip restarts
 - remote observers via `pi-server`
 
 ## Installation in Pi
@@ -93,6 +99,8 @@ or directly:
 
 ```bash
 node ./bin/pi-activity-strip.mjs open
+node ./bin/pi-activity-strip.mjs focus-strip
+node ./bin/pi-activity-strip.mjs focus-session <full-pi-session-id>
 node ./bin/pi-activity-strip.mjs status
 node ./bin/pi-activity-strip.mjs doctor
 node ./bin/pi-activity-strip.mjs snapshot
@@ -115,6 +123,25 @@ Inside Pi:
 In Pi with UI support:
 - `/activity-strip status` opens a detailed runtime status report when an editor surface is available
 - `/activity-strip doctor` opens the host-compatibility report
+
+## Interaction model
+
+- **Ordering:** active tool/thinking/waiting cards group ahead of settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
+- **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the one Ghostty title carrying that exact Pi session-id suffix.
+- **Keyboard inside the strip:** Left/Right changes card focus, Enter activates the focused card, and Shift+Left/Right manually moves it. Manual movement lasts until a later activity regroup or runtime restart.
+- **Fail-closed focus:** current telemetry uses the exact Pi identity directly. For already-running tabs that still publish a legacy broker id, the strip may recover only the process-bound `pi-session-presence` sidecar when its source, PID, and cwd all agree; this is not repo-name guessing or arbitrary-PID focusing. If identity still matches zero or multiple Ghostty windows, focus does nothing and asks for one `/reload`.
+
+### Keyboard-only entry on Niri
+
+The package deliberately does not reserve a global Electron shortcut. Bind one compositor key to the fail-closed CLI entrypoint instead:
+
+```kdl
+binds {
+    Mod+Shift+A { spawn "node" "/home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-activity-strip/bin/pi-activity-strip.mjs" "focus-strip"; }
+}
+```
+
+`focus-strip` moves the unique strip window to the currently focused workspace and gives it keyboard focus. This keeps shortcut ownership explicit in Niri and avoids application-level global-key collisions.
 
 ## Verification commands
 
@@ -179,8 +206,8 @@ Use `doctor` before opening the strip when the host/display assumptions are unce
 
 - `PI_ACTIVITY_STRIP_AUTO_START=0`
   - disable automatic strip opening on Pi session start
-- `PI_ACTIVITY_STRIP_CLICK_THROUGH=0`
-  - make the overlay clickable instead of mouse-transparent
+- `PI_ACTIVITY_STRIP_CLICK_THROUGH=1`
+  - opt out of interaction and restore a mouse-transparent overlay; interactive hover/click/keyboard behavior is the default
 - `PI_ACTIVITY_STRIP_ELECTRON_BIN=/path/to/electron`
   - override Electron binary discovery
 - `GLIMPSE_ELECTRON_BIN=/path/to/electron`
@@ -194,6 +221,7 @@ If you want this for all current tabs:
 2. run `/reload` inside each already-open Pi tab
 3. open the strip once with `/activity-strip` or `npm run strip:open`
 4. from then on, every loaded Pi session should report into the same top-row ribbon
+5. ensure `pi-little-helpers` session presence is loaded when you want exact click-to-Ghostty focus; its `· <full-32-hex-session-id-token>` title suffix is the preferred fail-closed identity seam (an 8-hex legacy title remains usable only when no legacy duplicate or migrated full title shares its prefix)
 
 ## References
 

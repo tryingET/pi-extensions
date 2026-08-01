@@ -1,16 +1,69 @@
 /**
-summary: "Tests that generated strip HTML reports session freshness beside elapsed time."
+summary: "Tests the generated strip's calm ordering, rich detail, and accessible interaction contract."
 read_when:
-  - "Changing strip card footer markup, freshness timestamps, or last-seen rendering."
+  - "Changing strip card rendering, ordering cadence, hover details, or keyboard interactions."
 */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createStripHtml } from "../src/ui/strip-html.mjs";
+import { createStripHtml, shouldRetainExpandedCard } from "../src/ui/strip-html.mjs";
 
-test("strip card footer renders last-seen freshness beside elapsed time", () => {
+test("strip keeps freshness live while ordering refreshes on a calm cadence", () => {
   const html = createStripHtml();
 
   assert.match(html, /function formatLastSeen\(session\)/);
   assert.match(html, /updatedAt \|\| snapshot\.generatedAt/);
-  assert.match(html, / · seen /);
+  assert.match(html, /const ORDER_REFRESH_MS = 15000/);
+  assert.match(html, /reconcileActivityOrder\(sessions, orderedIds, \{ regroup \}\)/);
+  assert.match(html, /Date\.now\(\) >= nextOrderRefreshAt/);
+});
+
+test("stale card focus cannot retain expansion after the strip loses focus", () => {
+  assert.equal(
+    shouldRetainExpandedCard({ hovered: false, activeElement: true, documentFocused: false }),
+    false,
+  );
+  assert.equal(
+    shouldRetainExpandedCard({ hovered: false, activeElement: true, documentFocused: true }),
+    true,
+  );
+  assert.equal(
+    shouldRetainExpandedCard({ hovered: true, activeElement: false, documentFocused: false }),
+    true,
+  );
+});
+
+test("interactive cards expose hover detail, exact activation, and focus-scoped keyboard control", () => {
+  const html = createStripHtml();
+
+  assert.match(html, /role="tooltip"/);
+  assert.match(html, /aria-describedby/);
+  assert.match(html, /card\.setAttribute\("aria-expanded", "false"\)/);
+  assert.match(html, /candidate\.setAttribute\("aria-expanded", isOpen \? "true" : "false"\)/);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(html, /api\.activate\(session\.sessionId\)/);
+  assert.match(html, /api\.setExpanded\(Boolean\(expanded\)\)/);
+  assert.match(html, /event\.key !== "ArrowLeft"/);
+  assert.match(html, /event\.shiftKey/);
+  assert.match(html, /moveOrderItem\(orderedIds/);
+  assert.match(html, /cards\.querySelector\("\.placeholder"\)\?\.remove\(\)/);
+  assert.match(html, /const cardById = new Map/);
+  assert.match(html, /if \(nodeAtTarget !== card\) cards\.insertBefore\(card, nodeAtTarget\)/);
+  assert.doesNotMatch(html, /cards\.append\(card\)/);
+  assert.match(html, /!cards\.querySelector\('\.card\[data-open="true"\]'\)/);
+  assert.match(html, /const engagedCard = \[\.\.\.cards\.querySelectorAll/);
+  assert.match(html, /shouldRetainExpandedCard\(\{/);
+  assert.match(html, /window\.addEventListener\("blur"/);
+  assert.match(html, /document\.addEventListener\("pointerleave"/);
+  assert.match(html, /api\.onCollapse/);
+  assert.match(html, /!card\.contains\(event\.relatedTarget\)/);
+  assert.match(html, /Focus bridge failed; nothing focused/);
+  assert.match(html, /height: 60px/);
+  assert.match(html, /height: 228px/);
+  assert.match(html, /prefers-reduced-motion/);
+  assert.match(html, /--shadow: none/);
+});
+
+test("click-through rendering remains an explicit escape hatch", () => {
+  assert.match(createStripHtml({ interactive: false }), /pointer-events: none/);
+  assert.match(createStripHtml({ interactive: true }), /pointer-events: auto/);
 });

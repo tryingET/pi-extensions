@@ -51,6 +51,26 @@ test("assessActivityStripCompatibility fails closed for headless sessions", asyn
   assert.equal(report.electronPath, "/tmp/electron");
 });
 
+test("assessActivityStripCompatibility fails closed when niri has no connected outputs", async () => {
+  const report = await assessActivityStripCompatibility({
+    env: {
+      WAYLAND_DISPLAY: "wayland-1",
+      NIRI_SOCKET: "/tmp/niri.sock",
+    },
+    async locateElectronImpl() {
+      return "/tmp/electron";
+    },
+    async execFileAsyncImpl() {
+      return { stdout: "{}", stderr: "" };
+    },
+  });
+
+  assert.equal(report.ok, false);
+  assert.equal(report.displayCount, 0);
+  assert.match(report.blockers.join("\n"), /no connected display outputs/i);
+  assert.match(formatCompatibilityReport(report), /Turn on or reconnect the monitor/i);
+});
+
 test("assessActivityStripCompatibility reports multi-display warnings and niri alignment", async () => {
   const report = await assessActivityStripCompatibility({
     env: {
@@ -77,4 +97,16 @@ test("assessActivityStripCompatibility reports multi-display warnings and niri a
   assert.equal(report.clickThroughDefault, false);
   assert.match(report.warnings.join("\n"), /primary display only/i);
   assert.match(formatCompatibilityReport(report), /Compatibility: compatible/);
+
+  const clickThroughReport = await assessActivityStripCompatibility({
+    env: {
+      WAYLAND_DISPLAY: "wayland-1",
+      PI_ACTIVITY_STRIP_CLICK_THROUGH: "1",
+    },
+    async locateElectronImpl() {
+      return "/tmp/electron";
+    },
+  });
+  assert.equal(clickThroughReport.clickThroughDefault, true);
+  assert.match(formatCompatibilityReport(clickThroughReport), /Click-through mode: enabled/);
 });
