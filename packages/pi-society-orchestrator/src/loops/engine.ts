@@ -19,7 +19,7 @@
  *   /loop kaizen "Improve test coverage"
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -38,6 +38,12 @@ import type { AgentResolution } from "../runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
 import { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
+import { inspectD2ERepository } from "../runtime/d2e-transfer-effects.ts";
+import {
+  D2E_WORKFLOW_TEMPLATE_OWNERS,
+  D2ETransferError,
+  executeD2ETransferWorkflow,
+} from "../runtime/d2e-transfer-workflow.ts";
 import {
   type EvidenceEntry,
   type EvidenceWriteResult,
@@ -56,7 +62,8 @@ import {
   toExecutionLike,
   type VerifiedDispatchEffectReceipt,
 } from "../runtime/subagent.ts";
-import type { TeamScopedContext } from "../runtime/team-state.ts";
+import { resolveSessionIdentity, type TeamScopedContext } from "../runtime/team-state.ts";
+import { createWorkflowExecutor } from "../runtime/workflow-execution.ts";
 import { LoopKesWriter, resolveLoopKesPackageRoot } from "./kes.ts";
 import {
   captureLoopArtifactHashes,
@@ -1170,24 +1177,51 @@ interface VaultDispatchPostureBinding {
   execution_surface?: string;
   execution_args?: Record<string, unknown>;
 }
-
 interface VaultDispatchPostureResult {
   posture: string;
   template_name: string;
   binding?: VaultDispatchPostureBinding | null;
   reason?: string;
 }
-
+interface VaultDispatchTemplate {
+  id?: number;
+  name: string;
+  content: string;
+  artifact_kind?: string;
+  owner_company?: string;
+  version?: number;
+  control_mode: string;
+  formalization_level: string;
+  visibility_companies?: string[];
+  controlled_vocabulary?: unknown;
+  status?: string;
+  export_to_pi?: boolean;
+}
+interface VaultClaimedExecution {
+  authorizationId: string;
+  disposition: string;
+  sealedText: string;
+  binding: VaultDispatchPostureBinding | null;
+  aggregate: {
+    primary: {
+      templateId: number;
+      templateName: string;
+      templateVersion: number;
+      contentSha256: string;
+      governedMetadataSha256: string;
+    };
+  };
+}
 interface VaultDispatchRuntimeResult {
   ok: boolean;
   status: "ready" | "blocked";
   results?: VaultDispatchPostureResult[];
+  templates?: VaultDispatchTemplate[];
   missing?: string[];
   current_company?: string;
   current_company_source?: string;
   blocking_reason?: string;
 }
-
 interface VaultDispatchRuntimeLike {
   checkTemplates: (
     templateNames: string[],
@@ -1195,8 +1229,37 @@ interface VaultDispatchRuntimeLike {
   ) => Promise<VaultDispatchRuntimeResult>;
 }
 
+interface VaultDispatchRuntime extends VaultDispatchRuntimeLike {
+  checkTemplates(
+    templateNames: string[],
+    ctx?: { cwd?: string; currentCompany?: string },
+  ): Promise<VaultDispatchRuntimeResult>;
+  authorizePreparedExecution(request: {
+    templates: VaultDispatchTemplate[];
+    primaryTemplateName: string;
+    finalPreparedText: string;
+    compositionKind: "single";
+    surface: "orchestrator_adapter";
+    currentCompany: string;
+    renderer: string;
+    rendererVersion: string;
+    wrapper: string;
+    context: string;
+    args: string[];
+  }):
+    | { disposition: "blocked"; reason: string; safeMessage: string }
+    | {
+        disposition: "dispatch_required" | "text_ready";
+        authorizationId: string;
+        binding?: VaultDispatchPostureBinding;
+      };
+  claimPreparedExecution(
+    authorizationId: string,
+  ): { ok: true; value: VaultClaimedExecution } | { ok: false; reason: string; error: string };
+  settlePreparedExecution(authorizationId: string, outcome: "handed_off" | "failed"): boolean;
+}
 interface VaultDispatchRuntimeModule {
-  createVaultDispatchRuntime: () => VaultDispatchRuntimeLike;
+  createVaultDispatchRuntime: () => VaultDispatchRuntime;
 }
 
 interface VaultPromptPlaneRuntimeModule {
@@ -1273,11 +1336,11 @@ const WORKFLOW_TEMPLATE_OWNER_ROUTES: Record<
 > = {
   "layer12-040-direction-to-execution-ak-native": {
     owner: "Agent Kernel direction-controller through Pi readback",
-    tool: "direction_controller_readback({ repo, intent })",
+    tool: "vault_execute_template(transfer_mode=proposal|applied)",
     purpose:
-      "inspect the existing AK direction-to-execution state machine and generated-program readiness; this readback does not claim DSPx execution or apply a transition",
+      "read back an exact AK packet/task/decision authorization lineage before any applied workflow handoff",
     example: (objective) =>
-      `direction_controller_readback({ repo: cwd, intent: ${JSON.stringify(objective)} })`,
+      `vault_execute_template({ template_name: "layer12-040-direction-to-execution-ak-native", objective: ${JSON.stringify(objective)}, transfer_mode: "proposal", repo: cwd, packet_key: "<packet-key>", task_id: 1, decision_id: 1, actor: "<current-task-claimant>" })`,
   },
   "pi-autoresearch-setup": {
     owner: "packages/pi-autoresearch",
@@ -1709,22 +1772,51 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
     description: `Execute a Prompt Vault template through the orchestrator dispatch gate.
 
 This bridge uses pi-vault-client dispatch posture metadata and refuses to treat loop/workflow templates as inert text.
-Known loop bindings execute through loop_execute semantics:
-- transcendent-iteration -> loop_execute({ loop: "transcendent", objective })
-- ooda -> loop_execute({ loop: "ooda", objective })
+Known loop bindings execute through loop_execute semantics. The three exact D2E transfer templates execute only through the D2E_TRANSFER_COMPLETE_V1 proposal/applied workflow gate.
 
-Unknown loop templates and workflow-grade templates without an execution binding fail closed with an explicit reason.`,
+Unknown templates and workflow-grade templates without an execution binding fail closed with an explicit reason.`,
     promptSnippet: "Execute a Prompt Vault template through its required orchestrator binding.",
     promptGuidelines: [
       "Use vault_execute_template when the operator asks to run/apply/execute a Prompt Vault template by name.",
       "Do not use raw vault_retrieve content as execution when this tool reports an orchestrator gate.",
       "If a workflow-grade template has no bridge binding, stop and use the owning package surface or design the missing binding before continuing.",
+      "Treat D2E proposal receipts as lawful read-only success; applied mode additionally requires proposal digests, current-session claimant identity, and controller activation.",
     ],
     parameters: Type.Object({
       template_name: Type.String({ description: "Exact Prompt Vault template name to execute" }),
       objective: Type.String({
-        description: "Objective to pass to the orchestrator execution binding",
+        description:
+          "For D2E, exact live task title or non-null description selector; task-native contract remains authoritative.",
       }),
+      transfer_mode: Type.Optional(
+        Type.Union([Type.Literal("proposal"), Type.Literal("applied")], {
+          description: "Proposal-only or applied D2E caller mode; defaults to proposal.",
+        }),
+      ),
+      repo: Type.Optional(Type.String({ description: "Exact registered repo for D2E readback." })),
+      packet_key: Type.Optional(Type.String({ description: "Exact AK packet key." })),
+      task_id: Type.Optional(Type.Number({ description: "Exact AK execution task id." })),
+      decision_id: Type.Optional(Type.Number({ description: "Exact governing AK decision id." })),
+      actor: Type.Optional(
+        Type.String({ description: "Exact invoking actor; must own the live AK task claim." }),
+      ),
+      task_scope_sha256: Type.Optional(
+        Type.String({
+          description: "Proposal-returned exact task scope digest required to apply.",
+        }),
+      ),
+      task_intent_sha256: Type.Optional(
+        Type.String({
+          description:
+            "Proposal-returned canonical task title/description/done-contract/guardrails digest required to apply.",
+        }),
+      ),
+      template_version: Type.Optional(
+        Type.Number({ description: "Proposal-returned exact Prompt Vault template version." }),
+      ),
+      template_content_sha256: Type.Optional(
+        Type.String({ description: "Proposal-returned exact Prompt Vault content digest." }),
+      ),
       continue_after_failure: Type.Optional(
         Type.Boolean({
           description:
@@ -1857,7 +1949,233 @@ Unknown loop templates and workflow-grade templates without an execution binding
 
       if (
         posture.posture === "orchestrator_workflow_gate_required" &&
-        posture.binding?.execution_surface === "workflow_execute"
+        posture.binding?.execution_surface === "workflow_execute" &&
+        posture.binding.execution_args?.workflow_gate === "D2E_TRANSFER_COMPLETE_V1"
+      ) {
+        const input = params as Record<string, unknown>;
+        const mode = input.transfer_mode === "applied" ? "applied" : "proposal";
+        const repo = typeof input.repo === "string" && input.repo.trim() ? input.repo : ctx.cwd;
+        const packetKey = typeof input.packet_key === "string" ? input.packet_key : "";
+        const taskId = Number(input.task_id);
+        const decisionId = Number(input.decision_id);
+        const invokingActor = typeof input.actor === "string" ? input.actor.trim() : "";
+        const invokingSessionId = resolveSessionIdentity(ctx) ?? "";
+        const template = dispatchCheck.templates?.[0];
+        const contentSha256 = template
+          ? createHash("sha256").update(template.content, "utf8").digest("hex")
+          : "";
+        const templateIdentity = {
+          templateId: Number(template?.id),
+          templateName: template?.name ?? "",
+          artifactKind: template?.artifact_kind ?? "",
+          controlMode: template?.control_mode ?? "",
+          formalizationLevel: template?.formalization_level ?? "",
+          ownerCompany: template?.owner_company ?? "",
+          templateVersion: Number(template?.version),
+          contentSha256,
+        };
+
+        const inspectRepository = (baselineHead?: string) =>
+          inspectD2ERepository({
+            repo,
+            baselineHead,
+            exec: (command, args, execOptions) => pi.exec(command, args, execOptions),
+            signal,
+          });
+
+        try {
+          if (
+            !template ||
+            dispatchCheck.templates?.length !== 1 ||
+            posture.binding.execution_args?.template_artifact_kind !== "procedure" ||
+            posture.binding.execution_args?.template_control_mode !== "one_shot" ||
+            posture.binding.execution_args?.template_formalization_level !== "workflow" ||
+            posture.binding.execution_args?.template_owner_company !== template.owner_company ||
+            template.owner_company !==
+              D2E_WORKFLOW_TEMPLATE_OWNERS[
+                templateName as keyof typeof D2E_WORKFLOW_TEMPLATE_OWNERS
+              ]
+          ) {
+            throw new D2ETransferError(
+              "D2E_TRANSFER_TEMPLATE_IDENTITY_MISMATCH",
+              "Dispatch check did not return one exact D2E procedure/one_shot/workflow template with its per-template owner.",
+            );
+          }
+          const result = await executeD2ETransferWorkflow({
+            request: {
+              templateName,
+              templateIdentity,
+              expectedTemplateVersion: Number(input.template_version),
+              expectedTemplateContentSha256:
+                typeof input.template_content_sha256 === "string"
+                  ? input.template_content_sha256
+                  : "",
+              mode: mode as "proposal" | "applied",
+              repo,
+              packetKey,
+              taskId,
+              decisionId,
+              expectedTaskScopeSha256:
+                typeof input.task_scope_sha256 === "string" ? input.task_scope_sha256 : "",
+              expectedTaskIntentSha256:
+                typeof input.task_intent_sha256 === "string" ? input.task_intent_sha256 : "",
+              objective,
+              invokingActor,
+              invokingSessionId,
+            },
+            exec: (command, args, execOptions) => pi.exec(command, args, execOptions),
+            activation:
+              process.env.PI_ORCH_D2E_TRANSFER_MODE === "enabled" ? "enabled" : "disabled",
+            prepareWorkflow:
+              mode === "applied"
+                ? async () => {
+                    const resolution = resolveAgent?.("builder", { ...ctx, cwd: repo });
+                    const toolResult = await getCognitiveToolByName(
+                      "controlled",
+                      { cwd: repo },
+                      signal,
+                    );
+                    if (isBoundaryFailure(toolResult) || !toolResult.value?.content.trim()) {
+                      throw new D2ETransferError(
+                        "D2E_TRANSFER_WORKFLOW_INCOMPLETE",
+                        "Governed cognitive tool 'controlled' is unavailable.",
+                      );
+                    }
+                    return {
+                      workflowExecutor: createWorkflowExecutor({
+                        sessionsDir: path.join(
+                          os.homedir(),
+                          ".pi",
+                          "agent",
+                          "sessions",
+                          "workflows",
+                        ),
+                        executor: subagentExecutor,
+                      }),
+                      workflowExecution: {
+                        activeTeam: resolution?.team ?? "full",
+                        model: ctx.model
+                          ? `${ctx.model.provider}/${ctx.model.id}`
+                          : "openrouter/google/gemini-2.5-flash-preview",
+                        cwd: repo,
+                        cognitiveToolContent: toolResult.value.content,
+                      },
+                    };
+                  }
+                : undefined,
+            inspectRepository,
+            claimPreparedTemplate: (sealedText) => {
+              const authorization = dispatchRuntime.authorizePreparedExecution({
+                templates: [template],
+                primaryTemplateName: templateName,
+                finalPreparedText: sealedText,
+                compositionKind: "single",
+                surface: "orchestrator_adapter",
+                currentCompany: dispatchCheck.current_company ?? "",
+                renderer: "pi-society-orchestrator/d2e-transfer",
+                rendererVersion: "2",
+                wrapper: "D2E_PREPARED_EXECUTION_V1",
+                context: `${repo}|${packetKey}|${taskId}|${decisionId}|${invokingActor}|${invokingSessionId}`,
+                args: [objective],
+              });
+              if (
+                authorization.disposition !== "dispatch_required" ||
+                authorization.binding?.execution_surface !== "workflow_execute" ||
+                authorization.binding.execution_args?.workflow_gate !== "D2E_TRANSFER_COMPLETE_V1"
+              ) {
+                throw new D2ETransferError(
+                  "D2E_TRANSFER_VAULT_AUTHORIZATION_FAILED",
+                  authorization.disposition === "blocked"
+                    ? authorization.safeMessage
+                    : "Vault authorization did not require the exact D2E workflow binding.",
+                );
+              }
+              const claimed = dispatchRuntime.claimPreparedExecution(authorization.authorizationId);
+              if (!claimed.ok) {
+                throw new D2ETransferError(
+                  "D2E_TRANSFER_VAULT_AUTHORIZATION_FAILED",
+                  claimed.error,
+                );
+              }
+              const value = claimed.value;
+              return {
+                authorizationId: value.authorizationId,
+                sealedText: value.sealedText,
+                templateIdentity: {
+                  templateId: value.aggregate.primary.templateId,
+                  templateName: value.aggregate.primary.templateName,
+                  artifactKind: template.artifact_kind ?? "",
+                  controlMode: template.control_mode ?? "",
+                  formalizationLevel: template.formalization_level ?? "",
+                  ownerCompany: template.owner_company ?? "",
+                  templateVersion: value.aggregate.primary.templateVersion,
+                  contentSha256: value.aggregate.primary.contentSha256,
+                  governedMetadataSha256: value.aggregate.primary.governedMetadataSha256,
+                },
+                settle(outcome: "handed_off" | "failed") {
+                  if (!dispatchRuntime.settlePreparedExecution(value.authorizationId, outcome)) {
+                    throw new D2ETransferError(
+                      "D2E_TRANSFER_VAULT_AUTHORIZATION_FAILED",
+                      "Vault authorization could not be settled exactly once.",
+                    );
+                  }
+                },
+              };
+            },
+            signal,
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result.receipt, null, 2) }],
+            details: {
+              ok: true,
+              kind: result.kind,
+              status: result.receipt.status,
+              receipt: result.receipt,
+              ...(result.kind === "complete" ? { workflow: result.workflow } : {}),
+            },
+          };
+        } catch (error) {
+          const code =
+            error instanceof D2ETransferError ? error.code : "D2E_TRANSFER_WORKFLOW_INCOMPLETE";
+          const message = error instanceof Error ? error.message : String(error);
+          const failure =
+            error instanceof D2ETransferError && error.failure
+              ? error.failure
+              : {
+                  schema: "D2E_TRANSFER_FAILURE_V1" as const,
+                  status: "not_ready" as const,
+                  caller_mode: mode,
+                  execution_phase: "input_validation" as const,
+                  required_packet: { disposition: "unknown" as const },
+                  transfer_materialization_authorization: {
+                    disposition: "not_authorized" as const,
+                    existed_at_dispatch: false,
+                  },
+                  downstream_implementation_authorization: {
+                    disposition: "not_authorized" as const,
+                    granted: false as const,
+                    basis: "separate_downstream_owner_authorization_required" as const,
+                  },
+                  effect: { disposition: "not_materialized" as const },
+                  error: { code, message },
+                };
+          const { error: _failureError, ...failureState } = failure;
+          return {
+            content: [{ type: "text", text: `${code}: ${message}` }],
+            details: {
+              ok: false,
+              error: code,
+              ...failureState,
+              failure,
+            },
+          };
+        }
+      }
+
+      if (
+        posture.posture === "orchestrator_workflow_gate_required" &&
+        posture.binding?.execution_surface === "workflow_execute" &&
+        posture.binding.execution_args?.workflow_gate !== "D2E_TRANSFER_COMPLETE_V1"
       ) {
         if (!options.executeVaultWorkflow) {
           return {
@@ -2075,7 +2393,6 @@ Unknown loop templates and workflow-grade templates without an execution binding
           },
         };
       }
-
       return {
         content: [
           {
@@ -2114,9 +2431,21 @@ Unknown loop templates and workflow-grade templates without an execution binding
 
 export function formatVaultExecuteTemplateResultLabel(result: AgentToolResult<unknown>): string {
   const details = result.details as
-    | { ok?: boolean; error?: string; result?: CompactLoopResult }
+    | {
+        ok?: boolean;
+        error?: string;
+        kind?: string;
+        status?: string;
+        result?: CompactLoopResult;
+      }
     | undefined;
   if (details?.result) return `${details.ok ? "✓" : "✗"} ${details.result.plugin}`;
+  if (details?.ok === true && details.kind === "proposal") {
+    return details.status === "not_ready"
+      ? "proposal not ready (read-only)"
+      : "proposal ready (read-only)";
+  }
+  if (details?.ok === true && details.status === "proposal") return "proposal ready (read-only)";
   if (details?.ok === true) return "executed";
   if (details?.error) return details.error;
   const content = result.content[0];
