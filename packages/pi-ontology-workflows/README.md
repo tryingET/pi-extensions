@@ -251,11 +251,21 @@ npm run docs:list
 npm run check
 ```
 
-Run the package tests directly:
+Run the hermetic package tests directly:
 
 ```bash
 node --import tsx --test tests/*.test.ts
 ```
+
+The default quality and release gates use only temporary ontology/workspace fixtures. They do not require a machine-local ROCS checkout or `~/ai-society` repositories.
+
+Before release from the owning workspace, run the explicit real-ROCS lane:
+
+```bash
+npm run check:owner-workspace
+```
+
+That lane requires `~/ai-society/core/rocs-cli`, its pre-synchronized `.venv`, the company and core ontology repositories, and `uv`. It pins the owner checkout through `uv run --frozen --no-sync`, disables Python bytecode writes, and writes ontology outputs only to temporary fixture repositories. Missing prerequisites fail visibly; they are never treated as skipped coverage.
 
 Optional live smoke:
 
