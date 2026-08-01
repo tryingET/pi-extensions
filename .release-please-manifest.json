@@ -16,7 +16,7 @@
   "packages/pi-little-helpers": "0.5.1",
   "packages/pi-model-selection": "0.2.1",
   "packages/pi-modes": "0.3.0",
-  "packages/pi-ontology-workflows": "0.2.0",
+  "packages/pi-ontology-workflows": "0.3.0",
   "packages/pi-peer-messaging": "0.2.1",
   "packages/pi-prompt-template-accelerator": "0.2.0",
   "packages/pi-prompt-template-execution": "0.2.0",

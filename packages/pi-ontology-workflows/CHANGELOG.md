@@ -23,6 +23,23 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.2.0...pi-ontology-workflows-v0.3.0) (2026-08-01)
+
+
+### Features
+
+* **ontology:** add default-off semantic release delivery attestations ([4fef0e0](https://github.com/tryingET/pi-extensions/commit/4fef0e0ec9dcfc342a5bf9b0ef4b3f83ef4f20e3))
+* **ontology:** integrate verified ROCS semantic runner ([11c5177](https://github.com/tryingET/pi-extensions/commit/11c51771b5123206dbf61da5ecfa2ceb6d020aed))
+* **ontology:** recover TUI semantic preflight lifecycle ([a938a9b](https://github.com/tryingET/pi-extensions/commit/a938a9b0b4428fd702f967f87ddaebaff346fcb3))
+
+
+### Bug Fixes
+
+* **ontology:** close live preflight deadline gaps ([afb1562](https://github.com/tryingET/pi-extensions/commit/afb1562b630df1dc643dc14b4bf63d4eef7d1289))
+* **ontology:** enforce generation ordering invariants ([595906c](https://github.com/tryingET/pi-extensions/commit/595906ccfc7d3c7771570eae9c36189cb25092e3))
+* **ontology:** harden Stage 2 runtime binding ([64d8aae](https://github.com/tryingET/pi-extensions/commit/64d8aae9abeffbc6ffe14a66e4e04c1c1ebcabaf))
+* **ontology:** pin development preflight to ROCS 0.2.1 ([ca8b2ff](https://github.com/tryingET/pi-extensions/commit/ca8b2ff66c503a965a997576edcd4ce2dba003da))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.1.0...pi-ontology-workflows-v0.2.0) (2026-07-13)
 
 ### Features
