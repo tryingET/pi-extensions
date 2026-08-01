@@ -21,7 +21,7 @@
   "packages/pi-prompt-template-accelerator": "0.2.0",
   "packages/pi-prompt-template-execution": "0.2.0",
   "packages/pi-provenance": "0.2.0",
-  "packages/pi-session-compaction": "0.2.0",
+  "packages/pi-session-compaction": "0.2.1",
   "packages/pi-snapshot-edit": "0.3.0",
   "packages/pi-society-orchestrator": "0.4.0",
   "packages/pi-society-startup-context": "0.2.0",
