@@ -91,7 +91,7 @@ function inklingContract(overrides = {}) {
         pi_model_id: "inkling-small-iq2m-canary",
         name: "Inkling",
         upstream_model: "thinkingmachines/Inkling-Small",
-        context_window: 2048,
+        context_window: 32768,
         max_tokens: 512,
         reasoning: false,
         input: ["text", "image"],
@@ -119,7 +119,7 @@ function inklingModel() {
     baseUrl: "http://127.0.0.1:1364/v1",
     reasoning: false,
     input: ["text", "image"],
-    contextWindow: 2048,
+    contextWindow: 32768,
     maxTokens: 512,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   };

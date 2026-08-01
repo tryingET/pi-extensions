@@ -65,6 +65,47 @@ test("audio payload binds the latest user marker and base64-encodes once", () =>
   }
 });
 
+test("ordinary Inkling requests are denied before health or provider network effects", async () => {
+  const originalFetch = globalThis.fetch;
+  const oldInline = process.env.PI_WORKSTATION_INFERENCE_CONTRACT_JSON;
+  const oldPath = process.env.PI_WORKSTATION_INFERENCE_CONTRACT;
+  const providers = [];
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    throw new Error("network should not be reached");
+  };
+  try {
+    delete process.env.PI_WORKSTATION_INFERENCE_CONTRACT;
+    process.env.PI_WORKSTATION_INFERENCE_CONTRACT_JSON = JSON.stringify(contract());
+    clearWorkstationHealthCache();
+    await extension({
+      on() {},
+      registerCommand() {},
+      registerProvider(_name, provider) {
+        providers.push(provider);
+      },
+    });
+    const events = [];
+    const stream = providers[0].streamSimple(
+      model(),
+      { messages: [] },
+      { apiKey: "workstation-local" },
+    );
+    for await (const event of stream) events.push(event);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "error");
+    assert.match(events[0].error.errorMessage, /exact external scheduler claim/);
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (oldInline === undefined) delete process.env.PI_WORKSTATION_INFERENCE_CONTRACT_JSON;
+    else process.env.PI_WORKSTATION_INFERENCE_CONTRACT_JSON = oldInline;
+    if (oldPath === undefined) delete process.env.PI_WORKSTATION_INFERENCE_CONTRACT;
+    else process.env.PI_WORKSTATION_INFERENCE_CONTRACT = oldPath;
+  }
+});
+
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object") {

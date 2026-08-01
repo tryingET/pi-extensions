@@ -173,7 +173,7 @@ bash ./scripts/package-quality-gate.sh ci packages/pi-workstation-inference-prov
 ### Brownfield file-budget exception
 
 `extensions/workstation-inference.ts` remains an existing oversized provider/command module
-(1,025 LOC after this slice). The scheduler consumer, immutable handoff, and disposition
+(1,039 LOC after this slice). The scheduler consumer, immutable handoff, and disposition
 logic was split into `extensions/workstation-scheduler.ts`; a further behavior-preserving
 provider/command split is explicitly deferred until after the scheduler-governed live
 acceptance so this security-sensitive activation is not mixed with a broad refactor. The

@@ -134,6 +134,7 @@ type ContractStatus = {
 const DEFAULT_PROVIDER_ID = "workstation-inference";
 const DEFAULT_PROVIDER_NAME = "Workstation Inference";
 const WORKSTATION_API_ID = "workstation-inference";
+const INKLING_CANARY_MODEL_ID = "inkling-small-iq2m-canary";
 const DEFAULT_CONTEXT_WINDOW = 131_072;
 const DEFAULT_MAX_TOKENS = 16_384;
 const DEFAULT_TIMEOUT_MS = 1_500;
@@ -609,6 +610,19 @@ export function streamWorkstationInference(
   const pendingAudio = armedAudio;
   const attachment = pendingAudio ? takeCurrentAudio(pendingAudio.marker) : undefined;
   const isAudioAttempt = latestMarker !== undefined || pendingAudio !== undefined;
+
+  if (!isAudioAttempt && model.id === INKLING_CANARY_MODEL_ID) {
+    queueMicrotask(() => {
+      stream.push(
+        errorEvent(
+          model,
+          "Inkling canary invocation requires /workstation-inference audio-send with an exact external scheduler claim; ordinary text/image requests are denied",
+        ),
+      );
+      stream.end();
+    });
+    return stream;
+  }
 
   (async () => {
     let completionAttempted = false;
