@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.2.1...pi-autonomous-session-control-v0.3.0) (2026-08-01)
+
+
+### Features
+
+* **asc:** integrate retained self routing and memory retrieval ([8e4c841](https://github.com/tryingET/pi-extensions/commit/8e4c841809661464038a3fcf9c1c2be7b705f1cc))
+
+
+### Bug Fixes
+
+* **asc:** disambiguate topic retrieval routing ([60441b4](https://github.com/tryingET/pi-extensions/commit/60441b46fb32ac7d47396e1c0d9582830c6d7271))
+* **asc:** narrow trap list precedence ([abd111f](https://github.com/tryingET/pi-extensions/commit/abd111f5a059adfb545cfc7ecf8591f7a5fb0b57))
+* **asc:** preserve pre-settlement transport diagnostics ([937488e](https://github.com/tryingET/pi-extensions/commit/937488e559cabae577fa95ee29851f1a9dec24f8))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.2.0...pi-autonomous-session-control-v0.2.1) (2026-07-13)
 
 
