@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.2.0...pi-autoresearch-v0.2.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **autoresearch:** declare trigger runtime dependency ([0a4025a](https://github.com/tryingET/pi-extensions/commit/0a4025a6b895b65e2128b972be8169cc99640428))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.1.0...pi-autoresearch-v0.2.0) (2026-07-13)
 
 
