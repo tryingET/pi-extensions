@@ -140,6 +140,7 @@ export interface SetAutoresearchRuntimeControlInput {
   decision: AutoresearchOperatorAction;
   reason?: string;
   selectedAt?: number;
+  signal?: AbortSignal;
 }
 
 export interface SetAutoresearchRuntimeControlResult {

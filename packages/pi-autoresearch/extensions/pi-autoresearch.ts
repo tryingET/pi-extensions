@@ -163,7 +163,7 @@ export function registerPiAutoresearchExtension(
     });
   }
 
-  registerAutoresearchPlanningTools(pi, options, modules);
+  registerAutoresearchPlanningTools(pi, options, modules, () => sessionEffects);
   registerAutoresearchStatusControlTools({
     pi,
     options,
@@ -175,7 +175,7 @@ export function registerPiAutoresearchExtension(
   registerAutoresearchRuntimeExecutionTools(pi, options, modules, () => sessionEffects);
   registerAutoresearchLoopResumeTools(pi, options, modules, () => sessionEffects);
   registerAutoresearchSelfHostingTool(pi, options, modules, () => sessionEffects);
-  registerAutoresearchLlamacppTools(pi, options, modules);
+  registerAutoresearchLlamacppTools(pi, options, modules, () => sessionEffects);
 }
 
 const EXTENSION_AUTORESEARCH_ASC_SELF_EVOLUTION_COMMAND =

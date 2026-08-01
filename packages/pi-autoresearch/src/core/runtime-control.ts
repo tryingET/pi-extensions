@@ -36,10 +36,14 @@ import { normalizeInlineReason } from "./runtime-status-format.ts";
 
 export function inspectAutoresearchRuntimeControl(
   cwd: string,
+  signal?: AbortSignal,
 ): InspectAutoresearchRuntimeControlResult {
+  signal?.throwIfAborted();
   const resolvedCwd = path.resolve(cwd);
   const loadResult = loadReceiptLog(resolvedCwd);
+  signal?.throwIfAborted();
   ensureEventLedgerInitializedFromReceipts(resolvedCwd, [...loadResult.entries]);
+  signal?.throwIfAborted();
   const status = buildAutoresearchRuntimeStatus(resolvedCwd, { persistSnapshot: false });
   return {
     cwd: resolvedCwd,
@@ -51,12 +55,14 @@ export function inspectAutoresearchRuntimeControl(
 export function setAutoresearchRuntimeControl(
   input: SetAutoresearchRuntimeControlInput,
 ): SetAutoresearchRuntimeControlResult {
+  input.signal?.throwIfAborted();
   const cwd = path.resolve(input.cwd);
   if (!isAutoresearchOperatorAction(input.decision)) {
     throw new Error(`Unsupported autoresearch control decision: ${String(input.decision)}`);
   }
 
-  const current = inspectAutoresearchRuntimeControl(cwd);
+  const current = inspectAutoresearchRuntimeControl(cwd, input.signal);
+  input.signal?.throwIfAborted();
   assertAutoresearchControlActionAllowed(current.status, input.decision);
 
   const selectedAt = input.selectedAt ?? Date.now();
@@ -67,6 +73,7 @@ export function setAutoresearchRuntimeControl(
     selectedAt,
   });
 
+  input.signal?.throwIfAborted();
   persistAutoresearchRuntimeSnapshot({
     cwd,
     current: createRuntimeSnapshotInput(
@@ -79,7 +86,8 @@ export function setAutoresearchRuntimeControl(
     updatedAt: selectedAt,
   });
 
-  const next = inspectAutoresearchRuntimeControl(cwd);
+  input.signal?.throwIfAborted();
+  const next = inspectAutoresearchRuntimeControl(cwd, input.signal);
   return {
     cwd,
     decision: input.decision,

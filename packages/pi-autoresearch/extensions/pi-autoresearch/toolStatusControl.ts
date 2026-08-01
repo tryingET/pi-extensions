@@ -107,6 +107,7 @@ export function registerAutoresearchStatusControlTools(input: {
       const operationSignal = composeAutoresearchSessionSignal(effects, signal);
 
       const runtimeModule = await modules.runtime();
+      operationSignal.throwIfAborted();
       const {
         applyAutoresearchCandidateInventoryCleanup,
         buildAutoresearchAdapterContractCatalog,
@@ -403,7 +404,7 @@ export function registerAutoresearchStatusControlTools(input: {
     promptSnippet:
       "Inspect or set the explicit pi-autoresearch operator control overlay and report the truthful next bounded step.",
     parameters: asPiToolParameters(controlSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "set" | "goal_pause" | "goal_resume" | "goal_complete";
         cwd?: string;
@@ -417,6 +418,8 @@ export function registerAutoresearchStatusControlTools(input: {
         action,
         allowedActions: ["status"],
       });
+      const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
 
       const {
         buildAutoresearchRuntimeStatus,
@@ -426,16 +429,19 @@ export function registerAutoresearchStatusControlTools(input: {
         setAutoresearchCampaignGoalControl,
         setAutoresearchRuntimeControl,
       } = await modules.runtime();
+      operationSignal.throwIfAborted();
 
       if (action === "set") {
         if (!request.decision) {
           throw new Error("decision is required when action=set for autoresearch_runtime_control");
         }
 
+        operationSignal.throwIfAborted();
         const result = setAutoresearchRuntimeControl({
           cwd,
           decision: request.decision,
           reason: request.reason,
+          signal: operationSignal,
         });
         return {
           content: [{ type: "text", text: formatAutoresearchControlResult(result) }],
@@ -444,11 +450,13 @@ export function registerAutoresearchStatusControlTools(input: {
       }
 
       if (action === "goal_pause" || action === "goal_resume" || action === "goal_complete") {
+        operationSignal.throwIfAborted();
         const result = setAutoresearchCampaignGoalControl({
           cwd,
           action:
             action === "goal_pause" ? "pause" : action === "goal_resume" ? "resume" : "complete",
           reason: request.reason,
+          signal: operationSignal,
         });
         const status = buildAutoresearchRuntimeStatus(cwd, {
           persistSnapshot: false,
@@ -470,7 +478,7 @@ export function registerAutoresearchStatusControlTools(input: {
         };
       }
 
-      const result = inspectAutoresearchRuntimeControl(cwd);
+      const result = inspectAutoresearchRuntimeControl(cwd, operationSignal);
       return {
         content: [{ type: "text", text: formatAutoresearchControlResult(result) }],
         details: result,
@@ -502,6 +510,7 @@ export function registerAutoresearchStatusControlTools(input: {
       const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { executeAutoresearchFinalization, formatAutoresearchFinalizationResult } =
         await modules.finalize();
+      operationSignal.throwIfAborted();
       const result = await executeAutoresearchFinalization({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -513,6 +522,7 @@ export function registerAutoresearchStatusControlTools(input: {
         model: ctx.model?.id,
         signal: operationSignal,
       });
+      operationSignal.throwIfAborted();
 
       return {
         content: [{ type: "text", text: formatAutoresearchFinalizationResult(result) }],

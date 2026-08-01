@@ -15,6 +15,7 @@ import {
   AUTORESEARCH_CONTROL_TOOL_NAME,
   AUTORESEARCH_FINALIZE_TOOL_NAME,
   AUTORESEARCH_RUN_TOOL_NAME,
+  AUTORESEARCH_SETUP_TOOL_NAME,
   AUTORESEARCH_STATUS_TOOL_NAME,
 } from "../extensions/pi-autoresearch/eagerContract.ts";
 import type {
@@ -30,6 +31,7 @@ import {
   AUTORESEARCH_NEXT_HYPOTHESIS_TEMPLATE_NAME,
   createAutoresearchDecisionRuntime,
 } from "../src/core/decisions.ts";
+import { beginAutoresearchCampaignGoal } from "../src/core/goal.ts";
 
 interface RegisteredCommand {
   handler: (args: string, ctx: unknown) => Promise<void>;
@@ -384,6 +386,119 @@ test("a real runtime run waiting on its import cannot write receipts after shutd
     if (previousWidgetSetting === undefined) delete process.env.PI_AUTORESEARCH_WIDGET;
     else process.env.PI_AUTORESEARCH_WIDGET = previousWidgetSetting;
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("host abort during delayed setup import preserves exact reason and writes no setup artifacts", async () => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-delayed-setup-abort-"));
+  const pendingRuntime = deferred<AutoresearchRuntimeModule>();
+  const hostAbort = new AbortController();
+  const marker = new Error("host cancelled delayed setup import");
+  let runtimeLoadCount = 0;
+  try {
+    const { tools } = registerHarness({
+      moduleLoaders: {
+        runtime: () => {
+          runtimeLoadCount += 1;
+          return pendingRuntime.promise;
+        },
+      },
+    });
+    const setupTool = tools.get(AUTORESEARCH_SETUP_TOOL_NAME);
+    assert.ok(setupTool);
+
+    const operation = setupTool.execute(
+      "delayed-setup-host-abort",
+      {
+        cwd,
+        action: "apply",
+        name: "must-not-persist",
+        metricName: "score",
+        direction: "higher",
+        benchmarkCommand: "bash autoresearch.sh",
+        benchmarkScript: '#!/usr/bin/env bash\necho "METRIC score=1"\n',
+        checksScript: "#!/usr/bin/env bash\nexit 0\n",
+      },
+      hostAbort.signal,
+      undefined,
+      { cwd },
+    );
+    await waitFor(() => runtimeLoadCount === 1);
+    hostAbort.abort(marker);
+    pendingRuntime.resolve(await import("../src/core/runtime.ts"));
+
+    await assert.rejects(operation, (error) => error === marker);
+    for (const artifact of [
+      "autoresearch.sh",
+      "autoresearch.checks.sh",
+      "autoresearch.jsonl",
+      "autoresearch.events.jsonl",
+      "autoresearch.runtime.json",
+    ]) {
+      assert.equal(existsSync(path.join(cwd, artifact)), false, artifact);
+    }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("host abort during delayed control import preserves goal bytes and blocks sibling status export", async () => {
+  const goalCwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-delayed-goal-abort-"));
+  const statusCwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-delayed-status-abort-"));
+  const pendingRuntime = deferred<AutoresearchRuntimeModule>();
+  const controlAbort = new AbortController();
+  const statusAbort = new AbortController();
+  const controlMarker = new Error("host cancelled delayed goal control import");
+  const statusMarker = new Error("host cancelled delayed status export import");
+  let runtimeLoadCount = 0;
+  try {
+    beginAutoresearchCampaignGoal({
+      cwd: goalCwd,
+      objective: "preserve this active goal ledger",
+      goalId: "goal-delayed-host-abort",
+      iterationBudget: 2,
+    });
+    const goalPath = path.join(goalCwd, "autoresearch.goal.json");
+    const activeGoalBytes = readFileSync(goalPath, "utf8");
+    const { tools } = registerHarness({
+      moduleLoaders: {
+        runtime: () => {
+          runtimeLoadCount += 1;
+          return pendingRuntime.promise;
+        },
+      },
+    });
+    const controlTool = tools.get(AUTORESEARCH_CONTROL_TOOL_NAME);
+    const statusTool = tools.get(AUTORESEARCH_STATUS_TOOL_NAME);
+    assert.ok(controlTool);
+    assert.ok(statusTool);
+
+    const controlOperation = controlTool.execute(
+      "delayed-goal-pause-host-abort",
+      { cwd: goalCwd, action: "goal_pause", reason: "must not persist" },
+      controlAbort.signal,
+      undefined,
+      { cwd: goalCwd },
+    );
+    const statusOperation = statusTool.execute(
+      "delayed-status-export-host-abort",
+      { cwd: statusCwd, action: "candidate_result_export" },
+      statusAbort.signal,
+      undefined,
+      { cwd: statusCwd },
+    );
+    await waitFor(() => runtimeLoadCount === 1);
+    controlAbort.abort(controlMarker);
+    statusAbort.abort(statusMarker);
+    pendingRuntime.resolve(await import("../src/core/runtime.ts"));
+
+    await assert.rejects(controlOperation, (error) => error === controlMarker);
+    await assert.rejects(statusOperation, (error) => error === statusMarker);
+    assert.equal(readFileSync(goalPath, "utf8"), activeGoalBytes);
+    assert.equal(existsSync(path.join(statusCwd, ".autoresearch", "candidate-result.json")), false);
+  } finally {
+    rmSync(goalCwd, { recursive: true, force: true });
+    rmSync(statusCwd, { recursive: true, force: true });
   }
 });
 

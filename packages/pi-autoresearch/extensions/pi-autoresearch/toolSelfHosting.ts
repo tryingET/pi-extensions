@@ -19,7 +19,10 @@ import {
   normalizeAutoresearchSelfHostingCommand,
   normalizeAutoresearchSelfHostingRegressionPercents,
 } from "./selfHostingFormat.ts";
-import type { AutoresearchSessionEffects } from "./sessionEffects.ts";
+import {
+  type AutoresearchSessionEffects,
+  composeAutoresearchSessionSignal,
+} from "./sessionEffects.ts";
 
 export function registerAutoresearchSelfHostingTool(
   pi: ExtensionAPI,
@@ -42,7 +45,7 @@ export function registerAutoresearchSelfHostingTool(
       "Use action=rollback only after an external controller rotation has already been recorded and later evidence requires explicit rollback truth.",
     ],
     parameters: asPiToolParameters(selfHostingSchema),
-    async execute(_toolCallId, params, _signal, onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const request = params as {
         action?: "status" | "prepare_candidate" | "run" | "start_and_watch" | "rollback";
         cwd?: string;
@@ -68,6 +71,7 @@ export function registerAutoresearchSelfHostingTool(
       const action = request.action ?? "status";
       assertReadProfileRejectsTool(options, AUTORESEARCH_SELF_HOSTING_TOOL_NAME);
       const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const sessionOnUpdate = typeof onUpdate === "function" ? effects.guard(onUpdate) : onUpdate;
       const {
         classifyAutoresearchSelfHostingApplicability,
@@ -81,6 +85,7 @@ export function registerAutoresearchSelfHostingTool(
         recordAutoresearchSelfHostingRollback,
         resolveAutoresearchSelfHostingPromotionRecordPath,
       } = await modules.selfHosting();
+      operationSignal.throwIfAborted();
 
       if (action === "prepare_candidate") {
         const result = prepareAutoresearchSelfHostingCandidateWorktree({

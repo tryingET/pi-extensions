@@ -12,6 +12,10 @@ import type { PiAutoresearchExtensionOptions } from "./extensionOptions.ts";
 import type { AutoresearchLazyModules } from "./lazyModules.ts";
 import { assertReadProfileAllowsAction } from "./readProfile.ts";
 import { asPiToolParameters, campaignControlSchema, campaignSchema } from "./schemas.ts";
+import {
+  type AutoresearchSessionEffects,
+  composeAutoresearchSessionSignal,
+} from "./sessionEffects.ts";
 
 function shouldPersistLlamacppProjection(input: {
   apply?: boolean;
@@ -38,6 +42,7 @@ export function registerAutoresearchLlamacppTools(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions,
   modules: AutoresearchLazyModules,
+  getSessionEffects: () => AutoresearchSessionEffects,
 ): void {
   pi.registerTool({
     name: AUTORESEARCH_LLAMACPP_CAMPAIGN_CONTROL_TOOL_NAME,
@@ -53,7 +58,7 @@ export function registerAutoresearchLlamacppTools(
       "Keep this surface below whole-campaign execution, fork automation, and direct AK mutation.",
     ],
     parameters: asPiToolParameters(campaignControlSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "advance";
         cwd?: string;
@@ -72,12 +77,14 @@ export function registerAutoresearchLlamacppTools(
         persistProjection: request.persistProjection,
       });
       const updatedAt = Date.now();
+      const operationSignal = composeAutoresearchSessionSignal(getSessionEffects(), signal);
       const {
         executeLlamacppCampaignControl,
         formatLlamacppCampaignControlResult,
         inspectLlamacppCampaignControl,
         persistDerivedLlamacppCampaignProjection,
       } = await modules.llamacpp();
+      operationSignal.throwIfAborted();
 
       if (action === "status" && request.apply === true) {
         throw new Error(
@@ -101,6 +108,7 @@ export function registerAutoresearchLlamacppTools(
               updatedAt,
             });
       const persistProjection = shouldPersistLlamacppProjection(request);
+      operationSignal.throwIfAborted();
       const persistedProjection = persistProjection
         ? persistDerivedLlamacppCampaignProjection({
             cwd,
@@ -146,7 +154,7 @@ export function registerAutoresearchLlamacppTools(
       "Use action=advance_campaign to derive or execute exactly one truthful next stage step; it is still a technical helper action rather than the public autoresearch_llamacpp_campaign_control surface or a whole-campaign runner.",
     ],
     parameters: asPiToolParameters(campaignSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         action?:
           | "plan_matrix"
@@ -178,6 +186,7 @@ export function registerAutoresearchLlamacppTools(
         persistProjection: request.persistProjection,
       });
       const updatedAt = Date.now();
+      const operationSignal = composeAutoresearchSessionSignal(getSessionEffects(), signal);
       const {
         advanceLlamacppCampaign,
         buildLlamacppCampaignAkBinding,
@@ -189,6 +198,7 @@ export function registerAutoresearchLlamacppTools(
         planLlamacppCampaignMatrix,
         prepareLlamacppCampaignFork,
       } = await modules.llamacpp();
+      operationSignal.throwIfAborted();
       const result =
         action === "prepare_fork"
           ? prepareLlamacppCampaignFork({
@@ -239,6 +249,7 @@ export function registerAutoresearchLlamacppTools(
                     manifestPath: request.manifestPath,
                   });
       const persistProjection = shouldPersistLlamacppProjection(request);
+      operationSignal.throwIfAborted();
       const persistedProjection = persistProjection
         ? persistLlamacppCampaignProjection({
             cwd,

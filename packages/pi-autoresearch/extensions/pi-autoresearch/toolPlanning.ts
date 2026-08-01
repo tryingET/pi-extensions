@@ -16,11 +16,16 @@ import {
   candidateDecisionSchema,
   vllmCampaignSchema,
 } from "./schemas.ts";
+import {
+  type AutoresearchSessionEffects,
+  composeAutoresearchSessionSignal,
+} from "./sessionEffects.ts";
 
 export function registerAutoresearchPlanningTools(
   pi: ExtensionAPI,
   options: PiAutoresearchExtensionOptions,
   modules: AutoresearchLazyModules,
+  getSessionEffects: () => AutoresearchSessionEffects,
 ): void {
   pi.registerTool({
     name: AUTORESEARCH_CANDIDATE_BIND_TOOL_NAME,
@@ -30,7 +35,7 @@ export function registerAutoresearchPlanningTools(
     promptSnippet:
       "Plan candidate intake for pi-autoresearch. Read-only: inspect candidate worktree/branch/base ref, summarize changed files/diff posture, and return the exact autoresearch_runtime_run call needed to bind and measure the candidate.",
     parameters: asPiToolParameters(candidateBindSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         cwd?: string;
         action?: "status" | "plan_run";
@@ -46,8 +51,10 @@ export function registerAutoresearchPlanningTools(
         action,
         allowedActions: ["status", "plan_run"],
       });
+      const operationSignal = composeAutoresearchSessionSignal(getSessionEffects(), signal);
       const { buildAutoresearchCandidateBindPlan, formatAutoresearchCandidateBindPlan } =
         await modules.runtime();
+      operationSignal.throwIfAborted();
       const result = buildAutoresearchCandidateBindPlan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -72,7 +79,7 @@ export function registerAutoresearchPlanningTools(
     promptSnippet:
       "Inspect or plan the current pi-autoresearch candidate lifecycle decision. Read-only: status, plan_keep, plan_discard, or plan_rewind. It consumes runtime receipts/closeout/candidate-result posture and returns exact next calls/commands without applying them.",
     parameters: asPiToolParameters(candidateDecisionSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "plan_keep" | "plan_discard" | "plan_rewind";
         cwd?: string;
@@ -89,10 +96,12 @@ export function registerAutoresearchPlanningTools(
         action,
         allowedActions: ["status", "plan_keep", "plan_discard", "plan_rewind"],
       });
+      const operationSignal = composeAutoresearchSessionSignal(getSessionEffects(), signal);
       const {
         buildAutoresearchCandidateDecisionWorkbench,
         formatAutoresearchCandidateDecisionWorkbench,
       } = await modules.runtime();
+      operationSignal.throwIfAborted();
       const result = buildAutoresearchCandidateDecisionWorkbench({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -113,7 +122,7 @@ export function registerAutoresearchPlanningTools(
     promptSnippet:
       "Use the vLLM autoresearch campaign cockpit to inspect workstation GPU/lane/benchmark readiness, plan matrix axes, produce exact bounded autoresearch next calls, and generate a fresh-session handoff prompt. This surface is plan/read-only; execution still happens through bounded autoresearch/workstation owner seams.",
     parameters: asPiToolParameters(vllmCampaignSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         action?: "status" | "plan" | "run_segment_plan" | "handoff_prompt";
         cwd?: string;
@@ -134,8 +143,10 @@ export function registerAutoresearchPlanningTools(
         action,
         allowedActions: ["status", "plan", "run_segment_plan", "handoff_prompt"],
       });
+      const operationSignal = composeAutoresearchSessionSignal(getSessionEffects(), signal);
       const { buildVllmAutoresearchCampaignPlan, formatVllmAutoresearchCampaignPlan } =
         await modules.vllm();
+      operationSignal.throwIfAborted();
       const result = buildVllmAutoresearchCampaignPlan({
         ...request,
         action,

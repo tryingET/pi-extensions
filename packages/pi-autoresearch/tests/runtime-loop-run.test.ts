@@ -30,6 +30,7 @@ import {
   buildAutoresearchRuntimeStatus,
   createConfigReceipt,
   createRunReceipt,
+  executeAutoresearchSetup,
   loadReceiptLog,
 } from "../src/core/runtime.ts";
 
@@ -89,6 +90,38 @@ function writeExecutable(cwd: string, name: string, content: string): void {
   writeFileSync(target, content, "utf8");
   chmodSync(target, 0o755);
 }
+
+test("core setup rejects an exact aborted signal before any setup persistence", async () => {
+  await withTempDir(async (cwd) => {
+    const controller = new AbortController();
+    const marker = new Error("exact core setup abort");
+    controller.abort(marker);
+
+    await assert.rejects(
+      executeAutoresearchSetup({
+        cwd,
+        action: "apply",
+        name: "must-not-persist",
+        metricName: "score",
+        direction: "higher",
+        benchmarkCommand: "bash autoresearch.sh",
+        benchmarkScript: '#!/usr/bin/env bash\necho "METRIC score=1"\n',
+        checksScript: "#!/usr/bin/env bash\nexit 0\n",
+        signal: controller.signal,
+      }),
+      (error) => error === marker,
+    );
+    for (const artifact of [
+      "autoresearch.sh",
+      "autoresearch.checks.sh",
+      "autoresearch.jsonl",
+      "autoresearch.events.jsonl",
+      "autoresearch.runtime.json",
+    ]) {
+      assert.equal(existsSync(path.join(cwd, artifact)), false, artifact);
+    }
+  });
+});
 
 function createDecisionRuntimeStub(
   input: { nextHypothesisOutcome?: NextHypothesisDecisionOutcome } = {},

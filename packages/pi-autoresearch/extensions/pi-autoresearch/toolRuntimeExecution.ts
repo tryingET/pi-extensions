@@ -81,6 +81,7 @@ export function registerAutoresearchRuntimeExecutionTools(
       const effects = getSessionEffects();
       const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { executeAutoresearchRun, formatAutoresearchRunResult } = await modules.runtime();
+      operationSignal.throwIfAborted();
       const result = await executeAutoresearchRun({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         description: request.description,
@@ -128,6 +129,7 @@ export function registerAutoresearchRuntimeExecutionTools(
           : undefined,
         signal: operationSignal,
       });
+      operationSignal.throwIfAborted();
 
       return {
         content: [{ type: "text", text: formatAutoresearchRunResult(result) }],
@@ -144,7 +146,7 @@ export function registerAutoresearchRuntimeExecutionTools(
     promptSnippet:
       "Use before setup when campaign config, metric, benchmark, checks, or DSPx planner handoff should be inferred from the repo and objective.",
     parameters: asPiToolParameters(autoplanSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         cwd?: string;
         objective: string;
@@ -164,8 +166,11 @@ export function registerAutoresearchRuntimeExecutionTools(
         dspxBehaviorPath?: string;
       };
       assertReadProfileRejectsTool(options, AUTORESEARCH_AUTOPLAN_TOOL_NAME);
+      const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { buildAutoresearchAutoplan, formatAutoresearchAutoplanResult } =
         await modules.runtime();
+      operationSignal.throwIfAborted();
       const result = buildAutoresearchAutoplan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         objective: request.objective,
@@ -224,6 +229,7 @@ export function registerAutoresearchRuntimeExecutionTools(
       const effects = getSessionEffects();
       const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { executeAutoresearchSetup, formatAutoresearchSetupResult } = await modules.runtime();
+      operationSignal.throwIfAborted();
       const result = await executeAutoresearchSetup({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         action: request.action,
@@ -245,6 +251,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         checksTimeoutSeconds: request.checksTimeoutSeconds,
         signal: operationSignal,
       });
+      operationSignal.throwIfAborted();
       return {
         content: [{ type: "text", text: formatAutoresearchSetupResult(result) }],
         details: result,
@@ -326,6 +333,7 @@ export function registerAutoresearchRuntimeExecutionTools(
       const effects = getSessionEffects();
       const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const runtimeModule = await modules.runtime();
+      operationSignal.throwIfAborted();
       const { executeAutoresearchCampaignStart, formatAutoresearchCampaignStartResult } =
         runtimeModule;
       const result = await executeAutoresearchCampaignStart({
@@ -381,6 +389,7 @@ export function registerAutoresearchRuntimeExecutionTools(
         signal: operationSignal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
+      operationSignal.throwIfAborted();
       return {
         content: [{ type: "text", text: formatAutoresearchCampaignStartResult(result) }],
         details: result,

@@ -98,6 +98,7 @@ export interface SetAutoresearchCampaignGoalControlInput {
   action: "pause" | "resume" | "complete";
   reason?: string;
   now?: number;
+  signal?: AbortSignal;
 }
 
 export const EMPTY_BUDGET: AutoresearchCampaignGoalBudget = {

@@ -32,7 +32,7 @@ export function registerAutoresearchLoopResumeTools(
     promptSnippet:
       "Plan scout_peer_spawn, candidate_peer_spawn, or fork_peer_spawn from current autoresearch state without auto-spawning peers.",
     parameters: asPiToolParameters(peerAssistSchema),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const request = params as {
         cwd?: string;
         lane?: "auto" | "none" | "scout" | "candidate" | "fork";
@@ -48,8 +48,11 @@ export function registerAutoresearchLoopResumeTools(
         action: "plan",
         allowedActions: ["plan"],
       });
+      const effects = getSessionEffects();
+      const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const { buildAutoresearchPeerAssistPlan, formatAutoresearchPeerAssistPlan } =
         await modules.runtime();
+      operationSignal.throwIfAborted();
       const result = buildAutoresearchPeerAssistPlan({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
         lane: request.lane,
@@ -123,6 +126,7 @@ export function registerAutoresearchLoopResumeTools(
       const effects = getSessionEffects();
       const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const runtimeModule = await modules.runtime();
+      operationSignal.throwIfAborted();
       const { executeAutoresearchLoop, formatAutoresearchLoopResult } = runtimeModule;
       const result = await executeAutoresearchLoop({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
@@ -163,6 +167,7 @@ export function registerAutoresearchLoopResumeTools(
         signal: operationSignal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
+      operationSignal.throwIfAborted();
       return {
         content: [{ type: "text", text: formatAutoresearchLoopResult(result) }],
         details: result,
@@ -196,6 +201,7 @@ export function registerAutoresearchLoopResumeTools(
       const effects = getSessionEffects();
       const operationSignal = composeAutoresearchSessionSignal(effects, signal);
       const runtimeModule = await modules.runtime();
+      operationSignal.throwIfAborted();
       const { executeAutoresearchResumeApply, formatAutoresearchResumeApplyResult } = runtimeModule;
       const result = await executeAutoresearchResumeApply({
         cwd: request.cwd ?? ctx.cwd ?? process.cwd(),
@@ -212,6 +218,7 @@ export function registerAutoresearchLoopResumeTools(
         signal: operationSignal,
         onProgress: (event) => emitAutoresearchLoopUpdate(onUpdate, event, runtimeModule, effects),
       });
+      operationSignal.throwIfAborted();
       return {
         content: [{ type: "text", text: formatAutoresearchResumeApplyResult(result) }],
         details: result,

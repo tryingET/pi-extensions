@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -17,6 +17,36 @@ function writeExecutable(cwd: string, name: string, content: string): string {
   chmodSync(target, 0o755);
   return target;
 }
+
+test("campaign goal control rejects an exact aborted signal before persistence", () => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-campaign-goal-abort-"));
+  try {
+    beginAutoresearchCampaignGoal({
+      cwd,
+      objective: "preserve active goal bytes",
+      goalId: "goal-core-abort",
+      iterationBudget: 2,
+    });
+    const goalPath = path.join(cwd, "autoresearch.goal.json");
+    const activeGoalBytes = readFileSync(goalPath, "utf8");
+    const controller = new AbortController();
+    const marker = new Error("exact core goal abort");
+    controller.abort(marker);
+
+    assert.throws(
+      () =>
+        setAutoresearchCampaignGoalControl({
+          cwd,
+          action: "pause",
+          signal: controller.signal,
+        }),
+      (error) => error === marker,
+    );
+    assert.equal(readFileSync(goalPath, "utf8"), activeGoalBytes);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
 
 test("campaign goal ledger accumulates multiple foreground segments with legal statuses", async () => {
   const cwd = mkdtempSync(path.join(os.tmpdir(), "autoresearch-campaign-goal-"));

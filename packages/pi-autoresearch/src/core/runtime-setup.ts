@@ -26,6 +26,7 @@ export async function executeAutoresearchSetup(
   const action = input.action ?? "plan";
   const paths = resolveAutoresearchPaths(cwd);
   const plannedConfig = createConfigReceipt(input);
+  input.signal?.throwIfAborted();
   let wroteBenchmarkScript = false;
   let wroteChecksScript = false;
 
@@ -43,11 +44,13 @@ export async function executeAutoresearchSetup(
     };
   }
 
+  input.signal?.throwIfAborted();
   wroteBenchmarkScript = maybeWriteAutoresearchScript({
     path: paths.benchmarkScriptPath,
     content: input.benchmarkScript,
     allowOverwrite: input.allowOverwriteScripts === true,
   });
+  input.signal?.throwIfAborted();
   wroteChecksScript = maybeWriteAutoresearchScript({
     path: paths.checksScriptPath,
     content: input.checksScript ?? undefined,
@@ -72,6 +75,7 @@ export async function executeAutoresearchSetup(
       checksTimeoutSeconds: input.checksTimeoutSeconds,
       signal: input.signal,
     });
+    input.signal?.throwIfAborted();
     return {
       cwd,
       action,
@@ -92,8 +96,11 @@ export async function executeAutoresearchSetup(
     );
   }
   const entries = loadReceiptLog(cwd).entries;
+  input.signal?.throwIfAborted();
   ensureEventLedgerInitializedFromReceipts(cwd, entries);
+  input.signal?.throwIfAborted();
   appendReceipt(cwd, plannedConfig);
+  input.signal?.throwIfAborted();
   appendLedgerEvent(
     cwd,
     createLedgerEventEntry(
@@ -101,6 +108,9 @@ export async function executeAutoresearchSetup(
       plannedConfig.createdAt,
     ),
   );
+
+  input.signal?.throwIfAborted();
+  const status = buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true });
 
   return {
     cwd,
@@ -110,7 +120,7 @@ export async function executeAutoresearchSetup(
     wroteBenchmarkScript,
     wroteChecksScript,
     run: null,
-    status: buildAutoresearchRuntimeStatus(cwd, { persistSnapshot: true }),
+    status,
     nextToolCall: formatSetupNextToolCall(cwd, plannedConfig, "baseline"),
   };
 }

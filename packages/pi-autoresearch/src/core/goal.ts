@@ -188,6 +188,7 @@ export function recordAutoresearchCampaignGoalSegment(
 export function setAutoresearchCampaignGoalControl(
   input: SetAutoresearchCampaignGoalControlInput,
 ): AutoresearchCampaignGoalLedgerV1 {
+  input.signal?.throwIfAborted();
   const cwd = path.resolve(input.cwd);
   const ledgerPath = resolveAutoresearchCampaignGoalLedgerPath(cwd);
   const previous = loadAutoresearchCampaignGoalLedger(cwd);
@@ -219,6 +220,7 @@ export function setAutoresearchCampaignGoalControl(
           }),
     exactControlActions: buildGoalControlActions(cwd),
   };
+  input.signal?.throwIfAborted();
   writeGoalLedger(ledgerPath, ledger);
   return ledger;
 }
