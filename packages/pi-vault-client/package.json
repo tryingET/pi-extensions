@@ -95,19 +95,19 @@
     "releaseConfigMode": "component"
   },
   "dependencies": {
-    "@tryinget/pi-interaction-kit": "file:../pi-interaction/pi-interaction-kit",
-    "@tryinget/pi-runtime-registry": "file:../pi-interaction/pi-runtime-registry",
-    "@tryinget/pi-trigger-adapter": "file:../pi-interaction/pi-trigger-adapter"
+    "@tryinget/pi-interaction-kit": "0.2.0",
+    "@tryinget/pi-runtime-registry": "0.2.0",
+    "@tryinget/pi-trigger-adapter": "0.2.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@earendil-works/pi-ai": "^0.80.6",
-    "@earendil-works/pi-coding-agent": "^0.80.6",
-    "@earendil-works/pi-tui": "^0.80.6",
+    "@earendil-works/pi-ai": "0.83.0",
+    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@earendil-works/pi-tui": "0.83.0",
     "@types/node": "^22.0.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "markdown-it": "^14.1.1",
-    "typebox": "^1.0.0",
+    "typebox": "1.3.7",
     "typescript": "^5.9.2"
   },
   "overrides": {

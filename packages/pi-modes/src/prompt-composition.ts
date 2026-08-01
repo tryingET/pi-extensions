@@ -210,11 +210,10 @@ function appendOverlaySections(prompt: string, overlays: readonly ModeDefinition
     .join("")}`;
 }
 
-/** Mirrors Pi's documented custom-base branch: custom base + append + context + skills + date/cwd. */
+/** Mirrors Pi's documented custom-base branch: custom base + append + context + skills + cwd. */
 export function buildCustomBasePrompt(
   customPrompt: string,
   options: BuildSystemPromptOptions,
-  now = new Date(),
 ): string {
   let prompt = customPrompt;
   if (options.appendSystemPrompt) prompt += `\n\n${options.appendSystemPrompt}`;
@@ -230,8 +229,6 @@ export function buildCustomBasePrompt(
     ? (options.skills ?? []).filter((skill) => !skill.disableModelInvocation)
     : [];
   if (visibleSkills.length > 0) prompt += formatSkills(visibleSkills);
-  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  prompt += `\nCurrent date: ${date}`;
   prompt += `\nCurrent working directory: ${options.cwd.replace(/\\/g, "/")}`;
   return prompt;
 }

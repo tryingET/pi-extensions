@@ -959,10 +959,10 @@ function buildControlledVocabularyClauses(controlledVocabulary) {
         return [];
     const clauses = [];
     for (const [dimension, values] of Object.entries(controlledVocabulary)) {
-        const normalizedValues = (values || [])
-            .map(String)
-            .map((v) => v.trim())
-            .filter(Boolean);
+        const rawValues = Array.isArray(values) ? values : [];
+        const normalizedValues = rawValues
+            .map((value) => String(value).trim())
+            .filter((value) => value.length > 0);
         if (normalizedValues.length === 0)
             continue;
         if (dimension === "selection_principles") {

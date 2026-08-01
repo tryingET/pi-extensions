@@ -36,7 +36,7 @@ system4d:
 
 1. Reconcile package history from published/tagged `0.2.0` to candidate `0.3.0` and restore changelog truth.
 2. Fail release checks when local SemVer trails npm; tolerate only an already-published same-version dry-run guard.
-3. Constrain Pi peers to the tested `>=0.80.6 <0.81.0` range.
+3. Constrain Pi peers to the tested `>=0.83.0 <0.84.0` range.
 4. Preserve complete-output parity testing against the pinned Pi host builder.
 5. Install the packed artifact into an isolated Pi agent directory and run extension behavior smoke.
 6. Run package, root scoped, docs, diff, install/reload, fresh RPC, and fresh visible Pi dogfood before closeout.

@@ -11,8 +11,8 @@
     "current": {
       "description": "Run against the root-owned pinned Pi host contract that defines the current canary baseline for this monorepo.",
       "host": {
-        "version": "0.80.6",
-        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.80.6"
+        "version": "0.83.0",
+        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.83.0"
       }
     },
     "upgrade": {
@@ -204,6 +204,8 @@
         "upgrade"
       ],
       "packages": [
+        "packages/pi-autonomous-session-control",
+        "packages/pi-autoresearch",
         "packages/pi-society-orchestrator"
       ],
       "upstreamSurfaces": [
@@ -218,7 +220,7 @@
         "-lc",
         "npm --prefix ../pi-autoresearch ci >/dev/null && npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves' tests/autoresearch-live-control-plane.test.mjs"
       ],
-      "notes": "Focused orchestrator supervision canary for live start/status/session management and dashboard-first matrix closeout reporting. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules. It does not launch peers, run benchmarks, merge candidates, or write AK/KES evidence."
+      "notes": "Focused orchestrator supervision canary for live start/status/session management and dashboard-first matrix closeout reporting. The declared package set includes pi-autoresearch because the command hydrates its runtime dependencies before testing, and includes local ASC because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules. It does not launch peers, run benchmarks, merge candidates, or write AK/KES evidence."
     },
     {
       "id": "orchestrator-autoresearch-matrix-closeout",
@@ -230,6 +232,8 @@
         "upgrade"
       ],
       "packages": [
+        "packages/pi-autonomous-session-control",
+        "packages/pi-autoresearch",
         "packages/pi-society-orchestrator"
       ],
       "upstreamSurfaces": [
@@ -243,7 +247,7 @@
         "-lc",
         "npm --prefix ../pi-autoresearch ci >/dev/null && npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares' tests/autoresearch-live-control-plane.test.mjs"
       ],
-      "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules."
+      "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers. The declared package set includes pi-autoresearch because the command hydrates its runtime dependencies before testing, and includes local ASC because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules."
     }
   ]
 }

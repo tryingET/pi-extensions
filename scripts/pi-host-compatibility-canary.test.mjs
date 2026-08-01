@@ -41,8 +41,8 @@ test("compatibility canary resolves the exact current host contract", () => {
   const result = runJson(["resolve-host", "--profile", "current"]);
   assert.equal(result.profile, "current");
   assert.equal(result.host.packageName, "@earendil-works/pi-coding-agent");
-  assert.equal(result.host.version, "0.80.6");
-  assert.equal(result.host.reviewAnchor, "npm:@earendil-works/pi-coding-agent@0.80.6");
+  assert.equal(result.host.version, "0.83.0");
+  assert.equal(result.host.reviewAnchor, "npm:@earendil-works/pi-coding-agent@0.83.0");
   assert.ok(result.host.companionPackages.includes("@earendil-works/pi-tui"));
 });
 
@@ -94,13 +94,27 @@ test("compatibility canary covers orchestrator start_campaign/status/closeout su
   );
 
   assert.ok(scenario);
+  const expectedPackages = [
+    "packages/pi-autonomous-session-control",
+    "packages/pi-autoresearch",
+    "packages/pi-society-orchestrator",
+  ];
   assert.equal(scenario.owner, "pi-society-orchestrator");
-  assert.deepEqual(scenario.packages, ["packages/pi-society-orchestrator"]);
+  assert.deepEqual(scenario.packages, expectedPackages);
   assert.ok(scenario.upstreamSurfaces.includes("start_campaign/status/closeout supervision seam"));
   assert.equal(scenario.command[0], "bash");
+  assert.match(scenario.command.join(" "), /npm --prefix \.\.\/pi-autoresearch ci/);
   assert.match(scenario.command.join(" "), /pi-autonomous-session-control/);
   assert.match(scenario.command.join(" "), /start_campaign delegates execution then supervises/);
   assert.match(scenario.command.join(" "), /review_matrix_campaign aggregates managed cell waves/);
+
+  const matrixScenario = result.scenarios.find(
+    (entry) => entry.id === "orchestrator-autoresearch-matrix-closeout",
+  );
+  assert.ok(matrixScenario);
+  assert.deepEqual(matrixScenario.packages, expectedPackages);
+  assert.match(matrixScenario.command.join(" "), /npm --prefix \.\.\/pi-autoresearch ci/);
+  assert.match(matrixScenario.command.join(" "), /pi-autonomous-session-control/);
 });
 
 test("compatibility canary list uses explicit leaf package roots from the manifest", () => {
@@ -190,7 +204,7 @@ test("compatibility canary dry-run can target a single scenario with package-set
   ]);
 
   assert.equal(result.profile, "current");
-  assert.equal(result.host.version, "0.80.6");
+  assert.equal(result.host.version, "0.83.0");
   assert.equal(result.summary.selected, 1);
   assert.equal(result.summary.failed, 0);
   assert.equal(result.results[0].id, "vault-live-trigger-contract");
@@ -208,9 +222,9 @@ test("compatibility canary dry-run can target a single scenario with package-set
       "install",
       "--no-save",
       "--package-lock=false",
-      "@earendil-works/pi-coding-agent@0.80.6",
-      "@earendil-works/pi-ai@0.80.6",
-      "@earendil-works/pi-tui@0.80.6",
+      "@earendil-works/pi-coding-agent@0.83.0",
+      "@earendil-works/pi-ai@0.83.0",
+      "@earendil-works/pi-tui@0.83.0",
     ]);
   }
   assert.ok(["dry-run", "ready"].includes(result.results[0].host.preparation.status));

@@ -170,6 +170,7 @@ Current command:
 
 ```bash
 cd packages/pi-society-orchestrator
+npm --prefix ../pi-autoresearch ci >/dev/null
 npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null
 node --test --test-name-pattern "autoresearch_live_supervision start/status/stop manages a live running session|autoresearch_live_supervision start_campaign delegates execution then supervises|autoresearch_live_supervision review_matrix_campaign aggregates managed cell waves" tests/autoresearch-live-control-plane.test.mjs
 ```
@@ -180,7 +181,7 @@ Protected host surfaces:
 - registered tool execution result details
 - supervision report rendering for pi-autoresearch packet handoffs
 
-This scenario proves the orchestrator supervision scenario covers start_campaign/status/closeout seam while keeping package ownership truthful: `pi-autoresearch` owns runtime packets/receipts, and `pi-society-orchestrator` owns supervision/report choreography. It refreshes the local ASC dependency before running because published ASC intentionally ships TypeScript sources that raw Node cannot strip from `node_modules`.
+This scenario proves the orchestrator supervision scenario covers start_campaign/status/closeout seam while keeping package ownership truthful: `pi-autoresearch` owns runtime packets/receipts, and `pi-society-orchestrator` owns supervision/report choreography. Its declared package set includes `pi-autoresearch` because the command hydrates that package before testing, and includes local ASC because published ASC intentionally ships TypeScript sources that raw Node cannot strip from `node_modules`.
 
 ### `orchestrator-autoresearch-matrix-closeout`
 Anchors the highest-stack supervised campaign path currently proven inside `pi-society-orchestrator`: matrix campaign planning, managed candidate-wave packet review, dashboard-first owner routing, and the matrix closeout evidence handoff.
@@ -189,6 +190,7 @@ Current command:
 
 ```bash
 cd packages/pi-society-orchestrator
+npm --prefix ../pi-autoresearch ci >/dev/null
 npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null
 node --test --test-name-pattern "plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares" tests/autoresearch-live-control-plane.test.mjs
 ```
@@ -198,7 +200,7 @@ Protected host surfaces:
 - registered tool execution result details
 - extension report rendering for nested owner-route payloads
 
-This scenario intentionally does not run benchmarks, launch peers, merge candidates, or write AK/KES evidence. It protects the operator-visible choreography surface that tells the user which lower owner seam to use next.
+This scenario intentionally does not run benchmarks, launch peers, merge candidates, or write AK/KES evidence. Its declared package set includes `pi-autoresearch` because the command hydrates that package before testing, and includes local ASC because the test installs that source package before loading the orchestration path. It protects the operator-visible choreography surface that tells the user which lower owner seam to use next.
 
 ## How to run
 
@@ -237,16 +239,16 @@ npm run compat:canary
 Run the upgrade profile explicitly:
 
 ```bash
-PI_HOST_COMPAT_HOST_VERSION=0.80.6 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.76.0...v0.80.6' \
+PI_HOST_COMPAT_HOST_VERSION=0.83.0 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.80.6...v0.83.0' \
 node ./scripts/pi-host-compatibility-canary.mjs run --profile upgrade
 ```
 
 Preview the upgrade contract without executing commands:
 
 ```bash
-PI_HOST_COMPAT_HOST_VERSION=0.80.6 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.76.0...v0.80.6' \
+PI_HOST_COMPAT_HOST_VERSION=0.83.0 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.80.6...v0.83.0' \
 node ./scripts/pi-host-compatibility-canary.mjs run --profile upgrade --dry-run
 ```
 
@@ -257,8 +259,8 @@ PI_HOST_COMPAT_CANARY=1 ./scripts/ci/full.sh
 # optional profile override
 PI_HOST_COMPAT_CANARY=1 \
 PI_HOST_COMPAT_PROFILE=upgrade \
-PI_HOST_COMPAT_HOST_VERSION=0.80.6 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.76.0...v0.80.6' \
+PI_HOST_COMPAT_HOST_VERSION=0.83.0 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.80.6...v0.83.0' \
 ./scripts/ci/full.sh
 ```
 

@@ -71,13 +71,13 @@ test("append preserves the assembled host prompt", () => {
 });
 
 test("replace_base mirrors Pi custom-base composition", () => {
-  const result = buildCustomBasePrompt("CUSTOM BASE", promptOptions, new Date(2026, 6, 11));
+  const result = buildCustomBasePrompt("CUSTOM BASE", promptOptions);
   assert.match(result, /^CUSTOM BASE/);
   assert.match(result, /Operator appendix/);
   assert.match(result, /<project_context>/);
   assert.match(result, /Project policy/);
   assert.match(result, /<name>example-skill<\/name>/);
-  assert.match(result, /Current date: 2026-07-11/);
+  assert.doesNotMatch(result, /Current date:/);
   assert.match(result, /Current working directory: \/workspace\/demo$/);
   assert.doesNotMatch(result, /HOST PROMPT/);
 });
@@ -100,11 +100,10 @@ test("replace_final returns the exact configured prompt", () => {
 });
 
 test("replace_base omits skills when read is inactive", () => {
-  const result = buildCustomBasePrompt(
-    "BASE",
-    { ...promptOptions, selectedTools: ["bash"] },
-    new Date(2026, 6, 11),
-  );
+  const result = buildCustomBasePrompt("BASE", {
+    ...promptOptions,
+    selectedTools: ["bash"],
+  });
   assert.doesNotMatch(result, /example-skill/);
 });
 

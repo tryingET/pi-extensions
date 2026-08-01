@@ -34,7 +34,7 @@ import {
 } from "../src/modes.ts";
 import { selectionDefinitionFingerprint, selectionLabel } from "../src/selection-commands.ts";
 
-export const PI_HOST_COMPATIBILITY = ">=0.80.6 <0.81.0";
+export const PI_HOST_COMPATIBILITY = ">=0.83.0 <0.84.0";
 
 type AnyContext = ExtensionContext | ExtensionCommandContext;
 

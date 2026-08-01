@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -10,7 +10,13 @@ import {
   createGovernedDeepReviewPreflightRuntime,
   isGovernedDeepReviewPreflightRuntimeOwner,
 } from "../src/runtime/governed-deep-review-preflight.ts";
-import { inspectGovernedRuntimeCleanliness } from "../src/runtime/governed-runtime-materialization.ts";
+import {
+  GOVERNED_RUNTIME_HOST_PEERS,
+  GOVERNED_RUNTIME_HOST_VERSION,
+  GOVERNED_RUNTIME_TYPEBOX_INTEGRITY,
+  GOVERNED_RUNTIME_TYPEBOX_VERSION,
+  inspectGovernedRuntimeCleanliness,
+} from "../src/runtime/governed-runtime-materialization.ts";
 
 const SOURCE_ROOT = resolve(import.meta.dirname, "../../..");
 const CALLER_URL = pathToFileURL(
@@ -101,6 +107,28 @@ function prepare(runtime, nonce, runId) {
     callerModuleUrl: CALLER_URL,
   });
 }
+
+test("governed runtime pins match the Pi 0.83 lock identities", () => {
+  const lock = JSON.parse(
+    readFileSync(
+      resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/package-lock.json"),
+      "utf8",
+    ),
+  );
+  const lockedPackages = lock.packages ?? {};
+
+  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "0.83.0");
+  for (const [name, expected] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
+    const locked = lockedPackages[`node_modules/${name}`];
+    assert.equal(locked?.version, GOVERNED_RUNTIME_HOST_VERSION, name);
+    assert.equal(locked?.integrity, expected.integrity, name);
+  }
+
+  assert.equal(GOVERNED_RUNTIME_TYPEBOX_VERSION, "1.3.7");
+  const lockedTypebox = lockedPackages["node_modules/typebox"];
+  assert.equal(lockedTypebox?.version, GOVERNED_RUNTIME_TYPEBOX_VERSION);
+  assert.equal(lockedTypebox?.integrity, GOVERNED_RUNTIME_TYPEBOX_INTEGRITY);
+});
 
 test("runtime cleanliness rejects source drift but excludes node_modules", () => {
   const root = mkdtempSync(`${tmpdir()}/governed-runtime-cleanliness-`);

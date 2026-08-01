@@ -16,7 +16,7 @@ Switch and compose Pi prompt profiles during a session without restarting Pi.
 A composition contains zero or one base plus zero or more ordered overlays:
 
 - `append` definitions are overlays that retain the chosen base;
-- `replace_base` definitions replace the static base while preserving Pi's dynamic append/context/skills/date/cwd envelope;
+- `replace_base` definitions replace the static base while preserving Pi's dynamic append/context/skills/cwd envelope;
 - `replace_final` definitions replace the final prompt with exact configured bytes at this extension's composition point and are exclusive;
 - native host with no overlays leaves Pi unchanged.
 
@@ -180,7 +180,7 @@ replace_base systemPrompt
   + APPEND_SYSTEM.md / --append-system-prompt
   + trusted AGENTS.md / CLAUDE.md
   + visible skills
-  + date + cwd
+  + cwd
 
 THEN
 + append overlay 1
@@ -190,7 +190,7 @@ THEN
 
 `replace_final` preserves configured bytes exactly at the `pi-modes` handler. A later `before_agent_start` extension may still modify them; provider-payload exactness requires control of the full extension chain.
 
-`replace_base` is compatibility-tested against Pi's pinned host prompt builder. This release supports `@earendil-works/pi-ai`, `pi-coding-agent`, and `pi-tui` `>=0.80.6 <0.81.0`; advance that range only with the parity canary and installed-artifact smoke passing.
+`replace_base` is compatibility-tested against Pi's pinned host prompt builder. This release supports `@earendil-works/pi-ai`, `pi-coding-agent`, and `pi-tui` `>=0.83.0 <0.84.0`; advance that range only with the parity canary and installed-artifact smoke passing.
 
 ## Drift-resistant state and observability
 

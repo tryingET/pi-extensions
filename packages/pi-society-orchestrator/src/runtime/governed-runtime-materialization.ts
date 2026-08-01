@@ -24,14 +24,14 @@ export const GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH =
   "packages/pi-society-orchestrator/node_modules/.tryinget-governed-runtime.json";
 export const GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH =
   "packages/pi-society-orchestrator/node_modules/.tryinget-governed-peer-layer";
-export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.1.38";
+export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.3.7";
 export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
-  "sha512-pZ0aQPmMmXoUvSbeuWf/Hzsc+avNw/Zd6VeE8CFgkVGWyuHPJvqeJJDeJqLve+K70LvjYIoleGcoJHPT17cWoA==";
-export const GOVERNED_RUNTIME_HOST_VERSION = "0.80.6";
+  "sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==";
+export const GOVERNED_RUNTIME_HOST_VERSION = "0.83.0";
 export const GOVERNED_RUNTIME_HOST_PEERS = {
   "@earendil-works/pi-ai": {
     integrity:
-      "sha512-7xfLk8sANBp+bpPEbjoOZTbPxsa+++b1JXAoSJsNa3vbs9AHHEclmvg54XLQcxH+fuwaeti/g2jeIfJ+mVYLpA==",
+      "sha512-m3IZD4g3er0V8TC9+Vpgw/sjTKqcJlkcIBy/JvsgRubuuik3tAVzyugUg4rVrShIkkOT69mEd34NEqKUIsl6JQ==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -47,7 +47,7 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-coding-agent": {
     integrity:
-      "sha512-vcfD6tOk402isLl3Cm/qbn2O10TvgroMp1+/fEGM24ZdvETFCdOYv5VZ7m59EI5fPsjfSJh+CpQ5bhBrhfOg7g==",
+      "sha512-uYhF+FsZxogoSX/AxBcUdiY+ZklubwaXyAoEGA2eQwsHcyEAhUYIKh/WLXe/a8+k8eTCmxb+ZN2Zo9mzQtzbWw==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -64,7 +64,7 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-tui": {
     integrity:
-      "sha512-bSuzS4EVSqEPj/Qr/p9eqCESfKsGuDNbl77EGci8Iaqqt/C/XCBZL1MjXaxSWW1NsT5afjp/Cb0NTPzOLv/aPA==",
+      "sha512-IoYrb0rORjELmEpNtoCA/U8je3KopMkRAVJRdSzvXRvgb+Huo1gNh8Q5CSZvNOiYtDxJdj2tYZZHZ4B3+IN3hA==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-society-orchestrator",

@@ -17,7 +17,7 @@ Design a `pi-modes` JSON profile for this objective:
 Choose and explain exactly one strategy:
 
 - `append`: preserve the assembled host prompt and add instructions;
-- `replace_base`: replace the static base while retaining append/context/skills/date/cwd;
+- `replace_base`: replace the static base while retaining append/context/skills/cwd;
 - `replace_final`: use the supplied prompt as the exact final prompt.
 
 Return strict schemaVersion 2 JSON with `key`, `label`, `description`, `promptStrategy`, and `systemPrompt`. When genuinely required, an `append` overlay may also declare bounded key arrays: `requires`, `conflictsWith`, `before`, or `after`. These validate an explicitly selected composition; they never auto-add, auto-remove, auto-reorder, execute, or grant authority. Do not add autonomous continuation, peer launch, campaign start, mutation permission, or promotion authority to the mode contract.

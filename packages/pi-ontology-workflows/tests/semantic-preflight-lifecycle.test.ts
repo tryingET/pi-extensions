@@ -26,7 +26,7 @@ const target: ResolvedOntologyTarget = {
 function host(extra: string[] = []): PiHostCapabilities {
   return Object.freeze({
     host_package: "@earendil-works/pi-coding-agent",
-    host_version: "0.80.6",
+    host_version: "0.83.0",
     extension_api_version: "1.0.0",
     capabilities: Object.freeze([
       "prompt.system.chain.v1",

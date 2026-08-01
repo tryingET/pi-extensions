@@ -23,17 +23,17 @@ import {
 test("release smoke release-age bypass is gated by one exact host contract", () => {
   const packageJson = {
     devDependencies: {
-      "@earendil-works/pi-ai": "0.80.6",
-      "@earendil-works/pi-coding-agent": "0.80.6",
+      "@earendil-works/pi-ai": "0.83.0",
+      "@earendil-works/pi-coding-agent": "0.83.0",
     },
   };
-  assert.equal(assertExactHostContract({ packageJson, hostVersion: "0.80.6" }), "0.80.6");
+  assert.equal(assertExactHostContract({ packageJson, hostVersion: "0.83.0" }), "0.83.0");
   assert.throws(
-    () => assertExactHostContract({ packageJson, hostVersion: "^0.80.6" }),
+    () => assertExactHostContract({ packageJson, hostVersion: "^0.83.0" }),
     /requires an exact Pi host version/,
   );
   assert.throws(
-    () => assertExactHostContract({ packageJson, hostVersion: "0.80.7" }),
+    () => assertExactHostContract({ packageJson, hostVersion: "0.83.1" }),
     /host contract mismatch/,
   );
 });
