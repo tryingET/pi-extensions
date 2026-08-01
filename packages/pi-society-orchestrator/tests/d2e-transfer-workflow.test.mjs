@@ -350,21 +350,16 @@ test("repository inspection proves descendant history and every touched path", a
   );
 });
 
-test("all three exact templates share the immutable D2E binding identity", async () => {
+test("the two legacy transfer templates retain their immutable D2E binding identity", async () => {
   assert.deepEqual(
     [...D2E_WORKFLOW_TEMPLATE_NAMES],
-    [
-      "layer12-040-direction-to-execution-ak-native",
-      "repo-direction-to-execution",
-      "execution-memory-transfer",
-    ],
+    ["layer12-040-direction-to-execution-ak-native", "repo-direction-to-execution"],
   );
   assert.ok(Object.isFrozen(D2E_WORKFLOW_TEMPLATE_NAMES));
   assert.ok(Object.isFrozen(D2E_WORKFLOW_TEMPLATE_OWNERS));
   assert.deepEqual(D2E_WORKFLOW_TEMPLATE_OWNERS, {
     "layer12-040-direction-to-execution-ak-native": "software",
     "repo-direction-to-execution": "holding",
-    "execution-memory-transfer": "core",
   });
   await assertCode(
     proposal(fixtures(), {

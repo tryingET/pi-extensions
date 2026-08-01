@@ -265,8 +265,9 @@ export function isOwnedDispatchPolicy(policy: unknown): policy is FrozenDispatch
 export const D2E_WORKFLOW_TEMPLATE_OWNERS = Object.freeze({
   "layer12-040-direction-to-execution-ak-native": "software",
   "repo-direction-to-execution": "holding",
-  "execution-memory-transfer": "core",
 } as const);
+export const D2E_EXECUTION_MEMORY_TEMPLATE_NAME = "execution-memory-transfer" as const;
+export const D2E_EXECUTION_MEMORY_TEMPLATE_OWNER = "core" as const;
 export const D2E_WORKFLOW_TEMPLATE_NAMES = Object.freeze(
   Object.keys(D2E_WORKFLOW_TEMPLATE_OWNERS) as Array<keyof typeof D2E_WORKFLOW_TEMPLATE_OWNERS>,
 );
@@ -287,6 +288,22 @@ function d2eWorkflowBinding(ownerCompany: string): ExecutionBinding {
   };
 }
 
+function d2eExecutionMemoryBinding(): ExecutionBinding {
+  return {
+    execution_required: true,
+    execution_surface: "workflow_execute",
+    execution_args: {
+      workflow_gate: "D2E_EXECUTION_MEMORY_V1",
+      template_artifact_kind: "procedure",
+      template_control_mode: "one_shot",
+      template_formalization_level: "workflow",
+      template_owner_company: D2E_EXECUTION_MEMORY_TEMPLATE_OWNER,
+    },
+    on_missing_binding: "fail_closed",
+    compositeCapable: false,
+  };
+}
+
 const DEFAULT_BINDINGS: Record<string, ExecutionBinding> = {
   "transcendent-iteration": {
     execution_required: true,
@@ -301,6 +318,7 @@ const DEFAULT_BINDINGS: Record<string, ExecutionBinding> = {
       d2eWorkflowBinding(owner),
     ]),
   ),
+  [D2E_EXECUTION_MEMORY_TEMPLATE_NAME]: d2eExecutionMemoryBinding(),
   ooda: {
     execution_required: true,
     execution_surface: "loop_execute",

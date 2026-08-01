@@ -8,7 +8,6 @@ export const D2E_WORKFLOW_RESULT_SCHEMA = "D2E_WORKFLOW_RESULT_V1" as const;
 export const D2E_WORKFLOW_TEMPLATE_OWNERS = Object.freeze({
   "layer12-040-direction-to-execution-ak-native": "software",
   "repo-direction-to-execution": "holding",
-  "execution-memory-transfer": "core",
 } as const);
 export const D2E_WORKFLOW_TEMPLATE_NAMES = Object.freeze(
   Object.keys(D2E_WORKFLOW_TEMPLATE_OWNERS) as Array<keyof typeof D2E_WORKFLOW_TEMPLATE_OWNERS>,

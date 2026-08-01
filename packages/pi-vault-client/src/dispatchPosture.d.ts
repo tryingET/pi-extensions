@@ -49,13 +49,13 @@ export declare function isOwnedDispatchPolicy(policy: unknown): policy is Frozen
 export declare const D2E_WORKFLOW_TEMPLATE_OWNERS: Readonly<{
   "layer12-040-direction-to-execution-ak-native": "software";
   "repo-direction-to-execution": "holding";
-  "execution-memory-transfer": "core";
 }>;
 export declare const D2E_WORKFLOW_TEMPLATE_NAMES: readonly (
   | "layer12-040-direction-to-execution-ak-native"
   | "repo-direction-to-execution"
-  | "execution-memory-transfer"
 )[];
+export declare const D2E_EXECUTION_MEMORY_TEMPLATE_NAME: "execution-memory-transfer";
+export declare const D2E_EXECUTION_MEMORY_TEMPLATE_OWNER: "core";
 export declare const DEFAULT_DISPATCH_POLICY: FrozenDispatchPolicy;
 export declare function classifyDispatchPosture(
   template: {

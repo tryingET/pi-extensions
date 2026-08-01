@@ -1,24 +1,27 @@
 ---
-summary: "Owner contract for immutable D2E Prompt Vault bindings and the applied/proposal workflow transfer gate."
+summary: "Owner contract for legacy D2E transfer gates and the separate Decision 100 execution-memory consumer."
 read_when:
   - "Changing a D2E Prompt Vault binding or vault_execute_template workflow dispatch."
   - "Reviewing D2E_TRANSFER_COMPLETE_V1 receipts or fail-closed errors."
 type: "implementation-contract"
 system4d:
   container: "Pi-owned D2E Prompt Vault workflow dispatch gate."
-  compass: "Only exact AK lineage plus a live un-deferred task claim can reach applied execution."
-  engine: "Immutable binding -> exact readback -> authorization gate -> workflow executor -> receipt."
+  compass: "Keep legacy transfer materialization separate from Decision 100 negative-only execution memory."
+  engine: "Immutable binding -> owner-native observation -> fail-closed receipt; only legacy gates retain an executor."
   fog: "Accepted decisions, proposal output, or generic proceed language can be mistaken for execution authority."
 ---
 
 # D2E transfer workflow gate
 
-Exactly three Prompt Vault procedures have immutable `workflow_execute` bindings to
+Two legacy Prompt Vault procedures retain immutable `workflow_execute` bindings to
 `D2E_TRANSFER_COMPLETE_V1`:
 
 - `layer12-040-direction-to-execution-ak-native` — owner `software`;
-- `repo-direction-to-execution` — owner `holding`;
-- `execution-memory-transfer` — owner `core`.
+- `repo-direction-to-execution` — owner `holding`.
+
+`execution-memory-transfer` — owner `core` — is deliberately separated onto
+`D2E_EXECUTION_MEMORY_V1`. That consumer invokes only the exact immutable Decision 100 AK producer
+and can emit only a read-only, non-executable `D2E_EXECUTION_MEMORY_OBSERVATION_V1` receipt.
 
 Every binding requires exact `procedure` / `one_shot` / `workflow` metadata and its listed owner.
 There is no binding for the non-existent `direction-to-execution` template.
@@ -77,6 +80,36 @@ never itself a transfer receipt. After repository effects and final AK state are
 wraps its digest and observed effects in the outer `D2E_TRANSFER_COMPLETE_V1` receipt. That outer
 receipt authorizes no work beyond the exact transfer materialization it records.
 
+## Decision 100 execution-memory consumer
+
+The `execution-memory-transfer` path does not run the legacy packet/task/contract/decision
+reconstruction and never derives authorization from claimant, session, lease, admission, decision,
+or deferral state. It executes one exact immutable binary invocation:
+
+```text
+<immutable-ak> decision execution-memory-check <decision-id> \
+  --profile d2e-transfer-v1 --repo <repo> \
+  --packet-id <id> --packet-key <key> \
+  --packet-source <immutable-github-blob> \
+  --packet-source-sha256 <sha256> \
+  --expect-task <id> --expect-dependency <id>:<dependencies> \
+  --machine
+```
+
+Before spawning, Pi resolves the configured binary to its real path and verifies its raw SHA-256.
+It then validates the closed machine envelope, exact profile/schema/database/capability contract,
+request echo, profile health, and negative-only authorization shape. Unknown schemas, profiles,
+codes, states, fields at the interpreted boundaries, malformed output, killed processes, transport
+failure, binary drift, or schema-40 rejection all fail closed.
+
+`ok=true` means only that AK produced one canonical coherent observation. Even
+`pre_execution_memory_ready=true` can result only in
+`memory_ready_authorization_blocked`, `memory_ready_authorization_unproven`, or
+`memory_ready_authorization_indeterminate`. Pi always reports `applied_ready=false`, both transfer
+and downstream authorization as `not_authorized`, and `effect.disposition=not_materialized`.
+Applied mode is structurally unsupported and cannot reach preparation, Prompt Vault claim,
+repository inspection, workflow dispatch, task mutation, or cached optimistic readiness.
+
 ## Authority boundaries
 
 The gate does not create, claim, defer, resume, complete, or otherwise mutate AK state. It does not
@@ -86,10 +119,19 @@ operator-authorization deferral is active.
 
 ## Activation and rollback
 
-The core sequencer defaults to disabled when activation is omitted, before any AK read, repository
-inspection, Vault claim, preparation, or workflow effect. Applied execution remains disabled unless
-the controller explicitly sets
-`PI_ORCH_D2E_TRANSFER_MODE=enabled` after installed/live closeout proof. Rollback sets the value to
-`disabled` or removes it. Proposal readback remains available, while applied execution stops before
-workflow preparation, Vault claim, or side effects. Source tests, package checks, and packed dry
-runs are not live installed proof and do not authorize controller activation.
+Both paths are disabled by default before any owner read or effect.
+
+- Legacy applied transfer remains disabled unless the controller explicitly sets
+  `PI_ORCH_D2E_TRANSFER_MODE=enabled` after its own installed/live closeout proof.
+- Decision 100 observation remains disabled unless the controller sets
+  `PI_ORCH_D2E_EXECUTION_MEMORY_MODE=enabled` and supplies exact
+  `PI_ORCH_D2E_AK_BIN` plus `PI_ORCH_D2E_AK_SHA256` values from the immutable R4 receipt.
+
+Execution-memory rollback removes or disables its mode and clears/fences any consumer-held receipt;
+the implementation keeps no readiness cache. Disabled mode refuses before binary inspection or
+spawn. Producer absence/error, unknown schema/code, or stale caller data cannot become execution.
+Applied mode remains impossible even while observation is enabled.
+
+Source tests, package checks, and packed dry runs are not installed proof. R6 requires the exact
+installed Pi package and AK binary against disposable schema-40/schema-41 subjects with bounded
+no-effect evidence.

@@ -169,12 +169,11 @@ test("issues dispatch_required for the verified deep-review workflow binding", (
   assert.equal("prepared_text" in result, false);
 });
 
-test("issues dispatch_required for each immutable per-owner D2E workflow binding", () => {
+test("issues dispatch_required for legacy D2E and separate execution-memory bindings", () => {
   const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
   const expected = [
     ["layer12-040-direction-to-execution-ak-native", "software"],
     ["repo-direction-to-execution", "holding"],
-    ["execution-memory-transfer", "core"],
   ];
   for (const [name, owner] of expected) {
     const workflow = template({
@@ -196,6 +195,23 @@ test("issues dispatch_required for each immutable per-owner D2E workflow binding
       template_owner_company: owner,
     });
   }
+  const executionMemory = template({
+    id: 88,
+    name: "execution-memory-transfer",
+    control_mode: "one_shot",
+    formalization_level: "workflow",
+    owner_company: "core",
+    visibility_companies: ["core", "software"],
+  });
+  const memoryResult = runtime.authorizePreparedExecution(request([executionMemory]));
+  assert.equal(memoryResult.disposition, "dispatch_required");
+  assert.deepEqual(memoryResult.binding.execution_args, {
+    workflow_gate: "D2E_EXECUTION_MEMORY_V1",
+    template_artifact_kind: "procedure",
+    template_control_mode: "one_shot",
+    template_formalization_level: "workflow",
+    template_owner_company: "core",
+  });
 });
 
 test("public authorization rejects D2E kind, workflow metadata, and owner mismatch", () => {

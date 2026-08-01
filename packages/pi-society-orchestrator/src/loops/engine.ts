@@ -38,6 +38,12 @@ import type { AgentResolution } from "../runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
 import { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
+import {
+  consumeD2EExecutionMemory,
+  D2E_EXECUTION_MEMORY_OWNER,
+  D2E_EXECUTION_MEMORY_TEMPLATE,
+  D2EExecutionMemoryConsumerError,
+} from "../runtime/d2e-execution-memory.ts";
 import { inspectD2ERepository } from "../runtime/d2e-transfer-effects.ts";
 import {
   D2E_WORKFLOW_TEMPLATE_OWNERS,
@@ -1772,7 +1778,7 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
     description: `Execute a Prompt Vault template through the orchestrator dispatch gate.
 
 This bridge uses pi-vault-client dispatch posture metadata and refuses to treat loop/workflow templates as inert text.
-Known loop bindings execute through loop_execute semantics. The three exact D2E transfer templates execute only through the D2E_TRANSFER_COMPLETE_V1 proposal/applied workflow gate.
+Known loop bindings execute through loop_execute semantics. The two legacy D2E transfer templates retain the D2E_TRANSFER_COMPLETE_V1 gate. The execution-memory template uses the separate default-disabled, proposal-only D2E_EXECUTION_MEMORY_V1 consumer.
 
 Unknown templates and workflow-grade templates without an execution binding fail closed with an explicit reason.`,
     promptSnippet: "Execute a Prompt Vault template through its required orchestrator binding.",
@@ -1780,7 +1786,7 @@ Unknown templates and workflow-grade templates without an execution binding fail
       "Use vault_execute_template when the operator asks to run/apply/execute a Prompt Vault template by name.",
       "Do not use raw vault_retrieve content as execution when this tool reports an orchestrator gate.",
       "If a workflow-grade template has no bridge binding, stop and use the owning package surface or design the missing binding before continuing.",
-      "Treat D2E proposal receipts as lawful read-only success; applied mode additionally requires proposal digests, current-session claimant identity, and controller activation.",
+      "Treat legacy D2E proposal receipts as lawful read-only success. The execution-memory consumer is separately default-disabled, consumes one coherent AK machine envelope, and can never authorize or perform applied execution.",
     ],
     parameters: Type.Object({
       template_name: Type.String({ description: "Exact Prompt Vault template name to execute" }),
@@ -1795,6 +1801,27 @@ Unknown templates and workflow-grade templates without an execution binding fail
       ),
       repo: Type.Optional(Type.String({ description: "Exact registered repo for D2E readback." })),
       packet_key: Type.Optional(Type.String({ description: "Exact AK packet key." })),
+      packet_id: Type.Optional(Type.Number({ description: "Exact selected AK packet id." })),
+      packet_source: Type.Optional(
+        Type.String({ description: "Immutable GitHub blob coordinate consumed by Decision 100." }),
+      ),
+      packet_source_sha256: Type.Optional(
+        Type.String({ description: "Expected raw packet Git blob SHA-256." }),
+      ),
+      expected_task_ids: Type.Optional(
+        Type.Array(Type.Number(), {
+          description: "Sorted complete expected execution-task id set.",
+        }),
+      ),
+      expected_dependencies: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "One sorted `<task-id>:<none|comma-separated-task-ids>` declaration per expected task.",
+        }),
+      ),
+      authorization_block_ref: Type.Optional(
+        Type.String({ description: "Optional exact negative authorization block reference." }),
+      ),
       task_id: Type.Optional(Type.Number({ description: "Exact AK execution task id." })),
       decision_id: Type.Optional(Type.Number({ description: "Exact governing AK decision id." })),
       actor: Type.Optional(
@@ -1945,6 +1972,111 @@ Unknown templates and workflow-grade templates without an execution binding fail
           onUpdate,
           ctx,
         );
+      }
+
+      if (
+        posture.posture === "orchestrator_workflow_gate_required" &&
+        posture.binding?.execution_surface === "workflow_execute" &&
+        posture.binding.execution_args?.workflow_gate === "D2E_EXECUTION_MEMORY_V1"
+      ) {
+        const input = params as Record<string, unknown>;
+        const template = dispatchCheck.templates?.[0];
+        const contentSha256 = template
+          ? createHash("sha256").update(template.content, "utf8").digest("hex")
+          : "";
+        const templateIdentity = {
+          templateId: Number(template?.id),
+          templateName: template?.name ?? "",
+          artifactKind: template?.artifact_kind ?? "",
+          controlMode: template?.control_mode ?? "",
+          formalizationLevel: template?.formalization_level ?? "",
+          ownerCompany: template?.owner_company ?? "",
+          templateVersion: Number(template?.version),
+          contentSha256,
+        };
+        try {
+          if (
+            !template ||
+            dispatchCheck.templates?.length !== 1 ||
+            templateName !== D2E_EXECUTION_MEMORY_TEMPLATE ||
+            template.owner_company !== D2E_EXECUTION_MEMORY_OWNER ||
+            posture.binding.execution_args?.template_artifact_kind !== "procedure" ||
+            posture.binding.execution_args?.template_control_mode !== "one_shot" ||
+            posture.binding.execution_args?.template_formalization_level !== "workflow" ||
+            posture.binding.execution_args?.template_owner_company !== D2E_EXECUTION_MEMORY_OWNER
+          ) {
+            throw new D2EExecutionMemoryConsumerError(
+              "D2E_EXECUTION_MEMORY_TEMPLATE_IDENTITY_MISMATCH",
+              "Dispatch check did not return the exact execution-memory template identity.",
+            );
+          }
+          const mode = input.transfer_mode === "applied" ? "applied" : "proposal";
+          const repo = typeof input.repo === "string" && input.repo.trim() ? input.repo : ctx.cwd;
+          const expectedTaskIds = Array.isArray(input.expected_task_ids)
+            ? input.expected_task_ids.map(Number)
+            : Number.isFinite(Number(input.task_id))
+              ? [Number(input.task_id)]
+              : [];
+          const expectedDependencies = Array.isArray(input.expected_dependencies)
+            ? input.expected_dependencies.map(String)
+            : [];
+          const result = await consumeD2EExecutionMemory({
+            request: {
+              mode,
+              templateIdentity,
+              repo,
+              decisionId: Number(input.decision_id),
+              packetId: Number(input.packet_id),
+              packetKey: typeof input.packet_key === "string" ? input.packet_key : "",
+              packetSource: typeof input.packet_source === "string" ? input.packet_source : "",
+              packetSourceSha256:
+                typeof input.packet_source_sha256 === "string" ? input.packet_source_sha256 : "",
+              expectedTaskIds,
+              expectedDependencies,
+              authorizationBlockRef:
+                typeof input.authorization_block_ref === "string"
+                  ? input.authorization_block_ref
+                  : undefined,
+            },
+            activation:
+              process.env.PI_ORCH_D2E_EXECUTION_MEMORY_MODE === "enabled" ? "enabled" : "disabled",
+            akBinaryPath: process.env.PI_ORCH_D2E_AK_BIN ?? "",
+            akBinarySha256: process.env.PI_ORCH_D2E_AK_SHA256 ?? "",
+            exec: (command, args, execOptions) => pi.exec(command, args, execOptions),
+            signal,
+          });
+          return {
+            content: [{ type: "text", text: JSON.stringify(result.receipt, null, 2) }],
+            details: {
+              ok: true,
+              kind: result.kind,
+              status: result.receipt.status,
+              receipt: result.receipt,
+            },
+          };
+        } catch (error) {
+          const code =
+            error instanceof D2EExecutionMemoryConsumerError
+              ? error.code
+              : "D2E_EXECUTION_MEMORY_TRANSPORT_FAILED";
+          const message = error instanceof Error ? error.message : String(error);
+          return {
+            content: [{ type: "text", text: `${code}: ${message}` }],
+            details: {
+              ok: false,
+              error: code,
+              effect: { disposition: "not_materialized" },
+              downstream_implementation_authorization: {
+                disposition: "not_authorized",
+                granted: false,
+                basis: "separate_downstream_owner_authorization_required",
+              },
+              ...(error instanceof D2EExecutionMemoryConsumerError && error.producerError
+                ? { producerError: error.producerError }
+                : {}),
+            },
+          };
+        }
       }
 
       if (

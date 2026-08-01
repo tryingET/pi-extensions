@@ -196,8 +196,9 @@ export function isOwnedDispatchPolicy(policy) {
 export const D2E_WORKFLOW_TEMPLATE_OWNERS = Object.freeze({
   "layer12-040-direction-to-execution-ak-native": "software",
   "repo-direction-to-execution": "holding",
-  "execution-memory-transfer": "core",
 });
+export const D2E_EXECUTION_MEMORY_TEMPLATE_NAME = "execution-memory-transfer";
+export const D2E_EXECUTION_MEMORY_TEMPLATE_OWNER = "core";
 export const D2E_WORKFLOW_TEMPLATE_NAMES = Object.freeze(Object.keys(D2E_WORKFLOW_TEMPLATE_OWNERS));
 function d2eWorkflowBinding(ownerCompany) {
   return {
@@ -209,6 +210,21 @@ function d2eWorkflowBinding(ownerCompany) {
       template_control_mode: "one_shot",
       template_formalization_level: "workflow",
       template_owner_company: ownerCompany,
+    },
+    on_missing_binding: "fail_closed",
+    compositeCapable: false,
+  };
+}
+function d2eExecutionMemoryBinding() {
+  return {
+    execution_required: true,
+    execution_surface: "workflow_execute",
+    execution_args: {
+      workflow_gate: "D2E_EXECUTION_MEMORY_V1",
+      template_artifact_kind: "procedure",
+      template_control_mode: "one_shot",
+      template_formalization_level: "workflow",
+      template_owner_company: D2E_EXECUTION_MEMORY_TEMPLATE_OWNER,
     },
     on_missing_binding: "fail_closed",
     compositeCapable: false,
@@ -228,6 +244,7 @@ const DEFAULT_BINDINGS = {
       d2eWorkflowBinding(owner),
     ]),
   ),
+  [D2E_EXECUTION_MEMORY_TEMPLATE_NAME]: d2eExecutionMemoryBinding(),
   ooda: {
     execution_required: true,
     execution_surface: "loop_execute",

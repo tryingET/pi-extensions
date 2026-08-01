@@ -2820,7 +2820,7 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
       undefined,
       { cwd: process.cwd(), model: undefined },
     );
-    assert.equal(deepReviewResult.details.ok, true);
+    assert.equal(deepReviewResult.details.ok, true, JSON.stringify(deepReviewResult.details));
     assert.equal(deepReviewResult.details.templateName, "deep-review");
     assert.equal(deepReviewResult.details.executionSurface, "workflow_execute");
     assert.equal(deepReviewResult.details.status, "done");
@@ -2964,10 +2964,7 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
     assert.equal(defaultProposalResult.details.ok, true);
     assert.equal(defaultProposalResult.details.receipt.caller_mode, "proposal");
 
-    for (const [templateName, expectedOwner] of [
-      ["repo-direction-to-execution", "holding"],
-      ["execution-memory-transfer", "core"],
-    ]) {
+    for (const [templateName, expectedOwner] of [["repo-direction-to-execution", "holding"]]) {
       const crossOwnerProposal = await vaultExecuteTool.execute(
         `tool-call-${templateName}`,
         {
@@ -2987,6 +2984,32 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
       assert.equal(crossOwnerProposal.details.receipt.template.ownerCompany, expectedOwner);
       assert.equal(crossOwnerProposal.details.receipt.caller_mode, "proposal");
     }
+
+    const disabledExecutionMemory = await vaultExecuteTool.execute(
+      "tool-call-execution-memory-disabled",
+      {
+        template_name: "execution-memory-transfer",
+        objective: "Observe Decision 100 execution memory without authorization inference",
+        repo: process.cwd(),
+        packet_id: 74,
+        packet_key: "decision-100-packet",
+        packet_source: `https://github.com/tryingET/agent-kernel/blob/${"a".repeat(40)}/docs/packet.md`,
+        packet_source_sha256: "b".repeat(64),
+        expected_task_ids: [4427],
+        expected_dependencies: ["4427:none"],
+        decision_id: 100,
+      },
+      undefined,
+      undefined,
+      { cwd: process.cwd(), model: undefined, sessionId: "actor-session-a" },
+    );
+    assert.equal(disabledExecutionMemory.details.ok, false);
+    assert.equal(disabledExecutionMemory.details.error, "D2E_EXECUTION_MEMORY_DISABLED");
+    assert.equal(disabledExecutionMemory.details.effect.disposition, "not_materialized");
+    assert.equal(
+      disabledExecutionMemory.details.downstream_implementation_authorization.disposition,
+      "not_authorized",
+    );
 
     const blockedPacketResult = await vaultExecuteTool.execute(
       "tool-call-id-4-blocked-packet",

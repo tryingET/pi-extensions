@@ -10,6 +10,8 @@ import {
   checkProjectionFreshness,
   classifyDispatchPosture,
   createDispatchPolicy,
+  D2E_EXECUTION_MEMORY_TEMPLATE_NAME,
+  D2E_EXECUTION_MEMORY_TEMPLATE_OWNER,
   D2E_WORKFLOW_TEMPLATE_NAMES,
   D2E_WORKFLOW_TEMPLATE_OWNERS,
   formatDispatchPosture,
@@ -205,14 +207,10 @@ describe("formatDispatchPosture", () => {
 // ---------------------------------------------------------------------------
 
 describe("loop binding registry", () => {
-  it("binds exactly the three D2E workflow templates to the immutable completion gate", () => {
+  it("separates the negative-only execution-memory consumer from legacy D2E applied bindings", () => {
     assert.deepEqual(
       [...D2E_WORKFLOW_TEMPLATE_NAMES],
-      [
-        "layer12-040-direction-to-execution-ak-native",
-        "repo-direction-to-execution",
-        "execution-memory-transfer",
-      ],
+      ["layer12-040-direction-to-execution-ak-native", "repo-direction-to-execution"],
     );
     const bindings = getKnownLoopBindings();
     assert.equal(bindings["direction-to-execution"], undefined);
@@ -245,6 +243,23 @@ describe("loop binding registry", () => {
       assert.equal(posture.posture, "orchestrator_workflow_gate_required");
       assert.equal(posture.binding, binding);
     }
+    const executionMemory = bindings[D2E_EXECUTION_MEMORY_TEMPLATE_NAME];
+    assert.equal(D2E_EXECUTION_MEMORY_TEMPLATE_OWNER, "core");
+    assert.deepEqual(executionMemory.execution_args, {
+      workflow_gate: "D2E_EXECUTION_MEMORY_V1",
+      template_artifact_kind: "procedure",
+      template_control_mode: "one_shot",
+      template_formalization_level: "workflow",
+      template_owner_company: "core",
+    });
+    assert.equal(
+      classifyDispatchPosture({
+        name: D2E_EXECUTION_MEMORY_TEMPLATE_NAME,
+        control_mode: "one_shot",
+        formalization_level: "workflow",
+      }).binding,
+      executionMemory,
+    );
   });
 
   it("returns deeply frozen bindings", () => {
