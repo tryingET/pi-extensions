@@ -196,7 +196,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
       visionPath: "/repo/docs/project/vision.md",
       visionExists: false,
     });
-    assert.equal(config.prompts.length, 9);
+    assert.equal(config.prompts.length, 6);
     assert.match(
       config.prompts[0],
       /^read @docs\/project\/vision\.md and @docs\/project\/product-posture\.md\./,
@@ -212,28 +212,44 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
     assertImplementationVerificationFocus(config.prompts[0]);
     assert.match(config.prompts[0], /Proceed until completed and validated\./);
     assert.doesNotMatch(config.prompts[0], /Prompt Vault/);
-    assert.equal(config.prompts[1], "proceed");
-    assert.match(config.prompts[4], /Governed deep-review execution step/);
-    assert.match(config.prompts[4], /vault_execute_template/);
-    assert.match(config.prompts[4], /Do not use `vault_retrieve` content/);
     assert.match(
-      config.prompts[5],
-      /proceed with nexus implementation until completion and verification/,
+      config.prompts[1],
+      /Audit the current implementation against the original design membrane/,
     );
-    assertImplementationVerificationFocus(config.prompts[5]);
-    assert.match(config.prompts[6], /fix any bugs/);
-    assert.match(config.prompts[6], /Prompt Vault/);
+    assert.match(config.prompts[1], /do not select or begin another product slice/);
+    assert.match(config.prompts[1], /rerun only the invalidated focused proof/);
+    assert.match(config.prompts[2], /Governed deep-review execution step/);
+    assert.match(config.prompts[2], /vault_execute_template/);
+    assert.match(config.prompts[2], /Do not use `vault_retrieve` content/);
+    assert.match(config.prompts[3], /single highest-leverage Nexus implementation/);
+    assert.match(config.prompts[3], /may use at most one non-Prompt-Vault read-only reviewer/);
+    assert.match(config.prompts[3], /Do not select or execute the `deep-review` template again/);
+    assert.match(config.prompts[3], /do not call `vault_execute_template` during this fixup/);
     assert.match(
-      config.prompts[6],
+      config.prompts[3],
+      /Prompt Vault may be used only for optional non-review `text_ok` grounding/,
+    );
+    assert.match(config.prompts[3], /If posture is not `text_ok`, do not dispatch or execute/);
+    assert.equal(
+      config.prompts.filter((prompt) =>
+        prompt.includes("Call `vault_execute_template` exactly once"),
+      ).length,
+      1,
+    );
+    assert.match(config.prompts[3], /atomic-completion pass/);
+    assertImplementationVerificationFocus(config.prompts[3]);
+    assert.match(config.prompts[3], /Prompt Vault/);
+    assert.match(
+      config.prompts[3],
       /Execution means: inspect the current repo\/state, apply the needed bounded fixes, run verification/,
     );
-    assert.match(config.prompts[6], /Do not stop after retrieving the template/);
-    assert.match(config.prompts[7], /Update the owning product-posture\.md before loop completion/);
-    assert.match(config.prompts[7], /Default target: @docs\/project\/product-posture\.md/);
-    assert.match(config.prompts[7], /owning package's docs\/project\/product-posture\.md/);
-    assert.match(config.prompts[7], /next-iteration frontier map/);
-    assert.match(config.prompts[7], /Do not commit yet/);
-    assert.equal(config.prompts[8], "/commit");
+    assert.match(config.prompts[3], /Do not stop after retrieving the template/);
+    assert.match(config.prompts[4], /Update the owning product-posture\.md before loop completion/);
+    assert.match(config.prompts[4], /Default target: @docs\/project\/product-posture\.md/);
+    assert.match(config.prompts[4], /owning package's docs\/project\/product-posture\.md/);
+    assert.match(config.prompts[4], /next-iteration frontier map/);
+    assert.match(config.prompts[4], /Do not commit yet/);
+    assert.equal(config.prompts[5], "/commit");
     assert.match(harness.notifications.at(-1).message, /Opened visible-loop/);
   } finally {
     restoreHome();
@@ -547,23 +563,33 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
       visionExists: true,
     });
     assert.equal(config.commandName, "nexus-loop");
-    assert.equal(config.prompts.length, 5);
+    assert.equal(config.prompts.length, 4);
     assert.match(config.prompts[0], /Governed deep-review execution step/);
     assert.match(config.prompts[0], /vault_execute_template/);
+    assert.match(config.prompts[1], /single highest-leverage Nexus implementation/);
+    assert.match(config.prompts[1], /may use at most one non-Prompt-Vault read-only reviewer/);
+    assert.match(config.prompts[1], /Do not select or execute the `deep-review` template again/);
+    assert.match(config.prompts[1], /do not call `vault_execute_template` during this fixup/);
     assert.match(
       config.prompts[1],
-      /proceed with nexus implementation until completion and verification/,
+      /Prompt Vault may be used only for optional non-review `text_ok` grounding/,
     );
+    assert.match(config.prompts[1], /If posture is not `text_ok`, do not dispatch or execute/);
+    assert.equal(
+      config.prompts.filter((prompt) =>
+        prompt.includes("Call `vault_execute_template` exactly once"),
+      ).length,
+      1,
+    );
+    assert.match(config.prompts[1], /atomic-completion pass/);
     assertImplementationVerificationFocus(config.prompts[1]);
-    assert.match(config.prompts[2], /fix any bugs/);
-    assert.match(config.prompts[2], /atomic-completion/);
-    assert.match(config.prompts[2], /Prompt Vault/);
-    assert.match(config.prompts[2], /vault_query\(\.\.\., include_content:false\)/);
-    assert.match(config.prompts[2], /vault_retrieve\(\.\.\., include_content:true\)/);
-    assert.match(config.prompts[2], /vault_dispatch_check/);
-    assert.match(config.prompts[3], /Update the owning product-posture\.md before loop completion/);
-    assert.match(config.prompts[3], /Do not commit yet/);
-    assert.equal(config.prompts[4], "/commit");
+    assert.match(config.prompts[1], /Prompt Vault/);
+    assert.match(config.prompts[1], /vault_query\(\.\.\., include_content:false\)/);
+    assert.match(config.prompts[1], /vault_retrieve\(\.\.\., include_content:true\)/);
+    assert.match(config.prompts[1], /vault_dispatch_check/);
+    assert.match(config.prompts[2], /Update the owning product-posture\.md before loop completion/);
+    assert.match(config.prompts[2], /Do not commit yet/);
+    assert.equal(config.prompts[3], "/commit");
     assert.match(harness.notifications.at(-1).message, /Opened nexus-loop/);
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
@@ -609,53 +635,67 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
       },
       harness.ctx,
     );
-    for (let completed = 0; completed < 4; completed += 1) {
+    for (let completed = 0; completed < 3; completed += 1) {
       await agentSettled({}, harness.ctx);
       await observeLatestVisibleLoopMessage(events, userMessages, harness.ctx);
       await agentStart({}, harness.ctx);
     }
 
-    assert.equal(userMessages.length, 5);
+    assert.equal(userMessages.length, 4);
+    assert.match(userMessages[1].message, /single highest-leverage Nexus implementation/);
+    assert.match(userMessages[1].message, /atomic-completion pass/);
     assert.match(
       userMessages[1].message,
-      /proceed with nexus implementation until completion and verification/,
+      /Do not select or execute the `deep-review` template again/,
+    );
+    assert.match(userMessages[1].message, /do not call `vault_execute_template` during this fixup/);
+    assert.match(
+      userMessages[1].message,
+      /may use at most one non-Prompt-Vault read-only reviewer/,
+    );
+    assert.match(
+      userMessages[1].message,
+      /Prompt Vault may be used only for optional non-review `text_ok` grounding/,
+    );
+    assert.match(
+      userMessages[1].message,
+      /If posture is not `text_ok`, do not dispatch or execute/,
     );
     assertImplementationVerificationFocus(userMessages[1].message);
-    assert.match(userMessages[2].message, /fix any bugs/);
-    assert.match(userMessages[3].message, /Update the owning product-posture\.md/);
-    assert.match(userMessages[4].message, /Nexus loop commit delegation step/);
-    assert.match(userMessages[4].message, /dispatch_subagent/);
+    assert.match(userMessages[2].message, /Update the owning product-posture\.md/);
+    assert.match(userMessages[3].message, /Nexus loop commit delegation step/);
+    assert.match(userMessages[3].message, /dispatch_subagent/);
     assert.match(
-      userMessages[4].message,
+      userMessages[3].message,
       /Do not run the commit workflow in this loop child session/,
     );
-    assert.match(userMessages[4].message, /Call `dispatch_subagent` exactly once/);
+    assert.match(userMessages[3].message, /Call `dispatch_subagent` exactly once/);
     assert.match(
-      userMessages[4].message,
+      userMessages[3].message,
       /The configured `\/commit` prompt has already been resolved/,
     );
-    assert.match(userMessages[4].message, /EXPANDED COMMIT LOCAL_SENTINEL/);
-    assert.match(userMessages[4].message, /"profile": "minimal"/);
-    assert.match(userMessages[4].message, /"tools": "read,bash"/);
-    assert.match(userMessages[4].message, /"prompt_name": "nexus-loop-commit-delegation"/);
-    assert.match(userMessages[4].message, /"prompt_source": "pi-little-helpers"/);
-    assert.match(userMessages[4].message, /Nexus loop delegated commit workflow/);
-    assertLoopValidationGuidance(userMessages[4].message);
-    assert.match(userMessages[4].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
+    assert.match(userMessages[3].message, /EXPANDED COMMIT LOCAL_SENTINEL/);
+    assert.match(userMessages[3].message, /"profile": "minimal"/);
+    assert.match(userMessages[3].message, /"tools": "read,bash"/);
+    assert.match(userMessages[3].message, /"prompt_name": "nexus-loop-commit-delegation"/);
+    assert.match(userMessages[3].message, /"prompt_source": "pi-little-helpers"/);
+    assert.match(userMessages[3].message, /Nexus loop delegated commit workflow/);
+    assertLoopValidationGuidance(userMessages[3].message);
+    assert.match(userMessages[3].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
     assert.match(
-      userMessages[4].message,
+      userMessages[3].message,
       new RegExp(escapeRegExp(`nexus-loop run id: ${config.runId}`)),
     );
     assert.match(
-      userMessages[4].message,
+      userMessages[3].message,
       /Do not perform new implementation work or broaden scope/,
     );
-    assert.match(userMessages[4].message, /State validation commands run and results/);
-    assert.doesNotMatch(userMessages[4].message, /peer_watch/);
-    assert.match(userMessages[4].message, /visible_loop_child_complete/);
-    assert.match(userMessages[4].message, new RegExp(escapeRegExp(configPath)));
-    assert.doesNotMatch(userMessages[4].message, /^\/commit$/m);
-    assert.doesNotMatch(userMessages[4].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[3].message, /State validation commands run and results/);
+    assert.doesNotMatch(userMessages[3].message, /peer_watch/);
+    assert.match(userMessages[3].message, /visible_loop_child_complete/);
+    assert.match(userMessages[3].message, new RegExp(escapeRegExp(configPath)));
+    assert.doesNotMatch(userMessages[3].message, /^\/commit$/m);
+    assert.doesNotMatch(userMessages[3].message, /Visible-loop internal completion checkpoint/);
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });
@@ -720,17 +760,17 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
       mode: "dispatch_subagent",
       promptTemplate: "commit",
     });
-    assert.equal(config.prompts.length, 9);
-    assert.equal(config.prompts[8], "/commit");
+    assert.equal(config.prompts.length, 6);
+    assert.equal(config.prompts[5], "/commit");
 
     await commands.get("visible-loop-child").handler(configPath, harness.ctx);
     const agentSettled = events.get("agent_settled")[0];
     const toolExecutionStart = events.get("tool_execution_start")[0];
     const toolExecutionEnd = events.get("tool_execution_end")[0];
-    for (let index = 0; index < 9; index += 1) {
+    for (let index = 0; index < 6; index += 1) {
       assert.equal(userMessages.length, index + 1, "only one frontier may be submitted");
       await observeVisibleLoopMessageAt(events, userMessages, index, harness.ctx);
-      if (index === 4) {
+      if (index === 2) {
         await toolExecutionStart(
           {
             toolCallId: "delegate-deep-review",
@@ -764,35 +804,35 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
           harness.ctx,
         );
       }
-      if (index < 8) await agentSettled({}, harness.ctx);
+      if (index < 5) await agentSettled({}, harness.ctx);
     }
 
-    assert.equal(userMessages.length, 9);
-    assert.match(userMessages[7].message, /Update the owning product-posture\.md/);
-    assert.match(userMessages[8].message, /Visible loop commit delegation step/);
-    assert.match(userMessages[8].message, /dispatch_subagent/);
-    assert.match(userMessages[8].message, /EXPANDED COMMIT/);
-    assert.match(userMessages[8].message, /"profile": "minimal"/);
-    assert.match(userMessages[8].message, /"tools": "read,bash"/);
-    assert.match(userMessages[8].message, /"prompt_name": "visible-loop-commit-delegation"/);
-    assert.match(userMessages[8].message, /"prompt_source": "pi-little-helpers"/);
-    assert.match(userMessages[8].message, /Visible loop delegated commit workflow/);
-    assertLoopValidationGuidance(userMessages[8].message);
-    assert.match(userMessages[8].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
+    assert.equal(userMessages.length, 6);
+    assert.match(userMessages[4].message, /Update the owning product-posture\.md/);
+    assert.match(userMessages[5].message, /Visible loop commit delegation step/);
+    assert.match(userMessages[5].message, /dispatch_subagent/);
+    assert.match(userMessages[5].message, /EXPANDED COMMIT/);
+    assert.match(userMessages[5].message, /"profile": "minimal"/);
+    assert.match(userMessages[5].message, /"tools": "read,bash"/);
+    assert.match(userMessages[5].message, /"prompt_name": "visible-loop-commit-delegation"/);
+    assert.match(userMessages[5].message, /"prompt_source": "pi-little-helpers"/);
+    assert.match(userMessages[5].message, /Visible loop delegated commit workflow/);
+    assertLoopValidationGuidance(userMessages[5].message);
+    assert.match(userMessages[5].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
     assert.match(
-      userMessages[8].message,
+      userMessages[5].message,
       new RegExp(escapeRegExp(`visible-loop run id: ${config.runId}`)),
     );
     assert.match(
-      userMessages[8].message,
+      userMessages[5].message,
       /Do not perform new implementation work or broaden scope/,
     );
-    assert.match(userMessages[8].message, /State validation commands run and results/);
-    assert.doesNotMatch(userMessages[8].message, /peer_watch/);
-    assert.match(userMessages[8].message, /visible_loop_child_complete/);
-    assert.match(userMessages[8].message, new RegExp(escapeRegExp(configPath)));
-    assert.doesNotMatch(userMessages[8].message, /^\/commit$/m);
-    assert.doesNotMatch(userMessages[8].message, /Visible-loop internal completion checkpoint/);
+    assert.match(userMessages[5].message, /State validation commands run and results/);
+    assert.doesNotMatch(userMessages[5].message, /peer_watch/);
+    assert.match(userMessages[5].message, /visible_loop_child_complete/);
+    assert.match(userMessages[5].message, new RegExp(escapeRegExp(configPath)));
+    assert.doesNotMatch(userMessages[5].message, /^\/commit$/m);
+    assert.doesNotMatch(userMessages[5].message, /Visible-loop internal completion checkpoint/);
   } finally {
     resetVisibleLoopRuntimeForRecoveryTest();
     restoreHome();

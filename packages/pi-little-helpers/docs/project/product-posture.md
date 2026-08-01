@@ -40,7 +40,7 @@ launch visible helper work; do not make helper output authority
 ## Current product maturity
 
 - maturity: `internal alpha / visible peer and visible-loop harness operational`
-- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as execution harnesses, not evaluators or evidence stores, while preserving candidate-bound objectives and closeout guards through launch, continuation, and completion
+- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as concise execution harnesses, not evaluators or evidence stores, while preserving bound objectives and closeout guards through launch, single-frontier continuation, and completion
 - release posture: package has local loop validation scripts and tests for prompt expansion, checkpointing, completion, commit delegation, and visible peer capability registration
 - latest candidate-handoff hardening: `/visible-loop --candidate evolution-...` resolves only a matching fresh candidate from a correlated preceding assistant `self` tool call and `self` tool result in the active Pi branch, requires a canonical direct `packages/<owner>/...json` artifact of kind `self.evolution_owner_artifact.v1` with exact candidate/owner binding, persists the full audit envelope plus parsed artifact, and injects only the safe manifest, owner-approved hypothesis/metric/falsifier/scope/validation data, and guard requirements into the first child prompt; child start/restore/completion recheck age and source-session binding, and candidate completion returns a typed accepted/rejected result after correlating evidence references to host-observed package-check calls, ordered ASC proof-ledger runs, and canonical owner artifacts
 
@@ -54,7 +54,7 @@ launch visible helper work; do not make helper output authority
 - a complete operator-visible iteration plan kept separate from executable authority, with exactly one frontier submitted at a time through Pi-native follow-ups and every next step withheld until correlated `message_start` plus `agent_settled` (and any governed receipt) succeeds;
 - deterministic expansion of remaining text-safe slash prompt templates such as `/commit` from repo-local and global prompt directories, without accepting raw `deep-review.md` execution;
 - commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion, with command-aware delegation prompt names and run-id wording;
-- default visible-loop prompts that read `docs/project/vision.md` and `docs/project/product-posture.md`, implement a bounded slice, run review/fixup/validation, refresh product posture, and only then commit/complete;
+- a six-real-prompt default visible loop—bound design/implementation, completion audit, governed deep review, consolidated Nexus fixup, posture refresh, and commit—and a four-real-prompt Nexus loop that begins at governed review;
 - package-local implementation of the visible execution loop category defined by the root loop taxonomy boundary contract.
 
 ## Product non-goals
@@ -74,10 +74,10 @@ launch visible helper work; do not make helper output authority
 
 ```text
 read vision/product-posture
--> design membrane
--> bounded implementation
--> validation and dogfood where relevant
--> deep review / fixup
+-> design membrane and bounded implementation
+-> completion audit with focused revalidation
+-> governed deep review
+-> consolidated Nexus fixup, at most one optional non-Prompt-Vault read-only review when available and useful, and atomic completion
 -> product-posture refresh
 -> commit / completion checkpoint
 ```
@@ -100,7 +100,7 @@ A visible-loop result is trustworthy only when:
 8. **Candidate provenance is correlated but non-authoritative** — a candidate route must match an assistant `self` tool call and its `self` tool result in the active branch; the resulting envelope remains untrusted session-mirror transport, not evidence or authority.
 9. **Closeout brakes survive transport** — full source guard snapshots remain in config for audit, while the first child prompt gets only guard requirements and validated typed owner-artifact fields. Required reflection/live-proof/promotion evidence must correlate to host-observed command results, ordered ASC ledger events, or the canonical bound artifact; free-form status labels, invented receipt IDs, missing/stale artifacts, and cross-session/expired configs cannot advance completion.
 10. **Governed review is receipt-gated** — exactly one deep-review call may satisfy the barrier, and only after `vault_execute_template` returns the exact `deep-review` / `workflow_execute` identity, a non-empty Vault handoff id, and `status=done`; duplicate, missing, failed, timed-out, or raw-file review paths stop before Nexus, posture refresh, commit, and completion.
-11. **Plan visibility is not release authority** — the operator widget shows every planned step, but only one exact frontier is submitted. `sendUserMessage` submission remains submitted/pending rather than host-queued truth until correlated `message_start`; only that observed run's `agent_settled` may advance the cursor. This is safe under `followUpMode=all` because the extension never batches runnable prompts.
+11. **Plan visibility is not release authority** — the operator widget shows all six visible-loop or four Nexus real prompts, but only one exact frontier is submitted. `sendUserMessage` submission remains submitted/pending rather than host-queued truth until correlated `message_start`; only that observed run's `agent_settled` may advance the cursor. This is safe under `followUpMode=all` because the extension never batches runnable prompts.
 12. **Recovery is explicit and fail-closed** — the atomic schema-5 per-session snapshot binds plan id, iteration, lifecycle, frontier, settled progress, and governed call receipt for recovery, while a separate owner-only run-global lease is the sole cross-session exclusion authority. ACTIVE ownership is session/process-incarnation bound, LAUNCHING handoff consumes one unguessable token, FAILED permits one explicit recovery, and COMPLETED is terminal. Same-process reload renders/resumes without duplicate submission; fresh restart, corrupt state, token replay, or indeterminate submission fails explicitly. A terminal plan is finalized before authoritative checked completion persistence, cannot be reused after continuation-launch failure, and the widget is finalized or cleared on completion.
 
 ## Next product bets
@@ -117,8 +117,8 @@ Improve prompt wording and tests so root-launched loops route posture updates to
 
 Keep completion checkpoint wording aligned with the actual prompt queue so child sessions know not to mark a loop complete when product-posture refresh, validation, or commit/delegated commit failed.
 
-Recent proof: the model-facing `visible_loop_child_complete` description now matches the checkpointed completion flow instead of implying ordinary `agent_settled` completion.
+Recent proof: the default queue now replaces three context-free continuation turns with one completion audit and combines Nexus implementation plus atomic cleanup into one bounded fixup. Ordinary inline-commit runs receive a separate success-only checkpoint after all real prompts settle; delegated-commit runs call the same completion tool from the still-running terminal commit frontier only after the delegated worker succeeds.
 
 ### Bet 4 — Readability ratchet for visible-loop internals
 
-`src/visibleLoop.ts` remains over the brownfield LOC budget, but delegated commit prompt rendering has been moved into `src/visibleLoopPromptTemplates.ts`; command profiles/labels live in `src/visibleLoopProfiles.ts`; iteration-bound plan/frontier transitions, recovery classification, validation, and widget rendering live in `src/visibleLoopPlan.ts`; atomic active-snapshot I/O lives in `src/visibleLoopRecovery.ts`; config/status sidecar helpers live in `src/visibleLoopState.ts`; and argument/type contracts live in `src/visibleLoopArgs.ts` / `src/visibleLoopTypes.ts`. Next refactor should split more launch and completion transitions without changing the single-frontier contract.
+`src/visibleLoop.ts` remains over the brownfield LOC budget, but default queue composition lives in `src/visibleLoopPromptDefaults.ts`; expansion plus delegated commit/completion rendering lives in `src/visibleLoopPromptTemplates.ts`; command profiles/labels live in `src/visibleLoopProfiles.ts`; iteration-bound plan/frontier transitions, recovery classification, validation, and widget rendering live in `src/visibleLoopPlan.ts`; atomic active-snapshot I/O lives in `src/visibleLoopRecovery.ts`; config/status sidecar helpers live in `src/visibleLoopState.ts`; and argument/type contracts live in `src/visibleLoopArgs.ts` / `src/visibleLoopTypes.ts`. Next refactor should split more launch and completion transitions without changing the single-frontier contract.

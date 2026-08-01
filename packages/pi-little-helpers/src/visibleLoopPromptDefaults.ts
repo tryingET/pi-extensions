@@ -4,14 +4,14 @@
 
 const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
   "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
-  "1) Select the single best-matching template for this task.",
+  "1) Select the single best-matching non-review template for this task; exclude `deep-review` and every review-oriented template.",
   "- `vault_query(..., include_content:false)`",
   "2) Retrieve that template's full content.",
   "- `vault_retrieve(..., include_content:true)`",
   "3) Before executing it, check dispatch posture.",
   '- `vault_dispatch_check({ template_names: ["<name>"] })`',
   "- If posture is `text_ok`, execute it as written.",
-  "- If posture requires orchestrator dispatch/gating, use that binding; do not bypass the gate with text-only interpretation.",
+  "- If posture is not `text_ok`, do not dispatch or execute that template during this fixup; choose another non-review candidate and repeat the check, or continue best-effort without a template if none remains lawful.",
   "4) Execution means: inspect the current repo/state, apply the needed bounded fixes, run verification, and only then report. Do not stop after retrieving the template, quoting it, or filling its output format with a plan.",
   "5) If the template has an OUTPUT FORMAT, follow it exactly for the final answer, but make the fields reflect actual work performed, explicit deferrals, or hard blockers.",
   "6) Do not reference unretrieved frameworks.",
@@ -72,18 +72,32 @@ export const GOVERNED_DEEP_REVIEW_PROMPT = [
   "If the tool is unavailable, blocked, fails, times out, or returns any other status, report the blocker and stop. Do not proceed to Nexus fixup, posture refresh, commit, or loop completion.",
 ].join("\n");
 
+export const DEFAULT_COMPLETION_AUDIT_PROMPT = [
+  "Audit the current implementation against the original design membrane before deep review.",
+  "If a membrane criterion is unsatisfied, fix only that concrete gap and run the smallest affected regression.",
+  "If every criterion is satisfied, do not select or begin another product slice.",
+  "Treat previous validation as current only while none of its relevant inputs have changed; after a relevant edit, rerun only the invalidated focused proof.",
+  "Report the remaining concrete gaps, or state that the implementation is ready for independent adversarial review.",
+].join("\n");
+
+export const DEFAULT_NEXUS_FIXUP_PROMPT = [
+  "Proceed with the single highest-leverage Nexus implementation from the deep review until bounded completion and verification.",
+  "Resolve the review findings as one coherent fix batch; do not select another product slice.",
+  "The governed deep-review workflow has already completed for this iteration. Do not select or execute the `deep-review` template again, and do not call `vault_execute_template` during this fixup.",
+  "Prompt Vault may be used only for optional non-review `text_ok` grounding during this fixup; do not execute or dispatch another Prompt Vault workflow.",
+  "If independent reviewer tooling is available and a separate review would materially reduce risk, you may use at most one non-Prompt-Vault read-only reviewer; resolve its bounded actionable findings in the same batch and do not repeat review passes.",
+  "Run only tests invalidated by the latest edits during fixup. Leave the repo-declared final impact/landing gate for the final verified state instead of repeatedly rerunning overlapping suites.",
+  "",
+  DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
+  "",
+  "Finish with one atomic-completion pass for bugs, code smells, gaps, or technical debt still inside this Nexus slice.",
+  "",
+  DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
+].join("\n");
+
 export const DEFAULT_NEXUS_LOOP_PROMPTS = [
   GOVERNED_DEEP_REVIEW_PROMPT,
-  [
-    "proceed with nexus implementation until completion and verification",
-    "",
-    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
-  ].join("\n"),
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
+  DEFAULT_NEXUS_FIXUP_PROMPT,
   DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   "/commit",
 ] as const;
@@ -160,20 +174,9 @@ export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
     "",
     "Proceed until completed and validated.",
   ].join("\n"),
-  "proceed",
-  "proceed",
-  "proceed",
+  DEFAULT_COMPLETION_AUDIT_PROMPT,
   GOVERNED_DEEP_REVIEW_PROMPT,
-  [
-    "proceed with nexus implementation until completion and verification",
-    "",
-    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
-  ].join("\n"),
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
+  DEFAULT_NEXUS_FIXUP_PROMPT,
   DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
   "/commit",
 ] as const;
