@@ -78,6 +78,7 @@
     "src/visibleLoopContinuationClaim.ts",
     "src/visibleLoopDelivery.ts",
     "src/visibleLoopPlan.ts",
+    "src/visibleLoopPromptDefaults.ts",
     "src/visibleLoopPromptTemplates.ts",
     "src/visibleLoopProfiles.ts",
     "src/visibleLoopRecovery.ts",

@@ -1,6 +1,6 @@
-// summary: defines visible-loop prompt queues and safely expands slash templates and delegated commit checkpoints.
+// summary: expands visible-loop prompt templates and renders delegated commit and completion checkpoints.
 // read_when:
-//   - changing default loop prompts, prompt-template resolution, commit delegation, or completion checkpoint text.
+//   - changing prompt expansion, delegation, or completion; default queue text lives in visibleLoopPromptDefaults.ts.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,10 @@ import {
   renderSelfEvolutionCandidateCloseoutTemplate,
   type SelfEvolutionExecutionEnvelope,
 } from "./selfEvolutionEnvelope.ts";
+import { DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT } from "./visibleLoopPromptDefaults.ts";
 import type { VisibleLoopExecutionBinding } from "./visibleLoopTypes.ts";
+
+export * from "./visibleLoopPromptDefaults.ts";
 
 export function bindVisibleLoopExecutionPrompt(
   prompt: string,
@@ -31,182 +34,6 @@ export function bindVisibleLoopExecutionPrompt(
     prompt,
   ].join("\n");
 }
-
-const DEFAULT_PROMPT_VAULT_INSTRUCTIONS = [
-  "Use Prompt Vault (`~/ai-society/core/prompt-vault`) like trigger folders.",
-  "1) Select the single best-matching template for this task.",
-  "- `vault_query(..., include_content:false)`",
-  "2) Retrieve that template's full content.",
-  "- `vault_retrieve(..., include_content:true)`",
-  "3) Before executing it, check dispatch posture.",
-  '- `vault_dispatch_check({ template_names: ["<name>"] })`',
-  "- If posture is `text_ok`, execute it as written.",
-  "- If posture requires orchestrator dispatch/gating, use that binding; do not bypass the gate with text-only interpretation.",
-  "4) Execution means: inspect the current repo/state, apply the needed bounded fixes, run verification, and only then report. Do not stop after retrieving the template, quoting it, or filling its output format with a plan.",
-  "5) If the template has an OUTPUT FORMAT, follow it exactly for the final answer, but make the fields reflect actual work performed, explicit deferrals, or hard blockers.",
-  "6) Do not reference unretrieved frameworks.",
-  "7) If vault is unavailable, continue best-effort and say so.",
-  "Use as many frameworks as necessary, and as few as possible.",
-  "Grounding (one line at end):",
-  "`grounding: template=<name>, vault_status=<ok|unavailable>`",
-].join("\n");
-
-export const DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT = [
-  "Repo loop validation guidance:",
-  "- If this repo exposes a repo-owned loop validation contract or loop-* aliases, use the repo-declared invocation by phase instead of hardcoding repo-specific validation names.",
-  "- Typical phases: `loop-doctor` for non-failing diagnostics; `loop-verify-fast` for focused inner-loop checks; `loop-impact-plan` to classify changed-file risk; `loop-impact-run` for bounded/expanded impact checks; `loop-impact-wide` for wide/full-required impact plans (include a concise reason if the repo command supports it); `loop-landing-check` for the repo-declared landing/readiness gate.",
-  "- Run those phases through the form documented by the repo (`just loop-*`, `npm run loop-*`, or another repo-owned wrapper) rather than assuming bare commands are on PATH.",
-  "- If a loop-* command is absent, use the closest repo-local equivalent and report the fallback.",
-  "- Treat loop commands as repo-owned evidence-producing diagnostics/checks, not authority. Do not claim validation authority, merge approval, production activation, AK task closure, or semantic completion from these checks alone.",
-].join("\n");
-
-export const DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT = [
-  "Verification expectation: after the implementation is complete, run the repo's normal focused validation for the touched slice.",
-  "If the repo clearly documents loop-* aliases as its validation wrapper, use them at verification time only; do not start this turn by auditing validation plumbing unless implementation or verification is blocked by it.",
-  "Keep the main work focus on the bounded implementation and its direct proof.",
-].join("\n");
-
-export const GOVERNED_DEEP_REVIEW_OBJECTIVE =
-  "Perform the full governed adversarial deep review of the current implementation and repository state. Return ranked, evidence-backed findings for the next bounded Nexus fixup.";
-
-export const DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT = [
-  "Update the owning product-posture.md before loop completion.",
-  "",
-  "Default target: @docs/project/product-posture.md in the current cwd.",
-  "If this loop routed implementation into a package/subdirectory, update that owning package's docs/project/product-posture.md instead; update root posture only when root routing/control-plane behavior changed.",
-  "",
-  "Use the actual implementation, validation, docs, and bugfixes from this iteration.",
-  "Treat product-posture as the next-iteration frontier map, not a changelog.",
-  "",
-  "Make the smallest truthful update that records:",
-  "- what product maturity changed;",
-  "- what proof/validation now exists;",
-  "- what main gap remains;",
-  "- any authority/provenance/source-owner boundary that became clearer;",
-  "- what the next highest-leverage slice should understand before choosing work.",
-  "",
-  "If the owning product-posture file is missing or cannot be updated truthfully, stop and report the blocker.",
-  "Do not send/allow the visible-loop completion signal until the owning posture refresh is done.",
-  "Do not commit yet.",
-].join("\n");
-
-export const GOVERNED_DEEP_REVIEW_PROMPT = [
-  "Governed deep-review execution step.",
-  "",
-  "Call `vault_execute_template` exactly once with:",
-  '- `template_name`: `"deep-review"`',
-  `- \`objective\`: \`"${GOVERNED_DEEP_REVIEW_OBJECTIVE}"\``,
-  "",
-  "The tool must execute the Prompt Vault template through its verified workflow binding and return `details.ok=true`, `executionSurface=workflow_execute`, an exact Vault `handoffId`, and `status=done`.",
-  "Do not use `vault_retrieve` content or a local `deep-review.md` file as execution.",
-  "If the tool is unavailable, blocked, fails, times out, or returns any other status, report the blocker and stop. Do not proceed to Nexus fixup, posture refresh, commit, or loop completion.",
-].join("\n");
-
-export const DEFAULT_NEXUS_LOOP_PROMPTS = [
-  GOVERNED_DEEP_REVIEW_PROMPT,
-  [
-    "proceed with nexus implementation until completion and verification",
-    "",
-    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
-  ].join("\n"),
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
-  DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
-  "/commit",
-] as const;
-
-export const DEFAULT_VISIBLE_LOOP_PROMPTS = [
-  [
-    "read @docs/project/vision.md and @docs/project/product-posture.md.",
-    "Treat product-posture as an active work artifact: it should shape slice choice up front and be refreshed before completion, not treated as an optional changelog.",
-    "If you route work from a monorepo root into a package, identify the owning package's docs/project/product-posture.md as the posture target before implementation.",
-    "The visible-loop config records cwd-level product-posture/vision paths and launch-time existence flags; treat them as launch hints and correct them explicitly if package routing chooses a different owner.",
-    "",
-    "Use the explicit execution binding supplied by the loop as the fixed slice.",
-    "Test that bound slice against current repo state before mutation; do not select a different or adjacent product slice.",
-    "Reason from first principles and consider multi-order effects within the bound scope.",
-    "",
-    "Before implementation, produce a compact design membrane:",
-    "",
-    "1. CURRENT STATE",
-    "- What exists now?",
-    "- What is broken, missing, stale, misleading, or under-proven?",
-    "- What evidence from files/tests/docs supports that?",
-    "",
-    "2. RECONSTRUCTED OBJECTIVE",
-    "- What should actually be improved?",
-    "- Why is this the highest-leverage next move?",
-    "- Which product-posture file owns this loop's frontier update?",
-    "- What would done mean in observable terms?",
-    "",
-    "3. OWNER / AUTHORITY BOUNDARIES",
-    "- What does this package/repo own?",
-    "- What must remain external?",
-    "- What would authority drift look like?",
-    "",
-    "4. DOMAIN / DATA / STATE MODEL",
-    "- What are the core entities and lifecycle states?",
-    "- What inputs, outputs, files, DBs, tools, subprocesses, or generated artifacts are involved?",
-    "- What is canonical truth vs projection/cache/receipt/packet?",
-    "",
-    "5. TRUST / SECURITY MODEL",
-    "- Which inputs are caller-controlled or untrusted?",
-    "- What paths/processes/network/DBs can be read or written?",
-    "- What path escape, symlink, TOCTOU, size/time, permission, stale-state, injection, or secret-leak risks exist?",
-    "- What must be redacted?",
-    "- What must fail closed?",
-    "",
-    "6. UX / AX / DX CONTRACT",
-    "- What should the operator see?",
-    "- What should the agent see?",
-    "- What wording could imply false authority, false provenance, or false completion?",
-    "- What exact next actions should be obvious?",
-    "",
-    "7. FAILURE / ROLLBACK MODEL",
-    "- What partial writes or artifacts can occur?",
-    "- How are failures surfaced?",
-    "- How is the change reverted?",
-    "- What is the point of no return?",
-    "",
-    "8. ADVERSARIAL TEST PLAN",
-    "- Name the negative/adversarial tests required before done.",
-    "- Include malicious input, missing/stale state, wrong owner surface, path escape, symlink/TOCTOU, huge input, permission failure, misleading provenance, and rollback/partial-write cases when relevant.",
-    "",
-    "Do not implement until the design membrane is explicit.",
-    "",
-    "Then implement the bounded complete change that satisfies the membrane.",
-    "Do not optimize for smallest diff. Optimize for bounded completeness:",
-    "- broad enough to satisfy the design membrane;",
-    "- narrow enough to avoid unrelated ownership drift;",
-    "- complete enough that known bugs/gaps are not left to later;",
-    "- structural enough to remove root causes when patching symptoms would compound debt.",
-    "",
-    "Verify with normal tests, adversarial/negative tests from the membrane, docs/artifact checks if behavior changed, and dogfooding where relevant.",
-    "",
-    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
-    "",
-    "Proceed until completed and validated.",
-  ].join("\n"),
-  "proceed",
-  "proceed",
-  "proceed",
-  GOVERNED_DEEP_REVIEW_PROMPT,
-  [
-    "proceed with nexus implementation until completion and verification",
-    "",
-    DEFAULT_IMPLEMENTATION_VERIFICATION_FOCUS_PROMPT,
-  ].join("\n"),
-  [
-    "fix any bugs / code smells / gaps or tech-debt left with atomic-completion",
-    "",
-    DEFAULT_PROMPT_VAULT_INSTRUCTIONS,
-  ].join("\n"),
-  DEFAULT_PRODUCT_POSTURE_REFRESH_PROMPT,
-  "/commit",
-] as const;
 
 interface VisibleLoopPromptTemplate {
   name: string;
