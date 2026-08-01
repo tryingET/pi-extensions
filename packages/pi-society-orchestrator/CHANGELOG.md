@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.5.0...pi-society-orchestrator-v0.5.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **orchestrator:** adopt ASC 0.3 ([9f452b2](https://github.com/tryingET/pi-extensions/commit/9f452b289cc75c2063fae97958b6ab466694978c))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.4.0...pi-society-orchestrator-v0.5.0) (2026-08-01)
 
 
