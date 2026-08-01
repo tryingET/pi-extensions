@@ -13,6 +13,33 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.5.0...pi-society-orchestrator-v0.5.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **orchestrator:** adopt ASC 0.3 ([9f452b2](https://github.com/tryingET/pi-extensions/commit/9f452b289cc75c2063fae97958b6ab466694978c))
+
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.4.0...pi-society-orchestrator-v0.5.0) (2026-08-01)
+
+
+### Features
+
+* **orchestrator:** expose direction controller readback ([53481db](https://github.com/tryingET/pi-extensions/commit/53481dbcd9c9ce56075a1f5f55f2821e0a8da3f0))
+* **orchestrator:** gate D2E transfer completion ([a04b007](https://github.com/tryingET/pi-extensions/commit/a04b0074f55ecea1fc5063d8e6b7ae2962b63d41))
+* **orchestrator:** integrate D2E transfer gate ([b00f3ec](https://github.com/tryingET/pi-extensions/commit/b00f3ec463c6ed120002f397143bba203338be23))
+* preflight governed deep review runtime ([1a65188](https://github.com/tryingET/pi-extensions/commit/1a651888ef4038a1520cf42986c9541e02b12d6d))
+
+
+### Bug Fixes
+
+* close governed deep-review provenance gaps ([c70967a](https://github.com/tryingET/pi-extensions/commit/c70967acd34dd321f889ca48f97ce0f5e0c31e7e))
+* harden governed preflight owner attestation ([a0a72e4](https://github.com/tryingET/pi-extensions/commit/a0a72e4c7ee8ae77420048e77ed61777f9aa0235))
+* materialize pinned Pi host peers ([d353f15](https://github.com/tryingET/pi-extensions/commit/d353f15676c5d5d95eebc9105c46ee84c36ef07d))
+* **orchestrator:** verify complete D2E commit history ([b665590](https://github.com/tryingET/pi-extensions/commit/b6655903b42b5c2238cd0d4332af30db2fc0d955))
+* verify import-only Pi host peers ([edb96b4](https://github.com/tryingET/pi-extensions/commit/edb96b46eabe59f0269a65b875c8f468c29a2cbe))
+* **visible-loop:** govern deep-review workflow dispatch ([f5384ff](https://github.com/tryingET/pi-extensions/commit/f5384ff524a92e78ea9af07c4d5c634bb31356d1))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.3.0...pi-society-orchestrator-v0.4.0) (2026-07-13)
 
 

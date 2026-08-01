@@ -25,6 +25,39 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.5.0...pi-little-helpers-v0.5.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **little-helpers:** retain intercom timeout handle ([bac852e](https://github.com/tryingET/pi-extensions/commit/bac852ecc93f0dc3392fe4a5bfa7f03d94010d17))
+* **little-helpers:** retain intercom timeout handle ([47b171d](https://github.com/tryingET/pi-extensions/commit/47b171d147abe909fdec3e7d7c6e70cf4d30d50d))
+
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.4.0...pi-little-helpers-v0.5.0) (2026-08-01)
+
+
+### Features
+
+* **little-helpers:** adopt existing candidate worktrees ([4e51ba6](https://github.com/tryingET/pi-extensions/commit/4e51ba62e384396b889abc0febd31052aa78ecdf))
+* **pi-little-helpers:** enforce candidate admission v2 ([5af2bb1](https://github.com/tryingET/pi-extensions/commit/5af2bb1ba385de63ccfa38a7efe8228e4f921843))
+* preflight governed deep review runtime ([1a65188](https://github.com/tryingET/pi-extensions/commit/1a651888ef4038a1520cf42986c9541e02b12d6d))
+
+
+### Bug Fixes
+
+* close governed deep-review provenance gaps ([c70967a](https://github.com/tryingET/pi-extensions/commit/c70967acd34dd321f889ca48f97ce0f5e0c31e7e))
+* harden governed preflight owner attestation ([a0a72e4](https://github.com/tryingET/pi-extensions/commit/a0a72e4c7ee8ae77420048e77ed61777f9aa0235))
+* **lifecycle:** bound cleanup event scanning ([ada3813](https://github.com/tryingET/pi-extensions/commit/ada38134451a3c7bca11ee3a1e5e2ef225d56de4))
+* **lifecycle:** reconcile exact legacy admission terminal ([7a82d67](https://github.com/tryingET/pi-extensions/commit/7a82d6709652ba61d6b3526600d7abd1296c52cf))
+* **lifecycle:** reissue expired cleanup authorization ([5f64377](https://github.com/tryingET/pi-extensions/commit/5f64377c7ae2dfb75ac800619a0a677a656198fc))
+* **little-helpers:** bind visible loops to execution authority ([987da93](https://github.com/tryingET/pi-extensions/commit/987da9360cd9939fce9746ea1338da6f6b5aa888))
+* **little-helpers:** keep visible peers alive ([6751938](https://github.com/tryingET/pi-extensions/commit/6751938adbe5c8d3d0b83dac1ea5c4898bbcc3f9))
+* **little-helpers:** restore visible gated loop plans ([29199dd](https://github.com/tryingET/pi-extensions/commit/29199dd121b9ee6326f9a4a55cd2cb0f5c59449b))
+* **little-helpers:** target controller Ghostty tabs ([500dd6a](https://github.com/tryingET/pi-extensions/commit/500dd6a6354c56bb7750755aa1fb6eb178478c08))
+* **pi-little-helpers:** expire stale admission permits ([6793232](https://github.com/tryingET/pi-extensions/commit/6793232bafaa49e186acd0233f18d964fddbd2b6))
+* **pi-little-helpers:** make admission activation recoverable ([91d203a](https://github.com/tryingET/pi-extensions/commit/91d203ab1913d17b4359d6254255562a44a3941c))
+* **visible-loop:** govern deep-review workflow dispatch ([f5384ff](https://github.com/tryingET/pi-extensions/commit/f5384ff524a92e78ea9af07c4d5c634bb31356d1))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.3.1...pi-little-helpers-v0.4.0) (2026-07-11)
 
 

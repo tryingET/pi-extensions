@@ -10,6 +10,8 @@ import {
   checkProjectionFreshness,
   classifyDispatchPosture,
   createDispatchPolicy,
+  D2E_WORKFLOW_TEMPLATE_NAMES,
+  D2E_WORKFLOW_TEMPLATE_OWNERS,
   formatDispatchPosture,
   formatProjectionFreshness,
   getKnownLoopBindings,
@@ -203,6 +205,48 @@ describe("formatDispatchPosture", () => {
 // ---------------------------------------------------------------------------
 
 describe("loop binding registry", () => {
+  it("binds exactly the three D2E workflow templates to the immutable completion gate", () => {
+    assert.deepEqual(
+      [...D2E_WORKFLOW_TEMPLATE_NAMES],
+      [
+        "layer12-040-direction-to-execution-ak-native",
+        "repo-direction-to-execution",
+        "execution-memory-transfer",
+      ],
+    );
+    const bindings = getKnownLoopBindings();
+    assert.equal(bindings["direction-to-execution"], undefined);
+    assert.equal(
+      classifyDispatchPosture({
+        name: "direction-to-execution",
+        control_mode: "one_shot",
+        formalization_level: "workflow",
+      }).posture,
+      "orchestrator_workflow_gate_required",
+    );
+    for (const name of D2E_WORKFLOW_TEMPLATE_NAMES) {
+      const binding = bindings[name];
+      assert.ok(binding, `${name} must have a verified workflow binding`);
+      assert.equal(binding.execution_surface, "workflow_execute");
+      assert.deepEqual(binding.execution_args, {
+        workflow_gate: "D2E_TRANSFER_COMPLETE_V1",
+        template_artifact_kind: "procedure",
+        template_control_mode: "one_shot",
+        template_formalization_level: "workflow",
+        template_owner_company: D2E_WORKFLOW_TEMPLATE_OWNERS[name],
+      });
+      assert.ok(Object.isFrozen(binding));
+      assert.ok(Object.isFrozen(binding.execution_args));
+      const posture = classifyDispatchPosture({
+        name,
+        control_mode: "one_shot",
+        formalization_level: "workflow",
+      });
+      assert.equal(posture.posture, "orchestrator_workflow_gate_required");
+      assert.equal(posture.binding, binding);
+    }
+  });
+
   it("returns deeply frozen bindings", () => {
     const bindings = getKnownLoopBindings();
     assert.ok(Object.isFrozen(bindings));
@@ -393,6 +437,12 @@ describe("createVaultDispatchRuntime", () => {
     assert.deepEqual(result.missing, []);
     assert.equal(result.results[0].posture, "orchestrator_loop_required");
     assert.deepEqual(result.results[0].binding.execution_args, { loop: "ooda" });
+    assert.equal(result.templates.length, 1);
+    assert.equal(result.templates[0].id, 1);
+    assert.equal(result.templates[0].version, 1);
+    assert.equal(result.templates[0].content, "OODA content");
+    assert.equal(result.templates[0].artifact_kind, "procedure");
+    assert.equal(result.templates[0].owner_company, "core");
   });
 
   it("fails closed without explicit company context", async () => {

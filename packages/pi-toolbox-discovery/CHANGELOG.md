@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.2.0...pi-toolbox-discovery-v0.3.0) (2026-08-01)
+
+
+### Features
+
+* **orchestrator:** expose direction controller readback ([53481db](https://github.com/tryingET/pi-extensions/commit/53481dbcd9c9ce56075a1f5f55f2821e0a8da3f0))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.1.1...pi-toolbox-discovery-v0.2.0) (2026-07-11)
 
 

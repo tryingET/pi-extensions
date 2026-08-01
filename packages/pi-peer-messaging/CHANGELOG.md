@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.2.0...pi-peer-messaging-v0.2.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **peer-messaging:** survive socket resets ([2c82368](https://github.com/tryingET/pi-extensions/commit/2c823683e38e4e2941acc14ce6dac992122ebaf4))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.1.0...pi-peer-messaging-v0.2.0) (2026-07-13)
 
 
