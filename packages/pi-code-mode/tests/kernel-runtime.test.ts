@@ -264,8 +264,11 @@ os._exit(0)
           1_000,
         ),
       ),
-      /without a finalized result|timed out/,
+      /without a finalized result|timed out|protocol failed: Kernel input failed/,
     );
+
+    const recovered = await manager.run("python", request("state"));
+    assert.deepEqual(recovered.value, {});
   },
 );
 
