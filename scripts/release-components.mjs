@@ -8,7 +8,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const PACKAGES_ROOT = path.join(ROOT, "packages");
 const CONFIG_PATH = path.join(ROOT, ".release-please-config.json");
 const MANIFEST_PATH = path.join(ROOT, ".release-please-manifest.json");
@@ -58,6 +59,16 @@ function loadManagedComponents() {
     const packageName = String(manifest.name ?? "").trim();
     const version = String(manifest.version ?? "").trim();
     const component = String(templateMeta.releaseComponent).trim();
+    let initialVersion;
+    if (templateMeta.releaseInitialVersion !== undefined) {
+      if (typeof templateMeta.releaseInitialVersion !== "string") {
+        fail(`Invalid releaseInitialVersion for ${packagePath}: expected a string`);
+      }
+      initialVersion = templateMeta.releaseInitialVersion.trim();
+      if (!VERSION_RE.test(initialVersion)) {
+        fail(`Invalid releaseInitialVersion for ${packagePath}: ${initialVersion}`);
+      }
+    }
     const repositoryDirectory = normalizeRelative(String(manifest.repository?.directory ?? "").trim());
 
     if (!packageName) fail(`Missing package name for ${packagePath}`);
@@ -76,6 +87,7 @@ function loadManagedComponents() {
       packagePath,
       packageName,
       version,
+      initialVersion,
       changelogPath: `${packagePath}/CHANGELOG.md`,
     });
   }
@@ -101,19 +113,49 @@ function buildReleasePleaseConfig(components) {
     "include-component-in-tag": true,
     "separate-pull-requests": true,
     packages: Object.fromEntries(
-      components.map((component) => [
-        component.packagePath,
-        {
+      components.map((component) => {
+        const packageConfig = {
           "release-type": "node",
           component: component.component,
-        },
-      ]),
+        };
+        if (component.initialVersion) {
+          packageConfig["initial-version"] = component.initialVersion;
+        }
+        return [component.packagePath, packageConfig];
+      }),
     ),
   };
 }
 
-function buildReleasePleaseManifest(components) {
-  return Object.fromEntries(components.map((component) => [component.packagePath, component.version]));
+function buildReleasePleaseManifest(components, currentManifest = {}) {
+  const current =
+    currentManifest && typeof currentManifest === "object" && !Array.isArray(currentManifest)
+      ? currentManifest
+      : {};
+  return Object.fromEntries(
+    components.map((component) => {
+      const currentVersion = current[component.packagePath];
+      if (component.initialVersion) {
+        if (component.version !== component.initialVersion) {
+          throw new Error(
+            `Initial release version mismatch for ${component.packagePath}: package=${component.version}, initial=${component.initialVersion}`,
+          );
+        }
+        if (!Object.hasOwn(current, component.packagePath)) {
+          throw new Error(
+            `Missing bootstrap manifest sentinel for ${component.packagePath}; add 0.0.0 explicitly.`,
+          );
+        }
+        if (currentVersion !== "0.0.0") {
+          throw new Error(
+            `Bootstrap metadata for ${component.packagePath} must be removed before its manifest advances from 0.0.0.`,
+          );
+        }
+        return [component.packagePath, "0.0.0"];
+      }
+      return [component.packagePath, component.version];
+    }),
+  );
 }
 
 function stableJson(value) {
@@ -137,12 +179,13 @@ function deriveNpmDistTag(version) {
 
 function validateCommittedFiles(components) {
   const expectedConfig = buildReleasePleaseConfig(components);
-  const expectedManifest = buildReleasePleaseManifest(components);
   const actualConfig = readJsonIfPresent(CONFIG_PATH);
   const actualManifest = readJsonIfPresent(MANIFEST_PATH);
 
   if (!actualConfig) fail(`Missing ${path.basename(CONFIG_PATH)}`);
   if (!actualManifest) fail(`Missing ${path.basename(MANIFEST_PATH)}`);
+
+  const expectedManifest = buildReleasePleaseManifest(components, actualManifest);
 
   if (stableJson(actualConfig) !== stableJson(expectedConfig)) {
     fail(
@@ -206,58 +249,75 @@ function printEnv(value) {
   }
 }
 
-const args = process.argv.slice(2);
-const command = args[0] ?? "list";
-const json = args.includes("--json");
-const envMode = args.includes("--env");
-const components = loadManagedComponents();
+function main() {
+  const args = process.argv.slice(2);
+  const command = args[0] ?? "list";
+  const json = args.includes("--json");
+  const envMode = args.includes("--env");
+  const components = loadManagedComponents();
 
-switch (command) {
-  case "list":
-    print(components, json);
-    break;
-  case "matrix":
-    print(
-      {
-        include: components.map((component) => ({
-          component: component.component,
-          package_path: component.packagePath,
-          package_name: component.packageName,
-        })),
-      },
-      true,
-    );
-    break;
-  case "config":
-    print(buildReleasePleaseConfig(components), true);
-    break;
-  case "manifest":
-    print(buildReleasePleaseManifest(components), true);
-    break;
-  case "sync":
-    fs.writeFileSync(CONFIG_PATH, stableJson(buildReleasePleaseConfig(components)), "utf8");
-    fs.writeFileSync(MANIFEST_PATH, stableJson(buildReleasePleaseManifest(components)), "utf8");
-    process.stdout.write(`Wrote ${path.basename(CONFIG_PATH)} and ${path.basename(MANIFEST_PATH)}\n`);
-    break;
-  case "validate":
-    validateCommittedFiles(components);
-    process.stdout.write("release-please component config OK\n");
-    break;
-  case "resolve-tag": {
-    const tag = args.find((arg, index) => index > 0 && !arg.startsWith("--"));
-    if (!tag) {
-      fail(
-        "Usage: node ./scripts/release-components.mjs resolve-tag <component-vX.Y.Z> [--json|--env]",
+  switch (command) {
+    case "list":
+      print(components, json);
+      break;
+    case "matrix":
+      print(
+        {
+          include: components.map((component) => ({
+            component: component.component,
+            package_path: component.packagePath,
+            package_name: component.packageName,
+          })),
+        },
+        true,
       );
-    }
-    const resolved = resolveTag(tag, components);
-    if (envMode) {
-      printEnv(resolved);
+      break;
+    case "config":
+      print(buildReleasePleaseConfig(components), true);
+      break;
+    case "manifest":
+      print(buildReleasePleaseManifest(components, readJsonIfPresent(MANIFEST_PATH)), true);
+      break;
+    case "sync": {
+      const nextConfig = stableJson(buildReleasePleaseConfig(components));
+      const nextManifest = stableJson(
+        buildReleasePleaseManifest(components, readJsonIfPresent(MANIFEST_PATH)),
+      );
+      fs.writeFileSync(CONFIG_PATH, nextConfig, "utf8");
+      fs.writeFileSync(MANIFEST_PATH, nextManifest, "utf8");
+      process.stdout.write(`Wrote ${path.basename(CONFIG_PATH)} and ${path.basename(MANIFEST_PATH)}\n`);
       break;
     }
-    print(resolved, true);
-    break;
+    case "validate":
+      validateCommittedFiles(components);
+      process.stdout.write("release-please component config OK\n");
+      break;
+    case "resolve-tag": {
+      const tag = args.find((arg, index) => index > 0 && !arg.startsWith("--"));
+      if (!tag) {
+        fail(
+          "Usage: node ./scripts/release-components.mjs resolve-tag <component-vX.Y.Z> [--json|--env]",
+        );
+      }
+      const resolved = resolveTag(tag, components);
+      if (envMode) {
+        printEnv(resolved);
+        break;
+      }
+      print(resolved, true);
+      break;
+    }
+    default:
+      fail(`Unknown command: ${command}`);
   }
-  default:
-    fail(`Unknown command: ${command}`);
 }
+
+if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
+  try {
+    main();
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+}
+
+export { buildReleasePleaseConfig, buildReleasePleaseManifest };

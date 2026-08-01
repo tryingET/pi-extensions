@@ -73,7 +73,8 @@
     "scaffoldMode": "simple-package",
     "workspacePath": "packages/pi-code-mode",
     "releaseComponent": "pi-code-mode",
-    "releaseConfigMode": "component"
+    "releaseConfigMode": "component",
+    "releaseInitialVersion": "0.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",

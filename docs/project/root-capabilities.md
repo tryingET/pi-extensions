@@ -93,6 +93,7 @@ system4d:
 - `scripts/release-components.mjs`
 - root component-mode release automation for publish-ready packages
   - current source of truth: package metadata with `x-pi-template.releaseConfigMode=component`
+  - first-release bootstrap: `x-pi-template.releaseInitialVersion` is a temporary one-way marker that projects Release Please `initial-version` plus manifest sentinel `0.0.0`; the initial release PR must remove the marker and run `release-components.mjs sync` before advancing the manifest to the released package version
   - independent component PRs/tags/releases
   - publish dispatch by component-scoped tag
   - packages that were scaffolded as private or `releaseConfigMode=none` are intentionally excluded until their package metadata truthfully declares a publishable component

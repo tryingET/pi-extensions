@@ -10,6 +10,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+  buildReleasePleaseConfig,
+  buildReleasePleaseManifest,
+} from "./release-components.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "release-components.mjs");
@@ -76,11 +80,89 @@ function listComponents() {
   );
 }
 
+function releaseProjection(command) {
+  return JSON.parse(
+    execFileSync(process.execPath, [SCRIPT, command, "--json"], {
+      cwd: ROOT,
+      encoding: "utf-8",
+    }),
+  );
+}
+
 test("list reports pi-model-selection as a top-level support package", () => {
   const components = listComponents();
   const component = components.find((entry) => entry.component === "pi-model-selection");
   assert.equal(component?.packagePath, "packages/pi-model-selection");
   assert.equal(component?.packageName, "@tryinget/pi-model-selection");
+});
+
+test("code-mode release projection matches its current lifecycle marker", () => {
+  const packagePath = "packages/pi-code-mode";
+  const components = listComponents();
+  const component = components.find((entry) => entry.component === "pi-code-mode");
+  assert.ok(component);
+
+  const config = releaseProjection("config");
+  const manifest = releaseProjection("manifest");
+  if (component.initialVersion) {
+    assert.equal(component.version, component.initialVersion);
+    assert.equal(config.packages[packagePath]["initial-version"], component.initialVersion);
+    assert.equal(manifest[packagePath], "0.0.0");
+  } else {
+    assert.equal(config.packages[packagePath]["initial-version"], undefined);
+    assert.equal(manifest[packagePath], component.version);
+  }
+});
+
+test("initial release bootstrap metadata is a one-way manifest gate", () => {
+  const packagePath = "packages/example";
+  const bootstrap = {
+    component: "example",
+    packagePath,
+    packageName: "@tryinget/example",
+    version: "0.1.0",
+    initialVersion: "0.1.0",
+    changelogPath: `${packagePath}/CHANGELOG.md`,
+  };
+
+  const config = buildReleasePleaseConfig([bootstrap]);
+  assert.equal(config.packages[packagePath]["initial-version"], "0.1.0");
+  assert.deepEqual(buildReleasePleaseManifest([bootstrap], { [packagePath]: "0.0.0" }), {
+    [packagePath]: "0.0.0",
+  });
+
+  for (const manifest of [
+    {},
+    { [packagePath]: "0.0.1" },
+    { [packagePath]: "0.1.0" },
+    { [packagePath]: "9.9.9" },
+  ]) {
+    assert.throws(() => buildReleasePleaseManifest([bootstrap], manifest));
+  }
+  assert.throws(() =>
+    buildReleasePleaseManifest(
+      [{ ...bootstrap, version: "0.2.0" }],
+      { [packagePath]: "0.0.0" },
+    ),
+  );
+
+  const released = { ...bootstrap, initialVersion: undefined };
+  for (const manifest of [
+    {},
+    { [packagePath]: "0.0.0" },
+    { [packagePath]: "0.1.0" },
+    { [packagePath]: "9.9.9" },
+  ]) {
+    assert.deepEqual(buildReleasePleaseManifest([released], manifest), {
+      [packagePath]: "0.1.0",
+    });
+  }
+  assert.deepEqual(
+    buildReleasePleaseManifest([{ ...released, version: "0.2.0" }], {
+      [packagePath]: "0.1.0",
+    }),
+    { [packagePath]: "0.2.0" },
+  );
 });
 
 test("list reports pi-modes as a managed release component", () => {
