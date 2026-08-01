@@ -105,6 +105,8 @@ export interface VaultDispatchCheckResult {
   ok: boolean;
   status: "ready" | "blocked";
   results?: DispatchPostureResult[];
+  /** Exact strictly parsed templates used for this dispatch decision. */
+  templates?: Template[];
   missing?: string[];
   current_company?: string;
   current_company_source?: string;

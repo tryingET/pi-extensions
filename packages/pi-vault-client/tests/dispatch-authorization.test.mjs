@@ -169,6 +169,57 @@ test("issues dispatch_required for the verified deep-review workflow binding", (
   assert.equal("prepared_text" in result, false);
 });
 
+test("issues dispatch_required for each immutable per-owner D2E workflow binding", () => {
+  const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
+  const expected = [
+    ["layer12-040-direction-to-execution-ak-native", "software"],
+    ["repo-direction-to-execution", "holding"],
+    ["execution-memory-transfer", "core"],
+  ];
+  for (const [name, owner] of expected) {
+    const workflow = template({
+      id: 87,
+      name,
+      control_mode: "one_shot",
+      formalization_level: "workflow",
+      owner_company: owner,
+      visibility_companies: [owner, "software"],
+    });
+    const result = runtime.authorizePreparedExecution(request([workflow]));
+    assert.equal(result.disposition, "dispatch_required");
+    assert.equal(result.binding.execution_surface, "workflow_execute");
+    assert.deepEqual(result.binding.execution_args, {
+      workflow_gate: "D2E_TRANSFER_COMPLETE_V1",
+      template_artifact_kind: "procedure",
+      template_control_mode: "one_shot",
+      template_formalization_level: "workflow",
+      template_owner_company: owner,
+    });
+  }
+});
+
+test("public authorization rejects D2E kind, workflow metadata, and owner mismatch", () => {
+  const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
+  for (const mismatch of [
+    { artifact_kind: "cognitive" },
+    { control_mode: "loop" },
+    { formalization_level: "structured" },
+    { owner_company: "software" },
+  ]) {
+    const workflow = template({
+      id: 87,
+      name: "repo-direction-to-execution",
+      control_mode: "one_shot",
+      formalization_level: "workflow",
+      owner_company: "holding",
+      visibility_companies: ["holding", "software"],
+      ...mismatch,
+    });
+    const result = runtime.authorizePreparedExecution(request([workflow]));
+    assert.equal(result.disposition, "blocked");
+    assert.equal(result.reason, "identity_drift");
+  }
+});
 test("blocks unbound workflow and unknown governed values", () => {
   const runtime = createVaultDispatchRuntime({ runtime: fakeRuntime() });
   const workflow = runtime.authorizePreparedExecution(

@@ -1144,7 +1144,7 @@ function buildControlledVocabularyClauses(
   for (const [dimension, values] of Object.entries(controlledVocabulary)) {
     const normalizedValues = (values || [])
       .map(String)
-      .map((v) => v.trim())
+      .map((v: string) => v.trim())
       .filter(Boolean);
     if (normalizedValues.length === 0) continue;
 
@@ -1152,7 +1152,7 @@ function buildControlledVocabularyClauses(
       clauses.push(
         `(${normalizedValues
           .map(
-            (value) =>
+            (value: string) =>
               `JSON_SEARCH(JSON_EXTRACT(controlled_vocabulary, '$.${dimension}'), 'one', '${escapeSql(value)}') IS NOT NULL`,
           )
           .join(" OR ")})`,
@@ -1161,7 +1161,7 @@ function buildControlledVocabularyClauses(
     }
 
     clauses.push(
-      `JSON_UNQUOTE(JSON_EXTRACT(controlled_vocabulary, '$.${escapeSql(dimension)}')) IN (${normalizedValues.map((value) => `'${escapeSql(value)}'`).join(", ")})`,
+      `JSON_UNQUOTE(JSON_EXTRACT(controlled_vocabulary, '$.${escapeSql(dimension)}')) IN (${normalizedValues.map((value: string) => `'${escapeSql(value)}'`).join(", ")})`,
     );
   }
 

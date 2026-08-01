@@ -398,6 +398,20 @@ test("formatVaultExecuteTemplateResultLabel shows progress instead of blocked fo
     }),
     "vault-dispatch-check-failed",
   );
+  assert.equal(
+    formatVaultExecuteTemplateResultLabel({
+      content: [{ type: "text", text: "proposal" }],
+      details: { ok: true, status: "proposal" },
+    }),
+    "proposal ready (read-only)",
+  );
+  assert.equal(
+    formatVaultExecuteTemplateResultLabel({
+      content: [{ type: "text", text: "proposal" }],
+      details: { ok: true, kind: "proposal", status: "not_ready" },
+    }),
+    "proposal not ready (read-only)",
+  );
 });
 
 test("parseLoopStatusRecord extracts loop run identity from hidden phase status files", () => {
