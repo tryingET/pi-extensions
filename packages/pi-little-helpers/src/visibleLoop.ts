@@ -765,46 +765,49 @@ export async function startVisibleLoopChildRunner(
       env,
     );
   }
-  queueVisibleLoopIteration(state, ctx, env);
-  if (state.stopped || !state.plan) return;
-  const activeLease = readVisibleLoopIterationLease(config.runId, env);
-  const continuationStartProof =
-    claimToken && activeLease.ok && activeLease.value
-      ? createVisibleLoopChildStartProof(state, claimToken, activeLease.value)
-      : null;
-  if (claimToken && !continuationStartProof) {
-    stopVisibleLoopPlanFailedClosed(
-      state,
-      ctx,
+  queueVisibleLoopIteration(state, ctx, env, () => {
+    if (state.stopped || !state.plan) return false;
+    const activeLease = readVisibleLoopIterationLease(config.runId, env);
+    const continuationStartProof =
+      claimToken && activeLease.ok && activeLease.value
+        ? createVisibleLoopChildStartProof(state, claimToken, activeLease.value)
+        : null;
+    if (claimToken && !continuationStartProof) {
+      stopVisibleLoopPlanFailedClosed(
+        state,
+        ctx,
+        env,
+        "continuation child could not bind its exact consumed launch claim to the ACTIVE frontier",
+        "continuation child-start identity is unavailable",
+      );
+      return false;
+    }
+    state.continuationStartProof = continuationStartProof;
+    if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) return false;
+    const childStarted = appendAuthoritativeVisibleLoopStatus(
+      config,
+      {
+        event: "child_started",
+        iteration: restoredIterations + 1,
+        reportBack: config.reportBack,
+        parentPeerTarget: config.parentPeerTarget ?? null,
+        productPostureTarget: config.productPostureTarget ?? null,
+        proof: continuationStartProof,
+      },
       env,
-      "continuation child could not bind its exact consumed launch claim to the ACTIVE frontier",
-      "continuation child-start identity is unavailable",
     );
-    return;
-  }
-  state.continuationStartProof = continuationStartProof;
-  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) return;
-  const childStarted = appendAuthoritativeVisibleLoopStatus(
-    config,
-    {
-      event: "child_started",
-      iteration: restoredIterations + 1,
-      reportBack: config.reportBack,
-      parentPeerTarget: config.parentPeerTarget ?? null,
-      productPostureTarget: config.productPostureTarget ?? null,
-      proof: continuationStartProof,
-    },
-    env,
-  );
-  if (!childStarted.ok) {
-    stopVisibleLoopPlanFailedClosed(
-      state,
-      ctx,
-      env,
-      `authoritative child-start proof persistence failed: ${childStarted.error}`,
-      "authoritative continuation child-start proof could not be persisted",
-    );
-  }
+    if (!childStarted.ok) {
+      stopVisibleLoopPlanFailedClosed(
+        state,
+        ctx,
+        env,
+        `authoritative child-start proof persistence failed: ${childStarted.error}`,
+        "authoritative continuation child-start proof could not be persisted",
+      );
+      return false;
+    }
+    return true;
+  });
 }
 
 export function handleVisibleLoopMessageStart(
@@ -1485,6 +1488,7 @@ function queueVisibleLoopIteration(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv = process.env,
+  afterFrontierSubmitted?: () => boolean,
 ): void {
   const prompts = getVisibleLoopPrompts(state.config);
   if (prompts.length === 0) {
@@ -1590,13 +1594,14 @@ function queueVisibleLoopIteration(
     `${getVisibleLoopHumanLabel(state.config)} planned iteration ${iteration}/${state.config.loopCount}; exactly one frontier step is executable`,
     "info",
   );
-  submitNextVisibleLoopFrontier(state, ctx, env);
+  submitNextVisibleLoopFrontier(state, ctx, env, afterFrontierSubmitted);
 }
 
 function submitNextVisibleLoopFrontier(
   state: ActiveVisibleLoopState,
   ctx: VisibleLoopContext,
   env: NodeJS.ProcessEnv,
+  afterFrontierSubmitted?: () => boolean,
 ): void {
   const plan = state.plan;
   if (!plan || state.stopped) return;
@@ -1626,6 +1631,7 @@ function submitNextVisibleLoopFrontier(
     );
     return;
   }
+  if (afterFrontierSubmitted && !afterFrontierSubmitted()) return;
   appendVisibleLoopStatus(
     state.config,
     {
