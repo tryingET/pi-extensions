@@ -39,6 +39,16 @@ export interface HandlerObservationRecord {
   readonly record_digest: string;
 }
 
+export interface PromptMeasurement {
+  readonly byteLength: number;
+  readonly digest: string;
+}
+
+export function measurePreparedPrompt(value: string): PromptMeasurement {
+  const bytes = utf8Bytes(value);
+  return { byteLength: bytes.byteLength, digest: rawDigest(OUTPUT_DOMAIN, bytes) };
+}
+
 export function buildHandlerObservationRecord(
   input: Readonly<{
     input: string;
@@ -95,6 +105,10 @@ export function buildHandlerObservationRecord(
     ),
   };
   return deepFreeze(record);
+}
+
+export function domainDigest(domain: string, value: unknown): string {
+  return digest(Buffer.concat([Buffer.from(domain, "utf8"), Buffer.from([0]), jcsBytes(value)]));
 }
 
 function rawDigest(domain: string, bytes: Buffer): string {

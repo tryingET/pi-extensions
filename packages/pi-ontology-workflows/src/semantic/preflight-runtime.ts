@@ -11,6 +11,11 @@ import {
 } from "../core/semantic-preflight.ts";
 import type { RocsDevelopmentPort, RocsPort } from "../ports/rocs-port.ts";
 import type { WorkspacePort } from "../ports/workspace-port.ts";
+import {
+  type CorrelatedBeforeAgentStartEvent,
+  createAgentPromptObservationRuntime,
+  type RuntimeContext,
+} from "./agent-prompt-observation-state.ts";
 import * as handler from "./handler-observation.ts";
 import {
   currentGrant,
@@ -40,25 +45,7 @@ const GRANT_MS = 600_000;
 const PREFLIGHT_MS = 750;
 const PROFILE = "review";
 
-export interface PiHostCapabilities {
-  readonly host_package: string;
-  readonly host_version: string;
-  readonly extension_api_version: string;
-  readonly capabilities: readonly string[];
-}
-
-export interface RuntimeContext {
-  cwd: string;
-  mode: string;
-  hasUI: boolean;
-  hostCapabilities?: PiHostCapabilities;
-  isIdle(): boolean;
-  ui: {
-    confirm(title: string, message: string, options?: { timeout?: number }): Promise<boolean>;
-    notify(message: string, level?: "info" | "warning" | "error"): void;
-    setStatus(id: string, value?: string): void;
-  };
-}
+export type { PiHostCapabilities, RuntimeContext } from "./agent-prompt-observation-state.ts";
 
 export interface SemanticPreflightRuntimeDeps {
   workspace: WorkspacePort;
@@ -72,39 +59,22 @@ export interface SemanticPreflightRuntimeDeps {
   observationBuilder?: handler.ObservationBuilder;
 }
 
-export interface SemanticPreflightRuntime {
-  register(pi: ExtensionAPI): void;
-  inspectAccess(
-    ctx: RuntimeContext,
-    request: OntologyInspectRequest,
-    toolSignal?: AbortSignal,
-  ): {
-    runtime: InspectRuntime;
-    rocs: RocsPort;
-    bound: boolean;
-    isCurrent(): boolean;
-  };
-  noteInspect(ctx: RuntimeContext, request: OntologyInspectRequest, bound: boolean): void;
-  latestObservation(): handler.HandlerObservationRecord | undefined;
-  snapshot(): Readonly<{
-    generation: number;
-    grant: boolean;
-    promptBindings: number;
-    inFlight: boolean;
-  }>;
-}
+export type SemanticPreflightRuntime = ReturnType<typeof createSemanticPreflightRuntime>;
 
-export function createSemanticPreflightRuntime(
-  deps: SemanticPreflightRuntimeDeps,
-): SemanticPreflightRuntime {
+export function createSemanticPreflightRuntime(deps: SemanticPreflightRuntimeDeps) {
   const now = deps.now ?? Date.now;
   const promptAppendProducer = deps.promptAppendProducer ?? handler.defaultPromptAppendProducer;
   const observationBuilder = deps.observationBuilder ?? handler.buildHandlerObservationRecord;
+  const agentPromptObservation = createAgentPromptObservationRuntime();
   let state: PreflightState = freshState(0);
   let latestObservationRecord: handler.HandlerObservationRecord | undefined;
+  const clearObservations = () => {
+    latestObservationRecord = undefined;
+    agentPromptObservation.clear();
+  };
 
   const reset = () => {
-    latestObservationRecord = undefined;
+    clearObservations();
     state.controller.abort();
     state = freshState(state.generation + 1);
   };
@@ -139,7 +109,7 @@ export function createSemanticPreflightRuntime(
   };
 
   const disable = (ctx?: RuntimeContext) => {
-    latestObservationRecord = undefined;
+    clearObservations();
     state.requestEpoch++;
     state.grant = undefined;
     state.promptRun = undefined;
@@ -150,10 +120,21 @@ export function createSemanticPreflightRuntime(
 
   const register = (pi: ExtensionAPI) => {
     pi.registerCommand("ontology-preflight", {
-      description: "Status, enable, or disable the TUI-only development semantic preflight",
+      description:
+        "Status, observe, enable, or disable the TUI-only development semantic preflight",
       handler: async (args, rawCtx) => {
         const ctx = rawCtx as unknown as RuntimeContext;
         const action = args.trim() || "status";
+        if (action === "observation") {
+          if (ctx.mode !== "tui") return;
+          const supported = agentPromptObservation.supports(ctx.hostCapabilities);
+          const observed = supported
+            ? currentGrant(ctx, state, now())
+            : { grant: undefined, stale: false };
+          if (observed.stale) disable(ctx);
+          ctx.ui.notify(agentPromptObservation.render(supported, Boolean(observed.grant)), "info");
+          return;
+        }
         if (action === "status") {
           const observed = currentGrant(ctx, state, now());
           if (observed.stale) {
@@ -176,14 +157,21 @@ export function createSemanticPreflightRuntime(
           return;
         }
         if (action !== "enable-development") {
-          ctx.ui.notify("Usage: /ontology-preflight status|enable-development|disable", "error");
+          ctx.ui.notify(
+            "Usage: /ontology-preflight status|observation|enable-development|disable",
+            "error",
+          );
           return;
         }
         await enableDevelopment(ctx);
       },
     });
 
-    pi.on("session_start", (_event, rawCtx) => sessionStart(rawCtx as unknown as RuntimeContext));
+    pi.on("session_start", (_event, rawCtx) => {
+      const ctx = rawCtx as unknown as RuntimeContext;
+      agentPromptObservation.registerReady(pi, ctx.hostCapabilities);
+      sessionStart(ctx);
+    });
     pi.on("session_shutdown", (_event, rawCtx) => {
       reset();
       const ctx = rawCtx as unknown as RuntimeContext;
@@ -194,6 +182,7 @@ export function createSemanticPreflightRuntime(
     });
     pi.on("before_agent_start", async (event, rawCtx) => {
       const ctx = rawCtx as unknown as RuntimeContext;
+      const correlated = event as unknown as CorrelatedBeforeAgentStartEvent;
       if (ctx.mode !== "tui") {
         if (currentGrant(ctx, state, now()).stale) disable();
         return;
@@ -244,11 +233,11 @@ export function createSemanticPreflightRuntime(
         const producerResult = await promptAppendProducer(event.systemPrompt, block);
         produced = handler.validatePromptAppendResult(producerResult);
       } catch (error) {
-        if (attemptOwnsSlot()) latestObservationRecord = undefined;
+        if (attemptOwnsSlot()) clearObservations();
         throw error;
       }
       if (!attemptIsCurrent()) {
-        if (attemptOwnsSlot()) latestObservationRecord = undefined;
+        if (attemptOwnsSlot()) clearObservations();
         visibleUnavailable(ctx, "stale semantic preflight completion");
         return;
       }
@@ -272,17 +261,29 @@ export function createSemanticPreflightRuntime(
           "warning",
         );
       const preparedReturn = { systemPrompt: produced.output };
-      const observation = handler.tryBuildRecord(observationBuilder, event.systemPrompt, produced);
+      const predecessor = handler.tryBuildRecord(observationBuilder, event.systemPrompt, produced);
       if (!attemptIsCurrent()) {
-        if (attemptOwnsSlot()) latestObservationRecord = undefined;
+        if (attemptOwnsSlot()) clearObservations();
         visibleUnavailable(ctx, "stale semantic preflight completion");
         return;
       }
-      if (!observation) {
-        latestObservationRecord = undefined;
+      if (!predecessor) {
+        clearObservations();
         return preparedReturn;
       }
-      latestObservationRecord = observation;
+      if (
+        !agentPromptObservation.prepare(
+          correlated,
+          predecessor,
+          ctx.hostCapabilities,
+          attemptIsCurrent,
+        )
+      ) {
+        if (attemptOwnsSlot()) clearObservations();
+        visibleUnavailable(ctx, "stale semantic preflight completion");
+        return;
+      }
+      latestObservationRecord = predecessor;
       return preparedReturn;
     });
   };
@@ -371,7 +372,7 @@ export function createSemanticPreflightRuntime(
         ...activated.port,
         developmentDescriptor: activated.descriptor,
       }) as RocsPort;
-      latestObservationRecord = undefined;
+      clearObservations();
       state.grant = {
         generation,
         cwd,
@@ -396,18 +397,13 @@ export function createSemanticPreflightRuntime(
     ctx: RuntimeContext,
     request: OntologyInspectRequest,
     toolSignal?: AbortSignal,
-  ): {
-    runtime: InspectRuntime;
-    rocs: RocsPort;
-    bound: boolean;
-    isCurrent(): boolean;
-  } {
+  ) {
     const observed = currentGrant(ctx, state, now());
     if (observed.stale) disable(ctx);
     const grant = observed.grant;
     const prompt = state.promptRun;
     const legacy = () => ({
-      runtime: { cwd: ctx.cwd },
+      runtime: { cwd: ctx.cwd } as InspectRuntime,
       rocs: deps.legacyRocs,
       bound: false,
       isCurrent: () => !toolSignal?.aborted,
@@ -452,7 +448,7 @@ export function createSemanticPreflightRuntime(
             performance.now() + Math.min(PREFLIGHT_MS, Math.max(0, grant.expiresAt - now())),
           signal,
         },
-      },
+      } as InspectRuntime,
       rocs: grant.rocs,
       bound: Boolean(binding),
       isCurrent,
@@ -470,6 +466,7 @@ export function createSemanticPreflightRuntime(
     inspectAccess,
     noteInspect,
     latestObservation: () => latestObservationRecord,
+    latestAgentPromptObservation: agentPromptObservation.latest,
     snapshot: () => ({
       generation: state.generation,
       grant: Boolean(state.grant),
