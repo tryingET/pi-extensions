@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildHandlerObservationRecord,
+  domainDigest,
   HANDLER_OBSERVATION_PROTOCOL_REVISION,
   HANDLER_OBSERVATION_SCHEMA,
+  measurePreparedPrompt,
   tryBuildRecord,
 } from "../src/semantic/handler-observation.ts";
 import { jcsBytes } from "../src/semantic/prepared-runtime.ts";
@@ -70,6 +72,23 @@ test("known-answer raw and record digests use exact domains, lengths, and JCS om
   assert.equal(
     jcsBytes({ "\ue000": "line\n\u0001", "\u{10000}": '"\\' }).toString("utf8"),
     '{"𐀀":"\\"\\\\","":"line\\n\\u0001"}',
+  );
+});
+
+test("shared prompt measurement and domain digest preserve Decision 89 bytes", () => {
+  const record = buildHandlerObservationRecord({
+    input: "BASE",
+    contribution: "\n\nBLOCK",
+    output: "BASE\n\nBLOCK",
+  });
+  assert.deepEqual(measurePreparedPrompt("BASE\n\nBLOCK"), {
+    byteLength: record.prepared_return_prompt_byte_length,
+    digest: record.prepared_return_prompt_digest,
+  });
+  const { record_digest: _omitted, ...preimage } = record;
+  assert.equal(
+    domainDigest("pi-ontology-workflows.handler-observation-record.v0", preimage),
+    record.record_digest,
   );
 });
 
