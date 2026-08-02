@@ -261,6 +261,14 @@ export function expandVisibleLoopPromptTemplate(
   cwd: string,
 ): VisibleLoopPromptExpansion {
   const templateName = getVisibleLoopSlashTemplateName(prompt);
+  if (hasForbiddenRawDeepReviewInvocation(prompt)) {
+    return {
+      ok: false,
+      prompt,
+      templateName: "deep-review",
+      error: "raw /deep-review prompt expansion is forbidden; use the governed Vault workflow step",
+    };
+  }
   if (!templateName) return { ok: true, prompt };
   const resolved = resolveVisibleLoopPromptTemplate(prompt, cwd);
   if (!resolved) {
@@ -269,6 +277,14 @@ export function expandVisibleLoopPromptTemplate(
       prompt,
       templateName,
       error: `prompt template /${templateName} is not available to visible-loop expansion`,
+    };
+  }
+  if (hasForbiddenRawDeepReviewInvocation(resolved.content)) {
+    return {
+      ok: false,
+      prompt,
+      templateName: resolved.name,
+      error: `prompt template /${resolved.name} resolves to a forbidden raw /deep-review invocation; use the governed Vault workflow step`,
     };
   }
   return { ok: true, prompt: resolved.content, templateName: resolved.name };
@@ -284,6 +300,7 @@ export function listMissingVisibleLoopPromptTemplates(
     prompts
       .map((prompt) => getVisibleLoopSlashTemplateName(prompt))
       .filter((name): name is string => name !== null)
+      .filter((name) => name !== "deep-review")
       .filter((name) => !templateNames.has(name)),
   );
 }
@@ -316,6 +333,10 @@ function getVisibleLoopSlashTemplateName(prompt: string): string | null {
   const spaceIndex = prompt.indexOf(" ");
   const templateName = spaceIndex === -1 ? prompt.slice(1) : prompt.slice(1, spaceIndex);
   return templateName.trim() || null;
+}
+
+export function hasForbiddenRawDeepReviewInvocation(prompt: string): boolean {
+  return /(?:^|\r?\n)[\t ]*\/deep-review(?=[\t \r\n]|$)/u.test(prompt);
 }
 
 function loadVisibleLoopPromptTemplates(cwd: string): VisibleLoopPromptTemplate[] {

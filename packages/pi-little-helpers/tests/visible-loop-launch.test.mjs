@@ -12,6 +12,7 @@ import {
   resetVisibleLoopRuntimeForRecoveryTest,
 } from "../src/visibleLoop.ts";
 import { parseVisibleLoopCommandArgs } from "../src/visibleLoopArgs.ts";
+import { loadVisibleLoopRunConfig } from "../src/visibleLoopState.ts";
 import {
   assertLoopValidationGuidance,
   createContext,
@@ -78,6 +79,63 @@ test("visible-loop launch arguments require exactly one explicit execution bindi
     parentPeerTarget: undefined,
     taskId: 4187,
   });
+});
+
+test("persisted AK task binding uses a positive safe-integer contract", () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-task-id-state-`);
+  try {
+    const env = { ...process.env, XDG_STATE_HOME: stateHome };
+    const stateDir = `${stateHome}/pi-little-helpers/visible-loop`;
+    mkdirSync(stateDir, { recursive: true });
+    const baseConfig = {
+      schemaVersion: 1,
+      loopCount: 2,
+      cwd: "/repo",
+      prompts: ["bounded task work"],
+      reportBack: "manual",
+      createdAt: new Date().toISOString(),
+    };
+    const configPath = `${stateDir}/visible-loop-task-id-test.json`;
+    writeFileSync(
+      configPath,
+      `${JSON.stringify({
+        ...baseConfig,
+        runId: "visible-loop-task-id-test",
+        executionBinding: { mode: "ak_task", taskId: 4257 },
+      })}\n`,
+    );
+
+    const loaded = loadVisibleLoopRunConfig(configPath, env);
+
+    assert.equal(loaded.ok, true);
+    assert.deepEqual(loaded.config.executionBinding, { mode: "ak_task", taskId: 4257 });
+
+    for (const [suffix, taskId] of [
+      ["zero", 0],
+      ["negative", -1],
+      ["fraction", 1.5],
+      ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+    ]) {
+      const invalidPath = `${stateDir}/visible-loop-task-id-${suffix}.json`;
+      writeFileSync(
+        invalidPath,
+        `${JSON.stringify({
+          ...baseConfig,
+          runId: `visible-loop-task-id-${suffix}`,
+          executionBinding: { mode: "ak_task", taskId },
+        })}\n`,
+      );
+      const invalid = loadVisibleLoopRunConfig(invalidPath, env);
+      assert.equal(invalid.ok, false, suffix);
+      assert.match(
+        invalid.error,
+        /executionBinding\.taskId must be a positive safe integer/,
+        suffix,
+      );
+    }
+  } finally {
+    rmSync(stateHome, { recursive: true, force: true });
+  }
 });
 
 test("unbound visible-loop command creates no config or Ghostty launch", async () => {

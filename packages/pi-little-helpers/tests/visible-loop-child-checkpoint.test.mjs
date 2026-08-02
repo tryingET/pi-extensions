@@ -2,7 +2,7 @@
 // read_when:
 //   - changing visible-loop child queues, completion checkpoint delivery, controller persistence, or iteration continuation.
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -25,6 +25,7 @@ import {
   hasVisibleLoopBarrierSuccess,
   parseVisibleLoopPlanProgress,
 } from "../src/visibleLoopPlan.ts";
+import { expandVisibleLoopPromptTemplate } from "../src/visibleLoopPromptTemplates.ts";
 import { getActiveVisibleLoopSnapshotPath } from "../src/visibleLoopRecovery.ts";
 import {
   createContext,
@@ -171,6 +172,51 @@ function readRunLease(run) {
   assert.ok(result.value);
   return result.value;
 }
+
+test("raw deep-review slash prompts are rejected even when a local file exists", async () => {
+  const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-raw-deep-review-`);
+  try {
+    const env = { XDG_STATE_HOME: stateHome };
+    const extension = createSidequestExtension({ registerTools: true, env });
+    const { commands, userMessages } = registerExtension(extension);
+    const repo = `${stateHome}/repo`;
+    const harness = createContext({ cwd: repo });
+    mkdirSync(`${repo}/.pi/prompts`, { recursive: true });
+    writeFileSync(`${repo}/.pi/prompts/deep-review.md`, "RAW REVIEW MUST NOT EXECUTE\n", "utf8");
+    writeFileSync(`${repo}/.pi/prompts/wrapper.md`, "/deep-review\ncontinue afterward\n", "utf8");
+    writeFileSync(`${repo}/.pi/prompts/ordinary.md`, "ordinary bounded work\n", "utf8");
+
+    const wrapped = expandVisibleLoopPromptTemplate("/wrapper", repo);
+    assert.equal(wrapped.ok, false);
+    assert.match(wrapped.error, /template \/wrapper.*forbidden raw \/deep-review/);
+    assert.deepEqual(expandVisibleLoopPromptTemplate("/ordinary", repo), {
+      ok: true,
+      prompt: "ordinary bounded work",
+      templateName: "ordinary",
+    });
+
+    const config = createVisibleLoopRunConfig({
+      loopCount: 1,
+      cwd: repo,
+      reportBack: "none",
+      executionBinding: { mode: "operator_objective", objective: "raw review rejection" },
+      prompts: [
+        "CANDIDATE EXECUTION MEMBRANE\n\n  /deep-review\ncontinue afterward",
+        "must not run",
+      ],
+      runId: "visible-loop-raw-deep-review",
+    });
+    const configPath = writeVisibleLoopRunConfig(config, env);
+
+    await commands.get("visible-loop-child").handler(configPath, harness.ctx);
+
+    assert.equal(userMessages.length, 0);
+    assert.match(harness.notifications.at(-1).message, /raw \/deep-review.*forbidden/);
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    rmSync(stateHome, { recursive: true, force: true });
+  }
+});
 
 async function completeFirstIteration(run, pi, options, userMessages) {
   await startVisibleLoopChildRunner(run.configPath, pi, run.harness.ctx, run.env, options);
