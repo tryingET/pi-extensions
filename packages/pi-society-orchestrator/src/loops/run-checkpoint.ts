@@ -40,6 +40,7 @@ export interface LoopPhaseAttemptCheckpoint {
   effectDisposition: LoopAttemptEffectDisposition;
   ownerEffectReceipt?: OwnerEffectReceipt;
   output: string;
+  stderr?: string;
   exitCode: number;
   failureKind?: string;
   elapsed: number;
@@ -630,6 +631,7 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
           attempt.attemptId,
         )) ||
       typeof attempt.output !== "string" ||
+      (attempt.stderr !== undefined && typeof attempt.stderr !== "string") ||
       typeof attempt.exitCode !== "number" ||
       typeof attempt.elapsed !== "number" ||
       !Array.isArray(attempt.artifactPaths) ||

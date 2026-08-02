@@ -34,6 +34,7 @@ export interface TransportExecutionState {
   signal?: string;
   aborted: boolean;
   timedOut: boolean;
+  rawChildSpawnIntent?: boolean;
   rawChildPid?: number;
 }
 

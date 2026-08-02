@@ -75,6 +75,10 @@ NODE
 
 run_phase() {
   local phase="$1"
+  local -a tool_args=(--no-builtin-tools)
+  if [[ "$phase" == "restricted" ]]; then
+    tool_args=(--tools "read,bash,write,snapshot_read,snapshot_edit")
+  fi
   local output
   local rc
   if output="$(
@@ -91,7 +95,7 @@ run_phase() {
       PI_OFFLINE=1 \
       PI_SNAPSHOT_EDIT_RELEASE_SMOKE=1 \
       PI_SNAPSHOT_EDIT_RELEASE_SMOKE_PHASE="$phase" \
-      "$PI_BIN" --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates \
+      "$PI_BIN" --offline --no-session "${tool_args[@]}" --no-skills --no-prompt-templates \
         --no-context-files --no-themes --no-extensions \
         --extension "$INSTALLED_PACKAGE_ROOT/extensions/snapshot-edit.ts" \
         -p "/snapshot-edit-release-smoke" </dev/null 2>&1
@@ -108,7 +112,8 @@ run_phase() {
   grep -q "snapshot-edit packed release smoke ${phase} OK" <<<"$output"
 }
 
+run_phase restricted
 run_phase fresh
 run_phase restart
 
-echo "release smoke done: exact isolated tarball artifact loaded and executed in two provider-free Pi processes."
+echo "release smoke done: exact isolated tarball artifact loaded with restricted and full owner catalogs in three provider-free Pi processes."

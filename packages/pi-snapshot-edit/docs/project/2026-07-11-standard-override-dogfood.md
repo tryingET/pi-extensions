@@ -24,6 +24,8 @@ pi --no-extensions \
 
 Use `PI_SNAPSHOT_EDIT_OVERRIDE=0`, `false`, `off`, or `no` to retain namespaced-only operation. The legacy `PI_SNAPSHOT_EDIT_OVERRIDE=1`, `--snapshot-edit-override`, and `/snapshot-edit override` surfaces remain explicit activation paths and may add `read` and `edit` to the active-tool selection.
 
+When an implicit startup uses a deliberate `--tools` allowlist that omits either built-in owner, the extension keeps host-callable `snapshot_read` / `snapshot_edit` active and does not claim standard names. The explicit environment, flag, and command activation paths still refuse missing built-in owners.
+
 The expected read result is one `revision:<alias>` header plus raw UTF-8 text with no gutters. Standard `edit` uses `{path,base,edits}` with `oldText` replacement or `anchorText` insertion selectors and an optional 1-indexed `occurrence` only when the selector is unique.
 
 Candidate worktrees must report the install command and must not mutate the controller Pi install.
@@ -34,6 +36,7 @@ Package tests cover:
 
 - namespaced registration, default standard replacement, and all four namespaced-only opt-out values;
 - exact preservation of host active-tool selection during default startup;
+- host-callable namespaced tools under a restricted allowlist that omits built-in `edit`;
 - explicit legacy activation of standard tools;
 - raw token-lean read and edit preview output without line gutters;
 - unique-selector occurrence omission and duplicate occurrence selection;
@@ -52,7 +55,7 @@ Before AK #3619, live dogfood exercised numbered reads and line-coordinate edits
 1. Startup override activation must occur at `session_start`; action APIs are not lawful while the extension factory loads.
 2. Unsupported standard reads must fail closed rather than constructing a local reader that could bypass a remote or sandbox owner.
 
-That run also led to positive built-in owner identification and refusal to displace visible non-built-in owners. Current tests apply those checks independently to both `read` and `edit`, including missing built-ins. Its line-coordinate payloads and line-number output are retired and are not current examples.
+That run also led to positive built-in owner identification and refusal to displace visible non-built-in owners. Current tests apply conflict checks independently to both `read` and `edit`; missing built-ins degrade only implicit restricted startup to namespaced-only operation, while every explicit takeover path still refuses them. Its line-coordinate payloads and line-number output are retired and are not current examples.
 
 ## Protocol B live verification
 

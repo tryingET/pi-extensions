@@ -1,5 +1,9 @@
 export type SubagentSettlementMode = "agent_settled" | "legacy_agent_end_exit";
 
+export interface RawChildSpawnIntentProtocolEvent {
+  type: "raw_child_spawn_intent";
+}
+
 export interface TransportReadyProtocolEvent {
   type: "transport_ready";
   rawChildPid?: number;
@@ -55,6 +59,7 @@ export interface ProtocolErrorProtocolEvent {
 }
 
 export type SubagentProtocolEvent =
+  | RawChildSpawnIntentProtocolEvent
   | TransportReadyProtocolEvent
   | AssistantTextDeltaProtocolEvent
   | AssistantMessageEndProtocolEvent

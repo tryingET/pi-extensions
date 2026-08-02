@@ -162,6 +162,9 @@ TARBALL="$(npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
+echo "== packed transport helper smoke"
+bash ./scripts/transport-artifact-smoke.sh "$TARBALL_PATH"
+
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
 else
@@ -175,7 +178,7 @@ else
     exit 1
   fi
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
+  TEST_AGENT_DIR="$(mktemp -d "${TMPDIR:-$ROOT_DIR}/pi-extension-release-check-XXXXXX")"
 
   cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
 

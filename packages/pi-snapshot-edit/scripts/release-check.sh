@@ -158,8 +158,10 @@ if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
 else
   command -v pi >/dev/null 2>&1 || fail "pi CLI not found in PATH."
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-agent-XXXXXX)"
-  TEST_NPM_PREFIX="$(mktemp -d /tmp/pi-extension-release-check-npm-XXXXXX)"
+  TEST_TMP_PARENT="${TMPDIR:-${HOME:?HOME is required}/.pi/tmp/pi-extensions}"
+  mkdir -p "$TEST_TMP_PARENT"
+  TEST_AGENT_DIR="$(mktemp -d "$TEST_TMP_PARENT/pi-extension-release-check-agent-XXXXXX")"
+  TEST_NPM_PREFIX="$(mktemp -d "$TEST_TMP_PARENT/pi-extension-release-check-npm-XXXXXX")"
   cat > "$TEST_AGENT_DIR/settings.json" <<'JSON'
 {
   "extensions": [],

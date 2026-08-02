@@ -20,7 +20,7 @@ import {
   parseSubagentSessionStatusPayload,
 } from "../extensions/self/subagent-session.ts";
 
-const MODERN_HANDSHAKE = `${JSON.stringify({
+const MODERN_HANDSHAKE = `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n${JSON.stringify({
   type: "transport_ready",
   settlementMode: "agent_settled",
   piVersion: "0.80.6",
@@ -435,6 +435,7 @@ test("spawnSubagentWithSpawn treats a final assistant stop as semantic success e
       exitCode: 1,
       aborted: false,
       timedOut: false,
+      rawChildSpawnIntent: true,
     },
     protocol: {
       kind: "assistant_protocol",

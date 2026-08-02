@@ -21,7 +21,7 @@ export interface SubagentSessionStatus {
   cancelSupported?: boolean;
   exitCode?: number;
   exitSignal?: string;
-  failureKind?: "transport_exited_before_settlement";
+  failureKind?: "subagent_helper_bootstrap_failed" | "transport_exited_before_settlement";
   elapsed?: number;
   parentSessionKey?: string;
   parentRepoRoot?: string;
@@ -111,6 +111,7 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
   }
   if (
     candidate.failureKind !== undefined &&
+    candidate.failureKind !== "subagent_helper_bootstrap_failed" &&
     candidate.failureKind !== "transport_exited_before_settlement"
   ) {
     return null;

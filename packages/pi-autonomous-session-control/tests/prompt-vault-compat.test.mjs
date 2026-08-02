@@ -40,6 +40,7 @@ test("evaluatePromptVaultCompatibility does not reject the current package versi
   });
 
   assert.equal(snapshot.autonomyVersion, currentPackageVersion);
+  assert.equal(snapshot.minimumAutonomyVersion, "0.1.0");
   assert.equal(snapshot.status, "supported");
   assert.equal(snapshot.checks.autonomyVersionOk, true);
 });

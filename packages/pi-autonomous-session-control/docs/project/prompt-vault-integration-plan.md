@@ -21,7 +21,7 @@ system4d:
 
 ## Compatibility guard notes (current contract)
 
-`self-prompt-vault-compat` evaluates the ASC package version against a feature/manifest policy instead of deriving the compatibility floor solely from the checked package manifest version. A source manifest may use the package source floor (`0.1.0`) only when it declares the expected ASC package identity plus the prompt-envelope-era feature shape (`exports["./execution"] == "./execution.ts"` and shipped `extensions/self` files). Otherwise the guard falls back to the historical prompt-envelope introduction version (`0.1.3`).
+`self-prompt-vault-compat` evaluates the ASC package version against a feature/manifest policy instead of deriving the compatibility floor solely from the checked package manifest version. A manifest may use the package source floor (`0.1.0`) only when it declares the expected ASC package identity, ships `extensions/self`, and publishes the execution seam either from the historical source entrypoint (`./execution.ts`) or the compiled runtime entrypoint (`./dist/execution.js` with `dist` included in `files`). Otherwise the guard falls back to the historical prompt-envelope introduction version (`0.1.3`).
 
 This prevents arbitrary low manifests (for example `0.0.1`) from being certified as supported just because the checked package version is low.
 

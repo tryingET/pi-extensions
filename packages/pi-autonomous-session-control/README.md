@@ -108,9 +108,9 @@ This extension expects pi host runtime APIs and declares them as `peerDependenci
 
 For npm publishing, `package.json` uses a `files` whitelist so required runtime artifacts are explicit:
 
-- `execution.ts`
 - `extensions/self.ts`
 - `extensions/self/`
+- `dist/` — precompiled JavaScript public execution graph and transport helper executed through `node` from installed packages
 - `prompts/`
 - `examples/`
 - `policy/security-policy.json`
@@ -385,7 +385,7 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - `/subagent-cancel <dispatchId> [reason]` and public `runtime.cancel(...)` target one live child with verified process-start identity. Unsupported identity fails closed, failed signals roll back cancellation intent, and custom-spawner sidecars are observable but cannot signal the parent Pi process.
 - Progress updates expose bounded phase/sequence, latest-tool, activity, and usage metadata. The helper probes `pi --version` and declares settlement capability in `transport_ready`: Pi >=0.80 requires exactly one authoritative `agent_settled` after the final terminal assistant outcome. The retained Pi 0.76 mode instead requires clean foreground JSON-mode exit plus final `agent_end.willRetry=false` after that outcome; undeclared streams cannot select this fallback, and unclassified versions fail closed.
 - The public runtime returns structured failure results. The `dispatch_subagent` tool adapter throws those failures so Pi records the tool invocation as an error rather than a successful tool call containing `{ status: "error" }`.
-- A nonzero transport exit before a valid terminal assistant outcome and settlement is classified as `transport_exited_before_settlement`, not collapsed into generic protocol incompleteness. Its model-visible failure output and status sidecar preserve bounded transport stderr, exit code, and exit signal when present; partial child work still remains effect-indeterminate and never becomes success.
+- An owned helper exit before its synchronous `raw_child_spawn_intent` marker is classified as `subagent_helper_bootstrap_failed` and may carry `confirmed_no_effects` only when the parent observed an otherwise unambiguous protocol stream. Missing intent after malformed, oversized, or out-of-order protocol data stays effect-indeterminate. Once intent is observed, a nonzero exit before a valid terminal assistant outcome and settlement is `transport_exited_before_settlement` and also remains effect-indeterminate. Both paths preserve bounded transport stderr, exit code, and exit signal when present; partial child work never becomes success.
 
 **Request env policy:**
 - `DispatchSubagentRequest.env` is a per-dispatch child environment overlay for provenance sidecars only.
@@ -422,8 +422,9 @@ The child still launches with `--no-extensions`, but ASC now supports explicit c
 - `dispatch_subagent` also accepts `extensions: ["vault-client", "/abs/path/to/ext.ts", ...]` so a subagent can opt into specific extension-provided tools without inheriting the full parent extension surface.
 - `dispatch_subagent` accepts `skillProfile: "minimal" | "ak" | "governance" | "dspx-skill-authoring"` when the child should load an allowlisted skill profile without inheriting all parent skills.
 - Result details now expose both the selected model (`requestedModel` / `effectiveModel`) and explicit child bootstrap metadata (`loadedExtensions`, `extensionWarnings`, `skillProfile`, `loadedSkills`, `librarySkills`, `skillWarnings`, `skillRegistry`).
-- Subagent transport now runs through a package-local assistant-only JSON filter helper, so large aggregate Pi payloads are removed before ASC parses the stream: `agent_end` is reduced to bounded `agent_run_end.willRetry` metadata for audited Pi 0.76 finality, while `turn_end` and `tool_execution_end` are dropped.
+- Subagent transport now runs through a precompiled package-local JavaScript assistant-only JSON filter helper, so installed packages do not depend on Node TypeScript stripping or an ambient loader and large aggregate Pi payloads are removed before ASC parses the stream: `agent_end` is reduced to bounded `agent_run_end.willRetry` metadata for audited Pi 0.76 finality, while `turn_end` and `tool_execution_end` are dropped.
 - ASC now treats the helper protocol as authoritative: raw Pi JSON events on the parent seam fail closed instead of being accepted as a compatibility fallback.
+- Before spawning raw Pi, the helper synchronously emits `raw_child_spawn_intent`. The parent requires intent before readiness or lifecycle events. Only a clean owned-helper exit before intent proves helper-bootstrap no-effects; missing or rejected intent after any parser ambiguity stays effect-indeterminate, and observed intent conservatively keeps subsequent failures effect-indeterminate even when no later handshake arrives.
 - Parent-side startup remains independently bounded; execution timeouts arm only after the helper emits one complete `transport_ready` handshake with the probed Pi version and settlement mode. The parent independently reclassifies that version, rejects missing/mismatched handshakes and pre-handshake lifecycle events, and does not let stdout noise or malformed startup output consume the execution budget.
 - Helper shutdown now tears down the raw `pi` child process group before parent-side force kill, preventing orphaned raw subprocesses on timeout/abort.
 - Lock files now store lightweight metadata (`pid`, `ppid`, `sessionName`, `createdAt`) so dead-parent reservations can be reclaimed automatically; live PIDs are never evicted solely due to age.

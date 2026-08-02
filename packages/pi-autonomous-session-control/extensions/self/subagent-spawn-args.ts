@@ -1,11 +1,22 @@
+import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SubagentState } from "./subagent-session.ts";
 import { getSubagentSessionFile } from "./subagent-spawn-status.ts";
 import type { SubagentDef } from "./subagent-spawn-types.ts";
 
-const SUBAGENT_PROTOCOL_HELPER_PATH = fileURLToPath(
-  new URL("./subagent-pi-json-filter.ts", import.meta.url),
-);
+function resolveSubagentProtocolHelperPath(moduleUrl = import.meta.url): string {
+  const modulePath = fileURLToPath(moduleUrl);
+  const moduleDir = dirname(modulePath);
+  if (modulePath.endsWith(".js")) {
+    return join(moduleDir, "subagent-pi-json-filter.js");
+  }
+  if (moduleDir.includes(`${sep}node_modules${sep}`)) {
+    return join(moduleDir, "..", "..", "dist", "extensions", "self", "subagent-pi-json-filter.js");
+  }
+  return join(moduleDir, "subagent-pi-json-filter.ts");
+}
+
+const SUBAGENT_PROTOCOL_HELPER_PATH = resolveSubagentProtocolHelperPath();
 
 export function createSubagentProtocolArgs(params: {
   def: SubagentDef;

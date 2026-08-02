@@ -38,4 +38,10 @@ cleanup_runtime_artifacts() {
 cleanup_runtime_artifacts
 trap cleanup_runtime_artifacts EXIT
 
+case "${1:-}" in
+  test|pre-push|ci)
+    node "$ROOT_DIR/scripts/build-runtime.mjs"
+    ;;
+esac
+
 exec bash "$MONOREPO_ROOT/scripts/package-quality-gate.sh" "${1:-}" "$ROOT_DIR"

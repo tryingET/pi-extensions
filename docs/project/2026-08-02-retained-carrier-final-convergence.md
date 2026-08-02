@@ -53,6 +53,17 @@ The pending AK-4257 carrier exposed two residual regression risks. Current `main
 
 Focused tests, the package quality gate, packed-artifact dogfood, and independent review cover these changes. Removing the Git carrier does **not** complete AK-4257; its task lifecycle remains owner-controlled.
 
+### Installed runtime composition recovery
+
+A current-main-based AK-4564 candidate appeared while the archive membrane was being prepared and was treated as new semantic work rather than deleted as topology drift. Its frozen bytes were transferred without stale-history merge and independently accepted for code integration. Current behavior now:
+
+- packages ASC protocol helpers as compiled JavaScript and resolves that helper from `node_modules` without ambient `NODE_OPTIONS`, while repository source still selects the TypeScript helper;
+- writes raw-child spawn intent before spawn and preserves effect-indeterminate truth for ambiguous or post-intent failures;
+- keeps Snapshot Edit's namespaced tools available when deliberate tool allowlists omit built-in `read` or `edit`, while rejecting unsafe visible-owner takeover;
+- exposes bounded, redacted structured bootstrap diagnostics from Orchestrator without trusting assistant-output marker spoofing or changing effect disposition.
+
+Current-head package gates and packed/isolated artifact smokes cover the three packages. This is code-integration evidence, not publication approval: published package versions remain immutable, and any future release must publish a newly versioned compiled ASC artifact before raising and releasing Orchestrator's ASC dependency floor. No package publication, live install, or reload is part of this campaign.
+
 ### Adaptive portfolio execution
 
 Adaptive-portfolio planning remains a current requirement, but the failed AK-4164 execution scaffolds are not lawful runtime implementations. Current ASC does not enforce a symlink-safe read scope across every read-capable surface and does not reserve/decrement a hard provider-turn budget before each model request. Retrospective usage observation and prompt-level path metadata cannot satisfy those requirements.

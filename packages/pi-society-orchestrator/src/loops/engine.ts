@@ -128,6 +128,7 @@ export interface PhaseResult {
   phase: string;
   attemptId?: string;
   output: string;
+  stderr?: string;
   exitCode: number;
   status: ExecutionStatus;
   failureKind?: string;
@@ -161,6 +162,7 @@ export interface CompactPhaseResult {
   elapsed: number;
   failureKind?: string;
   artifactPaths: string[];
+  failureSummary?: string;
 }
 
 export interface CompactLoopResult {
@@ -222,6 +224,7 @@ export type LoopDispatchFn = (params: {
 }) => Promise<
   ExecutionLike & {
     output: string;
+    stderr?: string;
     elapsed: number;
     failureKind?: string;
     effectReceipt?: VerifiedDispatchEffectReceipt;
@@ -736,6 +739,7 @@ export class LoopExecutor {
           phase,
           attemptId,
           output: result.output,
+          stderr: result.stderr,
           exitCode: result.exitCode,
           status: getExecutionStatus(result),
           failureKind:
@@ -791,6 +795,7 @@ export class LoopExecutor {
         phase,
         attemptId,
         output: result.output,
+        stderr: result.stderr,
         exitCode: result.exitCode,
         status: executionOutcome.status,
         failureKind:
@@ -1084,6 +1089,7 @@ function toCheckpointAttempt(
     effectDisposition,
     ...(ownerEffectReceipt ? { ownerEffectReceipt } : {}),
     output: result.output,
+    stderr: result.stderr,
     exitCode: result.exitCode,
     ...(result.failureKind ? { failureKind: result.failureKind } : {}),
     elapsed: result.elapsed,
@@ -1099,6 +1105,7 @@ function phaseResultFromCheckpoint(attempt: LoopPhaseAttemptCheckpoint): PhaseRe
     phase: attempt.phase,
     attemptId: attempt.attemptId,
     output: attempt.output,
+    stderr: attempt.stderr,
     exitCode: attempt.exitCode,
     status: attempt.status,
     ...(attempt.failureKind ? { failureKind: attempt.failureKind } : {}),
@@ -1112,7 +1119,65 @@ function phaseResultFromCheckpoint(attempt: LoopPhaseAttemptCheckpoint): PhaseRe
   };
 }
 
-function compactLoopResult(result: LoopResult): CompactLoopResult {
+const ACTIONABLE_LOOP_FAILURE_KINDS = new Set([
+  "subagent_helper_bootstrap_failed",
+  "transport_exited_before_settlement",
+  "assistant_protocol_parse_error",
+  "assistant_protocol_incomplete",
+  "startup_timed_out",
+  "transport_error",
+  "effect_receipt_write_failed",
+]);
+const MAX_LOOP_FAILURE_SUMMARY_CHARS = 640;
+
+function replaceLoopDiagnosticControlCharacters(value: string): string {
+  return [...value]
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint < 32 || codePoint === 127 ? " " : character;
+    })
+    .join("");
+}
+
+function redactLoopDiagnosticText(value: string): string {
+  const credentialKey =
+    "(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key|authorization|password|passphrase|token)";
+  const assignedCredential = new RegExp(
+    `(\\b${credentialKey}\\b\\s*[:=]\\s*)(?:["'][^"']*["']|[^\\s,;]+)`,
+    "giu",
+  );
+  return value
+    .replace(
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/gu,
+      "[REDACTED PRIVATE KEY]",
+    )
+    .replace(assignedCredential, "$1[REDACTED]")
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]{8,}\b/gu, "[REDACTED GITHUB TOKEN]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/gu, "[REDACTED API TOKEN]")
+    .replace(/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/gu, "[REDACTED JWT]");
+}
+
+export function summarizeLoopPhaseFailure(
+  phase: Pick<PhaseResult, "status" | "failureKind" | "stderr">,
+): string | undefined {
+  if (
+    phase.status === "done" ||
+    !phase.failureKind ||
+    !ACTIONABLE_LOOP_FAILURE_KINDS.has(phase.failureKind) ||
+    typeof phase.stderr !== "string"
+  ) {
+    return undefined;
+  }
+  const normalized = replaceLoopDiagnosticControlCharacters(redactLoopDiagnosticText(phase.stderr))
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return undefined;
+  return normalized.length > MAX_LOOP_FAILURE_SUMMARY_CHARS
+    ? `${normalized.slice(0, MAX_LOOP_FAILURE_SUMMARY_CHARS - 1)}…`
+    : normalized;
+}
+
+export function compactLoopResult(result: LoopResult): CompactLoopResult {
   return {
     plugin: result.plugin,
     sessionId: result.sessionId,
@@ -1127,10 +1192,16 @@ function compactLoopResult(result: LoopResult): CompactLoopResult {
       exitCode: phase.exitCode,
       elapsed: phase.elapsed,
       failureKind: phase.failureKind,
+      failureSummary: summarizeLoopPhaseFailure(phase),
       artifactPaths: phase.artifacts.map((artifact) => artifact.content),
     })),
     artifactPaths: result.artifacts.map((artifact) => artifact.content),
   };
+}
+
+export function formatCompactPhaseResult(phase: CompactPhaseResult): string {
+  const statusLine = `- ${phase.phase}: ${phase.status === "done" ? "✓" : "✗"} ${phase.status}${phase.failureKind ? ` (${phase.failureKind})` : ""} (${Math.round(phase.elapsed / 1000)}s)`;
+  return phase.failureSummary ? `${statusLine}\n  - cause: ${phase.failureSummary}` : statusLine;
 }
 
 function createLinkedTimeoutSignal(
@@ -1623,7 +1694,7 @@ export function registerLoopTools(
 **Elapsed:** ${Math.round(result.elapsed / 1000)}s
 ${loopTimedOut ? "**Loop timeout:** yes\n" : ""}
 ## Phases
-${compactResult.phases.map((p) => `- ${p.phase}: ${p.status === "done" ? "✓" : "✗"} ${p.status}${p.failureKind ? ` (${p.failureKind})` : ""} (${Math.round(p.elapsed / 1000)}s)`).join("\n")}
+${compactResult.phases.map(formatCompactPhaseResult).join("\n")}
 
 ## Artifacts
 ${compactResult.artifactPaths.map((artifactPath) => `- ${artifactPath}`).join("\n") || "None"}

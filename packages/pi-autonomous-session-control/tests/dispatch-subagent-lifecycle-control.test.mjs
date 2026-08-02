@@ -27,7 +27,7 @@ import {
 } from "../extensions/self/subagent-session.ts";
 import { spawnSubagentWithSpawn } from "../extensions/self/subagent-spawn.ts";
 
-const MODERN_HANDSHAKE = `${JSON.stringify({
+const MODERN_HANDSHAKE = `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n${JSON.stringify({
   type: "transport_ready",
   settlementMode: "agent_settled",
   piVersion: "0.80.6",
@@ -1043,7 +1043,7 @@ test("one agent settlement accepts a recovered final outcome after an automatic 
     );
     stdout.emit(
       "data",
-      `${JSON.stringify({ type: "transport_ready", settlementMode: "agent_settled", piVersion: "0.80.6" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "error", errorMessage: "retryable" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "recovered" })}\n${JSON.stringify({ type: "agent_settled" })}\n`,
+      `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n${JSON.stringify({ type: "transport_ready", settlementMode: "agent_settled", piVersion: "0.80.6" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "error", errorMessage: "retryable" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "recovered" })}\n${JSON.stringify({ type: "agent_settled" })}\n`,
     );
     child.emit("close", 0);
     const result = await resultPromise;
@@ -1086,7 +1086,7 @@ test("declared Pi 0.80 fails closed when agent_settled is missing", async () => 
     );
     stdout.emit(
       "data",
-      `${JSON.stringify({ type: "transport_ready", settlementMode: "agent_settled", piVersion: "0.80.6" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "premature" })}\n${JSON.stringify({ type: "agent_run_end", willRetry: false })}\n`,
+      `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n${JSON.stringify({ type: "transport_ready", settlementMode: "agent_settled", piVersion: "0.80.6" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "premature" })}\n${JSON.stringify({ type: "agent_run_end", willRetry: false })}\n`,
     );
     child.emit("close", 0);
     const result = await resultPromise;
@@ -1129,7 +1129,7 @@ test("Pi 0.80 settlement must follow the final terminal assistant outcome", asyn
     );
     stdout.emit(
       "data",
-      `${JSON.stringify({ type: "transport_ready", settlementMode: "agent_settled", piVersion: "0.80.6" })}\n${JSON.stringify({ type: "agent_settled" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "too late" })}\n`,
+      `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n${JSON.stringify({ type: "transport_ready", settlementMode: "agent_settled", piVersion: "0.80.6" })}\n${JSON.stringify({ type: "agent_settled" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "too late" })}\n`,
     );
     child.emit("close", 0);
     const result = await resultPromise;
@@ -1171,7 +1171,7 @@ test("clean Pi 0.76 JSON exit plus final agent_end accepts an automatic retry", 
     );
     stdout.emit(
       "data",
-      `${JSON.stringify({ type: "transport_ready", settlementMode: "legacy_agent_end_exit", piVersion: "0.76.0" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "error", errorMessage: "retryable" })}\n${JSON.stringify({ type: "agent_run_end", willRetry: true })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "recovered" })}\n${JSON.stringify({ type: "agent_run_end", willRetry: false })}\n`,
+      `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n${JSON.stringify({ type: "transport_ready", settlementMode: "legacy_agent_end_exit", piVersion: "0.76.0" })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "error", errorMessage: "retryable" })}\n${JSON.stringify({ type: "agent_run_end", willRetry: true })}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "recovered" })}\n${JSON.stringify({ type: "agent_run_end", willRetry: false })}\n`,
     );
     child.emit("close", 0);
     const result = await resultPromise;

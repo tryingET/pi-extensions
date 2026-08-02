@@ -40,8 +40,8 @@ Protocol B completely owns namespaced `snapshot_read` / `snapshot_edit`. Loading
 12. Commit uses a same-directory temporary file, fsync, mode preservation, a best-effort pre-rename recheck from one opened handle, and atomic rename.
 13. Successful edit output issues a fresh revision and a raw, gutter-free bounded preview or a non-throwing omission notice.
 14. Default startup replacement preserves the host's active-tool selection and never force-enables standard tools.
-15. Standard replacement requires positively identified built-in owners for both names and fails closed for a missing built-in or any visible non-built-in owner.
-16. `PI_SNAPSHOT_EDIT_OVERRIDE=0|false|off|no` opts out to namespaced-only operation. Legacy explicit enable surfaces (`PI_SNAPSHOT_EDIT_OVERRIDE=1`, `--snapshot-edit-override`, and `/snapshot-edit override`) remain available and may activate `read` and `edit`.
+15. Standard replacement requires positively identified built-in owners for both names and fails closed for any visible non-built-in owner. When an implicit default startup is deliberately restricted so either built-in owner is absent, startup remains namespaced-only instead of aborting.
+16. `PI_SNAPSHOT_EDIT_OVERRIDE=0|false|off|no` opts out to namespaced-only operation. Legacy explicit enable surfaces (`PI_SNAPSHOT_EDIT_OVERRIDE=1`, `--snapshot-edit-override`, and `/snapshot-edit override`) remain available, may activate `read` and `edit`, and fail closed if either built-in owner is absent.
 
 There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or incompatible resumed call must reread. Resumed Protocol A line coordinates and top-level legacy calls receive precise migration guidance; nested Protocol B `oldText` is valid.
 
@@ -64,7 +64,7 @@ There is no fuzzy matching, automatic relocation, merge, or rebase. A stale or i
 - Full snapshots retain sensitive bytes in bounded process memory.
 - Atomic rename cannot preserve every filesystem metadata or identity property.
 - Non-cooperating cross-process races cannot be eliminated with portable filesystem APIs. In particular, the final recheck is not compare-and-swap: a writer can change the path after that check and before rename.
-- Hosts with missing standard built-ins or extension-owned standard tools cannot use default standard replacement; they must opt out or resolve ownership.
+- A restricted host selection that omits a standard built-in stays namespaced-only during implicit startup. Explicit standard takeover still requires both built-in owners, and any visible extension-owned standard tool remains a conflict that must be resolved.
 
 ## Retired decision
 

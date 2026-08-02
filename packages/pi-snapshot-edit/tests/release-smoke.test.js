@@ -16,15 +16,17 @@ const envInvocationMatch = runPhase.match(/env -i \\\n([\s\S]*?)\n\s+"\$PI_BIN" 
 assert.ok(envInvocationMatch, "release smoke must invoke the resolved Pi binary through env -i");
 const envMembrane = envInvocationMatch[1];
 
-test("fresh and restart smokes explicitly load the exact verified installed extension", () => {
+test("restricted, fresh, and restart smokes load the exact verified installed extension", () => {
   const explicitInstalledExtension =
     '--extension "$INSTALLED_PACKAGE_ROOT/extensions/snapshot-edit.ts"';
 
   assert.equal(runPhase.split(explicitInstalledExtension).length - 1, 1);
   assert.match(runPhase, /--no-extensions/);
+  assert.match(runPhase, /local -a tool_args=\(--no-builtin-tools\)/);
+  assert.match(runPhase, /tool_args=\(--tools "read,bash,write,snapshot_read,snapshot_edit"\)/);
   assert.deepEqual(
-    [...smokeScript.matchAll(/^run_phase (fresh|restart)$/gm)].map((match) => match[1]),
-    ["fresh", "restart"],
+    [...smokeScript.matchAll(/^run_phase (restricted|fresh|restart)$/gm)].map((match) => match[1]),
+    ["restricted", "fresh", "restart"],
   );
 });
 

@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import { createEdgeMonotonicId } from "./edge-contract-kernel.ts";
-import { normalizeEffectReceiptSessionName, writeDispatchEffectReceipt } from "./effect-receipt.ts";
+import {
+  type DispatchEffectDisposition,
+  normalizeEffectReceiptSessionName,
+  writeDispatchEffectReceipt,
+} from "./effect-receipt.ts";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
 import { reserveSharedSubagentCapacity } from "./subagent-capacity.ts";
 import { cancelSubagentDispatch } from "./subagent-control.ts";
@@ -42,6 +46,20 @@ import { applyDispatchTaskContract, buildDispatchTaskContract } from "./subagent
 
 export type { DispatchEffectDisposition, DispatchEffectReceipt } from "./effect-receipt.ts";
 export { getDispatchSubagentDisplayOutput } from "./subagent-runtime-display.ts";
+
+export function classifyDispatchEffectDisposition(params: {
+  status: "done" | "error" | "timed_out" | "aborted" | "spawning" | "running";
+  spawnAttempted: boolean;
+  usesOwnedSpawner: boolean;
+  rawChildSpawnIntent?: boolean;
+}): DispatchEffectDisposition {
+  if (params.status === "done") return "settled";
+  if (!params.spawnAttempted) return "confirmed_no_effects";
+  if (params.usesOwnedSpawner && params.rawChildSpawnIntent === false) {
+    return "confirmed_no_effects";
+  }
+  return "effect_indeterminate";
+}
 export type {
   AscExecutionRuntime,
   AscExecutionRuntimeOptions,
@@ -640,12 +658,12 @@ export async function executeDispatchSubagentRequest(options: {
       dispatchId,
       attemptId,
       consumerCorrelationId: effectCorrelationId,
-      disposition:
-        status === "done"
-          ? "settled"
-          : spawnAttempted
-            ? "effect_indeterminate"
-            : "confirmed_no_effects",
+      disposition: classifyDispatchEffectDisposition({
+        status,
+        spawnAttempted,
+        usesOwnedSpawner: spawner === spawnSubagent,
+        rawChildSpawnIntent: result.executionState?.transport.rawChildSpawnIntent,
+      }),
     });
   } catch {
     receiptWriteFailed = true;

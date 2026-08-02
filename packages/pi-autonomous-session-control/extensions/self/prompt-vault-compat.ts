@@ -99,13 +99,19 @@ function packageManifestDeclaresPromptEnvelopeSupport(path: string): boolean {
   const parsed = readPackageJson(path);
   const exportsField = parsed?.exports;
   const filesField = parsed?.files;
+  const executionExport =
+    exportsField !== null && typeof exportsField === "object" && !Array.isArray(exportsField)
+      ? (exportsField as Record<string, unknown>)["./execution"]
+      : undefined;
+  const publishesExecution =
+    executionExport === "./execution.ts" ||
+    (executionExport === "./dist/execution.js" &&
+      Array.isArray(filesField) &&
+      filesField.includes("dist"));
 
   return (
     parsed?.name === "@tryinget/pi-autonomous-session-control" &&
-    exportsField !== null &&
-    typeof exportsField === "object" &&
-    !Array.isArray(exportsField) &&
-    (exportsField as Record<string, unknown>)["./execution"] === "./execution.ts" &&
+    publishesExecution &&
     Array.isArray(filesField) &&
     filesField.includes("extensions/self")
   );

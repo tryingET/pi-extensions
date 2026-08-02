@@ -89,6 +89,7 @@ export function spawnSubagentWithSpawn(
     let timeoutPhase: "startup" | "execution" | undefined;
     let stopRequested = false;
     let transportReady = false;
+    let rawChildSpawnIntent = false;
     let rawChildPid: number | undefined;
     let settlementMode: SubagentSettlementMode | undefined;
     let piVersion: string | undefined;
@@ -214,6 +215,11 @@ export function spawnSubagentWithSpawn(
       timeoutHandle.unref?.();
     };
 
+    const markRawChildSpawnIntent = () => {
+      rawChildSpawnIntent = true;
+      markActivity();
+    };
+
     const markTransportReady = (
       candidateRawChildPid: number | undefined,
       candidateSettlementMode: SubagentSettlementMode,
@@ -328,6 +334,8 @@ export function spawnSubagentWithSpawn(
           setLatestTool,
           markAgentRunEnd,
           markAgentSettled,
+          hasRawChildSpawnIntent: () => rawChildSpawnIntent,
+          markRawChildSpawnIntent,
           isTransportReady: () => transportReady,
           markTransportReady,
         }),
@@ -417,6 +425,11 @@ export function spawnSubagentWithSpawn(
         .map((line) => `raw pi stdout noise: ${line}`)
         .join("\n");
       const protocolFailed = parseErrors.length > 0 || reportedProtocolErrors.length > 0;
+      const observedRawChildSpawnIntent = rawChildSpawnIntent
+        ? true
+        : protocolFailed
+          ? undefined
+          : false;
       // Pi >=0.80 declares authoritative agent_settled finality in the transport handshake.
       // The observed settlement must follow the final terminal assistant outcome. Pi 0.76's
       // explicitly declared compatibility mode instead requires a clean foreground JSON exit and
@@ -517,6 +530,7 @@ export function spawnSubagentWithSpawn(
         aborted,
         timedOut,
         rawChildPid,
+        rawChildSpawnIntent: observedRawChildSpawnIntent,
         protocolFailed,
         protocolIncomplete,
         transportExitedBeforeSettlement:

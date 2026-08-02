@@ -67,6 +67,8 @@ export function consumeSubagentEventLine(params: {
   setLatestTool: (toolName: string) => void;
   markAgentRunEnd: (willRetry: boolean | undefined) => void;
   markAgentSettled: () => void;
+  hasRawChildSpawnIntent: () => boolean;
+  markRawChildSpawnIntent: () => void;
   isTransportReady: () => boolean;
   markTransportReady: (
     rawChildPid: number | undefined,
@@ -87,6 +89,23 @@ export function consumeSubagentEventLine(params: {
 
   try {
     const event = JSON.parse(trimmed);
+
+    if (event.type === "raw_child_spawn_intent") {
+      if (params.isTransportReady()) {
+        return { parseError: "raw_child_spawn_intent arrived after transport_ready." };
+      }
+      if (params.hasRawChildSpawnIntent()) {
+        return { parseError: "Duplicate raw_child_spawn_intent from subagent protocol." };
+      }
+      params.markRawChildSpawnIntent();
+      return {};
+    }
+
+    if (!params.hasRawChildSpawnIntent()) {
+      return {
+        parseError: `Subagent protocol event ${String(event.type)} arrived before raw_child_spawn_intent.`,
+      };
+    }
 
     if (event.type === "transport_ready") {
       if (params.isTransportReady()) {
@@ -286,6 +305,7 @@ export function createExecutionState(params: {
   aborted: boolean;
   timedOut: boolean;
   rawChildPid?: number;
+  rawChildSpawnIntent?: boolean;
   protocolFailed: boolean;
   protocolIncomplete: boolean;
   transportExitedBeforeSettlement?: boolean;
@@ -300,6 +320,9 @@ export function createExecutionState(params: {
       ...(params.transportSignal ? { signal: params.transportSignal } : {}),
       aborted: params.aborted,
       timedOut: params.timedOut,
+      ...(typeof params.rawChildSpawnIntent === "boolean"
+        ? { rawChildSpawnIntent: params.rawChildSpawnIntent }
+        : {}),
       ...(typeof params.rawChildPid === "number" ? { rawChildPid: params.rawChildPid } : {}),
     },
     protocol: params.protocolFailed

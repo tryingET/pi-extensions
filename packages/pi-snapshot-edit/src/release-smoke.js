@@ -12,8 +12,46 @@ export async function runPackedReleaseSmoke({
   snapshotEdit,
   installStandardOverrides,
   getTool,
+  getAllToolNames,
+  getActiveTools,
   clear,
 }) {
+  if (phase === "restricted") {
+    assert.equal(getTool("read"), undefined);
+    assert.equal(getTool("edit"), undefined);
+    const expectedNamespacedTools = ["snapshot_read", "snapshot_edit"];
+    const allToolNames = getAllToolNames();
+    const activeTools = getActiveTools();
+    for (const toolName of expectedNamespacedTools) {
+      assert.ok(allToolNames.includes(toolName), `${toolName} is absent from Pi's tool registry`);
+      assert.ok(activeTools.includes(toolName), `${toolName} is absent from Pi's active tools`);
+    }
+    const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-edit-restricted-smoke-"));
+    try {
+      const path = join(directory, "restricted.txt");
+      await writeFile(path, "before\n", "utf8");
+      const readResult = await execute(
+        snapshotRead,
+        "restricted-read",
+        { path: "restricted.txt" },
+        directory,
+      );
+      await execute(
+        snapshotEdit,
+        "restricted-edit",
+        {
+          path: "restricted.txt",
+          base: readResult.details.revision,
+          edits: [{ op: "replace", oldText: "before", newText: "after" }],
+        },
+        directory,
+      );
+      assert.equal(await readFile(path, "utf8"), "after\n");
+      return "restricted host tools kept namespaced-only Protocol B available";
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
   if (phase === "restart") {
     await assert.rejects(
       execute(

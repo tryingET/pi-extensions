@@ -9,6 +9,8 @@ import {
   classifyPiSettlementMode,
   translatePiJsonEventLineToSubagentProtocol,
 } from "../extensions/self/subagent-protocol.ts";
+import { classifyDispatchEffectDisposition } from "../extensions/self/subagent-runtime.ts";
+import { getDispatchSubagentFailureKind } from "../extensions/self/subagent-runtime-display.ts";
 
 test("classifyPiSettlementMode distinguishes audited legacy and authoritative settlement hosts", () => {
   assert.equal(classifyPiSettlementMode("0.76.0"), "legacy_agent_end_exit");
@@ -109,7 +111,7 @@ test("spawnSubagentWithSpawn consumes the assistant-only filtered protocol", asy
 
     stdout.emit(
       "data",
-      '{"type":"transport_ready","rawChildPid":787878,"settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
+      '{"type":"raw_child_spawn_intent"}\n{"type":"transport_ready","rawChildPid":787878,"settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
     );
     stdout.emit("data", '{"type":"assistant_text_delta","delta":"hello"}\n');
     stdout.emit(
@@ -130,6 +132,7 @@ test("spawnSubagentWithSpawn consumes the assistant-only filtered protocol", asy
         aborted: false,
         timedOut: false,
         rawChildPid: 787878,
+        rawChildSpawnIntent: true,
       },
       protocol: {
         kind: "assistant_protocol",
@@ -189,7 +192,7 @@ test("spawnSubagentWithSpawn rejects missing and mismatched settlement handshake
       );
       stdout.emit(
         "data",
-        `${JSON.stringify(scenario.handshake)}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "must fail" })}\n${JSON.stringify({ type: "agent_settled" })}\n`,
+        `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n${JSON.stringify(scenario.handshake)}\n${JSON.stringify({ type: "assistant_message_end", stopReason: "stop", text: "must fail" })}\n${JSON.stringify({ type: "agent_settled" })}\n`,
       );
       child.emit("close", 0);
       const result = await resultPromise;
@@ -281,7 +284,7 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
 
     stdout.emit(
       "data",
-      '{"type":"transport_ready","settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
+      '{"type":"raw_child_spawn_intent"}\n{"type":"transport_ready","settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
     );
     stdout.emit(
       "data",
@@ -292,6 +295,7 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
     const result = await resultPromise;
     assert.equal(result.status, "done");
     assert.deepEqual(capturedArgs.filter((arg) => arg === "--extension").length, 2);
+    assert.match(capturedArgs[0], /extensions\/self\/subagent-pi-json-filter\.ts$/u);
     assert.ok(capturedArgs.includes("/tmp/pi-multi-pass.ts"));
     assert.ok(capturedArgs.includes("/tmp/vault.ts"));
     assert.equal(capturedEnv.PI_PROVENANCE_REVIEW_LANE_ID, "lane-spawn");
@@ -332,7 +336,7 @@ test("spawnSubagentWithSpawn defers timeout until the helper signals transport r
     await new Promise((resolve) => setTimeout(resolve, 40));
     stdout.emit(
       "data",
-      '{"type":"transport_ready","rawChildPid":797979,"settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
+      '{"type":"raw_child_spawn_intent"}\n{"type":"transport_ready","rawChildPid":797979,"settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
     );
     stdout.emit(
       "data",
@@ -347,5 +351,124 @@ test("spawnSubagentWithSpawn defers timeout until the helper signals transport r
     assert.equal(result.executionState?.transport.rawChildPid, 797979);
   } finally {
     await rm(state.sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("owned transport rejects readiness without intent and keeps effects indeterminate", async () => {
+  const state = createSubagentState(join(tmpdir(), `subagent-missing-intent-${Date.now()}`));
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  stdout.setEncoding = () => stdout;
+  stderr.setEncoding = () => stderr;
+  const child = new EventEmitter();
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.kill = () => true;
+  child.pid = 808080;
+
+  try {
+    const resultPromise = spawnSubagentWithSpawn(
+      {
+        name: "missing-intent",
+        objective: "Reject an untrusted transport handshake",
+        tools: "read",
+        sessionFile: join(state.sessionsDir, "missing-intent.jsonl"),
+      },
+      "test/model",
+      { cwd: process.cwd() },
+      state,
+      () => child,
+    );
+    stdout.emit(
+      "data",
+      '{"type":"transport_ready","settlementMode":"agent_settled","piVersion":"0.80.6"}\n',
+    );
+    child.emit("close", 1);
+
+    const result = await resultPromise;
+    assert.equal(result.status, "error");
+    assert.equal(result.executionState?.protocol?.kind, "assistant_protocol_parse_error");
+    assert.equal(result.executionState?.transport.rawChildSpawnIntent, undefined);
+    assert.match(result.output, /arrived before raw_child_spawn_intent/u);
+    assert.equal(
+      classifyDispatchEffectDisposition({
+        status: "error",
+        spawnAttempted: true,
+        usesOwnedSpawner: true,
+        rawChildSpawnIntent: result.executionState?.transport.rawChildSpawnIntent,
+      }),
+      "effect_indeterminate",
+    );
+  } finally {
+    await rm(state.sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("owned transport distinguishes helper bootstrap failure from post-intent failure", async (t) => {
+  for (const scenario of [
+    {
+      name: "pre-intent",
+      emitIntent: false,
+      failureKind: "subagent_helper_bootstrap_failed",
+      disposition: "confirmed_no_effects",
+    },
+    {
+      name: "post-intent",
+      emitIntent: true,
+      failureKind: "transport_exited_before_settlement",
+      disposition: "effect_indeterminate",
+    },
+  ]) {
+    await t.test(scenario.name, async () => {
+      const state = createSubagentState(join(tmpdir(), `subagent-${scenario.name}-${Date.now()}`));
+      const stdout = new EventEmitter();
+      const stderr = new EventEmitter();
+      stdout.setEncoding = () => stdout;
+      stderr.setEncoding = () => stderr;
+      const child = new EventEmitter();
+      child.stdout = stdout;
+      child.stderr = stderr;
+      child.kill = () => true;
+      child.pid = 808080;
+
+      try {
+        const resultPromise = spawnSubagentWithSpawn(
+          {
+            name: scenario.name,
+            objective: "Classify transport bootstrap effects",
+            tools: "read",
+            sessionFile: join(state.sessionsDir, `${scenario.name}.jsonl`),
+          },
+          "test/model",
+          { cwd: process.cwd() },
+          state,
+          () => child,
+        );
+        if (scenario.emitIntent) {
+          stdout.emit("data", '{"type":"raw_child_spawn_intent"}\n');
+        }
+        stderr.emit("data", "helper failed before settlement\n");
+        child.emit("close", 1);
+
+        const result = await resultPromise;
+        assert.equal(result.executionState?.transport.rawChildSpawnIntent, scenario.emitIntent);
+        const failureKind = getDispatchSubagentFailureKind({
+          status: "error",
+          executionState: result.executionState,
+        });
+        assert.equal(failureKind, scenario.failureKind);
+        assert.equal(
+          classifyDispatchEffectDisposition({
+            status: "error",
+            spawnAttempted: true,
+            usesOwnedSpawner: true,
+            rawChildSpawnIntent: result.executionState?.transport.rawChildSpawnIntent,
+          }),
+          scenario.disposition,
+        );
+      } finally {
+        await rm(state.sessionsDir, { recursive: true, force: true });
+      }
+    });
   }
 });

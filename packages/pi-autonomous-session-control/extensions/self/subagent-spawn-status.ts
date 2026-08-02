@@ -95,7 +95,9 @@ export function writeCompletedSubagentStatus(params: {
     exitCode: params.result.exitCode,
     exitSignal: params.result.executionState?.transport.signal,
     failureKind: exitedBeforeSettlement(params.result)
-      ? "transport_exited_before_settlement"
+      ? params.result.executionState?.transport.rawChildSpawnIntent === false
+        ? "subagent_helper_bootstrap_failed"
+        : "transport_exited_before_settlement"
       : undefined,
     elapsed: params.result.elapsed,
     parentSessionKey: params.def.parentSessionKey,

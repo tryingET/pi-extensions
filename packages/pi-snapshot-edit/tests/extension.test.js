@@ -247,19 +247,45 @@ test("default override refuses non-built-in read and edit owners", async (t) => 
   }
 });
 
-test("default override refuses missing built-in read and edit owners", async (t) => {
+test("default startup stays namespaced-only when host selection omits a built-in owner", async (t) => {
   for (const name of ["read", "edit"]) {
     await t.test(name, async () => {
       await withOverrideEnv(undefined, async () => {
         const pi = createMockPi({ [`include${name[0].toUpperCase()}${name.slice(1)}`]: false });
         snapshotEditExtension(pi.api);
-        await assert.rejects(
-          pi.handlers.get("session_start")(),
-          new RegExp(`positively identified built-in ${name} owner`),
-        );
-        assert.equal(pi.tools.has("read"), false);
-        assert.equal(pi.tools.has("edit"), false);
+        await pi.handlers.get("session_start")();
+        assert.deepEqual([...pi.tools.keys()], ["snapshot_read", "snapshot_edit"]);
       });
+    });
+  }
+});
+
+test("explicit override still refuses a missing built-in owner", async (t) => {
+  for (const name of ["read", "edit"]) {
+    const options = { [`include${name[0].toUpperCase()}${name.slice(1)}`]: false };
+    const expected = new RegExp(`positively identified built-in ${name} owner`);
+
+    await t.test(`${name}: environment`, async () => {
+      await withOverrideEnv("1", async () => {
+        const pi = createMockPi(options);
+        snapshotEditExtension(pi.api);
+        await assert.rejects(pi.handlers.get("session_start")(), expected);
+      });
+    });
+    await t.test(`${name}: flag`, async () => {
+      await withOverrideEnv(undefined, async () => {
+        const pi = createMockPi({ ...options, flagEnabled: true });
+        snapshotEditExtension(pi.api);
+        await assert.rejects(pi.handlers.get("session_start")(), expected);
+      });
+    });
+    await t.test(`${name}: command`, async () => {
+      const pi = createMockPi(options);
+      snapshotEditExtension(pi.api);
+      await assert.rejects(
+        pi.commands.get("snapshot-edit").handler("override", { hasUI: false }),
+        expected,
+      );
     });
   }
 });

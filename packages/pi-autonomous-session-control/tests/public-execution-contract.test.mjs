@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
@@ -22,6 +22,42 @@ const assistantProtocolIncompleteCase = loadExecutionSeamCase("assistant-protoco
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function withCompiledRuntimeFixture(helperSource, run) {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "asc-compiled-runtime-fixture-"));
+  const fixturePackageRoot = join(
+    fixtureRoot,
+    "node_modules",
+    "@tryinget",
+    "pi-autonomous-session-control",
+  );
+  const helperPath = join(
+    fixturePackageRoot,
+    "dist",
+    "extensions",
+    "self",
+    "subagent-pi-json-filter.js",
+  );
+
+  try {
+    await mkdir(fixturePackageRoot, { recursive: true });
+    await Promise.all([
+      cp(join(packageRoot, "package.json"), join(fixturePackageRoot, "package.json")),
+      cp(join(packageRoot, "dist"), join(fixturePackageRoot, "dist"), { recursive: true }),
+    ]);
+    if (helperSource === null) {
+      await rm(helperPath);
+    } else {
+      await writeFile(helperPath, helperSource, "utf8");
+    }
+    const runtimeModule = await import(
+      `${pathToFileURL(join(fixturePackageRoot, "dist", "execution.js")).href}?fixture=${Date.now()}-${Math.random()}`
+    );
+    return await run({ fixtureRoot, runtimeModule });
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
+  }
 }
 
 test("ASC effect receipts publish privately without overwrite or unsafe attempt ids", async () => {
@@ -47,17 +83,21 @@ test("ASC effect receipts publish privately without overwrite or unsafe attempt 
   }
 });
 
-test("public execution export target stays published and typechecked", async () => {
-  const [packageJson, tsconfigJson] = await Promise.all([
+test("public execution export target stays published, compiled, and typechecked", async () => {
+  const [packageJson, tsconfigJson, runtimeTsconfigJson] = await Promise.all([
     readFile(join(packageRoot, "package.json"), "utf8"),
     readFile(join(packageRoot, "tsconfig.json"), "utf8"),
+    readFile(join(packageRoot, "tsconfig.runtime.json"), "utf8"),
   ]);
   const packageDefinition = JSON.parse(packageJson);
   const tsconfig = JSON.parse(tsconfigJson);
+  const runtimeTsconfig = JSON.parse(runtimeTsconfigJson);
 
-  assert.equal(packageDefinition.exports?.["./execution"], "./execution.ts");
-  assert.ok(packageDefinition.files?.includes("execution.ts"));
+  assert.equal(packageDefinition.exports?.["./execution"], "./dist/execution.js");
+  assert.ok(packageDefinition.files?.includes("dist"));
   assert.ok(tsconfig.include?.includes("execution.ts"));
+  assert.ok(runtimeTsconfig.include?.includes("execution.ts"));
+  assert.ok(runtimeTsconfig.include?.includes("extensions/self/subagent-pi-json-filter.ts"));
 });
 
 async function withFakePiOnPath(scriptBody, run, version = "0.80.6") {
@@ -325,57 +365,108 @@ test("createAscExecutionRuntime rejects whitespace-only model strings before spa
   }
 });
 
-test("execution entrypoint stays headless-importable without package-local node_modules", async () => {
+test("compiled execution entrypoint stays headless-importable without package-local node_modules", async () => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), "asc-public-runtime-headless-"));
   const fixturePackageRoot = join(fixtureRoot, "package");
-  const requiredFiles = [
-    "execution.ts",
-    "extensions/self/cross-extension-harness.ts",
-    "extensions/self/edge-contract-kernel.ts",
-    "extensions/self/subagent-child-agent-dir.ts",
-    "extensions/self/resolvers/helpers.ts",
-    "extensions/self/subagent-capacity.ts",
-    "extensions/self/subagent-control.ts",
-    "extensions/self/subagent-edge-contract.ts",
-    "extensions/self/effect-receipt.ts",
-    "extensions/self/subagent-extension-selection.ts",
-    "extensions/self/subagent-profiles.ts",
-    "extensions/self/subagent-prompt-envelope.ts",
-    "extensions/self/subagent-protocol.ts",
-    "extensions/self/subagent-model-selection.ts",
-    "extensions/self/session-context.ts",
-    "extensions/self/subagent-runtime-display.ts",
-    "extensions/self/subagent-runtime-model.ts",
-    "extensions/self/subagent-runtime-types.ts",
-    "extensions/self/subagent-runtime.ts",
-    "extensions/self/subagent-resume.ts",
-    "extensions/self/subagent-session-name.ts",
-    "extensions/self/subagent-session-status.ts",
-    "extensions/self/subagent-session.ts",
-    "extensions/self/subagent-skill-selection.ts",
-    "extensions/self/subagent-spawn-args.ts",
-    "extensions/self/subagent-spawn-env.ts",
-    "extensions/self/subagent-spawn-events.ts",
-    "extensions/self/subagent-spawn-status.ts",
-    "extensions/self/subagent-spawn-types.ts",
-    "extensions/self/subagent-spawn-utils.ts",
-    "extensions/self/subagent-spawn.ts",
-    "extensions/self/subagent-task-contract.ts",
-  ];
 
   try {
-    for (const relativePath of requiredFiles) {
-      const sourcePath = join(packageRoot, relativePath);
-      const destinationPath = join(fixturePackageRoot, relativePath);
-      await mkdir(dirname(destinationPath), { recursive: true });
-      await cp(sourcePath, destinationPath);
-    }
+    await mkdir(fixturePackageRoot, { recursive: true });
+    await Promise.all([
+      cp(join(packageRoot, "package.json"), join(fixturePackageRoot, "package.json")),
+      cp(join(packageRoot, "dist"), join(fixturePackageRoot, "dist"), { recursive: true }),
+    ]);
 
     await import(
-      `${pathToFileURL(join(fixturePackageRoot, "execution.ts")).href}?headless=${Date.now()}`
+      `${pathToFileURL(join(fixturePackageRoot, "dist", "execution.js")).href}?headless=${Date.now()}`
     );
   } finally {
     await rm(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test("compiled owned transport persists conservative effect receipts across bootstrap ambiguity", async (t) => {
+  const scenarios = [
+    {
+      name: "missing-helper",
+      helperSource: null,
+      expectedFailureKind: "subagent_helper_bootstrap_failed",
+      expectedIntent: false,
+      expectedDisposition: "confirmed_no_effects",
+    },
+    {
+      name: "malformed-before-intent",
+      helperSource: `process.stdout.write("{not-json\\n");\nprocess.exitCode = 1;\n`,
+      expectedFailureKind: "assistant_protocol_parse_error",
+      expectedIntent: undefined,
+      expectedDisposition: "effect_indeterminate",
+    },
+    {
+      name: "readiness-before-intent",
+      helperSource: `process.stdout.write(${JSON.stringify(
+        `${JSON.stringify({
+          type: "transport_ready",
+          settlementMode: "agent_settled",
+          piVersion: "0.80.6",
+        })}\n`,
+      )});\nprocess.exitCode = 1;\n`,
+      expectedFailureKind: "assistant_protocol_parse_error",
+      expectedIntent: undefined,
+      expectedDisposition: "effect_indeterminate",
+    },
+    {
+      name: "intent-overflow",
+      helperSource: `process.stdout.write(${JSON.stringify(
+        `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n`,
+      )});\nprocess.exitCode = 1;\n`,
+      eventBufferBytes: "0",
+      expectedFailureKind: "assistant_protocol_parse_error",
+      expectedIntent: undefined,
+      expectedDisposition: "effect_indeterminate",
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    await t.test(scenario.name, async () => {
+      await withCompiledRuntimeFixture(
+        scenario.helperSource,
+        async ({ fixtureRoot, runtimeModule }) => {
+          const previousEventBuffer = process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES;
+          if (scenario.eventBufferBytes === undefined) {
+            delete process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES;
+          } else {
+            process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES = scenario.eventBufferBytes;
+          }
+          try {
+            const runtime = runtimeModule.createAscExecutionRuntime({
+              sessionsDir: join(fixtureRoot, "sessions"),
+              modelProvider: () => "test/model",
+            });
+            const result = await runtime.execute(
+              { profile: "reviewer", objective: `Verify ${scenario.name}` },
+              { cwd: fixtureRoot },
+            );
+
+            assert.equal(result.ok, false);
+            assert.equal(result.details.failureKind, scenario.expectedFailureKind);
+            assert.equal(
+              result.details.executionState?.transport.rawChildSpawnIntent,
+              scenario.expectedIntent,
+            );
+            assert.equal(result.details.effectReceipt.disposition, scenario.expectedDisposition);
+            assert.deepEqual(
+              JSON.parse(await readFile(result.details.effectReceipt.receiptPath, "utf8")),
+              result.details.effectReceipt,
+            );
+          } finally {
+            if (previousEventBuffer === undefined) {
+              delete process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES;
+            } else {
+              process.env.PI_SUBAGENT_EVENT_BUFFER_BYTES = previousEventBuffer;
+            }
+          }
+        },
+      );
+    });
   }
 });
 

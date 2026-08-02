@@ -212,7 +212,7 @@ function prepareLegacyEditArguments(args: unknown): EditParams {
   };
 }
 
-function validateStandardOwners(pi: ExtensionAPI) {
+function inspectStandardOwners(pi: ExtensionAPI): { missing: string[] } {
   const standardTools = pi
     .getAllTools()
     .filter((tool) => tool.name === "read" || tool.name === "edit");
@@ -224,13 +224,12 @@ function validateStandardOwners(pi: ExtensionAPI) {
       `Refusing snapshot read/edit override because non-built-in owners are active: ${conflicts.join(", ")}`,
     );
   }
-  for (const name of ["read", "edit"]) {
-    if (!standardTools.some((tool) => tool.name === name && tool.sourceInfo.source === "builtin")) {
-      throw new Error(
-        `Refusing snapshot override without a positively identified built-in ${name} owner`,
-      );
-    }
-  }
+  return {
+    missing: ["read", "edit"].filter(
+      (name) =>
+        !standardTools.some((tool) => tool.name === name && tool.sourceInfo.source === "builtin"),
+    ),
+  };
 }
 
 export default function snapshotEditExtension(pi: ExtensionAPI) {
@@ -254,10 +253,30 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
   pi.registerTool(snapshotRead);
   pi.registerTool(snapshotEdit);
 
-  const installStandardOverrides = ({ activate = false } = {}) => {
+  const installStandardOverrides = ({
+    activate = false,
+    requireOwners = activate,
+  }: {
+    activate?: boolean;
+    requireOwners?: boolean;
+  } = {}) => {
     const wasInstalled = overrideInstalled;
     if (!overrideInstalled) {
-      validateStandardOwners(pi);
+      const ownerInspection = inspectStandardOwners(pi);
+      if (ownerInspection.missing.length > 0) {
+        const missingOwners = ownerInspection.missing.join(" and ");
+        if (requireOwners) {
+          throw new Error(
+            `Refusing snapshot override without positively identified built-in ${missingOwners} owner(s)`,
+          );
+        }
+        return {
+          installed: false,
+          activated: false,
+          available: false,
+          reason: `namespaced-only because the host tool selection omits built-in ${missingOwners}`,
+        };
+      }
       const standardRead = createReadDefinition("read", "Read", service);
       const standardEdit = createEditDefinition("edit", "Edit", service, true);
       registeredTools.set(standardRead.name, standardRead);
@@ -276,6 +295,7 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
     return {
       installed: !wasInstalled,
       activated,
+      available: true,
       reason: activate
         ? "local snapshot override active and standard tools enabled"
         : "local snapshot override active with host tool selection preserved",
@@ -295,6 +315,8 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
         snapshotEdit,
         installStandardOverrides,
         getTool: (name: string) => registeredTools.get(name),
+        getAllToolNames: () => pi.getAllTools().map((tool) => tool.name),
+        getActiveTools: () => pi.getActiveTools(),
         clear: () => service.clear(),
       });
       console.log(`snapshot-edit packed release smoke ${phase} OK: ${summary}`);
@@ -306,7 +328,7 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const action = args.trim().toLowerCase();
       if (action === "override") {
-        const installed = installStandardOverrides({ activate: true });
+        const installed = installStandardOverrides({ activate: true, requireOwners: true });
         if (ctx.hasUI) {
           ctx.ui.notify(
             installed.installed || installed.activated
@@ -337,7 +359,10 @@ export default function snapshotEditExtension(pi: ExtensionAPI) {
     if (overrideValue !== undefined && OVERRIDE_OPT_OUT_VALUES.has(overrideValue)) return;
     const explicitlyEnabled =
       overrideValue === "1" || pi.getFlag("snapshot-edit-override") === true;
-    installStandardOverrides({ activate: explicitlyEnabled });
+    installStandardOverrides({
+      activate: explicitlyEnabled,
+      requireOwners: explicitlyEnabled,
+    });
   });
 
   pi.on("session_shutdown", async () => {

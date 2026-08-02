@@ -72,7 +72,7 @@ Revisions expire on reload, session shutdown, eviction, or `/snapshot-edit clear
 
 ## Standard-tool ownership and dogfood
 
-Loading the extension always registers `snapshot_read` and `snapshot_edit`. At `session_start` it also replaces built-in `read` and `edit` by default, while preserving the host's active-tool selection exactly; a standard tool disabled by the host remains disabled.
+Loading the extension always registers `snapshot_read` and `snapshot_edit`. At `session_start` it also replaces built-in `read` and `edit` by default when both built-in owners are visible, while preserving the host's active-tool selection exactly. A deliberate `--tools` allowlist that omits either built-in leaves the extension namespaced-only instead of aborting startup.
 
 Set `PI_SNAPSHOT_EDIT_OVERRIDE` to `0`, `false`, `off`, or `no` for namespaced-only operation:
 
@@ -91,7 +91,7 @@ PI_SNAPSHOT_EDIT_OVERRIDE=1 pi
 pi --snapshot-edit-override
 ```
 
-Standard-name ownership requires positively identified built-in owners for both tools and refuses any visible non-built-in `read` or `edit` owner. Unsupported reads fail closed. Restart with an opt-out value for namespaced-only operation, or disable/uninstall the extension to restore host ownership. Resumed line-coordinate calls and top-level legacy edit calls are rejected with instructions to reread and issue Protocol B. Nested Protocol B `oldText` remains valid.
+Standard-name ownership requires positively identified built-in owners for both tools and refuses any visible non-built-in `read` or `edit` owner. Explicit enablement also fails closed when either built-in owner is absent; only implicit default startup may degrade to namespaced-only operation. Unsupported reads fail closed. Restart with an opt-out value for namespaced-only operation, or disable/uninstall the extension to restore host ownership. Resumed line-coordinate calls and top-level legacy edit calls are rejected with instructions to reread and issue Protocol B. Nested Protocol B `oldText` remains valid.
 
 ## Install and verify
 
@@ -102,7 +102,7 @@ npm run release:check
 pi install /absolute/path/to/pi-extensions/packages/pi-snapshot-edit
 ```
 
-`release:check` packs the exact npm artifact, installs it under isolated Pi and npm roots, then runs provider-free Protocol B smoke checks in two fresh Pi processes. It also checks the packed whitelist, `npm audit --omit=dev`, and `npm publish --dry-run`; it never publishes.
+`release:check` packs the exact npm artifact, installs it under isolated Pi and npm roots, then runs provider-free Protocol B smoke checks in three fresh Pi processes, including a restricted `--tools` allowlist that omits built-in `edit`. It also checks the packed whitelist, `npm audit --omit=dev`, and `npm publish --dry-run`; it never publishes.
 
 Then run `/reload` and verify with real read/edit calls on a disposable file. Candidate lanes should report this command rather than altering the controller's Pi install.
 

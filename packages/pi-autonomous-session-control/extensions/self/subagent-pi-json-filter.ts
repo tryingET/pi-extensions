@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { writeSync } from "node:fs";
 import {
   createIsolatedSubagentAgentDir,
   type IsolatedSubagentAgentDir,
@@ -99,6 +100,9 @@ async function main(): Promise<void> {
     );
   }
 
+  // This synchronous owner-issued intent is ordered before raw Pi spawn. ASC may
+  // attest confirmed_no_effects only when the helper exits without this marker.
+  writeSync(process.stdout.fd, `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n`);
   const child = spawn("pi", args, {
     stdio: ["ignore", "pipe", "pipe"],
     env: {

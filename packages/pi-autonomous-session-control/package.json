@@ -5,7 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./extensions/self.ts",
-    "./execution": "./execution.ts"
+    "./execution": "./dist/execution.js"
   },
   "license": "MIT",
   "repository": {
@@ -40,6 +40,8 @@
     "test": "npm run quality:ci",
     "test:live:prompt-vault": "ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.live.mjs tests/prompt-vault-cross-extension.live.mjs",
     "test:compat:parallel-tool-events": "node --test tests/self/registration.test.mjs tests/self/perception.test.mjs tests/self/perception-file-budget.test.mjs tests/self/perception-recovery-cues.test.mjs",
+    "build:runtime": "node scripts/build-runtime.mjs",
+    "prepare": "npm run build:runtime",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
@@ -47,9 +49,9 @@
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
   },
   "files": [
-    "execution.ts",
     "extensions/self.ts",
     "extensions/self",
+    "dist",
     "prompts",
     "examples",
     "policy/security-policy.json"
