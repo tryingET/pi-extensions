@@ -4,7 +4,7 @@ read_when:
   - "Reviewing the 2026-08-02 pi-extensions worktree/branch cleanup campaign."
   - "Explaining why retained worktrees or preservation refs were not deleted."
 type: "evidence-note"
-status: "executing"
+status: "completed"
 date: "2026-08-02"
 ---
 
@@ -116,11 +116,50 @@ Read-only reviews covered every proposed integration and deletion. High-signal c
 
 ## Execution notes
 
-Two deviations are recorded rather than hidden:
+Deviations and recoveries are recorded rather than hidden:
 
 1. During Phase 1, one reviewer ran `git write-tree`. No ref, index, worktree, AK record, or settings changed, and no newly timestamped loose object was found; the command still violated the strict read-only protocol.
 2. During Phase 2, one validation command initially ran from the dirty primary checkout rather than the clean integration worktree. ROCS rewrote four already-dirty generated ontology files to byte-identical content: the complete carrier digest remained `5a9b91cc51982793f0d19a32a2276ac9ac19837d7580009338fd05d1d972f43d`. Their mtimes changed; no cleanup or revert was attempted in the active checkout.
+3. A separate validation run left the clean integration worktree with four generated ROCS files rewritten to worktree-local paths and ROCS version `0.2.1`. Their exact patch was retained owner-only as SHA-256 `fa02f464508d6a0254aa14cd7898783446d87bf1f532fd3725c1e655dfd667b8`, then the four session-generated files were restored to committed `HEAD` before capture. The integration worktree was clean at the cleanup membrane.
+4. Archive capture exceeded one command window after 31 verified carriers. It resumed by verifying completed per-carrier archive manifests before finishing all 40. An initial bundle-head comparison then failed only on space-versus-tab normalization; no deletion had started. The normalized 41-ref comparison passed.
+5. Cleanup exceeded one command window after 37 completed worktree/ref receipts. The resumable membrane validated capture identity, archive identity, exact live sets, and completed receipts, then finished the remaining three worktrees and branch-only ref. No carrier was marked complete before both worktree removal and expected-old-OID ref deletion read back successfully.
 
 ## Final results
 
-Execution pending. This section is updated only from verified local receipts and post-effect Git readback.
+Observed post-effect state:
+
+- integration commit `fe785646b1e690eaba9812c3dbb46704c984971f` was pushed normally before cleanup;
+- **40 worktrees removed**, leaving exactly **19**;
+- **41 local branches deleted**, leaving exactly **14**;
+- all **6 detached worktrees**, **16 `refs/preserve/ak-4263/*` refs**, `refs/pi-rewind/store`, and both notes namespaces remain;
+- all **41 effect receipts** are completed: 40 worktree-plus-branch receipts and one branch-only receipt;
+- every approved target path and local branch is absent on exact readback;
+- no live Pi install, reload, publication, activation, settings rewrite, force-push, stale-history merge, or object pruning occurred.
+
+Owner-only integrity anchors:
+
+| Artifact | SHA-256 |
+|---|---|
+| phase-one worktree inventory | `cc72677a2576d4ef6f02d5b6f1d649795c2fb739d795cfbb649dbf8c06b851b5` |
+| exact 40-target manifest | `1dbd8e96bc442a5a42845870ed6244fc20f319b5313e58f7958c19cfe2f0497e` |
+| verified 41-ref branch bundle | `40d49d7345a74e946956f65d21d7e23b4b1936f00bb4fcc79a4cafe8e037459a` |
+| capture-complete receipt | `85ce6acc55a3be7a33b1e5c3e0c1e998df9ad90dcb7b278ee836099839caf7f9` |
+| cleanup-complete receipt | `0ade151e364e43a470add47188886afd2f9be9dceebed3906092d9cc6634b65d` |
+| effect receipt array | `3e2e41afecfabdc10d7202cef63c181d00ff6563d136c81f8f2514eebd384b48` |
+| receipt checksum manifest | `b28ec54f795b82a017d2027885b737c920b5e06b18c9401351ba6574af8dc6af` |
+
+### Exact retained blockers
+
+The 19-worktree / 14-branch floor remains truthful rather than cosmetically clean:
+
+- the primary checkout remains active with 71 unstaged and 13 untracked paths;
+- AK-4164 and AK-4390 remain failed, with their distinct dirty evidence carriers preserved;
+- AK-4257 and AK-4368 remain pending;
+- the AK-4081 safety carrier still has 559 staged paths;
+- five detached live-runtime worktrees remain, including settings-bound packages under `pi-extensions-ee469a8e-r2` and observed source references to the `ee469a8e` runtime;
+- detached `9982214e` remains protected by AK-4263 and its preserve ref;
+- six autoresearch-owned carriers remain dirty or review-retained;
+- the configured but missing `pi-extensions-26fd79e5` SCI source remains a settings/runtime blocker;
+- detached live runtime `7c0b0126` grew from 8 to 16 untracked orchestrator diary files during the campaign and was preserved rather than normalized.
+
+The receipt reports two phase-one carrier mismatches at close: the expected clean `main` mismatch caused by advancing from the opening commit to `fe785646`, and the active `7c0b0126` diary growth above. The clean authoritative `main` worktree had zero staged, unstaged, or untracked paths at cleanup completion.
