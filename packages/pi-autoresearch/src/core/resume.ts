@@ -44,6 +44,7 @@ export function createAutoresearchSegmentKey(
 
   return digestObject({
     name: segment.name,
+    ...(segment.objectiveDigest ? { objectiveDigest: segment.objectiveDigest } : {}),
     metricName: segment.metricName,
     metricUnit: segment.metricUnit,
     direction: segment.direction,

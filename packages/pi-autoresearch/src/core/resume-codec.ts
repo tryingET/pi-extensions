@@ -69,6 +69,7 @@ function parseSnapshotSegment(value: unknown): AutoresearchRuntimeSnapshotV1["se
 
   return {
     name: parseNullableString(value.name, "segment.name"),
+    objectiveDigest: parseOptionalObjectiveDigest(value.objectiveDigest),
     metricName: parseNullableString(value.metricName, "segment.metricName"),
     metricUnit: coerceString(value.metricUnit, "segment.metricUnit"),
     direction: parseMetricDirection(value.direction),
@@ -111,6 +112,14 @@ function parseAutoresearchControlState(value: unknown): AutoresearchControlState
 function parseProjectionSource(value: unknown): AutoresearchProjectionSource {
   if (value !== "ledger" && value !== "receipt_fallback") {
     throw new Error(`Invalid runtime snapshot projectionSource: ${String(value)}`);
+  }
+  return value;
+}
+
+function parseOptionalObjectiveDigest(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(value)) {
+    throw new Error("segment.objectiveDigest must be a lowercase sha256 digest when present");
   }
   return value;
 }

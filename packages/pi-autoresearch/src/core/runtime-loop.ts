@@ -6,6 +6,7 @@ import {
   buildAutoresearchCampaignGoalStatus,
   recordAutoresearchCampaignGoalSegment,
 } from "./goal.ts";
+import { hashAutoresearchObjective } from "./runtime-autoplan-helpers.ts";
 import { AUTORESEARCH_LOOP_TOOL_NAME } from "./runtime-constants.ts";
 import { formatAllowedActions } from "./runtime-control.ts";
 import { formatAutoresearchDashboard } from "./runtime-dashboard.ts";
@@ -152,6 +153,7 @@ export async function executeAutoresearchLoop(
         cwd,
         description,
         name: index === 0 ? input.name : undefined,
+        objectiveDigest: index === 0 ? hashAutoresearchObjective(goal) : undefined,
         metricName: index === 0 ? input.metricName : undefined,
         metricUnit: index === 0 ? input.metricUnit : undefined,
         direction: index === 0 ? input.direction : undefined,
@@ -370,10 +372,11 @@ function buildLoopPeerAssistInput(
   peerMode: AutoresearchLoopPeerMode,
 ): BuildAutoresearchPeerAssistInput {
   const lane = peerModeToPeerAssistLane(peerMode);
-  const objective = buildLoopPeerAssistObjective(lane, cwd, goal);
+  const objective = lane === "auto" ? undefined : buildLoopPeerAssistObjective(lane, cwd, goal);
   return {
     cwd,
     lane,
+    goal,
     ...(objective ? { objective } : {}),
     targetFiles: input.decisionFilesInScope,
     offLimits: input.decisionOffLimits,

@@ -147,6 +147,7 @@ export function createCampaignSegmentConfigFromReceipt(
 ): CampaignSegmentConfig {
   return {
     name: receipt.name,
+    ...(receipt.objectiveDigest ? { objectiveDigest: receipt.objectiveDigest } : {}),
     metricName: receipt.metricName,
     metricUnit: receipt.metricUnit,
     direction: receipt.direction,

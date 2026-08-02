@@ -275,6 +275,11 @@ function parseCampaignSegmentConfig(value: unknown): CampaignSegmentConfig {
   );
   return {
     name: coerceString(value.name, "segment.name"),
+    ...(value.objectiveDigest === undefined
+      ? {}
+      : {
+          objectiveDigest: parseObjectiveDigest(value.objectiveDigest, "segment.objectiveDigest"),
+        }),
     metricName: coerceString(value.metricName, "segment.metricName"),
     metricUnit: coerceString(value.metricUnit, "segment.metricUnit"),
     direction: parseMetricDirection(value.direction),
@@ -296,6 +301,14 @@ function parseMetricDirection(value: unknown): MetricDirection {
     throw new Error(`Invalid metric direction: ${String(value)}`);
   }
   return value;
+}
+
+function parseObjectiveDigest(value: unknown, field: string): string {
+  const digest = coerceString(value, field);
+  if (!/^sha256:[0-9a-f]{64}$/u.test(digest)) {
+    throw new Error(`${field} must be a lowercase sha256 digest`);
+  }
+  return digest;
 }
 
 function parseRunStatus(value: unknown): RunStatus {

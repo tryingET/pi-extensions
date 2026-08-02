@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "sourceBaseCommit": "31fec4772687973f67d279878a883632e23554c8",
+  "sourceBaseCommit": "36c7dc2ec31cfffa31e115d4c922fccda0f7100f",
   "sourceEntrypoint": "packages/pi-autoresearch/extensions/pi-autoresearch.ts",
   "generation": "Captured from the unmodified source base by registering the entrypoint with a no-op ExtensionAPI and serializing every registered tool's parameters, sorted by literal tool name.",
   "fixture": "eager-tool-parameters.json",
-  "fixtureSha256": "3fd0cbc5feb405733a2148b97f136ff8a73ab6947e5e77ea60b7b7f6009da01c",
+  "fixtureSha256": "a9c4e9a0d677c344c0fc5a10275b0e027fda5f4f871df3cfe78fc5ab4b88104e",
   "expectedToolNames": [
     "autoresearch_campaign_start",
     "autoresearch_candidate_bind",

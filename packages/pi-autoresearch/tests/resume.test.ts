@@ -63,6 +63,7 @@ function createSnapshotInput(
     },
     segment: {
       name: "widget-speed",
+      objectiveDigest: null,
       metricName: "total_ms",
       metricUnit: "ms",
       direction: "lower",
@@ -156,21 +157,41 @@ test("resume loader falls back cleanly when no snapshot exists yet", () =>
     assert.equal(result.control.selectedAt, null);
   }));
 
-test("resume loader reuses old snapshots without a metricThreshold field", () =>
+test("resume loader reuses old snapshots without metricThreshold or objectiveDigest fields", () =>
   withTempDir((cwd) => {
     const current = createSnapshotInput(cwd);
     persistAutoresearchRuntimeSnapshot({ cwd, current });
     const snapshotPath = resolveAutoresearchRuntimeSnapshotPath(cwd);
     const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8")) as {
-      segment: { metricThreshold?: number | null };
+      segment: { metricThreshold?: number | null; objectiveDigest?: string | null };
     };
     delete snapshot.segment.metricThreshold;
+    delete snapshot.segment.objectiveDigest;
     writeFileSync(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
 
     const result = loadAutoresearchRuntimeControlState({ cwd, current });
 
     assert.equal(result.snapshotStatus.reuse, "reused");
     assert.equal(result.snapshot?.segment.metricThreshold, null);
+  }));
+
+test("resume loader rejects a saved snapshot when objective identity changes", () =>
+  withTempDir((cwd) => {
+    const saved = createSnapshotInput(cwd, {
+      segment: { objectiveDigest: `sha256:${"a".repeat(64)}` },
+    });
+    persistAutoresearchRuntimeSnapshot({ cwd, current: saved });
+
+    const current = createSnapshotInput(cwd, {
+      segment: { objectiveDigest: `sha256:${"b".repeat(64)}` },
+    });
+    const result = loadAutoresearchRuntimeControlState({ cwd, current });
+
+    assert.equal(result.snapshotStatus.reuse, "segment_mismatch");
+    assert.equal(
+      result.snapshotStatus.discardedReason,
+      "snapshot segment fingerprint no longer matches the configured segment",
+    );
   }));
 
 test("resume loader rejects a saved snapshot when metricThreshold changes", () =>

@@ -40,6 +40,7 @@ export interface ExecuteAutoresearchRunInput {
   runKind?: AutoresearchRunKind;
   experiment?: AutoresearchExperimentLineageInput;
   name?: string;
+  objectiveDigest?: string;
   metricName?: string;
   metricUnit?: string;
   direction?: MetricDirection;

@@ -74,6 +74,7 @@ export interface AutoresearchConfigReceipt {
   type: "config";
   version: 1;
   name: string;
+  objectiveDigest?: string;
   metricName: string;
   metricUnit: string;
   direction: MetricDirection;
@@ -203,6 +204,7 @@ export interface AutoresearchEmpiricalPosture {
 export interface AutoresearchSegmentSummary {
   configured: boolean;
   name: string | null;
+  objectiveDigest: string | null;
   metricName: string | null;
   metricUnit: string;
   direction: MetricDirection | null;

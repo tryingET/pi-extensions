@@ -301,6 +301,7 @@ export function createRuntimeSnapshotInput(
     },
     segment: {
       name: currentSegment.name,
+      objectiveDigest: currentSegment.objectiveDigest,
       metricName: currentSegment.metricName,
       metricUnit: currentSegment.metricUnit,
       direction: currentSegment.direction,
@@ -359,6 +360,7 @@ export function projectionMatchesCurrentSegment(
 
   return (
     projection.context.segment?.name === currentSegment.name &&
+    (projection.context.segment?.objectiveDigest ?? null) === currentSegment.objectiveDigest &&
     projection.context.segment?.metricName === currentSegment.metricName &&
     projection.context.segment?.metricUnit === currentSegment.metricUnit &&
     projection.context.segment?.direction === currentSegment.direction &&
@@ -396,6 +398,9 @@ function createFallbackMachineInput(
   return {
     segment: {
       name: currentSegment.name ?? "(unnamed)",
+      ...(currentSegment.objectiveDigest
+        ? { objectiveDigest: currentSegment.objectiveDigest }
+        : {}),
       metricName: currentSegment.metricName ?? "(unset)",
       metricUnit: currentSegment.metricUnit,
       direction: currentSegment.direction ?? "lower",

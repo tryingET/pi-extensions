@@ -62,6 +62,7 @@ export async function executeAutoresearchSetup(
       cwd,
       description: input.description?.trim() || `baseline for ${plannedConfig.name}`,
       name: plannedConfig.name,
+      objectiveDigest: plannedConfig.objectiveDigest,
       metricName: plannedConfig.metricName,
       metricUnit: plannedConfig.metricUnit,
       direction: plannedConfig.direction,

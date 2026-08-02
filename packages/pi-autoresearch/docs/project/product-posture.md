@@ -172,7 +172,7 @@ The initial version is intentionally conservative:
 - default candidate policy is explicit and worktree-first: keep preserves the candidate branch, discard suggests cleanup after receipt review, and rewind resets the candidate worktree to base;
 - Replay Fabric remains observer/history/recovery-clue projection and ASC rewind remains live Pi/session recovery, so neither becomes candidate accept/discard authority;
 - baseline and bounded-loop execution are explicit `runMode` choices or the explicit `run|loop|go|start` first-entrypoint verb;
-- direct baseline/bounded-loop campaign-start execution fails closed instead of reusing a stale active segment when the requested campaign, metric, benchmark, or checks contract differs; pass `reconfigure: true` to start a fresh segment deliberately;
+- direct baseline/bounded-loop campaign-start execution binds a stable objective digest and fails closed instead of reusing a stale active segment when objective identity, campaign name, metric, threshold, benchmark, or checks differ; its generated continuation preserves that full effective contract, and `reconfigure: true` remains the explicit fresh-segment boundary;
 - extension-originated launch is narrow: only the exact ASC self-evolution campaign-start prompt is bridged into the package-owned command handler; it executes the package-owned plan-only campaign-start front door directly and opens the result editor, while bare status, run/loop/go/start, and unrelated slash inputs from extension-originated messages are ignored, so pi-autoresearch does not become a general slash-command dispatcher;
 - peer launch, commits, worktree deletion/merge, AK/KES/evidence writes, and durable promotion remain outside this front door.
 

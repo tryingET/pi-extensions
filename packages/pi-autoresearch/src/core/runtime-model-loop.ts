@@ -30,6 +30,7 @@ export interface BuildAutoresearchPeerAssistInput {
   cwd: string;
   lane?: AutoresearchPeerAssistLane | "auto";
   objective?: string;
+  goal?: string;
   targetFiles?: readonly string[];
   offLimits?: readonly string[];
   constraints?: readonly string[];

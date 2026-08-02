@@ -74,14 +74,16 @@ export function buildAutoresearchPeerAssistPlan(
       "runtime is configured but lacks a scoped candidate target; scout review is the safest next peer lane";
   }
 
+  const goal =
+    input.goal?.trim() || status.currentSegment.name || "the current autoresearch campaign";
   const baseObjective =
     input.objective?.trim() ||
     (lane === "candidate"
-      ? `Try one bounded candidate patch for ${status.currentSegment.name ?? "the current autoresearch campaign"} in an isolated worktree; report diff and check evidence only.`
+      ? `Try one bounded candidate patch for ${goal} in an isolated worktree; report diff and check evidence only.`
       : lane === "fork"
-        ? `Continue this autoresearch context visibly for operator-guided exploration under ${cwd}.`
+        ? `Continue this autoresearch context for ${goal} visibly under ${cwd} for operator-guided exploration.`
         : lane === "scout"
-          ? `Inspect the current pi-autoresearch state under ${cwd} and recommend one bounded next controller action.`
+          ? `Inspect the current pi-autoresearch state for ${goal} under ${cwd} and recommend one bounded next controller action.`
           : "No peer assist is recommended until the runtime is configured.");
 
   const parentRequired = reportBack === "intercom" && (lane === "scout" || lane === "candidate");

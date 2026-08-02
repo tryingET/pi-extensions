@@ -6,6 +6,7 @@ import type {
   AutoresearchCampaignStartSetupMode,
   AutoresearchCandidateLifecyclePolicy,
   AutoresearchConfigReceipt,
+  AutoresearchLoopPeerMode,
   AutoresearchSegmentSummary,
   AutoresearchSetupAction,
 } from "./runtime-model.ts";
@@ -48,6 +49,14 @@ export function formatCampaignStartNextToolCall(input: {
   setupMode: AutoresearchCampaignStartSetupMode;
   canExecute: boolean;
   candidatePolicy: AutoresearchCandidateLifecyclePolicy;
+  config: AutoresearchConfigReceipt;
+  benchmarkCommand: string | null;
+  checksCommand: string | null;
+  filesInScope: string[];
+  offLimits: string[];
+  constraints: string[];
+  peerMode?: AutoresearchLoopPeerMode;
+  maxWallClockMinutes?: number;
   reconfigure?: boolean;
 }): string {
   const candidatePolicy = JSON.stringify({
@@ -56,14 +65,28 @@ export function formatCampaignStartNextToolCall(input: {
     discard: input.candidatePolicy.discard,
     rewind: input.candidatePolicy.rewind,
   });
+  const thresholdField =
+    input.config.metricThreshold === undefined
+      ? ""
+      : `, metricThreshold: ${JSON.stringify(input.config.metricThreshold)}`;
+  const benchmarkField =
+    input.benchmarkCommand === null
+      ? ""
+      : `, benchmarkCommand: ${JSON.stringify(input.benchmarkCommand)}`;
+  const peerModeField = input.peerMode ? `, peerMode: ${JSON.stringify(input.peerMode)}` : "";
+  const wallClockField =
+    input.maxWallClockMinutes === undefined
+      ? ""
+      : `, maxWallClockMinutes: ${JSON.stringify(input.maxWallClockMinutes)}`;
+  const contractFields = `, name: ${JSON.stringify(input.config.name)}, metricName: ${JSON.stringify(input.config.metricName)}, metricUnit: ${JSON.stringify(input.config.metricUnit)}, direction: ${JSON.stringify(input.config.direction)}${thresholdField}${benchmarkField}, checksCommand: ${JSON.stringify(input.checksCommand)}, filesInScope: ${JSON.stringify(input.filesInScope)}, offLimits: ${JSON.stringify(input.offLimits)}, constraints: ${JSON.stringify(input.constraints)}${peerModeField}${wallClockField}`;
   if (input.runMode === "plan_only") {
     const nextRunMode = input.canExecute ? "baseline" : "plan_only";
     const reconfigureField =
       input.reconfigure && nextRunMode === "baseline" ? ", reconfigure: true" : "";
-    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(nextRunMode)}, maxIterations: ${input.maxIterations}${reconfigureField}, candidatePolicy: ${candidatePolicy} })`;
+    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: ${JSON.stringify(nextRunMode)}, maxIterations: ${input.maxIterations}${contractFields}${reconfigureField}, candidatePolicy: ${candidatePolicy} })`;
   }
   if (input.runMode === "baseline") {
-    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: "bounded_loop", maxIterations: ${input.maxIterations}, candidatePolicy: ${candidatePolicy} })`;
+    return `autoresearch_campaign_start({ cwd: ${JSON.stringify(input.cwd)}, objective: ${JSON.stringify(input.objective)}, setupMode: ${JSON.stringify(input.setupMode)}, runMode: "bounded_loop", maxIterations: ${input.maxIterations}${contractFields}, candidatePolicy: ${candidatePolicy} })`;
   }
   return `autoresearch_runtime_status({ cwd: ${JSON.stringify(input.cwd)}, action: "closeout" })`;
 }
@@ -119,6 +142,11 @@ function collectCampaignStartActiveSegmentMismatches(input: {
   const requestedMetricThreshold = input.requestedConfig.metricThreshold ?? null;
   const checks: Array<[string, unknown, unknown]> = [
     ["name", segment.name, input.requestedConfig.name],
+    [
+      "objectiveDigest",
+      segment.objectiveDigest ?? "legacy_missing",
+      input.requestedConfig.objectiveDigest ?? "requested_missing",
+    ],
     ["metricName", segment.metricName, input.requestedConfig.metricName],
     ["metricUnit", segment.metricUnit, input.requestedConfig.metricUnit],
     ["direction", segment.direction, input.requestedConfig.direction],

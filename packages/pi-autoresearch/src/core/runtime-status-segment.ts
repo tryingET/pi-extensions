@@ -45,6 +45,7 @@ export function summarizeCurrentSegment(
   return {
     configured: currentSegment.config !== null,
     name: currentSegment.config?.name ?? null,
+    objectiveDigest: currentSegment.config?.objectiveDigest ?? null,
     metricName: currentSegment.config?.metricName ?? null,
     metricUnit: currentSegment.config?.metricUnit ?? "",
     direction: currentSegment.config?.direction ?? null,

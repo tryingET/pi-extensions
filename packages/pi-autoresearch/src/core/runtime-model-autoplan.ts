@@ -23,6 +23,7 @@ import type { CommandExecutionSummary, ExecuteAutoresearchRunResult } from "./ru
 
 export interface AutoresearchSetupConfigInput {
   name: string;
+  objectiveDigest?: string;
   metricName: string;
   metricUnit?: string;
   direction: MetricDirection;
@@ -34,6 +35,7 @@ export interface AutoresearchSetupConfigInput {
 export interface BuildAutoresearchAutoplanInput {
   cwd: string;
   objective: string;
+  name?: string;
   planner?: AutoresearchAutoplanPlanner;
   filesInScope?: readonly string[];
   offLimits?: readonly string[];

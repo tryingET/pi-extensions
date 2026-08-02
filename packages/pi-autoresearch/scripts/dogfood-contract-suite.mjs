@@ -16,6 +16,7 @@ const packageRoot = path.resolve(path.dirname(scriptPath), "..");
 const strictDefault = process.env.DOGFOOD_CONTRACT_STRICT ?? "1";
 const controlledEnvNames = [
   "PI_AUTORESEARCH_CANDIDATE_DOGFOOD_ROOT",
+  "PI_AUTORESEARCH_CAMPAIGN_IDENTITY_DOGFOOD_ROOT",
   "PI_AUTORESEARCH_DOGFOOD_CWD",
   "PI_AUTORESEARCH_FOREGROUND_RESUME_BENCHMARK_LOG",
   "PI_AUTORESEARCH_GOAL_LEDGER_DOGFOOD_ROOT",
@@ -25,6 +26,18 @@ const controlledEnvNames = [
 ];
 
 const contracts = [
+  {
+    id: "campaign-start-identity-contract",
+    script: "scripts/dogfood-campaign-start-identity-contract.mjs",
+    metricName: "unresolved_campaign_start_identity_blockers",
+    tempPaths: [
+      {
+        envName: "PI_AUTORESEARCH_CAMPAIGN_IDENTITY_DOGFOOD_ROOT",
+        prefix: "autoresearch-suite-campaign-identity-",
+        kind: "directory",
+      },
+    ],
+  },
   {
     id: "workflow-contract",
     script: "scripts/dogfood-workflow-contract.mjs",

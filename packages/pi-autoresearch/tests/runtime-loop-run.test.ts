@@ -354,6 +354,10 @@ test("autoresearch_runtime_loop auto candidate peer plan asks for a bounded patc
     assert.equal(details.peerAssist.lane, "candidate");
     assert.equal(details.peerAssist.toolName, "candidate_peer_spawn");
     assert.match(details.peerAssist.objective, /Try one bounded candidate patch/);
+    assert.match(
+      details.peerAssist.objective,
+      /reduce total_ms by simplifying the runner hot path/,
+    );
     assert.match(details.peerAssist.objective, /isolated worktree/);
     assert.doesNotMatch(details.peerAssist.objective, /Review loop outcome/);
     assert.doesNotMatch(

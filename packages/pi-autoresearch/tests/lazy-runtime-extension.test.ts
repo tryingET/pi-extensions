@@ -147,7 +147,7 @@ test("registration keeps exact canonical names and deep schemas eager without ev
   assert.equal(EAGER_CONTRACT_PROVENANCE.schemaVersion, 1);
   assert.equal(
     EAGER_CONTRACT_PROVENANCE.sourceBaseCommit,
-    "31fec4772687973f67d279878a883632e23554c8",
+    "36c7dc2ec31cfffa31e115d4c922fccda0f7100f",
   );
   assert.equal(EAGER_CONTRACT_PROVENANCE.fixture, "eager-tool-parameters.json");
   assert.equal(

@@ -12,6 +12,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 import {
   type PiAutoresearchExtensionOptions,
@@ -335,6 +336,7 @@ test("autoresearch_campaign_start provides a plan-only supervised front door", a
 });
 
 test("autoresearch_campaign_start fails closed before executing stale configured segments", async () => {
+  // The next test exercises round-trip continuation and exact objective identity.
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();
     const campaignStartTool = tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
@@ -425,6 +427,117 @@ test("autoresearch_campaign_start fails closed before executing stale configured
   });
 });
 
+test("autoresearch_campaign_start round-trips its effective contract and distinguishes colliding objective slugs", async () => {
+  await withTempDir(async (cwd) => {
+    const { tools } = registerHarness();
+    const campaignStartTool = tools.get(AUTORESEARCH_CAMPAIGN_START_TOOL_NAME);
+    assert.ok(campaignStartTool);
+    writeFile(
+      path.join(cwd, "package.json"),
+      JSON.stringify({ name: "objective-identity", scripts: { bench: "node bench.js" } }),
+    );
+    writeFile(path.join(cwd, "src/index.ts"), "export const value = 1;\n");
+    writeFile(path.join(cwd, "bench.js"), "console.log('METRIC custom_score=7');\n");
+    writeFile(path.join(cwd, "check.js"), "process.exit(0);\n");
+
+    const sharedPrefix = "preserve this exact long objective identity ".repeat(3);
+    const objectiveA = `${sharedPrefix}alpha`;
+    const objectiveB = `${sharedPrefix}beta`;
+    const contract = {
+      metricName: "custom_score",
+      metricUnit: "count",
+      direction: "lower" as const,
+      metricThreshold: 10,
+      benchmarkCommand: "node bench.js",
+      checksCommand: "node check.js",
+    };
+
+    const baseline = await campaignStartTool.execute(
+      "call-campaign-start-round-trip-baseline",
+      {
+        cwd,
+        objective: objectiveA,
+        runMode: "baseline",
+        maxIterations: 1,
+        peerMode: "plan",
+        filesInScope: ["src/runtime.ts"],
+        ...contract,
+      },
+      undefined,
+      undefined,
+      { cwd },
+    );
+    const baselineDetails = baseline.details as { nextToolCall: string };
+    assert.match(baselineDetails.nextToolCall, /metricName: "custom_score"/);
+    assert.match(baselineDetails.nextToolCall, /metricUnit: "count"/);
+    assert.match(baselineDetails.nextToolCall, /direction: "lower"/);
+    assert.match(baselineDetails.nextToolCall, /metricThreshold: 10/);
+    assert.match(baselineDetails.nextToolCall, /benchmarkCommand: "node bench.js"/);
+    assert.match(baselineDetails.nextToolCall, /checksCommand: "node check.js"/);
+    assert.match(baselineDetails.nextToolCall, /filesInScope: \["src\/runtime.ts"\]/);
+    const entriesAfterBaseline = loadReceiptLog(cwd).entries.length;
+
+    const exactContinuationInput = runInNewContext(baselineDetails.nextToolCall, {
+      autoresearch_campaign_start: (params: unknown) => params,
+    });
+    const continuation = await campaignStartTool.execute(
+      "call-campaign-start-round-trip-loop",
+      exactContinuationInput,
+      undefined,
+      undefined,
+      { cwd },
+    );
+    const continuationDetails = continuation.details as {
+      loopResult: { completedIterations: number };
+    };
+    assert.equal(continuationDetails.loopResult.completedIterations, 1);
+    assert.equal(loadReceiptLog(cwd).entries.length, entriesAfterBaseline + 1);
+
+    await assert.rejects(
+      () =>
+        campaignStartTool.execute(
+          "call-campaign-start-objective-collision",
+          {
+            cwd,
+            objective: objectiveB,
+            runMode: "bounded_loop",
+            maxIterations: 1,
+            peerMode: "off",
+            ...contract,
+          },
+          undefined,
+          undefined,
+          { cwd },
+        ),
+      /objectiveDigest[\s\S]*reconfigure=true/,
+    );
+    assert.equal(loadReceiptLog(cwd).entries.length, entriesAfterBaseline + 1);
+
+    const noBenchmarkRoot = path.join(cwd, "no-benchmark");
+    mkdirSync(noBenchmarkRoot, { recursive: true });
+    writeFile(path.join(noBenchmarkRoot, "package.json"), JSON.stringify({ name: "no-bench" }));
+    const noBenchmarkPlan = await campaignStartTool.execute(
+      "call-campaign-start-no-benchmark-plan",
+      {
+        cwd: noBenchmarkRoot,
+        objective: "plan without an executable benchmark",
+        runMode: "plan_only",
+        maxIterations: 1,
+      },
+      undefined,
+      undefined,
+      { cwd: noBenchmarkRoot },
+    );
+    const noBenchmarkCall = (noBenchmarkPlan.details as { nextToolCall: string }).nextToolCall;
+    assert.doesNotMatch(noBenchmarkCall, /benchmarkCommand: null/);
+    assert.doesNotThrow(() =>
+      runInNewContext(noBenchmarkCall, {
+        autoresearch_campaign_start: (params: unknown) => params,
+      }),
+    );
+  });
+});
+
 test("autoresearch_campaign_start can run DSPx program-gen and use its setup proposal", async () => {
   await withTempDir(async (cwd) => {
     const { tools } = registerHarness();
@@ -496,6 +609,7 @@ test("autoresearch_campaign_start can run DSPx program-gen and use its setup pro
       assert.match(output, /DSPx program-gen run/);
       assert.match(output, /Generated DSPy planner output \(validated\)/);
       const details = result.details as {
+        nextToolCall: string;
         dspxProgramGenRun: { exitCode: number; timedOut: boolean };
         autoplan: {
           config: { name: string; metricName: string; direction: string };
@@ -508,6 +622,11 @@ test("autoresearch_campaign_start can run DSPx program-gen and use its setup pro
       assert.equal(details.dspxProgramGenRun.exitCode, 0);
       assert.equal(details.dspxProgramGenRun.timedOut, false);
       assert.equal(details.autoplan.config.name, "dspx-campaign");
+      assert.match(details.nextToolCall, /name: "dspx-campaign"/);
+      const nextInput = runInNewContext(details.nextToolCall, {
+        autoresearch_campaign_start: (params: { name?: string }) => params,
+      }) as { name?: string };
+      assert.equal(nextInput.name, "dspx-campaign");
       assert.equal(details.autoplan.config.metricName, "latency_ms");
       assert.equal(details.autoplan.config.direction, "lower");
       assert.equal(details.autoplan.benchmarkCommand, "npm run dspx-bench");

@@ -127,6 +127,11 @@ export const campaignStartSchema = Type.Object({
     Type.String({ description: "Optional cwd override for the supervised campaign front door." }),
   ),
   objective: Type.String({ description: "Bounded optimization objective for the campaign." }),
+  name: Type.Optional(
+    Type.String({
+      description: "Optional exact campaign name, primarily for generated continuation calls.",
+    }),
+  ),
   setupMode: Type.Optional(campaignStartSetupModeSchema),
   runMode: Type.Optional(campaignStartRunModeSchema),
   maxIterations: Type.Optional(
@@ -185,7 +190,7 @@ export const campaignStartSchema = Type.Object({
   reconfigure: Type.Optional(
     Type.Boolean({
       description:
-        "Append a new config segment even if one is already configured; direct campaign-start execution fails closed without this when the requested metric/benchmark differs from the active segment.",
+        "Append a new config segment even if one is already configured; direct campaign-start execution fails closed without this when objective identity, name, metric, threshold, benchmark, or checks differ from the active segment.",
     }),
   ),
   timeoutSeconds: Type.Optional(

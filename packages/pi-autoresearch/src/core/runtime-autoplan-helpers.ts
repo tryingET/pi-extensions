@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -14,6 +15,14 @@ import type {
 import { type AutoresearchPaths, resolveAutoresearchPaths } from "./runtime-receipts.ts";
 
 const DENIED_METRIC_NAMES = new Set(["__proto__", "constructor", "prototype"]);
+
+export function hashAutoresearchObjective(objective: string): string {
+  const normalized = objective.trim().replace(/\s+/gu, " ");
+  if (normalized.length === 0) {
+    throw new Error("objective is required");
+  }
+  return `sha256:${createHash("sha256").update(normalized, "utf8").digest("hex")}`;
+}
 
 export function readPackageScripts(cwd: string): Record<string, string> {
   const packageJsonPath = path.join(cwd, "package.json");

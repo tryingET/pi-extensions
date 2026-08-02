@@ -52,6 +52,7 @@ export function parseMetricLines(output: string): MetricMap {
 
 export function createConfigReceipt(input: {
   name: string;
+  objectiveDigest?: string;
   metricName: string;
   metricUnit?: string;
   direction: MetricDirection;
@@ -65,6 +66,9 @@ export function createConfigReceipt(input: {
     type: "config",
     version: 1,
     name: input.name,
+    ...(input.objectiveDigest
+      ? { objectiveDigest: normalizeObjectiveDigest(input.objectiveDigest) }
+      : {}),
     metricName: input.metricName,
     metricUnit: input.metricUnit ?? "",
     direction: input.direction,
@@ -186,6 +190,13 @@ function normalizeMetricThreshold(value: unknown): number | undefined {
   throw new Error("metricThreshold must be a finite number when present");
 }
 
+function normalizeObjectiveDigest(value: unknown): string {
+  if (typeof value !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(value)) {
+    throw new Error("objectiveDigest must be a lowercase sha256 digest when present");
+  }
+  return value;
+}
+
 function parseConfigReceipt(value: Record<string, unknown>): AutoresearchConfigReceipt {
   if (value.version !== 1) {
     throw new Error(`Unsupported config receipt version: ${String(value.version)}`);
@@ -201,6 +212,9 @@ function parseConfigReceipt(value: Record<string, unknown>): AutoresearchConfigR
     type: "config",
     version: 1,
     name: value.name,
+    ...(value.objectiveDigest === undefined
+      ? {}
+      : { objectiveDigest: normalizeObjectiveDigest(value.objectiveDigest) }),
     metricName: value.metricName,
     metricUnit: typeof value.metricUnit === "string" ? value.metricUnit : "",
     direction: value.direction,

@@ -52,6 +52,7 @@ export interface AutoresearchRuntimeSnapshotInput {
   };
   segment: {
     name: string | null;
+    objectiveDigest: string | null;
     metricName: string | null;
     metricUnit: string;
     direction: MetricDirection | null;
@@ -88,6 +89,7 @@ export interface AutoresearchRuntimeSnapshotV1 {
   };
   segment: {
     name: string | null;
+    objectiveDigest: string | null;
     metricName: string | null;
     metricUnit: string;
     direction: MetricDirection | null;

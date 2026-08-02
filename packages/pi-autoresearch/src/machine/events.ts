@@ -5,6 +5,7 @@ export type CampaignDecision = (typeof CAMPAIGN_DECISIONS)[number];
 
 export interface CampaignSegmentConfig {
   name: string;
+  objectiveDigest?: string;
   metricName: string;
   metricUnit: string;
   direction: MetricDirection;

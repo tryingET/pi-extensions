@@ -11,6 +11,7 @@ import {
   buildMetricBenchmarkScriptProposal,
   canBenchmarkScriptProposalDriveBaseline,
   formatAutoplanSetupToolCall,
+  hashAutoresearchObjective,
   inferBenchmarkCommand,
   inferChecksCommand,
   inferFilesInScope,
@@ -73,7 +74,8 @@ export function buildAutoresearchAutoplan(
   );
   const checksCommand =
     input.checksCommand === undefined && duplicateChecksReason ? null : requestedChecksCommand;
-  const name = slugAutoresearchName(objective, readPackageName(cwd));
+  const name =
+    normalizeOptionalString(input.name) ?? slugAutoresearchName(objective, readPackageName(cwd));
   const filesInScope = inferFilesInScope(cwd, input.filesInScope);
   const offLimits = normalizeArray(input.offLimits);
   const constraints = normalizeArray(input.constraints);
@@ -83,6 +85,7 @@ export function buildAutoresearchAutoplan(
   );
   const config = createConfigReceipt({
     name,
+    objectiveDigest: hashAutoresearchObjective(objective),
     metricName: metric.metricName,
     metricUnit: metric.metricUnit,
     direction: metric.direction,
@@ -247,6 +250,7 @@ export function applyDspxAdvisoryPlan(
   const checksCommand = proposal.checksCommand ?? result.checksCommand;
   const config = createConfigReceipt({
     name: proposal.campaignName ?? result.config.name,
+    objectiveDigest: result.config.objectiveDigest,
     metricName,
     metricUnit,
     direction,

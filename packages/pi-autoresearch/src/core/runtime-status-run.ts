@@ -34,6 +34,7 @@ export function createConfigFromInput(
   const checksCommand = resolveChecksCommand(input.checksCommand, undefined, paths);
   return createConfigReceipt({
     name,
+    objectiveDigest: input.objectiveDigest,
     metricName,
     metricUnit: input.metricUnit ?? "",
     direction: input.direction ?? "lower",

@@ -26,6 +26,7 @@ export function normalizeSegment(segment: CampaignSegmentConfig): CampaignSegmen
   const metricThreshold = normalizeMetric(segment.metricThreshold);
   return {
     name: segment.name,
+    ...(segment.objectiveDigest ? { objectiveDigest: segment.objectiveDigest } : {}),
     metricName: segment.metricName,
     metricUnit: segment.metricUnit,
     direction: segment.direction,
