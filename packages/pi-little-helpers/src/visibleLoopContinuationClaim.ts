@@ -12,13 +12,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import {
+  parseVisibleLoopContinuationLaunchClaim,
+  parseVisibleLoopLeaseOwner,
+  type VisibleLoopContinuationLaunchClaim,
+  type VisibleLoopLeaseOwner,
+} from "./visibleLoopContinuationIdentity.ts";
 import { getVisibleLoopStateDir } from "./visibleLoopState.ts";
-
-export interface VisibleLoopLeaseOwner {
-  sessionId: string;
-  processId: number;
-  processIncarnation: string;
-}
 
 interface VisibleLoopLeaseBase {
   schemaVersion: 1;
@@ -28,7 +28,11 @@ interface VisibleLoopLeaseBase {
 }
 
 export type VisibleLoopIterationLease =
-  | (VisibleLoopLeaseBase & { status: "ACTIVE"; planId: string | null })
+  | (VisibleLoopLeaseBase & {
+      status: "ACTIVE";
+      planId: string | null;
+      launchClaim: VisibleLoopContinuationLaunchClaim | null;
+    })
   | (VisibleLoopLeaseBase & {
       status: "LAUNCHING";
       originatingPlanId: string;
@@ -80,28 +84,6 @@ function requireOwnerOnlyDirectory(path: string): void {
     throw new Error(`visible-loop lease directory mode drift: ${mode.toString(8)}`);
 }
 
-function parseOwner(value: unknown): VisibleLoopLeaseOwner {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("visible-loop lease owner is invalid");
-  }
-  const owner = value as Partial<VisibleLoopLeaseOwner>;
-  if (
-    typeof owner.sessionId !== "string" ||
-    !owner.sessionId ||
-    !Number.isInteger(owner.processId) ||
-    Number(owner.processId) < 1 ||
-    typeof owner.processIncarnation !== "string" ||
-    !owner.processIncarnation
-  ) {
-    throw new Error("visible-loop lease owner binding is invalid");
-  }
-  return {
-    sessionId: owner.sessionId,
-    processId: Number(owner.processId),
-    processIncarnation: owner.processIncarnation,
-  };
-}
-
 function isClaimToken(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9_-]{32,128}$/u.test(value);
 }
@@ -123,13 +105,18 @@ function parseLease(value: unknown, expectedRunId: string): VisibleLoopIteration
     schemaVersion: 1 as const,
     runId: expectedRunId,
     iteration: Number(lease.iteration),
-    owner: parseOwner(lease.owner),
+    owner: parseVisibleLoopLeaseOwner(lease.owner),
   };
   if (lease.status === "ACTIVE") {
     if (lease.planId !== null && (typeof lease.planId !== "string" || !lease.planId)) {
       throw new Error("visible-loop ACTIVE lease plan binding is invalid");
     }
-    return { ...base, status: "ACTIVE", planId: lease.planId as string | null };
+    return {
+      ...base,
+      status: "ACTIVE",
+      planId: lease.planId as string | null,
+      launchClaim: parseVisibleLoopContinuationLaunchClaim(lease.launchClaim),
+    };
   }
   if (lease.status === "COMPLETED") {
     if (typeof lease.planId !== "string" || !lease.planId) {
@@ -265,8 +252,17 @@ function activeLease(
   runId: string,
   iteration: number,
   owner: VisibleLoopLeaseOwner,
+  launchClaim: VisibleLoopContinuationLaunchClaim | null = null,
 ): VisibleLoopIterationLease {
-  return { schemaVersion: 1, runId, status: "ACTIVE", iteration, planId: null, owner };
+  return {
+    schemaVersion: 1,
+    runId,
+    status: "ACTIVE",
+    iteration,
+    planId: null,
+    owner,
+    launchClaim,
+  };
 }
 
 export function enterVisibleLoopIterationLease(input: {
@@ -277,7 +273,7 @@ export function enterVisibleLoopIterationLease(input: {
   env?: NodeJS.ProcessEnv;
 }): VisibleLoopLeaseResult<VisibleLoopLeaseEntryDisposition> {
   return mutateLease(input.runId, input.env ?? process.env, (lease) => {
-    parseOwner(input.owner);
+    parseVisibleLoopLeaseOwner(input.owner);
     if (!lease) {
       if (input.iteration !== 1 || input.claimToken) {
         throw new LeaseRejectedError("visible-loop lease rejects a non-initial unclaimed start");
@@ -303,7 +299,11 @@ export function enterVisibleLoopIterationLease(input: {
     ) {
       return {
         value: "consumed_launch",
-        lease: activeLease(input.runId, input.iteration, input.owner),
+        lease: activeLease(input.runId, input.iteration, input.owner, {
+          originatingPlanId: lease.originatingPlanId,
+          claimToken: lease.claimToken,
+          launchOwner: lease.owner,
+        }),
         changed: true,
       };
     }

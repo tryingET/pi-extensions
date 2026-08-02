@@ -281,8 +281,12 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   if (!prompts || prompts.length === 0) throw new TypeError("prompts must be a non-empty array.");
   const reportBack = parseReportBack(String(record.reportBack ?? "manual"));
   if (!reportBack) throw new TypeError("reportBack must be intercom, manual, or none.");
-  const executionBinding = parseExecutionBinding(record.executionBinding);
   const commandName = normalizeVisibleLoopCommandName(record.commandName);
+  const executionBinding = parseExecutionBinding(record.executionBinding, {
+    runId,
+    cwd,
+    commandName: commandName ?? "visible-loop",
+  });
   const parentPeerTarget = normalizeOptionalString(record.parentPeerTarget);
   const commitDelegation = parseCommitDelegation(record.commitDelegation);
   const productPostureTarget = parseProductPostureTarget(record.productPostureTarget);
@@ -326,10 +330,14 @@ function assertVisibleLoopRunConfig(value: unknown): VisibleLoopRunConfig {
   };
 }
 
-function parseExecutionBinding(value: unknown): VisibleLoopExecutionBinding {
+function parseExecutionBinding(
+  value: unknown,
+  legacyContext: { runId: string; cwd: string; commandName: string },
+): VisibleLoopExecutionBinding {
   if (value === undefined || value === null) {
+    const launch = `/${legacyContext.commandName}`;
     throw new TypeError(
-      "executionBinding is required; restart the loop with --task, --objective, or --candidate.",
+      `legacy visible-loop config ${legacyContext.runId} is unbound and preserved; it cannot be resumed or modified. Create a fresh run from ${legacyContext.cwd} with ${launch} --objective "<explicit bounded objective>", ${launch} --task AK-ID, or ${launch} --candidate evolution-ID.`,
     );
   }
   if (typeof value !== "object" || Array.isArray(value)) {

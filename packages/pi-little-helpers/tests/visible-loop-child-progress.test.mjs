@@ -175,6 +175,8 @@ test("intercom timeout does not weaken accepted completion or frontier ordering"
         continuationCount += 1;
       },
       intercomSendTimeoutMs: 10,
+      continuationStartTimeoutMs: 50,
+      continuationStartPollIntervalMs: 5,
     };
     await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, options);
     observe(userMessages[0].message, pi, harness.ctx, env, options);

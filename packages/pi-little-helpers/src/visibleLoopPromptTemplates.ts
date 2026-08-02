@@ -11,6 +11,8 @@ import {
 import { DEFAULT_LOOP_VALIDATION_CONTRACT_PROMPT } from "./visibleLoopPromptDefaults.ts";
 import type { VisibleLoopExecutionBinding } from "./visibleLoopTypes.ts";
 
+const VISIBLE_LOOP_COMMIT_DELEGATION_TIMEOUT_SECONDS = 30 * 60;
+
 export * from "./visibleLoopPromptDefaults.ts";
 
 export function bindVisibleLoopExecutionPrompt(
@@ -47,7 +49,7 @@ export interface VisibleLoopPromptExpansion {
   error?: string;
 }
 
-export function renderVisibleLoopCommitDelegationPrompt(input: {
+export interface VisibleLoopCommitDelegationPromptInput {
   commitPrompt: string;
   configPath: string;
   cwd: string;
@@ -57,19 +59,41 @@ export function renderVisibleLoopCommitDelegationPrompt(input: {
   commandName?: string;
   title?: string;
   selfEvolutionEnvelope?: SelfEvolutionExecutionEnvelope;
-}): string {
+}
+
+export interface VisibleLoopCommitDelegationDispatchRequest {
+  profile: "minimal";
+  name: string;
+  objective: string;
+  tools: "read,bash";
+  timeout: number;
+  prompt_name: string;
+  prompt_tags: string[];
+  prompt_source: "pi-little-helpers";
+}
+
+export function createVisibleLoopCommitDelegationDispatchRequest(
+  input: VisibleLoopCommitDelegationPromptInput,
+): VisibleLoopCommitDelegationDispatchRequest {
   const loopCommandName = normalizeLoopCommandName(input.commandName);
-  const loopTitle = normalizeLoopTitle(input.title, loopCommandName);
-  const dispatchRequest = {
+  return {
     profile: "minimal",
     name: normalizeDelegatedCommitSubagentName(input.runId, input.iteration),
     objective: renderVisibleLoopCommitObjective(input),
     tools: "read,bash",
-    timeout: 0,
+    timeout: VISIBLE_LOOP_COMMIT_DELEGATION_TIMEOUT_SECONDS,
     prompt_name: `${loopCommandName}-commit-delegation`,
     prompt_tags: [loopCommandName, "visible-loop", "commit-delegation"],
     prompt_source: "pi-little-helpers",
   };
+}
+
+export function renderVisibleLoopCommitDelegationPrompt(
+  input: VisibleLoopCommitDelegationPromptInput,
+): string {
+  const loopCommandName = normalizeLoopCommandName(input.commandName);
+  const loopTitle = normalizeLoopTitle(input.title, loopCommandName);
+  const dispatchRequest = createVisibleLoopCommitDelegationDispatchRequest(input);
 
   return [
     `${loopTitle} commit delegation step.`,
@@ -78,6 +102,7 @@ export function renderVisibleLoopCommitDelegationPrompt(input: {
     "The configured `/commit` prompt has already been resolved through visible-loop prompt expansion. Do not send a literal `/commit` slash command to the delegated worker.",
     "",
     "Call `dispatch_subagent` exactly once with this request:",
+    "The generated request uses a finite 30-minute execution timeout. Do not rewrite it to `timeout: 0`, add `allowUnlimited`, or require host-level unlimited-timeout policy.",
     "",
     "```json",
     JSON.stringify(dispatchRequest, null, 2),
@@ -109,7 +134,8 @@ export function renderVisibleLoopCommitDelegationPrompt(input: {
           "Replace each candidateCloseout placeholder truthfully. Evidence refs must be host-correlatable: a successful package-check bash toolCallId for reflection, an ordered ASC live-proof ledger runId for liveRuntimeProof, or the exact canonical owner-artifact path for promotion. Free-form claims and invented IDs fail closed.",
         ]
       : []),
-    "2. If dispatch fails, times out, or reports a blocker/failure, stop and report that status. Do not mark the loop iteration complete.",
+    "2. If dispatch fails, times out, aborts, or reports a blocker, stop and report the exact dispatch identity and status. Do not mark the loop iteration complete and do not retry or re-dispatch within the same iteration.",
+    "3. Unless the result explicitly proves `confirmed_no_effects`, treat commit, index, worktree, provenance-note, validation-process, and child-process effects as indeterminate. Require controller/operator reconciliation before any fresh loop run.",
     "",
     "The ordinary completion checkpoint is intentionally not queued for this delegated commit step; this tool call is the completion gate.",
     "",

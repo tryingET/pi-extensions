@@ -29,6 +29,16 @@ import {
   setTemporaryHomeWithPromptTemplates,
 } from "./sidequest-harness.mjs";
 
+function parseDelegatedCommitRequest(prompt) {
+  const matches = [
+    ...prompt.matchAll(
+      /Call `dispatch_subagent` exactly once with this request:[\s\S]*?```json\n([\s\S]*?)\n```/g,
+    ),
+  ];
+  assert.equal(matches.length, 1, "delegated commit prompt must contain one dispatch request");
+  return JSON.parse(matches[0][1]);
+}
+
 function assertImplementationVerificationFocus(prompt) {
   assert.match(prompt, /Verification expectation/);
   assert.match(prompt, /Keep the main work focus on the bounded implementation/);
@@ -679,6 +689,11 @@ test("nexus-loop writes a focused command-aware config and launches the shared c
     assert.match(userMessages[3].message, /"tools": "read,bash"/);
     assert.match(userMessages[3].message, /"prompt_name": "nexus-loop-commit-delegation"/);
     assert.match(userMessages[3].message, /"prompt_source": "pi-little-helpers"/);
+    const nexusDispatchRequest = parseDelegatedCommitRequest(userMessages[3].message);
+    assert.equal(nexusDispatchRequest.timeout, 1_800);
+    assert.equal("allowUnlimited" in nexusDispatchRequest, false);
+    assert.match(userMessages[3].message, /finite 30-minute execution timeout/);
+    assert.match(userMessages[3].message, /do not retry or re-dispatch within the same iteration/);
     assert.match(userMessages[3].message, /Nexus loop delegated commit workflow/);
     assertLoopValidationGuidance(userMessages[3].message);
     assert.match(userMessages[3].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));
@@ -816,6 +831,11 @@ test("visible-loop can delegate commit with --delegate-commit", async () => {
     assert.match(userMessages[5].message, /"tools": "read,bash"/);
     assert.match(userMessages[5].message, /"prompt_name": "visible-loop-commit-delegation"/);
     assert.match(userMessages[5].message, /"prompt_source": "pi-little-helpers"/);
+    const visibleDispatchRequest = parseDelegatedCommitRequest(userMessages[5].message);
+    assert.equal(visibleDispatchRequest.timeout, 1_800);
+    assert.equal("allowUnlimited" in visibleDispatchRequest, false);
+    assert.match(userMessages[5].message, /finite 30-minute execution timeout/);
+    assert.match(userMessages[5].message, /do not retry or re-dispatch within the same iteration/);
     assert.match(userMessages[5].message, /Visible loop delegated commit workflow/);
     assertLoopValidationGuidance(userMessages[5].message);
     assert.match(userMessages[5].message, new RegExp(escapeRegExp(`cwd: ${repoRoot}`)));

@@ -847,60 +847,6 @@ test("cache-distinct same-process reload retains incarnation and stale watchdog 
   }
 });
 
-test("run lease blocks tokenless recovery while one irreversible spawn is launching", async () => {
-  const run = setup(["work"], { loopCount: 2, runId: "continuation-launch-lease" });
-  const userMessages = [];
-  const pi = { sendUserMessage: (message, options) => userMessages.push({ message, options }) };
-  const continuation = deferred();
-  const continuationStarted = deferred();
-  let launchInput;
-  let spawnCount = 0;
-  const options = {
-    continueInNewSession: (input) => {
-      launchInput = input;
-      spawnCount += 1;
-      continuationStarted.resolve();
-      return continuation.promise;
-    },
-  };
-  try {
-    await completeFirstIteration(run, pi, options, userMessages);
-    await continuationStarted.promise;
-    const launching = readRunLease(run);
-    assert.equal(launching.status, "LAUNCHING");
-    assert.equal(launching.iteration, 2);
-    assert.equal(launching.originatingPlanId, readActiveSnapshot(run).plan.planId);
-    assert.equal(launching.claimToken, launchInput.claimToken);
-    assert.equal(spawnCount, 1);
-
-    await startVisibleLoopChildRunner(run.configPath, pi, run.harness.ctx, run.env, options);
-    assert.equal(userMessages.length, 2, "tokenless start cannot consume LAUNCHING");
-    assert.equal(spawnCount, 1);
-    assert.match(run.harness.notifications.at(-1).message, /lease rejects session/);
-
-    continuation.resolve();
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(
-      readRunLease(run).status,
-      "LAUNCHING",
-      "spawn success awaits child token consumption",
-    );
-    assert.ok(getActiveSnapshotPath(run), "per-session recovery snapshot is retained");
-    const statuses = readStatusEntries(run);
-    assert.equal(
-      statuses.filter((entry) => entry.event === "next_iteration_launch_requested").length,
-      1,
-    );
-    assert.equal(
-      statuses.filter((entry) => entry.event === "next_iteration_launch_dispatched").length,
-      1,
-    );
-  } finally {
-    resetVisibleLoopRuntimeForRecoveryTest();
-    rmSync(run.stateHome, { recursive: true, force: true });
-  }
-});
-
 test("matching launch failure permits one tokenless recovery without another spawn", async () => {
   const run = setup(["work"], { loopCount: 2, runId: "continuation-failure-recovery" });
   const userMessages = [];
@@ -964,10 +910,16 @@ for (const continuationOutcome of ["resolved", "rejected"]) {
     try {
       await completeFirstIteration(run, pi, options, userMessages);
       await continuationStarted.promise;
+      const childHarness = createContext({
+        cwd: run.harness.ctx.cwd,
+        sessionId: `019e10d2-15f5-705a-aea4-01ba49d2bba${
+          continuationOutcome === "resolved" ? "e" : "f"
+        }`,
+      });
       await startVisibleLoopChildRunner(
         `${run.configPath} --claim-token ${launchInput.claimToken}`,
         pi,
-        run.harness.ctx,
+        childHarness.ctx,
         run.env,
         options,
       );
@@ -976,22 +928,30 @@ for (const continuationOutcome of ["resolved", "rejected"]) {
 
       if (continuationOutcome === "resolved") continuation.resolve();
       else continuation.reject(new Error("late nonmatching rejection"));
-      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setTimeout(resolve, 20));
 
       const after = readRunLease(run);
       assert.equal(after.status, "ACTIVE");
       assert.equal(after.iteration, 2);
       const statuses = readStatusEntries(run);
-      assert.ok(
-        statuses.some(
-          (entry) =>
-            entry.event === "stale_continuation_ignored" && entry.phase === continuationOutcome,
-        ),
-      );
-      assert.equal(
-        statuses.some((entry) => entry.event === "next_iteration_launch_dispatched"),
-        false,
-      );
+      if (continuationOutcome === "resolved") {
+        assert.ok(statuses.some((entry) => entry.event === "next_iteration_child_start_confirmed"));
+        assert.ok(statuses.some((entry) => entry.event === "next_iteration_launch_dispatched"));
+        assert.equal(
+          statuses.some((entry) => entry.event === "stale_continuation_ignored"),
+          false,
+        );
+      } else {
+        assert.ok(
+          statuses.some(
+            (entry) => entry.event === "stale_continuation_ignored" && entry.phase === "rejected",
+          ),
+        );
+        assert.equal(
+          statuses.some((entry) => entry.event === "next_iteration_launch_dispatched"),
+          false,
+        );
+      }
       assert.equal(
         statuses.some((entry) => entry.event === "next_iteration_spawn_failed"),
         false,

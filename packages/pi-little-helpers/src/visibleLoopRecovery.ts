@@ -16,7 +16,14 @@ import {
   validateVisibleLoopGovernedPreflightReceipt,
 } from "./governedDeepReviewPreflight.ts";
 import { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
+import {
+  createVisibleLoopDelegatedCommitRuntime,
+  type VisibleLoopDelegatedCommitRuntime,
+} from "./visibleLoopCommitDelegation.ts";
+import { restoreVisibleLoopDelegatedCommitRuntime } from "./visibleLoopCommitDelegationState.ts";
 import { readVisibleLoopIterationLease } from "./visibleLoopContinuationClaim.ts";
+import type { VisibleLoopChildStartProof } from "./visibleLoopContinuationIdentity.ts";
+import { validatePersistedVisibleLoopChildStartProof } from "./visibleLoopContinuationProof.ts";
 import type { VisibleLoopTimerHandle, VisibleLoopTimerRuntime } from "./visibleLoopDelivery.ts";
 import {
   failVisibleLoopPlan,
@@ -26,6 +33,10 @@ import {
 } from "./visibleLoopPlan.ts";
 import { getVisibleLoopHumanLabel } from "./visibleLoopProfiles.ts";
 import { GOVERNED_DEEP_REVIEW_PROMPT } from "./visibleLoopPromptTemplates.ts";
+import {
+  type PersistedActiveVisibleLoopState,
+  serializeActiveVisibleLoopState,
+} from "./visibleLoopRecoverySnapshot.ts";
 import {
   appendVisibleLoopStatus,
   getVisibleLoopStateDir,
@@ -181,6 +192,9 @@ export interface ActiveVisibleLoopState {
   createPeerRuntime?: CreateVisibleLoopPeerRuntime;
   intercomSendTail: Promise<void>;
   intercomSendTimeoutMs: number;
+  continuationStartTimeoutMs: number;
+  continuationStartPollIntervalMs: number;
+  readContinuationStatusCursor: (config: VisibleLoopRunConfig, env: NodeJS.ProcessEnv) => number;
   deliveryAckTimeoutMs: number;
   deliveryAckTimer: VisibleLoopTimerRuntime;
   deliveryAckWatchdog: {
@@ -195,40 +209,8 @@ export interface ActiveVisibleLoopState {
   continueInNewSession?: ContinueVisibleLoopInNewSession;
   governedDeepReviewPreflight?: VisibleLoopGovernedPreflightReceipt;
   bindGovernedDeepReviewPreflightToolCall?: (nonce: string, toolCallId: string) => boolean;
-}
-
-export interface PersistedActiveVisibleLoopState {
-  schemaVersion: 6;
-  ownerSessionId: string;
-  runId: string;
-  configPath: string;
-  completedPromptCount: number;
-  completedIterations: number;
-  plan: VisibleLoopPlanProgress | null;
-  hostProcessId: number;
-  hostProcessIncarnation: string;
-  stopped: boolean;
-  governedDeepReviewPreflight?: VisibleLoopGovernedPreflightReceipt;
-}
-
-export function serializeActiveVisibleLoopState(
-  state: ActiveVisibleLoopState,
-): PersistedActiveVisibleLoopState {
-  return {
-    schemaVersion: 6,
-    ownerSessionId: state.ownerSessionId,
-    runId: state.config.runId,
-    configPath: state.configPath,
-    completedPromptCount: state.completedPromptCount,
-    completedIterations: state.completedIterations,
-    plan: state.plan,
-    hostProcessId: state.hostProcessId,
-    hostProcessIncarnation: state.hostProcessIncarnation,
-    stopped: state.stopped,
-    ...(state.governedDeepReviewPreflight
-      ? { governedDeepReviewPreflight: state.governedDeepReviewPreflight }
-      : {}),
-  };
+  delegatedCommit: VisibleLoopDelegatedCommitRuntime;
+  continuationStartProof: VisibleLoopChildStartProof | null;
 }
 
 export function persistActiveVisibleLoopState(
@@ -268,7 +250,9 @@ export function removeActiveVisibleLoopState(
   }
   const persisted = snapshot.value as Partial<PersistedActiveVisibleLoopState>;
   if (
-    persisted.schemaVersion !== 6 ||
+    (persisted.schemaVersion !== 6 &&
+      persisted.schemaVersion !== 7 &&
+      persisted.schemaVersion !== 8) ||
     persisted.ownerSessionId !== state.ownerSessionId ||
     persisted.runId !== state.config.runId ||
     persisted.hostProcessId !== state.hostProcessId ||
@@ -285,6 +269,9 @@ export interface RestoreActiveVisibleLoopDependencies {
   sendUserMessage: SendUserMessage | undefined;
   createPeerRuntime?: CreateVisibleLoopPeerRuntime;
   intercomSendTimeoutMs: number;
+  continuationStartTimeoutMs: number;
+  continuationStartPollIntervalMs: number;
+  readContinuationStatusCursor: (config: VisibleLoopRunConfig, env: NodeJS.ProcessEnv) => number;
   deliveryAckTimeoutMs: number;
   deliveryAckTimer: VisibleLoopTimerRuntime;
   continueInNewSession?: ContinueVisibleLoopInNewSession;
@@ -326,7 +313,9 @@ export function restoreActiveVisibleLoopState(
   try {
     const persisted = snapshot.value as Partial<PersistedActiveVisibleLoopState>;
     if (
-      persisted.schemaVersion !== 6 ||
+      (persisted.schemaVersion !== 6 &&
+        persisted.schemaVersion !== 7 &&
+        persisted.schemaVersion !== 8) ||
       persisted.ownerSessionId !== currentSessionId ||
       typeof persisted.configPath !== "string" ||
       typeof persisted.runId !== "string" ||
@@ -408,6 +397,12 @@ export function restoreActiveVisibleLoopState(
     ) {
       throw new Error("active visible-loop plan iteration binding is invalid");
     }
+    if (
+      plan.lifecycle === "active" &&
+      (lease.value.iteration !== plan.iteration || lease.value.planId !== plan.planId)
+    ) {
+      throw new Error("active visible-loop plan does not match its exact ACTIVE lease frontier");
+    }
     const stopped = Boolean(persisted.stopped);
     const state: ActiveVisibleLoopState = {
       ownerSessionId: currentSessionId,
@@ -422,6 +417,9 @@ export function restoreActiveVisibleLoopState(
       createPeerRuntime: dependencies.createPeerRuntime,
       intercomSendTail: Promise.resolve(),
       intercomSendTimeoutMs: dependencies.intercomSendTimeoutMs,
+      continuationStartTimeoutMs: dependencies.continuationStartTimeoutMs,
+      continuationStartPollIntervalMs: dependencies.continuationStartPollIntervalMs,
+      readContinuationStatusCursor: dependencies.readContinuationStatusCursor,
       deliveryAckTimeoutMs: dependencies.deliveryAckTimeoutMs,
       deliveryAckTimer: dependencies.deliveryAckTimer,
       deliveryAckWatchdog: null,
@@ -431,7 +429,23 @@ export function restoreActiveVisibleLoopState(
       hostProcessIncarnation: persisted.hostProcessIncarnation,
       continueInNewSession: dependencies.continueInNewSession,
       governedDeepReviewPreflight,
+      delegatedCommit: createVisibleLoopDelegatedCommitRuntime(),
+      continuationStartProof: null,
     };
+    const continuationStartProof = validatePersistedVisibleLoopChildStartProof(
+      state,
+      persisted.continuationStartProof,
+      lease.value,
+    );
+    if (continuationStartProof === undefined) {
+      throw new Error("active visible-loop continuation child-start identity is invalid");
+    }
+    state.continuationStartProof = continuationStartProof;
+    state.delegatedCommit = restoreVisibleLoopDelegatedCommitRuntime(
+      state,
+      persisted.schemaVersion,
+      persisted.delegatedCommit,
+    );
     state.bindGovernedDeepReviewPreflightToolCall =
       dependencies.bindGovernedDeepReviewPreflightToolCall;
     const recovery = getVisibleLoopRecoveryDisposition(

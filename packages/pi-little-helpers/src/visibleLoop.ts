@@ -23,14 +23,31 @@ import {
 } from "./selfEvolutionEnvelope.ts";
 import { validatePersistedSelfEvolutionBinding } from "./selfEvolutionVerification.ts";
 import { parseVisibleLoopChildArgs, parseVisibleLoopCompletionArgs } from "./visibleLoopArgs.ts";
-import { continueVisibleLoopAfterFinalizedIteration } from "./visibleLoopContinuation.ts";
+import {
+  admitVisibleLoopDelegatedCommit,
+  beginVisibleLoopDelegatedCommit,
+  completeVisibleLoopDelegatedCommit,
+  createVisibleLoopDelegatedCommitRuntime,
+  failVisibleLoopDelegatedCommitRuntime,
+  hasVisibleLoopDelegatedCommitSuccess,
+  isVisibleLoopDelegatedCommitFrontier,
+  resetVisibleLoopDelegatedCommitRuntime,
+  settleVisibleLoopDelegatedCommitExecution,
+} from "./visibleLoopCommitDelegation.ts";
+import {
+  continueVisibleLoopAfterFinalizedIteration,
+  readVisibleLoopContinuationStatusCursor,
+  resolveVisibleLoopContinuationStartPollIntervalMs,
+  resolveVisibleLoopContinuationStartTimeoutMs,
+} from "./visibleLoopContinuation.ts";
 import {
   bindVisibleLoopActivePlan,
   completeVisibleLoopIterationLease,
   enterVisibleLoopIterationLease,
   readVisibleLoopIterationLease,
-  type VisibleLoopLeaseOwner,
 } from "./visibleLoopContinuationClaim.ts";
+import type { VisibleLoopLeaseOwner } from "./visibleLoopContinuationIdentity.ts";
+import { createVisibleLoopChildStartProof } from "./visibleLoopContinuationProof.ts";
 import {
   armVisibleLoopDeliveryAckWatchdog as armDeliveryAckWatchdog,
   claimVisibleLoopRuntimeGeneration,
@@ -173,6 +190,9 @@ export interface VisibleLoopChildRunnerOptions {
   continueInNewSession?: ContinueVisibleLoopInNewSession;
   createPeerRuntime?: CreateVisibleLoopPeerRuntime;
   intercomSendTimeoutMs?: number;
+  continuationStartTimeoutMs?: number;
+  continuationStartPollIntervalMs?: number;
+  readContinuationStatusCursor?: (config: VisibleLoopRunConfig, env: NodeJS.ProcessEnv) => number;
   deliveryAckTimeoutMs?: number;
   deliveryAckTimer?: VisibleLoopTimerRuntime;
   candidateCloseout?: SelfEvolutionCandidateCloseout;
@@ -680,6 +700,15 @@ export async function startVisibleLoopChildRunner(
     createPeerRuntime: runnerOptions.createPeerRuntime,
     intercomSendTail: Promise.resolve(),
     intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
+    continuationStartTimeoutMs: resolveVisibleLoopContinuationStartTimeoutMs(
+      env,
+      runnerOptions.continuationStartTimeoutMs,
+    ),
+    continuationStartPollIntervalMs: resolveVisibleLoopContinuationStartPollIntervalMs(
+      runnerOptions.continuationStartPollIntervalMs,
+    ),
+    readContinuationStatusCursor:
+      runnerOptions.readContinuationStatusCursor ?? readVisibleLoopContinuationStatusCursor,
     deliveryAckTimeoutMs: resolveVisibleLoopDeliveryAckTimeoutMs(env, runnerOptions),
     deliveryAckTimer: runnerOptions.deliveryAckTimer ?? DEFAULT_VISIBLE_LOOP_TIMER,
     deliveryAckWatchdog: null,
@@ -689,6 +718,8 @@ export async function startVisibleLoopChildRunner(
     hostProcessIncarnation: VISIBLE_LOOP_PROCESS_INCARNATION,
     continueInNewSession: runnerOptions.continueInNewSession,
     governedDeepReviewPreflight,
+    delegatedCommit: createVisibleLoopDelegatedCommitRuntime(),
+    continuationStartProof: null,
   };
   state.bindGovernedDeepReviewPreflightToolCall = bindGovernedDeepReviewPreflightToolCall;
   const initialPersistence = persistVisibleLoopStateAndRetireFailedOwner(state, ctx, env);
@@ -718,16 +749,6 @@ export async function startVisibleLoopChildRunner(
       "error",
     );
   }
-  appendVisibleLoopStatus(
-    config,
-    {
-      event: "child_started",
-      reportBack: config.reportBack,
-      parentPeerTarget: config.parentPeerTarget ?? null,
-      productPostureTarget: config.productPostureTarget ?? null,
-    },
-    env,
-  );
   const statusKey = getVisibleLoopCommandName(config);
   const loopLabel = getVisibleLoopHumanLabel(config);
   ctx.ui?.setStatus?.(statusKey, `loop ${restoredIterations}/${config.loopCount}`);
@@ -745,6 +766,45 @@ export async function startVisibleLoopChildRunner(
     );
   }
   queueVisibleLoopIteration(state, ctx, env);
+  if (state.stopped || !state.plan) return;
+  const activeLease = readVisibleLoopIterationLease(config.runId, env);
+  const continuationStartProof =
+    claimToken && activeLease.ok && activeLease.value
+      ? createVisibleLoopChildStartProof(state, claimToken, activeLease.value)
+      : null;
+  if (claimToken && !continuationStartProof) {
+    stopVisibleLoopPlanFailedClosed(
+      state,
+      ctx,
+      env,
+      "continuation child could not bind its exact consumed launch claim to the ACTIVE frontier",
+      "continuation child-start identity is unavailable",
+    );
+    return;
+  }
+  state.continuationStartProof = continuationStartProof;
+  if (!persistAndRenderVisibleLoopPlan(state, ctx, env)) return;
+  const childStarted = appendAuthoritativeVisibleLoopStatus(
+    config,
+    {
+      event: "child_started",
+      iteration: restoredIterations + 1,
+      reportBack: config.reportBack,
+      parentPeerTarget: config.parentPeerTarget ?? null,
+      productPostureTarget: config.productPostureTarget ?? null,
+      proof: continuationStartProof,
+    },
+    env,
+  );
+  if (!childStarted.ok) {
+    stopVisibleLoopPlanFailedClosed(
+      state,
+      ctx,
+      env,
+      `authoritative child-start proof persistence failed: ${childStarted.error}`,
+      "authoritative continuation child-start proof could not be persisted",
+    );
+  }
 }
 
 export function handleVisibleLoopMessageStart(
@@ -787,6 +847,104 @@ export function handleVisibleLoopAgentStart(
   if (state?.plan) renderVisibleLoopPlan(state, ctx);
 }
 
+function stopVisibleLoopForDelegatedCommitFailure(
+  state: ActiveVisibleLoopState,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv,
+  reason: string,
+  event: string,
+  toolCallId?: string,
+): void {
+  clearVisibleLoopDeliveryAckWatchdog(state);
+  state.stopped = true;
+  failVisibleLoopDelegatedCommitRuntime(state);
+  if (state.plan) failVisibleLoopPlan(state.plan, `delegated commit ${reason}`);
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event,
+      iteration: state.plan?.iteration ?? null,
+      promptIndex: state.plan?.frontier ? state.plan.frontier.stepIndex + 1 : null,
+      toolCallId: toolCallId ?? null,
+      reason,
+      effectDisposition: "indeterminate_unless_asc_receipt_proves_otherwise",
+    },
+    env,
+  );
+  // Keep the exact stopped runtime pointer in-process so a same-iteration retry is blocked.
+  persistActiveVisibleLoopState(state, ctx, env);
+  renderVisibleLoopPlan(state, ctx);
+  ctx.ui?.notify?.(
+    `${getVisibleLoopHumanLabel(state.config)} stopped: delegated commit ${reason}`,
+    "error",
+  );
+}
+
+export function handleVisibleLoopToolCall(
+  event: { toolCallId?: string; toolName?: string; input?: unknown },
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
+): { block: true; reason: string } | undefined {
+  if (!isCurrentVisibleLoopRuntime() || event.toolName !== "dispatch_subagent") return undefined;
+  const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state) {
+    return lastVisibleLoopRecoveryFailure
+      ? {
+          block: true,
+          reason:
+            "visible-loop blocked delegated commit because active-state recovery failed closed",
+        }
+      : undefined;
+  }
+  if (!isVisibleLoopDelegatedCommitFrontier(state)) return undefined;
+  const outcome = admitVisibleLoopDelegatedCommit(state, event);
+  if (outcome === "ignored") return undefined;
+  if (outcome === "rejected") {
+    if (!state.stopped) {
+      stopVisibleLoopForDelegatedCommitFailure(
+        state,
+        ctx,
+        env,
+        "request correlation failed",
+        "commit_delegation_tool_call_blocked",
+        event.toolCallId,
+      );
+    }
+    return {
+      block: true,
+      reason: "visible-loop blocked an uncorrelated or duplicate delegated commit dispatch",
+    };
+  }
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "commit_delegation_tool_call_admitted",
+      iteration: state.plan?.iteration ?? null,
+      promptIndex: state.plan?.frontier ? state.plan.frontier.stepIndex + 1 : null,
+      toolCallId: event.toolCallId,
+    },
+    env,
+  );
+  const persisted = persistActiveVisibleLoopState(state, ctx, env);
+  if (!persisted.ok) {
+    stopVisibleLoopForDelegatedCommitFailure(
+      state,
+      ctx,
+      env,
+      `controller persistence failed: ${persisted.error}`,
+      "commit_delegation_persistence_failed_closed",
+      event.toolCallId,
+    );
+    return {
+      block: true,
+      reason: "visible-loop blocked delegated commit because controller persistence failed",
+    };
+  }
+  return undefined;
+}
+
 export function handleVisibleLoopToolExecutionStart(
   event: { toolCallId?: string; toolName?: string; args?: unknown },
   pi: ExtensionAPI,
@@ -796,7 +954,48 @@ export function handleVisibleLoopToolExecutionStart(
 ): void {
   if (!isCurrentVisibleLoopRuntime()) return;
   const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
-  if (!state || state.stopped || !state.plan || event.toolName !== "vault_execute_template") return;
+  if (!state || !state.plan) return;
+  if (event.toolName === "dispatch_subagent") {
+    if (state.stopped) return;
+    const outcome = beginVisibleLoopDelegatedCommit(state, event);
+    if (outcome.kind === "ignored") return;
+    if (outcome.kind === "rejected") {
+      stopVisibleLoopForDelegatedCommitFailure(
+        state,
+        ctx,
+        env,
+        outcome.reason,
+        outcome.reason === "duplicate dispatch rejected"
+          ? "commit_delegation_duplicate_call_rejected"
+          : "commit_delegation_request_rejected",
+        event.toolCallId,
+      );
+      return;
+    }
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "commit_delegation_tool_started",
+        iteration: state.plan.iteration,
+        promptIndex: state.plan.frontier ? state.plan.frontier.stepIndex + 1 : null,
+        toolCallId: outcome.toolCallId,
+      },
+      env,
+    );
+    const persisted = persistActiveVisibleLoopState(state, ctx, env);
+    if (!persisted.ok) {
+      stopVisibleLoopForDelegatedCommitFailure(
+        state,
+        ctx,
+        env,
+        `controller persistence failed: ${persisted.error}`,
+        "commit_delegation_persistence_failed_closed",
+        outcome.toolCallId,
+      );
+    }
+    return;
+  }
+  if (state.stopped || event.toolName !== "vault_execute_template") return;
   const frontier = state.plan.frontier;
   const runningStep = frontier ? state.plan.steps[frontier.stepIndex] : undefined;
   if (frontier?.state !== "running" || !runningStep?.governedBarrier) return;
@@ -874,6 +1073,74 @@ export function handleVisibleLoopToolExecutionStart(
   persistAndRenderVisibleLoopPlan(state, ctx, env);
 }
 
+export function handleVisibleLoopToolResult(
+  event: {
+    toolCallId?: string;
+    toolName?: string;
+    input?: unknown;
+    details?: unknown;
+  },
+  pi: ExtensionAPI,
+  ctx: VisibleLoopContext,
+  env: NodeJS.ProcessEnv = process.env,
+  runnerOptions: VisibleLoopChildRunnerOptions = {},
+): void {
+  if (!isCurrentVisibleLoopRuntime() || event.toolName !== "dispatch_subagent") return;
+  const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
+  if (!state || state.stopped || !state.plan) return;
+  const outcome = settleVisibleLoopDelegatedCommitExecution(state, event);
+  if (outcome.kind === "ignored") return;
+  if (outcome.kind !== "settled") {
+    const failure =
+      outcome.kind === "execution_policy_drift"
+        ? {
+            reason: "actual executed timeout/allowUnlimited policy drifted after admission",
+            event: "commit_delegation_execution_policy_drift_failed_closed",
+          }
+        : outcome.kind === "duplicate_settlement"
+          ? {
+              reason: "duplicate execution settlement rejected",
+              event: "commit_delegation_duplicate_settlement_rejected",
+            }
+          : {
+              reason: "uncorrelated execution settlement rejected",
+              event: "commit_delegation_uncorrelated_settlement_rejected",
+            };
+    stopVisibleLoopForDelegatedCommitFailure(
+      state,
+      ctx,
+      env,
+      failure.reason,
+      failure.event,
+      event.toolCallId,
+    );
+    return;
+  }
+  appendVisibleLoopStatus(
+    state.config,
+    {
+      event: "commit_delegation_execution_policy_settled",
+      iteration: state.plan.iteration,
+      promptIndex: state.plan.frontier ? state.plan.frontier.stepIndex + 1 : null,
+      toolCallId: event.toolCallId,
+      timeout: outcome.policy.timeout,
+      allowUnlimited: outcome.policy.allowUnlimited,
+    },
+    env,
+  );
+  const persisted = persistActiveVisibleLoopState(state, ctx, env);
+  if (!persisted.ok) {
+    stopVisibleLoopForDelegatedCommitFailure(
+      state,
+      ctx,
+      env,
+      `controller persistence failed: ${persisted.error}`,
+      "commit_delegation_persistence_failed_closed",
+      event.toolCallId,
+    );
+  }
+}
+
 export function handleVisibleLoopToolExecutionEnd(
   event: {
     toolCallId?: string;
@@ -888,7 +1155,69 @@ export function handleVisibleLoopToolExecutionEnd(
 ): void {
   if (!isCurrentVisibleLoopRuntime()) return;
   const state = getOrRestoreActiveVisibleLoopState(pi, ctx, env, runnerOptions);
-  if (!state || state.stopped || !state.plan || event.toolName !== "vault_execute_template") return;
+  if (!state || !state.plan) return;
+  if (event.toolName === "dispatch_subagent") {
+    if (state.stopped) return;
+    const outcome = completeVisibleLoopDelegatedCommit(state, event);
+    if (outcome.kind === "ignored") return;
+    if (outcome.kind !== "succeeded") {
+      const failure =
+        outcome.kind === "duplicate_receipt"
+          ? {
+              reason: "duplicate receipt rejected",
+              event: "commit_delegation_duplicate_receipt_rejected",
+            }
+          : outcome.kind === "uncorrelated_result"
+            ? {
+                reason: "uncorrelated result rejected",
+                event: "commit_delegation_uncorrelated_result_rejected",
+              }
+            : {
+                reason: "did not return an exact settled ASC receipt",
+                event: "commit_delegation_failed_closed",
+              };
+      stopVisibleLoopForDelegatedCommitFailure(
+        state,
+        ctx,
+        env,
+        failure.reason,
+        failure.event,
+        event.toolCallId,
+      );
+      return;
+    }
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "commit_delegation_succeeded",
+        iteration: state.plan.iteration,
+        promptIndex: state.plan.frontier ? state.plan.frontier.stepIndex + 1 : null,
+        toolCallId: event.toolCallId,
+        dispatchId: outcome.receipt.dispatchId,
+        attemptId: outcome.receipt.attemptId,
+        effectCorrelationId: outcome.receipt.consumerCorrelationId,
+        sessionName: outcome.receipt.sessionName,
+        recordedAt: outcome.receipt.recordedAt,
+        receiptPath: outcome.receipt.receiptPath,
+        receiptDigest: outcome.receipt.receiptDigest,
+        effectDisposition: "settled",
+      },
+      env,
+    );
+    const persisted = persistActiveVisibleLoopState(state, ctx, env);
+    if (!persisted.ok) {
+      stopVisibleLoopForDelegatedCommitFailure(
+        state,
+        ctx,
+        env,
+        `controller persistence failed: ${persisted.error}`,
+        "commit_delegation_persistence_failed_closed",
+        event.toolCallId,
+      );
+    }
+    return;
+  }
+  if (state.stopped || event.toolName !== "vault_execute_template") return;
   const frontier = state.plan.frontier;
   if (frontier?.state !== "running" || typeof event.toolCallId !== "string") return;
   const details = event.result?.details;
@@ -1121,6 +1450,15 @@ function restoreActiveVisibleLoopState(
     sendUserMessage: getSendUserMessage(pi),
     createPeerRuntime: runnerOptions.createPeerRuntime,
     intercomSendTimeoutMs: resolveVisibleLoopIntercomSendTimeoutMs(env, runnerOptions),
+    continuationStartTimeoutMs: resolveVisibleLoopContinuationStartTimeoutMs(
+      env,
+      runnerOptions.continuationStartTimeoutMs,
+    ),
+    continuationStartPollIntervalMs: resolveVisibleLoopContinuationStartPollIntervalMs(
+      runnerOptions.continuationStartPollIntervalMs,
+    ),
+    readContinuationStatusCursor:
+      runnerOptions.readContinuationStatusCursor ?? readVisibleLoopContinuationStatusCursor,
     deliveryAckTimeoutMs: resolveVisibleLoopDeliveryAckTimeoutMs(env, runnerOptions),
     deliveryAckTimer: runnerOptions.deliveryAckTimer ?? DEFAULT_VISIBLE_LOOP_TIMER,
     continueInNewSession: runnerOptions.continueInNewSession,
@@ -1156,6 +1494,7 @@ function queueVisibleLoopIteration(
   }
 
   const iteration = state.completedIterations + 1;
+  resetVisibleLoopDelegatedCommitRuntime(state);
   const steps: VisibleLoopPlanStep[] = [];
   for (const [promptIndex, prompt] of prompts.entries()) {
     const expandedPrompt = expandVisibleLoopPromptTemplate(prompt, state.config.cwd);
@@ -1522,6 +1861,27 @@ function completeVisibleLoopIteration(
         expectedIteration: expectedIteration ?? null,
         nextIteration,
         promptIndex: missingBarrier.index + 1,
+      },
+      env,
+    );
+    return { accepted: false, reason };
+  }
+
+  const delegatedCompletion = visibleLoopDelegatesCompletion(
+    state.config,
+    getVisibleLoopPrompts(state.config).slice(1),
+  );
+  if (delegatedCompletion && !hasVisibleLoopDelegatedCommitSuccess(state, nextIteration)) {
+    const reason = "delegated commit settled ASC receipt is missing";
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "completion_ignored",
+        source,
+        reason,
+        expectedIteration: expectedIteration ?? null,
+        nextIteration,
+        delegatedCommitSucceededIteration: state.delegatedCommit.succeededIteration,
       },
       env,
     );

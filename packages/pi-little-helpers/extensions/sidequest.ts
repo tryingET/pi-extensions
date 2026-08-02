@@ -45,8 +45,10 @@ import {
   handleVisibleLoopAgentSettled,
   handleVisibleLoopAgentStart,
   handleVisibleLoopMessageStart,
+  handleVisibleLoopToolCall,
   handleVisibleLoopToolExecutionEnd,
   handleVisibleLoopToolExecutionStart,
+  handleVisibleLoopToolResult,
   listMissingVisibleLoopPromptTemplates,
   NEXUS_LOOP_COMMAND,
   parseVisibleLoopCommandArgs,
@@ -3350,6 +3352,22 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     pi.on?.("tool_execution_start", async (event, ctx) => {
       const commandCtx = ctx ?? {};
       handleVisibleLoopToolExecutionStart(event, pi, commandCtx, options.env ?? process.env, {
+        continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        governedDeepReviewPreflight: options.governedDeepReviewPreflight,
+      });
+    });
+
+    pi.on?.("tool_call", async (event, ctx) => {
+      const commandCtx = ctx ?? {};
+      return handleVisibleLoopToolCall(event, pi, commandCtx, options.env ?? process.env, {
+        continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
+        governedDeepReviewPreflight: options.governedDeepReviewPreflight,
+      });
+    });
+
+    pi.on?.("tool_result", async (event, ctx) => {
+      const commandCtx = ctx ?? {};
+      handleVisibleLoopToolResult(event, pi, commandCtx, options.env ?? process.env, {
         continueInNewSession: createVisibleLoopContinuation(commandCtx as PiCommandContext),
         governedDeepReviewPreflight: options.governedDeepReviewPreflight,
       });

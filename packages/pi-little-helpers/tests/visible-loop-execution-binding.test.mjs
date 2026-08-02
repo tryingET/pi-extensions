@@ -21,18 +21,16 @@ test("visible-loop child rejects an unbound persisted config before prompt effec
     const stateDir = `${stateHome}/pi-little-helpers/visible-loop`;
     mkdirSync(stateDir, { recursive: true });
     const configPath = `${stateDir}/visible-loop-unbound-test.json`;
-    writeFileSync(
-      configPath,
-      `${JSON.stringify({
-        schemaVersion: 1,
-        runId: "visible-loop-unbound-test",
-        loopCount: 1,
-        cwd: `${stateHome}/repo`,
-        prompts: ["must not run"],
-        reportBack: "manual",
-        createdAt: new Date().toISOString(),
-      })}\n`,
-    );
+    const historicalConfig = `${JSON.stringify({
+      schemaVersion: 1,
+      runId: "visible-loop-unbound-test",
+      loopCount: 1,
+      cwd: `${stateHome}/repo`,
+      prompts: ["must not run"],
+      reportBack: "manual",
+      createdAt: new Date().toISOString(),
+    })}\n`;
+    writeFileSync(configPath, historicalConfig);
     const userMessages = [];
     const harness = createContext({ cwd: `${stateHome}/repo` });
 
@@ -44,8 +42,15 @@ test("visible-loop child rejects an unbound persisted config before prompt effec
     );
 
     assert.deepEqual(userMessages, []);
-    assert.match(harness.notifications.at(-1).message, /executionBinding is required/);
-    assert.match(harness.notifications.at(-1).message, /--task, --objective, or --candidate/);
+    assert.match(harness.notifications.at(-1).message, /unbound and preserved/);
+    assert.match(harness.notifications.at(-1).message, /cannot be resumed or modified/);
+    assert.match(
+      harness.notifications.at(-1).message,
+      /\/visible-loop --objective "<explicit bounded objective>"/,
+    );
+    assert.match(harness.notifications.at(-1).message, /\/visible-loop --task AK-ID/);
+    assert.match(harness.notifications.at(-1).message, /\/visible-loop --candidate evolution-ID/);
+    assert.equal(readFileSync(configPath, "utf8"), historicalConfig);
   } finally {
     resetVisibleLoopRuntimeForRecoveryTest();
     rmSync(stateHome, { recursive: true, force: true });

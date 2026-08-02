@@ -2,7 +2,7 @@
 // read_when:
 //   - changing visible-loop completion acceptance, controller restoration, continuation fallback, or duplicate handling.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -10,9 +10,13 @@ import { createSidequestExtension } from "../extensions/sidequest.ts";
 import {
   createVisibleLoopRunConfig,
   GOVERNED_DEEP_REVIEW_OBJECTIVE,
+  getVisibleLoopStatusPath,
+  handleVisibleLoopAgentSettled,
+  handleVisibleLoopMessageStart,
   parseVisibleLoopChildArgs,
   resetVisibleLoopRuntimeForRecoveryTest,
   startVisibleLoopChildCompleteRunner,
+  startVisibleLoopChildRunner,
   writeVisibleLoopRunConfig,
 } from "../src/visibleLoop.ts";
 import { readVisibleLoopIterationLease } from "../src/visibleLoopContinuationClaim.ts";
@@ -72,6 +76,40 @@ async function settleVisibleLoopPromptSequence(events, config, userMessages, ctx
   }
 }
 
+async function reachMinimalCompletionFrontier(runId, options) {
+  const stateHome = mkdtempSync(`${tmpdir()}/${runId}-`);
+  const env = { ...process.env, XDG_STATE_HOME: stateHome };
+  const harness = createContext({ cwd: `${stateHome}/repo` });
+  const userMessages = [];
+  const pi = { sendUserMessage: (message, delivery) => userMessages.push({ message, delivery }) };
+  const config = createVisibleLoopRunConfig({
+    loopCount: 2,
+    cwd: harness.ctx.cwd,
+    reportBack: "manual",
+    runId,
+    executionBinding: { mode: "operator_objective", objective: "continuation proof" },
+    prompts: ["finish"],
+  });
+  const configPath = writeVisibleLoopRunConfig(config, env);
+  await startVisibleLoopChildRunner(configPath, pi, harness.ctx, env, options);
+  handleVisibleLoopMessageStart(
+    { message: { role: "user", content: userMessages[0].message } },
+    pi,
+    harness.ctx,
+    env,
+    options,
+  );
+  handleVisibleLoopAgentSettled(pi, harness.ctx, env, options);
+  handleVisibleLoopMessageStart(
+    { message: { role: "user", content: userMessages[1].message } },
+    pi,
+    harness.ctx,
+    env,
+    options,
+  );
+  return { stateHome, env, harness, pi, config, configPath };
+}
+
 test("visible-loop manual completion command advances non-final iterations", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-command-next-state-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
@@ -92,6 +130,7 @@ test("visible-loop manual completion command advances non-final iterations", asy
         TERM_PROGRAM: "ghostty",
         GHOSTTY_BIN_DIR: "/usr/bin",
         XDG_STATE_HOME: stateHome,
+        PI_VISIBLE_LOOP_CONTINUATION_START_TIMEOUT_MS: "25",
       },
       exec: execStub.exec,
       pathExists(path) {
@@ -312,5 +351,161 @@ test("visible-loop completion fails closed when durable active plan state is una
   } finally {
     resetVisibleLoopRuntimeForRecoveryTest();
     rmSync(stateHome, { recursive: true, force: true });
+  }
+});
+
+test("continuation success requires the exact claimed child ACTIVE frontier proof", async () => {
+  let run;
+  let childHarness;
+  let reloaded;
+  const childMessages = [];
+  const childPi = {
+    sendUserMessage(message, delivery) {
+      childMessages.push({ message, delivery });
+    },
+  };
+  const options = {
+    continuationStartTimeoutMs: 100,
+    continuationStartPollIntervalMs: 5,
+    continueInNewSession: async ({ config, configPath, claimToken }) => {
+      childHarness = createContext({
+        cwd: config.cwd,
+        sessionId: "019e10d2-15f5-705a-aea4-01ba49d2bbad",
+      });
+      await startVisibleLoopChildRunner(
+        `${configPath} --claim-token ${claimToken}`,
+        childPi,
+        childHarness.ctx,
+        run.env,
+        options,
+      );
+    },
+  };
+  try {
+    run = await reachMinimalCompletionFrontier("continuation-exact-proof", options);
+    const outcome = await startVisibleLoopChildCompleteRunner(
+      `${run.configPath} --iteration 1`,
+      run.pi,
+      run.harness.ctx,
+      run.env,
+      options,
+    );
+    assert.equal(outcome.accepted, true);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    const entries = readFileSync(getVisibleLoopStatusPath(run.config, run.env), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const confirmed = entries.find(
+      (entry) => entry.event === "next_iteration_child_start_confirmed",
+    );
+    assert.equal(confirmed.proof.schema, "pi.visible-loop-child-start.v1");
+    assert.equal(confirmed.proof.runId, run.config.runId);
+    assert.equal(confirmed.proof.iteration, 2);
+    assert.equal(confirmed.proof.launchClaim.claimToken, confirmed.claimToken);
+    assert.equal(confirmed.proof.launchClaim.originatingPlanId, confirmed.planId);
+    assert.equal(
+      confirmed.proof.childOwner.sessionId,
+      childHarness.ctx.sessionManager.getSessionId(),
+    );
+    const activeLease = readVisibleLoopIterationLease(run.config.runId, run.env);
+    assert.equal(activeLease.ok, true);
+    assert.equal(activeLease.value.status, "ACTIVE");
+    assert.deepEqual(activeLease.value.owner, confirmed.proof.childOwner);
+    assert.deepEqual(activeLease.value.launchClaim, confirmed.proof.launchClaim);
+    assert.equal(activeLease.value.planId, confirmed.proof.activePlanId);
+    const childSnapshot = JSON.parse(
+      readFileSync(
+        getActiveVisibleLoopSnapshotPath(childHarness.ctx.sessionManager.getSessionId(), run.env),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(childSnapshot.continuationStartProof, confirmed.proof);
+    const dispatched = entries.find((entry) => entry.event === "next_iteration_launch_dispatched");
+    assert.deepEqual(dispatched.proof, confirmed.proof);
+
+    const messageCountBeforeReload = childMessages.length;
+    reloaded = await import(
+      `../src/visibleLoop.ts?claimed-child-reload=${Date.now()}-${Math.random()}`
+    );
+    await reloaded.startVisibleLoopChildRunner(
+      run.configPath,
+      childPi,
+      childHarness.ctx,
+      run.env,
+      options,
+    );
+    assert.equal(childMessages.length, messageCountBeforeReload);
+    const restoredSnapshot = JSON.parse(
+      readFileSync(
+        getActiveVisibleLoopSnapshotPath(childHarness.ctx.sessionManager.getSessionId(), run.env),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(restoredSnapshot.continuationStartProof, confirmed.proof);
+  } finally {
+    reloaded?.resetVisibleLoopRuntimeForRecoveryTest();
+    resetVisibleLoopRuntimeForRecoveryTest();
+    if (run) rmSync(run.stateHome, { recursive: true, force: true });
+  }
+});
+
+test("a forged three-field child_started record cannot prove a continuation launch", async () => {
+  let run;
+  const options = {
+    continuationStartTimeoutMs: 25,
+    continuationStartPollIntervalMs: 5,
+    continueInNewSession: ({ config, nextIteration }) => {
+      writeFileSync(
+        getVisibleLoopStatusPath(config, run.env),
+        `${JSON.stringify({
+          event: "child_started",
+          runId: config.runId,
+          iteration: nextIteration,
+        })}\n`,
+        { flag: "a" },
+      );
+    },
+  };
+  try {
+    run = await reachMinimalCompletionFrontier("continuation-mismatched-proof", options);
+    writeFileSync(
+      getVisibleLoopStatusPath(run.config, run.env),
+      `${JSON.stringify({ event: "child_started", runId: run.config.runId, iteration: 2 })}\n`,
+      { flag: "a" },
+    );
+    const outcome = await startVisibleLoopChildCompleteRunner(
+      `${run.configPath} --iteration 1`,
+      run.pi,
+      run.harness.ctx,
+      run.env,
+      options,
+    );
+    assert.equal(outcome.accepted, true, "iteration completion remains separately accepted");
+    await new Promise((resolve) => setTimeout(resolve, 70));
+
+    const entries = readFileSync(getVisibleLoopStatusPath(run.config, run.env), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(
+      entries.some(
+        (entry) =>
+          entry.event === "next_iteration_child_start_unconfirmed" &&
+          entry.failurePhase === "child_start_timeout",
+      ),
+    );
+    assert.equal(
+      entries.some((entry) => entry.event === "next_iteration_child_start_confirmed"),
+      false,
+    );
+    assert.equal(
+      entries.some((entry) => entry.event === "next_iteration_launch_dispatched"),
+      false,
+    );
+  } finally {
+    resetVisibleLoopRuntimeForRecoveryTest();
+    if (run) rmSync(run.stateHome, { recursive: true, force: true });
   }
 });
