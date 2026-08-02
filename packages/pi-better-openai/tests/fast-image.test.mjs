@@ -73,6 +73,57 @@ test("registered --fast initializes provider injection state in headless session
   }
 });
 
+test("model selection preserves exact matches and provider-scoped wildcards", () => {
+  const wildcardModels = _test.parseModels(["openai-codex/*"]);
+  assert.equal(
+    _test.supportsFast({ model: { provider: "openai-codex", id: "gpt-5.6-sol" } }, wildcardModels),
+    true,
+  );
+  assert.equal(
+    _test.supportsFast({ model: { provider: "openai", id: "gpt-5.6-sol" } }, wildcardModels),
+    false,
+  );
+
+  const exactModels = _test.parseModels(["openai-codex/gpt-5.5"]);
+  assert.equal(
+    _test.supportsFast({ model: { provider: "openai-codex", id: "gpt-5.5" } }, exactModels),
+    true,
+  );
+  assert.equal(
+    _test.supportsFast({ model: { provider: "openai-codex", id: "gpt-5.6-sol" } }, exactModels),
+    false,
+  );
+});
+
+test("exact model configuration does not inject priority for a same-provider sibling", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "better-openai-exact-model-"));
+  try {
+    const configDir = path.join(dir, ".pi", "extensions");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "better-openai.json"),
+      JSON.stringify({
+        persistState: false,
+        supportedModels: ["openai-codex/gpt-5.5"],
+      }),
+    );
+    const pi = harness(true);
+    betterOpenAI(pi.api);
+    const ctx = {
+      ...context(dir),
+      model: { provider: "openai-codex", id: "gpt-5.6-sol" },
+    };
+    await pi.events.get("session_start")({ reason: "startup" }, ctx);
+    const payload = await pi.events.get("before_provider_request")(
+      { payload: { model: "gpt-5.6-sol" } },
+      ctx,
+    );
+    assert.equal(payload, undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("explicit image tool prompt wins over session fallback", () => {
   const ctx = context("/tmp", [
     {

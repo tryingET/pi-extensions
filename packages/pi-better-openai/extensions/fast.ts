@@ -34,7 +34,7 @@ function supportsFast(ctx: ExtensionContext, supportedModels: SupportedModel[]):
   const current = ctx.model;
   if (!current) return false;
   return supportedModels.some(
-    (model) => model.provider === current.provider && model.id === current.id,
+    (model) => model.provider === current.provider && (model.id === "*" || model.id === current.id),
   );
 }
 
