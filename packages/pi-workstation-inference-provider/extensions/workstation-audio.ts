@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { constants, type Stats } from "node:fs";
 import { open } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import type { WorkbenchInheritedAuthorityChannel } from "./workstation-authority-channel.ts";
 import type { SchedulerHandoff } from "./workstation-scheduler.ts";
 
 export type AudioFormat = "wav" | "mp3" | "flac";
@@ -27,6 +28,7 @@ export type ArmedAudio = {
   expiresAt: number;
   expiryTimer?: ReturnType<typeof setTimeout>;
   scheduler?: SchedulerHandoff;
+  authority?: WorkbenchInheritedAuthorityChannel;
 };
 
 export type ParsedAudioSend = {
@@ -213,6 +215,22 @@ function countInputAudioBlocks(messages: unknown[]): number {
   return count;
 }
 
+export function assertAudioAttachmentValidAtProviderWrite(
+  attachment: ArmedAudio,
+  nowMs = Date.now(),
+): void {
+  if (!Number.isFinite(nowMs) || nowMs >= attachment.expiresAt || attachment.data.length === 0) {
+    throw new Error("audio attachment expired before dispatch at provider write boundary");
+  }
+  const expectedAudioDigest = attachment.authority?.binding?.audio_sha256;
+  if (
+    expectedAudioDigest &&
+    createHash("sha256").update(attachment.data).digest("hex") !== expectedAudioDigest
+  ) {
+    throw new Error("audio attachment digest drifted before provider dispatch");
+  }
+}
+
 function audioMarkersInContent(content: unknown): string[] {
   const texts =
     typeof content === "string"
@@ -247,8 +265,7 @@ function transformMarkedUserContent(
 }
 
 export function transformAudioPayload(payload: unknown, attachment: ArmedAudio): unknown {
-  if (Date.now() >= attachment.expiresAt)
-    throw new Error("audio attachment expired before dispatch");
+  assertAudioAttachmentValidAtProviderWrite(attachment);
   if (!isRecord(payload) || !Array.isArray(payload.messages))
     throw new Error("audio provider payload has no messages array");
   if (payload.model !== attachment.payloadModel)
@@ -303,6 +320,7 @@ export function armAudio(options: {
   ttlMs?: number;
   expiresAt?: number;
   scheduler?: SchedulerHandoff;
+  authority?: WorkbenchInheritedAuthorityChannel;
 }): ArmedAudio {
   const nonce = randomUUID();
   return {

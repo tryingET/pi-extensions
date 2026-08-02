@@ -143,6 +143,10 @@ A second session attempt fails before another HTTP request because the one-shot 
 
 This command never starts the Inkling canary. The external owner must first establish the fresh scheduler reservation/claim and start the runtime through its accepted owner path. Keep the handoff file available until the turn reaches completion or quarantine because each bounded consumer command revalidates it against the scheduler repository.
 
+For the accepted Workbench design, `extensions/workstation-authority-channel.ts` provides the separate child-side authority membrane for `workbench-inkling-canary`; the legacy handoff path above deliberately rejects that profile so it cannot inherit Pi-side completion or quarantine authority. The broker-owned Pi child supplies its non-reconnectable inherited descriptor through `PI_WORKSTATION_INFERENCE_AUTHORITY_FD`, and the broker invokes `/workstation-inference workbench-audio-send <staged-wav> -- <prompt>`. The extension receives one exact `arm_turn`, verifies the staged audio digest, and sends `authorize_dispatch` only after final payload validation. A successful owner response is a distinct, exact `dispatch_permit` bound to the turn, provider/model, durable scheduler intent, and reservation/lease identity. The permit is valid for at most 1000 ms. The dedicated Workbench HTTP transport acquires one unpooled loopback connection without flushing headers or body. Only after the socket is connected does one synchronous write-boundary callback recheck the audio attachment, recheck both absolute and monotonic permit expiry, consume the permit, increment dispatch count, and call `request.end()` with the exact request bytes. Expiry while connection acquisition is pending destroys the connection with zero provider bytes; any failure after `request.end()` is ambiguous and never retried. It never calls the legacy scheduler consumer from this path.
+
+Authority schema `workbench-inkling-authority/v2` and digest `b78278b0ae541b25274f930adf5c977b5a4df9742a7ebe38f129129966247421` are byte-aligned with the canonical local-ai-control-plane contract at commits `af506f0` and `45b12cf`. The package also pins broker schema digest `b1b50956002df6ed65fd7891ab4a218eedcc80970a678c3bbf1059ba87139fc5`. Arm and disposition use exact canonical echoes; authorization never accepts an echo and requires the canonical recomputable permit. Duplicate keys and any missing, malformed, mismatched, future-dated, expired, replayed, or lost frame permanently block further dispatch. Caller-supplied fetch transports are rejected on this governed path, and provider retries remain zero. The membrane exposes no scheduler path and no release, completion, reconciliation, retry, or quarantine operation. The governed transport accepts only the exact credential-free `http://127.0.0.1:<port>/v1/chat/completions` target, creates no pooled or redirecting alternate path, and marks a possible dispatch in the same connected-socket callback immediately before admitting bytes with `request.end()`. Hermetic tests hold a connected socket before that callback, cross permit expiry, and prove the provider receives zero bytes; installation, reload, profile activation, model invocation, and end-to-end runtime behavior remain separately owner-gated and are not claimed here.
+
 These commands may call the workstation-owned `lane-op` CLI, but they do not start/stop/switch/warm services or apply lane changes. Runtime lifecycle remains behind lane-op's existing plan/apply surfaces.
 
 ## Runtime dependencies
@@ -170,14 +174,11 @@ Run from monorepo root through the canonical package gate:
 bash ./scripts/package-quality-gate.sh ci packages/pi-workstation-inference-provider
 ```
 
-### Brownfield file-budget exception
+### Provider module split
 
-`extensions/workstation-inference.ts` remains an existing oversized provider/command module
-(1,039 LOC after this slice). The scheduler consumer, immutable handoff, and disposition
-logic was split into `extensions/workstation-scheduler.ts`; a further behavior-preserving
-provider/command split is explicitly deferred until after the scheduler-governed live
-acceptance so this security-sensitive activation is not mixed with a broad refactor. The
-package gate remains warn-only for this existing file and hard-passes all other checks.
+Provider registration/commands, contract loading, streaming, audio turns, scheduler parsing,
+inherited authority, and governed HTTP transport are split into bounded modules. The unchanged
+`workstation-scheduler-json.ts` scanner remains the sole exact-lexeme handoff canonicalizer.
 
 ## Live package activation
 
