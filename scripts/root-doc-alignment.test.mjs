@@ -32,6 +32,73 @@ function assertContains(haystack, needle, message) {
   assert.equal(haystack.includes(needle), true, message ?? `Expected to find ${needle}`);
 }
 
+function packagePathsInSection(markdown, heading) {
+  const lines = markdown.split(/\r?\n/);
+  const headingIndexes = lines.flatMap((line, index) => (line === heading ? [index] : []));
+  assert.equal(headingIndexes.length, 1, `Expected to find section heading exactly once: ${heading}`);
+
+  const headingLevel = heading.match(/^(#+) /)?.[1].length;
+  assert.ok(headingLevel, `Expected a Markdown heading: ${heading}`);
+
+  const headingIndex = headingIndexes[0];
+  let sectionEnd = lines.length;
+  for (let index = headingIndex + 1; index < lines.length; index += 1) {
+    const nextHeadingLevel = lines[index].match(/^(#+) /)?.[1].length;
+    if (nextHeadingLevel && nextHeadingLevel <= headingLevel) {
+      sectionEnd = index;
+      break;
+    }
+  }
+
+  const entries = lines.slice(headingIndex + 1, sectionEnd).filter((line) => line.trim().length > 0);
+  assert.ok(entries.length > 0, `${heading} must declare package paths or exactly "- none"`);
+
+  const packagePaths = [];
+  let noneCount = 0;
+  for (const entry of entries) {
+    if (entry === "- none") {
+      noneCount += 1;
+      continue;
+    }
+
+    const packageMatch = entry.match(/^- `(packages\/[^`]+)`(?: \(`[^`]+`\))?$/);
+    assert.ok(packageMatch, `${heading} contains an invalid bucket entry: ${entry}`);
+    packagePaths.push(packageMatch[1]);
+  }
+
+  if (packagePaths.length === 0) {
+    assert.deepEqual(entries, ["- none"], `${heading} must represent an empty bucket as exactly "- none"`);
+  } else {
+    assert.equal(noneCount, 0, `${heading} must not mix "- none" with package paths`);
+  }
+
+  return packagePaths;
+}
+
+test("engineering review bucket parser is exact and fail-closed", () => {
+  const heading = "### Bucket";
+  assert.deepEqual(
+    packagePathsInSection(
+      `${heading}\n\n- \`packages/inside\`\n\n# Outside\n\n- \`packages/outside\``,
+      heading,
+    ),
+    ["packages/inside"],
+  );
+  assert.throws(
+    () => packagePathsInSection(`${heading} with suffix\n\n- \`packages/wrong\``, heading),
+    /section heading exactly once/,
+  );
+  assert.throws(() => packagePathsInSection(`${heading}\n\n## Next`, heading), /must declare package paths/);
+  assert.throws(
+    () => packagePathsInSection(`${heading}\n\n- none\n- \`packages/mixed\``, heading),
+    /must not mix/,
+  );
+  assert.throws(
+    () => packagePathsInSection(`${heading}\n\n- packages\/unquoted`, heading),
+    /invalid bucket entry/,
+  );
+});
+
 test("README root routing surfaces mention pi-autoresearch and live inventory commands", () => {
   const components = runJson("release-components.mjs", ["list", "--json"]);
   assert.ok(components.some((entry) => entry.packagePath === "packages/pi-autoresearch"));
@@ -91,31 +158,27 @@ test("engineering review doc snapshot matches the live audit summary and package
     "engineering review doc should match live noLocalSurfaceCount",
   );
 
-  const legacyFull = audit.packages.filter((entry) => entry.reviewForm === "legacy-full").map((entry) => entry.path);
-  const reducedForm = audit.packages.filter((entry) => entry.reviewForm === "reduced-form").map((entry) => entry.path);
-  const noLocalSurface = audit.packages.filter((entry) => entry.reviewForm === "none").map((entry) => entry.path);
+  const bucketSections = [
+    [
+      "legacy-full",
+      "### Legacy full surface (`docs/engineering.local.md` + `policy/engineering-lane.json`)",
+    ],
+    ["reduced-form", "### Reduced-form package-local surface (`docs/engineering.local.md` only)"],
+    ["policy-only", "### Policy-only package-local surface (`policy/engineering-lane.json` only)"],
+    ["none", "### No package-local engineering review surface today"],
+  ];
 
-  for (const packagePath of legacyFull) {
-    assertContains(
-      TECH_STACK_REVIEW,
-      `- \`${packagePath}\``,
-      `engineering review doc should list legacy-full package ${packagePath}`,
-    );
-  }
+  for (const [reviewForm, heading] of bucketSections) {
+    const expected = audit.packages
+      .filter((entry) => entry.reviewForm === reviewForm)
+      .map((entry) => entry.path)
+      .sort();
+    const documented = packagePathsInSection(TECH_STACK_REVIEW, heading).sort();
 
-  for (const packagePath of reducedForm) {
-    assertContains(
-      TECH_STACK_REVIEW,
-      `- \`${packagePath}\``,
-      `engineering review doc should list reduced-form package ${packagePath}`,
-    );
-  }
-
-  for (const packagePath of noLocalSurface) {
-    assertContains(
-      TECH_STACK_REVIEW,
-      `- \`${packagePath}\``,
-      `engineering review doc should list no-local-surface package ${packagePath}`,
+    assert.deepEqual(
+      documented,
+      expected,
+      `engineering review doc ${reviewForm} section should exactly match the live audit bucket`,
     );
   }
 });
