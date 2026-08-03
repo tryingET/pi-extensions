@@ -5,35 +5,59 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import {
+  closeSync,
+  constants,
   existsSync,
+  fchmodSync,
+  fsyncSync,
+  linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   collectGovernedRuntimePackageInputHashes,
+  GOVERNED_RUNTIME_ASC_BUILD_RECEIPT_RELATIVE_PATHS,
+  GOVERNED_RUNTIME_HOST_CACHE_TARBALLS,
   GOVERNED_RUNTIME_HOST_PEERS,
-  GOVERNED_RUNTIME_HOST_VERSION,
   GOVERNED_RUNTIME_LOCAL_EDGES,
   GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH,
   GOVERNED_RUNTIME_MATERIALIZATION_SCHEMA,
+  GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX,
   GOVERNED_RUNTIME_PACKAGES,
   GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH,
+  GOVERNED_RUNTIME_QUARANTINE_RELATIVE_PATH,
   GOVERNED_RUNTIME_TYPEBOX_CONSUMERS,
   GOVERNED_RUNTIME_TYPEBOX_INTEGRITY,
   GOVERNED_RUNTIME_TYPEBOX_VERSION,
+  governedRuntimeAscBuildEnvironment,
+  governedRuntimeNpmEffectEnvironment,
+  inspectGovernedRuntimeAscRuntime,
   inspectGovernedRuntimeCleanliness,
+  inspectGovernedRuntimeLexicalNodeModules,
+  inspectGovernedRuntimeNpmPolicy,
   resolveGovernedRuntimeGraph,
+  verifyGovernedRuntimeAscRuntime,
+  verifyGovernedRuntimeFileIntegrity,
   verifyGovernedRuntimeHostPeers,
+  verifyGovernedRuntimeHostSource,
   verifyGovernedRuntimeMaterialization,
+  verifyGovernedRuntimeNodeModulesLayout,
+  verifyGovernedRuntimeNpmEffectReceipts,
+  verifyGovernedRuntimeNpmExecutables,
+  verifyGovernedRuntimePackageClosures,
   verifyGovernedRuntimeTypebox,
 } from "../packages/pi-society-orchestrator/src/runtime/governed-runtime-materialization.ts";
 
@@ -47,7 +71,9 @@ const PEER_LAYER_RELATIVE_PATH = GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH;
 const PACKAGES = GOVERNED_RUNTIME_PACKAGES;
 const TYPEBOX_CONSUMERS = GOVERNED_RUNTIME_TYPEBOX_CONSUMERS;
 const LOCAL_EDGES = GOVERNED_RUNTIME_LOCAL_EDGES;
-const LOCAL_BUILD_OWNER = "packages/pi-autonomous-session-control";
+const LOCAL_OWNER_NAMES = new Set(LOCAL_EDGES.map(({ expectedOwnerName }) => expectedOwnerName));
+const SHARED_PEER_NAMES = new Set([...Object.keys(GOVERNED_RUNTIME_HOST_PEERS), "typebox"]);
+const QUARANTINE_RELATIVE_PATH = GOVERNED_RUNTIME_QUARANTINE_RELATIVE_PATH;
 
 function parseArgs(argv) {
   const [action = "help", ...rest] = argv;
@@ -55,11 +81,21 @@ function parseArgs(argv) {
     action,
     sourceRoot: SCRIPT_ROOT,
     expectedCommit: undefined,
+    verifiedHostCache: false,
   };
   for (let index = 0; index < rest.length; index += 1) {
     const value = rest[index];
-    if (value === "--source-root") options.sourceRoot = resolve(rest[++index] ?? "");
-    else if (value === "--expected-commit") options.expectedCommit = rest[++index];
+    if (value === "--source-root") {
+      const selected = rest[++index];
+      if (!selected || selected.startsWith("--"))
+        throw new Error("--source-root requires a value.");
+      options.sourceRoot = resolve(selected);
+    } else if (value === "--expected-commit") {
+      const selected = rest[++index];
+      if (!selected || selected.startsWith("--"))
+        throw new Error("--expected-commit requires a value.");
+      options.expectedCommit = selected;
+    } else if (value === "--verified-host-cache") options.verifiedHostCache = true;
     else throw new Error(`Unknown argument: ${value}`);
   }
   return options;
@@ -92,6 +128,16 @@ function sameObject(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function pathEntryExists(path) {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 function assertSourceIdentity(sourceRoot, expectedCommit) {
   const root = realpathSync(sourceRoot);
   const commit = git(root, ["rev-parse", "HEAD"]);
@@ -113,23 +159,310 @@ function assertSourceIdentity(sourceRoot, expectedCommit) {
   return { sourceRoot: root, sourceCommit: commit, cleanliness };
 }
 
-function npmCi(packageRoot) {
-  run("npm", ["ci", "--omit=dev", "--omit=peer", "--ignore-scripts", "--no-audit", "--no-fund"], {
-    cwd: packageRoot,
-    stdio: "inherit",
-  });
+function fsyncDirectory(directory) {
+  const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+  try {
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
-function prepareLocalBuildOwners(sourceRoot) {
-  run("bash", [resolve(sourceRoot, "scripts/prepare-asc-source-build-owner.sh")], {
-    cwd: sourceRoot,
-    stdio: "inherit",
-  });
+export function acquireMaterializationLock(sourceRoot) {
+  const canonicalSourceRoot = realpathSync(sourceRoot);
+  const lockRoot = resolve(dirname(canonicalSourceRoot), ".tryinget-governed-runtime-locks");
+  mkdirSync(lockRoot, { recursive: true, mode: 0o700 });
+  const lockName = createHash("sha256").update(canonicalSourceRoot).digest("hex");
+  const lockPath = resolve(lockRoot, `${lockName}.lock`);
+  let descriptor;
+  try {
+    descriptor = openSync(
+      lockPath,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+      0o600,
+    );
+    fchmodSync(descriptor, 0o600);
+    writeFileSync(
+      descriptor,
+      `${JSON.stringify({ sourceRoot: realpathSync(sourceRoot), pid: process.pid, acquiredAt: new Date().toISOString() })}\n`,
+      "utf8",
+    );
+    fsyncSync(descriptor);
+    fsyncDirectory(lockRoot);
+  } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    throw new Error(
+      `Could not acquire exclusive governed materialization lock ${lockPath}: ${error instanceof Error ? error.message : String(error)}.`,
+      { cause: error },
+    );
+  }
+  return {
+    lockPath,
+    release() {
+      closeSync(descriptor);
+      descriptor = undefined;
+      unlinkSync(lockPath);
+      fsyncDirectory(lockRoot);
+    },
+  };
 }
 
-function assertMissingTypeboxFailureBeforePeerRepair(sourceRoot) {
+export function runNpmEffect(npm, effect, args, cwd, receipts, options = {}) {
+  const cwdBefore = realpathSync(cwd);
+  const executables = verifyGovernedRuntimeNpmExecutables(npm);
+  const environment = governedRuntimeNpmEffectEnvironment(npm);
+  const environmentDigest = createHash("sha256").update(JSON.stringify(environment)).digest("hex");
+  const startedAt = new Date().toISOString();
+  const result = spawnSync(
+    executables.nodeExecutable.realpath,
+    [executables.npmExecutable.realpath, ...args],
+    {
+      cwd: cwdBefore,
+      encoding: "utf8",
+      env: environment,
+      stdio: options.stdio ?? "pipe",
+    },
+  );
+  verifyGovernedRuntimeNpmExecutables(npm);
+  const finishedAt = new Date().toISOString();
+  const cwdAfter = realpathSync(cwd);
+  if (result.status !== 0) {
+    throw new Error(
+      `${executables.nodeExecutable.realpath} ${executables.npmExecutable.realpath} ${args.join(" ")} failed (${String(result.status)}): ${(result.stderr || result.stdout || result.error || "").toString().trim()}`,
+    );
+  }
+  receipts.push({
+    effect,
+    nodeExecutable: executables.nodeExecutable,
+    npmExecutable: executables.npmExecutable,
+    argv: [...args],
+    cwdBefore,
+    cwdAfter,
+    environment,
+    environmentDigest,
+    startedAt,
+    finishedAt,
+  });
+  return (result.stdout ?? "").trim();
+}
+
+export function writeJsonDurably(finalPath, value) {
+  const parent = dirname(finalPath);
+  mkdirSync(parent, { recursive: true });
+  if (pathEntryExists(finalPath))
+    throw new Error(`Refusing to replace governed receipt: ${finalPath}.`);
+  const temporaryPath = resolve(parent, `.tryinget-${process.pid}-${randomUUID()}.tmp`);
+  let descriptor;
+  try {
+    descriptor = openSync(
+      temporaryPath,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+      0o600,
+    );
+    fchmodSync(descriptor, 0o600);
+    writeFileSync(descriptor, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    linkSync(temporaryPath, finalPath);
+    fsyncDirectory(parent);
+    unlinkSync(temporaryPath);
+    fsyncDirectory(parent);
+    const stat = lstatSync(finalPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o600) {
+      throw new Error(`Durable governed receipt publication failed for ${finalPath}.`);
+    }
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    rmSync(temporaryPath, { force: true });
+  }
+}
+
+function assertFreshMaterializationRoot(sourceRoot) {
+  const lexicalNodeModules = inspectGovernedRuntimeLexicalNodeModules(sourceRoot);
+  if (lexicalNodeModules.length > 0) {
+    throw new Error(
+      `Production materialize rejects every pre-existing lexical node_modules root, including ignored nested roots: ${lexicalNodeModules.join(", ")}.`,
+    );
+  }
+  const generatedTargets = [
+    resolve(sourceRoot, "node_modules"),
+    resolve(sourceRoot, "packages/pi-autonomous-session-control/dist"),
+    ...PACKAGES.map((packagePath) => resolve(sourceRoot, packagePath, "node_modules")),
+  ];
+  const present = generatedTargets.filter((target) => pathEntryExists(target));
+  if (present.length > 0) {
+    throw new Error(
+      `Production materialize is fresh-root/one-shot only; generated targets already exist: ${present.join(", ")}. Create a new commit-named standalone candidate instead of replacing or retrying this root.`,
+    );
+  }
+}
+
+function quarantineMaterialization(sourceRoot, sourceCommit, error) {
+  const quarantinePath = resolve(sourceRoot, QUARANTINE_RELATIVE_PATH);
+  if (pathEntryExists(quarantinePath)) return quarantinePath;
+  writeJsonDurably(quarantinePath, {
+    schema: "pi.governed-runtime-quarantine.v1",
+    sourceRoot,
+    sourceCommit,
+    quarantinedAt: new Date().toISOString(),
+    reason: error instanceof Error ? error.message : String(error),
+    retryAllowed: false,
+  });
+  return quarantinePath;
+}
+
+function forceMaterializationFailureForTest(stage) {
+  const selected = process.env.TRYINGET_GOVERNED_RUNTIME_TEST_FAIL_AT;
+  if (selected === undefined) return;
+  if (process.env.NODE_ENV !== "test" || selected !== stage) {
+    throw new Error(
+      "Governed materialization fault injection is available only with NODE_ENV=test and one exact internal stage.",
+    );
+  }
+  throw new Error(`Forced governed materialization test failure at ${stage}.`);
+}
+
+function createInstallManifest(originalManifest, includeAscBuildDependencies) {
+  const manifest = structuredClone(originalManifest);
+  if (!includeAscBuildDependencies) delete manifest.devDependencies;
+  for (const field of [
+    "dependencies",
+    "devDependencies",
+    "optionalDependencies",
+    "overrides",
+    "peerDependencies",
+  ]) {
+    for (const [packageName, specifier] of Object.entries(manifest[field] ?? {})) {
+      if (
+        LOCAL_OWNER_NAMES.has(packageName) ||
+        SHARED_PEER_NAMES.has(packageName) ||
+        (typeof specifier === "string" && specifier.startsWith("file:"))
+      ) {
+        delete manifest[field][packageName];
+      }
+    }
+    if (Object.keys(manifest[field] ?? {}).length === 0) delete manifest[field];
+  }
+  delete manifest.peerDependenciesMeta;
+  return manifest;
+}
+
+function materializePackageRuntimes(sourceRoot, npm, npmEffects) {
+  const generationParent = resolve(sourceRoot, "node_modules");
+  mkdirSync(generationParent, { mode: 0o700 });
+  fsyncDirectory(sourceRoot);
+  const stagingRoot = resolve(
+    generationParent,
+    `${GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX}${randomUUID()}`,
+  );
+  mkdirSync(stagingRoot, { mode: 0o700 });
+  fsyncDirectory(generationParent);
+  const modulesByPackage = {};
+  for (const packagePath of PACKAGES) {
+    const packageRoot = resolve(sourceRoot, packagePath);
+    const packageLockPath = resolve(packageRoot, "package-lock.json");
+    if (!existsSync(packageLockPath)) {
+      throw new Error(`Selected runtime package has no lockfile: ${packagePath}.`);
+    }
+    const stage = resolve(stagingRoot, packagePath);
+    mkdirSync(stage, { recursive: true });
+    const originalManifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8"));
+    const installManifest = createInstallManifest(
+      originalManifest,
+      packagePath === "packages/pi-autonomous-session-control",
+    );
+    for (const field of ["dependencies", "devDependencies", "optionalDependencies", "overrides"]) {
+      for (const packageName of Object.keys(installManifest[field] ?? {})) {
+        if (LOCAL_OWNER_NAMES.has(packageName)) {
+          throw new Error(`Staged manifest retained local owner ${packageName}: ${packagePath}.`);
+        }
+      }
+    }
+    writeFileSync(
+      resolve(stage, "package.json"),
+      `${JSON.stringify(installManifest, null, 2)}\n`,
+      "utf8",
+    );
+    writeFileSync(resolve(stage, "package-lock.json"), readFileSync(packageLockPath));
+    const omitDev = packagePath === "packages/pi-autonomous-session-control" ? [] : ["--omit=dev"];
+    runNpmEffect(
+      npm,
+      `package_ci:${packagePath}`,
+      ["ci", ...omitDev, "--omit=peer", "--ignore-scripts", "--no-audit", "--no-fund"],
+      stage,
+      npmEffects,
+      { stdio: "inherit" },
+    );
+    const stagedModules = resolve(stage, "node_modules");
+    if (!pathEntryExists(stagedModules)) mkdirSync(stagedModules, { recursive: true });
+    const stagedStat = lstatSync(stagedModules);
+    if (!stagedStat.isDirectory() || stagedStat.isSymbolicLink()) {
+      throw new Error(`npm produced a non-directory staged node_modules: ${stagedModules}.`);
+    }
+    const hiddenLockPath = resolve(stagedModules, ".package-lock.json");
+    if (!pathEntryExists(hiddenLockPath)) {
+      writeFileSync(
+        hiddenLockPath,
+        `${JSON.stringify({
+          name: originalManifest.name,
+          version: originalManifest.version,
+          lockfileVersion: 3,
+          requires: true,
+          packages: {},
+        })}\n`,
+        { encoding: "utf8", mode: 0o644 },
+      );
+    }
+    modulesByPackage[packagePath] = stagedModules;
+  }
+  return { stagingRoot, modulesByPackage };
+}
+
+export function publishPackageRuntimes(sourceRoot, staged) {
+  const root = realpathSync(sourceRoot);
+  const generationParent = realpathSync(resolve(root, "node_modules"));
+  const generationRoot = realpathSync(staged.stagingRoot);
+  const generationName = basename(generationRoot);
+  const generationId = generationName.slice(GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX.length);
+  if (
+    dirname(generationRoot) !== generationParent ||
+    !generationName.startsWith(GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX) ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(generationId)
+  ) {
+    throw new Error(`Governed package generation root is invalid: ${generationRoot}.`);
+  }
+  const publicationTargets = {};
+  for (const packagePath of PACKAGES) {
+    const stagedModules = realpathSync(staged.modulesByPackage[packagePath]);
+    const expectedModules = resolve(generationRoot, packagePath, "node_modules");
+    const stagedStat = lstatSync(stagedModules);
+    if (
+      stagedModules !== expectedModules ||
+      !stagedStat.isDirectory() ||
+      stagedStat.isSymbolicLink()
+    ) {
+      throw new Error(`Governed package generation layout drifted: ${packagePath}.`);
+    }
+    publicationTargets[packagePath] = stagedModules;
+  }
+  for (const packagePath of PACKAGES) {
+    const targetModules = resolve(root, packagePath, "node_modules");
+    try {
+      symlinkSync(publicationTargets[packagePath], targetModules, "dir");
+      fsyncDirectory(dirname(targetModules));
+    } catch (error) {
+      throw new Error(
+        `Creation-only governed package publication failed for ${targetModules}: ${error instanceof Error ? error.message : String(error)}.`,
+        { cause: error },
+      );
+    }
+  }
+}
+
+function assertMissingTypeboxFailureBeforePeerRepair(modulesByPackage) {
   const consumer = "packages/pi-interaction/pi-trigger-adapter";
-  const parentManifest = resolve(sourceRoot, consumer, "package.json");
+  const parentManifest = resolve(modulesByPackage[consumer], ".tryinget-typebox-probe.cjs");
   const probe = spawnSync(
     process.execPath,
     [
@@ -178,18 +511,79 @@ try {
   };
 }
 
-function linkPackage(consumerRoot, packageName, ownerRoot) {
+function removeLinkedPackageFromHiddenLock(nodeModulesRoot, packageName) {
+  const hiddenLockPath = resolve(nodeModulesRoot, ".package-lock.json");
+  const hiddenLock = JSON.parse(readFileSync(hiddenLockPath, "utf8"));
+  const lockPath = `node_modules/${packageName}`;
+  for (const candidate of Object.keys(hiddenLock.packages ?? {})) {
+    if (candidate === lockPath || candidate.startsWith(`${lockPath}/node_modules/`)) {
+      delete hiddenLock.packages[candidate];
+    }
+  }
+  writeFileSync(hiddenLockPath, `${JSON.stringify(hiddenLock, null, 2)}\n`, "utf8");
+}
+
+function linkPackage(nodeModulesRoot, packageName, ownerRoot) {
   const parts = packageName.split("/");
-  const linkPath = resolve(consumerRoot, "node_modules", ...parts);
+  const linkPath = resolve(nodeModulesRoot, ...parts);
   mkdirSync(dirname(linkPath), { recursive: true });
+  removeLinkedPackageFromHiddenLock(nodeModulesRoot, packageName);
   rmSync(linkPath, { recursive: true, force: true });
   symlinkSync(ownerRoot, linkPath, "dir");
 }
 
-function materializePeerLayer(sourceRoot) {
-  const peerLayer = resolve(sourceRoot, PEER_LAYER_RELATIVE_PATH);
-  rmSync(peerLayer, { recursive: true, force: true });
+function materializeVerifiedCacheTarballs(peerLayer, npm, npmEffects) {
+  const tarballRoot = resolve(peerLayer, "tarballs");
+  mkdirSync(tarballRoot, { recursive: true });
+  const tarballs = {};
+  for (const [packageName, expected] of Object.entries(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS)) {
+    const packedName = runNpmEffect(
+      npm,
+      `cache_pack:${packageName}`,
+      [
+        "pack",
+        "--offline",
+        "--silent",
+        "--ignore-scripts",
+        "--pack-destination",
+        tarballRoot,
+        expected.url,
+      ],
+      peerLayer,
+      npmEffects,
+    );
+    const filePath = realpathSync(resolve(tarballRoot, packedName));
+    const verified = verifyGovernedRuntimeFileIntegrity(filePath, expected.integrity);
+    tarballs[packageName] = {
+      version: expected.version,
+      url: expected.url,
+      integrity: expected.integrity,
+      filePath,
+      byteLength: verified.byteLength,
+    };
+  }
+  return tarballs;
+}
+
+function materializePeerLayer(sourceRoot, modulesByPackage, verifiedHostCache, npm, npmEffects) {
+  const orchestratorModules = modulesByPackage["packages/pi-society-orchestrator"];
+  const peerLayer = resolve(orchestratorModules, ".tryinget-governed-peer-layer");
+  if (pathEntryExists(peerLayer)) throw new Error("Staged orchestrator peer layer already exists.");
   mkdirSync(peerLayer, { recursive: true });
+  const tarballs = verifiedHostCache
+    ? materializeVerifiedCacheTarballs(peerLayer, npm, npmEffects)
+    : null;
+  const hostDependencies = Object.fromEntries(
+    Object.entries(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS).map(([packageName, expected]) => [
+      packageName,
+      tarballs ? `file:tarballs/${basename(tarballs[packageName].filePath)}` : expected.version,
+    ]),
+  );
+  const hostOverrides = Object.fromEntries(
+    ["@earendil-works/pi-ai", "@earendil-works/pi-agent-core", "@earendil-works/pi-tui"].map(
+      (packageName) => [packageName, hostDependencies[packageName]],
+    ),
+  );
   writeFileSync(
     resolve(peerLayer, "package.json"),
     `${JSON.stringify(
@@ -197,33 +591,22 @@ function materializePeerLayer(sourceRoot) {
         private: true,
         dependencies: {
           typebox: TYPEBOX_VERSION,
-          ...Object.fromEntries(
-            Object.keys(GOVERNED_RUNTIME_HOST_PEERS).map((name) => [
-              name,
-              GOVERNED_RUNTIME_HOST_VERSION,
-            ]),
-          ),
+          ...hostDependencies,
         },
+        overrides: hostOverrides,
       },
       null,
       2,
     )}\n`,
     "utf8",
   );
-  run(
-    "npm",
-    [
-      "install",
-      "--package-lock=false",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      `typebox@${TYPEBOX_VERSION}`,
-      ...Object.keys(GOVERNED_RUNTIME_HOST_PEERS).map(
-        (name) => `${name}@${GOVERNED_RUNTIME_HOST_VERSION}`,
-      ),
-    ],
-    { cwd: peerLayer, stdio: "inherit" },
+  runNpmEffect(
+    npm,
+    "peer_install",
+    ["install", "--ignore-scripts", "--no-audit", "--no-fund"],
+    peerLayer,
+    npmEffects,
+    { stdio: "inherit" },
   );
   const typeboxRoot = realpathSync(resolve(peerLayer, "node_modules/typebox"));
   const typeboxPackage = JSON.parse(readFileSync(resolve(typeboxRoot, "package.json"), "utf8"));
@@ -242,52 +625,93 @@ function materializePeerLayer(sourceRoot) {
       "Peer layer typebox version/integrity does not match the pinned runtime contract.",
     );
   }
+  const finalPeerLayer = resolve(sourceRoot, PEER_LAYER_RELATIVE_PATH);
+  const finalTypeboxRoot = resolve(finalPeerLayer, "node_modules/typebox");
   for (const consumer of TYPEBOX_CONSUMERS) {
-    linkPackage(resolve(sourceRoot, consumer), "typebox", typeboxRoot);
+    linkPackage(modulesByPackage[consumer], "typebox", finalTypeboxRoot);
   }
   for (const [packageName, contract] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
-    const packageRoot = realpathSync(resolve(peerLayer, "node_modules", ...packageName.split("/")));
+    const finalPackageRoot = resolve(finalPeerLayer, "node_modules", ...packageName.split("/"));
     for (const consumer of contract.consumers) {
-      linkPackage(resolve(sourceRoot, consumer), packageName, packageRoot);
+      linkPackage(modulesByPackage[consumer], packageName, finalPackageRoot);
     }
   }
-  return typeboxRoot;
 }
 
-function alignExceptionalLocalOwners(sourceRoot) {
-  const orchestrator = resolve(sourceRoot, "packages/pi-society-orchestrator");
-  run(
-    "npm",
-    [
-      "install",
-      "--no-save",
-      "--package-lock=false",
-      "--omit=dev",
-      "--omit=peer",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      "../pi-autonomous-session-control",
-    ],
-    { cwd: orchestrator, stdio: "inherit" },
-  );
-  linkPackage(
-    resolve(sourceRoot, "packages/pi-little-helpers"),
-    "@tryinget/pi-peer-messaging",
-    resolve(sourceRoot, "packages/pi-peer-messaging"),
-  );
+function alignClosedLocalOwners(sourceRoot, modulesByPackage) {
+  const seen = new Set();
+  for (const definition of LOCAL_EDGES) {
+    const key = `${definition.consumer}\0${definition.expectedOwnerName}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    linkPackage(
+      modulesByPackage[definition.consumer],
+      definition.expectedOwnerName,
+      resolve(sourceRoot, definition.expectedOwnerPath),
+    );
+  }
+}
+
+function materializeAscRuntime(sourceRoot, sourceCommit, npm) {
+  const ascRoot = resolve(sourceRoot, "packages/pi-autonomous-session-control");
+  const distRoot = resolve(ascRoot, "dist");
+  if (pathEntryExists(distRoot)) throw new Error("Fresh ASC runtime output appeared before build.");
+  const receipts = [];
+  const environment = governedRuntimeAscBuildEnvironment(npm);
+  const environmentDigest = createHash("sha256").update(JSON.stringify(environment)).digest("hex");
+  for (const ordinal of [1, 2]) {
+    const executables = verifyGovernedRuntimeNpmExecutables(npm);
+    run(executables.nodeExecutable.realpath, ["scripts/build-runtime.mjs"], {
+      cwd: ascRoot,
+      env: environment,
+      stdio: "inherit",
+    });
+    verifyGovernedRuntimeNpmExecutables(npm);
+    const derivation = inspectGovernedRuntimeAscRuntime(sourceRoot);
+    const receipt = {
+      schema: "pi.governed-asc-build-pass.v1",
+      ordinal,
+      buildNonce: randomUUID(),
+      sourceCommit,
+      invocation: {
+        executable: executables.nodeExecutable,
+        argv: ["scripts/build-runtime.mjs"],
+        cwdRole: "clean_output_rebuild",
+        environment,
+        environmentDigest,
+      },
+      inputHashes: derivation.inputHashes,
+      inputDigest: derivation.inputDigest,
+      compiler: derivation.compiler,
+      outputEntries: derivation.outputEntries,
+      treeDigest: derivation.treeDigest,
+    };
+    writeJsonDurably(
+      resolve(sourceRoot, GOVERNED_RUNTIME_ASC_BUILD_RECEIPT_RELATIVE_PATHS[ordinal - 1]),
+      receipt,
+    );
+    receipts.push(receipt);
+    if (ordinal === 1) rmSync(distRoot, { recursive: true, force: false });
+  }
+  const comparable = ({ inputHashes, inputDigest, compiler, outputEntries, treeDigest }) => ({
+    inputHashes,
+    inputDigest,
+    compiler,
+    outputEntries,
+    treeDigest,
+  });
+  if (!sameObject(comparable(receipts[0]), comparable(receipts[1]))) {
+    throw new Error("ASC runtime build is not reproducible across two clean derivations.");
+  }
+  return verifyGovernedRuntimeAscRuntime(sourceRoot, receipts, npm);
 }
 
 function resolveRuntimeGraph(sourceRoot) {
   return resolveGovernedRuntimeGraph(sourceRoot);
 }
 
-function verifyTypebox(sourceRoot, expectedRoot) {
-  const proof = verifyGovernedRuntimeTypebox(sourceRoot);
-  if (proof.root !== realpathSync(expectedRoot)) {
-    throw new Error(`Pinned Typebox root drifted: ${proof.root} != ${realpathSync(expectedRoot)}.`);
-  }
-  return proof;
+function verifyTypebox(sourceRoot) {
+  return verifyGovernedRuntimeTypebox(sourceRoot);
 }
 
 async function verifyAutoresearchTriggerSurface(sourceRoot) {
@@ -327,50 +751,118 @@ function requireExpectedCommit(options) {
 
 async function materialize(options) {
   const identity = assertSourceIdentity(options.sourceRoot, requireExpectedCommit(options));
-  const beforeHashes = collectTrackedInputHashes(identity.sourceRoot);
-  // Build linked source owners before runtime-only installs invoke their prepare lifecycle.
-  prepareLocalBuildOwners(identity.sourceRoot);
-  for (const packagePath of PACKAGES) {
-    const packageRoot = resolve(identity.sourceRoot, packagePath);
-    if (!existsSync(resolve(packageRoot, "package-lock.json"))) {
-      throw new Error(`Selected runtime package has no lockfile: ${packagePath}.`);
+  const lock = acquireMaterializationLock(identity.sourceRoot);
+  let effectsStarted = false;
+  let failure;
+  let quarantinePath;
+  let manifest;
+  try {
+    assertFreshMaterializationRoot(identity.sourceRoot);
+    const npm = inspectGovernedRuntimeNpmPolicy();
+    const npmEffects = [];
+    const beforeHashes = collectTrackedInputHashes(identity.sourceRoot);
+    effectsStarted = true;
+    const staged = materializePackageRuntimes(identity.sourceRoot, npm, npmEffects);
+    const missingTypeboxFailure = assertMissingTypeboxFailureBeforePeerRepair(
+      staged.modulesByPackage,
+    );
+    alignClosedLocalOwners(identity.sourceRoot, staged.modulesByPackage);
+    materializePeerLayer(
+      identity.sourceRoot,
+      staged.modulesByPackage,
+      options.verifiedHostCache,
+      npm,
+      npmEffects,
+    );
+    publishPackageRuntimes(identity.sourceRoot, staged);
+    const nodeModulesLayout = verifyGovernedRuntimeNodeModulesLayout(identity.sourceRoot);
+    forceMaterializationFailureForTest("after_package_publish");
+    const hostSource = verifyGovernedRuntimeHostSource(identity.sourceRoot);
+    const verifiedNpmEffects = verifyGovernedRuntimeNpmEffectReceipts(
+      identity.sourceRoot,
+      npm,
+      hostSource,
+      npmEffects,
+    );
+    const ascRuntime = materializeAscRuntime(identity.sourceRoot, identity.sourceCommit, npm);
+    const afterHashes = collectTrackedInputHashes(identity.sourceRoot);
+    if (!sameObject(beforeHashes, afterHashes)) {
+      throw new Error("Materialization changed a tracked package manifest or lockfile.");
     }
-    // Keep this build owner's compiler available until every source-linked consumer is aligned.
-    if (packagePath === LOCAL_BUILD_OWNER) continue;
-    npmCi(packageRoot);
+    const graph = resolveRuntimeGraph(identity.sourceRoot);
+    const typebox = verifyTypebox(identity.sourceRoot);
+    const hostPeers = verifyGovernedRuntimeHostPeers(identity.sourceRoot, hostSource);
+    const packageClosures = verifyGovernedRuntimePackageClosures(identity.sourceRoot);
+    await verifyAutoresearchTriggerSurface(identity.sourceRoot);
+    assertSourceIdentity(identity.sourceRoot, identity.sourceCommit);
+    manifest = {
+      schema: MANIFEST_SCHEMA,
+      sourceRoot: identity.sourceRoot,
+      sourceCommit: identity.sourceCommit,
+      cleanliness: identity.cleanliness,
+      nodeModulesLayout,
+      missingTypeboxFailure,
+      packageInputs: afterHashes,
+      packages: PACKAGES,
+      npm,
+      npmEffects: verifiedNpmEffects,
+      packageClosures,
+      typebox,
+      hostSource,
+      hostPeers,
+      ascRuntime,
+      resolutions: graph.resolutions,
+      runtimeRegistryRoot: graph.runtimeRegistryRoot,
+      materializedAt: new Date().toISOString(),
+    };
+    writeJsonDurably(manifestPath(identity.sourceRoot), manifest);
+  } catch (error) {
+    failure = error;
   }
-  const missingTypeboxFailure = assertMissingTypeboxFailureBeforePeerRepair(identity.sourceRoot);
-  alignExceptionalLocalOwners(identity.sourceRoot);
-  // Only the closed runtime graph, not build dependencies, survives materialization.
-  npmCi(resolve(identity.sourceRoot, LOCAL_BUILD_OWNER));
-  const typeboxRoot = materializePeerLayer(identity.sourceRoot);
-  const afterHashes = collectTrackedInputHashes(identity.sourceRoot);
-  if (!sameObject(beforeHashes, afterHashes)) {
-    throw new Error("Materialization changed a tracked package manifest or lockfile.");
-  }
-  const graph = resolveRuntimeGraph(identity.sourceRoot);
-  const typebox = verifyTypebox(identity.sourceRoot, typeboxRoot);
-  const hostPeers = verifyGovernedRuntimeHostPeers(identity.sourceRoot);
-  await verifyAutoresearchTriggerSurface(identity.sourceRoot);
-  assertSourceIdentity(identity.sourceRoot, identity.sourceCommit);
-  const manifest = {
-    schema: MANIFEST_SCHEMA,
-    sourceRoot: identity.sourceRoot,
-    sourceCommit: identity.sourceCommit,
-    cleanliness: identity.cleanliness,
-    missingTypeboxFailure,
-    packageInputs: afterHashes,
-    packages: PACKAGES,
-    typebox,
-    hostPeers,
-    resolutions: graph.resolutions,
-    runtimeRegistryRoot: graph.runtimeRegistryRoot,
-    materializedAt: new Date().toISOString(),
+
+  const quarantine = () => {
+    if (!effectsStarted || quarantinePath !== undefined) return;
+    quarantinePath = quarantineMaterialization(identity.sourceRoot, identity.sourceCommit, failure);
   };
-  writeFileSync(manifestPath(identity.sourceRoot), `${JSON.stringify(manifest, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  if (failure !== undefined && effectsStarted) {
+    try {
+      quarantine();
+    } catch (quarantineError) {
+      failure = new AggregateError(
+        [failure, quarantineError],
+        "Governed runtime materialization failed and quarantine publication also failed.",
+      );
+    }
+  }
+  try {
+    lock.release();
+  } catch (releaseError) {
+    failure =
+      failure === undefined
+        ? releaseError
+        : new AggregateError(
+            [failure, releaseError],
+            "Governed runtime materialization and lock release both failed.",
+          );
+  }
+  if (failure !== undefined && effectsStarted && quarantinePath === undefined) {
+    try {
+      quarantine();
+    } catch (quarantineError) {
+      failure = new AggregateError(
+        [failure, quarantineError],
+        "Governed runtime failure could not be durably quarantined.",
+      );
+    }
+  }
+  if (failure !== undefined) {
+    if (!effectsStarted) throw failure;
+    if (quarantinePath === undefined) throw failure;
+    throw new Error(
+      `${failure instanceof Error ? failure.message : String(failure)} Candidate is quarantined and must not be retried in place: ${quarantinePath}.`,
+      { cause: failure },
+    );
+  }
   console.log(JSON.stringify({ ok: true, action: "materialize", manifest }, null, 2));
 }
 
@@ -498,10 +990,7 @@ function deterministicWorkflowExecutorFactory() {
   };
 }
 
-async function runGovernedDeepReviewHarness(
-  options,
-  { action, requireMaterializationManifest },
-) {
+async function runGovernedDeepReviewHarness(options, { action, requireMaterializationManifest }) {
   if (!existsSync(run("sh", ["-lc", "command -v dolt"]))) {
     throw new Error("dolt is required for the governed deep-review canary.");
   }
@@ -682,23 +1171,17 @@ async function runGovernedDeepReviewHarness(
     const promptIndex = status.indexOf('"event":"prompt_submitted"');
     assert.ok(preflightIndex >= 0 && childIndex > preflightIndex && promptIndex > childIndex);
     assert.match(status, /governed_deep_review_succeeded/);
-    console.log(
-      JSON.stringify(
-        {
-          ok: true,
-          action,
-          ownerExecution: true,
-          syntheticToolReceipt: false,
-          productionMaterializationManifestEnforced: requireMaterializationManifest,
-          handoffId: result.details.handoffId,
-          preflightNonce: result.details.preflightNonce,
-          registryId: result.details.preflightRegistryId,
-          nexusReleaseCount: 1,
-        },
-        null,
-        2,
-      ),
-    );
+    return {
+      ok: true,
+      action,
+      ownerExecution: true,
+      syntheticToolReceipt: false,
+      productionMaterializationManifestEnforced: requireMaterializationManifest,
+      handoffId: result.details.handoffId,
+      preflightNonce: result.details.preflightNonce,
+      registryId: result.details.preflightRegistryId,
+      nexusReleaseCount: 1,
+    };
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
@@ -712,10 +1195,33 @@ async function canary(options) {
   const sourceRoot = realpathSync(options.sourceRoot);
   assertSourceIdentity(sourceRoot, requireExpectedCommit(options));
   verifyCanaryProductionMaterialization(sourceRoot);
-  return runGovernedDeepReviewHarness(options, {
-    action: "canary",
-    requireMaterializationManifest: true,
-  });
+  let result;
+  let harnessError;
+  let postVerifyError;
+  try {
+    result = await runGovernedDeepReviewHarness(options, {
+      action: "canary",
+      requireMaterializationManifest: true,
+    });
+  } catch (error) {
+    harnessError = error;
+  } finally {
+    try {
+      verifyCanaryProductionMaterialization(sourceRoot);
+    } catch (error) {
+      postVerifyError = error;
+    }
+  }
+  if (harnessError && postVerifyError) {
+    throw new AggregateError(
+      [harnessError, postVerifyError],
+      "Governed canary and mandatory post-canary verification both failed.",
+    );
+  }
+  if (harnessError) throw harnessError;
+  if (postVerifyError) throw postVerifyError;
+  console.log(JSON.stringify(result, null, 2));
+  return result;
 }
 
 async function test(options) {
@@ -735,35 +1241,42 @@ async function test(options) {
     `missing-governed-runtime-${process.pid}-${Date.now()}.json`,
   );
   assert.throws(
-    () => verifyCanaryProductionMaterialization(realpathSync(options.sourceRoot), missingManifestPath),
+    () =>
+      verifyCanaryProductionMaterialization(realpathSync(options.sourceRoot), missingManifestPath),
     (error) => error?.failureClass === "materialization_manifest_missing",
   );
-  await runGovernedDeepReviewHarness(options, {
+  const result = await runGovernedDeepReviewHarness(options, {
     action: "development-test",
     requireMaterializationManifest: false,
   });
+  console.log(JSON.stringify(result, null, 2));
 }
 
 function help() {
   console.log(`Usage:
-  node scripts/governed-deep-review-canary.mjs materialize --source-root <clean-immutable-worktree> --expected-commit <full-sha>
+  node scripts/governed-deep-review-canary.mjs materialize --source-root <clean-immutable-worktree> --expected-commit <full-sha> [--verified-host-cache]
   node scripts/governed-deep-review-canary.mjs verify --source-root <materialized-worktree> --expected-commit <full-sha>
   node scripts/governed-deep-review-canary.mjs canary --source-root <materialized-worktree> --expected-commit <full-sha>
   node scripts/governed-deep-review-canary.mjs test [--source-root <root>]
 
-materialize/verify never edit Pi settings, install Pi packages, reload Pi, or clean old worktrees.`);
+materialize is fresh-root/one-shot and never runs pi install, edits Pi settings, reloads Pi, or cleans another worktree; verify/canary are runtime-read-only.`);
 }
 
-const options = parseArgs(process.argv.slice(2));
-try {
-  if (options.action === "materialize") await materialize(options);
-  else if (options.action === "verify") await verify(options);
-  else if (options.action === "canary") await canary(options);
-  else if (options.action === "test") await test(options);
-  else help();
-} catch (error) {
-  console.error(
-    `governed-deep-review-canary: ${error instanceof Error ? error.stack || error.message : String(error)}`,
-  );
-  process.exitCode = 1;
+const invokedAsMain =
+  process.argv[1] !== undefined &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+if (invokedAsMain) {
+  const options = parseArgs(process.argv.slice(2));
+  try {
+    if (options.action === "materialize") await materialize(options);
+    else if (options.action === "verify") await verify(options);
+    else if (options.action === "canary") await canary(options);
+    else if (options.action === "test") await test(options);
+    else help();
+  } catch (error) {
+    console.error(
+      `governed-deep-review-canary: ${error instanceof Error ? error.stack || error.message : String(error)}`,
+    );
+    process.exitCode = 1;
+  }
 }
