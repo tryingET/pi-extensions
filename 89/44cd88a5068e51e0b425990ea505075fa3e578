@@ -1,0 +1,31 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8944cd88a5068e51e0b425990ea505075fa3e578"
+created_at: "2026-08-03T09:54:36Z"
+intent: "Replace persistent footer Routing with fast-mode and Starship-style Git state"
+files:
+  - "packages/pi-society-orchestrator/extensions/runtime-footer.ts"
+  - "packages/pi-society-orchestrator/src/runtime/footer-slots.ts"
+  - "packages/pi-society-orchestrator/src/runtime/git-footer-status.ts"
+  - "packages/pi-society-orchestrator/src/runtime/status-semantics.ts"
+  - "packages/pi-society-orchestrator/tests/footer-layout.test.mjs"
+  - "packages/pi-society-orchestrator/tests/git-footer-status.test.mjs"
+  - "packages/pi-society-orchestrator/tests/release-smoke-helpers.test.mjs"
+  - "packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs"
+  - "packages/pi-society-orchestrator/scripts/release-smoke-helpers.mjs"
+  - "packages/pi-society-orchestrator/scripts/release-smoke.mjs"
+  - "packages/pi-society-orchestrator/docs/project/runtime-status-semantics.md"
+  - "packages/pi-society-orchestrator/README.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "./scripts/ci/packages.sh ci --package pi-better-openai --package pi-society-orchestrator"
+    status: "pass"
+group:
+  index: 2
+  total: 2
+  rationale: "Footer right side now shows fast mode (\ud83d\udc07/\ud83d\udc22) and Git branch/status instead of invariant Routing, which stays in startup notice, /agents-team, and /runtime-status. Async git refresh handles throttle, branch-change, and disposal races. Repo-wide npm run quality:pre-push fails only in pi-autoresearch from a missing @tryinget/pi-trigger-adapter node_modules link (pre-existing install state, unrelated to these commits); changed packages pass the scoped full ci gate (EXIT 0)."
