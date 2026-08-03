@@ -19,6 +19,28 @@ contextBridge.exposeInMainWorld("activityStrip", {
     ipcRenderer.on("pi-activity-strip:collapse", listener);
     return () => ipcRenderer.removeListener("pi-activity-strip:collapse", listener);
   },
+  onVisibility(handler) {
+    if (typeof handler !== "function") return () => {};
+    let latestRequestId = 0;
+    const listener = (_event, visible, requestId) => {
+      if (!Number.isInteger(requestId) || requestId <= 0) return;
+      latestRequestId = Math.max(latestRequestId, requestId);
+      const isCurrent = () => requestId === latestRequestId;
+      Promise.resolve()
+        .then(() => handler(Boolean(visible), isCurrent))
+        .then((applied) =>
+          ipcRenderer.send(
+            "pi-activity-strip:visibility-applied",
+            requestId,
+            Boolean(visible),
+            applied !== false,
+          ),
+        )
+        .catch(() => {});
+    };
+    ipcRenderer.on("pi-activity-strip:visibility", listener);
+    return () => ipcRenderer.removeListener("pi-activity-strip:visibility", listener);
+  },
   subscribe(handler) {
     if (typeof handler !== "function") return () => {};
     const listener = (_event, snapshot) => handler(snapshot);

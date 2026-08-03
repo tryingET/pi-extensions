@@ -4,34 +4,32 @@
 //   - "changing overlay lifecycle, window behavior, runtime readiness, or desktop alignment"
 // ---
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { createActivityStripBroker } from "../broker/server.mjs";
-import {
-  createLatestOnlyRunner,
-  hasNiriFloatingPosition,
-} from "../common/alignment-controller.mjs";
+import { createLatestOnlyRunner } from "../common/alignment-controller.mjs";
 import { detectDisplayServer, detectWindowManager } from "../common/compatibility.mjs";
 import {
   ACTIVITY_STRIP_EXPANDED_HEIGHT,
   ACTIVITY_STRIP_HEIGHT,
+  ACTIVITY_STRIP_NIRI_ANIMATION_SETTLE_MS,
   ACTIVITY_STRIP_WIDTH_PADDING,
   ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
 } from "../common/constants.mjs";
 import {
-  createFocusedSessionPoller,
   focusNiriSession,
   readNiriWindows,
   readNiriWorkspaces,
-  resolveActivityStripWindow,
-  resolveFocusedNiriWorkspace,
-  resolveFocusedSnapshotSessionId,
   resolveSnapshotSession,
 } from "../common/niri-focus.mjs";
 import { createStripHtml } from "../ui/strip-html.mjs";
+import { createNiriNativeWindowRuntime } from "./niri-native-window-runtime.mjs";
+import { createNiriWorkspaceEventWatcher } from "./niri-workspace-events.mjs";
+import { createBrowserWindowVisibilityRuntime } from "./renderer-visibility-runtime.mjs";
+import { createNiriWorkspaceViewRuntime, haveSameSessionIds } from "./workspace-view-runtime.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,11 +39,15 @@ const execFileAsync = promisify(execFile);
 
 let browserWindow = null;
 let broker = null;
-let workspaceFollowTimer = null;
+let workspaceEventWatcher = null;
+let windowCreation = null;
+let appQuitting = false;
+let rendererVisible = !isNiriSession();
+let focusedWorkspaceViewVisible = !isNiriSession();
 let expanded = false;
-let workspaceFollowInFlight = false;
 let latestSnapshot = { generatedAt: Date.now(), sessions: [] };
 let focusedSessionId = null;
+let workspaceSessionIds = new Set();
 const runtimeStatus = {
   state: "starting",
   startedAt: Date.now(),
@@ -58,24 +60,59 @@ const runtimeStatus = {
   warnings: [],
   error: null,
 };
-const alignmentController = createLatestOnlyRunner(({ isCurrent }) => alignWindowToTop(isCurrent));
+const alignmentController = createLatestOnlyRunner(({ isCurrent }) =>
+  niriNativeWindowRuntime.alignWindowToTop(isCurrent),
+);
+const visibilityRuntime = createBrowserWindowVisibilityRuntime(() => browserWindow, interactive);
+
+async function applyRendererVisibility(visible, isCurrent = () => true) {
+  if (appQuitting) return false;
+  const applied = await visibilityRuntime.apply(visible, () => !appQuitting && isCurrent());
+  if (applied) rendererVisible = Boolean(visible);
+  refreshRuntimeStatus();
+  return applied;
+}
 
 function isNiriSession() {
   return Boolean(process.env.NIRI_SOCKET);
 }
 
-function formatDelta(value) {
-  const rounded = Math.round(value);
-  return rounded >= 0 ? `+${rounded}` : String(rounded);
+function isUsableBrowserWindow(window) {
+  return Boolean(
+    window && !window.isDestroyed() && window.webContents && !window.webContents.isDestroyed(),
+  );
 }
 
-function readNiriPosition(window) {
-  const position = window?.layout?.tile_pos_in_workspace_view;
-  if (!Array.isArray(position) || position.length < 2) return null;
-  return {
-    x: Number(position[0] ?? 0),
-    y: Number(position[1] ?? 0),
-  };
+async function ensureBrowserWindow() {
+  if (appQuitting) return null;
+  if (windowCreation) {
+    const pendingWindow = await windowCreation;
+    return isUsableBrowserWindow(pendingWindow) ? pendingWindow : null;
+  }
+  if (isUsableBrowserWindow(browserWindow)) return browserWindow;
+
+  const staleWindow = browserWindow;
+  browserWindow = null;
+  rendererVisible = false;
+  focusedWorkspaceViewVisible = false;
+  if (staleWindow && !staleWindow.isDestroyed()) staleWindow.destroy();
+
+  runtimeStatus.state = "starting";
+  runtimeStatus.error = null;
+  refreshRuntimeStatus();
+  windowCreation = createWindow()
+    .catch((error) => {
+      runtimeStatus.state = "error";
+      runtimeStatus.error = error instanceof Error ? error.message : String(error);
+      refreshRuntimeStatus();
+      throw error;
+    })
+    .finally(() => {
+      windowCreation = null;
+    });
+
+  const createdWindow = await windowCreation;
+  return isUsableBrowserWindow(createdWindow) ? createdWindow : null;
 }
 
 const getNiriWindows = () =>
@@ -84,178 +121,112 @@ const getNiriWorkspaces = () =>
   readNiriWorkspaces(execFileAsync, process.env, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
 
 function sendRendererSnapshot() {
-  if (!browserWindow || browserWindow.isDestroyed()) return;
+  if (appQuitting || !isUsableBrowserWindow(browserWindow)) return;
+  const sessions = isNiriSession()
+    ? latestSnapshot.sessions.filter((session) => workspaceSessionIds.has(session.sessionId))
+    : latestSnapshot.sessions;
   browserWindow.webContents.send("pi-activity-strip:snapshot", {
     ...latestSnapshot,
+    sessions,
     focusedSessionId,
   });
 }
 
-function updateFocusedSession(windows) {
-  const nextFocusedSessionId = resolveFocusedSnapshotSessionId(windows, latestSnapshot.sessions, {
-    env: process.env,
-  });
-  if (focusedSessionId === nextFocusedSessionId) return;
-  focusedSessionId = nextFocusedSessionId;
+function publishWorkspaceView(view) {
+  workspaceSessionIds = new Set(view.sessions.map((session) => session.sessionId));
+  focusedSessionId = view.focusedSessionId;
+  focusedWorkspaceViewVisible = Boolean(view.workspace?.is_focused && view.sessions.length > 0);
   sendRendererSnapshot();
 }
 
-const syncFocusedNiriSession = createFocusedSessionPoller({
+const niriNativeWindowRuntime = createNiriNativeWindowRuntime({
+  execFileAsync,
+  env: process.env,
+  timeoutMs: ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
+  processId: process.pid,
   readWindows: getNiriWindows,
-  onWindows: updateFocusedSession,
+  getBrowserWindow: () => browserWindow,
+  getBounds: currentBounds,
+  isNiriSession,
 });
 
-async function getNiriWindowByPid(pid) {
-  const windows = await getNiriWindows();
-  return resolveActivityStripWindow(windows.filter((window) => window?.pid === pid));
-}
+const workspaceViewRuntime = createNiriWorkspaceViewRuntime({
+  readWindows: getNiriWindows,
+  readWorkspaces: getNiriWorkspaces,
+  getSessions: () => latestSnapshot.sessions,
+  getStripWindow: niriNativeWindowRuntime.resolveProcessWindow,
+  isWindowVisible: () =>
+    Boolean(browserWindow && !browserWindow.isDestroyed() && browserWindow.isVisible()),
+  isWindowExpanded: () => expanded,
+  showWindow: async () => {
+    if (appQuitting) return;
+    const window = await ensureBrowserWindow();
+    if (!window || appQuitting) return;
+    window.showInactive?.();
+  },
+  hideWindow: () => {
+    rendererVisible = false;
+    focusedWorkspaceViewVisible = false;
+    browserWindow?.hide?.();
+    refreshRuntimeStatus();
+  },
+  concealWindow: async () => {
+    const window = await ensureBrowserWindow();
+    if (!window) return false;
+    return applyRendererVisibility(false);
+  },
+  revealWindow: (isCurrent) => applyRendererVisibility(true, isCurrent),
+  cancelReveal: () => {
+    void applyRendererVisibility(false);
+  },
+  collapseWindow: async () => {
+    browserWindow?.webContents.send("pi-activity-strip:collapse");
+    await setExpanded(false, { reconcile: false });
+  },
+  publishView: publishWorkspaceView,
+  moveWindowToWorkspace: niriNativeWindowRuntime.moveWindowToWorkspace,
+  alignWindow: niriNativeWindowRuntime.alignWindowToTop,
+  settleWindow: async (isCurrent) => {
+    await new Promise((resolve) => setTimeout(resolve, ACTIVITY_STRIP_NIRI_ANIMATION_SETTLE_MS));
+    return isCurrent();
+  },
+  isWindowAligned: niriNativeWindowRuntime.isWindowAligned,
+  identityOptions: { env: process.env },
+});
 
-async function followFocusedNiriWorkspace() {
-  if (workspaceFollowInFlight || !browserWindow || browserWindow.isDestroyed() || !isNiriSession())
-    return;
-  workspaceFollowInFlight = true;
-  try {
-    await followFocusedNiriWorkspaceOnce();
-  } finally {
-    workspaceFollowInFlight = false;
-  }
-}
-
-async function followFocusedNiriWorkspaceOnce() {
-  const [windows, workspaces] = await Promise.all([getNiriWindows(), getNiriWorkspaces()]);
-  const stripWindow = resolveActivityStripWindow(
-    windows.filter((window) => window?.pid === process.pid),
-  );
-  const focusedWorkspace = resolveFocusedNiriWorkspace(workspaces);
-  if (!stripWindow?.id || !focusedWorkspace || stripWindow.workspace_id === focusedWorkspace.id) {
-    return;
-  }
-
-  try {
-    const reference = focusedWorkspace.name || focusedWorkspace.idx;
-    if (reference == null) return;
-    await execFileAsync(
-      "niri",
-      [
-        "msg",
-        "action",
-        "move-window-to-workspace",
-        "--window-id",
-        String(stripWindow.id),
-        "--focus",
-        "false",
-        String(reference),
-      ],
-      { env: process.env, timeout: ACTIVITY_STRIP_WORKSPACE_SYNC_MS },
-    );
-    scheduleTopAlignment();
-  } catch {
-    // Workspace following is best effort and must never move an arbitrary window.
-  }
-}
-
-async function moveWindowToTopViaNiri(isCurrent) {
-  if (!isCurrent() || !browserWindow || browserWindow.isDestroyed() || !isNiriSession()) {
-    return false;
-  }
-
-  let niriWindow = await getNiriWindowByPid(process.pid);
-  if (!isCurrent() || !niriWindow?.id) return false;
-
-  if (niriWindow.is_floating !== true) {
-    try {
-      await execFileAsync(
-        "niri",
-        ["msg", "action", "move-window-to-floating", "--id", String(niriWindow.id)],
-        { env: process.env },
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  let currentPosition = readNiriPosition(niriWindow);
-  for (let attempt = 0; attempt < 8 && !hasNiriFloatingPosition(niriWindow); attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    if (!isCurrent()) return false;
-    niriWindow = await getNiriWindowByPid(process.pid);
-    currentPosition = readNiriPosition(niriWindow);
-  }
-  if (!isCurrent() || !hasNiriFloatingPosition(niriWindow) || !currentPosition) return false;
-
-  const target = currentBounds();
-  let deltaX = target.x - currentPosition.x;
-  let deltaY = target.y - currentPosition.y;
-  if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return true;
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      await execFileAsync(
-        "niri",
-        [
-          "msg",
-          "action",
-          "move-floating-window",
-          "--id",
-          String(niriWindow.id),
-          "-x",
-          formatDelta(deltaX),
-          "-y",
-          formatDelta(deltaY),
-        ],
-        { env: process.env },
-      );
-    } catch {
-      return false;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    if (!isCurrent()) return false;
-    const refreshedWindow = await getNiriWindowByPid(process.pid);
-    const refreshedPosition = readNiriPosition(refreshedWindow);
-    if (!isCurrent() || refreshedWindow?.is_floating !== true || !refreshedPosition) return false;
-
-    deltaX = target.x - refreshedPosition.x;
-    deltaY = target.y - refreshedPosition.y;
-    if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return true;
-  }
-
-  return false;
-}
-
-async function alignWindowToTop(isCurrent) {
-  if (!isCurrent() || !browserWindow || browserWindow.isDestroyed()) return;
-
-  if (!isNiriSession()) {
-    if (isCurrent()) browserWindow.setBounds(currentBounds(), false);
+function requestWindowRecovery() {
+  if (appQuitting) return;
+  if (isNiriSession()) {
+    workspaceViewRuntime.request();
     return;
   }
+  void ensureBrowserWindow()
+    .then((window) => {
+      if (!window || appQuitting) return;
+      window.showInactive?.();
+      sendRendererSnapshot();
+      scheduleTopAlignment();
+    })
+    .catch(() => {});
+}
 
-  const niriWindow = await getNiriWindowByPid(process.pid);
-  if (!isCurrent()) return;
-  const target = currentBounds();
-  const currentSize = niriWindow?.layout?.window_size;
-  const widthMatches = Array.isArray(currentSize) && Number(currentSize[0]) === target.width;
-  const heightMatches = Array.isArray(currentSize) && Number(currentSize[1]) === target.height;
-
-  if (!widthMatches || !heightMatches) {
-    browserWindow.setSize(target.width, target.height, false);
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    if (!isCurrent()) return;
-  }
-
-  for (let attempt = 0; attempt < 16; attempt += 1) {
-    if (await moveWindowToTopViaNiri(isCurrent)) return;
-    if (!isCurrent()) return;
-    await new Promise((resolve) => setTimeout(resolve, 90));
-  }
+function beginShutdown() {
+  if (appQuitting) return;
+  appQuitting = true;
+  workspaceEventWatcher?.stop();
+  visibilityRuntime.dispose();
 }
 
 function requestTopAlignment() {
-  alignmentController.request();
+  if (isNiriSession()) workspaceViewRuntime.request();
+  else alignmentController.request();
 }
 
 function scheduleTopAlignment() {
+  if (isNiriSession()) {
+    workspaceViewRuntime.request();
+    return;
+  }
   requestTopAlignment();
 
   for (const delayMs of [150, 450, 900, 1500, 2400]) {
@@ -266,7 +237,11 @@ function scheduleTopAlignment() {
 function refreshRuntimeStatus() {
   runtimeStatus.alignmentMode = isNiriSession() ? "niri" : "generic";
   runtimeStatus.windowVisible = Boolean(
-    browserWindow && !browserWindow.isDestroyed() && browserWindow.isVisible(),
+    rendererVisible &&
+      focusedWorkspaceViewVisible &&
+      browserWindow &&
+      !browserWindow.isDestroyed() &&
+      browserWindow.isVisible(),
   );
 
   if (!app.isReady()) {
@@ -309,7 +284,7 @@ function currentBounds() {
   };
 }
 
-async function setExpanded(nextExpanded) {
+async function setExpanded(nextExpanded, { reconcile = true } = {}) {
   if (!interactive || !browserWindow || browserWindow.isDestroyed()) return { ok: false };
   const next = Boolean(nextExpanded);
   expanded = next;
@@ -317,18 +292,22 @@ async function setExpanded(nextExpanded) {
   // Always reconcile the native surface, even when the logical state already matches. BrowserWindow
   // blur can collapse main-process state before the renderer has removed its expanded layout.
   browserWindow.setSize(bounds.width, bounds.height, false);
-  scheduleTopAlignment();
+  if (reconcile) {
+    if (isNiriSession()) workspaceViewRuntime.request();
+    else scheduleTopAlignment();
+  }
   return { ok: true, expanded };
 }
 
 function updateWindowBounds() {
   if (!browserWindow || browserWindow.isDestroyed()) return;
   refreshRuntimeStatus();
-  scheduleTopAlignment();
+  if (isNiriSession()) workspaceViewRuntime.request();
+  else scheduleTopAlignment();
 }
 
 async function createWindow() {
-  browserWindow = new BrowserWindow({
+  const createdWindow = new BrowserWindow({
     ...currentBounds(),
     title: "Pi Activity Strip",
     frame: false,
@@ -343,7 +322,7 @@ async function createWindow() {
     closable: true,
     skipTaskbar: true,
     show: false,
-    focusable: interactive,
+    focusable: !isNiriSession() && interactive,
     alwaysOnTop: true,
     webPreferences: {
       preload: preloadPath,
@@ -354,40 +333,69 @@ async function createWindow() {
     },
     backgroundColor: "#00000000",
   });
+  browserWindow = createdWindow;
 
-  browserWindow.setAlwaysOnTop(true, "screen-saver");
-  browserWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+  createdWindow.setAlwaysOnTop(true, "screen-saver");
+  createdWindow.setIgnoreMouseEvents(isNiriSession() || !interactive, { forward: true });
 
-  browserWindow.once("ready-to-show", () => {
+  createdWindow.once("ready-to-show", () => {
+    if (appQuitting || browserWindow !== createdWindow || createdWindow.isDestroyed()) return;
     runtimeStatus.state = "ready";
     runtimeStatus.readyAt = Date.now();
     runtimeStatus.error = null;
-    browserWindow?.showInactive?.();
-    sendRendererSnapshot();
+    if (!isNiriSession()) {
+      createdWindow.showInactive?.();
+      sendRendererSnapshot();
+      scheduleTopAlignment();
+    }
     refreshRuntimeStatus();
-    scheduleTopAlignment();
   });
 
-  const html = createStripHtml({ interactive });
-  await browserWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  createdWindow.on("show", () => refreshRuntimeStatus());
+  createdWindow.on("hide", () => refreshRuntimeStatus());
+  createdWindow.on("blur", () => {
+    if (browserWindow !== createdWindow) return;
+    createdWindow.webContents.send("pi-activity-strip:collapse");
+    setExpanded(false).catch(() => {});
+  });
+  createdWindow.webContents.on("render-process-gone", () => {
+    if (appQuitting || browserWindow !== createdWindow) return;
+    rendererVisible = false;
+    focusedWorkspaceViewVisible = false;
+    runtimeStatus.state = "starting";
+    refreshRuntimeStatus();
+    if (!createdWindow.isDestroyed()) createdWindow.destroy();
+  });
+  createdWindow.on("closed", () => {
+    if (browserWindow !== createdWindow) return;
+    rendererVisible = false;
+    focusedWorkspaceViewVisible = false;
+    browserWindow = null;
+    if (!appQuitting) runtimeStatus.state = "starting";
+    refreshRuntimeStatus();
+    if (!appQuitting) {
+      const recoveryTimer = setTimeout(requestWindowRecovery, 0);
+      recoveryTimer.unref?.();
+    }
+  });
 
-  if (!browserWindow.isVisible()) {
-    browserWindow.showInactive?.();
+  const html = createStripHtml({ interactive, initiallyVisible: !isNiriSession() });
+  try {
+    await createdWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  } catch (error) {
+    if (browserWindow === createdWindow) browserWindow = null;
+    if (!createdWindow.isDestroyed()) createdWindow.destroy();
+    throw error;
+  }
+
+  if (!isNiriSession() && !createdWindow.isVisible()) {
+    createdWindow.showInactive?.();
     sendRendererSnapshot();
     refreshRuntimeStatus();
     scheduleTopAlignment();
   }
 
-  browserWindow.on("show", () => refreshRuntimeStatus());
-  browserWindow.on("hide", () => refreshRuntimeStatus());
-  browserWindow.on("blur", () => {
-    browserWindow?.webContents.send("pi-activity-strip:collapse");
-    setExpanded(false).catch(() => {});
-  });
-  browserWindow.on("closed", () => {
-    browserWindow = null;
-    refreshRuntimeStatus();
-  });
+  return createdWindow;
 }
 
 async function main() {
@@ -422,12 +430,19 @@ async function main() {
   ipcMain.handle("pi-activity-strip:set-expanded", (_event, nextExpanded) =>
     setExpanded(Boolean(nextExpanded)),
   );
+  ipcMain.on(visibilityRuntime.appliedChannel, visibilityRuntime.acknowledge);
   broker.on("snapshot", (snapshot) => {
+    const sessionMembershipChanged = !haveSameSessionIds(
+      latestSnapshot.sessions,
+      snapshot.sessions,
+    );
     latestSnapshot = snapshot;
     if (!resolveSnapshotSession(latestSnapshot.sessions, focusedSessionId)) focusedSessionId = null;
     sendRendererSnapshot();
+    if (isNiriSession() && sessionMembershipChanged) workspaceViewRuntime.request();
   });
   broker.on("shutdown-requested", async () => {
+    beginShutdown();
     await broker?.stop();
     app.quit();
   });
@@ -436,30 +451,32 @@ async function main() {
 
   await app.whenReady();
   refreshRuntimeStatus();
-  await createWindow();
+  if (!(await ensureBrowserWindow())) {
+    throw new Error("Activity strip BrowserWindow did not become usable.");
+  }
 
   screen.on("display-metrics-changed", () => updateWindowBounds());
   screen.on("display-added", () => updateWindowBounds());
   screen.on("display-removed", () => updateWindowBounds());
   if (isNiriSession()) {
-    syncFocusedNiriSession().catch(() => {});
-    followFocusedNiriWorkspace().catch(() => {});
-    workspaceFollowTimer = setInterval(() => {
-      syncFocusedNiriSession().catch(() => {});
-      followFocusedNiriWorkspace().catch(() => {});
-    }, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
-    workspaceFollowTimer.unref?.();
+    workspaceViewRuntime.request();
+    workspaceEventWatcher = createNiriWorkspaceEventWatcher({
+      spawn,
+      env: process.env,
+      onFocusedWorkspace: () => workspaceViewRuntime.request(),
+      onFallback: () => workspaceViewRuntime.requestPassive(),
+      fallbackMs: ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
+    });
   }
 
-  app.on("second-instance", () => {
-    sendRendererSnapshot();
-    requestTopAlignment();
-  });
+  app.on("second-instance", () => requestWindowRecovery());
 
   app.on("before-quit", async () => {
-    if (workspaceFollowTimer) clearInterval(workspaceFollowTimer);
+    beginShutdown();
     ipcMain.removeHandler("pi-activity-strip:focus");
     ipcMain.removeHandler("pi-activity-strip:set-expanded");
+    ipcMain.removeListener(visibilityRuntime.appliedChannel, visibilityRuntime.acknowledge);
+    visibilityRuntime.dispose();
     await broker?.stop();
   });
 

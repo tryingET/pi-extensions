@@ -24,7 +24,7 @@ This package is designed for the exact workflow you asked for:
 
 - auto-starts a local top-row overlay when Pi starts in a TUI session
 - tracks each active Pi session independently
-- shows one card per live session
+- on Niri, shows one card per tracked live Pi terminal on only the focused workspace; non-Niri desktops retain the global live-session view
 - surfaces:
   - repo/session label
   - current phase
@@ -37,7 +37,7 @@ This package is designed for the exact workflow you asked for:
 - keeps green `done`/`monitoring` cards directly beside the Activity tile, followed by active work and then other settled sessions, on a calm 15-second ordering clock
 - reveals prompt, response, path, and full activity detail on hover or keyboard focus
 - focuses the exact matching Ghostty/Niri window on click or Enter, failing closed when identity is missing or ambiguous
-- follows the focused Niri workspace instead of remaining stranded on an old workspace
+- keeps an aligned strip resident on its Niri workspace while that workspace still has tracked terminals, so visiting an empty workspace does not unmap or reposition it
 
 ## Architecture
 
@@ -56,7 +56,7 @@ It does not require moving your workflow onto `pi-server` first.
 Implemented now:
 - local per-host broker
 - primary-display top-row strip
-- one card per active Pi session
+- one card per tracked live Pi terminal on the focused Niri workspace, regardless of activity state
 - headless-safe telemetry publishing
 - explicit open/focus-strip/focus-session/status/doctor/snapshot/fix-top/stop commands
 - focus-scoped Left/Right navigation and Shift+Left/Right manual card movement
@@ -127,6 +127,7 @@ In Pi with UI support:
 
 ## Interaction model
 
+- **Workspace locality:** one strip follows the Niri workspace selected with Up/Down and renders only tracked Pi terminals whose exact Ghostty windows are on that workspace. Focused-workspace events trigger reconciliation immediately, with polling retained as a fallback. When an empty workspace is visited, an aligned strip whose resident workspace still has tracked terminals remains rendered on that prior workspace; Niri keeps it off the empty workspace and returning brings the already-positioned strip back with its row. If its resident terminals disappear, the renderer is concealed and input-disabled. When an actual remap or floating correction is unavoidable, reveal waits beyond Niri's compositor movement animation and then re-verifies placement and membership. The broker remains global and non-Niri desktops retain the global card view.
 - **Ordering:** green `done` cards whose footer reads `monitoring` stay at the far left beside the Activity tile. Active tool/thinking/waiting cards follow, then other settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
 - **Current terminal:** on Niri, the card matching the focused Ghostty window gets a stronger border and left rail without an extra label. Matching uses the same exact session-title identity seam as click-to-focus and fails closed when focus or identity is missing or ambiguous.
 - **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the one Ghostty title carrying that exact Pi session-id suffix.
@@ -143,7 +144,7 @@ binds {
 }
 ```
 
-`focus-strip` moves the unique strip window to the currently focused workspace and gives it keyboard focus. This keeps shortcut ownership explicit in Niri and avoids application-level global-key collisions.
+`focus-strip` gives keyboard focus only to the unique strip already resident on the currently focused workspace; it never moves a strip between workspaces. When the focused workspace has no tracked live Pi terminals, the command fails closed rather than forcing an empty bar into view. This keeps shortcut ownership explicit in Niri and avoids application-level global-key collisions.
 
 ## Verification commands
 

@@ -75,6 +75,15 @@ test("interactive cards expose hover detail, exact activation, and focus-scoped 
 });
 
 test("click-through rendering remains an explicit escape hatch", () => {
+  const hidden = createStripHtml({ initiallyVisible: false });
+  assert.match(hidden, /<html data-strip-visible="false">/);
+  assert.match(hidden, /html\[data-strip-visible="false"\] \{ visibility: hidden; \}/);
+  assert.match(hidden, /api\.onVisibility\?\.\(async \(visible, isCurrent/);
+  assert.match(hidden, /document\.documentElement\.dataset\.stripVisible/);
+  assert.match(hidden, /if \(document\.hidden\) return isCurrent\(\)/);
+  assert.match(hidden, /if \(!isCurrent\(\)\) return false/);
+  assert.match(hidden, /requestAnimationFrame\(\(\) => requestAnimationFrame\(resolve\)\)/);
+
   assert.match(createStripHtml({ interactive: false }), /pointer-events: none/);
   assert.match(createStripHtml({ interactive: true }), /pointer-events: auto/);
 });

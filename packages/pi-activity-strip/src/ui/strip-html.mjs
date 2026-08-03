@@ -26,11 +26,11 @@ export function shouldRetainExpandedCard({ hovered, activeElement, documentFocus
 
 const INTERACTION_RUNTIME = shouldRetainExpandedCard.toString();
 
-export function createStripHtml({ interactive = true } = {}) {
+export function createStripHtml({ interactive = true, initiallyVisible = true } = {}) {
   const pointerEvents = interactive ? "auto" : "none";
 
   return `<!doctype html>
-<html>
+<html data-strip-visible="${initiallyVisible ? "true" : "false"}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -55,6 +55,7 @@ export function createStripHtml({ interactive = true } = {}) {
       }
 
       * { box-sizing: border-box; }
+      html[data-strip-visible="false"] { visibility: hidden; }
       html, body {
         margin: 0;
         width: 100%;
@@ -214,6 +215,7 @@ export function createStripHtml({ interactive = true } = {}) {
         activate: async () => ({ ok: false, error: "Activity bridge unavailable" }),
         setExpanded: async () => {},
         onCollapse() { return () => {}; },
+        onVisibility() { return () => {}; },
         subscribe() { return () => {}; },
       };
       let snapshot = { generatedAt: Date.now(), focusedSessionId: null, sessions: [] };
@@ -443,6 +445,32 @@ export function createStripHtml({ interactive = true } = {}) {
         render();
       }, 1000);
       api.onCollapse?.(() => setExpanded(null, false).catch(() => {}));
+      api.onVisibility?.(async (visible, isCurrent = () => true) => {
+        if (!visible) {
+          document.documentElement.dataset.stripVisible = "false";
+          if (document.hidden) return isCurrent();
+          await new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          );
+          return isCurrent();
+        }
+        if (document.hidden) {
+          if (!isCurrent()) return false;
+          document.documentElement.dataset.stripVisible = "true";
+          return true;
+        }
+        await new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        );
+        if (!isCurrent()) return false;
+        document.documentElement.dataset.stripVisible = "true";
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if (!isCurrent()) {
+          document.documentElement.dataset.stripVisible = "false";
+          return false;
+        }
+        return true;
+      });
       api.subscribe((nextSnapshot) => {
         snapshot = nextSnapshot || { generatedAt: Date.now(), focusedSessionId: null, sessions: [] };
         syncOrder(orderedIds.length === 0);

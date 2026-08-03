@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  createFocusedSessionPoller,
   focusNiriSession,
   focusNiriStrip,
   readNiriWindows,
@@ -9,6 +8,7 @@ import {
   resolveExactGhosttyWindow,
   resolveFocusedNiriWorkspace,
   resolveFocusedSnapshotSessionId,
+  resolveFocusedWorkspaceView,
   resolvePiSessionIdentity,
   resolveSnapshotSession,
 } from "../src/common/niri-focus.mjs";
@@ -252,34 +252,92 @@ test("focused session resolution highlights only the exact focused Ghostty sessi
   );
 });
 
-test("focused session polling is single-flight and always releases its guard", async () => {
-  let releaseRead = () => {};
-  const seen = [];
-  const poll = createFocusedSessionPoller({
-    readWindows: () =>
-      new Promise((resolve) => {
-        releaseRead = resolve;
-      }),
-    onWindows: (windows) => seen.push(windows),
-  });
+test("focused workspace view includes every exact tracked terminal on only that workspace", () => {
+  const otherSessionId = "019fa4d1-7142-7fb4-8d30-f98e951f0513";
+  const workspaces = [
+    { id: 76, idx: 2, name: null, is_focused: true },
+    { id: 102, idx: 3, name: null, is_focused: false },
+  ];
+  const localWindow = ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513");
+  const otherWindow = {
+    ...ghostty(45, "π - kernel · 019fa4d171427fb48d30f98e951f0513"),
+    workspace_id: 102,
+  };
+  const browser = {
+    id: 46,
+    title: "Browser",
+    app_id: "brave-browser",
+    workspace_id: 76,
+    is_focused: true,
+  };
+  const sessions = [
+    { sessionId, state: "success" },
+    { sessionId: otherSessionId, state: "tool" },
+    { sessionId: "headless-session", state: "thinking" },
+  ];
 
-  const first = poll();
-  assert.equal(await poll(), false, "an overlapping poll must not start another Niri read");
-  releaseRead([{ id: 44, is_focused: true }]);
-  assert.equal(await first, true);
-  assert.deepEqual(seen, [[{ id: 44, is_focused: true }]]);
+  const view = resolveFocusedWorkspaceView(
+    [localWindow, otherWindow, browser],
+    workspaces,
+    sessions,
+  );
+  assert.equal(view?.workspace.id, 76);
+  assert.deepEqual(view?.sessions, [sessions[0]], "activity state must not filter membership");
+  assert.equal(view?.focusedSessionId, null, "browser focus must not hide other local terminals");
 
-  let attempts = 0;
-  const recoveringPoll = createFocusedSessionPoller({
-    readWindows: async () => {
-      attempts += 1;
-      if (attempts === 1) throw new Error("niri timeout");
-      return [];
-    },
-    onWindows: () => {},
-  });
-  await assert.rejects(recoveringPoll(), /niri timeout/);
-  assert.equal(await recoveringPoll(), true, "a failed read must release the next polling cycle");
+  const terminalFocused = resolveFocusedWorkspaceView(
+    [{ ...localWindow, is_focused: true }, otherWindow],
+    workspaces,
+    sessions,
+  );
+  assert.equal(terminalFocused?.focusedSessionId, sessionId);
+
+  const empty = resolveFocusedWorkspaceView(
+    [localWindow, otherWindow],
+    [{ id: 999, idx: 4, name: null, is_focused: true }],
+    sessions,
+  );
+  assert.deepEqual(empty?.sessions, []);
+  assert.equal(resolveFocusedWorkspaceView([], [], sessions), null);
+  assert.equal(
+    resolveFocusedWorkspaceView(
+      [localWindow],
+      [workspaces[0], { ...workspaces[0], id: 77, idx: 5 }],
+      sessions,
+    ),
+    null,
+  );
+  assert.deepEqual(
+    resolveFocusedWorkspaceView([localWindow], workspaces, [sessions[0], { ...sessions[0] }])
+      ?.sessions,
+    [],
+    "duplicate telemetry mapping to one window must fail closed",
+  );
+  assert.deepEqual(
+    resolveFocusedWorkspaceView([{ ...localWindow, workspace_id: "76" }], workspaces, sessions)
+      ?.sessions,
+    [],
+    "workspace identity must remain numeric and exact",
+  );
+});
+
+test("workspace membership includes every activity state", () => {
+  const states = ["idle", "thinking", "tool", "waiting", "success", "error"];
+  const sessions = states.map((state, index) => ({
+    sessionId: `019fa4d${index}-7142-7fb4-8d30-f98e951f0513`,
+    state,
+    agentActive: index % 2 === 0,
+  }));
+  const windows = sessions.map((session, index) => ({
+    ...ghostty(100 + index, `π - ${session.state} · ${session.sessionId.replaceAll("-", "")}`),
+    workspace_id: 76,
+  }));
+  const view = resolveFocusedWorkspaceView(
+    windows,
+    [{ id: 76, idx: 2, name: null, is_focused: true }],
+    sessions,
+  );
+  assert.deepEqual(view?.sessions, sessions);
 });
 
 test("focused-workspace resolution is exact and supports empty focused workspaces", () => {
@@ -289,31 +347,49 @@ test("focused-workspace resolution is exact and supports empty focused workspace
   assert.equal(resolveFocusedNiriWorkspace([focused, { ...focused, id: 77, idx: 4 }]), null);
 });
 
-test("focusNiriStrip is compositor-bindable and moves the unique strip before focusing", async () => {
-  const strip = { id: 423, title: "Pi Activity Strip", workspace_id: 4 };
+test("focusNiriStrip focuses only a strip with exact sessions on the focused workspace", async () => {
+  const strip = { id: 423, title: "Pi Activity Strip", workspace_id: 76 };
+  const otherStrip = { ...strip, id: 424, workspace_id: 4 };
+  const terminal = ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513");
   assert.equal(resolveActivityStripWindow([strip])?.id, 423);
-  assert.equal(resolveActivityStripWindow([strip, { ...strip, id: 424 }]), null);
+  assert.equal(resolveActivityStripWindow([strip, otherStrip]), null);
+  assert.equal(resolveActivityStripWindow([strip, otherStrip], 76)?.id, 423);
 
   const calls = [];
   const exec = async (_file, args) => {
     calls.push(args);
-    if (args.at(-1) === "windows") return { stdout: JSON.stringify([strip]) };
+    if (args.at(-1) === "windows") {
+      return { stdout: JSON.stringify([strip, otherStrip, terminal]) };
+    }
     if (args.at(-1) === "workspaces") {
       return { stdout: JSON.stringify([{ id: 76, idx: 3, name: null, is_focused: true }]) };
     }
     return { stdout: "" };
   };
-  const result = await focusNiriStrip(exec, { NIRI_SOCKET: "socket" });
+  const result = await focusNiriStrip(exec, { NIRI_SOCKET: "socket" }, [{ sessionId }]);
   assert.equal(result.ok, true);
-  assert.deepEqual(calls.at(-2), [
-    "msg",
-    "action",
-    "move-window-to-workspace",
-    "--window-id",
-    "423",
-    "--focus",
-    "false",
-    "3",
-  ]);
   assert.deepEqual(calls.at(-1), ["msg", "action", "focus-window", "--id", "423"]);
+  assert.equal(
+    calls.some((args) => args.includes("move-window-to-workspace")),
+    false,
+  );
+
+  const focusCallCount = calls.filter((args) => args.includes("focus-window")).length;
+  const emptyResult = await focusNiriStrip(exec, { NIRI_SOCKET: "socket" }, []);
+  assert.equal(emptyResult.ok, false);
+  assert.equal(calls.filter((args) => args.includes("focus-window")).length, focusCallCount);
+
+  const absentResult = await focusNiriStrip(
+    async (_file, args) => {
+      if (args.at(-1) === "windows") return { stdout: JSON.stringify([otherStrip]) };
+      if (args.at(-1) === "workspaces") {
+        return { stdout: JSON.stringify([{ id: 76, idx: 3, name: null, is_focused: true }]) };
+      }
+      return { stdout: "" };
+    },
+    { NIRI_SOCKET: "socket" },
+    [{ sessionId }],
+  );
+  assert.equal(absentResult.ok, false);
+  assert.match(absentResult.error, /resident strip/);
 });

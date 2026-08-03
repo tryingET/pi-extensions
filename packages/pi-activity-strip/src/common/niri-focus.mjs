@@ -159,22 +159,50 @@ export function resolveFocusedSnapshotSessionId(windows, sessions, options = {})
 }
 
 /**
- * Keep focus inspection single-flight without coupling it to workspace queries.
- * The guard always releases, including when the bounded window read fails.
- * @param {{readWindows: () => Promise<Array<Record<string, unknown>>>; onWindows: (windows: Array<Record<string, unknown>>) => void}} options
+ * Project the global broker snapshot onto one exact Niri workspace. Membership
+ * requires an exact, unique Ghostty window; two telemetry records resolving to
+ * the same window are both excluded rather than guessed. Activity state does
+ * not affect membership.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {Record<string, unknown>} workspace
+ * @param {Array<Record<string, unknown>>} sessions
+ * @param {{env?: NodeJS.ProcessEnv; readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
  */
-export function createFocusedSessionPoller({ readWindows, onWindows }) {
-  let inFlight = false;
-  return async function pollFocusedSession() {
-    if (inFlight) return false;
-    inFlight = true;
-    try {
-      onWindows(await readWindows());
-      return true;
-    } finally {
-      inFlight = false;
-    }
+export function resolveWorkspaceView(windows, workspace, sessions, options = {}) {
+  if (!Number.isInteger(workspace?.id)) return null;
+  /** @type {Array<{session: Record<string, unknown>; window: Record<string, unknown>}>} */
+  const candidates = [];
+  for (const session of sessions) {
+    const sessionIdentity = resolvePiSessionIdentity(session, options);
+    if (!sessionIdentity) continue;
+    const window = resolveExactGhosttyWindow(windows, sessionIdentity);
+    if (!window || window.workspace_id !== workspace.id) continue;
+    candidates.push({ session, window });
+  }
+  const windowCounts = new Map();
+  for (const candidate of candidates) {
+    windowCounts.set(candidate.window.id, (windowCounts.get(candidate.window.id) ?? 0) + 1);
+  }
+  const projectedSessions = candidates
+    .filter((candidate) => windowCounts.get(candidate.window.id) === 1)
+    .map((candidate) => candidate.session);
+  return {
+    workspace,
+    sessions: projectedSessions,
+    focusedSessionId: resolveFocusedSnapshotSessionId(windows, projectedSessions, options),
   };
+}
+
+/**
+ * Project the global broker snapshot onto the one focused Niri workspace.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {Array<Record<string, unknown>>} workspaces
+ * @param {Array<Record<string, unknown>>} sessions
+ * @param {{env?: NodeJS.ProcessEnv; readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
+ */
+export function resolveFocusedWorkspaceView(windows, workspaces, sessions, options = {}) {
+  const workspace = resolveFocusedNiriWorkspace(workspaces);
+  return workspace ? resolveWorkspaceView(windows, workspace, sessions, options) : null;
 }
 
 /** @param {Array<Record<string, unknown>>} workspaces */
@@ -188,21 +216,28 @@ export function resolveFocusedNiriWorkspace(workspaces) {
   return matches.length === 1 ? matches[0] : null;
 }
 
-/** @param {Array<Record<string, unknown>>} windows */
-export function resolveActivityStripWindow(windows) {
+/**
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {number | null} [workspaceId]
+ */
+export function resolveActivityStripWindow(windows, workspaceId = null) {
   const matches = windows.filter(
-    (window) => Number.isInteger(window?.id) && window?.title === "Pi Activity Strip",
+    (window) =>
+      Number.isInteger(window?.id) &&
+      window?.title === "Pi Activity Strip" &&
+      (workspaceId == null || window?.workspace_id === workspaceId),
   );
   return matches.length === 1 ? matches[0] : null;
 }
 
 /**
- * Move the unique strip to the focused workspace, then focus it. This command is
- * designed for a compositor key binding and never registers a global hotkey itself.
+ * Focus the unique strip already resident on the focused workspace. This command is
+ * designed for a compositor key binding and never moves a strip across workspaces.
  * @param {(file: string, args: string[], options: object) => Promise<{stdout?: string}>} execFileAsync
  * @param {NodeJS.ProcessEnv} [env]
+ * @param {Array<unknown>} [sessions]
  */
-export async function focusNiriStrip(execFileAsync, env = process.env) {
+export async function focusNiriStrip(execFileAsync, env = process.env, sessions = []) {
   if (!env.NIRI_SOCKET)
     return { ok: false, error: "Niri is not available; strip focus did nothing." };
   try {
@@ -214,29 +249,19 @@ export async function focusNiriStrip(execFileAsync, env = process.env) {
     const workspaces = JSON.parse(String(workspaceOutput ?? "[]"));
     if (!Array.isArray(windows) || !Array.isArray(workspaces))
       throw new Error("unexpected payload");
-    const strip = resolveActivityStripWindow(windows);
     const focusedWorkspace = resolveFocusedNiriWorkspace(workspaces);
-    if (!strip || !focusedWorkspace) {
+    const strip = focusedWorkspace
+      ? resolveActivityStripWindow(windows, Number(focusedWorkspace.id))
+      : null;
+    const sessionRecords = Array.isArray(sessions)
+      ? /** @type {Array<Record<string, unknown>>} */ (sessions)
+      : [];
+    const view = resolveFocusedWorkspaceView(windows, workspaces, sessionRecords, { env });
+    if (!strip || !view?.sessions.length) {
       return {
         ok: false,
-        error: "The unique strip or focused workspace was not found; nothing moved.",
+        error: "No visible resident strip with exact tracked sessions exists here; nothing moved.",
       };
-    }
-    if (strip.workspace_id !== focusedWorkspace.id) {
-      await execFileAsync(
-        "niri",
-        [
-          "msg",
-          "action",
-          "move-window-to-workspace",
-          "--window-id",
-          String(strip.id),
-          "--focus",
-          "false",
-          String(focusedWorkspace.name || focusedWorkspace.idx),
-        ],
-        { env },
-      );
     }
     await execFileAsync("niri", ["msg", "action", "focus-window", "--id", String(strip.id)], {
       env,
