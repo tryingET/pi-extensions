@@ -212,11 +212,23 @@ export const CATALOG: ToolboxBundle[] = [
     id: "orchestrator",
     title: "Society orchestrator tools",
     description:
-      "Society diagnostics, evidence, cognitive dispatch, workflow, and loop execution surfaces.",
+      "Society diagnostics, AK direction-to-execution readback, evidence, cognitive dispatch, workflow, and loop execution surfaces.",
     ownerPackage: "packages/pi-society-orchestrator",
     ownerSemantics:
-      "pi-society-orchestrator owns orchestration behavior; toolbox discovers and activates already-registered owner tools without reimplementing orchestration behavior; the owner extension must register tool schemas before toolbox can activate them.",
-    keywords: ["society", "orchestrator", "workflow", "loop", "evidence", "cognitive dispatch"],
+      "pi-society-orchestrator owns orchestration and direction_controller_readback behavior; toolbox only discovers and activates already-registered owner tools, does not reimplement or validate owner runtime semantics, and grants no AK, DSPx, dispatch, or apply authority; the owner extension must register tool schemas before toolbox can activate them.",
+    keywords: [
+      "society",
+      "orchestrator",
+      "workflow",
+      "loop",
+      "evidence",
+      "cognitive dispatch",
+      "d2e",
+      "direction controller",
+      "direction-to-execution",
+      "direction_controller_readback",
+      "AK direction readback",
+    ],
     profiles: [
       {
         id: "read",

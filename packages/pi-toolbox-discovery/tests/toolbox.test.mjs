@@ -661,27 +661,126 @@ test("catalog includes autoresearch foreground resume executor", () => {
   assert.equal(mutating.tools.includes("autoresearch_runtime_resume_apply"), true);
 });
 
-test("orchestrator read activation includes direction-controller readback without acknowledgement", async () => {
-  const orchestrator = CATALOG.find((bundle) => bundle.id === "orchestrator");
-  const read = orchestrator?.profiles.find((profile) => profile.id === "read");
-  assert.ok(read);
-  assert.equal(read.tools.includes("direction_controller_readback"), true);
-  assert.equal(read.risk, "read");
-  assert.equal(read.requiresExplicitUserIntent, false);
+const ORCHESTRATOR_READ_TOOLS = [
+  "society_query",
+  "orchestrator_boundary_telemetry",
+  "direction_controller_readback",
+  "ontology_context",
+];
+function orchestratorProfile(id) {
+  const profile = CATALOG.find((bundle) => bundle.id === "orchestrator")?.profiles.find(
+    (candidate) => candidate.id === id,
+  );
+  assert.ok(profile);
+  return profile;
+}
 
+test("catalog isolates direction-controller readback in the exact orchestrator read profile", () => {
+  const bundle = CATALOG.find((candidate) => candidate.id === "orchestrator");
+  const read = orchestratorProfile("read");
+  const gated = orchestratorProfile("orchestrator-gated");
+  assert.ok(bundle);
+  assert.deepEqual(read.tools, ORCHESTRATOR_READ_TOOLS);
+  assert.deepEqual([read.risk, read.requiresExplicitUserIntent], ["read", false]);
+  assert.deepEqual([gated.risk, gated.requiresExplicitUserIntent], ["orchestrator-gated", true]);
+  assert.deepEqual(
+    read.tools.filter((tool) => gated.tools.includes(tool)),
+    [],
+  );
+  assert.equal(
+    CATALOG.flatMap((candidate) => candidate.profiles.flatMap((profile) => profile.tools)).filter(
+      (tool) => tool === "direction_controller_readback",
+    ).length,
+    1,
+  );
+  assert.equal(bundle.ownerPackage, "packages/pi-society-orchestrator");
+  assert.match(bundle.ownerSemantics, /does not reimplement or validate owner runtime semantics/);
+  assert.match(bundle.ownerSemantics, /grants no AK, DSPx, dispatch, or apply authority/);
+});
+
+test("orchestrator read selection stays exact while foundational baseline repair stays separate", async () => {
   const harness = createHarness();
+  harness.setActiveTools(ALWAYS_ACTIVE_TOOLS.filter((tool) => tool !== "loop_execute"));
   const result = await executeToolbox(harness.tools.get("toolbox"), {
     action: "activate",
     bundle: "orchestrator",
-    profile: "read",
     autoContinue: false,
   });
 
   assert.equal(result.details.ok, true);
+  assert.equal(result.details.profile, "read");
+  assert.deepEqual(result.details.risks, ["read"]);
   assert.equal(result.details.acknowledgementSemantics, "not-required");
-  assert.equal(result.details.risks.includes("read"), true);
-  assert.equal(result.details.activated.includes("direction_controller_readback"), true);
-  assert.equal(harness.activeTools.includes("direction_controller_readback"), true);
+  assert.deepEqual(result.details.activated, ORCHESTRATOR_READ_TOOLS);
+  assert.deepEqual(result.details.requestedNewTools, ORCHESTRATOR_READ_TOOLS);
+  assert.deepEqual(result.details.activatedNewTools, ["loop_execute", ...ORCHESTRATOR_READ_TOOLS]);
+  const gated = orchestratorProfile("orchestrator-gated");
+  assert.deepEqual(
+    result.details.activatedNewTools.filter(
+      (tool) => tool !== "loop_execute" && gated.tools.includes(tool),
+    ),
+    [],
+  );
+});
+
+test("D2E discovery exposes the orchestrator bundle and recommends its read profile", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+  const before = [...harness.activeTools];
+  for (const query of ["d2e", "direction controller"]) {
+    const search = await executeToolbox(toolbox, { action: "search", query });
+    const recommendation = await executeToolbox(toolbox, { action: "recommend", query });
+    assert.deepEqual(search.details.matches, ["orchestrator"]);
+    const first = recommendation.details.recommendations[0];
+    assert.equal(first.bundle, "orchestrator");
+    assert.equal(first.profile, "read");
+    assert.equal(first.risk, "read");
+    assert.equal(recommendation.details.mutatesActiveSet, false);
+  }
+  assert.deepEqual(harness.activeTools, before);
+  assert.equal(harness.sentMessages.length, 0);
+});
+
+test("missing direction-controller registration preserves active tools and existing leases", async () => {
+  const harness = createHarness({ omitRegisteredTools: ["direction_controller_readback"] });
+  const toolbox = harness.tools.get("toolbox");
+  const seeded = await executeToolbox(toolbox, {
+    action: "activate",
+    tools: ["context_pack"],
+    autoContinue: false,
+  });
+  assert.equal(seeded.details.ok, true);
+  const before = [...harness.activeTools];
+  const mutationCallsBefore = harness.setActiveToolsCallCount;
+  const leasesBefore = (await executeToolbox(toolbox, { action: "status" })).details.leases;
+  const result = await executeToolbox(toolbox, { action: "activate", bundle: "orchestrator" });
+  const leasesAfter = (await executeToolbox(toolbox, { action: "status" })).details.leases;
+
+  assert.equal(result.details.ok, false);
+  assert.deepEqual(result.details.missing, ["direction_controller_readback"]);
+  assert.equal(harness.setActiveToolsCallCount, mutationCallsBefore);
+  assert.deepEqual(harness.activeTools, before);
+  assert.equal(harness.sentMessages.length, 0);
+  assert.deepEqual(leasesAfter, leasesBefore);
+});
+
+test("explicit tool selection cannot launder a gated orchestrator tool through read metadata", async () => {
+  const harness = createHarness();
+  const toolbox = harness.tools.get("toolbox");
+  const before = [...harness.activeTools];
+  const result = await executeToolbox(toolbox, {
+    action: "activate",
+    bundle: "orchestrator",
+    profile: "read",
+    tools: ["direction_controller_readback", "workflow_execute"],
+  });
+
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.source, "explicit-tools");
+  assert.deepEqual(result.details.risks, ["read", "orchestrator-gated"]);
+  assert.equal(harness.setActiveToolsCallCount, 0);
+  assert.deepEqual(harness.activeTools, before);
+  assert.equal(harness.sentMessages.length, 0);
 });
 
 test("registered unknown explicit tools remain external-mutation risk gated", async () => {
