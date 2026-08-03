@@ -4,16 +4,26 @@ import type { SubagentState } from "./subagent-session.ts";
 import { getSubagentSessionFile } from "./subagent-spawn-status.ts";
 import type { SubagentDef } from "./subagent-spawn-types.ts";
 
-function resolveSubagentProtocolHelperPath(moduleUrl = import.meta.url): string {
+const CURRENT_SUBAGENT_PROTOCOL_HELPER = "subagent-pi-json-filter-v2";
+
+export function resolveSubagentProtocolHelperPath(moduleUrl = import.meta.url): string {
   const modulePath = fileURLToPath(moduleUrl);
   const moduleDir = dirname(modulePath);
   if (modulePath.endsWith(".js")) {
-    return join(moduleDir, "subagent-pi-json-filter.js");
+    return join(moduleDir, `${CURRENT_SUBAGENT_PROTOCOL_HELPER}.js`);
   }
   if (moduleDir.includes(`${sep}node_modules${sep}`)) {
-    return join(moduleDir, "..", "..", "dist", "extensions", "self", "subagent-pi-json-filter.js");
+    return join(
+      moduleDir,
+      "..",
+      "..",
+      "dist",
+      "extensions",
+      "self",
+      `${CURRENT_SUBAGENT_PROTOCOL_HELPER}.js`,
+    );
   }
-  return join(moduleDir, "subagent-pi-json-filter.ts");
+  return join(moduleDir, `${CURRENT_SUBAGENT_PROTOCOL_HELPER}.ts`);
 }
 
 const SUBAGENT_PROTOCOL_HELPER_PATH = resolveSubagentProtocolHelperPath();

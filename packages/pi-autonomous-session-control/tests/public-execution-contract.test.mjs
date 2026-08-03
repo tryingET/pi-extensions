@@ -37,7 +37,7 @@ async function withCompiledRuntimeFixture(helperSource, run) {
     "dist",
     "extensions",
     "self",
-    "subagent-pi-json-filter.js",
+    "subagent-pi-json-filter-v2.js",
   );
 
   try {
@@ -98,6 +98,8 @@ test("public execution export target stays published, compiled, and typechecked"
   assert.ok(tsconfig.include?.includes("execution.ts"));
   assert.ok(runtimeTsconfig.include?.includes("execution.ts"));
   assert.ok(runtimeTsconfig.include?.includes("extensions/self/subagent-pi-json-filter.ts"));
+  assert.ok(runtimeTsconfig.include?.includes("extensions/self/subagent-pi-json-filter-v2.ts"));
+  assert.ok(runtimeTsconfig.include?.includes("extensions/self/subagent-protocol-v2.ts"));
 });
 
 async function withFakePiOnPath(scriptBody, run, version = "0.80.6") {

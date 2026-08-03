@@ -1,4 +1,4 @@
-import { classifyPiSettlementMode, type SubagentSettlementMode } from "./subagent-protocol.ts";
+import { classifyPiSettlementMode, type SubagentSettlementMode } from "./subagent-protocol-v2.ts";
 import {
   ASSISTANT_STOP_REASONS,
   type AssistantStopReason,

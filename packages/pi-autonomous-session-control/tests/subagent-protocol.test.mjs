@@ -4,13 +4,15 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { createSubagentState, spawnSubagentWithSpawn } from "../extensions/self/subagent.ts";
 import {
   classifyPiSettlementMode,
   translatePiJsonEventLineToSubagentProtocol,
-} from "../extensions/self/subagent-protocol.ts";
+} from "../extensions/self/subagent-protocol-v2.ts";
 import { classifyDispatchEffectDisposition } from "../extensions/self/subagent-runtime.ts";
 import { getDispatchSubagentFailureKind } from "../extensions/self/subagent-runtime-display.ts";
+import { resolveSubagentProtocolHelperPath } from "../extensions/self/subagent-spawn-args.ts";
 
 test("classifyPiSettlementMode distinguishes audited legacy and authoritative settlement hosts", () => {
   assert.equal(classifyPiSettlementMode("0.76.0"), "legacy_agent_end_exit");
@@ -19,6 +21,29 @@ test("classifyPiSettlementMode distinguishes audited legacy and authoritative se
   assert.equal(classifyPiSettlementMode("1.0.0"), "agent_settled");
   assert.equal(classifyPiSettlementMode("0.79.9"), undefined);
   assert.equal(classifyPiSettlementMode("not-semver"), undefined);
+});
+
+test("current parents bind to the versioned intent-v2 helper across source and packed layouts", () => {
+  const sourceModule = pathToFileURL("/workspace/extensions/self/subagent-spawn-args.ts").href;
+  const packedSourceModule = pathToFileURL(
+    "/workspace/node_modules/@tryinget/pi-autonomous-session-control/extensions/self/subagent-spawn-args.ts",
+  ).href;
+  const compiledModule = pathToFileURL(
+    "/workspace/node_modules/@tryinget/pi-autonomous-session-control/dist/extensions/self/subagent-spawn-args.js",
+  ).href;
+
+  assert.equal(
+    resolveSubagentProtocolHelperPath(sourceModule),
+    "/workspace/extensions/self/subagent-pi-json-filter-v2.ts",
+  );
+  assert.equal(
+    resolveSubagentProtocolHelperPath(packedSourceModule),
+    "/workspace/node_modules/@tryinget/pi-autonomous-session-control/dist/extensions/self/subagent-pi-json-filter-v2.js",
+  );
+  assert.equal(
+    resolveSubagentProtocolHelperPath(compiledModule),
+    "/workspace/node_modules/@tryinget/pi-autonomous-session-control/dist/extensions/self/subagent-pi-json-filter-v2.js",
+  );
 });
 
 test("translatePiJsonEventLineToSubagentProtocol drops agent_end aggregates but preserves Pi 0.76 retry finality", () => {
@@ -295,7 +320,7 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
     const result = await resultPromise;
     assert.equal(result.status, "done");
     assert.deepEqual(capturedArgs.filter((arg) => arg === "--extension").length, 2);
-    assert.match(capturedArgs[0], /extensions\/self\/subagent-pi-json-filter\.ts$/u);
+    assert.match(capturedArgs[0], /extensions\/self\/subagent-pi-json-filter-v2\.ts$/u);
     assert.ok(capturedArgs.includes("/tmp/pi-multi-pass.ts"));
     assert.ok(capturedArgs.includes("/tmp/vault.ts"));
     assert.equal(capturedEnv.PI_PROVENANCE_REVIEW_LANE_ID, "lane-spawn");
