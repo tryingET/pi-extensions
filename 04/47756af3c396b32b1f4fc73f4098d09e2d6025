@@ -1,0 +1,28 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "0447756af3c396b32b1f4fc73f4098d09e2d6025"
+created_at: "2026-08-03T07:36:58Z"
+intent: "Mark the focused Niri/Ghostty Pi session in the activity strip with a stronger border and left rail, and order green monitoring cards directly beside the Activity tile ahead of active and other settled sessions."
+files:
+  - "packages/pi-activity-strip/README.md"
+  - "packages/pi-activity-strip/src/common/activity-order.mjs"
+  - "packages/pi-activity-strip/src/common/niri-focus.mjs"
+  - "packages/pi-activity-strip/src/electron/main.mjs"
+  - "packages/pi-activity-strip/src/ui/strip-html.mjs"
+  - "packages/pi-activity-strip/tests/activity-order.test.mjs"
+  - "packages/pi-activity-strip/tests/interaction-runtime.test.mjs"
+  - "packages/pi-activity-strip/tests/niri-focus.test.mjs"
+  - "packages/pi-activity-strip/tests/strip-html.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Single package-local commit: focus-marking and monitoring-first ordering share renderer/test/docs files, so whole-path staging keeps the commit self-consistent and every file compiles/tests at HEAD. Root full gate (npm run quality:pre-push = scripts/ci/full.sh, all-packages aggregate) exceeded the 900s harness limit without an observed failure; package-scoped pi-activity-strip pre-push passed 48/48 (exit 0)."
