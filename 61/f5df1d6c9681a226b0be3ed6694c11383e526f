@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "61f5df1d6c9681a226b0be3ed6694c11383e526f"
+created_at: "2026-08-03T09:54:25Z"
+intent: "Publish OpenAI fast-mode state via Pi footer status key better-openai-fast (\ud83d\udc07/\ud83d\udc22)"
+files:
+  - "packages/pi-better-openai/extensions/fast.ts"
+  - "packages/pi-better-openai/README.md"
+  - "packages/pi-better-openai/tests/fast-image.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "./scripts/ci/packages.sh ci --package pi-better-openai --package pi-society-orchestrator"
+    status: "pass"
+group:
+  index: 1
+  total: 2
+  rationale: "pi-better-openai owns fast-state truth; the footer status key lets the orchestrator footer render fast mode. Repo-wide npm run quality:pre-push fails only in pi-autoresearch from a missing @tryinget/pi-trigger-adapter node_modules link (pre-existing install state, unrelated to these commits); the two changed packages pass the scoped full ci gate (EXIT 0)."
