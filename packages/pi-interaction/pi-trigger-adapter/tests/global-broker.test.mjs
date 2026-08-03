@@ -4,15 +4,12 @@
  *   - "changing the trigger broker global symbol, compatibility check, or reset semantics."
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const TRIGGER_BROKER_PATH = path.resolve(TEST_DIR, "../src/TriggerBroker.js");
-const BROKER_ENTRY_SOURCE = readFileSync(new URL("../broker.js", import.meta.url), "utf8");
-const PACKAGE_JSON = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
 function uniqueModuleUrl(filePath, label) {
   const fileUrl = pathToFileURL(filePath);
@@ -49,29 +46,5 @@ test("getBroker shares a process-global singleton across isolated module instanc
     assert.equal(brokerAfterReset.list().length, 0);
   } finally {
     first.resetBroker();
-  }
-});
-
-test("broker-only subpath avoids picker dependencies and shares root broker identity", async () => {
-  assert.deepEqual(PACKAGE_JSON.exports["./broker"], {
-    types: "./broker.d.ts",
-    import: "./broker.js",
-    default: "./broker.js",
-  });
-  assert.doesNotMatch(
-    BROKER_ENTRY_SOURCE,
-    /pi-interaction-kit|registerPickerInteraction|schemas\.js/,
-  );
-
-  const brokerOnly = await import("../broker.js");
-  const packageRoot = await import("../index.js");
-  brokerOnly.resetBroker();
-
-  try {
-    assert.strictEqual(brokerOnly.getBroker(), packageRoot.getBroker());
-    assert.equal(typeof packageRoot.registerPickerInteraction, "function");
-    assert.equal(typeof packageRoot.splitQueryAndContext, "function");
-  } finally {
-    packageRoot.resetBroker();
   }
 });

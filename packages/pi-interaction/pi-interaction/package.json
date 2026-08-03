@@ -43,7 +43,6 @@
   "files": [
     "index.ts",
     "extensions/input-triggers.ts",
-    "extensions/register-input-triggers.ts",
     "src/runtime.js",
     "prompts",
     "examples",
@@ -51,7 +50,7 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/register-input-triggers.ts"
+      "./extensions/input-triggers.ts"
     ],
     "prompts": [
       "./prompts"

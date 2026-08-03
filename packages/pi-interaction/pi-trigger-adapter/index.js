@@ -5,5 +5,5 @@
  */
 // Convenience re-export for parser helpers used by downstream integrations.
 export { splitQueryAndContext } from "@tryinget/pi-interaction-kit";
-export { getBroker, resetBroker, TriggerBroker } from "./broker.js";
 export { registerPickerInteraction } from "./src/register.js";
+export { getBroker, resetBroker, TriggerBroker } from "./src/TriggerBroker.js";
