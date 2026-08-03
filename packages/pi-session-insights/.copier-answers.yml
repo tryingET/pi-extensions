@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: de6650c
+_src_path: /home/tryinget/ai-society/softwareco/owned/pi-extensions-template
+command_name: session-insights
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-session-insights
+release_config_mode: none
+repo_name: pi-session-insights
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-session-insights

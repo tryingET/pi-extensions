@@ -1,0 +1,28 @@
+{
+  "schema": "pi.session-insights.attribution.v1",
+  "attributions": {
+    "<session-id>": {
+      "authority_repo": {
+        "value": "/absolute/owner/repo",
+        "source": "ak:task:<id>"
+      },
+      "observed_mutation_roots": {
+        "value": ["/absolute/observed/repo"],
+        "source": "session-tool-call:path + git-review"
+      },
+      "runtime_owner": {
+        "value": "/absolute/runtime/owner",
+        "source": "owner-docs:<ref>"
+      },
+      "kes_destination": {
+        "value": "/absolute/owner/repo/diary",
+        "source": "repo-kes-policy:<ref>"
+      },
+      "propagation_state": {
+        "value": "session-only",
+        "source": "repo-inspection:<ref>"
+      },
+      "uncertainties": []
+    }
+  }
+}

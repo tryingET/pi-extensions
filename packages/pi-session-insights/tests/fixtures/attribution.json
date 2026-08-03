@@ -1,0 +1,28 @@
+{
+  "schema": "pi.session-insights.attribution.v1",
+  "attributions": {
+    "session-controller": {
+      "authority_repo": {
+        "value": "/home/tryinget/ai-society/softwareco/infra/workstation",
+        "source": "ak:task:4610"
+      },
+      "observed_mutation_roots": {
+        "source": "session-tool-call:path + operator-review",
+        "value": "/home/tryinget/ai-society/softwareco/infra/workstation"
+      },
+      "runtime_owner": {
+        "value": "/home/tryinget/ai-society/softwareco/infra/workstation",
+        "source": "owner-docs:infra/workstation"
+      },
+      "kes_destination": {
+        "value": "/home/tryinget/ai-society/softwareco/infra/workstation/diary",
+        "source": "repo-kes-policy:infra/workstation"
+      },
+      "propagation_state": {
+        "value": "session + diary",
+        "source": "repo-inspection:diary"
+      },
+      "uncertainties": ["native_runtime_activation_not_proven_by_session"]
+    }
+  }
+}
