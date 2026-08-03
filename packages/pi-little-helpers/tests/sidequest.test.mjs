@@ -657,6 +657,7 @@ test("sidequest defaults to slash commands, visible-loop, and standard peer-spaw
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
   assert.ok(tools.has("candidate_peer_cleanup"));
+  assert.ok(tools.has("candidate_peer_closeout"));
 
   const forkPeerParameters = tools.get("fork_peer_spawn").parameters;
   assert.ok(forkPeerParameters.properties.reportBack);
@@ -673,5 +674,6 @@ test("sidequest can suppress commands while registering toolbox peer tools", () 
   assert.ok(tools.has("scout_peer_spawn"));
   assert.ok(tools.has("candidate_peer_spawn"));
   assert.ok(tools.has("candidate_peer_cleanup"));
+  assert.ok(tools.has("candidate_peer_closeout"));
   assert.equal(tools.has("parallelquest_spawn"), false);
 });

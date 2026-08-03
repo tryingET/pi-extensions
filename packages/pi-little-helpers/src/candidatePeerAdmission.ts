@@ -47,6 +47,7 @@ import {
   inventoryCandidatePeerResources,
   readLifecycleRecord,
 } from "./candidatePeerLifecycleV2.ts";
+import { withCandidateRegistryMutationLock } from "./candidatePeerLifecycleV2State.ts";
 import { getCandidatePeerRegistryDir } from "./candidatePeerRegistry.ts";
 
 export type { CandidateAdmissionLegacyTerminalReconciliationInput };
@@ -510,20 +511,22 @@ export function bindCandidateAdmission(
   input: { admissionId: string; peerRunId: string; worktreePath: string; branchName: string },
   env: NodeJS.ProcessEnv = process.env,
 ): CandidateAdmissionPermit {
-  return withCandidateAdmissionLock(env, () => {
-    const path = candidateAdmissionPermitPath(input.admissionId, env);
-    const permit = readAdmissionJson<CandidateAdmissionPermit>(path);
-    if (permit.status !== "reserved" || permit.peerRunId)
-      throw new Error("candidate admission is not an unbound reservation");
-    const bound = {
-      ...permit,
-      peerRunId: input.peerRunId,
-      worktreePath: resolve(input.worktreePath),
-      branchName: input.branchName,
-    };
-    writeAdmissionJson(path, bound);
-    return bound;
-  });
+  return withCandidateRegistryMutationLock("admission_bind", env, () =>
+    withCandidateAdmissionLock(env, () => {
+      const path = candidateAdmissionPermitPath(input.admissionId, env);
+      const permit = readAdmissionJson<CandidateAdmissionPermit>(path);
+      if (permit.status !== "reserved" || permit.peerRunId)
+        throw new Error("candidate admission is not an unbound reservation");
+      const bound = {
+        ...permit,
+        peerRunId: input.peerRunId,
+        worktreePath: resolve(input.worktreePath),
+        branchName: input.branchName,
+      };
+      writeAdmissionJson(path, bound);
+      return bound;
+    }),
+  );
 }
 
 function readVerifiedOwnerArtifact<T>(path: string, root: string): { value: T; digest: string } {

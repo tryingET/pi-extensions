@@ -188,6 +188,40 @@ export function withResourceLock<T>(
   }
 }
 
+export function withCandidateRegistryMutationLock<T>(
+  operation: string,
+  env: NodeJS.ProcessEnv,
+  fn: () => T,
+): T {
+  const lockRoot = join(getCandidateLifecycleRoot(env), "locks");
+  assertOwnerOnlyDirectory(lockRoot);
+  const lockPath = join(lockRoot, "registry-mutation.lock");
+  try {
+    mkdirSync(lockPath, { mode: 0o700 });
+  } catch {
+    throw new Error("candidate registry mutation is locked");
+  }
+  try {
+    atomicJson(join(lockPath, "lease.json"), {
+      operation,
+      pid: process.pid,
+      acquiredAt: new Date().toISOString(),
+    });
+    return fn();
+  } finally {
+    try {
+      unlinkSync(join(lockPath, "lease.json"));
+    } catch {
+      // A missing lease leaves the global mutation membrane fail-closed for owner recovery.
+    }
+    try {
+      execFileSync("rmdir", [lockPath]);
+    } catch {
+      // A non-empty lock is evidence requiring owner recovery, not permission to break it.
+    }
+  }
+}
+
 export function withAdoptionLock<T>(env: NodeJS.ProcessEnv, fn: () => T): T {
   const lockRoot = join(getCandidateLifecycleRoot(env), "locks");
   assertOwnerOnlyDirectory(lockRoot);

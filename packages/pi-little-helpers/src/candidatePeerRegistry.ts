@@ -5,6 +5,7 @@
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { withCandidateRegistryMutationLock } from "./candidatePeerLifecycleV2State.ts";
 
 export type CandidatePeerReportBack = "intercom" | "manual" | "none";
 export type CandidatePeerLaunchStatus = "launched" | "launch_failed";
@@ -238,11 +239,16 @@ export function createCandidatePeerRegistryRecord(
   };
 }
 
-export function writeCandidatePeerRegistryRecord(record: CandidatePeerRegistryRecord): string {
-  const registryPath = resolve(record.registryPath);
-  mkdirSync(dirname(registryPath), { recursive: true });
-  const tempPath = `${registryPath}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(tempPath, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
-  renameSync(tempPath, registryPath);
-  return registryPath;
+export function writeCandidatePeerRegistryRecord(
+  record: CandidatePeerRegistryRecord,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return withCandidateRegistryMutationLock("registry_publish", env, () => {
+    const registryPath = resolve(record.registryPath);
+    mkdirSync(dirname(registryPath), { recursive: true });
+    const tempPath = `${registryPath}.${process.pid}.${Date.now()}.tmp`;
+    writeFileSync(tempPath, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+    renameSync(tempPath, registryPath);
+    return registryPath;
+  });
 }

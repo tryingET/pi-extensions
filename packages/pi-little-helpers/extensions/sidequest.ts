@@ -23,6 +23,11 @@ import {
   reserveCandidateAdmission,
 } from "../src/candidatePeerAdmission.ts";
 import {
+  executeCandidatePeerCloseout as executeLifecycleCandidatePeerCloseout,
+  projectCandidatePeerCloseout,
+} from "../src/candidatePeerCloseout.ts";
+import { runCandidatePeerJanitor } from "../src/candidatePeerJanitor.ts";
+import {
   type CandidatePeerRegistryRecord,
   type CandidatePeerSafeNaming,
   createCandidatePeerRegistryRecord,
@@ -75,6 +80,7 @@ const [
   SCOUT_PEER_SPAWN_TOOL,
   CANDIDATE_PEER_SPAWN_TOOL,
   CANDIDATE_PEER_CLEANUP_TOOL,
+  CANDIDATE_PEER_CLOSEOUT_TOOL,
 ] = LITTLE_HELPERS_PEER_TOOL_NAMES;
 
 const DEFAULT_PI_BIN = process.env.PI_SIDEQUEST_PI_BIN || "pi";
@@ -147,6 +153,11 @@ type SidequestOptions = {
     bind: typeof bindCandidateAdmission;
     release: typeof releaseCandidateAdmission;
   };
+  candidateCloseout?: {
+    project: typeof projectCandidatePeerCloseout;
+    execute: typeof executeLifecycleCandidatePeerCloseout;
+    janitor: typeof runCandidatePeerJanitor;
+  };
 };
 
 type SidequestContext = {
@@ -193,6 +204,25 @@ type CandidatePeerCleanupRequest = {
   execute?: boolean;
   closeVisibleResources?: boolean;
   integrationCloseoutStatus?: "successful" | "failed" | "missing";
+};
+
+type CandidatePeerCloseoutRequest = {
+  action?:
+    | "status"
+    | "plan"
+    | "execute_authorized"
+    | "janitor_status"
+    | "janitor_execute_authorized";
+  peerRunIds?: string[];
+  repoRoot?: string;
+  overdueAfterMs?: number;
+  taskId?: number;
+  integrationCloseout?: {
+    status?: "successful" | "failed" | "missing";
+    commit?: string;
+    summary?: string;
+  };
+  cleanupTrigger?: string;
 };
 
 type WorktreePrepareSuccess = {
@@ -371,6 +401,51 @@ const candidatePeerCleanupParameters = asPiToolParameters(
         description:
           "Historical compatibility field only. No value authorizes registry-v1 execution.",
       }),
+    ),
+  }),
+);
+
+const candidatePeerCloseoutParameters = asPiToolParameters(
+  Type.Object({
+    action: Type.Union([
+      Type.Literal("status"),
+      Type.Literal("plan"),
+      Type.Literal("execute_authorized"),
+      Type.Literal("janitor_status"),
+      Type.Literal("janitor_execute_authorized"),
+    ]),
+    peerRunIds: Type.Optional(
+      Type.Array(Type.String(), {
+        description: "Exact peer-run aliases. Required for status, plan, and execute_authorized.",
+      }),
+    ),
+    repoRoot: Type.Optional(
+      Type.String({
+        description:
+          "Absolute normalized owner repository root. Required for both janitor actions.",
+      }),
+    ),
+    overdueAfterMs: Type.Optional(
+      Type.Number({ description: "Reporting interval only; age never authorizes cleanup." }),
+    ),
+    taskId: Type.Optional(
+      Type.Number({
+        description: "Non-authorizing planning context echoed for controller review.",
+      }),
+    ),
+    integrationCloseout: Type.Optional(
+      Type.Object({
+        status: Type.Union([
+          Type.Literal("successful"),
+          Type.Literal("failed"),
+          Type.Literal("missing"),
+        ]),
+        commit: Type.Optional(Type.String()),
+        summary: Type.Optional(Type.String()),
+      }),
+    ),
+    cleanupTrigger: Type.Optional(
+      Type.String({ description: "Non-authorizing controller handoff context." }),
     ),
   }),
 );
@@ -2135,6 +2210,10 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     const reserveAdmission = options.candidateAdmission?.reserve ?? reserveCandidateAdmission;
     const bindAdmission = options.candidateAdmission?.bind ?? bindCandidateAdmission;
     const releaseAdmission = options.candidateAdmission?.release ?? releaseCandidateAdmission;
+    const projectCloseout = options.candidateCloseout?.project ?? projectCandidatePeerCloseout;
+    const executeCloseout =
+      options.candidateCloseout?.execute ?? executeLifecycleCandidatePeerCloseout;
+    const runCloseoutJanitor = options.candidateCloseout?.janitor ?? runCandidatePeerJanitor;
 
     async function runForkPeerCommand(
       args: string | undefined,
@@ -2594,7 +2673,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           env,
         );
         try {
-          writeCandidatePeerRegistryRecord(registryRecord);
+          writeCandidatePeerRegistryRecord(registryRecord, env);
         } catch {
           // Best-effort diagnostic persistence only; the UI reports the launch failure below.
         }
@@ -2641,7 +2720,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       );
       let registryPath: string | undefined;
       try {
-        registryPath = writeCandidatePeerRegistryRecord(registryRecord);
+        registryPath = writeCandidatePeerRegistryRecord(registryRecord, env);
       } catch {
         // Best-effort diagnostic persistence only; the visible candidate is already launched.
       }
@@ -2956,6 +3035,61 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       });
     }
 
+    async function executeCandidatePeerCloseout(
+      toolName: string,
+      params: unknown,
+      _ctx: PiToolContext,
+    ) {
+      const request = params as CandidatePeerCloseoutRequest;
+      const action = request.action;
+      const env = options.env ?? process.env;
+      const planningContext = {
+        taskId: request.taskId,
+        integrationCloseout: request.integrationCloseout,
+        cleanupTrigger: request.cleanupTrigger,
+        nonAuthorizing: true,
+      };
+      if (action === "status" || action === "plan") {
+        const result = projectCloseout({
+          action,
+          peerRunIds: request.peerRunIds ?? [],
+          env,
+        });
+        return successToolResult(`${toolName} ${action}`, {
+          ok: true,
+          ...result,
+          planningContext,
+        });
+      }
+      if (action === "execute_authorized") {
+        const result = executeCloseout({ peerRunIds: request.peerRunIds ?? [], env });
+        return successToolResult(`${toolName} ${result.execution}`, {
+          ok: result.execution === "completed",
+          ...result,
+          planningContext,
+        });
+      }
+      if (action === "janitor_status" || action === "janitor_execute_authorized") {
+        const repoRoot = request.repoRoot?.trim() ?? "";
+        if (!repoRoot) throw new Error(`${toolName} ${action} requires an exact repoRoot`);
+        const result = runCloseoutJanitor({
+          action: action === "janitor_status" ? "status" : "execute_authorized",
+          repoRoot,
+          ...(request.overdueAfterMs === undefined
+            ? {}
+            : { overdueAfterMs: request.overdueAfterMs }),
+          env,
+        });
+        return successToolResult(`${toolName} ${action} ${result.execution}`, {
+          ok: ["not_requested", "completed"].includes(result.execution),
+          ...result,
+          toolAction: action,
+          planningContext,
+        });
+      }
+      throw new Error(`${toolName} requires a supported lifecycle-v2 action`);
+    }
+
     async function executeCandidatePeerSpawn(
       toolName: string,
       params: unknown,
@@ -3141,7 +3275,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         );
         let registryWriteError: string | undefined;
         try {
-          writeCandidatePeerRegistryRecord(registryRecord);
+          writeCandidatePeerRegistryRecord(registryRecord, env);
         } catch (error) {
           registryWriteError = error instanceof Error ? error.message : String(error);
         }
@@ -3220,7 +3354,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       );
       let registryWriteError: string | undefined;
       try {
-        writeCandidatePeerRegistryRecord(registryRecord);
+        writeCandidatePeerRegistryRecord(registryRecord, env);
       } catch (error) {
         registryWriteError = error instanceof Error ? error.message : String(error);
       }
@@ -3477,6 +3611,18 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       parameters: candidatePeerCleanupParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeCandidatePeerCleanup(CANDIDATE_PEER_CLEANUP_TOOL, params, ctx),
+    });
+
+    pi.registerTool({
+      name: CANDIDATE_PEER_CLOSEOUT_TOOL,
+      label: "Candidate Peer Closeout",
+      description:
+        "Resolve exact peer aliases to lifecycle-v2 generations, plan closeout, execute existing cleanup authorization, or run a repository-bounded janitor.",
+      promptSnippet:
+        "Use status/plan for read-only lifecycle-v2 resolution. execute_authorized and janitor_execute_authorized may act only on existing exact cleanup authorization; peer final reports, integration status, and age never authorize cleanup.",
+      parameters: candidatePeerCloseoutParameters,
+      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
+        executeCandidatePeerCloseout(CANDIDATE_PEER_CLOSEOUT_TOOL, params, ctx),
     });
   };
 }

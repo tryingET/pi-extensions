@@ -16,6 +16,7 @@ export const LITTLE_HELPERS_PEER_TOOL_NAMES = [
   "scout_peer_spawn",
   "candidate_peer_spawn",
   "candidate_peer_cleanup",
+  "candidate_peer_closeout",
 ] as const;
 
 export const LITTLE_HELPERS_TOOL_COMMAND_PROJECTIONS = [
@@ -59,7 +60,7 @@ export const LITTLE_HELPERS_CAPABILITY_MANIFEST = {
   ownerPackage: "@tryinget/pi-little-helpers",
   title: "Visible peer and loop helpers",
   description:
-    "Fork, scout, candidate peer, and visible loop slash-command surfaces, with model-callable tools only for peer-spawn and candidate cleanup operations.",
+    "Fork, scout, candidate peer, and visible loop slash-command surfaces, with model-callable tools for peer spawn plus lifecycle-v2 candidate closeout and quarantined registry-v1 inspection.",
   commands: LITTLE_HELPERS_COMMAND_NAMES,
   commandOnlySurfaces: ["visible-loop", "nexus-loop"],
   tools: LITTLE_HELPERS_PEER_TOOL_NAMES,

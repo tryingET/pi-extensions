@@ -580,7 +580,7 @@ test("reservation rejects inventory drift after owner authorization", () => {
     env,
     "2026-07-18T00:00:30.000Z",
   );
-  writeCandidatePeerRegistryRecord(record);
+  writeCandidatePeerRegistryRecord(record, env);
   assert.throws(
     () =>
       reserveCandidateAdmission(
@@ -616,6 +616,7 @@ test("same-size worktree content drift invalidates authorization", () => {
       env,
       now,
     ),
+    env,
   );
   authorize({ env, repoRoot, now });
   writeFileSync(join(worktreePath, "value.txt"), "BBBB");
@@ -669,6 +670,7 @@ test("a bound admission retains its reserved byte charge", () => {
       env,
       "2026-07-18T00:01:30.000Z",
     ),
+    env,
   );
   const pressure = captureCandidateAdmissionPressure(env, "2026-07-18T00:02:00.000Z");
   assert.equal(pressure.activeAdmissions, 1);
