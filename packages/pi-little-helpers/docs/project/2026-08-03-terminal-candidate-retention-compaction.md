@@ -79,6 +79,12 @@ The same verifier is used by ordinary admission release and by terminal-compacti
 
 AK-4628 carries an explicit readability exception for `candidatePeerLifecycleArchive.ts`, which was already above the brownfield 500-line budget before this repair. The bounded scanner change stays local so the live verifier correction is not mixed with a high-risk module extraction; the package gate remains warn-only for that pre-existing size posture.
 
+### AK-4628 production proof
+
+Commit `2931ea11` added the bounded verifier and adversarial admission suite. The final package gate passed 249 tests with zero failures, and independent reviews `dispatch-1785796263489` and `dispatch-1785796263489-1` passed after the early-read ceiling was enforced.
+
+The exact AK-4368 resource `cpr-95a8476f3081a9023d83ac3e` then passed read-only terminal verification with digest `9e24d2fd2f9a53d89875b8867c02bd5298ae0613038bfc26645e2f1fb08b5246`. Its final event was 24,666,608 bytes. The ordinary `candidate-admission-v2 release` command changed permit `cadm-0165dc3c-fdcb-4add-b78e-4a9edcdadabd` from `reserved` to `released` at `2026-08-03T22:41:43.931Z`, with outcome `terminal_cleaned` and that exact terminal digest. Active admission pressure changed once from one resource / 805,306,368 bytes to zero. The canonical lifecycle record and event-ledger SHA-256 values remained unchanged (`9e8a64570c37e5ea26e8b3c4609a52371503bfd1330bf7fe883afda8f6305fe1` and `f17e7261d5673df092e56827a00fe66796912ceb1058b5c274a3b468d0f39dc8`); no permit edit, event rewrite, legacy reconciliation, or retry was used.
+
 ## Commands
 
 ```bash
