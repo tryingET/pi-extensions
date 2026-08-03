@@ -1,0 +1,28 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "0ad6c81192abaefc81c53961705e2671b3fb53bd"
+created_at: "2026-08-03T11:33:21Z"
+intent: "Validate local file package links before full gates with a read-only recursive preflight"
+files:
+  - "scripts/validate-local-package-links.mjs"
+  - "scripts/validate-local-package-links.test.mjs"
+  - "scripts/package-quality-gate.sh"
+  - "scripts/package-quality-gate.test.mjs"
+  - "scripts/ci/full.sh"
+  - "package.json"
+  - "README.md"
+  - "docs/engineering.local.md"
+  - "docs/project/root-capabilities.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "node --test ./scripts/validate-local-package-links.test.mjs ./scripts/package-quality-gate.test.mjs"
+    status: "pass"
+group:
+  index: 2
+  total: 2
+  rationale: "Adds scripts/validate-local-package-links.mjs (read-only, canonical-realpath, repo-bounded, cycle-safe) run at the start of scripts/ci/full.sh and before each package typecheck/test/full stage; reports owning-package npm install repair without auto-installing. Repo-wide npm run quality:pre-push fails only at scripts/root-doc-alignment.test.mjs because a concurrent session created an untracked packages/pi-session-insights package (live packageCount=34 vs committed snapshot=33); the new validator test suite (14/14) and the scoped pi-autoresearch gate (264 pass) pass, and these commits add no packages, so the snapshot failure is concurrent drift unrelated to this change."
