@@ -8,6 +8,8 @@ import { pathToFileURL } from "node:url";
 import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
 import {
   assertDirectoriesMatchExactly,
+  createRuntimeFooterSmokeData,
+  executeRuntimeFooterSmokeGit,
   settingsPackagesContainSpec,
 } from "./release-smoke-helpers.mjs";
 
@@ -426,6 +428,7 @@ function createPiHarness() {
     events,
     registrations,
     pi: {
+      exec: executeRuntimeFooterSmokeGit,
       registerTool(tool) {
         registrations.tools.push(tool.name);
         tools.set(tool.name, tool);
@@ -810,27 +813,34 @@ try {
   assert.match(startupNotifications[0]?.message || "", /\/runtime-status\s+Inspect runtime truth/);
   assert.ok(footerFactory, "session_start did not register a footer");
   const footer = footerFactory(
-    undefined,
+    { requestRender() {} },
     {
       fg(_color, text) {
         return text;
       },
     },
-    undefined,
+    createRuntimeFooterSmokeData(),
   );
+  footer.render(120);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   const renderedFooter = footer.render(120)[0];
   assert.match(renderedFooter, /orchestrator→ASC/);
   assert.match(renderedFooter, /ctx 20k/);
   assert.match(renderedFooter, /↑1\.2k ↺500 ↓400/);
-  assert.match(renderedFooter, /Routing: all agents/);
+  assert.match(renderedFooter, /🐇/);
+  assert.match(renderedFooter, /🌱 main 📝🤷⇡3/);
+  assert.doesNotMatch(renderedFooter, /Routing:/);
   assert.match(renderedFooter, /DB(?:✓|✗)/);
   assert.match(renderedFooter, /Vault(?:✓|✗)/);
 
   const narrowFooter = footer.render(20)[0];
-  assert.match(narrowFooter, /Routing:/);
+  assert.match(narrowFooter, /🐇/);
+  assert.match(narrowFooter, /🌱 main/);
   assert.doesNotMatch(narrowFooter, /orchestrator→ASC/);
+  assert.doesNotMatch(narrowFooter, /Routing:/);
   assert.doesNotMatch(narrowFooter, /DB(?:✓|✗)/);
   assert.doesNotMatch(narrowFooter, /Vault(?:✓|✗)/);
+  footer.dispose?.();
   console.log("installed startup/runtime footer smoke: ok");
 
   const runtimeStatusEditors = [];
@@ -916,6 +926,11 @@ try {
     /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/,
   );
   assert.match(runtimeStatusEditors[0]?.text || "", /routing: `all agents` \[internal: `full`\]/);
+  assert.match(
+    runtimeStatusEditors[0]?.text || "",
+    /footer right: fast mode .* Starship-style Git branch\/status/,
+  );
+  assert.match(runtimeStatusEditors[0]?.text || "", /routing is intentionally omitted/);
   console.log("installed runtime-status smoke: ok");
 
   const runtimeStatusAkCalls = readAkCallRecords(akCallLogPath);

@@ -1,5 +1,5 @@
 // ---
-// summary: "Registers runtime status commands and renders health, routing, token, and extension state in the Pi footer."
+// summary: "Registers runtime status commands and renders health, token, fast-mode, Git, and extension state in the Pi footer."
 // read_when:
 //   - "Changing the orchestrator footer, runtime status display, routing selector, or boundary telemetry commands."
 // ---
@@ -25,6 +25,14 @@ import {
   summarizeBoundaryTelemetry,
 } from "../src/runtime/boundaries.ts";
 import { listCognitiveTools } from "../src/runtime/cognitive-tools.ts";
+import { buildExtensionStatusSlots, buildFooterRightSlots } from "../src/runtime/footer-slots.ts";
+import {
+  createGitFooterRefreshState,
+  disposeGitFooterRefresh,
+  type GitFooterExec,
+  invalidateGitFooterRefresh,
+  refreshGitFooterStatus,
+} from "../src/runtime/git-footer-status.ts";
 import {
   createSessionTokenHistoryCache,
   type SessionTokenHistoryCache,
@@ -220,56 +228,19 @@ function renderFooterSlotText(
     .join(separator);
 }
 
-function sanitizeStatusText(text: string): string {
-  const escapeChar = String.fromCharCode(27);
-  return text
-    .replace(new RegExp(`${escapeChar}\\[[0-9;]*m`, "g"), "")
-    .replace(/[\r\n\t]/g, " ")
-    .replace(/ +/g, " ")
-    .trim();
-}
-
-function compactExtensionStatus(key: string, text: string): string | undefined {
-  const sanitized = sanitizeStatusText(text);
-  if (!sanitized) return undefined;
-
-  if (key === "asc-rewind") {
-    const match = sanitized.match(/(\d+) rewind points? \/ (\d+) snapshots?/);
-    return match ? `rw ${match[1]}/${match[2]}` : sanitized.replace(/^◆\s*/, "rw ");
-  }
-  if (key === "stash") {
-    return sanitized.replace(/^stash:\s*/, "stash ");
-  }
-  if (key === "society-context") {
-    return sanitized;
-  }
-  return undefined;
-}
-
-function buildExtensionStatusSlots(statuses: ReadonlyMap<string, string>): RuntimeFooterSlot[] {
-  const slots: RuntimeFooterSlot[] = [];
-  for (const key of ["asc-rewind", "society-context", "stash"]) {
-    const status = statuses.get(key);
-    const compact = status ? compactExtensionStatus(key, status) : undefined;
-    if (compact) {
-      slots.push({
-        id: `status-${key}`,
-        tone: "dim",
-        full: compact,
-        optional: true,
-      });
-    }
-  }
-  return slots;
-}
-
 function renderRuntimeFooterLine(
   width: number,
   theme: FooterTheme,
   snapshot: RuntimeSnapshot,
   extraLeftSlots: RuntimeFooterSlot[] = [],
+  rightSlots: RuntimeFooterSlot[] = [],
 ) {
-  const layout = fitRuntimeFooterLayout(snapshot, width, extraLeftSlots);
+  const layout = fitRuntimeFooterLayout(snapshot, width, extraLeftSlots, rightSlots);
+  if (layout.right.length === 0) {
+    const leftText = renderFooterSlotText(theme, layout.left, layout.compactModel);
+    return leftText ? truncateToWidth(` ${leftText}`, width) : "";
+  }
+
   const rightPlain = joinRuntimeFooterSlotText(layout.right);
   const rightText = renderFooterSlotText(theme, layout.right);
   const rightWidth = visibleWidth(rightPlain);
@@ -405,25 +376,53 @@ export default function runtimeFooterExtension(pi: ExtensionAPI) {
     );
 
     const tokenHistoryCache = createSessionTokenHistoryCache();
-    ctx.ui.setFooter((tui, theme, footerData) => ({
-      dispose: () => {
-        footerHealthState.disposed = true;
-      },
-      invalidate() {
-        // History continuity is checked at render time using stable session entry ids plus
-        // boundary usage, so defensive copies and mutable tail usage invalidate safely.
-      },
-      render(width: number): string[] {
-        refreshFooterHealth(footerHealthState, ctx.cwd, tui);
-        const footerSnapshot = buildRuntimeSnapshot(
-          ctx,
-          footerHealthState.latestToolsResult,
-          tokenHistoryCache,
-        );
-        const extensionStatuses = footerData?.getExtensionStatuses?.() ?? new Map<string, string>();
-        const extensionStatusSlots = buildExtensionStatusSlots(extensionStatuses);
-        return [renderRuntimeFooterLine(width, theme, footerSnapshot, extensionStatusSlots)];
-      },
-    }));
+    const gitFooterState = createGitFooterRefreshState();
+    const gitExec: GitFooterExec | undefined =
+      typeof pi.exec === "function"
+        ? (command, args, options) => pi.exec(command, args, options)
+        : undefined;
+
+    ctx.ui.setFooter((tui, theme, footerData) => {
+      const unsubscribeBranch = footerData?.onBranchChange?.(() => {
+        invalidateGitFooterRefresh(gitFooterState);
+        tui?.requestRender();
+      });
+
+      return {
+        dispose: () => {
+          footerHealthState.disposed = true;
+          disposeGitFooterRefresh(gitFooterState);
+          unsubscribeBranch?.();
+        },
+        invalidate() {
+          // History continuity is checked at render time using stable session entry ids plus
+          // boundary usage, so defensive copies and mutable tail usage invalidate safely.
+        },
+        render(width: number): string[] {
+          refreshFooterHealth(footerHealthState, ctx.cwd, tui);
+          refreshGitFooterStatus(gitFooterState, {
+            cwd: ctx.cwd,
+            exec: gitExec,
+            onChange: () => tui?.requestRender(),
+          });
+          const footerSnapshot = buildRuntimeSnapshot(
+            ctx,
+            footerHealthState.latestToolsResult,
+            tokenHistoryCache,
+          );
+          const extensionStatuses =
+            footerData?.getExtensionStatuses?.() ?? new Map<string, string>();
+          const extensionStatusSlots = buildExtensionStatusSlots(extensionStatuses);
+          const rightSlots = buildFooterRightSlots(
+            extensionStatuses,
+            footerData?.getGitBranch?.() ?? null,
+            gitFooterState.latest,
+          );
+          return [
+            renderRuntimeFooterLine(width, theme, footerSnapshot, extensionStatusSlots, rightSlots),
+          ];
+        },
+      };
+    });
   });
 }

@@ -1366,7 +1366,8 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
     /footer optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage/,
   );
   assert.match(text, /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/);
-  assert.match(text, /footer right: `Routing: quality`/);
+  assert.match(text, /footer right: fast mode .* Starship-style Git branch\/status/);
+  assert.match(text, /routing is intentionally omitted/);
 });
 
 test("AK close-frame status reader uses read-only AK surfaces", async () => {
@@ -1643,7 +1644,8 @@ test("runtime-status command opens a runtime truth inspector", async () => {
     editors[0].text,
     /footer optional slots: `DB✓\|DB✗ · Vault✓\|Vault✗` when width allows/,
   );
-  assert.match(editors[0].text, /footer right: `Routing: all agents`/);
+  assert.match(editors[0].text, /footer right: fast mode .* Starship-style Git branch\/status/);
+  assert.match(editors[0].text, /routing is intentionally omitted/);
   assert.match(editors[0].text, /routing: `all agents` \[internal: `full`\]/);
   assert.match(editors[0].text, /## AK close-frame\/readiness/);
   assert.match(editors[0].text, /writes: none/);
@@ -1684,9 +1686,27 @@ test("runtime-boundary-telemetry command opens a lower-plane telemetry inspector
   resetBoundaryTelemetry();
 });
 
-test("session_start surfaces routing status and the orchestrator to ASC seam in the footer", async () => {
+test("session_start keeps routing in its notice while the footer shows fast and Git state", async () => {
   const events = new Map();
   extension({
+    async exec(command, args, options) {
+      assert.equal(command, "git");
+      assert.deepEqual(args.slice(0, 3), ["status", "--porcelain=v2", "--branch"]);
+      assert.equal(options.cwd, process.cwd());
+      return {
+        stdout: [
+          "# branch.head main",
+          "# branch.upstream origin/main",
+          "# branch.ab +8 -0",
+          "1 .M N... 100644 100644 100644 a a a modified.txt",
+          "? untracked.txt",
+          "",
+        ].join("\n"),
+        stderr: "",
+        code: 0,
+        killed: false,
+      };
+    },
     registerTool() {},
     registerCommand() {},
     on(name, handler) {
@@ -1727,34 +1747,55 @@ test("session_start surfaces routing status and the orchestrator to ASC seam in 
   assert.doesNotMatch(notifications[0].message, /Team: full/);
   assert.ok(footerFactory, "expected session_start to register a footer");
 
+  let rerenders = 0;
   const footer = footerFactory(
-    undefined,
+    {
+      requestRender() {
+        rerenders += 1;
+      },
+    },
     {
       fg(_color, text) {
         return text;
       },
     },
-    undefined,
+    {
+      getGitBranch() {
+        return "main";
+      },
+      getExtensionStatuses() {
+        return new Map([["better-openai-fast", "🐢"]]);
+      },
+      onBranchChange() {
+        return () => {};
+      },
+    },
   );
-  const rendered = footer.render(120)[0];
+  const rendered = await waitForFooterMatch(footer, 120, /⇡8/);
   assert.match(rendered, /orchestrator→ASC/);
   assert.match(rendered, /ctx 20k/);
   assert.match(rendered, /↑1\.2k ↺500 ↓400/);
-  assert.match(rendered, /Routing: all agents/);
+  assert.match(rendered, /🐢/);
+  assert.match(rendered, /🌱 main 📝🤷⇡8/);
+  assert.doesNotMatch(rendered, /Routing:/);
   assert.match(rendered, /DB(?:✓|✗)/);
   assert.match(rendered, /Vault(?:✓|✗)/);
   assert.doesNotMatch(rendered, /· orchestra(?:\s|$)/);
+  assert.ok(rerenders >= 1, "expected Git refresh to request a footer rerender");
 
   const compactRendered = footer.render(40)[0];
-  assert.match(compactRendered, /orchestrator→ASC/);
-  assert.match(compactRendered, /Routing:/);
+  assert.match(compactRendered, /🐢/);
+  assert.match(compactRendered, /🌱 main/);
+  assert.doesNotMatch(compactRendered, /Routing:/);
   assert.doesNotMatch(compactRendered, /ctx 20k/);
   assert.doesNotMatch(compactRendered, /↑1\.2k/);
   assert.doesNotMatch(compactRendered, /DB(?:✓|✗)/);
   assert.doesNotMatch(compactRendered, /Vault(?:✓|✗)/);
 
   const narrowRendered = footer.render(20)[0];
-  assert.match(narrowRendered, /Routing:/);
+  assert.match(narrowRendered, /🐢/);
+  assert.match(narrowRendered, /🌱 main/);
+  assert.doesNotMatch(narrowRendered, /Routing:/);
   assert.doesNotMatch(narrowRendered, /orchestrator→ASC/);
   assert.doesNotMatch(narrowRendered, /DB(?:✓|✗)/);
   assert.doesNotMatch(narrowRendered, /Vault(?:✓|✗)/);
@@ -1802,13 +1843,20 @@ test("session_start footer composes selected lightweight extension statuses when
       },
     },
     {
+      getGitBranch() {
+        return "feature/footer";
+      },
       getExtensionStatuses() {
         return new Map([
           ["asc-rewind", "◆ 2 rewind points / 2 snapshots"],
           ["society-context", "Society ctx✓"],
           ["stash", "stash: 34"],
+          ["better-openai-fast", "🐇"],
           ["unrelated-status", "idle"],
         ]);
+      },
+      onBranchChange() {
+        return () => {};
       },
     },
   );
@@ -1817,11 +1865,16 @@ test("session_start footer composes selected lightweight extension statuses when
   assert.match(rendered, /rw 2\/2/);
   assert.match(rendered, /Society ctx✓/);
   assert.match(rendered, /stash 34/);
+  assert.match(rendered, /🐇/);
+  assert.match(rendered, /🌱 feature\/footer/);
+  assert.doesNotMatch(rendered, /Routing:/);
   assert.doesNotMatch(rendered, /◆ 2 rewind points/);
   assert.doesNotMatch(rendered, /idle/);
 
   const compactRendered = footer.render(80)[0];
-  assert.match(compactRendered, /Routing: all agents/);
+  assert.match(compactRendered, /🐇/);
+  assert.match(compactRendered, /🌱 feature\/footer/);
+  assert.doesNotMatch(compactRendered, /Routing:/);
   assert.doesNotMatch(compactRendered, /rw 2\/2/);
   assert.doesNotMatch(compactRendered, /Society ctx✓/);
   assert.doesNotMatch(compactRendered, /stash 34/);

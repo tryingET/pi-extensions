@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import {
   assertDirectoriesMatchExactly,
+  createRuntimeFooterSmokeData,
+  executeRuntimeFooterSmokeGit,
   listConfiguredPackageSources,
   settingsPackagesContainSpec,
 } from "../scripts/release-smoke-helpers.mjs";
@@ -27,6 +29,24 @@ test("settingsPackagesContainSpec accepts string and object package entries", ()
   assert.equal(settingsPackagesContainSpec(settings, "npm:/tmp/string-spec.tgz"), true);
   assert.equal(settingsPackagesContainSpec(settings, "npm:/tmp/object-spec.tgz"), true);
   assert.equal(settingsPackagesContainSpec(settings, "npm:/tmp/missing-spec.tgz"), false);
+});
+
+test("runtime footer smoke fixtures expose fast and Starship-style Git state", async () => {
+  const result = await executeRuntimeFooterSmokeGit("git", [
+    "status",
+    "--porcelain=v2",
+    "--branch",
+  ]);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /# branch\.head main/);
+  assert.match(result.stdout, /# branch\.ab \+3 -0/);
+
+  const footerData = createRuntimeFooterSmokeData();
+  assert.equal(footerData.getGitBranch(), "main");
+  assert.equal(footerData.getExtensionStatuses().get("better-openai-fast"), "🐇");
+  const unsubscribe = footerData.onBranchChange(() => {});
+  assert.equal(typeof unsubscribe, "function");
+  assert.equal(unsubscribe(), undefined);
 });
 
 test("assertDirectoriesMatchExactly rejects unexpected extra installed files", () => {

@@ -22,6 +22,32 @@ export function settingsPackagesContainSpec(settings, packageSpec) {
   return listConfiguredPackageSources(settings).includes(packageSpec);
 }
 
+export async function executeRuntimeFooterSmokeGit(command, args) {
+  assert.equal(command, "git");
+  assert.deepEqual(args.slice(0, 3), ["status", "--porcelain=v2", "--branch"]);
+  return {
+    stdout: [
+      "# branch.head main",
+      "# branch.upstream origin/main",
+      "# branch.ab +3 -0",
+      "1 .M N... 100644 100644 100644 a a a modified.txt",
+      "? untracked.txt",
+      "",
+    ].join("\n"),
+    stderr: "",
+    code: 0,
+    killed: false,
+  };
+}
+
+export function createRuntimeFooterSmokeData() {
+  return {
+    getGitBranch: () => "main",
+    getExtensionStatuses: () => new Map([["better-openai-fast", "🐇"]]),
+    onBranchChange: () => () => {},
+  };
+}
+
 export function listRelativeFiles(rootDir, options = {}) {
   const files = [];
   const queue = [""];

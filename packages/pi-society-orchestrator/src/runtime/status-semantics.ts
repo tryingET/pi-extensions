@@ -312,6 +312,7 @@ export function joinRuntimeFooterSlotText(
 export function buildRuntimeFooterSlots(
   snapshot: RuntimeTruthSnapshot,
   extraLeftSlots: RuntimeFooterSlot[] = [],
+  rightSlots: RuntimeFooterSlot[] = [],
 ): {
   left: RuntimeFooterSlot[];
   right: RuntimeFooterSlot[];
@@ -362,13 +363,7 @@ export function buildRuntimeFooterSlots(
       },
       ...extraLeftSlots,
     ],
-    right: [
-      {
-        id: "routing",
-        tone: "dim",
-        full: formatRuntimeRoutingStatus(snapshot),
-      },
-    ],
+    right: rightSlots,
   };
 }
 
@@ -376,15 +371,17 @@ export function fitRuntimeFooterLayout(
   snapshot: RuntimeTruthSnapshot,
   width: number,
   extraLeftSlots: RuntimeFooterSlot[] = [],
+  rightSlots: RuntimeFooterSlot[] = [],
 ): RuntimeFooterLayout {
-  const { left, right } = buildRuntimeFooterSlots(snapshot, extraLeftSlots);
+  const { left, right } = buildRuntimeFooterSlots(snapshot, extraLeftSlots, rightSlots);
   const fittedLeft = [...left];
   let compactModel = false;
   const rightWidth = visibleWidth(joinRuntimeFooterSlotText(right));
+  const segmentPaddingWidth = right.length > 0 ? 3 : 1;
 
   while (fittedLeft.length > 0) {
     const leftWidth = visibleWidth(joinRuntimeFooterSlotText(fittedLeft, compactModel));
-    const totalWidth = leftWidth + 1 + rightWidth;
+    const totalWidth = leftWidth + segmentPaddingWidth + rightWidth;
     if (totalWidth <= width) {
       break;
     }
@@ -430,7 +427,6 @@ export function fitRuntimeFooterLayout(
 
 export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): string {
   const descriptor = snapshot.descriptor;
-  const routing = formatRuntimeRoutingStatus(snapshot);
   const routingAgents = snapshot.routing.allowedAgents.join(", ");
   const dbStatus = snapshot.societyDb.available ? "available" : "missing";
   const activeRoutingDisplay = getAgentTeamDisplayLabel(snapshot.routing.activeTeam);
@@ -474,7 +470,7 @@ export function formatRuntimeStatusReport(snapshot: RuntimeTruthSnapshot): strin
     "- footer optional context slot: `ctx <tokens>` when current context usage is known",
     "- footer optional token slot: `↑<input> ↺<cache> ↓<output>` after the session records usage",
     "- footer optional slots: `DB✓|DB✗ · Vault✓|Vault✗` when width allows; selected lightweight extension status may appear after those slots on wider terminals",
-    `- footer right: \`${routing}\``,
+    "- footer right: fast mode (`🐇` active or `🐢` inactive) and Starship-style Git branch/status when their owning runtime data is available; routing is intentionally omitted",
     `- operator-visible status should present orchestrator as the coordination plane while ASC owns execution/runtime behavior`,
   ].join("\n");
 }

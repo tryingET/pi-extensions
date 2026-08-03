@@ -17,6 +17,12 @@ system4d:
 The canonical operator-visible runtime-truth surface lives in:
 - [`src/runtime/status-semantics.ts`](../../src/runtime/status-semantics.ts)
 
+The pure Git parser/formatter used by the footer lives in:
+- [`src/runtime/git-footer-status.ts`](../../src/runtime/git-footer-status.ts)
+
+The compact extension/fast/Git slot composition lives in:
+- [`src/runtime/footer-slots.ts`](../../src/runtime/footer-slots.ts)
+
 The lightweight always-on Pi extension that renders this surface lives in:
 - [`extensions/runtime-footer.ts`](../../extensions/runtime-footer.ts)
 
@@ -58,14 +64,18 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
      - `asc-rewind` as `rw <rewind-points>/<snapshots>`
      - `society-context` as its sanitized compact status, usually `Society ctx✓`
      - `stash` as `stash <count>`
-   - right side: `Routing: <team>`
-   - compact widths should drop selected extension-status slots first, then optional health slots, then the session-token slot, then the context slot, then the seam, before sacrificing routing visibility
+   - right side, when owner data is available:
+     - fast mode from `pi-better-openai` status key `better-openai-fast`: `🐇` when priority mode is active, otherwise `🐢`
+     - Starship-style Git state: `🌱 <branch>` plus configured-style dirty/stash/staged/untracked and `⇡<ahead>` / `⇣<behind>` markers
+   - routing is intentionally absent from the persistent footer; it remains visible in the startup notice, `/agents-team`, and `/runtime-status`
+   - compact widths drop selected extension-status slots first, then optional health slots, then the session-token slot, then the context slot, model, and seam before truncating the fast/Git right side
    - footer health badges may refresh after startup if Vault health changes during the session
 4. `/agents-team`
    - treats the choice as routing scope selection, not generic "team" wording
    - reports the current routing scope after selection using the shared routing label
 5. installed-package release smoke
-   - validates the routing wording against the same user-visible contract
+   - validates startup routing wording separately from the persistent footer contract
+   - proves the persistent footer no longer spends width on routing
 
 ## Wording constraints
 
@@ -73,14 +83,17 @@ These surfaces should derive from the shared runtime-truth surface instead of ca
 - Do **not** imply that Pi owns AK lifecycle state; `/runtime-status` may display AK closeout/readiness/close-frame readbacks, route policy, active task, active-task close-check readiness/warnings, safe commands, and non-authorizations, but it must not run AK lifecycle writes.
 - Do **not** imply that an active strategic frame creates or activates an implementation wave; when no active wave exists, render `DiscoveryOrExecution` / default-discovery and keep reserved placeholders such as `IW25` visibly non-executable.
 - Do **not** regress to stale footer/status wording such as `orchestra` or `Team: ...` for the operator-facing runtime surfaces covered here.
-- Prefer `Routing` when describing the active agent-scope selection.
+- Prefer `Routing` when describing the active agent-scope selection outside the persistent footer.
+- Do not put the static default `Routing: all agents` back into the persistent footer; `/runtime-status` remains the detailed routing inspector.
 - Keep footer/status wording short; put richer explanation in `/runtime-status` and docs.
-- Protect routing visibility before selected extension statuses, optional health badges, optional session-token summaries, optional context slots, model, and finally the seam when compacting the footer.
+- Preserve the fast-mode icon and Git branch/status right side before optional health, token, context, and lightweight extension-status slots when compacting the footer.
 
 ## Change rule
 
 If you change operator-visible runtime wording in this package, update all of:
 - `src/runtime/status-semantics.ts`
+- `src/runtime/git-footer-status.ts` when Git parsing, symbols, or refresh behavior changes
+- `src/runtime/footer-slots.ts` when extension-status selection or right-side composition changes
 - `extensions/runtime-footer.ts`
 - `src/runtime/ak-close-frame-status.ts` when AK closeout/readiness readback semantics change
 - `extensions/society-orchestrator.ts` when full-extension compatibility wiring changes
