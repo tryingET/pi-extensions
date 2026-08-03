@@ -71,6 +71,8 @@ export type AutoresearchTriggerSurface = {
   registerPickerInteraction?: (config: Record<string, unknown>) => { unregister?: () => void };
 };
 
+type AutoresearchTriggerModuleLoader = (moduleName: string) => Promise<unknown>;
+
 type AutoresearchTriggerApi = {
   setText?: (text: string) => void;
   notify?: (message: string, level?: string) => void;
@@ -83,6 +85,7 @@ type AutoresearchTriggerContext = {
 const AUTORESEARCH_LIVE_TRIGGER_ID = "autoresearch-campaign-start-picker";
 const AUTORESEARCH_CANDIDATE_BIND_TRIGGER_ID = "autoresearch-candidate-bind-picker";
 const AUTORESEARCH_CANDIDATE_DECISION_TRIGGER_ID = "autoresearch-candidate-decision-picker";
+const AUTORESEARCH_TRIGGER_ADAPTER_MODULE = "@tryinget/pi-trigger-adapter";
 const AUTORESEARCH_TRIGGER_CANDIDATES: AutoresearchTriggerCandidate[] = [
   {
     id: "plan-only",
@@ -127,27 +130,20 @@ const AUTORESEARCH_CANDIDATE_BIND_TRIGGER_CANDIDATES: AutoresearchCandidateBindT
     },
   ];
 
-export async function loadAutoresearchTriggerSurface(): Promise<AutoresearchTriggerSurface | null> {
-  try {
-    const interactionModuleName = "@tryinget/pi-interaction";
-    return (await import(interactionModuleName)) as AutoresearchTriggerSurface;
-  } catch {
-    try {
-      const triggerAdapterModuleName = "@tryinget/pi-trigger-adapter";
-      return (await import(triggerAdapterModuleName)) as AutoresearchTriggerSurface;
-    } catch {
-      return null;
-    }
-  }
+export async function loadAutoresearchTriggerSurface(
+  loadModule: AutoresearchTriggerModuleLoader = (moduleName) => import(moduleName),
+): Promise<AutoresearchTriggerSurface> {
+  return (await loadModule(AUTORESEARCH_TRIGGER_ADAPTER_MODULE)) as AutoresearchTriggerSurface;
 }
 
 export async function maybeRegisterAutoresearchLiveTrigger(
   explicitTriggerSurface: AutoresearchTriggerSurface | null | undefined,
   modules: AutoresearchLazyModules,
   effects: AutoresearchSessionEffects,
+  loadTriggerSurface: () => Promise<AutoresearchTriggerSurface> = loadAutoresearchTriggerSurface,
 ): Promise<{ unregister: () => void }> {
   try {
-    const triggerSurface = explicitTriggerSurface ?? (await loadAutoresearchTriggerSurface());
+    const triggerSurface = explicitTriggerSurface ?? (await loadTriggerSurface());
     if (!effects.isActive()) return { unregister: () => {} };
     if (typeof triggerSurface?.registerPickerInteraction !== "function") {
       return { unregister: () => {} };

@@ -61,10 +61,11 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - with `run|loop|go|start <objective>`, executes the first bounded foreground autoresearch campaign directly (`runMode: "bounded_loop"`, three-iteration/default 30-minute budget, peer lane planned only) so the operator can give one explicit start instruction and step away until budget/gates stop it
   - with any other objective, prepares a reviewable `autoresearch_campaign_start({ ... })` tool call in the editor
   - keeps durable authority explicit: direct first-entrypoint runs stay bounded/local and still do not secretly spawn peers, commit, merge/delete worktrees, write AK/KES evidence, or promote candidates
-- `$$ autoresearch <objective>` / `$$ ar <objective>` when `@tryinget/pi-interaction` or `@tryinget/pi-trigger-adapter` is loaded
-  - opens the pi-interaction picker for plan-only, governed setup plan, baseline, or bounded-loop campaign-start modes
+- `$$ autoresearch <objective>` / `$$ ar <objective>` through the declared `@tryinget/pi-trigger-adapter` package seam
+  - registers the picker lazily through the lightweight adapter; it does not probe the heavier `@tryinget/pi-interaction` umbrella package
+  - opens the picker for plan-only, governed setup plan, baseline, or bounded-loop campaign-start modes when the shared pi-interaction input runtime is active
   - replaces the editor text with the exact `autoresearch_campaign_start({ ... })` call selected by the operator
-  - degrades safely when the optional interaction runtime is not installed
+  - degrades to the deterministic input fallback if picker registration cannot initialize, while validation treats a missing required adapter link as install drift
 - `$$ autoresearch next` / `$$ ar next`
   - deterministically inserts open candidate-review posture with explicit candidate-result packet paths and a finalizer handoff when matrix packet inventory is waiting; otherwise inserts the recommended next candidate call using the same read-only candidate-decision posture as the dashboard
   - remains review-first; no benchmark, worktree command, or durable promotion is executed automatically
@@ -72,11 +73,11 @@ The long-term destination is captured in [docs/project/vision.md](./docs/project
   - deterministically inserts the useful-candidate integration handoff with explicit review and post-fan-in finalizer calls
   - remains token-gated; no patch application, merge, cleanup, evidence write, or promotion is executed automatically
 - `$$ autoresearch bind|measure [current|<worktree>]` / `$$ ar bind|measure [current|<worktree>]`
-  - when the optional interaction runtime is loaded, opens a candidate-bind/measure picker that inserts either the exact `autoresearch_candidate_bind({ ... })` inspection call or the exact `autoresearch_runtime_run({ ...candidate metadata... })` measurement call selected by the operator
+  - when the shared pi-interaction input runtime is active, opens a candidate-bind/measure picker that inserts either the exact `autoresearch_candidate_bind({ ... })` inspection call or the exact `autoresearch_runtime_run({ ...candidate metadata... })` measurement call selected by the operator
   - also has a deterministic input fallback so candidate intake/measurement does not get mistaken for a campaign objective
   - remains review-first; the bind path is read-only/plan-only, and the measure path only prepares the run call for review rather than executing it automatically when intake readiness is `ready`
 - `$$ autoresearch candidate` / `$$ ar candidate` and `$$ autoresearch keep|discard|rewind`
-  - when the optional interaction runtime is loaded, opens a candidate-decision picker for status, keep, discard, or rewind planning
+  - when the shared pi-interaction input runtime is active, opens a candidate-decision picker for status, keep, discard, or rewind planning
   - decorates direct and currently recommended choices when runtime receipts make that possible
   - replaces the editor text with the exact `autoresearch_candidate_decision({ ... })` call selected by the operator
   - also has a deterministic input fallback so non-slash `$$ autoresearch ...` is not captured by PTX's `$$ /template` namespace
@@ -310,6 +311,8 @@ npm install
 npm run check
 npm run release:check:quick
 ```
+
+`npm install` materializes package-local `file:` dependency links. Do not hand-create `node_modules` symlinks; if root or package validation reports a missing local link, rerun `npm install` in the owning package and verify the manifest and lockfile remain unchanged.
 
 ## Package boundary reminder
 
