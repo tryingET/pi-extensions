@@ -36,12 +36,10 @@ import {
   reconcileCandidateAdmissionLegacyTerminalReleaseLocked,
   verifyCandidateAdmissionReconcileInputSemantic,
 } from "./candidatePeerLegacyTerminalReconciliation.ts";
-import { verifyCleanedCandidateTerminalRecord } from "./candidatePeerLifecycleArchive.ts";
 import {
   type CandidateInventoryResource,
   type CandidateLifecycleRecord,
   digestObject,
-  getCandidateLifecycleEventsPath,
   getCandidateLifecycleRecordPath,
   getCandidateLifecycleRoot,
   inventoryCandidatePeerResources,
@@ -49,6 +47,7 @@ import {
 } from "./candidatePeerLifecycleV2.ts";
 import { withCandidateRegistryMutationLock } from "./candidatePeerLifecycleV2State.ts";
 import { getCandidatePeerRegistryDir } from "./candidatePeerRegistry.ts";
+import { verifyTerminalCandidateRecord } from "./candidatePeerTerminalRetentionVerification.ts";
 
 export type { CandidateAdmissionLegacyTerminalReconciliationInput };
 export { prepareCandidateAdmissionReconcileRelease, readCandidateAdmissionReconcileInput };
@@ -586,36 +585,11 @@ function verifyTerminalReceipt(
   ) {
     throw new Error("terminal lifecycle record does not bind the admitted resource and outcome");
   }
-  if (outcome === "terminal_cleaned") {
-    return verifyCleanedCandidateTerminalRecord(record, env);
+  const terminalDigest = verifyTerminalCandidateRecord(record, env, { registryLockHeld: true });
+  if (terminalDigest !== artifact.digest) {
+    throw new Error("terminal lifecycle record digest changed during admission release");
   }
-  const receipt = record.terminalReceipt as Record<string, unknown>;
-  const unsignedReceipt = {
-    actor: receipt.actor,
-    recoverable: receipt.recoverable,
-    lost: receipt.lost,
-    evidence: receipt.evidence,
-    worktreePath: receipt.worktreePath,
-  };
-  if (
-    receipt.type !== "reconciled_missing" ||
-    receipt.receiptDigest !== digestObject(unsignedReceipt) ||
-    existsSync(record.worktreePath)
-  ) {
-    throw new Error("reconciled-missing terminal receipt schema or digest mismatch");
-  }
-  const events = readFileSync(getCandidateLifecycleEventsPath(record.resourceId, env), "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
-  const finalEvent = events.at(-1);
-  if (
-    finalEvent?.event !== "reconciled_missing" ||
-    digestObject(finalEvent.record) !== digestObject(record)
-  ) {
-    throw new Error("reconciled-missing record is not the final lifecycle event");
-  }
-  return artifact.digest;
+  return terminalDigest;
 }
 
 export function releaseCandidateAdmission(
@@ -627,29 +601,31 @@ export function releaseCandidateAdmission(
   env: NodeJS.ProcessEnv = process.env,
   now = new Date().toISOString(),
 ): CandidateAdmissionPermit {
-  return withCandidateAdmissionLock(env, () => {
-    const path = candidateAdmissionPermitPath(input.admissionId, env);
-    const permit = readAdmissionJson<CandidateAdmissionPermit>(path);
-    if (permit.status !== "reserved") throw new Error("candidate admission is not reserved");
-    if (!input.outcome || !input.terminalReceiptRef.trim())
-      throw new Error("candidate admission release requires outcome and terminal receipt");
-    const terminalReceiptDigest = verifyTerminalReceipt(
-      permit,
-      input.outcome,
-      input.terminalReceiptRef.trim(),
-      env,
-    );
-    const released: CandidateAdmissionPermit = {
-      ...permit,
-      status: "released",
-      releasedAt: now,
-      releaseOutcome: input.outcome,
-      terminalReceiptRef: input.terminalReceiptRef.trim(),
-      terminalReceiptDigest,
-    };
-    writeAdmissionJson(path, released);
-    return released;
-  });
+  return withCandidateRegistryMutationLock(`admission_release:${input.admissionId}`, env, () =>
+    withCandidateAdmissionLock(env, () => {
+      const path = candidateAdmissionPermitPath(input.admissionId, env);
+      const permit = readAdmissionJson<CandidateAdmissionPermit>(path);
+      if (permit.status !== "reserved") throw new Error("candidate admission is not reserved");
+      if (!input.outcome || !input.terminalReceiptRef.trim())
+        throw new Error("candidate admission release requires outcome and terminal receipt");
+      const terminalReceiptDigest = verifyTerminalReceipt(
+        permit,
+        input.outcome,
+        input.terminalReceiptRef.trim(),
+        env,
+      );
+      const released: CandidateAdmissionPermit = {
+        ...permit,
+        status: "released",
+        releasedAt: now,
+        releaseOutcome: input.outcome,
+        terminalReceiptRef: input.terminalReceiptRef.trim(),
+        terminalReceiptDigest,
+      };
+      writeAdmissionJson(path, released);
+      return released;
+    }),
+  );
 }
 
 function verifyAdmissionDecisionArtifact(

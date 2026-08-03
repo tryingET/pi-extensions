@@ -68,6 +68,19 @@ The janitor does not decide disposition, acceptance, integration, or cleanup aut
 
 Do not manually remove candidate worktrees or branches. Use `scripts/candidate-lifecycle-v2.mjs` so exact resource identity, drift checks, restoration-grade archives, authorization expiry, effect receipts, and terminal state remain bound.
 
+Terminal lifecycle storage has a separate, explicit retention path; it is never part of cleanup or age-based janitor execution. `terminal-retention-prepare` accepts one already-terminal resource, re-verifies its exact terminal receipt, and creates an owner-only compressed capsule containing the lifecycle record, full append-only events, exact registry-v1 sidecars, and every restoration-archive byte. Preparation is non-destructive and restoration-tests every capsule member. `terminal-retention-authorize` requires a separate owner actor and canonical expiry no more than 30 minutes away. `terminal-retention-compact` revalidates terminal state, current registry plus bound admissions, capsule, and all source hashes under the registry/resource locks; checks authorization again immediately before durable marker publication; retains registry sidecars for compatibility; and removes only redundant event/archive copies. Ordinary terminal verification switches to capsule evidence only after an exact durable GC receipt. Catchable failures release locks; after a hard process crash, `terminal-retention-recover-locks` requires an owner actor and removes only exact compaction leases whose recorded process is provably absent before retry. Marker-first retries may finish exact remaining removals after authorization expiry, but late aliases, events, archives, or a reappeared worktree block before further GC. `closed_with_retained_effects` remains fail-closed until its own terminal verifier exists. See [Terminal candidate retention compaction](docs/project/2026-08-03-terminal-candidate-retention-compaction.md).
+
+```bash
+node scripts/candidate-lifecycle-v2.mjs terminal-retention-prepare --resource cpr-...
+node scripts/candidate-lifecycle-v2.mjs terminal-retention-authorize --resource cpr-... --input /absolute/owner-authorization.json
+node scripts/candidate-lifecycle-v2.mjs terminal-retention-compact --resource cpr-...
+# Hard-crash recovery only; input JSON is {"actor":"owner:identity"}:
+node scripts/candidate-lifecycle-v2.mjs terminal-retention-recover-locks --resource cpr-... --input /absolute/owner-lock-recovery.json
+node scripts/candidate-lifecycle-v2.mjs terminal-retention-verify --resource cpr-...
+```
+
+The authorization JSON contains only `actor` and `expiresAt`. These commands do not infer terminality from age, peer reports, registry packets, or missing processes; they do not merge, push, publish, prune Git objects, or delete registry lineage. No production terminal resource is compacted merely because this code is installed or reloaded.
+
 ### Adopt one existing unregistered worktree
 
 An owner may bring one clean, linked, unregistered Git worktree under lifecycle-v2 control with an expiry-bound JSON authorization:

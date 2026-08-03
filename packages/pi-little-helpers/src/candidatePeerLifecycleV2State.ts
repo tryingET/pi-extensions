@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   closeSync,
   existsSync,
@@ -6,6 +7,8 @@ import {
   openSync,
   readFileSync,
   realpathSync,
+  renameSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -21,6 +24,7 @@ import {
   getCandidateLifecycleRecordPath,
   getCandidateLifecycleRoot,
   git,
+  lexicalPathExists,
 } from "./candidatePeerLifecycleV2Core.ts";
 
 export function migrateCandidateInventory(
@@ -150,6 +154,25 @@ export function appendLifecycleEvent(
   }
 }
 
+function acquireLeaseDirectory(
+  lockPath: string,
+  lease: Record<string, unknown>,
+  failureMessage: string,
+): void {
+  const temporary = `${lockPath}.acquire.${process.pid}.${randomUUID()}`;
+  try {
+    mkdirSync(temporary, { mode: 0o700 });
+    atomicJson(join(temporary, "lease.json"), lease);
+    if (lexicalPathExists(lockPath)) throw new Error(failureMessage);
+    // A legitimate concurrent acquirer also publishes a non-empty directory, so rename cannot
+    // replace it. The fixed lock path is never exposed without its complete lease.json.
+    renameSync(temporary, lockPath);
+  } catch {
+    rmSync(temporary, { recursive: true, force: true });
+    throw new Error(failureMessage);
+  }
+}
+
 export function withResourceLock<T>(
   resourceId: string,
   operation: string,
@@ -160,18 +183,17 @@ export function withResourceLock<T>(
   assertCandidateResourceId(resourceId);
   assertOwnerOnlyDirectory(lockDir);
   const lockPath = join(lockDir, `${resourceId}.lock`);
-  try {
-    mkdirSync(lockPath, { mode: 0o700 });
-  } catch {
-    throw new Error(`candidate lifecycle resource is locked: ${resourceId}`);
-  }
-  try {
-    atomicJson(join(lockPath, "lease.json"), {
+  acquireLeaseDirectory(
+    lockPath,
+    {
       resourceId,
       operation,
       pid: process.pid,
       acquiredAt: new Date().toISOString(),
-    });
+    },
+    `candidate lifecycle resource is locked: ${resourceId}`,
+  );
+  try {
     return fn();
   } finally {
     try {
@@ -196,17 +218,16 @@ export function withCandidateRegistryMutationLock<T>(
   const lockRoot = join(getCandidateLifecycleRoot(env), "locks");
   assertOwnerOnlyDirectory(lockRoot);
   const lockPath = join(lockRoot, "registry-mutation.lock");
-  try {
-    mkdirSync(lockPath, { mode: 0o700 });
-  } catch {
-    throw new Error("candidate registry mutation is locked");
-  }
-  try {
-    atomicJson(join(lockPath, "lease.json"), {
+  acquireLeaseDirectory(
+    lockPath,
+    {
       operation,
       pid: process.pid,
       acquiredAt: new Date().toISOString(),
-    });
+    },
+    "candidate registry mutation is locked",
+  );
+  try {
     return fn();
   } finally {
     try {

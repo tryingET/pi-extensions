@@ -43,6 +43,7 @@ import { candidateCurrentInventoryBindingBlockers } from "./candidatePeerLifecyc
 import { inventoryCandidatePeerResources } from "./candidatePeerLifecycleV2Inventory.ts";
 import { withCandidateRegistryMutationLock } from "./candidatePeerLifecycleV2State.ts";
 import { getCandidatePeerRegistryDir } from "./candidatePeerRegistry.ts";
+import { materializeTerminalCompaction } from "./candidatePeerTerminalRetentionMaterialization.ts";
 
 export type CandidateArchiveReceipt = {
   archiveDir: string;
@@ -532,19 +533,23 @@ function activeProcessPids(worktreePath: string): number[] {
   return pids.sort((a, b) => a - b);
 }
 
-function verifyPublishedArchive(record: CandidateLifecycleRecord): void {
-  if (!record.archive) throw new Error("missing archive receipt");
-  const completePath = join(record.archive.archiveDir, "COMPLETE");
+function verifyPublishedArchive(
+  record: CandidateLifecycleRecord,
+  archiveDir = record.archive?.archiveDir,
+): void {
+  if (!record.archive || !archiveDir) throw new Error("missing archive receipt");
+  const completePath = join(archiveDir, "COMPLETE");
   const complete = JSON.parse(readFileSync(completePath, "utf8")) as { archiveDigest?: string };
   if (complete.archiveDigest !== record.archive.archiveDigest)
     throw new Error("published archive COMPLETE digest mismatch");
-  const expected = JSON.parse(
-    readFileSync(join(record.archive.archiveDir, "manifest.json"), "utf8"),
-  ) as Record<string, string>;
-  const actual = fileManifest(record.archive.archiveDir);
+  const expected = JSON.parse(readFileSync(join(archiveDir, "manifest.json"), "utf8")) as Record<
+    string,
+    string
+  >;
+  const actual = fileManifest(archiveDir);
   if (stableJson(expected) !== stableJson(actual))
     throw new Error("published archive object hash mismatch");
-  assertPrivateTree(record.archive.archiveDir);
+  assertPrivateTree(archiveDir);
 }
 
 type CleanupEffectEvent = {
@@ -726,8 +731,11 @@ function scanTopLevelEventIdentity(scanner: EventIdentityScanner, bytes: Buffer)
   }
 }
 
-function readCleanupEvents(resourceId: string, env: NodeJS.ProcessEnv): CleanupEventScanResult {
-  const path = getCandidateLifecycleEventsPath(resourceId, env);
+function readCleanupEvents(
+  resourceId: string,
+  env: NodeJS.ProcessEnv,
+  path = getCandidateLifecycleEventsPath(resourceId, env),
+): CleanupEventScanResult {
   if (!existsSync(path)) return { events: [] };
 
   const events: Array<Record<string, unknown>> = [];
@@ -1221,9 +1229,11 @@ export function executeAuthorizedCandidateCleanup({
   );
 }
 
-export function verifyCleanedCandidateTerminalRecord(
+function verifyCleanedCandidateTerminalRecordAt(
   record: CandidateLifecycleRecord,
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv,
+  archiveDir?: string,
+  eventsPath?: string,
 ): string {
   assertCandidateResourceId(record.resourceId);
   assertCandidateGenerationId(record.generationId);
@@ -1261,8 +1271,8 @@ export function verifyCleanedCandidateTerminalRecord(
   ) {
     throw new Error("candidate terminal receipt identity or chronology mismatch");
   }
-  verifyPublishedArchive(record);
-  const eventScan = readCleanupEvents(record.resourceId, env);
+  verifyPublishedArchive(record, archiveDir);
+  const eventScan = readCleanupEvents(record.resourceId, env, eventsPath);
   const observations = cleanupObservations(eventScan.events, auth.authorizationDigest);
   for (const effect of REQUIRED_CLEANUP_EFFECTS) {
     const observation = observations.get(effect);
@@ -1289,4 +1299,24 @@ export function verifyCleanedCandidateTerminalRecord(
   if (finalEvent?.event !== "cleaned" || digestObject(finalEvent.record) !== digestObject(record))
     throw new Error("candidate terminal record is not the final cleaned lifecycle event");
   return digestObject(record);
+}
+
+export function verifyCleanedCandidateTerminalRecord(
+  record: CandidateLifecycleRecord,
+  env: NodeJS.ProcessEnv = process.env,
+  options: { allowPendingCompaction?: boolean } = {},
+): string {
+  const compacted = materializeTerminalCompaction(record, env, {
+    allowPending: options.allowPendingCompaction,
+  });
+  try {
+    return verifyCleanedCandidateTerminalRecordAt(
+      record,
+      env,
+      compacted?.archiveDir,
+      compacted?.eventsPath,
+    );
+  } finally {
+    compacted?.cleanup();
+  }
 }

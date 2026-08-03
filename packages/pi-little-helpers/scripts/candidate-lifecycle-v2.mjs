@@ -24,6 +24,13 @@ import {
   verifyPatchEquivalenceProof,
 } from "../src/candidatePeerLifecycleV2.ts";
 import { getCandidatePeerRegistryDir } from "../src/candidatePeerRegistry.ts";
+import {
+  authorizeTerminalCandidateCompaction,
+  executeAuthorizedTerminalCandidateCompaction,
+  prepareTerminalCandidateCompaction,
+  recoverTerminalCandidateCompactionLocks,
+  verifyTerminalCandidateRecord,
+} from "../src/candidatePeerTerminalRetention.ts";
 
 function exactSelection(actual = [], expected = []) {
   return (
@@ -50,7 +57,13 @@ commands:
   cleanup --resource ID
   reconcile-missing --resource ID --input PATH
   reconcile-owner-root --resource ID --owner-root PATH --input PATH
+  terminal-retention-prepare --resource ID
+  terminal-retention-authorize --resource ID --input PATH
+  terminal-retention-compact --resource ID
+  terminal-retention-recover-locks --resource ID --input PATH
+  terminal-retention-verify --resource ID
 
+Terminal retention preparation is non-destructive. Compaction requires a separate expiring exact authorization, publishes and restoration-verifies a complete capsule before removing redundant event/archive copies, and remains resumable after its commit marker. A hard process crash leaves fail-closed locks; recover-locks requires an owner actor and removes only exact terminal-compaction locks whose recorded process is provably absent.
 All mutations use owner-only lifecycle state, resource locks, and resourceVersion CAS.
 V1 cleanup packets remain permanently non-executable.`);
   process.exit(message ? 2 : 0);
@@ -311,6 +324,40 @@ if (command === "adopt") {
       env,
     }),
   );
+} else if (command === "terminal-retention-prepare") {
+  output(prepareTerminalCandidateCompaction({ resourceId: required(options, "resource"), env }));
+} else if (command === "terminal-retention-authorize") {
+  const input = inputJson(options);
+  output(
+    authorizeTerminalCandidateCompaction({
+      resourceId: required(options, "resource"),
+      actor: input.actor,
+      expiresAt: input.expiresAt,
+      env,
+    }),
+  );
+} else if (command === "terminal-retention-compact") {
+  output(
+    executeAuthorizedTerminalCandidateCompaction({
+      resourceId: required(options, "resource"),
+      env,
+    }),
+  );
+} else if (command === "terminal-retention-recover-locks") {
+  const input = inputJson(options);
+  output(
+    recoverTerminalCandidateCompactionLocks({
+      resourceId: required(options, "resource"),
+      actor: input.actor,
+      env,
+    }),
+  );
+} else if (command === "terminal-retention-verify") {
+  const record = readLifecycleRecord(required(options, "resource"), env);
+  output({
+    resourceId: record.resourceId,
+    terminalDigest: verifyTerminalCandidateRecord(record, env),
+  });
 } else {
   usage(`unknown command: ${command}`);
 }
