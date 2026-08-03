@@ -3,35 +3,9 @@
  * read_when:
  *   - "consuming or evolving the public types exposed by pi-trigger-adapter."
  */
-export type TriggerContext = {
-  fullText: string;
-  textBeforeCursor: string;
-  textAfterCursor: string;
-  cursorLine: number;
-  cursorColumn: number;
-  totalLines: number;
-  isLive: boolean;
-  cwd?: string;
-  sessionKey?: string;
-};
+export { getBroker, resetBroker, TriggerBroker } from "./broker.js";
+export type { TriggerContext } from "./broker.js";
 
-export declare class TriggerBroker {
-  register(
-    trigger: Record<string, unknown>,
-    options?: Record<string, unknown>,
-  ): Record<string, unknown>;
-  unregister(id: string): boolean;
-  get(id: string): Record<string, unknown> | undefined;
-  list(): Record<string, unknown>[];
-  diagnostics(): Record<string, unknown>[];
-  setEnabled(id: string, enabled: boolean): boolean;
-  checkAndFire(context: TriggerContext, api?: Record<string, unknown>): Promise<boolean>;
-  clear(): void;
-  setAPI(api: Record<string, unknown>): void;
-}
-
-export declare function getBroker(): TriggerBroker;
-export declare function resetBroker(): void;
 export declare function registerPickerInteraction(
   config: Record<string, unknown>,
   options?: Record<string, unknown>,

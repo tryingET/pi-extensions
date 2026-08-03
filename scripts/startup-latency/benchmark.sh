@@ -118,14 +118,14 @@ case "$profile" in
     command=("${common[@]}" --no-extensions)
     ;;
   interaction)
-    command=("${common[@]}" --no-extensions -e "$repo_root/packages/pi-interaction/pi-interaction/extensions/input-triggers.ts")
+    command=("${common[@]}" --no-extensions -e "$repo_root/packages/pi-interaction/pi-interaction/extensions/register-input-triggers.ts")
     ;;
   vault)
     command=("${common[@]}" --no-extensions -e "$repo_root/packages/pi-vault-client/extensions/vault.js")
     ;;
   hotspots)
     command=("${common[@]}" --no-extensions \
-      -e "$repo_root/packages/pi-interaction/pi-interaction/extensions/input-triggers.ts" \
+      -e "$repo_root/packages/pi-interaction/pi-interaction/extensions/register-input-triggers.ts" \
       -e "$repo_root/packages/pi-vault-client/extensions/vault.js")
     ;;
   custom)

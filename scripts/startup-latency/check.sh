@@ -7,11 +7,16 @@ bash -n "$script_dir/benchmark.sh"
 test -s "$script_dir/shutdown-probe.ts"
 node --check "$script_dir/dogfood-vault-rpc.mjs"
 node "$script_dir/dogfood-vault-rpc.mjs" --help >/dev/null
+node --check "$script_dir/dogfood-interaction-rpc.mjs"
+node "$script_dir/dogfood-interaction-rpc.mjs" --help >/dev/null
 node --check "$script_dir/summarize-timings.mjs"
 node "$script_dir/summarize-timings.mjs" --help >/dev/null
 output=$(bash "$script_dir/benchmark.sh" --profile no-extensions --mode json --trials 1)
 grep -Fxq 'MODEL_SCOPE openai-codex/gpt-5.6-sol' <<<"$output"
 grep -Eq '^METRIC startup_elapsed_ms_median=[0-9]+$' <<<"$output"
+interaction_output=$(bash "$script_dir/benchmark.sh" --profile interaction --mode json --trials 1)
+grep -Fxq 'PROFILE interaction' <<<"$interaction_output"
+grep -Eq '^METRIC startup_elapsed_ms_median=[0-9]+$' <<<"$interaction_output"
 
 tmp_dir=$(mktemp -d "${TMPDIR:?TMPDIR must be set}/startup-latency-check.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT

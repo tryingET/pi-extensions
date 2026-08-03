@@ -10,6 +10,11 @@
       "types": "./index.d.ts",
       "import": "./index.js",
       "default": "./index.js"
+    },
+    "./broker": {
+      "types": "./broker.d.ts",
+      "import": "./broker.js",
+      "default": "./broker.js"
     }
   },
   "license": "SEE LICENSE IN LICENSE",
@@ -51,6 +56,8 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "broker.js",
+    "broker.d.ts",
     "src"
   ],
   "x-pi-template": {

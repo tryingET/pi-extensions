@@ -9,7 +9,7 @@
 
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { SelectList } from "@earendil-works/pi-tui";
-import { getBroker } from "@tryinget/pi-trigger-adapter";
+import { getBroker } from "@tryinget/pi-trigger-adapter/broker";
 
 /**
  * @typedef {{ line: number, col: number }} Cursor
