@@ -1,0 +1,39 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8fc19464eed91b323a9cb8f93c46e9f4bab4f68a"
+created_at: "2026-08-03T14:26:05Z"
+intent: "Project the focused Niri workspace's exact tracked Pi terminals with a concealed renderer reveal and a self-recovering native BrowserWindow."
+files:
+  - "packages/pi-activity-strip/README.md"
+  - "packages/pi-activity-strip/bin/pi-activity-strip.mjs"
+  - "packages/pi-activity-strip/src/common/alignment-controller.mjs"
+  - "packages/pi-activity-strip/src/common/constants.mjs"
+  - "packages/pi-activity-strip/src/common/niri-focus.mjs"
+  - "packages/pi-activity-strip/src/electron/main.mjs"
+  - "packages/pi-activity-strip/src/electron/niri-native-window-runtime.mjs"
+  - "packages/pi-activity-strip/src/electron/niri-workspace-events.mjs"
+  - "packages/pi-activity-strip/src/electron/preload.cjs"
+  - "packages/pi-activity-strip/src/electron/renderer-visibility-runtime.mjs"
+  - "packages/pi-activity-strip/src/electron/workspace-view-runtime.mjs"
+  - "packages/pi-activity-strip/src/ui/strip-html.mjs"
+  - "packages/pi-activity-strip/tests/alignment-controller.test.mjs"
+  - "packages/pi-activity-strip/tests/interaction-runtime.test.mjs"
+  - "packages/pi-activity-strip/tests/niri-focus.test.mjs"
+  - "packages/pi-activity-strip/tests/niri-native-window-runtime.test.mjs"
+  - "packages/pi-activity-strip/tests/niri-workspace-events.test.mjs"
+  - "packages/pi-activity-strip/tests/renderer-visibility-runtime.test.mjs"
+  - "packages/pi-activity-strip/tests/strip-html.test.mjs"
+  - "packages/pi-activity-strip/tests/workspace-view-runtime.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "All 20 files form one tightly-coupled package-local feature; the runtime modules depend on new helpers in niri-focus/alignment-controller/constants, so a split would not be independently understandable."
