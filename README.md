@@ -130,6 +130,7 @@ just doctor
 ./scripts/ci/full.sh                   # root infrastructure + canonical package checks
 ./scripts/ci/packages.sh ci --package pi-autoresearch --package pi-society-orchestrator  # scoped package fan-out
 ./scripts/package-quality-gate.sh ci packages/pi-vault-client
+npm run dependencies:local:check           # read-only direct/transitive file: link preflight
 npm run quality:pre-commit
 npm run quality:pre-push
 npm run quality:ci

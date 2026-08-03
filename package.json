@@ -7,6 +7,7 @@
     "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "bash ./scripts/quality-gate.sh check",
+    "dependencies:local:check": "node ./scripts/validate-local-package-links.mjs",
     "engineering:review-surfaces": "node ./scripts/engineering-review-surfaces.mjs",
     "release:contracts:validate": "node ./scripts/validate-package-release-contracts.mjs",
     "compat:canary": "node ./scripts/pi-host-compatibility-canary.mjs run",

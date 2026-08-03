@@ -315,6 +315,13 @@ run_packaging_target() {
   (cd "$workdir" && npm pack --dry-run)
 }
 
+run_local_package_link_validation_target() {
+  local workdir="$1"
+  node "$REPO_ROOT/scripts/validate-local-package-links.mjs" \
+    --repo-root "$REPO_ROOT" \
+    --package "$workdir"
+}
+
 run_simple_stage() {
   local stage_name="$1"
   local workdir="$2"
@@ -329,9 +336,11 @@ run_simple_stage() {
       run_fix_target "$workdir"
       ;;
     typecheck)
+      run_local_package_link_validation_target "$workdir"
       run_typecheck_target "$workdir"
       ;;
     test)
+      run_local_package_link_validation_target "$workdir"
       run_tests_target "$workdir"
       ;;
     pre-commit)
@@ -340,6 +349,7 @@ run_simple_stage() {
       run_lint_target "$workdir"
       ;;
     pre-push)
+      run_local_package_link_validation_target "$workdir"
       run_structure_validation_target "$workdir"
       run_file_budget_audit_target "$workdir"
       run_lint_target "$workdir"
@@ -347,6 +357,7 @@ run_simple_stage() {
       run_tests_target "$workdir"
       ;;
     ci)
+      run_local_package_link_validation_target "$workdir"
       run_structure_validation_target "$workdir"
       run_file_budget_audit_target "$workdir"
       run_lint_target "$workdir"

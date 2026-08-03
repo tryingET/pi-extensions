@@ -38,6 +38,8 @@ system4d:
   - root pre-commit = `scripts/ci/smoke.sh --staged-only` + `scripts/ci/packages.sh pre-commit --staged-only`
   - package pre-commit / pre-push / CI include a warn-only file-budget audit with defaults: code 500 LOC / 50KB, tests 1000 LOC / 80KB, Markdown 800 LOC / 60KB
   - root pre-push / CI = `scripts/ci/full.sh`
+  - `scripts/validate-local-package-links.mjs` is the read-only preflight for installed direct/transitive `file:` package links; it reports the owning package's `npm install` repair instead of mutating `node_modules`
+  - `scripts/ci/full.sh` runs that preflight before its broader checks unless package validation is explicitly skipped; package typecheck/test/full stages also run it for their selected roots
 - Dedicated CI workflow:
   - `.github/workflows/compatibility-canary.yml`
 - Root-owned compatibility contract:

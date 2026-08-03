@@ -1,7 +1,7 @@
 #!/bin/sh
-# summary: "Runs the repository smoke gate followed by optional governance, release, canary, and package checks."
+# summary: "Runs local-link preflight, repository smoke, and optional governance, release, canary, and package checks."
 # read_when:
-#   - "Changing full CI sequencing, optional validation gates, or aggregate package execution."
+#   - "Changing full CI sequencing, local dependency preflight, optional validation gates, or aggregate package execution."
 set -eu
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -20,6 +20,12 @@ mkdir -p "$tmp_root"
 export TMPDIR="$tmp_root"
 export TMP="$tmp_root"
 export TEMP="$tmp_root"
+
+if [ "${PI_SKIP_PACKAGES:-0}" = "1" ]; then
+  echo "skipping local package link validation: PI_SKIP_PACKAGES=1"
+else
+  node ./scripts/validate-local-package-links.mjs
+fi
 
 "$script_dir/smoke.sh"
 
@@ -63,6 +69,10 @@ fi
 
 if [ -f "./scripts/package-quality-gate.test.mjs" ]; then
   node --test ./scripts/package-quality-gate.test.mjs
+fi
+
+if [ -f "./scripts/validate-local-package-links.test.mjs" ]; then
+  node --test ./scripts/validate-local-package-links.test.mjs
 fi
 
 if [ -f "./scripts/root-doc-alignment.test.mjs" ]; then

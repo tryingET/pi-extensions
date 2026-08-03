@@ -1,12 +1,11 @@
 /**
- * summary: "tests package quality-gate packaging choices and target-path resolution with isolated npm fixtures."
+ * summary: "Tests package-gate packaging, target resolution, and pre-typecheck local-link validation."
  * read_when:
- *   - "changing release-check selection, pack fallback, private-package skips, or target resolution."
+ *   - "Changing release-check selection, target resolution, or local dependency preflight ordering."
  */
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -19,7 +18,9 @@ function writeJson(filePath, value) {
 }
 
 function createFixture(t, { privatePackage = false, releaseCheckQuick = false } = {}) {
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-package-gate-"));
+  const repoTestTmp = path.join(ROOT, ".tmp-test");
+  fs.mkdirSync(repoTestTmp, { recursive: true });
+  const tmpRoot = fs.mkdtempSync(path.join(repoTestTmp, "pi-package-gate-"));
   t.after(() => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
@@ -148,4 +149,45 @@ test("target paths are resolved from cwd parents before repo root", (t) => {
 
   assert.match(output, /package quality gate: \.tmp-test\/package-gate-target-/);
   assert.equal(fs.existsSync(fixture.packMarkerPath), true);
+});
+
+test("typecheck rejects a missing local package link before invoking the compiler", (t) => {
+  const repoTestTmp = path.join(ROOT, ".tmp-test");
+  fs.mkdirSync(repoTestTmp, { recursive: true });
+  const repoTmpRoot = fs.mkdtempSync(path.join(repoTestTmp, "package-gate-local-link-"));
+  t.after(() => fs.rmSync(repoTmpRoot, { recursive: true, force: true }));
+
+  const consumer = path.join(repoTmpRoot, "consumer");
+  const provider = path.join(repoTmpRoot, "provider");
+  fs.mkdirSync(consumer, { recursive: true });
+  fs.mkdirSync(provider, { recursive: true });
+  writeJson(path.join(consumer, "package.json"), {
+    name: "@example/consumer",
+    version: "0.0.0",
+    dependencies: { "@example/provider": "file:../provider" },
+  });
+  writeJson(path.join(provider, "package.json"), {
+    name: "@example/provider",
+    version: "0.0.0",
+  });
+  writeJson(path.join(consumer, "tsconfig.json"), { compilerOptions: { strict: true } });
+
+  const compilerMarker = path.join(repoTmpRoot, "compiler-ran");
+  const compilerPath = path.join(consumer, "node_modules", ".bin", "tsc");
+  fs.mkdirSync(path.dirname(compilerPath), { recursive: true });
+  fs.writeFileSync(compilerPath, `#!/bin/sh\n: > ${JSON.stringify(compilerMarker)}\n`, {
+    encoding: "utf8",
+    mode: 0o755,
+  });
+
+  const result = spawnSync("bash", [SCRIPT, "typecheck", consumer], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, PI_EXTENSIONS_TMPDIR: path.join(repoTmpRoot, "tmp") },
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /missing_installed_link/);
+  assert.match(result.stderr, /cd \.tmp-test\/package-gate-local-link-.*\/consumer && npm install/);
+  assert.equal(fs.existsSync(compilerMarker), false);
 });

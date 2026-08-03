@@ -38,6 +38,10 @@ Repo-local emphasis:
 - Package validation fan-out:
   - `./scripts/ci/packages.sh` discovers top-level package roots under `packages/`
   - package-groups recurse through child packages via `scripts/package-quality-gate.sh`
+- Local package-link validation:
+  - `npm run dependencies:local:check` recursively checks installed `file:` dependencies and development dependencies without mutating manifests, locks, or `node_modules`
+  - root full gates run this preflight before broader validation unless `PI_SKIP_PACKAGES=1`; targeted package gates run it before typecheck/test/pre-push/CI
+  - a missing link is package-local install drift: run `npm install` in the owning package rather than hand-creating a symlink or making validation auto-install dependencies
 - Root smoke lane:
   - `./scripts/ci/smoke.sh`
 - Root local feedback bootstrap:
