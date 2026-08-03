@@ -23,6 +23,7 @@ export interface GitCommandResult {
 
 export interface GitCommandOptions {
   env?: NodeJS.ProcessEnv;
+  stdin?: string;
 }
 
 export type GitRunner = (args: string[], options?: GitCommandOptions) => Promise<GitCommandResult>;

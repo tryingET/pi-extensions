@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -18,7 +18,7 @@ import {
   isAscRewindTurnData,
   registerRewindRuntime,
 } from "../extensions/self/rewind/index.ts";
-import { createRewindGitHarness, gitStdout, runGitChecked } from "./rewind-harness.mjs";
+import { createRewindGitHarness, gitStdout, runGit, runGitChecked } from "./rewind-harness.mjs";
 
 import {
   createPiHarness,
@@ -118,6 +118,290 @@ test("rewind runtime records exact user and assistant rewind points during a pro
       "expected rewind status to be published",
     );
   } finally {
+    await gitHarness.cleanup();
+  }
+});
+
+test("rewind runtime executes bounded retention after agent settlement and reports status", async () => {
+  const gitHarness = await createRewindGitHarness();
+
+  try {
+    const sessionManager = new SessionManagerStub({
+      sessionFile: `${gitHarness.repoRoot}/retention-session.jsonl`,
+      id: "session-retention",
+      cwd: gitHarness.repoRoot,
+    });
+    const harness = createPiHarness(sessionManager);
+    registerRewindRuntime(harness.pi, {
+      maxSnapshots: 0,
+      maxAgeDays: 0,
+      now: () => Date.parse("2026-08-03T00:00:00.000Z"),
+    });
+
+    await gitHarness.writeRepoFile("tracked.txt", "before retention\n");
+    await harness.handlers.get("session_start")(
+      { type: "session_start", reason: "startup" },
+      harness.ctx,
+    );
+    sessionManager.appendMessage("user", "retain only current");
+    await harness.handlers.get("turn_start")(
+      { type: "turn_start", turnIndex: 0, timestamp: Date.now() },
+      harness.ctx,
+    );
+    await gitHarness.writeRepoFile("tracked.txt", "after retention\n");
+    const assistantEntry = sessionManager.appendMessage("assistant", "done");
+    await harness.handlers.get("turn_end")(
+      {
+        type: "turn_end",
+        turnIndex: 0,
+        message: assistantEntry.message,
+        toolResults: [],
+      },
+      harness.ctx,
+    );
+    await harness.handlers.get("agent_settled")({ type: "agent_settled" }, harness.ctx);
+
+    const rewindEntry = sessionManager
+      .getEntries()
+      .find((entry) => entry.type === "custom" && entry.customType === ASC_REWIND_TURN_CUSTOM_TYPE);
+    assert.ok(rewindEntry);
+    assert.equal(rewindEntry.data.snapshots.length, 2);
+    const [startSnapshot, currentSnapshot] = rewindEntry.data.snapshots;
+    const storeHead = await getStoreHead(gitHarness.git);
+    assert.ok(storeHead);
+    assert.equal(
+      (
+        await runGit(gitHarness.repoRoot, [
+          "merge-base",
+          "--is-ancestor",
+          currentSnapshot,
+          storeHead,
+        ])
+      ).code,
+      0,
+    );
+    assert.notEqual(
+      (await runGit(gitHarness.repoRoot, ["merge-base", "--is-ancestor", startSnapshot, storeHead]))
+        .code,
+      0,
+    );
+
+    await harness.commands.get("asc-rewind-status").handler("", harness.ctx);
+    assert.match(harness.notifications.at(-1).message, /retention: rewritten/);
+    assert.match(harness.notifications.at(-1).message, /retention live snapshots: 1/);
+    assert.match(harness.notifications.at(-1).message, /retention ordinary snapshots: 0/);
+    assert.match(harness.notifications.at(-1).message, /retention active sessions: 1/);
+    assert.doesNotMatch(harness.notifications.at(-1).message, /ordinary bindings/);
+    assert.match(harness.notifications.at(-1).message, /maxSnapshots=0, maxAgeDays=0/);
+  } finally {
+    await gitHarness.cleanup();
+  }
+});
+
+test("retention status counts deduplicated ordinary snapshots rather than ledger bindings", async () => {
+  const gitHarness = await createRewindGitHarness();
+  let harness;
+
+  try {
+    await gitHarness.writeRepoFile("tracked.txt", "ordinary snapshot\n");
+    const ordinary = await ensureSnapshotForCurrentWorktree(gitHarness.git);
+    await gitHarness.writeRepoFile("tracked.txt", "current snapshot\n");
+    const current = await ensureSnapshotForCurrentWorktree(gitHarness.git, {
+      lastExact: ordinary.snapshot,
+    });
+    const sessionManager = new SessionManagerStub({
+      sessionFile: `${gitHarness.repoRoot}/retention-deduplicated-status.jsonl`,
+      id: "retention-deduplicated-status",
+      cwd: gitHarness.repoRoot,
+    });
+    sessionManager.appendCustomEntry(ASC_REWIND_TURN_CUSTOM_TYPE, {
+      v: 1,
+      snapshots: [ordinary.snapshot.commitSha],
+      bindings: [
+        ["ordinary-binding-one", 0],
+        ["ordinary-binding-two", 0],
+      ],
+    });
+    sessionManager.appendCustomEntry(ASC_REWIND_OP_CUSTOM_TYPE, {
+      v: 1,
+      snapshots: [current.snapshot.commitSha],
+      current: 0,
+    });
+    harness = createPiHarness(sessionManager);
+    registerRewindRuntime(harness.pi, { maxSnapshots: 1, maxAgeDays: 30 });
+    await harness.handlers.get("session_start")(
+      { type: "session_start", reason: "startup" },
+      harness.ctx,
+    );
+
+    await harness.commands.get("asc-rewind-status").handler("", harness.ctx);
+    assert.match(harness.notifications.at(-1).message, /rewind points: 2/);
+    assert.match(harness.notifications.at(-1).message, /retention ordinary snapshots: 1/);
+    assert.match(harness.notifications.at(-1).message, /retention live snapshots: 2/);
+    assert.doesNotMatch(harness.notifications.at(-1).message, /ordinary bindings/);
+  } finally {
+    if (harness) {
+      await harness.handlers.get("session_shutdown")({ type: "session_shutdown" }, harness.ctx);
+    }
+    await gitHarness.cleanup();
+  }
+});
+
+test("repository-global retention preserves every active session current and undo snapshot", async () => {
+  const gitHarness = await createRewindGitHarness();
+  let firstHarness;
+  let secondHarness;
+
+  try {
+    await gitHarness.writeRepoFile("tracked.txt", "linked-worktree baseline\n");
+    await runGitChecked(gitHarness.repoRoot, ["add", "tracked.txt"]);
+    await runGitChecked(gitHarness.repoRoot, ["commit", "-m", "linked-worktree baseline"]);
+    const linkedWorktreeRoot = `${gitHarness.repoRoot}-linked`;
+    await runGitChecked(gitHarness.repoRoot, [
+      "worktree",
+      "add",
+      "--detach",
+      linkedWorktreeRoot,
+      "HEAD",
+    ]);
+
+    await gitHarness.writeRepoFile("tracked.txt", "session A current\n");
+    const firstCurrent = await ensureSnapshotForCurrentWorktree(gitHarness.git);
+    await gitHarness.writeRepoFile("tracked.txt", "session A undo\n");
+    const firstUndo = await ensureSnapshotForCurrentWorktree(gitHarness.git, {
+      lastExact: firstCurrent.snapshot,
+    });
+
+    const firstSession = new SessionManagerStub({
+      sessionFile: `${gitHarness.repoRoot}/active-session-a.jsonl`,
+      id: "active-session-a",
+      cwd: gitHarness.repoRoot,
+    });
+    firstSession.appendCustomEntry(ASC_REWIND_OP_CUSTOM_TYPE, {
+      v: 1,
+      snapshots: [firstCurrent.snapshot.commitSha, firstUndo.snapshot.commitSha],
+      current: 0,
+      undo: 1,
+    });
+    firstHarness = createPiHarness(firstSession);
+    registerRewindRuntime(firstHarness.pi, { maxSnapshots: 0, maxAgeDays: 0 });
+    await firstHarness.handlers.get("session_start")(
+      { type: "session_start", reason: "startup" },
+      firstHarness.ctx,
+    );
+
+    const secondSession = new SessionManagerStub({
+      sessionFile: `${linkedWorktreeRoot}/active-session-b.jsonl`,
+      id: "active-session-b",
+      cwd: linkedWorktreeRoot,
+    });
+    secondHarness = createPiHarness(secondSession);
+    registerRewindRuntime(secondHarness.pi, { maxSnapshots: 0, maxAgeDays: 0 });
+    await secondHarness.handlers.get("session_start")(
+      { type: "session_start", reason: "startup" },
+      secondHarness.ctx,
+    );
+    await writeFile(path.join(linkedWorktreeRoot, "tracked.txt"), "session B start\n", "utf8");
+    secondSession.appendMessage("user", "rewrite the repository-global store");
+    await secondHarness.handlers.get("turn_start")(
+      { type: "turn_start", turnIndex: 0, timestamp: Date.now() },
+      secondHarness.ctx,
+    );
+    await writeFile(path.join(linkedWorktreeRoot, "tracked.txt"), "session B current\n", "utf8");
+    const assistantEntry = secondSession.appendMessage("assistant", "done");
+    await secondHarness.handlers.get("turn_end")(
+      {
+        type: "turn_end",
+        turnIndex: 0,
+        message: assistantEntry.message,
+        toolResults: [],
+      },
+      secondHarness.ctx,
+    );
+    await secondHarness.handlers.get("agent_settled")({ type: "agent_settled" }, secondHarness.ctx);
+
+    const storeHead = await getStoreHead(gitHarness.git);
+    assert.ok(storeHead);
+    for (const protectedSnapshot of [
+      firstCurrent.snapshot.commitSha,
+      firstUndo.snapshot.commitSha,
+    ]) {
+      assert.equal(
+        (
+          await runGit(gitHarness.repoRoot, [
+            "merge-base",
+            "--is-ancestor",
+            protectedSnapshot,
+            storeHead,
+          ])
+        ).code,
+        0,
+      );
+    }
+    await secondHarness.commands.get("asc-rewind-status").handler("", secondHarness.ctx);
+    assert.match(secondHarness.notifications.at(-1).message, /retention active sessions: 2/);
+    assert.match(secondHarness.notifications.at(-1).message, /retention ordinary snapshots: 0/);
+  } finally {
+    if (secondHarness) {
+      await secondHarness.handlers.get("session_shutdown")(
+        { type: "session_shutdown" },
+        secondHarness.ctx,
+      );
+    }
+    if (firstHarness) {
+      await firstHarness.handlers.get("session_shutdown")(
+        { type: "session_shutdown" },
+        firstHarness.ctx,
+      );
+    }
+    await gitHarness.cleanup();
+  }
+});
+
+test("retention failure warns and reports the unchanged observed store head", async () => {
+  const gitHarness = await createRewindGitHarness();
+  let harness;
+
+  try {
+    await gitHarness.writeRepoFile("tracked.txt", "retention failure baseline\n");
+    await ensureSnapshotForCurrentWorktree(gitHarness.git);
+    const previousStoreHead = await getStoreHead(gitHarness.git);
+    assert.ok(previousStoreHead);
+
+    const sessionManager = new SessionManagerStub({
+      sessionFile: `${gitHarness.repoRoot}/retention-failure.jsonl`,
+      id: "retention-failure",
+      cwd: gitHarness.repoRoot,
+    });
+    harness = createPiHarness(sessionManager);
+    registerRewindRuntime(harness.pi, {
+      maxSnapshots: 0,
+      maxAgeDays: 0,
+      pinnedCommitShas: ["f".repeat(40)],
+    });
+    await harness.handlers.get("session_start")(
+      { type: "session_start", reason: "startup" },
+      harness.ctx,
+    );
+
+    assert.equal(await getStoreHead(gitHarness.git), previousStoreHead);
+    assert.ok(
+      harness.notifications.some(
+        (notification) =>
+          notification.level === "warning" &&
+          notification.message.includes("ASC rewind retention failed closed"),
+      ),
+    );
+    await harness.commands.get("asc-rewind-status").handler("", harness.ctx);
+    assert.match(harness.notifications.at(-1).message, /retention: failed/);
+    assert.match(
+      harness.notifications.at(-1).message,
+      new RegExp(`retention store head: ${previousStoreHead}`),
+    );
+  } finally {
+    if (harness) {
+      await harness.handlers.get("session_shutdown")({ type: "session_shutdown" }, harness.ctx);
+    }
     await gitHarness.cleanup();
   }
 });

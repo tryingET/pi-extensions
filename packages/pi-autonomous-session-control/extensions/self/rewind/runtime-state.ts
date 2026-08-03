@@ -34,6 +34,17 @@ export interface PendingResultingState {
   undoCommitSha?: string;
 }
 
+export interface RewindRetentionRuntimeStatus {
+  status: "never" | "rewritten" | "preserved-empty" | "failed";
+  lastRunAt?: string;
+  liveSnapshots: number;
+  pinnedSnapshots: number;
+  retainedOrdinarySnapshots: number;
+  activeSessions: number;
+  storeHead?: string;
+  error?: string;
+}
+
 export interface RewindRuntimeState {
   entryToCommit: Map<string, string>;
   git: GitRunner | null;
@@ -43,6 +54,9 @@ export interface RewindRuntimeState {
   undoCommitSha?: string;
   promptCollector: PendingPromptCollector | null;
   pendingTreeState: PendingResultingState | null;
+  retention: RewindRetentionRuntimeStatus;
+  retentionLeaseRef?: string;
+  retentionLeaseObjectId?: string;
 }
 
 export interface ParsedCustomEntryLike {
@@ -61,6 +75,13 @@ export function createRewindRuntimeState(): RewindRuntimeState {
     undoCommitSha: undefined,
     promptCollector: null,
     pendingTreeState: null,
+    retention: {
+      status: "never",
+      liveSnapshots: 0,
+      pinnedSnapshots: 0,
+      retainedOrdinarySnapshots: 0,
+      activeSessions: 0,
+    },
   };
 }
 
@@ -98,11 +119,18 @@ export function updateStatus(ctx: ExtensionContext, state: RewindRuntimeState): 
   }
 
   const uniqueSnapshots = new Set(state.entryToCommit.values()).size;
+  const retentionSuffix =
+    state.retention.status === "never"
+      ? ""
+      : ` / store ${state.retention.status}:${state.retention.liveSnapshots}`;
   const theme = ctx.ui.theme;
   ctx.ui.setStatus(
     REWIND_STATUS_KEY,
     theme.fg("dim", "◆ ") +
-      theme.fg("muted", `${state.entryToCommit.size} rewind points / ${uniqueSnapshots} snapshots`),
+      theme.fg(
+        "muted",
+        `${state.entryToCommit.size} rewind points / ${uniqueSnapshots} snapshots${retentionSuffix}`,
+      ),
   );
 }
 

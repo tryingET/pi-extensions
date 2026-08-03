@@ -23,9 +23,12 @@ export {
 export {
   appendSnapshotToStore,
   createStoreKeepaliveCommit,
+  type ExpectedRefHead,
   getStoreHead,
+  type RewriteStoreDetailedResult,
   type RewriteStoreResult,
   rewriteStoreToLiveSet,
+  rewriteStoreToLiveSetDetailed,
 } from "./keepalive-store.ts";
 export {
   buildRewindCheckpointRef,
@@ -41,7 +44,26 @@ export {
   type RewindLedgerReference,
   type RewindRetentionSettings,
 } from "./retention.ts";
+export {
+  type ActiveRewindLeaseHead,
+  type ActiveRewindRetentionLeases,
+  publishAndCollectActiveRewindLeases,
+  removeRewindRetentionLease,
+} from "./retention-leases.ts";
 export { registerRewindRuntime } from "./runtime.ts";
+export {
+  collectRewindRetentionReferences,
+  DEFAULT_REWIND_MAX_AGE_DAYS,
+  DEFAULT_REWIND_MAX_SNAPSHOTS,
+  executeRewindStoreRetention,
+  REWIND_MAX_AGE_DAYS_ENV,
+  REWIND_MAX_SNAPSHOTS_ENV,
+  REWIND_PINNED_COMMITS_ENV,
+  type ResolvedRewindRetentionConfig,
+  type RewindRetentionExecution,
+  type RewindRuntimeRetentionOptions,
+  resolveRewindRetentionConfig,
+} from "./runtime-retention.ts";
 export {
   ASC_REWIND_FORK_PENDING_CUSTOM_TYPE,
   ASC_REWIND_OP_CUSTOM_TYPE,

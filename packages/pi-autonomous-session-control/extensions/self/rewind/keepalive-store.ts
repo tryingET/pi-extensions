@@ -5,6 +5,17 @@ const LEGACY_ZERO_SHA = "0000000000000000000000000000000000000000";
 
 export type RewriteStoreResult = "rewritten" | "preserved-empty";
 
+export interface RewriteStoreDetailedResult {
+  status: RewriteStoreResult;
+  previousStoreHead?: string;
+  storeHead?: string;
+}
+
+export interface ExpectedRefHead {
+  refName: string;
+  objectId: string;
+}
+
 export async function getStoreHead(
   git: GitRunner,
   storeRef = REWIND_STORE_REF,
@@ -65,14 +76,20 @@ export async function appendSnapshotToStore(
   throw new Error(`failed to update rewind store ref: ${detail}`);
 }
 
-export async function rewriteStoreToLiveSet(
+export async function rewriteStoreToLiveSetDetailed(
   git: GitRunner,
   liveCommitShas: string[],
   storeRef = REWIND_STORE_REF,
-): Promise<RewriteStoreResult> {
+  expectedRefHeads: ExpectedRefHead[] = [],
+): Promise<RewriteStoreDetailedResult> {
   const uniqueLiveCommits = [...new Set(liveCommitShas.filter(Boolean))];
+  const oldHead = await getStoreHead(git, storeRef);
   if (uniqueLiveCommits.length === 0) {
-    return "preserved-empty";
+    return {
+      status: "preserved-empty",
+      previousStoreHead: oldHead,
+      storeHead: oldHead,
+    };
   }
 
   let head: string | undefined;
@@ -81,15 +98,39 @@ export async function rewriteStoreToLiveSet(
   }
 
   if (!head) {
-    return "preserved-empty";
+    return {
+      status: "preserved-empty",
+      previousStoreHead: oldHead,
+      storeHead: oldHead,
+    };
   }
 
-  const oldHead = await getStoreHead(git, storeRef);
-  if (oldHead) {
+  if (expectedRefHeads.length > 0) {
+    const transaction = [
+      "start",
+      ...expectedRefHeads.map(({ refName, objectId }) => `verify ${refName} ${objectId}`),
+      `update ${storeRef} ${head} ${oldHead ?? LEGACY_ZERO_SHA}`,
+      "prepare",
+      "commit",
+      "",
+    ].join("\n");
+    await execGitChecked(git, ["update-ref", "--stdin"], { stdin: transaction });
+  } else if (oldHead) {
     await execGitChecked(git, ["update-ref", storeRef, head, oldHead]);
-    return "rewritten";
+  } else {
+    await execGitChecked(git, ["update-ref", storeRef, head, LEGACY_ZERO_SHA]);
   }
+  return {
+    status: "rewritten",
+    previousStoreHead: oldHead,
+    storeHead: head,
+  };
+}
 
-  await execGitChecked(git, ["update-ref", storeRef, head, LEGACY_ZERO_SHA]);
-  return "rewritten";
+export async function rewriteStoreToLiveSet(
+  git: GitRunner,
+  liveCommitShas: string[],
+  storeRef = REWIND_STORE_REF,
+): Promise<RewriteStoreResult> {
+  return (await rewriteStoreToLiveSetDetailed(git, liveCommitShas, storeRef)).status;
 }

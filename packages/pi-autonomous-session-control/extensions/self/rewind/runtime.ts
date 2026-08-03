@@ -18,7 +18,13 @@ import {
   ensureSnapshotForCurrentWorktree,
   getCommitTreeSha,
 } from "./git-snapshot.ts";
+import { removeRewindRetentionLease } from "./retention-leases.ts";
 import { readPendingForkState } from "./runtime-fork-pending.ts";
+import {
+  type RewindRuntimeRetentionOptions,
+  resolveRewindRetentionConfig,
+  runRuntimeRetentionForState as runRuntimeRetention,
+} from "./runtime-retention.ts";
 import {
   appendForkPendingState,
   appendRewindOp,
@@ -33,6 +39,7 @@ import {
   reconstructStateFromSession,
   updateStatus,
 } from "./runtime-state.ts";
+import { registerRewindStatusCommand } from "./runtime-status.ts";
 import {
   ensureCurrentCommitSha,
   projectRecoveryMilestoneBestEffort,
@@ -42,6 +49,14 @@ import { handleSessionBeforeTree, handleSessionTree } from "./runtime-tree.ts";
 import type { AscRewindOpData } from "./session-ledger.ts";
 
 async function initializeSession(ctx: ExtensionContext, state: RewindRuntimeState): Promise<void> {
+  await removeRewindRetentionLease(
+    state.git,
+    state.retentionLeaseRef,
+    state.retentionLeaseObjectId,
+  );
+  state.retentionLeaseRef = undefined;
+  state.retentionLeaseObjectId = undefined;
+
   if (typeof ctx.cwd !== "string" || !ctx.sessionManager) {
     state.git = null;
     state.isGitRepo = false;
@@ -394,29 +409,13 @@ async function handleSessionBeforeFork(
   }
 }
 
-export function registerRewindRuntime(pi: ExtensionAPI): void {
+export function registerRewindRuntime(
+  pi: ExtensionAPI,
+  retentionOptions: RewindRuntimeRetentionOptions = {},
+): void {
   const state = createRewindRuntimeState();
-  pi.registerCommand("asc-rewind-status", {
-    description: "Show ASC rewind runtime status for /tree and /fork restore diagnostics",
-    handler: async (_args, ctx) => {
-      const uniqueSnapshots = new Set(state.entryToCommit.values()).size;
-      const lines = [
-        `ASC rewind: ${state.isGitRepo && state.git ? "available" : "unavailable"}`,
-        `cwd: ${ctx.cwd}`,
-        `git initialized: ${state.isGitRepo && state.git ? "yes" : "no"}`,
-        `rewind points: ${state.entryToCommit.size}`,
-        `snapshots: ${uniqueSnapshots}`,
-        `current snapshot: ${state.currentCommitSha ?? "none"}`,
-        `undo snapshot: ${state.undoCommitSha ?? "none"}`,
-        `pending tree state: ${state.pendingTreeState ? "yes" : "no"}`,
-        `hint: /tree must select a non-active node before Pi emits session_before_tree`,
-      ];
-
-      if (ctx.hasUI) {
-        ctx.ui.notify(lines.join("\n"), state.isGitRepo && state.git ? "info" : "warning");
-      }
-    },
-  });
+  const retentionConfig = resolveRewindRetentionConfig(retentionOptions);
+  registerRewindStatusCommand(pi, state, retentionConfig);
 
   pi.on("session_start", async (event: SessionStartEvent, ctx) => {
     await initializeSession(ctx, state);
@@ -425,40 +424,54 @@ export function registerRewindRuntime(pi: ExtensionAPI): void {
       await initializeForkPendingState(pi, ctx, state, event.previousSessionFile);
     }
 
-    if (event.reason === "reload") {
-      updateStatus(ctx, state);
-    }
+    await runRuntimeRetention(ctx, state, retentionConfig);
   });
 
   pi.on("session_before_fork", async (event: SessionBeforeForkEvent, ctx) => {
-    return handleSessionBeforeFork(event, ctx, pi, state);
+    const result = await handleSessionBeforeFork(event, ctx, pi, state);
+    await runRuntimeRetention(ctx, state, retentionConfig);
+    return result;
   });
 
   pi.on("session_before_tree", async (event: SessionBeforeTreeEvent, ctx) => {
-    return handleSessionBeforeTree(event, ctx, pi, state);
+    const result = await handleSessionBeforeTree(event, ctx, pi, state);
+    await runRuntimeRetention(ctx, state, retentionConfig);
+    return result;
   });
 
   pi.on("session_tree", async (event: SessionTreeEvent, ctx) => {
     handleSessionTree(event, ctx, pi, state);
+    await runRuntimeRetention(ctx, state, retentionConfig);
   });
 
   pi.on("turn_start", async (event: TurnStartEvent, ctx) => {
     await handleTurnStart(event, ctx, state);
+    await runRuntimeRetention(ctx, state, retentionConfig);
   });
 
   pi.on("turn_end", async (event: TurnEndEvent, ctx) => {
     await handleTurnEnd(event, ctx, state);
+    await runRuntimeRetention(ctx, state, retentionConfig);
   });
 
   pi.on("agent_settled", async (event: AgentSettledEvent, ctx) => {
     await handleAgentSettled(event, ctx, pi, state);
+    await runRuntimeRetention(ctx, state, retentionConfig);
   });
 
   pi.on("session_compact", async (event: SessionCompactEvent, ctx) => {
     await handleSessionCompact(event, ctx, pi, state);
+    await runRuntimeRetention(ctx, state, retentionConfig);
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
+    await removeRewindRetentionLease(
+      state.git,
+      state.retentionLeaseRef,
+      state.retentionLeaseObjectId,
+    );
+    state.retentionLeaseRef = undefined;
+    state.retentionLeaseObjectId = undefined;
     state.promptCollector = null;
     state.pendingTreeState = null;
     state.lastExact = null;
