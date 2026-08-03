@@ -857,6 +857,9 @@ function stopVisibleLoopForDelegatedCommitFailure(
   reason: string,
   event: string,
   toolCallId?: string,
+  effectDisposition:
+    | "confirmed_no_effects"
+    | "indeterminate_unless_asc_receipt_proves_otherwise" = "indeterminate_unless_asc_receipt_proves_otherwise",
 ): void {
   clearVisibleLoopDeliveryAckWatchdog(state);
   state.stopped = true;
@@ -870,7 +873,7 @@ function stopVisibleLoopForDelegatedCommitFailure(
       promptIndex: state.plan?.frontier ? state.plan.frontier.stepIndex + 1 : null,
       toolCallId: toolCallId ?? null,
       reason,
-      effectDisposition: "indeterminate_unless_asc_receipt_proves_otherwise",
+      effectDisposition,
     },
     env,
   );
@@ -1081,7 +1084,9 @@ export function handleVisibleLoopToolResult(
     toolCallId?: string;
     toolName?: string;
     input?: unknown;
+    content?: unknown;
     details?: unknown;
+    isError?: boolean;
   },
   pi: ExtensionAPI,
   ctx: VisibleLoopContext,
@@ -1093,6 +1098,30 @@ export function handleVisibleLoopToolResult(
   if (!state || state.stopped || !state.plan) return;
   const outcome = settleVisibleLoopDelegatedCommitExecution(state, event);
   if (outcome.kind === "ignored") return;
+  if (outcome.kind === "error_pending") {
+    appendVisibleLoopStatus(
+      state.config,
+      {
+        event: "commit_delegation_error_awaiting_terminal_attestation",
+        iteration: state.plan.iteration,
+        promptIndex: state.plan.frontier ? state.plan.frontier.stepIndex + 1 : null,
+        toolCallId: event.toolCallId,
+      },
+      env,
+    );
+    const persisted = persistActiveVisibleLoopState(state, ctx, env);
+    if (!persisted.ok) {
+      stopVisibleLoopForDelegatedCommitFailure(
+        state,
+        ctx,
+        env,
+        `controller persistence failed: ${persisted.error}`,
+        "commit_delegation_persistence_failed_closed",
+        event.toolCallId,
+      );
+    }
+    return;
+  }
   if (outcome.kind !== "settled") {
     const failure =
       outcome.kind === "execution_policy_drift"
@@ -1163,6 +1192,18 @@ export function handleVisibleLoopToolExecutionEnd(
     if (state.stopped) return;
     const outcome = completeVisibleLoopDelegatedCommit(state, event);
     if (outcome.kind === "ignored") return;
+    if (outcome.kind === "confirmed_no_effects") {
+      stopVisibleLoopForDelegatedCommitFailure(
+        state,
+        ctx,
+        env,
+        `ASC rejected the request before dispatch identity or child spawn (${outcome.failureKind}); no effects confirmed`,
+        "commit_delegation_rejected_no_effects",
+        event.toolCallId,
+        "confirmed_no_effects",
+      );
+      return;
+    }
     if (outcome.kind !== "succeeded") {
       const failure =
         outcome.kind === "duplicate_receipt"
@@ -1175,10 +1216,15 @@ export function handleVisibleLoopToolExecutionEnd(
                 reason: "uncorrelated result rejected",
                 event: "commit_delegation_uncorrelated_result_rejected",
               }
-            : {
-                reason: "did not return an exact settled ASC receipt",
-                event: "commit_delegation_failed_closed",
-              };
+            : outcome.kind === "unattested_error"
+              ? {
+                  reason: "failed without an exact owner pre-dispatch no-effects attestation",
+                  event: "commit_delegation_failed_closed",
+                }
+              : {
+                  reason: "did not return an exact settled ASC receipt",
+                  event: "commit_delegation_failed_closed",
+                };
       stopVisibleLoopForDelegatedCommitFailure(
         state,
         ctx,

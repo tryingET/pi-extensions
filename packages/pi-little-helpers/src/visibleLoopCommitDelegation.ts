@@ -31,6 +31,51 @@ export interface VisibleLoopDelegatedCommitExecutionPolicy {
   allowUnlimited: boolean | null;
 }
 
+const ASC_PRE_DISPATCH_ATTESTATION_KEYS = [
+  "effectDisposition",
+  "failureKind",
+  "identityAllocated",
+  "phase",
+  "schema",
+  "spawnAttempted",
+] as const;
+
+interface VisibleLoopDispatchToolResultEvent {
+  toolCallId?: string;
+  input?: unknown;
+  details?: unknown;
+  isError?: boolean;
+}
+
+function readExactPreDispatchFailureAttestation(details: unknown): "invariant_failed" | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  const detailsRecord = details as Record<string, unknown>;
+  if (
+    Object.keys(detailsRecord).length !== 1 ||
+    !Object.hasOwn(detailsRecord, "ascPreDispatchFailure")
+  ) {
+    return null;
+  }
+  const value = detailsRecord.ascPreDispatchFailure;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const attestation = value as Record<string, unknown>;
+  const keys = Object.keys(attestation).sort();
+  if (
+    keys.length !== ASC_PRE_DISPATCH_ATTESTATION_KEYS.length ||
+    !keys.every((key, index) => key === ASC_PRE_DISPATCH_ATTESTATION_KEYS[index])
+  ) {
+    return null;
+  }
+  return attestation.schema === "asc.dispatch_pre_dispatch_failure.v1" &&
+    attestation.phase === "pre_dispatch" &&
+    attestation.identityAllocated === false &&
+    attestation.spawnAttempted === false &&
+    attestation.effectDisposition === "confirmed_no_effects" &&
+    attestation.failureKind === "invariant_failed"
+    ? "invariant_failed"
+    : null;
+}
+
 export type VisibleLoopDelegatedCommitPhase =
   | "idle"
   | "started"
@@ -250,6 +295,7 @@ export type VisibleLoopDelegatedCommitSettlementOutcome =
   | { kind: "duplicate_settlement" }
   | { kind: "uncorrelated_result" }
   | { kind: "execution_policy_drift" }
+  | { kind: "error_pending" }
   | { kind: "settled"; policy: VisibleLoopDelegatedCommitExecutionPolicy };
 
 /**
@@ -258,7 +304,7 @@ export type VisibleLoopDelegatedCommitSettlementOutcome =
  */
 export function settleVisibleLoopDelegatedCommitExecution(
   state: ActiveVisibleLoopState,
-  event: { toolCallId?: string; input?: unknown; details?: unknown },
+  event: VisibleLoopDispatchToolResultEvent,
 ): VisibleLoopDelegatedCommitSettlementOutcome {
   if (!isVisibleLoopDelegatedCommitFrontier(state)) return { kind: "ignored" };
   const expectedRequest = getExpectedVisibleLoopCommitDelegationRequest(state);
@@ -279,18 +325,20 @@ export function settleVisibleLoopDelegatedCommitExecution(
     return { kind: "uncorrelated_result" };
   }
   const actualPolicy = readVisibleLoopDelegatedCommitExecutionPolicy(event.input);
+  if (!actualPolicy.ok) return { kind: "execution_policy_drift" };
+  const policyMatches =
+    isDeepStrictEqual(event.input, expectedRequest) &&
+    isDeepStrictEqual(actualPolicy.value, runtime.admittedExecutionPolicy) &&
+    isDeepStrictEqual(actualPolicy.value, expectedPolicy);
+  if (!policyMatches) return { kind: "execution_policy_drift" };
+  if (event.isError === true) return { kind: "error_pending" };
+
   const details = event.details;
   const detailsRecord =
     details && typeof details === "object" && !Array.isArray(details)
       ? (details as Record<string, unknown>)
       : null;
-  if (
-    !actualPolicy.ok ||
-    !isDeepStrictEqual(event.input, expectedRequest) ||
-    !isDeepStrictEqual(actualPolicy.value, runtime.admittedExecutionPolicy) ||
-    !isDeepStrictEqual(actualPolicy.value, expectedPolicy) ||
-    detailsRecord?.executionTimeoutSeconds !== expectedPolicy.timeout
-  ) {
+  if (detailsRecord?.executionTimeoutSeconds !== expectedPolicy.timeout) {
     return { kind: "execution_policy_drift" };
   }
   runtime.phase = "settled";
@@ -304,6 +352,8 @@ export type VisibleLoopDelegatedCommitEndOutcome =
   | { kind: "duplicate_receipt" }
   | { kind: "uncorrelated_result" }
   | { kind: "invalid_receipt" }
+  | { kind: "unattested_error" }
+  | { kind: "confirmed_no_effects"; failureKind: "invariant_failed" }
   | { kind: "succeeded"; receipt: VisibleLoopAscSettlementReceipt };
 
 export function completeVisibleLoopDelegatedCommit(
@@ -315,6 +365,25 @@ export function completeVisibleLoopDelegatedCommit(
   const runtime = state.delegatedCommit;
   if (event.toolCallId && event.toolCallId === runtime.completedToolCallId) {
     return { kind: "duplicate_receipt" };
+  }
+  if (event.isError === true) {
+    if (
+      runtime.phase !== "admitted" ||
+      !matchesCurrentVisibleLoopDelegatedCommitFrontier(state, runtime.frontier) ||
+      !expectedPolicy ||
+      !event.toolCallId ||
+      event.toolCallId !== runtime.toolCallId ||
+      event.toolCallId !== runtime.admittedToolCallId ||
+      runtime.settledToolCallId !== null ||
+      runtime.settledExecutionPolicy !== null ||
+      !isDeepStrictEqual(runtime.admittedExecutionPolicy, expectedPolicy)
+    ) {
+      return { kind: "uncorrelated_result" };
+    }
+    const failureKind = readExactPreDispatchFailureAttestation(event.result?.details);
+    return failureKind
+      ? { kind: "confirmed_no_effects", failureKind }
+      : { kind: "unattested_error" };
   }
   if (
     runtime.phase !== "settled" ||

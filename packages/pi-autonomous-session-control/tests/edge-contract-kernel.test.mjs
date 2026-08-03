@@ -15,7 +15,12 @@ import {
   normalizeInput,
   shapeToolResult,
 } from "../extensions/self/edge-contract-kernel.ts";
-import { createSubagentState, registerSubagentTool } from "../extensions/self/subagent.ts";
+import {
+  createSubagentState,
+  DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX,
+  registerSubagentTool,
+} from "../extensions/self/subagent.ts";
+import { DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH } from "../extensions/self/subagent-edge-contract.ts";
 
 test("normalizeInput returns empty object for malformed boundary payloads", () => {
   assert.deepEqual(normalizeInput(null), {});
@@ -92,7 +97,7 @@ test("dispatch_subagent rejects malformed objective via edge invariants", async 
   );
 
   try {
-    const result = await tool
+    const error = await tool
       .execute(
         "tc-eck-1",
         {
@@ -105,14 +110,138 @@ test("dispatch_subagent rejects malformed objective via edge invariants", async 
       )
       .then(
         () => assert.fail("expected dispatch_subagent to throw an invariant tool error"),
-        (error) => error.result,
+        (caught) => caught,
       );
+    const result = error.result;
 
     assert.equal(result.details.status, "error");
     assert.equal(result.details.reason, "invariant_failed");
+    assert.equal(result.details.effectDisposition, "confirmed_no_effects");
+    assert.deepEqual(result.details.preDispatchFailure, {
+      schema: "asc.dispatch_pre_dispatch_failure.v1",
+      phase: "pre_dispatch",
+      identityAllocated: false,
+      spawnAttempted: false,
+      effectDisposition: "confirmed_no_effects",
+      failureKind: "invariant_failed",
+    });
     assert.match(result.text, /dispatch.objective.required/);
+    assert.match(error.message, new RegExp(`\\n${DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX}`));
     assert.equal(spawnCalls, 0);
     assert.equal(state.activeCount, 0);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("dispatch_subagent admits the observed delegated objective and keeps a finite upper bound", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "eck-dispatch-objective-bound-"));
+  const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
+  let spawnCalls = 0;
+  let tool;
+  let toolResultHandler;
+
+  const pi = {
+    registerTool(definition) {
+      tool = definition;
+    },
+    on(event, handler) {
+      if (event === "tool_result") toolResultHandler = handler;
+    },
+  };
+
+  registerSubagentTool(
+    pi,
+    state,
+    () => "test/model",
+    async () => {
+      spawnCalls++;
+      return {
+        output: "ok",
+        exitCode: 0,
+        elapsed: 1,
+        status: "done",
+      };
+    },
+  );
+
+  try {
+    const observedDelegatedObjective = "x".repeat(8_732);
+    const accepted = await tool.execute(
+      "tc-eck-observed-delegation",
+      { profile: "minimal", objective: observedDelegatedObjective },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+    assert.equal(accepted.details.status, "done");
+    const currentDelegatedObjective = await tool.execute(
+      "tc-eck-current-delegation",
+      { profile: "minimal", objective: "x".repeat(8_752) },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+    assert.equal(currentDelegatedObjective.details.status, "done");
+    assert.equal(spawnCalls, 2);
+
+    const error = await tool
+      .execute(
+        "tc-eck-over-bound",
+        {
+          profile: "minimal",
+          objective: "x".repeat(DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH + 1),
+        },
+        null,
+        null,
+        { cwd: process.cwd() },
+      )
+      .then(
+        () => assert.fail("expected over-bound objective rejection"),
+        (caught) => caught,
+      );
+
+    assert.equal(spawnCalls, 2, "over-bound objective must fail before spawn");
+    assert.equal(error.result.details.effectDisposition, "confirmed_no_effects");
+    assert.match(
+      error.message,
+      new RegExp(`no longer than ${DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH} characters`),
+    );
+    const metadataLine = error.message
+      .split("\n")
+      .find((line) => line.startsWith(DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX));
+    assert.ok(metadataLine, "tool error must expose machine-readable failure metadata");
+    assert.deepEqual(
+      JSON.parse(metadataLine.slice(DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX.length)),
+      {
+        schema: "asc.dispatch_tool_failure.v1",
+        status: "error",
+        failureKind: "invariant_failed",
+        effectDisposition: "confirmed_no_effects",
+        phase: "pre_dispatch",
+        identityAllocated: false,
+        spawnAttempted: false,
+      },
+    );
+    assert.equal(typeof toolResultHandler, "function");
+    const patch = toolResultHandler({
+      toolCallId: "tc-eck-over-bound",
+      toolName: "dispatch_subagent",
+      details: {},
+      isError: true,
+    });
+    assert.deepEqual(patch, {
+      details: {
+        ascPreDispatchFailure: {
+          schema: "asc.dispatch_pre_dispatch_failure.v1",
+          phase: "pre_dispatch",
+          identityAllocated: false,
+          spawnAttempted: false,
+          effectDisposition: "confirmed_no_effects",
+          failureKind: "invariant_failed",
+        },
+      },
+    });
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }

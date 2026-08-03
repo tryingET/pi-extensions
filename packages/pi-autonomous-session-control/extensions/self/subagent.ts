@@ -12,11 +12,13 @@ import {
   projectAscExecutionResult,
   projectAscExecutionUpdate,
 } from "./execution-observation.ts";
+import { DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH } from "./subagent-edge-contract.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import {
   type AscExecutionRuntime,
   createAscExecutionRuntime,
   type DispatchSubagentExecutionResult,
+  type DispatchSubagentPreDispatchFailureAttestation,
   type DispatchSubagentProfile,
   type DispatchSubagentRequest,
   type SubagentModelContext,
@@ -58,6 +60,32 @@ export type {
   SubagentState,
 };
 
+export const DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX = "ASC_DISPATCH_FAILURE ";
+const MAX_PENDING_PRE_DISPATCH_ATTESTATIONS = 32;
+
+export function renderDispatchSubagentToolFailureMetadata(
+  result: DispatchSubagentExecutionResult,
+): string {
+  const failureKind = result.details.failureKind ?? result.details.reason ?? "unknown_failure";
+  const effectDisposition =
+    result.details.effectReceipt?.disposition ?? result.details.effectDisposition;
+  return `${DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX}${JSON.stringify({
+    schema: "asc.dispatch_tool_failure.v1",
+    status: result.details.status ?? "error",
+    failureKind,
+    ...(result.details.preDispatchFailure
+      ? {
+          phase: result.details.preDispatchFailure.phase,
+          identityAllocated: result.details.preDispatchFailure.identityAllocated,
+          spawnAttempted: result.details.preDispatchFailure.spawnAttempted,
+        }
+      : {}),
+    ...(effectDisposition ? { effectDisposition } : {}),
+    ...(result.details.dispatchId ? { dispatchId: result.details.dispatchId } : {}),
+    ...(result.details.attemptId ? { attemptId: result.details.attemptId } : {}),
+  })}`;
+}
+
 export class DispatchSubagentToolError extends Error {
   readonly result: DispatchSubagentExecutionResult;
 
@@ -67,7 +95,10 @@ export class DispatchSubagentToolError extends Error {
     const inspect = result.details.sessionName
       ? ` Inspect with /subagent-inspect ${result.details.sessionName}.`
       : "";
-    super(`dispatch_subagent failed (${failureKind})${dispatchId}: ${result.text}${inspect}`);
+    const metadata = renderDispatchSubagentToolFailureMetadata(result);
+    super(
+      `dispatch_subagent failed (${failureKind})${dispatchId}: ${result.text}${inspect}\n${metadata}`,
+    );
     this.name = "DispatchSubagentToolError";
     this.result = result;
   }
@@ -93,6 +124,27 @@ function emitExecutionObservation(
 }
 
 export function registerDispatchSubagentTool(pi: ExtensionAPI, runtime: AscExecutionRuntime): void {
+  const pendingPreDispatchAttestations = new Map<
+    string,
+    DispatchSubagentPreDispatchFailureAttestation
+  >();
+  pi.on?.("tool_result", (event) => {
+    if (event.toolName !== "dispatch_subagent" || typeof event.toolCallId !== "string") return;
+    const attestation = pendingPreDispatchAttestations.get(event.toolCallId);
+    if (!attestation) return;
+    pendingPreDispatchAttestations.delete(event.toolCallId);
+    if (event.isError !== true) return;
+    const existingDetails =
+      event.details && typeof event.details === "object" && !Array.isArray(event.details)
+        ? (event.details as Record<string, unknown>)
+        : {};
+    return {
+      details: {
+        ...existingDetails,
+        ascPreDispatchFailure: { ...attestation },
+      },
+    };
+  });
   const tool: CompatToolDefinition = {
     name: "dispatch_subagent",
     label: "Dispatch Subagent",
@@ -148,7 +200,9 @@ Child skill profile bootstrap (optional):
         ["explorer", "reviewer", "tester", "researcher", "minimal", "custom"] as const,
         { description: "Predefined profile or 'custom'" },
       ),
-      objective: Type.String({ description: "Clear objective for the subagent" }),
+      objective: Type.String({
+        description: `Clear objective for the subagent (maximum ${DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH} characters)`,
+      }),
       tools: Type.Optional(
         Type.String({ description: "Comma-separated tools (default: from profile)" }),
       ),
@@ -263,13 +317,13 @@ Child skill profile bootstrap (optional):
       ),
     }),
 
-    async execute(_toolCallId, params, _signal, onUpdate, ctx) {
+    async execute(toolCallId, params, _signal, onUpdate, ctx) {
       const request = params as DispatchSubagentRequest;
       const observationContext: AscExecutionObservationContext = {
         producer: "dispatch_subagent",
         cwd: ctx.cwd,
         group: {
-          id: `dispatch-tool-${_toolCallId}`,
+          id: `dispatch-tool-${toolCallId}`,
           kind: "dispatch",
           label: `Dispatch · ${request.profile}`,
         },
@@ -299,9 +353,18 @@ Child skill profile bootstrap (optional):
 
       emitExecutionObservation(pi, projectAscExecutionResult(result, observationContext));
       if (!result.ok) {
+        const attestation = result.details.preDispatchFailure;
+        if (attestation) {
+          if (pendingPreDispatchAttestations.size >= MAX_PENDING_PRE_DISPATCH_ATTESTATIONS) {
+            const oldest = pendingPreDispatchAttestations.keys().next().value;
+            if (typeof oldest === "string") pendingPreDispatchAttestations.delete(oldest);
+          }
+          pendingPreDispatchAttestations.set(toolCallId, { ...attestation });
+        }
         throw new DispatchSubagentToolError(result);
       }
 
+      pendingPreDispatchAttestations.delete(toolCallId);
       return shapeToolResult({
         status: result.details.status ?? "done",
         text: result.text,

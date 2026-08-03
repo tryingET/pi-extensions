@@ -1,5 +1,5 @@
 import type { InvariantIssue } from "./edge-contract-kernel.ts";
-import type { DispatchEffectReceipt } from "./effect-receipt.ts";
+import type { DispatchEffectDisposition, DispatchEffectReceipt } from "./effect-receipt.ts";
 import type { SessionScopedContext } from "./session-context.ts";
 import type {
   ResolvedSubagentModelSelection,
@@ -66,6 +66,15 @@ export type DispatchSubagentFailureKind =
   | "rate_limited"
   | "model_selection_failed"
   | "effect_receipt_write_failed";
+
+export interface DispatchSubagentPreDispatchFailureAttestation {
+  schema: "asc.dispatch_pre_dispatch_failure.v1";
+  phase: "pre_dispatch";
+  identityAllocated: false;
+  spawnAttempted: false;
+  effectDisposition: "confirmed_no_effects";
+  failureKind: DispatchSubagentFailureKind;
+}
 
 export interface DispatchSubagentRequest {
   profile: DispatchSubagentProfile;
@@ -149,6 +158,10 @@ export interface DispatchSubagentDetails {
   prompt_warning?: string;
   reason?: string;
   failureKind?: DispatchSubagentFailureKind;
+  /** Owner-issued effect classification, including failures before receipt identity exists. */
+  effectDisposition?: DispatchEffectDisposition;
+  /** Exact owner attestation for failures before dispatch/attempt identity allocation. */
+  preDispatchFailure?: DispatchSubagentPreDispatchFailureAttestation;
   /** Durable, owner-issued effect disposition for this exact ASC attempt. */
   effectReceipt?: DispatchEffectReceipt;
   effectCorrelationId?: string;

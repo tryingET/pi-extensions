@@ -13,6 +13,7 @@ import type { SubagentState } from "./subagent-session.ts";
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 const MUTATION_POLICIES = ["read_only", "bounded_mutation"] as const;
+export const DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH = 16_000;
 const MAX_CONTRACT_ITEMS = 32;
 const MAX_CONTRACT_ITEM_LENGTH = 1_000;
 
@@ -45,6 +46,7 @@ export interface NormalizedDispatchParams {
   prompt_tags?: string[];
   prompt_source?: string;
   effectCorrelationId?: string;
+  rawObjective: unknown;
   rawTimeout: unknown;
   rawStartupTimeout: unknown;
   rawThinking: unknown;
@@ -65,7 +67,9 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
 
   return {
     profile: normalizeString(normalized.profile, { maxLength: 40 }) || "",
-    objective: normalizeString(normalized.objective),
+    objective: normalizeString(normalized.objective, {
+      maxLength: DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH,
+    }),
     tools: normalizeString(normalized.tools, { maxLength: 500 }),
     resumeDispatchId: normalizeString(normalized.resumeDispatchId, { maxLength: 200 }),
     thinking: normalizeEnum(normalized.thinking, THINKING_LEVELS),
@@ -96,6 +100,7 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
     prompt_tags: normalizeStringArray(normalized.prompt_tags),
     prompt_source: normalizeString(normalized.prompt_source),
     effectCorrelationId: normalizeString(normalized.effectCorrelationId, { maxLength: 200 }),
+    rawObjective: normalized.objective,
     rawTimeout: normalized.timeout,
     rawStartupTimeout: normalized.startupTimeout,
     rawThinking: normalized.thinking,
@@ -127,8 +132,12 @@ export function validateDispatchParams(params: NormalizedDispatchParams): Invari
     },
     {
       id: "dispatch.objective.required",
-      check: typeof params.objective === "string" && params.objective.length > 0,
-      message: "objective must be a non-empty string.",
+      check:
+        typeof params.objective === "string" &&
+        params.objective.length > 0 &&
+        typeof params.rawObjective === "string" &&
+        params.rawObjective.trim().length <= DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH,
+      message: `objective must be a non-empty string no longer than ${DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH} characters.`,
     },
     {
       id: "dispatch.timeout.bounded",

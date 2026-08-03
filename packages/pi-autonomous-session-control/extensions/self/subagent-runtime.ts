@@ -77,6 +77,7 @@ export type {
   DispatchSubagentExecutionResult,
   DispatchSubagentExecutionUpdate,
   DispatchSubagentFailureKind,
+  DispatchSubagentPreDispatchFailureAttestation,
   DispatchSubagentProfile,
   DispatchSubagentRequest,
   DispatchSubagentStatus,
@@ -106,6 +107,36 @@ import {
   validateSubagentRequestEnv,
 } from "./subagent-spawn.ts";
 
+function withImmediateConfirmedNoEffects(
+  result: DispatchSubagentExecutionResult,
+): DispatchSubagentExecutionResult {
+  const failureKind = result.details.failureKind;
+  if (!failureKind) {
+    return {
+      ...result,
+      details: {
+        ...result.details,
+        effectDisposition: "effect_indeterminate",
+      },
+    };
+  }
+  return {
+    ...result,
+    details: {
+      ...result.details,
+      effectDisposition: "confirmed_no_effects",
+      preDispatchFailure: {
+        schema: "asc.dispatch_pre_dispatch_failure.v1",
+        phase: "pre_dispatch",
+        identityAllocated: false,
+        spawnAttempted: false,
+        effectDisposition: "confirmed_no_effects",
+        failureKind,
+      },
+    },
+  };
+}
+
 function attachConfirmedNoEffectsReceipt(params: {
   sessionsDir: string;
   sessionName: string;
@@ -133,6 +164,7 @@ function attachConfirmedNoEffectsReceipt(params: {
         sessionName,
         effectCorrelationId: effectReceipt.consumerCorrelationId,
         effectReceipt,
+        effectDisposition: "confirmed_no_effects",
       },
     };
   } catch {
@@ -148,6 +180,7 @@ function attachConfirmedNoEffectsReceipt(params: {
         effectCorrelationId: params.effectCorrelationId,
         status: "error",
         failureKind: "effect_receipt_write_failed",
+        effectDisposition: "effect_indeterminate",
       },
     };
   }
@@ -197,7 +230,7 @@ export async function executeDispatchSubagentRequest(options: {
   const invariants = validateDispatchParams(normalizedParams);
 
   if (!invariants.ok) {
-    return {
+    return withImmediateConfirmedNoEffects({
       ok: false,
       text: formatInvariantIssues("Invalid dispatch_subagent input", invariants),
       details: {
@@ -206,7 +239,7 @@ export async function executeDispatchSubagentRequest(options: {
         invariants: invariants.issues,
         status: "error",
       },
-    };
+    });
   }
 
   if (
@@ -214,7 +247,7 @@ export async function executeDispatchSubagentRequest(options: {
     (allowUnlimited !== true ||
       process.env.PI_SUBAGENT_ALLOW_UNLIMITED_TIMEOUT?.trim().toLowerCase() !== "true")
   ) {
-    return {
+    return withImmediateConfirmedNoEffects({
       ok: false,
       text: "Unlimited subagent execution is disabled. timeout=0 requires allowUnlimited=true and PI_SUBAGENT_ALLOW_UNLIMITED_TIMEOUT=true.",
       details: {
@@ -222,14 +255,14 @@ export async function executeDispatchSubagentRequest(options: {
         failureKind: "invariant_failed",
         status: "error",
       },
-    };
+    });
   }
 
   const envPolicy = validateSubagentRequestEnv(env);
 
   if (!envPolicy.ok) {
     const output = formatSubagentEnvPolicyIssues(envPolicy.issues);
-    return {
+    return withImmediateConfirmedNoEffects({
       ok: false,
       text: output,
       details: {
@@ -240,7 +273,7 @@ export async function executeDispatchSubagentRequest(options: {
         activeCount: options.state.activeCount,
         maxConcurrent: options.state.maxConcurrent,
       },
-    };
+    });
   }
 
   const safeObjective = objective as string;
@@ -255,7 +288,7 @@ export async function executeDispatchSubagentRequest(options: {
       })
     : undefined;
   if (resume && !resume.ok) {
-    return {
+    return withImmediateConfirmedNoEffects({
       ok: false,
       text: `Subagent resume rejected: ${resume.error}`,
       details: {
@@ -264,7 +297,7 @@ export async function executeDispatchSubagentRequest(options: {
         resumeDispatchId,
         status: "error",
       },
-    };
+    });
   }
   const dispatchId = resume?.ok ? resume.value.dispatchId : createEdgeMonotonicId("dispatch");
   const attemptId = createEdgeMonotonicId("attempt");
