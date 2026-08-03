@@ -14,6 +14,7 @@ system4d:
 Standalone Pi extension package extracted from `contrib/pi-better-openai` for two focused OpenAI capabilities:
 
 - `/fast` toggles OpenAI priority service tier injection (`service_tier: "priority"`). It defaults to every model exposed through the `openai-codex` provider (`openai-codex/*`).
+- In UI modes, fast state is published through Pi footer status key `better-openai-fast`: `🐇` means priority mode is active for the selected model; `🐢` means it is inactive.
 - `/openai-image` and the `openai_image` tool generate or edit images through OpenAI Codex subscription auth and the hosted `image_generation` tool.
 
 - Workspace path: `packages/pi-better-openai`

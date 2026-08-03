@@ -12,15 +12,19 @@ import test from "node:test";
 import betterOpenAI, { _test } from "../extensions/fast.ts";
 
 function harness(flag = false) {
+  const commands = new Map();
   const events = new Map();
   const tools = new Map();
   return {
+    commands,
     events,
     tools,
     api: {
       registerFlag() {},
       getFlag: () => flag,
-      registerCommand() {},
+      registerCommand(name, command) {
+        commands.set(name, command);
+      },
       registerTool(tool) {
         tools.set(tool.name, tool);
       },
@@ -68,6 +72,50 @@ test("registered --fast initializes provider injection state in headless session
       ctx,
     );
     assert.equal(payload.service_tier, "priority");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("fast mode publishes rabbit and turtle footer status across toggles and model changes", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "better-openai-fast-status-"));
+  try {
+    const configDir = path.join(dir, ".pi", "extensions");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "better-openai.json"),
+      JSON.stringify({
+        persistState: false,
+        supportedModels: ["openai/gpt-5.4"],
+      }),
+    );
+
+    const pi = harness(false);
+    betterOpenAI(pi.api);
+    const statuses = [];
+    const ctx = {
+      ...context(dir),
+      hasUI: true,
+      ui: {
+        notify() {},
+        setStatus(key, text) {
+          statuses.push([key, text]);
+        },
+      },
+    };
+
+    await pi.events.get("session_start")({ reason: "startup" }, ctx);
+    assert.deepEqual(statuses.at(-1), [_test.FAST_STATUS_KEY, "🐢"]);
+
+    await pi.commands.get("fast").handler("", ctx);
+    assert.deepEqual(statuses.at(-1), [_test.FAST_STATUS_KEY, "🐇"]);
+
+    const unsupportedCtx = {
+      ...ctx,
+      model: { provider: "anthropic", id: "claude-opus-4-6" },
+    };
+    await pi.events.get("model_select")({}, unsupportedCtx);
+    assert.deepEqual(statuses.at(-1), [_test.FAST_STATUS_KEY, "🐢"]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

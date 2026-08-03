@@ -25,6 +25,7 @@ import { _imageTest, registerOpenAIImage } from "../src/image.ts";
 const COMMAND = "fast";
 const FLAG = "fast";
 const SERVICE_TIER = "priority";
+const FAST_STATUS_KEY = "better-openai-fast";
 
 function currentModelKey(ctx: ExtensionContext): string {
   return ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "none";
@@ -66,6 +67,12 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
   let lastInjectedModel: string | undefined;
   let lastInjectedTier: string | undefined;
 
+  function updateFastStatus(ctx: ExtensionContext): void {
+    if (ctx.hasUI) {
+      ctx.ui.setStatus(FAST_STATUS_KEY, active ? "🐇" : "🐢");
+    }
+  }
+
   function refresh(ctx: ExtensionContext): ResolvedConfig {
     cachedConfig = resolveConfig(ctx.cwd || process.cwd());
     desiredActive = cachedConfig.desiredActive;
@@ -95,6 +102,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     desiredActive = next;
     applyDesiredFastState(ctx, nextConfig);
     persist(nextConfig);
+    updateFastStatus(ctx);
     if (next && !active) {
       if (!ctx.hasUI) return;
       ctx.ui.notify(
@@ -120,6 +128,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
       desiredActive = true;
       applyDesiredFastState(ctx, cfg);
     }
+    updateFastStatus(ctx);
   });
 
   pi.registerCommand(COMMAND, {
@@ -163,6 +172,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     const cfg = config(ctx);
     const wasActive = active;
     applyDesiredFastState(ctx, cfg);
+    updateFastStatus(ctx);
     if (active !== wasActive) {
       persist(cfg);
       if (!ctx.hasUI) return;
@@ -193,6 +203,7 @@ export const _test = {
   DEFAULT_CONFIG,
   DEFAULT_IMAGE_CONFIG,
   SERVICE_TIER,
+  FAST_STATUS_KEY,
   configPaths,
   parseModelKey,
   normalizeModelKeys,
