@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "e29ab21dd74d9fc7f78a0ce3073e051378ee710c"
+created_at: "2026-08-03T11:33:09Z"
+intent: "Load only the declared @tryinget/pi-trigger-adapter in the autoresearch picker loader"
+files:
+  - "packages/pi-autoresearch/extensions/pi-autoresearch/triggerPicker.ts"
+  - "packages/pi-autoresearch/tests/trigger-picker-dependencies.test.ts"
+  - "packages/pi-autoresearch/README.md"
+  - "packages/pi-autoresearch/docs/project/product-posture.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "./scripts/ci/packages.sh ci --package pi-autoresearch"
+    status: "pass"
+group:
+  index: 1
+  total: 2
+  rationale: "Replaces the obsolete undeclared @tryinget/pi-interaction umbrella probe with a direct lazy import of the declared adapter dependency; process-global broker identity makes the umbrella probe redundant. Repo-wide npm run quality:pre-push fails only at scripts/root-doc-alignment.test.mjs because a concurrent session created an untracked packages/pi-session-insights package (live packageCount=34 vs committed snapshot=33); these commits add no packages and do not touch the snapshot doc, so the failure is concurrent drift unrelated to this change."
