@@ -677,7 +677,6 @@ export interface AutoresearchLevel4CampaignRunnerRequest
   maxParallelCandidatePeers?: number;
   allowMeasureExportReview?: boolean;
   allowReviewGeneration?: boolean;
-  allowAutomaticCleanupAfterIntegrationCloseout?: boolean;
   integrationCloseout?: AutoresearchLevel3IntegrationCloseoutEvidence;
 }
 
@@ -892,9 +891,12 @@ export interface AutoresearchLevel4PostIntegrationCleanupReadyPacket {
   archiveDirectories: readonly string[];
   tabClosureHints: readonly string[];
   processTerminationHints: readonly string[];
-  candidatePeerCleanupDryRunCall: string | null;
-  candidatePeerCleanupExecuteCall: string | null;
-  exactControllerCommands: readonly string[];
+  /** Historical compatibility fields. Registry-v1 cleanup is permanently non-executable. */
+  candidatePeerCleanupDryRunCall: null;
+  candidatePeerCleanupExecuteCall: null;
+  exactControllerCommands: readonly [];
+  candidateLifecycleStatusCall: string | null;
+  candidateLifecyclePlanCall: string | null;
   blockers: readonly string[];
   boundary: string;
   nextStep: string;
@@ -1058,6 +1060,7 @@ export interface AutoresearchLevel4CampaignRunner {
 }
 
 export interface AutoresearchLevel3CleanupResourcesInput {
+  peerRunIds?: readonly string[];
   peerTabsOrSessions?: readonly string[];
   worktrees?: readonly string[];
   branches?: readonly string[];
@@ -1093,24 +1096,26 @@ export interface AutoresearchLevel3AuthorizedFinalizerCleanupRequest
 }
 
 export interface AutoresearchLevel3CleanupCommandPacket {
-  kind: "autoresearch.level3_candidate_cleanup_command_packet.v1";
+  kind: "autoresearch.level3_candidate_lifecycle_closeout_handoff.v2";
   exactTaskId: number;
   exactCwd: string;
   manifestHash: string;
-  authorizationToken: string;
-  authorizationRequired: true;
-  cleanupExecution:
-    | "not_executed_by_orchestrator"
-    | "ready_for_automatic_controller_cleanup_after_successful_integration_closeout";
+  gateReference: string;
+  authorizationRequired: false;
+  cleanupExecution: "not_executed_by_orchestrator";
+  cleanupExecutionAuthorized: false;
   cleanupTrigger:
     | "candidate_cleanup_token"
     | "exact_manifest_policy"
     | "successful_integration_closeout";
+  exactPeerRunIds: readonly string[];
   exactPeerTabsOrSessions: readonly string[];
   exactWorktrees: readonly string[];
   exactBranches: readonly string[];
-  exactCommands: readonly string[];
-  forbiddenPromotionCommandMatches: readonly string[];
+  candidateLifecycleStatusCall: string;
+  candidateLifecyclePlanCall: string;
+  exactCommands: readonly [];
+  forbiddenPromotionCommandMatches: readonly [];
   boundary: string;
 }
 
@@ -1133,10 +1138,11 @@ export interface AutoresearchLevel3AuthorizedFinalizerCleanupPlan {
     requiredToken: string;
     suppliedTokenAccepted: boolean;
     manifestPolicyAccepted: boolean;
+    cleanupExecutionAuthorized: false;
     posture:
       | "accepted_exact_token"
       | "accepted_exact_manifest_policy"
-      | "accepted_successful_integration_closeout"
+      | "lifecycle_plan_ready_successful_integration"
       | "blocked_missing_token_or_exact_policy"
       | "blocked_wrong_token"
       | "blocked_missing_exact_resources";
@@ -1371,7 +1377,7 @@ export interface AutoresearchPostFaninFinalizerCloseoutReceipt {
   cleanupHandoff: {
     posture: "separate_candidate_cleanup_gate_required";
     authorizedByFinalizer: false;
-    requiredTrigger: "candidate_cleanup_token_or_successful_integration_closeout";
+    requiredTrigger: "lifecycle_v2_disposition_proof_archive_and_cleanup_authorization";
   };
   blockedReasons: readonly string[];
   recoveryNotes: readonly string[];
@@ -2082,7 +2088,7 @@ export interface AutoresearchLevel3ReviewSelectionSubstrate {
   };
   dangerousActionGates: {
     finalizePostFanin: "exact_finalize_post_fanin_token_required";
-    candidateCleanup: "automatic_after_successful_integration_closeout_or_exact_token";
+    candidateCleanup: "lifecycle_v2_closeout_required";
     promotion: "separate_promotion_token_required";
     akOwnerWrite: "separate_ak_owner_write_required";
   };
@@ -4523,7 +4529,7 @@ export function finalizeAutoresearchPostFanin(
     cleanupHandoff: {
       posture: "separate_candidate_cleanup_gate_required",
       authorizedByFinalizer: false,
-      requiredTrigger: "candidate_cleanup_token_or_successful_integration_closeout",
+      requiredTrigger: "lifecycle_v2_disposition_proof_archive_and_cleanup_authorization",
     },
     blockedReasons: closeoutBlockedReasons,
     recoveryNotes:
@@ -6457,7 +6463,7 @@ function buildAutoresearchLevel3ReviewSelectionSubstrate(input: {
     },
     dangerousActionGates: {
       finalizePostFanin: "exact_finalize_post_fanin_token_required",
-      candidateCleanup: "automatic_after_successful_integration_closeout_or_exact_token",
+      candidateCleanup: "lifecycle_v2_closeout_required",
       promotion: "separate_promotion_token_required",
       akOwnerWrite: "separate_ak_owner_write_required",
     },
@@ -6466,7 +6472,7 @@ function buildAutoresearchLevel3ReviewSelectionSubstrate(input: {
       "Level-3 review/selection aggregates only controller-verified candidate-result packets from visible level-3 candidate lanes; raw peer text remains communication.",
       "Per-cell winners are recommendation state for owner review, not promotion or merge authority.",
       "The finalizer handoff is exact-gated: apply commands remain hidden until a separate finalize_post_fanin token is supplied to the finalizer preflight.",
-      "Candidate cleanup is part of successful Level-3 integration closeout when exact resources are known; pre-closeout cleanup still requires candidate_cleanup, and AK owner writes/promotion remain separate owner gates.",
+      "Successful integration can trigger lifecycle-v2 closeout planning but never candidate deletion; disposition, integration proof when accepted, verified archive, exact cleanup authorization, and unchanged resource bindings remain required.",
     ],
   };
 }
@@ -7311,15 +7317,22 @@ function buildLevel4PromptRunnerBundle(
     exactPeerRunIds.length === registrySidecars.length ? 0 : exactPeerRunIds.length,
   );
   const canDryRunCleanup = exactPeerRunIds.length > 0 && registrySidecarBlockerCount === 0;
-  const fallbackCleanupCommands =
+  const candidateLifecycleStatusCall =
+    canDryRunCleanup && cleanupBlockers.length === 0
+      ? formatToolCall("candidate_peer_closeout", {
+          action: "status",
+          peerRunIds: exactPeerRunIds,
+        })
+      : null;
+  const candidateLifecyclePlanCall =
     cleanupBlockers.length === 0
-      ? cleanupRows.flatMap((row) => [
-          `mkdir -p ${shellQuote(row.archiveDirectory)}`,
-          `git -C ${shellQuote(row.worktree)} status --short > ${shellQuote(path.join(row.archiveDirectory, "status.txt"))}`,
-          `git -C ${shellQuote(input.cwd)} worktree remove --force ${shellQuote(row.worktree)}`,
-          `git -C ${shellQuote(input.cwd)} branch -D ${shellQuote(row.branch)}`,
-        ])
-      : [];
+      ? formatToolCall("candidate_peer_closeout", {
+          action: "plan",
+          peerRunIds: exactPeerRunIds,
+          taskId: input.taskId,
+          integrationCloseout: input.integrationCloseout,
+        })
+      : null;
   const selectedMeasuredRows = packetInventoryRows.filter(
     (row) => row.status === "controller_verified_measured_packet" && row.selected,
   );
@@ -7426,32 +7439,20 @@ function buildLevel4PromptRunnerBundle(
       (row) =>
         `Terminate only sidequest/peer processes whose command line contains exact candidate worktree ${row.worktree}.`,
     ),
-    candidatePeerCleanupDryRunCall: canDryRunCleanup
-      ? formatToolCall("candidate_peer_cleanup", {
-          peerRunIds: exactPeerRunIds,
-        })
-      : null,
-    candidatePeerCleanupExecuteCall:
-      cleanupBlockers.length === 0
-        ? formatToolCall("candidate_peer_cleanup", {
-            peerRunIds: exactPeerRunIds,
-            execute: true,
-            closeVisibleResources: true,
-            integrationCloseoutStatus: "successful",
-          })
-        : null,
-    exactControllerCommands: fallbackCleanupCommands,
+    candidatePeerCleanupDryRunCall: null,
+    candidatePeerCleanupExecuteCall: null,
+    exactControllerCommands: [],
+    candidateLifecycleStatusCall,
+    candidateLifecyclePlanCall,
     blockers: cleanupBlockers,
     boundary:
-      "Post-integration cleanup is a controller/workbench closeout packet only: archive first, close/kill only exact peer resources, remove only named worktrees/branches, and do not infer merge, promotion, AK/KES/evidence writes, release, push, or PR authority.",
+      "Post-integration cleanup is a controller/workbench lifecycle-v2 handoff only. Registry-v1 cleanup packets and raw worktree/branch deletion commands are never emitted; owner review, exact integration proof when accepted, restoration-verified archive, cleanup authorization, and lifecycle-v2 execution remain separate required transitions.",
     nextStep:
       cleanupBlockers.length === 0
-        ? "After successful integration is already committed/accepted, run candidatePeerCleanupExecuteCall or the exact fallback cleanup commands; do not clean any resource not named here."
-        : canDryRunCleanup
-          ? "Run candidatePeerCleanupDryRunCall for exact registry-backed peer-resource inventory only; after integration succeeds rerun Level-4 with integrationCloseout.status=successful so cleanup execution becomes exact."
-          : exactPeerRunIds.length > 0
-            ? "Resolve candidate peer registry sidecar blockers before any cleanup dry-run or fallback cleanup command is prepared."
-            : "Capture exact candidate_peer_spawn peerRunIds plus controller-verified worktrees/branches before any cleanup dry-run or fallback cleanup command is prepared.",
+        ? "Run candidateLifecycleStatusCall, then candidateLifecyclePlanCall. Execute cleanup only through the lifecycle-v2 closeout surface after its exact resource generation reaches cleanup_authorized."
+        : exactPeerRunIds.length > 0
+          ? "Resolve candidate peer registry sidecar and integration-closeout blockers before a lifecycle-v2 closeout plan is prepared."
+          : "Capture exact candidate_peer_spawn peerRunIds plus controller-verified worktrees/branches before any lifecycle-v2 closeout plan is prepared.",
   };
   const candidateCloseoutPacket: AutoresearchLevel4CandidateCloseoutPacket = {
     kind: "autoresearch.level4_visible_candidate_closeout_packet.v1",
@@ -7688,11 +7689,10 @@ function classifyLevel4Disposition(
   if (/finalize_post_fanin|promotion|ak_owner_write|evidence_record\(/u.test(call)) {
     return "blocked_dangerous_gate";
   }
-  if (/candidate_cleanup|worktree\s+remove|branch\s+-D|rm\s+-rf/u.test(call)) {
-    return input.allowAutomaticCleanupAfterIntegrationCloseout === true &&
-      input.integrationCloseout?.status === "successful"
-      ? "executed_by_level4"
-      : "blocked_dangerous_gate";
+  if (
+    /candidate_cleanup|candidate_peer_cleanup|worktree\s+remove|branch\s+-D|rm\s+-rf/u.test(call)
+  ) {
+    return "blocked_dangerous_gate";
   }
   if (/autoresearch_runtime_run|candidate_result_export|autoresearch_runtime_status/u.test(call)) {
     return input.allowMeasureExportReview === true
@@ -7819,7 +7819,7 @@ export function runAutoresearchLevel4CampaignRunner(
     boundaries: [
       "Level-4 is above Level-3: it consumes Level-3 state-machine output and records resumable receipts.",
       "Level-4 now carries the prompt-runner matrix bundle from the proven Target-3 pattern: prompt bundle -> visible candidate_peer_spawn -> ACK/FINAL watch -> controller lineage verification -> bind/measure/export/review.",
-      "Level-4 may automate only explicitly allowed safe measure/export/review/cleanup-after-closeout steps; dangerous gates remain exact-token gated.",
+      "Level-4 may automate only explicitly allowed safe measure/export/review steps. Candidate cleanup and lifecycle-v2 effects are never executed by Level-4.",
       "Finalizer apply, pre-closeout cleanup, AK evidence/task writes, merge, release, and promotion are never inferred from Level-4 automation.",
       "Visible peer text remains communication only; Level-4 receipts are resumability receipts, not durable AK evidence.",
     ],
@@ -9664,7 +9664,9 @@ function resolveLevel3CleanupResources(input: {
   cwd: string;
   manifest: unknown;
   cleanupResources?: AutoresearchLevel3CleanupResourcesInput;
+  reviewedPeerRunIds: readonly string[];
 }): {
+  peerRunIds: string[];
   peerTabsOrSessions: string[];
   worktrees: string[];
   branches: string[];
@@ -9673,6 +9675,7 @@ function resolveLevel3CleanupResources(input: {
 } {
   const manifestRecord = isRecord(input.manifest) ? input.manifest : null;
   const policy = isRecord(manifestRecord?.cleanupPolicy) ? manifestRecord.cleanupPolicy : null;
+  const manifestPeerRunIds = exactStringList(policy?.exactPeerRunIds);
   const manifestPeers = [
     ...exactStringList(policy?.exactPeerTabsOrSessions),
     ...exactStringList(policy?.exactPeerSessions),
@@ -9680,9 +9683,11 @@ function resolveLevel3CleanupResources(input: {
   ];
   const manifestWorktrees = exactStringList(policy?.exactWorktrees);
   const manifestBranches = exactStringList(policy?.exactBranches);
+  const suppliedPeerRunIds = nonEmptyStrings(input.cleanupResources?.peerRunIds);
   const suppliedPeers = nonEmptyStrings(input.cleanupResources?.peerTabsOrSessions);
   const suppliedWorktrees = nonEmptyStrings(input.cleanupResources?.worktrees);
   const suppliedBranches = nonEmptyStrings(input.cleanupResources?.branches);
+  const peerRunIds = suppliedPeerRunIds.length > 0 ? suppliedPeerRunIds : manifestPeerRunIds;
   const peerTabsOrSessions = suppliedPeers.length > 0 ? suppliedPeers : manifestPeers;
   const worktrees = suppliedWorktrees.length > 0 ? suppliedWorktrees : manifestWorktrees;
   const branches = suppliedBranches.length > 0 ? suppliedBranches : manifestBranches;
@@ -9690,19 +9695,31 @@ function resolveLevel3CleanupResources(input: {
     [...new Set(items.map((item) => item.trim()))].sort();
   const same = (left: readonly string[], right: readonly string[]) =>
     stableJson(sorted(left)) === stableJson(sorted(right));
+  const reviewedPeerRunIds = sorted(input.reviewedPeerRunIds);
+  const peerRunIdsMatchReview =
+    reviewedPeerRunIds.length > 0 && same(peerRunIds, reviewedPeerRunIds);
   const manifestExact =
+    manifestPeerRunIds.length > 0 &&
     manifestPeers.length > 0 &&
     manifestWorktrees.length > 0 &&
     manifestBranches.length > 0 &&
+    peerRunIdsMatchReview &&
+    same(peerRunIds, manifestPeerRunIds) &&
     same(peerTabsOrSessions, manifestPeers) &&
     same(worktrees, manifestWorktrees) &&
     same(branches, manifestBranches);
   const missing = [
+    ...(reviewedPeerRunIds.length === 0 ? ["peer run ids from reviewed candidate packets"] : []),
+    ...(peerRunIds.length === 0 ? ["peer run ids"] : []),
+    ...(reviewedPeerRunIds.length > 0 && !peerRunIdsMatchReview
+      ? ["peer run ids matching reviewed candidate packets"]
+      : []),
     ...(peerTabsOrSessions.length === 0 ? ["peer tabs/sessions"] : []),
     ...(worktrees.length === 0 ? ["worktrees"] : []),
     ...(branches.length === 0 ? ["branches"] : []),
   ];
   return {
+    peerRunIds: sorted(peerRunIds),
     peerTabsOrSessions: sorted(peerTabsOrSessions),
     worktrees: sorted(
       worktrees.map((item) => (path.isAbsolute(item) ? item : path.resolve(input.cwd, item))),
@@ -9734,7 +9751,7 @@ function buildLevel3CleanupToken(input: {
   manifestHash: string | null;
   resources: Pick<
     ReturnType<typeof resolveLevel3CleanupResources>,
-    "peerTabsOrSessions" | "worktrees" | "branches"
+    "peerRunIds" | "peerTabsOrSessions" | "worktrees" | "branches"
   >;
 }): string {
   const digest = createHash("sha256")
@@ -9743,6 +9760,7 @@ function buildLevel3CleanupToken(input: {
         taskId: input.taskId,
         cwd: path.resolve(input.cwd),
         manifestHash: input.manifestHash ?? "missing",
+        peerRunIds: input.resources.peerRunIds,
         peerTabsOrSessions: input.resources.peerTabsOrSessions,
         worktrees: input.resources.worktrees,
         branches: input.resources.branches,
@@ -9753,64 +9771,46 @@ function buildLevel3CleanupToken(input: {
   return `level3:candidate_cleanup:task:${input.taskId}:manifest:${input.manifestHash ?? "missing"}:sha256:${digest}`;
 }
 
-function findForbiddenPromotionCommandMatches(commands: readonly string[]): string[] {
-  const forbiddenPatterns = [
-    /\b(?:merge|push|rebase|tag|release|publish|pull[-_\s]?request|\bpr\b)\b/iu,
-    /promotion/iu,
-  ];
-  return commands.filter((command) => forbiddenPatterns.some((pattern) => pattern.test(command)));
-}
-
-function buildNiriVisiblePeerWindowCloseCommand(peerTabOrSession: string): string {
-  return `niri msg -j windows | jq -r --arg needle ${shellQuote(peerTabOrSession)} '.[] | select((.title // "") | contains($needle)) | .id' | xargs -r -n1 niri msg action close-window --id`;
-}
-
-function buildGhosttySidequestProcessGroupCloseCommand(worktree: string): string {
-  return `pgid=$(ps -eo pgid=,args= | awk -v wt=${shellQuote(worktree)} 'index($0, wt) && index($0, "sidequest-pi pi") { print $1; exit }'); if [ -n "$pgid" ]; then kill -TERM -- "-$pgid"; sleep 2; if ps -o pid= -g "$pgid" >/dev/null 2>&1; then kill -KILL -- "-$pgid"; fi; fi`;
-}
-
 function buildLevel3CleanupCommandPacket(input: {
   identity: SessionIdentity;
   manifestHash: string;
-  authorizationToken: string;
-  cleanupExecution: AutoresearchLevel3CleanupCommandPacket["cleanupExecution"];
+  gateReference: string;
   cleanupTrigger: AutoresearchLevel3CleanupCommandPacket["cleanupTrigger"];
   resources: Pick<
     ReturnType<typeof resolveLevel3CleanupResources>,
-    "peerTabsOrSessions" | "worktrees" | "branches"
+    "peerRunIds" | "peerTabsOrSessions" | "worktrees" | "branches"
   >;
 }): AutoresearchLevel3CleanupCommandPacket {
-  const commands = [
-    ...input.resources.peerTabsOrSessions.map((session) =>
-      buildNiriVisiblePeerWindowCloseCommand(session),
-    ),
-    ...input.resources.worktrees.map((worktree) =>
-      buildGhosttySidequestProcessGroupCloseCommand(worktree),
-    ),
-    ...input.resources.worktrees.map(
-      (worktree) =>
-        `git -C ${shellQuote(input.identity.cwd)} worktree remove ${shellQuote(worktree)}`,
-    ),
-    ...input.resources.branches.map(
-      (branch) => `git -C ${shellQuote(input.identity.cwd)} branch -D ${shellQuote(branch)}`,
-    ),
-  ];
+  const candidateLifecycleStatusCall = formatToolCall("candidate_peer_closeout", {
+    action: "status",
+    peerRunIds: input.resources.peerRunIds,
+  });
+  const candidateLifecyclePlanCall = formatToolCall("candidate_peer_closeout", {
+    action: "plan",
+    peerRunIds: input.resources.peerRunIds,
+    taskId: input.identity.taskId,
+    cleanupTrigger: input.cleanupTrigger,
+  });
   return {
-    kind: "autoresearch.level3_candidate_cleanup_command_packet.v1",
+    kind: "autoresearch.level3_candidate_lifecycle_closeout_handoff.v2",
     exactTaskId: input.identity.taskId,
     exactCwd: input.identity.cwd,
     manifestHash: input.manifestHash,
-    authorizationToken: input.authorizationToken,
-    authorizationRequired: true,
-    cleanupExecution: input.cleanupExecution,
+    gateReference: input.gateReference,
+    authorizationRequired: false,
+    cleanupExecution: "not_executed_by_orchestrator",
+    cleanupExecutionAuthorized: false,
     cleanupTrigger: input.cleanupTrigger,
+    exactPeerRunIds: input.resources.peerRunIds,
     exactPeerTabsOrSessions: input.resources.peerTabsOrSessions,
     exactWorktrees: input.resources.worktrees,
     exactBranches: input.resources.branches,
-    exactCommands: commands,
-    forbiddenPromotionCommandMatches: findForbiddenPromotionCommandMatches(commands),
+    candidateLifecycleStatusCall,
+    candidateLifecyclePlanCall,
+    exactCommands: [],
+    forbiddenPromotionCommandMatches: [],
     boundary:
-      "This cleanup packet names exact peer tabs/sessions, worktrees, and branches only; it is not executed by the orchestrator and carries no merge, push, PR, release, promotion, or AK-write authority.",
+      "This packet is a lifecycle-v2 closeout handoff only. It emits no process, worktree, branch, or registry-v1 cleanup command and carries no merge, push, PR, release, promotion, or AK-write authority.",
   };
 }
 
@@ -9882,10 +9882,15 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
         applyAuthorizationToken: finalizerProbe.contract.exactAuthorizationToken,
       })
     : finalizerProbe;
+  const reviewedPeerRunIds = nonEmptyStrings(input.candidateResultPacketPaths)
+    .map((packetPath) => candidateResultInputFromPacketPath(identity.cwd, packetPath))
+    .map((candidate) => candidate.candidatePeerRunId)
+    .filter((peerRunId): peerRunId is string => Boolean(peerRunId));
   const resources = resolveLevel3CleanupResources({
     cwd: identity.cwd,
     manifest: resolved.manifest,
     cleanupResources: input.cleanupResources,
+    reviewedPeerRunIds,
   });
   const requiredCleanupToken = buildLevel3CleanupToken({
     taskId: identity.taskId,
@@ -9905,35 +9910,33 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
     ...(input.integrationCloseout?.summary ? { summary: input.integrationCloseout.summary } : {}),
   };
   const integrationCloseoutSuccessful = integrationCloseout.status === "successful";
-  const cleanupCloseoutAccepted =
+  const successfulIntegrationPlanReady =
     finalizerTokenAccepted && integrationCloseoutSuccessful && resources.missing.length === 0;
   const cleanupTokenWrong =
     Boolean(input.cleanupAuthorizationToken) &&
     input.cleanupAuthorizationToken !== requiredCleanupToken;
   const cleanupTokenAccepted = input.cleanupAuthorizationToken === requiredCleanupToken;
-  const cleanupAuthorized =
+  const cleanupGateAccepted =
     finalizerTokenAccepted &&
     resources.missing.length === 0 &&
-    (cleanupTokenAccepted || cleanupManifestPolicyAccepted || cleanupCloseoutAccepted) &&
+    (cleanupTokenAccepted || cleanupManifestPolicyAccepted) &&
     !cleanupTokenWrong;
+  const lifecyclePlanReady = cleanupGateAccepted || successfulIntegrationPlanReady;
   const cleanupTrigger: AutoresearchLevel3CleanupCommandPacket["cleanupTrigger"] =
     cleanupTokenAccepted
       ? "candidate_cleanup_token"
-      : cleanupCloseoutAccepted
+      : successfulIntegrationPlanReady
         ? "successful_integration_closeout"
         : "exact_manifest_policy";
-  const cleanupCommandPacket = cleanupAuthorized
+  const cleanupCommandPacket = lifecyclePlanReady
     ? buildLevel3CleanupCommandPacket({
         identity,
         manifestHash: preflight.manifestHash ?? "missing",
-        authorizationToken: cleanupTokenAccepted
+        gateReference: cleanupTokenAccepted
           ? requiredCleanupToken
-          : cleanupCloseoutAccepted
-            ? "successful_integration_closeout"
+          : successfulIntegrationPlanReady
+            ? "non_authorizing_successful_integration_closeout"
             : "manifest_cleanup_policy",
-        cleanupExecution: cleanupCloseoutAccepted
-          ? "ready_for_automatic_controller_cleanup_after_successful_integration_closeout"
-          : "not_executed_by_orchestrator",
         cleanupTrigger,
         resources,
       })
@@ -9945,7 +9948,7 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
     (finalizer.authorizedFinalizerCleanupGate.status === "blocked" ? 1 : 0);
   const cleanupGateBlockers =
     resources.missing.length +
-    (cleanupAuthorized ? 0 : 1) +
+    (lifecyclePlanReady ? 0 : 1) +
     (cleanupCommandPacket?.forbiddenPromotionCommandMatches.length ?? 0);
   const rollbackBlockers = preflight.manifestHash && finalizer.finalizerTokenRequest ? 0 : 1;
   const totalBlockers = finalizerTokenBlockers + cleanupGateBlockers + rollbackBlockers;
@@ -9960,9 +9963,9 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
       : []),
     ...resources.missing.map((item) => `cleanup resource set missing exact ${item}`),
     ...(cleanupTokenWrong ? ["wrong candidate_cleanup token for exact cleanup resources"] : []),
-    ...(!cleanupTokenAccepted && !cleanupManifestPolicyAccepted && !cleanupCloseoutAccepted
+    ...(!cleanupTokenAccepted && !cleanupManifestPolicyAccepted && !successfulIntegrationPlanReady
       ? [
-          "cleanup requires exact candidate_cleanup token, successful integration closeout with exact cleanup resources, or accepted manifest cleanup policy naming exact peer tabs/sessions, worktrees, and branches",
+          "lifecycle closeout planning requires exact candidate_cleanup token, successful integration closeout with reviewed peer identities and exact resources, or accepted manifest cleanup policy; none authorize deletion",
         ]
       : []),
     ...(finalizerTokenAccepted
@@ -10031,11 +10034,12 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
       requiredToken: requiredCleanupToken,
       suppliedTokenAccepted: cleanupTokenAccepted,
       manifestPolicyAccepted: cleanupManifestPolicyAccepted,
-      posture: cleanupAuthorized
+      cleanupExecutionAuthorized: false,
+      posture: lifecyclePlanReady
         ? cleanupTokenAccepted
           ? "accepted_exact_token"
-          : cleanupCloseoutAccepted
-            ? "accepted_successful_integration_closeout"
+          : successfulIntegrationPlanReady
+            ? "lifecycle_plan_ready_successful_integration"
             : "accepted_exact_manifest_policy"
         : resources.missing.length > 0
           ? "blocked_missing_exact_resources"
@@ -10082,8 +10086,8 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
       totalBlockers === 0
         ? [
             integrationCloseoutSuccessful
-              ? "Run the exact cleanup packet automatically as the final Level-3 integration-closeout step; close only the named peer tabs/sessions and remove only the named worktrees/branches."
-              : "Review exact finalizer apply and cleanup command packets; execute cleanup automatically after successful integration closeout, or explicitly with candidate_cleanup if cleanup is needed earlier.",
+              ? "Run the lifecycle-v2 status and plan calls from the closeout handoff; execute only after the exact resource generation reaches cleanup_authorized."
+              : "Review the finalizer packet and lifecycle-v2 closeout handoff; successful integration alone does not authorize candidate deletion.",
             "Keep merge, release, PR, push, promotion, and AK evidence/task writes behind separate promotion and ak_owner_write tokens.",
           ]
         : [
@@ -10092,11 +10096,11 @@ function buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(
           ],
     nonActions: [
       "No candidate_peer_spawn, autoresearch_runtime_run, candidate_result_export, review, finalizer apply, cleanup, AK/KES/Oracle/DSPx/Prompt Vault/ROCS write, merge, release, PR, push, or promotion was executed by this planner.",
-      "Finalizer apply packets and cleanup command packets are command packets only; when integrationCloseout.status=successful, the controller/workbench should consume the exact cleanup packet automatically as part of closeout rather than leaving candidate resources behind.",
+      "The candidate closeout packet is a lifecycle-v2 status/plan handoff only; it emits no process, worktree, branch, or registry-v1 cleanup command.",
     ],
     boundaries: [
       "finalize_post_fanin authorizes only finalizer scope for the exact task/cwd/manifest/review packet chain; it does not authorize cleanup, promotion, or AK writes.",
-      "candidate_cleanup names exact peer tabs/sessions, worktrees, and branches for pre-closeout cleanup; after successful integration closeout, exact cleanup resources are automatically eligible for cleanup without a second operator prompt.",
+      "candidate_cleanup names the intended closeout resources but cannot replace lifecycle-v2 owner review, integration proof, verified archive, exact cleanup authorization, or terminal receipts.",
       "Dirty overlap, off-limits drift, stale review artifacts, wrong tokens, missing exact cleanup resources, and promotion command leakage fail closed.",
       "Rollback receipt is visible and non-authoritative; receipts/packets become durable evidence only through separate ak_owner_write.",
     ],

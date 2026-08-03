@@ -1574,6 +1574,11 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
     const tool = registerAutoresearchLiveTool(runner);
     assert.ok(tool.parameters.properties.finalizerAuthorizationToken);
     assert.ok(tool.parameters.properties.cleanupAuthorizationToken);
+    assert.ok(tool.parameters.properties.cleanupPeerRunIds);
+    assert.equal(
+      tool.parameters.properties.allowAutomaticCleanupAfterIntegrationCloseout,
+      undefined,
+    );
     assert.ok(tool.parameters.properties.cleanupPeerTabsOrSessions);
     assert.ok(tool.parameters.properties.integrationCloseout);
     const packetPath = path.join(
@@ -1589,7 +1594,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
         worktreePath: path.join(cwd, ".worktrees", "lane-a"),
         branch: "candidate/lane-a",
         baseRef: "HEAD",
-        peerRunId: "peer-tab-lane-a",
+        peerRunId: "candidatepeer-lane-a",
       },
     });
     const reviewedAtEpochMs = Date.now() + 60_000;
@@ -1626,6 +1631,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
         selectedLaneId: "lane-a",
         validation: { command: "npm test", status: "passed", summary: "ok" },
         reviewedAtEpochMs,
+        cleanupPeerRunIds: ["candidatepeer-lane-a"],
         cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
         cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
         cleanupBranches: ["candidate/lane-a"],
@@ -1661,6 +1667,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
         reviewedAtEpochMs,
         finalizerAuthorizationToken: requiredFinalizer,
         cleanupAuthorizationToken: requiredCleanup,
+        cleanupPeerRunIds: ["candidatepeer-lane-a"],
         cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
         cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
         cleanupBranches: ["candidate/lane-a"],
@@ -1682,20 +1689,98 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
     assert.equal(plan.cleanupAuthorization.suppliedTokenAccepted, true);
     assert.ok(plan.finalizerApplyCommandPacket);
     assert.ok(plan.cleanupCommandPacket);
+    assert.equal(
+      plan.cleanupCommandPacket.kind,
+      "autoresearch.level3_candidate_lifecycle_closeout_handoff.v2",
+    );
     assert.equal(plan.cleanupCommandPacket.cleanupExecution, "not_executed_by_orchestrator");
     assert.equal(plan.cleanupCommandPacket.cleanupTrigger, "candidate_cleanup_token");
+    assert.deepEqual(plan.cleanupCommandPacket.exactPeerRunIds, ["candidatepeer-lane-a"]);
+    assert.deepEqual(plan.cleanupCommandPacket.exactCommands, []);
     assert.deepEqual(plan.cleanupCommandPacket.forbiddenPromotionCommandMatches, []);
-    const cleanupText = plan.cleanupCommandPacket.exactCommands.join("\n");
-    assert.match(cleanupText, /niri msg -j windows/);
-    assert.match(cleanupText, /sidequest-pi pi/);
-    assert.match(cleanupText, /kill -TERM/);
-    assert.match(cleanupText, /worktree remove/);
-    assert.match(cleanupText, /branch -D/);
-    assert.doesNotMatch(cleanupText, /merge|push|release|pull.request|promotion/i);
+    assert.match(
+      plan.cleanupCommandPacket.candidateLifecycleStatusCall,
+      /^candidate_peer_closeout\(/,
+    );
+    assert.match(plan.cleanupCommandPacket.candidateLifecycleStatusCall, /"action": "status"/);
+    assert.match(
+      plan.cleanupCommandPacket.candidateLifecyclePlanCall,
+      /^candidate_peer_closeout\(/,
+    );
+    assert.match(plan.cleanupCommandPacket.candidateLifecyclePlanCall, /"action": "plan"/);
+    assert.doesNotMatch(
+      `${plan.cleanupCommandPacket.candidateLifecycleStatusCall}\n${plan.cleanupCommandPacket.candidateLifecyclePlanCall}`,
+      /candidate_peer_cleanup|worktree remove|branch -D|kill -TERM/,
+    );
     assert.equal(plan.rollbackReceipt.nonAuthoritative, true);
     assert.equal(plan.rollbackReceipt.durableEvidence, false);
     assert.match(result.content[0].text, /level3_authorized_finalizer_cleanup_plan/);
     assert.match(result.content[0].text, /Rollback receipt/);
+  });
+});
+
+test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan rejects peer ids not bound to reviewed packets", async () => {
+  await withTempDir(async (cwd) => {
+    const runner = new AutoresearchLiveSupervisionRunner();
+    const tool = registerAutoresearchLiveTool(runner);
+    const packetPath = path.join(
+      cwd,
+      ".autoresearch",
+      "candidate-wave",
+      "lane-a.candidate-result.json",
+    );
+    writeCandidateResultPacket(cwd, packetPath, { laneId: "lane-a" });
+    const manifest = createLevel3Manifest(cwd, {
+      primaryMetric: {
+        name: "authorized_finalizer_cleanup_blockers",
+        direction: "lower",
+        target: 0,
+      },
+    });
+    const baseParams = {
+      action: "level3_authorized_finalizer_cleanup_plan",
+      taskId: 2996,
+      cwd,
+      objective: "reject mismatched candidate peer identity",
+      level3Manifest: manifest,
+      candidateResultPacketPaths: [packetPath],
+      selectedLaneId: "lane-a",
+      validation: { command: "npm test", status: "passed" },
+      reviewedAtEpochMs: Date.now() + 60_000,
+      cleanupPeerRunIds: ["candidatepeer-not-the-reviewed-lane"],
+      cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
+      cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
+      cleanupBranches: ["candidate/lane-a"],
+    };
+    const probe = await tool.execute(
+      "tc-level3-peer-identity-mismatch-probe",
+      baseParams,
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const probePlan = probe.details.level3AuthorizedFinalizerCleanupPlan;
+    const result = await tool.execute(
+      "tc-level3-peer-identity-mismatch-authorized",
+      {
+        ...baseParams,
+        finalizerAuthorizationToken: probePlan.finalizerAuthorization.requiredToken,
+        cleanupAuthorizationToken: probePlan.cleanupAuthorization.requiredToken,
+      },
+      undefined,
+      undefined,
+      createToolContext(cwd),
+    );
+    const plan = result.details.level3AuthorizedFinalizerCleanupPlan;
+    assert.equal(result.details.ok, false);
+    assert.equal(plan.finalizerAuthorization.suppliedTokenAccepted, true);
+    assert.equal(plan.cleanupCommandPacket, null);
+    assert.equal(plan.cleanupAuthorization.posture, "blocked_missing_exact_resources");
+    assert.ok(
+      plan.blockers.some((blocker) =>
+        /peer run ids matching reviewed candidate packets/.test(blocker),
+      ),
+    );
   });
 });
 
@@ -1727,6 +1812,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan blo
       selectedLaneId: "lane-a",
       validation: { command: "npm test", status: "passed" },
       reviewedAtEpochMs: Date.now() + 60_000,
+      cleanupPeerRunIds: ["candidatepeer-lane-a"],
       cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
       cleanupWorktrees: [path.join(cwd, ".worktrees", "lane-a")],
       cleanupBranches: ["candidate/lane-a"],
@@ -1786,6 +1872,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
         target: 0,
       },
       cleanupPolicy: {
+        exactPeerRunIds: ["candidatepeer-lane-a"],
         exactPeerTabsOrSessions: ["peer-tab-lane-a"],
         exactWorktrees: [worktree],
         exactBranches: ["candidate/lane-a"],
@@ -1837,7 +1924,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan acc
   });
 });
 
-test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan auto-enables cleanup after successful integration closeout", async () => {
+test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan emits only lifecycle-v2 handoff after successful integration closeout", async () => {
   await withTempDir(async (cwd) => {
     const runner = new AutoresearchLiveSupervisionRunner();
     const tool = registerAutoresearchLiveTool(runner);
@@ -1869,6 +1956,7 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan aut
       selectedLaneId: "lane-a",
       validation: { command: "npm test", status: "passed" },
       reviewedAtEpochMs: Date.now() + 60_000,
+      cleanupPeerRunIds: ["candidatepeer-lane-a"],
       cleanupPeerTabsOrSessions: ["peer-tab-lane-a"],
       cleanupWorktrees: [worktree],
       cleanupBranches: ["candidate/lane-a"],
@@ -1899,22 +1987,20 @@ test("autoresearch_live_supervision level3_authorized_finalizer_cleanup_plan aut
     );
     const plan = result.details.level3AuthorizedFinalizerCleanupPlan;
     assert.equal(result.details.ok, true);
-    assert.equal(plan.cleanupAuthorization.posture, "accepted_successful_integration_closeout");
+    assert.equal(plan.cleanupAuthorization.posture, "lifecycle_plan_ready_successful_integration");
+    assert.equal(plan.cleanupAuthorization.cleanupExecutionAuthorized, false);
     assert.equal(plan.integrationCloseout.status, "successful");
     assert.equal(plan.integrationCloseout.commit, "abc1234");
     assert.ok(plan.cleanupCommandPacket);
     assert.equal(plan.cleanupCommandPacket.cleanupTrigger, "successful_integration_closeout");
-    assert.equal(
-      plan.cleanupCommandPacket.cleanupExecution,
-      "ready_for_automatic_controller_cleanup_after_successful_integration_closeout",
-    );
-    assert.ok(
-      plan.cleanupCommandPacket.exactCommands.some((command) =>
-        /niri msg -j windows/.test(command),
-      ),
-    );
-    assert.ok(
-      plan.cleanupCommandPacket.exactCommands.some((command) => /sidequest-pi pi/.test(command)),
+    assert.equal(plan.cleanupCommandPacket.cleanupExecution, "not_executed_by_orchestrator");
+    assert.equal(plan.cleanupCommandPacket.cleanupExecutionAuthorized, false);
+    assert.deepEqual(plan.cleanupCommandPacket.exactCommands, []);
+    assert.match(plan.cleanupCommandPacket.candidateLifecycleStatusCall, /candidate_peer_closeout/);
+    assert.match(plan.cleanupCommandPacket.candidateLifecyclePlanCall, /candidate_peer_closeout/);
+    assert.doesNotMatch(
+      plan.cleanupCommandPacket.candidateLifecyclePlanCall,
+      /candidate_peer_cleanup|worktree remove|branch -D|sidequest-pi|kill/,
     );
     assert.match(result.content[0].text, /trigger=successful_integration_closeout/);
   });
@@ -3242,31 +3328,25 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
       cleanupPacket.processTerminationHints[0],
       new RegExp(concreteWorktree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
-    assert.match(cleanupPacket.candidatePeerCleanupDryRunCall, /^candidate_peer_cleanup\(/);
-    assert.match(cleanupPacket.candidatePeerCleanupDryRunCall, /candidatepeer-test-cleanup/);
-    assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /^candidate_peer_cleanup\(/);
-    assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /"execute": true/);
-    assert.match(cleanupPacket.candidatePeerCleanupExecuteCall, /"closeVisibleResources": true/);
-    assert.match(
-      cleanupPacket.candidatePeerCleanupExecuteCall,
-      /"integrationCloseoutStatus": "successful"/,
+    assert.equal(cleanupPacket.candidatePeerCleanupDryRunCall, null);
+    assert.equal(cleanupPacket.candidatePeerCleanupExecuteCall, null);
+    assert.deepEqual(cleanupPacket.exactControllerCommands, []);
+    assert.match(cleanupPacket.candidateLifecycleStatusCall, /^candidate_peer_closeout\(/);
+    assert.match(cleanupPacket.candidateLifecycleStatusCall, /candidatepeer-test-cleanup/);
+    assert.match(cleanupPacket.candidateLifecyclePlanCall, /^candidate_peer_closeout\(/);
+    assert.match(cleanupPacket.candidateLifecyclePlanCall, /"action": "plan"/);
+    assert.doesNotMatch(
+      `${cleanupPacket.candidateLifecycleStatusCall}\n${cleanupPacket.candidateLifecyclePlanCall}`,
+      /candidate_peer_cleanup|worktree remove|branch -D|--force/,
     );
-    assert.ok(
-      cleanupPacket.exactControllerCommands.some((command) =>
-        /worktree remove --force/.test(command),
-      ),
-    );
-    assert.ok(cleanupPacket.exactControllerCommands.some((command) => /branch -D/.test(command)));
     assert.equal(cleanupPacket.registrySidecars[0].status, "verified_registry_sidecar");
     assert.equal(cleanupPacket.registrySidecars[0].registryPath.includes(cleanupStateHome), true);
     assert.equal(cleanupPacket.blockers.length, 0);
     assert.match(cleanupReady.content[0].text, /Post-integration cleanup operator posture:/);
-    assert.match(cleanupReady.content[0].text, /EXECUTE READY/);
-    assert.match(cleanupReady.content[0].text, /dry-run call: prepared/);
-    assert.match(
-      cleanupReady.content[0].text,
-      /execute call: prepared \(explicit destructive call required\)/,
-    );
+    assert.match(cleanupReady.content[0].text, /LIFECYCLE PLAN READY/);
+    assert.match(cleanupReady.content[0].text, /lifecycle status call: prepared/);
+    assert.match(cleanupReady.content[0].text, /lifecycle plan call: prepared/);
+    assert.match(cleanupReady.content[0].text, /registry-v1 cleanup call: permanently withheld/);
     assert.match(cleanupReady.content[0].text, /Post-integration cleanup registry sidecars:/);
     assert.match(
       cleanupReady.content[0].text,
@@ -3311,8 +3391,8 @@ test("autoresearch_live_supervision level4_autoresearch_campaign_runner persists
     assert.deepEqual(mismatchPacket.exactControllerCommands, []);
     assert.match(mismatch.content[0].text, /Post-integration cleanup operator posture:/);
     assert.match(mismatch.content[0].text, /BLOCKED/);
-    assert.match(mismatch.content[0].text, /dry-run call: withheld/);
-    assert.match(mismatch.content[0].text, /execute call: withheld/);
+    assert.match(mismatch.content[0].text, /lifecycle status call: withheld/);
+    assert.match(mismatch.content[0].text, /lifecycle plan call: withheld/);
     assert.match(
       mismatch.content[0].text,
       /candidatepeer-test-cleanup: mismatched_registry_sidecar/,

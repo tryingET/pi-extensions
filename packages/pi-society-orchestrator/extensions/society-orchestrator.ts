@@ -831,17 +831,17 @@ function formatAutoresearchLevel4CampaignRunnerReport(
   const cleanup = runner.promptRunnerBundle.candidateCloseoutPacket.postIntegrationCleanupReady;
   const promotionHandoff =
     runner.promptRunnerBundle.candidateCloseoutPacket.postFaninPromotionHandoff;
-  const cleanupDryRunPrepared = Boolean(cleanup.candidatePeerCleanupDryRunCall);
-  const cleanupExecutePrepared = Boolean(cleanup.candidatePeerCleanupExecuteCall);
+  const lifecycleStatusPrepared = Boolean(cleanup.candidateLifecycleStatusCall);
+  const lifecyclePlanPrepared = Boolean(cleanup.candidateLifecyclePlanCall);
   const cleanupBlocked =
     cleanup.blockers.length > 0 ||
     cleanup.registrySidecars.some((sidecar) => sidecar.status !== "verified_registry_sidecar");
   const cleanupOperatorPosture = cleanupBlocked
-    ? "BLOCKED — resolve registry sidecar/closeout blockers before any cleanup call"
-    : cleanupExecutePrepared
-      ? "EXECUTE READY — destructive cleanup still requires an explicit candidate_peer_cleanup execute call"
-      : cleanupDryRunPrepared
-        ? "DRY-RUN READY — inspect the generated candidate_peer_cleanup dry-run call before closeout"
+    ? "BLOCKED — resolve registry sidecar/closeout blockers before lifecycle-v2 planning"
+    : lifecyclePlanPrepared
+      ? "LIFECYCLE PLAN READY — inspect exact resource state; deletion remains withheld until lifecycle-v2 cleanup_authorized"
+      : lifecycleStatusPrepared
+        ? "LIFECYCLE STATUS READY — inspect exact resource state before owner disposition"
         : "NOT READY — capture exact registry-backed peer ids and successful closeout first";
 
   return [
@@ -930,8 +930,9 @@ function formatAutoresearchLevel4CampaignRunnerReport(
     "Post-integration cleanup operator posture:",
     `- posture: ${cleanupOperatorPosture}`,
     `- readiness: ${cleanup.readiness}`,
-    `- dry-run call: ${cleanupDryRunPrepared ? "prepared" : "withheld"}`,
-    `- execute call: ${cleanupExecutePrepared ? "prepared (explicit destructive call required)" : "withheld"}`,
+    `- lifecycle status call: ${lifecycleStatusPrepared ? "prepared" : "withheld"}`,
+    `- lifecycle plan call: ${lifecyclePlanPrepared ? "prepared (plan-only; no destructive command emitted)" : "withheld"}`,
+    "- registry-v1 cleanup call: permanently withheld",
     `- exact peer ids: ${cleanup.exactPeerRunIds.length > 0 ? cleanup.exactPeerRunIds.join(", ") : "none"}`,
     `- exact worktrees: ${cleanup.exactWorktrees.length > 0 ? cleanup.exactWorktrees.join(", ") : "none"}`,
     `- exact branches: ${cleanup.exactBranches.length > 0 ? cleanup.exactBranches.join(", ") : "none"}`,
@@ -997,17 +998,19 @@ function formatAutoresearchLevel3AuthorizedFinalizerCleanupPlanReport(
       ? plan.finalizerApplyCommandPacket.exactCommands.map((command) => `  - ${command}`)
       : []),
     "",
-    "Cleanup packet:",
+    "Candidate lifecycle-v2 closeout handoff:",
     plan.cleanupCommandPacket
-      ? `- ${plan.cleanupCommandPacket.kind}; commands=${plan.cleanupCommandPacket.exactCommands.length}; execution=${plan.cleanupCommandPacket.cleanupExecution}; trigger=${plan.cleanupCommandPacket.cleanupTrigger}`
+      ? `- ${plan.cleanupCommandPacket.kind}; execution=${plan.cleanupCommandPacket.cleanupExecution}; trigger=${plan.cleanupCommandPacket.cleanupTrigger}`
       : "- blocked/withheld",
     ...(plan.cleanupCommandPacket
       ? [
+          `  peer run ids: ${plan.cleanupCommandPacket.exactPeerRunIds.join(", ") || "none"}`,
           `  peer tabs/sessions: ${plan.cleanupCommandPacket.exactPeerTabsOrSessions.join(", ") || "none"}`,
           `  worktrees: ${plan.cleanupCommandPacket.exactWorktrees.join(", ") || "none"}`,
           `  branches: ${plan.cleanupCommandPacket.exactBranches.join(", ") || "none"}`,
-          ...plan.cleanupCommandPacket.exactCommands.map((command) => `  - ${command}`),
-          `  forbidden promotion command matches: ${plan.cleanupCommandPacket.forbiddenPromotionCommandMatches.join(", ") || "none"}`,
+          `  lifecycle status call: ${plan.cleanupCommandPacket.candidateLifecycleStatusCall}`,
+          `  lifecycle plan call: ${plan.cleanupCommandPacket.candidateLifecyclePlanCall}`,
+          "  raw cleanup commands: none",
         ]
       : []),
     "",
@@ -2625,7 +2628,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
       "Use action=level3_visible_candidate_lifecycle_plan to expose authorized visible candidate launch calls, bind candidate worktree lineage, and prepare cleanup posture without executing launch or cleanup.",
       "Use action=level3_measure_export_review_plan to emit manifest-approved pi-autoresearch measurement/export/review call packets without executing them or treating packets as durable evidence.",
       "Use action=level3_matrix_cell_runner to compute the unified Level-3 cell state machine over manifest preflight, sequencing, visible launch, candidate bindings, measure/export packets, per-cell review, and finalizer-plan readiness without executing hidden actions.",
-      "Use action=level3_authorized_finalizer_cleanup_plan to consume exact finalize_post_fanin and candidate cleanup gates for post-fan-in command packets; cleanup becomes an automatic controller closeout step when integrationCloseout.status=successful and exact resources are supplied, while promotion and AK writes remain separate.",
+      "Use action=level3_authorized_finalizer_cleanup_plan to consume exact finalize_post_fanin and candidate closeout gates and emit lifecycle-v2 status/plan handoffs. Successful integration does not itself authorize deletion; lifecycle-v2 owner review, proof, archive, authorization, and execution remain required while promotion and AK writes stay separate.",
       "Use action=level3_matrix_cell_executor above checkpoint_matrix_campaign_runner output when the controller wants deterministic one-step advancement through runner nextLegalActions without hidden execution; pass completedActionCount after each explicitly verified action.",
       "Use action=plan_matrix_campaign when the operator wants implementation-wave work dogfooded as a scenario × hypothesis matrix; this returns cell-scoped plan_candidate_wave/review_candidate_wave calls and keeps AK as the task spine.",
       "Use action=prepare_matrix_campaign_runner for the safer manifest/checkpoint runner contract: it exposes visible candidate_peer_spawn launch calls only, withholds benchmark/export/review calls, and emits an exact controller checkpoint token.",
@@ -2831,6 +2834,12 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
           summary: Type.Optional(Type.String()),
         }),
       ),
+      cleanupPeerRunIds: Type.Optional(
+        Type.Array(Type.String(), {
+          description:
+            "Exact candidate_peer_spawn peer run ids for lifecycle-v2 closeout planning.",
+        }),
+      ),
       cleanupPeerTabsOrSessions: Type.Optional(
         Type.Array(Type.String(), {
           description: "Exact peer tab/session ids for level-3 candidate cleanup planning.",
@@ -2923,12 +2932,6 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         Type.Boolean({
           description:
             "When true, Level-4 may execute safe review packet generation actions; owner gates still remain exact.",
-        }),
-      ),
-      allowAutomaticCleanupAfterIntegrationCloseout: Type.Optional(
-        Type.Boolean({
-          description:
-            "When true, Level-4 may consume cleanup only after successful integrationCloseout with exact resources; pre-closeout cleanup remains gated.",
         }),
       ),
       maxIterations: Type.Optional(
@@ -3049,6 +3052,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         applyAuthorizationToken,
         finalizerAuthorizationToken,
         cleanupAuthorizationToken,
+        cleanupPeerRunIds,
         cleanupPeerTabsOrSessions,
         cleanupWorktrees,
         cleanupBranches,
@@ -3064,7 +3068,6 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         maxParallelCandidatePeers,
         allowMeasureExportReview,
         allowReviewGeneration,
-        allowAutomaticCleanupAfterIntegrationCloseout,
         maxIterations,
         maxWallClockMinutes,
         benchmarkCommand,
@@ -3135,6 +3138,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         applyAuthorizationToken?: string;
         finalizerAuthorizationToken?: string;
         cleanupAuthorizationToken?: string;
+        cleanupPeerRunIds?: string[];
         cleanupPeerTabsOrSessions?: string[];
         cleanupWorktrees?: string[];
         cleanupBranches?: string[];
@@ -3159,7 +3163,6 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
         maxParallelCandidatePeers?: number;
         allowMeasureExportReview?: boolean;
         allowReviewGeneration?: boolean;
-        allowAutomaticCleanupAfterIntegrationCloseout?: boolean;
         maxIterations?: number;
         maxWallClockMinutes?: number;
         benchmarkCommand?: string;
@@ -3455,6 +3458,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             finalizerAuthorizationToken,
             cleanupAuthorizationToken,
             cleanupResources: {
+              peerRunIds: cleanupPeerRunIds,
               peerTabsOrSessions: cleanupPeerTabsOrSessions,
               worktrees: cleanupWorktrees,
               branches: cleanupBranches,
@@ -3651,7 +3655,6 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
             maxParallelCandidatePeers,
             allowMeasureExportReview,
             allowReviewGeneration,
-            allowAutomaticCleanupAfterIntegrationCloseout,
             integrationCloseout,
             intervalSeconds,
             signal,
