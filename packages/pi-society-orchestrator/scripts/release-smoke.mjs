@@ -63,8 +63,12 @@ if (expectsBundledBridge) {
 const packageName = String(tarballPackage.name || "").trim();
 assert.ok(packageName.length > 0, "Tarball package.json missing name");
 
-const extensionEntry = tarballPackage.pi?.extensions?.[0];
-assert.equal(typeof extensionEntry, "string", "Tarball package missing pi.extensions entry");
+const extensionEntries = tarballPackage.pi?.extensions;
+assert.deepEqual(
+  extensionEntries,
+  ["./extensions/runtime-footer.ts", "./extensions/society-orchestrator.ts"],
+  "Tarball pi.extensions composition drifted",
+);
 
 const isolatedNpmGlobalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
 const hostNpmGlobalRoot = execFileSync("npm", ["root", "-g"], {
@@ -166,8 +170,11 @@ linkHostPeerPackage(importNodeModulesPath, "typebox", [
   ),
 ]);
 
-const extensionPath = path.join(importablePackageDir, extensionEntry.replace(/^\.\//, ""));
-assert.ok(fs.existsSync(extensionPath), `Importable extension entry missing: ${extensionPath}`);
+const extensionPaths = extensionEntries.map((entry) => {
+  const extensionPath = path.join(importablePackageDir, entry.replace(/^\.\//, ""));
+  assert.ok(fs.existsSync(extensionPath), `Importable extension entry missing: ${extensionPath}`);
+  return { entry, extensionPath };
+});
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-release-smoke-"));
 const binDir = path.join(tempRoot, "bin");
@@ -189,7 +196,19 @@ fs.mkdirSync(bootstrapNestedPath, { recursive: true });
 seedSocietyDb(societyDbPath, [tempRoot]);
 
 function writeExecutable(filePath, content) {
-  fs.writeFileSync(filePath, content);
+  const executableContent =
+    filePath === fakePiPath
+      ? content.replace(
+          /^#!\/usr\/bin\/env bash\n/u,
+          `#!/usr/bin/env bash
+if [[ "$1" == "--version" ]]; then
+  printf '%s\\n' '0.83.0'
+  exit 0
+fi
+`,
+        )
+      : content;
+  fs.writeFileSync(filePath, executableContent);
   fs.chmodSync(filePath, 0o755);
 }
 
@@ -399,19 +418,24 @@ function createPiHarness() {
   const tools = new Map();
   const commands = new Map();
   const events = new Map();
+  const registrations = { tools: [], commands: [], events: [] };
 
   return {
     tools,
     commands,
     events,
+    registrations,
     pi: {
       registerTool(tool) {
+        registrations.tools.push(tool.name);
         tools.set(tool.name, tool);
       },
       registerCommand(name, command) {
+        registrations.commands.push(name);
         commands.set(name, command);
       },
       on(event, handler) {
+        registrations.events.push(event);
         events.set(event, handler);
       },
     },
@@ -437,19 +461,18 @@ function getExpectedDisplayedOutput(text) {
 
 function getExpectedInstalledTimeoutBody() {
   const timeoutMs = Number.parseInt(process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS || "", 10);
+  let duration;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return "Subagent timed out after 0ms";
+    duration = "0ms";
+  } else if (timeoutMs < 1000) {
+    duration = `${Math.max(1, Math.round(timeoutMs))}ms`;
+  } else if (timeoutMs % 1000 === 0) {
+    duration = `${timeoutMs / 1000}s`;
+  } else {
+    duration = `${(timeoutMs / 1000).toFixed(1).replace(/\.0$/, "")}s`;
   }
 
-  if (timeoutMs < 1000) {
-    return `Subagent timed out after ${Math.max(1, Math.round(timeoutMs))}ms`;
-  }
-
-  if (timeoutMs % 1000 === 0) {
-    return `Subagent timed out after ${timeoutMs / 1000}s`;
-  }
-
-  return `Subagent timed out after ${(timeoutMs / 1000).toFixed(1).replace(/\.0$/, "")}s`;
+  return `Subagent timed out during execution after ${duration}`;
 }
 
 function readAllFiles(dir) {
@@ -478,10 +501,13 @@ async function waitForPath(filePath, timeoutMs = 1000) {
 }
 
 function writeFakePi(mode) {
+  const agentStartLine = JSON.stringify(JSON.stringify({ type: "agent_start" }));
+  const agentSettledLine = JSON.stringify(JSON.stringify({ type: "agent_settled" }));
   if (mode === "timeout") {
     writeExecutable(
       fakePiPath,
       `#!/usr/bin/env bash
+printf '%s\n' ${agentStartLine}
 sleep 2
 `,
     );
@@ -512,6 +538,7 @@ printf '%s\n' ${JSON.stringify(
           },
         }),
       )}
+printf '%s\n' ${agentSettledLine}
 `,
     );
     return;
@@ -541,6 +568,7 @@ printf '%s\n' ${JSON.stringify(
           },
         }),
       )}
+printf '%s\n' ${agentSettledLine}
 `,
     );
     return;
@@ -570,6 +598,7 @@ printf '%s\n' ${JSON.stringify(
           },
         }),
       )}
+printf '%s\n' ${agentSettledLine}
 `,
     );
     return;
@@ -590,6 +619,7 @@ printf '{not-json\n'
       fakePiPath,
       `#!/usr/bin/env bash
 trap 'printf terminated > ${JSON.stringify(abortMarkerPath)}; exit 0' TERM
+printf '%s\n' ${agentStartLine}
 while true; do sleep 0.05; done
 `,
     );
@@ -687,13 +717,19 @@ try {
   process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "256";
   delete process.env.PI_ORCH_DEFAULT_AGENT_TEAM;
 
-  const module = await import(
-    `${pathToFileURL(extensionPath).href}?installed-release-smoke=${Date.now()}`
-  );
-  assert.equal(typeof module.default, "function", "Installed extension missing default export");
-
   const harness = createPiHarness();
-  module.default(harness.pi);
+  const loadedExtensionEntries = [];
+  for (const { entry, extensionPath } of extensionPaths) {
+    const extensionModule = await import(pathToFileURL(extensionPath).href);
+    assert.equal(
+      typeof extensionModule.default,
+      "function",
+      `Installed extension missing default export: ${entry}`,
+    );
+    extensionModule.default(harness.pi);
+    loadedExtensionEntries.push(entry);
+  }
+  assert.deepEqual(loadedExtensionEntries, extensionEntries);
 
   const cognitiveDispatch = harness.tools.get("cognitive_dispatch");
   const loopExecute = harness.tools.get("loop_execute");
@@ -703,6 +739,16 @@ try {
   const workflowsCommand = harness.commands.get("workflows");
   const runtimeStatus = harness.commands.get("runtime-status");
   const sessionStart = harness.events.get("session_start");
+
+  assert.equal(
+    harness.registrations.tools.filter((name) => name === "cognitive_dispatch").length,
+    1,
+  );
+  assert.equal(
+    harness.registrations.commands.filter((name) => name === "runtime-status").length,
+    1,
+  );
+  assert.equal(harness.registrations.events.filter((name) => name === "session_start").length, 1);
 
   assert.ok(cognitiveDispatch, "cognitive_dispatch not registered");
   assert.ok(loopExecute, "loop_execute not registered");
@@ -871,6 +917,18 @@ try {
   );
   assert.match(runtimeStatusEditors[0]?.text || "", /routing: `all agents` \[internal: `full`\]/);
   console.log("installed runtime-status smoke: ok");
+
+  const runtimeStatusAkCalls = readAkCallRecords(akCallLogPath);
+  assert.equal(runtimeStatusAkCalls.length, 1, "Expected one read-only runtime-status AK call");
+  assert.deepEqual(runtimeStatusAkCalls[0]?.args, [
+    "strategy",
+    "list",
+    "--repo",
+    path.resolve(tempRoot),
+    "-F",
+    "json",
+  ]);
+  fs.writeFileSync(akCallLogPath, "");
 
   writeFakePi("semantic-error");
   const bootstrapResult = await cognitiveDispatch.execute(
