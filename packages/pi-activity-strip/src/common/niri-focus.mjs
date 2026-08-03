@@ -14,6 +14,35 @@ const SESSION_TITLE_TOKEN_HEX_LENGTH = 32;
 const LEGACY_SESSION_TITLE_TOKEN_HEX_LENGTH = 8;
 
 /**
+ * Read one bounded Niri JSON list. Polling callers treat command, timeout,
+ * parsing, and payload-shape failures as an empty fail-closed observation.
+ * @param {"windows" | "workspaces"} subject
+ * @param {(file: string, args: string[], options: object) => Promise<{stdout?: string}>} execFileAsync
+ * @param {NodeJS.ProcessEnv} env
+ * @param {number} timeout
+ */
+async function readNiriList(subject, execFileAsync, env, timeout) {
+  if (!env.NIRI_SOCKET) return [];
+  try {
+    const { stdout } = await execFileAsync("niri", ["msg", "-j", subject], { env, timeout });
+    const payload = JSON.parse(String(stdout ?? "[]"));
+    return Array.isArray(payload) ? payload : [];
+  } catch {
+    return [];
+  }
+}
+
+/** @param {Parameters<typeof readNiriList>[1]} execFileAsync @param {NodeJS.ProcessEnv} env @param {number} timeout */
+export function readNiriWindows(execFileAsync, env, timeout) {
+  return readNiriList("windows", execFileAsync, env, timeout);
+}
+
+/** @param {Parameters<typeof readNiriList>[1]} execFileAsync @param {NodeJS.ProcessEnv} env @param {number} timeout */
+export function readNiriWorkspaces(execFileAsync, env, timeout) {
+  return readNiriList("workspaces", execFileAsync, env, timeout);
+}
+
+/**
  * Resolve the exact Pi identity carried by current telemetry. Sessions that
  * started before the activity-strip upgrade retain a legacy broker id, so use
  * their process-bound session-presence sidecar as the only migration bridge.
@@ -107,6 +136,45 @@ export function resolveExactGhosttyWindow(windows, sessionId) {
 
   const legacyMatches = matchesForToken(legacyToken);
   return legacyMatches.length === 1 ? legacyMatches[0] : null;
+}
+
+/**
+ * Resolve the one snapshot session whose exact Ghostty window currently owns
+ * compositor focus. Missing, ambiguous, non-Ghostty, and stale identities all
+ * fail closed so the renderer never highlights a guessed session.
+ * @param {Array<Record<string, unknown>>} windows
+ * @param {Array<Record<string, unknown>>} sessions
+ * @param {{env?: NodeJS.ProcessEnv; readFileSync?: typeof fs.readFileSync; existsSync?: typeof fs.existsSync}} [options]
+ */
+export function resolveFocusedSnapshotSessionId(windows, sessions, options = {}) {
+  const focusedWindows = windows.filter((window) => window?.is_focused === true);
+  if (focusedWindows.length !== 1) return null;
+  const focusedWindow = focusedWindows[0];
+  const matches = sessions.filter((session) => {
+    const sessionId = resolvePiSessionIdentity(session, options);
+    if (!sessionId) return false;
+    return resolveExactGhosttyWindow(windows, sessionId)?.id === focusedWindow.id;
+  });
+  return matches.length === 1 ? String(matches[0]?.sessionId ?? "") || null : null;
+}
+
+/**
+ * Keep focus inspection single-flight without coupling it to workspace queries.
+ * The guard always releases, including when the bounded window read fails.
+ * @param {{readWindows: () => Promise<Array<Record<string, unknown>>>; onWindows: (windows: Array<Record<string, unknown>>) => void}} options
+ */
+export function createFocusedSessionPoller({ readWindows, onWindows }) {
+  let inFlight = false;
+  return async function pollFocusedSession() {
+    if (inFlight) return false;
+    inFlight = true;
+    try {
+      onWindows(await readWindows());
+      return true;
+    } finally {
+      inFlight = false;
+    }
+  };
 }
 
 /** @param {Array<Record<string, unknown>>} workspaces */

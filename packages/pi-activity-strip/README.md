@@ -33,7 +33,8 @@ This package is designed for the exact workflow you asked for:
   - elapsed time plus last-seen freshness
   - state color (`thinking`, `tool`, `waiting`, `done`, `error`)
 - keeps a local broker so multiple Pi processes can report into one strip
-- groups active work ahead of settled sessions on a calm 15-second ordering clock, while card details remain live
+- marks the Pi session in the currently focused Niri/Ghostty terminal with a stronger border and left rail, without adding another label
+- keeps green `done`/`monitoring` cards directly beside the Activity tile, followed by active work and then other settled sessions, on a calm 15-second ordering clock
 - reveals prompt, response, path, and full activity detail on hover or keyboard focus
 - focuses the exact matching Ghostty/Niri window on click or Enter, failing closed when identity is missing or ambiguous
 - follows the focused Niri workspace instead of remaining stranded on an old workspace
@@ -126,7 +127,8 @@ In Pi with UI support:
 
 ## Interaction model
 
-- **Ordering:** active tool/thinking/waiting cards group ahead of settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
+- **Ordering:** green `done` cards whose footer reads `monitoring` stay at the far left beside the Activity tile. Active tool/thinking/waiting cards follow, then other settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
+- **Current terminal:** on Niri, the card matching the focused Ghostty window gets a stronger border and left rail without an extra label. Matching uses the same exact session-title identity seam as click-to-focus and fails closed when focus or identity is missing or ambiguous.
 - **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the one Ghostty title carrying that exact Pi session-id suffix.
 - **Keyboard inside the strip:** Left/Right changes card focus, Enter activates the focused card, and Shift+Left/Right manually moves it. Manual movement lasts until a later activity regroup or runtime restart.
 - **Fail-closed focus:** current telemetry uses the exact Pi identity directly. For already-running tabs that still publish a legacy broker id, the strip may recover only the process-bound `pi-session-presence` sidecar when its source, PID, and cwd all agree; this is not repo-name guessing or arbitrary-PID focusing. If identity still matches zero or multiple Ghostty windows, focus does nothing and asks for one `/reload`.

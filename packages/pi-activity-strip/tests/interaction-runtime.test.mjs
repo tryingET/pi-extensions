@@ -19,6 +19,15 @@ test("sandbox bridge allowlists only snapshot, activation, and expansion interac
 
 test("Electron runtime follows focused Niri workspaces and keeps expansion top-aligned", () => {
   assert.match(main, /followFocusedNiriWorkspace/);
+  assert.match(main, /resolveFocusedSnapshotSessionId/);
+  assert.match(main, /focusedSessionId/);
+  assert.match(main, /focusedSessionId,/);
+  assert.match(main, /updateFocusedSession\(windows\)/);
+  assert.match(main, /createFocusedSessionPoller/);
+  assert.match(main, /syncFocusedNiriSession\(\)\.catch/);
+  assert.match(main, /timeout: ACTIVITY_STRIP_WORKSPACE_SYNC_MS/);
+  assert.match(main, /readNiriWindows\(execFileAsync, process\.env/);
+  assert.match(main, /readNiriWorkspaces\(execFileAsync, process\.env/);
   assert.match(main, /resolveActivityStripWindow/);
   assert.match(main, /move-window-to-workspace/);
   assert.match(main, /move-window-to-floating/);
@@ -36,6 +45,13 @@ test("Electron runtime follows focused Niri workspaces and keeps expansion top-a
   assert.match(main, /browserWindow\.on\("blur"/);
   assert.match(main, /pi-activity-strip:collapse/);
   assert.match(main, /resolveSnapshotSession\(latestSnapshot\.sessions, sessionId\)/);
+  assert.match(main, /if \(result\.ok\)/);
+  assert.match(main, /focusedSessionId = session\.sessionId/);
+  const workspaceFollow = main.slice(
+    main.indexOf("async function followFocusedNiriWorkspaceOnce"),
+    main.indexOf("async function moveWindowToTopViaNiri"),
+  );
+  assert.doesNotMatch(workspaceFollow, /updateFocusedSession/);
 });
 
 test("keyboard-only strip entry is an explicit compositor-bindable CLI command", () => {

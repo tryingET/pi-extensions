@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createFocusedSessionPoller,
   focusNiriSession,
   focusNiriStrip,
+  readNiriWindows,
   resolveActivityStripWindow,
   resolveExactGhosttyWindow,
   resolveFocusedNiriWorkspace,
+  resolveFocusedSnapshotSessionId,
   resolvePiSessionIdentity,
   resolveSnapshotSession,
 } from "../src/common/niri-focus.mjs";
@@ -16,6 +19,25 @@ const ghostty = (id, title) => ({
   title,
   app_id: "com.tryinget.ghosttysidequest",
   workspace_id: 76,
+});
+
+test("bounded Niri list reads preserve query options and fail closed", async () => {
+  const env = { NIRI_SOCKET: "socket" };
+  const windows = [{ id: 44, is_focused: true }];
+  const exec = async (file, args, options) => {
+    assert.equal(file, "niri");
+    assert.deepEqual(args, ["msg", "-j", "windows"]);
+    assert.deepEqual(options, { env, timeout: 750 });
+    return { stdout: JSON.stringify(windows) };
+  };
+
+  assert.deepEqual(await readNiriWindows(exec, env, 750), windows);
+  assert.deepEqual(await readNiriWindows(async () => ({ stdout: "{}" }), env, 750), []);
+  assert.deepEqual(
+    await readNiriWindows(async () => Promise.reject(new Error("timeout")), env, 750),
+    [],
+  );
+  assert.deepEqual(await readNiriWindows(() => assert.fail("must not execute"), {}, 750), []);
 });
 
 test("session focus resolves only one exact Ghostty title suffix", () => {
@@ -201,6 +223,63 @@ test("snapshot focus selection rejects missing and duplicate session ids", () =>
   assert.equal(resolveSnapshotSession([session], sessionId), session);
   assert.equal(resolveSnapshotSession([], sessionId), null);
   assert.equal(resolveSnapshotSession([session, { ...session }], sessionId), null);
+});
+
+test("focused session resolution highlights only the exact focused Ghostty session", () => {
+  const focused = {
+    ...ghostty(44, "π - dspx · 019fa4d071427fb48d30f98e951f0513"),
+    is_focused: true,
+  };
+  const otherSessionId = "019fa4d1-7142-7fb4-8d30-f98e951f0513";
+  const other = ghostty(45, "π - kernel · 019fa4d171427fb48d30f98e951f0513");
+  const sessions = [{ sessionId }, { sessionId: otherSessionId }];
+
+  assert.equal(resolveFocusedSnapshotSessionId([focused, other], sessions), sessionId);
+  assert.equal(
+    resolveFocusedSnapshotSessionId([{ ...focused, app_id: "brave-browser" }, other], sessions),
+    null,
+    "a non-Ghostty focused window must not select a session",
+  );
+  assert.equal(
+    resolveFocusedSnapshotSessionId([focused, { ...other, is_focused: true }], sessions),
+    null,
+    "ambiguous compositor focus must fail closed",
+  );
+  assert.equal(
+    resolveFocusedSnapshotSessionId([focused, other], [sessions[0], { ...sessions[0] }]),
+    null,
+    "duplicate snapshot identity must fail closed",
+  );
+});
+
+test("focused session polling is single-flight and always releases its guard", async () => {
+  let releaseRead = () => {};
+  const seen = [];
+  const poll = createFocusedSessionPoller({
+    readWindows: () =>
+      new Promise((resolve) => {
+        releaseRead = resolve;
+      }),
+    onWindows: (windows) => seen.push(windows),
+  });
+
+  const first = poll();
+  assert.equal(await poll(), false, "an overlapping poll must not start another Niri read");
+  releaseRead([{ id: 44, is_focused: true }]);
+  assert.equal(await first, true);
+  assert.deepEqual(seen, [[{ id: 44, is_focused: true }]]);
+
+  let attempts = 0;
+  const recoveringPoll = createFocusedSessionPoller({
+    readWindows: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("niri timeout");
+      return [];
+    },
+    onWindows: () => {},
+  });
+  await assert.rejects(recoveringPoll(), /niri timeout/);
+  assert.equal(await recoveringPoll(), true, "a failed read must release the next polling cycle");
 });
 
 test("focused-workspace resolution is exact and supports empty focused workspaces", () => {

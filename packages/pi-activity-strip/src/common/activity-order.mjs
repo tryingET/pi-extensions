@@ -1,5 +1,5 @@
 // ---
-// summary: "provides deterministic active-first strip ordering while preserving operator-defined order"
+// summary: "provides deterministic monitoring-first strip ordering while preserving operator-defined order"
 // read_when:
 //   - "changing activity grouping, calm-cadence reconciliation, or manual card order"
 // ---
@@ -11,10 +11,20 @@ export function isActiveSession(session) {
   return Boolean(session?.agentActive || ACTIVE_STATES.has(String(session?.state ?? "")));
 }
 
+/** @param {{ state?: string; toolName?: string; toolTarget?: string }} session */
+export function isMonitoringSession(session) {
+  return Boolean(
+    session?.state === "success" &&
+      !String(session?.toolName ?? "").trim() &&
+      !String(session?.toolTarget ?? "").trim(),
+  );
+}
+
 /**
- * Reconcile at the calm clock: active cards first, then inactive cards, preserving the
- * previous/manual order inside each group and appending new cards deterministically.
- * @param {Array<{ sessionId: string; state?: string; agentActive?: boolean; updatedAt?: number }>} sessions
+ * Reconcile at the calm clock: green settled/monitoring cards first, then active cards,
+ * then other inactive cards. Preserve previous/manual order inside each group and append
+ * new cards deterministically.
+ * @param {Array<{ sessionId: string; state?: string; agentActive?: boolean; toolName?: string; toolTarget?: string; updatedAt?: number }>} sessions
  * @param {string[]} previousOrder
  * @param {{ regroup?: boolean }} [options]
  */
@@ -31,8 +41,10 @@ export function reconcileActivityOrder(sessions, previousOrder = [], { regroup =
 
   const priorIndex = new Map(surviving.map((id, index) => [id, index]));
   const ordered = [...sessions].sort((left, right) => {
-    const activityDelta = Number(isActiveSession(right)) - Number(isActiveSession(left));
-    if (activityDelta) return activityDelta;
+    const leftPriority = isMonitoringSession(left) ? 2 : isActiveSession(left) ? 1 : 0;
+    const rightPriority = isMonitoringSession(right) ? 2 : isActiveSession(right) ? 1 : 0;
+    const groupDelta = rightPriority - leftPriority;
+    if (groupDelta) return groupDelta;
     const leftPrior = priorIndex.get(left.sessionId);
     const rightPrior = priorIndex.get(right.sessionId);
     if (leftPrior != null || rightPrior != null) {

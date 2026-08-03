@@ -6,6 +6,7 @@
 
 import {
   isActiveSession,
+  isMonitoringSession,
   moveOrderItem,
   reconcileActivityOrder,
 } from "../common/activity-order.mjs";
@@ -14,6 +15,7 @@ import { ACTIVITY_STRIP_ORDER_REFRESH_MS } from "../common/constants.mjs";
 const ORDER_RUNTIME = [
   'const ACTIVE_STATES = new Set(["thinking", "tool", "waiting"]);',
   isActiveSession.toString(),
+  isMonitoringSession.toString(),
   reconcileActivityOrder.toString(),
   moveOrderItem.toString(),
 ].join("\n");
@@ -43,6 +45,7 @@ export function createStripHtml({ interactive = true } = {}) {
         --muted: rgba(194, 205, 224, 0.74);
         --dim: rgba(167, 180, 203, 0.48);
         --accent: #79b8ff;
+        --current-line: color-mix(in srgb, var(--accent) 78%, white 12%);
         --thinking: #8ab4ff;
         --tool: #ffd166;
         --waiting: #ff9f7a;
@@ -140,6 +143,16 @@ export function createStripHtml({ interactive = true } = {}) {
         background: linear-gradient(180deg, rgba(18, 28, 47, 0.99), rgba(10, 16, 28, 0.96));
         outline: none;
       }
+      .card[data-current="true"] {
+        border-color: var(--current-line);
+        outline: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+        outline-offset: -3px;
+      }
+      .card[data-current="true"]::before { width: 5px; }
+      .card[data-current="true"]:focus-visible {
+        outline: 2px solid var(--current-line);
+        outline-offset: -4px;
+      }
       body[data-expanded="true"] .card[data-open="true"] { height: 228px; }
       .card__header, .card__footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
       .card__label { min-width: 0; }
@@ -203,7 +216,7 @@ export function createStripHtml({ interactive = true } = {}) {
         onCollapse() { return () => {}; },
         subscribe() { return () => {}; },
       };
-      let snapshot = { generatedAt: Date.now(), sessions: [] };
+      let snapshot = { generatedAt: Date.now(), focusedSessionId: null, sessions: [] };
       let orderedIds = [];
       let nextOrderRefreshAt = 0;
       let collapseTimer = null;
@@ -239,6 +252,7 @@ export function createStripHtml({ interactive = true } = {}) {
         card.type = "button";
         card.className = "card";
         card.dataset.sessionId = sessionId;
+        card.dataset.current = "false";
         card.dataset.open = "false";
         card.setAttribute("aria-expanded", "false");
         card.setAttribute("aria-describedby", safeDomId(sessionId));
@@ -258,10 +272,18 @@ export function createStripHtml({ interactive = true } = {}) {
       function updateCard(card, session) {
         const stateColor = STATE_COLORS[session.state] || "var(--accent)";
         const stateLabel = STATE_LABELS[session.state] || session.state || "idle";
+        const isCurrent = session.sessionId === snapshot.focusedSessionId;
         card.style.setProperty("--state-color", stateColor);
-        card.dataset.group = isActiveSession(session) ? "active" : "settled";
-        card.setAttribute("aria-label", (session.repoLabel || "Pi session") + ", " + (session.phase || "Idle") + ". Press Enter to focus its Ghostty window.");
-        card.title = "Focus " + (session.repoLabel || "Pi session");
+        card.dataset.group = isMonitoringSession(session)
+          ? "monitoring"
+          : isActiveSession(session)
+            ? "active"
+            : "settled";
+        card.dataset.current = isCurrent ? "true" : "false";
+        if (isCurrent) card.setAttribute("aria-current", "true");
+        else card.removeAttribute("aria-current");
+        card.setAttribute("aria-label", (isCurrent ? "Current terminal, " : "") + (session.repoLabel || "Pi session") + ", " + (session.phase || "Idle") + ". Press Enter to focus its Ghostty window.");
+        card.title = (isCurrent ? "Current terminal · " : "Focus ") + (session.repoLabel || "Pi session");
         setText(card, ".card__repo", session.repoLabel || "pi session");
         setText(card, ".card__phase", session.phase || "Idle");
         setText(card, ".card__state", stateLabel);
@@ -422,7 +444,7 @@ export function createStripHtml({ interactive = true } = {}) {
       }, 1000);
       api.onCollapse?.(() => setExpanded(null, false).catch(() => {}));
       api.subscribe((nextSnapshot) => {
-        snapshot = nextSnapshot || { generatedAt: Date.now(), sessions: [] };
+        snapshot = nextSnapshot || { generatedAt: Date.now(), focusedSessionId: null, sessions: [] };
         syncOrder(orderedIds.length === 0);
         render();
       });

@@ -22,9 +22,13 @@ import {
   ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
 } from "../common/constants.mjs";
 import {
+  createFocusedSessionPoller,
   focusNiriSession,
+  readNiriWindows,
+  readNiriWorkspaces,
   resolveActivityStripWindow,
   resolveFocusedNiriWorkspace,
+  resolveFocusedSnapshotSessionId,
   resolveSnapshotSession,
 } from "../common/niri-focus.mjs";
 import { createStripHtml } from "../ui/strip-html.mjs";
@@ -41,6 +45,7 @@ let workspaceFollowTimer = null;
 let expanded = false;
 let workspaceFollowInFlight = false;
 let latestSnapshot = { generatedAt: Date.now(), sessions: [] };
+let focusedSessionId = null;
 const runtimeStatus = {
   state: "starting",
   startedAt: Date.now(),
@@ -73,31 +78,32 @@ function readNiriPosition(window) {
   };
 }
 
-async function getNiriWindows() {
-  if (!isNiriSession()) return [];
-  try {
-    const { stdout } = await execFileAsync("niri", ["msg", "-j", "windows"], {
-      env: process.env,
-    });
-    const windows = JSON.parse(stdout);
-    return Array.isArray(windows) ? windows : [];
-  } catch {
-    return [];
-  }
+const getNiriWindows = () =>
+  readNiriWindows(execFileAsync, process.env, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
+const getNiriWorkspaces = () =>
+  readNiriWorkspaces(execFileAsync, process.env, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
+
+function sendRendererSnapshot() {
+  if (!browserWindow || browserWindow.isDestroyed()) return;
+  browserWindow.webContents.send("pi-activity-strip:snapshot", {
+    ...latestSnapshot,
+    focusedSessionId,
+  });
 }
 
-async function getNiriWorkspaces() {
-  if (!isNiriSession()) return [];
-  try {
-    const { stdout } = await execFileAsync("niri", ["msg", "-j", "workspaces"], {
-      env: process.env,
-    });
-    const workspaces = JSON.parse(stdout);
-    return Array.isArray(workspaces) ? workspaces : [];
-  } catch {
-    return [];
-  }
+function updateFocusedSession(windows) {
+  const nextFocusedSessionId = resolveFocusedSnapshotSessionId(windows, latestSnapshot.sessions, {
+    env: process.env,
+  });
+  if (focusedSessionId === nextFocusedSessionId) return;
+  focusedSessionId = nextFocusedSessionId;
+  sendRendererSnapshot();
 }
+
+const syncFocusedNiriSession = createFocusedSessionPoller({
+  readWindows: getNiriWindows,
+  onWindows: updateFocusedSession,
+});
 
 async function getNiriWindowByPid(pid) {
   const windows = await getNiriWindows();
@@ -140,7 +146,7 @@ async function followFocusedNiriWorkspaceOnce() {
         "false",
         String(reference),
       ],
-      { env: process.env },
+      { env: process.env, timeout: ACTIVITY_STRIP_WORKSPACE_SYNC_MS },
     );
     scheduleTopAlignment();
   } catch {
@@ -357,7 +363,7 @@ async function createWindow() {
     runtimeStatus.readyAt = Date.now();
     runtimeStatus.error = null;
     browserWindow?.showInactive?.();
-    browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
+    sendRendererSnapshot();
     refreshRuntimeStatus();
     scheduleTopAlignment();
   });
@@ -367,7 +373,7 @@ async function createWindow() {
 
   if (!browserWindow.isVisible()) {
     browserWindow.showInactive?.();
-    browserWindow.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
+    sendRendererSnapshot();
     refreshRuntimeStatus();
     scheduleTopAlignment();
   }
@@ -390,15 +396,20 @@ async function main() {
     return;
   }
 
-  const focusSession = (sessionId) => {
+  const focusSession = async (sessionId) => {
     const session = resolveSnapshotSession(latestSnapshot.sessions, sessionId);
     if (!session) {
-      return Promise.resolve({
+      return {
         ok: false,
         error: "Session is no longer present or is ambiguous; focus did nothing.",
-      });
+      };
     }
-    return focusNiriSession(session, execFileAsync, process.env);
+    const result = await focusNiriSession(session, execFileAsync, process.env);
+    if (result.ok) {
+      focusedSessionId = session.sessionId;
+      sendRendererSnapshot();
+    }
+    return result;
   };
   broker = await createActivityStripBroker({
     focusSession,
@@ -413,7 +424,8 @@ async function main() {
   );
   broker.on("snapshot", (snapshot) => {
     latestSnapshot = snapshot;
-    browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
+    if (!resolveSnapshotSession(latestSnapshot.sessions, focusedSessionId)) focusedSessionId = null;
+    sendRendererSnapshot();
   });
   broker.on("shutdown-requested", async () => {
     await broker?.stop();
@@ -430,14 +442,17 @@ async function main() {
   screen.on("display-added", () => updateWindowBounds());
   screen.on("display-removed", () => updateWindowBounds());
   if (isNiriSession()) {
+    syncFocusedNiriSession().catch(() => {});
+    followFocusedNiriWorkspace().catch(() => {});
     workspaceFollowTimer = setInterval(() => {
+      syncFocusedNiriSession().catch(() => {});
       followFocusedNiriWorkspace().catch(() => {});
     }, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
     workspaceFollowTimer.unref?.();
   }
 
   app.on("second-instance", () => {
-    browserWindow?.webContents.send("pi-activity-strip:snapshot", latestSnapshot);
+    sendRendererSnapshot();
     requestTopAlignment();
   });
 

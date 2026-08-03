@@ -14,6 +14,8 @@ test("strip keeps freshness live while ordering refreshes on a calm cadence", ()
   assert.match(html, /updatedAt \|\| snapshot\.generatedAt/);
   assert.match(html, /const ORDER_REFRESH_MS = 15000/);
   assert.match(html, /reconcileActivityOrder\(sessions, orderedIds, \{ regroup \}\)/);
+  assert.match(html, /function isMonitoringSession\(session\)/);
+  assert.match(html, /card\.dataset\.group = isMonitoringSession\(session\)/);
   assert.match(html, /Date\.now\(\) >= nextOrderRefreshAt/);
 });
 
@@ -61,6 +63,15 @@ test("interactive cards expose hover detail, exact activation, and focus-scoped 
   assert.match(html, /height: 228px/);
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /--shadow: none/);
+  assert.match(html, /focusedSessionId/);
+  assert.match(html, /card\.dataset\.current = isCurrent \? "true" : "false"/);
+  assert.match(html, /card\.setAttribute\("aria-current", "true"\)/);
+  assert.match(html, /card\.removeAttribute\("aria-current"\)/);
+  assert.doesNotMatch(html, /class="card__current"/);
+  assert.doesNotMatch(html, /--current-surface/);
+  assert.match(html, /\.card\[data-current="true"\]/);
+  assert.match(html, /\.card\[data-current="true"\]:focus-visible/);
+  assert.match(html, /outline: 2px solid var\(--current-line\)/);
 });
 
 test("click-through rendering remains an explicit escape hatch", () => {
