@@ -767,8 +767,8 @@ test("v2 cleanup skips a large irrelevant review event and preserves exact recov
     writeFileSync(
       eventsPath,
       `${JSON.stringify({
-        padding: "x".repeat(17 * 1024 * 1024),
         event: "cleanup_effect_observed",
+        padding: "x".repeat(17 * 1024 * 1024),
       })}\n`,
       { flag: "a" },
     );

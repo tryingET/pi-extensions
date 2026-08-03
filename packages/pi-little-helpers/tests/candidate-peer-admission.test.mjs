@@ -170,10 +170,16 @@ function writeTerminalRecord({ env, repoRoot, resourceId, worktreePath, peerRunI
     cleanupAuthorization: authorization,
     terminalReceipt: { ...receiptBase, receiptDigest: digestObject(receiptBase) },
   };
+  const finalEvent = {
+    event: "cleaned",
+    at: record.updatedAt,
+    fromVersion: record.resourceVersion - 1,
+    record,
+  };
   writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
   writeFileSync(
     eventsPath,
-    `${effects.map((effect) => JSON.stringify(effect)).join("\n")}\n${JSON.stringify({ event: "cleaned", record })}\n`,
+    `${effects.map((effect) => JSON.stringify(effect)).join("\n")}\n${JSON.stringify(finalEvent)}\n`,
     { mode: 0o600 },
   );
   return { path, record, digest: digestObject(record) };

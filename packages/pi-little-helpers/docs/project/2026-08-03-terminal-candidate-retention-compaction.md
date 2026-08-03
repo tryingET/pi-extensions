@@ -69,6 +69,16 @@ Pending execution uses the capsule only inside the locked compactor after rechec
 
 If execution stops after marker publication, a retry may finish only exact remaining redundant-copy removals, even after authorization expiry. Lock acquisition prebuilds `lease.json` in a private directory and atomically renames that non-empty directory into the fixed lock path: a crash before rename does not block retry, while every published lock has a complete lease. A catchable failure releases locks normally. After a hard crash with published locks, `terminal-retention-recover-locks` removes only the exact present registry/resource leases for this resource whose recorded process is provably absent, and publishes an owner-attributed recovery receipt. Pre-marker expiry or source drift cannot publish a marker; post-marker drift or a reappeared worktree blocks before further GC. The final `gc-receipt.json` binds the marker and observed retained/removed surfaces.
 
+## Oversized exact terminal events
+
+Ordinary lifecycle event scanning keeps the fixed 16 MiB buffer limit for cleanup intents, cleanup observations, and unexpected terminal content. A valid final `cleaned` event can itself exceed that limit because lifecycle-v2 embeds the complete terminal record, including a large review-object inventory.
+
+For this one case, the terminal verifier derives the exact canonical event bytes from the already owner-verified terminal record: `event`, `at`, `fromVersion`, and `record` in the same order emitted by `writeLockedLifecycleRecord`. It scans the event ledger in 64 KiB chunks, hashes the candidate terminal line incrementally, and retains no oversized line buffer. The dynamic acceptance ceiling is the exact expected byte count, not a larger global threshold. Acceptance requires one uniquely identified `cleaned` event whose byte count and SHA-256 match that canonical event and which is physically final. Intents, observations, malformed or truncated JSON, noncanonical/reordered bytes, wrong resource or generation identity, extra or duplicate terminal events, and any later event still fail closed.
+
+The same verifier is used by ordinary admission release and by terminal-compaction materialization. This repair changes no permit, lifecycle, archive, capsule, or receipt schema and authorizes no automatic release or compaction.
+
+AK-4628 carries an explicit readability exception for `candidatePeerLifecycleArchive.ts`, which was already above the brownfield 500-line budget before this repair. The bounded scanner change stays local so the live verifier correction is not mixed with a high-risk module extraction; the package gate remains warn-only for that pre-existing size posture.
+
 ## Commands
 
 ```bash

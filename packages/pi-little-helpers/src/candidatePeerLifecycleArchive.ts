@@ -580,6 +580,26 @@ type CleanupEventScanResult = {
   finalEvent?: Record<string, unknown>;
 };
 
+type ExpectedCleanedEvent = {
+  byteLength: number;
+  sha256: string;
+  record: CandidateLifecycleRecord;
+};
+
+function expectedCleanedEvent(record: CandidateLifecycleRecord): ExpectedCleanedEvent {
+  const serialized = JSON.stringify({
+    event: "cleaned",
+    at: record.updatedAt,
+    fromVersion: record.resourceVersion - 1,
+    record,
+  });
+  return {
+    byteLength: Buffer.byteLength(serialized),
+    sha256: sha256(serialized),
+    record,
+  };
+}
+
 type EventIdentityScanner = {
   state: "start" | "key" | "colon" | "value" | "primitive" | "comma" | "done";
   currentKey?: string;
@@ -735,9 +755,13 @@ function readCleanupEvents(
   resourceId: string,
   env: NodeJS.ProcessEnv,
   path = getCandidateLifecycleEventsPath(resourceId, env),
+  expectedFinalCleanedRecord?: CandidateLifecycleRecord,
 ): CleanupEventScanResult {
   if (!existsSync(path)) return { events: [] };
 
+  const cleanedExpectation = expectedFinalCleanedRecord
+    ? expectedCleanedEvent(expectedFinalCleanedRecord)
+    : undefined;
   const events: Array<Record<string, unknown>> = [];
   let finalEvent: Record<string, unknown> | undefined;
   const fd = openSync(path, "r");
@@ -746,20 +770,41 @@ function readCleanupEvents(
   let lineBytes = 0;
   let lineRelevant: boolean | undefined;
   let identity = newEventIdentityScanner();
+  let cleanedLineHash = cleanedExpectation ? createHash("sha256") : undefined;
 
   const appendLineBytes = (bytes: Buffer): void => {
     if (bytes.length === 0) return;
-    if (lineRelevant !== false && lineBytes + bytes.length <= MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
+    const nextLineBytes = lineBytes + bytes.length;
+    cleanedLineHash?.update(bytes);
+    if (lineRelevant !== false && nextLineBytes <= MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
       lineChunks.push(Buffer.from(bytes));
-    } else if (lineBytes + bytes.length > MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
+    } else if (nextLineBytes > MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
       lineChunks = [];
     }
     scanTopLevelEventIdentity(identity, bytes);
     if (lineRelevant === undefined && identity.event !== undefined) {
       lineRelevant = RELEVANT_CLEANUP_EVENTS.has(identity.event);
       if (!lineRelevant) lineChunks = [];
+      if (identity.event !== "cleaned") cleanedLineHash = undefined;
     }
-    lineBytes += bytes.length;
+    lineBytes = nextLineBytes;
+    if (lineBytes > MAX_RELEVANT_CLEANUP_EVENT_BYTES && identity.event === undefined) {
+      throw new Error("lifecycle event identity exceeds bounded read limit");
+    }
+    if (identity.event !== undefined && RELEVANT_CLEANUP_EVENTS.has(identity.event)) {
+      const relevantLimit =
+        identity.event === "cleaned" && cleanedExpectation
+          ? Math.max(MAX_RELEVANT_CLEANUP_EVENT_BYTES, cleanedExpectation.byteLength)
+          : MAX_RELEVANT_CLEANUP_EVENT_BYTES;
+      if (lineBytes > relevantLimit) {
+        if (identity.event === "cleaned" && cleanedExpectation) {
+          throw new Error(
+            "oversized cleaned lifecycle event does not match the canonical terminal record",
+          );
+        }
+        throw new Error("relevant cleanup lifecycle event exceeds bounded read limit");
+      }
+    }
   };
 
   const finishLine = (): void => {
@@ -771,18 +816,38 @@ function readCleanupEvents(
     let event: Record<string, unknown>;
     if (relevant) {
       if (lineBytes > MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
-        throw new Error("relevant cleanup lifecycle event exceeds bounded read limit");
-      }
-      try {
-        event = JSON.parse(Buffer.concat(lineChunks, lineBytes).toString("utf8")) as Record<
-          string,
-          unknown
-        >;
-      } catch (error) {
-        throw new Error(`malformed relevant cleanup lifecycle event: ${String(error)}`);
-      }
-      if (event.event !== identity.event) {
-        throw new Error("relevant cleanup lifecycle event identity changed during decoding");
+        const cleanedDigest = cleanedLineHash?.digest("hex");
+        if (
+          identity.event === "cleaned" &&
+          cleanedExpectation &&
+          lineBytes === cleanedExpectation.byteLength &&
+          cleanedDigest === cleanedExpectation.sha256
+        ) {
+          event = {
+            event: "cleaned",
+            at: cleanedExpectation.record.updatedAt,
+            fromVersion: cleanedExpectation.record.resourceVersion - 1,
+            record: cleanedExpectation.record,
+          };
+        } else if (identity.event === "cleaned" && cleanedExpectation) {
+          throw new Error(
+            "oversized cleaned lifecycle event does not match the canonical terminal record",
+          );
+        } else {
+          throw new Error("relevant cleanup lifecycle event exceeds bounded read limit");
+        }
+      } else {
+        try {
+          event = JSON.parse(Buffer.concat(lineChunks, lineBytes).toString("utf8")) as Record<
+            string,
+            unknown
+          >;
+        } catch (error) {
+          throw new Error(`malformed relevant cleanup lifecycle event: ${String(error)}`);
+        }
+        if (event.event !== identity.event) {
+          throw new Error("relevant cleanup lifecycle event identity changed during decoding");
+        }
       }
     } else {
       event = { event: identity.event };
@@ -795,6 +860,7 @@ function readCleanupEvents(
     lineBytes = 0;
     lineRelevant = undefined;
     identity = newEventIdentityScanner();
+    cleanedLineHash = cleanedExpectation ? createHash("sha256") : undefined;
   };
 
   try {
@@ -1272,7 +1338,11 @@ function verifyCleanedCandidateTerminalRecordAt(
     throw new Error("candidate terminal receipt identity or chronology mismatch");
   }
   verifyPublishedArchive(record, archiveDir);
-  const eventScan = readCleanupEvents(record.resourceId, env, eventsPath);
+  const eventScan = readCleanupEvents(record.resourceId, env, eventsPath, record);
+  const cleanedEvents = eventScan.events.filter((event) => event.event === "cleaned");
+  if (cleanedEvents.length !== 1) {
+    throw new Error("candidate terminal cleaned lifecycle event is not unique");
+  }
   const observations = cleanupObservations(eventScan.events, auth.authorizationDigest);
   for (const effect of REQUIRED_CLEANUP_EFFECTS) {
     const observation = observations.get(effect);
