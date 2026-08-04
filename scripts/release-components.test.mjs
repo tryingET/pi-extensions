@@ -388,7 +388,30 @@ test("clean consumer installs prepare the linked ASC source runtime first", () =
   );
   const prepareCall = governedCanary.indexOf("prepareLocalBuildOwners(identity.sourceRoot);");
   const runtimeInstallLoop = governedCanary.indexOf("for (const packagePath of PACKAGES)");
-  assert.ok(prepareCall >= 0 && runtimeInstallLoop > prepareCall);
+  const deferBuildOwner = governedCanary.indexOf("if (packagePath === LOCAL_BUILD_OWNER) continue;");
+  const missingTypeboxProof = governedCanary.indexOf(
+    "assertMissingTypeboxFailureBeforePeerRepair(identity.sourceRoot)",
+  );
+  const alignConsumers = governedCanary.indexOf("alignExceptionalLocalOwners(identity.sourceRoot);");
+  const pruneBuildOwner = governedCanary.indexOf(
+    "npmCi(resolve(identity.sourceRoot, LOCAL_BUILD_OWNER));",
+  );
+  const peerClosure = governedCanary.indexOf("materializePeerLayer(identity.sourceRoot)");
+  const graphProof = governedCanary.indexOf("resolveRuntimeGraph(identity.sourceRoot)");
+  const typeboxProof = governedCanary.indexOf("verifyTypebox(identity.sourceRoot, typeboxRoot)");
+  const hostPeerProof = governedCanary.indexOf("verifyGovernedRuntimeHostPeers(identity.sourceRoot)");
+  assert.ok(
+    prepareCall >= 0 &&
+      runtimeInstallLoop > prepareCall &&
+      deferBuildOwner > runtimeInstallLoop &&
+      missingTypeboxProof > deferBuildOwner &&
+      alignConsumers > missingTypeboxProof &&
+      pruneBuildOwner > alignConsumers &&
+      peerClosure > pruneBuildOwner &&
+      graphProof > peerClosure &&
+      typeboxProof > graphProof &&
+      hostPeerProof > typeboxProof,
+  );
 });
 
 test("manual bootstrap requires run identity and verifies run/tag commit before artifact use", () => {

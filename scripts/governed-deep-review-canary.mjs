@@ -47,6 +47,7 @@ const PEER_LAYER_RELATIVE_PATH = GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH;
 const PACKAGES = GOVERNED_RUNTIME_PACKAGES;
 const TYPEBOX_CONSUMERS = GOVERNED_RUNTIME_TYPEBOX_CONSUMERS;
 const LOCAL_EDGES = GOVERNED_RUNTIME_LOCAL_EDGES;
+const LOCAL_BUILD_OWNER = "packages/pi-autonomous-session-control";
 
 function parseArgs(argv) {
   const [action = "help", ...rest] = argv;
@@ -334,10 +335,14 @@ async function materialize(options) {
     if (!existsSync(resolve(packageRoot, "package-lock.json"))) {
       throw new Error(`Selected runtime package has no lockfile: ${packagePath}.`);
     }
+    // Keep this build owner's compiler available until every source-linked consumer is aligned.
+    if (packagePath === LOCAL_BUILD_OWNER) continue;
     npmCi(packageRoot);
   }
   const missingTypeboxFailure = assertMissingTypeboxFailureBeforePeerRepair(identity.sourceRoot);
   alignExceptionalLocalOwners(identity.sourceRoot);
+  // Only the closed runtime graph, not build dependencies, survives materialization.
+  npmCi(resolve(identity.sourceRoot, LOCAL_BUILD_OWNER));
   const typeboxRoot = materializePeerLayer(identity.sourceRoot);
   const afterHashes = collectTrackedInputHashes(identity.sourceRoot);
   if (!sameObject(beforeHashes, afterHashes)) {
