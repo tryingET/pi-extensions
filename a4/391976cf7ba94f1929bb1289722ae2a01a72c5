@@ -1,0 +1,40 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "a4391976cf7ba94f1929bb1289722ae2a01a72c5"
+created_at: "2026-08-04T13:27:39Z"
+intent: "Preserve package-owned Transcendent loop captures as historical KES evidence."
+files:
+  - "packages/pi-society-orchestrator/diary/2026-08-03--phase-transcendent-debt-targeting-transcendent-debt-targeting-phase-for-re.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-03--phase-transcendent-diagnose-transcendent-diagnose-phase-for-replace.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-03--phase-transcendent-first-100x-transcendent-first-100x-phase-for-replac.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-03--phase-transcendent-second-100x-transcendent-second-100x-phase-for-repla.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-03--session-transcendent-transcendent-loop-start-for-replace-per.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--complete-transcendent-transcendent-loop-completion-for-close-t.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--complete-transcendent-transcendent-loop-completion-for-complet.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--complete-transcendent-transcendent-loop-completion-for-replace.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-alien-pass-transcendent-alien-pass-phase-for-replac.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-closure-gate-transcendent-closure-gate-phase-for-repl.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-diagnose-transcendent-diagnose-phase-for-close-th.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-diagnose-transcendent-diagnose-phase-for-complete.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-dissolve-transcendent-dissolve-phase-for-replace.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-first-100x-transcendent-first-100x-phase-for-close.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-first-100x-transcendent-first-100x-phase-for-comple.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--phase-transcendent-rebuild-transcendent-rebuild-phase-for-replace-p.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--session-transcendent-transcendent-loop-start-for-close-the-bl.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--session-transcendent-transcendent-loop-start-for-complete-the.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--validation-transcendent-transcendent-terminal-failure-transcende--2.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--validation-transcendent-transcendent-terminal-failure-transcende--3.md"
+  - "packages/pi-society-orchestrator/diary/2026-08-04--validation-transcendent-transcendent-terminal-failure-transcende.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 4
+  total: 7
+  rationale: "Generated captures are isolated from runtime code and retained without claiming closure proof."
