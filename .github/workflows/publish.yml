@@ -62,6 +62,10 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare linked ASC source runtime
+        if: env.RELEASE_COMPONENT == 'pi-society-orchestrator'
+        run: bash ./scripts/prepare-asc-source-build-owner.sh
+
       - name: Install package dependencies
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |

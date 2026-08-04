@@ -119,6 +119,13 @@ function npmCi(packageRoot) {
   });
 }
 
+function prepareLocalBuildOwners(sourceRoot) {
+  run("bash", [resolve(sourceRoot, "scripts/prepare-asc-source-build-owner.sh")], {
+    cwd: sourceRoot,
+    stdio: "inherit",
+  });
+}
+
 function assertMissingTypeboxFailureBeforePeerRepair(sourceRoot) {
   const consumer = "packages/pi-interaction/pi-trigger-adapter";
   const parentManifest = resolve(sourceRoot, consumer, "package.json");
@@ -320,6 +327,8 @@ function requireExpectedCommit(options) {
 async function materialize(options) {
   const identity = assertSourceIdentity(options.sourceRoot, requireExpectedCommit(options));
   const beforeHashes = collectTrackedInputHashes(identity.sourceRoot);
+  // Build linked source owners before runtime-only installs invoke their prepare lifecycle.
+  prepareLocalBuildOwners(identity.sourceRoot);
   for (const packagePath of PACKAGES) {
     const packageRoot = resolve(identity.sourceRoot, packagePath);
     if (!existsSync(resolve(packageRoot, "package-lock.json"))) {

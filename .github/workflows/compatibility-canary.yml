@@ -151,6 +151,10 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
+      - name: Prepare linked ASC source runtime
+        if: matrix.cwd == 'packages/pi-society-orchestrator'
+        run: bash ./scripts/prepare-asc-source-build-owner.sh
+
       - name: Install scenario dependencies
         working-directory: ${{ matrix.cwd }}
         run: |

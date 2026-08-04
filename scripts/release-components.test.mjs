@@ -24,6 +24,12 @@ const RELEASE_CHECK_WORKFLOW_PATH = path.join(
   "workflows",
   "release-check.yml",
 );
+const COMPATIBILITY_WORKFLOW_PATH = path.join(
+  ROOT,
+  ".github",
+  "workflows",
+  "compatibility-canary.yml",
+);
 const RELEASE_PLEASE_WORKFLOW_PATH = path.join(
   ROOT,
   ".github",
@@ -314,6 +320,75 @@ test("release-check CI runs pi-modes credential-free installed-artifact smoke", 
   const generic = workflowStep(workflow, "Run generic release checks (artifact-only)");
   assert.match(generic, /if: matrix\.component != 'pi-modes'/);
   assert.match(generic, /run: npm run release:check:quick/);
+});
+
+test("clean consumer installs prepare the linked ASC source runtime first", () => {
+  const contracts = [
+    {
+      path: RELEASE_CHECK_WORKFLOW_PATH,
+      condition: /if: matrix\.component == 'pi-society-orchestrator'/,
+      installStep: "Install package dependencies",
+    },
+    {
+      path: COMPATIBILITY_WORKFLOW_PATH,
+      condition: /if: matrix\.cwd == 'packages\/pi-society-orchestrator'/,
+      installStep: "Install scenario dependencies",
+    },
+    {
+      path: WORKFLOW_PATH,
+      condition: /if: env\.RELEASE_COMPONENT == 'pi-society-orchestrator'/,
+      installStep: "Install package dependencies",
+    },
+  ];
+
+  for (const contract of contracts) {
+    const workflow = fs.readFileSync(contract.path, "utf8");
+    const prepare = workflowStep(workflow, "Prepare linked ASC source runtime");
+    assert.match(prepare, contract.condition);
+    assert.match(prepare, /run: bash \.\/scripts\/prepare-asc-source-build-owner\.sh/);
+    assert.ok(
+      workflow.indexOf(prepare) < workflow.indexOf(workflowStep(workflow, contract.installStep)),
+      `ASC source preparation must precede the consumer install in ${contract.path}`,
+    );
+  }
+
+  const helperPath = path.join(ROOT, "scripts", "prepare-asc-source-build-owner.sh");
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "asc-source-build-owner-"));
+  try {
+    const binDir = path.join(fixture, "bin");
+    const callLog = path.join(fixture, "npm-calls.log");
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(binDir, "npm"),
+      '#!/usr/bin/env bash\nprintf \'%s\\t%s\\n\' "$PWD" "$*" >> "$ASC_PREPARE_LOG"\n',
+      { mode: 0o755 },
+    );
+    const result = spawnSync("bash", [helperPath], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ASC_PREPARE_LOG: callLog,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      },
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const ascRoot = path.join(ROOT, "packages", "pi-autonomous-session-control");
+    assert.deepEqual(fs.readFileSync(callLog, "utf8").trim().split("\n"), [
+      `${ascRoot}\tci --include=dev --omit=peer --ignore-scripts --no-audit --no-fund`,
+      `${ascRoot}\trun build:runtime`,
+    ]);
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+
+  const governedCanary = fs.readFileSync(
+    path.join(ROOT, "scripts", "governed-deep-review-canary.mjs"),
+    "utf8",
+  );
+  const prepareCall = governedCanary.indexOf("prepareLocalBuildOwners(identity.sourceRoot);");
+  const runtimeInstallLoop = governedCanary.indexOf("for (const packagePath of PACKAGES)");
+  assert.ok(prepareCall >= 0 && runtimeInstallLoop > prepareCall);
 });
 
 test("manual bootstrap requires run identity and verifies run/tag commit before artifact use", () => {
