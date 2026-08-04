@@ -1,0 +1,30 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "1214f47c7db97b23cc7fb8b7925433a285340657"
+created_at: "2026-08-04T13:25:02Z"
+intent: "Harden long-running ASC execution, add bounded observations, and remove the objective ceiling."
+files:
+  - "packages/pi-autonomous-session-control/README.md"
+  - "packages/pi-autonomous-session-control/docs/project/execution-contract-change-checklist.md"
+  - "packages/pi-autonomous-session-control/docs/project/public-execution-contract.md"
+  - "packages/pi-autonomous-session-control/execution.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/execution-observation.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-edge-contract.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-runtime.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent-spawn.ts"
+  - "packages/pi-autonomous-session-control/extensions/self/subagent.ts"
+  - "packages/pi-autonomous-session-control/tests/dispatch-subagent.test.mjs"
+  - "packages/pi-autonomous-session-control/tests/execution-observation.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 7
+  rationale: "ASC owns the execution-plane contract and package-local regression proof."
