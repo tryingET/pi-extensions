@@ -51,17 +51,6 @@
       "path_in_layer": "reference/concepts/core.Agent.md"
     },
     {
-      "id": "core.AgentExperience",
-      "kind": "concept",
-      "labels": [
-        "Agent Experience",
-        "AX"
-      ],
-      "layer": "core",
-      "layer_kind": "ref",
-      "path_in_layer": "reference/concepts/core.AgentExperience.md"
-    },
-    {
       "id": "core.Assumption",
       "kind": "concept",
       "labels": [

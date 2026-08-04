@@ -9,21 +9,24 @@
       "locator_kind": "repo",
       "name": "company",
       "origin": "<repo:softwareco/ontology@main>",
-      "source": "workspace"
+      "source": "workspace",
+      "source_contract": "legacy"
     },
     {
       "kind": "ref",
       "locator_kind": "repo",
       "name": "core",
       "origin": "<repo:core/ontology-kernel@main>",
-      "source": "workspace"
+      "source": "workspace",
+      "source_contract": "ontology-markdown-v1"
     },
     {
       "kind": "path",
       "locator_kind": "path",
       "name": "repo",
       "origin": "ontology/src",
-      "source": "path"
+      "source": "path",
+      "source_contract": "legacy"
     }
   ],
   "locator_kinds_present": [
@@ -43,6 +46,15 @@
     "warning_count": 0
   },
   "schema_version": 3,
-  "version": "0.1.4",
+  "source_contract_conformance": {
+    "complete": true,
+    "corpus_digest": "sha256:de73e37c7e58d2dd08481968d4ff4b7b328b6238f3d7db46cc3c6edb0bbda708",
+    "document_count": 63,
+    "operation": "validate",
+    "schema": "rocs-source-contract-conformance.v1",
+    "scope": "source-contract/schema/reference",
+    "source_contract": "ontology-markdown-v1"
+  },
+  "version": "0.3.0",
   "workspace_ref_mode": "strict"
 }

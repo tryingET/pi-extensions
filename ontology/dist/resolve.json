@@ -5,6 +5,7 @@
       "name": "company",
       "origin": "<repo:softwareco/ontology@main>",
       "source": "workspace",
+      "source_contract": null,
       "src_root": "/home/tryinget/ai-society/softwareco/ontology/src"
     },
     {
@@ -12,6 +13,7 @@
       "name": "core",
       "origin": "<repo:core/ontology-kernel@main>",
       "source": "workspace",
+      "source_contract": "ontology-markdown-v1",
       "src_root": "/home/tryinget/ai-society/core/ontology-kernel/ontology/src"
     },
     {
@@ -19,11 +21,12 @@
       "name": "repo",
       "origin": "ontology/src",
       "source": "path",
+      "source_contract": null,
       "src_root": "/home/tryinget/ai-society/softwareco/owned/pi-extensions/ontology/src"
     }
   ],
   "profile": "repo-dev",
   "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
   "schema_version": 2,
-  "version": "0.1.4"
+  "version": "0.3.0"
 }

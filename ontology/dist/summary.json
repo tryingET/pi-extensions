@@ -5,7 +5,6 @@
     "co.software.Service",
     "core.Actor",
     "core.Agent",
-    "core.AgentExperience",
     "core.Assumption",
     "core.AuditEvent",
     "core.Capability",
@@ -46,7 +45,7 @@
     "pi.extensions.OptimizationHypothesis"
   ],
   "counts": {
-    "concepts": 44,
+    "concepts": 43,
     "relations": 20
   },
   "layers": [
@@ -88,5 +87,5 @@
   ],
   "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
   "schema_version": 1,
-  "version": "0.1.4"
+  "version": "0.3.0"
 }
