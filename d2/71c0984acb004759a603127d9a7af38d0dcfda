@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "d271c0984acb004759a603127d9a7af38d0dcfda"
-created_at: "2026-08-04T14:56:01Z"
+created_at: "2026-08-04T15:26:05Z"
 intent: "Refresh checked-in ROCS ontology projections against explicit resolved references."
 files:
   - "ontology/dist/authority-receipt.json"
@@ -20,5 +20,5 @@ validation:
     status: "pass"
 group:
   index: 6
-  total: 8
+  total: 9
   rationale: "Generated ontology artifacts are isolated from package feature commits."
