@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "e6571a41115638046d920175e02c5ac8c1240b99"
+created_at: "2026-08-04T14:00:35Z"
+intent: "Activate the owned pi-society-orchestrator source for repo-local Pi sessions."
+files:
+  - ".pi/settings.json"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 7
+  total: 7
+  rationale: "Repo-local activation is isolated from package implementation commits."
