@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "dec3f93c68916e24cb09508161079d35b900deb9"
-created_at: "2026-08-04T14:00:33Z"
+created_at: "2026-08-04T14:56:00Z"
 intent: "Replace event-count loop KES with checkpoint-backed terminal bundles and private claim evidence."
 files:
   - "packages/pi-society-orchestrator/README.md"
@@ -31,5 +31,5 @@ validation:
     status: "pass"
 group:
   index: 3
-  total: 7
+  total: 8
   rationale: "The orchestrator owns loop terminalization and package-local KES behavior; unresolved installed/crash-matrix closure is documented."
