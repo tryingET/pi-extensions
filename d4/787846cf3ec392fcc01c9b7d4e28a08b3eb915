@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "d4787846cf3ec392fcc01c9b7d4e28a08b3eb915"
+created_at: "2026-08-04T15:20:39Z"
+intent: "Retain ASC build dependencies until source-linked consumers are aligned, then prune before runtime proof."
+files:
+  - "scripts/governed-deep-review-canary.mjs"
+  - "scripts/release-components.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 9
+  total: 9
+  rationale: "npm 10 invokes linked prepare during alignment, so the governed materializer must close build and runtime phases in that order."
