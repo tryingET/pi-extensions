@@ -42,6 +42,7 @@ The seam is therefore an anti-drift boundary, not a goal by itself.
 
 The public runtime preserves the existing ASC execution-plane behavior:
 - request normalization and invariant checks
+- preservation of the complete normalized non-empty objective without truncation or an ASC-owned character-count ceiling; host/model context capacity remains external to this request invariant
 - runtime-owned in-process and cross-process capacity leases before spawn so `maxConcurrent` applies even to custom spawners and concurrent Pi processes sharing the session root
 - model selection failure shaping before spawn, including whitespace/empty model rejection, deterministic release of the reserved concurrency slot, and no exposure of internal concurrency counters on `model_selection_failed`
 - prompt-envelope application plus an advisory typed task contract (`deliverable`, acceptance criteria, constraints, evidence, mutation posture, stop conditions, and path scope)
@@ -49,8 +50,9 @@ The public runtime preserves the existing ASC execution-plane behavior:
 - session-name reservation and artifact-backed session lifecycle with stable dispatch IDs and per-run attempt IDs
 - model-visible canonical dispatch IDs before child output, followed by exact repository- and parent-session-checked resume through `resumeDispatchId`; current and legacy token formats remain inert unless persisted status metadata matches exactly, missing ownership metadata fails closed, and repeated names alone never resume a child
 - targeted cancellation through `runtime.cancel(...)`, gated by repository ownership and live process identity
-- distinct bounded startup timeout and execution timeout, with unlimited execution requiring both request and host opt-in
+- distinct bounded startup timeout and execution emergency deadman, with a 30-second startup default, a four-hour execution default, and unlimited execution requiring both request and host opt-in
 - bounded progress updates with sequence, phase, usage, and latest-tool metadata
+- a pure bounded observation projector (`projectAscExecutionUpdate`, `projectAscExecutionResult`, `projectAscExecutionFailure`, and `projectAscExecutionGroupTerminal`) that strips objective/prompt/output/session/receipt-path content before extension adapters publish `asc.execution_observation.v1`; the public runtime remains headless and never launches Ghostty
 - subagent spawn execution
 - structured result shaping used by `dispatch_subagent`; the tool adapter throws on failure so Pi records `tool_execution_end.isError=true`, while the public runtime retains structured non-throwing results
 - assistant protocol semantics (`message_end` stop reasons, agent settlement, parse failures, timeout/abort state), including fail-closed rejection unless a final terminal assistant outcome is followed by one authoritative `agent_settled` on declared Pi >=0.80 or by final `agent_end.willRetry=false` plus clean foreground exit in explicitly declared Pi 0.76 compatibility mode
@@ -89,6 +91,7 @@ These invariants are currently anchored by:
 - `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 - `tests/dispatch-subagent-lifecycle-control.test.mjs`
+- `tests/execution-observation.test.mjs`
 
 ## Change checklist
 
@@ -144,6 +147,7 @@ Useful properties:
 - `result.details.displayOutput` preserves the normalized body text consumers should render or forward, even when `fullOutput` is empty/whitespace on failing executions
 - `result.details.status` uses the canonical terminal execution taxonomy (`done`, `aborted`, `timed_out`, `error`); progress updates additionally use `spawning` and `running`
 - `result.details.dispatchId` is stable across an explicit resume, while `attemptId` changes per attempt; progress updates carry both plus monotonic `progressSequence`
+- omitted execution timeout now reports and enforces the positive `PI_SUBAGENT_DEFAULT_TIMEOUT_MS` value or the four-hour emergency default; callers should not add routine 5–10 minute cutoffs merely to detect progress
 - `result.details.failureKind` names the normalized failure branch (`timed_out`, `startup_timed_out`, `assistant_protocol_error`, `assistant_protocol_parse_error`, `assistant_protocol_incomplete`, `transport_error`, `extension_bootstrap_missing`, `env_policy_failed`, `skill_profile_failed`, `model_selection_failed`, or the pre-execution guardrail reasons)
 - `result.details.executionState` preserves transport vs assistant-protocol truth when consumers need exact classification beyond the normalized status/failure taxonomy
 - request `env` values are intentionally not echoed into `result.details`; only `PI_PROVENANCE_*` request env keys are accepted, there is no privileged passthrough escape hatch, and consumers that need provenance should read their own sidecar/output artifact
@@ -164,6 +168,7 @@ The live cross-extension harness plus prompt-envelope integration tests should p
 ## Non-goals
 
 This contract does **not** make the following public by implication:
+- Ghostty/tab launch, observer state, and rendering remain outside this headless seam in `pi-little-helpers`; observation events and launch facts are diagnostic only and never effect receipts
 - arbitrary `extensions/self/*` module layout
 - dashboard/UI composition internals
 - extension bootstrapping details unrelated to execution runtime reuse

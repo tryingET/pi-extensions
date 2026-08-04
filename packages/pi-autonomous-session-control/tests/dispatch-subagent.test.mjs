@@ -37,6 +37,31 @@ test("dispatch_subagent keeps legacy profile/systemPrompt behavior when no promp
     await harness.cleanup();
   }
 });
+
+test("dispatch_subagent does not impose a package-owned objective character limit", async () => {
+  const harness = await setup();
+  const objective = `Review the complete supplied context.\n${"x".repeat(32_000)}`;
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-unbounded-objective",
+      {
+        profile: "reviewer",
+        objective,
+      },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+
+    const def = harness.getCapturedDef();
+    assert.equal(def.objective, objective);
+    assert.equal(def.taskContract.objective, objective);
+    assert.equal(result.details.objective, objective);
+  } finally {
+    await harness.cleanup();
+  }
+});
 test("dispatch_subagent records the current live session key on spawned sessions when available", async () => {
   const harness = await setup();
 
@@ -165,7 +190,7 @@ test("dispatch_subagent uses default timeout when not specified", async () => {
   const harness = await setup();
 
   try {
-    await harness.tool.execute(
+    const result = await harness.tool.execute(
       "tc-10",
       {
         profile: "reviewer",
@@ -178,6 +203,7 @@ test("dispatch_subagent uses default timeout when not specified", async () => {
 
     const def = harness.getCapturedDef();
     assert.equal(def.timeout, undefined); // Default applied in spawnSubagent
+    assert.equal(result.details.executionTimeoutSeconds, 14_400);
   } finally {
     await harness.cleanup();
   }

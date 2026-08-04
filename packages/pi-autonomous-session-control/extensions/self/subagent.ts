@@ -4,6 +4,14 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { shapeToolResult } from "./edge-contract-kernel.ts";
+import {
+  ASC_EXECUTION_OBSERVATION_EVENT,
+  type AscExecutionObservation,
+  type AscExecutionObservationContext,
+  projectAscExecutionFailure,
+  projectAscExecutionResult,
+  projectAscExecutionUpdate,
+} from "./execution-observation.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import {
   type AscExecutionRuntime,
@@ -71,6 +79,19 @@ type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "p
   promptGuidelines?: string[];
 };
 
+function emitExecutionObservation(
+  pi: ExtensionAPI,
+  observation: AscExecutionObservation | undefined,
+): void {
+  if (!observation) return;
+  try {
+    // Observation is explicitly best-effort: a missing or failing listener must not perturb ASC.
+    pi.events.emit(ASC_EXECUTION_OBSERVATION_EVENT, observation);
+  } catch {
+    // Ghostty/UI observation is never part of execution or effect-receipt truth.
+  }
+}
+
 export function registerDispatchSubagentTool(pi: ExtensionAPI, runtime: AscExecutionRuntime): void {
   const tool: CompatToolDefinition = {
     name: "dispatch_subagent",
@@ -114,6 +135,7 @@ Child skill profile bootstrap (optional):
     promptGuidelines: [
       "Use dispatch_subagent when parallel work will reduce risk or latency versus doing the investigation yourself inline.",
       "Pick the narrowest profile and objective that will produce a useful intermediate result you can inspect before proceeding.",
+      "Do not impose routine 5–10 minute cutoffs on healthy modern-agent work; omit timeout for the long emergency deadman unless the operator requested a shorter absolute bound.",
       "When resuming dispatch_subagent, copy resumeDispatchId exactly from the prior result's model-visible Dispatch ID; never derive it from name, sessionName, or another identifier.",
     ],
     parameters: Type.Object({
@@ -148,7 +170,7 @@ Child skill profile bootstrap (optional):
       timeout: Type.Optional(
         Type.Number({
           description:
-            "Execution timeout after child bootstrap in seconds (default: 300). timeout=0 also requires allowUnlimited=true and host policy opt-in.",
+            "Absolute execution deadman after child bootstrap in seconds (default: 14400 / 4 hours). Omit for ordinary supervised work; timeout=0 still requires allowUnlimited=true and host policy opt-in.",
         }),
       ),
       allowUnlimited: Type.Optional(
@@ -232,20 +254,40 @@ Child skill profile bootstrap (optional):
     }),
 
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
-      const result = await runtime.execute(
-        params as DispatchSubagentRequest,
-        ctx,
-        onUpdate
-          ? (update) => {
-              onUpdate({
-                content: [{ type: "text", text: update.text }],
-                details: update.details,
-              });
-            }
-          : undefined,
-        _signal ?? undefined,
-      );
+      const request = params as DispatchSubagentRequest;
+      const observationContext: AscExecutionObservationContext = {
+        producer: "dispatch_subagent",
+        cwd: ctx.cwd,
+        group: {
+          id: `dispatch-tool-${_toolCallId}`,
+          kind: "dispatch",
+          label: `Dispatch · ${request.profile}`,
+        },
+      };
 
+      let result: DispatchSubagentExecutionResult;
+      try {
+        result = await runtime.execute(
+          request,
+          ctx,
+          (update) => {
+            emitExecutionObservation(pi, projectAscExecutionUpdate(update, observationContext));
+            onUpdate?.({
+              content: [{ type: "text", text: update.text }],
+              details: update.details,
+            });
+          },
+          _signal ?? undefined,
+        );
+      } catch (error) {
+        emitExecutionObservation(
+          pi,
+          projectAscExecutionFailure(observationContext, "execution_rejected"),
+        );
+        throw error;
+      }
+
+      emitExecutionObservation(pi, projectAscExecutionResult(result, observationContext));
       if (!result.ok) {
         throw new DispatchSubagentToolError(result);
       }

@@ -87,6 +87,7 @@ import {
 } from "./subagent-skill-selection.ts";
 import {
   formatSubagentEnvPolicyIssues,
+  resolveDefaultSubagentTimeoutMs,
   type SubagentDef,
   type SubagentResult,
   type SubagentSpawner,
@@ -449,6 +450,7 @@ export async function executeDispatchSubagentRequest(options: {
   const runtimeOwnsStatusProjection = spawner !== spawnSubagent;
   let progressSequence = 0;
   const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
+  const executionTimeoutSeconds = (timeoutMs ?? resolveDefaultSubagentTimeoutMs()) / 1000;
   const startupTimeoutMs = (startupTimeout ?? 30) * 1000;
   const configuredThinking = thinking ?? profileDef?.thinking ?? "medium";
   try {
@@ -513,7 +515,7 @@ export async function executeDispatchSubagentRequest(options: {
         resumeDispatchId,
         configuredThinking,
         startupTimeoutSeconds: startupTimeoutMs / 1000,
-        executionTimeoutSeconds: timeoutMs === undefined ? 300 : timeoutMs / 1000,
+        executionTimeoutSeconds,
         taskContract,
         progressSequence: ++progressSequence,
         progressPhase: "spawning",
@@ -578,7 +580,7 @@ export async function executeDispatchSubagentRequest(options: {
             resumed: Boolean(resume?.ok),
             configuredThinking,
             startupTimeoutSeconds: startupTimeoutMs / 1000,
-            executionTimeoutSeconds: timeoutMs === undefined ? 300 : timeoutMs / 1000,
+            executionTimeoutSeconds,
             taskContract,
             usage: progress.usage,
             progressSequence: ++progressSequence,
@@ -694,7 +696,7 @@ export async function executeDispatchSubagentRequest(options: {
       resumeDispatchId,
       configuredThinking,
       startupTimeoutSeconds: startupTimeoutMs / 1000,
-      executionTimeoutSeconds: timeoutMs === undefined ? 300 : timeoutMs / 1000,
+      executionTimeoutSeconds,
       timeoutPhase: result.timeoutPhase,
       taskContract,
       usage: result.usage,

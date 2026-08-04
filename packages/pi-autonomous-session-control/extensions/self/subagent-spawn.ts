@@ -28,7 +28,15 @@ import {
 export * from "./subagent-spawn-env.ts";
 export * from "./subagent-spawn-types.ts";
 
-const DEFAULT_SUBAGENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+export const DEFAULT_SUBAGENT_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4-hour emergency deadman
+
+export function resolveDefaultSubagentTimeoutMs(): number {
+  const configured = readNonNegativeIntEnv(
+    ["PI_SUBAGENT_DEFAULT_TIMEOUT_MS"],
+    DEFAULT_SUBAGENT_TIMEOUT_MS,
+  );
+  return configured > 0 ? configured : DEFAULT_SUBAGENT_TIMEOUT_MS;
+}
 const DEFAULT_SUBAGENT_STARTUP_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_SUBAGENT_PROGRESS_HEARTBEAT_MS = 2 * 1000;
 const DEFAULT_SUBAGENT_OUTPUT_CHARS = 64_000;
@@ -47,7 +55,7 @@ export function spawnSubagentWithSpawn(
   onProgress?: (event: import("./subagent-spawn-types.ts").SubagentProgressEvent) => void,
 ): Promise<SubagentResult> {
   const startTime = Date.now();
-  const timeout = def.timeout ?? DEFAULT_SUBAGENT_TIMEOUT_MS;
+  const timeout = def.timeout ?? resolveDefaultSubagentTimeoutMs();
   const startupTimeout = def.startupTimeout ?? DEFAULT_SUBAGENT_STARTUP_TIMEOUT_MS;
   const maxOutputChars = readNonNegativeIntEnv(
     ["PI_SUBAGENT_OUTPUT_CHARS", "PI_ORCH_SUBAGENT_OUTPUT_CHARS"],

@@ -28,6 +28,8 @@ Do **not** land the change if it would introduce any of the following:
 - private `extensions/self/*` imports as the consumer seam
 - an orchestrator-local spawn/runtime revival or copied lifecycle logic
 - UI, dashboard, or tool-registration concerns in the headless public contract
+- observer launch/rendering ownership in ASC, or any observation-listener result influencing execution, cancellation, settlement, retry, or effect-receipt truth
+- observation payloads that carry prompt/objective/output/stderr/environment/session-path/receipt-path content, truncate caller-controlled group identity into collisions, or grow without explicit field/array bounds
 - unbounded stdout/stderr/raw-event buffering or weaker truncation signaling
 - weaker abort, startup/execution timeout, cancellation identity, assistant-protocol terminal-event, model-selection, or malformed-output truth in execution results
 - drift between raw `fullOutput`, normalized `displayOutput`, and consumer-side rendering helpers for the same failure mode
@@ -39,6 +41,7 @@ Do **not** land the change if it would introduce any of the following:
 When public entrypoints, supported semantics, or stewardship rules change, update the relevant packet directly:
 
 - [`public-execution-contract.md`](public-execution-contract.md)
+- [`../../../pi-little-helpers/docs/project/2026-08-04-asc-execution-observer-contract.md`](../../../pi-little-helpers/docs/project/2026-08-04-asc-execution-observer-contract.md) when observation fields, ownership, privacy, grouping, or failure isolation changes
 - [`../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md`](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md) when supported scope, guardrails, or removal/review logic changes
 - [`../../../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md`](../../../pi-society-orchestrator/docs/project/2026-03-10-architecture-convergence-backlog.md) when the stewardship queue or proof expectations change
 - [`../../../../governance/execution-seam-cases/README.md`](../../../../governance/execution-seam-cases/README.md) when a learned edge case should become a named reusable seam scenario
@@ -49,7 +52,7 @@ If the change alters how failure/body text is surfaced or adds a `failureKind`, 
 ## 4. Choose and run the right verification layer
 
 Do **not** use installed-package smoke as a substitute for package-local contract proof, and do **not** use package-local tests as a substitute for packaged-import proof.
-The seam currently has three distinct verification layers:
+The seam currently has four distinct verification layers:
 
 ### Layer A — ASC package-local contract truth
 
@@ -62,6 +65,7 @@ Run these whenever the ASC public runtime itself, the named transport-safety inv
 - `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 - `tests/dispatch-subagent-lifecycle-control.test.mjs`
+- `tests/execution-observation.test.mjs`
 
 This layer proves the supported seam semantics owned by ASC.
 For helper-protocol changes, do not stop at EventEmitter-only mocks: include at least one spawned-helper proof for raw-Pi framing, one complete-line oversize proof, and one raw-child teardown proof when timeout/abort handling changed.
@@ -73,11 +77,22 @@ Run this whenever the orchestrator adapter, orchestration decisions derived from
 
 - `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs`
 - `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs`
+- `packages/pi-society-orchestrator/tests/loop-observation.test.mjs` when logical run/phase grouping or terminal projection changes
 
 This layer proves the narrow consumer still composes the ASC seam truthfully inside repo-local source and that private-import / duplicate-runtime drift remains fail-closed.
 Where practical, reuse the named seam scenarios from `governance/execution-seam-cases/` instead of hand-rolling a second fixture story.
 
-### Layer C — Installed-package smoke / packaging truth
+### Layer C — Observer-owner projection truth
+
+Run this whenever the event parser, private snapshot, Ghostty placement, renderer lifecycle, mode policy, retention, or listener cleanup changes:
+
+- `packages/pi-little-helpers/tests/asc-execution-observer.test.mjs`
+- `packages/pi-little-helpers/tests/asc-execution-observer-launch.test.mjs`
+- `cd packages/pi-little-helpers && npm run check`
+
+This layer proves bounded presentation and fail-open fallback only. It does not prove ASC child execution or effect settlement.
+
+### Layer D — Installed-package smoke / packaging truth
 
 Run this whenever package exports, tarball contents, bundle topology, installed import paths, release-smoke harness behavior, or installed extension registration/behavior changes:
 
@@ -88,13 +103,18 @@ If packaging truth diverges from the casebook, update the casebook or the artifa
 
 Minimum rule of thumb:
 - seam semantics changed -> run **Layer A** and **Layer B**
-- install/publish topology changed -> run **Layer C**
-- mixed seam + packaging change -> run **all three layers** before closeout
+- observation projection/rendering changed -> run **Layer C**
+- install/publish topology changed -> run **Layer D**
+- mixed seam + observation + packaging change -> run **all four layers** before closeout
 
 ## 5. Run the current full closeout set
 
 ```bash
 cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-autonomous-session-control
+npm run docs:list
+npm run check
+
+cd ~/ai-society/softwareco/owned/pi-extensions/packages/pi-little-helpers
 npm run docs:list
 npm run check
 

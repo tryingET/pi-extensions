@@ -13,7 +13,6 @@ import type { SubagentState } from "./subagent-session.ts";
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 const MUTATION_POLICIES = ["read_only", "bounded_mutation"] as const;
-const MAX_OBJECTIVE_LENGTH = 8_000;
 const MAX_CONTRACT_ITEMS = 32;
 const MAX_CONTRACT_ITEM_LENGTH = 1_000;
 
@@ -50,7 +49,6 @@ export interface NormalizedDispatchParams {
   rawStartupTimeout: unknown;
   rawThinking: unknown;
   rawMutationPolicy: unknown;
-  rawObjective: unknown;
   contractArraysValid: boolean;
 }
 
@@ -67,7 +65,7 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
 
   return {
     profile: normalizeString(normalized.profile, { maxLength: 40 }) || "",
-    objective: normalizeString(normalized.objective, { maxLength: MAX_OBJECTIVE_LENGTH }),
+    objective: normalizeString(normalized.objective),
     tools: normalizeString(normalized.tools, { maxLength: 500 }),
     resumeDispatchId: normalizeString(normalized.resumeDispatchId, { maxLength: 200 }),
     thinking: normalizeEnum(normalized.thinking, THINKING_LEVELS),
@@ -102,7 +100,6 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
     rawStartupTimeout: normalized.startupTimeout,
     rawThinking: normalized.thinking,
     rawMutationPolicy: normalized.mutationPolicy,
-    rawObjective: normalized.objective,
     contractArraysValid: contractArrayKeys.every((key) => isValidContractArray(normalized[key])),
   };
 }
@@ -130,12 +127,8 @@ export function validateDispatchParams(params: NormalizedDispatchParams): Invari
     },
     {
       id: "dispatch.objective.required",
-      check:
-        typeof params.objective === "string" &&
-        params.objective.length > 0 &&
-        typeof params.rawObjective === "string" &&
-        params.rawObjective.trim().length <= MAX_OBJECTIVE_LENGTH,
-      message: `objective must be a non-empty string no longer than ${MAX_OBJECTIVE_LENGTH} characters.`,
+      check: typeof params.objective === "string" && params.objective.length > 0,
+      message: "objective must be a non-empty string.",
     },
     {
       id: "dispatch.timeout.bounded",

@@ -4,6 +4,21 @@
 //   - consuming the package-level execution API without importing extension internals.
 // ---
 
+export {
+  ASC_EXECUTION_OBSERVATION_EVENT,
+  ASC_EXECUTION_OBSERVATION_SCHEMA,
+  type AscExecutionObservation,
+  type AscExecutionObservationContext,
+  type AscExecutionObservationGroupKind,
+  type AscExecutionObservationProducer,
+  type AscExecutionProgressObservation,
+  type AscExecutionTerminalObservation,
+  type AscExecutionTerminalStatus,
+  projectAscExecutionFailure,
+  projectAscExecutionGroupTerminal,
+  projectAscExecutionResult,
+  projectAscExecutionUpdate,
+} from "./extensions/self/execution-observation.ts";
 export { SUBAGENT_PROFILES } from "./extensions/self/subagent-profiles.ts";
 export {
   type AscExecutionRuntime,
