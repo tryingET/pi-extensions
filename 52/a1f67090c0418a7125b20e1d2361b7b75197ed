@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "52a1f67090c0418a7125b20e1d2361b7b75197ed"
-created_at: "2026-08-04T14:00:32Z"
+created_at: "2026-08-04T14:55:59Z"
 intent: "Add bounded read-only Ghostty observation for ASC execution groups."
 files:
   - "packages/pi-little-helpers/README.md"
@@ -27,5 +27,5 @@ validation:
     status: "pass"
 group:
   index: 2
-  total: 7
+  total: 8
   rationale: "The presentation owner remains separate from ASC execution truth."
