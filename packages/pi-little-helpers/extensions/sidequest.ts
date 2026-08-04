@@ -14,8 +14,15 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import {
+  ASC_EXECUTION_OBSERVATION_EVENT,
+  type AscExecutionObserverController,
+  type AscObserverLaunchRequest,
+  createAscExecutionObserverController,
+} from "../src/ascExecutionObserver.ts";
 import {
   bindCandidateAdmission,
   type CandidateAdmissionReservation,
@@ -92,6 +99,9 @@ const GHOSTTY_BIN_NAME = "ghostty";
 const LOCAL_GHOSTTY_WRAPPER = join(homedir(), ".local", "bin", "ghostty-sidequest");
 const LOCAL_GHOSTTY_OPT_DIR = join(homedir(), ".local", "opt");
 const LOCAL_GHOSTTY_BIN = join(LOCAL_GHOSTTY_OPT_DIR, "ghostty-sidequest", "bin", "ghostty");
+const ASC_EXECUTION_OBSERVER_SCRIPT = fileURLToPath(
+  new URL("../scripts/asc-execution-observer.mjs", import.meta.url),
+);
 
 type PiToolParameters = Parameters<ExtensionAPI["registerTool"]>[0]["parameters"];
 type PiCommandContext = Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1];
@@ -136,6 +146,11 @@ type LaunchResult = {
   killed: boolean;
 };
 
+type GhosttyCommandSpec = {
+  command: string;
+  args: string[];
+};
+
 type SidequestOptions = {
   env?: NodeJS.ProcessEnv;
   exec?: ExecRunner;
@@ -148,6 +163,8 @@ type SidequestOptions = {
   registerCommands?: boolean;
   registerTools?: boolean;
   governedDeepReviewPreflight?: RunVisibleLoopGovernedPreflight;
+  ascExecutionObserver?: AscExecutionObserverController;
+  ascObserverStateRoot?: string;
   candidateAdmission?: {
     reserve: typeof reserveCandidateAdmission;
     bind: typeof bindCandidateAdmission;
@@ -1100,6 +1117,7 @@ async function launchPiQuestSession({
   cwd,
   sourceSessionFile,
   titlePrefix = "Sidequest",
+  command,
 }: {
   pi: ExtensionAPI;
   ctx: { model?: unknown };
@@ -1109,6 +1127,7 @@ async function launchPiQuestSession({
   cwd: string;
   sourceSessionFile?: string;
   titlePrefix?: string;
+  command?: GhosttyCommandSpec;
 }): Promise<SidequestLaunchOutcome> {
   const env = options.env ?? process.env;
   const pathExists = options.pathExists ?? existsSync;
@@ -1152,9 +1171,11 @@ async function launchPiQuestSession({
   });
 
   const sessionMode: QuestSessionMode = sourceSessionFile ? "fork" : "clean";
-  const piArgs = sourceSessionFile
-    ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
-    : [piBin, ...modelArgs, prompt];
+  const piArgs = command
+    ? [command.command, ...command.args]
+    : sourceSessionFile
+      ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
+      : [piBin, ...modelArgs, prompt];
   let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
   const controllerDbusTarget =
     launchMode === "tab"
@@ -1257,6 +1278,44 @@ async function launchPiQuestSession({
     promptSummary,
     launchNote,
   };
+}
+
+async function launchAscExecutionObserverSession(
+  pi: ExtensionAPI,
+  options: SidequestOptions,
+  request: AscObserverLaunchRequest,
+) {
+  const launch = await launchPiQuestSession({
+    pi,
+    ctx: {},
+    options,
+    prompt: "read-only ASC execution observation",
+    titlePrompt: request.title,
+    titlePrefix: "ASC observer",
+    cwd: request.cwd,
+    command: {
+      command: process.execPath,
+      args: [
+        ASC_EXECUTION_OBSERVER_SCRIPT,
+        "--state",
+        request.statePath,
+        "--controller-instance",
+        request.controllerInstanceId,
+      ],
+    },
+  });
+  return launch.ok
+    ? {
+        ok: true as const,
+        launchMode: launch.launchMode,
+        ...(launch.launchNote ? { note: launch.launchNote } : {}),
+      }
+    : {
+        ok: false as const,
+        launchMode: launch.launchMode,
+        failure: launch.failure,
+        ...(launch.launchNote ? { note: launch.launchNote } : {}),
+      };
 }
 
 function normalizeStringArray(value: string[] | undefined): string[] {
@@ -2214,6 +2273,42 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     const executeCloseout =
       options.candidateCloseout?.execute ?? executeLifecycleCandidatePeerCloseout;
     const runCloseoutJanitor = options.candidateCloseout?.janitor ?? runCandidatePeerJanitor;
+    let currentObserverContext: PiCommandContext | undefined;
+    let stopAscObservation: (() => void) | undefined;
+    const ascExecutionObserver =
+      options.ascExecutionObserver ??
+      createAscExecutionObserverController({
+        env: options.env ?? process.env,
+        processId: options.processId ?? process.pid,
+        stateRoot: options.ascObserverStateRoot,
+        launch: (request) => launchAscExecutionObserverSession(pi, options, request),
+        onLaunchFailure: (message) => {
+          if (currentObserverContext?.mode === "tui" && currentObserverContext.hasUI) {
+            currentObserverContext.ui.notify(message, "warning");
+          }
+        },
+      });
+
+    if (registerCommands) {
+      stopAscObservation = pi.events?.on?.(ASC_EXECUTION_OBSERVATION_EVENT, (event) => {
+        ascExecutionObserver.handle(event);
+      });
+      pi.on?.("session_start", async (_event, ctx) => {
+        currentObserverContext = ctx as PiCommandContext;
+        ascExecutionObserver.setHostContext({
+          mode: ctx.mode,
+          hasUI: ctx.hasUI,
+          cwd: ctx.cwd,
+          sessionId: ctx.sessionManager.getSessionId?.(),
+        });
+      });
+      pi.on?.("session_shutdown", async () => {
+        stopAscObservation?.();
+        stopAscObservation = undefined;
+        currentObserverContext = undefined;
+        await ascExecutionObserver.dispose();
+      });
+    }
 
     async function runForkPeerCommand(
       args: string | undefined,

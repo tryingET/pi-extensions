@@ -40,11 +40,29 @@ export function registerExtension(extension, { thinkingLevel = "medium" } = {}) 
   const commands = new Map();
   const tools = new Map();
   const events = new Map();
+  const busEvents = new Map();
   const userMessages = [];
 
   extension({
     getThinkingLevel() {
       return thinkingLevel;
+    },
+    events: {
+      on(name, handler) {
+        const handlers = busEvents.get(name) ?? [];
+        handlers.push(handler);
+        busEvents.set(name, handlers);
+        return () => {
+          const current = busEvents.get(name) ?? [];
+          busEvents.set(
+            name,
+            current.filter((candidate) => candidate !== handler),
+          );
+        };
+      },
+      emit(name, payload) {
+        for (const handler of busEvents.get(name) ?? []) handler(payload);
+      },
     },
     registerCommand(name, definition) {
       commands.set(name, definition);
@@ -62,7 +80,7 @@ export function registerExtension(extension, { thinkingLevel = "medium" } = {}) 
     },
   });
 
-  return { commands, tools, events, userMessages };
+  return { commands, tools, events, busEvents, userMessages };
 }
 
 export async function observeVisibleLoopMessageAt(events, userMessages, index, ctx) {
@@ -102,6 +120,7 @@ export function createContext(options = {}) {
     ctx: {
       cwd,
       hasUI: true,
+      mode: options.mode ?? "tui",
       model,
       ui: {
         notify(message, type = "info") {

@@ -47,6 +47,8 @@
     "loop-landing-check": "npm run check"
   },
   "files": [
+    "src/ascExecutionObserver.ts",
+    "src/ascExecutionObserverProtocol.ts",
     "extensions/code-block-picker.ts",
     "extensions/codex-reset.ts",
     "extensions/html-output-browser.ts",
@@ -107,7 +109,9 @@
     "policy/engineering-lane.json",
     "scripts/candidate-lifecycle-v2.mjs",
     "scripts/candidate-admission-v2.mjs",
+    "scripts/asc-execution-observer.mjs",
     "docs/project/2026-08-03-terminal-candidate-retention-compaction.md",
+    "docs/project/2026-08-04-asc-execution-observer-contract.md",
     "THIRD_PARTY_NOTICES.md"
   ],
   "exports": {

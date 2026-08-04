@@ -3,6 +3,7 @@ summary: "Runtime contract for how /sidequest chooses Ghostty binaries, decides 
 read_when:
   - "You are changing /sidequest launch behavior or debugging why it did not open in the current Ghostty window."
   - "You need the operator-facing truth for Ghostty surface ids, fallback rules, or release smoke expectations."
+  - "You are changing automatic ASC observer placement, which reuses this launch path for a read-only Node command rather than a Pi peer."
 system4d:
   container: "Package-local runtime contract for the sidequest Ghostty launch path."
   compass: "Keep /sidequest honest: same-window tab attach only when the active Ghostty session can actually support it."
@@ -37,6 +38,7 @@ If the active Ghostty session cannot prove that, `/sidequest` must open a **new 
 12. Never report success before Ghostty returns a successful launch result. An executor result marked `killed` is a launch failure even if its normalized exit code is zero.
 13. After a successful tab launch request, perform a brief best-effort placement check through `session-presence`: match the launched Pi session by cwd/title, compare the controller and child Ghostty ancestor PIDs, and warn when the child landed under a different Ghostty window/process. This check corrects the operator-facing message; it does not turn terminal placement into task/evidence authority.
 14. Controller-process D-Bus targeting must resolve a single unique bus name whose reported PID equals the observed Ghostty ancestor PID, encode the surface id as a bounded unsigned 64-bit integer, pass launch arguments as argv elements rather than shell-concatenating a `busctl` command, terminate `busctl` option parsing before those embedded arguments, and avoid waiting for the action reply. If direct activation fails or is killed, use the existing honest new-window fallback.
+15. The automatic ASC observer may reuse this exact Ghostty selection/placement path with an explicit read-only Node renderer command instead of a Pi peer command. That extension does not make the renderer a child-session owner: launch success is observer placement only, renderer exit never cancels ASC execution, and no-UI callers remain headless.
 
 ## Non-goals
 

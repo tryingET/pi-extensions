@@ -39,8 +39,8 @@ launch visible helper work; do not make helper output authority
 
 ## Current product maturity
 
-- maturity: `internal alpha / visible peer and visible-loop harness operational`
-- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as concise execution harnesses, not evaluators or evidence stores, while preserving bound objectives and closeout guards through launch, single-frontier continuation, and completion
+- maturity: `internal alpha / visible peer, visible-loop, and automatic ASC observer harness operational`
+- current strategic line: keep `/visible-loop` and `/nexus-loop` truthful as concise execution harnesses while making long-running ASC work automatically observable without absorbing execution, effect-receipt, evaluator, or evidence ownership
 - release posture: package has local loop validation scripts and tests for prompt expansion, checkpointing, completion, commit delegation, and visible peer capability registration
 - latest candidate-handoff hardening: `/visible-loop --candidate evolution-...` resolves only a matching fresh candidate from a correlated preceding assistant `self` tool call and `self` tool result in the active Pi branch, requires a canonical direct `packages/<owner>/...json` artifact of kind `self.evolution_owner_artifact.v1` with exact candidate/owner binding, persists the full audit envelope plus parsed artifact, and injects only the safe manifest, owner-approved hypothesis/metric/falsifier/scope/validation data, and guard requirements into the first child prompt; child start/restore/completion recheck age and source-session binding, and candidate completion returns a typed accepted/rejected result after correlating evidence references to host-observed package-check calls, ordered ASC proof-ledger runs, and canonical owner artifacts
 
@@ -56,6 +56,7 @@ launch visible helper work; do not make helper output authority
 - commit delegation for `/nexus-loop` and `/visible-loop --delegate-commit` through `dispatch_subagent` after prompt expansion, with command-aware delegation prompt names and run-id wording;
 - a six-real-prompt default visible loop—bound design/implementation, completion audit, governed deep review, consolidated Nexus fixup, posture refresh, and commit—and a four-real-prompt Nexus loop that begins at governed review;
 - package-local implementation of the visible execution loop category defined by the root loop taxonomy boundary contract.
+- automatic read-only Ghostty observation of bounded `asc.execution_observation.v1` progress in interactive Ghostty sessions, with one group/tab per direct dispatch or logical orchestrator loop, private 0600 snapshots, quiet/suspected-stall cues, and headless fallback; ASC retains execution/effect truth and observer closure never cancels work.
 
 ## Product non-goals
 
@@ -66,6 +67,7 @@ launch visible helper work; do not make helper output authority
 - a durable diagnostic or recurrence store — [pi-agent-vent](../../../pi-agent-vent/docs/project/vision.md) owns that;
 - a measured experiment/evaluator runtime — [pi-autoresearch](../../../pi-autoresearch/docs/project/vision.md) owns that;
 - an above-seam evidence projector — [pi-society-orchestrator](../../../pi-society-orchestrator/docs/project/vision.md) owns that;
+- the ASC execution/process/effect owner — [pi-autonomous-session-control](../../../pi-autonomous-session-control/docs/project/vision.md) retains that even when this package renders its bounded observation projection;
 - a replacement for controller inspection, package-local validation, or owner-surface promotion.
 
 ## Visible-loop posture
@@ -102,6 +104,7 @@ A visible-loop result is trustworthy only when:
 10. **Governed review is receipt-gated** — exactly one deep-review call may satisfy the barrier, and only after `vault_execute_template` returns the exact `deep-review` / `workflow_execute` identity, a non-empty Vault handoff id, and `status=done`; duplicate, missing, failed, timed-out, or raw-file review paths stop before Nexus, posture refresh, commit, and completion.
 11. **Plan visibility is not release authority** — the operator widget shows all six visible-loop or four Nexus real prompts, but only one exact frontier is submitted. `sendUserMessage` submission remains submitted/pending rather than host-queued truth until correlated `message_start`; only that observed run's `agent_settled` may advance the cursor. This is safe under `followUpMode=all` because the extension never batches runnable prompts.
 12. **Recovery is explicit and fail-closed** — the atomic schema-5 per-session snapshot binds plan id, iteration, lifecycle, frontier, settled progress, and governed call receipt for recovery, while a separate owner-only run-global lease is the sole cross-session exclusion authority. ACTIVE ownership is session/process-incarnation bound, LAUNCHING handoff consumes one unguessable token, FAILED permits one explicit recovery, and COMPLETED is terminal. Same-process reload renders/resumes without duplicate submission; fresh restart, corrupt state, token replay, or indeterminate submission fails explicitly. A terminal plan is finalized before authoritative checked completion persistence, cannot be reused after continuation-launch failure, and the widget is finalized or cleared on completion.
+13. **Observation stays non-authoritative** — ASC observer events exclude prompt/output/session/receipt paths, private snapshots remain diagnostic only, Ghostty launch proves only observer placement, quiet/stall labels do not authorize cancellation, and observer failure or closure leaves execution unchanged.
 
 ## Next product bets
 

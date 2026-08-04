@@ -26,12 +26,18 @@ Canonical monorepo home for the former standalone `pi-little-helpers` extension 
 | `html-output-browser` | Auto-open written/edited HTML files in the browser, append clickable `file://` links to tool output, and expose `/artifacts` / `/show-artifacts` plus `Ctrl+Shift+S` to pick an openable artifact from the workspace or recently written outside it |
 | `package-update-notify` | Check for updates to pinned npm/git packages in Pi settings |
 | `session-presence` | Publish exact Pi session identity for Steve's Ghostty/Niri hourly observation and hot restore flow |
-| `sidequest` | Human slash command to fork the current Pi session into the current Ghostty window as a new tab when supported; otherwise a new Ghostty window |
+| `sidequest` | Human slash command to fork the current Pi session into the current Ghostty window as a new tab when supported; also owns automatic read-only Ghostty observers for ASC dispatch/loop progress |
 | `scoutpeer` | Launch a clean visible read-only scout/review peer in the current workspace |
 | `parallelquest` | Human slash command to launch a clean visible candidate peer in an isolated git worktree |
 | `visible-loop` | Launch a clean visible Ghostty Pi tab for each iteration and submit a six-step real-prompt plan one frontier at a time: bound design/implementation, completion audit, governed deep review, consolidated Nexus fixup, posture refresh, and commit; `--delegate-commit` resolves `/commit` and delegates it to `dispatch_subagent` instead of running commit inline |
 | `nexus-loop` | Launch the same machinery with four real prompts: governed `deep-review` through `vault_execute_template`, one consolidated Nexus fixup that may use at most one non-Prompt-Vault read-only reviewer when available and useful before atomic completion, posture refresh, and a resolved `/commit` prompt delegated to `dispatch_subagent` |
 | `stash` | Persist and restore stashed editor content across sessions |
+
+## Automatic ASC execution observer
+
+When Pi runs in TUI mode inside Ghostty, the `sidequest` extension listens for bounded `asc.execution_observation.v1` events and automatically opens a read-only progress tab. Direct `dispatch_subagent` calls get one tab per dispatch; all `loop_execute` phases share one tab per logical loop run. The renderer shows status, phase, latest tool, usage, a renewable telemetry-liveness lease, semantic-activity age, and quiet/suspected-stall cues without receiving prompts, objectives, assistant output, stderr, session paths, or receipt paths.
+
+The executing helper remains headless and ASC-owned. Closing the observer does not cancel work, Ghostty launch is not execution proof, observer failure falls back to normal headless execution, and RPC/JSON/print/CI/non-TUI sessions never auto-launch even when they inherit Ghostty environment variables. Set `PI_ASC_OBSERVER=off` to disable or `PI_ASC_OBSERVER=ghostty` to request Ghostty observation for a TUI session outside an already detected Ghostty parent. Full contract: [ASC execution observer contract](docs/project/2026-08-04-asc-execution-observer-contract.md).
 
 ## Visible peer tools
 
@@ -195,7 +201,8 @@ Then in Pi:
 3. verify `/visible-loop --count 2` opens one visible Ghostty Pi tab for iteration 1, shows the six-real-prompt plan widget, submits only one executable frontier, replaces repeated continuation turns with one completion audit, advances only after correlated `message_start` plus `agent_settled`, withholds the consolidated Nexus fixup and all later work until governed deep-review returns the exact successful workflow handoff receipt, survives same-session `/reload` without duplicate delivery, fails closed on fresh restart or indeterminate submission, requires posture refresh and `/commit`, emits `VISIBLE_LOOP_ITERATION` only after the explicit completion checkpoint, then launches iteration 2 in a fresh visible Pi session
 4. verify `/nexus-loop --count 2` uses the same single-frontier behavior with four real prompts: exactly one deep-review call through `vault_execute_template`, one consolidated Nexus fixup that forbids a second governed review and may use at most one non-Prompt-Vault read-only reviewer when available and useful before atomic completion, posture refresh, and a resolved `/commit` delegation prompt that calls `dispatch_subagent`; verify no `deep-review.md` file exists
 5. for `/sidequest`, `/visible-loop`, `/nexus-loop`, and quest tools, verify both paths: same-window tab attach when the current Pi session is already running inside a Ghostty binary/class that truly supports `+new-tab`, and fallback to a new window when the current session cannot support tab attach without jumping to the wrong Ghostty window
-6. if `/sidequest`, `/visible-loop`, `/nexus-loop`, or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
+6. run one real `dispatch_subagent` and one multi-phase `loop_execute`; verify the former opens one read-only observer and the latter reuses exactly one tab across phases, shows latest-tool/activity/quiet-stall state, survives observer-tab closure without cancelling execution, and falls back headlessly with `PI_ASC_OBSERVER=off`
+7. if `/sidequest`, `/visible-loop`, `/nexus-loop`, observer, or quest-tool launch does not stay in the current Ghostty window, debug against [docs/project/2026-04-16-sidequest-ghostty-launch-contract.md](docs/project/2026-04-16-sidequest-ghostty-launch-contract.md)
 
 ## Docs discovery
 
