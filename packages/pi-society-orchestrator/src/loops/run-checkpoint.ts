@@ -9,13 +9,13 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-const LOOP_RUN_SCHEMA = "society_orchestrator.loop_run.v1";
+const LOOP_RUN_SCHEMA = "society_orchestrator.loop_run.v2";
 const MAX_CHECKPOINT_BYTES = 8 * 1024 * 1024;
 export const LOOP_CHECKPOINT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_PRUNE_LIMIT = 100;
 const DEFAULT_PRUNE_SCAN_LIMIT = 1_000;
 
-export type LoopRunStatus = "running" | "failed" | "aborted" | "done";
+export type LoopRunStatus = "running" | "retryable" | "failed" | "aborted" | "done";
 export type LoopAttemptStatus = "done" | "error" | "timed_out" | "aborted";
 export type LoopAttemptEffectDisposition =
   | "settled"
@@ -36,10 +36,17 @@ export interface OwnerEffectReceipt {
 export interface LoopPhaseAttemptCheckpoint {
   attemptId: string;
   phase: string;
+  agent: string;
+  cognitiveTool: string;
   status: LoopAttemptStatus;
   effectDisposition: LoopAttemptEffectDisposition;
   ownerEffectReceipt?: OwnerEffectReceipt;
   output: string;
+  outputBytes: number;
+  outputSha256: string;
+  outputTruncated: boolean;
+  claimLineCount?: number;
+  learningClaimSha256?: string;
   stderr?: string;
   exitCode: number;
   failureKind?: string;
@@ -48,10 +55,27 @@ export interface LoopPhaseAttemptCheckpoint {
   timestamp: string;
 }
 
+export interface LoopTerminalPublicationArtifact {
+  type: "kes_diary" | "kes_learning_candidate";
+  path: string;
+  hash: string;
+}
+
+export interface LoopTerminalPublication {
+  state: "prepared" | "published";
+  preparedId: string;
+  outcome: "done" | "failed" | "aborted";
+  elapsed: number;
+  resumed: boolean;
+  preparedAt: string;
+  artifacts: LoopTerminalPublicationArtifact[];
+}
+
 export interface LoopRunCheckpoint {
   schema: typeof LOOP_RUN_SCHEMA;
   runId: string;
   plugin: string;
+  pluginSemanticsHash: string;
   phases: string[];
   objective: string;
   cwd: string;
@@ -59,6 +83,7 @@ export interface LoopRunCheckpoint {
   effectReceiptContract?: "asc.dispatch_effect_receipt.v1";
   attempts: LoopPhaseAttemptCheckpoint[];
   artifactHashes: Record<string, string>;
+  terminalPublication?: LoopTerminalPublication;
   stateFingerprint: string;
   resumeCount: number;
   createdAt: string;
@@ -113,6 +138,7 @@ export class LoopRunCheckpointStore {
   create(input: {
     runId: string;
     plugin: string;
+    pluginSemanticsHash: string;
     phases: string[];
     objective: string;
     cwd: string;
@@ -125,6 +151,7 @@ export class LoopRunCheckpointStore {
       schema: LOOP_RUN_SCHEMA,
       runId: input.runId,
       plugin: input.plugin,
+      pluginSemanticsHash: input.pluginSemanticsHash,
       phases: [...input.phases],
       objective: input.objective,
       cwd: fs.realpathSync(input.cwd),
@@ -410,7 +437,14 @@ export function deriveResumePhase(checkpoint: LoopRunCheckpoint): string {
         `Loop run ${checkpoint.runId} has attempts after unresolved phase ${phase}; restart or reconcile the run instead of resuming mechanically.`,
       );
     }
-    if (!latest || latest.effectDisposition === "confirmed_no_effects") return phase;
+    if (!latest) return phase;
+    if (latest.effectDisposition === "confirmed_no_effects") {
+      if (attempts.length < 2) return phase;
+      throw new LoopResumeError(
+        "loop_resume_retry_limit_reached",
+        `Loop run ${checkpoint.runId} exhausted its one same-lineage retry for ${phase}.`,
+      );
+    }
     if (latest.effectDisposition === "settled") {
       throw new LoopResumeError(
         "loop_resume_effect_settled",
@@ -429,9 +463,128 @@ export function deriveResumePhase(checkpoint: LoopRunCheckpoint): string {
   );
 }
 
+export function validateTerminalPublicationResume(input: {
+  checkpoint: LoopRunCheckpoint;
+  plugin: string;
+  pluginSemanticsHash: string;
+  phases: string[];
+  objective: string;
+  cwd: string;
+  currentStateFingerprint: string;
+  artifactRoot: string;
+  nowMs?: number;
+  retentionMs?: number;
+}): LoopTerminalPublication {
+  const { checkpoint } = input;
+  const publication = checkpoint.terminalPublication;
+  if (!publication) {
+    throw new LoopResumeError(
+      "loop_terminal_publication_missing",
+      `Loop run ${checkpoint.runId} has no terminal publication to reconcile.`,
+    );
+  }
+  if (
+    checkpoint.plugin !== input.plugin ||
+    checkpoint.pluginSemanticsHash !== input.pluginSemanticsHash ||
+    JSON.stringify(checkpoint.phases) !== JSON.stringify(input.phases) ||
+    checkpoint.objective !== input.objective ||
+    checkpoint.cwd !== fs.realpathSync(input.cwd)
+  ) {
+    throw new LoopResumeError(
+      "loop_terminal_publication_identity_mismatch",
+      `Prepared terminal publication ${checkpoint.runId} no longer matches its loop identity.`,
+    );
+  }
+  assertCheckpointWithinRetention(
+    checkpoint,
+    input.nowMs ?? Date.now(),
+    input.retentionMs ?? LOOP_CHECKPOINT_RETENTION_MS,
+  );
+  const terminalPaths = new Set(publication.artifacts.map((artifact) => artifact.path));
+  validateLoopArtifactHashes(
+    input.artifactRoot,
+    Object.fromEntries(
+      Object.entries(checkpoint.artifactHashes).filter(
+        ([artifactPath]) => !terminalPaths.has(artifactPath),
+      ),
+    ),
+  );
+  if (
+    checkpoint.stateFingerprint.startsWith("unverifiable:") ||
+    input.currentStateFingerprint.startsWith("unverifiable:") ||
+    checkpoint.stateFingerprint !== input.currentStateFingerprint
+  ) {
+    throw new LoopResumeError(
+      "loop_resume_state_drift",
+      `Repository state changed after terminal publication was prepared for ${checkpoint.runId}.`,
+    );
+  }
+  return publication;
+}
+
+export interface LoopTerminalSynthesis {
+  outcome: "done" | "failed" | "aborted";
+  elapsed: number;
+  resumed: boolean;
+  preparedAt: string;
+}
+
+export function validateTerminalSynthesisResume(
+  input: Parameters<typeof validateResumeCheckpoint>[0],
+): LoopTerminalSynthesis {
+  try {
+    validateResumeCheckpoint(input);
+    throw new LoopResumeError(
+      "loop_terminal_synthesis_not_terminal",
+      `Loop run ${input.checkpoint.runId} still has a lawfully retryable or undispatched phase.`,
+    );
+  } catch (error) {
+    if (
+      !(error instanceof LoopResumeError) ||
+      ![
+        "loop_resume_no_pending_phase",
+        "loop_resume_effect_settled",
+        "loop_resume_retry_limit_reached",
+      ].includes(error.failureKind)
+    ) {
+      throw error;
+    }
+  }
+
+  const attempts = input.checkpoint.attempts;
+  const latest = attempts.at(-1);
+  if (!latest || latest.failureKind === "loop_attempt_in_progress") {
+    throw new LoopResumeError(
+      "loop_terminal_synthesis_incomplete",
+      `Loop run ${input.checkpoint.runId} has no complete final attempt from which to synthesize terminal intent.`,
+    );
+  }
+  const finalPhaseAttempts = attempts.filter((attempt) => attempt.phase === latest.phase);
+  if (latest.effectDisposition === "confirmed_no_effects" && finalPhaseAttempts.length < 2) {
+    throw new LoopResumeError(
+      "loop_terminal_synthesis_retryable",
+      `Loop run ${input.checkpoint.runId} remains retryable after confirmed no effects.`,
+    );
+  }
+  const finalAttempts = input.checkpoint.phases.map((phase) =>
+    attempts.filter((attempt) => attempt.phase === phase).at(-1),
+  );
+  const success = finalAttempts.every(
+    (attempt) => attempt?.status === "done" && attempt.effectDisposition === "settled",
+  );
+  const outcome = success ? "done" : latest.status === "aborted" ? "aborted" : "failed";
+  return {
+    outcome,
+    elapsed: attempts.reduce((total, attempt) => total + attempt.elapsed, 0),
+    resumed: input.checkpoint.resumeCount > 0,
+    preparedAt: latest.timestamp,
+  };
+}
+
 export function validateResumeCheckpoint(input: {
   checkpoint: LoopRunCheckpoint;
   plugin: string;
+  pluginSemanticsHash: string;
   phases: string[];
   objective: string;
   cwd: string;
@@ -452,6 +605,12 @@ export function validateResumeCheckpoint(input: {
     throw new LoopResumeError(
       "loop_resume_plugin_mismatch",
       `Loop run ${checkpoint.runId} belongs to ${checkpoint.plugin}, not ${input.plugin}.`,
+    );
+  }
+  if (checkpoint.pluginSemanticsHash !== input.pluginSemanticsHash) {
+    throw new LoopResumeError(
+      "loop_resume_plugin_semantic_drift",
+      `The ${input.plugin} producer semantics changed since ${checkpoint.runId}; restart instead of resuming under different attribution semantics.`,
     );
   }
   if (JSON.stringify(checkpoint.phases) !== JSON.stringify(input.phases)) {
@@ -567,11 +726,13 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
     throw invalidCheckpoint(expectedRunId);
   }
   const record = value as Partial<LoopRunCheckpoint>;
-  const statuses = new Set<LoopRunStatus>(["running", "failed", "aborted", "done"]);
+  const statuses = new Set<LoopRunStatus>(["running", "retryable", "failed", "aborted", "done"]);
   if (
     record.schema !== LOOP_RUN_SCHEMA ||
     record.runId !== expectedRunId ||
     typeof record.plugin !== "string" ||
+    typeof record.pluginSemanticsHash !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(record.pluginSemanticsHash) ||
     !Array.isArray(record.phases) ||
     record.phases.length === 0 ||
     new Set(record.phases).size !== record.phases.length ||
@@ -585,11 +746,12 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
     !record.artifactHashes ||
     typeof record.artifactHashes !== "object" ||
     Array.isArray(record.artifactHashes) ||
-    Object.keys(record.artifactHashes).length === 0 ||
     Object.entries(record.artifactHashes).some(
       ([artifactPath, hash]) =>
         !artifactPath || typeof hash !== "string" || !/^sha256:[a-f0-9]{64}$/.test(hash),
     ) ||
+    (record.terminalPublication !== undefined &&
+      !isValidTerminalPublication(record.terminalPublication)) ||
     typeof record.stateFingerprint !== "string" ||
     !Number.isSafeInteger(record.resumeCount) ||
     (record.resumeCount ?? -1) < 0 ||
@@ -619,6 +781,10 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
       attemptIds.has(attempt.attemptId) ||
       typeof attempt.phase !== "string" ||
       !record.phases.includes(attempt.phase) ||
+      typeof attempt.agent !== "string" ||
+      !attempt.agent ||
+      typeof attempt.cognitiveTool !== "string" ||
+      !attempt.cognitiveTool ||
       !attemptStatuses.has(attempt.status) ||
       !dispositions.has(attempt.effectDisposition) ||
       (record.effectReceiptContract === "asc.dispatch_effect_receipt.v1" &&
@@ -631,6 +797,19 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
           attempt.attemptId,
         )) ||
       typeof attempt.output !== "string" ||
+      !Number.isSafeInteger(attempt.outputBytes) ||
+      attempt.outputBytes < 0 ||
+      typeof attempt.outputSha256 !== "string" ||
+      !/^[a-f0-9]{64}$/.test(attempt.outputSha256) ||
+      typeof attempt.outputTruncated !== "boolean" ||
+      Buffer.byteLength(attempt.output, "utf8") !== attempt.outputBytes ||
+      createHash("sha256").update(attempt.output).digest("hex") !== attempt.outputSha256 ||
+      attempt.outputTruncated ||
+      (attempt.claimLineCount !== undefined &&
+        (!Number.isSafeInteger(attempt.claimLineCount) || attempt.claimLineCount < 0)) ||
+      (attempt.learningClaimSha256 !== undefined &&
+        (typeof attempt.learningClaimSha256 !== "string" ||
+          !/^sha256:[a-f0-9]{64}$/.test(attempt.learningClaimSha256))) ||
       (attempt.stderr !== undefined && typeof attempt.stderr !== "string") ||
       typeof attempt.exitCode !== "number" ||
       typeof attempt.elapsed !== "number" ||
@@ -659,6 +838,43 @@ function validateCheckpoint(value: unknown, expectedRunId: string): LoopRunCheck
   }
 
   return record as LoopRunCheckpoint;
+}
+
+function isValidTerminalPublication(value: unknown): value is LoopTerminalPublication {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const publication = value as Partial<LoopTerminalPublication>;
+  if (
+    !["prepared", "published"].includes(publication.state || "") ||
+    typeof publication.preparedId !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(publication.preparedId) ||
+    !["done", "failed", "aborted"].includes(publication.outcome || "") ||
+    typeof publication.elapsed !== "number" ||
+    !Number.isFinite(publication.elapsed) ||
+    publication.elapsed < 0 ||
+    typeof publication.resumed !== "boolean" ||
+    typeof publication.preparedAt !== "string" ||
+    !Number.isFinite(Date.parse(publication.preparedAt)) ||
+    !Array.isArray(publication.artifacts) ||
+    publication.artifacts.length < 1 ||
+    publication.artifacts.length > 2
+  ) {
+    return false;
+  }
+  const paths = new Set<string>();
+  return publication.artifacts.every((artifact) => {
+    if (
+      !artifact ||
+      !["kes_diary", "kes_learning_candidate"].includes(artifact.type) ||
+      typeof artifact.path !== "string" ||
+      !/^(diary|docs\/learnings)\/[^/]+\.md$/.test(artifact.path) ||
+      paths.has(artifact.path) ||
+      typeof artifact.hash !== "string" ||
+      !/^sha256:[a-f0-9]{64}$/.test(artifact.hash)
+    )
+      return false;
+    paths.add(artifact.path);
+    return true;
+  });
 }
 
 function isValidCheckpointOwnerEffectReceipt(
@@ -711,11 +927,21 @@ function ensureStateRoot(rootDir: string): void {
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
-    fs.realpathSync(rootDir) !== path.resolve(rootDir)
+    fs.realpathSync(rootDir) !== path.resolve(rootDir) ||
+    (typeof process.getuid === "function" && stat.uid !== process.getuid())
   ) {
     throw new LoopResumeError(
       "loop_resume_state_root_invalid",
-      `Loop checkpoint root must be a real directory: ${rootDir}.`,
+      `Loop checkpoint root must be a real package-owned directory: ${rootDir}.`,
+    );
+  }
+  if ((stat.mode & 0o077) !== 0) {
+    fs.chmodSync(rootDir, 0o700);
+  }
+  if ((fs.lstatSync(rootDir).mode & 0o077) !== 0) {
+    throw new LoopResumeError(
+      "loop_resume_state_root_invalid",
+      `Loop checkpoint root permissions must be 0700: ${rootDir}.`,
     );
   }
 }

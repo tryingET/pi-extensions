@@ -13,7 +13,7 @@ import { LoopResumeError } from "./run-checkpoint.ts";
 const MAX_GIT_OUTPUT_BYTES = 64 * 1024 * 1024;
 const MAX_UNTRACKED_FINGERPRINT_BYTES = 50 * 1024 * 1024;
 
-export function captureLoopStateFingerprint(cwd: string): string {
+export function captureLoopStateFingerprint(cwd: string, excludedPaths: string[] = []): string {
   const realCwd = fs.realpathSync(cwd);
   const gitRoot = gitText(realCwd, ["rev-parse", "--show-toplevel"]);
   if (!gitRoot) {
@@ -26,11 +26,21 @@ export function captureLoopStateFingerprint(cwd: string): string {
   }
 
   const realGitRoot = fs.realpathSync(gitRoot);
+  const exclusions = toGitExclusionPathspecs(realGitRoot, excludedPaths);
+  const boundedPathspec = exclusions.length > 0 ? ["--", ".", ...exclusions] : [];
   const hash = createHash("sha256");
   hash.update(`root\0${realGitRoot}\0cwd\0${realCwd}\0head\0${head}\0`);
-  hash.update(gitBuffer(realGitRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]));
-  hash.update(gitBuffer(realGitRoot, ["diff", "--binary", "HEAD"]));
-  hash.update(gitBuffer(realGitRoot, ["diff", "--cached", "--binary", "HEAD"]));
+  hash.update(
+    gitBuffer(realGitRoot, [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+      ...boundedPathspec,
+    ]),
+  );
+  hash.update(gitBuffer(realGitRoot, ["diff", "--binary", "HEAD", ...boundedPathspec]));
+  hash.update(gitBuffer(realGitRoot, ["diff", "--cached", "--binary", "HEAD", ...boundedPathspec]));
 
   const untracked = gitBuffer(realGitRoot, [
     "ls-files",
@@ -38,6 +48,7 @@ export function captureLoopStateFingerprint(cwd: string): string {
     "--exclude-standard",
     "--full-name",
     "-z",
+    ...boundedPathspec,
   ])
     .toString("utf8")
     .split("\0")
@@ -70,6 +81,17 @@ export function captureLoopStateFingerprint(cwd: string): string {
   }
 
   return `sha256:${hash.digest("hex")}`;
+}
+
+function toGitExclusionPathspecs(gitRoot: string, excludedPaths: string[]): string[] {
+  const pathspecs = new Set<string>();
+  for (const excludedPath of excludedPaths) {
+    const absolutePath = path.resolve(excludedPath);
+    if (absolutePath === gitRoot || !absolutePath.startsWith(`${gitRoot}${path.sep}`)) continue;
+    const relativePath = path.relative(gitRoot, absolutePath).split(path.sep).join("/");
+    pathspecs.add(`:(top,literal,exclude)${relativePath}`);
+  }
+  return [...pathspecs].sort();
 }
 
 function gitText(cwd: string, args: string[]): string | undefined {

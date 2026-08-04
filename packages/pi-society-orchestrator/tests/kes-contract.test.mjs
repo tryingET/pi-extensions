@@ -282,7 +282,7 @@ test("materializeKesArtifactPlan cleans temp writes if a KES root is swapped to 
       },
     });
     fs.writeFileSync = (file, ...args) => {
-      if (!injected && path.basename(String(file)).startsWith(".")) {
+      if (!injected && typeof file === "number") {
         injected = true;
         fs.rmSync(path.join(packageRoot, "diary"), { recursive: true, force: true });
         fs.symlinkSync(outsideRoot, path.join(packageRoot, "diary"), "dir");

@@ -67,9 +67,14 @@ export function ensureKesRoots(packageRoot: string): KesRoots {
     assertNoSymlinkDirectoryPath(roots, roots.diaryDir);
     fs.mkdirSync(roots.diaryDir, { recursive: true });
     assertNoSymlinkDirectoryPath(roots, roots.diaryDir);
+    fsyncDirectory(roots.diaryDir);
+    fsyncDirectory(path.dirname(roots.diaryDir));
     assertNoSymlinkDirectoryPath(roots, roots.learningsDir);
     fs.mkdirSync(roots.learningsDir, { recursive: true });
     assertNoSymlinkDirectoryPath(roots, roots.learningsDir);
+    fsyncDirectory(roots.learningsDir);
+    fsyncDirectory(path.dirname(roots.learningsDir));
+    fsyncDirectory(roots.packageRoot);
   } catch (cause) {
     throw new KesMaterializationError({
       operation: "ensure_roots",
@@ -108,12 +113,23 @@ export function createKesArtifactPlan(
   };
 }
 
-export function materializeKesArtifactPlan(plan: KesArtifactPlan): KesArtifactPlan {
+export function materializeKesArtifactPlan(
+  plan: KesArtifactPlan,
+  options: {
+    acceptIdenticalExisting?: boolean;
+    afterMemberDurable?: (relativePath: string, memberIndex: number) => void;
+  } = {},
+): KesArtifactPlan {
   const roots = ensureKesRoots(plan.roots.packageRoot);
   const drafts = [plan.diary, plan.learningCandidate].filter((draft): draft is KesArtifactDraft =>
     Boolean(draft),
   );
-  stageAndCommitDrafts(drafts, roots);
+  stageAndCommitDrafts(
+    drafts,
+    roots,
+    options.acceptIdenticalExisting === true,
+    options.afterMemberDurable,
+  );
   return { ...plan, roots };
 }
 
@@ -183,15 +199,28 @@ function createLearningCandidateDraft(
   };
 }
 
-function stageAndCommitDrafts(drafts: KesArtifactDraft[], roots: KesRoots): void {
+function stageAndCommitDrafts(
+  drafts: KesArtifactDraft[],
+  roots: KesRoots,
+  acceptIdenticalExisting: boolean,
+  afterMemberDurable?: (relativePath: string, memberIndex: number) => void,
+): void {
   const temporaryPaths: string[] = [];
   const committed: string[] = [];
   let activeDraft: KesArtifactDraft | undefined;
 
   try {
-    for (const draft of drafts) {
+    for (const [memberIndex, draft] of drafts.entries()) {
       activeDraft = draft;
-      commitDraftNoClobber({ roots, draft, drafts, temporaryPaths, committed });
+      commitDraftNoClobber({
+        roots,
+        draft,
+        drafts,
+        temporaryPaths,
+        committed,
+        acceptIdenticalExisting,
+      });
+      afterMemberDurable?.(draft.relativePath, memberIndex);
     }
   } catch (cause) {
     for (const temporaryPath of temporaryPaths) {
@@ -199,6 +228,7 @@ function stageAndCommitDrafts(drafts: KesArtifactDraft[], roots: KesRoots): void
     }
     for (const committedPath of committed) {
       fs.rmSync(committedPath, { force: true });
+      fsyncDirectory(path.dirname(committedPath));
     }
     throw new KesMaterializationError({
       operation: "write_artifact",
@@ -215,16 +245,32 @@ function commitDraftNoClobber(input: {
   drafts: KesArtifactDraft[];
   temporaryPaths: string[];
   committed: string[];
+  acceptIdenticalExisting: boolean;
 }): void {
   const allocationBaseRelativePath = input.draft.relativePath;
 
   while (true) {
-    const allocatedRelativePath = allocateAvailableRelativePath(
-      input.roots.packageRoot,
-      allocationBaseRelativePath,
-    );
+    const allocatedRelativePath = input.acceptIdenticalExisting
+      ? allocationBaseRelativePath
+      : allocateAvailableRelativePath(input.roots.packageRoot, allocationBaseRelativePath);
     updateDraftPath(input.draft, input.drafts, input.roots, allocatedRelativePath);
     const finalPath = resolveBoundedArtifactPath(input.roots, input.draft.relativePath);
+    if (input.acceptIdenticalExisting && fs.existsSync(finalPath)) {
+      assertNoSymlinkPath(input.roots, finalPath);
+      const stat = fs.lstatSync(finalPath);
+      if (
+        !stat.isFile() ||
+        stat.isSymbolicLink() ||
+        stat.nlink !== 1 ||
+        (typeof process.getuid === "function" && stat.uid !== process.getuid()) ||
+        fs.readFileSync(finalPath, "utf8") !== input.draft.content
+      ) {
+        throw new Error(
+          `Existing KES artifact does not match prepared content: ${input.draft.relativePath}`,
+        );
+      }
+      return;
+    }
     assertNoSymlinkPath(input.roots, finalPath);
     fs.mkdirSync(path.dirname(finalPath), { recursive: true });
     assertNoSymlinkPath(input.roots, finalPath);
@@ -234,13 +280,15 @@ function commitDraftNoClobber(input: {
       `.${path.basename(finalPath)}.${process.pid}.${randomUUID()}.tmp`,
     );
     input.temporaryPaths.push(temporaryPath);
-    fs.writeFileSync(temporaryPath, input.draft.content, { encoding: "utf8", flag: "wx" });
+    writeDurableExclusiveFile(temporaryPath, input.draft.content);
     assertNoSymlinkPath(input.roots, finalPath);
 
     try {
       fs.linkSync(temporaryPath, finalPath);
       input.committed.push(finalPath);
+      fsyncDirectory(path.dirname(finalPath));
       fs.unlinkSync(temporaryPath);
+      fsyncDirectory(path.dirname(finalPath));
       input.temporaryPaths.splice(input.temporaryPaths.indexOf(temporaryPath), 1);
       return;
     } catch (cause) {
@@ -275,6 +323,25 @@ function updateDraftPath(
     if (candidate.metadata.source_diary === oldRelativePath) {
       candidate.metadata.source_diary = relativePath;
     }
+  }
+}
+
+function writeDurableExclusiveFile(filePath: string, content: string): void {
+  const descriptor = fs.openSync(filePath, "wx", 0o600);
+  try {
+    fs.writeFileSync(descriptor, content, { encoding: "utf8" });
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function fsyncDirectory(directory: string): void {
+  const descriptor = fs.openSync(directory, "r");
+  try {
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
   }
 }
 
@@ -336,7 +403,7 @@ ${JSON.stringify(
   {
     kes_contract_version: KES_CONTRACT_VERSION,
     package: diary.source.packageName || KES_PACKAGE_NAME,
-    source: diary.source,
+    source: omitSourceObjective(diary.source),
     metadata: diary.metadata || {},
   },
   null,
@@ -359,7 +426,6 @@ function renderLearningCandidateContent(
     diary.source.loop ? `- Loop: ${diary.source.loop}` : null,
     diary.source.phase ? `- Phase: ${diary.source.phase}` : null,
     diary.source.sessionId ? `- Session: ${diary.source.sessionId}` : null,
-    `- Objective: ${diary.source.objective}`,
   ].filter((value): value is string => value !== null);
 
   return `${renderFrontmatter({
@@ -409,7 +475,7 @@ ${JSON.stringify(
   {
     kes_contract_version: KES_CONTRACT_VERSION,
     package: diary.source.packageName || KES_PACKAGE_NAME,
-    source: diary.source,
+    source: omitSourceObjective(diary.source),
     sourceDiary: sourceDiaryRelativePath,
     metadata: learningCandidate.metadata || {},
   },
@@ -447,6 +513,13 @@ system4d:
   fog: ${formatYamlScalar(params.system4d.fog)}
 ---
 `;
+}
+
+function omitSourceObjective(
+  source: KesDiaryEntryInput["source"],
+): Omit<typeof source, "objective"> {
+  const { objective: _objective, ...attribution } = source;
+  return attribution;
 }
 
 function renderBulletList(values: string[] | undefined, fallback: string): string {

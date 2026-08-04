@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-control/execution";
-import { LoopExecutor, registerLoopTools } from "../src/loops/engine.ts";
+import {
+  captureLoopPluginSemanticsHash,
+  LoopExecutor,
+  registerLoopTools,
+} from "../src/loops/engine.ts";
 import {
   captureLoopArtifactHashes,
   deriveResumePhase,
@@ -121,26 +125,29 @@ test("LoopExecutor continues from the next undispatched phase under the same dur
   const runId = "transcendent-1783708000100";
 
   try {
-    const startArtifact = "diary/checkpointed-start.md";
-    fs.mkdirSync(path.join(harness.packageRoot, "diary"), { recursive: true });
-    fs.writeFileSync(path.join(harness.packageRoot, startArtifact), "durable start\n");
     const checkpoint = harness.checkpointStore.create({
       runId,
       plugin: RESUMABLE_PLUGIN.name,
+      pluginSemanticsHash: captureLoopPluginSemanticsHash(RESUMABLE_PLUGIN),
       phases: RESUMABLE_PLUGIN.phases,
       objective,
       cwd: harness.operatorCwd,
-      artifactHashes: captureLoopArtifactHashes(harness.packageRoot, [startArtifact]),
+      artifactHashes: {},
       stateFingerprint: "sha256:stable-state",
     });
     checkpoint.status = "aborted";
     checkpoint.attempts.push({
       attemptId: "attempt-diagnose",
       phase: "diagnose",
+      agent: "scout",
+      cognitiveTool: "first-principles",
       status: "done",
       effectDisposition: "settled",
       ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnose", "attempt-diagnose"),
       output: "diagnose complete",
+      outputBytes: 17,
+      outputSha256: "564d8a10bc31703add9a208cb3372b9978651d488bf19e1ec540fe500cb174ac",
+      outputTruncated: false,
       exitCode: 0,
       elapsed: 10,
       artifactPaths: [],
@@ -184,6 +191,8 @@ test("LoopExecutor continues from the next undispatched phase under the same dur
     assert.equal(finalCheckpoint.status, "done");
     assert.equal(finalCheckpoint.resumeCount, 1);
     assert.equal(finalCheckpoint.attempts.at(-1)?.phase, "closure-gate");
+    assert.equal(resumed.artifacts.filter((artifact) => artifact.type === "kes_diary").length, 1);
+    assert.equal(fs.readdirSync(path.join(harness.packageRoot, "diary")).length, 1);
   } finally {
     harness.cleanup();
   }
@@ -200,20 +209,53 @@ test("LoopExecutor blocks timeout retry because phase effects are indeterminate"
       timedOut: true,
       failureKind: "timed_out",
     }));
-    await assert.rejects(
-      harness.executor.execute(
-        objective,
-        async () => ({ output: "must not dispatch", exitCode: 0, elapsed: 1 }),
-        undefined,
-        {
-          resumeRunId: first.sessionId,
-          expectedFailedPhase: "diagnose",
-          recoveryMode: "validate_then_retry",
-        },
-      ),
-      (error) =>
-        error instanceof LoopResumeError &&
-        error.failureKind === "loop_resume_effect_indeterminate",
+    let redispatched = false;
+    const replayed = await harness.executor.execute(
+      objective,
+      async () => {
+        redispatched = true;
+        throw new Error("must not dispatch");
+      },
+      undefined,
+      {
+        resumeRunId: first.sessionId,
+        expectedFailedPhase: "diagnose",
+        recoveryMode: "validate_then_retry",
+      },
+    );
+    assert.equal(replayed.success, false);
+    assert.equal(redispatched, false);
+    assert.equal(replayed.artifacts.length, 1);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("caught dispatch rejection becomes one attributable terminal failure without redispatch", async () => {
+  const harness = createHarness();
+  try {
+    const result = await harness.executor.execute("Capture rejected dispatch", async () => {
+      throw new Error("provider rejected request");
+    });
+    assert.equal(result.success, false);
+    assert.equal(result.artifacts.length, 1);
+    assert.equal(result.artifacts[0].type, "kes_diary");
+    const checkpoint = harness.checkpointStore.load(result.sessionId);
+    assert.equal(checkpoint.status, "failed");
+    assert.equal(checkpoint.attempts.length, 1);
+    assert.deepEqual(
+      {
+        phase: checkpoint.attempts[0].phase,
+        agent: checkpoint.attempts[0].agent,
+        cognitiveTool: checkpoint.attempts[0].cognitiveTool,
+        disposition: checkpoint.attempts[0].effectDisposition,
+      },
+      {
+        phase: "diagnose",
+        agent: "scout",
+        cognitiveTool: "first-principles",
+        disposition: "effect_indeterminate",
+      },
     );
   } finally {
     harness.cleanup();
@@ -254,21 +296,23 @@ test("LoopExecutor blocks a successful phase when its owner receipt is missing",
     const checkpoint = harness.checkpointStore.load(result.sessionId);
     assert.equal(checkpoint.status, "failed");
     assert.equal(checkpoint.attempts[0].effectDisposition, "effect_indeterminate");
-    await assert.rejects(
-      harness.executor.execute(
-        objective,
-        async () => settledResult("must not dispatch", 1),
-        undefined,
-        {
-          resumeRunId: result.sessionId,
-          expectedFailedPhase: "diagnose",
-          recoveryMode: "validate_then_retry",
-        },
-      ),
-      (error) =>
-        error instanceof LoopResumeError &&
-        error.failureKind === "loop_resume_effect_indeterminate",
+    let redispatched = false;
+    const replayed = await harness.executor.execute(
+      objective,
+      async () => {
+        redispatched = true;
+        return settledResult("must not dispatch", 1);
+      },
+      undefined,
+      {
+        resumeRunId: result.sessionId,
+        expectedFailedPhase: "diagnose",
+        recoveryMode: "validate_then_retry",
+      },
     );
+    assert.equal(replayed.success, false);
+    assert.equal(redispatched, false);
+    assert.equal(replayed.artifacts.length, 1);
   } finally {
     harness.cleanup();
   }
@@ -288,13 +332,15 @@ test("LoopExecutor never advances a successful phase whose receipt says confirme
       }),
     );
     assert.equal(result.success, false);
+    assert.equal(result.retryable, true);
     assert.deepEqual(
       result.phases.map((phase) => phase.phase),
       ["diagnose"],
     );
     assert.equal(result.phases[0].failureKind, "effect_receipt_not_settled");
+    assert.equal(result.phases[0].effectDisposition, "confirmed_no_effects");
     const checkpoint = harness.checkpointStore.load(result.sessionId);
-    assert.equal(checkpoint.status, "failed");
+    assert.equal(checkpoint.status, "retryable");
     assert.equal(checkpoint.attempts[0].effectDisposition, "confirmed_no_effects");
     assert.equal(deriveResumePhase(checkpoint), "diagnose");
   } finally {
@@ -307,6 +353,7 @@ test("confirmed dispatch no-effects never overrides an Orchestrator phase-enter 
   const harness = createHarness({
     plugin: {
       ...RESUMABLE_PLUGIN,
+      producerHookSemantics: "test.phase-enter-counter.v1",
       async onEnter() {
         hookCalls += 1;
       },
@@ -357,15 +404,12 @@ test("ASC confirmed-no-effects receipt enables one exact same-lineage retry", as
       return toExecutionLike(rejected, sessionsDir);
     });
     assert.equal(first.success, false);
+    assert.equal(first.retryable, true);
     assert.equal(first.phases[0].artifacts.length, 0);
-    assert.equal(first.artifacts.length, 1);
-    assert.match(first.artifacts[0].content, /session-/);
-    assert.equal(
-      first.artifacts.some((artifact) => artifact.content.includes("complete-")),
-      false,
-    );
+    assert.equal(first.artifacts.length, 0, "a retryable lineage is not terminal KES");
     const rejectedCheckpoint = harness.checkpointStore.load(first.sessionId);
     assert.equal(rejectedCheckpoint.attempts[0].artifactPaths.length, 0);
+    assert.equal(rejectedCheckpoint.terminalPublication, undefined);
     assert.equal(deriveResumePhase(rejectedCheckpoint), "diagnose");
 
     const resumedCalls = [];
@@ -405,8 +449,11 @@ test("ASC confirmed-no-effects receipt enables one exact same-lineage retry", as
       },
     );
     assert.equal(resumed.success, true);
+    assert.equal(resumed.retryable, undefined);
     assert.deepEqual(resumedCalls, RESUMABLE_PLUGIN.phases);
     assert.equal(resumed.sessionId, first.sessionId);
+    assert.equal(resumed.artifacts.filter((artifact) => artifact.type === "kes_diary").length, 1);
+    assert.equal(fs.readdirSync(path.join(harness.packageRoot, "diary")).length, 1);
   } finally {
     harness.cleanup();
     fs.rmSync(sessionsDir, { recursive: true, force: true });
@@ -445,6 +492,7 @@ test("LoopExecutor fails closed on incomplete resume contracts and legacy missin
     const legacy = harness.checkpointStore.create({
       runId: legacyRunId,
       plugin: RESUMABLE_PLUGIN.name,
+      pluginSemanticsHash: captureLoopPluginSemanticsHash(RESUMABLE_PLUGIN),
       phases: RESUMABLE_PLUGIN.phases,
       objective: "legacy objective",
       cwd: harness.operatorCwd,
@@ -455,9 +503,14 @@ test("LoopExecutor fails closed on incomplete resume contracts and legacy missin
     legacy.attempts.push({
       attemptId: "legacy-diagnose",
       phase: "diagnose",
+      agent: "scout",
+      cognitiveTool: "first-principles",
       status: "done",
       effectDisposition: "settled",
       output: "legacy status-derived settlement",
+      outputBytes: 32,
+      outputSha256: "89d316d7063c3ba366054e72b2e8ba4ed6c8ed4b5b2acd08c4fdced57a94b043",
+      outputTruncated: false,
       exitCode: 0,
       elapsed: 1,
       artifactPaths: [],
@@ -489,6 +542,7 @@ test("resume validation rejects objective, phase, graph, repository, and state d
     const checkpoint = harness.checkpointStore.create({
       runId,
       plugin: RESUMABLE_PLUGIN.name,
+      pluginSemanticsHash: captureLoopPluginSemanticsHash(RESUMABLE_PLUGIN),
       phases: RESUMABLE_PLUGIN.phases,
       objective: "stable objective",
       cwd: harness.operatorCwd,
@@ -500,10 +554,15 @@ test("resume validation rejects objective, phase, graph, repository, and state d
       {
         attemptId: "attempt-diagnose",
         phase: "diagnose",
+        agent: "scout",
+        cognitiveTool: "first-principles",
         status: "done",
         effectDisposition: "settled",
         ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-diagnosed", "attempt-diagnose"),
         output: "diagnosed",
+        outputBytes: 9,
+        outputSha256: "d22b75e3a33a790e74baaf8042f72a69bffaabe36780f9ee1ed549e165a38f5e",
+        outputTruncated: false,
         exitCode: 0,
         elapsed: 1,
         artifactPaths: [],
@@ -512,9 +571,14 @@ test("resume validation rejects objective, phase, graph, repository, and state d
       {
         attemptId: "attempt-dissolve",
         phase: "dissolve",
+        agent: "researcher",
+        cognitiveTool: "first-principles",
         status: "timed_out",
         effectDisposition: "confirmed_no_effects",
         output: "timed out",
+        outputBytes: 9,
+        outputSha256: "3dcd80f1b15f796ea71ac645184ae5302b91734495fc21892c694d46add5adc0",
+        outputTruncated: false,
         exitCode: 124,
         failureKind: "timed_out",
         elapsed: 2,
@@ -527,6 +591,7 @@ test("resume validation rejects objective, phase, graph, repository, and state d
     const base = {
       checkpoint,
       plugin: RESUMABLE_PLUGIN.name,
+      pluginSemanticsHash: captureLoopPluginSemanticsHash(RESUMABLE_PLUGIN),
       phases: RESUMABLE_PLUGIN.phases,
       objective: "stable objective",
       cwd: harness.operatorCwd,
@@ -574,6 +639,51 @@ test("resume validation rejects objective, phase, graph, repository, and state d
   }
 });
 
+test("resume rejects drift in producer agent and cognitive-tool semantics", async () => {
+  const harness = createHarness();
+  try {
+    const first = await harness.executor.execute(
+      "Bind producer semantics",
+      async ({ effectCorrelationId }) => ({
+        ...settledResult("no effects", 1, effectCorrelationId),
+        effectReceipt: {
+          ...settledResult("unused", 1, effectCorrelationId).effectReceipt,
+          disposition: "confirmed_no_effects",
+        },
+      }),
+    );
+    assert.equal(harness.checkpointStore.load(first.sessionId).status, "retryable");
+    const driftedPlugin = {
+      ...RESUMABLE_PLUGIN,
+      agents: { ...RESUMABLE_PLUGIN.agents, diagnose: "reviewer" },
+    };
+    const drifted = createHarness({ plugin: driftedPlugin });
+    try {
+      drifted.checkpointStore = harness.checkpointStore;
+      const executor = new LoopExecutor(driftedPlugin, harness.operatorCwd, "/tmp/unused-vault", {
+        packageRoot: harness.packageRoot,
+        allowUnverifiedKesRoot: true,
+        checkpointStore: harness.checkpointStore,
+        captureStateFingerprint: () => "sha256:stable-state",
+      });
+      await assert.rejects(
+        executor.execute("Bind producer semantics", async () => settledResult("no", 1), undefined, {
+          resumeRunId: first.sessionId,
+          expectedFailedPhase: "diagnose",
+          recoveryMode: "validate_then_retry",
+        }),
+        (error) =>
+          error instanceof LoopResumeError &&
+          error.failureKind === "loop_resume_plugin_semantic_drift",
+      );
+    } finally {
+      drifted.cleanup();
+    }
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("loop state fingerprints detect tracked and untracked repository drift", () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-resume-git-"));
   try {
@@ -597,7 +707,13 @@ test("loop state fingerprints detect tracked and untracked repository drift", ()
     assert.notEqual(untrackedFirst, clean);
     assert.notEqual(untrackedSecond, untrackedFirst);
 
+    const excludedFingerprint = captureLoopStateFingerprint(cwd, [path.join(cwd, "untracked.txt")]);
+    assert.equal(excludedFingerprint, clean);
+    fs.writeFileSync(path.join(cwd, "unrelated.txt"), "must remain visible\n");
+    assert.notEqual(captureLoopStateFingerprint(cwd, [path.join(cwd, "untracked.txt")]), clean);
+
     fs.unlinkSync(path.join(cwd, "untracked.txt"));
+    fs.unlinkSync(path.join(cwd, "unrelated.txt"));
     const nestedCwd = path.join(cwd, "packages", "fixture");
     fs.mkdirSync(nestedCwd, { recursive: true });
     const nestedClean = captureLoopStateFingerprint(nestedCwd);
@@ -671,6 +787,7 @@ test("checkpoint retention prunes expired terminal runs while protecting active 
     harness.checkpointStore.create({
       runId,
       plugin: RESUMABLE_PLUGIN.name,
+      pluginSemanticsHash: captureLoopPluginSemanticsHash(RESUMABLE_PLUGIN),
       phases: RESUMABLE_PLUGIN.phases,
       objective: "retention fixture",
       cwd: harness.operatorCwd,
@@ -756,6 +873,7 @@ test("checkpoint loading rejects symlinked, hard-linked, and stale-lock state", 
     harness.checkpointStore.create({
       runId,
       plugin: RESUMABLE_PLUGIN.name,
+      pluginSemanticsHash: captureLoopPluginSemanticsHash(RESUMABLE_PLUGIN),
       phases: RESUMABLE_PLUGIN.phases,
       objective: "secure checkpoint",
       cwd: harness.operatorCwd,
@@ -814,6 +932,7 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
     const checkpoint = harness.checkpointStore.create({
       runId,
       plugin: RESUMABLE_PLUGIN.name,
+      pluginSemanticsHash: captureLoopPluginSemanticsHash(RESUMABLE_PLUGIN),
       phases: RESUMABLE_PLUGIN.phases,
       objective: "objective",
       cwd: harness.operatorCwd,
@@ -824,10 +943,15 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
     checkpoint.attempts.push({
       attemptId: "later-attempt",
       phase: "rebuild",
+      agent: "builder",
+      cognitiveTool: "first-principles",
       status: "done",
       effectDisposition: "settled",
       ownerEffectReceipt: checkpointOwnerReceipt("asc-attempt-later", "later-attempt"),
       output: "invalid later output",
+      outputBytes: 20,
+      outputSha256: "0".repeat(64),
+      outputTruncated: false,
       exitCode: 0,
       elapsed: 1,
       artifactPaths: [],
@@ -880,5 +1004,221 @@ test("resume validation rejects non-linear histories, completed runs, traversal 
     }
   } finally {
     harness.cleanup();
+  }
+});
+
+test("terminal KES publication resumes idempotently after a crash before checkpoint finalization", async () => {
+  const crashPlugin = {
+    name: "kaizen",
+    phases: ["plan", "do"],
+    description: "Terminal publication crash fixture",
+    continueOnFailure: false,
+    cognitiveTools: { plan: ["first-principles"], do: ["first-principles"] },
+    agents: { plan: "scout", do: "builder" },
+  };
+  const operatorCwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-terminal-crash-cwd-"));
+  const packageRoot = path.join(operatorCwd, "packages", "pi-society-orchestrator");
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-terminal-crash-state-"));
+  fs.mkdirSync(packageRoot, { recursive: true });
+  fs.writeFileSync(
+    path.join(packageRoot, "package.json"),
+    `${JSON.stringify({ name: "@tryinget/pi-society-orchestrator" })}\n`,
+  );
+  execFileSync("git", ["init", "-q"], { cwd: operatorCwd });
+  execFileSync("git", ["config", "user.email", "resume-test@example.invalid"], {
+    cwd: operatorCwd,
+  });
+  execFileSync("git", ["config", "user.name", "Resume Test"], { cwd: operatorCwd });
+  execFileSync("git", ["add", "."], { cwd: operatorCwd });
+  execFileSync("git", ["commit", "-qm", "initial"], { cwd: operatorCwd });
+  class CrashAfterPublicationStore extends LoopRunCheckpointStore {
+    save(checkpoint) {
+      if (checkpoint.terminalPublication?.state === "published") {
+        throw new Error("injected crash after terminal publication");
+      }
+      super.save(checkpoint);
+    }
+  }
+  const commonOptions = {
+    packageRoot,
+    allowUnverifiedKesRoot: true,
+    verifyEffectReceipt: (receipt) => receipt?.schema === "asc.dispatch_effect_receipt.v1",
+    ak: {
+      async evidenceRecord() {
+        return { ok: true, via: "ak" };
+      },
+    },
+  };
+  let attempts = 0;
+  const dispatch = async ({ effectCorrelationId }) => {
+    attempts += 1;
+    return settledResult(
+      attempts === crashPlugin.phases.length
+        ? `phase output ${attempts}\nKES_CLAIM: Prepared terminal artifacts replay identically after publication interruption.`
+        : `phase output ${attempts}`,
+      1,
+      effectCorrelationId,
+    );
+  };
+
+  try {
+    const crashing = new LoopExecutor(crashPlugin, operatorCwd, "/tmp/unused-vault", {
+      ...commonOptions,
+      checkpointStore: new CrashAfterPublicationStore(stateRoot),
+    });
+    await assert.rejects(
+      crashing.execute("Publish exactly once", dispatch),
+      /injected crash after terminal publication/,
+    );
+    assert.equal(attempts, crashPlugin.phases.length);
+    assert.equal(fs.readdirSync(path.join(packageRoot, "diary")).length, 1);
+    assert.equal(fs.readdirSync(path.join(packageRoot, "docs", "learnings")).length, 1);
+
+    const store = new LoopRunCheckpointStore(stateRoot);
+    const [runFile] = fs.readdirSync(stateRoot).filter((name) => name.endsWith(".run.json"));
+    const runId = runFile.replace(/\.run\.json$/, "");
+    assert.equal(store.load(runId).terminalPublication?.state, "prepared");
+    const resumedExecutor = new LoopExecutor(crashPlugin, operatorCwd, "/tmp/unused-vault", {
+      ...commonOptions,
+      checkpointStore: store,
+    });
+    const resumed = await resumedExecutor.execute("Publish exactly once", dispatch, undefined, {
+      resumeRunId: runId,
+      expectedFailedPhase: "do",
+      recoveryMode: "validate_then_retry",
+    });
+
+    assert.equal(resumed.success, true);
+    assert.equal(resumed.resumed, true);
+    assert.equal(attempts, crashPlugin.phases.length, "resume must not redispatch phases");
+    assert.equal(fs.readdirSync(path.join(packageRoot, "diary")).length, 1);
+    assert.equal(fs.readdirSync(path.join(packageRoot, "docs", "learnings")).length, 1);
+    assert.equal(resumed.artifacts.length, 2);
+    assert.equal(store.load(runId).terminalPublication?.state, "published");
+    assert.equal(store.load(runId).status, "done");
+
+    const candidatePath = resumed.artifacts.find(
+      (artifact) => artifact.type === "kes_learning_candidate",
+    ).content;
+    fs.unlinkSync(path.join(packageRoot, candidatePath));
+    const repaired = await resumedExecutor.execute("Publish exactly once", dispatch, undefined, {
+      resumeRunId: runId,
+      expectedFailedPhase: "do",
+      recoveryMode: "validate_then_retry",
+    });
+    assert.equal(attempts, crashPlugin.phases.length, "published repair must not redispatch");
+    assert.equal(repaired.artifacts.length, 2);
+    assert.equal(fs.existsSync(path.join(packageRoot, candidatePath)), true);
+
+    const diaryPath = repaired.artifacts.find((artifact) => artifact.type === "kes_diary").content;
+    const diaryAbsolutePath = path.join(packageRoot, diaryPath);
+    const diaryContent = fs.readFileSync(diaryAbsolutePath, "utf8");
+    const linkedStagePath = path.join(
+      path.dirname(diaryAbsolutePath),
+      `.${path.basename(diaryAbsolutePath)}.killed.tmp`,
+    );
+    fs.linkSync(diaryAbsolutePath, linkedStagePath);
+    assert.equal(fs.lstatSync(diaryAbsolutePath).nlink, 2);
+    await resumedExecutor.execute("Publish exactly once", dispatch, undefined, {
+      resumeRunId: runId,
+      expectedFailedPhase: "do",
+      recoveryMode: "validate_then_retry",
+    });
+    assert.equal(fs.existsSync(linkedStagePath), false, "linked staging inode must be reconciled");
+    assert.equal(fs.lstatSync(diaryAbsolutePath).nlink, 1);
+
+    fs.appendFileSync(diaryAbsolutePath, "tampered\n");
+    const resumePublished = () =>
+      resumedExecutor.execute("Publish exactly once", dispatch, undefined, {
+        resumeRunId: runId,
+        expectedFailedPhase: "do",
+        recoveryMode: "validate_then_retry",
+      });
+    await assert.rejects(resumePublished(), (error) =>
+      /Existing KES artifact does not match prepared content/.test(error.causeMessage),
+    );
+    fs.writeFileSync(diaryAbsolutePath, diaryContent);
+    const symlinkTarget = path.join(operatorCwd, "external-kes-target.md");
+    fs.writeFileSync(symlinkTarget, diaryContent);
+    fs.unlinkSync(diaryAbsolutePath);
+    fs.symlinkSync(symlinkTarget, diaryAbsolutePath);
+    await assert.rejects(resumePublished(), /symbolic link|symlink|state changed/i);
+    fs.unlinkSync(diaryAbsolutePath);
+    fs.writeFileSync(diaryAbsolutePath, diaryContent);
+    const externalHardLink = path.join(operatorCwd, "external-kes-hard-link.md");
+    fs.linkSync(diaryAbsolutePath, externalHardLink);
+    await assert.rejects(resumePublished(), /does not match prepared content|state changed/i);
+    fs.unlinkSync(externalHardLink);
+    assert.equal(attempts, crashPlugin.phases.length, "drift must fail before dispatch");
+
+    const synthesisPackageRoot = path.join(operatorCwd, "packages", "synthesis-orchestrator");
+    const synthesisStateRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "pi-orch-terminal-synthesis-state-"),
+    );
+    fs.mkdirSync(synthesisPackageRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(synthesisPackageRoot, "package.json"),
+      `${JSON.stringify({ name: "@tryinget/pi-society-orchestrator" })}\n`,
+    );
+    execFileSync("git", ["add", "."], { cwd: operatorCwd });
+    execFileSync("git", ["commit", "-qm", "synthesis package"], { cwd: operatorCwd });
+    class CrashBeforePreparedIntentStore extends LoopRunCheckpointStore {
+      save(checkpoint) {
+        const finalAttempt = checkpoint.attempts.at(-1);
+        if (
+          !checkpoint.terminalPublication &&
+          finalAttempt?.phase === crashPlugin.phases.at(-1) &&
+          finalAttempt.status === "done"
+        ) {
+          super.save(checkpoint);
+          throw new Error("injected process death before prepared intent");
+        }
+        super.save(checkpoint);
+      }
+    }
+    let synthesisDispatches = 0;
+    const synthesisDispatch = async ({ effectCorrelationId }) => {
+      synthesisDispatches += 1;
+      return settledResult(`synthesis output ${synthesisDispatches}`, 1, effectCorrelationId);
+    };
+    const synthesisOptions = {
+      ...commonOptions,
+      packageRoot: synthesisPackageRoot,
+      checkpointStore: new CrashBeforePreparedIntentStore(synthesisStateRoot),
+    };
+    const synthesisCrashing = new LoopExecutor(
+      crashPlugin,
+      operatorCwd,
+      "/tmp/unused-vault",
+      synthesisOptions,
+    );
+    await assert.rejects(
+      synthesisCrashing.execute("Synthesize durable intent", synthesisDispatch),
+      /injected process death before prepared intent/,
+    );
+    assert.equal(fs.existsSync(path.join(synthesisPackageRoot, "diary")), false);
+    const [synthesisRunFile] = fs
+      .readdirSync(synthesisStateRoot)
+      .filter((name) => name.endsWith(".run.json"));
+    const synthesisRunId = synthesisRunFile.replace(/\.run\.json$/, "");
+    const synthesisStore = new LoopRunCheckpointStore(synthesisStateRoot);
+    assert.equal(synthesisStore.load(synthesisRunId).terminalPublication, undefined);
+    const synthesized = await new LoopExecutor(crashPlugin, operatorCwd, "/tmp/unused-vault", {
+      ...commonOptions,
+      packageRoot: synthesisPackageRoot,
+      checkpointStore: synthesisStore,
+    }).execute("Synthesize durable intent", synthesisDispatch, undefined, {
+      resumeRunId: synthesisRunId,
+      expectedFailedPhase: "do",
+      recoveryMode: "validate_then_retry",
+    });
+    assert.equal(synthesized.success, true);
+    assert.equal(synthesisDispatches, crashPlugin.phases.length, "synthesis must not redispatch");
+    assert.equal(fs.readdirSync(path.join(synthesisPackageRoot, "diary")).length, 1);
+    assert.equal(synthesisStore.load(synthesisRunId).terminalPublication?.state, "published");
+    fs.rmSync(synthesisStateRoot, { recursive: true, force: true });
+  } finally {
+    fs.rmSync(operatorCwd, { recursive: true, force: true });
+    fs.rmSync(stateRoot, { recursive: true, force: true });
   }
 });

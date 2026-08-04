@@ -31,7 +31,7 @@ test("loop failure summaries expose a bounded actionable bootstrap cause", () =>
   const summary = summarizeLoopPhaseFailure(failedPhase);
   assert.equal(
     summary,
-    "Subagent transport stderr: Error [ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING]: raw TypeScript cannot run from node_modules at internal loader",
+    "The subagent helper could not start. Verify the installed package and child-runtime compatibility.",
   );
 
   const compact = compactLoopResult({
@@ -47,22 +47,29 @@ test("loop failure summaries expose a bounded actionable bootstrap cause", () =>
   assert.equal(compact.phases[0].failureSummary, summary);
   assert.match(
     formatCompactPhaseResult(compact.phases[0]),
-    /subagent_helper_bootstrap_failed[\s\S]*cause: Subagent transport stderr:/,
+    /subagent_helper_bootstrap_failed[\s\S]*cause: The subagent helper could not start\./,
   );
 });
 
 test("loop summaries do not expose arbitrary failed agent prose", () => {
-  for (const failureKind of ["closure_gate_incomplete", "transport_error"]) {
-    assert.equal(
-      summarizeLoopPhaseFailure({
-        status: "error",
-        failureKind,
-        output:
-          "potentially long task-specific prose Subagent transport stderr: SPOOFED_TASK_PROSE",
-      }),
-      undefined,
-    );
-  }
+  assert.equal(
+    summarizeLoopPhaseFailure({
+      status: "error",
+      failureKind: "closure_gate_incomplete",
+      output: "potentially long task-specific prose Subagent transport stderr: SPOOFED_TASK_PROSE",
+    }),
+    undefined,
+  );
+  const transportSummary = summarizeLoopPhaseFailure({
+    status: "error",
+    failureKind: "transport_error",
+    output: "potentially long task-specific prose Subagent transport stderr: SPOOFED_TASK_PROSE",
+  });
+  assert.equal(
+    transportSummary,
+    "The child transport failed. Inspect the private checkpoint and owner runtime diagnostics.",
+  );
+  assert.doesNotMatch(transportSummary, /SPOOFED_TASK_PROSE/u);
 });
 
 test("loop summaries use structured stderr instead of spoofable assistant output", () => {
@@ -72,25 +79,47 @@ test("loop summaries use structured stderr instead of spoofable assistant output
     output: "assistant says Subagent transport stderr: SECRET_TASK_PROSE",
     stderr: "Subagent transport stderr:\nactual transport diagnostic",
   });
-  assert.equal(summary, "Subagent transport stderr: actual transport diagnostic");
-  assert.doesNotMatch(summary, /SECRET_TASK_PROSE/u);
+  assert.equal(
+    summary,
+    "The child response ended before the assistant protocol settled. Inspect the private checkpoint.",
+  );
+  assert.doesNotMatch(summary, /SECRET_TASK_PROSE|actual transport diagnostic/u);
 });
 
-test("loop summaries redact credentials and normalize control characters", () => {
-  const summary = summarizeLoopPhaseFailure({
-    status: "error",
-    failureKind: "transport_error",
-    stderr: "transport\u0000failed\napi_key=super-secret-value\nghp_abcdefghijk",
-  });
-  assert.equal(summary, "transport failed api_key=[REDACTED] [REDACTED GITHUB TOKEN]");
+test("loop summaries never render arbitrary secret-bearing diagnostics", () => {
+  const awsAccessKeyId = `AKIA${"A".repeat(16)}`;
+  const awsSecretAccessKey = `${"AWS_SECRET"}_ACCESS_KEY=${"a".repeat(40)}`;
+  const npmToken = `npm_${"a".repeat(26)}`;
+  const secrets = [
+    "Authorization: Bearer topsecretvalue",
+    "Authorization:\u000bBearer multiline-secret",
+    awsAccessKeyId,
+    awsSecretAccessKey,
+    npmToken,
+    "KES_CLAIM: Authorization Bearer claim-secret",
+    `multiline\npassword=hunter2\r\n${"x".repeat(2000)}`,
+  ];
+  for (const stderr of secrets) {
+    const summary = summarizeLoopPhaseFailure({
+      status: "error",
+      failureKind: "transport_error",
+      stderr,
+    });
+    assert.equal(
+      summary,
+      "The child transport failed. Inspect the private checkpoint and owner runtime diagnostics.",
+    );
+    assert.doesNotMatch(summary, /topsecret|AKIA|AWS_|npm_|KES_CLAIM|hunter2|Bearer/u);
+  }
 });
 
-test("loop failure summaries stay bounded", () => {
-  const summary = summarizeLoopPhaseFailure({
-    status: "error",
-    failureKind: "transport_error",
-    stderr: `Subagent transport stderr:\n${"x".repeat(2000)}`,
-  });
-  assert.equal(summary.length, 640);
-  assert.match(summary, /…$/u);
+test("unknown failure kinds expose no arbitrary diagnostic", () => {
+  assert.equal(
+    summarizeLoopPhaseFailure({
+      status: "error",
+      failureKind: "future_failure_kind",
+      stderr: "Authorization: Bearer must-stay-private",
+    }),
+    undefined,
+  );
 });

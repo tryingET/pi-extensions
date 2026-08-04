@@ -80,7 +80,7 @@ The package currently owns:
 - `autoresearch_manifest_campaign_supervision` for exact manifest observation and evidence-only AK projection;
 - `autoresearch_self_hosting_supervision` for exact self-hosting artifact observation and evidence-only projection;
 - owner-routed `autoresearch_learning_kes_adapter` for KES diary/learning-candidate materialization from `pi-autoresearch` learning packets;
-- workflow/loop surfaces over the public ASC seam, specifically cognitive/control-plane loops rather than visible Ghostty child-session loops;
+- workflow/loop surfaces over the public ASC seam, specifically cognitive/control-plane loops rather than visible Ghostty child-session loops; loop phases carry one shared observation-group identity through ASC's bounded projector, while Ghostty observer placement/rendering remains `pi-little-helpers` ownership;
 - exact governed `deep-review.v1` execution through `vault_execute_template`: immutable Prompt Vault binding, prompt-plane V2 sealed bytes, durable Vault handoff, one explicit reviewer workflow, and ASC effect correlation; all other unbound workflow-grade templates remain process gates;
 - package-owned KES materialization for loop outputs;
 - read-only runtime/status, AK close-frame, and boundary-inspection UX.
@@ -114,6 +114,7 @@ Above-seam recommendations are trustworthy only when:
 6. **Boundary report** — output says what was not done: no promotion, merge, pre-closeout worktree cleanup, AK direction mutation, or hidden peer launch.
 7. **Cleanup readiness** — post-integration closeout planning requires exact peer run ids backed by valid candidate-peer registry sidecars. Successful integration does not authorize deletion; lifecycle-v2 owner review, exact integration proof when accepted, restoration-verified archive, cleanup authorization, and exact terminal execution remain mandatory.
 8. **Vault workflow identity** — a bound workflow executes only after exact template/binding authorization, durable handoff persistence, and executor correlation; missing bindings, identity drift, disabled dispatch, or mismatched handoff ids fail closed without raw-template fallback.
+9. **Observation is not execution truth** — run/phase grouping may be projected through ASC's bounded event seam, but observer launch, liveness, quiet/stall labels, and tab closure neither settle effects nor authorize cancellation, retry, task closure, or evidence.
 
 ## Current strategic line
 

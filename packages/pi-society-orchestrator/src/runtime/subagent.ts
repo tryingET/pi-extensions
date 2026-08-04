@@ -1,6 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  ASC_EXECUTION_OBSERVATION_EVENT,
+  type AscExecutionObservation,
+  type AscExecutionObservationContext,
   createAscExecutionRuntime,
   createSubagentState,
   type DispatchEffectReceipt,
@@ -8,6 +11,10 @@ import {
   type DispatchSubagentExecutionUpdate,
   type DispatchSubagentFailureKind,
   getDispatchSubagentDisplayOutput,
+  projectAscExecutionFailure,
+  projectAscExecutionGroupTerminal,
+  projectAscExecutionResult,
+  projectAscExecutionUpdate,
   type SubagentModelContext,
   type SubagentSpawner,
   type SubagentState,
@@ -15,17 +22,28 @@ import {
 import type { AgentDef } from "./agent-profiles.ts";
 import type { ExecutionLike } from "./execution-status.ts";
 
+export { ASC_EXECUTION_OBSERVATION_EVENT, projectAscExecutionGroupTerminal };
+export type { AscExecutionObservation, AscExecutionObservationContext };
+
 /**
  * Consumer-side adapter over ASC's public execution seam.
  * Keep execution ownership truth in the boundary packet / ADR / ASC README; this module only
  * preserves orchestrator-local prompt composition and output policy.
  */
-const DEFAULT_PI_SUBAGENT_TIMEOUT_MS =
-  Number.parseInt(process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS || "", 10) || 10 * 60 * 1000;
+// Absolute emergency deadman; semantic progress is supervised separately by the observer.
+const DEFAULT_PI_SUBAGENT_TIMEOUT_MS = positiveIntegerOrFallback(
+  process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS,
+  4 * 60 * 60 * 1000,
+);
 const DEFAULT_PI_OUTPUT_CHARS =
   Number.parseInt(process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS || "", 10) || 64_000;
 const verifiedEffectReceiptBrand: unique symbol = Symbol("verifiedEffectReceipt");
 const verifiedEffectReceipts = new WeakSet<object>();
+
+function positiveIntegerOrFallback(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export type VerifiedDispatchEffectReceipt = DispatchEffectReceipt & {
   readonly [verifiedEffectReceiptBrand]: true;
@@ -50,6 +68,7 @@ export interface OrchestratorSubagentExecutionParams {
   promptTags?: string[];
   promptSource?: string;
   effectCorrelationId?: string;
+  observation?: AscExecutionObservationContext;
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
   signal?: AbortSignal;
 }
@@ -72,6 +91,19 @@ export interface OrchestratorSubagentExecutorOptions {
   sessionsDir: string;
   state?: SubagentState;
   spawner?: SubagentSpawner;
+  onObservation?: (observation: AscExecutionObservation) => void;
+}
+
+function emitObservation(
+  sink: ((observation: AscExecutionObservation) => void) | undefined,
+  observation: AscExecutionObservation | undefined,
+): void {
+  if (!sink || !observation) return;
+  try {
+    sink(observation);
+  } catch {
+    // Observation is best-effort and must not perturb ASC-owned execution truth.
+  }
 }
 
 export function buildCombinedSystemPrompt(params: {
@@ -121,33 +153,58 @@ export function createOrchestratorSubagentExecutor(
         spawner: options.spawner,
       });
 
-      const result = await runtime.execute(
-        {
-          profile: "custom",
-          objective: params.objective,
-          tools: params.agentProfile.tools,
-          systemPrompt: buildCombinedSystemPrompt({
-            agentSystemPrompt: params.agentProfile.systemPrompt,
-            cognitiveToolContent: params.cognitiveToolContent,
-            contextHeading: params.contextHeading,
-            contextBody: params.contextBody,
-            extraSections: params.extraSections,
-          }),
-          name: params.sessionName ?? defaultSessionName(params),
-          timeout: resolveTimeoutSeconds(params.timeoutSeconds),
-          extensions: params.extensions,
-          env: params.env,
-          prompt_name: params.promptName,
-          prompt_content: params.promptContent,
-          prompt_tags: params.promptTags,
-          prompt_source: params.promptSource,
-          effectCorrelationId: params.effectCorrelationId,
-        },
-        buildAscExecutionContext(params.cwd, params.model),
-        params.onUpdate,
-        params.signal,
-      );
+      let result: DispatchSubagentExecutionResult;
+      try {
+        result = await runtime.execute(
+          {
+            profile: "custom",
+            objective: params.objective,
+            tools: params.agentProfile.tools,
+            systemPrompt: buildCombinedSystemPrompt({
+              agentSystemPrompt: params.agentProfile.systemPrompt,
+              cognitiveToolContent: params.cognitiveToolContent,
+              contextHeading: params.contextHeading,
+              contextBody: params.contextBody,
+              extraSections: params.extraSections,
+            }),
+            name: params.sessionName ?? defaultSessionName(params),
+            timeout: resolveTimeoutSeconds(params.timeoutSeconds),
+            extensions: params.extensions,
+            env: params.env,
+            prompt_name: params.promptName,
+            prompt_content: params.promptContent,
+            prompt_tags: params.promptTags,
+            prompt_source: params.promptSource,
+            effectCorrelationId: params.effectCorrelationId,
+          },
+          buildAscExecutionContext(params.cwd, params.model),
+          (update) => {
+            if (params.observation) {
+              emitObservation(
+                options.onObservation,
+                projectAscExecutionUpdate(update, params.observation),
+              );
+            }
+            params.onUpdate?.(update);
+          },
+          params.signal,
+        );
+      } catch (error) {
+        if (params.observation) {
+          emitObservation(
+            options.onObservation,
+            projectAscExecutionFailure(params.observation, "execution_rejected"),
+          );
+        }
+        throw error;
+      }
 
+      if (params.observation) {
+        emitObservation(
+          options.onObservation,
+          projectAscExecutionResult(result, params.observation),
+        );
+      }
       return applyOrchestratorRuntimePolicy(result);
     },
   };

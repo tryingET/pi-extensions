@@ -60,6 +60,10 @@ The seam does **not** own:
 - Do not treat generated learnings as a second live authority surface; they remain package-owned narrative artifacts tied back to raw diary evidence.
 - Invalid or unwritable package-owned KES roots should fail closed as explicit orchestration failures rather than leaking raw filesystem exceptions into operator-visible loop output.
 - Keep the seam self-contained enough that later loop integration can consume it without reopening the ownership question.
+- Loop runtime materializes KES only at terminal outcomes: one success diary plus at most one candidate, or one compact failure tombstone; pre-dispatch abort emits nothing.
+- Phase attempts persist exact bounded raw bytes in the private package-runtime checkpoint. Owner-reported truncation fails closed before replacing the pending attempt or publishing KES. Public success diaries and compact failure tombstones retain bounded attribution plus objective/output size and digests only; arbitrary phase output and stderr never cross that boundary.
+- A learning candidate requires exactly one explicit `KES_CLAIM:` line from a successful phase. The raw claim remains private; the candidate contains only its SHA-256 digest plus agent, phase, cognitive-tool, and attempt attribution from runtime-owned dispatch context. Cognitive-tool selection or unmarked prose alone is not a claim.
+- Resume semantics bind the phase graph, routing, protocols, and static agent-profile prompt/tools. Exact resolved cognitive-tool content and selected-model identity are not yet bound; phase-retry closure remains pending until those producer identities and real-process interruption recovery are proven.
 
 ## Task binding
 
@@ -73,4 +77,4 @@ The original execution order after this note landed was:
 1. replace the ad-hoc loop-local diary behavior with the package-owned KES seam (`task:1090`)
 2. then prove those emitted outputs through deterministic validation (`task:1091`)
 
-That packet is now complete. The first follow-through hardening slice is also complete: invalid roots now fail closed and installed-package proof explicitly asserts writes under the installed package root. Future work should start from that proved KES base rather than rediscovering whether the seam, loop emission, or validation surfaces exist.
+That original packet is complete. The newer terminal-bundle hardening replaces event-count materialization with checkpoint-backed in-flight state and one atomic terminal KES plan, but it is not yet closure proof: exhaustive real child-process interruption/restart coverage across publication boundaries and a fresh installed-runtime run remain pending. Invalid roots still fail closed, and crash/resume no longer depends on public start/phase artifacts.

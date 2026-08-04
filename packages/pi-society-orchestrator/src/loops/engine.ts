@@ -33,7 +33,7 @@ import type {
 import { type Component, matchesKey, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { isKesMaterializationError, KES_MATERIALIZATION_FAILURE_KIND } from "../kes/index.ts";
-import { AGENT_PROFILES } from "../runtime/agent-profiles.ts";
+import { AGENT_PROFILES, type AgentDef } from "../runtime/agent-profiles.ts";
 import type { AgentResolution } from "../runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
@@ -63,8 +63,12 @@ import {
 } from "../runtime/execution-status.ts";
 import type { GovernedDeepReviewPreflightRuntime } from "../runtime/governed-deep-review-preflight.ts";
 import {
+  ASC_EXECUTION_OBSERVATION_EVENT,
+  type AscExecutionObservation,
+  type AscExecutionObservationContext,
   createOrchestratorSubagentExecutor,
   isVerifiedDispatchEffectReceipt,
+  projectAscExecutionGroupTerminal,
   toExecutionLike,
   type VerifiedDispatchEffectReceipt,
 } from "../runtime/subagent.ts";
@@ -78,6 +82,8 @@ import {
   type LoopRunCheckpoint,
   LoopRunCheckpointStore,
   validateResumeCheckpoint,
+  validateTerminalPublicationResume,
+  validateTerminalSynthesisResume,
 } from "./run-checkpoint.ts";
 import { captureLoopStateFingerprint } from "./run-state-fingerprint.ts";
 
@@ -89,13 +95,26 @@ function registerCompatTool(pi: ExtensionAPI, tool: CompatToolDefinition): void 
   pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
 }
 
+function emitExecutionObservation(
+  pi: ExtensionAPI,
+  observation: AscExecutionObservation | undefined,
+): void {
+  if (!observation) return;
+  try {
+    pi.events.emit(ASC_EXECUTION_OBSERVATION_EVENT, observation);
+  } catch {
+    // A visibility listener is best-effort and must never perturb loop execution.
+  }
+}
+
 const DEFAULT_SOCIETY_DB =
   process.env.SOCIETY_DB ||
   process.env.AK_DB ||
   path.join(os.homedir(), "ai-society", "society.db");
+// Whole-loop emergency deadman. Per-phase activity is visible and classified separately.
 const DEFAULT_LOOP_TIMEOUT_MS = parsePositiveMilliseconds(
   process.env.PI_ORCH_LOOP_TIMEOUT_MS,
-  30 * 60 * 1000,
+  24 * 60 * 60 * 1000,
 );
 
 // ============================================================================
@@ -112,6 +131,8 @@ export interface LoopPlugin {
   onEnter?(phase: string, context: LoopContext): Promise<void>;
   onExit?(phase: string, context: LoopContext): Promise<Artifact[]>;
   validate?(from: string, to: string, context: LoopContext): boolean;
+  /** Required stable identity whenever executable plugin hooks are present. */
+  producerHookSemantics?: string;
 }
 
 export interface LoopContext {
@@ -129,9 +150,11 @@ export interface PhaseResult {
   attemptId?: string;
   output: string;
   stderr?: string;
+  outputTruncated?: boolean;
   exitCode: number;
   status: ExecutionStatus;
   failureKind?: string;
+  effectDisposition?: VerifiedDispatchEffectReceipt["disposition"];
   elapsed: number;
   artifacts: Artifact[];
   timestamp: Date;
@@ -152,6 +175,7 @@ export interface LoopResult {
   phases: PhaseResult[];
   artifacts: Artifact[];
   success: boolean;
+  retryable?: boolean;
   elapsed: number;
 }
 
@@ -161,6 +185,7 @@ export interface CompactPhaseResult {
   exitCode: number;
   elapsed: number;
   failureKind?: string;
+  effectDisposition?: VerifiedDispatchEffectReceipt["disposition"];
   artifactPaths: string[];
   failureSummary?: string;
 }
@@ -174,6 +199,7 @@ export interface CompactLoopResult {
   phases: CompactPhaseResult[];
   artifactPaths: string[];
   success: boolean;
+  retryable?: boolean;
   elapsed: number;
 }
 
@@ -219,12 +245,14 @@ export type LoopDispatchFn = (params: {
   cognitiveTool: string;
   context: string;
   effectCorrelationId: string;
+  observation: AscExecutionObservationContext;
   timeoutSeconds?: number;
   onUpdate?: (update: unknown) => void;
 }) => Promise<
   ExecutionLike & {
     output: string;
     stderr?: string;
+    outputTruncated?: boolean;
     elapsed: number;
     failureKind?: string;
     effectReceipt?: VerifiedDispatchEffectReceipt;
@@ -457,8 +485,9 @@ export interface LoopExecutorOptions {
   allowUnverifiedKesRoot?: boolean;
   ak?: LoopEvidenceRecorder;
   checkpointStore?: LoopRunCheckpointStore;
-  captureStateFingerprint?: (cwd: string) => string;
+  captureStateFingerprint?: (cwd: string, excludedPaths?: string[]) => string;
   verifyEffectReceipt?: (receipt: VerifiedDispatchEffectReceipt | undefined) => boolean;
+  afterTerminalMemberDurable?: (relativePath: string, memberIndex: number) => void;
 }
 
 export class LoopExecutor {
@@ -467,7 +496,7 @@ export class LoopExecutor {
   private ak: LoopEvidenceRecorder;
   private cwd: string;
   private checkpointStore: LoopRunCheckpointStore;
-  private captureStateFingerprint: (cwd: string) => string;
+  private captureStateFingerprint: (cwd: string, excludedPaths?: string[]) => string;
   private verifyEffectReceipt: (receipt: VerifiedDispatchEffectReceipt | undefined) => boolean;
   private kesPackageRoot: string;
 
@@ -482,6 +511,7 @@ export class LoopExecutor {
     this.kesPackageRoot = resolveLoopKesPackageRoot(options.packageRoot);
     this.kes = new LoopKesWriter(this.kesPackageRoot, {
       allowUnverifiedPackageRoot: options.allowUnverifiedKesRoot,
+      afterMemberDurable: options.afterTerminalMemberDurable,
     });
     this.ak =
       options.ak ||
@@ -568,9 +598,119 @@ export class LoopExecutor {
 
     if (options.resumeRunId) {
       checkpoint = this.checkpointStore.load(options.resumeRunId);
+      if (!checkpoint.terminalPublication) {
+        let synthesis: ReturnType<typeof validateTerminalSynthesisResume> | undefined;
+        try {
+          synthesis = validateTerminalSynthesisResume({
+            checkpoint,
+            plugin: this.plugin.name,
+            pluginSemanticsHash: captureLoopPluginSemanticsHash(this.plugin),
+            phases: this.plugin.phases,
+            objective,
+            cwd: this.cwd,
+            expectedFailedPhase: options.expectedFailedPhase || "",
+            currentStateFingerprint: this.captureStateFingerprint(this.cwd),
+            artifactRoot: this.kesPackageRoot,
+          });
+        } catch (error) {
+          if (
+            !(error instanceof LoopResumeError) ||
+            error.failureKind !== "loop_terminal_synthesis_not_terminal"
+          ) {
+            throw error;
+          }
+        }
+        if (synthesis) {
+          const prepared = this.kes.prepareTerminal(
+            this.buildTerminalKesEntry({
+              sessionId: checkpoint.runId,
+              objective,
+              success: synthesis.outcome === "done",
+              elapsed: synthesis.elapsed,
+              resumed: synthesis.resumed,
+              attempts: checkpoint.attempts,
+              timestamp: new Date(synthesis.preparedAt),
+            }),
+          );
+          checkpoint.terminalPublication = {
+            state: "prepared",
+            preparedId: prepared.preparedId,
+            outcome: synthesis.outcome,
+            elapsed: synthesis.elapsed,
+            resumed: synthesis.resumed,
+            preparedAt: synthesis.preparedAt,
+            artifacts: prepared.artifacts.map((artifact) => ({
+              type: artifact.type as "kes_diary" | "kes_learning_candidate",
+              path: artifact.content,
+              hash: prepared.hashes[artifact.content],
+            })),
+          };
+          checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+          this.checkpointStore.save(checkpoint);
+        }
+      }
+      if (checkpoint.terminalPublication) {
+        this.kes.reconcilePreparedTemps(checkpoint.terminalPublication.artifacts);
+        const publication = validateTerminalPublicationResume({
+          checkpoint,
+          plugin: this.plugin.name,
+          pluginSemanticsHash: captureLoopPluginSemanticsHash(this.plugin),
+          phases: this.plugin.phases,
+          objective,
+          cwd: this.cwd,
+          currentStateFingerprint: this.captureTerminalPublicationFingerprint(
+            checkpoint.terminalPublication.artifacts,
+          ),
+          artifactRoot: this.kesPackageRoot,
+        });
+        const history = checkpoint.attempts.map(phaseResultFromCheckpoint);
+        const prepared = this.kes.prepareTerminal(
+          this.buildTerminalKesEntry({
+            sessionId: checkpoint.runId,
+            objective,
+            success: publication.outcome === "done",
+            elapsed: publication.elapsed,
+            resumed: publication.resumed,
+            attempts: checkpoint.attempts,
+            timestamp: new Date(publication.preparedAt),
+          }),
+          publication.artifacts,
+        );
+        if (
+          prepared.preparedId !== publication.preparedId ||
+          JSON.stringify(prepared.hashes) !==
+            JSON.stringify(
+              Object.fromEntries(
+                publication.artifacts.map((artifact) => [artifact.path, artifact.hash]),
+              ),
+            )
+        ) {
+          throw new LoopResumeError(
+            "loop_terminal_publication_drift",
+            `Prepared terminal publication ${checkpoint.runId} no longer renders identically.`,
+          );
+        }
+        const terminalArtifacts = this.kes.commitTerminal(prepared);
+        checkpoint.terminalPublication.state = "published";
+        checkpoint.status = publication.outcome;
+        checkpoint.artifactHashes = { ...checkpoint.artifactHashes, ...prepared.hashes };
+        checkpoint.resumeCount += 1;
+        this.checkpointStore.save(checkpoint);
+        return {
+          plugin: this.plugin.name,
+          sessionId: checkpoint.runId,
+          objective,
+          resumed: true,
+          phases: history,
+          artifacts: terminalArtifacts,
+          success: publication.outcome === "done",
+          elapsed: publication.elapsed,
+        };
+      }
       resumedPhase = validateResumeCheckpoint({
         checkpoint,
         plugin: this.plugin.name,
+        pluginSemanticsHash: captureLoopPluginSemanticsHash(this.plugin),
         phases: this.plugin.phases,
         objective,
         cwd: this.cwd,
@@ -597,21 +737,14 @@ export class LoopExecutor {
       checkpoint.resumeCount += 1;
       this.checkpointStore.save(checkpoint);
     } else {
-      context.artifacts.push(
-        ...this.kes.writeStart({
-          plugin: this.plugin.name,
-          sessionId,
-          objective,
-          phases: this.plugin.phases,
-        }),
-      );
       checkpoint = this.checkpointStore.create({
         runId: sessionId,
         plugin: this.plugin.name,
+        pluginSemanticsHash: captureLoopPluginSemanticsHash(this.plugin),
         phases: this.plugin.phases,
         objective,
         cwd: this.cwd,
-        artifactHashes: this.captureKesArtifactHashes(context.artifacts),
+        artifactHashes: {},
         stateFingerprint: this.captureStateFingerprint(this.cwd),
       });
     }
@@ -625,6 +758,9 @@ export class LoopExecutor {
       }
 
       const phase = this.plugin.phases[i];
+      const tools = this.plugin.cognitiveTools[phase] || [];
+      const agent = this.plugin.agents[phase] || "scout";
+      const primaryTool = tools[0] || "first-principles";
       const previousPhase = [...context.history]
         .reverse()
         .find(
@@ -648,7 +784,15 @@ export class LoopExecutor {
           timestamp: new Date(),
         };
         context.history.push(validationFailure);
-        checkpoint.attempts.push(toCheckpointAttempt(validationFailure, "confirmed_no_effects"));
+        checkpoint.attempts.push(
+          toCheckpointAttempt(
+            validationFailure,
+            "confirmed_no_effects",
+            agent,
+            primaryTool,
+            objective,
+          ),
+        );
         checkpoint.status = "failed";
         checkpoint.artifactHashes = {
           ...checkpoint.artifactHashes,
@@ -663,12 +807,18 @@ export class LoopExecutor {
       // Persist an indeterminate attempt before any phase hook or dispatch can emit effects.
       // A crash or timeout after this point must reconcile through the effect owner before retry.
       const attemptId = randomUUID();
+      const pendingOutput = "Phase attempt began but has no conclusive execution receipt.";
       const pendingAttempt: LoopPhaseAttemptCheckpoint = {
         attemptId,
         phase,
+        agent,
+        cognitiveTool: primaryTool,
         status: "error",
         effectDisposition: "effect_indeterminate",
-        output: "Phase attempt began but has no conclusive execution receipt.",
+        output: pendingOutput,
+        outputBytes: Buffer.byteLength(pendingOutput, "utf8"),
+        outputSha256: createHash("sha256").update(pendingOutput).digest("hex"),
+        outputTruncated: false,
         exitCode: 1,
         failureKind: "loop_attempt_in_progress",
         elapsed: 0,
@@ -684,11 +834,6 @@ export class LoopExecutor {
       if (this.plugin.onEnter) {
         await this.plugin.onEnter(phase, context);
       }
-
-      // Get cognitive tools and agent for this phase
-      const tools = this.plugin.cognitiveTools[phase] || [];
-      const agent = this.plugin.agents[phase] || "scout";
-      const primaryTool = tools[0] || "first-principles";
 
       // Build context for this phase
       const phaseContext = this.buildPhaseContext(phase, objective, context);
@@ -706,21 +851,48 @@ export class LoopExecutor {
 
       // Dispatch agent with cognitive tool
       const _phaseStart = Date.now();
-      const rawResult = await dispatchFn({
-        agent,
-        cognitiveTool: primaryTool,
-        context: phaseContext,
-        effectCorrelationId: attemptId,
-        timeoutSeconds: options.phaseTimeoutSeconds,
-        onUpdate: (update) =>
-          options.onUpdate?.({
-            event: "phase_update",
-            plugin: this.plugin.name,
-            sessionId,
-            phase,
-            update,
-          }),
-      });
+      let rawResult: Awaited<ReturnType<LoopDispatchFn>>;
+      try {
+        rawResult = await dispatchFn({
+          agent,
+          cognitiveTool: primaryTool,
+          context: phaseContext,
+          effectCorrelationId: attemptId,
+          observation: {
+            producer: "loop_execute",
+            cwd: this.cwd,
+            group: {
+              id: sessionId,
+              kind: "loop",
+              label: `${this.plugin.name.toUpperCase()} loop`,
+            },
+            phase: {
+              name: phase,
+              index: i + 1,
+              count: this.plugin.phases.length,
+              agent,
+              cognitiveTool: primaryTool,
+            },
+          },
+          timeoutSeconds: options.phaseTimeoutSeconds,
+          onUpdate: (update) =>
+            options.onUpdate?.({
+              event: "phase_update",
+              plugin: this.plugin.name,
+              sessionId,
+              phase,
+              update,
+            }),
+        });
+      } catch (cause) {
+        rawResult = {
+          output: "Dispatch rejected without a settled owner effect receipt.",
+          stderr: cause instanceof Error ? cause.message : String(cause),
+          exitCode: 1,
+          elapsed: Date.now() - _phaseStart,
+          failureKind: "dispatch_rejected",
+        };
+      }
       const result = applyLoopPhaseSemanticOutcome(this.plugin.name, phase, rawResult);
       const verifiedOwnerReceipt =
         isValidOwnerEffectReceipt(result.effectReceipt, attemptId) &&
@@ -740,8 +912,10 @@ export class LoopExecutor {
           attemptId,
           output: result.output,
           stderr: result.stderr,
+          outputTruncated: result.outputTruncated === true,
           exitCode: result.exitCode,
           status: getExecutionStatus(result),
+          effectDisposition: "confirmed_no_effects",
           failureKind:
             result.failureKind ||
             (getExecutionStatus(result) === "done" ? "effect_receipt_not_settled" : undefined),
@@ -756,9 +930,12 @@ export class LoopExecutor {
         checkpoint.attempts[confirmedAttemptIndex] = toCheckpointAttempt(
           phaseResult,
           "confirmed_no_effects",
+          agent,
+          primaryTool,
+          objective,
           ownerReceipt,
         );
-        checkpoint.status = "failed";
+        checkpoint.status = "retryable";
         checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
         this.checkpointStore.save(checkpoint);
         options.onUpdate?.({
@@ -796,8 +973,10 @@ export class LoopExecutor {
         attemptId,
         output: result.output,
         stderr: result.stderr,
+        outputTruncated: result.outputTruncated === true,
         exitCode: result.exitCode,
         status: executionOutcome.status,
+        effectDisposition,
         failureKind:
           result.failureKind ||
           (executionOutcome.success && !ownerReceipt
@@ -820,23 +999,6 @@ export class LoopExecutor {
         phaseResult.artifacts = artifacts;
       }
 
-      const kesArtifacts = this.kes.writePhase({
-        plugin: this.plugin.name,
-        phase,
-        sessionId,
-        objective,
-        agent,
-        primaryTool,
-        output: result.output,
-        status: executionOutcome.status,
-        exitCode: result.exitCode,
-        elapsed: result.elapsed,
-        failureKind: phaseResult.failureKind,
-        evidence: executionOutcome.evidence,
-        hookArtifacts: phaseResult.artifacts,
-        timestamp: phaseResult.timestamp,
-      });
-      phaseResult.artifacts = [...phaseResult.artifacts, ...kesArtifacts];
       context.history.push(phaseResult);
       context.artifacts.push(...phaseResult.artifacts);
       const checkpointAttemptIndex = checkpoint.attempts.findIndex(
@@ -845,6 +1007,9 @@ export class LoopExecutor {
       checkpoint.attempts[checkpointAttemptIndex] = toCheckpointAttempt(
         phaseResult,
         effectDisposition,
+        agent,
+        primaryTool,
+        objective,
         ownerReceipt,
       );
       checkpoint.status =
@@ -894,38 +1059,84 @@ export class LoopExecutor {
     }
 
     const elapsed = Date.now() - startTime;
+    const outcome = success
+      ? "done"
+      : context.history.at(-1)?.status === "aborted" ||
+          (context.history.length === 0 && signal?.aborted)
+        ? "aborted"
+        : "failed";
+    if (outcome === "aborted" && context.history.length === 0) {
+      checkpoint.status = "aborted";
+      checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+      this.checkpointStore.save(checkpoint);
+      return {
+        plugin: this.plugin.name,
+        sessionId,
+        objective,
+        resumed,
+        ...(resumedPhase ? { resumedPhase } : {}),
+        phases: [],
+        artifacts: [],
+        success: false,
+        elapsed,
+      };
+    }
     const latestAttempt = checkpoint.attempts.at(-1);
     const retryableConfirmedNoEffects =
       latestAttempt?.effectDisposition === "confirmed_no_effects" &&
-      latestAttempt.attemptId === context.history.at(-1)?.attemptId;
-    if (!retryableConfirmedNoEffects) {
-      context.artifacts.push(
-        ...this.kes.writeComplete({
-          plugin: this.plugin.name,
-          sessionId,
-          objective,
-          success,
-          elapsed,
-          phases: context.history.map((phase) => ({
-            phase: phase.phase,
-            status: phase.status,
-            elapsed: phase.elapsed,
-            failureKind: phase.failureKind,
-          })),
-          emittedArtifacts: context.artifacts,
-        }),
-      );
+      latestAttempt.attemptId === context.history.at(-1)?.attemptId &&
+      checkpoint.attempts.filter((attempt) => attempt.phase === latestAttempt.phase).length < 2;
+    if (retryableConfirmedNoEffects) {
+      // This lineage is still resumable: publishing a failure now would make a later
+      // successful terminal outcome produce a second public bundle for the same run.
+      checkpoint.status = "retryable";
+      checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+      this.checkpointStore.save(checkpoint);
+      return {
+        plugin: this.plugin.name,
+        sessionId,
+        objective,
+        resumed,
+        ...(resumedPhase ? { resumedPhase } : {}),
+        phases: context.history,
+        artifacts: context.artifacts,
+        success: false,
+        retryable: true,
+        elapsed,
+      };
     }
-    checkpoint.status = success
-      ? "done"
-      : context.history.at(-1)?.status === "aborted"
-        ? "aborted"
-        : "failed";
-    checkpoint.artifactHashes = {
-      ...checkpoint.artifactHashes,
-      ...this.captureKesArtifactHashes(context.artifacts),
+    const preparedAt = new Date();
+    const prepared = this.kes.prepareTerminal(
+      this.buildTerminalKesEntry({
+        sessionId,
+        objective,
+        success,
+        elapsed,
+        resumed,
+        attempts: checkpoint.attempts,
+        timestamp: preparedAt,
+      }),
+    );
+    checkpoint.terminalPublication = {
+      state: "prepared",
+      preparedId: prepared.preparedId,
+      outcome,
+      elapsed,
+      resumed,
+      preparedAt: preparedAt.toISOString(),
+      artifacts: prepared.artifacts.map((artifact) => ({
+        type: artifact.type as "kes_diary" | "kes_learning_candidate",
+        path: artifact.content,
+        hash: prepared.hashes[artifact.content],
+      })),
     };
     checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+    this.checkpointStore.save(checkpoint);
+
+    context.artifacts.push(...this.kes.commitTerminal(prepared));
+    checkpoint.terminalPublication.state = "published";
+    checkpoint.status = outcome;
+    checkpoint.artifactHashes = { ...checkpoint.artifactHashes, ...prepared.hashes };
     this.checkpointStore.save(checkpoint);
 
     return {
@@ -939,6 +1150,49 @@ export class LoopExecutor {
       success,
       elapsed,
     };
+  }
+
+  private buildTerminalKesEntry(input: {
+    sessionId: string;
+    objective: string;
+    success: boolean;
+    elapsed: number;
+    resumed: boolean;
+    attempts: LoopPhaseAttemptCheckpoint[];
+    timestamp: Date;
+  }) {
+    return {
+      plugin: this.plugin.name,
+      sessionId: input.sessionId,
+      objective: input.objective,
+      success: input.success,
+      elapsed: input.elapsed,
+      resumed: input.resumed,
+      timestamp: input.timestamp,
+      phases: input.attempts.map((attempt) => ({
+        phase: attempt.phase,
+        agent: attempt.agent,
+        primaryTool: attempt.cognitiveTool,
+        status: attempt.status,
+        effectDisposition: attempt.effectDisposition,
+        exitCode: attempt.exitCode,
+        elapsed: attempt.elapsed,
+        failureKind: attempt.failureKind,
+        attemptId: attempt.attemptId,
+        outputBytes: attempt.outputBytes,
+        outputSha256: attempt.outputSha256,
+        outputTruncated: attempt.outputTruncated,
+        claimLineCount: attempt.claimLineCount ?? 0,
+        learningClaimSha256: attempt.learningClaimSha256,
+      })),
+    };
+  }
+
+  private captureTerminalPublicationFingerprint(artifacts: Array<{ path: string }>): string {
+    return this.captureStateFingerprint(
+      this.cwd,
+      artifacts.map((artifact) => path.resolve(this.kesPackageRoot, artifact.path)),
+    );
   }
 
   private captureKesArtifactHashes(artifacts: Artifact[]): Record<string, string> {
@@ -979,30 +1233,10 @@ Focus on what this phase requires. Use the cognitive tools available to you.
   }
 
   private buildPhaseProtocol(phase: string): string {
-    if (this.plugin.name !== "transcendent") {
-      return "Use the loop's standard phase semantics and produce bounded, evidence-bearing output.";
-    }
-
-    const protocols: Record<string, string> = {
-      diagnose:
-        "Find the current ceiling. Name the limiting assumption, avoided ugliness, 100x precondition, and likely hidden debt.",
-      "first-100x":
-        "Attack the diagnosed ceiling directly. Prefer deletion over addition and identify the new ceiling revealed by the change.",
-      "second-100x":
-        "Attack the newly revealed ceiling and run the compound check: did the first 100x make this easier, harder, or unchanged? Surface visible debt.",
-      "debt-targeting":
-        "Classify remaining debt as blocking, accepted/deferred, or new opportunity. Blocking in-scope debt must become dissolve/rebuild input, not a terminal note.",
-      dissolve:
-        "Dissolve the assumptions, inherited constraints, scaffolding, or structures causing the targeted blocking debt.",
-      rebuild:
-        "Rebuild from first principles without reintroducing targeted debt. Show evidence that the targeted debt is gone rather than merely renamed.",
-      "alien-pass":
-        "Make the rebuilt result feel alien because the old problem no longer appears as a problem. Optimize outcome leverage and directness, not aesthetic novelty.",
-      "closure-gate":
-        "Apply the Definition of Done. Close only if no blocking in-scope debt remains; otherwise emit the next-loop ceiling or stop incomplete when continuation is not authorized. End with exactly one standalone machine verdict line: `CLOSURE_GATE: PASS` or `CLOSURE_GATE: INCOMPLETE`.",
-    };
-
-    return protocols[phase] || "Use the transcendent loop semantics for this phase.";
+    if (this.plugin.name !== "transcendent") return STANDARD_PHASE_PROTOCOL;
+    return (
+      TRANSCENDENT_PHASE_PROTOCOLS[phase] || "Use the transcendent loop semantics for this phase."
+    );
   }
 }
 
@@ -1080,16 +1314,35 @@ function isValidOwnerEffectReceipt(
 function toCheckpointAttempt(
   result: PhaseResult,
   effectDisposition: LoopPhaseAttemptCheckpoint["effectDisposition"],
+  agent: string,
+  cognitiveTool: string,
+  objective: string,
   ownerEffectReceipt?: LoopPhaseAttemptCheckpoint["ownerEffectReceipt"],
 ): LoopPhaseAttemptCheckpoint {
+  const evidence = createBoundedOutputEvidence(
+    result.output,
+    objective,
+    MAX_CHECKPOINT_OUTPUT_BYTES,
+    result.outputTruncated === true,
+  );
+  const boundedStderr = result.stderr
+    ? createBoundedOutputEvidence(result.stderr, objective, 4 * 1024).output
+    : undefined;
   return {
     attemptId: result.attemptId || randomUUID(),
     phase: result.phase,
+    agent,
+    cognitiveTool,
     status: result.status,
     effectDisposition,
     ...(ownerEffectReceipt ? { ownerEffectReceipt } : {}),
-    output: result.output,
-    stderr: result.stderr,
+    output: evidence.output,
+    outputBytes: evidence.outputBytes,
+    outputSha256: evidence.outputSha256,
+    outputTruncated: evidence.outputTruncated,
+    claimLineCount: evidence.claimLineCount,
+    ...(evidence.learningClaimSha256 ? { learningClaimSha256: evidence.learningClaimSha256 } : {}),
+    ...(boundedStderr ? { stderr: boundedStderr } : {}),
     exitCode: result.exitCode,
     ...(result.failureKind ? { failureKind: result.failureKind } : {}),
     elapsed: result.elapsed,
@@ -1100,12 +1353,166 @@ function toCheckpointAttempt(
   };
 }
 
+const MAX_CHECKPOINT_OUTPUT_BYTES = 512 * 1024;
+const MAX_LEARNING_CLAIM_CHARS = 500;
+const PRODUCER_SEMANTICS_VERSION = "loop-producer-semantics.v2";
+const STANDARD_PHASE_PROTOCOL =
+  "Use the loop's standard phase semantics and produce bounded, evidence-bearing output.";
+const TRANSCENDENT_PHASE_PROTOCOLS: Record<string, string> = {
+  diagnose:
+    "Find the current ceiling. Name the limiting assumption, avoided ugliness, 100x precondition, and likely hidden debt.",
+  "first-100x":
+    "Attack the diagnosed ceiling directly. Prefer deletion over addition and identify the new ceiling revealed by the change.",
+  "second-100x":
+    "Attack the newly revealed ceiling and run the compound check: did the first 100x make this easier, harder, or unchanged? Surface visible debt.",
+  "debt-targeting":
+    "Classify remaining debt as blocking, accepted/deferred, or new opportunity. Blocking in-scope debt must become dissolve/rebuild input, not a terminal note.",
+  dissolve:
+    "Dissolve the assumptions, inherited constraints, scaffolding, or structures causing the targeted blocking debt.",
+  rebuild:
+    "Rebuild from first principles without reintroducing targeted debt. Show evidence that the targeted debt is gone rather than merely renamed.",
+  "alien-pass":
+    "Make the rebuilt result feel alien because the old problem no longer appears as a problem. Optimize outcome leverage and directness, not aesthetic novelty.",
+  "closure-gate":
+    "Apply the Definition of Done. Close only if no blocking in-scope debt remains; otherwise emit the next-loop ceiling or stop incomplete when continuation is not authorized. End with exactly one standalone machine verdict line: `CLOSURE_GATE: PASS` or `CLOSURE_GATE: INCOMPLETE`.",
+};
+
+function createBoundedOutputEvidence(
+  rawOutput: string,
+  _objective: string,
+  maxBytes = MAX_CHECKPOINT_OUTPUT_BYTES,
+  inputTruncated = false,
+): {
+  output: string;
+  outputBytes: number;
+  outputSha256: string;
+  outputTruncated: boolean;
+  claimLineCount: number;
+  learningClaimSha256?: string;
+} {
+  if (inputTruncated) {
+    throw new LoopResumeError(
+      "loop_private_evidence_truncated",
+      "The execution owner reported truncated phase output; exact private evidence was not checkpointed or published.",
+    );
+  }
+  const rawBytes = Buffer.byteLength(rawOutput, "utf8");
+  if (rawBytes > maxBytes) {
+    throw new LoopResumeError(
+      "loop_private_evidence_too_large",
+      `Exact private phase evidence exceeds the ${maxBytes}-byte per-attempt policy; it was not truncated or published.`,
+    );
+  }
+  const claimLines = rawOutput.split(/\r?\n/u).filter((line) => line.startsWith("KES_CLAIM:"));
+  const rawClaim =
+    claimLines.length === 1 ? claimLines[0].slice("KES_CLAIM:".length).trim() : undefined;
+  const learningClaimSha256 =
+    rawClaim && isAdmissibleClaimMarker(rawClaim)
+      ? `sha256:${createHash("sha256").update(rawClaim).digest("hex")}`
+      : undefined;
+  return {
+    output: rawOutput,
+    outputBytes: rawBytes,
+    outputSha256: createHash("sha256").update(rawOutput).digest("hex"),
+    outputTruncated: false,
+    claimLineCount: claimLines.length,
+    ...(learningClaimSha256 ? { learningClaimSha256 } : {}),
+  };
+}
+
+function isAdmissibleClaimMarker(claim: string): boolean {
+  if (!claim || claim.length > MAX_LEARNING_CLAIM_CHARS || !/^[\x20-\x7e]+$/u.test(claim)) {
+    return false;
+  }
+  const forbidden = [
+    /\bauthorization\b/iu,
+    /\bbearer\b/iu,
+    /\b(?:api[_-]?key|secret|password|passphrase|token|credential)\b/iu,
+    /\bAKIA[0-9A-Z]{16}\b/u,
+    /\bASIA[0-9A-Z]{16}\b/u,
+    /\bnpm_[A-Za-z0-9]{20,}\b/u,
+    /\bgh[pousr]_[A-Za-z0-9_]{8,}\b/u,
+    /\bsk-[A-Za-z0-9_-]{8,}\b/u,
+    /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/u,
+    /(?:^|[^A-Za-z0-9])[A-Za-z0-9_+/=.-]{40,}(?:$|[^A-Za-z0-9])/u,
+  ];
+  return forbidden.every((pattern) => !pattern.test(claim));
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${canonicalJson(nested)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function captureLoopPluginSemanticsHash(
+  plugin: LoopPlugin,
+  agentProfiles: Record<string, Pick<AgentDef, "name" | "tools" | "systemPrompt">> = AGENT_PROFILES,
+): string {
+  const hasHooks = Boolean(plugin.onEnter || plugin.onExit || plugin.validate);
+  if (hasHooks && !plugin.producerHookSemantics) {
+    throw new Error("Loop plugins with executable hooks require producerHookSemantics.");
+  }
+  const contract = {
+    schema: PRODUCER_SEMANTICS_VERSION,
+    phaseGraph: plugin.phases,
+    routing: { agents: plugin.agents, cognitiveTools: plugin.cognitiveTools },
+    resolvedAgentProfiles: Object.fromEntries(
+      [...new Set(Object.values(plugin.agents))].sort().map((agent) => {
+        const profile = agentProfiles[agent] || agentProfiles.scout;
+        return [
+          agent,
+          {
+            name: profile.name,
+            tools: profile.tools,
+            systemPromptSha256: createHash("sha256").update(profile.systemPrompt).digest("hex"),
+          },
+        ];
+      }),
+    ),
+    phaseContext: {
+      version: "loop-phase-context.v1",
+      objective: "full-verbatim",
+      previousOutput: "private-first-500-characters",
+      protocols:
+        plugin.name === "transcendent" ? TRANSCENDENT_PHASE_PROTOCOLS : STANDARD_PHASE_PROTOCOL,
+    },
+    outputClaimPolicy: {
+      version: "loop-output-claim.v1",
+      privateOutput: {
+        encoding: "utf8",
+        maxBytes: MAX_CHECKPOINT_OUTPUT_BYTES,
+        truncation: "reject",
+      },
+      publicOutput: "attribution-digests-only",
+      claim: "exactly-one-run-wide-explicit-admissible-final-successful-settled-attempt",
+    },
+    terminalization: {
+      version: "loop-terminalization.v1",
+      terminalBundle: "one-diary-at-most-one-candidate",
+      retryableConfirmedNoEffects: "nonterminal-zero-kes",
+      preAbort: "zero-kes",
+      continueOnFailure: plugin.continueOnFailure ?? false,
+      semanticOutcome:
+        plugin.name === "transcendent" ? "closure-gate-exact-single-verdict.v1" : "exit-status.v1",
+    },
+    hooks: hasHooks ? plugin.producerHookSemantics : null,
+  };
+  return `sha256:${createHash("sha256").update(canonicalJson(contract)).digest("hex")}`;
+}
+
 function phaseResultFromCheckpoint(attempt: LoopPhaseAttemptCheckpoint): PhaseResult {
   return {
     phase: attempt.phase,
     attemptId: attempt.attemptId,
     output: attempt.output,
     stderr: attempt.stderr,
+    outputTruncated: attempt.outputTruncated,
     exitCode: attempt.exitCode,
     status: attempt.status,
     ...(attempt.failureKind ? { failureKind: attempt.failureKind } : {}),
@@ -1119,62 +1526,32 @@ function phaseResultFromCheckpoint(attempt: LoopPhaseAttemptCheckpoint): PhaseRe
   };
 }
 
-const ACTIONABLE_LOOP_FAILURE_KINDS = new Set([
-  "subagent_helper_bootstrap_failed",
-  "transport_exited_before_settlement",
-  "assistant_protocol_parse_error",
-  "assistant_protocol_incomplete",
-  "startup_timed_out",
-  "transport_error",
-  "effect_receipt_write_failed",
-]);
-const MAX_LOOP_FAILURE_SUMMARY_CHARS = 640;
+const PUBLIC_LOOP_FAILURE_SUMMARIES: Readonly<Record<string, string>> = Object.freeze({
+  subagent_helper_bootstrap_failed:
+    "The subagent helper could not start. Verify the installed package and child-runtime compatibility.",
+  transport_exited_before_settlement:
+    "The child transport exited before settlement. Inspect the private checkpoint and owner runtime logs.",
+  assistant_protocol_parse_error:
+    "The child response did not satisfy the assistant protocol. Inspect the private checkpoint.",
+  assistant_protocol_incomplete:
+    "The child response ended before the assistant protocol settled. Inspect the private checkpoint.",
+  startup_timed_out:
+    "The child runtime did not start before its bounded deadline. Inspect owner runtime diagnostics.",
+  transport_error:
+    "The child transport failed. Inspect the private checkpoint and owner runtime diagnostics.",
+  effect_receipt_write_failed:
+    "The execution owner could not durably record its effect receipt. Do not retry mechanically.",
+});
 
-function replaceLoopDiagnosticControlCharacters(value: string): string {
-  return [...value]
-    .map((character) => {
-      const codePoint = character.codePointAt(0) ?? 0;
-      return codePoint < 32 || codePoint === 127 ? " " : character;
-    })
-    .join("");
-}
-
-function redactLoopDiagnosticText(value: string): string {
-  const credentialKey =
-    "(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key|authorization|password|passphrase|token)";
-  const assignedCredential = new RegExp(
-    `(\\b${credentialKey}\\b\\s*[:=]\\s*)(?:["'][^"']*["']|[^\\s,;]+)`,
-    "giu",
-  );
-  return value
-    .replace(
-      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/gu,
-      "[REDACTED PRIVATE KEY]",
-    )
-    .replace(assignedCredential, "$1[REDACTED]")
-    .replace(/\bgh[pousr]_[A-Za-z0-9_]{8,}\b/gu, "[REDACTED GITHUB TOKEN]")
-    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/gu, "[REDACTED API TOKEN]")
-    .replace(/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/gu, "[REDACTED JWT]");
-}
-
+/**
+ * Public loop diagnostics are a closed taxonomy. `stderr` and assistant output are arbitrary
+ * private evidence and must never influence rendered tool text, even through redaction.
+ */
 export function summarizeLoopPhaseFailure(
   phase: Pick<PhaseResult, "status" | "failureKind" | "stderr">,
 ): string | undefined {
-  if (
-    phase.status === "done" ||
-    !phase.failureKind ||
-    !ACTIONABLE_LOOP_FAILURE_KINDS.has(phase.failureKind) ||
-    typeof phase.stderr !== "string"
-  ) {
-    return undefined;
-  }
-  const normalized = replaceLoopDiagnosticControlCharacters(redactLoopDiagnosticText(phase.stderr))
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!normalized) return undefined;
-  return normalized.length > MAX_LOOP_FAILURE_SUMMARY_CHARS
-    ? `${normalized.slice(0, MAX_LOOP_FAILURE_SUMMARY_CHARS - 1)}…`
-    : normalized;
+  if (phase.status === "done" || !phase.failureKind) return undefined;
+  return PUBLIC_LOOP_FAILURE_SUMMARIES[phase.failureKind];
 }
 
 export function compactLoopResult(result: LoopResult): CompactLoopResult {
@@ -1185,6 +1562,7 @@ export function compactLoopResult(result: LoopResult): CompactLoopResult {
     resumed: result.resumed,
     ...(result.resumedPhase ? { resumedPhase: result.resumedPhase } : {}),
     success: result.success,
+    ...(result.retryable ? { retryable: true } : {}),
     elapsed: result.elapsed,
     phases: result.phases.map((phase) => ({
       phase: phase.phase,
@@ -1192,11 +1570,44 @@ export function compactLoopResult(result: LoopResult): CompactLoopResult {
       exitCode: phase.exitCode,
       elapsed: phase.elapsed,
       failureKind: phase.failureKind,
+      effectDisposition: phase.effectDisposition,
       failureSummary: summarizeLoopPhaseFailure(phase),
       artifactPaths: phase.artifacts.map((artifact) => artifact.content),
     })),
     artifactPaths: result.artifacts.map((artifact) => artifact.content),
   };
+}
+
+export function projectLoopGroupTerminalObservation(
+  result: Pick<LoopResult, "sessionId" | "phases" | "success" | "retryable" | "elapsed">,
+  cwd: string,
+  loop: string,
+  loopTimedOut = false,
+): AscExecutionObservation | undefined {
+  if (result.retryable) return undefined;
+  const finalPhase = result.phases.at(-1);
+  return projectAscExecutionGroupTerminal(
+    {
+      producer: "loop_execute",
+      cwd,
+      group: {
+        id: result.sessionId,
+        kind: "loop",
+        label: `${loop.toUpperCase()} loop`,
+      },
+    },
+    {
+      ok: result.success,
+      status: result.success
+        ? "done"
+        : loopTimedOut
+          ? "timed_out"
+          : (finalPhase?.status ?? "error"),
+      failureKind: finalPhase?.failureKind,
+      effectDisposition: finalPhase?.effectDisposition,
+      elapsedMs: result.elapsed,
+    },
+  );
 }
 
 export function formatCompactPhaseResult(phase: CompactPhaseResult): string {
@@ -1488,6 +1899,7 @@ export function registerLoopTools(
 ): void {
   const subagentExecutor = createOrchestratorSubagentExecutor({
     sessionsDir: path.join(os.homedir(), ".pi", "agent", "sessions", "loops"),
+    onObservation: (observation) => emitExecutionObservation(pi, observation),
   });
   const gatedDispatchEnabled =
     options.gatedDispatchEnabled ?? process.env.PI_VAULT_GATED_DISPATCH !== "0";
@@ -1589,6 +2001,7 @@ export function registerLoopTools(
     const loopTimeoutMs =
       (normalizePositiveSeconds(loop_timeout_seconds) ?? DEFAULT_LOOP_TIMEOUT_MS / 1000) * 1000;
     const effectiveSignal = createLinkedTimeoutSignal(signal, loopTimeoutMs);
+    let activeObservationContext: AscExecutionObservationContext | undefined;
 
     // Create dispatch function using shared agent profiles + vault-loaded cognitive tools.
     const dispatch = async (p: {
@@ -1596,9 +2009,11 @@ export function registerLoopTools(
       cognitiveTool: string;
       context: string;
       effectCorrelationId: string;
+      observation: AscExecutionObservationContext;
       timeoutSeconds?: number;
       onUpdate?: (update: unknown) => void;
     }) => {
+      activeObservationContext = p.observation;
       let effectiveAgent = resolvedAgents.get(p.agent) || p.agent;
       if (resolveAgent && !resolvedAgents.has(p.agent)) {
         const resolution = resolveAgent(p.agent, ctx);
@@ -1647,6 +2062,7 @@ export function registerLoopTools(
         objective: p.context,
         model,
         effectCorrelationId: p.effectCorrelationId,
+        observation: p.observation,
         cwd: ctx.cwd,
         extraSections: [
           `## LOOP EXECUTION CONTEXT\n- Agent profile: ${agentProfile.name}\n- Cognitive tool: ${toolResult.value.name}`,
@@ -1659,6 +2075,8 @@ export function registerLoopTools(
 
       return toExecutionLike(runtimeResult, subagentExecutor.state.sessionsDir);
     };
+
+    const loopStartedAt = Date.now();
 
     try {
       const result = await executor.execute(objective, dispatch, effectiveSignal.signal, {
@@ -1685,12 +2103,16 @@ export function registerLoopTools(
       });
       const compactResult = compactLoopResult(result);
       const loopTimedOut = effectiveSignal.timedOut();
+      emitExecutionObservation(
+        pi,
+        projectLoopGroupTerminalObservation(result, ctx.cwd, loop, loopTimedOut),
+      );
 
-      const summary = `# ${loop.toUpperCase()} Loop Complete
+      const summary = `# ${loop.toUpperCase()} Loop ${result.retryable ? "Paused" : "Complete"}
 
 **Run:** ${result.sessionId}${result.resumed ? ` (resumed at ${result.resumedPhase})` : ""}
 **Objective:** ${objective}
-**Status:** ${result.success ? "✓ Success" : "✗ Completed with failures"}
+**Status:** ${result.success ? "✓ Success" : result.retryable ? "↻ Retryable after confirmed no effects" : "✗ Completed with failures"}
 **Elapsed:** ${Math.round(result.elapsed / 1000)}s
 ${loopTimedOut ? "**Loop timeout:** yes\n" : ""}
 ## Phases
@@ -1709,6 +2131,22 @@ ${compactResult.artifactPaths.map((artifactPath) => `- ${artifactPath}`).join("\
         details: { ok: result.success, result: compactResult, loopTimedOut },
       };
     } catch (err) {
+      if (activeObservationContext) {
+        emitExecutionObservation(
+          pi,
+          projectAscExecutionGroupTerminal(
+            { ...activeObservationContext, phase: undefined },
+            {
+              ok: false,
+              status: effectiveSignal.timedOut() ? "timed_out" : "error",
+              failureKind: effectiveSignal.timedOut()
+                ? "loop_deadman_timeout"
+                : "loop_execution_error",
+              elapsedMs: Date.now() - loopStartedAt,
+            },
+          ),
+        );
+      }
       if (err instanceof LoopResumeError) {
         return {
           content: [{ type: "text", text: `Loop resume failed closed: ${err.message}` }],
@@ -1762,13 +2200,14 @@ Available loops:
 
 Checkpointed runs can continue under the same run lineage by supplying resume_run_id, expected_failed_phase, and recovery_mode=validate_then_retry. The runtime derives the lawful continuation phase and fails closed on objective, repository, phase-graph, state, or artifact drift. A dispatched attempt that failed, timed out, aborted, or crashed remains effect-indeterminate and cannot be retried mechanically.
 
-Each phase injects the appropriate cognitive tool and dispatches an agent.
+Each phase injects the appropriate cognitive tool and dispatches an agent. In an interactive Ghostty session with pi-little-helpers loaded, all phases share one automatic read-only progress observer tab; ASC remains execution/effect truth and closing the observer does not cancel work. Quiet/stall visibility is separate from the long emergency deadman.
 Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \`docs/learnings/\` when applicable) plus the evidence ledger.`,
     promptSnippet:
       "Run a structured cognitive loop such as ooda, strategic, kaizen, adkar, or transcendent.",
     promptGuidelines: [
       "Use loop_execute when the user needs a multi-phase reasoning and execution pattern rather than a single step.",
       "Choose the loop that matches the decision structure instead of inventing an ad-hoc sequence.",
+      "Do not set routine 5–10 minute wall-clock cutoffs for healthy modern-agent work; omit timeout overrides unless the operator requested an explicit shorter deadman.",
     ],
     parameters: Type.Object({
       loop: Type.Union(
@@ -1789,11 +2228,15 @@ Results are recorded to package-owned KES roots (\`diary/\` and candidate-only \
         }),
       ),
       loop_timeout_seconds: Type.Optional(
-        Type.Number({ description: "Optional positive loop-level timeout in seconds." }),
+        Type.Number({
+          description:
+            "Optional absolute whole-loop deadman override in seconds (default: 86400 / 24 hours). Omit for ordinary supervised work.",
+        }),
       ),
       phase_timeout_seconds: Type.Optional(
         Type.Number({
-          description: "Optional positive timeout in seconds for each dispatched phase.",
+          description:
+            "Optional absolute per-phase deadman override in seconds (default: 14400 / 4 hours). Omit for ordinary supervised work; observer quiet/stall state does not auto-cancel.",
         }),
       ),
       resume_run_id: Type.Optional(
@@ -1922,11 +2365,15 @@ Unknown templates and workflow-grade templates without an execution binding fail
         }),
       ),
       loop_timeout_seconds: Type.Optional(
-        Type.Number({ description: "Optional positive loop-level timeout in seconds." }),
+        Type.Number({
+          description:
+            "Optional absolute whole-loop deadman override in seconds (default: 86400 / 24 hours).",
+        }),
       ),
       phase_timeout_seconds: Type.Optional(
         Type.Number({
-          description: "Optional positive timeout in seconds for each dispatched phase.",
+          description:
+            "Optional absolute per-phase deadman override in seconds (default: 14400 / 4 hours).",
         }),
       ),
       resume_run_id: Type.Optional(
