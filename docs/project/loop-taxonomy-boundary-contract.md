@@ -55,10 +55,12 @@ Therefore `/nexus-loop`, `loop_execute`, and `loop-impact-run` must not be merge
 1. **Visible execution stays in `pi-little-helpers`.**
    - Owns Ghostty/Pi child launch, prompt queue delivery, local visible-loop state, intercom report-back, and completion checkpoint tooling.
    - `/nexus-loop` is a visible-loop profile, not an orchestrator loop.
+   - `pi-little-helpers` also owns read-only Ghostty **observation** of ASC-backed work. An observer tab is a presentation surface, not a visible execution loop: it does not host the executing child, accept steering, own checkpoints, or cancel work when closed.
 
 2. **Control-plane cognition stays in `pi-society-orchestrator`.**
    - Owns `loop_execute` and `workflow_execute` as above-seam coordination surfaces over public execution seams.
    - May coordinate around visible loops, but must not absorb their launch/checkpoint/local-state machinery.
+   - May assign one bounded observation-group identity across a logical loop run and exact phase annotations through ASC's public projector. It must not launch Ghostty, write observer snapshots, or interpret observer state as settlement/effect truth.
 
 3. **Repo validation phases stay repo-owned.**
    - Visible or orchestrator loops may invoke repo-declared `loop-*` aliases.
@@ -81,6 +83,7 @@ Therefore `/nexus-loop`, `loop_execute`, and `loop-impact-run` must not be merge
 | `/visible-loop` or `/nexus-loop` | repo validation | Use repo-declared `loop-*` command phase or closest documented fallback. |
 | `/visible-loop` or `/nexus-loop` | `pi-society-orchestrator` | Prompt may ask the child to call `loop_execute(...)` or `workflow_execute(...)` when cognitive/workflow coordination is explicitly needed. |
 | `pi-society-orchestrator` | visible loops | Recommend a visible-loop command, watch/report explicit outputs if supplied, or gate fan-in after controller verification; do not launch/own the visible-loop state machine unless a separate public seam is deliberately designed. |
+| `pi-society-orchestrator` | ASC observation -> `pi-little-helpers` renderer | Attach shared logical run/phase metadata to ASC-owned bounded progress projection; `pi-little-helpers` may render one read-only observer per run. No execution, cancellation, settlement, or effect authority crosses this seam. |
 | Prompt Vault | orchestrator loop | Use dispatch bindings such as known `vault_execute_template` / `loop_execute` mappings; fail closed when binding is missing. |
 | Visible/cognitive/validation runs | AK/evidence/learning | Use exact owner-surface projection after verification; never infer authority from loop completion. |
 
@@ -95,7 +98,7 @@ When changing loop code or docs:
    - Not OK: moving Ghostty child launch into `pi-society-orchestrator` because it also has `loop_execute`.
 3. Add tests at the boundary that would fail if categories collapse:
    - `/nexus-loop` remains command-aware and visible-loop-profile based.
-   - `loop_execute` remains orchestrator-owned and does not spawn visible Ghostty children.
+   - `loop_execute` remains orchestrator-owned and does not spawn visible Ghostty children; its bounded observation metadata may cause `pi-little-helpers` to open one non-executing read-only observer.
    - repo `loop-*` aliases are invoked as validation phases, not treated as approval.
 4. Update product posture when maturity, proof, owner route, or next frontier changes.
 
