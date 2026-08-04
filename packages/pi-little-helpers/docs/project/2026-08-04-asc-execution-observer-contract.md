@@ -115,24 +115,25 @@ The snapshot is diagnostic UI state, not a session trace, checkpoint, KES artifa
 
 ## Automatic launch policy
 
-Default `PI_ASC_OBSERVER=auto` behavior launches only when:
+Default `PI_ASC_OBSERVER=auto` behavior attempts launch only when:
 
 1. the exact host mode is `ctx.mode === "tui"` and the session reports `hasUI=true`;
 2. the host process is running inside Ghostty (`TERM_PROGRAM=ghostty`);
 3. the standard `pi-little-helpers` sidequest extension is loaded;
-4. the first valid `dispatch_progress` event for the active cwd arrives.
+4. the first valid `dispatch_progress` event for the active cwd arrives;
+5. the controller Ghostty ancestor, surface id, and unique PID-matched D-Bus target prove an exact same-controller tab destination.
 
 Overrides:
 
 | Value | Behavior |
 |---|---|
-| unset / `auto` | Launch only for interactive Ghostty Pi sessions. |
-| `1`, `on`, `true`, `ghostty` | Request Ghostty observation for any TUI session; normal Ghostty window fallback still applies. This never enables RPC/JSON/print modes. |
+| unset / `auto` | Attempt exact-controller-tab launch only for interactive Ghostty Pi sessions. |
+| `1`, `on`, `true`, `ghostty` | Request observation-policy evaluation for any TUI session. Exact controller-tab proof is still mandatory; this never enables an untargeted tab, new-window fallback, or RPC/JSON/print mode. |
 | `0`, `off`, `false`, `headless`, `disabled` | Do not write observer state or launch Ghostty. |
 
 `pi -p`, JSON, RPC, CI, SSH, and other non-TUI callers remain headless even when RPC reports `hasUI=true` or the process inherits a Ghostty environment variable.
 
-The observer uses the existing sidequest Ghostty selection, current-window targeting, `+new-tab`, and honest new-window fallback contract. Toolbox-only sidequest projection does not register a second listener.
+The observer reuses the sidequest launch primitives but selects a stricter placement policy than operator-requested visible peers: only the unique PID-matched controller D-Bus target may open its tab. It never substitutes a wrapper owned by another Ghostty process, invokes an untargeted `+new-tab`, or retries in a new window. If exact placement is unavailable or activation fails, the observer records/reports one launch failure and ASC execution continues headlessly. Toolbox-only sidequest projection does not register a second listener.
 
 ## Observer lifecycle
 
@@ -181,14 +182,14 @@ Routine 5–10 minute cutoffs should not be supplied for ordinary long-running m
 | No `pi-little-helpers` listener | ASC execution continues normally and headlessly. |
 | Invalid observation payload | Ignore it; no file or launch. |
 | Snapshot write failure | Ignore observer effect; execution remains authoritative. |
-| Ghostty probe/tab/window failure or rejected launch promise | Record/report observer failure once; do not retry on every heartbeat; execution continues headlessly. |
+| Exact controller/surface proof is unavailable, the targeted tab activation fails, or the launch promise rejects | Record/report observer failure once; do not use wrapper/new-window fallback and do not retry on every heartbeat; execution continues headlessly. |
 | Observer process/tab closes | Do not cancel execution. |
 | ASC dispatch fails or times out | Show terminal state/effect disposition when emitted; ASC receipt remains truth. |
 | Loop phase completes | Update phase; keep the run group open. |
 | Loop result remains exactly retryable after `confirmed_no_effects` | Do not emit `group_terminal`; preserve the shared run observer for lawful resume. |
 | Loop terminates | Emit `group_terminal`; render final run state. |
 
-Ghostty launch success proves only that the observer launch request succeeded. It proves neither child startup nor execution completion.
+Ghostty launch success proves only that the exact controller-process activation request was delivered successfully. It proves neither renderer startup nor ASC child execution completion.
 
 ## Validation anchors
 

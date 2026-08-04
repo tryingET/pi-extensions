@@ -118,6 +118,7 @@ type PiToolContext = Parameters<Parameters<ExtensionAPI["registerTool"]>[0]["exe
 
 type LaunchMode = "tab" | "window";
 type QuestSessionMode = "fork" | "clean";
+type QuestPlacementPolicy = "visible-fallback" | "controller-tab-only";
 type SidequestRole = "scout" | "reviewer";
 type SidequestReportBack = "intercom" | "manual" | "none";
 type CandidatePeerReportBack = SidequestReportBack;
@@ -1179,6 +1180,7 @@ async function launchPiQuestSession({
   sourceSessionFile,
   titlePrefix = "Sidequest",
   command,
+  placementPolicy = "visible-fallback",
 }: {
   pi: ExtensionAPI;
   ctx: { model?: unknown };
@@ -1189,6 +1191,7 @@ async function launchPiQuestSession({
   sourceSessionFile?: string;
   titlePrefix?: string;
   command?: GhosttyCommandSpec;
+  placementPolicy?: QuestPlacementPolicy;
 }): Promise<SidequestLaunchOutcome> {
   const env = options.env ?? process.env;
   const pathExists = options.pathExists ?? existsSync;
@@ -1207,6 +1210,7 @@ async function launchPiQuestSession({
     process.platform === "linux" ? await supportsGhosttyNewTab(execRunner, ghosttyBin) : false;
   let wrapperTabAttachNote: string | undefined;
   if (
+    placementPolicy === "visible-fallback" &&
     process.platform === "linux" &&
     isGhosttySession(env) &&
     !supportsNewTab &&
@@ -1246,6 +1250,28 @@ async function launchPiQuestSession({
           surfaceId,
         })
       : undefined;
+  const promptSummary = summarizePrompt(titlePrompt);
+  if (placementPolicy === "controller-tab-only" && !controllerDbusTarget) {
+    const reason =
+      windowFallbackReason ??
+      (!controllerGhostty
+        ? "controller Ghostty process could not be resolved"
+        : !requestedSurfaceId
+          ? "controller Ghostty surface id is unavailable"
+          : !surfaceId
+            ? "controller Ghostty surface targeting is unsupported"
+            : "unique controller Ghostty D-Bus target could not be proven");
+    return {
+      ok: false,
+      failure: `exact controller Ghostty tab unavailable: ${reason}`,
+      launchMode: "tab",
+      sessionMode,
+      cwd,
+      sourceSessionFile,
+      titleBase: title,
+      promptSummary,
+    };
+  }
   await waitForPeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
   const launchedAfterMs = Date.now();
   const ghosttyExecArgs = buildGhosttyExecArgs({ cwd, title, piArgs });
@@ -1278,7 +1304,7 @@ async function launchPiQuestSession({
       : undefined,
   );
 
-  if (!launchResult.ok && launchMode === "tab") {
+  if (!launchResult.ok && launchMode === "tab" && placementPolicy === "visible-fallback") {
     const tabFailure = summarizeLaunchFailure(launchResult);
     const fallbackResult = await runGhosttyLaunch(
       execRunner,
@@ -1300,8 +1326,7 @@ async function launchPiQuestSession({
     }
   }
 
-  const promptSummary = summarizePrompt(titlePrompt);
-  if (launchResult.ok) {
+  if (launchResult.ok && placementPolicy === "visible-fallback") {
     launchNote = joinLaunchNotes(
       launchNote,
       await detectPostLaunchPlacementMismatch({
@@ -1353,6 +1378,7 @@ async function launchAscExecutionObserverSession(
     prompt: "read-only ASC execution observation",
     titlePrompt: request.title,
     titlePrefix: "ASC observer",
+    placementPolicy: "controller-tab-only",
     cwd: request.cwd,
     command: {
       command: process.execPath,
