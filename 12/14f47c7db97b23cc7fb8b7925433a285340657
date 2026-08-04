@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "1214f47c7db97b23cc7fb8b7925433a285340657"
-created_at: "2026-08-04T14:00:32Z"
+created_at: "2026-08-04T14:55:59Z"
 intent: "Harden long-running ASC execution, add bounded observations, and remove the objective ceiling."
 files:
   - "packages/pi-autonomous-session-control/README.md"
@@ -26,5 +26,5 @@ validation:
     status: "pass"
 group:
   index: 1
-  total: 7
+  total: 8
   rationale: "ASC owns the execution-plane contract and package-local regression proof."
