@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "d4787846cf3ec392fcc01c9b7d4e28a08b3eb915"
-created_at: "2026-08-04T15:20:39Z"
+created_at: "2026-08-04T15:26:06Z"
 intent: "Retain ASC build dependencies until source-linked consumers are aligned, then prune before runtime proof."
 files:
   - "scripts/governed-deep-review-canary.mjs"
@@ -14,7 +14,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "pass"
 group:
   index: 9
   total: 9
