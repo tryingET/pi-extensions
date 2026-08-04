@@ -16,6 +16,10 @@ import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  generateSessionCompactionHandoffPrompt,
+  type SessionCompactionHandoffGenerationContext,
+} from "@tryinget/pi-session-compaction/handoff-generation";
 import { Type } from "typebox";
 import {
   ASC_EXECUTION_OBSERVATION_EVENT,
@@ -81,7 +85,8 @@ import { checkAkTaskExecutionBinding } from "../src/visibleLoopTaskBinding.ts";
 
 export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
 
-const [SIDEQUEST_COMMAND, SCOUTPEER_COMMAND, PARALLELQUEST_COMMAND] = LITTLE_HELPERS_COMMAND_NAMES;
+const [SIDEQUEST_COMMAND, SCOUTPEER_COMMAND, PARALLELQUEST_COMMAND, HANDOFF_TAB_COMMAND] =
+  LITTLE_HELPERS_COMMAND_NAMES;
 const [
   FORK_PEER_SPAWN_TOOL,
   SCOUT_PEER_SPAWN_TOOL,
@@ -94,6 +99,10 @@ const DEFAULT_PI_BIN = process.env.PI_SIDEQUEST_PI_BIN || "pi";
 const GHOSTTY_PROBE_TIMEOUT_MS = 4000;
 const GHOSTTY_LAUNCH_TIMEOUT_MS = 15000;
 const DEFAULT_PEER_LAUNCH_STAGGER_MS = 1000;
+const DEFAULT_HANDOFF_GOAL =
+  "Continue the current session's unfinished operator-directed work from the verified next legal step.";
+const HANDOFF_RUNTIME_READ_TIMEOUT_MS = 6000;
+const HANDOFF_RUNTIME_READ_MAX_BYTES = 12 * 1024;
 const TITLE_MAX_LEN = 48;
 const GHOSTTY_BIN_NAME = "ghostty";
 const LOCAL_GHOSTTY_WRAPPER = join(homedir(), ".local", "bin", "ghostty-sidequest");
@@ -162,6 +171,7 @@ type SidequestOptions = {
   currentGhosttyAncestor?: GhosttyAncestor;
   registerCommands?: boolean;
   registerTools?: boolean;
+  generateHandoffPrompt?: typeof generateSessionCompactionHandoffPrompt;
   governedDeepReviewPreflight?: RunVisibleLoopGovernedPreflight;
   ascExecutionObserver?: AscExecutionObserverController;
   ascObserverStateRoot?: string;
@@ -499,6 +509,57 @@ const candidatePeerSpawnParameters = asPiToolParameters(
 function getPrompt(args?: string): string | undefined {
   const prompt = args?.trim();
   return prompt ? prompt : undefined;
+}
+
+function boundHandoffRuntimeReadback(value: string): string {
+  const bytes = Buffer.from(value, "utf8");
+  if (bytes.length <= HANDOFF_RUNTIME_READ_MAX_BYTES) return value;
+  return `${bytes.subarray(0, HANDOFF_RUNTIME_READ_MAX_BYTES).toString("utf8")}\n[truncated]`;
+}
+
+async function collectHandoffRuntimeContext({
+  pi,
+  options,
+  cwd,
+}: {
+  pi: ExtensionAPI;
+  options: SidequestOptions;
+  cwd: string;
+}): Promise<string> {
+  const execRunner: ExecRunner =
+    options.exec ?? ((command, args, execOptions) => pi.exec(command, args, execOptions));
+  const specs = [
+    { label: "Git HEAD", command: "git", args: ["rev-parse", "HEAD"] },
+    { label: "Git status", command: "git", args: ["status", "--short", "--branch"] },
+    {
+      label: "AK claimed tasks",
+      command: "ak",
+      args: ["task", "list", "--status", "claimed", "-F", "json"],
+    },
+    { label: "AK ready tasks", command: "ak", args: ["task", "ready", "-F", "json"] },
+  ] as const;
+  const results = await Promise.all(
+    specs.map(async (spec) => {
+      try {
+        const result = await execRunner(spec.command, [...spec.args], {
+          cwd,
+          timeout: HANDOFF_RUNTIME_READ_TIMEOUT_MS,
+        });
+        if (result.code === 0 && !result.killed) {
+          const output = String(result.stdout || "").trim() || "<empty>";
+          return `${spec.label} (${spec.command} ${spec.args.join(" ")}):\n${boundHandoffRuntimeReadback(output)}`;
+        }
+        const detail = String(result.stderr || result.stdout || "no output")
+          .replace(/\s+/g, " ")
+          .trim();
+        return `${spec.label}: unavailable (${result.killed ? "timed out" : `exit ${result.code}`}: ${detail.slice(0, 500)})`;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        return `${spec.label}: unavailable (${detail.slice(0, 500)})`;
+      }
+    }),
+  );
+  return results.join("\n\n");
 }
 
 function summarizePrompt(prompt: string): string {
@@ -2363,6 +2424,52 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
     }
 
+    async function runHandoffTabCommand(args: string | undefined, ctx: PiCommandContext) {
+      const goal = getPrompt(args) ?? DEFAULT_HANDOFF_GOAL;
+      const cwd = ctx.cwd || process.cwd();
+      const runtimeContext = await collectHandoffRuntimeContext({ pi, options, cwd });
+      const generator = options.generateHandoffPrompt ?? generateSessionCompactionHandoffPrompt;
+      let prompt: string;
+      try {
+        prompt = await generator({
+          ctx: ctx as unknown as SessionCompactionHandoffGenerationContext,
+          goal,
+          runtimeContext,
+        });
+      } catch (error) {
+        if (ctx.hasUI) {
+          const detail = error instanceof Error ? error.message : String(error);
+          ctx.ui.notify(`handoff-tab could not generate a handoff: ${detail}`, "error");
+        }
+        return;
+      }
+
+      const launch = await launchPiQuestSession({
+        pi,
+        ctx,
+        options,
+        prompt,
+        titlePrompt: goal,
+        titlePrefix: "Handoff",
+        cwd,
+      });
+      if (!launch.ok) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(`handoff-tab failed to launch Ghostty: ${launch.failure}`, "error");
+        }
+        return;
+      }
+
+      if (ctx.hasUI) {
+        const modeLabel = formatLaunchModeLabel(launch.launchMode, launch.launchNote);
+        const suffix = launch.launchNote ? ` (${launch.launchNote})` : "";
+        ctx.ui.notify(
+          `Opened a clean Pi session in ${modeLabel} and auto-submitted one generated handoff${suffix}`,
+          "info",
+        );
+      }
+    }
+
     async function runScoutPeerCommand(args: string | undefined, ctx: PiCommandContext) {
       const objective = getPrompt(args);
       if (!objective) {
@@ -3507,6 +3614,12 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     }
 
     if (registerCommands) {
+      pi.registerCommand(HANDOFF_TAB_COMMAND, {
+        description:
+          "Generate a self-contained handoff and auto-submit it in a clean Ghostty Pi tab",
+        handler: runHandoffTabCommand,
+      });
+
       pi.registerCommand(SIDEQUEST_COMMAND, {
         description: "Fork the current Pi session into a visible Ghostty peer",
         handler: (args, ctx) => runForkPeerCommand(args, ctx, SIDEQUEST_COMMAND, "Sidequest"),

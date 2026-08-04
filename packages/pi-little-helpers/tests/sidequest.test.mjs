@@ -640,6 +640,141 @@ test("sidequest refuses to launch when the current Pi session has not been saved
   assert.match(harness.notifications[0].message, /needs a saved Pi session/i);
 });
 
+test("handoff-tab launches a clean Pi session and auto-submits exactly one generated prompt", async () => {
+  const generatedPrompt =
+    "You are a fresh, stateless Pi coding session.\n\nVerify state, then implement task 4660.";
+  const generationCalls = [];
+  const execStub = createExecStub(({ command, args }) => {
+    if (command === "git")
+      return { code: 0, stdout: args[0] === "rev-parse" ? "abc123\n" : "## main\n" };
+    if (command === "ak")
+      return { code: 0, stdout: args.includes("ready") ? '[{"id":4660}]\n' : "[]\n" };
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
+    }
+    if (args[0] === "+version") return { code: 0, stdout: "Ghostty 1.4.0\n" };
+    if (args[0] === "+new-tab") return { code: 0, stdout: "" };
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
+  });
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      GHOSTTY_SURFACE_ID: "19",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+    async generateHandoffPrompt(input) {
+      generationCalls.push(input);
+      return generatedPrompt;
+    },
+  });
+  const { commands } = registerExtension(extension, { thinkingLevel: "high" });
+  const harness = createContext();
+
+  await commands.get("handoff-tab").handler("Implement task 4660", harness.ctx);
+
+  assert.equal(generationCalls.length, 1);
+  assert.equal(generationCalls[0].ctx, harness.ctx);
+  assert.equal(generationCalls[0].goal, "Implement task 4660");
+  assert.match(generationCalls[0].runtimeContext, /Git HEAD/);
+  assert.match(generationCalls[0].runtimeContext, /abc123/);
+  assert.match(generationCalls[0].runtimeContext, /AK ready tasks/);
+  assert.match(generationCalls[0].runtimeContext, /4660/);
+  const launch = execStub.calls.find(({ args }) => args[0] === "+new-tab");
+  assert.ok(launch);
+  assert.deepEqual(extractPiArgs(launch.args), [
+    "pi",
+    "--model",
+    "openai/gpt-4o",
+    "--thinking",
+    "high",
+    generatedPrompt,
+  ]);
+  assert.equal(extractPiArgs(launch.args).includes("--fork"), false);
+  assert.equal(extractPiArgs(launch.args).filter((arg) => arg === generatedPrompt).length, 1);
+  assert.equal(harness.notifications.length, 1);
+  assert.equal(harness.notifications[0].type, "info");
+  assert.match(harness.notifications[0].message, /clean Pi session/);
+  assert.match(harness.notifications[0].message, /auto-submitted one generated handoff/);
+  assert.match(harness.notifications[0].message, /current Ghostty tab/);
+});
+
+test("handoff-tab works without arguments and reports a truthful new-window fallback", async () => {
+  const generationCalls = [];
+  const generatedPrompt = "You are a fresh, stateless Pi coding session.\n\nContinue safely.";
+  const execStub = createExecStub(({ command, args }) => {
+    if (command === "git")
+      return { code: 0, stdout: args[0] === "rev-parse" ? "abc123\n" : "## main\n" };
+    if (command === "ak") return { code: 0, stdout: "[]\n" };
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n" };
+    }
+    if (args[0]?.startsWith("--working-directory=")) return { code: 0, stdout: "" };
+    throw new Error(`Unexpected Ghostty args: ${args.join(" ")}`);
+  });
+  const extension = createSidequestExtension({
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+    async generateHandoffPrompt(input) {
+      generationCalls.push(input);
+      return generatedPrompt;
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const harness = createContext();
+
+  await commands.get("handoff-tab").handler("", harness.ctx);
+
+  assert.equal(generationCalls.length, 1);
+  assert.match(generationCalls[0].goal, /unfinished operator-directed work/);
+  const launch = execStub.calls.find(({ args }) => args[0]?.startsWith("--working-directory="));
+  assert.ok(launch);
+  assert.equal(extractPiArgs(launch.args).includes("--fork"), false);
+  assert.equal(extractPiArgs(launch.args).at(-1), generatedPrompt);
+  assert.equal(harness.notifications.length, 1);
+  assert.match(harness.notifications[0].message, /new Ghostty window/);
+  assert.match(harness.notifications[0].message, /does not support \+new-tab/);
+});
+
+test("handoff-tab does not launch when owner-scoped prompt generation fails", async () => {
+  const execStub = createExecStub(({ command }) => {
+    if (command === "git" || command === "ak") return { code: 0, stdout: "[]\n" };
+    throw new Error("Ghostty must not launch after generation failure");
+  });
+  const extension = createSidequestExtension({
+    exec: execStub.exec,
+    async generateHandoffPrompt() {
+      throw new Error("model unavailable");
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const harness = createContext();
+
+  await commands.get("handoff-tab").handler("continue", harness.ctx);
+
+  assert.equal(execStub.calls.length, 4);
+  assert.ok(execStub.calls.every(({ command }) => command === "git" || command === "ak"));
+  assert.deepEqual(harness.notifications, [
+    {
+      type: "error",
+      message: "handoff-tab could not generate a handoff: model unavailable",
+    },
+  ]);
+});
+
 test("sidequest defaults to slash commands, visible-loop, and standard peer-spawn tools", () => {
   const extension = createSidequestExtension();
   const { commands, tools } = registerExtension(extension);
@@ -649,6 +784,7 @@ test("sidequest defaults to slash commands, visible-loop, and standard peer-spaw
   assert.ok(commands.has("scoutpeer"));
   assert.equal(commands.has("candidatepeer"), false);
   assert.ok(commands.has("parallelquest"));
+  assert.ok(commands.has("handoff-tab"));
   assert.ok(commands.has("visible-loop"));
   assert.ok(commands.has("nexus-loop"));
   assert.ok(commands.has("visible-loop-child"));

@@ -17,6 +17,7 @@ This package is now the local live owner for custom `session_before_compact` sum
 - registers exactly one `session_before_compact` handler through the fail-closed registration guard
 - exposes `/compact-focus`, a guided operator menu that calls the same compaction path with selected custom instructions
 - exposes `/compact-handoff` and the `session_compaction_handoff` tool for owner-owned, operator-pasteable fresh-session handoff prompts before compaction/reload; the tool accepts structured discovery/promotion-status records for insights that still need owner-surface promotion
+- exports `@tryinget/pi-session-compaction/handoff-generation`, which reduces the live branch, accepts bounded Git/AK readback from the transport owner, calls host-owned `ctx.modelRegistry.completeSimple()`, and validates one self-contained prompt for clean-session transport such as pi-little-helpers `/handoff-tab`; this generator does not launch terminals or submit messages itself
 - does not expose prompt bundles or `package.json#pi.prompts`
 - falls back to stock compaction when the custom summarizer cannot be resolved, except explicit malformed/preset-directed paths that intentionally cancel rather than silently producing the wrong preset summary
 - delegates summary model calls to `ctx.modelRegistry.completeSimple()`, keeping provider registration, authentication, and custom stream overrides in the Pi host rather than importing pi-ai inside the extension
@@ -48,6 +49,7 @@ This package currently implements the compaction-facing foundations and a tested
 - live `extensions/session-compaction.js` entrypoint, which enables input tracking, guarded `session_before_compact` registration, and `/compact-focus` without adding prompt bundles
 - non-live `extensions/session-compaction/branch-summary.js` helpers for optional `session_before_tree` augmentation, including prompt-contract loading, files-touched instructions, focus text preservation, and safe undefined-on-failure behavior
 - `extensions/session-compaction/handoff-prompt.js` for the canonical fresh-session prompt affordance, including linked discovery records with valuable-discovery, source, promotion-status, owner-surface, metric, falsifier, and non-authorization fields; ASC/self may route or provide mirror-only cues, but this package owns compaction/handoff prompt shape
+- `extensions/session-compaction/handoff-generation.js` for conversation-grounded handoffs: latest-compaction branch reduction, explicit operator goal/cwd, host-model generation at low reasoning, exact fresh-session prefix validation, and a 96 KiB launch boundary
 - clear failure messages for missing models, ambiguous matches, unsupported reasoning, and incompatible registries
 
 The live hook should remain the only custom compaction override. If another compaction owner is installed later, remove or disable one before reloading Pi.

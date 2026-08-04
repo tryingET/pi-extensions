@@ -62,6 +62,7 @@
     "./branch-summary": "./extensions/session-compaction/branch-summary.js",
     "./files-touched": "./extensions/session-compaction/files-touched.js",
     "./handler": "./extensions/session-compaction/handler.js",
+    "./handoff-generation": "./extensions/session-compaction/handoff-generation.js",
     "./handoff-prompt": "./extensions/session-compaction/handoff-prompt.js",
     "./model-resolver": "./extensions/session-compaction/model-resolver.js",
     "./registration": "./extensions/session-compaction/registration.js",
