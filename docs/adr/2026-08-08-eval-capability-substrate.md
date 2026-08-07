@@ -9,20 +9,20 @@ system4d:
   container: "Agent eval + capability substrate architecture in pi-extensions (L0-L5), absorbing pi-code-mode as the kernel home and adding contract gating, a function library, and reactive artifacts."
   compass: "One typed, persistent, multi-language execution substrate whose capability surface is contract-gated before execution (compile gate + runtime gate), with durable agent-built functions and interactive artifacts — taking the best of pic, oh-my-pi, marimo, and rat for the right reasons, not just because."
   engine: "Phase 0 port/merge spec (DONE) -> Phase 1 Node persistent kernel (py+js) + structured look -> Phase 2 two-gate L3 -> Phase 3 L4 function graph overlay -> Phase 4 L5 artifacts; governed RFC -> review -> re-review -> ADR -> AK decision (operator-authorized) -> measured/autoresearch phased implementation."
-  fog: "ADR accepts architecture/implementation planning only — not implementation authorization, not cleanup/promotion authority, not the AK direction/task mutation. Contracts are mechanism-level and Phase-0-verified; the wiring (Node substrate, registry-generated contract, TS graph overlay, headless capability facade) is proposed and executes through the measured campaign substrate. Contrib runtimes stay study-only; Rust-only capabilities stay out of scope; the BaseKernel 'port' is a Node reimplementation, not a source copy."
+  fog: "ADR accepts architecture/implementation planning only — not implementation authorization, not cleanup/promotion authority. AK decision 114 was created and bound to direction AK.V5.SF07 (role context) as separate operator-authorized steps; the ADR text itself performs no AK mutation or evidence write. Contracts are mechanism-level and Phase-0-verified; the wiring (Node substrate, registry-generated contract, TS graph overlay, headless capability facade) is proposed and executes through the measured campaign substrate. Contrib runtimes stay study-only; Rust-only capabilities stay out of scope; the BaseKernel 'port' is a Node reimplementation, not a source copy."
 ---
 
 # ADR: Agent eval + capability substrate (L0–L5)
 
 ## Status
 
-**Accepted for architecture and implementation planning under AK decision (pending — operator-authorized creation).**
+**Accepted for architecture and implementation planning under AK decision 114** — state `unblocked`, outcome `accepted`; legal review closure = the re-review at `ready_for_adr`; bound to direction `AK.V5.SF07` with role `context`. Verify with `ak decision passport 114`.
 
 This ADR records the accepted durable architectural decision and its committed contracts. It is **explicitly not**:
 
 - **implementation authorization** — no phase may begin without its own implementation plan, validation plan, and measured/autoresearch campaign execution (per existing repo ADRs: "no unmeasured controller patches");
 - **cleanup or promotion authority** — it does not by itself delete, archive, merge, publish, or release any package or branch;
-- **AK authority** — it does not create the AK decision, bind the AK direction node, or write AK evidence; those are staged as operator-authorized next steps at the end.
+- **AK authority** — this ADR *cites* AK decision 114; the decision creation, lifecycle advancement (`review_pending` → … → `unblocked`), and direction-node binding were performed as separate operator-authorized steps (not by this ADR text), and this ADR writes no AK evidence itself. ADR acceptance remains distinct from implementation authorization.
 
 Evidence and reviews (all tracked in repo history):
 
@@ -178,13 +178,14 @@ This ADR does **not** authorize, by itself:
 - any **cleanup** of the contrib runtimes (they remain study-only) or of `pi-agent-interaction-canary` (kept as active WIP);
 - the **Phase-0 spec line-number refresh** — the re-review noted citation drift in the Phase-0 evidence index (mechanisms verified, line numbers stale); refreshing that index is separate low-priority housekeeping, not authorized by this ADR.
 
-## Operator-authorized next steps (explicitly NOT performed by this ADR)
+## Operator-authorized steps and status
 
-These are the steps required to move from "ADR accepted for planning" to "runtime-authoritative decision bound to durable intent." Each requires explicit operator authorization per workspace AGENTS (do not broaden into direction refresh / task creation unless asked):
+Steps that move this ADR from "accepted for planning" toward runtime-authoritative execution. Per workspace AGENTS these are operator-authorized (the ADR text performs none of them); status reflects work done in this session under explicit operator authorization.
 
-1. **Create the AK decision** this ADR cites (`ak decision create` from the repo root, linked to this ADR), then update this ADR's Status line and frontmatter from "pending" to the assigned AK decision id.
-2. **Bind the AK direction node** under `AK.V5.SF07` (child implementation wave or new sub-frame) using the operator-authorized AK direction path. (Note: `ak direction check` currently reports an unrelated drift — `IW8` / execution task `#4164`, owned by the Prompt Vault→Pi path — which is not this ADR's to repair.)
-3. **Open Phase-1 implementation + validation plans** for the L1 Node persistent kernel through the measured/autoresearch campaign substrate, with the disposable-engine feature flag as the rollback fallback.
+1. ✅ **Create the AK decision** — DONE: AK decision 114 created, advanced `review_pending` → `in_review` → `decision_pending` → `adr_required` (outcome `accepted`) → `adr_recorded` (adr_ref set) → `tasks_reevaluation_pending` → `unblocked`, with the RFC, first review (`revise_rfc`), re-review (`ready_for_adr`), Phase-0 evidence note, problem brief, implementation plan, and validation/rollout/rollback artifacts attached. Verify: `ak decision passport 114`.
+2. ✅ **Bind the AK direction node** — DONE: decision 114 linked to direction `AK.V5.SF07` (role `context`). `ak direction check` reports only the pre-existing, unrelated `IW8`/task `#4164` drift owned by the Prompt Vault→Pi path — not introduced or worsened by this binding (decision-link count 8 → 9, all parsed).
+3. ⏳ **Open Phase-1 implementation + validation plans** for the L1 Node persistent kernel through the measured/autoresearch campaign substrate, with the disposable-engine feature flag as the rollback fallback. (Plan drafted: [2026-08-08-eval-capability-substrate-phase1-implementation-plan.md](../project/2026-08-08-eval-capability-substrate-phase1-implementation-plan.md).)
+4. ⏳ **Link execution tasks** to decision 114 once Phase-1 work is decomposed into AK tasks (`post_adr_execution` links; no re-block needed — decision is already at `unblocked`).
 
 ## References
 
