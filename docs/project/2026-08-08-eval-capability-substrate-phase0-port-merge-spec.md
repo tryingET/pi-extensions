@@ -118,7 +118,7 @@ capability registry**.
 
 pic's typed `PicCapabilities` *runtime object* is **not** a portable set of implementations — it is a
 **thin RPC façade living in the Chrome session page**, injected as `globalThis.__picCapabilities` at
-`pic/src/page/app.js:2304-2307`, with each method forwarding to a Node host via a CDP `Runtime.binding`
+`pic/src/page/app.js:4062`, with each method forwarding to a Node host via a CDP `Runtime.binding`
 *(FACT, subagent-traced)*. Execution itself is a CDP `Runtime.evaluate` into the page
 *(FACT, `pic/src/typescript/functions.ts` → `chrome.evaluateProgram`)*.
 
@@ -171,7 +171,7 @@ content hash used only by `is_cell_cached`), and `is_mangled_local` (Python priv
 registry name, and uses `program.getTypeChecker()` symbol resolution to collect referenced names;
 `resolveDependencyOrder` is a DFS over those edges with **cycle detection** *(FACT)*. pic's integrity policy
 uses it directly: removal is refused when any *other* surviving function's `directDependencies` includes the
-target *(FACT, `pic/src/typescript/functions.ts:80-89`)*.
+target *(FACT, `pic/src/typescript/functions.ts:129-138`)*.
 
 ### The refinement (PROPOSAL)
 
@@ -356,8 +356,8 @@ the FCOS-slice pattern is the mechanism, owned by `holdingco/fcos-control-board`
 Contrib (study-only):
 
 - `softwareco/contrib/pic/src/typescript/compiler.ts` — `validateSubmission`, `CAPABILITY_CONTRACT`, `PicCapabilities`, `directDependencies`, `resolveDependencyOrder`.
-- `softwareco/contrib/pic/src/typescript/functions.ts:80-112` — tombstone, refuse-removal-if-required, `reconstruct`.
-- `softwareco/contrib/pic/src/page/app.js:2304-2307` — browser-resident capability façade (`__picCapabilities`); `pic/src/typescript/functions.ts` → `chrome.evaluateProgram` (CDP).
+- `softwareco/contrib/pic/src/typescript/functions.ts:129-138,201` — refuse-removal check (`:129`), tombstone append `{deleted:true,name}` (`:138`), `reconstruct` (`:201`).
+- `softwareco/contrib/pic/src/page/app.js:4062` — browser-resident capability façade (`__picCapabilities`); `pic/src/typescript/functions.ts` → `chrome.evaluateProgram` (CDP).
 - `softwareco/contrib/oh-my-pi/packages/coding-agent/src/eval/js/shared/prelude.txt` — `tool` Proxy, `__omp_call_tool__` hub, bridge globals.
 - `softwareco/contrib/oh-my-pi/packages/coding-agent/src/eval/js/tool-bridge.ts` — `callSessionTool` host dispatch.
 - `softwareco/contrib/oh-my-pi/packages/coding-agent/src/eval/js/shared/runtime.ts:236-237,415` — eval chokepoint, prelude injection; `wrapCode` Babel + `Bun.Transpiler`.

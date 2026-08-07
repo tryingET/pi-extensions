@@ -92,7 +92,7 @@ Take pic's **trade-off explorers** (weighted-sum multi-criteria ranking) and **t
 | L3 discovery | marimo `capabilities()` | entry-point capability discovery | pair discovery with enforcement |
 | L4 graph | marimo `_runtime/dataflow/graph.py` (data model) + pic `compiler.ts` `directDependencies` (resolver) | `DirectedGraph` data structures populated by pic's TS dep-resolver | most mature model; port the data structure, not marimo's Python AST or reactive execution |
 | L4 integrity | pic `src/typescript/functions.ts` | tombstones, refuse-removal-if-required | function-library integrity policy |
-| L5 artifacts | pic `src/artifacts.ts` (grammar/validation) | trade-off/timeline explorers, bounded expr lang | interactive output modality; evaluator is browser-bound → TS reimplementation |
+| L5 artifacts | pic `src/typescript/compiler.ts` (grammar/validation: `PicExplorerExpression`) + `src/artifacts.ts` (explorer data models) | trade-off/timeline explorers, bounded expr lang | interactive output modality; evaluator is browser-bound → TS reimplementation |
 | L0 spine | all (pi-autoresearch most rigorous) | log=truth, projections-derived, hash-identity | the contract that keeps caches honest |
 
 ## Cohesion points (why this is one system, not a parts bin)
