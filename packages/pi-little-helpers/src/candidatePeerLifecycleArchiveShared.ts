@@ -9,7 +9,7 @@ import {
   realpathSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import type { CandidateCleanupEffect } from "./candidatePeerLifecycleArchiveTypes.ts";
 import type { CandidateLifecycleRecord } from "./candidatePeerLifecycleV2.ts";
 import { stableJson } from "./candidatePeerLifecycleV2.ts";
@@ -155,6 +155,52 @@ function branchLookupFailure(ref: string, detail: string, stderr = ""): Error {
   return new Error(`candidate exact branch lookup failed for ${ref} (${detail})${suffix}`);
 }
 
+function exactLooseBranchRefExists(repoRoot: string, ref: string): boolean {
+  const commonDirProbe = spawnSync("git", ["-C", repoRoot, "rev-parse", "--git-common-dir"], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+  if (commonDirProbe.error) throw branchLookupFailure(ref, String(commonDirProbe.error));
+  if (commonDirProbe.signal || commonDirProbe.status === null) {
+    throw branchLookupFailure(
+      ref,
+      `git common-dir lookup terminated by ${commonDirProbe.signal ?? "unknown signal"}`,
+    );
+  }
+  const commonDirRaw = commonDirProbe.stdout.trim();
+  if (
+    commonDirProbe.status !== 0 ||
+    commonDirProbe.stderr !== "" ||
+    !commonDirRaw ||
+    commonDirRaw.includes("\0") ||
+    commonDirRaw.includes("\n")
+  ) {
+    throw branchLookupFailure(
+      ref,
+      `git common-dir lookup exited ${commonDirProbe.status}`,
+      commonDirProbe.stderr,
+    );
+  }
+
+  let commonDir: string;
+  try {
+    commonDir = realpathSync(resolve(repoRoot, commonDirRaw));
+  } catch (error) {
+    throw branchLookupFailure(ref, `git common-dir resolution failed: ${String(error)}`);
+  }
+  const looseRefPath = resolve(commonDir, ref);
+  if (looseRefPath === commonDir || !looseRefPath.startsWith(`${commonDir}${sep}`)) {
+    throw branchLookupFailure(ref, "exact loose ref path escapes the Git common directory");
+  }
+  try {
+    lstatSync(looseRefPath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw branchLookupFailure(ref, `exact loose ref lookup failed: ${String(error)}`);
+  }
+}
+
 export function branchOid(repoRoot: string, branchName: string): string | undefined {
   const ref = `refs/heads/${branchName}`;
   const probe = spawnSync("git", ["-C", repoRoot, "show-ref", "--verify", "--quiet", "--", ref], {
@@ -165,7 +211,12 @@ export function branchOid(repoRoot: string, branchName: string): string | undefi
   if (probe.signal || probe.status === null) {
     throw branchLookupFailure(ref, `git terminated by ${probe.signal ?? "unknown signal"}`);
   }
-  if (probe.status === 1 && probe.stdout === "" && probe.stderr === "") return undefined;
+  if (probe.status === 1 && probe.stdout === "" && probe.stderr === "") {
+    if (exactLooseBranchRefExists(repoRoot, ref)) {
+      throw branchLookupFailure(ref, "invalid exact loose ref exists");
+    }
+    return undefined;
+  }
   if (probe.status !== 0 || probe.stdout !== "" || probe.stderr !== "") {
     throw branchLookupFailure(ref, `git exited ${probe.status}`, probe.stderr);
   }

@@ -250,14 +250,18 @@ test("cleaned terminal verification treats an absent exact branch as quiet", () 
     assert.equal(child.stderr, "");
   }));
 
-test("cleaned terminal verification fails closed for missing and corrupt owner repos", () => {
-  for (const scenario of ["missing", "corrupt"]) {
+test("cleaned terminal verification fails closed for missing, corrupt, and malformed exact refs", () => {
+  for (const scenario of ["missing", "corrupt", "malformed-exact-ref"]) {
     withState((root, env) => {
       const fixture = cleanedFixture(root, env, `candidatepeer-terminal-${scenario}-owner`);
       if (scenario === "missing") {
         rmSync(fixture.repoRoot, { recursive: true, force: true });
-      } else {
+      } else if (scenario === "corrupt") {
         rmSync(join(fixture.repoRoot, ".git"), { recursive: true, force: true });
+      } else {
+        const exactRefDir = join(fixture.repoRoot, ".git", "refs", "heads", "candidate");
+        mkdirSync(exactRefDir, { recursive: true });
+        writeFileSync(join(exactRefDir, "terminal"), "deadbeef\n");
       }
       assert.throws(
         () => verifyCleanedCandidateTerminalRecord(fixture.cleaned, env),
