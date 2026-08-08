@@ -2,6 +2,14 @@ import type { PiToolResult, PiToolUpdateCallback } from "./pi-api.ts";
 
 export type CodeModeLanguage = "javascript" | "python";
 
+/**
+ * Kernel engine selection.
+ * - "disposable" (default): a fresh worker per eval with host-persisted state.
+ * - "persistent": one long-lived worker whose state lives in-process (Wave 1A,
+ *   Python only). The host never sends or reads back state.
+ */
+export type CodeModeEngine = "persistent" | "disposable";
+
 export type CapabilityEffect = "read" | "write" | "process" | "network" | "orchestration";
 
 export interface CapabilityCatalogEntry {
@@ -81,6 +89,7 @@ export interface CodeModeExtensionOptions {
   allowNonInteractive?: boolean;
   allowedCapabilityEffects?: CapabilityEffect[];
   pythonExecutable?: string;
+  engine?: CodeModeEngine;
   maxOutputBytes?: number;
   maxTimeoutMs?: number;
 }

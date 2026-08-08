@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""One-shot Python worker with host-persisted logical state for pi-eval-kernel."""
+"""Python worker for pi-eval-kernel.
+
+Disposable (default): one eval per process with host-persisted logical state.
+Persistent (--persistent): a long-lived loop over many evals whose logical
+state lives in-process across evals (no host state round-trip).
+"""
 
 import ast
 import concurrent.futures
@@ -14,6 +19,13 @@ import threading
 import time
 import traceback
 import uuid
+
+# Mode selection: an argv flag (--persistent) selects the long-lived worker
+# loop instead of an initial handshake frame. The host decides worker lifetime
+# at spawn time, the loop structure must be fixed before the first eval frame,
+# and a flag adds no round-trip while keeping the disposable one-shot path
+# unchanged.
+PERSISTENT = "--persistent" in sys.argv[1:]
 
 WRITE_LOCK = threading.Lock()
 PENDING_LOCK = threading.Lock()
@@ -289,27 +301,31 @@ def execute_eval(message):
     OUTPUT_LIMIT = max(0, int(message.get("outputLimitBytes") or 50 * 1024))
     stdout = BoundedText(OUTPUT_LIMIT)
     stderr = BoundedText(OUTPUT_LIMIT)
-    STATE.clear()
-    incoming_state = message.get("state")
-    if isinstance(incoming_state, dict):
-        STATE.update(incoming_state)
+    # Disposable workers replace in-process state with the host's committed copy
+    # each eval. Persistent workers keep state in-process across evals, so the
+    # host never sends or reads back state.
+    if not PERSISTENT:
+        STATE.clear()
+        incoming_state = message.get("state")
+        if isinstance(incoming_state, dict):
+            STATE.update(incoming_state)
     TOOL.configure(message.get("id"), message.get("capabilities", []))
     try:
         os.chdir(message.get("cwd") or os.getcwd())
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             value = execute_code(message.get("code", ""))
-        finalize(
-            {
-                "type": "eval_result",
-                "id": message.get("id"),
-                "ok": True,
-                "value": safe_value(value),
-                "state": serialize_state(),
-                "stdout": stdout.getvalue(),
-                "stderr": stderr.getvalue(),
-                "elapsedMs": round((time.monotonic() - started_at) * 1000),
-            }
-        )
+        result = {
+            "type": "eval_result",
+            "id": message.get("id"),
+            "ok": True,
+            "value": safe_value(value),
+            "stdout": stdout.getvalue(),
+            "stderr": stderr.getvalue(),
+            "elapsedMs": round((time.monotonic() - started_at) * 1000),
+        }
+        if not PERSISTENT:
+            result["state"] = serialize_state()
+        finalize(result)
     except BaseException as error:  # noqa: BLE001 - user code boundary
         finalize(
             {
@@ -328,4 +344,8 @@ def execute_eval(message):
 
 threading.Thread(target=reader, name="pi-eval-kernel-protocol", daemon=True).start()
 send({"type": "ready", "runtime": "python"})
-execute_eval(EVAL_QUEUE.get())
+if PERSISTENT:
+    while True:
+        execute_eval(EVAL_QUEUE.get())
+else:
+    execute_eval(EVAL_QUEUE.get())

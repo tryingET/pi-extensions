@@ -47,7 +47,11 @@ export function createCodeModeExtension(options: CodeModeExtensionOptions = {}) 
     registry.registerAll(options.capabilities ?? []);
     const runtime =
       options.runtime ??
-      new KernelManager({ registry, pythonExecutable: options.pythonExecutable });
+      new KernelManager({
+        registry,
+        pythonExecutable: options.pythonExecutable,
+        engine: options.engine,
+      });
     const allowedEffects = new Set(options.allowedCapabilityEffects ?? DEFAULT_ALLOWED_EFFECTS);
     const requireConfirmation = options.requireConfirmation ?? true;
     const allowNonInteractive = options.allowNonInteractive ?? false;
