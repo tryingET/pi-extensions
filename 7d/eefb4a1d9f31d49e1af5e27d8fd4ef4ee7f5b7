@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "7deefb4a1d9f31d49e1af5e27d8fd4ef4ee7f5b7"
+created_at: "2026-08-08T21:31:36Z"
+intent: "Rewrite pi-little-helpers local runtime dependencies to sibling package versions only while packing"
+files:
+  - "packages/pi-little-helpers/package.json"
+validation:
+  fast_gate:
+    command: "cd packages/pi-little-helpers && npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Reuse the repository-owned prepack/postpack manifest membrane while preserving local source linkage"
+links:
+  task_ids:
+    - 4684
