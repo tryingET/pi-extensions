@@ -1,7 +1,7 @@
 ---
 summary: "Python and JavaScript code-mode extension with persistent logical state for bounded multi-operation Pi calls."
 read_when:
-  - "Installing, operating, reviewing, or extending pi-code-mode."
+  - "Installing, operating, reviewing, or extending pi-eval-kernel."
   - "Comparing code-mode execution with native Pi tool calls or subagent workflows."
 system4d:
   container: "One model-visible eval tool backed by disposable language workers, persistent logical state, and an explicit host capability registry."
@@ -10,9 +10,9 @@ system4d:
   fog: "Arbitrary code has invoking-user authority; registry admission governs the host bridge, not the whole language runtime."
 ---
 
-# @tryinget/pi-code-mode
+# @tryinget/pi-eval-kernel
 
-`pi-code-mode` adds an `eval` tool with disposable Python and JavaScript workers plus host-persisted JSON state. One model-visible call can run a bounded program, issue concurrent calls through an explicit package-owned capability registry, and return one aggregated result.
+`pi-eval-kernel` adds an `eval` tool with disposable Python and JavaScript workers plus host-persisted JSON state. One model-visible call can run a bounded program, issue concurrent calls through an explicit package-owned capability registry, and return one aggregated result.
 
 It does **not** replace Bash by default and does **not** claim to invoke arbitrary active Pi tools.
 
@@ -70,7 +70,7 @@ Other owned packages can compose with code mode without exposing arbitrary regis
 import {
   createCodeModeExtension,
   type CodeModeCapability,
-} from "@tryinget/pi-code-mode/runtime";
+} from "@tryinget/pi-eval-kernel/runtime";
 
 const dispatchCapability: CodeModeCapability = {
   name: "dispatch_review",
@@ -119,7 +119,7 @@ From the package directory:
 ```bash
 npm install
 npm run check
-pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-code-mode
+pi install /home/tryinget/ai-society/softwareco/owned/pi-extensions/packages/pi-eval-kernel
 ```
 
 Then run `/reload` in Pi and verify with a real `eval` call. Installation/reload is intentionally separate from package validation.
@@ -136,7 +136,7 @@ npm run release:check
 From the monorepo root:
 
 ```bash
-bash ./scripts/package-quality-gate.sh ci packages/pi-code-mode
+bash ./scripts/package-quality-gate.sh ci packages/pi-eval-kernel
 node ./scripts/pi-host-compatibility-canary.mjs run \
   --profile current \
   --scenario code-mode-extension-factory-contract

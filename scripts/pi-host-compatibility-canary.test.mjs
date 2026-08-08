@@ -106,15 +106,15 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
 });
 
-test("compatibility canary covers the pi-code-mode exact extension-factory contract", () => {
+test("compatibility canary covers the pi-eval-kernel exact extension-factory contract", () => {
   const result = runJson(["list", "--profile", "current"]);
   const scenario = result.scenarios.find(
     (entry) => entry.id === "code-mode-extension-factory-contract",
   );
 
   assert.ok(scenario);
-  assert.equal(scenario.owner, "pi-code-mode");
-  assert.deepEqual(scenario.packages, ["tools/pi-code-mode-host-contract-fixture"]);
+  assert.equal(scenario.owner, "pi-eval-kernel");
+  assert.deepEqual(scenario.packages, ["tools/pi-eval-kernel-host-contract-fixture"]);
   assert.ok(scenario.upstreamSurfaces.includes("ExtensionFactory and ExtensionAPI assignability"));
   assert.deepEqual(scenario.command, ["npm", "run", "test:compat:pi-host"]);
 });
@@ -199,7 +199,7 @@ test("compatibility canary rejects cwd and package targets outside the repositor
   try {
     writeFileSync(
       manifestPath,
-      JSON.stringify(minimalManifest(tempDir, ["tools/pi-code-mode-host-contract-fixture"])),
+      JSON.stringify(minimalManifest(tempDir, ["tools/pi-eval-kernel-host-contract-fixture"])),
     );
     assert.match(
       runFailure(["validate", "--manifest", manifestPath]),
@@ -208,7 +208,7 @@ test("compatibility canary rejects cwd and package targets outside the repositor
 
     writeFileSync(
       manifestPath,
-      JSON.stringify(minimalManifest("packages/pi-code-mode", [tempDir])),
+      JSON.stringify(minimalManifest("packages/pi-eval-kernel", [tempDir])),
     );
     assert.match(
       runFailure(["list", "--manifest", manifestPath]),

@@ -102,10 +102,10 @@ test("list reports pi-model-selection as a top-level support package", () => {
   assert.equal(component?.packageName, "@tryinget/pi-model-selection");
 });
 
-test("code-mode release projection matches its current lifecycle marker", () => {
-  const packagePath = "packages/pi-code-mode";
+test("eval-kernel release projection matches its current lifecycle marker", () => {
+  const packagePath = "packages/pi-eval-kernel";
   const components = listComponents();
-  const component = components.find((entry) => entry.component === "pi-code-mode");
+  const component = components.find((entry) => entry.component === "pi-eval-kernel");
   assert.ok(component);
 
   const config = releaseProjection("config");

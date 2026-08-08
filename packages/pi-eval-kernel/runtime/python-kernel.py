@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-shot Python worker with host-persisted logical state for pi-code-mode."""
+"""One-shot Python worker with host-persisted logical state for pi-eval-kernel."""
 
 import ast
 import concurrent.futures
@@ -237,7 +237,7 @@ def reader():
 
 def execute_code(code):
     globals_for_eval = {
-        "__name__": "__pi_code_mode__",
+        "__name__": "__pi_eval_kernel__",
         "state": STATE,
         "tool": TOOL,
     }
@@ -245,14 +245,14 @@ def execute_code(code):
     if tree.body and isinstance(tree.body[-1], ast.Expr):
         prefix = ast.Module(body=tree.body[:-1], type_ignores=[])
         if prefix.body:
-            exec(compile(prefix, "<pi-code-mode>", "exec"), globals_for_eval, globals_for_eval)
+            exec(compile(prefix, "<pi-eval-kernel>", "exec"), globals_for_eval, globals_for_eval)
         expression = ast.Expression(body=tree.body[-1].value)
         return eval(
-            compile(expression, "<pi-code-mode>", "eval"),
+            compile(expression, "<pi-eval-kernel>", "eval"),
             globals_for_eval,
             globals_for_eval,
         )
-    exec(compile(tree, "<pi-code-mode>", "exec"), globals_for_eval, globals_for_eval)
+    exec(compile(tree, "<pi-eval-kernel>", "exec"), globals_for_eval, globals_for_eval)
     return None
 
 
@@ -326,6 +326,6 @@ def execute_eval(message):
         TOOL.configure(None, [])
 
 
-threading.Thread(target=reader, name="pi-code-mode-protocol", daemon=True).start()
+threading.Thread(target=reader, name="pi-eval-kernel-protocol", daemon=True).start()
 send({"type": "ready", "runtime": "python"})
 execute_eval(EVAL_QUEUE.get())

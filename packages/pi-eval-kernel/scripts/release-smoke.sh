@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---
-# summary: "Smoke-test the installed pi-code-mode tarball through an isolated Pi runtime."
+# summary: "Smoke-test the installed pi-eval-kernel tarball through an isolated Pi runtime."
 # read_when:
 #   - "Verifying packed-artifact installation, extension loading, or Python/JavaScript eval execution."
 # ---
@@ -85,7 +85,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-SMOKE_DIR="$(mktemp -d "$TMPDIR/pi-code-mode-release-smoke.XXXXXX")"
+SMOKE_DIR="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-smoke.XXXXXX")"
 WRAPPER_PATH="$SMOKE_DIR/eval-packed-smoke.ts"
 JAVASCRIPT_OUTPUT="$SMOKE_DIR/javascript.jsonl"
 PYTHON_OUTPUT="$SMOKE_DIR/python.jsonl"

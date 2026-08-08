@@ -1,5 +1,5 @@
 {
-  "name": "@tryinget/pi-code-mode",
+  "name": "@tryinget/pi-eval-kernel",
   "version": "0.1.0",
   "description": "Python and JavaScript code-mode tool with persistent logical state and an explicit host capability registry for Pi",
   "type": "module",
@@ -7,12 +7,12 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tryingET/pi-extensions.git",
-    "directory": "packages/pi-code-mode"
+    "directory": "packages/pi-eval-kernel"
   },
   "bugs": {
     "url": "https://github.com/tryingET/pi-extensions/issues"
   },
-  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-code-mode",
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-eval-kernel",
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -71,8 +71,8 @@
   },
   "x-pi-template": {
     "scaffoldMode": "simple-package",
-    "workspacePath": "packages/pi-code-mode",
-    "releaseComponent": "pi-code-mode",
+    "workspacePath": "packages/pi-eval-kernel",
+    "releaseComponent": "pi-eval-kernel",
     "releaseConfigMode": "component"
   },
   "devDependencies": {

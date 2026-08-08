@@ -256,10 +256,10 @@ async function executeEval(message) {
     };
     const context = vm.createContext(sandbox, {
       codeGeneration: { strings: false, wasm: false },
-      name: `pi-code-mode:${message.id}`,
+      name: `pi-eval-kernel:${message.id}`,
     });
     const script = new vm.Script(`(async () => {\n${message.code}\n})()`, {
-      filename: `pi-code-mode-${message.id}.mjs`,
+      filename: `pi-eval-kernel-${message.id}.mjs`,
       displayErrors: true,
     });
     const value = await script.runInContext(context);

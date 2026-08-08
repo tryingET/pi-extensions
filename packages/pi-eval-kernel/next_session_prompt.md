@@ -1,5 +1,5 @@
 ---
-summary: "Handoff prompt for package @tryinget/pi-code-mode inside monorepo workspace."
+summary: "Handoff prompt for package @tryinget/pi-eval-kernel inside monorepo workspace."
 read_when:
   - "Starting the next focused package-development session."
 system4d:
@@ -9,7 +9,7 @@ system4d:
   fog: "Biggest risk is package/local fixes that diverge from monorepo conventions."
 ---
 
-# Next session prompt for @tryinget/pi-code-mode
+# Next session prompt for @tryinget/pi-eval-kernel
 
 ## Session objective
 
@@ -17,8 +17,8 @@ Implement one focused package slice while preserving monorepo compatibility.
 
 ## Package context
 
-- workspace path: `packages/pi-code-mode`
-- release component key: `pi-code-mode`
+- workspace path: `packages/pi-eval-kernel`
+- release component key: `pi-eval-kernel`
 - primary extension entry: `extensions/eval.ts`
 
 ## Quick start

@@ -3,12 +3,12 @@ import test from "node:test";
 import defaultExtension, {
   createCodeModeExtension as createExtensionFromDefaultEntrypoint,
   CapabilityRegistry as ExtensionCapabilityRegistry,
-} from "@tryinget/pi-code-mode";
+} from "@tryinget/pi-eval-kernel";
 import {
   createCodeModeExtension as createExtensionFromRuntimeEntrypoint,
   KernelManager,
   CapabilityRegistry as RuntimeCapabilityRegistry,
-} from "@tryinget/pi-code-mode/runtime";
+} from "@tryinget/pi-eval-kernel/runtime";
 
 test("declared public package entrypoints load their extension and runtime contracts", () => {
   assert.equal(typeof defaultExtension, "function");

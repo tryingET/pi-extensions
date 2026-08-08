@@ -182,9 +182,9 @@ else
   fi
 
   : "${TMPDIR:?TMPDIR must point to managed disk-backed scratch storage}"
-  TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-code-mode-release-agent.XXXXXX")"
-  TEST_NPM_PREFIX="$(mktemp -d "$TMPDIR/pi-code-mode-release-npm-prefix.XXXXXX")"
-  TEST_NPM_CACHE="$(mktemp -d "$TMPDIR/pi-code-mode-release-npm-cache.XXXXXX")"
+  TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-agent.XXXXXX")"
+  TEST_NPM_PREFIX="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-npm-prefix.XXXXXX")"
+  TEST_NPM_CACHE="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-npm-cache.XXXXXX")"
 
   cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
 

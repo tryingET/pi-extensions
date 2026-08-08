@@ -5,8 +5,8 @@ command_name: eval
 github_maintainer: tryingET
 monorepo_repo_name: pi-extensions
 npm_org: tryinget
-release_component_key: pi-code-mode
+release_component_key: pi-eval-kernel
 release_config_mode: component
-repo_name: pi-code-mode
+repo_name: pi-eval-kernel
 scaffold_mode: simple-package
-workspace_relative_path: packages/pi-code-mode
+workspace_relative_path: packages/pi-eval-kernel

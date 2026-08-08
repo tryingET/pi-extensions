@@ -1,5 +1,5 @@
 ---
-summary: "Architecture and ownership boundaries for pi-code-mode."
+summary: "Architecture and ownership boundaries for pi-eval-kernel."
 read_when:
   - "Changing worker protocols, capability adapters, or lifecycle semantics."
   - "Reviewing whether behavior belongs in Pi core, ASC, the orchestrator, or code mode."
@@ -75,4 +75,4 @@ Pi host packages are optional peers, not persistent package dev dependencies. Th
 
 Pi 0.83.0 coding-agent extensions can register tools, inspect tool metadata, and change the active set. They cannot safely invoke arbitrary registered tools by name.
 
-`pi-code-mode` therefore requires no Pi change for its current behavior. A future universal dispatcher preserving host validation, hooks, cancellation, rendering, and durable harness records would belong to the upstream AgentHarness/extension-host API, not this package and not `pi-ai`.
+`pi-eval-kernel` therefore requires no Pi change for its current behavior. A future universal dispatcher preserving host validation, hooks, cancellation, rendering, and durable harness records would belong to the upstream AgentHarness/extension-host API, not this package and not `pi-ai`.

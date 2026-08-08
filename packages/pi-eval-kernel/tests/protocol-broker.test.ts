@@ -23,7 +23,7 @@ function waitForClose(child: ReturnType<typeof spawn>): Promise<{ code: number |
 }
 
 test("protocol broker isolates a newline-free worker flood from the host", async (t) => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "pi-code-mode-broker-flood-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pi-eval-kernel-broker-flood-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const workerScript = path.join(directory, "flood-worker.mjs");
   await writeFile(
@@ -55,7 +55,7 @@ test(
   "protocol broker escalates termination for the worker process group",
   { skip: process.platform === "win32" },
   async (t) => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "pi-code-mode-broker-kill-"));
+    const directory = await mkdtemp(path.join(os.tmpdir(), "pi-eval-kernel-broker-kill-"));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const marker = path.join(directory, "late-marker.txt");
     const workerScript = path.join(directory, "worker.mjs");

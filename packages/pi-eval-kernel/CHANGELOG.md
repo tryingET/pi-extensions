@@ -1,5 +1,5 @@
 ---
-summary: "Release history for pi-code-mode."
+summary: "Release history for pi-eval-kernel."
 read_when:
   - "Preparing a release or reviewing package behavior changes."
 system4d:

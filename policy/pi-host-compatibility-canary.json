@@ -83,22 +83,22 @@
     },
     {
       "id": "code-mode-extension-factory-contract",
-      "title": "pi-code-mode exact ExtensionFactory contract",
-      "owner": "pi-code-mode",
+      "title": "pi-eval-kernel exact ExtensionFactory contract",
+      "owner": "pi-eval-kernel",
       "why": "Compile the extension factory against the selected exact Pi host without persisting the host's shrinkwrapped dependency tree in ordinary package development installs.",
       "profiles": [
         "current",
         "upgrade"
       ],
       "packages": [
-        "tools/pi-code-mode-host-contract-fixture"
+        "tools/pi-eval-kernel-host-contract-fixture"
       ],
       "upstreamSurfaces": [
         "ExtensionFactory and ExtensionAPI assignability",
         "TypeBox tool schema registration",
         "tool result and command handler contracts"
       ],
-      "cwd": "packages/pi-code-mode",
+      "cwd": "packages/pi-eval-kernel",
       "command": [
         "npm",
         "run",

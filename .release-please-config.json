@@ -25,10 +25,6 @@
       "release-type": "node",
       "component": "pi-better-openai"
     },
-    "packages/pi-code-mode": {
-      "release-type": "node",
-      "component": "pi-code-mode"
-    },
     "packages/pi-context-overlay": {
       "release-type": "node",
       "component": "pi-context-overlay"
@@ -40,6 +36,10 @@
     "packages/pi-designmd-foundry": {
       "release-type": "node",
       "component": "pi-designmd-foundry"
+    },
+    "packages/pi-eval-kernel": {
+      "release-type": "node",
+      "component": "pi-eval-kernel"
     },
     "packages/pi-evalset-lab": {
       "release-type": "node",

@@ -383,7 +383,7 @@ throw new Error("expected failure");
 });
 
 test("eval timeout terminates the default run_process process group", async (t) => {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "pi-code-mode-timeout-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "pi-eval-kernel-timeout-"));
   t.after(() => rm(cwd, { recursive: true, force: true }));
   const marker = path.join(cwd, "late-marker.txt");
   const registry = new CapabilityRegistry(createDefaultCapabilities());
@@ -417,7 +417,7 @@ test("missing Python executable rejects without hanging", async () => {
   const registry = new CapabilityRegistry();
   const manager = new KernelManager({
     registry,
-    pythonExecutable: path.join(os.tmpdir(), "pi-code-mode-python-does-not-exist"),
+    pythonExecutable: path.join(os.tmpdir(), "pi-eval-kernel-python-does-not-exist"),
   });
   await assert.rejects(manager.run("python", request("1 + 1", 500)), /ENOENT|spawn/);
   await manager.close();

@@ -1,5 +1,5 @@
 ---
-summary: "Product and technical vision for pi-code-mode."
+summary: "Product and technical vision for pi-eval-kernel."
 read_when:
   - "Defining or revisiting code-mode direction."
 system4d:

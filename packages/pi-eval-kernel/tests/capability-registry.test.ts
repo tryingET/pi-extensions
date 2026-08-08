@@ -52,7 +52,7 @@ test("capability effect admission fails closed", async () => {
 });
 
 test("default filesystem capabilities stay inside cwd and retain a hard read ceiling", async (t) => {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "pi-code-mode-capability-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "pi-eval-kernel-capability-"));
   t.after(() => rm(cwd, { recursive: true, force: true }));
   await mkdir(path.join(cwd, "nested"));
   await writeFile(path.join(cwd, "nested", "sample.txt"), "one\ntwo\nthree", "utf8");

@@ -1,5 +1,5 @@
 ---
-summary: "Threat model, admission rules, and explicit non-sandbox boundary for pi-code-mode."
+summary: "Threat model, admission rules, and explicit non-sandbox boundary for pi-eval-kernel."
 read_when:
   - "Activating code mode or changing confirmation, worker, capability, or subprocess behavior."
   - "Reviewing non-interactive use or adding a mutating/network/orchestration adapter."
