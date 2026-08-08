@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "bd3f73ffa23a9cc34fa69f2a0eddfdcbe4715e9e"
+created_at: "2026-08-08T22:51:44Z"
+intent: "Seed the reality-anchored assertion mechanism: behavioral launch/observer claims are verified against the REAL Ghostty single-instance desktop (live busctl, real pi sessions) instead of stubs, so a wrong-but-self-consistent mental model can be caught. First assertion proves resolveControllerGhosttyDbusTarget targets the single-instance server for every live sidequest pi session."
+files:
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/tests/live/asc-observer-targeting.reality.live.mjs"
+  - "packages/pi-little-helpers/scripts/reality-check.mjs"
+  - "packages/pi-little-helpers/package.json"
+  - "packages/pi-little-helpers/AGENTS.md"
+  - "packages/pi-little-helpers/docs/project/2026-04-16-sidequest-ghostty-launch-contract.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "fail"
+group:
+  index: 1
+  total: 1
+  rationale: "Nexus seed (mechanism + first assertion + rule). Live-verified: npm run reality:check passes against 19 real sidequest pi sessions (3 with a client ghostty ancestor). pi-little-helpers package gate green; all nexus files lint-clean. Full-gate fail is unrelated concurrent/local drift: packages/pi-agent-interaction-canary/tests/agent-interaction-canary.test.mjs:395 noUselessTernary (concurrent canary work) and .tmp-self-tests/ scratch from pi-autonomous-session-control/tests/self/harness.mjs being linted (not gitignored). Neither is a nexus file."
