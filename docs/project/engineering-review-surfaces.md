@@ -60,14 +60,15 @@ Refreshed on 2026-08-03 after adding `packages/pi-session-insights`, which raise
 
 Snapshot summary:
 
-- package entries audited: `34`
-- legacy-full: `25`
+- package entries audited: `35`
+- legacy-full: `26`
 - reduced-form: `1`
 - policy-only: `0`
 - no local surface: `8`
 
 ### Legacy full surface (`docs/engineering.local.md` + `policy/engineering-lane.json`)
 
+- `packages/pi-agent-interaction-canary`
 - `packages/pi-agent-vent`
 - `packages/pi-autoresearch`
 - `packages/pi-better-openai`
