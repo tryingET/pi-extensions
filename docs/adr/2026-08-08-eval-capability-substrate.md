@@ -97,7 +97,7 @@ Take oh-my-pi's native kernel→agent callbacks (`tool.*`, `agent()`, `parallel(
 ### Consolidation decisions (operator-confirmed, FINAL)
 
 - **Keep** `pi-agent-interaction-canary` — active WIP, not dead scratch. Out of scope for this ADR's execution.
-- **Absorb** `pi-code-mode` → L1 + L2 home. Retain its effect taxonomy (L3 runtime gate + governance) and the eval tool/command surface. `@tryinget/pi-code-mode` is a **published** package: the engine swap is a **major-version change**, landed **feature-flagged behind the existing disposable engine** until measured, with the disposable engine as the **rollback fallback**. Migration owner: `pi-code-mode`.
+- **Absorb** `pi-code-mode` → L1 + L2 home, **renamed `pi-eval-kernel`** (see "Package rename" under Packaging). Retain its effect taxonomy (L3 runtime gate + governance) and the eval tool/command surface. `@tryinget/pi-code-mode` is a **published** package: the engine swap is a **major-version change**, landed **feature-flagged behind the existing disposable engine** until measured, with the disposable engine as the **rollback fallback**. Migration owner: `pi-eval-kernel` (formerly `pi-code-mode`).
 - **Fold** `pi-evidence-review` → `pi-semantic-code-intelligence` as a `/evidence-review` sub-command. Verified: `pi-evidence-review`'s data model already carries schema id `semantic-code-intelligence.evidence_review.v1` (`src/validation.ts:18`) — SCI-namespaced by convention; the two packages share **no code dependency** today, so the fold also introduces the shared type. Migration owner: `pi-semantic-code-intelligence`; existing `/evidence-review` callers keep their surface.
 
 ### Packaging
@@ -108,6 +108,22 @@ Take oh-my-pi's native kernel→agent callbacks (`tool.*`, `agent()`, `parallel(
 - **L5 → new package** `pi-reactive-artifacts` — a **live extension** (exposes artifact tools/prompts to the agent).
 
 All new packages scaffold from `../pi-extensions-template` (`scaffold_mode=simple-package`) with `.copier-answers.yml` tracked, per the repo `AGENTS.md` rule.
+### Package rename (`pi-code-mode` → `pi-eval-kernel`) — Phase-1 step 0
+
+`@tryinget/pi-code-mode` is **renamed to `@tryinget/pi-eval-kernel`** as the first step of Phase 1, bundled with the major-version bump. Rationale: `pi-code-mode` collides conceptually with `pi-modes` (a *prompt*-composition package — base + ordered overlays — a different axis entirely), yet `pi-code-mode` is a code-**execution** tool, not a prompt mode. After the absorb it is a persistent **eval kernel** + host bridge + capability gate — even less "mode"-like — so the new name matches both its primary `eval` tool surface and its persistent-kernel role. The user-visible `eval` tool name is unchanged.
+
+**Decision recorded now; execution at the Phase-1 release** (not a standalone rename). The rename is load-bearing on release/safety tooling — `.release-please-manifest.json` + `.release-please-config.json` (component lineage for a package tracked at 0.1.0), `scripts/release-components.test.mjs` (hardcoded `component === "pi-code-mode"`), the host-compat canary (`policy/pi-host-compatibility-canary.json` + `scripts/pi-host-compatibility-canary.test.mjs` + the `tools/pi-code-mode-host-contract-fixture` package), and `README.md`/`README.terse.md`. A standalone rename would break `just test`/`lint`/`ci`, disrupt release-please lineage, and re-touch a safety canary mid-stream — all of which belong bundled with the major release where the "kernel" name is earned. npm publish of `@tryinget/pi-eval-kernel` + deprecation of `@tryinget/pi-code-mode` is a release action (not done by this ADR).
+
+**Phase-1 step-0 execution checklist** (every touchpoint traced this session, de-risked):
+
+- `git mv packages/pi-code-mode packages/pi-eval-kernel`; update its `package.json` (`name`, `repository.directory`, `homepage`, `workspacePath`, `releaseComponent`).
+- `git mv tools/pi-code-mode-host-contract-fixture tools/pi-eval-kernel-host-contract-fixture`; update its `package.json`/`package-lock.json` (`@tryinget/pi-eval-kernel-host-contract-fixture`).
+- `.release-please-manifest.json` + `.release-please-config.json`: re-point to `packages/pi-eval-kernel` + `component: "pi-eval-kernel"` (intentional lineage reset with the major bump).
+- `policy/pi-host-compatibility-canary.json` + `scripts/pi-host-compatibility-canary.test.mjs`: update `owner`/`cwd`/fixture path + the hardcoded assertions.
+- `scripts/release-components.test.mjs`: update the `pi-code-mode` → `pi-eval-kernel` assertions.
+- `README.md` + `README.terse.md`: update the package listing.
+- `packages/pi-eval-kernel/.copier-answers.yml` + `README.md`: update `repo_name`/`release_component_key`/`workspace_relative_path` + self-references.
+- Gate: `just test` + `just lint` + `just ci` green; npm publish + `@tryinget/pi-code-mode` deprecate is the release action.
 
 ### Portability boundary (committed, not negotiated)
 
@@ -150,7 +166,7 @@ Phased delivery, each phase executed through the measured/autoresearch campaign 
 | Phase | Scope | Executable acceptance criterion | Rollback |
 |---|---|---|---|
 | **0 — port/merge spec** | de-risking (DONE) | both seams confirmed with file:line evidence | n/a (read-only) |
-| **1 — L1 kernel substrate** | Node persistent py + js kernel (Bun loop reimplementation); rat 4-tool surface with structured `look`; absorbed into `pi-code-mode` | a persistent py and js kernel each survive a SIGINT interrupt with state intact; `look` round-trips structured `{name,type,shape,value}`; the existing disposable engine remains available behind a flag | feature-flag off → disposable engine (the rollback fallback) |
+| **1 — L1 kernel substrate** | step 0 rename `pi-code-mode` → `pi-eval-kernel`; Node persistent py + js kernel (Bun loop reimplementation); rat 4-tool surface with structured `look`; absorbed into `pi-eval-kernel` | a persistent py and js kernel each survive a SIGINT interrupt with state intact; `look` round-trips structured `{name,type,shape,value}`; the existing disposable engine remains available behind a flag | feature-flag off → disposable engine (the rollback fallback) |
 | **2 — L3 capability-contract gate** | pic compile gate (contract generated from the registry) + existing runtime effect gate; marimo dry-run/staleness patterns | an unknown capability or malformed param is rejected before execution; an effect not in `allowedEffects` is rejected at dispatch | disable the compile gate → runtime gate still admits (the contract is additive) |
 | **3 — L4 saved-function library** | marimo graph data model + pic resolver + pic tombstones over the persistent kernel | removing a required function is refused; a new cycle / multiply-defined is rejected at save (dry-run-validate-then-apply) | disable function persistence → functions do not survive eval (no false saves) |
 | **4 — L5 reactive artifacts** | new output modality (evaluator reimplemented in TS) | a tradeoff explorer recomputes ranking locally on a control change with no model call | disable the artifact modality → artifacts do not render (orthogonal layer) |

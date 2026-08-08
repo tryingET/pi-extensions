@@ -92,6 +92,10 @@ This is exactly the "disposable workers + host-persisted state + a capability re
 identifies as the hand-rolled workaround for the gap oh-my-pi fills.
 
 ## Phase-1 design (PROPOSAL — wiring not yet built)
+### Step 0 — rename `pi-code-mode` → `pi-eval-kernel` (bundled with the major bump)
+
+Before any substrate work, rename the package so the persistent-kernel identity is earned at the release that introduces it. `pi-code-mode` collides with `pi-modes` (a prompt-composition package) though it is a code-execution tool; the new name matches the `eval` tool surface and the persistent-kernel role (the `eval` tool name itself is unchanged). **Decision recorded in the ADR (AK decision 114, “Package rename”); execution is Phase-1 step 0**, not a standalone rename, because it is load-bearing on release-please lineage, the host-compat canary (+ `tools/pi-code-mode-host-contract-fixture`), `release-components.test.mjs`, and the root READMEs. See the ADR’s Phase-1 step-0 execution checklist for every touchpoint. Gate: `just test` + `just lint` + `just ci` green; npm publish + `@tryinget/pi-code-mode` deprecate is the release action.
+
 
 ### Keep (the absorption's value; do not rebuild)
 
