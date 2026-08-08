@@ -56,7 +56,10 @@ Do not duplicate:
 - Use the actual directory containing the package's `package.json` with the `pi` manifest.
 - Then reload Pi:
   - `/reload`
-- Verify with a real command/tool call after reload; do not assume install alone updated the active runtime.
+- Verify with a real command/tool call after reload; do not assume install alone updated the active runtime.- Self-test live behavior instead of handing verification back to the operator:
+  - For tools, commands, prompts, and pure logic, spawn a one-shot session: `pi -p "<prompt that exercises the code>"`. This is print/non-TUI, so it will not exercise TUI-only or Ghostty-observer paths.
+  - For behavior that needs an interactive TUI session inside Ghostty (e.g. the automatic ASC observer, `/sidequest` and `/handoff-tab` tab-attach, surface-id targeting), open a fresh Ghostty tab and run `pi` there in TUI mode, then drive the action and confirm the result before reporting done.
+  - Prefer the lightest session that can actually exercise the changed path; do not ask the operator to reload-and-test something you can reproduce yourself.
 - Keep package-specific install examples in package docs/AGENTS; keep this root rule generic.
 
 ## Agent discoverability
