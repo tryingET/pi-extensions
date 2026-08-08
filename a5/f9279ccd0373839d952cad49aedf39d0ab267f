@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "a5f9279ccd0373839d952cad49aedf39d0ab267f"
-created_at: "2026-08-08T21:28:08Z"
+created_at: "2026-08-08T22:08:31Z"
 intent: "Record the repo-local convention that agents self-test live extension behavior (pi -p, or a fresh Ghostty tab running pi in TUI mode) instead of handing verification back to the operator."
 files:
   - "AGENTS.md"
@@ -13,8 +13,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "fail"
+    status: "pass"
 group:
   index: 2
   total: 2
-  rationale: "Root-level process/guidance change, independent of the package-local fix. pre-push failed on a pre-existing, unrelated release-contract issue: pi-little-helpers packed package.json retains dependencies.@tryinget/pi-session-compaction=file:../pi-session-compaction. Not caused by this commit (package.json untouched)."
+  rationale: "Root-level process/guidance change, independent of the package-local fix."
