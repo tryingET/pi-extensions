@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -121,6 +122,65 @@ function setupLinkedWorktree(root) {
   git(repoRoot, "worktree", "add", "-b", "candidate/test", worktreePath, "HEAD");
   return { repoRoot, worktreePath };
 }
+
+test("archive restoration preserves reviewed modes under caller umask 077", async () => {
+  await withTempDir((root) => {
+    const env = { XDG_STATE_HOME: `${root}/state` };
+    const registryDir = `${root}/state/pi-quests/peer-registry`;
+    const { repoRoot, worktreePath } = setupLinkedWorktree(root);
+    const trackedPath = `${worktreePath}/tracked.txt`;
+    const executablePath = `${worktreePath}/restore-me.sh`;
+    writeFileSync(trackedPath, "reviewed regular bytes\n");
+    chmodSync(trackedPath, 0o644);
+    writeFileSync(executablePath, "#!/bin/sh\necho restored\n");
+    chmodSync(executablePath, 0o755);
+    writeRegistry(
+      registryDir,
+      registryRecord({ peerRunId: "candidatepeer-umask-restore", repoRoot, worktreePath }),
+    );
+    let record = migrateCandidateInventory(
+      inventoryCandidatePeerResources({ registryDir }),
+      env,
+    )[0];
+    const snapshot = captureCandidateReviewSnapshot(record);
+    assert.equal(snapshot.objects.find((item) => item.path === "tracked.txt")?.mode, 0o644);
+    assert.equal(snapshot.objects.find((item) => item.path === "restore-me.sh")?.mode, 0o755);
+    record = updateLifecycleRecord({
+      resourceId: record.resourceId,
+      expectedVersion: record.resourceVersion,
+      event: "review_and_reject",
+      env,
+      mutate(current) {
+        current.reviewSnapshot = snapshot;
+        current.disposition = createDispositionReceipt({
+          disposition: "rejected",
+          actor: "owner:test",
+          rationale: "exercise exact restoration modes under a restrictive caller umask",
+          issuedAt: new Date().toISOString(),
+          reviewSnapshotDigest: snapshot.snapshotDigest,
+        });
+        current.state = "rejected";
+        return current;
+      },
+    });
+
+    const priorUmask = process.umask(0o077);
+    let archived;
+    try {
+      archived = createRestorationVerifiedArchive({
+        record,
+        expectedVersion: record.resourceVersion,
+        env,
+      });
+    } finally {
+      process.umask(priorUmask);
+    }
+    assert.equal(archived.record.state, "archive_verified");
+    assert.match(archived.receipt.restorationDigest, /^[0-9a-f]{64}$/);
+    assert.equal(statSync(trackedPath).mode & 0o777, 0o644);
+    assert.equal(statSync(executablePath).mode & 0o777, 0o755);
+  });
+});
 
 test("publication races and crashes atomically roll back adopted state", async () => {
   await withTempDir((root) => {

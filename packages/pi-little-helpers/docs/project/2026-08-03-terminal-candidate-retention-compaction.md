@@ -73,11 +73,17 @@ If execution stops after marker publication, a retry may finish only exact remai
 
 Ordinary lifecycle event scanning keeps the fixed 16 MiB buffer limit for cleanup intents, cleanup observations, and unexpected terminal content. A valid final `cleaned` event can itself exceed that limit because lifecycle-v2 embeds the complete terminal record, including a large review-object inventory.
 
-For this one case, the terminal verifier derives the exact canonical event bytes from the already owner-verified terminal record: `event`, `at`, `fromVersion`, and `record` in the same order emitted by `writeLockedLifecycleRecord`. It scans the event ledger in 64 KiB chunks, hashes the candidate terminal line incrementally, and retains no oversized line buffer. The dynamic acceptance ceiling is the exact expected byte count, not a larger global threshold. Acceptance requires one uniquely identified `cleaned` event whose byte count and SHA-256 match that canonical event and which is physically final. Intents, observations, malformed or truncated JSON, noncanonical/reordered bytes, wrong resource or generation identity, extra or duplicate terminal events, and any later event still fail closed.
+For every `cleaned` event size, the terminal verifier derives the exact canonical bytes from the already owner-verified terminal record: `event`, `at`, `fromVersion`, and `record` in the same order emitted by `writeLockedLifecycleRecord`, followed by exactly one final LF. It scans the event ledger in 64 KiB chunks and hashes the complete candidate event, including that LF. Small events no longer fall back to semantic JSON equality, and oversized events retain no oversized line buffer. The dynamic acceptance ceiling is the exact expected content byte count, not a larger global threshold. Acceptance requires one uniquely identified `cleaned` event whose complete byte count and SHA-256 match that canonical event and which is physically final. Intents, observations, malformed or truncated JSON, missing final LF, noncanonical/reordered bytes, wrong resource or generation identity, extra or duplicate terminal events, and any later event fail closed.
 
 The same verifier is used by ordinary admission release and by terminal-compaction materialization. This repair changes no permit, lifecycle, archive, capsule, or receipt schema and authorizes no automatic release or compaction.
 
-AK-4628 carries an explicit readability exception for `candidatePeerLifecycleArchive.ts`, which was already above the brownfield 500-line budget before this repair. The bounded scanner change stays local so the live verifier correction is not mixed with a high-risk module extraction; the package gate remains warn-only for that pre-existing size posture.
+## Archive restoration and Git postconditions
+
+Restoration verification replays the reviewed modes for every restored regular file and directory after clone, patch application, and payload extraction. The comparison therefore remains independent of the caller's process umask while still checking the exact reviewed modes; a restrictive umask cannot cause a false failure or silently redefine the reviewed archive.
+
+Cleanup and terminal postcondition checks query the exact `refs/heads/<name>` ref with a quiet existence probe. Only Git's exact-ref absence result is treated as absence. A missing owner repository, corrupt repository, signalled Git process, malformed object ID, or other Git failure throws and cannot be mistaken for successful branch deletion.
+
+`candidatePeerLifecycleArchive.ts` remains the public compatibility facade. Archive creation, shared primitives, cleanup authorization, bounded event scanning, cleanup execution, and terminal verification live in package-shipped internal modules that each remain below the 500-line implementation budget.
 
 ### AK-4628 production proof
 
@@ -126,5 +132,8 @@ Synthetic tests prove:
 - dangling retired-path rejection;
 - capsule tamper rejection;
 - inventory identity stability.
+- restoration under caller umask `077` with reviewed `0644` and `0755` modes unchanged;
+- quiet exact-ref absence plus fail-closed missing/corrupt owner repositories;
+- canonical short and oversized cleaned events, including mandatory final LF.
 
 Rollback is source-only unless an owner explicitly authorizes restoration. Do not bulk-delete terminal capsules or markers. Restoring original event/archive paths from a capsule is a separate owner operation and is not performed automatically. Installing or reloading this package executes no production compaction.

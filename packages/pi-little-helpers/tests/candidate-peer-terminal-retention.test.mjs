@@ -12,6 +12,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,6 +30,7 @@ import {
   authorizeCandidateCleanup,
   createRestorationVerifiedArchive,
   executeAuthorizedCandidateCleanup,
+  verifyCleanedCandidateTerminalRecord,
 } from "../src/candidatePeerLifecycleArchive.ts";
 import {
   appendLifecycleEvent,
@@ -157,7 +159,12 @@ function writeRegistry({ env, peerRunId, repoRoot, worktreePath, branchName }) {
   return record;
 }
 
-function cleanedFixture(root, env, peerRunId = "candidatepeer-terminal-cleaned") {
+function cleanedFixture(
+  root,
+  env,
+  peerRunId = "candidatepeer-terminal-cleaned",
+  rationale = "terminal compaction synthetic rejection",
+) {
   const { repoRoot, worktreePath } = setupLinkedWorktree(root);
   writeFileSync(join(worktreePath, "tracked.txt"), "rejected candidate\n");
   writeFileSync(join(worktreePath, "untracked.txt"), "unique recovery bytes\n");
@@ -187,7 +194,7 @@ function cleanedFixture(root, env, peerRunId = "candidatepeer-terminal-cleaned")
   const disposition = createDispositionReceipt({
     disposition: "rejected",
     actor: "owner:test",
-    rationale: "terminal compaction synthetic rejection",
+    rationale,
     issuedAt: new Date().toISOString(),
     reviewSnapshotDigest: snapshot.snapshotDigest,
   });
@@ -223,6 +230,107 @@ function cleanedFixture(root, env, peerRunId = "candidatepeer-terminal-cleaned")
   const cleaned = executeAuthorizedCandidateCleanup({ resourceId: record.resourceId, env });
   return { cleaned, peerRunId, repoRoot, worktreePath };
 }
+
+test("cleaned terminal verification treats an absent exact branch as quiet", () =>
+  withState((root, env) => {
+    const fixture = cleanedFixture(root, env, "candidatepeer-terminal-quiet-branch");
+    const moduleUrl = new URL("../src/candidatePeerLifecycleArchive.ts", import.meta.url).href;
+    const script = `
+      const mod = await import(${JSON.stringify(moduleUrl)});
+      mod.verifyCleanedCandidateTerminalRecord(
+        ${JSON.stringify(fixture.cleaned)},
+        ${JSON.stringify(env)}
+      );
+    `;
+    const child = spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
+      encoding: "utf8",
+      env: { ...process.env, ...env },
+    });
+    assert.equal(child.status, 0, child.stderr || child.stdout);
+    assert.equal(child.stderr, "");
+  }));
+
+test("cleaned terminal verification fails closed for missing and corrupt owner repos", () => {
+  for (const scenario of ["missing", "corrupt"]) {
+    withState((root, env) => {
+      const fixture = cleanedFixture(root, env, `candidatepeer-terminal-${scenario}-owner`);
+      if (scenario === "missing") {
+        rmSync(fixture.repoRoot, { recursive: true, force: true });
+      } else {
+        rmSync(join(fixture.repoRoot, ".git"), { recursive: true, force: true });
+      }
+      assert.throws(
+        () => verifyCleanedCandidateTerminalRecord(fixture.cleaned, env),
+        /candidate exact branch lookup failed/,
+      );
+    });
+  }
+});
+
+test("short cleaned terminal events require exact canonical bytes and their final LF", () =>
+  withState((root, env) => {
+    const fixture = cleanedFixture(root, env, "candidatepeer-terminal-short-event");
+    const record = fixture.cleaned;
+    const eventsPath = getCandidateLifecycleEventsPath(record.resourceId, env);
+    const original = readFileSync(eventsPath);
+    assert.equal(original.at(-1), 0x0a);
+    assert.equal(verifyCleanedCandidateTerminalRecord(record, env), digestObject(record));
+
+    const lines = original.toString("utf8").slice(0, -1).split("\n");
+    const finalEvent = JSON.parse(lines.at(-1));
+    assert.ok(Buffer.byteLength(lines.at(-1)) < 16 * 1024 * 1024);
+    lines[lines.length - 1] = JSON.stringify({
+      at: finalEvent.at,
+      event: finalEvent.event,
+      fromVersion: finalEvent.fromVersion,
+      record: finalEvent.record,
+    });
+    writeFileSync(eventsPath, `${lines.join("\n")}\n`);
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(record, env),
+      /exact canonical bytes including final LF/,
+    );
+
+    writeFileSync(eventsPath, original.subarray(0, -1));
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(record, env),
+      /exact canonical bytes including final LF/,
+    );
+
+    writeFileSync(eventsPath, original);
+    assert.equal(verifyCleanedCandidateTerminalRecord(record, env), digestObject(record));
+  }));
+
+test("valid oversized cleaned terminal events retain canonical verification", () =>
+  withState((root, env) => {
+    const fixture = cleanedFixture(
+      root,
+      env,
+      "candidatepeer-terminal-valid-oversized",
+      `oversized canonical fixture: ${"x".repeat(17 * 1024 * 1024)}`,
+    );
+    const record = fixture.cleaned;
+    const canonicalEventBytes = Buffer.byteLength(
+      `${JSON.stringify({
+        event: "cleaned",
+        at: record.updatedAt,
+        fromVersion: record.resourceVersion - 1,
+        record,
+      })}\n`,
+    );
+    assert.ok(canonicalEventBytes > 16 * 1024 * 1024);
+    assert.equal(verifyCleanedCandidateTerminalRecord(record, env), digestObject(record));
+
+    const eventsPath = getCandidateLifecycleEventsPath(record.resourceId, env);
+    const terminatedSize = statSync(eventsPath).size;
+    truncateSync(eventsPath, terminatedSize - 1);
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(record, env),
+      /oversized cleaned lifecycle event does not match the canonical terminal record/,
+    );
+    appendFileSync(eventsPath, "\n");
+    assert.equal(verifyCleanedCandidateTerminalRecord(record, env), digestObject(record));
+  }));
 
 test("cleaned terminal state compacts losslessly after separate exact authorization", () =>
   withState((root, env) => {
