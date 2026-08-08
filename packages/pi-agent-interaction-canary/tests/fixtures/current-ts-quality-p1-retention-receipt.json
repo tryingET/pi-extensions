@@ -1,0 +1,591 @@
+{
+  "pilot": {
+    "surface": "ts-quality.agent-interaction.retention-projection-pilot",
+    "schema_version": 4,
+    "experimental": true,
+    "read_only": true,
+    "authority": "ts-quality owner plan remains advisory; this receipt is dogfood evidence only",
+    "compatibility_promise": false
+  },
+  "policy": {
+    "id": "ts-quality.agent-interaction.retention-projection-canary",
+    "version": 1,
+    "digest_sha256": "d7ec868f732e0e361c2c1b6290ec4f9e4d3b505050dc36c51cb40d8e2ef41e00",
+    "owner_surface": "ts-quality.artifact-retention",
+    "owner_schema_version": 1,
+    "declared_policy_target": "pi-agent-interaction-canary",
+    "authentication": "deferred to the enclosing registered Pi tool receipt",
+    "allowed_source_pointers": [
+      "/surface",
+      "/schemaVersion",
+      "/rootDir",
+      "/config",
+      "/keep",
+      "/ignore",
+      "/warnings"
+    ],
+    "compact_omissions": ["/schemaVersion", "/surface"],
+    "redactions": ["control-characters", "authorized-root-path", "secret-token-patterns"],
+    "validity_context": {
+      "mode": "read-only-retention-projection-pilot",
+      "config_path": "ts-quality.config.json",
+      "fixture_root_coordinate": "fixtures/minimal-external-adoption",
+      "observable_read_boundaries": ["fixture-root", "in-memory-owner-policy"],
+      "declared_policy_target": "pi-agent-interaction-canary",
+      "policy_digest_sha256": "d7ec868f732e0e361c2c1b6290ec4f9e4d3b505050dc36c51cb40d8e2ef41e00"
+    }
+  },
+  "generation": {
+    "plan_generation_digest_sha256": "b90fcf4f79bb0b3d9992ab5daa0033e9da5cb108c976e6f784f1d56840550495",
+    "digest_basis": "authorized-view-after-redaction",
+    "policy_digest_sha256": "d7ec868f732e0e361c2c1b6290ec4f9e4d3b505050dc36c51cb40d8e2ef41e00"
+  },
+  "structured_owner_plan": {
+    "surface": "ts-quality.artifact-retention",
+    "schemaVersion": 1,
+    "rootDir": "<authorized-root>",
+    "config": {
+      "loaded": true,
+      "path": "ts-quality.config.json"
+    },
+    "keep": [
+      {
+        "status": "present",
+        "path": "ts-quality.config.json",
+        "reason": "ts-quality configuration"
+      },
+      {
+        "status": "present",
+        "path": ".ts-quality/invariants.ts",
+        "reason": "invariant definitions"
+      },
+      {
+        "status": "present",
+        "path": ".ts-quality/constitution.ts",
+        "reason": "constitution rules"
+      },
+      {
+        "status": "present",
+        "path": ".ts-quality/agents.ts",
+        "reason": "agent policy"
+      },
+      {
+        "status": "present",
+        "path": ".ts-quality/approvals.json",
+        "reason": "repo-local approvals"
+      },
+      {
+        "status": "present",
+        "path": ".ts-quality/waivers.json",
+        "reason": "repo-local waivers"
+      },
+      {
+        "status": "present",
+        "path": ".ts-quality/overrides.json",
+        "reason": "repo-local overrides"
+      },
+      {
+        "status": "pattern",
+        "path": ".ts-quality/witnesses/<witness>.json",
+        "reason": "execution witness records after they exist; exclude *.receipt.json sidecars"
+      },
+      {
+        "status": "pattern",
+        "path": ".ts-quality/keys/**/*.pub.pem",
+        "reason": "trusted public verification keys after they exist"
+      }
+    ],
+    "ignore": [
+      {
+        "status": "pattern",
+        "path": ".ts-quality/runs/",
+        "reason": "generated immutable run bundles; snapshot deliberately only for reviewed examples"
+      },
+      {
+        "status": "missing",
+        "path": ".ts-quality/latest.json",
+        "reason": "ambient pointer to latest run, not durable authority"
+      },
+      {
+        "status": "missing",
+        "path": ".ts-quality/mutation-manifest.json",
+        "reason": "generated mutation execution scratch artifact"
+      },
+      {
+        "status": "missing",
+        "path": "coverage/lcov.info",
+        "reason": "generated LCOV output"
+      },
+      {
+        "status": "pattern",
+        "path": ".ts-quality/witnesses/**/*.receipt.json",
+        "reason": "execution receipt sidecars; witness JSON is the reusable evidence record"
+      },
+      {
+        "status": "pattern",
+        "path": ".ts-quality/keys/<key-id>.pem",
+        "reason": "private signing key material; commit only matching *.pub.pem public keys"
+      }
+    ],
+    "warnings": []
+  },
+  "compact_projection": {
+    "protocol": "TSQ_RETENTION_PLAN_V1",
+    "text": "TSQ_RETENTION_PLAN_V1\nroot\t<authorized-root>\nconfig\tok\tpath=ts-quality.config.json\nkeep\tpresent\tts-quality.config.json\treason=ts-quality configuration\nkeep\tpresent\t.ts-quality/invariants.ts\treason=invariant definitions\nkeep\tpresent\t.ts-quality/constitution.ts\treason=constitution rules\nkeep\tpresent\t.ts-quality/agents.ts\treason=agent policy\nkeep\tpresent\t.ts-quality/approvals.json\treason=repo-local approvals\nkeep\tpresent\t.ts-quality/waivers.json\treason=repo-local waivers\nkeep\tpresent\t.ts-quality/overrides.json\treason=repo-local overrides\nkeep\tpattern\t.ts-quality/witnesses/<witness>.json\treason=execution witness records after they exist; exclude *.receipt.json sidecars\nkeep\tpattern\t.ts-quality/keys/**/*.pub.pem\treason=trusted public verification keys after they exist\nignore\tpattern\t.ts-quality/runs/\treason=generated immutable run bundles; snapshot deliberately only for reviewed examples\nignore\tmissing\t.ts-quality/latest.json\treason=ambient pointer to latest run, not durable authority\nignore\tmissing\t.ts-quality/mutation-manifest.json\treason=generated mutation execution scratch artifact\nignore\tmissing\tcoverage/lcov.info\treason=generated LCOV output\nignore\tpattern\t.ts-quality/witnesses/**/*.receipt.json\treason=execution receipt sidecars; witness JSON is the reusable evidence record\nignore\tpattern\t.ts-quality/keys/<key-id>.pem\treason=private signing key material; commit only matching *.pub.pem public keys\n",
+    "plan_generation_digest_sha256": "b90fcf4f79bb0b3d9992ab5daa0033e9da5cb108c976e6f784f1d56840550495",
+    "policy_digest_sha256": "d7ec868f732e0e361c2c1b6290ec4f9e4d3b505050dc36c51cb40d8e2ef41e00",
+    "digest_sha256": "a9d5354650f265140d92f5997568792050180c85ec4b9912c93ef81f389b2295",
+    "omissions": ["/schemaVersion", "/surface"],
+    "recoverable_omissions": [
+      {
+        "pointer": "/schemaVersion",
+        "expansion_pointer": "/structured_owner_plan/schemaVersion",
+        "recovered": true
+      },
+      {
+        "pointer": "/surface",
+        "expansion_pointer": "/structured_owner_plan/surface",
+        "recovered": true
+      }
+    ],
+    "derivations": [],
+    "expansion_pointer": "/structured_owner_plan"
+  },
+  "redaction": {
+    "policy": "owner-authored control-character, authorized-root-path, and secret-token-pattern redactions apply before either emitted view",
+    "monotonic": true,
+    "replacements": {
+      "control_characters": 0,
+      "authorized_root_paths": 1,
+      "secret_token_patterns": 0
+    }
+  },
+  "effects": {
+    "classification": "G3-read-effect-observed",
+    "invocation_scope": "owner plan production and owner machine renderer",
+    "observed_api_scope": [
+      "node:fs.existsSync",
+      "node:fs.readFileSync",
+      "node:fs.readdirSync",
+      "node:fs.statSync",
+      "node:fs.lstatSync",
+      "node:fs.realpathSync"
+    ],
+    "reads": [
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "."
+        },
+        "outcome": "returned",
+        "occurrences": 12
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality"
+        },
+        "outcome": "returned",
+        "occurrences": 24
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/agents.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/approvals.json"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/attestations"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/constitution.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/invariants.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/keys"
+        },
+        "outcome": "returned",
+        "occurrences": 16
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/latest.json"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/mutation-manifest.json"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/overrides.json"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/waivers.json"
+        },
+        "outcome": "returned",
+        "occurrences": 6
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/witnesses"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "coverage"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "coverage/lcov.info"
+        },
+        "outcome": "returned",
+        "occurrences": 10
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "dist"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "src/auth/token.js"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      },
+      {
+        "operation": "existsSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "ts-quality.config.json"
+        },
+        "outcome": "returned",
+        "occurrences": 10
+      },
+      {
+        "operation": "readdirSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/witnesses"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      },
+      {
+        "operation": "readFileSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "ts-quality.config.json"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": "."
+        },
+        "outcome": "returned",
+        "occurrences": 56
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality"
+        },
+        "outcome": "returned",
+        "occurrences": 12
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/agents.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/approvals.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/constitution.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/invariants.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/overrides.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/waivers.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/witnesses"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": "src/auth/token.js"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      },
+      {
+        "operation": "realpathSync:resolved",
+        "target": {
+          "scope": "authorized-root",
+          "path": "ts-quality.config.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "."
+        },
+        "outcome": "returned",
+        "occurrences": 56
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality"
+        },
+        "outcome": "returned",
+        "occurrences": 12
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/agents.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/approvals.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/constitution.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/invariants.ts"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/overrides.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/waivers.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/witnesses"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "src/auth/token.js"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      },
+      {
+        "operation": "realpathSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": "ts-quality.config.json"
+        },
+        "outcome": "returned",
+        "occurrences": 4
+      },
+      {
+        "operation": "statSync",
+        "target": {
+          "scope": "authorized-root",
+          "path": ".ts-quality/witnesses"
+        },
+        "outcome": "returned",
+        "occurrences": 2
+      }
+    ],
+    "all_observed_reads_within_policy_boundary": true,
+    "writes_requested_by_pilot": false,
+    "observation_limit": "in-process synchronous node:fs method observation; not OS syscall tracing"
+  },
+  "measurements": {
+    "structured_bytes": 1823,
+    "compact_bytes": 1421,
+    "byte_reduction": 402,
+    "compact_to_structured_ratio": 0.7795
+  },
+  "checks": {
+    "views_share_plan_generation": true,
+    "authorized_view_plan_generation_digest_bound": true,
+    "raw_plan_digest_unemitted": true,
+    "owner_authored_policy_bound": true,
+    "declared_policy_target_matched": true,
+    "caller_authentication_deferred_to_pi_tool_receipt": true,
+    "authorized_source_subset": true,
+    "redaction_monotonic": true,
+    "compact_claims_subset_of_source_plan": true,
+    "omissions_explicit": true,
+    "every_omission_recoverable_in_authorized_view": true,
+    "derivations_explicit": true,
+    "expansion_available": true,
+    "deterministic_content_addressing": true,
+    "owner_machine_renderer_match": true,
+    "no_mutation_requested": true
+  }
+}

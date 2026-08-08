@@ -1,0 +1,194 @@
+{
+  "applied_policy": {
+    "declared_policy_target": "pi-agent-interaction-canary",
+    "granted_envelope_fields": [
+      "surface",
+      "schema_version",
+      "emitted_at",
+      "payload_kind",
+      "schema_locator",
+      "ok",
+      "payload",
+      "error"
+    ],
+    "granted_task_fields": [
+      "id",
+      "repo",
+      "title",
+      "status",
+      "priority",
+      "claimed_by",
+      "claimed_at",
+      "lease_expires_at",
+      "depends_on",
+      "created_at",
+      "completed_at",
+      "scope",
+      "entity_version"
+    ],
+    "owner_surface": "task.show",
+    "policy_digest_sha256": "7572b417e81e9f8626bc4c3be7b19e2be8716a050dcb14b7a51411e07bb00be2",
+    "policy_id": "agent-kernel.task-inspection-projection.pi-canary",
+    "policy_path": "production_cli",
+    "policy_version": 2,
+    "redacted_task_fields": ["description", "evidence", "result"],
+    "resource": "task:4666",
+    "validity_context": {
+      "experimental": true,
+      "operation": "read_only_projection",
+      "payload_kind": "task_detail",
+      "projection_protocol": "AK_TASK_COMPACT_PILOT_V1",
+      "schema_locator": "ak machine schema task-show",
+      "schema_version": 1
+    }
+  },
+  "checks": {
+    "all_emitted_owner_values_within_policy_grants": true,
+    "caller_authentication_deferred_to_pi_receipt": true,
+    "compact_claims_subset_of_source": true,
+    "compact_omissions_distinguished_from_policy_withholding": true,
+    "control_content_json_encoded": true,
+    "entity_version_preserved": true,
+    "freshness_generation_bound": true,
+    "mutation_command_requested": false,
+    "policy_resource_exact": true,
+    "policy_withheld_fields_absent": true,
+    "production_resource_binding": "task:4666",
+    "same_generation_authorized_expansion_embedded": true,
+    "selected_fields_within_owner_policy_grants": true,
+    "single_owner_snapshot": true,
+    "task_identity_preserved": true
+  },
+  "compact_projection": {
+    "compact_omitted_expandable_fields": [
+      "/payload/task/claimed_at",
+      "/payload/task/completed_at",
+      "/payload/task/created_at"
+    ],
+    "expansion": {
+      "authorization_boundary": "owner_pilot_policy",
+      "external_owner_expansion_advertised": false,
+      "pointer": "/structured_authorized_expansion",
+      "same_generation": true
+    },
+    "policy_withheld_source_fields": [
+      "/payload/task/description",
+      "/payload/task/evidence",
+      "/payload/task/result"
+    ],
+    "protocol": "AK_TASK_COMPACT_PILOT_V1",
+    "source_coordinate": {
+      "authorized_source_digest_sha256": "48d418407edd890d45ff57ebd1ff1ef50ea85291a17a1ed50a85d7998697c90c",
+      "emitted_at": "2026-08-04T14:13:25.125804025+00:00",
+      "entity_version": 2,
+      "schema_locator": "ak machine schema task-show",
+      "schema_version": 1,
+      "surface": "task.show"
+    },
+    "text": "AK_TASK_COMPACT_PILOT_V1\ns\t\"task.show\"\t1\nt\t4666\t2\t\"claimed\"\t1\nrepo\t\"/home/tryinget/ai-society/softwareco/owned/pi-extensions\"\ntitle\t\"Implement and dogfood a read-only Pi Agent Interaction canary\"\nclaim\t\"pi:019fc622-2245-780f-879e-7145855e91bc\"\t\"2026-08-04T17:09:12.001477888+00:00\"\ndeps\tnull\nscope\t1\t4\t0\na\t\"packages/pi-agent-interaction-canary/**\"\nr\t\"packages/pi-agent-interaction-canary/README.md\"\nr\t\"packages/pi-agent-interaction-canary/extensions/agent-interaction-canary.ts\"\nr\t\"packages/pi-agent-interaction-canary/package.json\"\nr\t\"packages/pi-agent-interaction-canary/tests/agent-interaction-canary.test.mjs\"\nomit_expandable\t[\"claimed_at\",\"completed_at\",\"created_at\"]\nwithheld_by_policy\t[\"description\",\"evidence\",\"result\"]\nexpand_embedded\t/structured_authorized_expansion\n"
+  },
+  "measurements": {
+    "authorized_structured_expansion_bytes": 1032,
+    "compact_line_protocol_bytes": 777,
+    "compact_projection_object_bytes": 1582,
+    "line_protocol_byte_reduction_from_authorized_expansion": 255,
+    "line_protocol_to_authorized_expansion_ratio": 0.7529
+  },
+  "pilot": {
+    "compatibility_promise": false,
+    "experimental": true,
+    "operation_effect_posture": "read_only_command_intent_effects_not_empirically_proven",
+    "read_only": true,
+    "schema_version": 3,
+    "surface": "agent-kernel.agent-interaction.task-inspection-projection-pilot"
+  },
+  "structured_authorized_expansion": {
+    "emitted_at": "2026-08-04T14:13:25.125804025+00:00",
+    "error": null,
+    "ok": true,
+    "payload": {
+      "task": {
+        "claimed_at": "2026-08-04T13:09:12.001477888+00:00",
+        "claimed_by": "pi:019fc622-2245-780f-879e-7145855e91bc",
+        "completed_at": null,
+        "created_at": "2026-08-04T13:07:07.147005781+00:00",
+        "depends_on": null,
+        "entity_version": 2,
+        "id": 4666,
+        "lease_expires_at": "2026-08-04T17:09:12.001477888+00:00",
+        "priority": 1,
+        "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+        "scope": {
+          "allowed_paths": ["packages/pi-agent-interaction-canary/**"],
+          "forbidden_paths": [],
+          "required_paths": [
+            "packages/pi-agent-interaction-canary/README.md",
+            "packages/pi-agent-interaction-canary/extensions/agent-interaction-canary.ts",
+            "packages/pi-agent-interaction-canary/package.json",
+            "packages/pi-agent-interaction-canary/tests/agent-interaction-canary.test.mjs"
+          ]
+        },
+        "status": "claimed",
+        "title": "Implement and dogfood a read-only Pi Agent Interaction canary"
+      }
+    },
+    "payload_kind": "task_detail",
+    "schema_locator": "ak machine schema task-show",
+    "schema_version": 1,
+    "surface": "task.show"
+  },
+  "verification": {
+    "caller_authentication": {
+      "authenticated_caller_asserted_by_pilot": false,
+      "authority": "Pi/runtime",
+      "enclosing_registered_pi_tool_execution_receipt": null,
+      "proof_status": "not_present_in_standalone_sidecar_receipt",
+      "required_for_live_canary_proof": true,
+      "status": "deferred_to_enclosing_registered_pi_tool_execution_receipt"
+    },
+    "policy_enforcement": {
+      "basis": "owner_authored_immutable_pilot_policy",
+      "caller_supplied_grants_accepted": false,
+      "declared_policy_target": "pi-agent-interaction-canary",
+      "resource": "task:4666",
+      "selected_fields": [
+        "id",
+        "repo",
+        "title",
+        "status",
+        "priority",
+        "claimed_by",
+        "lease_expires_at",
+        "depends_on",
+        "scope",
+        "entity_version"
+      ]
+    },
+    "redaction": {
+      "basis": "owner_authored_immutable_pilot_policy",
+      "withheld_fields": ["description", "evidence", "result"],
+      "withheld_values_emitted": false
+    },
+    "selected_source_values": {
+      "claimed_by": "pi:019fc622-2245-780f-879e-7145855e91bc",
+      "depends_on": null,
+      "entity_version": 2,
+      "id": 4666,
+      "lease_expires_at": "2026-08-04T17:09:12.001477888+00:00",
+      "priority": 1,
+      "repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+      "scope": {
+        "allowed_paths": ["packages/pi-agent-interaction-canary/**"],
+        "forbidden_paths": [],
+        "required_paths": [
+          "packages/pi-agent-interaction-canary/README.md",
+          "packages/pi-agent-interaction-canary/extensions/agent-interaction-canary.ts",
+          "packages/pi-agent-interaction-canary/package.json",
+          "packages/pi-agent-interaction-canary/tests/agent-interaction-canary.test.mjs"
+        ]
+      },
+      "status": "claimed",
+      "title": "Implement and dogfood a read-only Pi Agent Interaction canary"
+    }
+  }
+}

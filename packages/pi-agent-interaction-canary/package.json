@@ -1,0 +1,68 @@
+{
+  "name": "@tryinget/pi-agent-interaction-canary",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only transient canary over owner-native AK, ts-quality, and ROCS receipts",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-agent-interaction-canary"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-agent-interaction-canary",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "agent-interaction-canary",
+    "read-only",
+    "monorepo"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "docs:list": "bash ./scripts/docs-list.sh",
+    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
+    "docs:list:json": "bash ./scripts/docs-list.sh --json"
+  },
+  "files": [
+    "extensions/agent-interaction-canary.ts",
+    "examples",
+    "README.md",
+    "docs",
+    "policy/security-policy.json",
+    "policy/engineering-lane.json"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/agent-interaction-canary.ts"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-agent-interaction-canary",
+    "releaseComponent": "pi-agent-interaction-canary",
+    "releaseConfigMode": "none"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
