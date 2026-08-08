@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "ff1b13f283828e330f3a5d8395d35e2171b6c7d0"
-created_at: "2026-08-08T21:28:08Z"
+created_at: "2026-08-08T22:08:30Z"
 intent: "Fix ASC observer (and shared sidequest/handoff-tab/visible-loop/quest launches) to target the Ghostty single-instance server so observer tabs open in the controller's own window under --gtk-single-instance instead of misrouting via the controller's launcher-client PID."
 files:
   - "packages/pi-little-helpers/extensions/sidequest.ts"
@@ -19,8 +19,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "fail"
+    status: "pass"
 group:
   index: 1
   total: 2
-  rationale: "Package-local fix plus its tests and contract docs form one coherent, independently understandable change. pre-push failed on a pre-existing, unrelated release-contract issue: pi-little-helpers packed package.json retains dependencies.@tryinget/pi-session-compaction=file:../pi-session-compaction. Not caused by this commit (package.json untouched)."
+  rationale: "Package-local fix plus its tests and contract docs form one coherent, independently understandable change."
