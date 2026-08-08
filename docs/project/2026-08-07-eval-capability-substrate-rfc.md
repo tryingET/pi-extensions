@@ -13,6 +13,7 @@ system4d:
 ---
 
 # RFC: Agent eval + capability substrate (pic ⊕ oh-my-pi ⊕ marimo ⊕ rat)
+> **Provenance note (2026-08-08, post-ADR):** This RFC was accepted via the [ADR](2026-08-08-eval-capability-substrate.md) (AK decision 114). Phase-1 step 0 has executed: `@tryinget/pi-code-mode` was renamed to `@tryinget/pi-eval-kernel` (commit `0d9a80f0`); `pi-code-mode` references below denote the package now named `pi-eval-kernel`, and current-state path references have been updated. The `eval` tool name is unchanged.
 
 ## Problem
 
@@ -187,7 +188,7 @@ All new packages scaffold from `../pi-extensions-template` (`scaffold_mode=simpl
 
 - Source runtimes (study only, not runtime deps): `softwareco/contrib/{pic,oh-my-pi,marimo,rat,activegraph}`
 - Existing replay layers: `packages/pi-autoresearch`, `packages/pi-society-orchestrator`
-- Absorption target: `packages/pi-code-mode`
+- Absorption target: `packages/pi-eval-kernel` (renamed from `packages/pi-code-mode` in Phase-1 step 0, commit `0d9a80f0`)
 - Fold target: `packages/pi-semantic-code-intelligence` (absorbs `pi-evidence-review`)
 - New-package template: `../pi-extensions-template` (`scaffold_mode=simple-package`)
 - Decision lifecycle: `~/ai-society/holdingco/governance-kernel/docs/dev/decision-lifecycle.md`

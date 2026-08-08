@@ -13,6 +13,7 @@ system4d:
 ---
 
 # Phase 0 port/merge spec — agent eval + capability substrate
+> **Provenance note (2026-08-08, post-ADR):** This Phase-0 evidence supported the accepted [ADR](2026-08-08-eval-capability-substrate.md) (AK decision 114). Phase-1 step 0 has executed: `@tryinget/pi-code-mode` was renamed to `@tryinget/pi-eval-kernel` (commit `0d9a80f0`); `pi-code-mode` references below denote the package now named `pi-eval-kernel`, and the current-state evidence paths in the index have been updated. The trace itself (file:line) is unchanged.
 
 This is the **Phase 0 deliverable** for the anchor RFC
 [2026-08-07-eval-capability-substrate-rfc.md](2026-08-07-eval-capability-substrate-rfc.md).
@@ -369,11 +370,11 @@ Contrib (study-only):
 
 Absorption target (owned):
 
-- `packages/pi-code-mode/src/capability-registry.ts` — runtime effect gate (`invoke`).
-- `packages/pi-code-mode/src/types.ts` — `CapabilityEffect` taxonomy.
-- `packages/pi-code-mode/src/extension.ts` — `eval` tool, confirmation gate, commands.
-- `packages/pi-code-mode/src/kernel-client.ts` — spawn-per-eval engine + host-side JSON state (the part replaced).
-- `packages/pi-code-mode/runtime/javascript-kernel.mjs` — `node:vm` sandbox, one-eval-then-exit, `tool` Proxy.
-- `packages/pi-code-mode/runtime/protocol-broker.mjs` — NDJSON framing/limiting layer (kept).
+- `packages/pi-eval-kernel/src/capability-registry.ts` — runtime effect gate (`invoke`).
+- `packages/pi-eval-kernel/src/types.ts` — `CapabilityEffect` taxonomy.
+- `packages/pi-eval-kernel/src/extension.ts` — `eval` tool, confirmation gate, commands.
+- `packages/pi-eval-kernel/src/kernel-client.ts` — spawn-per-eval engine + host-side JSON state (the part replaced).
+- `packages/pi-eval-kernel/runtime/javascript-kernel.mjs` — `node:vm` sandbox, one-eval-then-exit, `tool` Proxy.
+- `packages/pi-eval-kernel/runtime/protocol-broker.mjs` — NDJSON framing/limiting layer (kept).
 
 Anchor RFC: [2026-08-07-eval-capability-substrate-rfc.md](2026-08-07-eval-capability-substrate-rfc.md).

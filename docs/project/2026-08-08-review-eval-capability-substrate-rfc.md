@@ -13,6 +13,7 @@ system4d:
 ---
 
 # Review: eval-capability-substrate RFC
+> **Provenance note (2026-08-08):** This review was conducted when the package was named `pi-code-mode`; it has since been renamed to `pi-eval-kernel` (Phase-1 step 0, commit `0d9a80f0`). References to `pi-code-mode` in the findings below are historically accurate for this review event and denote the package now named `pi-eval-kernel`. Per the decision-lifecycle immutability rule for review attempts, the findings are preserved unchanged.
 
 Reviews [2026-08-07-eval-capability-substrate-rfc.md](2026-08-07-eval-capability-substrate-rfc.md),
 with first-hand evidence from the [Phase 0 port/merge spec](2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md).

@@ -96,12 +96,12 @@ Protected host surfaces:
 - picker fallback contract
 
 ### `code-mode-extension-factory-contract`
-Anchors `pi-code-mode` to the selected exact host's exported extension types without persisting the host dependency tree in ordinary package installs.
+Anchors `pi-eval-kernel` to the selected exact host's exported extension types without persisting the host dependency tree in ordinary package installs.
 
 Current command:
 
 ```bash
-cd packages/pi-code-mode
+cd packages/pi-eval-kernel
 npm run test:compat:pi-host
 ```
 

@@ -13,6 +13,7 @@ system4d:
 ---
 
 # Phase-1 plan — L1 persistent kernel substrate (eval-capability-substrate, ADR / AK decision 114)
+> **Provenance note (2026-08-08):** Phase-1 step 0 (the `pi-code-mode` → `pi-eval-kernel` rename) is **DONE** (commit `0d9a80f0`; `eval` tool name unchanged, version `0.1.0`, npm publish deferred). `pi-code-mode` references below denote the package now named `pi-eval-kernel`; current-state path references have been updated. The remaining Phase-1 work (L1 persistent substrate) runs through the measured campaign.
 
 This is the **post-ADR implementation + validation plan** for Phase 1 of the
 [eval-capability-substrate ADR](../adr/2026-08-08-eval-capability-substrate.md) (AK decision 114,
@@ -25,7 +26,7 @@ substrate (`pi-autoresearch` / `pi-society-orchestrator`) — per the repo ADR m
 unmeasured controller patches**. It cites the anchor
 [RFC](2026-08-07-eval-capability-substrate-rfc.md), the
 [Phase-0 port/merge spec](2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md), and the
-first-hand current-architecture trace of `packages/pi-code-mode` below.
+first-hand current-architecture trace of `packages/pi-eval-kernel` below.
 
 ## Scope (Phase 1 only)
 
@@ -53,7 +54,7 @@ Out of scope (later phases / separate efforts):
 - RFC: [2026-08-07-eval-capability-substrate-rfc.md](2026-08-07-eval-capability-substrate-rfc.md) — L1 section, phased delivery, acceptance criteria.
 - ADR: [../adr/2026-08-08-eval-capability-substrate.md](../adr/2026-08-08-eval-capability-substrate.md) (AK decision 114) — committed L1 contract (Node reimplementation; py+js scope; rat 4-tool + structured look; feature-flag + disposable fallback).
 - Phase-0 spec: [2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md](2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md) — the seam confirmations and the "two Node-port tasks are the real cost" finding.
-- Current-architecture trace (first-hand, this session): `packages/pi-code-mode/src/kernel-client.ts`, `runtime/protocol-broker.mjs`, `runtime/javascript-kernel.mjs`, `src/kernel-protocol.ts`, `src/types.ts`, `src/extension.ts`.
+- Current-architecture trace (first-hand, this session): `packages/pi-eval-kernel/src/kernel-client.ts`, `runtime/protocol-broker.mjs`, `runtime/javascript-kernel.mjs`, `src/kernel-protocol.ts`, `src/types.ts`, `src/extension.ts`.
 
 ## Current architecture (FACT — traced this session)
 
@@ -227,5 +228,5 @@ Implemented as `pi-code-mode` tests + a campaign canary.
 - RFC: [2026-08-07-eval-capability-substrate-rfc.md](2026-08-07-eval-capability-substrate-rfc.md)
 - Phase-0 spec: [2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md](2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md)
 - Decision lifecycle: `~/ai-society/holdingco/governance-kernel/docs/dev/decision-lifecycle.md`
-- Absorption target: `packages/pi-code-mode` (`src/kernel-client.ts`, `runtime/protocol-broker.mjs`, `runtime/javascript-kernel.mjs`, `src/kernel-protocol.ts`)
+- Absorption target: `packages/pi-eval-kernel` (renamed from `packages/pi-code-mode` in Phase-1 step 0) (`src/kernel-client.ts`, `runtime/protocol-broker.mjs`, `runtime/javascript-kernel.mjs`, `src/kernel-protocol.ts`)
 - Study-only source: `softwareco/contrib/oh-my-pi/packages/coding-agent/src/eval/kernel-base.ts` (the `BaseKernel` persistent-substrate + SIGINT-escalation model being reimplemented on Node)

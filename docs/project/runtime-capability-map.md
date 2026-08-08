@@ -28,7 +28,7 @@ This is the repository-wide behavior map. [`root-capabilities.md`](root-capabili
 | Agent fully settled signal | Pi host | `agent_settled`; appropriate observation point for bounded continuation policy. It grants no permission itself. |
 | Guarded low-risk continuation | `pi-autonomous-session-control` | `self` may use `pi.sendUserMessage` for explicit safe continuation; risky/directive text is editor-prefilled. |
 | Visible repeated prompts | `pi-little-helpers` | Visible-loop transport and visible peer/worktree tools; communication is not durable evidence. |
-| One-call local code aggregation | `pi-code-mode` | Disposable Python/JavaScript workers with persistent logical state and explicit capability adapters; it does not disable Bash, expose arbitrary registered Pi tools, or provide a security sandbox. |
+| One-call local code aggregation | `pi-eval-kernel` | Disposable Python/JavaScript workers with persistent logical state and explicit capability adapters; it does not disable Bash, expose arbitrary registered Pi tools, or provide a security sandbox. |
 | Bounded measured optimization | `pi-autoresearch` | Experiment machine, budgets, receipts, candidate binding, empirical interpretation; no package self-promotion. |
 | Fixed prompt/system comparison | `pi-evalset-lab` | Reproducible task-set comparisons and reports; a passing eval is evidence, not authorization. |
 | Multi-owner loop/workflow routing | `pi-society-orchestrator` | Routes and supervises owner surfaces; does not replace ASC execution or autoresearch measurement. |

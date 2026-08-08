@@ -17,6 +17,7 @@ system4d:
 ## Status
 
 **Accepted for architecture and implementation planning under AK decision 114** — state `unblocked`, outcome `accepted`; legal review closure = the re-review at `ready_for_adr`; bound to direction `AK.V5.SF07` with role `context`. Verify with `ak decision passport 114`.
+**Execution status — Phase-1 step 0 (rename): DONE.** `@tryinget/pi-code-mode` was renamed to `@tryinget/pi-eval-kernel` (commit `0d9a80f0`); the user-visible `eval` tool name is unchanged, the version remains `0.1.0`, and npm publish of `@tryinget/pi-eval-kernel` + deprecation of `@tryinget/pi-code-mode` is the deferred release action. Historical `pi-code-mode` references in this ADR denote the package now named `pi-eval-kernel`; current-state path references have been updated.
 
 This ADR records the accepted durable architectural decision and its committed contracts. It is **explicitly not**:
 
@@ -211,5 +212,5 @@ Steps that move this ADR from "accepted for planning" toward runtime-authoritati
 - Phase-0 port/merge spec (evidence): [2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md](../project/2026-08-08-eval-capability-substrate-phase0-port-merge-spec.md)
 - Decision lifecycle: `~/ai-society/holdingco/governance-kernel/docs/dev/decision-lifecycle.md`
 - Source runtimes (study only): `softwareco/contrib/{pic,oh-my-pi,marimo,rat,activegraph}`
-- Absorption target: `packages/pi-code-mode`; fold target: `packages/pi-semantic-code-intelligence` (absorbs `packages/pi-evidence-review`)
+- Absorption target: `packages/pi-eval-kernel` (renamed from `packages/pi-code-mode` in Phase-1 step 0, commit `0d9a80f0`); fold target: `packages/pi-semantic-code-intelligence` (absorbs `packages/pi-evidence-review`)
 - New-package template: `../pi-extensions-template` (`scaffold_mode=simple-package`)
