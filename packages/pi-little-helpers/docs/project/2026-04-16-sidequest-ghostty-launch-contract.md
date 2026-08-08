@@ -58,6 +58,8 @@ cd packages/pi-little-helpers
 node --test tests/asc-execution-observer-launch.test.mjs tests/sidequest.test.mjs
 npm run check
 npm run release:check:quick
+# Reality-anchored: verify targeting against the live Ghostty single-instance desktop (skips with a reason when absent).
+npm run reality:check
 ```
 
 For full installed-artifact validation, `npm run release:check` should also execute the package `scripts/release-smoke.sh` path and confirm the published extension still registers `/sidequest` and `/handoff-tab` from the installed package surface.

@@ -662,7 +662,7 @@ type GhosttyAncestor = {
   exe?: string;
 };
 
-function findGhosttyAncestor(processId = process.pid): GhosttyAncestor | undefined {
+export function findGhosttyAncestor(processId = process.pid): GhosttyAncestor | undefined {
   let pid = processId;
   for (let depth = 0; depth < 12; depth += 1) {
     pid = readProcParentPid(pid) ?? 0;
@@ -821,7 +821,7 @@ type ControllerGhosttyDbusTarget = {
   surfaceId: string;
 };
 
-async function resolveControllerGhosttyDbusTarget({
+export async function resolveControllerGhosttyDbusTarget({
   execRunner,
   controllerGhostty,
   surfaceId,

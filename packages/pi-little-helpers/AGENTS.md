@@ -37,6 +37,14 @@ system4d:
 
 - Run `npm run check` after structural/documentation changes.
 
+## Reality-anchored assertions
+
+Behavioral launch/observer changes (Ghostty tab/window targeting, surface-id routing, ASC observer placement) must add or extend a reality-anchored assertion under `tests/live/*.reality.live.mjs` and run it on the workstation before landing:
+
+- `npm run reality:check`
+
+These assertions exercise the REAL environment (live `busctl`, real Ghostty single-instance, real pi sessions), not stubs. They are excluded from the default gate (named `*.live.mjs`, not `*.test.*`) and each skips with a reason when the real environment is absent, so they are safe to run anywhere. Rationale: the unit tests for observer targeting stayed green while the code was wrong because their exec/busctl stubs encoded the same incorrect process model as the code — only an assertion against the real environment can break a wrong-but-self-consistent model.
+
 ## Copier policy
 
 - Keep `.copier-answers.yml` tracked.
