@@ -34,6 +34,8 @@
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "npm run quality:ci",
     "test": "npm run quality:ci",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack",
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
