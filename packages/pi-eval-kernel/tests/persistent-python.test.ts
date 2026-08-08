@@ -185,6 +185,115 @@ test(
     assert.equal(client.workerPid(), brokerPid);
   },
 );
+
+// A result without worker evidence that SIGINT reached this eval is fail-closed:
+// keep the queue blocked until worker death, then run the queued eval fresh.
+test(
+  "unconfirmed persistent SIGINT cannot leak into the next queued eval",
+  { skip: !pythonAvailable, timeout: 15_000 },
+  async (t) => {
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const registry = new CapabilityRegistry([
+      {
+        name: "near_complete",
+        description: "Coordinate an eval that deliberately ignores SIGINT.",
+        effect: "read",
+        async execute() {
+          markStarted();
+          await new Promise((resolve) => setTimeout(resolve, 75));
+          return null;
+        },
+      },
+    ]);
+    const client = new PersistentPythonKernelClient({ registry });
+    t.after(() => client.close());
+
+    await client.run(request('state["marker"] = "must-not-cross"'));
+    const beforePid = client.workerPid();
+    assert.ok(beforePid && beforePid > 0);
+
+    const controller = new AbortController();
+    const interrupted = client.run({
+      ...request(
+        'import signal\nsignal.signal(signal.SIGINT, signal.SIG_IGN)\ntool.near_complete()\n"natural-finish"',
+        10_000,
+      ),
+      signal: controller.signal,
+    });
+    await started;
+    controller.abort();
+    const queued = client.run(request('{"marker": state.get("marker"), "next": "clean"}'));
+
+    await assert.rejects(interrupted, /aborted/);
+    const next = await queued;
+    assert.deepEqual(next.value, { marker: null, next: "clean" });
+    assert.notEqual(client.workerPid(), beforePid);
+  },
+);
+
+// SIGINT can unwind ToolBridge.call while its host capability is still pending.
+// Repeat on one worker and inspect worker internals to prove every call is removed.
+test(
+  "repeated pending-capability interrupts clean pending calls and preserve state",
+  { skip: !pythonAvailable, timeout: 15_000 },
+  async (t) => {
+    let markStarted: () => void = () => {};
+    const registry = new CapabilityRegistry([
+      {
+        name: "pending_probe",
+        description: "Remain pending briefly while Python receives SIGINT.",
+        effect: "read",
+        async execute() {
+          markStarted();
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          return null;
+        },
+      },
+    ]);
+    const client = new PersistentPythonKernelClient({ registry });
+    t.after(() => client.close());
+
+    await client.run(request('import os\nstate["py_pid"] = os.getpid()'));
+    const brokerPid = client.workerPid();
+    assert.ok(brokerPid && brokerPid > 0);
+
+    for (let iteration = 1; iteration <= 2; iteration += 1) {
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const controller = new AbortController();
+      const interrupted = client.run({
+        ...request(
+          'state["interrupt_count"] = state.get("interrupt_count", 0) + 1\ntool.pending_probe()',
+          10_000,
+        ),
+        signal: controller.signal,
+      });
+      await started;
+      controller.abort();
+      await assert.rejects(interrupted, (error: unknown) => {
+        assert.ok(error instanceof KernelExecutionError);
+        assert.match(error.partial.stderr, /KeyboardInterrupt/);
+        return true;
+      });
+
+      const inspected = await client.run(
+        request(
+          'import __main__, os\n{"pending": len(__main__.PENDING), "count": state.get("interrupt_count"), "pid_stable": os.getpid() == state.get("py_pid")}',
+        ),
+      );
+      assert.deepEqual(inspected.value, {
+        pending: 0,
+        count: iteration,
+        pid_stable: true,
+      });
+      assert.equal(client.workerPid(), brokerPid);
+    }
+  },
+);
 // Robustness: code that ignores both SIGINT and SIGTERM forces the complete
 // escalation through SIGKILL. The next eval retains Wave 1A fresh respawn.
 test(

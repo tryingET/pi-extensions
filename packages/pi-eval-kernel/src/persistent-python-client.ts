@@ -395,6 +395,7 @@ export class PersistentPythonKernelClient {
     if (active.settled || !active.candidate || !active.evalComplete || active.inFlight.size > 0) {
       return;
     }
+    if (active.interrupt && active.candidate.interruptHandled !== true) return;
     active.settled = true;
     clearTimeout(active.timer);
     active.request.signal?.removeEventListener("abort", active.onAbort);

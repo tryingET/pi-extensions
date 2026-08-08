@@ -27,15 +27,10 @@ import uuid
 # and a flag adds no round-trip while keeping the disposable one-shot path
 # unchanged.
 PERSISTENT = "--persistent" in sys.argv[1:]
-EVAL_INTERRUPTIBLE = False
 
 
-def handle_sigint(_signum, _frame):
-    global EVAL_INTERRUPTIBLE
-    if not EVAL_INTERRUPTIBLE:
-        return
-    EVAL_INTERRUPTIBLE = False
-    raise KeyboardInterrupt
+def ignore_sigint(_signum, _frame):
+    return
 
 WRITE_LOCK = threading.Lock()
 PENDING_LOCK = threading.Lock()
@@ -184,16 +179,13 @@ class ToolBridge:
                     "input": safe_value({} if input is None else input),
                 }
             )
-        except BaseException:
+            pending.event.wait()
+            if not pending.ok:
+                raise RuntimeError(pending.error or f"Capability {name} failed.")
+            return pending.value
+        finally:
             with PENDING_LOCK:
                 PENDING.pop(call_id, None)
-            raise
-        pending.event.wait()
-        with PENDING_LOCK:
-            PENDING.pop(call_id, None)
-        if not pending.ok:
-            raise RuntimeError(pending.error or f"Capability {name} failed.")
-        return pending.value
 
     def parallel(self, calls, max_workers=4):
         if not isinstance(calls, list):
@@ -279,7 +271,14 @@ def execute_code(code):
 
 
 def execute_eval(message):
-    global EVAL_INTERRUPTIBLE, OUTPUT_LIMIT
+    global OUTPUT_LIMIT
+    interrupt_handled = False
+
+    def handle_eval_sigint(_signum, _frame):
+        nonlocal interrupt_handled
+        interrupt_handled = True
+        signal.signal(signal.SIGINT, ignore_sigint)
+        raise KeyboardInterrupt
 
     def finalize(result):
         global FINALIZE_ID, FINALIZE_TOKEN
@@ -320,7 +319,8 @@ def execute_eval(message):
         if isinstance(incoming_state, dict):
             STATE.update(incoming_state)
     TOOL.configure(message.get("id"), message.get("capabilities", []))
-    EVAL_INTERRUPTIBLE = PERSISTENT
+    if PERSISTENT:
+        signal.signal(signal.SIGINT, handle_eval_sigint)
     try:
         os.chdir(message.get("cwd") or os.getcwd())
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -334,30 +334,35 @@ def execute_eval(message):
             "stderr": stderr.getvalue(),
             "elapsedMs": round((time.monotonic() - started_at) * 1000),
         }
-        if not PERSISTENT:
+        if PERSISTENT:
+            signal.signal(signal.SIGINT, ignore_sigint)
+            result["interruptHandled"] = interrupt_handled
+        else:
             result["state"] = serialize_state()
-        EVAL_INTERRUPTIBLE = False
         finalize(result)
     except BaseException as error:  # noqa: BLE001 - user code boundary
-        EVAL_INTERRUPTIBLE = False
-        finalize(
-            {
-                "type": "eval_result",
-                "id": message.get("id"),
-                "ok": False,
-                "error": bounded_text(error),
-                "stdout": stdout.getvalue(),
-                "stderr": bounded_text(stderr.getvalue() + traceback.format_exc()),
-                "elapsedMs": round((time.monotonic() - started_at) * 1000),
-            }
-        )
+        if PERSISTENT:
+            signal.signal(signal.SIGINT, ignore_sigint)
+        result = {
+            "type": "eval_result",
+            "id": message.get("id"),
+            "ok": False,
+            "error": bounded_text(error),
+            "stdout": stdout.getvalue(),
+            "stderr": bounded_text(stderr.getvalue() + traceback.format_exc()),
+            "elapsedMs": round((time.monotonic() - started_at) * 1000),
+        }
+        if PERSISTENT:
+            result["interruptHandled"] = interrupt_handled
+        finalize(result)
     finally:
-        EVAL_INTERRUPTIBLE = False
+        if PERSISTENT:
+            signal.signal(signal.SIGINT, ignore_sigint)
         TOOL.configure(None, [])
 
 
 if PERSISTENT:
-    signal.signal(signal.SIGINT, handle_sigint)
+    signal.signal(signal.SIGINT, ignore_sigint)
 threading.Thread(target=reader, name="pi-eval-kernel-protocol", daemon=True).start()
 send({"type": "ready", "runtime": "python"})
 if PERSISTENT:

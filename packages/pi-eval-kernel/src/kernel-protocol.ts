@@ -8,6 +8,7 @@ export interface EvalResultMessage {
   stderr?: string;
   error?: string;
   elapsedMs?: number;
+  interruptHandled?: boolean;
 }
 
 export type WorkerMessage =
@@ -57,7 +58,8 @@ export function parseWorkerMessage(line: string): WorkerMessage {
       !optionalString(value.stdout) ||
       !optionalString(value.stderr) ||
       !optionalString(value.error) ||
-      !optionalElapsedMs(value.elapsedMs)
+      !optionalElapsedMs(value.elapsedMs) ||
+      !optionalBoolean(value.interruptHandled)
     ) {
       throw new Error("eval result frame is malformed.");
     }
@@ -133,6 +135,10 @@ function optionalString(value: unknown): boolean {
 
 function optionalElapsedMs(value: unknown): boolean {
   return value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+
+function optionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === "boolean";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
