@@ -10,6 +10,7 @@ if (!executable || !Array.isArray(workerArgs)) {
   process.stderr.write("protocol broker requires executable and JSON argument array\n");
   process.exit(2);
 }
+const persistentWorker = workerArgs.includes("--persistent");
 
 const worker = spawn(executable, workerArgs, {
   detached: process.platform !== "win32",
@@ -182,12 +183,18 @@ process.stdout.on("error", () => {
   terminateWorker();
 });
 
-for (const signal of ["SIGTERM", "SIGINT"]) {
-  process.on(signal, () => {
-    failed = true;
-    terminateWorker();
-  });
-}
+process.on("SIGTERM", () => {
+  failed = true;
+  terminateWorker();
+});
+process.on("SIGINT", () => {
+  if (persistentWorker && !terminating) {
+    killTree("SIGINT");
+    return;
+  }
+  failed = true;
+  terminateWorker();
+});
 
 process.once("exit", () => {
   if (terminating) killTree("SIGKILL");

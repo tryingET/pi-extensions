@@ -14,6 +14,7 @@ import json
 import math
 import os
 import queue
+import signal
 import sys
 import threading
 import time
@@ -26,6 +27,15 @@ import uuid
 # and a flag adds no round-trip while keeping the disposable one-shot path
 # unchanged.
 PERSISTENT = "--persistent" in sys.argv[1:]
+EVAL_INTERRUPTIBLE = False
+
+
+def handle_sigint(_signum, _frame):
+    global EVAL_INTERRUPTIBLE
+    if not EVAL_INTERRUPTIBLE:
+        return
+    EVAL_INTERRUPTIBLE = False
+    raise KeyboardInterrupt
 
 WRITE_LOCK = threading.Lock()
 PENDING_LOCK = threading.Lock()
@@ -269,7 +279,7 @@ def execute_code(code):
 
 
 def execute_eval(message):
-    global OUTPUT_LIMIT
+    global EVAL_INTERRUPTIBLE, OUTPUT_LIMIT
 
     def finalize(result):
         global FINALIZE_ID, FINALIZE_TOKEN
@@ -310,6 +320,7 @@ def execute_eval(message):
         if isinstance(incoming_state, dict):
             STATE.update(incoming_state)
     TOOL.configure(message.get("id"), message.get("capabilities", []))
+    EVAL_INTERRUPTIBLE = PERSISTENT
     try:
         os.chdir(message.get("cwd") or os.getcwd())
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -325,8 +336,10 @@ def execute_eval(message):
         }
         if not PERSISTENT:
             result["state"] = serialize_state()
+        EVAL_INTERRUPTIBLE = False
         finalize(result)
     except BaseException as error:  # noqa: BLE001 - user code boundary
+        EVAL_INTERRUPTIBLE = False
         finalize(
             {
                 "type": "eval_result",
@@ -339,9 +352,12 @@ def execute_eval(message):
             }
         )
     finally:
+        EVAL_INTERRUPTIBLE = False
         TOOL.configure(None, [])
 
 
+if PERSISTENT:
+    signal.signal(signal.SIGINT, handle_sigint)
 threading.Thread(target=reader, name="pi-eval-kernel-protocol", daemon=True).start()
 send({"type": "ready", "runtime": "python"})
 if PERSISTENT:

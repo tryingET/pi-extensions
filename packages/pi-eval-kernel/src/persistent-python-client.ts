@@ -2,6 +2,7 @@ import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { abortError, type CapabilityRegistry } from "./capability-registry.ts";
+import { guardChild, interruptChild, terminateChild } from "./child-signal-escalation.ts";
 import { KernelExecutionError } from "./kernel-client.ts";
 import {
   type EvalResultMessage,
@@ -15,15 +16,6 @@ import type {
   KernelRunRequest,
   KernelRunResult,
 } from "./types.ts";
-
-// Dedicated long-lived Python client, separate from the disposable KernelClient.
-// The persistent lifecycle (one broker+python worker reused across many evals,
-// state kept in-process, no host state round-trip) is structurally different
-// from the disposable per-eval spawn+exit+commit model. Isolating it leaves
-// KernelClient (the disposable rollback surface) byte-for-byte unchanged. The
-// local protocol helpers mirror KernelClient's so the two engines share no
-// mutable surface; the same wire protocol, finalize handshake, and capability
-// registry are reused.
 
 interface WorkerHandle {
   child: ChildProcessWithoutNullStreams;
@@ -49,6 +41,7 @@ interface ActiveEval {
   settled: boolean;
   onAbort: () => void;
   timer: NodeJS.Timeout;
+  interrupt?: { error: Error; cancel: () => void };
   resolve: (result: KernelRunResult) => void;
   reject: (error: Error) => void;
 }
@@ -309,7 +302,7 @@ export class PersistentPythonKernelClient {
     // Reject an active eval bound to this handle on unexpected death.
     const active = this.#active;
     if (active && active.handle === handle && !active.settled) {
-      this.#rejectActive(active, exitError);
+      this.#rejectActive(active, active.interrupt?.error ?? exitError);
       return;
     }
     // Always settle a still-pending ready (even for a superseded handle) so
@@ -323,6 +316,7 @@ export class PersistentPythonKernelClient {
       if (this.#closed || generation !== this.#generation) {
         throw new Error("python eval was invalidated before execution.");
       }
+      if (request.signal?.aborted) throw abortError();
       return new Promise<KernelRunResult>((resolve, reject) => {
         const active: ActiveEval = {
           id: randomUUID(),
@@ -344,17 +338,17 @@ export class PersistentPythonKernelClient {
         };
         this.#active = active;
         const fail = (error: Error) => this.#rejectActive(active, error);
-        const onAbort = () => fail(abortError("python eval was aborted."));
+        const onAbort = () => this.#interruptActive(active, abortError("python eval was aborted."));
         active.onAbort = onAbort;
         request.signal?.addEventListener("abort", onAbort, { once: true });
         active.timer = setTimeout(
-          () => fail(new Error(`python eval timed out after ${request.timeoutMs}ms.`)),
+          () =>
+            this.#interruptActive(
+              active,
+              new Error(`python eval timed out after ${request.timeoutMs}ms.`),
+            ),
           request.timeoutMs,
         );
-        if (request.signal?.aborted) {
-          onAbort();
-          return;
-        }
         try {
           // Persistent eval frame omits host state: the worker keeps logical
           // state in-process across evals (no host round-trip).
@@ -373,15 +367,25 @@ export class PersistentPythonKernelClient {
     });
   }
 
+  #interruptActive(active: ActiveEval, error: Error): void {
+    if (active.settled || active.interrupt) return;
+    clearTimeout(active.timer);
+    active.controller.abort(abortError(error.message));
+    const cancel = active.candidate
+      ? guardChild(active.handle.child)
+      : interruptChild(active.handle.child);
+    active.interrupt = { error, cancel };
+  }
+
   #rejectActive(active: ActiveEval, error: Error): void {
     if (active.settled) return;
     active.settled = true;
     clearTimeout(active.timer);
+    active.interrupt?.cancel();
     active.request.signal?.removeEventListener("abort", active.onAbort);
     active.controller.abort(abortError(error.message));
     if (this.#active === active) this.#active = undefined;
-    // The worker cannot safely continue after a failed/aborted eval; clear it so
-    // the next eval respawns a fresh long-lived worker, then terminate.
+    // Unrecoverable failures clear the handle so the next eval respawns.
     if (this.#handle === active.handle) this.#handle = undefined;
     void terminateChild(active.handle.child);
     active.reject(error);
@@ -395,6 +399,8 @@ export class PersistentPythonKernelClient {
     clearTimeout(active.timer);
     active.request.signal?.removeEventListener("abort", active.onAbort);
     if (this.#active === active) this.#active = undefined;
+    const interrupted = active.interrupt;
+    interrupted?.cancel();
     const candidate = active.candidate;
     const partial: KernelRunResult = {
       language: "python",
@@ -405,10 +411,15 @@ export class PersistentPythonKernelClient {
       capabilityInvocations: active.invocations,
       kernelReused: active.kernelReused,
     };
-    // A user-code failure (ok:false) keeps the worker alive so in-process state
-    // survives; only abort/timeout/protocol errors terminate it (#rejectActive).
-    if (!candidate.ok) {
-      active.reject(new KernelExecutionError(candidate.error ?? "python eval failed.", partial));
+    // Settled user-code and interrupt errors keep the worker; only an
+    // unrecoverable failure or completed escalation clears the handle.
+    if (interrupted || !candidate.ok) {
+      active.reject(
+        new KernelExecutionError(
+          interrupted?.error.message ?? candidate.error ?? "python eval failed.",
+          partial,
+        ),
+      );
       return;
     }
     this.#hasRun = true;
@@ -507,16 +518,4 @@ function sendToChild(
     throw new Error("Host-to-kernel protocol frame exceeded the limit.");
   }
   child.stdin.write(frame);
-}
-
-async function terminateChild(child: ChildProcessWithoutNullStreams): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  await new Promise<void>((resolve) => {
-    const forceTimer = setTimeout(() => child.kill("SIGKILL"), 750);
-    child.once("close", () => {
-      clearTimeout(forceTimer);
-      resolve();
-    });
-    child.kill("SIGTERM");
-  });
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { CapabilityRegistry } from "../src/capability-registry.ts";
+import { KernelExecutionError } from "../src/kernel-client.ts";
 import { KernelManager } from "../src/kernel-manager.ts";
 import { PersistentPythonKernelClient } from "../src/persistent-python-client.ts";
 import type { CapabilityEffect, KernelRunRequest } from "../src/types.ts";
@@ -128,10 +129,64 @@ test(
     assert.notEqual(value.first, value.current); // fresh worker each eval => disposable
   },
 );
-// Robustness: a timed-out persistent eval must terminate the long-lived worker
-// (arbitrary sync code cannot be interrupted in place) and the next eval must
-// respawn a fresh worker. Because the host keeps no state copy, the respawned
-// worker starts empty rather than replaying the timed-out eval's state.
+
+// Gate 3: cancellation reaches Python as KeyboardInterrupt. The worker settles
+// the error frame instead of dying, so both the prior namespace and PIDs survive.
+test(
+  "persistent python SIGINT abort preserves state and worker pid (gate 3)",
+  { skip: !pythonAvailable, timeout: 15_000 },
+  async (t) => {
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const registry = new CapabilityRegistry([
+      {
+        name: "interrupt_probe",
+        description: "Mark the interrupt test eval as started.",
+        effect: "read",
+        execute() {
+          markStarted();
+          return null;
+        },
+      },
+    ]);
+    const client = new PersistentPythonKernelClient({ registry });
+    t.after(() => client.close());
+
+    await client.run(request('import os\nstate["kept"] = "before"\nstate["py_pid"] = os.getpid()'));
+    const brokerPid = client.workerPid();
+    assert.ok(brokerPid && brokerPid > 0);
+
+    const controller = new AbortController();
+    const interrupted = client.run({
+      ...request("tool.interrupt_probe()\nwhile True:\n  pass", 10_000),
+      signal: controller.signal,
+    });
+    await started;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    controller.abort();
+
+    await assert.rejects(interrupted, (error: unknown) => {
+      assert.ok(error instanceof KernelExecutionError);
+      assert.match(error.message, /aborted/);
+      assert.match(error.partial.stderr, /KeyboardInterrupt/);
+      return true;
+    });
+    assert.equal(client.workerPid(), brokerPid);
+
+    const recovered = await client.run(
+      request(
+        'import os\n{"kept": state.get("kept"), "pid_stable": os.getpid() == state.get("py_pid")}',
+      ),
+    );
+    assert.deepEqual(recovered.value, { kept: "before", pid_stable: true });
+    assert.equal(recovered.kernelReused, true);
+    assert.equal(client.workerPid(), brokerPid);
+  },
+);
+// Robustness: code that ignores both SIGINT and SIGTERM forces the complete
+// escalation through SIGKILL. The next eval retains Wave 1A fresh respawn.
 test(
   "persistent kernel timeout terminates the worker and the next eval respawns",
   { skip: !pythonAvailable },
@@ -143,11 +198,38 @@ test(
     const beforePid = client.workerPid();
     assert.ok(beforePid && beforePid > 0);
 
-    await assert.rejects(client.run(request("while True:\n  pass", 150)), /timed out/);
+    await assert.rejects(
+      client.run(
+        request(
+          "import signal\nsignal.signal(signal.SIGINT, signal.SIG_IGN)\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\nwhile True:\n  pass",
+          150,
+        ),
+      ),
+      /timed out/,
+    );
     assert.equal(client.workerPid(), undefined); // worker stopped by the timeout
 
     const after = await client.run(request('state.get("kept")'));
     assert.equal(after.value, null); // fresh worker; host had no state copy
     assert.notEqual(client.workerPid(), beforePid); // respawned worker
+
+    // A result frame can precede a stuck finalization handshake. Once user code
+    // has finished, arm termination without delivering a late SIGINT to idle Python.
+    await client.run(request('state["finalize_kept"] = 2'));
+    const finalizePid = client.workerPid();
+    await assert.rejects(
+      client.run(
+        request(
+          'import __main__, time\n__main__.FINALIZE_EVENT.wait = lambda: time.sleep(60)\n"result-sent"',
+          150,
+        ),
+      ),
+      /timed out/,
+    );
+    assert.equal(client.workerPid(), undefined);
+
+    const afterFinalizeStall = await client.run(request('state.get("finalize_kept")'));
+    assert.equal(afterFinalizeStall.value, null);
+    assert.notEqual(client.workerPid(), finalizePid);
   },
 );
