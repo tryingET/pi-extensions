@@ -101,7 +101,7 @@ export function registerDispatchSubagentTool(pi: ExtensionAPI, runtime: AscExecu
 Profiles:
 - explorer: High-value problem-space mapping and uncertainty discovery (tools: read, bash)
 - reviewer: Independent, evidence-ranked assessment of proposed work (tools: read, bash)
-- tester: Adversarial falsification and confidence-calibrated verification (tools: read, bash)
+- tester: Claim-focused local verification and confidence-calibrated testing (tools: read, bash)
 - researcher: Source-grounded uncertainty reduction and synthesis (tools: read, bash)
 - minimal: Full-precision execution with minimal context, ceremony, and output (tools: read, bash)
 

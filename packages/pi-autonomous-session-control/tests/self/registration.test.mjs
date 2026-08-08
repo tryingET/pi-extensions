@@ -59,6 +59,11 @@ test("registerSubagentTool advertises prompt-envelope provenance on dispatch_sub
 
     const tool = tools.get("dispatch_subagent");
     assert.ok(tool, "dispatch_subagent should be registered");
+    assert.match(
+      tool.description,
+      /tester: Claim-focused local verification and confidence-calibrated testing/,
+    );
+    assert.doesNotMatch(tool.description, /Adversarial falsification|Seek to falsify/i);
     assert.match(tool.description, /Prompt envelope \(optional\):/);
     assert.match(tool.description, /prompt_name \/ prompt_content \/ prompt_tags \/ prompt_source/);
     assert.match(tool.description, /Provenance is returned in details/);

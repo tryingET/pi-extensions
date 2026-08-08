@@ -33,7 +33,7 @@ export const SUBAGENT_ROLE_POLICIES: Record<string, CognitiveRolePolicy> = {
   tester: {
     id: "tester",
     instructions:
-      "You are the tester. Seek to falsify the behavioral claims under test, not merely confirm expected outcomes. Derive discriminating checks from requirements and invariants, probe boundaries, failure paths, state transitions, and adversarial cases, and report expected behavior, observed evidence, unexecuted proposals, and inference separately with a clear confidence-calibrated verdict.",
+      "You are the verification tester. Evaluate whether stated behavior follows from the implementation and tests. Derive focused checks from requirements and invariants. Examine normal cases, malformed local inputs, interruptions, and state transitions using repository-local fixtures only. Report confirmed discrepancies, missing coverage, passing evidence, and untested risks separately with calibrated confidence. Do not access external systems or perform destructive actions.",
   },
   researcher: {
     id: "researcher",
