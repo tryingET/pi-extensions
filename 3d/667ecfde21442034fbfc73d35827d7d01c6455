@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3d667ecfde21442034fbfc73d35827d7d01c6455"
+created_at: "2026-08-08T22:14:46Z"
+intent: "Refresh the engineering-review audit snapshot to include the Agent Interaction canary so root-doc-alignment matches the live audit (35 packages / 26 legacy-full)."
+files:
+  - "docs/project/engineering-review-surfaces.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Follow-up doc refresh: the canary (1890ba1e) was committed without refreshing this snapshot, leaving live audit (35) and doc (34) inconsistent."
