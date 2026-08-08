@@ -110,6 +110,7 @@ for (const scenario of [
               code: 0,
               stdout:
                 ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
+                ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
                 "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
             };
           }
@@ -138,7 +139,7 @@ for (const scenario of [
       assert.equal(launches.length, 1);
       const args = launches[0].args;
       assert.equal(args[2], "--expect-reply=no");
-      assert.equal(args[3], ":1.42");
+      assert.equal(args[3], ":1.43");
       assert.ok(args.includes(process.execPath));
       assert.ok(args.some((value) => value.endsWith("scripts/asc-execution-observer.mjs")));
       assert.ok(args.includes("--state"));
@@ -154,7 +155,7 @@ for (const scenario of [
       assert.equal(state.group.id, scenario.groupId);
       assert.equal(state.controllerInstanceId, controllerInstanceId);
       assert.equal(state.observer.launchStatus, "launched");
-      assert.match(state.observer.note, /targeted controller Ghostty process 111/);
+      assert.match(state.observer.note, /targeted Ghostty single-instance process 222/);
       assert.match(state.notice, /closing this tab does not cancel work/i);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -243,8 +244,9 @@ test("automatic ASC observer rejects an ambiguous controller D-Bus target withou
           return {
             code: 0,
             stdout:
-              ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
-              ":1.43 111 ghostty user :1.43 user@1000.service - -\n",
+              ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
+              ":1.44 222 ghostty user :1.44 user@1000.service - -\n" +
+              "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
           };
         }
         throw new Error(`automatic observer must not launch ${command} ${args.join(" ")}`);
@@ -309,7 +311,10 @@ test("automatic ASC observer does not open another window after exact activation
         if (command === "busctl" && args[1] === "list") {
           return {
             code: 0,
-            stdout: ":1.42 111 ghostty user :1.42 user@1000.service - -\n",
+            stdout:
+              ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
+              ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
+              "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
           };
         }
         if (command === "busctl" && args[1] === "call") {

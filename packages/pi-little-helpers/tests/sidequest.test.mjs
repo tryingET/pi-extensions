@@ -375,7 +375,7 @@ test("sidequest keeps the launch in the current Ghostty tab when live tab attach
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
 });
 
-test("sidequest targets the controller Ghostty process instead of the sidequest broker", async () => {
+test("sidequest targets the Ghostty single-instance server instead of the sidequest broker", async () => {
   const execStub = createExecStub(({ command, args }) => {
     if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
@@ -388,6 +388,7 @@ test("sidequest targets the controller Ghostty process instead of the sidequest 
         code: 0,
         stdout:
           ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
+          ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
           "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
       };
     }
@@ -425,7 +426,7 @@ test("sidequest targets the controller Ghostty process instead of the sidequest 
     "--user",
     "call",
     "--expect-reply=no",
-    ":1.42",
+    ":1.43",
     "/com/tryinget/ghosttysidequest",
     "org.gtk.Actions",
     "Activate",
@@ -454,7 +455,7 @@ test("sidequest targets the controller Ghostty process instead of the sidequest 
     ),
   );
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
-  assert.match(harness.notifications[0].message, /targeted controller Ghostty process 111/);
+  assert.match(harness.notifications[0].message, /targeted Ghostty single-instance process 222/);
 });
 
 test("sidequest rejects a killed D-Bus activation even when the executor reports code zero", async () => {
@@ -466,7 +467,13 @@ test("sidequest rejects a killed D-Bus activation even when the executor reports
       return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
     }
     if (command === "busctl" && args[1] === "list") {
-      return { code: 0, stdout: ":1.42 111 ghostty user :1.42 user@1000.service - -\n" };
+      return {
+        code: 0,
+        stdout:
+          ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
+          ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
+          "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
+      };
     }
     if (command === "busctl" && args[1] === "call") {
       return { code: 0, stdout: "", killed: true };

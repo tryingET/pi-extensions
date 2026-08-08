@@ -325,7 +325,7 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
   }
 });
 
-test("visible-loop targets the controller Ghostty process instead of the sidequest broker", async () => {
+test("visible-loop targets the Ghostty single-instance server instead of the sidequest broker", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-controller-dbus-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
@@ -341,6 +341,7 @@ test("visible-loop targets the controller Ghostty process instead of the sideque
           code: 0,
           stdout:
             ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
+            ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
             "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
         };
       }
@@ -375,7 +376,7 @@ test("visible-loop targets the controller Ghostty process instead of the sideque
     );
     assert.ok(activation);
     assert.equal(activation.args[2], "--expect-reply=no");
-    assert.equal(activation.args[3], ":1.42");
+    assert.equal(activation.args[3], ":1.43");
     assert.equal(activation.args[10], "(tas)");
     assert.equal(activation.args[11], "4660");
     assert.equal(activation.args[13], "--");
@@ -393,7 +394,10 @@ test("visible-loop targets the controller Ghostty process instead of the sideque
         ({ command, args }) => isLocalGhosttyWrapper(command) && args[0] === "+new-tab",
       ),
     );
-    assert.match(harness.notifications.at(-1).message, /targeted controller Ghostty process 111/);
+    assert.match(
+      harness.notifications.at(-1).message,
+      /targeted Ghostty single-instance process 222/,
+    );
   } finally {
     restoreHome();
     rmSync(stateHome, { recursive: true, force: true });

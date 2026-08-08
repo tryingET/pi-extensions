@@ -108,6 +108,8 @@ const GHOSTTY_BIN_NAME = "ghostty";
 const LOCAL_GHOSTTY_WRAPPER = join(homedir(), ".local", "bin", "ghostty-sidequest");
 const LOCAL_GHOSTTY_OPT_DIR = join(homedir(), ".local", "opt");
 const LOCAL_GHOSTTY_BIN = join(LOCAL_GHOSTTY_OPT_DIR, "ghostty-sidequest", "bin", "ghostty");
+const GHOSTTY_SIDEQUEST_DBUS_NAME = "com.tryinget.ghosttysidequest";
+const GHOSTTY_SIDEQUEST_DBUS_PATH = "/com/tryinget/ghosttysidequest";
 const ASC_EXECUTION_OBSERVER_SCRIPT = fileURLToPath(
   new URL("../scripts/asc-execution-observer.mjs", import.meta.url),
 );
@@ -815,6 +817,7 @@ function normalizeGhosttySurfaceIdUint64(surfaceId: string): string | undefined 
 
 type ControllerGhosttyDbusTarget = {
   busName: string;
+  ownerPid: number;
   surfaceId: string;
 };
 
@@ -838,18 +841,39 @@ async function resolveControllerGhosttyDbusTarget({
       timeout: GHOSTTY_PROBE_TIMEOUT_MS,
     });
     if (result.code !== 0) return undefined;
-    const matchingNames = String(result.stdout || "")
+    const rows = String(result.stdout || "")
       .split("\n")
-      .map((line) => line.trim().split(/\s+/))
+      .map((line) => line.trim().split(/\s+/));
+
+    // Ghostty runs with --gtk-single-instance: one long-lived instance "server" process owns the
+    // well-known D-Bus name and every surface/window, while per-session launcher processes only
+    // expose a stub window and cannot route a surface id that lives in the server. Targeting the
+    // controller's own ghostty ancestor PID therefore misroutes observer tabs for sessions whose
+    // nearest ghostty ancestor is a launcher client (for example a window spawned by an external
+    // keybinding rather than opened inside the running instance). Resolve the well-known-name owner
+    // instead: it is the single authoritative process for every sidequest surface, and the
+    // controller's surface id selects the exact window. The sidequest-bin gate above guarantees
+    // the controller's surface belongs to this single instance.
+    const wellKnownOwnerPid = rows
+      .filter((fields) => fields[0] === GHOSTTY_SIDEQUEST_DBUS_NAME)
+      .map((fields) => Number.parseInt(fields[1] || "", 10))
+      .find((pid) => Number.isInteger(pid) && pid > 0);
+    if (!wellKnownOwnerPid) return undefined;
+
+    const ownerUniqueNames = rows
       .filter(
         (fields) =>
           fields.length >= 2 &&
           fields[0]?.startsWith(":") &&
-          Number.parseInt(fields[1] || "", 10) === controllerGhostty.pid,
+          Number.parseInt(fields[1] || "", 10) === wellKnownOwnerPid,
       )
       .map((fields) => fields[0] as string);
-    if (matchingNames.length !== 1) return undefined;
-    return { busName: matchingNames[0] as string, surfaceId: normalizedSurfaceId };
+    if (ownerUniqueNames.length !== 1) return undefined;
+    return {
+      busName: ownerUniqueNames[0] as string,
+      ownerPid: wellKnownOwnerPid,
+      surfaceId: normalizedSurfaceId,
+    };
   } catch {
     return undefined;
   }
@@ -867,7 +891,7 @@ function buildControllerGhosttyDbusArgs({
     "call",
     "--expect-reply=no",
     target.busName,
-    "/com/tryinget/ghosttysidequest",
+    GHOSTTY_SIDEQUEST_DBUS_PATH,
     "org.gtk.Actions",
     "Activate",
     "sava{sv}",
@@ -1260,7 +1284,7 @@ async function launchPiQuestSession({
           ? "controller Ghostty surface id is unavailable"
           : !surfaceId
             ? "controller Ghostty surface targeting is unsupported"
-            : "unique controller Ghostty D-Bus target could not be proven");
+            : "Ghostty single-instance D-Bus target could not be proven");
     return {
       ok: false,
       failure: `exact controller Ghostty tab unavailable: ${reason}`,
@@ -1300,7 +1324,7 @@ async function launchPiQuestSession({
   let launchNote = joinLaunchNotes(
     windowFallbackReason ?? wrapperTabAttachNote,
     controllerDbusTarget
-      ? `targeted controller Ghostty process ${controllerGhostty?.pid} through ${controllerDbusTarget.busName}`
+      ? `targeted Ghostty single-instance process ${controllerDbusTarget.ownerPid} through ${controllerDbusTarget.busName}`
       : undefined,
   );
 
