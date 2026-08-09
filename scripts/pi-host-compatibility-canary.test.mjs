@@ -106,7 +106,7 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
 });
 
-test("compatibility canary covers the pi-eval-kernel exact extension-factory contract", () => {
+test("compatibility canary hydrates pi-eval-kernel before its exact extension-factory contract", () => {
   const result = runJson(["list", "--profile", "current"]);
   const scenario = result.scenarios.find(
     (entry) => entry.id === "code-mode-extension-factory-contract",
@@ -116,7 +116,12 @@ test("compatibility canary covers the pi-eval-kernel exact extension-factory con
   assert.equal(scenario.owner, "pi-eval-kernel");
   assert.deepEqual(scenario.packages, ["tools/pi-eval-kernel-host-contract-fixture"]);
   assert.ok(scenario.upstreamSurfaces.includes("ExtensionFactory and ExtensionAPI assignability"));
-  assert.deepEqual(scenario.command, ["npm", "run", "test:compat:pi-host"]);
+  assert.equal(scenario.cwd, "packages/pi-eval-kernel");
+  assert.deepEqual(scenario.command, [
+    "bash",
+    "-lc",
+    "npm ci >/dev/null && npm run test:compat:pi-host",
+  ]);
 });
 
 test("compatibility canary covers direct autoresearch runtime packet exports", () => {

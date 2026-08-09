@@ -100,11 +100,11 @@
       ],
       "cwd": "packages/pi-eval-kernel",
       "command": [
-        "npm",
-        "run",
-        "test:compat:pi-host"
+        "bash",
+        "-lc",
+        "npm ci >/dev/null && npm run test:compat:pi-host"
       ],
-      "notes": "Compile-only host contract. The runner temporarily installs the exact host set into a dependency-isolated fixture and restores that fixture's lockfile-declared host absence afterward; this does not execute eval or provide code isolation."
+      "notes": "Compile-only host contract. The Bash command hydrates pi-eval-kernel's lockfile-defined development toolchain before compile; dedicated CI runs on ubuntu-latest, and local mirrors need Bash. The runner separately installs the exact host set into the dependency-isolated fixture and restores that fixture's lockfile-declared host absence afterward; this does not execute eval or provide code isolation."
     },
     {
       "id": "parallel-tool-event-correlation",

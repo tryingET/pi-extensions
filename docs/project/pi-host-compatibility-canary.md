@@ -102,7 +102,7 @@ Current command:
 
 ```bash
 cd packages/pi-eval-kernel
-npm run test:compat:pi-host
+bash -lc 'npm ci >/dev/null && npm run test:compat:pi-host'
 ```
 
 Protected host surfaces:
@@ -110,7 +110,9 @@ Protected host surfaces:
 - TypeBox tool schema registration
 - tool-result and asynchronous command-handler contracts
 
-The runner temporarily materializes the selected host packages, compiles the focused contract, and restores the lockfile-declared host absence afterward. This is a compile-time host contract; it neither executes `eval` nor provides code isolation.
+The scenario first hydrates `pi-eval-kernel`'s lockfile-defined development toolchain, so a clean checkout does not depend on pre-existing package-local `node_modules`. The package lock omits the optional host peers; the runner separately materializes the selected exact host packages in the dependency-isolated fixture, compiles the focused contract, and restores the fixture's lockfile-declared host absence afterward.
+
+The manifest uses Bash only to sequence hydration before compilation. The dedicated canary runs on `ubuntu-latest`, where Bash is available; local mirrors of this scenario also require Bash, so native Windows without a Bash environment is not supported. This remains a compile-time host contract; it neither executes `eval` nor provides code isolation.
 
 ### `parallel-tool-event-correlation`
 Anchors the `pi-autonomous-session-control` seam most exposed to Pi `0.58.x` parallel tool semantics.
