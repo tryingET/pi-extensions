@@ -5,23 +5,12 @@
 // ---
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SCRIPT = path.join(ROOT, "scripts", "pi-host-compatibility-canary.mjs");
-
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."); const SCRIPT = path.join(ROOT, "scripts", "pi-host-compatibility-canary.mjs");
 function runJson(args, env = {}) {
   return JSON.parse(
     execFileSync(process.execPath, [SCRIPT, ...args, "--json"], {
@@ -34,7 +23,6 @@ function runJson(args, env = {}) {
     }),
   );
 }
-
 function runJsonFailure(args, env = {}) {
   const result = spawnSync(process.execPath, [SCRIPT, ...args, "--json"], {
     cwd: ROOT,
@@ -47,7 +35,6 @@ function runJsonFailure(args, env = {}) {
   assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`);
   return JSON.parse(result.stdout);
 }
-
 function runFailure(args) {
   const result = spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: ROOT,
@@ -56,7 +43,6 @@ function runFailure(args) {
   assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`);
   return `${result.stdout}\n${result.stderr}`;
 }
-
 function minimalManifest(cwd, packages) {
   return {
     schemaVersion: 1,
@@ -250,11 +236,7 @@ test("compatibility canary restores temporary node_modules states with neutral f
   const manifestPath = path.join(tempDir, "manifest.json");
   const fakeBin = path.join(tempDir, "fake-bin");
   const fakeNpmPath = path.join(fakeBin, "npm");
-  const hostPackages = [
-    "@earendil-works/pi-coding-agent",
-    "@earendil-works/pi-ai",
-    "@earendil-works/pi-tui",
-  ];
+  const hostPackages = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai", "@earendil-works/pi-tui"];
   const lockedVersion = "0.81.4";
   const targetVersion = "0.83.0";
 
@@ -270,6 +252,13 @@ test("compatibility canary restores temporary node_modules states with neutral f
         path.join(installedPackageDir, "package.json"),
         JSON.stringify({ name: packageName, version }),
       );
+    }
+  }
+
+  function assertInstalledHostVersions(packageDir, version) {
+    for (const packageName of hostPackages) {
+      const file = path.join(packageDir, "node_modules", ...packageName.split("/"), "package.json");
+      assert.equal(JSON.parse(readFileSync(file, "utf8")).version, version);
     }
   }
 
@@ -308,7 +297,10 @@ test("compatibility canary restores temporary node_modules states with neutral f
     return { packageDir, packagePath };
   }
 
+  const observedLogPaths = [];
+
   function fakeNpmEnv(logPath, extra = {}) {
+    observedLogPaths.push(logPath);
     writeFileSync(logPath, "");
     return {
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
@@ -355,35 +347,61 @@ test("compatibility canary restores temporary node_modules states with neutral f
   writeFileSync(
     fakeNpmPath,
     `#!/usr/bin/env node
-const { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
+const { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } = require("node:fs");
 const path = require("node:path");
-for (const key of ["npm_config_before", "NPM_CONFIG_BEFORE", "npm_config_min_release_age", "NPM_CONFIG_MIN_RELEASE_AGE"]) {
-  if (process.env[key]) process.exit(91);
-}
-for (const key of ["NPM_CONFIG_USERCONFIG", "NPM_CONFIG_GLOBALCONFIG", "npm_config_userconfig", "npm_config_globalconfig"]) {
-  if (!process.env[key] || readFileSync(process.env[key], "utf8") !== "") process.exit(92);
-}
+for (const key of ["npm_config_before", "NPM_CONFIG_BEFORE", "npm_config_min_release_age", "NPM_CONFIG_MIN_RELEASE_AGE"]) if (process.env[key]) process.exit(91);
+for (const key of ["NPM_CONFIG_USERCONFIG", "NPM_CONFIG_GLOBALCONFIG", "npm_config_userconfig", "npm_config_globalconfig"]) if (!process.env[key] || readFileSync(process.env[key], "utf8") !== "") process.exit(92);
 const [operation, ...args] = process.argv.slice(2);
 appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify({ cwd: process.cwd(), operation, args, neutral: true }) + "\\n");
 const packageArgs = args.filter((arg) => !arg.startsWith("--"));
+const failRestoreCwds = JSON.parse(process.env.FAKE_NPM_FAIL_RESTORE_CWDS || "[]");
+let installedVersion;
 if (operation === "install") {
   for (const specifier of packageArgs) {
     const versionSeparator = specifier.lastIndexOf("@");
     const packageName = specifier.slice(0, versionSeparator);
     const version = specifier.slice(versionSeparator + 1);
+    installedVersion = version;
     const installedPackageDir = path.join(process.cwd(), "node_modules", ...packageName.split("/"));
     mkdirSync(installedPackageDir, { recursive: true });
     writeFileSync(path.join(installedPackageDir, "package.json"), JSON.stringify({ name: packageName, version }));
     if (process.env.FAKE_NPM_FAIL_ONCE_MARKER && !existsSync(process.env.FAKE_NPM_FAIL_ONCE_MARKER)) {
-      writeFileSync(process.env.FAKE_NPM_FAIL_ONCE_MARKER, "failed once");
-      process.exit(93);
+      writeFileSync(process.env.FAKE_NPM_FAIL_ONCE_MARKER, "failed once"); process.exit(93);
     }
   }
-  if (process.env.FAKE_NPM_FAIL_AFTER_INSTALL === "1") process.exit(94);
-} else if (operation === "uninstall") {
-  for (const packageName of packageArgs) {
-    rmSync(path.join(process.cwd(), "node_modules", ...packageName.split("/")), { recursive: true, force: true });
+  if (process.env.FAKE_NPM_MALFORMED_AFTER_INSTALL === "1" && packageArgs.length > 0 && (!process.env.FAKE_NPM_MALFORMED_MARKER || !existsSync(process.env.FAKE_NPM_MALFORMED_MARKER))) {
+    const first = packageArgs[0];
+    const packageName = first.slice(0, first.lastIndexOf("@"));
+    if (process.env.FAKE_NPM_MALFORMED_MARKER) writeFileSync(process.env.FAKE_NPM_MALFORMED_MARKER, "malformed once");
+    writeFileSync(path.join(process.cwd(), "node_modules", ...packageName.split("/"), "package.json"), "{");
   }
+  if (process.cwd() === process.env.FAKE_NPM_SWAP_TRIGGER_CWD) {
+    renameSync(process.env.FAKE_NPM_SWAP_SOURCE, process.env.FAKE_NPM_SWAP_BACKUP); renameSync(process.env.FAKE_NPM_SWAP_VICTIM, process.env.FAKE_NPM_SWAP_SOURCE);
+  }
+  if (process.cwd() === process.env.FAKE_NPM_REMOVE_TRIGGER_CWD) rmSync(process.env.FAKE_NPM_REMOVE_TARGET, { recursive: true, force: true });
+  if (process.cwd() === process.env.FAKE_NPM_MUTATE_TRIGGER_CWD && (!process.env.FAKE_NPM_MUTATE_ON_VERSION || installedVersion === process.env.FAKE_NPM_MUTATE_ON_VERSION)) {
+    const packageName = process.env.FAKE_NPM_MUTATE_OTHER_PACKAGE;
+    const packageJson = path.join(process.env.FAKE_NPM_MUTATE_OTHER_TARGET, ...packageName.split("/"), "package.json");
+    writeFileSync(packageJson, JSON.stringify({ name: packageName, version: "0.0.0" }));
+  }
+  if (process.cwd() === process.env.FAKE_NPM_SWAP_NODE_MODULES_CWD && installedVersion === process.env.FAKE_NPM_SWAP_NODE_MODULES_ON_VERSION) {
+    const root = path.join(process.cwd(), "node_modules");
+    renameSync(root, process.env.FAKE_NPM_SWAP_NODE_MODULES_BACKUP);
+    renameSync(process.env.FAKE_NPM_SWAP_NODE_MODULES_VICTIM, root);
+  }
+  if (installedVersion === process.env.FAKE_NPM_TOUCH_OTHER_ON_VERSION && process.env.FAKE_NPM_TOUCH_OTHER_TARGET) {
+    mkdirSync(process.env.FAKE_NPM_TOUCH_OTHER_TARGET, { recursive: true }); writeFileSync(path.join(process.env.FAKE_NPM_TOUCH_OTHER_TARGET, "unexpected.txt"), "created");
+  }
+  if (process.env.FAKE_NPM_SWAP_SANDBOX_VICTIM) {
+    const sandbox = path.dirname(process.env.NPM_CONFIG_USERCONFIG);
+    const moved = sandbox + ".moved";
+    renameSync(sandbox, moved); renameSync(process.env.FAKE_NPM_SWAP_SANDBOX_VICTIM, sandbox);
+    writeFileSync(process.env.FAKE_NPM_SWAP_SANDBOX_MARKER, JSON.stringify({ sandbox, moved }));
+  }
+  if (process.env.FAKE_NPM_FAIL_AFTER_INSTALL === "1") process.exit(94);
+  if (failRestoreCwds.includes(process.cwd()) && installedVersion === process.env.FAKE_NPM_FAIL_VERSION) process.exit(96);
+} else if (operation === "uninstall") {
+  for (const packageName of packageArgs) rmSync(path.join(process.cwd(), "node_modules", ...packageName.split("/")), { recursive: true, force: true });
 } else {
   process.exit(95);
 }
@@ -391,39 +409,56 @@ if (operation === "install") {
   );
   chmodSync(fakeNpmPath, 0o755);
 
-  writeFileSync(
-    manifestPath,
-    JSON.stringify({
-      schemaVersion: 1,
-      hostPackage: hostPackages[0],
-      hostCompanionPackages: hostPackages.slice(1),
-      trackedChangelog: "https://example.test/pi-changelog",
-      defaultProfile: "current",
-      profiles: {
-        current: {
-          description: "Test deterministic node_modules restoration.",
-          host: {
-            version: targetVersion,
-            reviewAnchor: `npm:${hostPackages[0]}@${targetVersion}`,
+  function scenarioDefinition(id, packages, cwd, command) {
+    return {
+      id,
+      title: id,
+      owner: "monorepo-root",
+      why: "Canary cleanup must restore the package target state.",
+      profiles: ["current"],
+      packages,
+      upstreamSurfaces: ["node_modules restoration", "npm configuration isolation"],
+      cwd,
+      command,
+    };
+  }
+
+  function writeManifest(scenarios) {
+    writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        hostPackage: hostPackages[0],
+        hostCompanionPackages: hostPackages.slice(1),
+        trackedChangelog: "https://example.test/pi-changelog",
+        defaultProfile: "current",
+        profiles: {
+          current: {
+            description: "Test deterministic node_modules restoration.",
+            host: {
+              version: targetVersion,
+              reviewAnchor: `npm:${hostPackages[0]}@${targetVersion}`,
+            },
           },
         },
-      },
-      scenarios: cases.map((entry) => ({
-        id: entry.id,
-        title: entry.id,
-        owner: "monorepo-root",
-        why: "Canary cleanup must restore the package target state.",
-        profiles: ["current"],
-        packages: [entry.packagePath],
-        upstreamSurfaces: ["node_modules restoration", "npm configuration isolation"],
-        cwd: entry.packagePath,
-        command: [
+        scenarios,
+      }),
+    );
+  }
+
+  writeManifest(
+    cases.map((entry) =>
+      scenarioDefinition(
+        entry.id,
+        [entry.packagePath],
+        entry.packagePath,
+        [
           process.execPath,
           "-e",
           `${neutralEnvAssertion}${entry.scenarioFails ? "; process.exit(23)" : ""}`,
         ],
-      })),
-    }),
+      ),
+    ),
   );
 
   try {
@@ -475,20 +510,7 @@ if (operation === "install") {
       ),
       "preserve me\n",
     );
-    for (const packageName of hostPackages) {
-      const restoredPackageJson = JSON.parse(
-        readFileSync(
-          path.join(
-            presentCase.packageDir,
-            "node_modules",
-            ...packageName.split("/"),
-            "package.json",
-          ),
-          "utf8",
-        ),
-      );
-      assert.equal(restoredPackageJson.version, lockedVersion);
-    }
+    assertInstalledHostVersions(presentCase.packageDir, lockedVersion);
     const presentCalls = fakeNpmCalls(presentLogPath);
     assert.deepEqual(
       presentCalls.map((call) => [call.operation, call.neutral]),
@@ -522,20 +544,7 @@ if (operation === "install") {
       ),
       "preserve me\n",
     );
-    for (const packageName of hostPackages) {
-      const restoredPackageJson = JSON.parse(
-        readFileSync(
-          path.join(
-            failedPresentCase.packageDir,
-            "node_modules",
-            ...packageName.split("/"),
-            "package.json",
-          ),
-          "utf8",
-        ),
-      );
-      assert.equal(restoredPackageJson.version, targetVersion);
-    }
+    assertInstalledHostVersions(failedPresentCase.packageDir, targetVersion);
     const failedPresentCalls = fakeNpmCalls(failedPresentLogPath);
     assert.deepEqual(
       failedPresentCalls.map((call) => [call.operation, call.neutral]),
@@ -545,19 +554,413 @@ if (operation === "install") {
       ],
     );
     assert.ok(failedPresentCalls.every((call) => call.cwd === failedPresentCase.packageDir));
+
+    const multiPresent = createScenarioPackage("multi-present", true, lockedVersion);
+    const multiAbsent = createScenarioPackage("multi-absent", false, lockedVersion);
+    writeManifest([
+      scenarioDefinition(
+        "multi-target-restore-failure",
+        [multiPresent.packagePath, multiAbsent.packagePath],
+        multiPresent.packagePath,
+        [process.execPath, "-e", neutralEnvAssertion],
+      ),
+    ]);
+    const multiLog = path.join(tempDir, "multi-target.jsonl");
+    const multiResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(multiLog, {
+        FAKE_NPM_FAIL_RESTORE_CWDS: JSON.stringify([multiPresent.packageDir]),
+        FAKE_NPM_FAIL_VERSION: lockedVersion,
+      }),
+    );
+    assert.equal(multiResult.aborted, true);
+    assert.equal(multiResult.abortReason, "restoration-failed");
+    assert.equal(existsSync(path.join(multiAbsent.packageDir, "node_modules")), false);
+    assert.equal(multiResult.results[0].host.restoration.packages.length, 2);
+    assert.equal(multiResult.results[0].host.restoration.errors.length, 1);
+
+    const lateAbsent = createScenarioPackage("late-absent", false, lockedVersion);
+    const latePresent = createScenarioPackage("late-present", true, lockedVersion);
+    writeManifest([scenarioDefinition(
+      "late-cross-target-cleanup", [lateAbsent.packagePath, latePresent.packagePath],
+      latePresent.packagePath, [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    const lateResult = runJson(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "late-cleanup.jsonl"), {
+        FAKE_NPM_TOUCH_OTHER_ON_VERSION: lockedVersion,
+        FAKE_NPM_TOUCH_OTHER_TARGET: path.join(lateAbsent.packageDir, "node_modules"),
+      }),
+    );
+    assert.equal(lateResult.results[0].host.restoration.status, "restored");
+    assert.equal(existsSync(path.join(lateAbsent.packageDir, "node_modules")), false);
+
+    const barrierA = createScenarioPackage("barrier-a", true, lockedVersion);
+    const barrierB = createScenarioPackage("barrier-b", true, lockedVersion);
+    writeManifest([scenarioDefinition(
+      "final-all-target-barrier", [barrierA.packagePath, barrierB.packagePath],
+      barrierA.packagePath, [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    const barrierResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "final-barrier.jsonl"), {
+        FAKE_NPM_MUTATE_TRIGGER_CWD: barrierA.packageDir,
+        FAKE_NPM_MUTATE_ON_VERSION: lockedVersion,
+        FAKE_NPM_MUTATE_OTHER_TARGET: path.join(barrierB.packageDir, "node_modules"),
+        FAKE_NPM_MUTATE_OTHER_PACKAGE: hostPackages[0],
+      }),
+    );
+    assert.equal(barrierResult.abortReason, "restoration-failed");
+    assert.ok(barrierResult.results[0].host.restoration.errors.some(
+      (entry) => entry.phase === "final-barrier" && entry.packagePath === barrierB.packagePath,
+    ));
+
+    const dualA = createScenarioPackage("dual-a", true, lockedVersion);
+    const dualB = createScenarioPackage("dual-b", true, lockedVersion);
+    writeManifest([scenarioDefinition(
+      "dual-restore-failure", [dualA.packagePath, dualB.packagePath], dualA.packagePath,
+      [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    const dualResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "dual.jsonl"), {
+        FAKE_NPM_FAIL_RESTORE_CWDS: JSON.stringify([dualA.packageDir, dualB.packageDir]),
+        FAKE_NPM_FAIL_VERSION: lockedVersion,
+      }),
+    );
+    assert.equal(
+      dualResult.results[0].host.restoration.errors.filter(
+        (entry) => entry.phase === "restore-command",
+      ).length,
+      2,
+    );
+
+    const combined = createScenarioPackage("combined-failure", true, lockedVersion);
+    writeManifest([scenarioDefinition(
+      "scenario-and-restore-failure", [combined.packagePath], combined.packagePath,
+      [process.execPath, "-e", `${neutralEnvAssertion}; process.stdout.write("scenario-out"); process.stderr.write("scenario-err"); process.exit(23)`],
+    )]);
+    const combinedResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "combined.jsonl"), {
+        FAKE_NPM_FAIL_RESTORE_CWDS: JSON.stringify([combined.packageDir]),
+        FAKE_NPM_FAIL_VERSION: lockedVersion,
+      }),
+    );
+    assert.equal(combinedResult.results[0].exitCode, 23);
+    assert.equal(combinedResult.results[0].lifecycleErrors.scenario.exitCode, 23);
+    assert.equal(combinedResult.results[0].stdout, "scenario-out");
+    assert.equal(combinedResult.results[0].stderr, "scenario-err");
+    assert.ok(combinedResult.results[0].lifecycleErrors.restoration.length > 0);
+
+    const abortFirst = createScenarioPackage("abort-first", true, lockedVersion);
+    const abortSecond = createScenarioPackage("abort-second", false, lockedVersion);
+    const secondMarker = path.join(tempDir, "second-scenario-ran.marker");
+    writeManifest([
+      scenarioDefinition("abort-first", [abortFirst.packagePath], abortFirst.packagePath,
+        [process.execPath, "-e", neutralEnvAssertion]),
+      scenarioDefinition("must-not-run", [abortSecond.packagePath], abortSecond.packagePath,
+        [process.execPath, "-e", `require("node:fs").writeFileSync(${JSON.stringify(secondMarker)}, "ran")`]),
+    ]);
+    const abortedResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "abort.jsonl"), {
+        FAKE_NPM_FAIL_RESTORE_CWDS: JSON.stringify([abortFirst.packageDir]),
+        FAKE_NPM_FAIL_VERSION: lockedVersion,
+      }),
+    );
+    assert.equal(abortedResult.summary.selected, 1);
+    assert.equal(abortedResult.aborted, true);
+    assert.equal(existsSync(secondMarker), false);
+
+    for (const initiallyPresent of [false, true]) {
+      const id = `malformed-${initiallyPresent ? "present" : "absent"}`;
+      const malformed = createScenarioPackage(id, initiallyPresent, lockedVersion);
+      writeManifest([scenarioDefinition(
+        id, [malformed.packagePath], malformed.packagePath,
+        [process.execPath, "-e", neutralEnvAssertion],
+      )]);
+      const malformedResult = runJsonFailure(
+        ["run", "--manifest", manifestPath],
+        fakeNpmEnv(path.join(tempDir, `${id}.jsonl`), {
+          FAKE_NPM_MALFORMED_AFTER_INSTALL: "1",
+          FAKE_NPM_MALFORMED_MARKER: path.join(tempDir, `${id}.marker`),
+        }),
+      );
+      assert.match(malformedResult.results[0].lifecycleErrors.preparation, /JSON|Unexpected/);
+      if (initiallyPresent) assertInstalledHostVersions(malformed.packageDir, lockedVersion);
+      else assert.equal(existsSync(path.join(malformed.packageDir, "node_modules")), false);
+    }
+
+    const mixed = createScenarioPackage("mixed-restore", true, lockedVersion);
+    const mixedLockPath = path.join(mixed.packageDir, "package-lock.json");
+    const mixedLock = JSON.parse(readFileSync(mixedLockPath, "utf8"));
+    delete mixedLock.packages[`node_modules/${hostPackages[2]}`];
+    writeFileSync(mixedLockPath, JSON.stringify(mixedLock));
+    const mixedVictim = path.join(tempDir, "mixed-victim");
+    mkdirSync(mixedVictim);
+    writeFileSync(path.join(mixedVictim, "sentinel.txt"), "safe\n");
+    writeManifest([scenarioDefinition(
+      "mixed-restore", [mixed.packagePath], mixed.packagePath,
+      [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    const mixedLog = path.join(tempDir, "mixed-restore.jsonl");
+    const mixedResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(mixedLog, {
+        FAKE_NPM_SWAP_NODE_MODULES_CWD: mixed.packageDir,
+        FAKE_NPM_SWAP_NODE_MODULES_ON_VERSION: lockedVersion,
+        FAKE_NPM_SWAP_NODE_MODULES_BACKUP: path.join(tempDir, "mixed-original-node-modules"),
+        FAKE_NPM_SWAP_NODE_MODULES_VICTIM: mixedVictim,
+      }),
+    );
+    assert.equal(mixedResult.abortReason, "restoration-failed");
+    assert.deepEqual(fakeNpmCalls(mixedLog).map((call) => call.operation), ["install", "install"]);
+    assert.equal(readFileSync(path.join(mixed.packageDir, "node_modules", "sentinel.txt"), "utf8"), "safe\n");
+
+    const sandboxSwap = createScenarioPackage("sandbox-swap", false, lockedVersion);
+    const sandboxVictim = path.join(tempDir, "sandbox-victim");
+    const sandboxMarker = path.join(tempDir, "sandbox-swap.marker.json");
+    mkdirSync(sandboxVictim);
+    writeFileSync(path.join(sandboxVictim, "sentinel.txt"), "safe\n");
+    writeManifest([scenarioDefinition(
+      "sandbox-swap", [sandboxSwap.packagePath], sandboxSwap.packagePath,
+      [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    let sandboxRecord;
+    try {
+      const sandboxResult = runJsonFailure(
+        ["run", "--manifest", manifestPath],
+        fakeNpmEnv(path.join(tempDir, "sandbox-swap.jsonl"), {
+          FAKE_NPM_SWAP_SANDBOX_VICTIM: sandboxVictim,
+          FAKE_NPM_SWAP_SANDBOX_MARKER: sandboxMarker,
+        }),
+      );
+      assert.equal(sandboxResult.abortReason, "integrity-failed");
+      sandboxRecord = JSON.parse(readFileSync(sandboxMarker, "utf8"));
+      assert.equal(readFileSync(path.join(sandboxRecord.sandbox, "sentinel.txt"), "utf8"), "safe\n");
+    } finally {
+      if (!sandboxRecord && existsSync(sandboxMarker)) sandboxRecord = JSON.parse(readFileSync(sandboxMarker, "utf8"));
+      if (sandboxRecord?.sandbox && existsSync(sandboxRecord.sandbox)) renameSync(sandboxRecord.sandbox, sandboxVictim);
+      if (sandboxRecord?.moved) rmSync(sandboxRecord.moved, { recursive: true, force: true });
+    }
+    assert.equal(readFileSync(path.join(sandboxVictim, "sentinel.txt"), "utf8"), "safe\n");
+
+    for (const dangling of [false, true]) {
+      const linked = createScenarioPackage(`symlink-${dangling ? "dangling" : "valid"}`, false, lockedVersion);
+      const linkTarget = path.join(tempDir, `symlink-target-${dangling}`);
+      if (!dangling) {
+        mkdirSync(linkTarget);
+        writeFileSync(path.join(linkTarget, "sentinel.txt"), "untouched\n");
+      }
+      symlinkSync(linkTarget, path.join(linked.packageDir, "node_modules"), "dir");
+      writeManifest([
+        scenarioDefinition(
+          `symlink-${dangling}`,
+          [linked.packagePath],
+          linked.packagePath,
+          [process.execPath, "-e", neutralEnvAssertion],
+        ),
+      ]);
+      const linkLog = path.join(tempDir, `symlink-${dangling}.jsonl`);
+      const linkResult = runJsonFailure(
+        ["run", "--manifest", manifestPath],
+        fakeNpmEnv(linkLog),
+      );
+      assert.match(linkResult.results[0].lifecycleErrors.preparation, /symlink/);
+      assert.equal(fakeNpmCalls(linkLog).length, 0);
+      assert.equal(lstatSync(path.join(linked.packageDir, "node_modules")).isSymbolicLink(), true);
+      if (!dangling) {
+        assert.equal(readFileSync(path.join(linkTarget, "sentinel.txt"), "utf8"), "untouched\n");
+      }
+    }
+
+    const preflightEarly = createScenarioPackage("preflight-early", false, lockedVersion);
+    const preflightInvalid = createScenarioPackage("preflight-invalid", false, lockedVersion);
+    const preflightTarget = path.join(tempDir, "preflight-invalid-target");
+    mkdirSync(preflightTarget);
+    symlinkSync(preflightTarget, path.join(preflightInvalid.packageDir, "node_modules"), "dir");
+    writeManifest([scenarioDefinition(
+      "all-target-preflight", [preflightEarly.packagePath, preflightInvalid.packagePath],
+      preflightEarly.packagePath, [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    const preflightLog = path.join(tempDir, "all-target-preflight.jsonl");
+    const preflightResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(preflightLog),
+    );
+    assert.equal(preflightResult.aborted, true);
+    assert.equal(preflightResult.abortReason, "integrity-failed");
+    assert.equal(fakeNpmCalls(preflightLog).length, 0);
+    assert.equal(existsSync(path.join(preflightEarly.packageDir, "node_modules")), false);
+
+    const npmSwapEarly = createScenarioPackage("npm-swap-early", false, lockedVersion);
+    const npmSwapLater = createScenarioPackage("npm-swap-later", true, lockedVersion);
+    const npmSwapVictim = createScenarioPackage("npm-swap-victim", true, lockedVersion);
+    const npmSwapBackup = path.join(tempDir, "npm-swap-original");
+    writeFileSync(path.join(npmSwapVictim.packageDir, "node_modules", "victim.txt"), "safe\n");
+    writeManifest([scenarioDefinition(
+      "pre-effect-target-swap", [npmSwapEarly.packagePath, npmSwapLater.packagePath],
+      npmSwapEarly.packagePath, [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    const npmSwapLog = path.join(tempDir, "pre-effect-target-swap.jsonl");
+    const npmSwapResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(npmSwapLog, {
+        FAKE_NPM_SWAP_TRIGGER_CWD: npmSwapEarly.packageDir,
+        FAKE_NPM_SWAP_SOURCE: npmSwapLater.packageDir,
+        FAKE_NPM_SWAP_BACKUP: npmSwapBackup,
+        FAKE_NPM_SWAP_VICTIM: npmSwapVictim.packageDir,
+      }),
+    );
+    assert.equal(npmSwapResult.aborted, true);
+    assert.equal(npmSwapResult.abortReason, "integrity-failed");
+    assert.equal(fakeNpmCalls(npmSwapLog).length, 1);
+    assert.equal(existsSync(path.join(npmSwapEarly.packageDir, "node_modules")), false);
+
+    const removedTargetEarly = createScenarioPackage("removed-target-early", false, lockedVersion);
+    const removedTargetLater = createScenarioPackage("removed-target-later", true, lockedVersion);
+    writeManifest([scenarioDefinition(
+      "removed-target-integrity", [removedTargetEarly.packagePath, removedTargetLater.packagePath],
+      removedTargetEarly.packagePath, [process.execPath, "-e", neutralEnvAssertion],
+    )]);
+    const removedTargetResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "removed-target.jsonl"), {
+        FAKE_NPM_REMOVE_TRIGGER_CWD: removedTargetEarly.packageDir,
+        FAKE_NPM_REMOVE_TARGET: removedTargetLater.packageDir,
+      }),
+    );
+    assert.equal(removedTargetResult.abortReason, "integrity-failed");
+    assert.equal(removedTargetResult.results[0].integrityFailed, true);
+    assert.equal(existsSync(path.join(removedTargetEarly.packageDir, "node_modules")), false);
+    assert.equal(
+      readFileSync(path.join(npmSwapLater.packageDir, "node_modules", "victim.txt"), "utf8"),
+      "safe\n",
+    );
+
+    const crossEarlier = createScenarioPackage("cross-earlier", true, lockedVersion);
+    const crossLater = createScenarioPackage("cross-later", false, lockedVersion);
+    writeInstalledHostVersions(crossEarlier.packageDir, targetVersion);
+    const crossMarker = path.join(tempDir, "cross-scenario-ran.marker");
+    writeManifest([scenarioDefinition(
+      "cross-target-post-alignment", [crossEarlier.packagePath, crossLater.packagePath],
+      crossLater.packagePath,
+      [process.execPath, "-e", `require("node:fs").writeFileSync(${JSON.stringify(crossMarker)}, "ran")`],
+    )]);
+    const crossResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "cross-target.jsonl"), {
+        FAKE_NPM_MUTATE_TRIGGER_CWD: crossLater.packageDir,
+        FAKE_NPM_MUTATE_OTHER_TARGET: path.join(crossEarlier.packageDir, "node_modules"),
+        FAKE_NPM_MUTATE_OTHER_PACKAGE: hostPackages[0],
+      }),
+    );
+    assert.equal(crossResult.abortReason, "integrity-failed");
+    assert.equal(crossResult.results[0].integrityFailed, true);
+    assert.equal(existsSync(crossMarker), false);
+    assertInstalledHostVersions(crossEarlier.packageDir, lockedVersion);
+    assert.equal(existsSync(path.join(crossLater.packageDir, "node_modules")), false);
+
+    const cwdSwapTarget = createScenarioPackage("cwd-swap-target", false, lockedVersion);
+    const cwdSwapSource = createScenarioPackage("cwd-swap-source", true, lockedVersion);
+    const cwdSwapVictim = createScenarioPackage("cwd-swap-victim", true, lockedVersion);
+    const cwdSwapBackup = path.join(tempDir, "cwd-swap-original");
+    const cwdMarker = path.join(tempDir, "cwd-scenario-ran.marker");
+    writeFileSync(path.join(cwdSwapVictim.packageDir, "node_modules", "victim.txt"), "safe\n");
+    writeManifest([
+      scenarioDefinition(
+        "pre-effect-cwd-swap",
+        [cwdSwapTarget.packagePath],
+        cwdSwapSource.packagePath,
+        [process.execPath, "-e", `require("node:fs").writeFileSync(${JSON.stringify(cwdMarker)}, "ran")`],
+      ),
+    ]);
+    const cwdSwapResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "pre-effect-cwd-swap.jsonl"), {
+        FAKE_NPM_SWAP_TRIGGER_CWD: cwdSwapTarget.packageDir,
+        FAKE_NPM_SWAP_SOURCE: cwdSwapSource.packageDir,
+        FAKE_NPM_SWAP_BACKUP: cwdSwapBackup,
+        FAKE_NPM_SWAP_VICTIM: cwdSwapVictim.packageDir,
+      }),
+    );
+    assert.equal(cwdSwapResult.abortReason, "integrity-failed");
+    assert.equal(cwdSwapResult.results[0].integrityFailed, true);
+    assert.equal(existsSync(cwdMarker), false);
+    assert.equal(
+      readFileSync(path.join(cwdSwapSource.packageDir, "node_modules", "victim.txt"), "utf8"),
+      "safe\n",
+    );
+
+    for (const replacementKind of ["symlink", "directory"]) {
+      const cleanupSwap = createScenarioPackage(`cleanup-${replacementKind}`, false, lockedVersion);
+      const cleanupVictim = path.join(tempDir, `cleanup-${replacementKind}-victim`);
+      const cleanupNodeModules = path.join(cleanupSwap.packageDir, "node_modules");
+      mkdirSync(cleanupVictim);
+      writeFileSync(path.join(cleanupVictim, "sentinel.txt"), "safe\n");
+      const replace = replacementKind === "symlink"
+        ? `fs.symlinkSync(${JSON.stringify(cleanupVictim)}, ${JSON.stringify(cleanupNodeModules)}, "dir")`
+        : `fs.renameSync(${JSON.stringify(cleanupVictim)}, ${JSON.stringify(cleanupNodeModules)})`;
+      writeManifest([scenarioDefinition(
+        `cleanup-${replacementKind}`, [cleanupSwap.packagePath], cleanupSwap.packagePath,
+        [process.execPath, "-e", `const fs=require("node:fs"); fs.rmSync(${JSON.stringify(cleanupNodeModules)}, { recursive: true }); ${replace}`],
+      )]);
+      const cleanupResult = runJsonFailure(
+        ["run", "--manifest", manifestPath],
+        fakeNpmEnv(path.join(tempDir, `cleanup-${replacementKind}.jsonl`)),
+      );
+      assert.equal(cleanupResult.abortReason, "restoration-failed");
+      assert.equal(readFileSync(path.join(cleanupNodeModules, "sentinel.txt"), "utf8"), "safe\n");
+    }
+
+    const swapSource = createScenarioPackage("swap-source", true, lockedVersion);
+    const swapVictim = createScenarioPackage("swap-victim", true, lockedVersion);
+    const swapBackup = path.join(tempDir, "swap-original");
+    writeFileSync(path.join(swapVictim.packageDir, "node_modules", "victim.txt"), "survive\n");
+    writeManifest([scenarioDefinition(
+      "target-identity-swap", [swapSource.packagePath], swapSource.packagePath,
+      [process.execPath, "-e", `const fs=require("node:fs"); fs.renameSync(${JSON.stringify(swapSource.packageDir)}, ${JSON.stringify(swapBackup)}); fs.renameSync(${JSON.stringify(swapVictim.packageDir)}, ${JSON.stringify(swapSource.packageDir)})`],
+    )]);
+    const swapResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "swap.jsonl")),
+    );
+    assert.equal(swapResult.results[0].host.restoration.errors[0].phase, "identity");
+    assert.equal(
+      readFileSync(path.join(swapSource.packageDir, "node_modules", "victim.txt"), "utf8"),
+      "survive\n",
+    );
+
+    const removedPresent = createScenarioPackage("removed-present", true, lockedVersion);
+    writeManifest([scenarioDefinition(
+      "removed-present", [removedPresent.packagePath], removedPresent.packagePath,
+      [process.execPath, "-e", `require("node:fs").rmSync(${JSON.stringify(path.join(removedPresent.packageDir, "node_modules"))}, { recursive: true, force: true })`],
+    )]);
+    const removedResult = runJsonFailure(
+      ["run", "--manifest", manifestPath],
+      fakeNpmEnv(path.join(tempDir, "removed-present.jsonl")),
+    );
+    assert.equal(removedResult.results[0].host.restoration.status, "failed");
+    assert.match(removedResult.results[0].host.restoration.error, /disappeared/);
+    assertInstalledHostVersions(removedPresent.packageDir, lockedVersion);
+
+    for (const logPath of observedLogPaths) {
+      assert.ok(
+        fakeNpmCalls(logPath).every(
+          (call) => call.cwd === tempDir || call.cwd.startsWith(`${tempDir}${path.sep}`),
+        ),
+      );
+    }
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
+  assert.equal(existsSync(tempDir), false);
 });
 
 test("compatibility canary dry-run can target a single scenario with package-set host preparation details", () => {
   const result = runJson([
-    "run",
-    "--dry-run",
-    "--profile",
-    "current",
-    "--scenario",
-    "vault-live-trigger-contract",
+    "run", "--dry-run", "--profile", "current", "--scenario", "vault-live-trigger-contract",
   ]);
 
   assert.equal(result.profile, "current");
