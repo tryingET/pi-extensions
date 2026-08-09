@@ -52,6 +52,10 @@ That removes directory-shape inference, keeps execution scope consistent with th
 
 Coverage health for the critical root canary is tracked with `critical_uncovered_host_surfaces`; the current target is `critical_uncovered_host_surfaces=0`.
 
+### Temporary runner size exception
+
+The root canary owner accepted an owner-scoped exception for the restoration incident: the runner was already 1,190 LOC and remains under 48 KB but above the 500-LOC guideline. In-place hardening was lower risk than decomposing restoration code during the incident. The owner must split the runner before further feature expansion and review this exception by 2026-08-22. AK task binding for that follow-up is pending while the active database fence remains in force.
+
 ### `current`
 Run against the root-owned pinned host contract recorded in `policy/pi-host-compatibility-canary.json`. This is the canary baseline contract, not a claim that every checked-in package tree already matches it.
 

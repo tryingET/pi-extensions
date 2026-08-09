@@ -11,26 +11,20 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."); const SCRIPT = path.join(ROOT, "scripts", "pi-host-compatibility-canary.mjs");
-function runJson(args, env = {}) {
+function runJson(args, env = process.env) {
   return JSON.parse(
     execFileSync(process.execPath, [SCRIPT, ...args, "--json"], {
       cwd: ROOT,
       encoding: "utf-8",
-      env: {
-        ...process.env,
-        ...env,
-      },
+      env,
     }),
   );
 }
-function runJsonFailure(args, env = {}) {
+function runJsonFailure(args, env = process.env) {
   const result = spawnSync(process.execPath, [SCRIPT, ...args, "--json"], {
     cwd: ROOT,
     encoding: "utf-8",
-    env: {
-      ...process.env,
-      ...env,
-    },
+    env,
   });
   assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`);
   return JSON.parse(result.stdout);
@@ -302,8 +296,10 @@ test("compatibility canary restores temporary node_modules states with neutral f
   function fakeNpmEnv(logPath, extra = {}) {
     observedLogPaths.push(logPath);
     writeFileSync(logPath, "");
+    const ambient = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("FAKE_NPM_")));
     return {
-      PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
+      ...ambient,
+      PATH: `${fakeBin}${path.delimiter}${ambient.PATH ?? ""}`,
       FAKE_NPM_LOG: logPath,
       npm_config_before: "2026-07-03T00:00:00Z",
       NPM_CONFIG_MIN_RELEASE_AGE: "999999",
@@ -461,6 +457,10 @@ if (operation === "install") {
     ),
   );
 
+  const hostileVictim = mkdtempSync(path.join(tmpdir(), "pi-host-compat-hostile-env-"));
+  writeFileSync(path.join(hostileVictim, "sentinel.txt"), "outside\n");
+  const hostileAmbient = { FAKE_NPM_FAIL_AFTER_INSTALL: "1", FAKE_NPM_SWAP_SANDBOX_VICTIM: hostileVictim };
+  const previousAmbient = Object.fromEntries(Object.keys(hostileAmbient).map((name) => [name, process.env[name]])); Object.assign(process.env, hostileAmbient);
   try {
     for (const entry of cases.filter((candidate) => !candidate.nodeModulesPresent)) {
       const logPath = path.join(tempDir, `${entry.id}.jsonl`);
@@ -470,10 +470,15 @@ if (operation === "install") {
           ? { FAKE_NPM_FAIL_AFTER_INSTALL: "1" }
           : {},
       );
+      if (entry.id === "absent-success") {
+        assert.equal(env.FAKE_NPM_FAIL_AFTER_INSTALL, undefined);
+        assert.equal(env.FAKE_NPM_SWAP_SANDBOX_VICTIM, undefined);
+      }
       const args = ["run", "--manifest", manifestPath, "--scenario", entry.id];
       const result = entry.id === "absent-success"
         ? runJson(args, env)
         : runJsonFailure(args, env);
+      if (entry.id === "absent-success") assert.equal(result.summary.passed, 1);
 
       assert.equal(result.results[0].host.preparation.packages[0].nodeModulesExistedBefore, false);
       assert.equal(result.results[0].host.restoration.status, "restored");
@@ -489,6 +494,7 @@ if (operation === "install") {
       );
       assert.ok(calls.every((call) => call.cwd === entry.packageDir));
     }
+    assert.equal(readFileSync(path.join(hostileVictim, "sentinel.txt"), "utf8"), "outside\n");
 
     const presentCase = cases.find((entry) => entry.id === "present-success");
     assert.ok(presentCase);
@@ -953,6 +959,8 @@ if (operation === "install") {
       );
     }
   } finally {
+    for (const [name, value] of Object.entries(previousAmbient)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+    rmSync(hostileVictim, { recursive: true, force: true });
     rmSync(tempDir, { recursive: true, force: true });
   }
   assert.equal(existsSync(tempDir), false);
