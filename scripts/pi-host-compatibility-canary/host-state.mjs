@@ -13,6 +13,7 @@ import {
   isIntegrityError,
 } from "./integrity.mjs";
 import { CANONICAL_ROOT, resolveContainedRepoPath, ROOT } from "./paths.mjs";
+import { fsyncDirectory, fsyncFile } from "./state-files.mjs";
 
 export function nodeModulesState(packageAbs) {
   const nodeModulesPath = path.join(packageAbs, "node_modules");
@@ -143,6 +144,35 @@ function hostPackageNames(host) {
   return [host.packageName, ...host.companionPackages];
 }
 
+export function durablySyncHostPackageState(cwd, host) {
+  const nodeModulesPath = path.join(cwd, "node_modules");
+  for (const packageName of hostPackageNames(host)) {
+    const parts = packageName.split("/");
+    const packageDir = path.join(nodeModulesPath, ...parts);
+    const packageStats = lstatSync(packageDir, { throwIfNoEntry: false });
+    if (packageStats) {
+      if (!packageStats.isDirectory() || packageStats.isSymbolicLink()) {
+        throw new IntegrityError(`host package path is not a real directory: ${packageName}`);
+      }
+      const packageJsonPath = path.join(packageDir, "package.json");
+      const packageJsonStats = lstatSync(packageJsonPath, { throwIfNoEntry: false });
+      if (packageJsonStats) {
+        if (!packageJsonStats.isFile() || packageJsonStats.isSymbolicLink()) {
+          throw new IntegrityError(`host package metadata is not a regular file: ${packageName}`);
+        }
+        fsyncFile(packageJsonPath);
+      }
+      fsyncDirectory(packageDir);
+    }
+    if (parts.length > 1) {
+      const scopeDir = path.join(nodeModulesPath, parts[0]);
+      if (lstatSync(scopeDir, { throwIfNoEntry: false })) fsyncDirectory(scopeDir);
+    }
+  }
+  fsyncDirectory(nodeModulesPath);
+  fsyncDirectory(cwd);
+}
+
 function hostInstallSpecifiers(host) {
   return hostPackageNames(host).map((name) => `${name}@${host.version}`);
 }
@@ -205,7 +235,7 @@ export function snapshotTargetHostPackages(host) {
   }));
 }
 
-function resolveRestoreSnapshot(cwd, host, fallbackSnapshot) {
+export function resolveRestoreSnapshot(cwd, host, fallbackSnapshot) {
   return existsSync(path.join(cwd, "package-lock.json"))
     ? snapshotLockedHostPackages(cwd, host)
     : fallbackSnapshot;

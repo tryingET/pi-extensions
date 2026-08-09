@@ -28,6 +28,22 @@ function ensureOptionalStringArray(value, fieldName) {
   return value.map((entry, index) => ensureString(entry, `${fieldName}[${index}]`));
 }
 
+function ensureNpmPackageName(value, fieldName) {
+  const name = ensureString(value, fieldName);
+  if (!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(name)) {
+    throw new Error(`${fieldName} must be a canonical npm package name`);
+  }
+  return name;
+}
+
+function ensureExactNpmVersion(value, fieldName) {
+  const version = ensureString(value, fieldName);
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
+    throw new Error(`${fieldName} must be an exact npm semantic version`);
+  }
+  return version;
+}
+
 export function loadManifest(manifestPath) {
   return JSON.parse(readFileSync(manifestPath, "utf8"));
 }
@@ -46,6 +62,7 @@ function validateProfileHost(profileHost, profileFieldName) {
   if (!result.reviewAnchor && !result.reviewAnchorFromEnv) {
     throw new Error(`${profileFieldName}.host must define reviewAnchor or reviewAnchorFromEnv`);
   }
+  if (result.version) result.version = ensureExactNpmVersion(result.version, `${profileFieldName}.host.version`);
   return result;
 }
 
@@ -54,13 +71,16 @@ export function validateManifest(manifest, manifestPath) {
     throw new Error(`Manifest at ${manifestPath} must be a JSON object`);
   }
 
-  const schemaVersion = Number(manifest.schemaVersion);
-  if (!Number.isFinite(schemaVersion) || schemaVersion < 1) {
-    throw new Error("schemaVersion must be a positive number");
+  const schemaVersion = manifest.schemaVersion;
+  if (schemaVersion !== 1) {
+    throw new Error("schemaVersion must be exactly 1");
   }
 
-  const hostPackage = ensureString(manifest.hostPackage, "hostPackage");
-  const hostCompanionPackages = ensureOptionalStringArray(manifest.hostCompanionPackages, "hostCompanionPackages");
+  const hostPackage = ensureNpmPackageName(manifest.hostPackage, "hostPackage");
+  const hostCompanionPackages = ensureOptionalStringArray(
+    manifest.hostCompanionPackages,
+    "hostCompanionPackages",
+  ).map((entry, index) => ensureNpmPackageName(entry, `hostCompanionPackages[${index}]`));
   const trackedChangelog = ensureString(manifest.trackedChangelog, "trackedChangelog");
   const defaultProfile = ensureString(manifest.defaultProfile, "defaultProfile");
 
@@ -183,7 +203,7 @@ export function resolveProfileHost(manifest, profileName) {
   return {
     packageName: manifest.hostPackage,
     companionPackages: manifest.hostCompanionPackages,
-    version: resolve("version"),
+    version: ensureExactNpmVersion(resolve("version"), `profiles.${profileName}.host.version`),
     reviewAnchor: resolve("reviewAnchor"),
     versionSource: source("version"),
     reviewAnchorSource: source("reviewAnchor"),

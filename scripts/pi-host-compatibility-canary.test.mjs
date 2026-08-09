@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."); const SCRIPT = path.join(ROOT, "scripts", "pi-host-compatibility-canary.mjs");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."); const SCRIPT = path.join(ROOT, "scripts", "pi-host-compatibility-canary.mjs"); const CHECKOUT_LOCK = path.join(ROOT, ".pi-host-compatibility-canary.lock");
 function runJson(args, env = process.env) {
   return JSON.parse(
     execFileSync(process.execPath, [SCRIPT, ...args, "--json"], {
@@ -26,7 +26,7 @@ function runJsonFailure(args, env = process.env) {
     encoding: "utf-8",
     env,
   });
-  assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`);
+  assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`); rmSync(CHECKOUT_LOCK, { force: true });
   return JSON.parse(result.stdout);
 }
 function runFailure(args) {
@@ -78,7 +78,6 @@ test("compatibility canary manifest validates", () => {
   assert.ok(result.scenarioCount >= 3);
   assert.ok(result.profiles.includes("upgrade"));
 });
-
 test("compatibility canary resolves the exact current host contract", () => {
   const result = runJson(["resolve-host", "--profile", "current"]);
   assert.equal(result.profile, "current");
@@ -106,7 +105,6 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
   assert.ok(result.scenarios.some((scenario) => scenario.id === "asc-settlement-and-thinking-contract"));
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
 });
-
 test("compatibility canary hydrates pi-eval-kernel before its exact extension-factory contract", () => {
   const result = runJson(["list", "--profile", "current"]);
   const scenario = result.scenarios.find(
@@ -292,13 +290,16 @@ test("compatibility canary restores temporary node_modules states with neutral f
   }
 
   const observedLogPaths = [];
-
+  const testStateRoot = path.join(process.env.HOME, ".local", "state", `pi-host-canary-tests-${path.basename(tempDir)}`);
   function fakeNpmEnv(logPath, extra = {}) {
     observedLogPaths.push(logPath);
     writeFileSync(logPath, "");
+    const stateHome = path.join(testStateRoot, path.basename(logPath));
+    mkdirSync(stateHome, { recursive: true, mode: 0o700 });
     const ambient = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("FAKE_NPM_")));
     return {
       ...ambient,
+      XDG_STATE_HOME: stateHome,
       PATH: `${fakeBin}${path.delimiter}${ambient.PATH ?? ""}`,
       FAKE_NPM_LOG: logPath,
       npm_config_before: "2026-07-03T00:00:00Z",
@@ -306,7 +307,6 @@ test("compatibility canary restores temporary node_modules states with neutral f
       ...extra,
     };
   }
-
   function fakeNpmCalls(logPath) {
     const contents = readFileSync(logPath, "utf8").trim();
     return contents.length === 0
@@ -961,11 +961,11 @@ if (operation === "install") {
   } finally {
     for (const [name, value] of Object.entries(previousAmbient)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
     rmSync(hostileVictim, { recursive: true, force: true });
+    rmSync(testStateRoot, { recursive: true, force: true });
     rmSync(tempDir, { recursive: true, force: true });
   }
   assert.equal(existsSync(tempDir), false);
 });
-
 test("compatibility canary dry-run can target a single scenario with package-set host preparation details", () => {
   const result = runJson([
     "run", "--dry-run", "--profile", "current", "--scenario", "vault-live-trigger-contract",

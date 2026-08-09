@@ -1,10 +1,9 @@
 // ---
-// summary: "Aligns and restores scenario host dependencies while preserving target identity and cleanup ordering."
+// summary: "Aligns and restores scenario host dependencies with journaled crash-recovery boundaries."
 // read_when:
-//   - "Changing canary host preparation, restoration ordering, or final all-target barriers."
+//   - "Changing canary host preparation, durable mutation intent, or restoration ordering."
 // ---
-import { randomUUID } from "node:crypto";
-import { lstatSync, mkdirSync, renameSync } from "node:fs";
+import { lstatSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   errorMessage,
@@ -21,6 +20,7 @@ import {
   captureAlignedTargetState,
   captureTargetLedger,
   commandToString,
+  durablySyncHostPackageState,
   nodeModulesState,
   restorationError,
   snapshotHostPackages,
@@ -33,14 +33,77 @@ import {
   verifyTargetIdentity,
 } from "./host-state.mjs";
 import { spawnWithNeutralNpmEnv } from "./process.mjs";
+import { fsyncDirectory, fsyncFile } from "./state-files.mjs";
 
-export async function ensureScenarioHost(host, scenario, options, preparationTracker) {
+function crashBoundary(name) {
+  if (process.env.PI_HOST_COMPAT_TEST_SIGKILL_AT === name) process.kill(process.pid, "SIGKILL");
+}
+
+function privatePackagePath(entry, packageAbs) {
+  Object.defineProperty(entry, "packageAbs", { value: packageAbs, enumerable: false });
+  return entry;
+}
+
+function assertOwnedDirectory(directoryPath, expectedIdentity, label) {
+  const stats = lstatSync(directoryPath, { bigint: true, throwIfNoEntry: false });
+  if (!stats || !stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new IntegrityError(`${label} is not an identity-proven directory`);
+  }
+  const identity = identityOf(stats);
+  if (expectedIdentity && !identitiesMatch(identity, expectedIdentity)) {
+    throw new IntegrityError(`${label} identity changed`);
+  }
+  return identity;
+}
+
+function prepareAbsentNodeModules(entry, packageAbs, mutationSession) {
+  const nodeModulesPath = path.join(packageAbs, "node_modules");
+  const names = mutationSession.artifactNames(entry);
+  const stagePath = path.join(packageAbs, names.stage);
+  const quarantinePath = path.join(packageAbs, names.quarantine);
+  if (lstatSync(nodeModulesPath, { throwIfNoEntry: false })) {
+    throw new IntegrityError(`node_modules appeared before runner staging: ${entry.packagePath}`);
+  }
+  if (lstatSync(stagePath, { throwIfNoEntry: false }) || lstatSync(quarantinePath, { throwIfNoEntry: false })) {
+    throw new IntegrityError(`runner recovery artifact already exists: ${entry.packagePath}`);
+  }
+  mutationSession.validateEntryMetadata(entry);
+  mutationSession.transition(entry, "stage-create-intent");
+  mkdirSync(stagePath, { mode: 0o700 });
+  const markerPath = path.join(stagePath, ".pi-host-compat-owner");
+  writeFileSync(markerPath, `${mutationSession.artifactToken(entry)}\n`, {
+    flag: "wx",
+    mode: 0o600,
+  });
+  fsyncFile(markerPath);
+  fsyncDirectory(stagePath);
+  fsyncDirectory(packageAbs);
+  crashBoundary("stage-marker");
+  entry.stageIdentity = assertOwnedDirectory(stagePath, null, "runner stage");
+  mutationSession.transition(entry, "stage-created", { stageIdentity: entry.stageIdentity });
+  mutationSession.validateEntryMetadata(entry);
+  mutationSession.transition(entry, "stage-promote-intent", { stageIdentity: entry.stageIdentity });
+  renameSync(stagePath, nodeModulesPath);
+  fsyncDirectory(packageAbs);
+  entry.alignedNodeModulesIdentity = assertOwnedDirectory(
+    nodeModulesPath,
+    entry.stageIdentity,
+    "runner-created node_modules",
+  );
+  mutationSession.transition(entry, "owned-node-modules", {
+    stageIdentity: entry.stageIdentity,
+    ownedNodeModulesIdentity: entry.alignedNodeModulesIdentity,
+  });
+}
+
+export async function ensureScenarioHost(host, scenario, options, preparationTracker, mutationSession) {
   verifyScenarioCwdIdentity(scenario);
   const targetSnapshot = snapshotTargetHostPackages(host);
   let packagePreparations;
   try {
-    packagePreparations = resolveScenarioPackageTargets(scenario).map((target) => {
-      const entry = captureTargetLedger(target, host);
+    const resolvedTargets = resolveScenarioPackageTargets(scenario);
+    packagePreparations = resolvedTargets.map((target) => {
+      const entry = privatePackagePath(captureTargetLedger(target, host), target.packageAbs);
       return {
         ...entry,
         nodeModulesExistedBefore: entry.nodeModulesBefore.kind === "directory",
@@ -53,11 +116,17 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
         changed: false,
       };
     });
+    // Object spread drops non-enumerable packageAbs; restore it without changing JSON schemas.
+    packagePreparations.forEach((entry, index) => {
+      privatePackagePath(entry, resolvedTargets[index].packageAbs);
+    });
   } catch (error) {
     if (isIntegrityError(error)) throw error;
     throw new IntegrityError(`Scenario target preflight failed: ${errorMessage(error)}`);
   }
   preparationTracker.packages = packagePreparations;
+  mutationSession?.bindScenario(scenario, host, packagePreparations);
+  crashBoundary("pre-alignment");
   const alignment = {
     packages: packagePreparations.map((entry) => ({
       packagePath: entry.packagePath,
@@ -77,7 +146,7 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
   }
 
   for (const entry of packagePreparations) entry.mayNeedCleanup = true;
-
+  mutationSession.recordAlignmentEffectsIntent();
   for (const entry of packagePreparations) {
     entry.afterAlignment = entry.alignment;
     const packageAbs = verifyInitialTargetState(entry);
@@ -88,15 +157,20 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
     }
 
     verifyInitialTargetState(entry);
+    if (entry.nodeModulesBefore.kind === "absent") {
+      prepareAbsentNodeModules(entry, packageAbs, mutationSession);
+    }
+    mutationSession.validateEntryMetadata(entry);
+    mutationSession.transition(entry, "alignment-intent", {
+      ownedNodeModulesIdentity: entry.alignedNodeModulesIdentity,
+    });
     entry.install = await spawnWithNeutralNpmEnv(entry.command[0], entry.command.slice(1), {
       cwd: packageAbs,
       stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
+      beforeRelease: (identity) => mutationSession.recordChild(entry, "align-host", identity),
     });
+    if (!entry.install.effectMayBeActive) mutationSession.clearChild();
     entry.changed = true;
-    if (entry.nodeModulesBefore.kind === "absent") {
-      const current = nodeModulesState(verifyTargetIdentity(entry));
-      if (current.kind === "directory") entry.alignedNodeModulesIdentity = current.identity;
-    }
     if (!entry.install.ok) {
       return {
         status: "failed",
@@ -111,6 +185,12 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
     const capturedAlignment = captureAlignedTargetState(entry, host);
     entry.alignedNodeModulesIdentity = capturedAlignment.nodeModulesIdentity;
     entry.afterAlignment = capturedAlignment.alignment;
+    mutationSession.transition(entry, "aligned", {
+      ownedNodeModulesIdentity: entry.nodeModulesBefore.kind === "absent"
+        ? entry.alignedNodeModulesIdentity
+        : undefined,
+    });
+    crashBoundary("post-alignment");
     if (!options.json) {
       console.log(`    host_after[${entry.packagePath}]: ${summarizeAlignment(entry.afterAlignment)}`);
     }
@@ -131,7 +211,61 @@ export async function ensureScenarioHost(host, scenario, options, preparationTra
   };
 }
 
-export async function restoreScenarioHost(host, hostPreparation, options) {
+function removeExactArtifact(artifactPath, expectedIdentity, label, packageAbs) {
+  const identity = assertOwnedDirectory(artifactPath, expectedIdentity, label);
+  removeDirectoryByHandle(artifactPath, identity);
+  fsyncDirectory(packageAbs);
+}
+
+function cleanupInitiallyAbsent(entry, packageAbs, mutationSession) {
+  const names = mutationSession.artifactNames(entry);
+  const nodeModulesPath = path.join(packageAbs, "node_modules");
+  const stagePath = path.join(packageAbs, names.stage);
+  const quarantinePath = path.join(packageAbs, names.quarantine);
+  const present = [nodeModulesPath, stagePath, quarantinePath].filter(
+    (candidate) => lstatSync(candidate, { throwIfNoEntry: false }),
+  );
+  mutationSession.validateEntryMetadata(entry);
+  if (present.length > 1) throw new IntegrityError(`multiple runner artifacts exist: ${entry.packagePath}`);
+
+  if (present[0] === stagePath) {
+    const stageIdentity = assertOwnedDirectory(stagePath, entry.stageIdentity, "runner stage");
+    mutationSession.transition(entry, "stage-remove-intent", { stageIdentity });
+    removeExactArtifact(stagePath, stageIdentity, "runner stage", packageAbs);
+  } else if (present[0] === nodeModulesPath) {
+    const current = nodeModulesState(packageAbs);
+    if (!identitiesMatch(current.identity, entry.alignedNodeModulesIdentity)) {
+      throw new IntegrityError(`runner-created node_modules identity changed: ${entry.packagePath}`);
+    }
+    mutationSession.transition(entry, "detach-intent", {
+      ownedNodeModulesIdentity: current.identity,
+    });
+    renameSync(nodeModulesPath, quarantinePath);
+    fsyncDirectory(packageAbs);
+    const quarantineIdentity = assertOwnedDirectory(
+      quarantinePath,
+      current.identity,
+      "node_modules quarantine",
+    );
+    mutationSession.transition(entry, "quarantined", { quarantineIdentity });
+    crashBoundary("post-quarantine");
+    mutationSession.transition(entry, "quarantine-remove-intent", { quarantineIdentity });
+    removeExactArtifact(quarantinePath, quarantineIdentity, "node_modules quarantine", packageAbs);
+  } else if (present[0] === quarantinePath) {
+    const quarantineIdentity = assertOwnedDirectory(
+      quarantinePath,
+      entry.alignedNodeModulesIdentity,
+      "node_modules quarantine",
+    );
+    mutationSession.transition(entry, "quarantine-remove-intent", { quarantineIdentity });
+    removeExactArtifact(quarantinePath, quarantineIdentity, "node_modules quarantine", packageAbs);
+  }
+  if (lstatSync(nodeModulesPath, { throwIfNoEntry: false })) {
+    throw new IntegrityError("expected node_modules to be absent after restoration");
+  }
+}
+
+export async function restoreScenarioHost(host, hostPreparation, options, mutationSession) {
   const preparedPackages = Array.isArray(hostPreparation?.packages)
     ? hostPreparation.packages.filter((entry) => entry.mayNeedCleanup)
     : [];
@@ -167,9 +301,8 @@ export async function restoreScenarioHost(host, hostPreparation, options) {
     };
 
     let packageAbs;
-    try {
-      packageAbs = verifyTargetIdentity(entry);
-    } catch (error) {
+    try { packageAbs = verifyTargetIdentity(entry); }
+    catch (error) {
       record("identity", "verify-package", error);
       restoredPackages.push(restoredPackage);
       continue;
@@ -178,27 +311,9 @@ export async function restoreScenarioHost(host, hostPreparation, options) {
 
     if (entry.nodeModulesBefore.kind === "absent") {
       try {
-        const current = nodeModulesState(packageAbs);
-        if (current.kind === "directory") {
-          if (!identitiesMatch(current.identity, entry.alignedNodeModulesIdentity)) {
-            throw new IntegrityError(`runner-created node_modules identity changed: ${entry.packagePath}`);
-          }
-          verifyTargetIdentity(entry);
-          const quarantine = path.join(packageAbs, `.node_modules.pi-host-compat-${randomUUID()}`);
-          if (lstatSync(quarantine, { throwIfNoEntry: false })) {
-            throw new Error(`node_modules quarantine already exists: ${path.basename(quarantine)}`);
-          }
-          renameSync(nodeModulesPath, quarantine);
-          changed = true;
-          const moved = lstatSync(quarantine, { bigint: true });
-          if (!moved.isDirectory() || !identitiesMatch(identityOf(moved), current.identity)) {
-            throw new IntegrityError("quarantined node_modules identity changed before removal");
-          }
-          verifyTargetIdentity(entry);
-          removeDirectoryByHandle(quarantine, current.identity);
-        }
-        const after = lstatSync(nodeModulesPath, { throwIfNoEntry: false });
-        if (after) throw new IntegrityError("expected node_modules to be absent after restoration");
+        const beforePresent = lstatSync(nodeModulesPath, { throwIfNoEntry: false });
+        cleanupInitiallyAbsent(entry, packageAbs, mutationSession);
+        changed ||= Boolean(beforePresent || entry.stageIdentity);
         restoredPackage.nodeModulesPresentAfter = false;
         restoredPackage.afterRestore = snapshotHostPackages(packageAbs, host);
       } catch (error) {
@@ -218,8 +333,10 @@ export async function restoreScenarioHost(host, hostPreparation, options) {
           "detect-missing-preexisting-node-modules",
           new Error("pre-existing node_modules disappeared during scenario execution"),
         );
-        verifyTargetIdentity(entry);
+        mutationSession.validateEntryMetadata(entry);
+        mutationSession.transition(entry, "recreate-preexisting-intent");
         mkdirSync(nodeModulesPath);
+        fsyncDirectory(packageAbs);
         changed = true;
       } else if (!identitiesMatch(current.identity, entry.nodeModulesBefore.identity)) {
         throw new IntegrityError(`pre-existing node_modules identity changed: ${entry.packagePath}`);
@@ -254,16 +371,26 @@ export async function restoreScenarioHost(host, hostPreparation, options) {
         if (current.kind !== "directory" || !identitiesMatch(current.identity, restoreNodeModulesIdentity)) {
           throw new IntegrityError(`node_modules identity changed between restore commands: ${entry.packagePath}`);
         }
+        mutationSession.validateEntryMetadata(entry);
+        mutationSession.transition(entry, "restore-command-intent");
         restoreResult = await spawnWithNeutralNpmEnv(
           restoreCommand[0],
           restoreCommand.slice(1),
           {
             cwd: packageAbs,
             stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
+            beforeRelease: (identity) => mutationSession.recordChild(entry, "restore-host", identity),
           },
         );
+        if (restoreResult.effectMayBeActive) {
+          throw new IntegrityError("restore command process group could not be proven stopped");
+        }
+        mutationSession.clearChild();
       } catch (error) {
         restoreResult = { ok: false, exitCode: 1, signal: null, error: errorMessage(error) };
+      }
+      if (mutationSession.hasRecordedChild()) {
+        throw new IntegrityError("restore effect identity remains active or unknown");
       }
       commandResults.push({ command: restoreCommand, result: restoreResult });
       changed = true;
@@ -294,9 +421,7 @@ export async function restoreScenarioHost(host, hostPreparation, options) {
   }
 
   for (const entry of preparedPackages) {
-    const restoredPackage = restoredPackages.find(
-      (candidate) => candidate.packagePath === entry.packagePath,
-    );
+    const restoredPackage = restoredPackages.find((candidate) => candidate.packagePath === entry.packagePath);
     try {
       const packageAbs = verifyTargetIdentity(entry);
       const finalState = nodeModulesState(packageAbs);
@@ -305,10 +430,7 @@ export async function restoreScenarioHost(host, hostPreparation, options) {
           throw new IntegrityError(`final node_modules state is not absent: ${entry.packagePath}`);
         }
       } else {
-        if (
-          finalState.kind !== "directory" ||
-          !identitiesMatch(finalState.identity, entry.nodeModulesBefore.identity)
-        ) {
+        if (finalState.kind !== "directory" || !identitiesMatch(finalState.identity, entry.nodeModulesBefore.identity)) {
           throw new IntegrityError(`final pre-existing node_modules identity changed: ${entry.packagePath}`);
         }
         const expected = entry.restoreSnapshot ?? entry.beforeSnapshot ?? [];
@@ -316,7 +438,9 @@ export async function restoreScenarioHost(host, hostPreparation, options) {
         if (!snapshotsMatch(expected, actual)) {
           throw new Error(`final host snapshot expected ${summarizeSnapshot(expected)}, got ${summarizeSnapshot(actual)}`);
         }
+        durablySyncHostPackageState(packageAbs, host);
       }
+      if ((restoredPackage?.errors?.length ?? 0) === 0) mutationSession.markTargetRestored(entry);
     } catch (error) {
       const detail = restorationError(entry, "final-barrier", "verify-all-targets", error);
       restoredPackage?.errors?.push(detail);

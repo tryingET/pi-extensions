@@ -46,7 +46,7 @@ Each profile resolves an **exact host contract** before any scenario runs:
 - exact review anchor for the upstream changelog item / diff under review
 
 The manifest now declares explicit leaf package roots for each scenario. The runner validates those package roots, auto-aligns them to the selected host contract before executing the scenario command, and restores the prior host-package versions after the run.
-Before alignment, the runner preflights every target and records its canonical package identity plus whether `node_modules` was absent or a real directory; symlinks and non-directories fail closed before npm runs. Cleanup restores pre-existing trees to lockfile-derived exact host versions before atomically detaching/removing only identity-matched runner-created trees for initially absent targets, so later npm restoration cannot recreate an already-cleaned target. Restoration revalidates identities before every effect, attempts every affected target, aggregates failures, and applies a final all-target barrier; any restoration or identity failure aborts later scenarios so contaminated state cannot become a new baseline.
+Before alignment, the runner preflights every target and records its canonical package identity plus whether `node_modules` was absent or a real directory; symlinks and non-directories fail closed before npm runs. Cleanup restores pre-existing trees to lockfile-derived exact host versions before atomically detaching/removing only identity-matched runner-created trees for initially absent targets, so later npm restoration cannot recreate an already-cleaned target. Restoration revalidates identities and bound package metadata before every effect, attempts every affected target, aggregates failures, and applies a final all-target barrier; any restoration or identity failure aborts later scenarios so contaminated state cannot become a new baseline. A durable recovery journal now carries those barriers across runner `SIGKILL`, host termination, and later process restart.
 Host alignment, scenario commands, and restoration run with isolated empty npm config files and without ambient `before` / `min-release-age` settings. Exact compatibility probes therefore cannot silently exclude the selected host release because a workstation-level package-age policy predates it.
 That removes directory-shape inference, keeps execution scope consistent with the declared seam, and reduces local environment contamination after upgrade checks.
 
@@ -61,11 +61,84 @@ AK-4714 retired the temporary runner size exception by decomposing the implement
 - `manifest.mjs` — manifest validation, profile resolution, and scenario selection
 - `host-state.mjs` — target ledgers, host snapshots, identity barriers, and npm command construction
 - `process.mjs` — subprocess capture and isolated npm environment handling
+- `command-wrapper.mjs` — process-group effect gate that waits until child identity is durably journaled
 - `host-lifecycle.mjs` — all-target preparation, alignment, restoration ordering, and final barriers
+- `state-files.mjs` — owner-only checksummed records, atomic replace/fsync, and Linux process identity
+- `state-schema.mjs` — exhaustive gate, lock, journal, target-state, and identity schema validation
+- `state-lock.mjs` — checkout-root mutation exclusion and recovery election
+- `state-store.mjs` — manifest/package bindings, journal inventory, and durable state transitions
+- `recovery.mjs` — status inspection, safe automatic cleanup, and explicit bounded npm recovery
 - `payloads.mjs` — stable JSON payload construction and human-readable list/host rendering
 - `runner.mjs` — scenario execution, later-scenario abort rules, and run summaries
 
-These modules live under `scripts/pi-host-compatibility-canary/` and are private implementation details. Callers continue to use the existing facade and command syntax.
+These modules live under `scripts/pi-host-compatibility-canary/` and are private implementation details. Callers continue to use the facade; existing validate, resolve, list, run, and dry-run payloads remain compatible, with additive `status` and `recover` commands.
+
+## Hard-interruption recovery
+
+### Durable state and checkout lock
+
+A non-dry run takes one exclusive mutation lock at `<canonical-checkout>/.pi-host-compatibility-canary.lock` and binds it to the checkout device/inode identity. A short-lived checkout-root recovery-election lock prevents concurrent stale-state recovery. Keeping the exclusion anchor at the canonical checkout means changing `XDG_STATE_HOME` cannot create an independent mutation lane.
+
+The journal lives below owner state:
+
+```text
+${XDG_STATE_HOME:-$HOME/.local/state}/pi-host-compatibility-canary/checkouts/<sha256(canonical-checkout)>/journals/
+```
+
+The owner-state application, checkout, and journal directories must be real owner-only directories (`0700`). Canonical checkout locks and journal records must be regular, non-symlink, effective-user-owned `0600` files within their size limits. Relative state homes and state homes resolving inside the repository or the system temporary directory are rejected. The journal never lives in the repository or `/tmp`; checkout lock files are transient exclusion anchors and are removed after a verified clean barrier.
+
+Each journal uses schema version 1 and a SHA-256 checksum over its payload. The checksum detects torn or accidental byte changes; it is not authentication. Records contain only recovery metadata: run/process identity, checkout and manifest binding, package/lock digests, target identities, exact host-version snapshots, and state. They do not contain environment variables, npm credentials, command arrays, subprocess output, or package contents.
+
+Lock publication uses a fully written/fsynced same-directory candidate plus an exclusive hard-link publish and directory fsync, avoiding an empty lock-file crash window. Every journal transition uses a same-directory temporary file, file fsync, atomic rename, and journal-directory fsync. Unpublished candidates are never treated as canonical state. Target staging, quarantine renames, creation, and removal fsync the owning package directory. Before a pre-existing tree is marked restored, host-package metadata files and their package/scope/`node_modules`/package-root directories are fsynced.
+
+### Effect ordering and process identity
+
+Before every npm, scenario-command, or target-tree mutation, the runner durably writes intent. Before the first alignment subprocess, all declared targets become `alignment-exposed`, so a lifecycle script cannot mutate a later target that recovery would misclassify as untouched. Initially absent staging also carries a journaled 256-bit owner marker that is fsynced before recovery may treat a not-yet-journaled stage inode as runner-owned.
+
+Mutating subprocesses start behind a Node wrapper gate. The wrapper reports its identity, waits while the parent journals that identity, then releases the command. On POSIX hosts the journal also records the wrapper-led process-group ID. If the parent dies first, the wrapper exits without starting the effect. If the parent dies after release, recovery refuses while either the wrapper or its process group is live. If only the wrapper dies while the parent survives, the parent terminates and proves the process group stopped before restoration.
+
+On Linux, owner liveness is stronger than PID-only checking: the record binds effective UID, machine ID, PID, boot ID, `/proc/<pid>/stat` start time, and PID-namespace device/inode/link identity. A different machine ID is ambiguous rather than stale; a same-machine boot-ID change proves the old process dead. A stale takeover is allowed only when identity is conclusive. Unsupported platforms, unreadable identity, or ambiguous identity fail closed; stale-lock takeover is therefore not claimed portable where the host cannot prove process start identity.
+
+The target state machine is intentionally small:
+
+```text
+baselined -> alignment-exposed                                  # before any npm effect
+  -> stage-create-intent -> owner-marker -> stage-created         # initially absent
+  -> stage-promote-intent
+  -> owned-node-modules -> alignment-intent -> aligned
+  -> scenario-intent
+  -> restore-command-intent                                      # initially present
+  -> detach-intent -> quarantined -> quarantine-remove-intent     # initially absent
+  -> restored
+```
+
+The top-level journal moves from `ready` to the current phase, back to `ready` only after the all-target restoration barrier, and finally to `clean` before lock/journal unlink. A crash before or after either unlink remains distinguishable and recoverable.
+
+### Automatic versus explicit recovery
+
+At the start of every mutating run, the runner first reconciles stale state. Automatic recovery is limited to operations that do not invoke npm against a pre-existing tree:
+
+- close a pre-effect journal with no target mutation;
+- remove an exact run-ID/index stage only when its journaled inode or fsynced owner marker proves ownership, or an exact identity-bound quarantine;
+- detach and remove an initially absent `node_modules` only when its identity matches the journaled runner-owned staging identity;
+- accept a pre-existing tree as already restored when its original identity and lockfile-derived host snapshot already match.
+
+Automatic recovery never scans for similarly named directories and never deletes an identity-unknown `node_modules`. If a pre-existing tree still needs host-version restoration, startup fails closed. The operator must review status and opt into the bounded command:
+
+```bash
+node ./scripts/pi-host-compatibility-canary.mjs status --json
+node ./scripts/pi-host-compatibility-canary.mjs recover --json
+node ./scripts/pi-host-compatibility-canary.mjs recover --apply --json
+```
+
+`recover --apply` re-resolves the scenario and targets from the currently bound manifest, verifies unchanged manifest/package/package-lock digests and identities, derives restore commands from that package lock, and then runs only the canary's built-in npm restore construction. Commands and absolute paths are never deserialized from journal bytes. Upgrade-profile recovery must be supplied the same explicit host environment so the bound host contract can be re-derived.
+
+A status result is one of `clean`, `active`, `recovery-required`, or `invalid`. JSON recovery failures return a structured error with `code` and `message` and a non-zero exit. Active owner/child, malformed or oversized record, checksum failure, symlink, wrong owner/mode, manifest or package identity drift, missing journal-ready state, multiple journals, and unknown liveness all fail closed.
+A stale recovery-election lock is also fail-closed and requires manual review rather than an unsafe concurrent takeover.
+
+### Security and recovery limits
+
+This mechanism protects against ordinary concurrent canary runs and non-cooperative parent interruption. It does **not** claim protection from malicious same-UID writers, filesystem or kernel corruption, rollback of the owner state directory, a command that deliberately replaces an identity-bound target, or unbounded/hostile descendant process trees. npm restoration retains npm's normal network, lifecycle-script, and transitive-tree behavior, which is why recovery against pre-existing trees requires explicit `--apply` consent. Scenario commands can have documented effects outside declared host targets (for example scenario-local `npm ci`); those effects remain owned by the scenario and are not reconstructed from this journal.
 
 ### `current`
 Run against the root-owned pinned host contract recorded in `policy/pi-host-compatibility-canary.json`. This is the canary baseline contract, not a claim that every checked-in package tree already matches it.
@@ -297,6 +370,13 @@ PI_HOST_COMPAT_PROFILE=upgrade \
 PI_HOST_COMPAT_HOST_VERSION=0.83.0 \
 PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.80.6...v0.83.0' \
 ./scripts/ci/full.sh
+```
+
+Run the compatibility baseline and crash-recovery suites sequentially because they intentionally exercise one canonical-checkout lock:
+
+```bash
+node --test scripts/pi-host-compatibility-canary.test.mjs
+node --test scripts/pi-host-compatibility-canary.recovery.test.mjs
 ```
 
 ### Manual workflow dispatch

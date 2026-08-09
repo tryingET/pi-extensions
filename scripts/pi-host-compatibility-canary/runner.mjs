@@ -17,6 +17,12 @@ import {
   scenarioHostResult,
 } from "./payloads.mjs";
 import { spawnWithNeutralNpmEnv } from "./process.mjs";
+import { recoverInterruptedRun, recoveryStatus } from "./recovery.mjs";
+import {
+  beginMutationSession,
+  ConcurrentCanaryError,
+  RecoveryRequiredError,
+} from "./state-store.mjs";
 
 function buildDryRunResult(scenario, host, hostPreparation) {
   const restoration = { status: "not-run", changed: false, packages: [] };
@@ -29,7 +35,7 @@ function buildDryRunResult(scenario, host, hostPreparation) {
   };
 }
 
-async function spawnScenario(scenario, host, options) {
+async function spawnScenario(scenario, host, options, mutationSession) {
   const startedAt = Date.now();
   const preparationTracker = { packages: [] };
   let hostPreparation;
@@ -40,12 +46,22 @@ async function spawnScenario(scenario, host, options) {
   let restoration = { status: "skipped", changed: false, packages: [], errors: [] };
 
   try {
-    hostPreparation = await ensureScenarioHost(host, scenario, options, preparationTracker);
+    hostPreparation = await ensureScenarioHost(
+      host,
+      scenario,
+      options,
+      preparationTracker,
+      mutationSession,
+    );
     integrityFailure ||= hostPreparation.integrityFailed === true;
     if (hostPreparation.status !== "failed" && !options.dryRun) {
-      for (const entry of preparationTracker.packages) verifyAlignedTargetState(entry, host);
+      for (const entry of preparationTracker.packages) {
+        verifyAlignedTargetState(entry, host);
+        mutationSession.validateEntryMetadata(entry);
+      }
       const scenarioCwd = verifyScenarioCwdIdentity(scenario);
       for (const entry of preparationTracker.packages) entry.mayNeedCleanup = true;
+      mutationSession.recordScenarioIntent();
       execution = await spawnWithNeutralNpmEnv(
         scenario.command[0],
         scenario.command.slice(1),
@@ -59,8 +75,10 @@ async function spawnScenario(scenario, host, options) {
             PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
           },
           stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
+          beforeRelease: (identity) => mutationSession.recordScenarioChild(identity),
         },
       );
+      if (!execution.effectMayBeActive) mutationSession.clearChild();
       integrityFailure ||= execution.integrityFailure === true;
     }
   } catch (error) {
@@ -78,9 +96,19 @@ async function spawnScenario(scenario, host, options) {
     };
   }
 
-  if (!options.dryRun && preparationTracker.packages.length > 0) {
+  if (
+    !options.dryRun &&
+    preparationTracker.packages.length > 0 &&
+    !mutationSession.hasRecordedChild()
+  ) {
     try {
-      restoration = await restoreScenarioHost(host, preparationTracker, options);
+      restoration = await restoreScenarioHost(
+        host,
+        preparationTracker,
+        options,
+        mutationSession,
+      );
+      if (restoration.status !== "failed") mutationSession.completeScenario();
     } catch (error) {
       restoration = {
         status: "failed",
@@ -145,39 +173,58 @@ export async function runPayload(manifest, options) {
   const results = [];
   let aborted = false;
   let abortReason;
+  let mutationSession;
 
-  for (const scenario of selection.scenarios) {
-    if (!options.json) {
-      console.log(`==> ${scenario.id} (${selection.profile})`);
-      console.log(`    title: ${scenario.title}`);
-      console.log(`    packages: ${scenario.packages.join(", ")}`);
-      console.log(`    upstream_surfaces: ${scenario.upstreamSurfaces.join(", ")}`);
-      console.log(`    cwd: ${scenario.cwd}`);
-      console.log(`    command: ${commandToString(scenario.command)}`);
-      console.log(`    host_version: ${host.version}`);
-      console.log(`    review_anchor: ${host.reviewAnchor}`);
-    }
+  if (options.dryRun) {
+    const state = recoveryStatus(manifest);
+    if (state.status === "active") throw new ConcurrentCanaryError("an active canary mutation blocks dry-run");
+    if (state.recoveryRequired) throw new RecoveryRequiredError("unresolved canary recovery state blocks dry-run");
+  } else {
+    await recoverInterruptedRun(manifest, { apply: false, json: options.json });
+    mutationSession = beginMutationSession(manifest, selection.profile);
+  }
 
-    const result = await spawnScenario(scenario, host, {
-      dryRun: options.dryRun,
-      json: options.json,
-      profile: selection.profile,
-    });
-    results.push(result);
+  try {
+    for (const scenario of selection.scenarios) {
+      if (!options.json) {
+        console.log(`==> ${scenario.id} (${selection.profile})`);
+        console.log(`    title: ${scenario.title}`);
+        console.log(`    packages: ${scenario.packages.join(", ")}`);
+        console.log(`    upstream_surfaces: ${scenario.upstreamSurfaces.join(", ")}`);
+        console.log(`    cwd: ${scenario.cwd}`);
+        console.log(`    command: ${commandToString(scenario.command)}`);
+        console.log(`    host_version: ${host.version}`);
+        console.log(`    review_anchor: ${host.reviewAnchor}`);
+      }
 
-    if (!options.json) {
-      console.log(
-        `    result: ${result.status} (exit=${result.exitCode}, elapsed=${result.elapsedMs}ms)`,
+      const result = await spawnScenario(
+        scenario,
+        host,
+        {
+          dryRun: options.dryRun,
+          json: options.json,
+          profile: selection.profile,
+        },
+        mutationSession,
       );
-      console.log("");
-    }
+      results.push(result);
 
-    if (result.restorationFailed || result.integrityFailed) {
-      aborted = true;
-      abortReason = result.integrityFailed ? "integrity-failed" : "restoration-failed";
-      break;
+      if (!options.json) {
+        console.log(
+          `    result: ${result.status} (exit=${result.exitCode}, elapsed=${result.elapsedMs}ms)`,
+        );
+        console.log("");
+      }
+
+      if (result.restorationFailed || result.integrityFailed) {
+        aborted = true;
+        abortReason = result.integrityFailed ? "integrity-failed" : "restoration-failed";
+        break;
+      }
+      if (result.status === "failed" && options.failFast) break;
     }
-    if (result.status === "failed" && options.failFast) break;
+  } finally {
+    mutationSession?.finalize();
   }
 
   const summary = {
