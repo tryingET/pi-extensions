@@ -20,6 +20,13 @@ import {
 } from "../extensions/self/rewind/index.ts";
 import { createRewindGitHarness, runGit } from "./rewind-harness.mjs";
 
+// Pin git commit dates so commit-tree SHAs are deterministic. Without this, the lease commit built by
+// publishAndCollectActiveRewindLeases includes wall-clock time at second resolution; two identical publishes
+// that straddle a second boundary produce different SHAs and the idempotency assertion flakes under concurrency.
+// Uses ??= so an explicit caller/CI override is respected. Scoped to this test file's process.
+process.env.GIT_AUTHOR_DATE ??= "2026-04-22T00:00:00Z";
+process.env.GIT_COMMITTER_DATE ??= "2026-04-22T00:00:00Z";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 test("rewind retention planning keeps current, undo, and pinned commits while pruning ordinary bindings", () => {
