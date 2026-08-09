@@ -18,21 +18,19 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-
 import { releaseCandidateAdmission } from "../src/candidatePeerAdmission.ts";
 import {
   candidateAdmissionPermitPath,
   getCandidateAdmissionRoot,
   writeAdmissionJson,
 } from "../src/candidatePeerAdmissionState.ts";
-
 import {
   authorizeCandidateCleanup,
   createRestorationVerifiedArchive,
   executeAuthorizedCandidateCleanup,
   verifyCleanedCandidateTerminalRecord,
 } from "../src/candidatePeerLifecycleArchive.ts";
-import { branchOid } from "../src/candidatePeerLifecycleArchiveShared.ts";
+import { branchOid, compareAndDeleteBranch } from "../src/candidatePeerLifecycleArchiveShared.ts";
 import {
   appendLifecycleEvent,
   captureCandidateReviewSnapshot,
@@ -68,7 +66,6 @@ import {
 function git(cwd, ...args) {
   return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" }).trim();
 }
-
 function withState(fn) {
   const root = mkdtempSync(join(tmpdir(), "candidate-terminal-retention-"));
   try {
@@ -77,7 +74,6 @@ function withState(fn) {
     rmSync(root, { recursive: true, force: true });
   }
 }
-
 function writeReservedAdmission({ env, admissionId, peerRunId, repoRoot, worktreePath }) {
   mkdirSync(join(getCandidateAdmissionRoot(env), "permits"), { recursive: true, mode: 0o700 });
   const now = new Date().toISOString();
@@ -106,7 +102,6 @@ function writeReservedAdmission({ env, admissionId, peerRunId, repoRoot, worktre
   writeAdmissionJson(path, permit);
   return { path, permit };
 }
-
 function hardKillRetention(functionName, hookName, resourceId, env) {
   const moduleUrl = new URL("../src/candidatePeerTerminalRetention.ts", import.meta.url).href;
   const script = `
@@ -123,7 +118,6 @@ function hardKillRetention(functionName, hookName, resourceId, env) {
   });
   assert.equal(child.signal, "SIGKILL", child.stderr || child.stdout);
 }
-
 function setupLinkedWorktree(root) {
   const repoRoot = join(root, "owner");
   const worktreePath = join(root, "candidate");
@@ -137,7 +131,6 @@ function setupLinkedWorktree(root) {
   git(repoRoot, "worktree", "add", "-b", "candidate/terminal", worktreePath, "HEAD");
   return { repoRoot, worktreePath };
 }
-
 function writeRegistry({ env, peerRunId, repoRoot, worktreePath, branchName }) {
   const record = createCandidatePeerRegistryRecord(
     {
@@ -159,7 +152,6 @@ function writeRegistry({ env, peerRunId, repoRoot, worktreePath, branchName }) {
   writeCandidatePeerRegistryRecord(record, env);
   return record;
 }
-
 function authorizedCleanupFixture(
   root,
   env,
@@ -225,7 +217,6 @@ function authorizedCleanupFixture(
   });
   return { record, peerRunId, repoRoot, worktreePath };
 }
-
 function cleanedFixture(
   root,
   env,
@@ -244,7 +235,6 @@ function cleanedFixture(
   });
   return { ...fixture, cleaned };
 }
-
 test("exact branch lookup accepts stable loose and packed refs but rejects symlinked parents", () =>
   withState((root) => {
     const repoRoot = join(root, "exact-ref-owner");
@@ -275,8 +265,20 @@ test("exact branch lookup accepts stable loose and packed refs but rejects symli
     symlinkSync(outsideParent, escapedParent, "dir");
     assert.equal(git(repoRoot, "show-ref", "--verify", "--hash", "refs/heads/escape/topic"), oid);
     assert.throws(() => branchOid(repoRoot, "escape/topic"), /exact loose ref traverses a symlink/);
-  }));
 
+    const packedRefs = join(repoRoot, ".git", "packed-refs");
+    const packedBytes = readFileSync(packedRefs);
+    const outsidePackedRefs = join(root, "outside-packed-refs");
+    writeFileSync(outsidePackedRefs, packedBytes);
+    rmSync(packedRefs);
+    symlinkSync(outsidePackedRefs, packedRefs);
+    assert.throws(() => branchOid(repoRoot, "candidate/stable"), /packed-refs is not a regular/);
+    assert.throws(
+      () => compareAndDeleteBranch(repoRoot, "candidate/stable", oid),
+      /packed-refs is not a regular/,
+    );
+    assert.deepEqual(readFileSync(outsidePackedRefs), packedBytes);
+  }));
 test("cleanup compare-and-delete preserves a branch whose authorized OID changed", () =>
   withState((root, env) => {
     const fixture = authorizedCleanupFixture(
@@ -358,7 +360,6 @@ test("cleanup compare-and-delete preserves a branch whose authorized OID changed
       false,
     );
   }));
-
 test("cleaned terminal verification treats an absent exact branch as quiet", () =>
   withState((root, env) => {
     const fixture = cleanedFixture(root, env, "candidatepeer-terminal-quiet-branch");
@@ -432,6 +433,27 @@ test("short cleaned terminal events require exact canonical bytes and their fina
     const original = readFileSync(eventsPath);
     assert.equal(original.at(-1), 0x0a);
     assert.equal(verifyCleanedCandidateTerminalRecord(record, env), digestObject(record));
+
+    const finalLineStart = original.lastIndexOf(0x0a, original.length - 2) + 1;
+    for (const malformed of [
+      '{"event":"historical","value":truX}',
+      '{"event":"historical","value":}',
+      '{"event":"historical","value":"unterminated}',
+    ]) {
+      writeFileSync(
+        eventsPath,
+        Buffer.concat([
+          original.subarray(0, finalLineStart),
+          Buffer.from(`${malformed}\n`),
+          original.subarray(finalLineStart),
+        ]),
+      );
+      assert.throws(
+        () => verifyCleanedCandidateTerminalRecord(record, env),
+        /malformed lifecycle event/,
+      );
+    }
+    writeFileSync(eventsPath, original);
 
     const lines = original.toString("utf8").slice(0, -1).split("\n");
     const finalEvent = JSON.parse(lines.at(-1));

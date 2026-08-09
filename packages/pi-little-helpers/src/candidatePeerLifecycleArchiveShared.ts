@@ -170,39 +170,56 @@ function exactBranchRef(branchName: string): string {
   return ref;
 }
 
-function exactLooseBranchRefExists(repoRoot: string, ref: string): boolean {
-  const commonDirProbe = spawnSync("git", ["-C", repoRoot, "rev-parse", "--git-common-dir"], {
+function exactGitCommonDir(repoRoot: string, ref: string): string {
+  const probe = spawnSync("git", ["-C", repoRoot, "rev-parse", "--git-common-dir"], {
     encoding: "utf8",
     maxBuffer: 1024 * 1024,
   });
-  if (commonDirProbe.error) throw branchLookupFailure(ref, String(commonDirProbe.error));
-  if (commonDirProbe.signal || commonDirProbe.status === null) {
+  if (probe.error) throw branchLookupFailure(ref, String(probe.error));
+  if (probe.signal || probe.status === null) {
     throw branchLookupFailure(
       ref,
-      `git common-dir lookup terminated by ${commonDirProbe.signal ?? "unknown signal"}`,
+      `git common-dir lookup terminated by ${probe.signal ?? "unknown signal"}`,
     );
   }
-  const commonDirRaw = commonDirProbe.stdout.trim();
+  const raw = probe.stdout.trim();
   if (
-    commonDirProbe.status !== 0 ||
-    commonDirProbe.stderr !== "" ||
-    !commonDirRaw ||
-    commonDirRaw.includes("\0") ||
-    commonDirRaw.includes("\n")
+    probe.status !== 0 ||
+    probe.stderr !== "" ||
+    !raw ||
+    raw.includes("\0") ||
+    raw.includes("\n")
   ) {
-    throw branchLookupFailure(
-      ref,
-      `git common-dir lookup exited ${commonDirProbe.status}`,
-      commonDirProbe.stderr,
-    );
+    throw branchLookupFailure(ref, `git common-dir lookup exited ${probe.status}`, probe.stderr);
   }
-
-  let commonDir: string;
   try {
-    commonDir = realpathSync(resolve(repoRoot, commonDirRaw));
+    return realpathSync(resolve(repoRoot, raw));
   } catch (error) {
     throw branchLookupFailure(ref, `git common-dir resolution failed: ${String(error)}`);
   }
+}
+
+function assertSafePackedRefs(repoRoot: string, ref: string): void {
+  const path = join(exactGitCommonDir(repoRoot, ref), "packed-refs");
+  try {
+    const info = lstatSync(path);
+    if (info.isSymbolicLink() || !info.isFile()) {
+      throw branchLookupFailure(ref, `packed-refs is not a regular in-repository file: ${path}`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    if (
+      error instanceof Error &&
+      error.message.startsWith("candidate exact branch lookup failed")
+    ) {
+      throw error;
+    }
+    throw branchLookupFailure(ref, `packed-refs lookup failed: ${String(error)}`);
+  }
+}
+
+function exactLooseBranchRefExists(repoRoot: string, ref: string): boolean {
+  const commonDir = exactGitCommonDir(repoRoot, ref);
   const headsDir = resolve(commonDir, "refs", "heads");
   const looseRefPath = resolve(commonDir, ref);
   if (looseRefPath === headsDir || !looseRefPath.startsWith(`${headsDir}${sep}`)) {
@@ -242,6 +259,7 @@ function exactLooseBranchRefExists(repoRoot: string, ref: string): boolean {
 }
 
 function probeExactBranchOid(repoRoot: string, ref: string): string | undefined {
+  assertSafePackedRefs(repoRoot, ref);
   const presence = spawnSync(
     "git",
     ["-C", repoRoot, "show-ref", "--verify", "--quiet", "--", ref],
@@ -251,7 +269,10 @@ function probeExactBranchOid(repoRoot: string, ref: string): string | undefined 
   if (presence.signal || presence.status === null) {
     throw branchLookupFailure(ref, `git terminated by ${presence.signal ?? "unknown signal"}`);
   }
-  if (presence.status === 1 && presence.stdout === "" && presence.stderr === "") return undefined;
+  if (presence.status === 1 && presence.stdout === "" && presence.stderr === "") {
+    assertSafePackedRefs(repoRoot, ref);
+    return undefined;
+  }
   if (presence.status !== 0 || presence.stdout !== "" || presence.stderr !== "") {
     throw branchLookupFailure(ref, `git exited ${presence.status}`, presence.stderr);
   }
@@ -268,6 +289,7 @@ function probeExactBranchOid(repoRoot: string, ref: string): string | undefined 
   if (resolved.status !== 0 || resolved.stderr !== "" || !match?.groups?.oid) {
     throw branchLookupFailure(ref, `git exited ${resolved.status}`, resolved.stderr);
   }
+  assertSafePackedRefs(repoRoot, ref);
   return match.groups.oid;
 }
 
@@ -297,7 +319,9 @@ export function compareAndDeleteBranch(
   if (!GIT_OID.test(expectedOid)) {
     throw new Error(`candidate exact branch compare-and-delete has an invalid OID for ${ref}`);
   }
+  assertSafePackedRefs(repoRoot, ref);
   exactLooseBranchRefExists(repoRoot, ref);
+  assertSafePackedRefs(repoRoot, ref);
   const deletion = spawnSync("git", ["-C", repoRoot, "update-ref", "-d", ref, expectedOid], {
     encoding: "utf8",
     maxBuffer: 1024 * 1024,
@@ -317,6 +341,7 @@ export function compareAndDeleteBranch(
       deletion.stderr.trim() || deletion.stdout.trim() || `git exited ${deletion.status}`;
     throw new Error(`candidate exact branch compare-and-delete failed for ${ref}: ${detail}`);
   }
+  assertSafePackedRefs(repoRoot, ref);
 }
 
 export function candidateGitCommonDir(worktreePath: string): string {

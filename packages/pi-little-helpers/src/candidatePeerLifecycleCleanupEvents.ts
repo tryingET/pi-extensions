@@ -24,6 +24,7 @@ export type CleanupEffectEvent = {
 const CLEANUP_EVENT_READ_CHUNK_BYTES = 64 * 1024;
 const MAX_RELEVANT_CLEANUP_EVENT_BYTES = 16 * 1024 * 1024;
 const MAX_EVENT_IDENTITY_BYTES = 256;
+const MAX_EVENT_PRIMITIVE_BYTES = 256;
 const MAX_EVENT_NESTING_DEPTH = 256;
 const FINAL_LF = Buffer.from("\n");
 const RELEVANT_CLEANUP_EVENTS = new Set([
@@ -73,6 +74,7 @@ type EventIdentityScanner = {
   nestedClosers: number[];
   nestedString: boolean;
   nestedEscaped: boolean;
+  primitiveBytes: number[];
 };
 
 function newEventIdentityScanner(): EventIdentityScanner {
@@ -85,6 +87,7 @@ function newEventIdentityScanner(): EventIdentityScanner {
     nestedClosers: [],
     nestedString: false,
     nestedEscaped: false,
+    primitiveBytes: [],
   };
 }
 
@@ -95,6 +98,23 @@ function decodeIdentityString(scanner: EventIdentityScanner): string | undefined
   } catch {
     scanner.malformed = true;
     return undefined;
+  }
+}
+
+function finishPrimitive(scanner: EventIdentityScanner): void {
+  const token = Buffer.from(scanner.primitiveBytes).toString("utf8").trim();
+  scanner.primitiveBytes = [];
+  if (!token) {
+    scanner.malformed = true;
+    return;
+  }
+  try {
+    const value = JSON.parse(token) as unknown;
+    if (value !== null && typeof value !== "boolean" && typeof value !== "number") {
+      scanner.malformed = true;
+    }
+  } catch {
+    scanner.malformed = true;
   }
 }
 
@@ -196,10 +216,18 @@ function scanTopLevelEventIdentity(scanner: EventIdentityScanner, bytes: Buffer)
           return;
         }
         scanner.state = "primitive";
+        scanner.primitiveBytes = [byte];
       }
     } else if (scanner.state === "primitive") {
-      if (byte === 0x2c) scanner.state = "key";
-      else if (byte === 0x7d) scanner.state = "done";
+      if (byte === 0x2c || byte === 0x7d) {
+        finishPrimitive(scanner);
+        if (scanner.malformed) return;
+        scanner.state = byte === 0x2c ? "key" : "done";
+      } else if (scanner.primitiveBytes.length >= MAX_EVENT_PRIMITIVE_BYTES) {
+        scanner.malformed = true;
+      } else {
+        scanner.primitiveBytes.push(byte);
+      }
     } else if (scanner.state === "comma") {
       if (whitespace(byte)) continue;
       if (byte === 0x2c) scanner.state = "key";
@@ -251,15 +279,15 @@ export function readCleanupEvents(
     if (bytes.length === 0) return;
     const nextLineBytes = lineBytes + bytes.length;
     cleanedLineHash?.update(bytes);
-    if (lineRelevant !== false && nextLineBytes <= MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
+    if (nextLineBytes <= MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
       lineChunks.push(Buffer.from(bytes));
-    } else if (nextLineBytes > MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
+    } else {
       lineChunks = [];
     }
     scanTopLevelEventIdentity(identity, bytes);
     if (lineRelevant === undefined && identity.event !== undefined) {
       lineRelevant = RELEVANT_CLEANUP_EVENTS.has(identity.event);
-      if (!lineRelevant || (identity.event === "cleaned" && cleanedExpectation)) lineChunks = [];
+      if (identity.event === "cleaned" && cleanedExpectation) lineChunks = [];
       if (identity.event !== "cleaned") cleanedLineHash = undefined;
     }
     lineBytes = nextLineBytes;
@@ -279,7 +307,16 @@ export function readCleanupEvents(
 
   const finishLine = (terminatedWithLf: boolean): void => {
     if (lineBytes === 0) throw new Error("malformed empty lifecycle event");
-    if (identity.malformed || identity.event === undefined) {
+    if (
+      identity.malformed ||
+      identity.event === undefined ||
+      identity.state !== "done" ||
+      identity.stringRole !== undefined ||
+      identity.stringEscaped ||
+      identity.nestedClosers.length > 0 ||
+      identity.nestedString ||
+      identity.nestedEscaped
+    ) {
       throw new Error("malformed lifecycle event or non-unique top-level event identity");
     }
     const relevant = RELEVANT_CLEANUP_EVENTS.has(identity.event);
@@ -300,21 +337,20 @@ export function readCleanupEvents(
         fromVersion: cleanedExpectation.record.resourceVersion - 1,
         record: cleanedExpectation.record,
       };
-    } else if (relevant) {
-      if (lineBytes > MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
-        throw new Error("relevant cleanup lifecycle event exceeds bounded read limit");
-      }
+    } else if (lineBytes <= MAX_RELEVANT_CLEANUP_EVENT_BYTES) {
       try {
         event = JSON.parse(Buffer.concat(lineChunks, lineBytes).toString("utf8")) as Record<
           string,
           unknown
         >;
       } catch (error) {
-        throw new Error(`malformed relevant cleanup lifecycle event: ${String(error)}`);
+        throw new Error(`malformed lifecycle event: ${String(error)}`);
       }
       if (event.event !== identity.event) {
-        throw new Error("relevant cleanup lifecycle event identity changed during decoding");
+        throw new Error("lifecycle event identity changed during decoding");
       }
+    } else if (relevant) {
+      throw new Error("relevant cleanup lifecycle event exceeds bounded read limit");
     } else {
       event = { event: identity.event };
     }
