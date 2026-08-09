@@ -1,0 +1,19 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "04f734a3ddd2d0ea763edef1043875b8f880ddef"
+created_at: "2026-08-09T05:18:32Z"
+intent: "Stop the rewind-retention concurrency flake: pin git commit dates so commit-tree lease SHAs are deterministic."
+files:
+  - "packages/pi-autonomous-session-control/tests/rewind-retention.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
