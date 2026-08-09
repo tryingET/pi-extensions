@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-09T21:14:40.249285434+00:00",
+  "task_id": 4720,
+  "entity_version": 1,
+  "commit_sha": "da23822e6573a4e738189477f26579e105834b90",
+  "scope": {
+    "allowed_paths": [
+      "packages/pi-agent-vent/README.md",
+      "packages/pi-agent-vent/docs/**",
+      "packages/pi-agent-vent/extensions/agent-vent.ts",
+      "packages/pi-agent-vent/package.json",
+      "packages/pi-agent-vent/scripts/**",
+      "packages/pi-agent-vent/src/**",
+      "packages/pi-agent-vent/tests/**"
+    ],
+    "required_paths": [
+      "packages/pi-agent-vent/extensions/agent-vent.ts",
+      "packages/pi-agent-vent/package.json",
+      "packages/pi-agent-vent/src/agent-vent-state-lock.js",
+      "packages/pi-agent-vent/src/review-cadence.js",
+      "packages/pi-agent-vent/src/snapshot-initialization.js",
+      "packages/pi-agent-vent/src/snapshot-manifest.js",
+      "packages/pi-agent-vent/src/vent-store.js",
+      "packages/pi-agent-vent/tests/agent-vent-extension.test.js",
+      "packages/pi-agent-vent/tests/vent-store.test.js"
+    ],
+    "forbidden_paths": [
+      "packages/pi-autonomous-session-control/**",
+      "packages/pi-toolbox-discovery/**"
+    ]
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}
