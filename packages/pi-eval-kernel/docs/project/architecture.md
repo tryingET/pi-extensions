@@ -19,21 +19,26 @@ flowchart LR
   Model[Model] -->|one eval call| Extension[Pi extension]
   Extension --> Confirm[Operator confirmation]
   Confirm --> Manager[Kernel manager]
-  Manager --> Broker[Disposable protocol broker]
-  Broker --> Python[Disposable Python worker]
-  Broker --> JavaScript[Disposable JavaScript worker]
-  Python -->|dedicated bounded JSONL channel| Broker
-  JavaScript -->|dedicated bounded JSONL channel| Broker
-  Broker --> Registry[Capability registry]
+  Manager -->|default disposable| DisposableBroker[Per-eval protocol broker]
+  DisposableBroker --> DisposablePython[Disposable Python worker]
+  DisposableBroker --> JavaScript[Disposable JavaScript worker]
+  Manager -->|opt-in persistent Python| PersistentBroker[Long-lived protocol broker]
+  PersistentBroker --> PersistentPython[Long-lived Python worker]
+  DisposablePython -->|dedicated bounded JSONL channel| DisposableBroker
+  JavaScript -->|dedicated bounded JSONL channel| DisposableBroker
+  PersistentPython -->|dedicated bounded JSONL channel| PersistentBroker
+  DisposableBroker --> Registry[Capability registry]
+  PersistentBroker --> Registry
   Registry --> Builtins[Bounded filesystem/process adapters]
   Registry --> Owners[Explicit owner-runtime adapters]
-  Broker --> Result[Validated aggregated result]
+  DisposableBroker --> Result[Validated aggregated result]
+  PersistentBroker --> Result
   Result --> Model
 ```
 
-Each worker exchanges newline-delimited JSON with the host through a disposable protocol broker and a dedicated worker file descriptor. The broker bounds frame bytes and frame count before forwarding anything into the long-lived Pi host; unexpected direct worker stdout is rejected rather than interpreted as control traffic. The host validates every parsed frame at runtime.
+Each worker exchanges newline-delimited JSON with the host through a protocol broker and a dedicated worker file descriptor. The default disposable engine creates one broker/worker pair per eval. Opt-in persistent Python retains one broker/worker pair across serialized evals. Both broker forms bound frame bytes and reject unexpected direct worker stdout rather than interpreting it as control traffic; the host validates every parsed frame at runtime.
 
-An `eval_result` is provisional. After receiving one valid result, the host issues a fresh finalization token and commits only after a matching `eval_complete` frame, worker/broker exit, and zero outstanding capability calls. Direct process exit after a forged result therefore fails rather than committing state. User stdout/stderr is captured and bounded inside each worker. JSON-compatible `state` is retained by the host and supplied to the next disposable worker.
+An `eval_result` is provisional. After receiving one valid result, the host issues a fresh finalization token and accepts only a matching `eval_complete` frame after outstanding capability calls settle. Disposable execution additionally completes its one-shot process lifecycle before committing host-retained JSON state. Persistent Python leaves the validated worker alive and retains its `state` dictionary in-process without a host round-trip. A forged result followed by direct or unexpected process exit therefore rejects instead of committing. User stdout/stderr remains captured and bounded inside each worker.
 
 ## One eval, multiple operations
 
@@ -61,15 +66,15 @@ Pi host packages are optional peers, not persistent package dev dependencies. Th
 
 ## Lifecycle
 
-- Every eval receives a fresh worker process.
-- Calls are serialized per language so host-committed logical state is deterministic.
-- Python and JavaScript workers can run independently.
-- Capability calls inside one eval can run concurrently and must settle before a normal worker result.
-- Each eval owns an abort signal propagated to host capabilities.
-- A capability still pending when its worker exits invalidates the eval immediately; the host does not wait forever for an adapter that ignores cancellation.
-- Abort or timeout terminates the affected worker because arbitrary synchronous code cannot be safely interrupted in-process.
-- Reset increments a lifecycle generation, kills active workers, invalidates already queued calls, and clears state.
-- Session start resets both logical kernels; shutdown permanently closes them.
+- The default disposable engine gives every Python and JavaScript eval a fresh worker. Opt-in persistent mode reuses one Python broker/worker pair; JavaScript remains disposable.
+- Calls are serialized per language so logical state is deterministic. Python and JavaScript can run independently, while capability calls inside one eval can run concurrently and must settle before a normal result.
+- Each eval owns an abort signal propagated to host capabilities. Persistent Python first uses `SIGINT` and retains the worker only after a result proves that interrupt was handled; escalation retires an unresponsive worker.
+- `persistent-python-worker.ts` privately owns process spawn, bounded transport parsing, signaling, close observation, and one memoized retirement promise per exact broker. `persistent-python-client.ts` owns the serialized queue, lifecycle generation, active eval, capability bridge, and result metadata.
+- Fatal active or idle transport failures, protocol errors, timeout escalation, and unexpected exits detach the exact worker by identity and register its retirement promise before rejecting active work. A replacement cannot spawn until the retirement gate confirms broker close.
+- The first eval on every replacement reports `kernelReused: false`; successful reuse metadata is tied to worker identity rather than a global run flag.
+- Reset captures the queue tail at invocation, increments the generation, begins exact worker retirement, rejects the active eval, and awaits both the captured tail and broker close. A later reset cannot allow an intervening stale generation to spawn.
+- Close performs the same captured-tail drain and exact retirement after permanently rejecting new work. Session start resets both logical kernels; shutdown closes them.
+- Native `win32` rejects persistent Python construction before broker spawn and never silently selects disposable execution. Native support requires verified worker-tree termination semantics first.
 
 ## Pi ownership boundary
 

@@ -12,7 +12,7 @@ system4d:
 
 # @tryinget/pi-eval-kernel
 
-`pi-eval-kernel` adds an `eval` tool with disposable Python and JavaScript workers plus host-persisted JSON state. One model-visible call can run a bounded program, issue concurrent calls through an explicit package-owned capability registry, and return one aggregated result.
+`pi-eval-kernel` adds an `eval` tool with disposable Python and JavaScript workers plus host-persisted JSON state by default. An explicit `engine: "persistent"` option keeps one Python worker in-process across calls; JavaScript remains disposable. One model-visible call can run a bounded program, issue concurrent calls through an explicit package-owned capability registry, and return one aggregated result.
 
 It does **not** replace Bash by default and does **not** claim to invoke arbitrary active Pi tools.
 
@@ -22,6 +22,7 @@ It does **not** replace Bash by default and does **not** claim to invoke arbitra
 - Python final-expression results and JavaScript explicit `return` results;
 - bounded wall-clock timeout and abort-driven worker termination;
 - disposable protocol brokers with bounded frames, runtime message validation, and host-finalized result commit;
+- opt-in persistent Python with one bounded broker transport, serialized evals, and no host state round-trip;
 - captured stdout/stderr and 50 KiB model-visible output limit;
 - explicit capability metadata with `read`, `process`, `write`, `network`, or `orchestration` effect classes;
 - default host capabilities:
@@ -105,12 +106,14 @@ See [Security model](docs/project/security-model.md).
 
 ## Persistent state and reset
 
-- Python and JavaScript persist only values placed in the shared JSON-compatible `state` object.
-- Serialized state has a hard 1,000,000-byte limit; an oversized or non-JSON state fails the eval and leaves the previous committed state intact.
+- The default `engine: "disposable"` keeps Python and JavaScript state in a host-committed JSON-compatible `state` object and starts a fresh worker for each eval.
+- Disposable serialized state has a hard 1,000,000-byte limit; an oversized or non-JSON state fails the eval and leaves the previous committed state intact.
 - Ordinary Python globals and JavaScript lexical bindings do not survive the disposable worker boundary.
-- `/eval-reset` terminates active workers, invalidates queued evals, and clears state.
-- Session start resets state and active workers; session shutdown closes the runtime and rejects queued evals.
-- Timeout or cancellation kills the affected worker; the next admitted call starts a fresh worker with the last successfully committed state.
+- Opt-in `engine: "persistent"` keeps the Python `state` dictionary inside one long-lived worker without a host serialization round-trip. JavaScript remains disposable in this mode.
+- Native Windows (`win32`) rejects the persistent engine before spawning a broker. It does not downgrade to disposable execution; persistent worker-tree lifecycle support remains unavailable until native termination behavior is verified.
+- `/eval-reset` invalidates the lifecycle generation, terminates the exact active or idle worker, waits for that broker to die and for the previously queued eval tail to settle, then returns. Prior queued evals reject.
+- Session shutdown performs the same drain and exact retirement, permanently closes the runtime, and rejects new work.
+- Persistent Python cancellation first uses `SIGINT` and retains the worker only when the worker proves that interrupt was handled. Fatal protocol, timeout-escalation, or unexpected-exit paths retire the exact old broker before a fresh worker can spawn; the first result from that replacement reports `kernelReused: false`.
 
 ## Install and activate
 

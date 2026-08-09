@@ -8,7 +8,8 @@ import { PersistentPythonKernelClient } from "../src/persistent-python-client.ts
 import type { CapabilityEffect, KernelRunRequest } from "../src/types.ts";
 
 const effects = new Set<CapabilityEffect>(["read"]);
-const pythonAvailable = spawnSync("python3", ["--version"]).status === 0;
+const pythonAvailable =
+  process.platform !== "win32" && spawnSync("python3", ["--version"]).status === 0;
 
 function request(code: string, timeoutMs = 5_000): KernelRunRequest {
   return {
@@ -78,6 +79,7 @@ test(
 
     const after = await client.run(request("dict(state)"));
     assert.deepEqual(after.value, {}); // fresh worker; host had no state copy to replay
+    assert.equal(after.kernelReused, false);
     assert.notEqual(client.workerPid(), beforePid); // respawned worker (new pid)
   },
 );
@@ -230,6 +232,7 @@ test(
     await assert.rejects(interrupted, /aborted/);
     const next = await queued;
     assert.deepEqual(next.value, { marker: null, next: "clean" });
+    assert.equal(next.kernelReused, false);
     assert.notEqual(client.workerPid(), beforePid);
   },
 );
@@ -320,6 +323,7 @@ test(
 
     const after = await client.run(request('state.get("kept")'));
     assert.equal(after.value, null); // fresh worker; host had no state copy
+    assert.equal(after.kernelReused, false);
     assert.notEqual(client.workerPid(), beforePid); // respawned worker
 
     // A result frame can precede a stuck finalization handshake. Once user code
@@ -339,6 +343,7 @@ test(
 
     const afterFinalizeStall = await client.run(request('state.get("finalize_kept")'));
     assert.equal(afterFinalizeStall.value, null);
+    assert.equal(afterFinalizeStall.kernelReused, false);
     assert.notEqual(client.workerPid(), finalizePid);
   },
 );
