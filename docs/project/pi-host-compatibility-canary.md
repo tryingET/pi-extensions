@@ -46,6 +46,7 @@ Each profile resolves an **exact host contract** before any scenario runs:
 - exact review anchor for the upstream changelog item / diff under review
 
 The manifest now declares explicit leaf package roots for each scenario. The runner validates those package roots, auto-aligns them to the selected host contract before executing the scenario command, and restores the prior host-package versions after the run.
+Before alignment, the runner also records whether each target had a `node_modules` tree. The same `finally` cleanup runs after host alignment and scenario execution, including either failure path. It preserves pre-existing trees while restoring lockfile-derived exact host versions; for an initially absent tree, it removes the runner-created tree and verifies absence without a second npm restore.
 Host alignment, scenario commands, and restoration run with isolated empty npm config files and without ambient `before` / `min-release-age` settings. Exact compatibility probes therefore cannot silently exclude the selected host release because a workstation-level package-age policy predates it.
 That removes directory-shape inference, keeps execution scope consistent with the declared seam, and reduces local environment contamination after upgrade checks.
 

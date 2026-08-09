@@ -577,7 +577,7 @@ function spawnCommand(command, args, options = {}) {
   });
 }
 
-async function ensureScenarioHost(host, scenario, options) {
+async function ensureScenarioHost(host, scenario, options, preparationTracker) {
   const scenarioAlignment = describeScenarioAlignment(host, scenario);
   const targetSnapshot = snapshotTargetHostPackages(host);
   const packagePreparations = scenarioAlignment.packages.map((entry) => {
@@ -588,6 +588,7 @@ async function ensureScenarioHost(host, scenario, options) {
       packagePath: entry.packagePath,
       mode: entry.mode,
       alignment: entry.alignment,
+      nodeModulesExistedBefore: existsSync(path.join(entry.packageAbs, "node_modules")),
       beforeSnapshot,
       restoreSnapshot,
       needsRestore: !snapshotsMatch(
@@ -597,6 +598,7 @@ async function ensureScenarioHost(host, scenario, options) {
       command: buildInstallCommand(host),
     };
   });
+  preparationTracker.packages = packagePreparations;
 
   if (options.dryRun) {
     return {
@@ -641,6 +643,7 @@ async function ensureScenarioHost(host, scenario, options) {
         packagePath: entry.packagePath,
         mode: entry.mode,
         changed: false,
+        nodeModulesExistedBefore: entry.nodeModulesExistedBefore,
         beforeSnapshot: entry.beforeSnapshot,
         restoreSnapshot: entry.restoreSnapshot,
         needsRestore: entry.needsRestore,
@@ -674,6 +677,7 @@ async function ensureScenarioHost(host, scenario, options) {
             packagePath: entry.packagePath,
             mode: entry.mode,
             changed: false,
+            nodeModulesExistedBefore: entry.nodeModulesExistedBefore,
             beforeSnapshot: entry.beforeSnapshot,
             restoreSnapshot: entry.restoreSnapshot,
             needsRestore: entry.needsRestore,
@@ -697,6 +701,7 @@ async function ensureScenarioHost(host, scenario, options) {
             packagePath: entry.packagePath,
             mode: entry.mode,
             changed: true,
+            nodeModulesExistedBefore: entry.nodeModulesExistedBefore,
             beforeSnapshot: entry.beforeSnapshot,
             restoreSnapshot: entry.restoreSnapshot,
             needsRestore: entry.needsRestore,
@@ -718,6 +723,7 @@ async function ensureScenarioHost(host, scenario, options) {
       packagePath: entry.packagePath,
       mode: entry.mode,
       changed: true,
+      nodeModulesExistedBefore: entry.nodeModulesExistedBefore,
       beforeSnapshot: entry.beforeSnapshot,
       restoreSnapshot: entry.restoreSnapshot,
       needsRestore: entry.needsRestore,
@@ -743,18 +749,10 @@ async function ensureScenarioHost(host, scenario, options) {
 }
 
 async function restoreScenarioHost(host, hostPreparation, options) {
-  if (!hostPreparation) {
-    return {
-      status: "skipped",
-      changed: false,
-      packages: [],
-    };
-  }
-
-  const changedPackages = Array.isArray(hostPreparation.packages)
-    ? hostPreparation.packages.filter((entry) => entry.needsRestore)
+  const preparedPackages = Array.isArray(hostPreparation?.packages)
+    ? hostPreparation.packages
     : [];
-  if (changedPackages.length === 0) {
+  if (preparedPackages.length === 0) {
     return {
       status: "not-needed",
       changed: false,
@@ -763,12 +761,49 @@ async function restoreScenarioHost(host, hostPreparation, options) {
   }
 
   const restoredPackages = [];
-  for (const entry of changedPackages) {
-    const packageAbs = path.resolve(ROOT, entry.packagePath);
-    const restoreCommands = buildRestoreCommands(entry.restoreSnapshot ?? entry.beforeSnapshot ?? []);
+  let changed = false;
+  for (const entry of preparedPackages) {
+    const packageAbs = resolveDeclaredPackageTarget(entry.packagePath).packageAbs;
+    const nodeModulesPath = path.join(packageAbs, "node_modules");
+    const expectedSnapshot = entry.restoreSnapshot ?? entry.beforeSnapshot ?? [];
 
-    if (!options.json) {
-      console.log(`    restore[${entry.packagePath}]: ${summarizeSnapshot(entry.restoreSnapshot ?? entry.beforeSnapshot ?? [])}`);
+    if (entry.nodeModulesExistedBefore === false) {
+      const nodeModulesPresentBeforeCleanup = existsSync(nodeModulesPath);
+      rmSync(nodeModulesPath, { recursive: true, force: true });
+      const nodeModulesPresentAfter = existsSync(nodeModulesPath);
+      const restoredPackage = {
+        packagePath: entry.packagePath,
+        mode: entry.mode,
+        nodeModulesExistedBefore: false,
+        nodeModulesPresentAfter,
+        beforeSnapshot: entry.beforeSnapshot,
+        restoreSnapshot: entry.restoreSnapshot,
+        restoreCommands: [],
+        commandResults: [],
+        afterRestore: snapshotHostPackages(packageAbs, host),
+      };
+      if (nodeModulesPresentAfter) {
+        return {
+          status: "failed",
+          changed: nodeModulesPresentBeforeCleanup,
+          packages: [...restoredPackages, restoredPackage],
+          error: `node_modules restore verification failed at ${entry.packagePath}: expected absent, got present`,
+        };
+      }
+      changed ||= nodeModulesPresentBeforeCleanup;
+      restoredPackages.push(restoredPackage);
+      continue;
+    }
+
+    const restoreCommands = snapshotsMatch(
+      expectedSnapshot,
+      snapshotHostPackages(packageAbs, host),
+    )
+      ? []
+      : buildRestoreCommands(expectedSnapshot);
+
+    if (!options.json && restoreCommands.length > 0) {
+      console.log(`    restore[${entry.packagePath}]: ${summarizeSnapshot(expectedSnapshot)}`);
     }
 
     const commandResults = [];
@@ -801,16 +836,20 @@ async function restoreScenarioHost(host, hostPreparation, options) {
       }
     }
 
+    changed ||= restoreCommands.length > 0;
     const afterRestore = snapshotHostPackages(packageAbs, host);
-    if (!snapshotsMatch(entry.restoreSnapshot ?? entry.beforeSnapshot ?? [], afterRestore)) {
+    const nodeModulesPresentAfter = existsSync(nodeModulesPath);
+    if (!nodeModulesPresentAfter || !snapshotsMatch(expectedSnapshot, afterRestore)) {
       return {
         status: "failed",
-        changed: true,
+        changed,
         packages: [
           ...restoredPackages,
           {
             packagePath: entry.packagePath,
             mode: entry.mode,
+            nodeModulesExistedBefore: true,
+            nodeModulesPresentAfter,
             beforeSnapshot: entry.beforeSnapshot,
             restoreSnapshot: entry.restoreSnapshot,
             restoreCommands,
@@ -818,13 +857,17 @@ async function restoreScenarioHost(host, hostPreparation, options) {
             afterRestore,
           },
         ],
-        error: `Host package restore verification failed at ${entry.packagePath}: expected ${summarizeSnapshot(entry.restoreSnapshot ?? entry.beforeSnapshot ?? [])}, got ${summarizeSnapshot(afterRestore)}`,
+        error: !nodeModulesPresentAfter
+          ? `node_modules restore verification failed at ${entry.packagePath}: expected present, got absent`
+          : `Host package restore verification failed at ${entry.packagePath}: expected ${summarizeSnapshot(expectedSnapshot)}, got ${summarizeSnapshot(afterRestore)}`,
       };
     }
 
     restoredPackages.push({
       packagePath: entry.packagePath,
       mode: entry.mode,
+      nodeModulesExistedBefore: true,
+      nodeModulesPresentAfter,
       beforeSnapshot: entry.beforeSnapshot,
       restoreSnapshot: entry.restoreSnapshot,
       restoreCommands,
@@ -834,8 +877,8 @@ async function restoreScenarioHost(host, hostPreparation, options) {
   }
 
   return {
-    status: "restored",
-    changed: true,
+    status: changed ? "restored" : "not-needed",
+    changed,
     packages: restoredPackages,
   };
 }
@@ -955,10 +998,47 @@ function buildDryRunResult(scenario, host, hostPreparation) {
 
 async function spawnScenario(scenario, host, options) {
   const startedAt = Date.now();
-  const hostPreparation = await ensureScenarioHost(host, scenario, options);
+  const preparationTracker = { packages: [] };
+  let hostPreparation;
+  let execution = null;
+  let scenarioNpmEnv;
+  let restoration = {
+    status: "skipped",
+    changed: false,
+    packages: [],
+  };
+
+  try {
+    hostPreparation = await ensureScenarioHost(host, scenario, options, preparationTracker);
+    if (hostPreparation.status !== "failed" && !options.dryRun) {
+      scenarioNpmEnv = createNeutralNpmEnv({
+        ...process.env,
+        PI_HOST_COMPAT_PROFILE: options.profile,
+        PI_HOST_COMPAT_SCENARIO: scenario.id,
+        PI_HOST_VERSION: host.version,
+        PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
+      });
+      execution = await spawnCommand(scenario.command[0], scenario.command.slice(1), {
+        cwd: scenario.cwdAbs,
+        env: scenarioNpmEnv.env,
+        stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
+      });
+    }
+  } finally {
+    try {
+      scenarioNpmEnv?.cleanup();
+    } finally {
+      if (!options.dryRun && (hostPreparation || preparationTracker.packages.length > 0)) {
+        restoration = await restoreScenarioHost(
+          host,
+          hostPreparation ?? preparationTracker,
+          options,
+        );
+      }
+    }
+  }
 
   if (hostPreparation.status === "failed") {
-    const restoration = await restoreScenarioHost(host, hostPreparation, options);
     const error = restoration.status === "failed"
       ? `${hostPreparation.error}; restore failed: ${restoration.error}`
       : hostPreparation.error;
@@ -990,32 +1070,6 @@ async function spawnScenario(scenario, host, options) {
 
   if (options.dryRun) {
     return buildDryRunResult(scenario, host, hostPreparation);
-  }
-
-  const stdio = options.json ? ["ignore", "pipe", "pipe"] : "inherit";
-  let execution = null;
-  let restoration = {
-    status: "skipped",
-    changed: false,
-    packages: [],
-  };
-
-  const scenarioNpmEnv = createNeutralNpmEnv({
-    ...process.env,
-    PI_HOST_COMPAT_PROFILE: options.profile,
-    PI_HOST_COMPAT_SCENARIO: scenario.id,
-    PI_HOST_VERSION: host.version,
-    PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
-  });
-  try {
-    execution = await spawnCommand(scenario.command[0], scenario.command.slice(1), {
-      cwd: scenario.cwdAbs,
-      env: scenarioNpmEnv.env,
-      stdio,
-    });
-  } finally {
-    scenarioNpmEnv.cleanup();
-    restoration = await restoreScenarioHost(host, hostPreparation, options);
   }
 
   const restorationFailed = restoration.status === "failed";

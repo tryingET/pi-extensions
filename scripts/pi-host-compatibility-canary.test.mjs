@@ -5,7 +5,15 @@
 // ---
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -25,6 +33,19 @@ function runJson(args, env = {}) {
       },
     }),
   );
+}
+
+function runJsonFailure(args, env = {}) {
+  const result = spawnSync(process.execPath, [SCRIPT, ...args, "--json"], {
+    cwd: ROOT,
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      ...env,
+    },
+  });
+  assert.notEqual(result.status, 0, `Expected command to fail: ${args.join(" ")}`);
+  return JSON.parse(result.stdout);
 }
 
 function runFailure(args) {
@@ -224,56 +245,306 @@ test("compatibility canary rejects cwd and package targets outside the repositor
   }
 });
 
-test("compatibility canary scenario commands ignore ambient npm release-age cutoffs", () => {
-  const tempDir = mkdtempSync(path.join(tmpdir(), "pi-host-compat-neutral-env-"));
+test("compatibility canary restores temporary node_modules states with neutral fake npm", () => {
+  const tempDir = mkdtempSync(path.join(ROOT, ".pi-host-compat-restoration-"));
   const manifestPath = path.join(tempDir, "manifest.json");
-  const envAssertion = [
-    "if (process.env.npm_config_before || process.env.NPM_CONFIG_BEFORE) process.exit(2)",
-    "if (process.env.npm_config_min_release_age || process.env.NPM_CONFIG_MIN_RELEASE_AGE) process.exit(3)",
+  const fakeBin = path.join(tempDir, "fake-bin");
+  const fakeNpmPath = path.join(fakeBin, "npm");
+  const hostPackages = [
+    "@earendil-works/pi-coding-agent",
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-tui",
+  ];
+  const lockedVersion = "0.81.4";
+  const targetVersion = "0.83.0";
+
+  function writeInstalledHostVersions(packageDir, version) {
+    for (const packageName of hostPackages) {
+      const installedPackageDir = path.join(
+        packageDir,
+        "node_modules",
+        ...packageName.split("/"),
+      );
+      mkdirSync(installedPackageDir, { recursive: true });
+      writeFileSync(
+        path.join(installedPackageDir, "package.json"),
+        JSON.stringify({ name: packageName, version }),
+      );
+    }
+  }
+
+  function createScenarioPackage(name, nodeModulesPresent, lockedHostVersion) {
+    const packageDir = path.join(tempDir, name);
+    const packagePath = path.relative(ROOT, packageDir);
+    mkdirSync(packageDir, { recursive: true });
+    writeFileSync(
+      path.join(packageDir, "package.json"),
+      JSON.stringify({ name: `canary-${name}`, version: "1.0.0" }),
+    );
+    writeFileSync(
+      path.join(packageDir, "package-lock.json"),
+      JSON.stringify({
+        name: `canary-${name}`,
+        version: "1.0.0",
+        lockfileVersion: 3,
+        packages: Object.fromEntries([
+          ["", { name: `canary-${name}`, version: "1.0.0" }],
+          ...hostPackages.map((packageName) => [
+            `node_modules/${packageName}`,
+            { version: lockedHostVersion },
+          ]),
+        ]),
+      }),
+    );
+
+    if (nodeModulesPresent) {
+      writeInstalledHostVersions(packageDir, "0.79.7");
+      writeFileSync(
+        path.join(packageDir, "node_modules", "unrelated-sentinel.txt"),
+        "preserve me\n",
+      );
+    }
+
+    return { packageDir, packagePath };
+  }
+
+  function fakeNpmEnv(logPath, extra = {}) {
+    writeFileSync(logPath, "");
+    return {
+      PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
+      FAKE_NPM_LOG: logPath,
+      npm_config_before: "2026-07-03T00:00:00Z",
+      NPM_CONFIG_MIN_RELEASE_AGE: "999999",
+      ...extra,
+    };
+  }
+
+  function fakeNpmCalls(logPath) {
+    const contents = readFileSync(logPath, "utf8").trim();
+    return contents.length === 0
+      ? []
+      : contents.split("\n").map((line) => JSON.parse(line));
+  }
+
+  const neutralEnvAssertion = [
+    'const { readFileSync } = require("node:fs")',
+    'for (const key of ["npm_config_before", "NPM_CONFIG_BEFORE", "npm_config_min_release_age", "NPM_CONFIG_MIN_RELEASE_AGE"]) if (process.env[key]) process.exit(81)',
+    'for (const key of ["NPM_CONFIG_USERCONFIG", "NPM_CONFIG_GLOBALCONFIG", "npm_config_userconfig", "npm_config_globalconfig"]) if (!process.env[key] || readFileSync(process.env[key], "utf8") !== "") process.exit(82)',
   ].join("; ");
+  const cases = [
+    { id: "absent-success", nodeModulesPresent: false, scenarioFails: false },
+    { id: "absent-scenario-failure", nodeModulesPresent: false, scenarioFails: true },
+    { id: "absent-alignment-failure", nodeModulesPresent: false, scenarioFails: false },
+    { id: "present-success", nodeModulesPresent: true, scenarioFails: false },
+    {
+      id: "present-alignment-failure",
+      nodeModulesPresent: true,
+      scenarioFails: false,
+      lockedHostVersion: targetVersion,
+    },
+  ].map((entry) => ({
+    ...entry,
+    ...createScenarioPackage(
+      entry.id,
+      entry.nodeModulesPresent,
+      entry.lockedHostVersion ?? lockedVersion,
+    ),
+  }));
+
+  mkdirSync(fakeBin, { recursive: true });
+  writeFileSync(
+    fakeNpmPath,
+    `#!/usr/bin/env node
+const { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
+const path = require("node:path");
+for (const key of ["npm_config_before", "NPM_CONFIG_BEFORE", "npm_config_min_release_age", "NPM_CONFIG_MIN_RELEASE_AGE"]) {
+  if (process.env[key]) process.exit(91);
+}
+for (const key of ["NPM_CONFIG_USERCONFIG", "NPM_CONFIG_GLOBALCONFIG", "npm_config_userconfig", "npm_config_globalconfig"]) {
+  if (!process.env[key] || readFileSync(process.env[key], "utf8") !== "") process.exit(92);
+}
+const [operation, ...args] = process.argv.slice(2);
+appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify({ cwd: process.cwd(), operation, args, neutral: true }) + "\\n");
+const packageArgs = args.filter((arg) => !arg.startsWith("--"));
+if (operation === "install") {
+  for (const specifier of packageArgs) {
+    const versionSeparator = specifier.lastIndexOf("@");
+    const packageName = specifier.slice(0, versionSeparator);
+    const version = specifier.slice(versionSeparator + 1);
+    const installedPackageDir = path.join(process.cwd(), "node_modules", ...packageName.split("/"));
+    mkdirSync(installedPackageDir, { recursive: true });
+    writeFileSync(path.join(installedPackageDir, "package.json"), JSON.stringify({ name: packageName, version }));
+    if (process.env.FAKE_NPM_FAIL_ONCE_MARKER && !existsSync(process.env.FAKE_NPM_FAIL_ONCE_MARKER)) {
+      writeFileSync(process.env.FAKE_NPM_FAIL_ONCE_MARKER, "failed once");
+      process.exit(93);
+    }
+  }
+  if (process.env.FAKE_NPM_FAIL_AFTER_INSTALL === "1") process.exit(94);
+} else if (operation === "uninstall") {
+  for (const packageName of packageArgs) {
+    rmSync(path.join(process.cwd(), "node_modules", ...packageName.split("/")), { recursive: true, force: true });
+  }
+} else {
+  process.exit(95);
+}
+`,
+  );
+  chmodSync(fakeNpmPath, 0o755);
+
   writeFileSync(
     manifestPath,
     JSON.stringify({
       schemaVersion: 1,
-      hostPackage: "@earendil-works/pi-coding-agent",
-      hostCompanionPackages: ["@earendil-works/pi-ai", "@earendil-works/pi-tui"],
+      hostPackage: hostPackages[0],
+      hostCompanionPackages: hostPackages.slice(1),
       trackedChangelog: "https://example.test/pi-changelog",
       defaultProfile: "current",
       profiles: {
         current: {
-          description: "Test the neutral scenario environment.",
+          description: "Test deterministic node_modules restoration.",
           host: {
-            version: "0.80.6",
-            reviewAnchor: "npm:@earendil-works/pi-coding-agent@0.80.6",
+            version: targetVersion,
+            reviewAnchor: `npm:${hostPackages[0]}@${targetVersion}`,
           },
         },
       },
-      scenarios: [
-        {
-          id: "neutral-npm-env",
-          title: "Neutral npm environment",
-          owner: "monorepo-root",
-          why: "Exact host canaries must not inherit local package-age cutoffs.",
-          profiles: ["current"],
-          packages: ["packages/pi-autonomous-session-control"],
-          upstreamSurfaces: ["npm configuration isolation"],
-          cwd: "packages/pi-autonomous-session-control",
-          command: [process.execPath, "-e", envAssertion],
-        },
-      ],
+      scenarios: cases.map((entry) => ({
+        id: entry.id,
+        title: entry.id,
+        owner: "monorepo-root",
+        why: "Canary cleanup must restore the package target state.",
+        profiles: ["current"],
+        packages: [entry.packagePath],
+        upstreamSurfaces: ["node_modules restoration", "npm configuration isolation"],
+        cwd: entry.packagePath,
+        command: [
+          process.execPath,
+          "-e",
+          `${neutralEnvAssertion}${entry.scenarioFails ? "; process.exit(23)" : ""}`,
+        ],
+      })),
     }),
   );
 
   try {
-    const result = runJson(
-      ["run", "--manifest", manifestPath, "--scenario", "neutral-npm-env"],
-      {
-        npm_config_before: "2026-07-03T00:00:00Z",
-        NPM_CONFIG_MIN_RELEASE_AGE: "999999",
-      },
+    for (const entry of cases.filter((candidate) => !candidate.nodeModulesPresent)) {
+      const logPath = path.join(tempDir, `${entry.id}.jsonl`);
+      const env = fakeNpmEnv(
+        logPath,
+        entry.id === "absent-alignment-failure"
+          ? { FAKE_NPM_FAIL_AFTER_INSTALL: "1" }
+          : {},
+      );
+      const args = ["run", "--manifest", manifestPath, "--scenario", entry.id];
+      const result = entry.id === "absent-success"
+        ? runJson(args, env)
+        : runJsonFailure(args, env);
+
+      assert.equal(result.results[0].host.preparation.packages[0].nodeModulesExistedBefore, false);
+      assert.equal(result.results[0].host.restoration.status, "restored");
+      assert.equal(
+        result.results[0].host.restoration.packages[0].nodeModulesPresentAfter,
+        false,
+      );
+      assert.equal(existsSync(path.join(entry.packageDir, "node_modules")), false);
+      const calls = fakeNpmCalls(logPath);
+      assert.deepEqual(
+        calls.map((call) => [call.operation, call.neutral]),
+        [["install", true]],
+      );
+      assert.ok(calls.every((call) => call.cwd === entry.packageDir));
+    }
+
+    const presentCase = cases.find((entry) => entry.id === "present-success");
+    assert.ok(presentCase);
+    const presentLogPath = path.join(tempDir, "present-success.jsonl");
+    const presentResult = runJson(
+      ["run", "--manifest", manifestPath, "--scenario", presentCase.id],
+      fakeNpmEnv(presentLogPath),
     );
-    assert.equal(result.summary.passed, 1);
-    assert.equal(result.summary.failed, 0);
+    assert.equal(presentResult.summary.passed, 1);
+    assert.equal(
+      presentResult.results[0].host.preparation.packages[0].nodeModulesExistedBefore,
+      true,
+    );
+    assert.equal(presentResult.results[0].host.restoration.status, "restored");
+    assert.equal(
+      readFileSync(
+        path.join(presentCase.packageDir, "node_modules", "unrelated-sentinel.txt"),
+        "utf8",
+      ),
+      "preserve me\n",
+    );
+    for (const packageName of hostPackages) {
+      const restoredPackageJson = JSON.parse(
+        readFileSync(
+          path.join(
+            presentCase.packageDir,
+            "node_modules",
+            ...packageName.split("/"),
+            "package.json",
+          ),
+          "utf8",
+        ),
+      );
+      assert.equal(restoredPackageJson.version, lockedVersion);
+    }
+    const presentCalls = fakeNpmCalls(presentLogPath);
+    assert.deepEqual(
+      presentCalls.map((call) => [call.operation, call.neutral]),
+      [
+        ["install", true],
+        ["install", true],
+      ],
+    );
+    assert.ok(presentCalls.every((call) => call.cwd === presentCase.packageDir));
+
+    const failedPresentCase = cases.find(
+      (entry) => entry.id === "present-alignment-failure",
+    );
+    assert.ok(failedPresentCase);
+    const failedPresentLogPath = path.join(tempDir, "present-alignment-failure.jsonl");
+    const failedPresentResult = runJsonFailure(
+      ["run", "--manifest", manifestPath, "--scenario", failedPresentCase.id],
+      fakeNpmEnv(failedPresentLogPath, {
+        FAKE_NPM_FAIL_ONCE_MARKER: path.join(tempDir, "failed-once.marker"),
+      }),
+    );
+    assert.equal(
+      failedPresentResult.results[0].host.preparation.packages[0].needsRestore,
+      false,
+    );
+    assert.equal(failedPresentResult.results[0].host.restoration.status, "restored");
+    assert.equal(
+      readFileSync(
+        path.join(failedPresentCase.packageDir, "node_modules", "unrelated-sentinel.txt"),
+        "utf8",
+      ),
+      "preserve me\n",
+    );
+    for (const packageName of hostPackages) {
+      const restoredPackageJson = JSON.parse(
+        readFileSync(
+          path.join(
+            failedPresentCase.packageDir,
+            "node_modules",
+            ...packageName.split("/"),
+            "package.json",
+          ),
+          "utf8",
+        ),
+      );
+      assert.equal(restoredPackageJson.version, targetVersion);
+    }
+    const failedPresentCalls = fakeNpmCalls(failedPresentLogPath);
+    assert.deepEqual(
+      failedPresentCalls.map((call) => [call.operation, call.neutral]),
+      [
+        ["install", true],
+        ["install", true],
+      ],
+    );
+    assert.ok(failedPresentCalls.every((call) => call.cwd === failedPresentCase.packageDir));
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
