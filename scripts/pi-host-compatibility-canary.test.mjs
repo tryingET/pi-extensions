@@ -119,7 +119,7 @@ test("compatibility canary hydrates pi-eval-kernel before its exact extension-fa
   assert.equal(scenario.cwd, "packages/pi-eval-kernel");
   assert.deepEqual(scenario.command, [
     "bash",
-    "-lc",
+    "-c",
     "npm ci >/dev/null && npm run test:compat:pi-host",
   ]);
 });
