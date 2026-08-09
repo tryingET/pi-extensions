@@ -38,6 +38,7 @@ export const CATEGORY_ALIASES = Object.freeze({
   docs_gap: "documentation",
   context_window: "context_loss",
   context_friction: "context_loss",
+  context_alignment: "other",
   tooling_friction: "friction",
 });
 export const SEVERITIES = ["low", "medium", "high", "critical"];

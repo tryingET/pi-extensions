@@ -127,18 +127,31 @@ test("category aliases normalize at record and review-filter boundaries", () => 
     summary: "Missing affordance alias should preserve meaning",
     category: "missing_affordance",
   });
+  const alignment = createVentRecord({
+    summary: "Context alignment candidate should remain callable",
+    category: "context_alignment",
+  });
 
   assert.equal(workflow.category, "workflow");
   assert.equal(workflow.recurrenceKey, "workflow:workflow-alias");
   assert.equal(missing.category, "missing_capability");
   assert.match(missing.recurrenceKey, /^missing_capability:/);
+  assert.equal(alignment.category, "other");
+  assert.match(alignment.recurrenceKey, /^other:/);
 
-  const queue = summarizeReviewQueue([workflow, missing], [], {
+  const queue = summarizeReviewQueue([workflow, missing, alignment], [], {
     filters: { category: "workflow_friction" },
   });
   assert.equal(queue.filters.category, "workflow");
   assert.equal(queue.matchingGroupCount, 1);
   assert.equal(queue.items[0].recurrenceKey, workflow.recurrenceKey);
+
+  const alignmentQueue = summarizeReviewQueue([workflow, missing, alignment], [], {
+    filters: { category: "context_alignment" },
+  });
+  assert.equal(alignmentQueue.filters.category, "other");
+  assert.equal(alignmentQueue.matchingGroupCount, 1);
+  assert.equal(alignmentQueue.items[0].recurrenceKey, alignment.recurrenceKey);
 });
 
 test("explicit recurrence keys are redacted before slugging", () => {

@@ -537,6 +537,9 @@ test("self query: diagnostic review honors non-authorization against agent_vent 
     "self_diagnostic_review_only",
   );
   assert.equal(result.details.data.diagnosticCandidate.agentVentSuggestionAllowed, false);
+  assert.equal(result.details.data.diagnosticCandidate.agentVentRecordAllowed, false);
+  const visibleSuggestions = result.content[0].text.split("Suggestions:")[1];
+  assert.ok(visibleSuggestions, "visible suggestions section should be present");
   assert.match(result.content[0].text, /ownerSurface=self_diagnostic_review_only/);
   assert.match(result.content[0].text, /agentVentSuggestionAllowed=false/);
   assert.doesNotMatch(
@@ -550,12 +553,116 @@ test("self query: diagnostic review honors non-authorization against agent_vent 
     "allowed next surfaces should omit agent_vent when explicitly disallowed",
   );
   assert.doesNotMatch(
-    result.content[0].text.split("Suggestions:")[1] ?? "",
+    visibleSuggestions,
     /agent_vent/,
     "visible suggestions should omit agent_vent when explicitly disallowed",
   );
   assert.match(result.content[0].text, /constraints disallow agent_vent suggestions/);
   assert.equal(harness.sentUserMessages.length, 0, "should stay mirror-only");
+
+  await cleanup(tempDir);
+});
+test("self query: diagnostic review preserves preview when only agent_vent record is disallowed", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+
+  const result = await tool.execute(
+    "tc-diagnostic-review-preview-only-agent-vent",
+    {
+      query: "self-evolution diagnostic review",
+      context: {
+        summary: "stateless dogfood found a record-only diagnostic constraint",
+        nonAuthorizations: ["no agent_vent record", "no AK evidence writes"],
+      },
+    },
+    null,
+    null,
+    ctx,
+  );
+
+  const candidate = result.details.data.diagnosticCandidate;
+  assert.equal(candidate.suggestedOwnerSurface, "agent_vent");
+  assert.equal(candidate.agentVentSuggestionAllowed, true);
+  assert.equal(candidate.agentVentRecordAllowed, false);
+  assert.ok(
+    candidate.copyableCommands.some((command) => command.includes('action: "preview"')),
+    "copyable commands should preserve non-mutating preview",
+  );
+  assert.ok(
+    result.details.data.allowedNextSurfaces.some((surface) => surface.includes("preview only")),
+    "allowed surfaces should state that preview remains lawful",
+  );
+  assert.match(result.content[0].text, /agentVentSuggestionAllowed=true/);
+  assert.match(result.content[0].text, /agentVentRecordAllowed=false/);
+  assert.match(result.content[0].text, /preview is allowed/);
+  assert.match(result.content[0].text.split("Suggestions:")[1] ?? "", /preview only/);
+  assert.equal(harness.sentUserMessages.length, 0, "should stay mirror-only");
+
+  await cleanup(tempDir);
+});
+test("self query: diagnostic review parses hyphenated and mixed-clause agent_vent constraints", async () => {
+  const { default: extension, tempDir } = await loadExtensionWithMocks();
+  const harness = createPiHarness();
+
+  extension(harness.pi);
+
+  const tool = harness.tools.get("self");
+  const ctx = createMockContext();
+  const cases = [
+    { constraint: "no-agent_vent", suggestionAllowed: false, recordAllowed: false },
+    { constraint: "no-agent_vent-record", suggestionAllowed: true, recordAllowed: false },
+    {
+      constraint: "do not block previews; agent_vent is explicitly allowed",
+      suggestionAllowed: true,
+      recordAllowed: true,
+    },
+    {
+      constraint: "agent_vent is allowed but AK writes are forbidden",
+      suggestionAllowed: true,
+      recordAllowed: true,
+    },
+    {
+      constraint: "agent_vent record is allowed; AK writes are forbidden",
+      suggestionAllowed: true,
+      recordAllowed: true,
+    },
+    {
+      constraint: "avoid agent_vent ambiguity, but previews are allowed",
+      suggestionAllowed: true,
+      recordAllowed: true,
+    },
+  ];
+
+  for (const [index, testCase] of cases.entries()) {
+    const result = await tool.execute(
+      `tc-diagnostic-review-clause-${index}`,
+      {
+        query: "self-evolution diagnostic review",
+        context: {
+          summary: `constraint parser case ${index}`,
+          nonAuthorizations: [testCase.constraint],
+        },
+      },
+      null,
+      null,
+      ctx,
+    );
+    assert.equal(
+      result.details.data.diagnosticCandidate.agentVentSuggestionAllowed,
+      testCase.suggestionAllowed,
+      testCase.constraint,
+    );
+    assert.equal(
+      result.details.data.diagnosticCandidate.agentVentRecordAllowed,
+      testCase.recordAllowed,
+      testCase.constraint,
+    );
+  }
 
   await cleanup(tempDir);
 });

@@ -48,6 +48,9 @@ Rules:
 - `toolbox` activation only makes the `agent_vent` tool callable; it does not create or preview a diagnostic record.
 - `agent_vent action=preview` sanitizes the would-be record and runs the anti-junk quality check without writing the store.
 - `agent_vent action=record` writes only if the local quality check accepts the payload.
+- `self.diagnostic_candidate.v1` exposes separate `agentVentSuggestionAllowed` and `agentVentRecordAllowed` permissions. Plain `no agent_vent` / `no-agent_vent` constraints suppress activation, preview, and record guidance. Record-only `no agent_vent record` / `no-agent_vent-record` constraints preserve non-mutating preview guidance while marking durable recording forbidden.
+- ASC category `context_alignment` is accepted by `agent_vent` as a compatibility alias and normalized to canonical category `other`; the alias does not add a new canonical category.
+- The toolbox bundle currently exposes only its `default` diagnostic profile. Keep a call read-only by choosing `agent_vent` actions such as `preview`, `review`, or `stats`; do not invent `profile=read`.
 - Generic low-signal summaries such as `done` are rejected for `record`; use `preview` to inspect issues and warnings before writing.
 - Human/operator judgment still decides whether any recurrence should become an AK task, GitHub issue, incident review, evidence record, publication, or owner-surface handoff.
 

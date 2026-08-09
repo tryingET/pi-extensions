@@ -52,18 +52,40 @@ function collectConstraintText(query: SelfQuery | undefined): string[] {
   return text;
 }
 
-function disallowsAgentVentSuggestion(query: SelfQuery | undefined): boolean {
-  const text = collectConstraintText(query).join("\n").toLowerCase();
-  if (!/agent[_ -]?vent/.test(text)) return false;
+function collectAgentVentConstraintClauses(query: SelfQuery | undefined): string[] {
+  return collectConstraintText(query)
+    .flatMap((value) => value.toLowerCase().split(/[;\n,.]+|\b(?:but|however|while|whereas)\b/gu))
+    .map((value) => value.replace(/[_-]+/gu, " ").replace(/\s+/gu, " ").trim())
+    .filter((value) => value.includes("agent vent"));
+}
 
-  return (
-    /\b(no|avoid|omit|exclude|disallow|forbid)\s+agent[_ -]?vent\b/.test(text) ||
-    /\b(do not|don't|dont|must not|not authorized to|not authorised to)\b[^\n.]{0,80}\bagent[_ -]?vent\b/.test(
-      text,
-    ) ||
-    /\bagent[_ -]?vent\b[^\n.]{0,80}\b(disallowed|forbidden|not authorized|not authorised|out of scope|off limits)\b/.test(
-      text,
-    )
+function disallowsAgentVentRecord(query: SelfQuery | undefined): boolean {
+  return collectAgentVentConstraintClauses(query).some(
+    (clause) =>
+      /\b(?:no|avoid|omit|exclude|disallow|forbid)\s+agent vent records?(?:\s+(?:from|for|during|in)\b.*)?$/u.test(
+        clause,
+      ) ||
+      /\b(?:do not|don't|dont|must not|not authorized to|not authorised to)\s+(?:(?:write|create|make|record)\s+)?(?:an?\s+)?agent vent records?(?:\s+(?:from|for|during|in)\b.*)?$/u.test(
+        clause,
+      ) ||
+      /\bagent vent records?\s+(?:(?:is|are)\s+)?(?:disallowed|forbidden|not authorized|not authorised|out of scope|off limits)(?:\s+(?:from|for|during|in)\b.*)?$/u.test(
+        clause,
+      ),
+  );
+}
+
+function disallowsAgentVentSuggestion(query: SelfQuery | undefined): boolean {
+  return collectAgentVentConstraintClauses(query).some(
+    (clause) =>
+      /\b(?:no|avoid|omit|exclude|disallow|forbid)\s+agent vent(?:\s+(?:suggestions?|previews?|tool|capability))?(?:\s+(?:from|for|during|in)\b.*)?$/u.test(
+        clause,
+      ) ||
+      /\b(?:do not|don't|dont|must not|not authorized to|not authorised to)\s+(?:(?:use|call|activate|suggest|preview)\s+)?agent vent(?:\s+(?:suggestions?|previews?|tool|capability))?(?:\s+(?:from|for|during|in)\b.*)?$/u.test(
+        clause,
+      ) ||
+      /\bagent vent(?:\s+(?:suggestions?|previews?|tool|capability))?\s+(?:(?:is|are)\s+)?(?:disallowed|forbidden|not authorized|not authorised|out of scope|off limits)(?:\s+(?:from|for|during|in)\b.*)?$/u.test(
+        clause,
+      ),
   );
 }
 
@@ -73,6 +95,7 @@ export function buildDiagnosticCandidate(
 ): Record<string, unknown> {
   const context = normalizeInput(query?.context);
   const agentVentDisallowed = disallowsAgentVentSuggestion(query);
+  const agentVentRecordDisallowed = agentVentDisallowed || disallowsAgentVentRecord(query);
   const latestError = [...state.operations.errors]
     .filter((error) => (error.activeCount ?? error.count) > 0)
     .sort((a, b) => (b.lastSeen ?? b.timestamp) - (a.lastSeen ?? a.timestamp))[0];
@@ -138,9 +161,12 @@ export function buildDiagnosticCandidate(
     sourceQuery: query?.query ?? "diagnostic review requested",
     suggestedOwnerSurface: agentVentDisallowed ? "self_diagnostic_review_only" : "agent_vent",
     agentVentSuggestionAllowed: !agentVentDisallowed,
+    agentVentRecordAllowed: !agentVentRecordDisallowed,
     boundary: agentVentDisallowed
       ? "candidate-only local diagnostic suggestion; current constraints disallow agent_vent suggestions, and self does not create AK/evidence/incident state"
-      : "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
+      : agentVentRecordDisallowed
+        ? "candidate-only local diagnostic suggestion; current constraints allow agent_vent preview but disallow a durable agent_vent record, and self does not create AK/evidence/incident state"
+        : "candidate-only local diagnostic suggestion; self does not record agent_vent entries or create AK/evidence/incident state",
     evidenceSufficiency,
     mirrorEvidence: {
       latestError: latestError
@@ -475,6 +501,7 @@ export function resolveDiagnosticReviewQuery(
   if (reflectionRequiresExternalCheck) {
     diagnosticCandidate.suggestedOwnerSurface = "external_check_required";
     diagnosticCandidate.agentVentSuggestionAllowed = false;
+    diagnosticCandidate.agentVentRecordAllowed = false;
     diagnosticCandidate.boundary =
       "candidate-only local diagnostic suggestion; reflection guard requires an external check before recurrence-record suggestions, and self does not create AK/evidence/incident state";
     diagnosticCandidate.copyableCommands = [
@@ -484,10 +511,14 @@ export function resolveDiagnosticReviewQuery(
   }
 
   const agentVentSuggestionAllowed = diagnosticCandidate.agentVentSuggestionAllowed !== false;
+  const agentVentRecordAllowed =
+    agentVentSuggestionAllowed && diagnosticCandidate.agentVentRecordAllowed !== false;
   const ownerBoundaryLine = reflectionRequiresExternalCheck
     ? "- reflection guard requires an external check now; self omits agent_vent activation, preview, and record suggestions until the check is named."
     : agentVentSuggestionAllowed
-      ? "- agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic."
+      ? agentVentRecordAllowed
+        ? "- agent_vent owns durable local recurrence memory if the operator explicitly records the diagnostic."
+        : "- agent_vent preview is allowed, but current constraints disallow a durable agent_vent record."
       : "- current constraints disallow agent_vent suggestions; self omits agent_vent activation, preview, and record commands.";
   const allowedNextSurfaces = reflectionRequiresExternalCheck
     ? [
@@ -499,7 +530,9 @@ export function resolveDiagnosticReviewQuery(
     : agentVentSuggestionAllowed
       ? [
           "toolbox activation",
-          "agent_vent preview by explicit operator/tool call",
+          agentVentRecordAllowed
+            ? "agent_vent preview by explicit operator/tool call"
+            : "agent_vent preview only by explicit operator/tool call; durable record remains disallowed",
           "visible-loop only after owner/metric/falsifier/non-authorizations are explicit",
           "owner docs/task/evidence/learning surfaces only through their owners",
         ]
@@ -518,7 +551,9 @@ export function resolveDiagnosticReviewQuery(
     : agentVentSuggestionAllowed
       ? [
           'toolbox({ action: "activate", bundle: "agent_vent" })',
-          "agent_vent preview before record for the suggested payload",
+          agentVentRecordAllowed
+            ? "agent_vent preview before record for the suggested payload"
+            : "agent_vent preview only; current constraints disallow a durable record",
           "capability discovery",
         ]
       : ["self feedback summary", "capability discovery"];
@@ -549,7 +584,7 @@ Boundary:
 ${ownerBoundaryLine}
 - owner docs, visible-loop, autoresearch, AK/evidence, KES, Prompt Vault, and ontology remain separate owner surfaces.
 
-Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}; ownerSurface=${String(diagnosticCandidate.suggestedOwnerSurface)}; agentVentSuggestionAllowed=${String(diagnosticCandidate.agentVentSuggestionAllowed)}.
+Suggested diagnostic candidate (${String(diagnosticCandidate.kind)}): ${String(diagnosticCandidate.summary)}; ownerSurface=${String(diagnosticCandidate.suggestedOwnerSurface)}; agentVentSuggestionAllowed=${String(diagnosticCandidate.agentVentSuggestionAllowed)}; agentVentRecordAllowed=${String(diagnosticCandidate.agentVentRecordAllowed)}.
 Suggested self-evolution candidate (${String(evolutionCandidate.kind)}): candidateId=${String(evolutionCandidate.candidateId)}; executionReady=${String(evolutionCandidate.executionReady)}; evidenceSufficiency=${String(evolutionCandidate.evidenceSufficiency)}; ownerRoutingStatus=${String(evolutionCandidate.ownerRoutingStatus)}; confidence=${String(evolutionCandidate.confidence)}; friction=${String(evolutionCandidate.friction)}; owner=${String(evolutionCandidate.owner)}; metric=${String(evolutionCandidate.metric)}; nextSafeTest=${String(evolutionCandidate.nextSafeTest)}.
 Insight promotion cue (${String(insightPromotionCue?.kind)}): source=${String(insightPromotionCue?.sourceArtifact)}; status=${String(insightPromotionCue?.status)}; owner=${String(insightPromotionCue?.owner)}; target=${String(insightPromotionCue?.target)}; requiredBeforeCompletion=${String(insightPromotionCue?.requiredBeforeCompletion)}; risk=${String(insightPromotionCue?.risk)}; nextAction=${String(insightPromotionCue?.nextAction)}; nonAuthorizationsCount=${String(insightPromotionNonAuthorizationCount)}.
 Reflection guard (${String(reflectionGuard?.kind)}): status=${String(reflectionGuard?.status)}; externalCheckStatus=${String(reflectionGuard?.externalCheckStatus)}; requiresExternalCheck=${String(reflectionGuard?.requiresExternalCheck)}; positiveCheckSignal=${String(externalCheckEvidence?.positiveSignal ?? "none")}; provenanceCount=${String(provenanceCount)}; missingProvenance=${String(externalCheckEvidence?.missingProvenance)}; nextAction=${String(reflectionGuard?.nextAction)}.

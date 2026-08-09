@@ -52,6 +52,7 @@ test("agent_vent tool schema stays aligned with retention candidate and compare 
   assert.match(schemaText, /"compare"/);
   assert.match(schemaText, /"preview"/);
   assert.match(schemaText, /"workflow_friction"/);
+  assert.match(schemaText, /"context_alignment"/);
   assert.match(schemaText, /"candidates"/);
   assert.match(schemaText, /"history"/);
   assert.match(schemaText, /retentionCandidateState/);
@@ -554,6 +555,23 @@ test("agent_vent accepts category aliases for tool records and command filters",
       result.details.record.recurrenceKey,
       "workflow:workflow-friction-alias-should-normalize",
     );
+
+    const alignmentPreview = await tool.execute(
+      "tool-call-context-alignment-alias",
+      {
+        action: "preview",
+        summary: "Context alignment candidate should remain callable",
+        category: "context_alignment",
+      },
+      undefined,
+      undefined,
+      {
+        cwd: "/repo",
+        sessionManager: { getSessionFile: () => undefined },
+      },
+    );
+    assert.equal(alignmentPreview.details.wouldRecord, true);
+    assert.equal(alignmentPreview.details.recordPreview.category, "other");
 
     const reviewResult = await tool.execute(
       "tool-call-category-alias-review",

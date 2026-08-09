@@ -36,6 +36,7 @@ test("self query: diagnostic review requires external check for repeated self-an
         summary: "recursive self-analysis has repeated without a concrete validation signal",
         reflectionRequiredBeforeCompletion: false,
         repeatedReflection: true,
+        nonAuthorizations: ["no-agent_vent-record"],
       },
     },
     null,
@@ -58,6 +59,7 @@ test("self query: diagnostic review requires external check for repeated self-an
     "external_check_required",
   );
   assert.equal(result.details.data.diagnosticCandidate.agentVentSuggestionAllowed, false);
+  assert.equal(result.details.data.diagnosticCandidate.agentVentRecordAllowed, false);
   assert.doesNotMatch(
     JSON.stringify(result.details.data.diagnosticCandidate.copyableCommands),
     /agent_vent/,

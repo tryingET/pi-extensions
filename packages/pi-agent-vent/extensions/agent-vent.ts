@@ -98,6 +98,7 @@ const CATEGORY_ALIAS_INPUTS = [
   "docs_gap",
   "context_window",
   "context_friction",
+  "context_alignment",
   "tooling_friction",
 ] as const;
 const CATEGORY_INPUTS = [...CATEGORIES, ...CATEGORY_ALIAS_INPUTS] as const;
