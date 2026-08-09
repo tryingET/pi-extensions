@@ -392,7 +392,7 @@ test("P2 rejects ungranted envelope/task fields and all selected/omission/verifi
 test("P2 rejects degraded envelope and every mandatory check drift", async () => {
   for (const key of Object.keys(p2.checks)) {
     const degraded = structuredClone(p2);
-    degraded.checks[key] = key === "mutation_command_requested" ? true : false;
+    degraded.checks[key] = key === "mutation_command_requested";
     await assert.rejects(
       () => runCanary(request("agent_kernel_p2_task_projection", p2Source, degraded)),
       /mandatory check/u,
