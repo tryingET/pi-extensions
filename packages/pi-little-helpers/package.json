@@ -75,6 +75,7 @@
     "src/candidatePeerLifecycleArchiveTypes.ts",
     "src/candidatePeerLifecycleCleanupAuthorization.ts",
     "src/candidatePeerLifecycleCleanupEvents.ts",
+    "src/candidatePeerLifecycleCleanupJson.ts",
     "src/candidatePeerLifecycleCleanupExecution.ts",
     "src/candidatePeerLifecycleTerminalVerification.ts",
     "src/candidatePeerCloseout.ts",

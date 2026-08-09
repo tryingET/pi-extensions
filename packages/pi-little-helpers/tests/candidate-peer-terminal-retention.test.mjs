@@ -252,6 +252,15 @@ test("exact branch lookup accepts stable loose and packed refs but rejects symli
     assert.equal(existsSync(loosePath), true);
     assert.equal(branchOid(repoRoot, "candidate/stable"), oid);
 
+    git(repoRoot, "symbolic-ref", "refs/heads/candidate/victim", "refs/heads/main");
+    assert.throws(() => branchOid(repoRoot, "candidate/victim"), /exact loose ref is symbolic/);
+    assert.throws(
+      () => compareAndDeleteBranch(repoRoot, "candidate/victim", oid),
+      /exact loose ref is symbolic/,
+    );
+    assert.equal(git(repoRoot, "rev-parse", "refs/heads/main"), oid);
+    assert.equal(git(repoRoot, "symbolic-ref", "refs/heads/candidate/victim"), "refs/heads/main");
+
     git(repoRoot, "pack-refs", "--all", "--prune");
     assert.equal(existsSync(loosePath), false);
     assert.equal(branchOid(repoRoot, "candidate/stable"), oid);
@@ -433,27 +442,6 @@ test("short cleaned terminal events require exact canonical bytes and their fina
     const original = readFileSync(eventsPath);
     assert.equal(original.at(-1), 0x0a);
     assert.equal(verifyCleanedCandidateTerminalRecord(record, env), digestObject(record));
-
-    const finalLineStart = original.lastIndexOf(0x0a, original.length - 2) + 1;
-    for (const malformed of [
-      '{"event":"historical","value":truX}',
-      '{"event":"historical","value":}',
-      '{"event":"historical","value":"unterminated}',
-    ]) {
-      writeFileSync(
-        eventsPath,
-        Buffer.concat([
-          original.subarray(0, finalLineStart),
-          Buffer.from(`${malformed}\n`),
-          original.subarray(finalLineStart),
-        ]),
-      );
-      assert.throws(
-        () => verifyCleanedCandidateTerminalRecord(record, env),
-        /malformed lifecycle event/,
-      );
-    }
-    writeFileSync(eventsPath, original);
 
     const lines = original.toString("utf8").slice(0, -1).split("\n");
     const finalEvent = JSON.parse(lines.at(-1));

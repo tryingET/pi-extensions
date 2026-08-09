@@ -259,6 +259,44 @@ test("v2 cleanup skips a large irrelevant review event and preserves exact recov
     assert.equal(existsSync(`${archived.receipt.archiveDir}/COMPLETE`), true);
     const eventsPath = `${getCandidateLifecycleRoot(env)}/resources/${record.resourceId}/events.jsonl`;
     const terminalSize = statSync(eventsPath).size;
+    const originalEvents = readFileSync(eventsPath);
+    const finalLineStart = originalEvents.lastIndexOf(0x0a, originalEvents.length - 2) + 1;
+    for (const malformed of [
+      '{"event":"historical","value":truX}',
+      '{"event":"historical","value":}',
+      '{"event":"historical","value":"unterminated}',
+    ]) {
+      writeFileSync(
+        eventsPath,
+        Buffer.concat([
+          originalEvents.subarray(0, finalLineStart),
+          Buffer.from(`${malformed}\n`),
+          originalEvents.subarray(finalLineStart),
+        ]),
+      );
+      assert.throws(
+        () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+        /malformed lifecycle event/,
+      );
+    }
+    const oversizedMalformed = Buffer.concat([
+      Buffer.from('{"event":"historical","payload":"'),
+      Buffer.alloc(17 * 1024 * 1024, 0x78),
+      Buffer.from([0x5c, 0x71, 0x22, 0x7d, 0x0a]),
+    ]);
+    writeFileSync(
+      eventsPath,
+      Buffer.concat([
+        originalEvents.subarray(0, finalLineStart),
+        oversizedMalformed,
+        originalEvents.subarray(finalLineStart),
+      ]),
+    );
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /malformed lifecycle event/,
+    );
+    writeFileSync(eventsPath, originalEvents);
     writeFileSync(eventsPath, `{"at":"now","event":"cleanup_effect_intent",]\n`, { flag: "a" });
     assert.throws(
       () => verifyCleanedCandidateTerminalRecord(cleaned, env),

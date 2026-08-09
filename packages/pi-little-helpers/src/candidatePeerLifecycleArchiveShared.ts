@@ -242,6 +242,9 @@ function exactLooseBranchRefExists(repoRoot: string, ref: string): boolean {
         if (!info.isFile()) {
           throw branchLookupFailure(ref, `exact loose ref is not a regular file: ${current}`);
         }
+        if (readFileSync(current, "utf8").startsWith("ref:")) {
+          throw branchLookupFailure(ref, `exact loose ref is symbolic: ${current}`);
+        }
         return true;
       }
     } catch (error) {
@@ -322,10 +325,14 @@ export function compareAndDeleteBranch(
   assertSafePackedRefs(repoRoot, ref);
   exactLooseBranchRefExists(repoRoot, ref);
   assertSafePackedRefs(repoRoot, ref);
-  const deletion = spawnSync("git", ["-C", repoRoot, "update-ref", "-d", ref, expectedOid], {
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024,
-  });
+  const deletion = spawnSync(
+    "git",
+    ["-C", repoRoot, "update-ref", "--no-deref", "-d", ref, expectedOid],
+    {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    },
+  );
   if (deletion.error) {
     throw new Error(
       `candidate exact branch compare-and-delete failed for ${ref}: ${deletion.error}`,

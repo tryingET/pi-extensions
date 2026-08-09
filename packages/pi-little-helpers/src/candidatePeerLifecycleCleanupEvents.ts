@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import type { CandidateCleanupEffect } from "./candidatePeerLifecycleArchiveTypes.ts";
+import {
+  completeCleanupEventJson,
+  newCleanupEventJsonScanner as newEventIdentityScanner,
+  scanCleanupEventJson as scanTopLevelEventIdentity,
+} from "./candidatePeerLifecycleCleanupJson.ts";
 import type { CandidateLifecycleRecord } from "./candidatePeerLifecycleV2.ts";
 import {
   appendLifecycleEvent,
@@ -23,9 +28,6 @@ export type CleanupEffectEvent = {
 
 const CLEANUP_EVENT_READ_CHUNK_BYTES = 64 * 1024;
 const MAX_RELEVANT_CLEANUP_EVENT_BYTES = 16 * 1024 * 1024;
-const MAX_EVENT_IDENTITY_BYTES = 256;
-const MAX_EVENT_PRIMITIVE_BYTES = 256;
-const MAX_EVENT_NESTING_DEPTH = 256;
 const FINAL_LF = Buffer.from("\n");
 const RELEVANT_CLEANUP_EVENTS = new Set([
   "cleanup_effect_intent",
@@ -60,184 +62,6 @@ function expectedCleanedEvent(record: CandidateLifecycleRecord): ExpectedCleaned
     sha256: createHash("sha256").update(bytes).digest("hex"),
     record,
   };
-}
-
-type EventIdentityScanner = {
-  state: "start" | "key" | "colon" | "value" | "primitive" | "comma" | "done";
-  currentKey?: string;
-  event?: string;
-  eventSeen: boolean;
-  malformed: boolean;
-  stringRole?: "key" | "event-value" | "other-value";
-  stringBytes: number[];
-  stringEscaped: boolean;
-  nestedClosers: number[];
-  nestedString: boolean;
-  nestedEscaped: boolean;
-  primitiveBytes: number[];
-};
-
-function newEventIdentityScanner(): EventIdentityScanner {
-  return {
-    state: "start",
-    eventSeen: false,
-    malformed: false,
-    stringBytes: [],
-    stringEscaped: false,
-    nestedClosers: [],
-    nestedString: false,
-    nestedEscaped: false,
-    primitiveBytes: [],
-  };
-}
-
-function decodeIdentityString(scanner: EventIdentityScanner): string | undefined {
-  try {
-    const value = JSON.parse(`"${Buffer.from(scanner.stringBytes).toString("utf8")}"`);
-    return typeof value === "string" ? value : undefined;
-  } catch {
-    scanner.malformed = true;
-    return undefined;
-  }
-}
-
-function finishPrimitive(scanner: EventIdentityScanner): void {
-  const token = Buffer.from(scanner.primitiveBytes).toString("utf8").trim();
-  scanner.primitiveBytes = [];
-  if (!token) {
-    scanner.malformed = true;
-    return;
-  }
-  try {
-    const value = JSON.parse(token) as unknown;
-    if (value !== null && typeof value !== "boolean" && typeof value !== "number") {
-      scanner.malformed = true;
-    }
-  } catch {
-    scanner.malformed = true;
-  }
-}
-
-function scanTopLevelEventIdentity(scanner: EventIdentityScanner, bytes: Buffer): void {
-  if (scanner.malformed) return;
-  const whitespace = (byte: number): boolean =>
-    byte === 0x20 || byte === 0x09 || byte === 0x0d || byte === 0x0a;
-  for (const byte of bytes) {
-    if (scanner.nestedClosers.length > 0) {
-      if (scanner.nestedString) {
-        if (scanner.nestedEscaped) scanner.nestedEscaped = false;
-        else if (byte === 0x5c) scanner.nestedEscaped = true;
-        else if (byte === 0x22) scanner.nestedString = false;
-        continue;
-      }
-      if (byte === 0x22) scanner.nestedString = true;
-      else if (byte === 0x7b || byte === 0x5b) {
-        if (scanner.nestedClosers.length >= MAX_EVENT_NESTING_DEPTH) {
-          scanner.malformed = true;
-          return;
-        }
-        scanner.nestedClosers.push(byte === 0x7b ? 0x7d : 0x5d);
-      } else if (byte === 0x7d || byte === 0x5d) {
-        if (scanner.nestedClosers.pop() !== byte) {
-          scanner.malformed = true;
-          return;
-        }
-        if (scanner.nestedClosers.length === 0) scanner.state = "comma";
-      }
-      continue;
-    }
-
-    if (scanner.stringRole) {
-      if (scanner.stringEscaped) {
-        scanner.stringEscaped = false;
-        if (scanner.stringRole !== "other-value") scanner.stringBytes.push(byte);
-      } else if (byte === 0x5c) {
-        scanner.stringEscaped = true;
-        if (scanner.stringRole !== "other-value") scanner.stringBytes.push(byte);
-      } else if (byte === 0x22) {
-        const role = scanner.stringRole;
-        const value = role === "other-value" ? undefined : decodeIdentityString(scanner);
-        scanner.stringRole = undefined;
-        scanner.stringBytes = [];
-        if (scanner.malformed) return;
-        if (role === "key") {
-          scanner.currentKey = value;
-          scanner.state = "colon";
-        } else {
-          if (role === "event-value") {
-            if (scanner.eventSeen) {
-              scanner.malformed = true;
-              return;
-            }
-            scanner.eventSeen = true;
-            scanner.event = value;
-          }
-          scanner.state = "comma";
-        }
-      } else if (scanner.stringRole !== "other-value") {
-        if (scanner.stringBytes.length >= MAX_EVENT_IDENTITY_BYTES) {
-          scanner.malformed = true;
-          return;
-        }
-        scanner.stringBytes.push(byte);
-      }
-      continue;
-    }
-
-    if (scanner.state === "start") {
-      if (whitespace(byte)) continue;
-      if (byte !== 0x7b) scanner.malformed = true;
-      else scanner.state = "key";
-    } else if (scanner.state === "key") {
-      if (whitespace(byte)) continue;
-      if (byte === 0x7d) scanner.state = "done";
-      else if (byte === 0x22) {
-        scanner.stringRole = "key";
-        scanner.stringBytes = [];
-      } else scanner.malformed = true;
-    } else if (scanner.state === "colon") {
-      if (whitespace(byte)) continue;
-      if (byte !== 0x3a) scanner.malformed = true;
-      else scanner.state = "value";
-    } else if (scanner.state === "value") {
-      if (whitespace(byte)) continue;
-      if (byte === 0x22) {
-        scanner.stringRole = scanner.currentKey === "event" ? "event-value" : "other-value";
-        scanner.stringBytes = [];
-      } else if (byte === 0x7b || byte === 0x5b) {
-        if (scanner.currentKey === "event") {
-          scanner.malformed = true;
-          return;
-        }
-        scanner.nestedClosers.push(byte === 0x7b ? 0x7d : 0x5d);
-      } else {
-        if (scanner.currentKey === "event") {
-          scanner.malformed = true;
-          return;
-        }
-        scanner.state = "primitive";
-        scanner.primitiveBytes = [byte];
-      }
-    } else if (scanner.state === "primitive") {
-      if (byte === 0x2c || byte === 0x7d) {
-        finishPrimitive(scanner);
-        if (scanner.malformed) return;
-        scanner.state = byte === 0x2c ? "key" : "done";
-      } else if (scanner.primitiveBytes.length >= MAX_EVENT_PRIMITIVE_BYTES) {
-        scanner.malformed = true;
-      } else {
-        scanner.primitiveBytes.push(byte);
-      }
-    } else if (scanner.state === "comma") {
-      if (whitespace(byte)) continue;
-      if (byte === 0x2c) scanner.state = "key";
-      else if (byte === 0x7d) scanner.state = "done";
-      else scanner.malformed = true;
-    } else if (!whitespace(byte)) {
-      scanner.malformed = true;
-    }
-    if (scanner.malformed) return;
-  }
 }
 
 function cleanedEventMismatch(lineBytes: number, expectation: ExpectedCleanedEvent): Error {
@@ -307,16 +131,7 @@ export function readCleanupEvents(
 
   const finishLine = (terminatedWithLf: boolean): void => {
     if (lineBytes === 0) throw new Error("malformed empty lifecycle event");
-    if (
-      identity.malformed ||
-      identity.event === undefined ||
-      identity.state !== "done" ||
-      identity.stringRole !== undefined ||
-      identity.stringEscaped ||
-      identity.nestedClosers.length > 0 ||
-      identity.nestedString ||
-      identity.nestedEscaped
-    ) {
+    if (!completeCleanupEventJson(identity)) {
       throw new Error("malformed lifecycle event or non-unique top-level event identity");
     }
     const relevant = RELEVANT_CLEANUP_EVENTS.has(identity.event);
