@@ -140,19 +140,32 @@ function finishString(scanner: CleanupEventJsonScanner, token: StringToken): voi
   completeValue(scanner);
 }
 
+function appendCapturedStringByte(
+  scanner: CleanupEventJsonScanner,
+  token: StringToken,
+  byte: number,
+): boolean {
+  if (!token.capture) return true;
+  if (token.bytes.length >= MAX_EVENT_IDENTITY_BYTES) {
+    scanner.malformed = true;
+    return false;
+  }
+  token.bytes.push(byte);
+  return true;
+}
+
 function scanStringByte(scanner: CleanupEventJsonScanner, token: StringToken, byte: number): void {
   if (token.unicodeRemaining > 0) {
-    if (!isHex(byte)) {
+    if (!isHex(byte) || !appendCapturedStringByte(scanner, token, byte)) {
       scanner.malformed = true;
       return;
     }
-    if (token.capture) token.bytes.push(byte);
     token.unicodeRemaining -= 1;
     return;
   }
   if (token.escaped) {
     token.escaped = false;
-    if (token.capture) token.bytes.push(byte);
+    if (!appendCapturedStringByte(scanner, token, byte)) return;
     if (byte === 0x75) token.unicodeRemaining = 4;
     else if (![0x22, 0x5c, 0x2f, 0x62, 0x66, 0x6e, 0x72, 0x74].includes(byte)) {
       scanner.malformed = true;
@@ -161,7 +174,7 @@ function scanStringByte(scanner: CleanupEventJsonScanner, token: StringToken, by
   }
   if (byte === 0x5c) {
     token.escaped = true;
-    if (token.capture) token.bytes.push(byte);
+    appendCapturedStringByte(scanner, token, byte);
     return;
   }
   if (byte === 0x22) {
@@ -173,13 +186,7 @@ function scanStringByte(scanner: CleanupEventJsonScanner, token: StringToken, by
     scanner.malformed = true;
     return;
   }
-  if (token.capture) {
-    if (token.bytes.length >= MAX_EVENT_IDENTITY_BYTES) {
-      scanner.malformed = true;
-      return;
-    }
-    token.bytes.push(byte);
-  }
+  appendCapturedStringByte(scanner, token, byte);
 }
 
 function finishPrimitive(scanner: CleanupEventJsonScanner, token: PrimitiveToken): void {

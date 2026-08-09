@@ -296,6 +296,47 @@ test("v2 cleanup skips a large irrelevant review event and preserves exact recov
       () => verifyCleanedCandidateTerminalRecord(cleaned, env),
       /malformed lifecycle event/,
     );
+    const escapedIdentity = Buffer.from(`{"event":"${"\\u0061".repeat(257)}","value":true}\n`);
+    writeFileSync(
+      eventsPath,
+      Buffer.concat([
+        originalEvents.subarray(0, finalLineStart),
+        escapedIdentity,
+        originalEvents.subarray(finalLineStart),
+      ]),
+    );
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /malformed lifecycle event/,
+    );
+
+    const utf8Prefix = Buffer.from('{"event":"historical","payload":"');
+    const chunkBytes = 64 * 1024;
+    const minimumPadding = 17 * 1024 * 1024;
+    const paddingBytes =
+      minimumPadding +
+      ((chunkBytes -
+        1 -
+        ((finalLineStart + utf8Prefix.length + minimumPadding) % chunkBytes) +
+        chunkBytes) %
+        chunkBytes);
+    const splitInvalidUtf8 = Buffer.concat([
+      utf8Prefix,
+      Buffer.alloc(paddingBytes, 0x78),
+      Buffer.from([0xc3, 0x28, 0x22, 0x7d, 0x0a]),
+    ]);
+    writeFileSync(
+      eventsPath,
+      Buffer.concat([
+        originalEvents.subarray(0, finalLineStart),
+        splitInvalidUtf8,
+        originalEvents.subarray(finalLineStart),
+      ]),
+    );
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(cleaned, env),
+      /malformed lifecycle event/,
+    );
     writeFileSync(eventsPath, originalEvents);
     writeFileSync(eventsPath, `{"at":"now","event":"cleanup_effect_intent",]\n`, { flag: "a" });
     assert.throws(
