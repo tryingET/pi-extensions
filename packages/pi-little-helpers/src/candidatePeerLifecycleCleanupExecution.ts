@@ -6,6 +6,7 @@ import {
   branchOid,
   candidateGitCommonDir,
   canonicalTimestamp,
+  compareAndDeleteBranch,
   exactCleanupEffects,
   REQUIRED_CLEANUP_EFFECTS,
   run,
@@ -207,10 +208,12 @@ export function executeAuthorizedCandidateCleanup({
         }
         const oid = branchOid(repoRoot, auth.branchName);
         if (oid !== undefined) {
-          if (oid !== auth.branchOid) throw new Error("branch OID changed before exact deletion");
-          run("git", ["-C", repoRoot, "branch", "-D", auth.branchName]);
+          compareAndDeleteBranch(repoRoot, auth.branchName, auth.branchOid);
         } else {
           recoveredAfterCrash = true;
+        }
+        if (branchOid(repoRoot, auth.branchName) !== undefined) {
+          throw new Error("candidate exact branch remains after compare-and-delete");
         }
         return appendCleanupObservation(
           resourceId,
@@ -232,6 +235,18 @@ export function executeAuthorizedCandidateCleanup({
         observations.set("delete_branch", performEffect("delete_branch"));
       } catch (error) {
         failure = error;
+      }
+      if (!failure) {
+        try {
+          if (existsSync(current.worktreePath)) {
+            throw new Error("candidate worktree remains before cleaned publication");
+          }
+          if (branchOid(repoRoot, auth.branchName) !== undefined) {
+            throw new Error("candidate exact branch remains before cleaned publication");
+          }
+        } catch (error) {
+          failure = error;
+        }
       }
       const effects = REQUIRED_CLEANUP_EFFECTS.map((effect) => observations.get(effect)).filter(
         (effect): effect is CleanupEffectEvent => Boolean(effect),

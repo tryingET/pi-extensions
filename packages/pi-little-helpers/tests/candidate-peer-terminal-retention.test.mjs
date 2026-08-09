@@ -32,6 +32,7 @@ import {
   executeAuthorizedCandidateCleanup,
   verifyCleanedCandidateTerminalRecord,
 } from "../src/candidatePeerLifecycleArchive.ts";
+import { branchOid } from "../src/candidatePeerLifecycleArchiveShared.ts";
 import {
   appendLifecycleEvent,
   captureCandidateReviewSnapshot,
@@ -159,7 +160,7 @@ function writeRegistry({ env, peerRunId, repoRoot, worktreePath, branchName }) {
   return record;
 }
 
-function cleanedFixture(
+function authorizedCleanupFixture(
   root,
   env,
   peerRunId = "candidatepeer-terminal-cleaned",
@@ -222,14 +223,141 @@ function cleanedFixture(
     effects: ["remove_worktree", "delete_branch"],
     env,
   });
+  return { record, peerRunId, repoRoot, worktreePath };
+}
+
+function cleanedFixture(
+  root,
+  env,
+  peerRunId = "candidatepeer-terminal-cleaned",
+  rationale = "terminal compaction synthetic rejection",
+) {
+  const fixture = authorizedCleanupFixture(root, env, peerRunId, rationale);
   appendLifecycleEvent(
-    record.resourceId,
+    fixture.record.resourceId,
     { event: "retention_compression_fixture", payload: "x".repeat(2 * 1024 * 1024) },
     env,
   );
-  const cleaned = executeAuthorizedCandidateCleanup({ resourceId: record.resourceId, env });
-  return { cleaned, peerRunId, repoRoot, worktreePath };
+  const cleaned = executeAuthorizedCandidateCleanup({
+    resourceId: fixture.record.resourceId,
+    env,
+  });
+  return { ...fixture, cleaned };
 }
+
+test("exact branch lookup accepts stable loose and packed refs but rejects symlinked parents", () =>
+  withState((root) => {
+    const repoRoot = join(root, "exact-ref-owner");
+    mkdirSync(repoRoot);
+    execFileSync("git", ["init", "-b", "main", repoRoot]);
+    git(repoRoot, "config", "user.email", "exact-ref@example.test");
+    git(repoRoot, "config", "user.name", "Exact Ref Test");
+    writeFileSync(join(repoRoot, "tracked.txt"), "base\n");
+    git(repoRoot, "add", "tracked.txt");
+    git(repoRoot, "commit", "-m", "base");
+    const oid = git(repoRoot, "rev-parse", "HEAD");
+
+    git(repoRoot, "branch", "candidate/stable");
+    const loosePath = join(repoRoot, ".git", "refs", "heads", "candidate", "stable");
+    assert.equal(existsSync(loosePath), true);
+    assert.equal(branchOid(repoRoot, "candidate/stable"), oid);
+
+    git(repoRoot, "pack-refs", "--all", "--prune");
+    assert.equal(existsSync(loosePath), false);
+    assert.equal(branchOid(repoRoot, "candidate/stable"), oid);
+
+    git(repoRoot, "branch", "escape/topic");
+    const escapedParent = join(repoRoot, ".git", "refs", "heads", "escape");
+    const outsideParent = join(root, "outside-ref-parent");
+    mkdirSync(outsideParent);
+    writeFileSync(join(outsideParent, "topic"), readFileSync(join(escapedParent, "topic")));
+    rmSync(escapedParent, { recursive: true });
+    symlinkSync(outsideParent, escapedParent, "dir");
+    assert.equal(git(repoRoot, "show-ref", "--verify", "--hash", "refs/heads/escape/topic"), oid);
+    assert.throws(() => branchOid(repoRoot, "escape/topic"), /exact loose ref traverses a symlink/);
+  }));
+
+test("cleanup compare-and-delete preserves a branch whose authorized OID changed", () =>
+  withState((root, env) => {
+    const fixture = authorizedCleanupFixture(
+      root,
+      env,
+      "candidatepeer-terminal-compare-delete-race",
+    );
+    const authorization = fixture.record.cleanupAuthorization;
+    const attemptId = "remove-before-compare-delete-race";
+    appendLifecycleEvent(
+      fixture.record.resourceId,
+      {
+        event: "cleanup_effect_intent",
+        effect: "remove_worktree",
+        authorizationDigest: authorization.authorizationDigest,
+        attemptId,
+        at: new Date().toISOString(),
+      },
+      env,
+    );
+    git(fixture.repoRoot, "worktree", "remove", "--force", fixture.worktreePath);
+    const observationBase = {
+      event: "cleanup_effect_observed",
+      effect: "remove_worktree",
+      authorizationDigest: authorization.authorizationDigest,
+      attemptId,
+      at: new Date().toISOString(),
+      recoveredAfterCrash: true,
+      worktreePath: fixture.worktreePath,
+    };
+    const observation = {
+      ...observationBase,
+      observationDigest: digestObject(observationBase),
+    };
+    appendLifecycleEvent(fixture.record.resourceId, observation, env);
+    const partial = updateLifecycleRecord({
+      resourceId: fixture.record.resourceId,
+      expectedVersion: fixture.record.resourceVersion,
+      event: "cleanup_partial",
+      env,
+      mutate(current) {
+        current.state = "cleanup_partial";
+        current.terminalReceipt = {
+          type: "cleanup_partial",
+          authorizationDigest: authorization.authorizationDigest,
+          effects: [observation],
+        };
+        return current;
+      },
+    });
+
+    writeFileSync(join(fixture.repoRoot, "competing.txt"), "competing branch target\n");
+    git(fixture.repoRoot, "add", "competing.txt");
+    git(fixture.repoRoot, "commit", "-m", "competing branch target");
+    const competingOid = git(fixture.repoRoot, "rev-parse", "HEAD");
+    git(
+      fixture.repoRoot,
+      "update-ref",
+      "refs/heads/candidate/terminal",
+      competingOid,
+      authorization.branchOid,
+    );
+
+    assert.throws(
+      () => executeAuthorizedCandidateCleanup({ resourceId: partial.resourceId, env }),
+      /candidate exact branch compare-and-delete failed/,
+    );
+    assert.equal(branchOid(fixture.repoRoot, authorization.branchName), competingOid);
+    const stopped = readLifecycleRecord(partial.resourceId, env);
+    assert.equal(stopped.state, "cleanup_partial");
+    const events = readFileSync(getCandidateLifecycleEventsPath(partial.resourceId, env), "utf8")
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      events.some(
+        (event) => event.event === "cleanup_effect_observed" && event.effect === "delete_branch",
+      ),
+      false,
+    );
+  }));
 
 test("cleaned terminal verification treats an absent exact branch as quiet", () =>
   withState((root, env) => {
@@ -248,6 +376,31 @@ test("cleaned terminal verification treats an absent exact branch as quiet", () 
     });
     assert.equal(child.status, 0, child.stderr || child.stdout);
     assert.equal(child.stderr, "");
+
+    const authorization = fixture.cleaned.cleanupAuthorization;
+    assert.equal(branchOid(fixture.repoRoot, authorization.branchName), undefined);
+    git(
+      fixture.repoRoot,
+      "update-ref",
+      `refs/heads/${authorization.branchName}`,
+      authorization.branchOid,
+    );
+    assert.throws(
+      () => verifyCleanedCandidateTerminalRecord(fixture.cleaned, env),
+      /candidate terminal cleanup postconditions are not satisfied/,
+    );
+    git(
+      fixture.repoRoot,
+      "update-ref",
+      "-d",
+      `refs/heads/${authorization.branchName}`,
+      authorization.branchOid,
+    );
+    assert.equal(branchOid(fixture.repoRoot, authorization.branchName), undefined);
+    assert.equal(
+      verifyCleanedCandidateTerminalRecord(fixture.cleaned, env),
+      digestObject(fixture.cleaned),
+    );
   }));
 
 test("cleaned terminal verification fails closed for missing, corrupt, and malformed exact refs", () => {
