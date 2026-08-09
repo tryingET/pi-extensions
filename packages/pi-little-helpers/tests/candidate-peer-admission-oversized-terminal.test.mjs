@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -30,6 +31,7 @@ function setup() {
   const env = { ...process.env, XDG_STATE_HOME: root };
   const repoRoot = join(root, "repo");
   mkdirSync(repoRoot);
+  assert.equal(spawnSync("git", ["init", "--quiet", repoRoot]).status, 0);
   const now = "2026-07-18T00:00:00.000Z";
   const limits = {
     maxUnresolvedResources: 8,
