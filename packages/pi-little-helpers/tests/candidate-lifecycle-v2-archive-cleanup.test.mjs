@@ -46,6 +46,14 @@ test("archive restoration preserves reviewed modes under caller umask 077", asyn
     chmodSync(trackedPath, 0o644);
     writeFileSync(executablePath, "#!/bin/sh\necho restored\n");
     chmodSync(executablePath, 0o755);
+    const localIgnoredPath = `${worktreePath}/local-only.bin`;
+    const discardedIgnoredPath = `${worktreePath}/discard-me.bin`;
+    writeFileSync(localIgnoredPath, "portable ignored bytes\n");
+    chmodSync(localIgnoredPath, 0o600);
+    writeFileSync(discardedIgnoredPath, "explicitly discarded bytes\n");
+    writeFileSync(`${repoRoot}/.git/info/exclude`, "\nlocal-only.bin\ndiscard-me.bin\n", {
+      flag: "a",
+    });
     writeRegistry(
       registryDir,
       registryRecord({ peerRunId: "candidatepeer-umask-restore", repoRoot, worktreePath }),
@@ -57,6 +65,16 @@ test("archive restoration preserves reviewed modes under caller umask 077", asyn
     const snapshot = captureCandidateReviewSnapshot(record);
     assert.equal(snapshot.objects.find((item) => item.path === "tracked.txt")?.mode, 0o644);
     assert.equal(snapshot.objects.find((item) => item.path === "restore-me.sh")?.mode, 0o755);
+    assert.deepEqual(
+      snapshot.objects
+        .filter((item) => item.path === "local-only.bin" || item.path === "discard-me.bin")
+        .map((item) => ({ path: item.path, source: item.source })),
+      [
+        { path: "discard-me.bin", source: "ignored" },
+        { path: "local-only.bin", source: "ignored" },
+      ],
+    );
+    assert.equal(snapshot.objects.find((item) => item.path === "local-only.bin")?.mode, 0o600);
     record = updateLifecycleRecord({
       resourceId: record.resourceId,
       expectedVersion: record.resourceVersion,
@@ -68,6 +86,7 @@ test("archive restoration preserves reviewed modes under caller umask 077", asyn
           disposition: "rejected",
           actor: "owner:test",
           rationale: "exercise exact restoration modes under a restrictive caller umask",
+          discardIgnoredPaths: ["discard-me.bin"],
           issuedAt: new Date().toISOString(),
           reviewSnapshotDigest: snapshot.snapshotDigest,
         });
@@ -89,8 +108,14 @@ test("archive restoration preserves reviewed modes under caller umask 077", asyn
     }
     assert.equal(archived.record.state, "archive_verified");
     assert.match(archived.receipt.restorationDigest, /^[0-9a-f]{64}$/);
+    const payloadPaths = readFileSync(`${archived.receipt.archiveDir}/payload.paths.z`, "utf8")
+      .split("\0")
+      .filter(Boolean);
+    assert.ok(payloadPaths.includes("local-only.bin"));
+    assert.equal(payloadPaths.includes("discard-me.bin"), false);
     assert.equal(statSync(trackedPath).mode & 0o777, 0o644);
     assert.equal(statSync(executablePath).mode & 0o777, 0o755);
+    assert.equal(statSync(localIgnoredPath).mode & 0o777, 0o600);
   });
 });
 

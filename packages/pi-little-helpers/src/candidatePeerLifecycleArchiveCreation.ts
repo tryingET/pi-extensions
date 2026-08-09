@@ -81,9 +81,9 @@ function restorationComparable(
     indexTreeOid: snapshot.indexTreeOid,
     unstagedPatchSha256: snapshot.unstagedPatchSha256,
     stagedPatchSha256: snapshot.stagedPatchSha256,
-    objects: snapshot.objects.filter(
-      (item) => !(item.source === "ignored" && discard.has(item.path)),
-    ),
+    objects: snapshot.objects
+      .filter((item) => !(item.source === "ignored" && discard.has(item.path)))
+      .map(({ source: _source, ...physicalObject }) => physicalObject),
   };
 }
 
