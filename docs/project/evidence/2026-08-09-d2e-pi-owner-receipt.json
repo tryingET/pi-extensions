@@ -1,0 +1,114 @@
+{
+  "schema": "d2e.pi.owner-evidence.v1",
+  "generated_at": "2026-08-09T22:12:41Z",
+  "owner_surface": "softwareco/owned/pi-extensions",
+  "status": "owner_evidence_partial_no_go",
+  "source": {
+    "monorepo_commit_before_evidence": "019870f97fb3aa24c266a9623bf8f940c7e9ede7",
+    "configured_vault_commit": "4c82c3d7f5c8fecec31eee18ac1cd1cb96d67463",
+    "configured_package_entries_sha256": "976b1f1cb81edd13ca6fd4955872ba5bcc2552d15cfea7bcf89bc54f63493a08",
+    "settings_sha256": "21520bdd91629cc306020d776fe1f1a4624577d94d40746c59f1b00762c908ce",
+    "tracked_index_digest_algorithm": "sha256(newline-delimited git -C <repo> ls-files -s -- <package-path> output)",
+    "raw_session_output_digest_scope": "session-local correlation only; timing and managed-temp paths are non-canonical"
+  },
+  "packages": [
+    {
+      "name": "@tryinget/pi-vault-client",
+      "version": "0.4.0",
+      "configured_source": "/home/tryinget/.local/share/pi/live-worktrees/pi-extensions-4c82c3d7/packages/pi-vault-client",
+      "tracked_path_count": 188,
+      "tracked_index_digest_sha256": "57367f74e37c68d7676416fb509507816ffe9ea0a6dc09a4aac26f6cd3febdd9",
+      "current_tree_index_digest_sha256": "57367f74e37c68d7676416fb509507816ffe9ea0a6dc09a4aac26f6cd3febdd9",
+      "tracked_source_parity": true,
+      "active_process_loaded_byte_parity": "unproven"
+    },
+    {
+      "name": "@tryinget/pi-society-orchestrator",
+      "version": "0.5.1",
+      "configured_source": "packages/pi-society-orchestrator",
+      "tracked_path_count": 370,
+      "tracked_index_digest_sha256": "faa577f0639214de7fe9502d2067fbe4f189bc491f7111dfca355a5bf9029337",
+      "tracked_source_parity": true,
+      "active_process_loaded_byte_parity": "unproven"
+    }
+  ],
+  "canaries": [
+    {
+      "id": "configured-vault-fail-closed",
+      "result": "pass",
+      "passed": 4,
+      "failed": 0,
+      "raw_session_output_sha256": "3f04f21512ff360985100ca488522250f4614e6a23f8d140bfca3b7c92d74ebc",
+      "claims": [
+        "missing or unbound workflow bindings fail closed",
+        "unknown governed values fail closed",
+        "mixed or incompatible bindings fail closed",
+        "legacy transfer and execution-memory bindings remain separate"
+      ]
+    },
+    {
+      "id": "parity-tree-stale-projection",
+      "result": "pass_with_configured_dependency_limitation",
+      "passed": 3,
+      "failed": 0,
+      "raw_session_output_sha256": "8cfc9f984bb530fab12851e46bbb23f77244a349f1a8ff29c849a7382659231d"
+    },
+    {
+      "id": "orchestrator-d2e-no-effect",
+      "result": "pass",
+      "passed": 6,
+      "failed": 0,
+      "raw_session_output_sha256": "e3d7f0a934cd05b42e5516d340988165ac092a7f699ca0d6b0cec6ae05bf3db9",
+      "claims": [
+        "legacy applied transfer defaults disabled",
+        "execution-memory defaults disabled before binary inspection or spawn",
+        "execution-memory applied mode is structurally unsupported",
+        "enabled fixture yields a query-only non-authorizing not-materialized observation"
+      ]
+    },
+    {
+      "id": "synthetic-fenced-runtime-status-zero-ak",
+      "script": "packages/pi-society-orchestrator/scripts/d2e-fenced-runtime-status-canary.mjs",
+      "script_sha256": "cd7a94cc24c4dd4e99353f0e139237ca54dd7ae6680280813c1b72898cfea84b",
+      "result": "fail",
+      "expected": {
+        "ak_invocations": 0,
+        "selected_temp_db_wal_shm_artifacts_created": 0,
+        "tracked_worktree_changed": false
+      },
+      "observed": {
+        "ak_invocations": 1,
+        "ak_command": "strategy list --repo <configured-orchestrator-package> -F json",
+        "selected_temp_db_wal_shm_artifacts_created": 0,
+        "tracked_worktree_changed": false,
+        "runtime_status_rendered": true,
+        "require_zero_ak_exit": 1
+      },
+      "raw_session_output_sha256": "52ab8ae9c14e3faed7e34210d5b00d2de8cf270ab172edf08b7d57a8cb9fb756",
+      "isolation": {
+        "path": "sentinel-only",
+        "ak": "explicit temp sentinel selected",
+        "dolt": "temp sentinel selected",
+        "society_db": "nonexistent managed-TMPDIR path",
+        "live_runtime_status_invoked": false,
+        "package_activation_or_reload_performed": false
+      }
+    }
+  ],
+  "overall": {
+    "configured_source_identity": "pass",
+    "active_loaded_byte_identity": "unproven",
+    "binding_fail_closed": "pass",
+    "legacy_transfer_default_disabled": "pass",
+    "execution_memory_query_only": "pass",
+    "fenced_runtime_status_zero_ak": "fail",
+    "rfc_pi_prerequisite": "not_satisfied"
+  },
+  "non_authorizations": [
+    "does not authorize package activation or reload",
+    "does not authorize AK or society database access",
+    "does not authorize legacy applied D2E execution",
+    "does not authorize downstream implementation",
+    "does not authorize RFC promotion"
+  ]
+}
