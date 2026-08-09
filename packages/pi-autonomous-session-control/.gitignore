@@ -6,3 +6,4 @@ dist/
 .obsidian/
 20-29_Input/
 .pi-subagent-sessions/
+.tmp-self-tests/
