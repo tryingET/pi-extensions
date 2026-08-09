@@ -52,9 +52,20 @@ That removes directory-shape inference, keeps execution scope consistent with th
 
 Coverage health for the critical root canary is tracked with `critical_uncovered_host_surfaces`; the current target is `critical_uncovered_host_surfaces=0`.
 
-### Temporary runner size exception
+### Runner module map
 
-The root canary owner accepted an owner-scoped exception for the restoration incident: the runner was already 1,190 LOC and remains under 48 KB but above the 500-LOC guideline. In-place hardening was lower risk than decomposing restoration code during the incident. The owner must split the runner before further feature expansion and review this exception by 2026-08-22. AK task binding for that follow-up is pending while the active database fence remains in force.
+AK-4714 retired the temporary runner size exception by decomposing the implementation into cohesive private modules while keeping `scripts/pi-host-compatibility-canary.mjs` as the only CLI facade:
+
+- `paths.mjs` — repository-root paths and canonical containment checks
+- `integrity.mjs` — identity comparison, integrity errors, and handle-safe removal
+- `manifest.mjs` — manifest validation, profile resolution, and scenario selection
+- `host-state.mjs` — target ledgers, host snapshots, identity barriers, and npm command construction
+- `process.mjs` — subprocess capture and isolated npm environment handling
+- `host-lifecycle.mjs` — all-target preparation, alignment, restoration ordering, and final barriers
+- `payloads.mjs` — stable JSON payload construction and human-readable list/host rendering
+- `runner.mjs` — scenario execution, later-scenario abort rules, and run summaries
+
+These modules live under `scripts/pi-host-compatibility-canary/` and are private implementation details. Callers continue to use the existing facade and command syntax.
 
 ### `current`
 Run against the root-owned pinned host contract recorded in `policy/pi-host-compatibility-canary.json`. This is the canary baseline contract, not a claim that every checked-in package tree already matches it.
