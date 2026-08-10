@@ -35,18 +35,34 @@ export function identitiesMatch(left, right) {
   return left?.dev === right?.dev && left?.ino === right?.ino;
 }
 
+export function effectiveUid() {
+  if (typeof process.geteuid !== "function") {
+    throw new IntegrityError("effective-user identity support is required");
+  }
+  return process.geteuid();
+}
+
+export function assertEffectiveOwner(stats, label) {
+  if (Number(stats.uid) !== effectiveUid()) {
+    throw new IntegrityError(`${label} has the wrong effective-user owner`);
+  }
+}
+
 export function removeDirectoryByHandle(directoryPath, expectedIdentity) {
   const flags = fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | (fsConstants.O_NOFOLLOW ?? 0);
   const fd = openSync(directoryPath, flags);
   const fdRoot = `${process.platform === "linux" ? "/proc/self/fd" : "/dev/fd"}/${fd}`;
   try {
-    const openedIdentity = identityOf(fstatSync(fd, { bigint: true }));
+    const opened = fstatSync(fd, { bigint: true });
+    const openedIdentity = identityOf(opened);
+    assertEffectiveOwner(opened, "directory selected for recursive removal");
     if (!identitiesMatch(openedIdentity, expectedIdentity)) {
       throw new IntegrityError("directory identity changed before handle-safe removal");
     }
     for (const child of readdirSync(fdRoot, { withFileTypes: true })) {
       const childPath = path.join(fdRoot, child.name);
       const childStats = lstatSync(childPath, { bigint: true });
+      assertEffectiveOwner(childStats, `recursive removal entry ${child.name}`);
       if (childStats.isDirectory() && !childStats.isSymbolicLink()) {
         removeDirectoryByHandle(childPath, identityOf(childStats));
       } else {
@@ -57,7 +73,9 @@ export function removeDirectoryByHandle(directoryPath, expectedIdentity) {
     closeSync(fd);
   }
   const finalStats = lstatSync(directoryPath, { bigint: true, throwIfNoEntry: false });
-  if (!finalStats || !identitiesMatch(identityOf(finalStats), expectedIdentity)) {
+  if (!finalStats) throw new IntegrityError("directory disappeared before final removal");
+  assertEffectiveOwner(finalStats, "directory selected for final removal");
+  if (!identitiesMatch(identityOf(finalStats), expectedIdentity)) {
     throw new IntegrityError("directory identity changed before final removal");
   }
   rmdirSync(directoryPath);

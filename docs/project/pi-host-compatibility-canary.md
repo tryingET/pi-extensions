@@ -57,7 +57,7 @@ Coverage health for the critical root canary is tracked with `critical_uncovered
 AK-4714 retired the temporary runner size exception by decomposing the implementation into cohesive private modules while keeping `scripts/pi-host-compatibility-canary.mjs` as the only CLI facade:
 
 - `paths.mjs` — repository-root paths and canonical containment checks
-- `integrity.mjs` — identity comparison, integrity errors, and handle-safe removal
+- `integrity.mjs` — identity/effective-UID barriers, integrity errors, and handle-safe removal
 - `manifest.mjs` — manifest validation, profile resolution, and scenario selection
 - `host-state.mjs` — target ledgers, host snapshots, identity barriers, and npm command construction
 - `process.mjs` — subprocess capture and isolated npm environment handling
@@ -66,7 +66,8 @@ AK-4714 retired the temporary runner size exception by decomposing the implement
 - `state-files.mjs` — owner-only checksummed records, atomic replace/fsync, and Linux process identity
 - `state-schema.mjs` — exhaustive gate, lock, journal, target-state, and identity schema validation
 - `state-lock.mjs` — checkout-root mutation exclusion and recovery election
-- `state-store.mjs` — manifest/package bindings, journal inventory, and durable state transitions
+- `state-store.mjs` — manifest/package bindings plus validated lock and journal inventory
+- `recovery-journal.mjs` — fenced mutation sessions, checksummed journal transitions, and finalization
 - `recovery.mjs` — status inspection, safe automatic cleanup, and explicit bounded npm recovery
 - `payloads.mjs` — stable JSON payload construction and human-readable list/host rendering
 - `runner.mjs` — scenario execution, later-scenario abort rules, and run summaries
@@ -91,9 +92,13 @@ Each journal uses schema version 1 and a SHA-256 checksum over its payload. The 
 
 Lock publication uses a fully written/fsynced same-directory candidate plus an exclusive hard-link publish and directory fsync, avoiding an empty lock-file crash window. Every journal transition uses a same-directory temporary file, file fsync, atomic rename, and journal-directory fsync. Unpublished candidates are never treated as canonical state. Target staging, quarantine renames, creation, and removal fsync the owning package directory. Before a pre-existing tree is marked restored, host-package metadata files and their package/scope/`node_modules`/package-root directories are fsynced.
 
+Every live mutation transition reacquires the owner-state gate and re-reads the canonical checkout lock plus journal. The expected lock inode, run ID, owner token/process identity, journal inode, and journal revision must still match before replacement; atomic replacement is also bound to the previously read journal inode. A changed owner record is preserved and fails closed rather than being overwritten. Recovery holds the checkout recovery-election lock and continuously revalidates that lock, the state gate, the stale mutation lock, and the current journal revision before each journal update or filesystem effect.
+
+Recursive deletion opens the selected directory without following symlinks and verifies device/inode plus effective UID for the root and every entry before unlinking. A type- or identity-matched tree owned by another effective UID is not removed.
+
 ### Effect ordering and process identity
 
-Before every npm, scenario-command, or target-tree mutation, the runner durably writes intent. Before the first alignment subprocess, all declared targets become `alignment-exposed`, so a lifecycle script cannot mutate a later target that recovery would misclassify as untouched. Initially absent staging also carries a journaled 256-bit owner marker that is fsynced before recovery may treat a not-yet-journaled stage inode as runner-owned.
+Before every npm, scenario-command, or target-tree mutation, the runner durably writes intent. Before the first alignment subprocess, all declared targets become `alignment-exposed`, so a lifecycle script cannot mutate a later target that recovery would misclassify as untouched. Initially absent staging uses an exact run-ID/index path and a journaled 256-bit owner marker. After `mkdir`, the runner journals the stage inode before writing the marker. A `SIGKILL` in the narrower mkdir-to-inode-record window is recoverable only when that exact stage is effective-user-owned and still empty; any unmarked nonempty stage is preserved and fails closed. The marker and directories are fsynced before promotion.
 
 Mutating subprocesses start behind a Node wrapper gate. The wrapper reports its identity, waits while the parent journals that identity, then releases the command. On POSIX hosts the journal also records the wrapper-led process-group ID. If the parent dies first, the wrapper exits without starting the effect. If the parent dies after release, recovery refuses while either the wrapper or its process group is live. If only the wrapper dies while the parent survives, the parent terminates and proves the process group stopped before restoration.
 
@@ -103,8 +108,8 @@ The target state machine is intentionally small:
 
 ```text
 baselined -> alignment-exposed                                  # before any npm effect
-  -> stage-create-intent -> owner-marker -> stage-created         # initially absent
-  -> stage-promote-intent
+  -> stage-create-intent -> mkdir -> inode-record -> owner-marker  # initially absent
+  -> stage-created -> stage-promote-intent
   -> owned-node-modules -> alignment-intent -> aligned
   -> scenario-intent
   -> restore-command-intent                                      # initially present
@@ -119,7 +124,7 @@ The top-level journal moves from `ready` to the current phase, back to `ready` o
 At the start of every mutating run, the runner first reconciles stale state. Automatic recovery is limited to operations that do not invoke npm against a pre-existing tree:
 
 - close a pre-effect journal with no target mutation;
-- remove an exact run-ID/index stage only when its journaled inode or fsynced owner marker proves ownership, or an exact identity-bound quarantine;
+- remove an exact run-ID/index stage only when its journaled inode or fsynced owner marker proves ownership; the sole pre-marker exception is the exact effective-user-owned empty stage left after a journaled `stage-create-intent`;
 - detach and remove an initially absent `node_modules` only when its identity matches the journaled runner-owned staging identity;
 - accept a pre-existing tree as already restored when its original identity and lockfile-derived host snapshot already match.
 
@@ -131,7 +136,7 @@ node ./scripts/pi-host-compatibility-canary.mjs recover --json
 node ./scripts/pi-host-compatibility-canary.mjs recover --apply --json
 ```
 
-`recover --apply` re-resolves the scenario and targets from the currently bound manifest, verifies unchanged manifest/package/package-lock digests and identities, derives restore commands from that package lock, and then runs only the canary's built-in npm restore construction. Commands and absolute paths are never deserialized from journal bytes. Upgrade-profile recovery must be supplied the same explicit host environment so the bound host contract can be re-derived.
+`recover --apply` re-resolves the scenario and targets from the currently bound manifest, verifies unchanged manifest/package/package-lock digests and identities, derives restore commands from that package lock, and then runs only the canary's built-in npm restore construction. The canonical package root, package metadata, original `node_modules` inode, effective UID, and recovery ownership fence are re-resolved before every npm command and again inside the wrapper's pre-release gate. Commands and absolute paths are never deserialized from journal bytes. Upgrade-profile recovery must be supplied the same explicit host environment so the bound host contract can be re-derived.
 
 A status result is one of `clean`, `active`, `recovery-required`, or `invalid`. JSON recovery failures return a structured error with `code` and `message` and a non-zero exit. Active owner/child, malformed or oversized record, checksum failure, symlink, wrong owner/mode, manifest or package identity drift, missing journal-ready state, multiple journals, and unknown liveness all fail closed.
 A stale recovery-election lock is also fail-closed and requires manual review rather than an unsafe concurrent takeover.
@@ -378,6 +383,8 @@ Run the compatibility baseline and crash-recovery suites sequentially because th
 node --test scripts/pi-host-compatibility-canary.test.mjs
 node --test scripts/pi-host-compatibility-canary.recovery.test.mjs
 ```
+
+The recovery suite is currently a standalone owner command: `scripts/ci/full.sh` invokes the 10-test compatibility baseline but does **not** yet invoke `pi-host-compatibility-canary.recovery.test.mjs`. Wiring that second command into normal root CI requires an owner-approved expansion outside AK-4715's canary-file scope. Until that follow-up lands, record the standalone recovery-suite receipt explicitly; do not infer its result from the baseline or dedicated scenario workflow.
 
 ### Manual workflow dispatch
 

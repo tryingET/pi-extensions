@@ -18,11 +18,8 @@ import {
 } from "./payloads.mjs";
 import { spawnWithNeutralNpmEnv } from "./process.mjs";
 import { recoverInterruptedRun, recoveryStatus } from "./recovery.mjs";
-import {
-  beginMutationSession,
-  ConcurrentCanaryError,
-  RecoveryRequiredError,
-} from "./state-store.mjs";
+import { beginMutationSession, RecoveryRequiredError } from "./recovery-journal.mjs";
+import { ConcurrentCanaryError } from "./state-store.mjs";
 
 function buildDryRunResult(scenario, host, hostPreparation) {
   const restoration = { status: "not-run", changed: false, packages: [] };
@@ -75,7 +72,16 @@ async function spawnScenario(scenario, host, options, mutationSession) {
             PI_HOST_COMPAT_REVIEW_ANCHOR: host.reviewAnchor,
           },
           stdio: options.json ? ["ignore", "pipe", "pipe"] : "inherit",
-          beforeRelease: (identity) => mutationSession.recordScenarioChild(identity),
+          beforeRelease: (identity) => {
+            if (verifyScenarioCwdIdentity(scenario) !== scenarioCwd) {
+              throw new Error(`scenario cwd changed before effect: ${scenario.id}`);
+            }
+            for (const entry of preparationTracker.packages) {
+              verifyAlignedTargetState(entry, host);
+              mutationSession.validateEntryMetadata(entry);
+            }
+            mutationSession.recordScenarioChild(identity);
+          },
         },
       );
       if (!execution.effectMayBeActive) mutationSession.clearChild();

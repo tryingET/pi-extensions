@@ -23,6 +23,7 @@ import {
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { assertEffectiveOwner } from "./pi-host-compatibility-canary/integrity.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "pi-host-compatibility-canary.mjs");
@@ -239,7 +240,29 @@ function rewriteRecord(filePath, mutate) {
   writeFileSync(filePath, `${JSON.stringify(envelope, null, 2)}\n`, { mode: 0o600 });
 }
 
-for (const boundary of ["pre-alignment", "stage-marker", "post-alignment", "post-quarantine"]) {
+function replaceRecord(filePath, mutate) {
+  const envelope = JSON.parse(readFileSync(filePath, "utf8"));
+  mutate(envelope.payload);
+  envelope.checksum = createHash("sha256").update(JSON.stringify(envelope.payload)).digest("hex");
+  const replacement = `${filePath}.${randomUUID()}.replacement`;
+  writeFileSync(replacement, `${JSON.stringify(envelope, null, 2)}\n`, { mode: 0o600 });
+  renameSync(replacement, filePath);
+}
+
+async function waitFor(predicate, message, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(predicate(), true, message);
+}
+
+test("effective-UID fence rejects a foreign-owned deletion candidate", () => {
+  assert.throws(
+    () => assertEffectiveOwner({ uid: BigInt(process.geteuid() + 1) }, "test deletion candidate"),
+    /wrong effective-user owner/,
+  );
+});
+
+for (const boundary of ["pre-alignment", "stage-mkdir", "stage-identity", "stage-marker", "post-alignment", "post-quarantine"]) {
   test(`automatic recovery restores an initially absent tree after SIGKILL at ${boundary}`, (t) => {
     const fixture = createFixture(t, [{ kind: "absent" }], { id: `absent-${boundary}` });
     const killed = cli(
@@ -256,6 +279,19 @@ for (const boundary of ["pre-alignment", "stage-marker", "post-alignment", "post
     assert.equal(jsonSuccess(cli(fixture, ["status", "--json"])).status, "clean");
   });
 }
+
+test("recovery preserves a nonempty unmarked stage after SIGKILL immediately after mkdir", (t) => {
+  const fixture = createFixture(t, [{ kind: "absent" }], { id: "unmarked-stage-foreign-content" });
+  assertKilled(cli(fixture, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "stage-mkdir" }));
+  const stageName = readdirSync(fixture.targets[0].packageDir).find((name) => name.endsWith(".stage"));
+  assert.ok(stageName);
+  const sentinel = path.join(fixture.targets[0].packageDir, stageName, "unknown.txt");
+  writeFileSync(sentinel, "preserve\n");
+  const recovery = cli(fixture, ["recover", "--json"]);
+  assert.notEqual(recovery.status, 0);
+  assert.match(recovery.stderr, /unmarked runner stage is not safely empty/);
+  assert.equal(readFileSync(sentinel, "utf8"), "preserve\n");
+});
 
 test("automatic recovery waits for and restores a runner-owned tree after SIGKILL during npm", (t) => {
   const fixture = createFixture(t, [{ kind: "absent" }], { id: "absent-during-npm" });
@@ -480,4 +516,82 @@ test("identity-drifted target and unknown stale-owner identity fail without dele
   assert.notEqual(ownerResult.status, 0);
   assert.match(ownerResult.stderr, /cannot be proven stale|owner identities differ|state schema/);
   assert.equal(existsSync(path.join(owner.targets[0].packageDir, "node_modules")), false);
+});
+
+test("active mutation never overwrites changed checkout-lock or journal ownership", async (t) => {
+  for (const role of ["lock", "journal"]) {
+    const fixture = createFixture(t, [{ kind: "absent" }], { id: `owner-fence-${role}` });
+    const runner = spawn(process.execPath, [SCRIPT, "run", "--json", "--manifest", fixture.manifestPath], {
+      cwd: ROOT,
+      env: fixture.env({ FAKE_NPM_DELAY_MS: "700" }),
+      stdio: "ignore",
+    });
+    const closed = new Promise((resolve) => runner.once("close", (code, signal) => resolve({ code, signal })));
+    await waitFor(() => readFileSync(fixture.npmLog, "utf8").trim() !== "", "npm effect did not start");
+    const recordPath = role === "lock" ? fixture.lockPath : journalPath(fixture);
+    const foreignToken = (role === "lock" ? "a" : "b").repeat(64);
+    const mutateRecord = role === "lock" ? replaceRecord : rewriteRecord;
+    mutateRecord(recordPath, (payload) => { payload.owner.token = foreignToken; });
+    assert.deepEqual(await closed, { code: 1, signal: null });
+    assert.equal(JSON.parse(readFileSync(recordPath, "utf8")).payload.owner.token, foreignToken);
+    assert.equal(existsSync(fixture.lockPath), true, "changed owner state must remain for review");
+    fixture.cleanup();
+  }
+});
+
+test("explicit recovery re-resolves the canonical package root before every npm command", async (t) => {
+  const fixture = createFixture(t, [{ kind: "present" }], { id: "explicit-root-reresolve" });
+  const target = fixture.targets[0];
+  const packageLockPath = path.join(target.packageDir, "package-lock.json");
+  const packageLock = JSON.parse(readFileSync(packageLockPath, "utf8"));
+  delete packageLock.packages[`node_modules/${HOST_PACKAGES[2]}`];
+  writeFileSync(packageLockPath, JSON.stringify(packageLock));
+  assertKilled(cli(fixture, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "post-alignment" }));
+  const automatic = cli(fixture, ["recover", "--json"]);
+  assert.notEqual(automatic.status, 0);
+  assert.match(automatic.stderr, /requires explicit recovery/);
+  writeFileSync(fixture.npmLog, "");
+  const recovery = spawn(process.execPath, [SCRIPT, "recover", "--apply", "--json", "--manifest", fixture.manifestPath], {
+    cwd: ROOT,
+    env: fixture.env({ FAKE_NPM_DELAY_MS: "700" }),
+    stdio: "ignore",
+  });
+  const closed = new Promise((resolve) => recovery.once("close", (code, signal) => resolve({ code, signal })));
+  await waitFor(() => readFileSync(fixture.npmLog, "utf8").trim() !== "", "explicit npm restore did not start");
+  const packageJson = readFileSync(path.join(target.packageDir, "package.json"));
+  const lockJson = readFileSync(packageLockPath);
+  const original = `${target.packageDir}.original`;
+  renameSync(target.packageDir, original);
+  mkdirSync(target.packageDir);
+  writeFileSync(path.join(target.packageDir, "package.json"), packageJson);
+  writeFileSync(path.join(target.packageDir, "package-lock.json"), lockJson);
+  mkdirSync(path.join(target.packageDir, "node_modules"));
+  const sentinel = path.join(target.packageDir, "node_modules", "replacement.txt");
+  writeFileSync(sentinel, "preserve\n");
+  assert.deepEqual(await closed, { code: 1, signal: null });
+  const calls = readFileSync(fixture.npmLog, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(calls.map((call) => call.operation), ["install"]);
+  assert.equal(readFileSync(sentinel, "utf8"), "preserve\n");
+  assert.equal(existsSync(fixture.lockPath), true, "failed recovery state must remain reviewable");
+});
+
+test("explicit recovery preserves state when its checkout recovery ownership changes", async (t) => {
+  const fixture = createFixture(t, [{ kind: "present" }], { id: "recovery-owner-fence" });
+  assertKilled(cli(fixture, ["run", "--json"], { PI_HOST_COMPAT_TEST_SIGKILL_AT: "post-alignment" }));
+  assert.notEqual(cli(fixture, ["recover", "--json"]).status, 0);
+  writeFileSync(fixture.npmLog, "");
+  const recovery = spawn(process.execPath, [SCRIPT, "recover", "--apply", "--json", "--manifest", fixture.manifestPath], {
+    cwd: ROOT,
+    env: fixture.env({ FAKE_NPM_DELAY_MS: "700" }),
+    stdio: "ignore",
+  });
+  const closed = new Promise((resolve) => recovery.once("close", (code, signal) => resolve({ code, signal })));
+  await waitFor(() => readFileSync(fixture.npmLog, "utf8").trim() !== "", "explicit recovery effect did not start");
+  const foreignToken = "c".repeat(64);
+  replaceRecord(CHECKOUT_RECOVERY_LOCK, (payload) => { payload.owner.token = foreignToken; });
+  assert.deepEqual(await closed, { code: 1, signal: null });
+  assert.equal(JSON.parse(readFileSync(CHECKOUT_RECOVERY_LOCK, "utf8")).payload.owner.token, foreignToken);
+  const journal = JSON.parse(readFileSync(journalPath(fixture), "utf8"));
+  assert.equal(journal.payload.child.effect, "explicit-restore-host");
+  assert.equal(existsSync(fixture.lockPath), true);
 });

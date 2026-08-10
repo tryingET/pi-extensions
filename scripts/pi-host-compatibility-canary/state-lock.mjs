@@ -49,6 +49,11 @@ export function bindingsMatch(left, right) {
     identitiesMatch(left?.identity, right?.identity);
 }
 
+export function ownersMatch(left, right) {
+  return left?.token === right?.token &&
+    JSON.stringify(left?.identity) === JSON.stringify(right?.identity);
+}
+
 export function newOwner() {
   return { token: randomBytes(32).toString("hex"), identity: processIdentity() };
 }
@@ -67,7 +72,7 @@ export function verifyGate(record, expectedOwner) {
   if (!bindingsMatch(record.payload.root, rootBinding())) {
     throw new IntegrityError("state gate belongs to a different checkout identity");
   }
-  if (expectedOwner && record.payload.owner?.token !== expectedOwner.token) {
+  if (expectedOwner && !ownersMatch(record.payload.owner, expectedOwner)) {
     throw new ConcurrentCanaryError("state gate ownership changed");
   }
 }
@@ -83,13 +88,18 @@ export function acquireStateGate(env = process.env) {
       return {
         paths,
         owner,
+        record: owned,
         assertOwned() {
           const current = readStateRecord(paths.gatePath, GATE_KIND, MAX_LOCK_BYTES);
           verifyGate(current, owner);
+          if (
+            !identitiesMatch(current.identity, owned.identity) ||
+            JSON.stringify(current.payload) !== JSON.stringify(owned.payload)
+          ) throw new ConcurrentCanaryError("state gate record changed");
+          return current;
         },
         release() {
-          const current = readStateRecord(paths.gatePath, GATE_KIND, MAX_LOCK_BYTES);
-          verifyGate(current, owner);
+          const current = this.assertOwned();
           removeStateFile(paths.gatePath, current.identity, GATE_KIND, MAX_LOCK_BYTES);
         },
       };
@@ -135,9 +145,19 @@ export function acquireCheckoutRecoveryLock(paths) {
   const owned = readStateRecord(paths.recoveryLockPath, GATE_KIND, MAX_LOCK_BYTES);
   verifyGate(owned, owner);
   return {
-    release() {
+    owner,
+    record: owned,
+    assertOwned() {
       const current = readStateRecord(paths.recoveryLockPath, GATE_KIND, MAX_LOCK_BYTES);
       verifyGate(current, owner);
+      if (
+        !identitiesMatch(current.identity, owned.identity) ||
+        JSON.stringify(current.payload) !== JSON.stringify(owned.payload)
+      ) throw new ConcurrentCanaryError("checkout recovery lock record changed");
+      return current;
+    },
+    release() {
+      const current = this.assertOwned();
       removeStateFile(paths.recoveryLockPath, current.identity, GATE_KIND, MAX_LOCK_BYTES);
     },
   };

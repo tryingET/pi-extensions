@@ -241,11 +241,29 @@ export function atomicWriteStateRecord(
   checkRecordDirectory(directoryPath, options.privateDirectory !== false);
   const contents = encodeStateRecord(payload);
   if (Buffer.byteLength(contents) > maxBytes) throw new IntegrityError("recovery state record exceeds its size limit");
-  if (existsSync(filePath)) readStateRecord(filePath, payload.kind, maxBytes);
+  const existing = existsSync(filePath)
+    ? readStateRecord(filePath, payload.kind, maxBytes)
+    : null;
+  if (options.expectedAbsent === true && existing) {
+    throw new IntegrityError(`recovery state record appeared before exclusive publication: ${filePath}`);
+  }
+  if (
+    options.expectedIdentity &&
+    (!existing || !identitiesMatch(existing.identity, options.expectedIdentity))
+  ) throw new IntegrityError(`recovery state file identity drifted before replacement: ${filePath}`);
   const candidate = writeCandidate(directoryPath, path.basename(filePath), contents);
   try {
+    if (options.expectedIdentity) {
+      const current = readStateRecord(filePath, payload.kind, maxBytes);
+      if (!identitiesMatch(current.identity, options.expectedIdentity)) {
+        throw new IntegrityError(`recovery state file identity drifted during replacement: ${filePath}`);
+      }
+    } else if (options.expectedAbsent === true && existsSync(filePath)) {
+      throw new IntegrityError(`recovery state record raced exclusive publication: ${filePath}`);
+    }
     renameSync(candidate, filePath);
     fsyncDirectory(directoryPath);
+    return readStateRecord(filePath, payload.kind, maxBytes);
   } catch (error) {
     try { unlinkSync(candidate); } catch {}
     throw error;
