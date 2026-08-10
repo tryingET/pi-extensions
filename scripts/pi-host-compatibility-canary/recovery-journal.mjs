@@ -105,7 +105,7 @@ export function persistRecoveredJournal(journalRecord, payload) {
     journalRecord.path,
     payload,
     MAX_JOURNAL_BYTES,
-    { expectedIdentity: current.identity },
+    { expectedIdentity: current.identity, serializedByStateGate: true },
   );
   validateStatePayload(published.payload, JOURNAL_KIND);
   if (
@@ -188,7 +188,7 @@ export class MutationSession {
         this.journalRecord.path,
         next,
         MAX_JOURNAL_BYTES,
-        { expectedIdentity: state.journal.identity },
+        { expectedIdentity: state.journal.identity, serializedByStateGate: true },
       );
       validateStatePayload(published.payload, JOURNAL_KIND);
       gate.assertOwned();
@@ -379,7 +379,7 @@ export function beginMutationSession(manifest, profile, env = process.env) {
       journalPath,
       initialJournalPayload(runId, owner, manifestBinding, profile),
       MAX_JOURNAL_BYTES,
-      { expectedAbsent: true },
+      { expectedAbsent: true, serializedByStateGate: true },
     );
     state = readCheckoutState(gate.paths, manifestBinding);
     if (
@@ -393,7 +393,7 @@ export function beginMutationSession(manifest, profile, env = process.env) {
       gate.paths.lockPath,
       initialLockPayload(runId, owner, manifestBinding, "journal-ready"),
       MAX_LOCK_BYTES,
-      { privateDirectory: false, expectedIdentity: state.lock.identity },
+      { privateDirectory: false, expectedIdentity: state.lock.identity, serializedByStateGate: true },
     );
     const ready = readCheckoutState(gate.paths, manifestBinding);
     if (

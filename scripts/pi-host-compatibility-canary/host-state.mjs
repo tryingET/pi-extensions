@@ -6,6 +6,7 @@
 import { existsSync, lstatSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import {
+  assertEffectiveOwner,
   errorMessage,
   identitiesMatch,
   identityOf,
@@ -23,6 +24,7 @@ export function nodeModulesState(packageAbs) {
     const kind = stats.isSymbolicLink() ? "symlink" : "non-directory";
     throw new IntegrityError(`node_modules must be absent or a real directory at ${path.relative(ROOT, packageAbs)}; got ${kind}`);
   }
+  assertEffectiveOwner(stats, `node_modules at ${path.relative(ROOT, packageAbs)}`);
   return { kind: "directory", identity: identityOf(stats) };
 }
 
@@ -31,6 +33,7 @@ export function captureTargetLedger(target, host) {
   if (!stats.isDirectory()) {
     throw new Error(`Scenario package target is not a directory: ${target.declaredPath}`);
   }
+  assertEffectiveOwner(stats, `scenario package target ${target.declaredPath}`);
   const canonicalPackagePath = path.relative(CANONICAL_ROOT, target.packageAbs);
   const nodeModulesBefore = nodeModulesState(target.packageAbs);
   const beforeSnapshot = snapshotHostPackages(target.packageAbs, host);
@@ -53,6 +56,7 @@ export function verifyTargetIdentity(entry) {
     const packageAbs = resolveContainedRepoPath(entry.declaredPath, "Scenario package target");
     const canonicalPackagePath = path.relative(CANONICAL_ROOT, packageAbs);
     const stats = statSync(packageAbs, { bigint: true });
+    assertEffectiveOwner(stats, `scenario package target ${entry.declaredPath}`);
     if (
       canonicalPackagePath !== entry.canonicalPackagePath ||
       !identitiesMatch(identityOf(stats), entry.packageIdentity)
@@ -115,6 +119,7 @@ export function verifyScenarioCwdIdentity(scenario) {
   try {
     const current = resolveContainedRepoPath(scenario.cwd, "Scenario cwd");
     const stats = statSync(current, { bigint: true });
+    assertEffectiveOwner(stats, `scenario cwd ${scenario.cwd}`);
     if (current !== scenario.cwdAbs || !identitiesMatch(identityOf(stats), scenario.cwdIdentity)) {
       throw new IntegrityError(`Scenario cwd identity changed: ${scenario.cwd}`);
     }

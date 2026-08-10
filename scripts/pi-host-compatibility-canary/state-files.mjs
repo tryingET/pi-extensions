@@ -238,6 +238,9 @@ export function atomicWriteStateRecord(
   options = {},
 ) {
   const directoryPath = path.dirname(filePath);
+  if (options.serializedByStateGate !== true) {
+    throw new IntegrityError("atomic state publication requires the cooperating canary state gate");
+  }
   checkRecordDirectory(directoryPath, options.privateDirectory !== false);
   const contents = encodeStateRecord(payload);
   if (Buffer.byteLength(contents) > maxBytes) throw new IntegrityError("recovery state record exceeds its size limit");
@@ -261,6 +264,8 @@ export function atomicWriteStateRecord(
     } else if (options.expectedAbsent === true && existsSync(filePath)) {
       throw new IntegrityError(`recovery state record raced exclusive publication: ${filePath}`);
     }
+    // Node rename is atomic but not compare-and-swap. The required state gate serializes
+    // canary writers; a same-UID writer that bypasses that gate is outside this guarantee.
     renameSync(candidate, filePath);
     fsyncDirectory(directoryPath);
     return readStateRecord(filePath, payload.kind, maxBytes);
