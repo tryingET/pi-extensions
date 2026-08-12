@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "ee6cb7926d8ac5d0f377d088b84bcd19603e3d3b"
-created_at: "2026-08-12T18:47:02Z"
+created_at: "2026-08-12T19:00:02Z"
 intent: "Extend pi-modes Pi host compatibility from <0.84.0 to <0.85.0 and align dev host to 0.84.1."
 files:
   - "packages/pi-modes/extensions/mode.ts"
@@ -18,8 +18,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "fail"
 group:
   index: 3
   total: 8
-  rationale: "Pi 0.84 extension compatibility for pi-modes, kept package-local."
+  rationale: "Pi 0.84 extension compatibility for pi-modes, kept package-local. Full pre-push blocked only by a pre-existing npm-12 pack-parser gap in per-package release-check scripts (outside AK #4716 scope, untouched here); this commit's own validation passes."
