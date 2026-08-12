@@ -1,0 +1,31 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5052cf9b9ca43f4dc6a74b2a0e8c891ad21c4a7f"
+created_at: "2026-08-12T18:48:53Z"
+intent: "Harden ASC bridge lifecycle validation to prove the declared ^0.4.0 registry range and fail closed otherwise (AK #4717)."
+files:
+  - "packages/pi-society-orchestrator/scripts/validate-asc-bridge-lifecycle.mjs"
+  - "packages/pi-society-orchestrator/tests/asc-bridge-lifecycle.test.mjs"
+  - "packages/pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 7
+  total: 8
+  rationale: "Package-local release-truth hardening so the external ASC 0.4.x blocker stays explicit and cannot be falsely resolved."
+links:
+  task_ids:
+    - 4717
+  evidence_ids:
+    - 6866
+    - 6867
+    - 6868
+    - 6869
+    - 6873
