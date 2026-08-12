@@ -21,8 +21,9 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
 fi
 
 echo "== npm pack --dry-run --json"
-PACK_JSON="$(npm pack --dry-run --json)"
-echo "$PACK_JSON"
+PACK_JSON_RAW="$(npm pack --dry-run --json)"
+echo "$PACK_JSON_RAW"
+PACK_JSON="$(printf '%s' "$PACK_JSON_RAW" | node "$ROOT_DIR/scripts/npm-pack-json.mjs")"
 
 PACK_JSON="$PACK_JSON" node <<'NODE'
 const fs = require("node:fs");
