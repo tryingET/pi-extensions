@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "5b7233bce9ee98cedc95eb8defba91c50b6752d7"
-created_at: "2026-08-12T19:40:41Z"
+created_at: "2026-08-12T19:47:37Z"
 intent: "Migrate every remaining package npm pack JSON consumer to npm 10/11/12-compatible normalization while preserving release portability (AK #4736)."
 files:
   - "packages/pi-activity-strip/scripts/release-check.sh"
@@ -41,11 +41,15 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "fail"
 group:
   index: 1
   total: 1
-  rationale: "One cross-package release-contract migration because all consumers depend on the same shared normalization seam."
+  rationale: "Cross-package release migration. Full pre-push passed every migrated npm 12 parser boundary with zero parser errors, then correctly stopped at the separate unpublished ASC ^0.4.0 registry gate."
 links:
   task_ids:
     - 4736
+  evidence_ids:
+    - 6874
+    - 6875
+    - 6876
