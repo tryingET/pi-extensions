@@ -12,6 +12,7 @@ import {
   type Context,
   complete,
   type Model,
+  type ProviderHeaders,
   type Usage,
 } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -689,7 +690,7 @@ async function evaluateVariant(args: {
   cases: EvalCaseDefinition[];
   variant: VariantDefinition;
   apiKey?: string;
-  headers?: Record<string, string>;
+  headers?: ProviderHeaders;
   temperature?: number;
 }): Promise<EvalRunReport> {
   const {
@@ -868,7 +869,7 @@ function ensureActiveModel(ctx: ExtensionCommandContext): Model<Api> {
 async function resolveRequestAuth(
   ctx: ExtensionCommandContext,
   model: Model<Api>,
-): Promise<{ apiKey?: string; headers?: Record<string, string> }> {
+): Promise<{ apiKey?: string; headers?: ProviderHeaders }> {
   const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
   if (!auth.ok) throw new Error(auth.error);
   return { apiKey: auth.apiKey, headers: auth.headers };
@@ -1154,6 +1155,7 @@ export const _test = {
   parseTemperature,
   parseRunCommand,
   writeReportFile,
+  resolveRequestAuth,
 };
 
 export default function (pi: ExtensionAPI): void {

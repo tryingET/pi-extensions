@@ -69,3 +69,23 @@ test("report case contract retains full output alongside preview", () => {
   assert.match(source, /output: outputText/);
   assert.match(source, /outputPreview: clip\(outputText\)/);
 });
+
+test("request auth preserves Pi header deletion markers", async () => {
+  const model = { provider: "gateway", id: "model" };
+  const ctx = {
+    modelRegistry: {
+      async getApiKeyAndHeaders() {
+        return {
+          ok: true,
+          apiKey: "resolved-key",
+          headers: { authorization: null, "x-trace": "keep" },
+        };
+      },
+    },
+  };
+
+  assert.deepEqual(await _test.resolveRequestAuth(ctx, model), {
+    apiKey: "resolved-key",
+    headers: { authorization: null, "x-trace": "keep" },
+  });
+});
