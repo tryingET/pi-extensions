@@ -1,0 +1,51 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "5b7233bce9ee98cedc95eb8defba91c50b6752d7"
+created_at: "2026-08-12T19:40:41Z"
+intent: "Migrate every remaining package npm pack JSON consumer to npm 10/11/12-compatible normalization while preserving release portability (AK #4736)."
+files:
+  - "packages/pi-activity-strip/scripts/release-check.sh"
+  - "packages/pi-agent-vent/scripts/release-artifact-check.mjs"
+  - "packages/pi-agent-vent/scripts/release-check.sh"
+  - "packages/pi-agent-vent/tests/release-artifact-check.test.js"
+  - "packages/pi-autonomous-session-control/scripts/release-check.sh"
+  - "packages/pi-autoresearch/scripts/release-check.sh"
+  - "packages/pi-better-openai/scripts/release-check.sh"
+  - "packages/pi-context-overlay/scripts/release-check.sh"
+  - "packages/pi-context-packer/scripts/release-check.sh"
+  - "packages/pi-designmd-foundry/scripts/release-check.sh"
+  - "packages/pi-evalset-lab/scripts/release-check.sh"
+  - "packages/pi-evidence-review/scripts/release-check.sh"
+  - "packages/pi-interaction/pi-interaction/scripts/release-check.sh"
+  - "packages/pi-interaction/scripts/release-check-package.mjs"
+  - "packages/pi-interaction/scripts/release-check.sh"
+  - "packages/pi-little-helpers/scripts/release-check.sh"
+  - "packages/pi-modes/scripts/release-check.sh"
+  - "packages/pi-ontology-workflows/scripts/release-check.sh"
+  - "packages/pi-peer-messaging/scripts/release-check.sh"
+  - "packages/pi-prompt-template-accelerator/scripts/release-check.sh"
+  - "packages/pi-provenance/scripts/release-check.sh"
+  - "packages/pi-semantic-code-intelligence/scripts/release-check.sh"
+  - "packages/pi-society-orchestrator/scripts/release-check.sh"
+  - "packages/pi-society-startup-context/scripts/release-check.sh"
+  - "packages/pi-toolbox-discovery/scripts/release-check.sh"
+  - "packages/pi-vault-client/scripts/release-check.sh"
+  - "packages/pi-workstation-inference-provider/scripts/release-check.sh"
+  - "scripts/ci/full.sh"
+  - "scripts/npm-pack-json.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "One cross-package release-contract migration because all consumers depend on the same shared normalization seam."
+links:
+  task_ids:
+    - 4736
