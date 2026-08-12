@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
 commit: "51bf16bf6a256538c466c52de27710e6b2df0d81"
-created_at: "2026-08-12T18:47:15Z"
+created_at: "2026-08-12T19:00:02Z"
 intent: "Align pi-snapshot-edit dev host to 0.84.1 and extend peer range through 0.84."
 files:
   - "packages/pi-snapshot-edit/package.json"
@@ -14,8 +14,8 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "fail"
 group:
   index: 4
   total: 8
-  rationale: "Pi 0.84 extension compatibility for pi-snapshot-edit, kept package-local."
+  rationale: "Pi 0.84 extension compatibility for pi-snapshot-edit, kept package-local. Full pre-push blocked only by a pre-existing npm-12 pack-parser gap in per-package release-check scripts (outside AK #4716 scope, untouched here); this commit's own validation passes."
