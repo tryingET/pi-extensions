@@ -1,0 +1,29 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "961d892ca3adfc809cf9fe96be72432844e65db4"
+created_at: "2026-08-12T18:49:05Z"
+intent: "Wire the Pi-host crash-recovery suite into the normal root CI path sequentially after the baseline suite (AK #4731)."
+files:
+  - "scripts/ci/full.sh"
+  - "Justfile"
+  - "docs/project/pi-host-compatibility-canary.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 8
+  total: 8
+  rationale: "Root CI/docs change; kept separate from package-local compatibility work."
+links:
+  task_ids:
+    - 4731
+  evidence_ids:
+    - 6870
+    - 6871
+    - 6872
