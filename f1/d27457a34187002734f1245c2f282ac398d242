@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f1d27457a34187002734f1245c2f282ac398d242"
+created_at: "2026-08-12T18:46:44Z"
+intent: "Make pi-evalset-lab compatible with Pi 0.84: use ProviderHeaders and align dev host to 0.84.1."
+files:
+  - "packages/pi-evalset-lab/extensions/evalset.ts"
+  - "packages/pi-evalset-lab/tests/evalset.test.mjs"
+  - "packages/pi-evalset-lab/package.json"
+  - "packages/pi-evalset-lab/package-lock.json"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 2
+  total: 8
+  rationale: "Pi 0.84 extension compatibility for pi-evalset-lab, kept package-local."
