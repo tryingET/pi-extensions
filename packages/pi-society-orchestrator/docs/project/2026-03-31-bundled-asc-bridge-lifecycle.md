@@ -18,12 +18,13 @@ Keep the current bundled `@tryinget/pi-autonomous-session-control` bridge only a
 
 ## Current topology
 
-Retirement status: **completed after ASC `0.1.5` became visible on npm**.
+Bundled-bridge retirement status: **completed**. Registry cutover status for the currently declared range: **blocked pending a compatible ASC `0.4.x` artifact**.
 
-Today orchestrator uses:
+Today orchestrator declares:
 
-- `"@tryinget/pi-autonomous-session-control": "^0.1.5"`
+- `"@tryinget/pi-autonomous-session-control": "^0.4.0"`
 - no `bundleDependencies` / `bundledDependencies` entry for ASC
+- a development lock that still resolves ASC through the monorepo-local package; this does not prove registry installability and release validation must fail until a satisfying registry artifact exists
 
 Why the bridge existed:
 
@@ -35,7 +36,7 @@ The bridge was therefore a packaging compatibility measure, **not** a statement 
 
 ## Allowed lifetime
 
-The bridge may remain only while all of the following are still true. These conditions are no longer true after ASC `0.1.5` publication and the orchestrator dependency cutover:
+The bridge may remain only while all of the following are still true. These conditions stopped being true when the bundle was retired; they do not establish that the newer `^0.4.0` registry cutover is complete:
 
 1. orchestrator needs ASC at install time to expose the supported execution seam
 2. ASC has not yet been proven as a standalone published package dependency in the orchestrator release path
@@ -72,7 +73,8 @@ Do not wait for a vague later cleanup once one of those triggers fires.
 Operational enforcement:
 - `packages/pi-society-orchestrator/scripts/validate-asc-bridge-lifecycle.mjs`
 - `npm run release:check`
-- current enforcement rule: if `@tryinget/pi-autonomous-session-control` is visible on the npm registry while orchestrator still carries the bundled bridge, release-check fails closed and forces the cutover conversation immediately
+- current enforcement rule: for a normal semver dependency, release-check queries the exact declared selector and succeeds only when npm returns at least one strict-semver version satisfying that range; E404, ETARGET, malformed/empty output, local links, and unrelated published versions fail closed
+- for any remaining transitional bundled bridge, visibility of a published ASC version still fires the retirement review trigger
 
 ## What does *not* justify keeping the bridge
 
