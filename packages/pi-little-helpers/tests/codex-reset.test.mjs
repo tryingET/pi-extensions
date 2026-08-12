@@ -26,12 +26,12 @@ function fakeJwt(accountId) {
   ].join(".");
 }
 
-function createApiContext(accountId = "acct_reset") {
+function createApiContext(accountId = "acct_reset", { modelHeaders = {}, authHeaders = {} } = {}) {
   return {
-    model: { provider: "openai-codex", headers: {} },
+    model: { provider: "openai-codex", headers: modelHeaders },
     modelRegistry: {
       async getApiKeyAndHeaders() {
-        return { ok: true, apiKey: fakeJwt(accountId), headers: {} };
+        return { ok: true, apiKey: fakeJwt(accountId), headers: authHeaders };
       },
     },
   };
@@ -160,6 +160,21 @@ test("Codex reset API uses the active model auth and an idempotent request body"
   assert.equal(calls[1].init.headers.get("authorization")?.startsWith("Bearer "), true);
   assert.equal(calls[1].init.signal, ctx.signal);
   assert.deepEqual(JSON.parse(calls[1].init.body), { redeem_request_id: "stable-request-id" });
+});
+
+test("Codex reset auth honors Pi header deletion markers", async () => {
+  let requestHeaders;
+  const ctx = createApiContext("acct_delete_header", {
+    modelHeaders: { "x-placeholder-auth": "remove-me" },
+    authHeaders: { "x-placeholder-auth": null },
+  });
+
+  await fetchCodexResetCredits(ctx, async (_url, init) => {
+    requestHeaders = init.headers;
+    return new Response(JSON.stringify({ available_count: 0, credits: [] }), { status: 200 });
+  });
+
+  assert.equal(requestHeaders.has("x-placeholder-auth"), false);
 });
 
 test("/codex-reset requires explicit confirmation before spending a credit", async () => {

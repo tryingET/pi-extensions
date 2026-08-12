@@ -142,7 +142,10 @@ async function buildCodexHeaders(ctx: ExtensionContext): Promise<Headers> {
   if (!auth.ok) throw new Error(auth.error);
 
   const headers = new Headers(model.headers);
-  for (const [key, value] of Object.entries(auth.headers ?? {})) headers.set(key, value);
+  for (const [key, value] of Object.entries(auth.headers ?? {})) {
+    if (value === null) headers.delete(key);
+    else headers.set(key, value);
+  }
   if (auth.apiKey) headers.set("authorization", `Bearer ${auth.apiKey}`);
 
   const token = auth.apiKey ?? extractBearerToken(headers);
