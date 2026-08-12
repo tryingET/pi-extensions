@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseNpmPackJson } from "./npm-pack-json.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGES_ROOT = path.join(REPO_ROOT, "packages");
@@ -86,9 +87,9 @@ function runNpmPack(packageDir, packageLabel, issues) {
     return null;
   }
 
-  let parsed;
+  let packEntry;
   try {
-    parsed = JSON.parse(result.stdout || "[]");
+    packEntry = parseNpmPackJson(result.stdout);
   } catch (error) {
     issues.push(
       `${packageLabel}: could not parse npm pack --json output: ${error instanceof Error ? error.message : String(error)}`,
@@ -96,8 +97,7 @@ function runNpmPack(packageDir, packageLabel, issues) {
     return null;
   }
 
-  const packEntry = Array.isArray(parsed) ? parsed[0] : null;
-  if (!isRecord(packEntry) || typeof packEntry.filename !== "string" || !Array.isArray(packEntry.files)) {
+  if (typeof packEntry.filename !== "string" || !Array.isArray(packEntry.files)) {
     issues.push(`${packageLabel}: npm pack --json did not return the expected filename/files contract.`);
     return null;
   }
