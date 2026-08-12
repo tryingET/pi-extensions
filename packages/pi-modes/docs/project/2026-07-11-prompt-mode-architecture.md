@@ -93,7 +93,7 @@ Replay scans the active branch chronologically. The newest well-formed recognize
 
 ## Host compatibility
 
-`replace_base` reconstructs Pi's documented custom-base branch from `BuildSystemPromptOptions` until Pi exposes a supported builder or return patch. The package constrains peers to `>=0.83.0 <0.84.0`, compares complete output against the pinned host builder, and runs credential-free installed-artifact smoke. Publication creates, hashes, checks, uploads, and publishes one retained tarball. Expanding the host range requires the parity and artifact proofs.
+`replace_base` reconstructs Pi's documented custom-base branch from `BuildSystemPromptOptions` until Pi exposes a supported builder or return patch. The package constrains peers to `>=0.83.0 <0.85.0`, compares complete output against the pinned host builder, and runs credential-free installed-artifact smoke. Publication creates, hashes, checks, uploads, and publishes one retained tarball. Expanding the host range requires the parity and artifact proofs.
 
 Prefer an upstream seam such as:
 
