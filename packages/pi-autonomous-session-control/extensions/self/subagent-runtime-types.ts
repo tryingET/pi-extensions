@@ -7,7 +7,12 @@ import type {
 } from "./subagent-model-selection.ts";
 import type { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import type { SubagentState } from "./subagent-session.ts";
-import type { AssistantStopReason, ExecutionState, SubagentSpawner } from "./subagent-spawn.ts";
+import type {
+  AssistantStopReason,
+  ExecutionState,
+  SubagentCacheMetrics,
+  SubagentSpawner,
+} from "./subagent-spawn.ts";
 
 export type DispatchSubagentProfile = keyof typeof SUBAGENT_PROFILES | "custom";
 export type DispatchThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -41,6 +46,7 @@ export interface DispatchUsage {
   cacheWrite: number;
   cost: number;
   contextTokens: number;
+  cache?: SubagentCacheMetrics;
 }
 export type DispatchSubagentFailureKind =
   | "aborted"
@@ -77,6 +83,7 @@ export interface DispatchSubagentRequest {
   stopConditions?: string[];
   allowedPaths?: string[];
   forbiddenPaths?: string[];
+  /** Compatibility field: custom child instructions placed in the initial user task message. */
   systemPrompt?: string;
   name?: string;
   timeout?: number;

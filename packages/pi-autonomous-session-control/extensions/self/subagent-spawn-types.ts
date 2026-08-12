@@ -5,7 +5,10 @@ export interface SubagentDef {
   dispatchId: string;
   attemptId: string;
   objective: string;
+  /** Initial user message sent after Pi's stable host/project system context. */
+  userPrompt?: string;
   tools: string;
+  /** Legacy direct-spawner compatibility only; dispatch runtime leaves this unset. */
   systemPrompt?: string;
   profile?: string;
   sessionFile: string | null;
@@ -27,6 +30,22 @@ export const ASSISTANT_STOP_REASONS = ["stop", "length", "toolUse", "error", "ab
 
 export type AssistantStopReason = (typeof ASSISTANT_STOP_REASONS)[number];
 export type SubagentStatus = "done" | "error" | "timeout" | "aborted";
+
+export interface PromptCacheSample {
+  promptTokens: number;
+  freshInputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  uncachedTokens: number;
+  cacheReadRatio: number;
+  outputTokens: number;
+  cost: number;
+}
+
+export interface SubagentCacheMetrics {
+  firstTurn: PromptCacheSample;
+  aggregate: PromptCacheSample;
+}
 
 export interface TransportExecutionState {
   kind: "transport";
@@ -73,6 +92,7 @@ export interface SubagentUsage {
   cacheWrite: number;
   cost: number;
   contextTokens: number;
+  cache?: SubagentCacheMetrics;
 }
 
 export interface SubagentProgressEvent {

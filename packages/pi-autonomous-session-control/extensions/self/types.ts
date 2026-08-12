@@ -419,7 +419,8 @@ export type MetaIntent =
   | "record_feedback"
   | "list_feedback"
   | "memory_lifecycle_status"
-  | "autonomy_status";
+  | "autonomy_status"
+  | "cache_routing";
 
 export type QueryIntent =
   | { domain: "perception"; intent: PerceptionIntent }

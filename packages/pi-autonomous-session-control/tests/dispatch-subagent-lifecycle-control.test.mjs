@@ -145,8 +145,9 @@ test("runtime forwards the typed task contract, thinking, progress, usage, and e
       assert.deepEqual(capturedDef.taskContract.forbiddenPaths, [
         "packages/pi-society-orchestrator/**",
       ]);
-      assert.match(capturedDef.systemPrompt, /DISPATCH TASK CONTRACT/);
-      assert.match(capturedDef.systemPrompt, /packages\/pi-society-orchestrator\/\*\*/);
+      assert.equal(capturedDef.systemPrompt, undefined);
+      assert.match(capturedDef.userPrompt, /DISPATCH TASK CONTRACT/);
+      assert.match(capturedDef.userPrompt, /packages\/pi-society-orchestrator\/\*\*/);
       assert.equal(updates.length, 2);
       assert.equal(updates[1].details.status, "running");
       assert.equal(updates[1].details.progressPhase, "running");

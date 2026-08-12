@@ -18,7 +18,13 @@ import {
   writeCompletedSubagentStatus,
   writeRunningSubagentStatus,
 } from "./subagent-spawn-status.ts";
-import type { AssistantStopReason, SubagentDef, SubagentResult } from "./subagent-spawn-types.ts";
+import type {
+  AssistantStopReason,
+  PromptCacheSample,
+  SubagentDef,
+  SubagentResult,
+  SubagentUsage,
+} from "./subagent-spawn-types.ts";
 import {
   appendBoundedString,
   readNonNegativeIntEnv,
@@ -45,6 +51,26 @@ const DEFAULT_SUBAGENT_EVENT_BUFFER_BYTES = 256 * 1024;
 const SUBAGENT_CLOSE_GRACE_MS = 250;
 const SUBAGENT_STOP_REQUESTED_CLOSE_GRACE_MS = 25;
 const SUBAGENT_FORCE_KILL_GRACE_MS = 500;
+
+export function createPromptCacheSample(usage: {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+}): PromptCacheSample {
+  const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
+  return {
+    promptTokens,
+    freshInputTokens: usage.input,
+    cacheReadTokens: usage.cacheRead,
+    cacheWriteTokens: usage.cacheWrite,
+    uncachedTokens: usage.input + usage.cacheWrite,
+    cacheReadRatio: promptTokens > 0 ? usage.cacheRead / promptTokens : 0,
+    outputTokens: usage.output,
+    cost: usage.cost,
+  };
+}
 export function spawnSubagentWithSpawn(
   def: SubagentDef,
   model: string,
@@ -117,7 +143,7 @@ export function spawnSubagentWithSpawn(
     let latestTool: string | undefined;
     let lastActivityAt = startTime;
     let lastProgressEmitAt = 0;
-    const usage = {
+    const usage: SubagentUsage = {
       turns: 0,
       input: 0,
       output: 0,
@@ -126,6 +152,7 @@ export function spawnSubagentWithSpawn(
       cost: 0,
       contextTokens: 0,
     };
+    let firstTurnCacheSample: PromptCacheSample | undefined;
     let stderrText = "";
     let stderrTruncated = false;
     const parseErrors: string[] = [];
@@ -296,6 +323,11 @@ export function spawnSubagentWithSpawn(
       usage.cacheWrite += eventUsage.cacheWrite;
       usage.cost += eventUsage.cost;
       usage.contextTokens = eventUsage.contextTokens;
+      firstTurnCacheSample ??= createPromptCacheSample(eventUsage);
+      usage.cache = {
+        firstTurn: firstTurnCacheSample,
+        aggregate: createPromptCacheSample(usage),
+      };
       markActivity();
     };
 

@@ -17,6 +17,7 @@ import {
   resolveActionQuery,
 } from "./resolvers/action.ts";
 import { isAutonomyStatusQuery, resolveAutonomyStatusQuery } from "./resolvers/autonomy-status.ts";
+import { isCacheRoutingQuery, resolveCacheRoutingQuery } from "./resolvers/cache-routing.ts";
 import { resolveCapabilityQuery } from "./resolvers/capabilities.ts";
 import {
   CRYSTALLIZATION_KEYWORDS,
@@ -424,6 +425,10 @@ export function classifyIntent(query: string): QueryIntent {
     return { domain: "meta", intent: "memory_lifecycle_status" };
   }
 
+  if (isCacheRoutingQuery(lower)) {
+    return { domain: "meta", intent: "cache_routing" };
+  }
+
   // Check capabilities after explicit domain requests (meta-query about the tool itself).
   for (const keyword of CAPABILITY_KEYWORDS) {
     if (lower.includes(keyword)) {
@@ -537,6 +542,10 @@ function resolveMetaQuery(
 
   if (intent === "autonomy_status") {
     return resolveAutonomyStatusQuery(query);
+  }
+
+  if (intent === "cache_routing") {
+    return resolveCacheRoutingQuery(query);
   }
 
   return {

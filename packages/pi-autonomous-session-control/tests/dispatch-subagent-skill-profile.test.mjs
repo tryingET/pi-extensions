@@ -230,16 +230,15 @@ test("dispatch_subagent rejects raw skills before spawn", async () => {
     await harness.cleanup();
   }
 });
-test("dispatch_subagent supports noSkills without a skill profile", async () => {
+test("dispatch_subagent disables ambient child skills by default", async () => {
   const harness = await setup();
 
   try {
     const result = await harness.tool.execute(
-      "tc-no-skills",
+      "tc-default-no-skills",
       {
         profile: "reviewer",
-        objective: "Review without child skills",
-        noSkills: true,
+        objective: "Review without ambient child skills",
       },
       null,
       null,
@@ -253,6 +252,31 @@ test("dispatch_subagent supports noSkills without a skill profile", async () => 
     assert.equal(result.details.skillProfile, undefined);
     assert.deepEqual(result.details.loadedSkills, []);
     assert.deepEqual(result.details.librarySkills, []);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test("dispatch_subagent supports an explicit ambient-skill compatibility override", async () => {
+  const harness = await setup();
+
+  try {
+    const result = await harness.tool.execute(
+      "tc-ambient-skills-override",
+      {
+        profile: "reviewer",
+        objective: "Review with ordinary child skill discovery",
+        noSkills: false,
+      },
+      null,
+      null,
+      { cwd: process.cwd() },
+    );
+
+    const def = harness.getCapturedDef();
+    assert.equal(result.details.status, "done");
+    assert.equal(def.noSkills, false);
+    assert.deepEqual(def.skillSources, []);
   } finally {
     await harness.cleanup();
   }

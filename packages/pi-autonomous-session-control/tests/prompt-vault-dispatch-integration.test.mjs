@@ -80,11 +80,12 @@ test("mock vault payload applies envelope and preserves provenance through dispa
     );
 
     const def = harness.getCapturedDef();
-    assert.match(def.systemPrompt, /^\[Prompt Envelope\]/);
-    assert.match(def.systemPrompt, /name: meta-orchestration/);
-    assert.match(def.systemPrompt, /source: vault-client/);
-    assert.match(def.systemPrompt, /Choose the right phase and execution mode before acting\./);
-    assert.match(def.systemPrompt, /---\n\nYou are the reviewer/);
+    assert.equal(def.systemPrompt, undefined);
+    assert.match(def.userPrompt, /^\[Prompt Envelope\]/);
+    assert.match(def.userPrompt, /name: meta-orchestration/);
+    assert.match(def.userPrompt, /source: vault-client/);
+    assert.match(def.userPrompt, /Choose the right phase and execution mode before acting\./);
+    assert.match(def.userPrompt, /---\n\nYou are the reviewer/);
 
     assert.equal(result.details.prompt_applied, true);
     assert.equal(result.details.prompt_name, "meta-orchestration");
@@ -120,8 +121,9 @@ test("mock vault payload without content fails soft and keeps legacy reviewer pr
     );
 
     const def = harness.getCapturedDef();
-    assert.ok(def.systemPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
-    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
+    assert.equal(def.systemPrompt, undefined);
+    assert.ok(def.userPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
+    assert.match(def.userPrompt, /DISPATCH TASK CONTRACT/);
     assert.equal(result.details.prompt_applied, false);
     assert.equal(result.details.prompt_name, "meta-orchestration");
     assert.equal(result.details.prompt_source, "vault-client");

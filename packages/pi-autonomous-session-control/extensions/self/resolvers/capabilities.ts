@@ -74,6 +74,10 @@ export function resolveCapabilityQuery(): SelfResponse {
 - Explains the ladder from mirror-only to supervised peers, visible-loop campaigns, measured campaigns, and durable owner mutation gates.
 - Does not authorize hidden infinite loops, unbounded peer launch, candidate merge, owner writes, releases, or publication.
 
+**Cache-aware delegation** (routing advice, not a cache guarantee):
+- "Cache-aware delegation: tree or fork?" / "Subagent cache strategy"
+- Explains why /tree has the best same-session cache affinity, while /fork and /clone allocate new session identities; returns measurement and safe-tool boundaries without claiming provider cache hits.
+
 **Self-evolution feedback** (session-local outcome mirror):
 - "self feedback: helpful — candidate routed the next slice correctly"
 - "self feedback: wrong-owner — suggestion belonged to another package"
@@ -87,7 +91,8 @@ export function resolveCapabilityQuery(): SelfResponse {
 - Keep toolbox/bundle discovery separate from this self-tool query list; self explains itself, toolbox discovers extension bundles.
 
 **3. parallel work routing** (ASC execution runtime):
-- Use \`dispatch_subagent\` for bounded background investigation, review, or testing when parallel cognition reduces risk or latency.
+- Ask "Cache-aware delegation: tree or fork?" when choosing between sequential /tree, inherited-context /fork, and clean parallel dispatch.
+- Use \`dispatch_subagent\` for bounded background investigation, review, or testing when parallel cognition reduces risk or latency; completed owned runs expose first-turn and aggregate cache measurements without inferring quality.
 - Use visible candidate peers only when the operator/controller explicitly wants an isolated worktree mutation lane; candidates propose patches but do not merge, push, or promote themselves.
 
 **4. repo/lane capability-map routing surfaces** (documentation/read-first routing):

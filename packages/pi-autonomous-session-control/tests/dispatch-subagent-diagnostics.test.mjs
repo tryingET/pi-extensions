@@ -199,7 +199,8 @@ test("dispatch_subagent does not leak activeCount when spawn arguments throw syn
         "tc-d2",
         {
           profile: "reviewer",
-          objective: "bad\u0000objective",
+          objective: "Review changes",
+          tools: "read\u0000bash",
         },
         null,
         null,
@@ -219,7 +220,8 @@ test("dispatch_subagent does not leak activeCount when spawn arguments throw syn
         "tc-d3",
         {
           profile: "reviewer",
-          objective: "bad\u0000objective-again",
+          objective: "Review changes again",
+          tools: "read\u0000bash",
         },
         null,
         null,

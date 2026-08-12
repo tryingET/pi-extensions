@@ -47,7 +47,7 @@ export function createSubagentProtocolArgs(params: {
     "--session-file",
     getSubagentSessionFile(params.def, params.state),
     "--objective",
-    params.def.objective,
+    params.def.userPrompt || params.def.objective,
   ];
 
   for (const extensionSource of params.def.extensionSources ?? []) {

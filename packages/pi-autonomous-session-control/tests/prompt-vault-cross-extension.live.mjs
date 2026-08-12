@@ -257,9 +257,10 @@ test(
       assert.equal(dispatchResult.details.prompt_name, envelope.prompt_name);
       assert.equal(dispatchResult.details.prompt_source, "vault-client-live");
       assert.deepEqual(dispatchResult.details.prompt_tags, envelope.prompt_tags);
-      assert.match(capturedDef.systemPrompt, /^\[Prompt Envelope\]/);
-      assert.match(capturedDef.systemPrompt, new RegExp(`name: ${envelope.prompt_name}`));
-      assert.match(capturedDef.systemPrompt, /source: vault-client-live/);
+      assert.equal(capturedDef.systemPrompt, undefined);
+      assert.match(capturedDef.userPrompt, /^\[Prompt Envelope\]/);
+      assert.match(capturedDef.userPrompt, new RegExp(`name: ${envelope.prompt_name}`));
+      assert.match(capturedDef.userPrompt, /source: vault-client-live/);
     } finally {
       await rm(sessionsDir, { recursive: true, force: true });
     }

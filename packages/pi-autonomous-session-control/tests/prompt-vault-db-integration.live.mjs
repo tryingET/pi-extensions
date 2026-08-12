@@ -123,9 +123,10 @@ test(
       );
 
       const def = harness.getCapturedDef();
-      assert.match(def.systemPrompt, /^\[Prompt Envelope\]/);
-      assert.match(def.systemPrompt, new RegExp(`name: ${escapeRegExp(liveTemplate.name)}`));
-      assert.match(def.systemPrompt, /source: prompt-vault-db/);
+      assert.equal(def.systemPrompt, undefined);
+      assert.match(def.userPrompt, /^\[Prompt Envelope\]/);
+      assert.match(def.userPrompt, new RegExp(`name: ${escapeRegExp(liveTemplate.name)}`));
+      assert.match(def.userPrompt, /source: prompt-vault-db/);
       assert.equal(result.details.prompt_applied, true);
       assert.equal(result.details.prompt_name, liveTemplate.name);
       assert.equal(result.details.prompt_source, "prompt-vault-db");

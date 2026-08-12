@@ -115,8 +115,12 @@ Dispatch is foreground/blocking. Each completed result prints a canonical Dispat
 
 Prompt envelope (optional):
 - prompt_name / prompt_content / prompt_tags / prompt_source
-- If prompt_content is provided, it is prepended deterministically to the effective system prompt.
+- If prompt_content is provided, it is prepended deterministically to the initial child task message after Pi's stable host/project system context.
 - Provenance is returned in details as prompt_name, prompt_source, prompt_tags, prompt_applied.
+
+Cache measurement:
+- Completed owned child runs report first-turn and aggregate cache-read/uncached token measurements, output tokens, provider cost, and wall time.
+- Cache metrics describe observed provider usage only; they do not prove result quality, overlap, or that a tree/fork cloned provider cache state.
 
 Child extension bootstrap (optional):
 - extensions: explicit child-only extension allowlist loaded via --no-extensions + repeated --extension flags
@@ -127,8 +131,9 @@ Request env policy (optional):
 - PATH, NODE_OPTIONS, PI_CODING_AGENT_DIR, and any non-PI_PROVENANCE_* key fail before spawn.
 
 Child skill profile bootstrap (optional):
+- clean children default to --no-skills so ambient skill discovery does not inflate or vary the prompt.
 - skillProfile resolves a named, allowlisted skill-library profile and starts the child with --no-skills + a materialized --skill directory.
-- noSkills disables ordinary child skill discovery when no profile is needed.
+- noSkills=false is an explicit compatibility opt-out that restores ordinary child skill discovery when no profile is selected.
 - raw skills[] paths are currently rejected fail-closed; use named profiles.`,
     promptSnippet:
       "Spawn a focused subagent for parallel investigation, review, testing, or research.",
@@ -148,7 +153,10 @@ Child skill profile bootstrap (optional):
         Type.String({ description: "Comma-separated tools (default: from profile)" }),
       ),
       systemPrompt: Type.Optional(
-        Type.String({ description: "Custom system prompt (for custom profile)" }),
+        Type.String({
+          description:
+            "Compatibility field for custom child instructions. Instructions are placed in the initial user task message after stable host/project context.",
+        }),
       ),
       name: Type.Optional(
         Type.String({ description: "Human-readable session name (default: profile name)" }),
@@ -226,7 +234,7 @@ Child skill profile bootstrap (optional):
       noSkills: Type.Optional(
         Type.Boolean({
           description:
-            "When true, starts the child with --no-skills. skillProfile implies this and adds a materialized --skill directory.",
+            "Defaults to true for clean children. Set false to restore ordinary skill discovery; skillProfile always implies --no-skills and adds a materialized --skill directory.",
         }),
       ),
       skills: Type.Optional(
@@ -239,7 +247,9 @@ Child skill profile bootstrap (optional):
         Type.String({ description: "Prompt identifier used for provenance (e.g. template name)" }),
       ),
       prompt_content: Type.Optional(
-        Type.String({ description: "Prompt content to inject into subagent system prompt" }),
+        Type.String({
+          description: "Prompt content to inject into the initial child task message",
+        }),
       ),
       prompt_tags: Type.Optional(
         Type.Array(Type.String(), {

@@ -39,8 +39,9 @@ test("dispatch_subagent applies prompt envelope deterministically and returns pr
       "",
       "Base prompt",
     ].join("\n");
-    assert.ok(def.systemPrompt.startsWith(`${expectedEnvelope}\n\n`));
-    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
+    assert.equal(def.systemPrompt, undefined);
+    assert.ok(def.userPrompt.startsWith(`${expectedEnvelope}\n\n`));
+    assert.match(def.userPrompt, /DISPATCH TASK CONTRACT/);
 
     assert.equal(result.details.prompt_applied, true);
     assert.equal(result.details.prompt_name, "nexus");
@@ -69,8 +70,9 @@ test("dispatch_subagent fails soft with guidance when envelope metadata is provi
     );
 
     const def = harness.getCapturedDef();
-    assert.ok(def.systemPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
-    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
+    assert.equal(def.systemPrompt, undefined);
+    assert.ok(def.userPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
+    assert.match(def.userPrompt, /DISPATCH TASK CONTRACT/);
     assert.equal(result.details.prompt_applied, false);
     assert.equal(result.details.prompt_name, "meta-orchestration");
     assert.equal(result.details.prompt_source, "vault-client");
@@ -100,8 +102,9 @@ test("dispatch_subagent fails soft with guidance when prompt_content is blank", 
     );
 
     const def = harness.getCapturedDef();
-    assert.ok(def.systemPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
-    assert.match(def.systemPrompt, /DISPATCH TASK CONTRACT/);
+    assert.equal(def.systemPrompt, undefined);
+    assert.ok(def.userPrompt.startsWith(`${SUBAGENT_PROFILES.reviewer.systemPrompt}\n\n`));
+    assert.match(def.userPrompt, /DISPATCH TASK CONTRACT/);
     assert.equal(result.details.prompt_applied, false);
     assert.equal(result.details.prompt_source, "vault-client");
     assert.equal(
@@ -154,9 +157,9 @@ test("dispatch_subagent sanitizes prompt header metadata to a single line", asyn
     );
 
     const def = harness.getCapturedDef();
-    assert.match(def.systemPrompt, /name: nexus INJECT/);
-    assert.match(def.systemPrompt, /source: vault-client second-line/);
-    assert.match(def.systemPrompt, /tags: phase:hypothesis, line break/);
+    assert.match(def.userPrompt, /name: nexus INJECT/);
+    assert.match(def.userPrompt, /source: vault-client second-line/);
+    assert.match(def.userPrompt, /tags: phase:hypothesis, line break/);
     assert.equal(result.details.prompt_name, "nexus INJECT");
     assert.equal(result.details.prompt_source, "vault-client second-line");
   } finally {

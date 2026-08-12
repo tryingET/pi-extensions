@@ -117,6 +117,7 @@ Examples:
 - self({ query: "Mark as trap: [description]" })
 - self({ query: "Dogfood self: what friction just happened?" })
 - self({ query: "self-evolution" })
+- self({ query: "cache-aware delegation: tree or fork?" })
 - self({ query: "notify operator: I finished the verified slice and need a reload" })
 
 This is a mirror, not a manager. You ask, you receive, you decide.`,
@@ -124,7 +125,7 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       "Inspect your current execution state, progress, memory, loops, and recent operations.",
     promptGuidelines: [
       "Use self when you need to verify what work has actually happened before planning the next step.",
-      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, self-contained handoff prompt generation, explicit remember/mark-trap directives, diagnostic-review queries, explicit low-risk operator notifications via notify operator/send user message, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
+      "Use self for loop checks, progress checks, file-touch and controller-handoff summaries, cache-aware tree/fork/dispatch routing, self-contained handoff prompt generation, explicit remember/mark-trap directives, diagnostic-review queries, explicit low-risk operator notifications via notify operator/send user message, candidate-only ontology crystallization, and persistent checkpoints/follow-ups before Level-4 handoff or dogfood loops.",
     ],
     parameters: Type.Object({
       query: Type.String({
@@ -144,11 +145,16 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
           ? typedParams.context
           : undefined;
       const sessionName = readSessionManagerString(ctx, "getSessionName");
+      const sessionFile = readSessionManagerString(ctx, "getSessionFile");
       const context = {
         ...(callerContext ?? {}),
         cwd: ctx.cwd || process.cwd(),
         sessionId: getContextSessionKey(ctx),
         ...(sessionName ? { sessionName } : {}),
+        ...(sessionFile ? { sessionFile } : {}),
+        modelProvider: typeof ctx.model?.provider === "string" ? ctx.model.provider : undefined,
+        modelId: typeof ctx.model?.id === "string" ? ctx.model.id : undefined,
+        contextUsage: readContextUsage(ctx),
         sessionIntent: collectSessionIntentSnapshot(ctx, callerContext),
         memoryLoadResult: memoryLifecycle.getLoadResult(),
       };
@@ -235,7 +241,10 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
   pi.registerTool(tool as Parameters<ExtensionAPI["registerTool"]>[0]);
 }
 
-function readSessionManagerString(ctx: unknown, method: "getSessionName"): string | undefined {
+function readSessionManagerString(
+  ctx: unknown,
+  method: "getSessionName" | "getSessionFile",
+): string | undefined {
   const sessionManager = (ctx as { sessionManager?: unknown } | undefined)?.sessionManager;
   if (!sessionManager || typeof sessionManager !== "object") return undefined;
   const value = (sessionManager as Record<string, unknown>)[method];
@@ -244,6 +253,27 @@ function readSessionManagerString(ctx: unknown, method: "getSessionName"): strin
   try {
     const result = value.call(sessionManager);
     return typeof result === "string" && result.trim().length > 0 ? result.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readContextUsage(
+  ctx: unknown,
+): { tokens: number | null; contextWindow: number; percent: number | null } | undefined {
+  const getContextUsage = (ctx as { getContextUsage?: unknown } | undefined)?.getContextUsage;
+  if (typeof getContextUsage !== "function") return undefined;
+
+  try {
+    const value = getContextUsage.call(ctx) as
+      | { tokens?: unknown; contextWindow?: unknown; percent?: unknown }
+      | undefined;
+    if (!value || typeof value.contextWindow !== "number") return undefined;
+    return {
+      tokens: typeof value.tokens === "number" || value.tokens === null ? value.tokens : null,
+      contextWindow: value.contextWindow,
+      percent: typeof value.percent === "number" || value.percent === null ? value.percent : null,
+    };
   } catch {
     return undefined;
   }

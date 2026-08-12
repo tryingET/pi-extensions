@@ -191,9 +191,10 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
       "",
       "Base prompt",
     ].join("\n");
-    assert.ok(capturedDef.systemPrompt.startsWith(`${expectedBasePrompt}\n\n`));
-    assert.match(capturedDef.systemPrompt, /DISPATCH TASK CONTRACT/);
-    assert.match(capturedDef.systemPrompt, /"objective": "Review the integration seam"/);
+    assert.equal(capturedDef.systemPrompt, undefined);
+    assert.ok(capturedDef.userPrompt.startsWith(`${expectedBasePrompt}\n\n`));
+    assert.match(capturedDef.userPrompt, /DISPATCH TASK CONTRACT/);
+    assert.match(capturedDef.userPrompt, /"objective": "Review the integration seam"/);
 
     assert.equal(updates.length, 1);
     assert.equal(updates[0].text, "Dispatching custom subagent...");

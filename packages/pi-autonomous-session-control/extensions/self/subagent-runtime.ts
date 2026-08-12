@@ -42,10 +42,20 @@ import {
   writeCompletedSubagentStatus,
   writeRunningSubagentStatus,
 } from "./subagent-spawn-status.ts";
-import { applyDispatchTaskContract, buildDispatchTaskContract } from "./subagent-task-contract.ts";
+import { buildDispatchTaskContract, buildDispatchUserPrompt } from "./subagent-task-contract.ts";
 
 export type { DispatchEffectDisposition, DispatchEffectReceipt } from "./effect-receipt.ts";
 export { getDispatchSubagentDisplayOutput } from "./subagent-runtime-display.ts";
+
+function formatCacheMeasurement(usage: SubagentUsage | undefined): string {
+  const cache = usage?.cache;
+  if (!usage || !cache) return "";
+
+  const first = cache.firstTurn;
+  const aggregate = cache.aggregate;
+  const percent = (ratio: number) => `${(ratio * 100).toFixed(1)}%`;
+  return `\nCache measurement: first prompt=${first.promptTokens} tokens, uncached=${first.uncachedTokens}, cache-read=${first.cacheReadTokens} (${percent(first.cacheReadRatio)}); run cache-read ratio=${percent(aggregate.cacheReadRatio)}, output=${usage.output} tokens, provider cost=${usage.cost.toFixed(6)}. Reasoning cost and result quality/overlap are not separately inferable from provider usage.`;
+}
 
 export function classifyDispatchEffectDisposition(params: {
   status: "done" | "error" | "timed_out" | "aborted" | "spawning" | "running";
@@ -91,6 +101,7 @@ import {
   type SubagentDef,
   type SubagentResult,
   type SubagentSpawner,
+  type SubagentUsage,
   spawnSubagent,
   validateSubagentRequestEnv,
 } from "./subagent-spawn.ts";
@@ -337,10 +348,10 @@ export async function executeDispatchSubagentRequest(options: {
     prompt_tags,
     prompt_source,
   });
-  const effectiveSystemPrompt = applyDispatchTaskContract(
-    promptEnvelope.systemPrompt,
-    taskContract,
-  );
+  // Pi's host prompt, project context, and tool schema remain the stable prefix.
+  // Role, prompt-envelope content, and task-specific data are sent afterwards
+  // in the initial user message so sibling children can reuse that prefix.
+  const effectiveUserPrompt = buildDispatchUserPrompt(promptEnvelope.systemPrompt, taskContract);
 
   const reservationsEnabled =
     process.env.PI_SUBAGENT_RESERVE_SESSION_NAMES?.trim().toLowerCase() !== "false";
@@ -483,8 +494,8 @@ export async function executeDispatchSubagentRequest(options: {
       dispatchId,
       attemptId,
       objective: safeObjective,
+      userPrompt: effectiveUserPrompt,
       tools: tools || profileDef?.tools || "read,bash",
-      systemPrompt: effectiveSystemPrompt,
       profile: profile as string,
       sessionFile,
       timeout: timeoutMs,
@@ -681,10 +692,11 @@ export async function executeDispatchSubagentRequest(options: {
   const receiptWarning = receiptWriteFailed
     ? "\nASC effect receipt could not be persisted; execution effects remain indeterminate."
     : "";
+  const cacheMeasurement = formatCacheMeasurement(result.usage);
 
   return {
     ok: reportedStatus === "done",
-    text: `${summary}${continuationHandle}${modelSelectionWarning}${extensionSelectionWarning}${skillSelectionWarning}${promptWarning}${receiptWarning}\n\n${truncated}`,
+    text: `${summary}${continuationHandle}${modelSelectionWarning}${extensionSelectionWarning}${skillSelectionWarning}${promptWarning}${receiptWarning}${cacheMeasurement}\n\n${truncated}`,
     details: {
       profile: profile as DispatchSubagentProfile,
       objective: safeObjective,

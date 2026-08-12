@@ -146,6 +146,7 @@ export async function loadExtensionWithMocks() {
     "action-handoff.ts",
     "action-user-message.ts",
     "capabilities.ts",
+    "cache-routing.ts",
     "perception.ts",
     "direction.ts",
     "diagnostic-review.ts",

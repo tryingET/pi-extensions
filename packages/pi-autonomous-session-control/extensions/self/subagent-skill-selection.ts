@@ -56,17 +56,10 @@ export async function resolveSubagentSkillSelection(
 ): Promise<ResolvedSubagentSkillSelection> {
   const profile = options.requestedSkillProfile?.trim();
   const requestedSkills = options.requestedSkills ?? [];
-  const requestedNoSkills = options.requestedNoSkills === true;
-
-  if (!profile && requestedSkills.length === 0 && !requestedNoSkills) {
-    return {
-      noSkills: false,
-      skillSources: [],
-      loadedSkills: [],
-      librarySkills: [],
-      skillWarnings: [],
-    };
-  }
+  // Clean children avoid ambient skill discovery by default. Callers that
+  // intentionally need legacy discovery can opt back in with noSkills=false;
+  // named profiles remain isolated and always imply --no-skills below.
+  const requestedNoSkills = options.requestedNoSkills ?? true;
 
   if (requestedSkills.length > 0) {
     throw new SubagentSkillSelectionError(

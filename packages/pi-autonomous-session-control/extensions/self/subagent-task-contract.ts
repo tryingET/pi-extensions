@@ -41,10 +41,10 @@ export function renderDispatchTaskContract(contract: DispatchTaskContract): stri
   ].join("\n");
 }
 
-export function applyDispatchTaskContract(
-  systemPrompt: string | undefined,
+export function buildDispatchUserPrompt(
+  instructions: string | undefined,
   contract: DispatchTaskContract,
 ): string {
   const rendered = renderDispatchTaskContract(contract);
-  return systemPrompt?.trim() ? `${systemPrompt.trim()}\n\n${rendered}` : rendered;
+  return instructions?.trim() ? `${instructions.trim()}\n\n${rendered}` : rendered;
 }

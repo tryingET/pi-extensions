@@ -29,7 +29,8 @@ interface RunnerOptions {
   thinking: string;
   sessionFile: string;
   objective: string;
-  systemPrompt?: string;
+  /** Accepted only for already-loaded v2 parents; new dispatches keep task variation in objective. */
+  legacySystemPrompt?: string;
   extensionSources: string[];
   noSkills: boolean;
   skillSources: string[];
@@ -88,8 +89,11 @@ async function main(): Promise<void> {
     options.sessionFile,
   );
 
-  if (options.systemPrompt) {
-    args.push("--append-system-prompt", options.systemPrompt);
+  // New ASC parents place role/envelope/task instructions in the initial user
+  // message (`objective`) so Pi's host + project context remains the shared
+  // prefix. Keep the old flag additive for already-loaded v2 parents only.
+  if (options.legacySystemPrompt) {
+    args.push("--append-system-prompt", options.legacySystemPrompt);
   }
 
   args.push(options.objective);
@@ -356,7 +360,7 @@ function parseArgs(argv: string[]): RunnerOptions {
   const thinking = firstArg(values, "--thinking") || "off";
   const sessionFile = requireArg(values, "--session-file");
   const objective = requireArg(values, "--objective");
-  const systemPrompt = firstArg(values, "--system-prompt") || undefined;
+  const legacySystemPrompt = firstArg(values, "--system-prompt") || undefined;
 
   return {
     cwd,
@@ -365,7 +369,7 @@ function parseArgs(argv: string[]): RunnerOptions {
     thinking,
     sessionFile,
     objective,
-    systemPrompt,
+    legacySystemPrompt,
     extensionSources: values.get("--extension") ?? [],
     noSkills: firstArg(values, "--no-skills") === "true",
     skillSources: values.get("--skill") ?? [],

@@ -45,13 +45,13 @@ The public runtime preserves the existing ASC execution-plane behavior:
 - preservation of the complete normalized non-empty objective without truncation or an ASC-owned character-count ceiling; host/model context capacity remains external to this request invariant
 - runtime-owned in-process and cross-process capacity leases before spawn so `maxConcurrent` applies even to custom spawners and concurrent Pi processes sharing the session root
 - model selection failure shaping before spawn, including whitespace/empty model rejection, deterministic release of the reserved concurrency slot, and no exposure of internal concurrency counters on `model_selection_failed`
-- prompt-envelope application plus an advisory typed task contract (`deliverable`, acceptance criteria, constraints, evidence, mutation posture, stop conditions, and path scope)
+- prompt-envelope application plus an advisory typed task contract (`deliverable`, acceptance criteria, constraints, evidence, mutation posture, stop conditions, and path scope), composed once into the initial user task message after Pi's stable host/project system context rather than into the early system prefix
 - profile/request thinking selection and effective-child-model extension bootstrap
 - session-name reservation and artifact-backed session lifecycle with stable dispatch IDs and per-run attempt IDs
 - model-visible canonical dispatch IDs before child output, followed by exact repository- and parent-session-checked resume through `resumeDispatchId`; current and legacy token formats remain inert unless persisted status metadata matches exactly, missing ownership metadata fails closed, and repeated names alone never resume a child
 - targeted cancellation through `runtime.cancel(...)`, gated by repository ownership and live process identity
 - distinct bounded startup timeout and execution emergency deadman, with a 30-second startup default, a four-hour execution default, and unlimited execution requiring both request and host opt-in
-- bounded progress updates with sequence, phase, usage, and latest-tool metadata
+- bounded progress updates with sequence, phase, usage, and latest-tool metadata, plus first-turn and aggregate prompt-cache measurements on completed owned runs; provider usage does not establish reasoning cost, result quality/overlap, or cache inheritance across session IDs
 - a pure bounded observation projector (`projectAscExecutionUpdate`, `projectAscExecutionResult`, `projectAscExecutionFailure`, and `projectAscExecutionGroupTerminal`) that strips objective/prompt/output/session/receipt-path content before extension adapters publish `asc.execution_observation.v1`; the public runtime remains headless and never launches Ghostty
 - subagent spawn execution
 - structured result shaping used by `dispatch_subagent`; the tool adapter throws on failure so Pi records `tool_execution_end.isError=true`, while the public runtime retains structured non-throwing results
@@ -66,7 +66,7 @@ The public execution seam now also carries explicit transport-safety expectation
 
 - optional `AbortSignal` propagation from consumer to subagent spawn path
 - request-scoped child environment overlays via `DispatchSubagentRequest.env`, applied only to that subagent execution without mutating ambient `process.env`; this overlay is fail-closed to `PI_PROVENANCE_*` keys only, and rejects control-plane keys such as `PATH`, `NODE_OPTIONS`, and `PI_CODING_AGENT_DIR` before spawn
-- optional `DispatchSubagentRequest.skillProfile`, resolved fail-closed through an allowlisted skill registry and materialized as child `--no-skills` plus `--skill <dir>` without mutating the source skill library; raw `skills[]` paths are reserved and rejected
+- ambient child skill discovery is disabled by default; optional `DispatchSubagentRequest.skillProfile` is resolved fail-closed through an allowlisted skill registry and materialized as child `--no-skills` plus `--skill <dir>` without mutating the source skill library; raw `skills[]` paths are reserved and rejected, while explicit `noSkills: false` remains a compatibility opt-out when no profile is selected
 - bounded assistant output capture with truncation signaling
 - a bounded startup timeout before helper readiness plus one mandatory `transport_ready` handshake emitted only after a recognized raw-Pi lifecycle event (not stdout noise or malformed output); before accepting any lifecycle event or arming execution timeout, the parent independently classifies the declared Pi version and requires it to match either `agent_settled` or audited `legacy_agent_end_exit` finality
 - assistant-only filtered subagent protocol between ASC and the child helper, so aggregate Pi JSON events are dropped before the runtime parser and raw Pi JSON is no longer accepted on the parent seam as a compatibility fallback

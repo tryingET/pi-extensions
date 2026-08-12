@@ -87,7 +87,7 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
     extensions: normalizeStringArray(normalized.extensions),
     env: normalizeStringRecord(normalized.env),
     skillProfile: normalizeString(normalized.skillProfile),
-    noSkills: normalized.noSkills === true,
+    noSkills: typeof normalized.noSkills === "boolean" ? normalized.noSkills : undefined,
     skills: normalizeStringArray(normalized.skills),
     prompt_name: normalizeString(normalized.prompt_name),
     prompt_content: normalizeString(normalized.prompt_content, {
