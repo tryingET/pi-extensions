@@ -386,7 +386,7 @@ node --test scripts/pi-host-compatibility-canary.test.mjs
 node --test scripts/pi-host-compatibility-canary.recovery.test.mjs
 ```
 
-The recovery suite is currently a standalone owner command: `scripts/ci/full.sh` invokes the 10-test compatibility baseline but does **not** yet invoke `pi-host-compatibility-canary.recovery.test.mjs`. Wiring that second command into normal root CI requires an owner-approved expansion outside AK-4715's canary-file scope. Until that follow-up lands, record the standalone recovery-suite receipt explicitly; do not infer its result from the baseline or dedicated scenario workflow.
+The normal root CI path now invokes both suites sequentially through `scripts/ci/full.sh`; the root `just test` surface mirrors the same ordering. Keep them sequential because both intentionally exercise the canonical-checkout lock. The dedicated scenario workflow remains a separate host-scenario matrix and does not replace either root runner suite.
 
 ### Manual workflow dispatch
 

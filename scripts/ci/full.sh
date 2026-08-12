@@ -63,9 +63,9 @@ if [ -f "./scripts/release-components.test.mjs" ]; then
   node --test ./scripts/release-components.test.mjs
 fi
 
-if [ -f "./scripts/pi-host-compatibility-canary.test.mjs" ]; then
-  node --test ./scripts/pi-host-compatibility-canary.test.mjs
-fi
+# Keep these suites sequential: both intentionally exercise the canonical-checkout lock.
+node --test ./scripts/pi-host-compatibility-canary.test.mjs
+node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
 
 if [ -f "./scripts/package-quality-gate.test.mjs" ]; then
   node --test ./scripts/package-quality-gate.test.mjs

@@ -9,7 +9,8 @@ help:
 # Default repo test suite: root node tests + canonical package fan-out
 test:
     if [ -f ./scripts/release-components.test.mjs ]; then node --test ./scripts/release-components.test.mjs; fi
-    if [ -f ./scripts/pi-host-compatibility-canary.test.mjs ]; then node --test ./scripts/pi-host-compatibility-canary.test.mjs; fi
+    node --test ./scripts/pi-host-compatibility-canary.test.mjs
+    node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
     if [ -f ./scripts/package-quality-gate.test.mjs ]; then node --test ./scripts/package-quality-gate.test.mjs; fi
     if [ -f ./scripts/root-doc-alignment.test.mjs ]; then node --test ./scripts/root-doc-alignment.test.mjs; fi
     ./scripts/ci/packages.sh
