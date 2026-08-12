@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
@@ -26,6 +27,7 @@ node ./scripts/validate-asc-bridge-lifecycle.mjs
 echo "== npm pack --dry-run --json"
 PACK_JSON="$(npm pack --dry-run --json)"
 echo "$PACK_JSON"
+PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
 
 PACK_JSON="$PACK_JSON" node <<'NODE'
 const fs = require("node:fs");

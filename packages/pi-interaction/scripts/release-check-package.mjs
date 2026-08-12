@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { parseNpmPackJson } from "../../../scripts/npm-pack-json.mjs";
 
 const dependencyFields = ["dependencies", "optionalDependencies", "peerDependencies"];
 const runtimeDependencyFields = ["dependencies", "optionalDependencies"];
@@ -291,8 +292,20 @@ process.on("SIGTERM", () => {
 });
 
 const packDryRunResult = run("npm", ["pack", "--dry-run", "--json"]);
-const packJson = JSON.parse(packDryRunResult.stdout || "[]");
-validatePackWhitelist(packJson, pkg);
+let packEntry;
+try {
+  packEntry = parseNpmPackJson(packDryRunResult.stdout);
+} catch (error) {
+  fail(
+    `Could not parse npm pack --dry-run --json output: ${error instanceof Error ? error.message : String(error)}`,
+  );
+}
+if (packEntry.name !== pkg.name || packEntry.version !== pkg.version) {
+  fail(
+    `npm pack identity mismatch: expected ${pkg.name}@${pkg.version}, got ${packEntry.name}@${packEntry.version}`,
+  );
+}
+validatePackWhitelist([packEntry], pkg);
 
 const publishDryRunResult = run("npm", ["publish", "--dry-run"], { allowFailure: true });
 if (

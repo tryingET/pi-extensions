@@ -7,6 +7,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 TMP_ROOT="${TMPDIR:?TMPDIR must name the managed scratch root for release checks}"
@@ -116,6 +117,9 @@ fi
 echo "== npm pack --dry-run --json"
 PACK_JSON="$(npm --cache "$CONTROL_NPM_CACHE" pack --dry-run --json)"
 echo "$PACK_JSON"
+if [[ -f "$REPO_ROOT/scripts/npm-pack-json.mjs" ]]; then
+  PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
+fi
 
 PACK_JSON="$PACK_JSON" node ./scripts/release-artifact-check.mjs
 

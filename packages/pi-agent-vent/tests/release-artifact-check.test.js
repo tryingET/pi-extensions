@@ -83,6 +83,28 @@ test("pack json parser fails closed for malformed, stale, or unsafe pack output"
   );
 });
 
+test("pack json parser accepts canonical arrays and npm 12 package-keyed objects", () => {
+  const entry = { name: "@tryinget/pi-agent-vent", files: [{ path: "package.json" }] };
+  assert.deepEqual(parsePackJson(JSON.stringify([entry])), ["package.json"]);
+  assert.deepEqual(parsePackJson(JSON.stringify({ "@tryinget/pi-agent-vent": entry })), [
+    "package.json",
+  ]);
+  assert.throws(
+    () =>
+      parsePackJson(
+        JSON.stringify({
+          "@tryinget/pi-agent-vent": entry,
+          "@tryinget/other": entry,
+        }),
+      ),
+    /Could not parse npm pack/,
+  );
+  assert.throws(
+    () => parsePackJson(JSON.stringify({ "@tryinget/wrong": entry })),
+    /Could not parse npm pack/,
+  );
+});
+
 test("package files whitelist fails closed for wildcard entries", () => {
   assert.throws(
     () =>
@@ -120,13 +142,19 @@ test("package files whitelist detects missing and extra artifact entries", () =>
 test("release artifact check accepts directory files entries and always-included metadata", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-release-check-ok-"));
   try {
-    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ files: ["docs"] }));
+    fs.writeFileSync(
+      path.join(dir, "package.json"),
+      JSON.stringify({ name: "@tryinget/pi-agent-vent", version: "0.2.0", files: ["docs"] }),
+    );
     fs.writeFileSync(path.join(dir, "README.md"), "[guide](docs/guide.md)\n");
     fs.writeFileSync(path.join(dir, "LICENSE"), "local test license\n");
     fs.mkdirSync(path.join(dir, "docs"));
     fs.writeFileSync(path.join(dir, "docs", "guide.md"), "# Guide\n");
     const packJsonText = JSON.stringify([
       {
+        id: "@tryinget/pi-agent-vent@0.2.0",
+        name: "@tryinget/pi-agent-vent",
+        version: "0.2.0",
         files: [
           { path: "README.md" },
           { path: "LICENSE" },
@@ -148,18 +176,51 @@ test("release artifact check accepts directory files entries and always-included
   }
 });
 
+test("release artifact check rejects pack identity that differs from the local manifest", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-release-identity-"));
+  try {
+    fs.writeFileSync(
+      path.join(dir, "package.json"),
+      JSON.stringify({ name: "@tryinget/pi-agent-vent", version: "0.2.0", files: ["README.md"] }),
+    );
+    fs.writeFileSync(path.join(dir, "README.md"), "# Agent Vent\n");
+    const packJsonText = JSON.stringify([
+      {
+        id: "@tryinget/not-pi-agent-vent@999.0.0",
+        name: "@tryinget/not-pi-agent-vent",
+        version: "999.0.0",
+        files: [{ path: "README.md" }, { path: "package.json" }],
+      },
+    ]);
+
+    assert.throws(
+      () => runReleaseArtifactCheck({ cwd: dir, packJsonText, log: () => {} }),
+      /npm pack identity mismatch/,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("release artifact check reports packaged markdown failures with actionable wording", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-vent-release-check-"));
   try {
     fs.writeFileSync(
       path.join(dir, "package.json"),
-      JSON.stringify({ files: ["README.md", "docs/guide.md"] }),
+      JSON.stringify({
+        name: "@tryinget/pi-agent-vent",
+        version: "0.2.0",
+        files: ["README.md", "docs/guide.md"],
+      }),
     );
     fs.mkdirSync(path.join(dir, "docs"));
     fs.writeFileSync(path.join(dir, "README.md"), "[missing](docs/missing.md)\n");
     fs.writeFileSync(path.join(dir, "docs", "guide.md"), "# Guide\n");
     const packJsonText = JSON.stringify([
       {
+        id: "@tryinget/pi-agent-vent@0.2.0",
+        name: "@tryinget/pi-agent-vent",
+        version: "0.2.0",
         files: [{ path: "README.md" }, { path: "docs/guide.md" }, { path: "package.json" }],
       },
     ]);

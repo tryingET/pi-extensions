@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 echo "== private local-package artifact check"
@@ -26,6 +27,7 @@ NODE
 echo "== npm pack --dry-run --json (artifact whitelist only; no publish command)"
 PACK_JSON="$(npm pack --dry-run --json)"
 echo "$PACK_JSON"
+PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
 
 PACK_JSON="$PACK_JSON" node <<'NODE'
 const pack = JSON.parse(process.env.PACK_JSON || '[]');

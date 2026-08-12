@@ -5,6 +5,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
@@ -26,6 +27,9 @@ fi
 echo "== npm pack --dry-run --json"
 PACK_JSON="$(npm pack --dry-run --json)"
 echo "$PACK_JSON"
+if [[ -f "$REPO_ROOT/scripts/npm-pack-json.mjs" ]]; then
+  PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
+fi
 
 PACK_JSON="$PACK_JSON" node <<'NODE'
 const fs = require("node:fs");
@@ -75,12 +79,26 @@ for (const entry of filesEntries) {
   }
 }
 
-const pack = JSON.parse(process.env.PACK_JSON || "[]");
-if (!Array.isArray(pack) || !pack[0] || !Array.isArray(pack[0].files)) {
+const parsedPack = JSON.parse(process.env.PACK_JSON || "[]");
+let packEntry = null;
+if (Array.isArray(parsedPack) && parsedPack.length === 1) {
+  [packEntry] = parsedPack;
+} else if (parsedPack && typeof parsedPack === "object" && !Array.isArray(parsedPack)) {
+  const entries = Object.entries(parsedPack);
+  if (entries.length === 1 && entries[0][0] === entries[0][1]?.name) {
+    packEntry = entries[0][1];
+  }
+}
+if (
+  !packEntry ||
+  packEntry.name !== pkg.name ||
+  packEntry.version !== pkg.version ||
+  !Array.isArray(packEntry.files)
+) {
   fail("Could not parse npm pack --dry-run --json output.");
 }
 
-const actual = pack[0].files.map((f) => normalize(String(f.path || ""))).filter(Boolean).sort();
+const actual = packEntry.files.map((f) => normalize(String(f.path || ""))).filter(Boolean).sort();
 const actualSet = new Set(actual);
 
 const allowByAlwaysIncluded = (filePath) => {

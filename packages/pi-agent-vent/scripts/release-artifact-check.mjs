@@ -16,7 +16,7 @@ export const assertSafePackPath = (filePath) => {
   return filePath;
 };
 
-export const parsePackJson = (packJsonText) => {
+export const parsePackJson = (packJsonText, expectedIdentity = null) => {
   let pack;
   try {
     pack = JSON.parse(packJsonText || "[]");
@@ -24,11 +24,30 @@ export const parsePackJson = (packJsonText) => {
     throw new Error(`Could not parse npm pack --dry-run --json output: ${error.message}`);
   }
 
-  if (!Array.isArray(pack) || !pack[0] || !Array.isArray(pack[0].files)) {
+  let packEntry = null;
+  if (Array.isArray(pack) && pack.length === 1) {
+    [packEntry] = pack;
+  } else if (pack && typeof pack === "object") {
+    const entries = Object.entries(pack);
+    if (entries.length === 1 && entries[0][0] === entries[0][1]?.name) {
+      packEntry = entries[0][1];
+    }
+  }
+  if (!packEntry || !Array.isArray(packEntry.files)) {
     throw new Error("Could not parse npm pack --dry-run --json output.");
   }
+  if (
+    expectedIdentity &&
+    (packEntry.name !== expectedIdentity.name ||
+      packEntry.version !== expectedIdentity.version ||
+      packEntry.id !== `${expectedIdentity.name}@${expectedIdentity.version}`)
+  ) {
+    throw new Error(
+      `npm pack identity mismatch: expected ${expectedIdentity.name}@${expectedIdentity.version}.`,
+    );
+  }
 
-  return pack[0].files
+  return packEntry.files
     .map((file) => normalizePackPath(String(file.path || "")))
     .filter(Boolean)
     .map(assertSafePackPath)
@@ -188,8 +207,13 @@ export const runReleaseArtifactCheck = ({
   cwd = process.cwd(),
   log = console.log,
 }) => {
-  const actualFiles = parsePackJson(packJsonText);
-  const filesEntries = readPackageFilesContract(path.join(cwd, "package.json"));
+  const manifestPath = path.join(cwd, "package.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const actualFiles = parsePackJson(packJsonText, {
+    name: manifest.name,
+    version: manifest.version,
+  });
+  const filesEntries = readPackageFilesContract(manifestPath);
   const whitelist = validatePackageFilesWhitelist({ actualFiles, filesEntries, cwd });
 
   if (whitelist.missing.length || whitelist.extra.length) {

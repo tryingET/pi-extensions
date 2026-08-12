@@ -63,6 +63,8 @@ if [ -f "./scripts/release-components.test.mjs" ]; then
   node --test ./scripts/release-components.test.mjs
 fi
 
+node --test ./scripts/npm-pack-json.test.mjs
+
 # Keep these suites sequential: both intentionally exercise the canonical-checkout lock.
 node --test ./scripts/pi-host-compatibility-canary.test.mjs
 node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs

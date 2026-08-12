@@ -5,11 +5,20 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 REPOSITORY_URL="$(node -p "(() => { const pkg = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); const repo = pkg.repository; if (typeof repo === 'string') return repo.trim(); if (repo && typeof repo === 'object' && typeof repo.url === 'string') return repo.url.trim(); return ''; })()")"
+
+PACK_JSON_FILE=""
+PACK_JSON_NORMALIZED_FILE=""
+cleanup_pack_json() {
+  [[ -z "$PACK_JSON_FILE" || ! -f "$PACK_JSON_FILE" ]] || rm -f "$PACK_JSON_FILE"
+  [[ -z "$PACK_JSON_NORMALIZED_FILE" || ! -f "$PACK_JSON_NORMALIZED_FILE" ]] || rm -f "$PACK_JSON_NORMALIZED_FILE"
+}
+trap cleanup_pack_json EXIT
 
 echo "== release-check: ${NAME}@${VERSION}"
 
@@ -23,11 +32,15 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
   exit 1
 fi
 
-PACK_JSON_FILE="$(mktemp /tmp/pi-vault-pack-json-XXXXXX.json)"
+PACK_JSON_FILE="$(mktemp "${TMPDIR:-/tmp}/pi-vault-pack-json-XXXXXX.json")"
+PACK_JSON_NORMALIZED_FILE="$(mktemp "${TMPDIR:-/tmp}/pi-vault-pack-normalized-XXXXXX.json")"
 
 echo "== npm pack --dry-run --json"
 npm pack --dry-run --json > "$PACK_JSON_FILE"
 cat "$PACK_JSON_FILE"
+node "$REPO_ROOT/scripts/npm-pack-json.mjs" < "$PACK_JSON_FILE" > "$PACK_JSON_NORMALIZED_FILE"
+mv "$PACK_JSON_NORMALIZED_FILE" "$PACK_JSON_FILE"
+PACK_JSON_NORMALIZED_FILE=""
 
 PACK_JSON_FILE="$PACK_JSON_FILE" node <<'NODE'
 const fs = require("node:fs");
@@ -265,9 +278,7 @@ cleanup() {
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
     fi
-    if [[ -n "$PACK_JSON_FILE" && -f "$PACK_JSON_FILE" ]]; then
-      rm -f "$PACK_JSON_FILE"
-    fi
+    cleanup_pack_json
     if [[ -n "$PACKED_TARBALL_JSON_FILE" && -f "$PACKED_TARBALL_JSON_FILE" ]]; then
       rm -f "$PACKED_TARBALL_JSON_FILE"
     fi
