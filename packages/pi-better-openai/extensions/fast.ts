@@ -21,6 +21,7 @@ import {
   writeConfig,
 } from "../src/config.ts";
 import { _imageTest, registerOpenAIImage } from "../src/image.ts";
+import { _proTest, registerPro } from "./pro.ts";
 
 const COMMAND = "fast";
 const FLAG = "fast";
@@ -73,18 +74,27 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     }
   }
 
-  function refresh(ctx: ExtensionContext): ResolvedConfig {
+  function reloadConfig(ctx: ExtensionContext): ResolvedConfig {
     cachedConfig = resolveConfig(ctx.cwd || process.cwd());
-    desiredActive = cachedConfig.desiredActive;
-    active = desiredActive && supportsFast(ctx, cachedConfig.supportedModels);
     return cachedConfig;
   }
 
-  function config(ctx: ExtensionContext): ResolvedConfig {
-    return cachedConfig ?? refresh(ctx);
+  function applyDesiredFastState(ctx: ExtensionContext, cfg: ResolvedConfig): void {
+    active = desiredActive && supportsFast(ctx, cfg.supportedModels);
   }
 
-  function persist(nextConfig: ResolvedConfig): void {
+  function initializeState(ctx: ExtensionContext): ResolvedConfig {
+    const cfg = reloadConfig(ctx);
+    desiredActive = cfg.desiredActive;
+    applyDesiredFastState(ctx, cfg);
+    return cfg;
+  }
+
+  function config(ctx: ExtensionContext): ResolvedConfig {
+    return cachedConfig ?? initializeState(ctx);
+  }
+
+  function persistFast(nextConfig: ResolvedConfig): void {
     if (!nextConfig.persistState) return;
     writeConfig(nextConfig.configPath, {
       ...readRawConfig(nextConfig.configPath),
@@ -93,15 +103,11 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     });
   }
 
-  function applyDesiredFastState(ctx: ExtensionContext, cfg = config(ctx)): void {
-    active = desiredActive && supportsFast(ctx, cfg.supportedModels);
-  }
-
   function setActive(ctx: ExtensionContext, next: boolean): void {
-    const nextConfig = refresh(ctx);
+    const nextConfig = reloadConfig(ctx);
     desiredActive = next;
     applyDesiredFastState(ctx, nextConfig);
-    persist(nextConfig);
+    persistFast(nextConfig);
     updateFastStatus(ctx);
     if (next && !active) {
       if (!ctx.hasUI) return;
@@ -123,11 +129,9 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
   });
 
   pi.on("session_start", (_event, ctx) => {
-    const cfg = refresh(ctx);
-    if (pi.getFlag(FLAG) === true) {
-      desiredActive = true;
-      applyDesiredFastState(ctx, cfg);
-    }
+    const cfg = initializeState(ctx);
+    if (pi.getFlag(FLAG) === true) desiredActive = true;
+    applyDesiredFastState(ctx, cfg);
     updateFastStatus(ctx);
   });
 
@@ -140,12 +144,16 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     },
   });
 
+  const pro = registerPro(pi);
   const image = registerOpenAIImage(pi, config);
 
   pi.registerCommand("openai-settings", {
     description: "Show Better OpenAI settings and diagnostics",
     handler: async (_args, ctx) => {
-      const cfg = refresh(ctx);
+      const cfg = reloadConfig(ctx);
+      applyDesiredFastState(ctx, cfg);
+      updateFastStatus(ctx);
+      const proDiagnostics = pro.diagnostics(ctx);
       const imageDebug = await image.getDebug(ctx);
       if (!ctx.hasUI) return;
       ctx.ui.notify(
@@ -155,7 +163,8 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
           `Current model: ${currentModelKey(ctx)}`,
           `Supported model: ${supportsFast(ctx, cfg.supportedModels)}`,
           `Configured service_tier: ${SERVICE_TIER}`,
-          `Last injected: ${lastInjectedAt ? `${new Date(lastInjectedAt).toLocaleTimeString()} (${lastInjectedModel}, ${lastInjectedTier})` : "never"}`,
+          `Last fast injection: ${lastInjectedAt ? `${new Date(lastInjectedAt).toLocaleTimeString()} (${lastInjectedModel}, ${lastInjectedTier})` : "never"}`,
+          ...proDiagnostics,
           `Image enabled: ${cfg.image.enabled}`,
           `Image default model: ${cfg.image.defaultModel}`,
           `Image default save: ${cfg.image.defaultSave}`,
@@ -174,14 +183,15 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     applyDesiredFastState(ctx, cfg);
     updateFastStatus(ctx);
     if (active !== wasActive) {
-      persist(cfg);
-      if (!ctx.hasUI) return;
-      ctx.ui.notify(
-        active
-          ? stateText(ctx, desiredActive, active, cfg.supportedModels)
-          : `Fast mode inactive for unsupported model ${currentModelKey(ctx)}.`,
-        active ? "info" : "warning",
-      );
+      persistFast(cfg);
+      if (ctx.hasUI) {
+        ctx.ui.notify(
+          active
+            ? stateText(ctx, desiredActive, active, cfg.supportedModels)
+            : `Fast mode inactive for unsupported model ${currentModelKey(ctx)}.`,
+          active ? "info" : "warning",
+        );
+      }
     }
   });
 
@@ -211,5 +221,6 @@ export const _test = {
   resolveConfig,
   readRawConfig,
   supportsFast,
+  ..._proTest,
   imageTest: _imageTest,
 };

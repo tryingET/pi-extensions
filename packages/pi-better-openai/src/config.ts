@@ -14,6 +14,7 @@ import { CONFIG_BASENAME } from "./identity.ts";
 export const IMAGE_SAVE_MODES = ["none", "project", "global", "custom"] as const;
 export const IMAGE_OUTPUT_FORMATS = ["png", "jpeg", "webp"] as const;
 export const DEFAULT_SUPPORTED_MODELS = ["openai-codex/*"] as const;
+export const DEFAULT_PRO_MODELS = ["openai-codex/gpt-5.6-sol", "openai/gpt-5.6-sol"] as const;
 
 export type ImageSaveMode = (typeof IMAGE_SAVE_MODES)[number];
 export type ImageOutputFormat = (typeof IMAGE_OUTPUT_FORMATS)[number];
@@ -26,11 +27,17 @@ export type ImageConfig = {
   timeoutMs?: number;
 };
 
+export type ProConfig = {
+  desiredActive?: boolean;
+  supportedModels?: string[];
+};
+
 export interface ConfigFile {
   persistState?: boolean;
   active?: boolean;
   desiredActive?: boolean;
   supportedModels?: string[];
+  pro?: ProConfig;
   image?: ImageConfig;
 }
 
@@ -41,14 +48,20 @@ export interface SupportedModel {
 
 export interface ResolvedConfig {
   configPath: string;
+  proConfigPath: string;
   projectConfigPath: string;
   globalConfigPath: string;
   projectConfigExists: boolean;
   globalConfigExists: boolean;
   persistState: boolean;
+  proPersistState: boolean;
   active: boolean;
   desiredActive: boolean;
   supportedModels: SupportedModel[];
+  pro: {
+    desiredActive: boolean;
+    supportedModels: SupportedModel[];
+  };
   image: Required<ImageConfig>;
 }
 
@@ -60,11 +73,17 @@ export const DEFAULT_IMAGE_CONFIG: Required<ImageConfig> = {
   timeoutMs: 180_000,
 };
 
+export const DEFAULT_PRO_CONFIG: Required<ProConfig> = {
+  desiredActive: false,
+  supportedModels: [...DEFAULT_PRO_MODELS],
+};
+
 export const DEFAULT_CONFIG: ConfigFile = {
   persistState: true,
   active: false,
   desiredActive: false,
   supportedModels: [...DEFAULT_SUPPORTED_MODELS],
+  pro: DEFAULT_PRO_CONFIG,
   image: DEFAULT_IMAGE_CONFIG,
 };
 
@@ -123,6 +142,14 @@ export function readConfig(path: string): ConfigFile | undefined {
   if (typeof parsed.desiredActive === "boolean") config.desiredActive = parsed.desiredActive;
   const supportedModels = normalizeModelKeys(parsed.supportedModels);
   if (supportedModels !== undefined) config.supportedModels = supportedModels;
+  if (isRecord(parsed.pro)) {
+    config.pro = {};
+    if (typeof parsed.pro.desiredActive === "boolean") {
+      config.pro.desiredActive = parsed.pro.desiredActive;
+    }
+    const proSupportedModels = normalizeModelKeys(parsed.pro.supportedModels);
+    if (proSupportedModels !== undefined) config.pro.supportedModels = proSupportedModels;
+  }
   if (isRecord(parsed.image)) {
     config.image = {};
     if (typeof parsed.image.enabled === "boolean") config.image.enabled = parsed.image.enabled;
@@ -156,8 +183,11 @@ function ensureConfigFile(projectConfigPath: string, globalConfigPath: string): 
   writeConfig(globalConfigPath, DEFAULT_CONFIG);
 }
 
-export function resolveConfig(cwd: string): ResolvedConfig {
-  const paths = configPaths(cwd);
+export function resolveConfig(
+  cwd: string,
+  options: { allowProjectPro?: boolean; home?: string } = {},
+): ResolvedConfig {
+  const paths = configPaths(cwd, options.home);
   ensureConfigFile(paths.project, paths.global);
   const projectConfigExists = existsSync(paths.project);
   const globalConfigExists = existsSync(paths.global);
@@ -165,17 +195,33 @@ export function resolveConfig(cwd: string): ResolvedConfig {
   const projectConfig = readConfig(paths.project) ?? {};
   const merged = { ...DEFAULT_CONFIG, ...globalConfig, ...projectConfig };
   const desiredActive = merged.desiredActive ?? merged.active ?? false;
+  const allowProjectPro = options.allowProjectPro ?? true;
+  const globalPersistState = globalConfig.persistState ?? DEFAULT_CONFIG.persistState ?? true;
+  const proPersistState = allowProjectPro
+    ? (projectConfig.persistState ?? globalPersistState)
+    : globalPersistState;
+  const pro = {
+    ...DEFAULT_PRO_CONFIG,
+    ...globalConfig.pro,
+    ...(allowProjectPro ? projectConfig.pro : undefined),
+  };
   return {
     configPath: projectConfigExists ? paths.project : paths.global,
+    proConfigPath: allowProjectPro && projectConfigExists ? paths.project : paths.global,
     projectConfigPath: paths.project,
     globalConfigPath: paths.global,
     projectConfigExists,
     globalConfigExists,
     persistState: merged.persistState ?? true,
+    proPersistState,
     active: merged.active ?? desiredActive,
     desiredActive,
     supportedModels:
       parseModels(merged.supportedModels) ?? parseModels(DEFAULT_SUPPORTED_MODELS) ?? [],
+    pro: {
+      desiredActive: pro.desiredActive,
+      supportedModels: parseModels(pro.supportedModels) ?? parseModels(DEFAULT_PRO_MODELS) ?? [],
+    },
     image: {
       ...DEFAULT_IMAGE_CONFIG,
       ...globalConfig.image,

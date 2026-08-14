@@ -11,10 +11,11 @@ system4d:
 
 # @tryinget/pi-better-openai
 
-Standalone Pi extension package extracted from `contrib/pi-better-openai` for two focused OpenAI capabilities:
+Standalone Pi extension package extracted from `contrib/pi-better-openai` for focused OpenAI capabilities:
 
 - `/fast` toggles OpenAI priority service tier injection (`service_tier: "priority"`). It defaults to every model exposed through the `openai-codex` provider (`openai-codex/*`).
-- In UI modes, fast state is published through Pi footer status key `better-openai-fast`: `🐇` means priority mode is active for the selected model; `🐢` means it is inactive.
+- `/pro` toggles GPT-5.6 Sol Pro request injection (`reasoning.mode: "pro"`) independently of Pi's reasoning effort. It defaults to exact `openai-codex/gpt-5.6-sol` and `openai/gpt-5.6-sol` model routes.
+- In UI modes, fast state is published through Pi footer status key `better-openai-fast` (`🐇`/`🐢`), while Pro injection eligibility is shown under `better-openai-pro` (`P+`/`P−`).
 - `/openai-image` and the `openai_image` tool generate or edit images through OpenAI Codex subscription auth and the hosted `image_generation` tool.
 
 - Workspace path: `packages/pi-better-openai`
@@ -34,11 +35,50 @@ When using UI APIs (`ctx.ui`), guard interactive-only behavior with `ctx.hasUI` 
 ## Commands and tools
 
 - `/fast` — toggle fast mode for configured models. `supportedModels` accepts either a provider wildcard such as `openai-codex/*` or an exact `provider/model` key.
+- `/pro` — toggle `reasoning.mode: "pro"` injection for configured GPT-5.6 Sol Responses API routes. The separate Pi thinking level still controls `reasoning.effort`.
 - `/openai-image <prompt>` — generate an image from a prompt.
-- `/openai-settings` — show fast-mode and image-generation diagnostics.
+- `/openai-settings` — show fast-mode, Pro-injection, and image-generation diagnostics.
 - `openai_image` tool — generate/edit images from model tool use; accepts `prompt`, optional `images`, `action`, `model`, `outputFormat`, `save`, and `saveDir`.
 
 Image generation uses `openai-codex` OAuth credentials from Pi's model registry or `~/.pi/agent/auth.json`; run `/login openai-codex` if credentials are missing.
+
+## GPT-5.6 Pro mode
+
+OpenAI documents Sol, Terra, and Luna as distinct GPT-5.6 model tiers. Pro is a separate Responses API reasoning mode, not the setting that selects among those tiers. The request shape is:
+
+```json
+{
+  "model": "gpt-5.6-sol",
+  "reasoning": {
+    "effort": "high",
+    "mode": "pro"
+  }
+}
+```
+
+`/pro` preserves any existing `reasoning.effort`, `reasoning.summary`, and future reasoning fields. Fast and Pro can be enabled together. Pro defaults off and is restricted to exact Sol routes using `openai-responses` or `openai-codex-responses`; project-local Pro configuration is ignored until Pi trusts that project.
+
+The public `openai` Responses API behavior is documented by OpenAI. The ChatGPT subscription `openai-codex` backend is a separate endpoint, so this package treats Codex Pro injection as an operator-enabled compatibility bridge rather than proof that the backend honored the mode. `/openai-settings` reports request injection, not upstream effective-mode confirmation.
+
+Radius routes currently use Pi's `pi-messages` gateway transport, whose client contract exposes reasoning effort but not Responses API `reasoning.mode`. Adding `radius/gpt-5.6-sol` to `models.json`, `supportedModels`, or a provider wildcard would only change catalog/allowlist data; it would not carry Pro mode to the upstream OpenAI request. Use a listed direct Responses API route until the Radius gateway and Pi `pi-messages` contract explicitly add and attest a Pro-mode field.
+
+Configure global or trusted-project defaults in `better-openai.json`:
+
+```json
+{
+  "pro": {
+    "desiredActive": false,
+    "supportedModels": [
+      "openai-codex/gpt-5.6-sol",
+      "openai/gpt-5.6-sol"
+    ]
+  }
+}
+```
+
+Use `--pro` to request Pro injection for one Pi startup without changing the persisted default.
+
+The Pro implementation lives in `extensions/pro.ts`. `extensions/fast.ts` remains the package entrypoint and registers that module once so Fast, Pro, image support, and `/openai-settings` retain one installed package surface. `pro.ts` is an internal registration module, not a second `package.json#pi.extensions` entrypoint.
 
 ## Package checks
 
