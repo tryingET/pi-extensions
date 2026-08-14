@@ -10,6 +10,7 @@ import {
   createSidequestExtension,
   getGhosttySurfaceId,
   ghosttyVersionSupportsSurfaceId,
+  resolveControllerGhosttyDbusTarget,
   resolveGhosttyBin,
 } from "../extensions/sidequest.ts";
 import {
@@ -22,6 +23,7 @@ import {
   isLocalGhosttyWrapper,
   LOCAL_GHOSTTY_BIN,
   LOCAL_GHOSTTY_NEXT_BIN,
+  LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
   LOCAL_GHOSTTY_PREV_BIN,
   LOCAL_GHOSTTY_WRAPPER,
   registerExtension,
@@ -407,6 +409,9 @@ test("sidequest targets the Ghostty single-instance server instead of the sidequ
     },
     currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
     currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+    readProcessExecutable(pid) {
+      return pid === 222 ? LOCAL_GHOSTTY_BIN : undefined;
+    },
     exec: execStub.exec,
     pathExists(path) {
       return isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
@@ -422,7 +427,7 @@ test("sidequest targets the Ghostty single-instance server instead of the sidequ
     ({ command, args }) => command === "busctl" && args[1] === "call",
   );
   assert.ok(activation);
-  assert.deepEqual(activation.args.slice(0, 13), [
+  assert.deepEqual(activation.args.slice(0, 12), [
     "--user",
     "call",
     "--expect-reply=no",
@@ -435,8 +440,8 @@ test("sidequest targets the Ghostty single-instance server instead of the sidequ
     "1",
     "(tas)",
     "4660",
-    activation.args[12],
   ]);
+  assert.equal(Number(activation.args[12]), activation.args.length - 15);
   assert.equal(activation.args[13], "--");
   assert.deepEqual(extractPiArgs(activation.args), [
     "pi",
@@ -456,6 +461,102 @@ test("sidequest targets the Ghostty single-instance server instead of the sidequ
   );
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
   assert.match(harness.notifications[0].message, /targeted Ghostty single-instance process 222/);
+});
+
+test("sidequest targets the normal origin/main Ghostty broker by controller executable family", async () => {
+  const execStub = createExecStub(({ command, args }) => {
+    if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
+    }
+    if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+version") {
+      return { code: 0, stdout: "Ghostty 1.4.0-origin-main-9d8fbd15b3b4\n" };
+    }
+    if (command === "busctl" && args[1] === "list") {
+      return {
+        code: 0,
+        stdout:
+          ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
+          ":1.44 333 ghostty user :1.44 user@1000.service - -\n" +
+          "com.mitchellh.ghostty 222 ghostty user :1.43 user@1000.service - -\n" +
+          "com.tryinget.ghosttysidequest 333 ghostty user :1.44 user@1000.service - -\n",
+      };
+    }
+    if (command === "busctl" && args[1] === "call") {
+      return { code: 0, stdout: "" };
+    }
+    throw new Error(`Unexpected launch call: ${command} ${args.join(" ")}`);
+  });
+
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_SURFACE_ID: "0x1234",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
+    currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN },
+    readProcessExecutable(pid) {
+      return pid === 222 ? LOCAL_GHOSTTY_ORIGIN_MAIN_BIN : undefined;
+    },
+    exec: execStub.exec,
+    pathExists(path) {
+      return path === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN;
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const harness = createContext();
+
+  await commands.get("sidequest").handler("stay with origin main", harness.ctx);
+
+  const activation = execStub.calls.find(
+    ({ command, args }) => command === "busctl" && args[1] === "call",
+  );
+  assert.ok(activation);
+  assert.deepEqual(activation.args.slice(0, 12), [
+    "--user",
+    "call",
+    "--expect-reply=no",
+    ":1.43",
+    "/com/mitchellh/ghostty",
+    "org.gtk.Actions",
+    "Activate",
+    "sava{sv}",
+    "new-tab",
+    "1",
+    "(tas)",
+    "4660",
+  ]);
+  assert.equal(Number(activation.args[12]), activation.args.length - 15);
+  assert.equal(activation.args[13], "--");
+  assert.ok(
+    !execStub.calls.some(
+      ({ command, args }) => command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+new-tab",
+    ),
+  );
+  assert.match(harness.notifications[0].message, /targeted Ghostty single-instance process 222/);
+});
+
+test("normal targeting rejects a stale packaged owner for an origin/main controller", async () => {
+  const target = await resolveControllerGhosttyDbusTarget({
+    controllerGhostty: { pid: 111, exe: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN },
+    surfaceId: "0x1234",
+    readProcessExecutable(pid) {
+      return pid === 222 ? "/usr/bin/ghostty" : undefined;
+    },
+    async execRunner(command, args) {
+      assert.equal(command, "busctl");
+      assert.equal(args[1], "list");
+      return {
+        code: 0,
+        stdout:
+          ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
+          "com.mitchellh.ghostty 222 ghostty user :1.43 user@1000.service - -\n",
+      };
+    },
+  });
+
+  assert.equal(target, undefined);
 });
 
 test("sidequest rejects a killed D-Bus activation even when the executor reports code zero", async () => {
@@ -493,6 +594,9 @@ test("sidequest rejects a killed D-Bus activation even when the executor reports
     },
     currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
     currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+    readProcessExecutable(pid) {
+      return pid === 222 ? LOCAL_GHOSTTY_BIN : undefined;
+    },
     exec: execStub.exec,
     pathExists(path) {
       return isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);

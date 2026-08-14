@@ -11,10 +11,13 @@ export const LOCAL_GHOSTTY_BIN_SUFFIX = "/.local/opt/ghostty-sidequest/bin/ghost
 export const LOCAL_GHOSTTY_NEXT_BIN_SUFFIX = "/.local/opt/ghostty-sidequest-next/bin/ghostty";
 export const LOCAL_GHOSTTY_PREV_BIN_SUFFIX =
   "/.local/opt/ghostty-sidequest-prev-20260512T211350/bin/ghostty";
+export const LOCAL_GHOSTTY_ORIGIN_MAIN_BIN_SUFFIX =
+  "/.local/opt/ghostty-origin-main/current/bin/ghostty";
 export const LOCAL_GHOSTTY_WRAPPER = `${homedir()}${LOCAL_GHOSTTY_WRAPPER_SUFFIX}`;
 export const LOCAL_GHOSTTY_BIN = `${homedir()}${LOCAL_GHOSTTY_BIN_SUFFIX}`;
 export const LOCAL_GHOSTTY_NEXT_BIN = `${homedir()}${LOCAL_GHOSTTY_NEXT_BIN_SUFFIX}`;
 export const LOCAL_GHOSTTY_PREV_BIN = `${homedir()}${LOCAL_GHOSTTY_PREV_BIN_SUFFIX}`;
+export const LOCAL_GHOSTTY_ORIGIN_MAIN_BIN = `${homedir()}${LOCAL_GHOSTTY_ORIGIN_MAIN_BIN_SUFFIX}`;
 
 export function isLocalGhosttyWrapper(path) {
   return path.endsWith(LOCAL_GHOSTTY_WRAPPER_SUFFIX);
@@ -22,6 +25,10 @@ export function isLocalGhosttyWrapper(path) {
 
 export function isLocalGhosttyBin(path) {
   return path.endsWith(LOCAL_GHOSTTY_BIN_SUFFIX);
+}
+
+export function isLocalGhosttyOriginMainBin(path) {
+  return path.endsWith(LOCAL_GHOSTTY_ORIGIN_MAIN_BIN_SUFFIX);
 }
 
 export function isAnyLocalSidequestGhosttyBin(path) {

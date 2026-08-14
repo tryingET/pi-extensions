@@ -108,8 +108,16 @@ const GHOSTTY_BIN_NAME = "ghostty";
 const LOCAL_GHOSTTY_WRAPPER = join(homedir(), ".local", "bin", "ghostty-sidequest");
 const LOCAL_GHOSTTY_OPT_DIR = join(homedir(), ".local", "opt");
 const LOCAL_GHOSTTY_BIN = join(LOCAL_GHOSTTY_OPT_DIR, "ghostty-sidequest", "bin", "ghostty");
-const GHOSTTY_SIDEQUEST_DBUS_NAME = "com.tryinget.ghosttysidequest";
-const GHOSTTY_SIDEQUEST_DBUS_PATH = "/com/tryinget/ghosttysidequest";
+const LOCAL_GHOSTTY_ORIGIN_MAIN_DIR = join(LOCAL_GHOSTTY_OPT_DIR, "ghostty-origin-main");
+const NORMAL_GHOSTTY_DBUS_ENDPOINT = {
+  wellKnownName: "com.mitchellh.ghostty",
+  objectPath: "/com/mitchellh/ghostty",
+} as const;
+// Transitional compatibility only while legacy controller surfaces remain alive.
+const LEGACY_SIDEQUEST_DBUS_ENDPOINT = {
+  wellKnownName: "com.tryinget.ghosttysidequest",
+  objectPath: "/com/tryinget/ghosttysidequest",
+} as const;
 const ASC_EXECUTION_OBSERVER_SCRIPT = fileURLToPath(
   new URL("../scripts/asc-execution-observer.mjs", import.meta.url),
 );
@@ -172,6 +180,7 @@ type SidequestOptions = {
   presenceDir?: string;
   placementVerificationTimeoutMs?: number;
   currentGhosttyAncestor?: GhosttyAncestor;
+  readProcessExecutable?: (pid: number) => string | undefined;
   registerCommands?: boolean;
   registerTools?: boolean;
   generateHandoffPrompt?: typeof generateSessionCompactionHandoffPrompt;
@@ -657,6 +666,14 @@ function readProcCommand(pid: number): string | undefined {
   }
 }
 
+function readProcExecutable(pid: number): string | undefined {
+  try {
+    return readlinkSync(join("/proc", String(pid), "exe"));
+  } catch {
+    return undefined;
+  }
+}
+
 type GhosttyAncestor = {
   pid: number;
   exe?: string;
@@ -669,11 +686,7 @@ export function findGhosttyAncestor(processId = process.pid): GhosttyAncestor | 
     if (pid <= 0) return undefined;
     const command = readProcCommand(pid)?.toLowerCase();
     if (command === "ghostty") {
-      try {
-        return { pid, exe: readlinkSync(join("/proc", String(pid), "exe")) };
-      } catch {
-        return { pid };
-      }
+      return { pid, exe: readProcExecutable(pid) };
     }
   }
   return undefined;
@@ -723,10 +736,33 @@ function isLocalGhosttySidequestBin(path: string): boolean {
 
   const relativePath = relative(LOCAL_GHOSTTY_OPT_DIR, normalizedPath);
   if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) return false;
-  const [installDir, binDir, binName] = relativePath.split(sep);
+  const [installDir, binDir, binName, ...rest] = relativePath.split(sep);
   return Boolean(
-    installDir?.startsWith("ghostty-sidequest") && binDir === "bin" && binName === GHOSTTY_BIN_NAME,
+    rest.length === 0 &&
+      installDir?.startsWith("ghostty-sidequest") &&
+      binDir === "bin" &&
+      binName === GHOSTTY_BIN_NAME,
   );
+}
+
+type GhosttyDbusEndpoint = {
+  wellKnownName: string;
+  objectPath: string;
+};
+
+function isLocalGhosttyOriginMainBin(path: string): boolean {
+  const relativePath = relative(LOCAL_GHOSTTY_ORIGIN_MAIN_DIR, resolve(path));
+  if (!relativePath || relativePath.startsWith("..") || isAbsolute(relativePath)) return false;
+  const [release, binDir, binName, ...rest] = relativePath.split(sep);
+  return Boolean(release && rest.length === 0 && binDir === "bin" && binName === GHOSTTY_BIN_NAME);
+}
+
+function resolveGhosttyDbusEndpoint(executable: string): GhosttyDbusEndpoint | undefined {
+  if (isLocalGhosttySidequestBin(executable)) return LEGACY_SIDEQUEST_DBUS_ENDPOINT;
+  if (resolve(executable) === "/usr/bin/ghostty" || isLocalGhosttyOriginMainBin(executable)) {
+    return NORMAL_GHOSTTY_DBUS_ENDPOINT;
+  }
+  return undefined;
 }
 
 async function supportsGhosttyNewTab(execRunner: ExecRunner, ghosttyBin: string): Promise<boolean> {
@@ -819,20 +855,24 @@ type ControllerGhosttyDbusTarget = {
   busName: string;
   ownerPid: number;
   surfaceId: string;
+  wellKnownName: string;
+  objectPath: string;
 };
 
 export async function resolveControllerGhosttyDbusTarget({
   execRunner,
   controllerGhostty,
   surfaceId,
+  readProcessExecutable = readProcExecutable,
 }: {
   execRunner: ExecRunner;
   controllerGhostty: GhosttyAncestor | undefined;
   surfaceId: string | undefined;
+  readProcessExecutable?: (pid: number) => string | undefined;
 }): Promise<ControllerGhosttyDbusTarget | undefined> {
-  if (!controllerGhostty?.exe || !isLocalGhosttySidequestBin(controllerGhostty.exe) || !surfaceId) {
-    return undefined;
-  }
+  if (!controllerGhostty?.exe || !surfaceId) return undefined;
+  const endpoint = resolveGhosttyDbusEndpoint(controllerGhostty.exe);
+  if (!endpoint) return undefined;
   const normalizedSurfaceId = normalizeGhosttySurfaceIdUint64(surfaceId);
   if (!normalizedSurfaceId) return undefined;
 
@@ -845,20 +885,24 @@ export async function resolveControllerGhosttyDbusTarget({
       .split("\n")
       .map((line) => line.trim().split(/\s+/));
 
-    // Ghostty runs with --gtk-single-instance: one long-lived instance "server" process owns the
-    // well-known D-Bus name and every surface/window, while per-session launcher processes only
-    // expose a stub window and cannot route a surface id that lives in the server. Targeting the
-    // controller's own ghostty ancestor PID therefore misroutes observer tabs for sessions whose
-    // nearest ghostty ancestor is a launcher client (for example a window spawned by an external
-    // keybinding rather than opened inside the running instance). Resolve the well-known-name owner
-    // instead: it is the single authoritative process for every sidequest surface, and the
-    // controller's surface id selects the exact window. The sidequest-bin gate above guarantees
-    // the controller's surface belongs to this single instance.
+    // A --gtk-single-instance server owns its executable family's well-known D-Bus name and every
+    // surface/window in that family. Per-session launcher processes can expose stub windows, so the
+    // nearest Ghostty ancestor PID is not a reliable action target. Select the endpoint from the
+    // controller executable family first, then resolve only that well-known owner; never cross-fall
+    // back between the normal and transitional legacy brokers.
     const wellKnownOwnerPid = rows
-      .filter((fields) => fields[0] === GHOSTTY_SIDEQUEST_DBUS_NAME)
+      .filter((fields) => fields[0] === endpoint.wellKnownName)
       .map((fields) => Number.parseInt(fields[1] || "", 10))
       .find((pid) => Number.isInteger(pid) && pid > 0);
     if (!wellKnownOwnerPid) return undefined;
+
+    // The well-known name must be owned by the exact controller build, not merely another
+    // executable in the same identity family. This prevents a stale packaged singleton or a
+    // same-user bus-name claimant from receiving the controller surface ID and embedded argv.
+    const ownerExecutable = readProcessExecutable(wellKnownOwnerPid);
+    if (!ownerExecutable || resolve(ownerExecutable) !== resolve(controllerGhostty.exe)) {
+      return undefined;
+    }
 
     const ownerUniqueNames = rows
       .filter(
@@ -873,6 +917,8 @@ export async function resolveControllerGhosttyDbusTarget({
       busName: ownerUniqueNames[0] as string,
       ownerPid: wellKnownOwnerPid,
       surfaceId: normalizedSurfaceId,
+      wellKnownName: endpoint.wellKnownName,
+      objectPath: endpoint.objectPath,
     };
   } catch {
     return undefined;
@@ -891,7 +937,7 @@ function buildControllerGhosttyDbusArgs({
     "call",
     "--expect-reply=no",
     target.busName,
-    GHOSTTY_SIDEQUEST_DBUS_PATH,
+    target.objectPath,
     "org.gtk.Actions",
     "Activate",
     "sava{sv}",
@@ -1225,13 +1271,21 @@ async function launchPiQuestSession({
     options.currentGhosttyAncestor ??
     (options.exec ? undefined : findGhosttyAncestor(options.processId ?? process.pid));
   const currentSessionGhosttyBin = options.currentSessionGhosttyBin ?? controllerGhostty?.exe;
-  let ghosttyBin = resolveGhosttyBin({ env, pathExists, currentSessionGhosttyBin });
+  const strictControllerBin = currentSessionGhosttyBin?.trim();
+  let ghosttyBin =
+    placementPolicy === "controller-tab-only"
+      ? strictControllerBin && pathExists(strictControllerBin)
+        ? strictControllerBin
+        : ""
+      : resolveGhosttyBin({ env, pathExists, currentSessionGhosttyBin });
   const piBin = env.PI_SIDEQUEST_PI_BIN?.trim() || DEFAULT_PI_BIN;
   const thinkingLevel = pi.getThinkingLevel();
   const modelArgs = buildModelArgs(ctx.model as ModelLike | undefined, thinkingLevel);
   const title = buildTitle(titlePrompt, titlePrefix);
   let supportsNewTab =
-    process.platform === "linux" ? await supportsGhosttyNewTab(execRunner, ghosttyBin) : false;
+    process.platform === "linux" && ghosttyBin
+      ? await supportsGhosttyNewTab(execRunner, ghosttyBin)
+      : false;
   let wrapperTabAttachNote: string | undefined;
   if (
     placementPolicy === "visible-fallback" &&
@@ -1272,6 +1326,7 @@ async function launchPiQuestSession({
           execRunner,
           controllerGhostty,
           surfaceId,
+          readProcessExecutable: options.readProcessExecutable,
         })
       : undefined;
   const promptSummary = summarizePrompt(titlePrompt);

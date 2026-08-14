@@ -21,9 +21,7 @@ import {
   escapeRegExp,
   extractPiArgs,
   getLatestGovernedDeepReviewPreflightReceipt,
-  isLocalGhosttyBin,
-  isLocalGhosttyWrapper,
-  LOCAL_GHOSTTY_BIN,
+  LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
   observeLatestVisibleLoopMessage,
   observeVisibleLoopMessageAt,
   registerExtension,
@@ -325,24 +323,29 @@ test("visible-loop writes config and launches one clean Ghostty tab with the chi
   }
 });
 
-test("visible-loop targets the Ghostty single-instance server instead of the sidequest broker", async () => {
+test("visible-loop targets the normal origin/main Ghostty single-instance server", async () => {
   const stateHome = mkdtempSync(`${tmpdir()}/visible-loop-controller-dbus-`);
   const restoreHome = setTemporaryHomeWithPromptTemplates(`${stateHome}/home`);
   try {
     const execStub = createExecStub(({ command, args }) => {
-      if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+      if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+help") {
         return { code: 0, stdout: "Usage: ghostty +new-tab", stderr: "" };
       }
-      if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
-        return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1", stderr: "" };
+      if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+version") {
+        return {
+          code: 0,
+          stdout: "Ghostty 1.4.0-origin-main-9d8fbd15b3b4",
+          stderr: "",
+        };
       }
       if (command === "busctl" && args[1] === "list") {
         return {
           code: 0,
           stdout:
-            ":1.42 111 ghostty user :1.42 user@1000.service - -\n" +
             ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
-            "com.tryinget.ghosttysidequest 222 ghostty user :1.43 user@1000.service - -\n",
+            ":1.44 333 ghostty user :1.44 user@1000.service - -\n" +
+            "com.mitchellh.ghostty 222 ghostty user :1.43 user@1000.service - -\n" +
+            "com.tryinget.ghosttysidequest 333 ghostty user :1.44 user@1000.service - -\n",
         };
       }
       if (command === "busctl" && args[1] === "call") {
@@ -357,11 +360,14 @@ test("visible-loop targets the Ghostty single-instance server instead of the sid
         GHOSTTY_SURFACE_ID: "0x1234",
         XDG_STATE_HOME: stateHome,
       },
-      currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
-      currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+      currentSessionGhosttyBin: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
+      currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN },
+      readProcessExecutable(pid) {
+        return pid === 222 ? LOCAL_GHOSTTY_ORIGIN_MAIN_BIN : undefined;
+      },
       exec: execStub.exec,
       pathExists(path) {
-        return isLocalGhosttyWrapper(path) || isLocalGhosttyBin(path);
+        return path === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN;
       },
     });
     const { commands } = registerExtension(extension);
@@ -377,8 +383,10 @@ test("visible-loop targets the Ghostty single-instance server instead of the sid
     assert.ok(activation);
     assert.equal(activation.args[2], "--expect-reply=no");
     assert.equal(activation.args[3], ":1.43");
+    assert.equal(activation.args[4], "/com/mitchellh/ghostty");
     assert.equal(activation.args[10], "(tas)");
     assert.equal(activation.args[11], "4660");
+    assert.equal(Number(activation.args[12]), activation.args.length - 15);
     assert.equal(activation.args[13], "--");
     assert.ok(activation.args.includes("sidequest-pi"));
     const childCommand = extractPiArgs(activation.args).find((arg) =>
@@ -391,7 +399,7 @@ test("visible-loop targets the Ghostty single-instance server instead of the sid
     assert.equal(config.cwd, "/repo");
     assert.ok(
       !execStub.calls.some(
-        ({ command, args }) => isLocalGhosttyWrapper(command) && args[0] === "+new-tab",
+        ({ command, args }) => command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+new-tab",
       ),
     );
     assert.match(

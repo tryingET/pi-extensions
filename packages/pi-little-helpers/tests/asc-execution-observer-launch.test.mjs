@@ -13,6 +13,7 @@ import {
   createContext,
   isLocalGhosttyWrapper,
   LOCAL_GHOSTTY_BIN,
+  LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
   registerExtension,
 } from "./sidequest-harness.mjs";
 
@@ -94,15 +95,18 @@ for (const scenario of [
         ascObserverStateRoot: root,
         currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
         currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+        readProcessExecutable(pid) {
+          return pid === 222 ? LOCAL_GHOSTTY_BIN : undefined;
+        },
         pathExists(path) {
           return path === LOCAL_GHOSTTY_BIN || isLocalGhosttyWrapper(path);
         },
         async exec(command, args) {
           calls.push({ command, args });
-          if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+          if (command === LOCAL_GHOSTTY_BIN && args[0] === "+help") {
             return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
           }
-          if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
+          if (command === LOCAL_GHOSTTY_BIN && args[0] === "+version") {
             return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
           }
           if (command === "busctl" && args[1] === "list") {
@@ -140,6 +144,7 @@ for (const scenario of [
       const args = launches[0].args;
       assert.equal(args[2], "--expect-reply=no");
       assert.equal(args[3], ":1.43");
+      assert.equal(Number(args[12]), args.length - 15);
       assert.ok(args.includes(process.execPath));
       assert.ok(args.some((value) => value.endsWith("scripts/asc-execution-observer.mjs")));
       assert.ok(args.includes("--state"));
@@ -162,6 +167,91 @@ for (const scenario of [
     }
   });
 }
+
+test("automatic ASC observer targets the normal origin/main broker exactly", async () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-asc-observer-origin-main-"));
+  const calls = [];
+  try {
+    const extension = createSidequestExtension({
+      env: {
+        TERM_PROGRAM: "ghostty",
+        GHOSTTY_SURFACE_ID: "0x1234",
+        PI_ASC_OBSERVER_STATE_DIR: root,
+        PI_SIDEQUEST_GHOSTTY_BIN: LOCAL_GHOSTTY_BIN,
+        PI_SIDEQUEST_LAUNCH_STAGGER_MS: "0",
+      },
+      ascObserverStateRoot: root,
+      currentSessionGhosttyBin: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
+      currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN },
+      readProcessExecutable(pid) {
+        return pid === 222 ? LOCAL_GHOSTTY_ORIGIN_MAIN_BIN : undefined;
+      },
+      pathExists(path) {
+        return path === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN || path === LOCAL_GHOSTTY_BIN;
+      },
+      async exec(command, args) {
+        calls.push({ command, args });
+        if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+help") {
+          return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
+        }
+        if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+version") {
+          return { code: 0, stdout: "Ghostty 1.4.0-origin-main-9d8fbd15b3b4\n" };
+        }
+        if (command === "busctl" && args[1] === "list") {
+          return {
+            code: 0,
+            stdout:
+              ":1.43 222 ghostty user :1.43 user@1000.service - -\n" +
+              ":1.44 333 ghostty user :1.44 user@1000.service - -\n" +
+              "com.mitchellh.ghostty 222 ghostty user :1.43 user@1000.service - -\n" +
+              "com.tryinget.ghosttysidequest 333 ghostty user :1.44 user@1000.service - -\n",
+          };
+        }
+        if (command === "busctl" && args[1] === "call") return { code: 0, stdout: "" };
+        throw new Error(`unexpected command: ${command} ${args.join(" ")}`);
+      },
+    });
+    const harness = registerExtension(extension);
+    const { ctx } = createContext({ cwd: "/repo", sessionId: "origin-main-controller" });
+    for (const handler of harness.events.get("session_start") ?? []) {
+      await handler({ type: "session_start", reason: "startup" }, ctx);
+    }
+    for (const handler of harness.busEvents.get(ASC_EXECUTION_OBSERVATION_EVENT) ?? []) {
+      handler(observation(1, "dispatch_subagent"));
+      handler(observation(2, "dispatch_subagent"));
+    }
+
+    await waitFor(() =>
+      calls.some(({ command, args }) => command === "busctl" && args[1] === "call"),
+    );
+    const launches = calls.filter(
+      ({ command, args }) => command === "busctl" && args[1] === "call",
+    );
+    assert.equal(launches.length, 1);
+    assert.equal(launches[0].args[2], "--expect-reply=no");
+    assert.equal(launches[0].args[3], ":1.43");
+    assert.equal(launches[0].args[4], "/com/mitchellh/ghostty");
+    assert.equal(launches[0].args[11], "4660");
+    assert.equal(Number(launches[0].args[12]), launches[0].args.length - 15);
+    assert.equal(launches[0].args[13], "--");
+    assert.equal(
+      calls.some(
+        ({ command, args }) => command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+new-tab",
+      ),
+      false,
+    );
+    assert.equal(
+      calls.some(({ command }) => command === LOCAL_GHOSTTY_BIN),
+      false,
+      "strict observer eligibility must ignore PI_SIDEQUEST_GHOSTTY_BIN",
+    );
+    const state = JSON.parse(readFileSync(observerStatePath(root), "utf8"));
+    assert.equal(state.observer.launchStatus, "launched");
+    assert.match(state.observer.note, /targeted Ghostty single-instance process 222/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("automatic ASC observer stays headless when stock Ghostty cannot host an exact tab", async () => {
   const root = mkdtempSync(join(tmpdir(), "pi-asc-observer-headless-"));
@@ -229,15 +319,18 @@ test("automatic ASC observer rejects an ambiguous controller D-Bus target withou
       ascObserverStateRoot: root,
       currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
       currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+      readProcessExecutable(pid) {
+        return pid === 222 ? LOCAL_GHOSTTY_BIN : undefined;
+      },
       pathExists(path) {
         return path === LOCAL_GHOSTTY_BIN || isLocalGhosttyWrapper(path);
       },
       async exec(command, args) {
         calls.push({ command, args });
-        if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+        if (command === LOCAL_GHOSTTY_BIN && args[0] === "+help") {
           return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
         }
-        if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
+        if (command === LOCAL_GHOSTTY_BIN && args[0] === "+version") {
           return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
         }
         if (command === "busctl" && args[1] === "list") {
@@ -297,15 +390,18 @@ test("automatic ASC observer does not open another window after exact activation
       ascObserverStateRoot: root,
       currentSessionGhosttyBin: LOCAL_GHOSTTY_BIN,
       currentGhosttyAncestor: { pid: 111, exe: LOCAL_GHOSTTY_BIN },
+      readProcessExecutable(pid) {
+        return pid === 222 ? LOCAL_GHOSTTY_BIN : undefined;
+      },
       pathExists(path) {
         return path === LOCAL_GHOSTTY_BIN || isLocalGhosttyWrapper(path);
       },
       async exec(command, args) {
         calls.push({ command, args });
-        if (isLocalGhosttyWrapper(command) && args[0] === "+help") {
+        if (command === LOCAL_GHOSTTY_BIN && args[0] === "+help") {
           return { code: 0, stdout: "Available actions:\n  +new-tab\n" };
         }
-        if (isLocalGhosttyWrapper(command) && args[0] === "+version") {
+        if (command === LOCAL_GHOSTTY_BIN && args[0] === "+version") {
           return { code: 0, stdout: "Ghostty 1.4.0-sidequest.1\n" };
         }
         if (command === "busctl" && args[1] === "list") {

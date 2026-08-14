@@ -121,7 +121,7 @@ Default `PI_ASC_OBSERVER=auto` behavior attempts launch only when:
 2. the host process is running inside Ghostty (`TERM_PROGRAM=ghostty`);
 3. the standard `pi-little-helpers` sidequest extension is loaded;
 4. the first valid `dispatch_progress` event for the active cwd arrives;
-5. the controller runs inside the Ghostty sidequest fork, exposes a surface id, and the owner of the well-known `com.tryinget.ghosttysidequest` name (the single-instance Ghostty server that owns every sidequest surface) resolves to a single D-Bus peer, proving an exact same-window tab destination.
+5. the controller exposes a surface ID, its actual Ghostty ancestor executable maps to a recognized broker family, and that family's well-known owner resolves to one unique D-Bus peer. The primary origin/main family uses `com.mitchellh.ghostty` at `/com/mitchellh/ghostty`; transitional legacy controllers use `com.tryinget.ghosttysidequest` at `/com/tryinget/ghosttysidequest`. The resolver never crosses between families.
 
 Overrides:
 
@@ -133,7 +133,7 @@ Overrides:
 
 `pi -p`, JSON, RPC, CI, SSH, and other non-TUI callers remain headless even when RPC reports `hasUI=true` or the process inherits a Ghostty environment variable.
 
-The observer reuses the sidequest launch primitives but selects a stricter placement policy than operator-requested visible peers: only the single-instance Ghostty server (well-known-name owner) may open its tab, and the controller's surface id routes the new tab to the controller's exact window. Under `--gtk-single-instance`, targeting the controller's own ghostty ancestor PID would misroute for sessions whose ancestor is a launcher client, so the server is the authoritative target. It never substitutes a wrapper owned by another Ghostty process, invokes an untargeted `+new-tab`, or retries in a new window. If exact placement is unavailable or activation fails, the observer records/reports one launch failure and ASC execution continues headlessly. Toolbox-only sidequest projection does not register a second listener.
+The observer reuses the visible-session launch primitives but selects a stricter placement policy than operator-requested visible peers: only the unique peer of the controller executable family's well-known single-instance owner may open its tab, the owner's `/proc/<pid>/exe` must equal the actual controller build, and the controller surface ID routes the tab to the exact window. Capability probes use the actual controller ancestor and ignore `PI_SIDEQUEST_GHOSTTY_BIN`. Under `--gtk-single-instance`, targeting the nearest ancestor PID can misroute when that ancestor is a launcher client, so the exact-build well-known owner is authoritative. It never substitutes another executable family, invokes an untargeted `+new-tab`, uses the transitional wrapper for a normal controller, or retries in a new window. If exact placement is unavailable or activation fails, the observer records/reports one launch failure and ASC execution continues headlessly. Toolbox-only sidequest projection does not register a second listener.
 
 ## Observer lifecycle
 
@@ -190,6 +190,8 @@ Routine 5–10 minute cutoffs should not be supplied for ordinary long-running m
 | Loop terminates | Emit `group_terminal`; render final run state. |
 
 Ghostty launch success proves only that the exact single-instance server activation request was delivered successfully. It proves neither renderer startup nor ASC child execution completion.
+
+Legacy broker recognition is coexistence-only. Once no legacy controllers remain, its endpoint and compatibility tests must be removed; normal observer behavior must continue using only `com.mitchellh.ghostty` and the origin/main executable family.
 
 ## Validation anchors
 
