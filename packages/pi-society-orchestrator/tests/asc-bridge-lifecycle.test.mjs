@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import {
   ASC_PACKAGE_NAME,
@@ -36,16 +38,38 @@ test("classifyAscBridgeLifecycle accepts the current transitional bundled bridge
   assert.deepEqual(result.issues, []);
 });
 
-test("evaluateAscBridgeLifecycle blocks the transitional bridge once ASC is published", () => {
+test("evaluateAscBridgeLifecycle keeps the transitional bridge quiet while the intended cutover version is unpublished", () => {
+  // Cutover-aware trigger: the workspace ASC version (>= the fixture's
+  // published 0.1.0-era baseline) is not yet on the registry, so the
+  // transitional bundled bridge remains the sanctioned state.
   const result = evaluateAscBridgeLifecycle({
     pkg: createManifest(),
     publishedAscVersions: ["0.1.0"],
   });
 
+  assert.equal(result.ok, true);
+  assert.equal(result.classification.mode, "transitional-bundled-bridge");
+  assert.deepEqual(result.issues, []);
+});
+
+test("evaluateAscBridgeLifecycle blocks the transitional bridge once the cutover version is published", () => {
+  const result = evaluateAscBridgeLifecycle({
+    pkg: createManifest(),
+    publishedAscVersions: [readWorkspaceAscVersionForTest()],
+  });
+
   assert.equal(result.ok, false);
   assert.equal(result.classification.mode, "transitional-bundled-bridge");
-  assert.match(result.issues.join("\n"), /0\.1\.0 is visible/);
+  assert.match(result.issues.join("\n"), /is visible/);
 });
+
+function readWorkspaceAscVersionForTest() {
+  const manifestPath = path.resolve(
+    import.meta.dirname,
+    "../../pi-autonomous-session-control/package.json",
+  );
+  return JSON.parse(fs.readFileSync(manifestPath, "utf8")).version;
+}
 
 test("classifyAscBridgeLifecycle accepts the registry-backed cutover topology", () => {
   const result = classifyAscBridgeLifecycle(
