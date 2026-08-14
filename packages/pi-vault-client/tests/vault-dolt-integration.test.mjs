@@ -869,15 +869,15 @@ test("vault runtime fails closed when a governed contract file contains invalid 
   }
 });
 
-test("vault runtime exposes detailed schema compatibility diagnostics for v9", async () => {
+test("vault runtime exposes detailed schema compatibility diagnostics for v10", async () => {
   await withTempVaultRuntime(async ({ importModule, repoDir }) => {
     const { createVaultRuntime } = await importModule("src/vaultDb.js");
     const runtime = createVaultRuntime();
 
     const okReport = runtime.checkSchemaCompatibilityDetailed();
     assert.equal(okReport.ok, true);
-    assert.equal(okReport.expectedVersion, 9);
-    assert.equal(okReport.actualVersion, 9);
+    assert.equal(okReport.expectedVersion, 10);
+    assert.equal(okReport.actualVersion, 10);
     assert.deepEqual(okReport.missingPromptTemplateColumns, []);
     assert.deepEqual(okReport.missingExecutionColumns, []);
     assert.deepEqual(okReport.missingFeedbackColumns, []);
@@ -886,8 +886,8 @@ test("vault runtime exposes detailed schema compatibility diagnostics for v9", a
 
     const mismatchReport = runtime.checkSchemaCompatibilityDetailed();
     assert.equal(mismatchReport.ok, false);
-    assert.equal(mismatchReport.expectedVersion, 9);
-    assert.equal(mismatchReport.actualVersion, 9);
+    assert.equal(mismatchReport.expectedVersion, 10);
+    assert.equal(mismatchReport.actualVersion, 10);
     assert.deepEqual(mismatchReport.missingExecutionColumns, ["output_text"]);
   });
 });

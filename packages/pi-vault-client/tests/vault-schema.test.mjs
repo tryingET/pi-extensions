@@ -21,7 +21,7 @@ test("schema helper reports ok when version and required columns match", async (
         await importModule("src/vaultSchema.js");
       const report = checkSchemaCompatibilityDetailed((sql) => {
         if (sql === "SELECT MAX(version) AS version FROM schema_version") {
-          return { rows: [{ version: 9 }] };
+          return { rows: [{ version: 10 }] };
         }
         if (sql === "SHOW COLUMNS FROM prompt_templates") {
           return makeColumns(
@@ -56,8 +56,8 @@ test("schema helper reports ok when version and required columns match", async (
 
       assert.deepEqual(report, {
         ok: true,
-        expectedVersion: 9,
-        actualVersion: 9,
+        expectedVersion: 10,
+        actualVersion: 10,
         missingPromptTemplateColumns: [],
         missingExecutionColumns: [],
         missingFeedbackColumns: [],
@@ -65,7 +65,7 @@ test("schema helper reports ok when version and required columns match", async (
       assert.equal(
         checkSchemaVersion((sql) => {
           if (sql === "SELECT MAX(version) AS version FROM schema_version") {
-            return { rows: [{ version: 9 }] };
+            return { rows: [{ version: 10 }] };
           }
           if (sql === "SHOW COLUMNS FROM prompt_templates") {
             return makeColumns(
@@ -135,7 +135,7 @@ test("schema helper reports detailed mismatch reasons when version or columns dr
 
       assert.deepEqual(checkSchemaCompatibilityDetailed(query), {
         ok: false,
-        expectedVersion: 9,
+        expectedVersion: 10,
         actualVersion: 8,
         missingPromptTemplateColumns: [
           "visibility_companies",

@@ -593,7 +593,7 @@ function parseTemplateRows(result) {
     if (!result || !result.rows || result.rows.length === 0)
         return [];
     return result.rows.map((row) => ({
-        id: typeof row.id === "number" ? row.id : undefined,
+        id: Number.isFinite(Number(row.id)) ? Number(row.id) : undefined,
         name: String(row.name || ""),
         description: String(row.description || ""),
         content: String(row.content || ""),
@@ -605,7 +605,7 @@ function parseTemplateRows(result) {
         controlled_vocabulary: parseControlledVocabulary(row.controlled_vocabulary),
         status: row.status ? String(row.status) : undefined,
         export_to_pi: normalizeBoolean(row.export_to_pi),
-        version: typeof row.version === "number" ? row.version : undefined,
+        version: Number.isFinite(Number(row.version)) ? Number(row.version) : undefined,
     }));
 }
 function facetLabel(template) {
@@ -977,7 +977,7 @@ function buildControlledVocabularyClauses(controlledVocabulary) {
 }
 function queryTemplatesDetailed(filters, limit, includeContent, context) {
     const includeScoringContent = includeContent || Boolean(filters.intent_text);
-    const cols = buildSelectColumns(includeScoringContent, false, {
+    const cols = buildSelectColumns(includeScoringContent, true, {
         contentExpression: filters.intent_text && !includeContent ? "LEFT(content, 4096) AS content" : undefined,
     });
     const companyContext = resolveReadCompanyContext(context);
@@ -1076,6 +1076,32 @@ function rateTemplate(executionId, rating, success, notes, context, options) {
         buildVisibilityPredicate,
     });
 }
+function logRetrievalBatch(entries, context) {
+    // Retrieval analytics are best-effort by contract: a logging failure must
+    // never break the tool call that produced the retrieval. Schema v10+.
+    try {
+        const valid = entries.filter((entry) => Number.isFinite(entry.templateId));
+        if (valid.length === 0)
+            return;
+        const tool = context.tool === "vault_query" || context.tool === "vault_retrieve" ? context.tool : "other";
+        const escapedQueryContext = escapeSql(JSON.stringify(context.queryContext ?? null).slice(0, 1000));
+        const resultCount = Number.isFinite(context.resultCount) ? Number(context.resultCount) : null;
+        const escapedCompany = escapeSql(String(context.company ?? ""));
+        const values = valid
+            .map((entry) => {
+            const version = Number.isFinite(entry.entityVersion) ? Number(entry.entityVersion) : null;
+            const rank = Number.isFinite(entry.rank) ? Number(entry.rank) : null;
+            return `('template', ${Number(entry.templateId)}, ${version ?? "NULL"}, '${tool}', '${escapedQueryContext}', ${rank ?? "NULL"}, ${resultCount ?? "NULL"}, ${escapedCompany.length > 0 ? `'${escapedCompany}'` : "NULL"}, NOW())`;
+        })
+            .join(", ");
+        const ok = execVault(`INSERT INTO retrievals (entity_type, entity_id, entity_version, tool, query_context, selected_rank, result_count, company, created_at) VALUES ${values}`);
+        if (ok)
+            commitVault(`Log ${valid.length} vault retrieval(s): ${tool}`, ["retrievals"]);
+    }
+    catch {
+        // fail-open: retrieval analytics must not perturb the retrieval surface
+    }
+}
 function logExecution(template, model, inputContext) {
     if (!Number.isFinite(template.id)) {
         return { ok: false, message: "Template id is required for execution logging." };
@@ -1164,6 +1190,7 @@ export function createVaultRuntime() {
         updateTemplate,
         rateTemplate,
         logExecution,
+        logRetrievalBatch,
         getDoltExecutionEnvironment,
         listRecentDoltTelemetry,
         getLatestDoltTelemetryFailure,

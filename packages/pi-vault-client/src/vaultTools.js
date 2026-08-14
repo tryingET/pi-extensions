@@ -351,6 +351,23 @@ Examples:
                 };
             }
             const templates = templatesResult.value;
+            try {
+                runtime.logRetrievalBatch?.(templates
+                    .filter((template) => Number.isFinite(template.id))
+                    .map((template, index) => ({
+                    templateId: Number(template.id),
+                    entityVersion: Number.isFinite(template.version) ? Number(template.version) : null,
+                    rank: index + 1,
+                })), {
+                    tool: "vault_query",
+                    queryContext: { filters, limit, includeContent, includeGovernance },
+                    resultCount: templates.length,
+                    company: executionContext.currentCompany,
+                });
+            }
+            catch {
+                // retrieval analytics are fail-open
+            }
             if (templates.length === 0) {
                 return {
                     content: [{ type: "text", text: "No templates found matching criteria." }],
@@ -466,6 +483,23 @@ Example: vault_retrieve({ names: ["inversion", "nexus"], include_content: true }
                     },
                 };
             const templates = templatesResult.value;
+            try {
+                runtime.logRetrievalBatch?.(templates
+                    .filter((template) => Number.isFinite(template.id))
+                    .map((template) => ({
+                    templateId: Number(template.id),
+                    entityVersion: Number.isFinite(template.version) ? Number(template.version) : null,
+                    rank: names.indexOf(template.name) + 1 || null,
+                })), {
+                    tool: "vault_retrieve",
+                    queryContext: { names, includeContent },
+                    resultCount: templates.length,
+                    company: executionContext.currentCompany,
+                });
+            }
+            catch {
+                // retrieval analytics are fail-open
+            }
             if (templates.length === 0)
                 return {
                     content: [{ type: "text", text: `No templates found: ${names.join(", ")}` }],

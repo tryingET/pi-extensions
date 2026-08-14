@@ -14,7 +14,7 @@ export const LIVE_VAULT_TRIGGER_DEBOUNCE_MS = 150;
 export const LIVE_VAULT_MIN_QUERY = 0;
 export const LIVE_TRIGGER_TELEMETRY_LIMIT = 100;
 export const DOLT_TELEMETRY_LIMIT = 200;
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export const COMPANIES = [
   "core",
@@ -609,6 +609,15 @@ export interface VaultRuntime {
     model: string,
     inputContext?: string,
   ) => VaultExecutionLogResult;
+  logRetrievalBatch: (
+    entries: Array<{ templateId: number; entityVersion?: number | null; rank?: number | null }>,
+    context: {
+      tool: "vault_query" | "vault_retrieve" | "other";
+      queryContext?: unknown;
+      resultCount?: number;
+      company?: string;
+    },
+  ) => void;
   getDoltExecutionEnvironment: (options?: {
     probeMode?: "inspect" | "prepare";
   }) => DoltExecutionEnvironment;
