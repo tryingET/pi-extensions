@@ -50,6 +50,10 @@ extension-smoke:
 install-drift:
     node scripts/check-install-drift.mjs
 
+# Startup latency self-check (syntax + smoke of benchmark profiles).
+startup-latency-check:
+    bash scripts/startup-latency/check.sh
+
 # Non-failing repo-loop-validation-v1 diagnostics for orchestration loops.
 loop-doctor:
     @echo "loop-doctor: pi-extensions diagnostics"
