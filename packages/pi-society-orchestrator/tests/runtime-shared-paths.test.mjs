@@ -487,10 +487,13 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
       PI_PROVENANCE_REVIEW_LANE_ID: "orch-lane-1",
       PI_PROVENANCE_OUTPUT_FILE: "/tmp/orch-lane-1.json",
     });
-    assert.match(calls[0].def.systemPrompt || "", /You are the reviewer/);
-    assert.match(calls[0].def.systemPrompt || "", /FRAMEWORK: audit deeply/);
-    assert.match(calls[0].def.systemPrompt || "", /## OBJECTIVE\n\nReview the evidence trail/);
-    assert.match(calls[0].def.systemPrompt || "", /## LOOP\nphase=orient/);
+    // ASC's current execution contract carries the combined role/objective prompt in the
+    // dispatch def's userPrompt (initial user message) so sibling children can share Pi's
+    // stable host prefix; def.systemPrompt is intentionally no longer populated.
+    assert.match(calls[0].def.userPrompt || "", /You are the reviewer/);
+    assert.match(calls[0].def.userPrompt || "", /FRAMEWORK: audit deeply/);
+    assert.match(calls[0].def.userPrompt || "", /## OBJECTIVE\n\nReview the evidence trail/);
+    assert.match(calls[0].def.userPrompt || "", /## LOOP\nphase=orient/);
     assert.match(result.text, /\[custom\] done/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
