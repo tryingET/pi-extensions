@@ -46,6 +46,7 @@ import {
   PROTECTION_KEYWORDS,
   resolveProtectionQuery,
 } from "./resolvers/protection.ts";
+import { isRuntimeHealthQuery, resolveRuntimeHealthQuery } from "./resolvers/runtime-health.ts";
 import type {
   ActionIntent,
   CrystallizationIntent,
@@ -421,6 +422,10 @@ export function classifyIntent(query: string): QueryIntent {
     return { domain: "meta", intent: "autonomy_status" };
   }
 
+  if (isRuntimeHealthQuery(lower)) {
+    return { domain: "meta", intent: "runtime_health" };
+  }
+
   if (isMemoryLifecycleStatusQuery(lower)) {
     return { domain: "meta", intent: "memory_lifecycle_status" };
   }
@@ -542,6 +547,10 @@ function resolveMetaQuery(
 
   if (intent === "autonomy_status") {
     return resolveAutonomyStatusQuery(query);
+  }
+
+  if (intent === "runtime_health") {
+    return resolveRuntimeHealthQuery(query);
   }
 
   if (intent === "cache_routing") {

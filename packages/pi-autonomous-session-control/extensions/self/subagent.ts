@@ -12,7 +12,6 @@ import {
   projectAscExecutionResult,
   projectAscExecutionUpdate,
 } from "./execution-observation.ts";
-import { DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH } from "./subagent-edge-contract.ts";
 import { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import {
   type AscExecutionRuntime,
@@ -200,9 +199,7 @@ Child skill profile bootstrap (optional):
         ["explorer", "reviewer", "tester", "researcher", "minimal", "custom"] as const,
         { description: "Predefined profile or 'custom'" },
       ),
-      objective: Type.String({
-        description: `Clear objective for the subagent (maximum ${DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH} characters)`,
-      }),
+      objective: Type.String({ description: "Clear objective for the subagent" }),
       tools: Type.Optional(
         Type.String({ description: "Comma-separated tools (default: from profile)" }),
       ),

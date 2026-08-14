@@ -20,7 +20,6 @@ import {
   DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX,
   registerSubagentTool,
 } from "../extensions/self/subagent.ts";
-import { DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH } from "../extensions/self/subagent-edge-contract.ts";
 
 test("normalizeInput returns empty object for malformed boundary payloads", () => {
   assert.deepEqual(normalizeInput(null), {});
@@ -134,7 +133,7 @@ test("dispatch_subagent rejects malformed objective via edge invariants", async 
   }
 });
 
-test("dispatch_subagent admits the observed delegated objective and keeps a finite upper bound", async () => {
+test("dispatch_subagent admits long delegated objectives without a package-owned bound and attests pre-dispatch invariant failures", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "eck-dispatch-objective-bound-"));
   const state = createSubagentState(sessionsDir, { maxConcurrent: 1 });
   let spawnCalls = 0;
@@ -177,7 +176,7 @@ test("dispatch_subagent admits the observed delegated objective and keeps a fini
     assert.equal(accepted.details.status, "done");
     const currentDelegatedObjective = await tool.execute(
       "tc-eck-current-delegation",
-      { profile: "minimal", objective: "x".repeat(8_752) },
+      { profile: "minimal", objective: "x".repeat(32_000) },
       null,
       null,
       { cwd: process.cwd() },
@@ -187,10 +186,10 @@ test("dispatch_subagent admits the observed delegated objective and keeps a fini
 
     const error = await tool
       .execute(
-        "tc-eck-over-bound",
+        "tc-eck-malformed-objective",
         {
           profile: "minimal",
-          objective: "x".repeat(DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH + 1),
+          objective: 12345,
         },
         null,
         null,
@@ -201,12 +200,9 @@ test("dispatch_subagent admits the observed delegated objective and keeps a fini
         (caught) => caught,
       );
 
-    assert.equal(spawnCalls, 2, "over-bound objective must fail before spawn");
+    assert.equal(spawnCalls, 2, "malformed objective must fail before spawn");
     assert.equal(error.result.details.effectDisposition, "confirmed_no_effects");
-    assert.match(
-      error.message,
-      new RegExp(`no longer than ${DISPATCH_SUBAGENT_OBJECTIVE_MAX_LENGTH} characters`),
-    );
+    assert.match(error.message, /objective must be a non-empty string/);
     const metadataLine = error.message
       .split("\n")
       .find((line) => line.startsWith(DISPATCH_SUBAGENT_TOOL_FAILURE_METADATA_PREFIX));
@@ -225,7 +221,7 @@ test("dispatch_subagent admits the observed delegated objective and keeps a fini
     );
     assert.equal(typeof toolResultHandler, "function");
     const patch = toolResultHandler({
-      toolCallId: "tc-eck-over-bound",
+      toolCallId: "tc-eck-malformed-objective",
       toolName: "dispatch_subagent",
       details: {},
       isError: true,

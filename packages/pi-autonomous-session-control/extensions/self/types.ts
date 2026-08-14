@@ -419,6 +419,7 @@ export type MetaIntent =
   | "record_feedback"
   | "list_feedback"
   | "memory_lifecycle_status"
+  | "runtime_health"
   | "autonomy_status"
   | "cache_routing";
 
