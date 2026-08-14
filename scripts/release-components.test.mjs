@@ -386,31 +386,40 @@ test("clean consumer installs prepare the linked ASC source runtime first", () =
     path.join(ROOT, "scripts", "governed-deep-review-canary.mjs"),
     "utf8",
   );
-  const prepareCall = governedCanary.indexOf("prepareLocalBuildOwners(identity.sourceRoot);");
-  const runtimeInstallLoop = governedCanary.indexOf("for (const packagePath of PACKAGES)");
-  const deferBuildOwner = governedCanary.indexOf("if (packagePath === LOCAL_BUILD_OWNER) continue;");
+  // Governed materialization v2 contract (a462c3d8): staged package runtimes ->
+  // typebox failure proof -> closed-owner alignment -> peer layer -> publish ->
+  // layout verification -> host source/npm receipts -> reproducible ASC runtime
+  // build -> tracked-hash preservation -> runtime graph -> typebox/host-peer proofs.
+  const stagedRuntimes = governedCanary.indexOf(
+    "materializePackageRuntimes(identity.sourceRoot, npm, npmEffects)",
+  );
   const missingTypeboxProof = governedCanary.indexOf(
-    "assertMissingTypeboxFailureBeforePeerRepair(identity.sourceRoot)",
+    "    const missingTypeboxFailure = assertMissingTypeboxFailureBeforePeerRepair(",
   );
-  const alignConsumers = governedCanary.indexOf("alignExceptionalLocalOwners(identity.sourceRoot);");
-  const pruneBuildOwner = governedCanary.indexOf(
-    "npmCi(resolve(identity.sourceRoot, LOCAL_BUILD_OWNER));",
+  const alignConsumers = governedCanary.indexOf("alignClosedLocalOwners(identity.sourceRoot,");
+  const peerClosure = governedCanary.indexOf("    materializePeerLayer(\n");
+  const publishRuntimes = governedCanary.indexOf("publishPackageRuntimes(identity.sourceRoot,");
+  const layoutProof = governedCanary.indexOf("verifyGovernedRuntimeNodeModulesLayout(");
+  const ascRuntimeProof = governedCanary.indexOf(
+    "materializeAscRuntime(identity.sourceRoot, identity.sourceCommit, npm)",
   );
-  const peerClosure = governedCanary.indexOf("materializePeerLayer(identity.sourceRoot)");
   const graphProof = governedCanary.indexOf("resolveRuntimeGraph(identity.sourceRoot)");
-  const typeboxProof = governedCanary.indexOf("verifyTypebox(identity.sourceRoot, typeboxRoot)");
-  const hostPeerProof = governedCanary.indexOf("verifyGovernedRuntimeHostPeers(identity.sourceRoot)");
+  const typeboxProof = governedCanary.indexOf("verifyTypebox(identity.sourceRoot)");
+  const hostPeerProof = governedCanary.indexOf(
+    "verifyGovernedRuntimeHostPeers(identity.sourceRoot, hostSource)",
+  );
   assert.ok(
-    prepareCall >= 0 &&
-      runtimeInstallLoop > prepareCall &&
-      deferBuildOwner > runtimeInstallLoop &&
-      missingTypeboxProof > deferBuildOwner &&
+    stagedRuntimes >= 0 &&
+      missingTypeboxProof > stagedRuntimes &&
       alignConsumers > missingTypeboxProof &&
-      pruneBuildOwner > alignConsumers &&
-      peerClosure > pruneBuildOwner &&
-      graphProof > peerClosure &&
+      peerClosure > alignConsumers &&
+      publishRuntimes > peerClosure &&
+      layoutProof > publishRuntimes &&
+      ascRuntimeProof > layoutProof &&
+      graphProof > ascRuntimeProof &&
       typeboxProof > graphProof &&
       hostPeerProof > typeboxProof,
+    "governed materialization v2 phase order must be preserved",
   );
 });
 
