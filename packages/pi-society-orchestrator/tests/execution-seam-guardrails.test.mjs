@@ -43,6 +43,11 @@ const allowedAutoresearchConsumers = [
     file: "src/runtime/autoresearch-supervisor-runner.ts",
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
+  {
+    // pure move of type-only imports from autoresearch-supervisor-runner.ts (types slice)
+    file: "src/runtime/autoresearch-types.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
 ];
 const sourceRoots = ["src", "extensions"];
 
