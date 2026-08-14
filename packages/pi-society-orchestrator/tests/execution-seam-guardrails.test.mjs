@@ -32,15 +32,16 @@ const allowedAutoresearchConsumers = [
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
   {
+    // pure move from autoresearch-supervisor-runner.ts (live-supervision slice)
+    file: "src/runtime/autoresearch-live-supervision.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
+  {
     file: "src/runtime/autoresearch-manifest-campaign-supervision.ts",
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
   {
     file: "src/runtime/autoresearch-self-hosting-supervision.ts",
-    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
-  },
-  {
-    file: "src/runtime/autoresearch-supervisor-runner.ts",
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
   {

@@ -1,0 +1,886 @@
+// ---
+// summary: "Live autoresearch supervision: session constants, policy/identity resolvers, live observation reads, and the AutoresearchLiveSupervisionRunner lifecycle."
+// read_when:
+//   - "Changing autoresearch live supervision sessions, polling intervals, session state derivation, or lifecycle outcomes."
+// ---
+
+import * as os from "node:os";
+import * as path from "node:path";
+import type { AutoresearchLedgerProjection } from "@tryinget/pi-autoresearch/src/runtime.ts";
+import {
+  buildAutoresearchOracleEvidencePacket,
+  buildAutoresearchRuntimeStatus,
+  executeAutoresearchCampaignStart,
+  inspectAutoresearchFinalization,
+  loadAutoresearchLedger,
+  projectAutoresearchLedgerEntries,
+} from "@tryinget/pi-autoresearch/src/runtime.ts";
+import type { AutoresearchSupervisorLedgerLike } from "../loops/autoresearch-supervisor.ts";
+import { resolveAkPath } from "./ak.ts";
+import { evaluateAutoresearchAkLifecycle } from "./autoresearch-ak-lifecycle.ts";
+import type { AutoresearchAkProjectorResult } from "./autoresearch-ak-projector.ts";
+import { projectAutoresearchAkMilestone } from "./autoresearch-ak-projector.ts";
+import { reviewAutoresearchCandidateWave } from "./autoresearch-candidate-wave.ts";
+import { finalizeAutoresearchPostFanin } from "./autoresearch-post-fanin-finalizer.ts";
+import {
+  resolveStartCampaignPositiveIntegerBudget,
+  resolveStartCampaignPositiveNumberBudget,
+} from "./autoresearch-runner-utils.ts";
+import {
+  advanceAutoresearchLevel3MatrixCellExecutor,
+  buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan,
+  buildAutoresearchLevel3ManifestPreflight,
+  buildAutoresearchLevel3MatrixCellRunner,
+  buildAutoresearchLevel3MeasureExportReviewPlan,
+  buildAutoresearchLevel3SliceSequenceDryRun,
+  buildAutoresearchLevel3VisibleCandidateLifecyclePlan,
+  buildAutoresearchMatrixCampaignRunnerContract,
+  checkpointAutoresearchMatrixCampaignRunner,
+  planAutoresearchCandidateWave,
+  planAutoresearchMatrixCampaign,
+  reviewAutoresearchMatrixCampaign,
+  runAutoresearchLevel4CampaignRunner,
+} from "./autoresearch-supervisor-runner.ts";
+import type {
+  AutoresearchCandidateWavePlan,
+  AutoresearchCandidateWaveRequest,
+  AutoresearchCandidateWaveReview,
+  AutoresearchCandidateWaveReviewRequest,
+  AutoresearchLevel3AuthorizedFinalizerCleanupPlan,
+  AutoresearchLevel3AuthorizedFinalizerCleanupRequest,
+  AutoresearchLevel3CampaignManifestPreflight,
+  AutoresearchLevel3ManifestPreflightRequest,
+  AutoresearchLevel3MatrixCellExecutor,
+  AutoresearchLevel3MatrixCellExecutorRequest,
+  AutoresearchLevel3MatrixCellRunner,
+  AutoresearchLevel3MeasureExportReviewPlan,
+  AutoresearchLevel3MeasureExportReviewRequest,
+  AutoresearchLevel3SliceSequenceDryRun,
+  AutoresearchLevel3SliceSequenceDryRunRequest,
+  AutoresearchLevel3VisibleCandidateLifecyclePlan,
+  AutoresearchLevel3VisibleCandidateLifecycleRequest,
+  AutoresearchLevel4CampaignRunner,
+  AutoresearchLevel4CampaignRunnerRequest,
+  AutoresearchLiveLifecycleOutcome,
+  AutoresearchLiveObservation,
+  AutoresearchLivePollResult,
+  AutoresearchLiveSessionState,
+  AutoresearchLiveStartCampaignRequest,
+  AutoresearchLiveStartCampaignResult,
+  AutoresearchLiveStartResult,
+  AutoresearchLiveStopResult,
+  AutoresearchLiveSupervisionPolicyV1,
+  AutoresearchLiveSupervisionRequest,
+  AutoresearchLiveSupervisionRunnerConfig,
+  AutoresearchLiveSupervisionSessionV1,
+  AutoresearchMatrixCampaignPlan,
+  AutoresearchMatrixCampaignRequest,
+  AutoresearchMatrixCampaignReview,
+  AutoresearchMatrixCampaignRunnerCheckpoint,
+  AutoresearchMatrixCampaignRunnerContract,
+  AutoresearchMatrixCampaignRunnerRequest,
+  AutoresearchPostFaninFinalizerRequest,
+  AutoresearchPostFaninFinalizerResult,
+} from "./autoresearch-types.ts";
+export const DEFAULT_SOCIETY_DB =
+  process.env.SOCIETY_DB ||
+  process.env.AK_DB ||
+  path.join(os.homedir(), "ai-society", "society.db");
+
+export type TimerHandle = unknown;
+
+export const AUTORESEARCH_LIVE_SUPERVISION_TYPE = "autoresearch_live_supervision" as const;
+export const AUTORESEARCH_LIVE_SUPERVISION_VERSION = 1 as const;
+export const AUTORESEARCH_LIVE_SUPERVISION_DEFAULT_INTERVAL_SECONDS = 30 as const;
+export const AUTORESEARCH_LIVE_SUPERVISION_MIN_INTERVAL_SECONDS = 5 as const;
+export const AUTORESEARCH_LIVE_SUPERVISION_MAX_INTERVAL_SECONDS = 300 as const;
+export interface SessionIdentity {
+  taskId: number;
+  cwd: string;
+  sessionKey: string;
+}
+
+export interface SessionRecord {
+  identity: SessionIdentity;
+  persistent: boolean;
+  keepRunning: boolean;
+  session: AutoresearchLiveSupervisionSessionV1;
+  timer: TimerHandle | null;
+  inFlight: Promise<AutoresearchLivePollResult> | null;
+}
+
+export function buildAutoresearchLiveSupervisionSessionKey(input: {
+  taskId: number;
+  cwd: string;
+}): string {
+  return `${input.taskId}|${path.resolve(input.cwd)}`;
+}
+
+export function resolveAutoresearchLiveSupervisionPolicy(
+  intervalSeconds?: number,
+): AutoresearchLiveSupervisionPolicyV1 {
+  const resolvedInterval =
+    intervalSeconds ?? AUTORESEARCH_LIVE_SUPERVISION_DEFAULT_INTERVAL_SECONDS;
+
+  if (
+    !Number.isInteger(resolvedInterval) ||
+    resolvedInterval < AUTORESEARCH_LIVE_SUPERVISION_MIN_INTERVAL_SECONDS ||
+    resolvedInterval > AUTORESEARCH_LIVE_SUPERVISION_MAX_INTERVAL_SECONDS
+  ) {
+    throw new Error(
+      `intervalSeconds must be an integer between ${AUTORESEARCH_LIVE_SUPERVISION_MIN_INTERVAL_SECONDS} and ${AUTORESEARCH_LIVE_SUPERVISION_MAX_INTERVAL_SECONDS}, received: ${String(intervalSeconds)}`,
+    );
+  }
+
+  return {
+    intervalSeconds: resolvedInterval,
+    autoStopOnTerminal: true,
+    lifecycleMode: "complete_on_verified_completion",
+  };
+}
+
+export function resolveAutoresearchLiveSupervisionIdentity(
+  input: Pick<AutoresearchLiveSupervisionRequest, "taskId" | "cwd">,
+): SessionIdentity {
+  if (!Number.isInteger(input.taskId) || input.taskId <= 0) {
+    throw new Error(`taskId must be a positive integer, received: ${String(input.taskId)}`);
+  }
+
+  if (typeof input.cwd !== "string" || input.cwd.trim().length === 0) {
+    throw new Error("cwd is required for live autoresearch supervision");
+  }
+
+  const cwd = path.resolve(input.cwd);
+  return {
+    taskId: input.taskId,
+    cwd,
+    sessionKey: buildAutoresearchLiveSupervisionSessionKey({
+      taskId: input.taskId,
+      cwd,
+    }),
+  };
+}
+
+export async function readAutoresearchLiveObservation(
+  input: { cwd: string },
+  config: Pick<
+    AutoresearchLiveSupervisionRunnerConfig,
+    | "observeRuntime"
+    | "loadLedger"
+    | "projectLedgerEntries"
+    | "inspectFinalization"
+    | "observeOracleEvidence"
+  > = {},
+): Promise<AutoresearchLiveObservation> {
+  const cwd = path.resolve(input.cwd);
+  const runtime = await (config.observeRuntime || buildAutoresearchRuntimeStatus)(cwd, {
+    persistSnapshot: false,
+  });
+  const ledgerLoad = await (config.loadLedger || loadAutoresearchLedger)(cwd);
+  const ledgerProjection = await (config.projectLedgerEntries || projectAutoresearchLedgerEntries)(
+    ledgerLoad.entries,
+  );
+  const ledger = toSupervisorLedgerLike(ledgerProjection);
+  const finalization = await (config.inspectFinalization || inspectAutoresearchFinalization)({
+    cwd,
+    status: runtime,
+  });
+  const oracleEvidence = await (
+    config.observeOracleEvidence || buildAutoresearchOracleEvidencePacket
+  )(cwd);
+
+  return {
+    cwd,
+    runtime,
+    ledgerLoad,
+    ledger,
+    finalization,
+    oracleEvidence,
+  };
+}
+
+export class AutoresearchLiveSupervisionRunner {
+  private readonly sessions = new Map<string, SessionRecord>();
+  private readonly now: () => number;
+  private readonly setTimeoutImpl: (
+    callback: () => void | Promise<void>,
+    delayMs: number,
+  ) => unknown;
+  private readonly clearTimeoutImpl: (handle: unknown) => void;
+  private readonly config: AutoresearchLiveSupervisionRunnerConfig;
+
+  constructor(config: AutoresearchLiveSupervisionRunnerConfig = {}) {
+    this.config = config;
+    this.now = config.now || (() => Date.now());
+    this.setTimeoutImpl =
+      config.setTimeout ||
+      ((callback, delayMs) => globalThis.setTimeout(() => void callback(), delayMs));
+    this.clearTimeoutImpl =
+      config.clearTimeout || ((handle) => globalThis.clearTimeout(handle as NodeJS.Timeout));
+  }
+
+  async observe(input: AutoresearchLiveSupervisionRequest): Promise<AutoresearchLivePollResult> {
+    const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+    const existing = this.sessions.get(identity.sessionKey);
+    const policy =
+      existing?.session.policy ?? resolveAutoresearchLiveSupervisionPolicy(input.intervalSeconds);
+    return this.executeReadOnlyObservation({
+      identity,
+      policy,
+      previousSession: existing?.session ?? null,
+      signal: input.signal,
+    });
+  }
+
+  async start(input: AutoresearchLiveSupervisionRequest): Promise<AutoresearchLiveStartResult> {
+    const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+    const existing = this.sessions.get(identity.sessionKey);
+
+    if (existing && existing.session.state === "running") {
+      return {
+        sessionKey: identity.sessionKey,
+        session: cloneSession(existing.session),
+        reused: true,
+        poll: null,
+      };
+    }
+
+    const policy = resolveAutoresearchLiveSupervisionPolicy(input.intervalSeconds);
+    const record = this.createRecord(identity, policy, true);
+    this.sessions.set(identity.sessionKey, record);
+
+    const poll = await this.runPoll(record, { signal: input.signal, reschedule: true });
+    return {
+      sessionKey: identity.sessionKey,
+      session: poll.session,
+      reused: false,
+      poll,
+    };
+  }
+
+  async startCampaign(
+    input: AutoresearchLiveStartCampaignRequest,
+  ): Promise<AutoresearchLiveStartCampaignResult> {
+    const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+    const campaignObjective = input.objective.trim();
+    if (campaignObjective.length === 0) {
+      throw new Error("start_campaign requires a non-empty objective.");
+    }
+
+    const maxIterations = resolveStartCampaignPositiveIntegerBudget(
+      "maxIterations",
+      input.maxIterations,
+      3,
+    );
+    const maxWallClockMinutes = resolveStartCampaignPositiveNumberBudget(
+      "maxWallClockMinutes",
+      input.maxWallClockMinutes,
+      30,
+    );
+
+    const campaign = await (this.config.startCampaign || executeAutoresearchCampaignStart)({
+      cwd: identity.cwd,
+      objective: campaignObjective,
+      setupMode: "autoplan",
+      runMode: "bounded_loop",
+      maxIterations,
+      maxWallClockMinutes,
+      peerMode: "plan",
+      benchmarkCommand: input.benchmarkCommand,
+      checksCommand: input.checksCommand,
+      metricName: input.metricName,
+      metricUnit: input.metricUnit,
+      direction: input.direction,
+      metricThreshold: input.metricThreshold,
+      reconfigure: input.reconfigure,
+      filesInScope: input.filesInScope,
+      offLimits: input.offLimits,
+      constraints: input.constraints,
+      planner: input.planner,
+      materializeDspxIntent: input.materializeDspxIntent,
+      runDspxProgramGen: input.runDspxProgramGen,
+      dspxProgramGenTimeoutSeconds: input.dspxProgramGenTimeoutSeconds,
+      dspxIntentPath: input.dspxIntentPath,
+      dspxOutdir: input.dspxOutdir,
+      dspxBehaviorPath: input.dspxBehaviorPath,
+      signal: input.signal,
+    });
+
+    const supervision = await this.start(input);
+    return { campaign, supervision };
+  }
+
+  planCandidateWave(input: AutoresearchCandidateWaveRequest): AutoresearchCandidateWavePlan {
+    return planAutoresearchCandidateWave(input);
+  }
+
+  preflightLevel3CampaignManifest(
+    input: AutoresearchLevel3ManifestPreflightRequest,
+  ): AutoresearchLevel3CampaignManifestPreflight {
+    return buildAutoresearchLevel3ManifestPreflight(input);
+  }
+
+  dryRunLevel3SliceSequence(
+    input: AutoresearchLevel3SliceSequenceDryRunRequest,
+  ): AutoresearchLevel3SliceSequenceDryRun {
+    return buildAutoresearchLevel3SliceSequenceDryRun(input);
+  }
+
+  planLevel3VisibleCandidateLifecycle(
+    input: AutoresearchLevel3VisibleCandidateLifecycleRequest,
+  ): AutoresearchLevel3VisibleCandidateLifecyclePlan {
+    return buildAutoresearchLevel3VisibleCandidateLifecyclePlan(input);
+  }
+
+  planLevel3MeasureExportReview(
+    input: AutoresearchLevel3MeasureExportReviewRequest,
+  ): AutoresearchLevel3MeasureExportReviewPlan {
+    return buildAutoresearchLevel3MeasureExportReviewPlan(input);
+  }
+
+  runLevel3MatrixCellRunner(
+    input: AutoresearchLevel3MeasureExportReviewRequest,
+  ): AutoresearchLevel3MatrixCellRunner {
+    return buildAutoresearchLevel3MatrixCellRunner(input);
+  }
+
+  planLevel3AuthorizedFinalizerCleanup(
+    input: AutoresearchLevel3AuthorizedFinalizerCleanupRequest,
+  ): AutoresearchLevel3AuthorizedFinalizerCleanupPlan {
+    return buildAutoresearchLevel3AuthorizedFinalizerCleanupPlan(input);
+  }
+
+  planMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignPlan {
+    return planAutoresearchMatrixCampaign(input);
+  }
+
+  prepareMatrixCampaignRunner(
+    input: AutoresearchMatrixCampaignRunnerRequest,
+  ): AutoresearchMatrixCampaignRunnerContract {
+    return buildAutoresearchMatrixCampaignRunnerContract(input);
+  }
+
+  checkpointMatrixCampaignRunner(
+    input: AutoresearchMatrixCampaignRunnerRequest,
+  ): AutoresearchMatrixCampaignRunnerCheckpoint {
+    return checkpointAutoresearchMatrixCampaignRunner(input);
+  }
+
+  advanceLevel3MatrixCellExecutor(
+    input: AutoresearchLevel3MatrixCellExecutorRequest,
+  ): AutoresearchLevel3MatrixCellExecutor {
+    return advanceAutoresearchLevel3MatrixCellExecutor(input);
+  }
+
+  runLevel4CampaignRunner(
+    input: AutoresearchLevel4CampaignRunnerRequest,
+  ): AutoresearchLevel4CampaignRunner {
+    return runAutoresearchLevel4CampaignRunner(input);
+  }
+
+  reviewMatrixCampaign(input: AutoresearchMatrixCampaignRequest): AutoresearchMatrixCampaignReview {
+    return reviewAutoresearchMatrixCampaign(input);
+  }
+
+  reviewCandidateWave(
+    input: AutoresearchCandidateWaveReviewRequest,
+  ): AutoresearchCandidateWaveReview {
+    return reviewAutoresearchCandidateWave(input);
+  }
+
+  finalizePostFanin(
+    input: AutoresearchPostFaninFinalizerRequest,
+  ): AutoresearchPostFaninFinalizerResult {
+    return finalizeAutoresearchPostFanin(input);
+  }
+
+  stop(
+    input: Pick<AutoresearchLiveSupervisionRequest, "taskId" | "cwd">,
+  ): AutoresearchLiveStopResult {
+    const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+    const existing = this.sessions.get(identity.sessionKey);
+
+    if (!existing) {
+      return {
+        sessionKey: identity.sessionKey,
+        session: null,
+        stopped: false,
+        nextStep: "No live supervision session is active for this task/cwd pair.",
+      };
+    }
+
+    existing.keepRunning = false;
+    this.cancelTimer(existing);
+    existing.session = {
+      ...existing.session,
+      state: "stopped",
+      lastLifecycleAction: "stopped",
+      lastSummary: "Live supervision stopped by operator.",
+      lastError: null,
+    };
+
+    return {
+      sessionKey: identity.sessionKey,
+      session: cloneSession(existing.session),
+      stopped: true,
+      nextStep: "Live supervision is stopped. Start it again to resume polling.",
+    };
+  }
+
+  getSession(
+    input: Pick<AutoresearchLiveSupervisionRequest, "taskId" | "cwd">,
+  ): AutoresearchLiveSupervisionSessionV1 | null {
+    const identity = resolveAutoresearchLiveSupervisionIdentity(input);
+    const session = this.sessions.get(identity.sessionKey)?.session;
+    return session ? cloneSession(session) : null;
+  }
+
+  listSessions(): AutoresearchLiveSupervisionSessionV1[] {
+    return [...this.sessions.values()].map((record) => cloneSession(record.session));
+  }
+
+  listActiveSessions(): AutoresearchLiveSupervisionSessionV1[] {
+    return this.listSessions().filter((session) => session.state === "running");
+  }
+
+  dispose(): void {
+    for (const record of this.sessions.values()) {
+      record.keepRunning = false;
+      this.cancelTimer(record);
+      if (record.session.state === "running") {
+        record.session = {
+          ...record.session,
+          state: "stopped",
+          lastLifecycleAction: "stopped",
+          lastSummary: "Live supervision stopped because the runner was disposed.",
+          lastError: null,
+        };
+      }
+    }
+  }
+
+  private createRecord(
+    identity: SessionIdentity,
+    policy: AutoresearchLiveSupervisionPolicyV1,
+    persistent: boolean,
+  ): SessionRecord {
+    return {
+      identity,
+      persistent,
+      keepRunning: persistent,
+      session: {
+        type: AUTORESEARCH_LIVE_SUPERVISION_TYPE,
+        version: AUTORESEARCH_LIVE_SUPERVISION_VERSION,
+        taskId: identity.taskId,
+        cwd: identity.cwd,
+        policy: { ...policy },
+        state: persistent ? "running" : "stopped",
+        startedAt: this.now(),
+        lastPolledAt: null,
+        pollCount: 0,
+        lastRuntimeState: null,
+        lastProjectionAction: null,
+        lastLifecycleAction: "none",
+        lastSummary: null,
+        lastError: null,
+      },
+      timer: null,
+      inFlight: null,
+    };
+  }
+
+  private runPoll(
+    record: SessionRecord,
+    options: { signal?: AbortSignal; reschedule: boolean },
+  ): Promise<AutoresearchLivePollResult> {
+    if (record.inFlight) {
+      return record.inFlight;
+    }
+
+    const promise = this.executePoll(record, options).finally(() => {
+      if (record.inFlight === promise) {
+        record.inFlight = null;
+      }
+    });
+
+    record.inFlight = promise;
+    return promise;
+  }
+
+  private async executeReadOnlyObservation(input: {
+    identity: SessionIdentity;
+    policy: AutoresearchLiveSupervisionPolicyV1;
+    previousSession: AutoresearchLiveSupervisionSessionV1 | null;
+    signal?: AbortSignal;
+  }): Promise<AutoresearchLivePollResult> {
+    try {
+      const observation = await readAutoresearchLiveObservation(
+        { cwd: input.identity.cwd },
+        {
+          observeRuntime: this.config.observeRuntime,
+          loadLedger: this.config.loadLedger,
+          projectLedgerEntries: this.config.projectLedgerEntries,
+          inspectFinalization: this.config.inspectFinalization,
+          observeOracleEvidence: this.config.observeOracleEvidence,
+        },
+      );
+      const previous = input.previousSession;
+      const state = deriveReadOnlyObservationState(observation);
+      const session: AutoresearchLiveSupervisionSessionV1 = {
+        type: AUTORESEARCH_LIVE_SUPERVISION_TYPE,
+        version: AUTORESEARCH_LIVE_SUPERVISION_VERSION,
+        taskId: input.identity.taskId,
+        cwd: input.identity.cwd,
+        policy: { ...input.policy },
+        state,
+        startedAt: previous?.startedAt ?? this.now(),
+        lastPolledAt: this.now(),
+        pollCount: (previous?.pollCount ?? 0) + 1,
+        lastRuntimeState: observation.runtime.runtimeProjection.state,
+        lastProjectionAction: null,
+        lastLifecycleAction: "none",
+        lastSummary:
+          "Read-only observation only; no milestone projection or lifecycle mutation was attempted.",
+        lastError: null,
+      };
+      return {
+        sessionKey: input.identity.sessionKey,
+        session,
+        observation,
+        projector: null,
+        lifecycle: null,
+        nextStep: describeAutoresearchLiveNextStep(session),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const session: AutoresearchLiveSupervisionSessionV1 = {
+        type: AUTORESEARCH_LIVE_SUPERVISION_TYPE,
+        version: AUTORESEARCH_LIVE_SUPERVISION_VERSION,
+        taskId: input.identity.taskId,
+        cwd: input.identity.cwd,
+        policy: { ...input.policy },
+        state: "blocked",
+        startedAt: input.previousSession?.startedAt ?? this.now(),
+        lastPolledAt: this.now(),
+        pollCount: (input.previousSession?.pollCount ?? 0) + 1,
+        lastRuntimeState: null,
+        lastProjectionAction: null,
+        lastLifecycleAction: "none",
+        lastSummary: message,
+        lastError: message,
+      };
+      return {
+        sessionKey: input.identity.sessionKey,
+        session,
+        observation: null,
+        projector: null,
+        lifecycle: null,
+        nextStep: describeAutoresearchLiveNextStep(session),
+      };
+    }
+  }
+
+  private async executePoll(
+    record: SessionRecord,
+    options: { signal?: AbortSignal; reschedule: boolean },
+  ): Promise<AutoresearchLivePollResult> {
+    this.cancelTimer(record);
+
+    try {
+      const observation = await readAutoresearchLiveObservation(
+        { cwd: record.identity.cwd },
+        {
+          observeRuntime: this.config.observeRuntime,
+          loadLedger: this.config.loadLedger,
+          projectLedgerEntries: this.config.projectLedgerEntries,
+          inspectFinalization: this.config.inspectFinalization,
+          observeOracleEvidence: this.config.observeOracleEvidence,
+        },
+      );
+
+      const projector = await this.projectMilestone(
+        record.identity.taskId,
+        observation,
+        options.signal,
+      );
+      const lifecycle = isBlockedProjectorResult(projector)
+        ? blockedLifecycleOutcome(projector.error || projector.candidate.reason)
+        : await this.evaluateLifecycle(record, observation, projector, options.signal);
+
+      const session = this.applyPollOutcome(record, observation, projector, lifecycle);
+      if (
+        record.persistent &&
+        options.reschedule &&
+        record.keepRunning &&
+        session.state === "running"
+      ) {
+        this.scheduleNext(record);
+      }
+
+      return {
+        sessionKey: record.identity.sessionKey,
+        session: cloneSession(session),
+        observation,
+        projector,
+        lifecycle,
+        nextStep: describeAutoresearchLiveNextStep(session),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const session = this.applyUnexpectedFailure(record, message);
+      return {
+        sessionKey: record.identity.sessionKey,
+        session: cloneSession(session),
+        observation: null,
+        projector: null,
+        lifecycle: null,
+        nextStep: describeAutoresearchLiveNextStep(session),
+      };
+    }
+  }
+
+  private applyPollOutcome(
+    record: SessionRecord,
+    observation: AutoresearchLiveObservation,
+    projector: AutoresearchAkProjectorResult,
+    lifecycle: AutoresearchLiveLifecycleOutcome,
+  ): AutoresearchLiveSupervisionSessionV1 {
+    const stopRequested = record.persistent && !record.keepRunning;
+    const nextState = stopRequested ? "stopped" : deriveSessionState(projector, lifecycle);
+    const lifecycleAction = stopRequested ? "stopped" : lifecycle.action;
+    const summary = stopRequested
+      ? "Live supervision stopped by operator."
+      : deriveSessionSummary(projector, lifecycle);
+    const error = stopRequested ? null : deriveSessionError(projector, lifecycle, nextState);
+
+    if (nextState !== "running") {
+      record.keepRunning = false;
+    }
+
+    const nextSession: AutoresearchLiveSupervisionSessionV1 = {
+      ...record.session,
+      state: nextState,
+      lastPolledAt: this.now(),
+      pollCount: record.session.pollCount + 1,
+      lastRuntimeState: observation.runtime.runtimeProjection.state,
+      lastProjectionAction: projector.action,
+      lastLifecycleAction: lifecycleAction,
+      lastSummary: summary,
+      lastError: error,
+    };
+
+    record.session = nextSession;
+    return nextSession;
+  }
+
+  private applyUnexpectedFailure(
+    record: SessionRecord,
+    message: string,
+  ): AutoresearchLiveSupervisionSessionV1 {
+    const stopRequested =
+      record.persistent && (record.session.state === "stopped" || !record.keepRunning);
+    record.keepRunning = false;
+    const nextSession: AutoresearchLiveSupervisionSessionV1 = {
+      ...record.session,
+      state: stopRequested ? "stopped" : "blocked",
+      lastPolledAt: this.now(),
+      pollCount: record.session.pollCount + 1,
+      lastProjectionAction: "blocked",
+      lastLifecycleAction: stopRequested ? "stopped" : "blocked",
+      lastSummary: stopRequested ? "Live supervision stopped by operator." : message,
+      lastError: stopRequested ? null : message,
+    };
+
+    record.session = nextSession;
+    return nextSession;
+  }
+
+  private async projectMilestone(
+    taskId: number,
+    observation: AutoresearchLiveObservation,
+    signal?: AbortSignal,
+  ): Promise<AutoresearchAkProjectorResult> {
+    if (this.config.projectMilestone) {
+      return this.config.projectMilestone({
+        taskId,
+        observation,
+        akPath: this.resolveAkPathForCwd(observation.cwd),
+        societyDb: this.resolveSocietyDbPath(),
+        signal,
+      });
+    }
+
+    return projectAutoresearchAkMilestone({
+      taskId,
+      akPath: this.resolveAkPathForCwd(observation.cwd),
+      societyDb: this.resolveSocietyDbPath(),
+      runtime: observation.runtime,
+      ledger: observation.ledger,
+      signal,
+    });
+  }
+
+  private async evaluateLifecycle(
+    record: SessionRecord,
+    observation: AutoresearchLiveObservation,
+    projector: AutoresearchAkProjectorResult,
+    signal?: AbortSignal,
+  ): Promise<AutoresearchLiveLifecycleOutcome> {
+    if (this.config.evaluateLifecycle) {
+      return this.config.evaluateLifecycle({
+        taskId: record.identity.taskId,
+        sessionKey: record.identity.sessionKey,
+        session: cloneSession(record.session),
+        observation,
+        projector,
+        signal,
+      });
+    }
+
+    return evaluateAutoresearchAkLifecycle({
+      taskId: record.identity.taskId,
+      akPath: this.resolveAkPathForCwd(observation.cwd),
+      societyDb: this.resolveSocietyDbPath(),
+      observation,
+      projector,
+      signal,
+    });
+  }
+
+  private scheduleNext(record: SessionRecord): void {
+    this.cancelTimer(record);
+    record.timer = this.setTimeoutImpl(
+      () => this.runPoll(record, { reschedule: true }).then(() => undefined),
+      record.session.policy.intervalSeconds * 1000,
+    );
+  }
+
+  private cancelTimer(record: SessionRecord): void {
+    if (!record.timer) {
+      return;
+    }
+
+    this.clearTimeoutImpl(record.timer);
+    record.timer = null;
+  }
+
+  private resolveAkPathForCwd(cwd: string): string {
+    return this.config.akPath || resolveAkPath({ cwd });
+  }
+
+  private resolveSocietyDbPath(): string {
+    return this.config.societyDb || DEFAULT_SOCIETY_DB;
+  }
+}
+
+export function deriveReadOnlyObservationState(
+  observation: AutoresearchLiveObservation,
+): AutoresearchLiveSessionState {
+  const runtimeState = observation.runtime.runtimeProjection.state;
+  if (runtimeState === "completed") return "completed";
+  if (runtimeState === "blocked") return "blocked";
+  return "running";
+}
+
+export function deriveSessionState(
+  projector: AutoresearchAkProjectorResult,
+  lifecycle: AutoresearchLiveLifecycleOutcome,
+): AutoresearchLiveSessionState {
+  if (isBlockedProjectorResult(projector) || !lifecycle.ok || lifecycle.action === "blocked") {
+    return "blocked";
+  }
+
+  if (lifecycle.action === "completed_task" || lifecycle.action === "already_terminal") {
+    return "completed";
+  }
+
+  return "running";
+}
+
+export function deriveSessionSummary(
+  projector: AutoresearchAkProjectorResult,
+  lifecycle: AutoresearchLiveLifecycleOutcome,
+): string {
+  if (
+    lifecycle.summary.trim().length > 0 &&
+    (lifecycle.action !== "none" || lifecycle.summary !== projector.candidate.reason)
+  ) {
+    return lifecycle.summary;
+  }
+
+  return projector.candidate.reason;
+}
+
+export function deriveSessionError(
+  projector: AutoresearchAkProjectorResult,
+  lifecycle: AutoresearchLiveLifecycleOutcome,
+  state: AutoresearchLiveSessionState,
+): string | null {
+  if (state !== "blocked") {
+    return null;
+  }
+
+  return lifecycle.error || projector.error || lifecycle.summary || projector.candidate.reason;
+}
+
+export function blockedLifecycleOutcome(reason: string): AutoresearchLiveLifecycleOutcome {
+  return {
+    ok: false,
+    action: "blocked",
+    summary: reason,
+    error: reason,
+  };
+}
+
+export function isBlockedProjectorResult(projector: AutoresearchAkProjectorResult): boolean {
+  return projector.action === "blocked" || projector.ok === false;
+}
+
+export function toSupervisorLedgerLike(
+  projection: Pick<AutoresearchLedgerProjection, "context"> | null | undefined,
+): AutoresearchSupervisorLedgerLike {
+  return {
+    context: {
+      blockedReason: projection?.context.blockedReason ?? null,
+      completionReason: projection?.context.completionReason ?? null,
+    },
+  };
+}
+
+export function cloneSession(
+  session: AutoresearchLiveSupervisionSessionV1,
+): AutoresearchLiveSupervisionSessionV1 {
+  return {
+    ...session,
+    policy: { ...session.policy },
+  };
+}
+
+export function describeAutoresearchLiveNextStep(
+  session: Pick<
+    AutoresearchLiveSupervisionSessionV1,
+    "state" | "lastProjectionAction" | "lastLifecycleAction"
+  >,
+): string {
+  switch (session.state) {
+    case "running":
+      switch (session.lastProjectionAction) {
+        case "recorded":
+          return "Milestone evidence was recorded. Continue monitoring until the runtime changes again.";
+        case "already-projected":
+          return "No new durable change was detected. Continue monitoring.";
+        case "noop":
+        case null:
+          return "No coarse milestone is ready yet. Continue monitoring.";
+        case "blocked":
+          return "Resolve the blocking error, then restart live supervision.";
+      }
+      return "Continue monitoring the live supervision session.";
+    case "blocked":
+      return "Resolve the blocking error, then start a new live supervision session.";
+    case "completed":
+      return "Live supervision reached a terminal state. No further polling is scheduled.";
+    case "stopped":
+      return "Live supervision is stopped. Start it again to resume polling.";
+  }
+}
