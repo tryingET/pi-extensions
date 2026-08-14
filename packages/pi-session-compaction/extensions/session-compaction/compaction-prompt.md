@@ -76,6 +76,8 @@ Use these section headings exactly. Omit a section only if it is truly empty. Pr
 - Preserve prompts in chronological order when possible.
 - Do not preserve low-value acknowledgements or purely conversational filler.
 
+_Note: the `## Essential user prompts / commands + arguments used` and `## Last assistant message (verbatim)` blocks are appended mechanically after the model summary; do not duplicate them inside the summary body. The last-assistant block keeps the final assistant message verbatim (truncated at 4000 characters) so `keepRecentTokens=0` still preserves the exact latest state._
+
 # Style
 - This is a continuation checkpoint, not a narrative recap.
 - Make the summary self-contained enough to continue with `keepRecentTokens=0`.

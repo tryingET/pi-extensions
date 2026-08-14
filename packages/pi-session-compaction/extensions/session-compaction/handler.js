@@ -15,6 +15,10 @@ import { fileURLToPath } from "node:url";
 
 import { collectFilesTouched, renderFilesTouchedManifestBlock } from "./files-touched.js";
 import { completeWithHostModelRegistry } from "./host-completion.js";
+import {
+  collectLastAssistantMessage,
+  renderLastAssistantMessageBlock,
+} from "./last-assistant-message.js";
 import { resolveSummarizerModel } from "./model-resolver.js";
 import {
   collectCurrentUserPrompts,
@@ -85,6 +89,7 @@ Use these section headings exactly. Omit a section only if it is truly empty. Pr
 
 export const DEFAULT_CONFIG = {
   includeFilesTouched: true,
+  includeLastAssistantMessage: true,
   defaultPreset: CURRENT_PRESET_SENTINEL,
   presets: {},
 };
@@ -191,6 +196,7 @@ export function parseConfig(value = {}) {
 
   return {
     includeFilesTouched: parseIncludeFilesTouched(value.includeFilesTouched),
+    includeLastAssistantMessage: value.includeLastAssistantMessage !== false,
     defaultPreset,
     presets,
   };
@@ -332,7 +338,8 @@ export function stripManagedSummaryBlocks(text) {
     const isManagedHeading =
       /^## Files touched(?: \(cumulative\))?$/i.test(trimmed) ||
       /^## Essential user prompts \/ commands \+ arguments used$/i.test(trimmed) ||
-      /^### User prompts in this turn$/i.test(trimmed);
+      /^### User prompts in this turn$/i.test(trimmed) ||
+      /^## Last assistant message \(verbatim\)$/i.test(trimmed);
 
     if (!isManagedHeading) {
       out.push(line);
@@ -447,6 +454,15 @@ function buildEssentialPromptsBlock({
     prompts,
     block: renderEssentialUserPromptsBlock(prompts),
   };
+}
+
+function buildLastAssistantMessageBlock({ config, previousSummary, branchEntries }) {
+  if (config.includeLastAssistantMessage === false) return undefined;
+  const entry = collectLastAssistantMessage({
+    messages: messagesFromEntries(branchEntries),
+    previousSummary,
+  });
+  return entry ? renderLastAssistantMessageBlock(entry) : undefined;
 }
 
 export function buildSummaryUserPrompt(params) {
@@ -605,9 +621,10 @@ async function executeSummaryCall(input, deps) {
   return text;
 }
 
-function appendManagedBlocks(summary, essentialPromptsBlock, manifestBlock) {
+function appendManagedBlocks(summary, essentialPromptsBlock, lastAssistantBlock, manifestBlock) {
   const sections = [stripManagedSummaryBlocks(summary) ?? summary.trim()];
   if (essentialPromptsBlock) sections.push(essentialPromptsBlock);
+  if (lastAssistantBlock) sections.push(lastAssistantBlock);
   if (manifestBlock) sections.push("---", manifestBlock);
   return sections.join("\n\n").trim();
 }
@@ -625,6 +642,7 @@ async function summarizeWithResolvedModel(params, deps) {
     params;
   const reserveTokens = event.preparation.settings.reserveTokens;
   const essentialUserPromptsBlock = params.essentialUserPromptsBlock;
+  const lastAssistantBlock = params.lastAssistantMessageBlock;
 
   if (event.preparation.isSplitTurn && event.preparation.turnPrefixMessages.length > 0) {
     const historyPromise = event.preparation.messagesToSummarize.length
@@ -664,6 +682,7 @@ async function summarizeWithResolvedModel(params, deps) {
     return appendManagedBlocks(
       mergeSplitTurnSummary(historySummary, turnPrefixSummary),
       essentialUserPromptsBlock,
+      lastAssistantBlock,
       summaryArtifacts.wholeBranchManifestBlock,
     );
   }
@@ -687,6 +706,7 @@ async function summarizeWithResolvedModel(params, deps) {
   return appendManagedBlocks(
     historySummary,
     essentialUserPromptsBlock,
+    lastAssistantBlock,
     summaryArtifacts.wholeBranchManifestBlock,
   );
 }
@@ -770,6 +790,11 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
       trackedCommands: trackedCommands ?? [],
       customInstructions: event.customInstructions,
     });
+    const lastAssistantMessageBlock = buildLastAssistantMessageBlock({
+      config,
+      previousSummary: previousSummaryForPrompts,
+      branchEntries: event.branchEntries,
+    });
 
     if (parsedInstructions.usesPresetDirective && parsedInstructions.presetQuery) {
       try {
@@ -788,6 +813,7 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
             previousSummary,
             summaryArtifacts,
             essentialUserPromptsBlock,
+            lastAssistantMessageBlock,
           },
           runtimeDeps,
         );
@@ -854,6 +880,7 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
         previousSummary,
         summaryArtifacts,
         essentialUserPromptsBlock,
+        lastAssistantMessageBlock,
       },
       runtimeDeps,
     );

@@ -215,6 +215,7 @@ describe("session compaction handler parsing and config", () => {
       }),
       {
         includeFilesTouched: false,
+        includeLastAssistantMessage: true,
         defaultPreset: "fast",
         presets: { fast: { model: "openai/gpt-5", thinkingLevel: "medium" } },
       },
@@ -335,6 +336,9 @@ describe("session compaction handler runtime", () => {
         "",
         "## Essential user prompts / commands + arguments used",
         "1. Fix the failing tests",
+        "",
+        "## Last assistant message (verbatim)",
+        "Investigating",
       ].join("\n"),
     );
     assert.equal(result.compaction.firstKeptEntryId, "kept-assistant");
