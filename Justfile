@@ -51,6 +51,11 @@ extension-smoke:
 tui-smoke:
     ./scripts/tui-smoke.sh
 
+# Ghostty-driven TUI smoke: spawns a real ghostty window running pi TUI in
+# this repo (bounded), plus sidequest D-Bus companion preflight.
+ghostty-tui-smoke:
+    ./scripts/ghostty-tui-smoke.sh
+
 # Install provenance drift alarm for Pi package installs.
 install-drift:
     node scripts/check-install-drift.mjs
