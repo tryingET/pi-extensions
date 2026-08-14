@@ -55,9 +55,10 @@ triage → queued → doing → review → done
 
 ## Validation
 
-```bash
-cue vet governance/work-items.json governance/work-items.cue
-```
+The retired `governance/work-items.json` AK projection was removed: it had no
+live mechanical readers in this repo, and Agent Kernel (`ak task list`) is the
+live authority. Do not reintroduce a hand-maintained task projection here
+without a mechanical consumer.
 
 ## Additional governed fixtures
 
@@ -69,7 +70,7 @@ cue vet governance/work-items.json governance/work-items.cue
 |------|----------|-------|--------------|
 | **Program** | governance-kernel/governance/programs/ | Cross-company | Yes |
 | **Program** | company-templates/governance/programs/ | Company | No |
-| **Project** | repo/governance/work-items.json (this file) | This repo | No |
+| **Project** | AK task truth (`ak task list`, live authority) | This repo | Yes |
 
 ## When to Use This vs Alternatives
 

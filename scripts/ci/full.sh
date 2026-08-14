@@ -29,10 +29,6 @@ fi
 
 "$script_dir/smoke.sh"
 
-if [ -f "./governance/work-items.json" ] && [ -f "./crates/ak-cli/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
-  cargo run --quiet --bin ak -- work-items check --repo "$repo_root" --path "./governance/work-items.json"
-fi
-
 if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then
   if [ "${PI_SKIP_ROCS:-0}" = "1" ]; then
     echo "skipping ROCS validation: PI_SKIP_ROCS=1 (workspace-owned runner unavailable)"
