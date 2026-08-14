@@ -6,10 +6,10 @@ export interface SessionCompactionHandoffGenerationContext {
     getBranch?: () => unknown[];
   };
   modelRegistry?: {
-    completeSimple?: (
+    complete?: (
       model: unknown,
       input: unknown,
-      options?: { reasoning?: "low"; signal?: AbortSignal },
+      options?: Record<string, unknown>,
     ) => Promise<{ content?: Array<{ type?: string; text?: string }> }>;
   };
 }

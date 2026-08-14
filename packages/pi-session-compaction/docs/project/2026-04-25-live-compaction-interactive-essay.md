@@ -442,7 +442,7 @@ For presets:
   2. `anthropic`
   3. `github-copilot`
   4. `openrouter`
-- Candidate availability may use the host registry's credential-free `getAvailable()` view; request authentication stays inside `modelRegistry.completeSimple()` and is never returned to the extension.
+- Candidate availability may use the host registry's credential-free `getAvailable()` view; request authentication stays inside the public host registry `complete()` path (Pi >= 0.84.0), and is never returned to the extension.
 
 </details>
 

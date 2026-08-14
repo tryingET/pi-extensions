@@ -4,6 +4,7 @@ read_when:
   - "Changing model-generated handoff content, compacted-branch selection, or generated-prompt validation."
 */
 import { convertToLlm, serializeConversation } from "@earendil-works/pi-coding-agent";
+import { completeWithHostModelRegistry } from "./host-completion.js";
 
 const REQUIRED_PROMPT_PREFIX = "You are a fresh, stateless Pi coding session.";
 const MAX_GENERATED_PROMPT_BYTES = 96 * 1024;
@@ -73,8 +74,8 @@ export async function generateSessionCompactionHandoffPrompt({
       : "No live Git/AK readback was supplied; verify both before mutation.";
   if (!normalizedGoal) throw new Error("handoff goal is required");
   if (!ctx?.model) throw new Error("no active Pi model is available for handoff generation");
-  if (typeof ctx?.modelRegistry?.completeSimple !== "function") {
-    throw new Error("Pi host modelRegistry.completeSimple is unavailable");
+  if (typeof ctx?.modelRegistry?.complete !== "function") {
+    throw new Error("Pi host modelRegistry.complete is unavailable (requires Pi >= 0.84.0)");
   }
 
   const branch = ctx?.sessionManager?.getBranch?.() ?? [];
@@ -82,7 +83,8 @@ export async function generateSessionCompactionHandoffPrompt({
   if (messages.length === 0) throw new Error("current Pi branch has no conversation to hand off");
 
   const conversationText = serializeConversation(convertToLlm(messages));
-  const response = await ctx.modelRegistry.completeSimple(
+  const response = await completeWithHostModelRegistry(
+    ctx,
     ctx.model,
     {
       systemPrompt: HANDOFF_SYSTEM_PROMPT,

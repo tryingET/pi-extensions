@@ -17,10 +17,12 @@ This package is now the local live owner for custom `session_before_compact` sum
 - registers exactly one `session_before_compact` handler through the fail-closed registration guard
 - exposes `/compact-focus`, a guided operator menu that calls the same compaction path with selected custom instructions
 - exposes `/compact-handoff` and the `session_compaction_handoff` tool for owner-owned, operator-pasteable fresh-session handoff prompts before compaction/reload; the tool accepts structured discovery/promotion-status records for insights that still need owner-surface promotion
-- exports `@tryinget/pi-session-compaction/handoff-generation`, which reduces the live branch, accepts bounded Git/AK readback from the transport owner, calls host-owned `ctx.modelRegistry.completeSimple()`, and validates one self-contained prompt for clean-session transport such as pi-little-helpers `/handoff-tab`; this generator does not launch terminals or submit messages itself
+- exports `@tryinget/pi-session-compaction/handoff-generation`, which reduces the live branch, accepts bounded Git/AK readback from the transport owner, calls the public host-owned `ctx.modelRegistry.complete()` API, and validates one self-contained prompt for clean-session transport such as pi-little-helpers `/handoff-tab`; this generator does not launch terminals or submit messages itself
 - does not expose prompt bundles or `package.json#pi.prompts`
 - falls back to stock compaction when the custom summarizer cannot be resolved, except explicit malformed/preset-directed paths that intentionally cancel rather than silently producing the wrong preset summary
-- delegates summary model calls to `ctx.modelRegistry.completeSimple()`, keeping provider registration, authentication, and custom stream overrides in the Pi host rather than importing pi-ai inside the extension
+- delegates summary model calls to the public host `ctx.modelRegistry.complete()` API, while keeping provider registration, authentication, and custom stream overrides in the Pi host rather than importing pi-ai inside the extension
+
+For reasoning models whose public raw API requires context-aware token-budget translation that Pi does not expose to extensions (currently non-adaptive Anthropic and non-adaptive Bedrock Claude), the adapter fails closed. Ordinary compaction then uses Pi's stock compaction path; explicit preset compaction remains cancelled rather than silently changing models. Model-generated handoff generation has no stock fallback and reports the incompatibility.
 
 After local install, reload Pi with `/reload` before expecting the current session process to use the new hook.
 
@@ -40,7 +42,7 @@ This package currently implements the compaction-facing foundations and a tested
 - named preset resolution (`exact`, case-insensitive, prefix, normalized substring)
 - prompt-template-model-aligned model fallback semantics imported from `@tryinget/pi-model-selection`: exact `modelId`, exact `provider/modelId`, comma-separated fallback lists, current-model preservation, and provider-priority ordering for ambiguous bare IDs
 - host-availability-aware model selection through `@tryinget/pi-model-selection` without returning API keys, headers, or provider environment to the extension
-- host-owned summary execution through `modelRegistry.completeSimple()`, with no extension-local pi-ai dependency or provider registry
+- host-owned summary execution through a `modelRegistry.complete()` adapter and an executable Pi host contract test, with no extension-local pi-ai dependency or provider registry; the adapter allowlists package-owned request controls, translates normalized thinking into the selected API's public option shape, and fails closed when a model or API cannot honor the requested level
 - normalized thinking levels
 - files-touched collection ported from dot314 grounded-compaction, including read/write/edit/move/delete tracking, no-op edit filtering, move redirects, repo-relative display paths, and manifest rendering
 - user prompt / command preservation ported from legacy `pi-user-prompt-compaction`, including expanded skill-block recovery, timestamp-matched slash command recovery, previous-summary prompt-section recovery, and `/compact <customInstructions>` preservation

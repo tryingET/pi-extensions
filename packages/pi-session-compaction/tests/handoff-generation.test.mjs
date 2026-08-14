@@ -24,7 +24,7 @@ function createContext({ branch, responseText = `${REQUIRED_PREFIX}\n\nDo the wo
     calls,
     ctx: {
       cwd: "/repo/example",
-      model: { provider: "openai", id: "gpt-4o" },
+      model: { provider: "openai", id: "gpt-4o", api: "openai-responses", reasoning: true },
       signal,
       sessionManager: {
         getBranch() {
@@ -32,7 +32,7 @@ function createContext({ branch, responseText = `${REQUIRED_PREFIX}\n\nDo the wo
         },
       },
       modelRegistry: {
-        async completeSimple(model, input, options) {
+        async complete(model, input, options) {
           calls.push({ model, input, options });
           return { content: [{ type: "text", text: responseText }] };
         },
@@ -98,7 +98,8 @@ describe("session handoff prompt generation", () => {
     assert.equal(prompt, `${REQUIRED_PREFIX}\n\nDo the work.`);
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].model, ctx.model);
-    assert.equal(calls[0].options.reasoning, "low");
+    assert.equal(calls[0].options.reasoningEffort, "low");
+    assert.equal("reasoning" in calls[0].options, false);
     assert.equal(calls[0].options.signal, ctx.signal);
     assert.match(calls[0].input.systemPrompt, /pi-session-compaction handoff generator/);
     const request = calls[0].input.messages[0].content[0].text;
@@ -119,13 +120,13 @@ describe("session handoff prompt generation", () => {
         ctx: { model: {} },
         goal: "continue",
       }),
-      /completeSimple is unavailable/,
+      /modelRegistry\.complete is unavailable/,
     );
     await assert.rejects(
       generateSessionCompactionHandoffPrompt({
         ctx: {
           model: {},
-          modelRegistry: { completeSimple: async () => ({ content: [] }) },
+          modelRegistry: { complete: async () => ({ content: [] }) },
           sessionManager: { getBranch: () => [] },
         },
         goal: "continue",

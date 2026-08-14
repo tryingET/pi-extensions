@@ -348,7 +348,7 @@ describe("session compaction handler runtime", () => {
   it("uses the production host-owned completion seam with no extension-owned auth", async () => {
     let observed;
     const { ctx } = createContext([createModel({ api: "custom-api" })], undefined, {
-      async completeSimple(model, context, options) {
+      async complete(model, context, options) {
         observed = { receiver: this, model, context, options };
         return assistantResponse("host summary");
       },
@@ -374,7 +374,7 @@ describe("session compaction handler runtime", () => {
     assert.equal(await runSessionCompaction(createEvent(), ctx, createDeps()), undefined);
 
     const unavailable = createContext([createModel()], undefined, {
-      async completeSimple() {
+      async complete() {
         throw new Error("missing host auth");
       },
     });

@@ -20,7 +20,7 @@ The package is now a root-managed component and is live-enabled through a guarde
 - `pi-prompt-template-model/model-selection.ts` provided the compatibility semantics that were preserved: exact `modelId` or `provider/modelId`, comma fallback, current-model preservation when it matches any listed candidate, auth-aware selection, and provider priority `openai-codex -> anthropic -> github-copilot -> openrouter` for ambiguous bare IDs.
 - `packages/pi-prompt-template-accelerator` has a useful runtime-registry bridge for observed `model_select` lifecycle state, but it does **not** currently expose this reusable LLM model resolver.
 - Dot314 `grounded-compaction` supplied the original compaction-oriented preset model, but its extension-owned authentication path is no longer retained.
-- The current Pi host owns summary request routing and authentication through `modelRegistry.completeSimple()`; `pi-session-compaction` must not extract or retain API keys, headers, or provider environment values.
+- The Pi host owns summary request routing and authentication. `pi-session-compaction` uses only the public extension-facing `modelRegistry.complete()` surface (Pi >= 0.84.0) through one adapter; the adapter allowlists only the package-owned `maxTokens`, cancellation signal, and translated thinking controls, so caller transport/auth/header/environment overrides cannot cross the seam; the extension must not extract or retain host credentials. A host-aligned canary instantiates the selected Pi release's real `ModelRegistry` so internal/runtime-only methods cannot satisfy the contract by accident.
 
 ## Implemented slices
 
