@@ -40,6 +40,15 @@ doctor:
     npm --version
     ak --doctor
     ./scripts/rocs.sh --doctor
+    node scripts/agent-doctor.mjs
+
+# Headless extension load/registration smoke across all packages.
+extension-smoke:
+    node scripts/extension-smoke.mjs
+
+# Install provenance drift alarm for Pi package installs.
+install-drift:
+    node scripts/check-install-drift.mjs
 
 # Non-failing repo-loop-validation-v1 diagnostics for orchestration loops.
 loop-doctor:
