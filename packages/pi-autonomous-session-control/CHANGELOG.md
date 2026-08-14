@@ -13,6 +13,24 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.3.0...pi-autonomous-session-control-v0.4.0) (2026-08-14)
+
+### Features
+
+- `self` tool runtime-health resolver: runtime-health / agent-doctor / install-drift queries execute the repo-owned agent doctor and mirror broker liveness, session storage pressure, npm release-age gate, and provenance drift status
+- `dispatch_subagent` pre-dispatch failure attestations with machine-readable failure metadata on the tool error surface
+- schema-level objective admission bound (maxLength 100000) restoring oversized-delegation rejection below the execve E2BIG limit
+
+### Bug Fixes
+
+- runtime-health doctor resolution path (was one directory short in installed layouts)
+- installed runtime composition hardening; rewind store retention bounds; subagent transport protocol versioning
+- tester role prompt classifier false positives; agent-vent self diagnostic handoff alignment
+
+### Maintenance
+
+- host alignment with Pi 0.83/0.84; package pack JSON normalization under npm 12; git-date pinning for rewind-retention SHA stability
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.2.1...pi-autonomous-session-control-v0.3.0) (2026-08-01)
 
 
