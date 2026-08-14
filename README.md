@@ -35,7 +35,7 @@ scripts/         # CI/utility scripts
   - `packages/pi-agent-vent` (local-only agent frustration capture and recurrence summaries)
   - `packages/pi-provenance`
   - `packages/pi-peer-messaging` (stable same-machine peer-session messaging core and `intercom` adapter)
-  - `packages/pi-better-openai` (`/fast`, `/openai-image`, and OpenAI image tool support)
+  - `packages/pi-better-openai` (`/fast`, GPT-5.6 Sol `/pro` request injection, `/openai-image`, and OpenAI image tool support)
   - `packages/pi-model-selection` (shared support library; no live extension entrypoint)
   - `packages/pi-modes` (session prompt profiles with explicit append, static-base replacement, and exact-final replacement)
   - `packages/pi-prompt-template-accelerator`
@@ -72,7 +72,7 @@ When cues overlap, route by owner before diving deeper:
 - `packages/pi-agent-vent` — local-only `agent_vent` capture of recurring agent frustrations, bugs, tool failures, and workflow friction; advisory recurrence/candidate-incident summaries only, with no AK/GitHub/incident/evidence mutations
 - `packages/pi-provenance` — source-owned Pi session/assistant-message provenance extraction for downstream evidence writers, including provider/model/API refs without raw prompt or provider-payload capture
 - `packages/pi-peer-messaging` — stable same-machine peer-session messaging core and `intercom` adapter; communication-only, not authority
-- `packages/pi-better-openai` — OpenAI/OpenAI Codex provider affordances such as `/fast`, `/openai-image`, image editing/generation, and related diagnostics
+- `packages/pi-better-openai` — OpenAI/OpenAI Codex provider affordances such as `/fast`, GPT-5.6 Sol `/pro` request injection, `/openai-image`, image editing/generation, and related diagnostics
 - `packages/pi-model-selection` — shared model-selection/auth-resolution library for prompt-template-compatible resolver semantics; intentionally no `pi.extensions` entrypoint
 - `packages/pi-modes` — session prompt-profile discovery and switching; owns `append`, complete static `replace_base`, and exact `replace_final` semantics, but no autonomous continuation or execution authority
 - `packages/pi-prompt-template-execution` — prompt-template execution semantics such as `model`, `thinking`, `restore`, `skill`, conditionals, args, Pi host adapter behavior, dry-run diagnostics, compatibility canaries, and `/commit` live execution ownership after replacing `npm:pi-prompt-template-model`

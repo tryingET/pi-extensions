@@ -53,7 +53,7 @@ Prompt Vault, society workflows, and company-specific routing are optional add-o
 | `pi-agent-vent` | yes | capture local agent frustration/recurrence diagnostics | advisory only; no tasks, issues, incidents, evidence, or telemetry writes |
 | `pi-provenance` | yes | extract minimal Pi session/assistant-message provenance | source-owned provider/model/API refs for downstream evidence writers |
 | `pi-peer-messaging` | yes | provide same-machine peer-session messaging and `intercom` adapter | communication-only; not task/evidence/authority state |
-| `pi-better-openai` | yes | add OpenAI fast mode and image generation/editing affordances | `/fast`, `/openai-image`, `openai_image` |
+| `pi-better-openai` | yes | add OpenAI fast mode, GPT-5.6 Sol Pro injection, and image generation/editing affordances | `/fast`, `/pro`, `/openai-image`, `openai_image` |
 | `pi-model-selection` | yes (library) | provide shared model-selection and auth-resolution primitives | support library only; no `pi.extensions` entrypoint |
 | `pi-modes` | yes | switch session prompt profiles with explicit composition semantics | additive, complete static-base replacement, and exact final replacement; no autonomy authority |
 | `pi-autonomous-session-control` | yes | provide the `self` operational mirror plus autonomy/subagent control surfaces | strongest in subagent-heavy workflows; `self` summaries are mirror-only, not AK/KES/evidence authority |

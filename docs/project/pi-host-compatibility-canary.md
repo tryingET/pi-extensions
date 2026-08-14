@@ -191,6 +191,25 @@ Protected host surfaces:
 - live trigger registration
 - picker fallback contract
 
+### `session-compaction-model-registry-contract`
+Anchors `pi-session-compaction` to the selected host's real extension-facing model completion API.
+
+Current command:
+
+```bash
+cd packages/pi-session-compaction
+node --test tests/host-completion.test.mjs
+```
+
+Protected host surfaces:
+- `ExtensionContext.modelRegistry`
+- public `ModelRegistry.complete()` delegation
+- normalized-thinking translation to API-specific public options
+- fail-closed behavior for unverified API option shapes
+- host-owned provider and authentication routing
+
+This scenario imports and instantiates `ModelRegistry` from the exact canary-selected host and passes it through the production compaction adapter. Unlike the former package mocks, it cannot pass by inventing an internal `completeSimple()` method. It makes no provider request and needs no credentials; live package install/reload plus an observed compaction remains separate runtime evidence.
+
 ### `code-mode-extension-factory-contract`
 Anchors `pi-eval-kernel` to the selected exact host's exported extension types without persisting the host dependency tree in ordinary package installs.
 
@@ -354,16 +373,16 @@ npm run compat:canary
 Run the upgrade profile explicitly:
 
 ```bash
-PI_HOST_COMPAT_HOST_VERSION=0.83.0 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.80.6...v0.83.0' \
+PI_HOST_COMPAT_HOST_VERSION=0.84.1 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.84.0...v0.84.1' \
 node ./scripts/pi-host-compatibility-canary.mjs run --profile upgrade
 ```
 
 Preview the upgrade contract without executing commands:
 
 ```bash
-PI_HOST_COMPAT_HOST_VERSION=0.83.0 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.80.6...v0.83.0' \
+PI_HOST_COMPAT_HOST_VERSION=0.84.1 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.84.0...v0.84.1' \
 node ./scripts/pi-host-compatibility-canary.mjs run --profile upgrade --dry-run
 ```
 
@@ -374,8 +393,8 @@ PI_HOST_COMPAT_CANARY=1 ./scripts/ci/full.sh
 # optional profile override
 PI_HOST_COMPAT_CANARY=1 \
 PI_HOST_COMPAT_PROFILE=upgrade \
-PI_HOST_COMPAT_HOST_VERSION=0.83.0 \
-PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.80.6...v0.83.0' \
+PI_HOST_COMPAT_HOST_VERSION=0.84.1 \
+PI_HOST_COMPAT_CHANGELOG_REF='https://github.com/earendil-works/pi/compare/v0.84.0...v0.84.1' \
 ./scripts/ci/full.sh
 ```
 

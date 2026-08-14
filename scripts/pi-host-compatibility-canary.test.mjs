@@ -82,8 +82,8 @@ test("compatibility canary resolves the exact current host contract", () => {
   const result = runJson(["resolve-host", "--profile", "current"]);
   assert.equal(result.profile, "current");
   assert.equal(result.host.packageName, "@earendil-works/pi-coding-agent");
-  assert.equal(result.host.version, "0.83.0");
-  assert.equal(result.host.reviewAnchor, "npm:@earendil-works/pi-coding-agent@0.83.0");
+  assert.equal(result.host.version, "0.84.1");
+  assert.equal(result.host.reviewAnchor, "npm:@earendil-works/pi-coding-agent@0.84.1");
   assert.ok(result.host.companionPackages.includes("@earendil-works/pi-tui"));
 });
 
@@ -105,6 +105,28 @@ test("compatibility canary list resolves upgrade scenarios against explicit host
   assert.ok(result.scenarios.some((scenario) => scenario.id === "asc-settlement-and-thinking-contract"));
   assert.ok(result.scenarios.some((scenario) => scenario.id === "interaction-runtime-coexistence"));
 });
+test("compatibility canary executes pi-session-compaction against the real host registry", () => {
+  const result = runJson(["list", "--profile", "current"]);
+  const scenario = result.scenarios.find(
+    (entry) => entry.id === "session-compaction-model-registry-contract",
+  );
+
+  assert.ok(scenario);
+  assert.equal(scenario.owner, "pi-session-compaction");
+  assert.deepEqual(scenario.packages, ["packages/pi-session-compaction"]);
+  assert.ok(scenario.upstreamSurfaces.includes("ModelRegistry.complete public completion seam"));
+  assert.ok(
+    scenario.upstreamSurfaces.includes("normalized thinking to API-specific public options"),
+  );
+  assert.ok(scenario.upstreamSurfaces.includes("fail-closed unknown API option mapping"));
+  assert.equal(scenario.cwd, "packages/pi-session-compaction");
+  assert.deepEqual(scenario.command, [
+    "node",
+    "--test",
+    "tests/host-completion.test.mjs",
+  ]);
+});
+
 test("compatibility canary hydrates pi-eval-kernel before its exact extension-factory contract", () => {
   const result = runJson(["list", "--profile", "current"]);
   const scenario = result.scenarios.find(
@@ -972,7 +994,7 @@ test("compatibility canary dry-run can target a single scenario with package-set
   ]);
 
   assert.equal(result.profile, "current");
-  assert.equal(result.host.version, "0.83.0");
+  assert.equal(result.host.version, "0.84.1");
   assert.equal(result.summary.selected, 1);
   assert.equal(result.summary.failed, 0);
   assert.equal(result.results[0].id, "vault-live-trigger-contract");
@@ -990,9 +1012,9 @@ test("compatibility canary dry-run can target a single scenario with package-set
       "install",
       "--no-save",
       "--package-lock=false",
-      "@earendil-works/pi-coding-agent@0.83.0",
-      "@earendil-works/pi-ai@0.83.0",
-      "@earendil-works/pi-tui@0.83.0",
+      "@earendil-works/pi-coding-agent@0.84.1",
+      "@earendil-works/pi-ai@0.84.1",
+      "@earendil-works/pi-tui@0.84.1",
     ]);
   }
   assert.ok(["dry-run", "ready"].includes(result.results[0].host.preparation.status));

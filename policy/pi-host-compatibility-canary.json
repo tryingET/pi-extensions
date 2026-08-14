@@ -11,8 +11,8 @@
     "current": {
       "description": "Run against the root-owned pinned Pi host contract that defines the current canary baseline for this monorepo.",
       "host": {
-        "version": "0.83.0",
-        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.83.0"
+        "version": "0.84.1",
+        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.84.1"
       }
     },
     "upgrade": {
@@ -80,6 +80,33 @@
         "run",
         "test:compat:live-trigger-contract"
       ]
+    },
+    {
+      "id": "session-compaction-model-registry-contract",
+      "title": "pi-session-compaction public ModelRegistry completion contract",
+      "owner": "pi-session-compaction",
+      "why": "Execute the custom compaction completion adapter against the selected host's real extension-facing ModelRegistry so internal/runtime-only model APIs cannot masquerade as public compatibility.",
+      "profiles": [
+        "current",
+        "upgrade"
+      ],
+      "packages": [
+        "packages/pi-session-compaction"
+      ],
+      "upstreamSurfaces": [
+        "ExtensionContext.modelRegistry",
+        "ModelRegistry.complete public completion seam",
+        "normalized thinking to API-specific public options",
+        "fail-closed unknown API option mapping",
+        "host-owned provider and authentication routing"
+      ],
+      "cwd": "packages/pi-session-compaction",
+      "command": [
+        "node",
+        "--test",
+        "tests/host-completion.test.mjs"
+      ],
+      "notes": "Executable extension-facing contract: imports and instantiates ModelRegistry from the exact selected host, proves complete() delegation plus API-specific thinking translation, and rejects both the internal completeSimple assumption and unverified API option shapes without making a provider request or requiring credentials. Live compaction remains a separate activation/runtime proof."
     },
     {
       "id": "code-mode-extension-factory-contract",
