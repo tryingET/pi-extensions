@@ -46,6 +46,11 @@ doctor:
 extension-smoke:
     node scripts/extension-smoke.mjs
 
+# Scripted TUI smoke: launches pi in a real terminal (tmux or pty fallback), asserts
+# TUI chrome, extension-loaded resources, and a built-in slash command run.
+tui-smoke:
+    ./scripts/tui-smoke.sh
+
 # Install provenance drift alarm for Pi package installs.
 install-drift:
     node scripts/check-install-drift.mjs
