@@ -192,6 +192,7 @@ export function parsePublishedPackageVersionLookup(
       }
       if (
         typeof ascSpec === "string" &&
+        !isLocalDependencySpec(ascSpec.trim()) &&
         versions.some((version) => !versionSatisfiesAscRange(version, ascSpec))
       ) {
         return {
@@ -265,6 +266,20 @@ export function lookupPublishedAscVersions(ascSpec, spawn = spawnSync) {
   };
 }
 
+function readWorkspaceAscVersion() {
+  try {
+    const ascManifestPath = path.resolve(
+      import.meta.dirname,
+      "../../pi-autonomous-session-control/package.json",
+    );
+    const manifest = JSON.parse(fs.readFileSync(ascManifestPath, "utf8"));
+    const version = manifest?.version;
+    return typeof version === "string" && parseStrictSemver(version) ? version : null;
+  } catch {
+    return null;
+  }
+}
+
 export function evaluateAscBridgeLifecycle({ pkg, publishedAscVersions = [] }) {
   const classification = classifyAscBridgeLifecycle(pkg);
   const issues = [...classification.issues];
@@ -285,10 +300,22 @@ export function evaluateAscBridgeLifecycle({ pkg, publishedAscVersions = [] }) {
     }
   }
 
-  if (classification.mode === "transitional-bundled-bridge" && publishedAscVersions.length > 0) {
-    issues.push(
-      `${ASC_PACKAGE_NAME}@${publishedAscVersions.join(", ")} is visible on ${REPO_REGISTRY}, so the bundled bridge lifecycle review trigger has fired. Replace the local file dependency with the intended semver dependency and remove bundleDependencies before the next orchestrator release.`,
-    );
+  if (classification.mode === "transitional-bundled-bridge") {
+    // The review trigger fires only once the REGISTRY CUTOVER VERSION the
+    // transitional bundle exists for is actually published. While the newest
+    // published version predates the intended cutover, the transitional
+    // bundle is the sanctioned bootstrap state.
+    const intendedCutover = readWorkspaceAscVersion();
+    const cutoverPublished =
+      intendedCutover !== null &&
+      publishedAscVersions.some((version) =>
+        versionSatisfiesAscRange(version, `^${intendedCutover}`),
+      );
+    if (cutoverPublished) {
+      issues.push(
+        `${ASC_PACKAGE_NAME}@${publishedAscVersions.join(", ")} is visible on ${REPO_REGISTRY}, so the bundled bridge lifecycle review trigger has fired. Replace the local file dependency with the intended semver dependency and remove bundleDependencies before the next orchestrator release.`,
+      );
+    }
   }
 
   return {
