@@ -199,7 +199,14 @@ Child skill profile bootstrap (optional):
         ["explorer", "reviewer", "tester", "researcher", "minimal", "custom"] as const,
         { description: "Predefined profile or 'custom'" },
       ),
-      objective: Type.String({ description: "Clear objective for the subagent" }),
+      // Schema-level admission (per main's policy the schema owns the bound, not the
+      // package edge-contract): 100k stays far above the largest observed delegated
+      // objective (32k) while staying under the execve MAX_ARG_STRLEN ~128KiB that
+      // would otherwise surface as an unattested E2BIG spawn error.
+      objective: Type.String({
+        description: "Clear objective for the subagent (maximum 100000 characters)",
+        maxLength: 100_000,
+      }),
       tools: Type.Optional(
         Type.String({ description: "Comma-separated tools (default: from profile)" }),
       ),

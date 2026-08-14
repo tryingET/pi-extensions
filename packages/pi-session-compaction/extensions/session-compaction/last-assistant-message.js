@@ -60,17 +60,27 @@ export function extractPreviousLastAssistantMessage(previousSummary) {
 
   const lines = summary.split(/\r?\n/);
   const headingPattern = /^##\s+Last assistant message \(verbatim\)\s*$/i;
-  const anyHeadingPattern = /^#{1,6}\s+/;
+  const managedBoundaryPattern =
+    /^##\s+(?:Files touched(?: \(cumulative\))?|Essential user prompts \/ commands \+ arguments used)\s*$|^###\s+User prompts in this turn\s*$/i;
   const startIndex = lines.findIndex((line) => headingPattern.test(line.trim()));
   if (startIndex < 0) return undefined;
 
+  // Verbatim assistant text can contain arbitrary headings; only a managed
+  // block boundary ends this section (matches the stripper in handler.js).
   const sectionLines = [];
   for (let index = startIndex + 1; index < lines.length; index += 1) {
     const line = lines[index];
-    if (anyHeadingPattern.test(line.trim())) break;
+    if (managedBoundaryPattern.test(line.trim())) break;
     sectionLines.push(line);
   }
 
+  // Drop trailing blank lines and the --- separator that precedes a following
+  // managed block; they are append-format artifacts, not verbatim content.
+  while (sectionLines.length > 0) {
+    const last = sectionLines[sectionLines.length - 1].trim();
+    if (last === "" || last === "---") sectionLines.pop();
+    else break;
+  }
   const text = normalizeText(sectionLines.join("\n"));
   if (!text) return undefined;
   return { text, truncated: false, fromPrevious: true };

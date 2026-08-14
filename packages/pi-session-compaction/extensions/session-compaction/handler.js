@@ -346,6 +346,26 @@ export function stripManagedSummaryBlocks(text) {
       continue;
     }
 
+    // The verbatim last-assistant block may contain arbitrary markdown headings;
+    // consume it greedily until the next managed boundary (our own append format)
+    // or end of summary. Other managed blocks keep the heading-bounded behavior.
+    if (/^## Last assistant message \(verbatim\)$/i.test(trimmed)) {
+      index += 1;
+      while (index < lines.length) {
+        const nextTrimmed = lines[index].trim();
+        if (
+          /^## Files touched(?: \(cumulative\))?$/i.test(nextTrimmed) ||
+          /^## Essential user prompts \/ commands \+ arguments used$/i.test(nextTrimmed) ||
+          /^### User prompts in this turn$/i.test(nextTrimmed)
+        ) {
+          index -= 1; // let the outer loop process this managed heading
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+
     while (index + 1 < lines.length) {
       const next = lines[index + 1].trim();
       if (/^#{1,6}\s+/.test(next) || next === "---") break;

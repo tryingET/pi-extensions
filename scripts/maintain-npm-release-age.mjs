@@ -15,7 +15,7 @@
 // Exit codes: 0 ok, 1 stale/missing (check mode), 2 tool failure.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
@@ -71,11 +71,42 @@ try {
     process.exit(0);
   }
 
-  const lines = existsSync(NPMRC) ? readFileSync(NPMRC, "utf8").split(/\r?\n/) : [];
-  const without = lines.filter((line) => !/^\s*before\s*=/.test(line));
-  while (without.length > 0 && without[without.length - 1].trim() === "") without.pop();
-  without.push(`before=${targetIso}`, "");
-  writeFileSync(NPMRC, without.join("\n"), { mode: 0o600 });
+  // Byte-preserving targeted update: only the before= lines change; every other
+  // byte (CRLF endings, comments, tokens, ordering) is kept verbatim, guarded by
+  // an advisory lock so a concurrent npm rewrite cannot be lost.
+  const raw = existsSync(NPMRC) ? readFileSync(NPMRC, "utf8") : "";
+  const updated = raw.replace(/^[ \t]*before[ \t]*=.*\r?\n?/gm, "");
+  const separator = updated.endsWith("\n") || updated === "" ? "" : "\n";
+  const next = `${updated}${separator}before=${targetIso}\n`;
+  const lockPath = `${NPMRC}.maintain-npm-release-age.lock`;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      writeFileSync(lockPath, String(process.pid), { flag: "wx" });
+      break;
+    } catch {
+      if (attempt === 49) throw new Error("could not acquire npmrc lock");
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+      try {
+        const holder = Number(readFileSync(lockPath, "utf8"));
+        process.kill(holder, 0);
+      } catch {
+        try {
+          rmSync(lockPath);
+        } catch {
+          // raced
+        }
+      }
+    }
+  }
+  try {
+    writeFileSync(NPMRC, next);
+  } finally {
+    try {
+      rmSync(lockPath);
+    } catch {
+      // already gone
+    }
+  }
 
   console.log(`maintain-npm-release-age: set before=${targetIso} (min-release-age=${minAgeDays}d)`);
 } catch (error) {

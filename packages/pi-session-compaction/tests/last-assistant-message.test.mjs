@@ -69,9 +69,18 @@ describe("extractLastAssistantMessage", () => {
 describe("previous-summary fallback", () => {
   const block = `${LAST_ASSISTANT_MESSAGE_HEADING}\nprevious assistant text`;
 
-  it("extracts a previous managed block", () => {
+  it("extracts a previous managed block greedily until the next managed boundary", () => {
+    // Verbatim assistant text may contain headings; only a managed block ends it.
+    const entry = extractPreviousLastAssistantMessage(
+      `# Summary\n\n${block}\n\n## Findings\n- a\n\n---\n\n## Files touched (cumulative)\nR  a.ts`,
+    );
+    assert.equal(entry.text, "previous assistant text\n\n## Findings\n- a");
+    assert.equal(entry.fromPrevious, true);
+  });
+
+  it("extracts to end of summary when no managed boundary follows", () => {
     const entry = extractPreviousLastAssistantMessage(`# Summary\n\n${block}\n\n## Next\n- step`);
-    assert.equal(entry.text, "previous assistant text");
+    assert.equal(entry.text, "previous assistant text\n\n## Next\n- step");
     assert.equal(entry.fromPrevious, true);
   });
 

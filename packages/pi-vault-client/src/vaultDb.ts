@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
   accessSync,
+  appendFileSync,
   constants,
   existsSync,
   mkdirSync,
@@ -11,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
-import path from "node:path";
+import path, { join } from "node:path";
 import { resolveCompanyContext } from "./companyContext.js";
 import { rateTemplate as executeFeedbackRating } from "./vaultFeedback.js";
 import {
@@ -710,7 +711,12 @@ function parseTemplateRows(result: DoltJsonResult | null): Template[] {
   if (!result || !result.rows || result.rows.length === 0) return [];
 
   return result.rows.map((row) => ({
-    id: Number.isFinite(Number(row.id)) ? Number(row.id) : undefined,
+    id:
+      typeof row.id === "number"
+        ? row.id
+        : typeof row.id === "string" && row.id.trim() !== "" && Number.isFinite(Number(row.id))
+          ? Number(row.id)
+          : undefined,
     name: String(row.name || ""),
     description: String(row.description || ""),
     content: String(row.content || ""),
@@ -722,7 +728,14 @@ function parseTemplateRows(result: DoltJsonResult | null): Template[] {
     controlled_vocabulary: parseControlledVocabulary(row.controlled_vocabulary),
     status: row.status ? String(row.status) : undefined,
     export_to_pi: normalizeBoolean(row.export_to_pi),
-    version: Number.isFinite(Number(row.version)) ? Number(row.version) : undefined,
+    version:
+      typeof row.version === "number"
+        ? row.version
+        : typeof row.version === "string" &&
+            row.version.trim() !== "" &&
+            Number.isFinite(Number(row.version))
+          ? Number(row.version)
+          : undefined,
   }));
 }
 
@@ -1342,6 +1355,11 @@ function rateTemplate(
   });
 }
 
+function describeRetrievalFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `retrieval-log-failed: ${message.slice(0, 200)}`;
+}
+
 export interface VaultRetrievalEntry {
   templateId: number;
   entityVersion?: number | null;
@@ -1379,8 +1397,17 @@ function logRetrievalBatch(entries: VaultRetrievalEntry[], context: VaultRetriev
       `INSERT INTO retrievals (entity_type, entity_id, entity_version, tool, query_context, selected_rank, result_count, company, created_at) VALUES ${values}`,
     );
     if (ok) commitVault(`Log ${valid.length} vault retrieval(s): ${tool}`, ["retrievals"]);
-  } catch {
-    // fail-open: retrieval analytics must not perturb the retrieval surface
+  } catch (error) {
+    // fail-open: retrieval analytics must not perturb the retrieval surface,
+    // but failures are recorded locally so systematic loss is detectable.
+    try {
+      appendFileSync(
+        join(os.homedir(), ".pi/agent/state/pi-vault-client/vault-retrieval-failures.jsonl"),
+        `${new Date().toISOString()} ${describeRetrievalFailure(error)}\n`,
+      );
+    } catch {
+      // last-resort: nothing more we can do without perturbing the tool call
+    }
   }
 }
 

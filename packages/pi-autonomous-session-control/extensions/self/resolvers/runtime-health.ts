@@ -17,7 +17,7 @@ read_when:
  * summarizes, and mirrors its report. It never mutates anything.
  */
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const DOCTOR_SCRIPT = resolve(REPO_ROOT, "scripts/agent-doctor.mjs");
 const DOCTOR_TIMEOUT_MS = 90_000;
 
