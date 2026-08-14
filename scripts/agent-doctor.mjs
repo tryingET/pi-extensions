@@ -93,8 +93,10 @@ const sessionsDir = resolve(agentDir, "sessions");
 if (existsSync(sessionsDir)) {
   const { bytes, files } = dirSize(sessionsDir);
   info.sessions = { files, bytes: human(bytes) };
-  if (files > 500) warnings.push(`session storage has ${files} files (${human(bytes)}); consider a retention policy`);
-  if (bytes > 8 * 1024 * 1024 * 1024) warnings.push(`session storage exceeds 8GB (${human(bytes)})`);
+  if (files > 500)
+    warnings.push(
+      `session storage has ${files} files (${human(bytes)}); archive with scripts/session-retention.mjs (never deletes content)`,
+    );
 } else {
   info.sessions = null;
 }
