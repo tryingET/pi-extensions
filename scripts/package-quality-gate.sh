@@ -191,6 +191,12 @@ run_tests_target() {
     return 0
   fi
 
+  # Governed-runtime packages verify the npm release-age gate (before = now -
+  # min-release-age, ±5min); refresh it immediately before those tests run.
+  if [[ "$workdir" == *"pi-society-orchestrator" ]] && [[ -f "$REPO_ROOT/scripts/maintain-npm-release-age.mjs" ]]; then
+    node "$REPO_ROOT/scripts/maintain-npm-release-age.mjs" >/dev/null || true
+  fi
+
   local -a test_files=()
   while IFS= read -r test_file; do
     test_files+=("$test_file")

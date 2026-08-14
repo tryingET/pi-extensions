@@ -129,6 +129,22 @@ for (const logName of ["pi-crash.log", "pi-debug.log"]) {
 }
 info.logs = logs;
 
+// --- npm release-age gate ---
+let npmGate = null;
+{
+  const maintainer = resolve(repoRoot, "scripts/maintain-npm-release-age.mjs");
+  if (existsSync(maintainer)) {
+    const run = spawnSync(process.execPath, [maintainer, "--check"], { encoding: "utf8" });
+    npmGate = { exitCode: run.status };
+    if (run.status !== 0) {
+      warnings.push(
+        `npm release-age gate 'before' is unset or stale; governed preflight will fail closed (run: node scripts/maintain-npm-release-age.mjs)`,
+      );
+    }
+  }
+}
+info.npmGate = npmGate ? (npmGate.exitCode === 0 ? "ok" : "stale") : "skipped";
+
 // --- drift ---
 let drift = null;
 if (!noDrift) {
