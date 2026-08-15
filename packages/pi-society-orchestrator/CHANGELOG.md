@@ -13,6 +13,40 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.6.0...pi-society-orchestrator-v0.7.0) (2026-08-15)
+
+
+### Features
+
+* **orchestrator:** consume negative-only execution memory ([3fb5f20](https://github.com/tryingET/pi-extensions/commit/3fb5f200597f53a74786ad5288b98bd230682e45))
+* **orchestrator:** expose direction controller readback ([53481db](https://github.com/tryingET/pi-extensions/commit/53481dbcd9c9ce56075a1f5f55f2821e0a8da3f0))
+* **orchestrator:** gate D2E transfer completion ([a04b007](https://github.com/tryingET/pi-extensions/commit/a04b0074f55ecea1fc5063d8e6b7ae2962b63d41))
+* **orchestrator:** integrate D2E transfer gate ([b00f3ec](https://github.com/tryingET/pi-extensions/commit/b00f3ec463c6ed120002f397143bba203338be23))
+* **pi-society-orchestrator:** checkpoint terminal loop KES ([dec3f93](https://github.com/tryingET/pi-extensions/commit/dec3f93c68916e24cb09508161079d35b900deb9))
+* **pi-society-orchestrator:** replace footer routing with fast mode and Git status ([8944cd8](https://github.com/tryingET/pi-extensions/commit/8944cd88a5068e51e0b425990ea505075fa3e578))
+* preflight governed deep review runtime ([1a65188](https://github.com/tryingET/pi-extensions/commit/1a651888ef4038a1520cf42986c9541e02b12d6d))
+
+
+### Bug Fixes
+
+* close governed deep-review provenance gaps ([c70967a](https://github.com/tryingET/pi-extensions/commit/c70967acd34dd321f889ca48f97ce0f5e0c31e7e))
+* harden governed preflight owner attestation ([a0a72e4](https://github.com/tryingET/pi-extensions/commit/a0a72e4c7ee8ae77420048e77ed61777f9aa0235))
+* harden installed runtime composition ([8852cbf](https://github.com/tryingET/pi-extensions/commit/8852cbf79004c50035408225fd6cd18b021cba2d))
+* materialize pinned Pi host peers ([d353f15](https://github.com/tryingET/pi-extensions/commit/d353f15676c5d5d95eebc9105c46ee84c36ef07d))
+* **orchestrator:** adopt ASC 0.3 ([9f452b2](https://github.com/tryingET/pi-extensions/commit/9f452b289cc75c2063fae97958b6ab466694978c))
+* **orchestrator:** close execution-memory consumer gaps ([695726e](https://github.com/tryingET/pi-extensions/commit/695726e0c30dc9bb68e994e46103896d02dbf11f))
+* **orchestrator:** harden governed runtime materialization proof ([e0854d9](https://github.com/tryingET/pi-extensions/commit/e0854d9f340d72445368ea91bb326ba3f27f8de2))
+* **orchestrator:** resolve ambient company for cognitive tools; stop test pollution of live loop-run state ([6f47553](https://github.com/tryingET/pi-extensions/commit/6f4755391ff3e511688c284a8028757d39bcb91f))
+* **orchestrator:** route candidate cleanup through lifecycle v2 ([e6e36f2](https://github.com/tryingET/pi-extensions/commit/e6e36f242768fc597c2a9b0dbe37ee8e30877ab8))
+* **orchestrator:** verify complete D2E commit history ([b665590](https://github.com/tryingET/pi-extensions/commit/b6655903b42b5c2238cd0d4332af30db2fc0d955))
+* **pi-society-orchestrator:** prove declared ASC registry range before release readiness ([5052cf9](https://github.com/tryingET/pi-extensions/commit/5052cf9b9ca43f4dc6a74b2a0e8c891ad21c4a7f))
+* **pi-society-orchestrator:** provision governed-npm policy fixture in tests ([b545eed](https://github.com/tryingET/pi-extensions/commit/b545eeda947154c57a799f815fda997b6d71a268))
+* **release:** complete ASC registry cutover to ^0.4.0 ([39180ba](https://github.com/tryingET/pi-extensions/commit/39180ba4657142341568c7ffac4bd267d474bdb7))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+* **release:** unblock ASC ^0.4.0 bootstrap via sanctioned transitional bundled bridge ([ab95c2b](https://github.com/tryingET/pi-extensions/commit/ab95c2ba9d25395b6ee7c724da6afc0888279a2a))
+* verify import-only Pi host peers ([edb96b4](https://github.com/tryingET/pi-extensions/commit/edb96b46eabe59f0269a65b875c8f468c29a2cbe))
+* **visible-loop:** govern deep-review workflow dispatch ([f5384ff](https://github.com/tryingET/pi-extensions/commit/f5384ff524a92e78ea9af07c4d5c634bb31356d1))
+
 ## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.5.1...pi-society-orchestrator-v0.6.0) (2026-08-15)
 
 
