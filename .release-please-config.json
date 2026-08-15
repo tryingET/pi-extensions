@@ -113,6 +113,10 @@
       "release-type": "node",
       "component": "pi-society-startup-context"
     },
+    "packages/pi-telemetry": {
+      "release-type": "node",
+      "component": "pi-telemetry"
+    },
     "packages/pi-toolbox-discovery": {
       "release-type": "node",
       "component": "pi-toolbox-discovery"
