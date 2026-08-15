@@ -13,6 +13,28 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.5.1...pi-society-orchestrator-v0.6.0) (2026-08-15)
+
+
+### Features
+
+* **orchestrator:** consume negative-only execution memory ([3fb5f20](https://github.com/tryingET/pi-extensions/commit/3fb5f200597f53a74786ad5288b98bd230682e45))
+* **pi-society-orchestrator:** checkpoint terminal loop KES ([dec3f93](https://github.com/tryingET/pi-extensions/commit/dec3f93c68916e24cb09508161079d35b900deb9))
+* **pi-society-orchestrator:** replace footer routing with fast mode and Git status ([8944cd8](https://github.com/tryingET/pi-extensions/commit/8944cd88a5068e51e0b425990ea505075fa3e578))
+
+
+### Bug Fixes
+
+* harden installed runtime composition ([8852cbf](https://github.com/tryingET/pi-extensions/commit/8852cbf79004c50035408225fd6cd18b021cba2d))
+* **orchestrator:** close execution-memory consumer gaps ([695726e](https://github.com/tryingET/pi-extensions/commit/695726e0c30dc9bb68e994e46103896d02dbf11f))
+* **orchestrator:** harden governed runtime materialization proof ([e0854d9](https://github.com/tryingET/pi-extensions/commit/e0854d9f340d72445368ea91bb326ba3f27f8de2))
+* **orchestrator:** resolve ambient company for cognitive tools; stop test pollution of live loop-run state ([6f47553](https://github.com/tryingET/pi-extensions/commit/6f4755391ff3e511688c284a8028757d39bcb91f))
+* **orchestrator:** route candidate cleanup through lifecycle v2 ([e6e36f2](https://github.com/tryingET/pi-extensions/commit/e6e36f242768fc597c2a9b0dbe37ee8e30877ab8))
+* **pi-society-orchestrator:** prove declared ASC registry range before release readiness ([5052cf9](https://github.com/tryingET/pi-extensions/commit/5052cf9b9ca43f4dc6a74b2a0e8c891ad21c4a7f))
+* **release:** complete ASC registry cutover to ^0.4.0 ([39180ba](https://github.com/tryingET/pi-extensions/commit/39180ba4657142341568c7ffac4bd267d474bdb7))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+* **release:** unblock ASC ^0.4.0 bootstrap via sanctioned transitional bundled bridge ([ab95c2b](https://github.com/tryingET/pi-extensions/commit/ab95c2ba9d25395b6ee7c724da6afc0888279a2a))
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.5.0...pi-society-orchestrator-v0.5.1) (2026-08-01)
 
 
