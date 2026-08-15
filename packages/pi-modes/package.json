@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-modes",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Prompt mode switching for Pi with explicit append, replace-base, and replace-final semantics",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
