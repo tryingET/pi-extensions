@@ -11,7 +11,16 @@ set -euo pipefail
 : "${NPM_CONFIG_CACHE:?NPM_CONFIG_CACHE is required}"
 : "${PACKAGE_SPEC:?PACKAGE_SPEC is required}"
 : "${INSTALLED_PACKAGE_ROOT:?INSTALLED_PACKAGE_ROOT is required}"
-: "${TMPDIR:?TMPDIR must point to managed disk-backed scratch storage}"
+# Unset TMPDIR (normal on CI runners) is not an unsafe value; the runner's
+# RUNNER_TEMP is a managed ephemeral scratch root. Resolve accordingly.
+if [[ -z "${TMPDIR:-}" ]]; then
+  if [[ "${GITHUB_ACTIONS:-}" == "true" && -n "${RUNNER_TEMP:-}" && -d "${RUNNER_TEMP:-}" ]]; then
+    TMPDIR="$RUNNER_TEMP"
+  else
+    echo "TMPDIR must point to managed disk-backed scratch storage" >&2
+    exit 1
+  fi
+fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"

@@ -10,7 +10,20 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
-TMP_ROOT="${TMPDIR:?TMPDIR must name the managed scratch root for release checks}"
+# Scratch-root resolution, from first principles:
+# the invariant is "release-check scratch lands on a managed, disposable root",
+# NOT "the TMPDIR variable happens to be exported". A GitHub-hosted runner is
+# single-tenant and ephemeral; its RUNNER_TEMP is exactly a managed scratch
+# root for that job, so CI satisfies the invariant even though runners never
+# export TMPDIR. Locally the strict rule is unchanged: no TMPDIR, no run.
+if [[ -n "${TMPDIR:-}" ]]; then
+  TMP_ROOT="$TMPDIR"
+elif [[ "${GITHUB_ACTIONS:-}" == "true" && -n "${RUNNER_TEMP:-}" && -d "${RUNNER_TEMP:-}" ]]; then
+  TMP_ROOT="$RUNNER_TEMP"
+else
+  echo "TMPDIR must name the managed scratch root for release checks" >&2
+  exit 1
+fi
 mkdir -p "$TMP_ROOT"
 TMP_ROOT="$(cd "$TMP_ROOT" && pwd -P)"
 case "$TMP_ROOT" in

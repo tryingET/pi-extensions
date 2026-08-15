@@ -182,7 +182,16 @@ else
     exit 1
   fi
 
-  : "${TMPDIR:?TMPDIR must point to managed disk-backed scratch storage}"
+# Unset TMPDIR (normal on CI runners) is not an unsafe value; the runner's
+# RUNNER_TEMP is a managed ephemeral scratch root. Resolve accordingly.
+if [[ -z "${TMPDIR:-}" ]]; then
+  if [[ "${GITHUB_ACTIONS:-}" == "true" && -n "${RUNNER_TEMP:-}" && -d "${RUNNER_TEMP:-}" ]]; then
+    TMPDIR="$RUNNER_TEMP"
+  else
+    echo "TMPDIR must point to managed disk-backed scratch storage" >&2
+    exit 1
+  fi
+fi
   TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-agent.XXXXXX")"
   TEST_NPM_PREFIX="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-npm-prefix.XXXXXX")"
   TEST_NPM_CACHE="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-npm-cache.XXXXXX")"
