@@ -269,6 +269,12 @@ export type LoopDispatchFn = (params: {
      * confirmed_no_effects for the effectful dispatch boundary; the
      * orchestrator checkpoint keeps the failure evidence as internal
      * bookkeeping (it does not claim literally nothing was ever written).
+     *
+     * MAINTENANCE: every early-return path added to a dispatch()
+     * implementation that fails before subagentExecutor.execute must set
+     * this marker (failureKind + reason naming the boundary); post-spawn
+     * failures must not. See
+     * docs/project/standing-maintenance-notes.md for the full contract.
      */
     preDispatchNoEffects?: {
       failureKind: string;
