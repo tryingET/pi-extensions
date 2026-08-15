@@ -23,6 +23,19 @@ system4d:
 - Reduced `session_start` to bounded readiness/orientation; startup no longer validates or builds ontology state.
 - Kept development preflight disabled by default; no adopted runtime or production default is introduced.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.3.1...pi-ontology-workflows-v0.4.0) (2026-08-15)
+
+
+### Features
+
+* **pi-ontology-workflows:** observe preflight handler return ([d6b68f2](https://github.com/tryingET/pi-extensions/commit/d6b68f2518a9038fa6d21742ab75bee4c44979f1))
+
+
+### Bug Fixes
+
+* **pi-ontology-workflows:** recover prompt observation correlation ([2e2d2b7](https://github.com/tryingET/pi-extensions/commit/2e2d2b7b88018e8d95964b93c9892723ca9cb7b9))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-ontology-workflows-v0.3.0...pi-ontology-workflows-v0.3.1) (2026-08-01)
 
 
