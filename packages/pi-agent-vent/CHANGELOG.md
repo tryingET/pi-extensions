@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-agent-vent-v0.2.0...pi-agent-vent-v0.2.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* **agent-vent:** align self diagnostic handoff ([827ea92](https://github.com/tryingET/pi-extensions/commit/827ea92ecec5f0f0d3771beb364e07622ecbf9aa))
+* **agent-vent:** isolate release probes under TMPDIR ([6ddc5a7](https://github.com/tryingET/pi-extensions/commit/6ddc5a74314caca81ccdcfcbc10c5e12f1e6e117))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-agent-vent-v0.1.2...pi-agent-vent-v0.2.0) (2026-07-13)
 
 
