@@ -123,14 +123,8 @@ export class LoopRunCheckpointStore {
   readonly rootDir: string;
 
   constructor(
-    rootDir: string = path.join(
-      os.homedir(),
-      ".pi",
-      "agent",
-      "state",
-      "pi-society-orchestrator",
-      "loop-runs",
-    ),
+    rootDir: string = process.env.PI_ORCH_LOOP_RUNS_DIR?.trim() ||
+      path.join(os.homedir(), ".pi", "agent", "state", "pi-society-orchestrator", "loop-runs"),
   ) {
     this.rootDir = rootDir;
   }

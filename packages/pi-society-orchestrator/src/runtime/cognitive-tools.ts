@@ -37,6 +37,7 @@ interface ListedPromptPlaneTemplatesResult {
 }
 
 interface VaultPromptPlaneRuntime {
+  resolveCurrentCompanyContext?: (cwd?: string) => { company: string; source: string };
   prepareSelection(
     request: { query: string; context?: string },
     ctx?: CognitiveToolLookupContext,
@@ -74,6 +75,34 @@ function isCognitiveTemplate(candidate: PreparedPromptPlaneCandidate): boolean {
   return candidate.template?.artifact_kind === "cognitive";
 }
 
+/**
+ * Resolve the ambient company for cognitive-tool lookups.
+ *
+ * The prompt plane fails closed when a lookup carries an explicit-but-
+ * company-less cwd (e.g. a loop-tool scratch dir): a synthetic cwd asserts
+ * nothing about company, so it must not silently erase the company context
+ * the surrounding session already resolved. Resolution order: explicit
+ * currentCompany on the lookup context, then PI_COMPANY, then ambient
+ * inference from the process cwd. Returns undefined when nothing resolves —
+ * the prompt plane then fails closed, preserving the visibility boundary.
+ */
+export function resolveAmbientCompanyContext(
+  runtime: { resolveCurrentCompanyContext?: (cwd?: string) => { company: string; source: string } },
+  context: CognitiveToolLookupContext = {},
+): string | undefined {
+  const explicit = context.currentCompany?.trim();
+  if (explicit) return explicit;
+
+  const fromEnv = process.env.PI_COMPANY?.trim();
+  if (fromEnv) return fromEnv;
+
+  const resolve = runtime.resolveCurrentCompanyContext;
+  if (typeof resolve !== "function") return undefined;
+  const ambient = resolve.call(runtime, undefined);
+  if (ambient.source !== "contract-default") return ambient.company;
+  return undefined;
+}
+
 export async function getCognitiveToolByName(
   name: string,
   context: CognitiveToolLookupContext = {},
@@ -86,9 +115,14 @@ export async function getCognitiveToolByName(
     return runtime;
   }
 
+  const ambientCompany = resolveAmbientCompanyContext(runtime.value, context);
+  const lookupContext: CognitiveToolLookupContext = ambientCompany
+    ? { ...context, currentCompany: ambientCompany }
+    : context;
+
   let prepared: PreparedPromptPlaneCandidate;
   try {
-    prepared = await runtime.value.prepareSelection({ query: name }, context);
+    prepared = await runtime.value.prepareSelection({ query: name }, lookupContext);
   } catch (error) {
     return {
       ok: false,

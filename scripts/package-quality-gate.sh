@@ -197,6 +197,13 @@ run_tests_target() {
     node "$REPO_ROOT/scripts/maintain-npm-release-age.mjs" >/dev/null || true
   fi
 
+  # Loop-tool tests must never write run records into the operator's live
+  # loop-runs telemetry state; redirect the checkpoint store to gate scratch.
+  if [[ "$workdir" == *"pi-society-orchestrator"* ]]; then
+    export PI_ORCH_LOOP_RUNS_DIR="$TMP_ROOT/loop-runs-test"
+    mkdir -p "$PI_ORCH_LOOP_RUNS_DIR"
+  fi
+
   local -a test_files=()
   while IFS= read -r test_file; do
     test_files+=("$test_file")
