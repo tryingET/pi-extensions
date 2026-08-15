@@ -17,6 +17,7 @@ export type TelemetryKind =
   | "tool_call"
   | "compaction"
   | "compaction_begin"
+  | "compaction_failure"
   | "skill_load"
   | "vault_query"
   | "follow_up"
@@ -29,13 +30,15 @@ export interface TelemetryEventBase {
   ts: number;
   sessionId?: string;
   cwd?: string;
+  /** "live" events are measured at runtime; "backfill" events are derived from persisted session JSONL. */
+  source?: "live" | "backfill";
 }
 
 export interface ToolCallTelemetryEvent extends TelemetryEventBase {
   kind: "tool_call";
   tool: string;
   ok: boolean;
-  durationMs: number;
+  durationMs?: number;
   errorSignature?: string;
 }
 
@@ -54,6 +57,12 @@ export interface CompactionBeginTelemetryEvent extends TelemetryEventBase {
   willRetry: boolean;
 }
 
+export interface CompactionFailureTelemetryEvent extends TelemetryEventBase {
+  kind: "compaction_failure";
+  stage: "preset" | "preset_directive" | "default_preset" | "stock_fallback" | "final";
+  errorSignature: string;
+}
+
 export interface SkillLoadTelemetryEvent extends TelemetryEventBase {
   kind: "skill_load";
   skill: string;
@@ -63,7 +72,7 @@ export interface VaultQueryTelemetryEvent extends TelemetryEventBase {
   kind: "vault_query";
   tool: string;
   ok: boolean;
-  durationMs: number;
+  durationMs?: number;
 }
 
 export interface FollowUpTelemetryEvent extends TelemetryEventBase {
@@ -77,7 +86,7 @@ export interface SubagentTelemetryEvent extends TelemetryEventBase {
   kind: "subagent";
   profile: string;
   ok: boolean;
-  durationMs: number;
+  durationMs?: number;
 }
 
 export interface TurnTelemetryEvent extends TelemetryEventBase {
@@ -89,6 +98,7 @@ export type TelemetryEvent =
   | ToolCallTelemetryEvent
   | CompactionTelemetryEvent
   | CompactionBeginTelemetryEvent
+  | CompactionFailureTelemetryEvent
   | SkillLoadTelemetryEvent
   | VaultQueryTelemetryEvent
   | FollowUpTelemetryEvent

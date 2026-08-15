@@ -69,7 +69,8 @@
     "./user-prompts": "./extensions/session-compaction/user-prompts.js"
   },
   "dependencies": {
-    "@tryinget/pi-model-selection": "file:../pi-model-selection"
+    "@tryinget/pi-model-selection": "file:../pi-model-selection",
+    "@tryinget/pi-telemetry": "file:../pi-telemetry"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

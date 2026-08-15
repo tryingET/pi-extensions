@@ -12,7 +12,7 @@ import { TELEMETRY_SCHEMA_VERSION } from "./events.ts";
 
 export const TELEMETRY_SHARD_MAX_BYTES = 2 * 1024 * 1024;
 export const TELEMETRY_RETENTION_DAYS = 30;
-const SHARD_NAME_PATTERN = /^\d{4}-\d{2}-\d{2}\.jsonl$/;
+const SHARD_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export function resolveTelemetryDir(env: NodeJS.ProcessEnv = process.env): string {
   const override = env.PI_TELEMETRY_DIR?.trim();
@@ -101,8 +101,11 @@ export async function readTelemetryEvents(
   const events: TelemetryEvent[] = [];
   for (const entry of entries.sort()) {
     if (!entry.endsWith(".jsonl")) continue;
-    const day = entry.replace(/-1$/, "").replace(/\.jsonl$/, "");
-    if (!SHARD_NAME_PATTERN.test(`${day}.jsonl`)) continue;
+    const day = entry
+      .replace(/\.jsonl$/, "")
+      .replace(/\.backfill$/, "")
+      .replace(/-1$/, "");
+    if (!SHARD_DAY_PATTERN.test(day)) continue;
     const shardTime = Date.parse(`${day}T00:00:00.000Z`);
     if (Number.isFinite(shardTime) && shardTime < cutoff) continue;
 

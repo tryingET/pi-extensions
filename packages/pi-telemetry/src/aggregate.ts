@@ -30,6 +30,8 @@ export interface TelemetrySummary {
     stalledAfterCompaction: number;
   };
   vault: { total: number; failed: number };
+  compactionFailures: Array<{ stage: string; n: number; topError?: string }>;
+  sources: Array<{ source: string; n: number }>;
   skills: Array<{ skill: string; n: number }>;
   followUps: {
     total: number;
@@ -71,6 +73,8 @@ export function summarizeTelemetryEvents(
   let subagentFailed = 0;
   const subagentProfiles = new Map<string, { n: number; failed: number }>();
   const compactionBegins: Array<{ ts: number; sessionId?: string }> = [];
+  const failureStages = new Map<string, { n: number; errors: Map<string, number> }>();
+  const sourceCounts = new Map<string, number>();
   const compactionEnds: Array<{ ts: number; sessionId?: string }> = [];
   const turnTimes: Array<{ ts: number; sessionId?: string }> = [];
 
@@ -78,6 +82,8 @@ export function summarizeTelemetryEvents(
     const day = new Date(event.ts).toISOString().slice(0, 10);
     perDayMap.set(day, (perDayMap.get(day) ?? 0) + 1);
     perKindMap.set(event.kind, (perKindMap.get(event.kind) ?? 0) + 1);
+    const source = event.source ?? "live";
+    sourceCounts.set(source, (sourceCounts.get(source) ?? 0) + 1);
 
     switch (event.kind) {
       case "tool_call": {
@@ -112,6 +118,13 @@ export function summarizeTelemetryEvents(
       case "compaction_begin":
         compactionBegins.push({ ts: event.ts, sessionId: event.sessionId });
         break;
+      case "compaction_failure": {
+        const entry = failureStages.get(event.stage) ?? { n: 0, errors: new Map() };
+        entry.n += 1;
+        entry.errors.set(event.errorSignature, (entry.errors.get(event.errorSignature) ?? 0) + 1);
+        failureStages.set(event.stage, entry);
+        break;
+      }
       case "skill_load":
         skillCounts.set(event.skill, (skillCounts.get(event.skill) ?? 0) + 1);
         break;
@@ -188,6 +201,16 @@ export function summarizeTelemetryEvents(
       stalledAfterCompaction: countStalledCompactions(compactionEnds, turnTimes),
     },
     vault: { total: vaultTotal, failed: vaultFailed },
+    compactionFailures: [...failureStages.entries()]
+      .sort((left, right) => right[1].n - left[1].n)
+      .map(([stage, entry]) => ({
+        stage,
+        n: entry.n,
+        topError: [...entry.errors.entries()].sort((left, right) => right[1] - left[1])[0]?.[0],
+      })),
+    sources: [...sourceCounts.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .map(([source, n]) => ({ source, n })),
     skills: [...skillCounts.entries()]
       .sort((left, right) => right[1] - left[1])
       .slice(0, TOP_N)

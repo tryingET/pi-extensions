@@ -7,9 +7,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { summarizeTelemetryEvents } from "../src/aggregate.ts";
+import { backfillSessionsTelemetry } from "../src/backfill.ts";
 import { registerTelemetryCollector } from "../src/collector.ts";
 import { renderTelemetryDashboard } from "../src/dashboard.ts";
-import { appendTelemetryEvent, readTelemetryEvents, resolveTelemetryDir } from "../src/store.ts";
+import { readTelemetryEvents, resolveTelemetryDir } from "../src/store.ts";
 
 const DEFAULT_WINDOW_DAYS = 14;
 const MAX_WINDOW_DAYS = 90;
@@ -20,8 +21,20 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
   registerTelemetryCollector(pi, { dir });
 
   pi.registerCommand("telemetry", {
-    description: "Regenerate the telemetry HTML dashboard (default 14d window)",
+    description:
+      "Regenerate the telemetry HTML dashboard; /telemetry backfill [days] seeds history from session JSONL",
     handler: async (args, ctx) => {
+      if (args.trim().startsWith("backfill")) {
+        const days = parseWindowDays(args.trim().replace(/^backfill\s*/, ""));
+        const result = await backfillSessionsTelemetry({ days });
+        const message =
+          `Telemetry backfill: ${result.events} events derived from ${result.filesBackfilled} sessions ` +
+          `(${result.filesSkippedAlreadyBackfilled} already done, ${result.filesSkippedLiveOverlap} live-covered) ` +
+          `into ${result.shardDays.length} day shards.`;
+        if (ctx?.hasUI) ctx.ui.notify(message, "info");
+        return message;
+      }
+
       const days = parseWindowDays(args);
       const events = await readTelemetryEvents(dir, days);
       const summary = summarizeTelemetryEvents(events, days);
@@ -110,4 +123,4 @@ function clampWindowDays(value: number | undefined): number {
   return Math.min(MAX_WINDOW_DAYS, Math.max(1, Math.floor(value)));
 }
 
-export { appendTelemetryEvent, readTelemetryEvents, resolveTelemetryDir };
+export { readTelemetryEvents, resolveTelemetryDir };

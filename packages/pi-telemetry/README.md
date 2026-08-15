@@ -36,6 +36,14 @@ pi events -> pi.telemetry.v1 records -> ~/.pi/agent/telemetry/<day>.jsonl shards
   subagent throughput per profile.
 - **`/telemetry [days]`** — regenerates a self-contained HTML dashboard (inline data,
   no external assets, no server) at `<telemetry-dir>/dashboard.html`.
+- **`/telemetry backfill [days]`** — derives telemetry from persisted session JSONL
+  into `<day>.backfill.jsonl` shards (idempotent per session file, skips sessions
+  already covered by live collection). Backfilled events carry `source: "backfill"`
+  so measured-live vs derived-from-history stays distinguishable in aggregates and
+  the dashboard provenance line. Derivation coverage is honest: compaction, turns,
+  tool calls (no durations), skill loads. Live-only kinds (follow-up, vault,
+  subagent, compaction_failure, compaction_begin) are never backfilled because
+  session JSONL does not hold them completely.
 - **`telemetry` tool** — model-callable bounded aggregates:
   `telemetry({ window_days: 7, group_by: "day" | "kind" | "tool" })`.
 
@@ -43,8 +51,11 @@ pi events -> pi.telemetry.v1 records -> ~/.pi/agent/telemetry/<day>.jsonl shards
 
 - Telemetry is a **mirror-only projection**. It is not AK/KES evidence, not decision
   authority, and not a durable owner surface.
-- Compaction failures that never emit `session_compact` appear as *unresolved begins*;
-  the owning extension remains responsible for its own failure reporting.
+- Compaction failures are now emitted at the source: pi-session-compaction records
+  stage-tagged `compaction_failure` events (preset / preset_directive / default_preset /
+  stock_fallback / final) through `@tryinget/pi-telemetry/emit` at every fallback and
+  failure site. Unresolved-begin counts remain the fallback signal for hosts or
+  versions without that emitter.
 - Stall detection correlates `compaction` ends with subsequent `turn_start` events in
   the same session (10-minute threshold) and only covers sessions observed live by
   this collector.

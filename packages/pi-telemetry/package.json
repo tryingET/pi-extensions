@@ -76,5 +76,8 @@
     "@earendil-works/pi-coding-agent": "*",
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*"
+  },
+  "exports": {
+    "./emit": "./src/emit.ts"
   }
 }

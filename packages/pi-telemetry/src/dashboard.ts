@@ -26,6 +26,11 @@ export function renderTelemetryDashboard(summary: TelemetrySummary, meta: Dashbo
           ${rows(summary.compaction.byReason.map((r) => [r.reason, String(r.n)]))}
         </table></div>`,
         `<div class="card"><table>
+          <tr><th>stage</th><th>failures</th><th>top error</th></tr>
+          ${rows(summary.compactionFailures.map((entry) => [entry.stage, String(entry.n), entry.topError ?? ""]))}
+        </table>
+        <p class="muted">emitted by the owning compaction extension; unresolved-begin counts remain the fallback signal</p></div>`,
+        `<div class="card"><table>
           <tr><th>metric</th><th>value</th></tr>
           ${rows([
             ["total compactions", String(summary.compaction.total)],
@@ -148,7 +153,7 @@ export function renderTelemetryDashboard(summary: TelemetrySummary, meta: Dashbo
 <body>
 <header>
   <h1>Pi telemetry</h1>
-  <p class="muted">window ${meta.windowDays}d · generated ${generated} · source ${escapeHtml(meta.sourceDir)} · mirror-only observability, not authority</p>
+  <p class="muted">window ${meta.windowDays}d · generated ${generated} · source ${escapeHtml(meta.sourceDir)} · ${escapeHtml(provenance(summary))} · mirror-only observability, not authority</p>
 </header>
 <nav>${["compaction", "tools", "vault", "skills", "selfdriving", "subagents", "raw"].map((id) => `<a href="#${id}">${id}</a>`).join("")}</nav>
 <main>
@@ -156,6 +161,15 @@ ${sections}
 </main>
 </body>
 </html>`;
+}
+
+function provenance(summary: TelemetrySummary): string {
+  if (summary.totalEvents === 0) {
+    return "no data yet — run /telemetry backfill to seed history from session JSONL";
+  }
+  const live = summary.sources.find((entry) => entry.source === "live")?.n ?? 0;
+  const backfilled = summary.sources.find((entry) => entry.source === "backfill")?.n ?? 0;
+  return `measured live ${live} · derived from history ${backfilled}`;
 }
 
 function kpis(summary: TelemetrySummary): string {

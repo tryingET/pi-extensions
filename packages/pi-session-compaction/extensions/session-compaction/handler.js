@@ -772,7 +772,23 @@ function createDefaultDeps(ctx) {
     loadConfig,
     loadCompactionPrompt: loadCompactionPromptContract,
     getTrackedCommands: () => [],
+    recordFailureTelemetry: defaultFailureTelemetry,
   };
+}
+
+/**
+ * Best-effort compaction-failure telemetry via @tryinget/pi-telemetry.
+ * Never throws and never blocks the fallback chain; absent dependency -> no-op.
+ * Persisted here because failed compactions leave no session entry: without this
+ * emission, fallbacks and failures are invisible to any later analysis.
+ */
+async function defaultFailureTelemetry(input) {
+  try {
+    const emit = await import("@tryinget/pi-telemetry/emit");
+    await emit.recordCompactionFailureTelemetry(input);
+  } catch {
+    // pi-telemetry is optional at runtime; compaction must not depend on it.
+  }
 }
 
 export async function runSessionCompaction(event, ctx, deps = {}) {
@@ -840,6 +856,7 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
         return buildSuccessResult(event, summary, summarizer);
       } catch (error) {
         if (isAbortError(error)) return { cancel: true };
+        await runtimeDeps.recordFailureTelemetry({ stage: "preset", error });
         notify(
           ctx,
           `Preset compaction path failed (${describeError(error)}). Falling back to the current session model.`,
@@ -847,6 +864,10 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
         );
       }
     } else if (parsedInstructions.usesPresetDirective) {
+      await runtimeDeps.recordFailureTelemetry({
+        stage: "preset_directive",
+        error: new Error("Malformed preset directive"),
+      });
       notify(
         ctx,
         "Malformed preset directive. Falling back to the current session model.",
@@ -865,6 +886,7 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
       const message = describeError(error);
 
       if (primaryFallbackConfig.defaultPreset !== CURRENT_PRESET_SENTINEL) {
+        await runtimeDeps.recordFailureTelemetry({ stage: "default_preset", error });
         notify(
           ctx,
           `Configured defaultPreset '${primaryFallbackConfig.defaultPreset}' failed (${message}). Falling back to the current session model.`,
@@ -878,6 +900,10 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
         } catch (fallbackError) {
           if (isAbortError(fallbackError)) return { cancel: true };
           const fallbackMessage = describeError(fallbackError);
+          await runtimeDeps.recordFailureTelemetry({
+            stage: "stock_fallback",
+            error: fallbackError,
+          });
           notify(
             ctx,
             `Session compaction fell back to stock compaction: ${fallbackMessage}`,
@@ -886,6 +912,7 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
           return parsedInstructions.usesPresetDirective ? { cancel: true } : undefined;
         }
       } else {
+        await runtimeDeps.recordFailureTelemetry({ stage: "stock_fallback", error });
         notify(ctx, `Session compaction fell back to stock compaction: ${message}`, "warning");
         return parsedInstructions.usesPresetDirective ? { cancel: true } : undefined;
       }
@@ -908,6 +935,7 @@ export async function runSessionCompaction(event, ctx, deps = {}) {
   } catch (error) {
     if (isAbortError(error) || event.signal?.aborted) return { cancel: true };
     const message = describeError(error);
+    await runtimeDeps.recordFailureTelemetry({ stage: "final", error });
     notify(ctx, `Session compaction failed: ${message}`, "warning");
     return parsedInstructions.usesPresetDirective ? { cancel: true } : undefined;
   }
