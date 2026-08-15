@@ -7,6 +7,13 @@ type: "changelog"
 
 # Changelog
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.2.0...pi-trigger-adapter-v0.2.1) (2026-08-15)
+
+
+### Performance Improvements
+
+* **pi-interaction:** narrow activation imports ([c89d058](https://github.com/tryingET/pi-extensions/commit/c89d058c349d6681b6e012b89a18a4f6a2ac4691))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.1.0...pi-trigger-adapter-v0.2.0) (2026-07-13)
 
 

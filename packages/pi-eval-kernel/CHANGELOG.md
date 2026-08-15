@@ -13,6 +13,21 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-eval-kernel-v0.1.0...pi-eval-kernel-v0.2.0) (2026-08-15)
+
+
+### Features
+
+* **eval-kernel:** persistent python kernel behind engine flag (Phase-1 Wave 1A) ([17e6fc9](https://github.com/tryingET/pi-extensions/commit/17e6fc91a06d7020d04b9bf2f4a1115b88b8d3d3))
+* **eval-kernel:** preserve Python state across SIGINT ([af064d4](https://github.com/tryingET/pi-extensions/commit/af064d412deca7dfbc95bb34d6153e0f5f2aad59))
+
+
+### Bug Fixes
+
+* **eval-kernel:** bind Python interrupts to eval results ([e90ee09](https://github.com/tryingET/pi-extensions/commit/e90ee093820622c06c4124005ce4c4a42bf907e7))
+* **pi-eval-kernel:** normalize npm pack JSON across npm 10/11/12 ([5c1554e](https://github.com/tryingET/pi-extensions/commit/5c1554e443319604d989637c7f2549ef5800fc8c))
+* **pi-eval-kernel:** serialize persistent worker retirement ([f17cef7](https://github.com/tryingET/pi-extensions/commit/f17cef757fdaa2bba174db002538e44ab73a7ed6))
+
 ## [0.1.0] - 2026-07-31
 
 ### Added

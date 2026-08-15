@@ -30,6 +30,20 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.2.0...pi-activity-strip-v0.3.0) (2026-08-15)
+
+
+### Features
+
+* **activity-strip:** add calm interactive session navigation ([812579c](https://github.com/tryingET/pi-extensions/commit/812579ca9d309df38a08baa5f4759eaad2bd04ee))
+* **pi-activity-strip:** mark focused terminal and lead with monitoring cards ([0447756](https://github.com/tryingET/pi-extensions/commit/0447756af3c396b32b1f4fc73f4098d09e2d6025))
+* **pi-activity-strip:** project focused-workspace Niri view with concealed self-recovery ([8fc1946](https://github.com/tryingET/pi-extensions/commit/8fc19464eed91b323a9cb8f93c46e9f4bab4f68a))
+
+
+### Bug Fixes
+
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.1.0...pi-activity-strip-v0.2.0) (2026-07-11)
 
 

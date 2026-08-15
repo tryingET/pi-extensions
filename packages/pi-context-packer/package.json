@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-context-packer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Read-only Pi context-window packet planning across source-owned providers",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
