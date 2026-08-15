@@ -11,6 +11,7 @@ import {
   parseLinuxProcessState,
   reserveSharedSubagentCapacity,
 } from "../extensions/self/subagent-capacity.ts";
+import { processGroupIsQuiescent } from "../extensions/self/subagent-capacity-record.ts";
 import { createAscExecutionRuntime } from "../extensions/self/subagent-runtime.ts";
 import { getProcessStartTicks, writeSessionStatus } from "../extensions/self/subagent-session.ts";
 
@@ -46,11 +47,42 @@ async function leaveDeadOwnerLease(sessionsDir, spawnCommitted) {
   assert.equal(code, 0);
 }
 
+async function reserveAfterConclusiveProcSnapshot(sessionsDir) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const lease = reserveSharedSubagentCapacity(sessionsDir, 1);
+    if (lease) return lease;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  return null;
+}
+
 test("Linux process-state parsing recognizes zombies even when comm contains spaces", () => {
   assert.equal(parseLinuxProcessState("123 (pi helper worker) Z 1 2 3"), "Z");
   assert.equal(parseLinuxProcessState("123 (pi helper) S 1 2 3"), "S");
   assert.equal(parseLinuxProcessState("malformed"), undefined);
 });
+
+test(
+  "process-group quiescence fails closed when a listed proc entry disappears",
+  { skip: process.platform !== "linux" },
+  () => {
+    const reads = [];
+    const procView = {
+      // PID 4100 represents a group member that forked a same-group child and exited
+      // after this snapshot. The new child is deliberately absent from the snapshot.
+      listEntries: () => ["self", "4100"],
+      readStat: (pid) => {
+        reads.push(pid);
+        const error = new Error("simulated proc churn");
+        error.code = "ENOENT";
+        throw error;
+      },
+    };
+
+    assert.equal(processGroupIsQuiescent(7300, procView), false);
+    assert.deepEqual(reads, ["4100"]);
+  },
+);
 
 test("dead owners are reclaimed in the proven pre-spawn no-status phase", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-pre-spawn-dead-owner-"));
@@ -100,13 +132,7 @@ test(
         rawChildProcessGroupId: DEAD_PID,
       });
 
-      replacement = reserveSharedSubagentCapacity(sessionsDir, 1, {
-        leaseMetadata: {
-          dispatchId: "dispatch-replacement",
-          attemptId: "attempt-replacement",
-          sessionName: "replacement",
-        },
-      });
+      replacement = await reserveAfterConclusiveProcSnapshot(sessionsDir);
       assert.ok(replacement);
 
       // A late release from the stranded owner cannot delete the replacement inode.
@@ -214,7 +240,7 @@ test(
       const { sessionName: _sessionName, updatedAt: _updatedAt, ...terminal } = status;
       writeSessionStatus(sessionsDir, "terminal", { ...terminal, status: "done" });
 
-      replacement = reserveSharedSubagentCapacity(sessionsDir, 1);
+      replacement = await reserveAfterConclusiveProcSnapshot(sessionsDir);
       assert.ok(replacement);
       lease.release();
       assert.equal(reserveSharedSubagentCapacity(sessionsDir, 1), null);

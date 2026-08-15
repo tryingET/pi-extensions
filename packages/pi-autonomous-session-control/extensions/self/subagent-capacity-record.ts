@@ -16,6 +16,11 @@ export interface CapacityLeaseMetadata {
   sessionName?: string;
 }
 
+export interface LinuxProcView {
+  listEntries(): string[];
+  readStat(pid: string): string;
+}
+
 export interface CapacityLeasePayload extends CapacityLeaseMetadata {
   kind: "asc.subagent_capacity_lease.v1";
   slot: number;
@@ -235,7 +240,15 @@ export function parseLinuxProcessState(statLine: string): string | undefined {
   return parseLinuxProcessStat(statLine)?.state;
 }
 
-export function processGroupIsQuiescent(processGroupId: number): boolean {
+const linuxProcView: LinuxProcView = {
+  listEntries: () => readdirSync("/proc"),
+  readStat: (pid) => readFileSync(`/proc/${pid}/stat`, "utf8"),
+};
+
+export function processGroupIsQuiescent(
+  processGroupId: number,
+  procView: LinuxProcView = linuxProcView,
+): boolean {
   if (
     process.platform !== "linux" ||
     !Number.isSafeInteger(processGroupId) ||
@@ -245,20 +258,25 @@ export function processGroupIsQuiescent(processGroupId: number): boolean {
   }
   let entries: string[];
   try {
-    entries = readdirSync("/proc");
+    entries = procView.listEntries();
   } catch {
     return false;
   }
 
   for (const entry of entries) {
     if (!/^\d+$/.test(entry)) continue;
+    let statLine: string;
     try {
-      const parsed = parseLinuxProcessStat(readFileSync(`/proc/${entry}/stat`, "utf8"));
-      if (!parsed || parsed.processGroupId !== processGroupId) continue;
-      if (parsed.state !== "Z" && parsed.state !== "X") return false;
+      statLine = procView.readStat(entry);
     } catch {
-      // A process may disappear during the snapshot; absence is consistent with quiescence.
+      // The /proc snapshot can churn. A listed process may fork a same-group child before
+      // disappearing, so any unreadable listed PID makes this observation inconclusive.
+      return false;
     }
+    const parsed = parseLinuxProcessStat(statLine);
+    if (!parsed) return false;
+    if (parsed.processGroupId !== processGroupId) continue;
+    if (parsed.state !== "Z" && parsed.state !== "X") return false;
   }
   return true;
 }
