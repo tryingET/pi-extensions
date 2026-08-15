@@ -13,6 +13,18 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-interaction-v0.3.1...pi-interaction-v0.3.2) (2026-08-15)
+
+
+### Bug Fixes
+
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
+
+### Performance Improvements
+
+* **pi-interaction:** narrow activation imports ([c89d058](https://github.com/tryingET/pi-extensions/commit/c89d058c349d6681b6e012b89a18a4f6a2ac4691))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-interaction-v0.3.0...pi-interaction-v0.3.1) (2026-08-15)
 
 
