@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.4.0...pi-vault-client-v0.5.0) (2026-08-15)
+
+
+### Features
+
+* **orchestrator:** consume negative-only execution memory ([3fb5f20](https://github.com/tryingET/pi-extensions/commit/3fb5f200597f53a74786ad5288b98bd230682e45))
+* **pi-vault-client:** record retrieval analytics (schema v10 companion) ([d28b9ab](https://github.com/tryingET/pi-extensions/commit/d28b9ab3e75312d1a0a0339542feb5ac53aba262))
+
+
+### Bug Fixes
+
+* exhaust deep-review blockers from the session commit wave ([0689d42](https://github.com/tryingET/pi-extensions/commit/0689d4279f92caa24c0b5b739c38de5f24c57fb6))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.3.0...pi-vault-client-v0.4.0) (2026-08-01)
 
 
