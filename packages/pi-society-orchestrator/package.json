@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-society-orchestrator",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Cognitive-driven multi-agent orchestration for society.db, prompt-vault, and agent-kernel",
   "type": "module",
   "exports": {
