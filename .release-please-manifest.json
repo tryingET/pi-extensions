@@ -6,7 +6,7 @@
   "packages/pi-better-openai": "0.2.0",
   "packages/pi-context-overlay": "0.2.0",
   "packages/pi-context-packer": "0.3.0",
-  "packages/pi-designmd-foundry": "0.2.0",
+  "packages/pi-designmd-foundry": "0.2.1",
   "packages/pi-eval-kernel": "0.1.0",
   "packages/pi-evalset-lab": "0.3.1",
   "packages/pi-interaction/pi-editor-registry": "0.2.0",
