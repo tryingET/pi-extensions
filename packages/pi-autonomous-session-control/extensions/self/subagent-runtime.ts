@@ -6,7 +6,11 @@ import {
   writeDispatchEffectReceipt,
 } from "./effect-receipt.ts";
 import { getContextRepoRoot, getContextSessionKey } from "./session-context.ts";
-import { reserveSharedSubagentCapacity } from "./subagent-capacity.ts";
+import {
+  formatSharedSubagentCapacityHolders,
+  inspectSharedSubagentCapacity,
+  reserveSharedSubagentCapacity,
+} from "./subagent-capacity.ts";
 import { cancelSubagentDispatch } from "./subagent-control.ts";
 import {
   formatInvariantIssues,
@@ -354,17 +358,30 @@ export async function executeDispatchSubagentRequest(options: {
   const sharedCapacityLease = reserveSharedSubagentCapacity(
     options.state.sessionsDir,
     options.state.maxConcurrent,
+    {
+      leaseMetadata: {
+        dispatchId,
+        attemptId,
+        sessionName: name || profile,
+      },
+    },
   );
   if (!sharedCapacityLease) {
+    const capacityHolders = inspectSharedSubagentCapacity(
+      options.state.sessionsDir,
+      options.state.maxConcurrent,
+    );
     executionSlot.release();
     return failBeforeSpawn({
       ok: false,
-      text: `Maximum concurrent subagents reached across Pi processes (${options.state.maxConcurrent}).`,
+      text: `Shared ASC subagent capacity for this repository session root is full (${options.state.maxConcurrent}). Blocking holders: ${formatSharedSubagentCapacityHolders(capacityHolders)}`,
       details: {
         reason: "rate_limited",
         failureKind: "rate_limited",
         activeCount: options.state.activeCount,
         maxConcurrent: options.state.maxConcurrent,
+        capacityScope: "repository_sessions_dir",
+        capacityHolders,
         status: "error",
       },
     });
@@ -602,6 +619,7 @@ export async function executeDispatchSubagentRequest(options: {
         cancelSupported: false,
       });
     }
+    sharedCapacityLease.markSpawnCommitted();
     spawnAttempted = true;
     result = await spawner(
       def,

@@ -76,11 +76,14 @@ The public execution seam now also carries explicit transport-safety expectation
 - one synchronous `raw_child_spawn_intent` marker before the current versioned helper can spawn raw Pi; the parent requires that marker before readiness or lifecycle events, treats malformed/oversized/missing-marker streams as effect-indeterminate, and attests `confirmed_no_effects` only when an owned helper exits before the marker on an otherwise unambiguous protocol stream
 - additive producer/parser filenames bind newly loaded parents to the paired `subagent-pi-json-filter-v2` / `subagent-protocol-v2` graph; incompatible future ordering requires a new generation rather than mutation of `v2`
 - transition compatibility is intentionally bounded: the unversioned helper remains intent-v2 compatible for parents loaded at `8852cbf7`, while already-running pre-`8852cbf7` parents require one `/reload` because their strict `transport_ready`-first parser cannot consume the same event order as the intent-required parser; neither parser is weakened to hide that incompatibility
-- helper-owned raw-child process-group shutdown on abort/timeout so the parent does not leave orphaned raw `pi` subprocesses behind when it escalates
+- helper-owned raw-child process-group shutdown on abort/timeout plus helper-local copies of the startup/execution deadlines; protocol stdout honors backpressure by pausing raw Pi reads, and a bounded forced-exit path prevents a non-draining parent from keeping the helper alive indefinitely after its deadline or raw-child close
 - on declared Pi >=0.80 hosts, exactly one authoritative raw-Pi `agent_settled` event after the final terminal assistant outcome is required for semantic success; per-run `agent_end` events may precede automatic retry, and a clean modern transport exit can never select the legacy fallback
 - the development/runtime contract is validated against Pi 0.83.0; the retained Pi 0.76 compatibility fixture predates `agent_settled`, so only an explicit `legacy_agent_end_exit` handshake plus clean foreground JSON-mode process exit and final `agent_end.willRetry=false` after the final outcome synthesizes compatibility settlement; unclassified Pi versions fail closed
 - cancellation only signals a sidecar owner whose live PID start identity and repository ownership verify; unsupported process identity fails closed, failed signals roll back cancellation intent, and custom-spawner sidecars cannot signal the parent Pi process
-- session-name reservation that treats status sidecars as occupied artifacts, plus shared capacity leases across Pi processes; lease and reclaim payloads are fully written to private inodes before atomic hard-link publication, and stale takeover/release uses identity-bearing compare/delete claims so a suspended creator or concurrent replacement cannot be mistaken for an empty partial lock
+- session-name reservation that treats status sidecars as occupied artifacts, plus repository-session-root-scoped capacity leases across Pi processes; leases carry dispatch/attempt identity and an exact-token pre-spawn/spawn-committed marker, while owned running sidecars record helper and detached raw-child/process-group identity
+- capacity recovery remains fail-closed around effects: a dead helper alone never authorizes reclaim while its raw process group is live; sidecar-backed reclaim requires exact identity, raw-child death, and kernel-observed process-group quiescence; missing post-spawn custody metadata remains blocked, while proven dead-owner pre-spawn leases remain reclaimable
+- cross-process rate-limit results include a bounded, token-free holder projection (slot, session or legacy candidates, age, parent/helper/raw PIDs and process state) and identify the capacity scope as this repository session root
+- lease and reclaim payloads are fully written to private inodes before atomic hard-link publication, and stale takeover/release uses identity-bearing compare/delete claims so a suspended creator, late exact release, or concurrent replacement cannot delete a new owner
 - explicit hard failure when lock creation fails for permanent filesystem reasons
 
 These invariants are currently anchored by:
@@ -91,6 +94,7 @@ These invariants are currently anchored by:
 - `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 - `tests/dispatch-subagent-lifecycle-control.test.mjs`
+- `tests/subagent-capacity-recovery.test.mjs`
 - `tests/execution-observation.test.mjs`
 
 ## Change checklist

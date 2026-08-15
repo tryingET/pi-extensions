@@ -20,6 +20,9 @@ Initial seed cases:
 - `assistant-protocol-parse-error` — malformed raw pi JSON output must preserve parse-error classification and body text across translation into the helper protocol seam
 - `assistant-protocol-incomplete` — a clean transport exit without exactly one terminal assistant event must fail closed and preserve partial output plus incomplete-protocol classification
 - `bundled-bridge-import` — installed release smoke must still see the temporary bundled ASC bridge in the isolated package copy
+- `capacity-parent-not-draining` — helper protocol backpressure must remain bounded and helper-owned deadlines must terminate the helper even when the parent never drains stdout
+- `capacity-dead-helper-live-raw-group` — helper death alone must not reclaim capacity while the exact detached raw Pi process group remains live; missing custody metadata stays fail-closed
+- `capacity-pre-spawn-dead-owner` — an exact-token lease still in the proven pre-spawn phase may be reclaimed after owner death, while a spawn-committed/no-status lease remains blocked
 
 Usage today:
 - ASC contract tests load these cases from `packages/pi-autonomous-session-control/tests/`

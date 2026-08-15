@@ -31,6 +31,9 @@ export interface SubagentSessionStatus {
   sessionFile?: string;
   pidStartedAt?: number;
   pidIdentity?: "proc-start-ticks" | "unsupported";
+  rawChildPid?: number;
+  rawChildPidStartedAt?: number;
+  rawChildProcessGroupId?: number;
   profile?: string;
   model?: string;
   tools?: string;
@@ -78,8 +81,13 @@ export function parseSubagentSessionStatusPayload(parsed: unknown): SubagentSess
     return null;
   }
 
-  if (candidate.pidStartedAt !== undefined && typeof candidate.pidStartedAt !== "number") {
-    return null;
+  for (const key of [
+    "pidStartedAt",
+    "rawChildPid",
+    "rawChildPidStartedAt",
+    "rawChildProcessGroupId",
+  ] as const) {
+    if (candidate[key] !== undefined && typeof candidate[key] !== "number") return null;
   }
 
   if (

@@ -10,6 +10,8 @@ export interface RawChildSpawnIntentProtocolEvent {
 export interface TransportReadyProtocolEvent {
   type: "transport_ready";
   rawChildPid?: number;
+  rawChildPidStartedAt?: number;
+  rawChildProcessGroupId?: number;
   settlementMode: SubagentSettlementMode;
   piVersion: string;
 }

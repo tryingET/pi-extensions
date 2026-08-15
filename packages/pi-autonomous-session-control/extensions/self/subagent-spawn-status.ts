@@ -30,6 +30,9 @@ export function writeRunningSubagentStatus(params: {
   childPid: number;
   model: string;
   cancelSupported?: boolean;
+  rawChildPid?: number;
+  rawChildPidStartedAt?: number;
+  rawChildProcessGroupId?: number;
 }): void {
   const pidStartedAt = getProcessStartTicks(params.childPid);
   writeSessionStatus(params.state.sessionsDir, params.def.name, {
@@ -39,6 +42,13 @@ export function writeRunningSubagentStatus(params: {
     createdAt: params.createdAt,
     pidStartedAt: pidStartedAt ?? undefined,
     pidIdentity: pidStartedAt === null ? "unsupported" : "proc-start-ticks",
+    rawChildPid: params.rawChildPid,
+    rawChildPidStartedAt:
+      params.rawChildPidStartedAt ??
+      (typeof params.rawChildPid === "number"
+        ? (getProcessStartTicks(params.rawChildPid) ?? undefined)
+        : undefined),
+    rawChildProcessGroupId: params.rawChildProcessGroupId,
     objective: params.def.objective,
     dispatchId: params.def.dispatchId,
     attemptId: params.def.attemptId,
@@ -68,6 +78,9 @@ export function writeCompletedSubagentStatus(params: {
   const prior = listSubagentSessionStatuses(params.state.sessionsDir).find(
     (status) => status.sessionName === params.def.name,
   );
+  const completedPidStartedAt =
+    getProcessStartTicks(params.pid) ??
+    (prior?.pid === params.pid ? prior.pidStartedAt : undefined);
   const cancelRequest = getMatchingSubagentCancelRequest({
     sessionsDir: params.state.sessionsDir,
     sessionName: params.def.name,
@@ -79,7 +92,15 @@ export function writeCompletedSubagentStatus(params: {
     pid: params.pid,
     ppid: process.pid,
     createdAt: params.createdAt,
-    pidStartedAt: getProcessStartTicks(params.pid) ?? undefined,
+    pidStartedAt: completedPidStartedAt,
+    pidIdentity: completedPidStartedAt === undefined ? prior?.pidIdentity : "proc-start-ticks",
+    rawChildPid: prior?.rawChildPid ?? params.result.executionState?.transport.rawChildPid,
+    rawChildPidStartedAt:
+      prior?.rawChildPidStartedAt ??
+      (typeof params.result.executionState?.transport.rawChildPid === "number"
+        ? (getProcessStartTicks(params.result.executionState.transport.rawChildPid) ?? undefined)
+        : undefined),
+    rawChildProcessGroupId: prior?.rawChildProcessGroupId,
     objective: params.def.objective,
     dispatchId: params.def.dispatchId,
     attemptId: params.def.attemptId,

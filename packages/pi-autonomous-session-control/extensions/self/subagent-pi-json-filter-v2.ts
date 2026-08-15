@@ -8,19 +8,23 @@ import {
   type IsolatedSubagentAgentDir,
   SUBAGENT_CHILD_AGENT_DIR_ENV,
 } from "./subagent-child-agent-dir.ts";
+import { createSubagentHelperLivenessController } from "./subagent-helper-liveness.ts";
 import {
   type AssistantMessageEndProtocolEvent,
   classifyPiSettlementMode,
   isRecognizedPiJsonEventLine,
   type SubagentProtocolEvent,
   type SubagentSettlementMode,
+  type TransportReadyProtocolEvent,
   translatePiJsonEventLineToSubagentProtocol,
 } from "./subagent-protocol-v2.ts";
+import { getProcessStartTicks } from "./subagent-session-status.ts";
 
 const DEFAULT_SUBAGENT_OUTPUT_CHARS = 64_000;
 const DEFAULT_FILTERED_PROTOCOL_EVENT_BUFFER_BYTES = 256 * 1024;
 const DEFAULT_RAW_PI_EVENT_BUFFER_BYTES = 8 * 1024 * 1024;
-const HELPER_CHILD_FORCE_KILL_GRACE_MS = 250;
+const DEFAULT_HELPER_STARTUP_TIMEOUT_MS = 30_000;
+const DEFAULT_HELPER_EXECUTION_TIMEOUT_MS = 4 * 60 * 60 * 1_000;
 
 interface RunnerOptions {
   cwd: string;
@@ -29,6 +33,8 @@ interface RunnerOptions {
   thinking: string;
   sessionFile: string;
   objective: string;
+  startupTimeoutMs: number;
+  executionTimeoutMs: number;
   /** Accepted only for already-loaded v2 parents; new dispatches keep task variation in objective. */
   legacySystemPrompt?: string;
   extensionSources: string[];
@@ -142,71 +148,18 @@ async function main(): Promise<void> {
 
   let rawBuffer = "";
   let discardingOversizedLine = false;
-  let childExited = false;
-  let childStopRequested = false;
-  let terminationSignal: NodeJS.Signals | undefined;
-  let childForceKillHandle: ReturnType<typeof setTimeout> | null = null;
-
-  const clearChildForceKillHandle = () => {
-    if (childForceKillHandle) {
-      clearTimeout(childForceKillHandle);
-      childForceKillHandle = null;
-    }
-  };
-
-  const killRawChild = (signal: NodeJS.Signals) => {
-    try {
-      if (process.platform !== "win32" && typeof child.pid === "number" && child.pid > 0) {
-        process.kill(-child.pid, signal);
-        return;
-      }
-
-      child.kill(signal);
-    } catch {
-      // Best effort child shutdown request.
-    }
-  };
-
-  const requestChildStop = (signal: NodeJS.Signals) => {
-    terminationSignal = signal;
-    if (childExited || childStopRequested) {
-      return;
-    }
-
-    childStopRequested = true;
-    killRawChild("SIGTERM");
-
-    childForceKillHandle = setTimeout(() => {
-      if (childExited) {
-        return;
-      }
-
-      killRawChild("SIGKILL");
-    }, HELPER_CHILD_FORCE_KILL_GRACE_MS);
-    childForceKillHandle.unref?.();
-  };
-
-  process.once("SIGTERM", () => {
-    requestChildStop("SIGTERM");
-  });
-  process.once("SIGINT", () => {
-    requestChildStop("SIGINT");
-  });
-  process.once("exit", () => {
-    clearChildForceKillHandle();
-    cleanupIsolatedAgentDirSync();
-    if (childExited) {
-      return;
-    }
-
-    killRawChild("SIGKILL");
+  const liveness = createSubagentHelperLivenessController({
+    child,
+    startupTimeoutMs: options.startupTimeoutMs,
+    executionTimeoutMs: options.executionTimeoutMs,
+    cleanupSync: cleanupIsolatedAgentDirSync,
   });
 
   child.stdout?.setEncoding("utf-8");
   child.stderr?.setEncoding("utf-8");
 
   const emitProtocolError = (errorMessage: string) => {
-    process.stdout.write(`${JSON.stringify({ type: "protocol_error", errorMessage })}\n`);
+    liveness.writeProtocolLine(`${JSON.stringify({ type: "protocol_error", errorMessage })}\n`);
   };
 
   const emitProtocolEvent = (event: SubagentProtocolEvent) => {
@@ -218,19 +171,34 @@ async function main(): Promise<void> {
       return;
     }
 
-    process.stdout.write(`${serialized}\n`);
+    liveness.writeProtocolLine(`${serialized}\n`);
   };
 
   let transportReadyEmitted = false;
   const emitTransportReady = () => {
     if (transportReadyEmitted) return;
     transportReadyEmitted = true;
-    emitProtocolEvent({
+    liveness.markTransportReady();
+    const rawChildPid = typeof child.pid === "number" && child.pid > 0 ? child.pid : undefined;
+    const rawChildPidStartedAt = rawChildPid ? getProcessStartTicks(rawChildPid) : null;
+    const baseEvent: TransportReadyProtocolEvent = {
       type: "transport_ready",
-      ...(typeof child.pid === "number" && child.pid > 0 ? { rawChildPid: child.pid } : {}),
+      ...(rawChildPid ? { rawChildPid } : {}),
       settlementMode: settlementContract.mode,
       piVersion: settlementContract.version,
-    });
+    };
+    const custodyEvent: TransportReadyProtocolEvent = {
+      ...baseEvent,
+      ...(rawChildPidStartedAt !== null ? { rawChildPidStartedAt } : {}),
+      ...(rawChildPid && process.platform !== "win32"
+        ? { rawChildProcessGroupId: rawChildPid }
+        : {}),
+    };
+    emitProtocolEvent(
+      Buffer.byteLength(JSON.stringify(custodyEvent), "utf-8") <= maxFilteredProtocolEventBytes
+        ? custodyEvent
+        : baseEvent,
+    );
   };
 
   const emitFilteredEventFromRawLine = (line: string) => {
@@ -296,25 +264,23 @@ async function main(): Promise<void> {
   });
 
   child.on("close", (code, signal) => {
-    childExited = true;
-    clearChildForceKillHandle();
     void cleanupIsolatedAgentDir();
     if (!discardingOversizedLine && rawBuffer.trim()) {
       emitFilteredEventFromRawLine(rawBuffer);
     }
     rawBuffer = "";
-    process.exitCode = signalToExitCode(terminationSignal) ?? code ?? signalToExitCode(signal) ?? 0;
+    liveness.handleChildClose(code, signal);
   });
 
   child.on("error", (error) => {
-    childExited = true;
-    clearChildForceKillHandle();
     void cleanupIsolatedAgentDir();
     process.stderr.write(
       `Error spawning pi: ${error instanceof Error ? error.message : String(error)}\n`,
     );
-    process.exitCode = signalToExitCode(terminationSignal) ?? 1;
+    liveness.handleChildError();
   });
+
+  liveness.start();
 }
 
 function detectPiSettlementContract(
@@ -369,6 +335,16 @@ function parseArgs(argv: string[]): RunnerOptions {
     thinking,
     sessionFile,
     objective,
+    startupTimeoutMs: nonNegativeIntegerArg(
+      values,
+      "--startup-timeout-ms",
+      DEFAULT_HELPER_STARTUP_TIMEOUT_MS,
+    ),
+    executionTimeoutMs: nonNegativeIntegerArg(
+      values,
+      "--execution-timeout-ms",
+      DEFAULT_HELPER_EXECUTION_TIMEOUT_MS,
+    ),
     legacySystemPrompt,
     extensionSources: values.get("--extension") ?? [],
     noSkills: firstArg(values, "--no-skills") === "true",
@@ -386,6 +362,20 @@ function requireArg(values: Map<string, string[]>, key: string): string {
     throw new Error(`Missing required argument: ${key}`);
   }
   return value;
+}
+
+function nonNegativeIntegerArg(
+  values: Map<string, string[]>,
+  key: string,
+  fallback: number,
+): number {
+  const raw = firstArg(values, key);
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`${key} must be a non-negative integer.`);
+  }
+  return parsed;
 }
 
 function serializeProtocolEventWithinLimit(
@@ -443,17 +433,6 @@ function serializeBoundedAssistantMessageEndEvent(
   }
 
   return bestSerialized;
-}
-
-function signalToExitCode(signal: NodeJS.Signals | null | undefined): number | undefined {
-  switch (signal) {
-    case "SIGINT":
-      return 130;
-    case "SIGTERM":
-      return 143;
-    default:
-      return undefined;
-  }
 }
 
 function readNonNegativeIntEnv(names: string[], fallback: number): number {

@@ -33,6 +33,8 @@ export function createSubagentProtocolArgs(params: {
   model: string;
   cwd: string;
   state: SubagentState;
+  startupTimeoutMs: number;
+  executionTimeoutMs: number;
 }): string[] {
   const args = [
     SUBAGENT_PROTOCOL_HELPER_PATH,
@@ -48,6 +50,10 @@ export function createSubagentProtocolArgs(params: {
     getSubagentSessionFile(params.def, params.state),
     "--objective",
     params.def.userPrompt || params.def.objective,
+    "--startup-timeout-ms",
+    String(params.startupTimeoutMs),
+    "--execution-timeout-ms",
+    String(params.executionTimeoutMs),
   ];
 
   for (const extensionSource of params.def.extensionSources ?? []) {

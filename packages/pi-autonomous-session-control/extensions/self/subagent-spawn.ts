@@ -101,6 +101,8 @@ export function spawnSubagentWithSpawn(
     model,
     cwd: ctx.cwd,
     state,
+    startupTimeoutMs: startupTimeout,
+    executionTimeoutMs: timeout,
   });
 
   return new Promise((resolve) => {
@@ -125,6 +127,8 @@ export function spawnSubagentWithSpawn(
     let transportReady = false;
     let rawChildSpawnIntent = false;
     let rawChildPid: number | undefined;
+    let rawChildPidStartedAt: number | undefined;
+    let rawChildProcessGroupId: number | undefined;
     let settlementMode: SubagentSettlementMode | undefined;
     let piVersion: string | undefined;
     let lifecycleEventOrdinal = 0;
@@ -257,6 +261,8 @@ export function spawnSubagentWithSpawn(
 
     const markTransportReady = (
       candidateRawChildPid: number | undefined,
+      candidateRawChildPidStartedAt: number | undefined,
+      candidateRawChildProcessGroupId: number | undefined,
       candidateSettlementMode: SubagentSettlementMode,
       candidatePiVersion: string,
     ) => {
@@ -267,6 +273,8 @@ export function spawnSubagentWithSpawn(
         rawChildPid === undefined
       ) {
         rawChildPid = candidateRawChildPid;
+        rawChildPidStartedAt = candidateRawChildPidStartedAt;
+        rawChildProcessGroupId = candidateRawChildProcessGroupId;
       }
       settlementMode = candidateSettlementMode;
       piVersion = candidatePiVersion;
@@ -274,6 +282,28 @@ export function spawnSubagentWithSpawn(
       if (startupTimeoutHandle) {
         clearTimeout(startupTimeoutHandle);
         startupTimeoutHandle = null;
+      }
+      if (
+        typeof rawChildPid === "number" &&
+        typeof proc?.pid === "number" &&
+        Number.isInteger(proc.pid) &&
+        proc.pid > 0
+      ) {
+        try {
+          writeRunningSubagentStatus({
+            state,
+            def,
+            createdAt,
+            childPid: proc.pid,
+            model,
+            cancelSupported: true,
+            rawChildPid,
+            rawChildPidStartedAt,
+            rawChildProcessGroupId,
+          });
+        } catch {
+          // Missing raw-child custody metadata fails closed during any later capacity recovery.
+        }
       }
       markActivity();
       emitProgress("running", true);

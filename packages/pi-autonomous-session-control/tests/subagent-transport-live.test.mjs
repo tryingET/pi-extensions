@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -321,6 +323,12 @@ test("end-to-end: raw Pi automatic retry settles once at agent_settled", async (
     assert.equal(result.output, "recovered");
     assert.equal(result.assistantStopReason, "stop");
     assert.equal(result.usage?.turns, 2);
+    const completedStatus = JSON.parse(
+      await readFile(join(state.sessionsDir, "retry-settles-once.status.json"), "utf8"),
+    );
+    assert.equal(typeof completedStatus.rawChildPid, "number");
+    assert.equal(typeof completedStatus.rawChildPidStartedAt, "number");
+    assert.equal(completedStatus.rawChildProcessGroupId, completedStatus.rawChildPid);
   });
 });
 
@@ -452,6 +460,65 @@ test("end-to-end: timeout tears down the raw pi child before the helper is force
       );
       assert.equal(typeof rawPiPid, "number");
       assert.equal(processIsAlive(rawPiPid), false);
+    },
+  );
+});
+
+test("helper self-terminates when its parent never drains protocol stdout", async () => {
+  await withFakePiOnPath(
+    [
+      "#!/usr/bin/env node",
+      'const event = JSON.stringify({ type: "tool_execution_start", toolName: "read" });',
+      "for (let index = 0; index < 20000; index += 1) console.log(event);",
+      "setInterval(() => {}, 1000);",
+      "",
+    ].join("\n"),
+    async (tempRoot) => {
+      const helperPath = join(process.cwd(), "extensions/self/subagent-pi-json-filter-v2.ts");
+      const helper = spawn(
+        process.execPath,
+        [
+          helperPath,
+          "--cwd",
+          tempRoot,
+          "--model",
+          "test/model",
+          "--tools",
+          "read,bash",
+          "--thinking",
+          "off",
+          "--session-file",
+          join(tempRoot, "backpressured.jsonl"),
+          "--objective",
+          "Exercise unread helper stdout",
+          "--startup-timeout-ms",
+          "250",
+          "--execution-timeout-ms",
+          "100",
+        ],
+        { cwd: tempRoot, env: process.env, stdio: ["ignore", "pipe", "pipe"] },
+      );
+
+      try {
+        // Intentionally attach no stdout data listener: this reproduces a live parent that
+        // stopped draining the helper transport after dispatch.
+        const exit = Promise.race([
+          once(helper, "exit"),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("backpressured helper did not self-terminate")),
+              3_000,
+            ),
+          ),
+        ]);
+        const [code, signal] = await exit;
+        assert.equal(code, 124);
+        assert.equal(signal, null);
+      } finally {
+        if (helper.exitCode === null && helper.signalCode === null) helper.kill("SIGKILL");
+        helper.stdout?.destroy();
+        helper.stderr?.destroy();
+      }
     },
   );
 });

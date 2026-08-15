@@ -16,6 +16,13 @@ function isAssistantStopReason(value: unknown): value is AssistantStopReason {
   );
 }
 
+function optionalSafeInteger(value: unknown, minimum: number): number | undefined | null {
+  if (value === undefined) return undefined;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum
+    ? value
+    : null;
+}
+
 export function toStatusResultPreview(value: string | undefined): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -72,6 +79,8 @@ export function consumeSubagentEventLine(params: {
   isTransportReady: () => boolean;
   markTransportReady: (
     rawChildPid: number | undefined,
+    rawChildPidStartedAt: number | undefined,
+    rawChildProcessGroupId: number | undefined,
     settlementMode: SubagentSettlementMode,
     piVersion: string,
   ) => void;
@@ -132,10 +141,20 @@ export function consumeSubagentEventLine(params: {
           parseError: `Pi settlement handshake mismatch: piVersion=${piVersion} requires ${classifiedMode}, received ${settlementMode}.`,
         };
       }
+      const rawChildPid = optionalSafeInteger(event.rawChildPid, 1);
+      const rawChildPidStartedAt = optionalSafeInteger(event.rawChildPidStartedAt, 0);
+      const rawChildProcessGroupId = optionalSafeInteger(event.rawChildProcessGroupId, 1);
+      if (
+        rawChildPid === null ||
+        rawChildPidStartedAt === null ||
+        rawChildProcessGroupId === null
+      ) {
+        return { parseError: "Invalid raw-child custody identity in transport_ready." };
+      }
       params.markTransportReady(
-        typeof event.rawChildPid === "number" && event.rawChildPid > 0
-          ? event.rawChildPid
-          : undefined,
+        rawChildPid,
+        rawChildPidStartedAt,
+        rawChildProcessGroupId,
         settlementMode,
         piVersion,
       );

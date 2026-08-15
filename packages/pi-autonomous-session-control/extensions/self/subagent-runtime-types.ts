@@ -1,6 +1,7 @@
 import type { InvariantIssue } from "./edge-contract-kernel.ts";
 import type { DispatchEffectDisposition, DispatchEffectReceipt } from "./effect-receipt.ts";
 import type { SessionScopedContext } from "./session-context.ts";
+import type { SharedSubagentCapacityHolder } from "./subagent-capacity.ts";
 import type {
   ResolvedSubagentModelSelection,
   SubagentModelSelectionSource,
@@ -168,6 +169,8 @@ export interface DispatchSubagentDetails {
   invariants?: InvariantIssue[];
   activeCount?: number;
   maxConcurrent?: number;
+  capacityScope?: "repository_sessions_dir";
+  capacityHolders?: SharedSubagentCapacityHolder[];
 }
 
 export interface DispatchSubagentExecutionUpdate {

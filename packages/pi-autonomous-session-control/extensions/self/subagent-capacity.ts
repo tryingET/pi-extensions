@@ -9,18 +9,26 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import {
+  type CapacityLeaseMetadata,
+  type CapacityLeasePayload,
+  capacityLeaseIsStale,
+  getCapacityPath,
+  getCapacitySpawnCommittedPath,
+  processOwnerIsStale,
+  readCapacityLease,
+  readCapacityStatusSnapshot,
+} from "./subagent-capacity-record.ts";
 import { getProcessStartTicks } from "./subagent-session.ts";
 
-const MALFORMED_CAPACITY_LOCK_RECLAIM_AGE_MS = 5_000;
+export {
+  formatSharedSubagentCapacityHolders,
+  inspectSharedSubagentCapacity,
+  parseLinuxProcessState,
+  type SharedSubagentCapacityHolder,
+} from "./subagent-capacity-record.ts";
 
-interface CapacityLeasePayload {
-  kind: "asc.subagent_capacity_lease.v1";
-  slot: number;
-  pid: number;
-  pidStartedAt: number;
-  token: string;
-  createdAt: string;
-}
+const MALFORMED_CAPACITY_LOCK_RECLAIM_AGE_MS = 5_000;
 
 interface CapacityReclaimPayload {
   kind: "asc.subagent_capacity_reclaim.v1";
@@ -37,27 +45,43 @@ interface OwnedCapacityReclaim {
 
 export interface SharedSubagentCapacityLease {
   slot: number;
+  markSpawnCommitted(): void;
   release(): void;
 }
 
 export function reserveSharedSubagentCapacity(
   sessionsDir: string,
   maxConcurrent: number,
-  hooks?: { afterStaleLeaseClaim?: () => void },
+  options?: {
+    afterStaleLeaseClaim?: () => void;
+    leaseMetadata?: CapacityLeaseMetadata;
+  },
 ): SharedSubagentCapacityLease | null {
+  let statusSnapshot: ReturnType<typeof readCapacityStatusSnapshot> | undefined;
   for (let slot = 0; slot < maxConcurrent; slot += 1) {
     const path = getCapacityPath(sessionsDir, slot);
-    const created = tryCreateCapacityLease(path, slot);
+    const created = tryCreateCapacityLease(path, slot, options?.leaseMetadata);
     if (created) return created;
     if (!existsSync(path)) continue;
 
-    const reclaimed = tryReclaimAndCreateCapacityLease(path, slot, hooks);
+    statusSnapshot ??= readCapacityStatusSnapshot(sessionsDir);
+    const reclaimed = tryReclaimAndCreateCapacityLease(
+      path,
+      slot,
+      sessionsDir,
+      statusSnapshot,
+      options,
+    );
     if (reclaimed) return reclaimed;
   }
   return null;
 }
 
-function tryCreateCapacityLease(path: string, slot: number): SharedSubagentCapacityLease | null {
+function tryCreateCapacityLease(
+  path: string,
+  slot: number,
+  metadata?: CapacityLeaseMetadata,
+): SharedSubagentCapacityLease | null {
   const pidStartedAt = getProcessStartTicks(process.pid);
   if (pidStartedAt === null) return null;
 
@@ -69,13 +93,31 @@ function tryCreateCapacityLease(path: string, slot: number): SharedSubagentCapac
     pidStartedAt,
     token,
     createdAt: new Date().toISOString(),
+    ...metadata,
   };
   if (!tryPublishCapacityPayload(path, payload, pidStartedAt)) return null;
 
+  const spawnCommittedPath = getCapacitySpawnCommittedPath(dirname(path), payload);
+  let spawnCommitted = false;
   return {
     slot,
+    markSpawnCommitted() {
+      if (spawnCommitted) return;
+      writeFileSync(
+        spawnCommittedPath,
+        JSON.stringify({
+          kind: "asc.subagent_capacity_spawn_committed.v1",
+          slot,
+          token,
+          committedAt: new Date().toISOString(),
+        }),
+        { encoding: "utf8", flag: "wx", mode: 0o600 },
+      );
+      spawnCommitted = true;
+    },
     release() {
       releaseOwnedCapacityPath(path, slot, token, readCapacityLease);
+      removeCapacitySpawnCommittedMarker(spawnCommittedPath);
     },
   };
 }
@@ -83,17 +125,22 @@ function tryCreateCapacityLease(path: string, slot: number): SharedSubagentCapac
 function tryReclaimAndCreateCapacityLease(
   path: string,
   slot: number,
-  hooks?: { afterStaleLeaseClaim?: () => void },
+  sessionsDir: string,
+  statuses: ReturnType<typeof readCapacityStatusSnapshot>,
+  options?: {
+    afterStaleLeaseClaim?: () => void;
+    leaseMetadata?: CapacityLeaseMetadata;
+  },
 ): SharedSubagentCapacityLease | null {
   const reclaim = tryAcquireCapacityReclaim(`${path}.reclaim`, slot);
   if (!reclaim) return null;
 
   try {
-    if (!tryRemoveStaleCapacityLease(path, slot, hooks)) return null;
+    if (!tryRemoveStaleCapacityLease(path, slot, sessionsDir, statuses, options)) return null;
 
     // Keep the per-slot reclaim lock until replacement is attempted. A normal acquirer may win
     // after unlink; in that case this create fails closed without deleting the new owner.
-    return tryCreateCapacityLease(path, slot);
+    return tryCreateCapacityLease(path, slot, options?.leaseMetadata);
   } finally {
     reclaim.release();
   }
@@ -102,6 +149,8 @@ function tryReclaimAndCreateCapacityLease(
 function tryRemoveStaleCapacityLease(
   path: string,
   slot: number,
+  sessionsDir: string,
+  statuses: ReturnType<typeof readCapacityStatusSnapshot>,
   hooks?: { afterStaleLeaseClaim?: () => void },
 ): boolean {
   const contenderStartedAt = getProcessStartTicks(process.pid);
@@ -118,7 +167,7 @@ function tryRemoveStaleCapacityLease(
   try {
     const observed = readCapacityLease(claimPath, slot);
     const stale = observed
-      ? capacityLeaseIsStale(observed)
+      ? capacityLeaseIsStale(sessionsDir, observed, statuses)
       : malformedCapacityLockIsStale(claimPath, MALFORMED_CAPACITY_LOCK_RECLAIM_AGE_MS);
     if (!stale) return false;
 
@@ -137,6 +186,9 @@ function tryRemoveStaleCapacityLease(
     }
 
     unlinkSync(path);
+    if (observed) {
+      removeCapacitySpawnCommittedMarker(getCapacitySpawnCommittedPath(sessionsDir, observed));
+    }
     return true;
   } catch (error) {
     if (getErrorCode(error) === "ENOENT") return false;
@@ -330,35 +382,6 @@ function releaseOwnedCapacityPath<T extends { token: string }>(
   }
 }
 
-function getCapacityPath(sessionsDir: string, slot: number): string {
-  return join(sessionsDir, `.asc-subagent-capacity-${slot}.lock`);
-}
-
-function readCapacityLease(path: string, expectedSlot: number): CapacityLeasePayload | undefined {
-  if (!existsSync(path)) return undefined;
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<CapacityLeasePayload>;
-    return parsed.kind === "asc.subagent_capacity_lease.v1" &&
-      typeof parsed.slot === "number" &&
-      Number.isSafeInteger(parsed.slot) &&
-      parsed.slot === expectedSlot &&
-      typeof parsed.pid === "number" &&
-      Number.isSafeInteger(parsed.pid) &&
-      parsed.pid > 0 &&
-      typeof parsed.pidStartedAt === "number" &&
-      Number.isSafeInteger(parsed.pidStartedAt) &&
-      parsed.pidStartedAt >= 0 &&
-      typeof parsed.token === "string" &&
-      parsed.token.length > 0 &&
-      typeof parsed.createdAt === "string" &&
-      Number.isFinite(Date.parse(parsed.createdAt))
-      ? (parsed as CapacityLeasePayload)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function readCapacityReclaim(
   path: string,
   expectedSlot: number,
@@ -387,17 +410,12 @@ function readCapacityReclaim(
   }
 }
 
-function capacityLeaseIsStale(payload: CapacityLeasePayload): boolean {
-  return processOwnerIsStale(payload);
-}
-
-function processOwnerIsStale(payload: { pid: number; pidStartedAt: number }): boolean {
+function removeCapacitySpawnCommittedMarker(path: string): void {
   try {
-    process.kill(payload.pid, 0);
+    unlinkSync(path);
   } catch {
-    return true;
+    // Exact-token marker cleanup is best effort; it cannot name a replacement lease.
   }
-  return getProcessStartTicks(payload.pid) !== payload.pidStartedAt;
 }
 
 function malformedCapacityLockIsStale(path: string, reclaimAgeMs: number): boolean {
