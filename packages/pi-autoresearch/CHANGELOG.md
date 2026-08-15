@@ -13,6 +13,22 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.2.1...pi-autoresearch-v0.3.0) (2026-08-15)
+
+
+### Features
+
+* **asc:** bounded self-driving follow-up send policy ([049bb4f](https://github.com/tryingET/pi-extensions/commit/049bb4f99e1179b59c554d667ce2174c17a68acf))
+
+
+### Bug Fixes
+
+* **pi-autoresearch:** fence delayed host aborts ([d7d9e66](https://github.com/tryingET/pi-extensions/commit/d7d9e66d0dad0ac02a417b66f6b128cdd13c6b94))
+* **pi-autoresearch:** load only declared trigger adapter ([e29ab21](https://github.com/tryingET/pi-extensions/commit/e29ab21dd74d9fc7f78a0ce3073e051378ee710c))
+* **pi-autoresearch:** preserve campaign identity across continuations ([35a3af3](https://github.com/tryingET/pi-extensions/commit/35a3af3ed70c6c85fc8d6b8f14880961cb391b35))
+* **pi-autoresearch:** preserve runtime abort control flow ([ecff947](https://github.com/tryingET/pi-extensions/commit/ecff9476cab3db417c3607839eaf62b91256cc16))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.2.0...pi-autoresearch-v0.2.1) (2026-08-01)
 
 
