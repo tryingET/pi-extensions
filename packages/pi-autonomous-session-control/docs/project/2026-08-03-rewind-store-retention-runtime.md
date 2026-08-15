@@ -15,8 +15,9 @@ status: "implemented"
 
 At each retention run ASC derives references from the current Pi session ledger and repository-local active-session leases:
 
-- every valid turn/op binding, including historical op `current` and `undo` fields, is an ordinary retention candidate using its ledger-entry timestamp;
-- only the current runtime's reconstructed current and undo snapshots receive those privileged roles;
+- every valid turn/op binding whose commit exists in the current Git object database, including historical op `current` and `undo` fields, is an ordinary retention candidate using its ledger-entry timestamp;
+- inherited ledger bindings that name commits absent from the current object database are ignored without rewriting session history; this makes cross-repository Pi forks portable while preserving same-repository and linked-worktree history;
+- only the current runtime's reconstructed current and undo snapshots receive those privileged roles; absent inherited current/undo values are removed from runtime state and current falls back to the latest valid binding when available;
 - every active session atomically publishes a lease commit under `refs/pi-rewind/active-sessions/*`; that commit directly parents its reconstructed current/undo snapshots and the shared-ref database makes it visible from every linked worktree;
 - full SHA-1 commits supplied through `PI_ASC_REWIND_PINNED_COMMITS` are always pinned;
 - ordinary candidates are filtered by age and then newest-first count;
@@ -29,7 +30,7 @@ PI_ASC_REWIND_MAX_SNAPSHOTS=128
 PI_ASC_REWIND_MAX_AGE_DAYS=30
 ```
 
-Both values accept non-negative safe integers, so `0` is a valid policy. Invalid explicit configuration fails closed during runtime registration. `PI_ASC_REWIND_PINNED_COMMITS` accepts comma-separated full lowercase 40-hex SHA-1 object ids. A missing pinned/current/undo object makes the rewrite fail before the ref update; the existing store ref remains unchanged.
+Both values accept non-negative safe integers, so `0` is a valid policy. Invalid explicit configuration fails closed during runtime registration. `PI_ASC_REWIND_PINNED_COMMITS` accepts comma-separated full lowercase 40-hex SHA-1 object ids. A missing explicitly pinned object, active-session-protected object, or current/undo object supplied directly to the execution seam makes the rewrite fail before the ref update; the existing store ref remains unchanged. Missing legacy ledger objects are not usable recovery points and are projected out before lease publication and retention planning.
 
 ## Scheduling and observability
 
@@ -68,6 +69,7 @@ Focused tests prove:
 - concurrent updates on both existing and absent store refs win while stale rewrites fail expected-old-OID/zero-OID CAS;
 - invalid configuration fails closed;
 - runtime settlement actually rewrites the store under injected zero ordinary retention;
+- cross-repository fork history with source-only snapshot commits is projected out without repeated warnings, while later target-repository current and ordinary snapshots remain protected across reconstruction;
 - status labels deduplicated ordinary commits as snapshots, reports active-session count, and retains the observed store head on failure.
 
 Rollback is source-only: revert the runtime wiring and keepalive rewrite additions. Do not delete or reset `refs/pi-rewind/store`, bulk-delete active-session or epoch refs, or prune Git objects as part of rollback.

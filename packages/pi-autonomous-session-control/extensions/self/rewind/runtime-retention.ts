@@ -44,6 +44,66 @@ export interface RewindRetentionExecution {
   liveCommitShas: string[];
 }
 
+const FULL_SHA1 = /^[a-f0-9]{40}$/;
+
+async function collectExistingCommitShas(
+  git: GitRunner,
+  commitShas: Iterable<string | undefined>,
+): Promise<Set<string>> {
+  const candidates = [
+    ...new Set(
+      [...commitShas].filter(
+        (value): value is string => typeof value === "string" && FULL_SHA1.test(value),
+      ),
+    ),
+  ];
+  if (candidates.length === 0) return new Set();
+
+  const result = await git(["cat-file", "--batch-check=%(objectname) %(objecttype)"], {
+    stdin: `${candidates.join("\n")}\n`,
+  });
+  if (result.code !== 0) {
+    throw new Error(result.stderr.trim() || "failed to inspect rewind snapshot commits");
+  }
+
+  const outputLines = result.stdout.trimEnd().split("\n");
+  const existing = new Set<string>();
+  for (let index = 0; index < candidates.length; index += 1) {
+    if (outputLines[index] === `${candidates[index]} commit`) {
+      existing.add(candidates[index]);
+    }
+  }
+  return existing;
+}
+
+async function projectRuntimeStateToCurrentRepository(
+  git: GitRunner,
+  state: RewindRuntimeState,
+): Promise<void> {
+  const existing = await collectExistingCommitShas(git, [
+    ...state.entryToCommit.values(),
+    state.currentCommitSha,
+    state.undoCommitSha,
+    state.lastExact?.commitSha,
+  ]);
+
+  for (const [entryId, commitSha] of state.entryToCommit) {
+    if (!existing.has(commitSha)) state.entryToCommit.delete(entryId);
+  }
+  if (state.currentCommitSha && !existing.has(state.currentCommitSha)) {
+    state.currentCommitSha = undefined;
+  }
+  if (state.undoCommitSha && !existing.has(state.undoCommitSha)) {
+    state.undoCommitSha = undefined;
+  }
+  if (state.lastExact && !existing.has(state.lastExact.commitSha)) {
+    state.lastExact = null;
+  }
+  if (!state.currentCommitSha) {
+    state.currentCommitSha = [...state.entryToCommit.values()].at(-1);
+  }
+}
+
 function parseNonNegativeInteger(
   value: string | undefined,
   name: string,
@@ -204,8 +264,20 @@ export async function executeRewindStoreRetention({
     pinnedCommitShas: [...config.pinnedCommitShas, ...activeSessionCommitShas],
     now,
   });
+  const existingOrdinaryCommitShas = await collectExistingCommitShas(
+    git,
+    references
+      .filter((reference) => reference.kind === "binding" && reference.pinned !== true)
+      .map((reference) => reference.commitSha),
+  );
+  const repositoryReferences = references.filter(
+    (reference) =>
+      reference.kind !== "binding" ||
+      reference.pinned === true ||
+      existingOrdinaryCommitShas.has(reference.commitSha),
+  );
   const plan = planRetentionLiveSet(
-    references,
+    repositoryReferences,
     { maxSnapshots: config.maxSnapshots, maxAgeDays: config.maxAgeDays },
     now,
   );
@@ -233,6 +305,7 @@ export async function runRuntimeRetentionForState(
   if (!state.isGitRepo || !state.git) return;
   let lastActiveSessionCount = state.retention.activeSessions;
   try {
+    await projectRuntimeStateToCurrentRepository(state.git, state);
     const now = config.now();
     let completed:
       | {
