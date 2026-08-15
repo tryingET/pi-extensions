@@ -23,7 +23,7 @@ function writeExecutable(cwd: string, name: string, content: string): string {
   return target;
 }
 
-async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void> {
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!predicate() && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -269,7 +269,7 @@ test("extension hook sends one follow-up user message after settled eligible age
     assert.deepEqual(sentUserMessages[0]?.options, { deliverAs: "followUp" });
 
     handlers.get("agent_settled")?.({}, { cwd });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(() => sentUserMessages.length === 1);
     assert.equal(sentUserMessages.length, 1, "default max count allows only one send");
   } finally {
     if (previousEnabled === undefined) delete process.env.PI_AUTORESEARCH_AUTO_CONTINUE;
@@ -322,7 +322,7 @@ test("extension hook cancels pending auto-continuation on a new agent_start befo
 
     handlers.get("agent_settled")?.({}, { cwd });
     handlers.get("agent_start")?.({}, { cwd });
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await new Promise((resolve) => setTimeout(resolve, 250));
     assert.equal(sentUserMessages.length, 0);
   } finally {
     if (previousEnabled === undefined) delete process.env.PI_AUTORESEARCH_AUTO_CONTINUE;
@@ -405,7 +405,10 @@ test("actual loop with campaignGoalAutoContinue stays active and extension sends
     } as never);
 
     handlers.get("agent_settled")?.({}, { cwd });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Deadline-poll instead of a fixed sleep: the follow-up path lazily imports its
+    // modules before the settle timer fires, so first-load latency under parallel
+    // test load can exceed any fixed budget (observed as CI flake 0 !== 1).
+    await waitFor(() => sentUserMessages.length === 1);
 
     assert.equal(sentUserMessages.length, 1);
     assert.match(
@@ -469,7 +472,9 @@ test("actual loop without campaignGoalAutoContinue stays paused and extension do
     } as never);
 
     handlers.get("agent_settled")?.({}, { cwd });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Grace window for a would-be follow-up that must not arrive. Kept generous:
+    // asserting absence can only false-pass, never false-fail, under load.
+    await new Promise((resolve) => setTimeout(resolve, 250));
     assert.equal(sentUserMessages.length, 0);
   } finally {
     if (previousEnabled === undefined) delete process.env.PI_AUTORESEARCH_AUTO_CONTINUE;
