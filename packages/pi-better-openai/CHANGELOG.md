@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-better-openai-v0.2.0...pi-better-openai-v0.3.0) (2026-08-15)
+
+
+### Features
+
+* **pi-better-openai:** add GPT-5.6 Sol /pro request injection ([7137af4](https://github.com/tryingET/pi-extensions/commit/7137af4bf78dc9343b764332da35d9bd23e73e3d))
+* **pi-better-openai:** publish fast-mode footer status ([61f5df1](https://github.com/tryingET/pi-extensions/commit/61f5df1d6c9681a226b0be3ed6694c11383e526f))
+
+
+### Bug Fixes
+
+* recover reviewed disposition cohorts (AK-4529) ([fe78564](https://github.com/tryingET/pi-extensions/commit/fe785646b1e690eaba9812c3dbb46704c984971f))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-better-openai-v0.1.0...pi-better-openai-v0.2.0) (2026-07-13)
 
 
