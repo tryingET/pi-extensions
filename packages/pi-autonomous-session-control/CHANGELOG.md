@@ -13,6 +13,46 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.4.0...pi-autonomous-session-control-v0.5.0) (2026-08-15)
+
+
+### Features
+
+* **asc:** add self runtime-health resolver and reconcile dispatch objective bound with main policy ([8be9708](https://github.com/tryingET/pi-extensions/commit/8be970871ee2318271bd832e05245e95dd1f2eb3))
+* **asc:** bound rewind store retention ([1e48570](https://github.com/tryingET/pi-extensions/commit/1e48570e4b8036c2c9f156ae46be8334e3b8ddf9))
+* **asc:** bounded self-driving follow-up send policy ([049bb4f](https://github.com/tryingET/pi-extensions/commit/049bb4f99e1179b59c554d667ce2174c17a68acf))
+* **asc:** improve subagent cache locality ([269740b](https://github.com/tryingET/pi-extensions/commit/269740baafebdf0f5cbfa101c1f650d8a2467a07))
+* **asc:** integrate retained self routing and memory retrieval ([8e4c841](https://github.com/tryingET/pi-extensions/commit/8e4c841809661464038a3fcf9c1c2be7b705f1cc))
+* bind loop continuation to ASC effect receipts ([4b94648](https://github.com/tryingET/pi-extensions/commit/4b94648a2889c04809bd2e725f3f89aa1f5cd5ad))
+* **pi-autonomous-session-control:** add live runtime proof guard ([3ff494f](https://github.com/tryingET/pi-extensions/commit/3ff494f22e044f2d898260d0c56a0eb3e599d30e))
+* **pi-autonomous-session-control:** harden live proof reload evidence ([269e132](https://github.com/tryingET/pi-extensions/commit/269e132d0078d729351342b61e09de4c7a2bba56))
+* **pi-autonomous-session-control:** harden long-running execution ([1214f47](https://github.com/tryingET/pi-extensions/commit/1214f47c7db97b23cc7fb8b7925433a285340657))
+* retry provable pre-spawn loop failures ([7382b10](https://github.com/tryingET/pi-extensions/commit/7382b10b779f743bf5b880241aa3842cd9146851))
+* route ASC autoresearch launches through slash UX ([f0b7606](https://github.com/tryingET/pi-extensions/commit/f0b7606ad146e73ffdf8f57c8ea58d791a87e871))
+* **self-evolution:** close typed candidate loop ([61873a7](https://github.com/tryingET/pi-extensions/commit/61873a7874087f64f23495b1143c0ef554fbbf93))
+
+
+### Bug Fixes
+
+* **agent-vent:** align self diagnostic handoff ([827ea92](https://github.com/tryingET/pi-extensions/commit/827ea92ecec5f0f0d3771beb364e07622ecbf9aa))
+* align extension runtimes with Pi 0.80 ([1702c25](https://github.com/tryingET/pi-extensions/commit/1702c25f9d31bf4f619fdaa6f7a7f898ca5ee48e))
+* **asc:** defer nested visible-loop launches ([1f58932](https://github.com/tryingET/pi-extensions/commit/1f58932afb33319b6aa9f347d025a60a045e96ef))
+* **asc:** disambiguate topic retrieval routing ([60441b4](https://github.com/tryingET/pi-extensions/commit/60441b46fb32ac7d47396e1c0d9582830c6d7271))
+* **asc:** expose canonical subagent resume handles ([c11c5d2](https://github.com/tryingET/pi-extensions/commit/c11c5d2396d759d749cae074734a0a9c5a65f6a0))
+* **asc:** fail closed insight promotion cues ([3557489](https://github.com/tryingET/pi-extensions/commit/3557489d37b08d71a4079930f5c702f9cec0d2f8))
+* **asc:** narrow trap list precedence ([abd111f](https://github.com/tryingET/pi-extensions/commit/abd111f5a059adfb545cfc7ecf8591f7a5fb0b57))
+* **asc:** preserve pre-settlement transport diagnostics ([937488e](https://github.com/tryingET/pi-extensions/commit/937488e559cabae577fa95ee29851f1a9dec24f8))
+* **asc:** retry quality gate temp cleanup ([2b81c97](https://github.com/tryingET/pi-extensions/commit/2b81c97ca5833f79e8d4bb31cd801492d4a749db))
+* **asc:** route self-evolution continuation alias ([9aa6ec4](https://github.com/tryingET/pi-extensions/commit/9aa6ec49f6d5f52dd67d3585a45801eeef0907b6))
+* **asc:** surface insight promotion closeout cues ([2986982](https://github.com/tryingET/pi-extensions/commit/29869826b735cdd038d61fcd608c300ac166ec7c))
+* **asc:** version subagent transport protocol graph ([bd59f92](https://github.com/tryingET/pi-extensions/commit/bd59f92d49d3da08825fa6037cc7e2b7987f1861))
+* **ci:** make release checks reproducible ([c33eae9](https://github.com/tryingET/pi-extensions/commit/c33eae9f3cc58f75a53d1d476134bc09b9008401))
+* exhaust deep-review blockers from the session commit wave ([0689d42](https://github.com/tryingET/pi-extensions/commit/0689d4279f92caa24c0b5b739c38de5f24c57fb6))
+* harden delegated commit dispatch admission ([84b7ad9](https://github.com/tryingET/pi-extensions/commit/84b7ad988eca709f9b705792815152e47809225d))
+* harden installed runtime composition ([8852cbf](https://github.com/tryingET/pi-extensions/commit/8852cbf79004c50035408225fd6cd18b021cba2d))
+* **pi-autonomous-session-control:** soften tester role prompt to avoid classifier false positives ([4b81842](https://github.com/tryingET/pi-extensions/commit/4b81842be2c7c3fabb92fbb9e80a9515b4eaa12f))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.3.0...pi-autonomous-session-control-v0.4.0) (2026-08-14)
 
 ### Features
