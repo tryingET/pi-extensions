@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.2.1...pi-peer-messaging-v0.2.2) (2026-08-15)
+
+
+### Bug Fixes
+
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.2.0...pi-peer-messaging-v0.2.1) (2026-08-01)
 
 
