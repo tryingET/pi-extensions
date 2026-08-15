@@ -112,6 +112,12 @@ export class SnapshotStore {
     return this.snapshots.get(alias);
   }
 
+  /** Most recently added aliases, newest first; diagnostic hints only. */
+  recentAliases(limit = 4) {
+    const aliases = [...this.snapshots.keys()];
+    return aliases.slice(-limit).reverse();
+  }
+
   clear() {
     this.snapshots.clear();
     this.totalBytes = 0;

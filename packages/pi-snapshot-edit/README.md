@@ -52,6 +52,8 @@ return value;
 
 A selector with exactly one match may omit `occurrence`. A duplicate selector requires a positive 1-indexed occurrence. Partial-line and multi-line selectors are exact. All selectors resolve against the same immutable base before any mutation.
 
+Two deterministic caller slips are normalized instead of failing: `base` may carry the rendered `revision:` header prefix or surrounding whitespace (the bare alias word is canonical), and a missing `op` is inferred when exactly one of `oldText`/`anchorText` is present before schema validation. Ambiguous shapes still fail closed.
+
 Selectors and `newText` normalize to the file's LF or CRLF style. Unrelated text bytes are unchanged. Missing, invalid, or out-of-range selectors; overlapping replacements; shared insertion points; insertion on a replacement boundary/interior; and no-op edits fail closed. There is no fuzzy matching or automatic rebase.
 
 Read pagination remains capped at 2,000 lines, and the complete serialized result—including the revision header and any truncation notice—is capped at 50KB. Space for framing is reserved before raw lines are added. A single line that cannot fit on that safe page fails explicitly because exact raw pagination cannot split it with a line-offset API. Edit previews contain raw text without gutters when they fit an independent bounded preview; otherwise success returns a non-throwing omission notice.

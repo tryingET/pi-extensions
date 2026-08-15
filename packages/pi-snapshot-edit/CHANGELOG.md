@@ -24,6 +24,9 @@ All notable changes to this project should be documented here.
 
 ### Changed
 
+- Edit `base` now accepts the rendered `revision:` header prefix and surrounding whitespace; the bare alias word remains canonical.
+- A missing edit `op` is inferred from a uniquely present `oldText` or `anchorText` before schema validation; ambiguous shapes still fail closed.
+- Unknown-revision errors now distinguish expired/unknown aliases from header-prefix slips, list still-held revision aliases, and point at the bare-alias form.
 - Loading the extension now replaces positively identified built-in `read` and `edit` owners at `session_start` by default without changing the host's active-tool selection.
 - `PI_SNAPSHOT_EDIT_OVERRIDE=0`, `false`, `off`, or `no` now retains namespaced-only tools.
 - Legacy explicit enable surfaces remain available and may activate standard `read` and `edit`.

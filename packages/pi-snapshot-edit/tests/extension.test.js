@@ -326,3 +326,65 @@ test("top-level legacy and resumed line-coordinate calls get precise reread guid
     );
   }
 });
+
+test("edit and snapshot_edit normalize prefixed base and infer missing op before validation", async () => {
+  const pi = createMockPi();
+  snapshotEditExtension(pi.api);
+  await pi.commands.get("snapshot-edit").handler("override", { hasUI: false });
+
+  const inferredReplace = pi.tools.get("edit").prepareArguments({
+    path: "example.ts",
+    base: "revision:amber",
+    edits: [{ oldText: "same", occurrence: 1, newText: "changed" }],
+  });
+  assert.deepEqual(inferredReplace, {
+    path: "example.ts",
+    base: "amber",
+    edits: [{ op: "replace", oldText: "same", occurrence: 1, newText: "changed" }],
+  });
+
+  const inferredInsert = pi.tools.get("snapshot_edit").prepareArguments({
+    path: "example.ts",
+    base: " amber ",
+    edits: [{ anchorText: "same", newText: "inserted" }],
+  });
+  assert.deepEqual(inferredInsert, {
+    path: "example.ts",
+    base: "amber",
+    edits: [{ op: "insert_after", anchorText: "same", newText: "inserted" }],
+  });
+
+  const ambiguous = { path: "example.ts", base: "amber", edits: [{ newText: "x" }] };
+  assert.equal(pi.tools.get("edit").prepareArguments(ambiguous), ambiguous);
+  const bothSelectors = {
+    path: "example.ts",
+    base: "amber",
+    edits: [{ oldText: "a", anchorText: "a", newText: "x" }],
+  };
+  assert.equal(pi.tools.get("snapshot_edit").prepareArguments(bothSelectors), bothSelectors);
+});
+
+test("snapshot_edit executes successfully through the prepare-then-validate seam with caller slips", async () => {
+  const pi = createMockPi();
+  snapshotEditExtension(pi.api);
+  const directory = await mkdtemp(join(tmpdir(), "pi-snapshot-extension-"));
+  const path = join(directory, "slips.txt");
+  await writeFile(path, "same\nsame\n", "utf8");
+  const context = { cwd: directory };
+  try {
+    const readResult = await pi.tools
+      .get("snapshot_read")
+      .execute("read-call", { path: "slips.txt" }, undefined, undefined, context);
+    const tool = pi.tools.get("snapshot_edit");
+    const prepared = tool.prepareArguments({
+      path: "slips.txt",
+      base: `revision:${readResult.details.revision}`,
+      edits: [{ oldText: "same", occurrence: 2, newText: "changed" }],
+    });
+    const editResult = await tool.execute("edit-call", prepared, undefined, undefined, context);
+    assert.equal(editResult.details.baseRevision, readResult.details.revision);
+    assert.equal(await readFile(path, "utf8"), "same\nchanged\n");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

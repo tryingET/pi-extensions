@@ -13,7 +13,7 @@ import {
 import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 import { runPackedReleaseSmoke } from "../src/release-smoke.js";
-import { SnapshotEditService } from "../src/snapshot-service.js";
+import { normalizeRevisionAlias, SnapshotEditService } from "../src/snapshot-service.js";
 
 const LEGACY_TEXT_BASE = "__legacy_exact_text_requires_snapshot_read__";
 const LEGACY_LINES_BASE = "__legacy_line_coordinates_require_snapshot_read__";
@@ -59,10 +59,14 @@ const editOperation = Type.Union([
 
 const editParameters = Type.Object({
   path: Type.String({ description: "Same file path used with the corresponding snapshot read" }),
-  base: Type.String({ description: "Compact revision alias returned by the corresponding read" }),
+  base: Type.String({
+    description:
+      "Revision alias returned by the corresponding read; pass the bare word (for example 'amber') - a 'revision:' header prefix is also accepted",
+  }),
   edits: Type.Array(editOperation, {
     minItems: 1,
-    description: "Disjoint operations resolved against the same immutable base revision",
+    description:
+      "Disjoint operations resolved against the same immutable base revision; each is op:'replace' with oldText/newText or op:'insert_after' with anchorText/newText ('op' may be omitted when oldText or anchorText uniquely implies it)",
   }),
 });
 
@@ -142,21 +146,21 @@ function createEditDefinition(
     label,
     description:
       name === "edit"
-        ? "Apply exact-text replacements and anchored insertions against an immutable revision returned by standard read. Unique selectors may omit occurrence; duplicates require a 1-indexed occurrence. Detects stale bytes and file identity before atomic rename."
-        : "Apply exact-text replacements and anchored insertions against an immutable snapshot_read revision. Unique selectors may omit occurrence; duplicates require a 1-indexed occurrence. Uses Pi's per-file queue and atomic rename.",
+        ? "Apply exact-text replacements and anchored insertions against an immutable revision returned by standard read. Unique selectors may omit occurrence; duplicates require a 1-indexed occurrence. A 'revision:' base prefix is accepted and a missing 'op' is inferred from oldText/anchorText. Detects stale bytes and file identity before atomic rename."
+        : "Apply exact-text replacements and anchored insertions against an immutable snapshot_read revision. Unique selectors may omit occurrence; duplicates require a 1-indexed occurrence. A 'revision:' base prefix is accepted and a missing 'op' is inferred from oldText/anchorText. Uses Pi's per-file queue and atomic rename.",
     promptSnippet:
       name === "edit"
         ? "Apply snapshot-bound exact-selector edits to one file"
         : "Apply exact-selector edits against a snapshot_read revision",
     promptGuidelines: [
-      `Use ${name} with the revision returned by ${name === "edit" ? "read" : "snapshot_read"}; replace selects oldText and insert_after selects anchorText.`,
+      `Use ${name} with the revision returned by ${name === "edit" ? "read" : "snapshot_read"}; pass the bare revision word as base and replace via oldText or insert via anchorText.`,
       `Omit occurrence only for a unique selector; otherwise provide its 1-indexed exact occurrence.`,
       `All operations resolve against one immutable base revision; do not account for earlier operations in the batch.`,
       `On an unknown, expired, stale, or invalid selector, read the file again instead of guessing or rebasing.`,
       `Keep replacements and insertion points disjoint; insertion on a replacement boundary is rejected.`,
     ],
     parameters: editParameters,
-    prepareArguments: acceptLegacyResume ? prepareLegacyEditArguments : undefined,
+    prepareArguments: acceptLegacyResume ? prepareStandardEditArguments : normalizeEditArguments,
     async execute(_toolCallId, params, signal, _onUpdate, ctx: ExtensionContext) {
       if (signal?.aborted) throw new Error(`${name} cancelled`);
       if (params.base === LEGACY_TEXT_BASE) {
@@ -210,6 +214,52 @@ function prepareLegacyEditArguments(args: unknown): EditParams {
     base: topLevelLegacy ? LEGACY_TEXT_BASE : LEGACY_LINES_BASE,
     edits: [{ op: "replace", oldText: "legacy", newText: "" }],
   };
+}
+
+/**
+ * Runs before host schema validation (agent-loop prepareToolCallArguments), so it
+ * removes deterministic caller slips instead of failing them: strip the rendered
+ * 'revision:' header prefix from base, and infer a missing 'op' when exactly one
+ * selector field (oldText or anchorText) is present. Ambiguous shapes are left
+ * untouched so schema validation still fails closed.
+ */
+function normalizeEditArguments(args: unknown): EditParams {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return args as EditParams;
+  const input = args as Record<string, unknown>;
+  let changed = false;
+  const next: Record<string, unknown> = { ...input };
+
+  if (typeof input.base === "string") {
+    const normalizedBase = normalizeRevisionAlias(input.base);
+    if (normalizedBase !== input.base) {
+      next.base = normalizedBase;
+      changed = true;
+    }
+  }
+
+  if (Array.isArray(input.edits)) {
+    const normalizedEdits = input.edits.map((operation) => {
+      if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+        return operation;
+      }
+      const edit = operation as Record<string, unknown>;
+      if (typeof edit.op === "string" && edit.op.length > 0) return operation;
+      const hasOldText = typeof edit.oldText === "string";
+      const hasAnchorText = typeof edit.anchorText === "string";
+      if (hasOldText === hasAnchorText) return operation;
+      changed = true;
+      return { ...edit, op: hasOldText ? "replace" : "insert_after" };
+    });
+    if (changed) next.edits = normalizedEdits;
+  }
+
+  return changed ? (next as EditParams) : (args as EditParams);
+}
+
+function prepareStandardEditArguments(args: unknown): EditParams {
+  const legacy = prepareLegacyEditArguments(args);
+  if (legacy !== args) return legacy;
+  return normalizeEditArguments(args);
 }
 
 function inspectStandardOwners(pi: ExtensionAPI): { missing: string[] } {

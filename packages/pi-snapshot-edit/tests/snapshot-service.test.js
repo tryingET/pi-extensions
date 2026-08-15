@@ -447,3 +447,81 @@ test("evicts old aliases under configured snapshot count", async () => {
     await second.cleanup();
   }
 });
+
+test("edit accepts revision-header-prefixed and whitespace-wrapped base aliases", async () => {
+  const file = await fixture("prefixed.txt", "alpha\nbeta\n");
+  try {
+    const { service } = createService();
+    const read = await service.read({ path: file.path }, file.directory);
+    const alias = read.details.revision;
+    const edit = await service.edit(
+      {
+        path: file.path,
+        base: `revision:${alias}`,
+        edits: [{ op: "replace", oldText: "beta", newText: "omega" }],
+      },
+      file.directory,
+    );
+    assert.equal(edit.details.baseRevision, alias);
+    assert.equal(await readFile(file.path, "utf8"), "alpha\nomega\n");
+
+    const second = await service.read({ path: file.path }, file.directory);
+    await service.edit(
+      {
+        path: file.path,
+        base: `  ${second.details.revision}  `,
+        edits: [{ op: "replace", oldText: "omega", newText: "beta" }],
+      },
+      file.directory,
+    );
+    assert.equal(await readFile(file.path, "utf8"), "alpha\nbeta\n");
+  } finally {
+    await file.cleanup();
+  }
+});
+
+test("unknown prefixed base reports bare-alias guidance and still-held revisions", async () => {
+  const file = await fixture("diagnostic.txt", "alpha\n");
+  try {
+    const { service } = createService();
+    const read = await service.read({ path: file.path }, file.directory);
+    const held = read.details.revision;
+    await assert.rejects(
+      service.edit(
+        {
+          path: file.path,
+          base: "revision:zebra22",
+          edits: [{ op: "replace", oldText: "a", newText: "b" }],
+        },
+        file.directory,
+      ),
+      new RegExp(
+        `Unknown or expired revision 'zebra22'.*still holds revision\\(s\\): ${held}.*bare alias word.*revision:`,
+      ),
+    );
+    await assert.rejects(
+      service.edit(
+        {
+          path: file.path,
+          base: "zebra22",
+          edits: [{ op: "replace", oldText: "a", newText: "b" }],
+        },
+        file.directory,
+      ),
+      (error) =>
+        error.message.includes("Unknown or expired revision 'zebra22'") &&
+        !error.message.includes("bare alias word"),
+    );
+  } finally {
+    await file.cleanup();
+  }
+});
+
+test("recentAliases lists newest aliases first for diagnostics", () => {
+  const store = new SnapshotStore({ maxSnapshots: 8, words: ["a1", "b2", "c3", "d4"] });
+  const bytes = (text) => Buffer.from(text, "utf8");
+  store.add({ bytes: bytes("1"), text: "1", lines: [] });
+  store.add({ bytes: bytes("2"), text: "2", lines: [] });
+  store.add({ bytes: bytes("3"), text: "3", lines: [] });
+  assert.deepEqual(store.recentAliases(2), ["c3", "b2"]);
+});

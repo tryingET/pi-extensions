@@ -17,6 +17,16 @@ const DEFAULT_MAX_LINES = 2000;
 const DEFAULT_MAX_BYTES = 50 * 1024;
 const EDIT_PREVIEW_MAX_BYTES = 8 * 1024;
 
+/**
+ * Models naturally copy the rendered `revision:<alias>` header line. Accept both
+ * forms by stripping one optional header prefix and surrounding whitespace.
+ */
+export function normalizeRevisionAlias(value) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed.startsWith("revision:") ? trimmed.slice("revision:".length).trim() : trimmed;
+}
+
 export class SnapshotEditService {
   /**
    * @param {{
@@ -67,19 +77,21 @@ export class SnapshotEditService {
   async edit({ path, base, edits }, cwd, signal) {
     if (typeof path !== "string" || path.length === 0) throw new Error("path is required");
     if (typeof base !== "string" || base.length === 0) throw new Error("base revision is required");
-    const snapshot = this.store.get(base);
-    if (!snapshot)
-      throw new Error(`Unknown or expired revision '${base}'; call snapshot_read again`);
+    const normalizedBase = normalizeRevisionAlias(base);
+    const snapshot = this.store.get(normalizedBase);
+    if (!snapshot) throw new Error(unknownRevisionMessage(base, normalizedBase, this.store));
 
     const target = await resolveTextFile(path, cwd);
     if (target.canonicalPath !== snapshot.path) {
-      throw new Error(`Revision '${base}' belongs to a different file`);
+      throw new Error(`Revision '${normalizedBase}' belongs to a different file`);
     }
     if (
       target.identity.dev !== snapshot.identity.dev ||
       target.identity.ino !== snapshot.identity.ino
     ) {
-      throw new Error(`Revision '${base}' refers to a file identity that has been replaced`);
+      throw new Error(
+        `Revision '${normalizedBase}' refers to a file identity that has been replaced`,
+      );
     }
 
     return this.mutationQueue(target.canonicalPath, async () => {
@@ -89,12 +101,14 @@ export class SnapshotEditService {
         current.fileStat.dev !== snapshot.identity.dev ||
         current.fileStat.ino !== snapshot.identity.ino
       ) {
-        throw new Error(`Revision '${base}' refers to a file identity that has been replaced`);
+        throw new Error(
+          `Revision '${normalizedBase}' refers to a file identity that has been replaced`,
+        );
       }
       const currentDigest = digestBytes(current.bytes);
       if (currentDigest !== snapshot.digest) {
         throw new Error(
-          `Stale revision '${base}': the file changed after snapshot_read; reread before retrying`,
+          `Stale revision '${normalizedBase}': the file changed after snapshot_read; reread before retrying`,
         );
       }
 
@@ -125,7 +139,7 @@ export class SnapshotEditService {
       return {
         text: `Applied ${edits.length} snapshot edit(s). New revision: ${next.alias}\n\n${preview}`,
         details: {
-          baseRevision: base,
+          baseRevision: normalizedBase,
           revision: next.alias,
           digest: next.digest,
           editsApplied: edits.length,
@@ -142,6 +156,19 @@ export class SnapshotEditService {
   stats() {
     return this.store.stats();
   }
+}
+
+function unknownRevisionMessage(rawBase, alias, store) {
+  const recent = store.recentAliases();
+  const prefixNote =
+    rawBase !== alias
+      ? " Pass the bare alias word (for example base: 'amber') without the 'revision:' header prefix."
+      : "";
+  const heldNote =
+    recent.length > 0
+      ? ` This session still holds revision(s): ${recent.join(", ")}.`
+      : " The session revision store is empty.";
+  return `Unknown or expired revision '${alias}'.${heldNote}${prefixNote} Aliases are session-scoped and oldest entries are evicted; call snapshot_read again and copy the alias from its 'revision:<alias>' header.`;
 }
 
 function truncationSuffix(snapshot, body, start, returnedLines) {
