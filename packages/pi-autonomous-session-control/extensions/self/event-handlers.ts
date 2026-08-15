@@ -7,12 +7,14 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
+  MessageStartEvent,
   SessionStartEvent,
   SessionTreeEvent,
   ToolCallEvent,
   ToolResultEvent,
   TurnStartEvent,
 } from "@earendil-works/pi-coding-agent";
+import { noteUserMessageArrived } from "./follow-up-policy.ts";
 import {
   appendLiveRuntimeProofEvent,
   appendLiveRuntimeProofInvalidation,
@@ -103,6 +105,22 @@ function readActiveBranch(ctx: ExtensionContext | undefined): unknown[] {
   } catch {
     return [];
   }
+}
+
+function extractTextContent(content: unknown): string | undefined {
+  if (!Array.isArray(content)) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (
+      block &&
+      typeof block === "object" &&
+      (block as { type?: unknown }).type === "text" &&
+      typeof (block as { text?: unknown }).text === "string"
+    ) {
+      parts.push((block as { text: string }).text);
+    }
+  }
+  return parts.length > 0 ? parts.join("\n") : undefined;
 }
 
 export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
@@ -328,6 +346,15 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
     incrementTurn(state.operations);
   };
 
+  const handleMessageStart = (event: MessageStartEvent): void => {
+    const message = event?.message;
+    if (!message || typeof message !== "object" || message.role !== "user") return;
+    const content = (message as { content?: unknown }).content;
+    const text = typeof content === "string" ? content : extractTextContent(content);
+    if (typeof text !== "string") return;
+    noteUserMessageArrived(state, text);
+  };
+
   const handleSessionStart = (event: SessionStartEvent, ctx?: ExtensionContext): void => {
     state.evolutionCandidates = [];
     state.suggestionFeedback = [];
@@ -367,6 +394,7 @@ export function setupEventHandlers(pi: ExtensionAPI, state: SelfState): void {
   pi.on("tool_result", handleToolResult);
   pi.on("tool_execution_end", handleToolExecutionEnd);
   pi.on("turn_start", handleTurnStart);
+  pi.on("message_start", handleMessageStart);
   pi.on("session_start", handleSessionStart);
   pi.on("session_tree", handleSessionTree);
 }

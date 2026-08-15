@@ -30,7 +30,16 @@
 import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { markContinuationCandidateConsumed } from "./self/continuation-candidate.ts";
 import { setupEventHandlers } from "./self/event-handlers.ts";
+import {
+  evaluateFollowUpSend,
+  type FollowUpSendEvaluation,
+  type FollowUpSendRecord,
+  isAllowedOwnerBridgeSendUserMessage,
+  recordFollowUpPrefill,
+  recordFollowUpSendOutcome,
+} from "./self/follow-up-policy.ts";
 import { createSelfMemoryLifecycle, type SelfMemoryLifecycle } from "./self/memory-lifecycle.ts";
 import { trackError } from "./self/perception.ts";
 import {
@@ -160,29 +169,83 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
       };
       const response = resolveQuery({ query: typedParams.query, context }, state);
       const actionData = response.data as
-        | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown; dispatchMode?: unknown }
+        | {
+            prefill?: unknown;
+            sendUserMessage?: unknown;
+            text?: unknown;
+            dispatchMode?: unknown;
+            continuationCandidate?: { id?: unknown };
+          }
         | undefined;
       const hasActionText = response.intent === "action" && typeof actionData?.text === "string";
+      const actionText = hasActionText ? (actionData.text as string) : "";
+      const dispatchMode =
+        typeof actionData?.dispatchMode === "string" ? actionData.dispatchMode : undefined;
+      const continuationCandidateId =
+        typeof actionData?.continuationCandidate?.id === "string"
+          ? actionData.continuationCandidate.id
+          : undefined;
       const wantsPrefill = hasActionText && actionData?.prefill === true;
       const canPrefill = ctx.hasUI && typeof ctx.ui?.setEditorText === "function";
       const didPrefill = wantsPrefill && canPrefill;
       const prefillUnavailable = wantsPrefill && !canPrefill;
-      const wantsSendUserMessage =
-        hasActionText &&
-        !wantsPrefill &&
-        actionData?.sendUserMessage === true &&
-        typeof pi.sendUserMessage === "function";
-      const blockedSendUserMessage =
-        wantsSendUserMessage && !isAllowedOwnerBridgeSendUserMessage(actionData);
-      const didSafetyPrefill = blockedSendUserMessage && canPrefill;
-      const didSendUserMessage = wantsSendUserMessage && !blockedSendUserMessage;
+      if (didPrefill) recordFollowUpPrefill(state);
 
-      if (didPrefill || didSafetyPrefill) {
-        ctx.ui.setEditorText(actionData.text as string);
+      const sendUserMessageAvailable = typeof pi.sendUserMessage === "function";
+      const wantsSendUserMessage =
+        hasActionText && !wantsPrefill && actionData?.sendUserMessage === true;
+      const blockedSlashPolicy =
+        wantsSendUserMessage && !isAllowedOwnerBridgeSendUserMessage(actionData);
+      const sendEvaluation =
+        wantsSendUserMessage && sendUserMessageAvailable && !blockedSlashPolicy
+          ? evaluateFollowUpSend(state, { text: actionText, dispatchMode })
+          : undefined;
+      const blockedFollowUpPolicy = Boolean(sendEvaluation && !sendEvaluation.allowed);
+
+      let didSendUserMessage = false;
+      let sendFailedMessage: string | undefined;
+      if (
+        wantsSendUserMessage &&
+        sendUserMessageAvailable &&
+        !blockedSlashPolicy &&
+        !blockedFollowUpPolicy
+      ) {
+        try {
+          await pi.sendUserMessage(actionText, { deliverAs: "followUp" });
+          didSendUserMessage = true;
+        } catch (error) {
+          sendFailedMessage = error instanceof Error ? error.message : String(error);
+          trackError(state.operations, "self-send-user-message", sendFailedMessage);
+        }
       }
 
-      if (didSendUserMessage) {
-        await pi.sendUserMessage(actionData.text as string, { deliverAs: "followUp" });
+      let deliveredFollowUpRecord: FollowUpSendRecord | undefined;
+      if (wantsSendUserMessage && sendUserMessageAvailable && !blockedSlashPolicy) {
+        const record = recordFollowUpSendOutcome(state, {
+          text: actionText,
+          dispatchMode,
+          delivered: didSendUserMessage,
+          blockedReason: sendEvaluation?.blockedReason,
+          sendFailed: Boolean(sendFailedMessage),
+          continuationCandidateId,
+        });
+        if (didSendUserMessage) {
+          deliveredFollowUpRecord = record;
+        }
+      }
+      if (deliveredFollowUpRecord && continuationCandidateId) {
+        markContinuationCandidateConsumed(
+          state,
+          continuationCandidateId,
+          deliveredFollowUpRecord.id,
+        );
+      }
+
+      const didSafetyPrefill =
+        (blockedSlashPolicy || blockedFollowUpPolicy || Boolean(sendFailedMessage)) && canPrefill;
+
+      if (didPrefill || didSafetyPrefill) {
+        ctx.ui.setEditorText(actionText);
       }
 
       const resultData = shapeActionDeliveryData(response.data, {
@@ -192,7 +255,10 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
         prefillUnavailable,
         canPrefill,
         didSendUserMessage,
-        blockedSendUserMessage,
+        blockedSlashPolicy,
+        blockedFollowUpPolicy,
+        sendEvaluation,
+        sendFailed: Boolean(sendFailedMessage),
         didSafetyPrefill,
       });
 
@@ -220,7 +286,10 @@ This is a mirror, not a manager. You ask, you receive, you decide.`,
                 didPrefill,
                 prefillUnavailable,
                 didSendUserMessage,
-                blockedSendUserMessage,
+                blockedSlashPolicy,
+                blockedFollowUpPolicy,
+                sendEvaluation,
+                sendFailed: Boolean(sendFailedMessage),
                 didSafetyPrefill,
                 actionData,
               }) +
@@ -288,7 +357,10 @@ function shapeActionDeliveryData(
     prefillUnavailable: boolean;
     canPrefill: boolean;
     didSendUserMessage: boolean;
-    blockedSendUserMessage: boolean;
+    blockedSlashPolicy: boolean;
+    blockedFollowUpPolicy: boolean;
+    sendEvaluation: FollowUpSendEvaluation | undefined;
+    sendFailed: boolean;
     didSafetyPrefill: boolean;
   },
 ): unknown {
@@ -306,9 +378,29 @@ function shapeActionDeliveryData(
     ...source,
     dispatchMode,
     userMessageSent: delivery.didSendUserMessage,
-    ...(delivery.blockedSendUserMessage
+    ...(delivery.blockedSlashPolicy
       ? {
           userMessageBlockedReason: "unapproved_slash_command_send_user_message",
+          safetyPrefillPerformed: delivery.didSafetyPrefill,
+        }
+      : {}),
+    ...(delivery.sendFailed
+      ? {
+          userMessageSendFailed: true,
+          safetyPrefillPerformed: delivery.didSafetyPrefill,
+        }
+      : {}),
+    ...(delivery.blockedFollowUpPolicy && delivery.sendEvaluation
+      ? {
+          userMessageBlockedReason: `self_driving_${delivery.sendEvaluation.blockedReason}`,
+          followUpClass: delivery.sendEvaluation.followUpClass,
+          followUpMode: delivery.sendEvaluation.mode,
+          ...(delivery.sendEvaluation.blockedReason === "budget_exhausted"
+            ? {
+                consecutiveFollowUpSends: delivery.sendEvaluation.consecutive,
+                maxConsecutiveFollowUpSends: delivery.sendEvaluation.maxConsecutive,
+              }
+            : {}),
           safetyPrefillPerformed: delivery.didSafetyPrefill,
         }
       : {}),
@@ -329,7 +421,10 @@ function formatActionDeliveryText(
     didPrefill: boolean;
     prefillUnavailable: boolean;
     didSendUserMessage: boolean;
-    blockedSendUserMessage: boolean;
+    blockedSlashPolicy: boolean;
+    blockedFollowUpPolicy: boolean;
+    sendEvaluation: FollowUpSendEvaluation | undefined;
+    sendFailed: boolean;
     didSafetyPrefill: boolean;
     actionData:
       | { prefill?: unknown; sendUserMessage?: unknown; text?: unknown; dispatchMode?: unknown }
@@ -349,12 +444,38 @@ function formatActionDeliveryText(
     return `Editor prefill unavailable (no UI): manual operator review required. Copy/review this text before acting: ${preview}`;
   }
 
-  if (delivery.blockedSendUserMessage && typeof delivery.actionData?.text === "string") {
+  if (delivery.blockedSlashPolicy && typeof delivery.actionData?.text === "string") {
     const preview = formatQuotedPreview(delivery.actionData.text);
     const prefillText = delivery.didSafetyPrefill
       ? " Editor prefilled for operator review instead."
       : " No UI prefill is available; copy/review manually before acting.";
     return `User-message dispatch blocked by ASC slash-command policy.${prefillText} Text: ${preview}`;
+  }
+
+  if (delivery.sendFailed && typeof delivery.actionData?.text === "string") {
+    const preview = formatQuotedPreview(delivery.actionData.text);
+    const prefillText = delivery.didSafetyPrefill
+      ? " Editor prefilled as a fallback instead."
+      : " No UI prefill is available; copy/submit manually if this continuation is still wanted.";
+    return `Follow-up user message failed at the pi.sendUserMessage seam.${prefillText} Text: ${preview}`;
+  }
+
+  if (
+    delivery.blockedFollowUpPolicy &&
+    delivery.sendEvaluation &&
+    typeof delivery.actionData?.text === "string"
+  ) {
+    const preview = formatQuotedPreview(delivery.actionData.text);
+    const prefillText = delivery.didSafetyPrefill
+      ? " Editor prefilled for operator review instead."
+      : " No UI prefill is available; copy/review manually before acting.";
+    const reason =
+      delivery.sendEvaluation.blockedReason === "budget_exhausted"
+        ? `Self-driving budget exhausted: ${delivery.sendEvaluation.consecutive}/${delivery.sendEvaluation.maxConsecutive} consecutive extension-originated follow-ups since the last operator message.`
+        : delivery.sendEvaluation.blockedReason === "dedup_suppressed"
+          ? "Identical follow-up text was already sent inside the dedup cooldown window; suppressing to avoid a silent retry loop."
+          : `Self-driving mode '${delivery.sendEvaluation.mode}' does not allow '${delivery.sendEvaluation.followUpClass}' follow-up sends.`;
+    return `${reason}${prefillText} Text: ${preview}`;
   }
 
   if (delivery.didSendUserMessage) {
@@ -368,60 +489,7 @@ function formatActionDeliveryText(
   return answer;
 }
 
-export function isAllowedOwnerBridgeSendUserMessage(actionData: {
-  text?: unknown;
-  dispatchMode?: unknown;
-  ownerBridge?: unknown;
-  routeKind?: unknown;
-}): boolean {
-  if (typeof actionData.text !== "string" || !messageLooksWholeSlashCommand(actionData.text)) {
-    return true;
-  }
-
-  if (actionData.dispatchMode !== "owner_bridge_send_user_message") {
-    return false;
-  }
-
-  const text = actionData.text.trim();
-  if (
-    actionData.ownerBridge === "pi-little-helpers extension-originated /visible-loop bridge" &&
-    actionData.routeKind === "visible_loop_self_evolution" &&
-    /^\/visible-loop --count 1 --delegate-commit --candidate evolution-[A-Za-z0-9._-]+$/u.test(text)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function messageLooksWholeSlashCommand(text: string): boolean {
-  const match = text.trim().match(/^\/([A-Za-z][\w-]*)(?=\s|$)/u);
-  if (!match) return false;
-  const commandName = match[1]?.toLowerCase();
-  return Boolean(commandName && !COMMON_ABSOLUTE_PATH_ROOTS.has(commandName));
-}
-
-const COMMON_ABSOLUTE_PATH_ROOTS = new Set([
-  "bin",
-  "dev",
-  "etc",
-  "home",
-  "lib",
-  "lib64",
-  "media",
-  "mnt",
-  "opt",
-  "proc",
-  "root",
-  "run",
-  "sbin",
-  "srv",
-  "sys",
-  "tmp",
-  "usr",
-  "var",
-  "workspace",
-]);
+export { isAllowedOwnerBridgeSendUserMessage };
 
 function formatQuotedPreview(text: string): string {
   return `"${text.slice(0, 100)}${text.length > 100 ? "..." : ""}"`;

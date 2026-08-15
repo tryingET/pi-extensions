@@ -8,6 +8,7 @@ import type {
   BranchRegistry,
   PatternStore,
   SelfConfig,
+  SelfFollowUpPolicyState,
   SelfState,
   SignalLog,
   TrapRegistry,
@@ -58,6 +59,22 @@ export function createTrapRegistry(): TrapRegistry {
   };
 }
 
+export function createFollowUpPolicyState(): SelfFollowUpPolicyState {
+  return {
+    consecutiveContinuationSends: 0,
+    consecutiveNotificationSends: 0,
+    totalAttempts: 0,
+    totalSent: 0,
+    totalPrefilled: 0,
+    sendFailedCount: 0,
+    budgetExhaustedCount: 0,
+    dedupSuppressedCount: 0,
+    modeGateCount: 0,
+    recentSends: [],
+    pendingSelfOriginatedTextHashes: [],
+  };
+}
+
 export function createSelfState(config: Partial<SelfConfig> = {}): SelfState {
   return {
     operations: createOperationLog(),
@@ -72,6 +89,7 @@ export function createSelfState(config: Partial<SelfConfig> = {}): SelfState {
     continuationCandidates: [],
     evolutionCandidates: [],
     suggestionFeedback: [],
+    followUpPolicy: createFollowUpPolicyState(),
     config: { ...DEFAULT_CONFIG, ...config },
   };
 }

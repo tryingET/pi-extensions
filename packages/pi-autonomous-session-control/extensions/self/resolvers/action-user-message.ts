@@ -6,11 +6,20 @@
  */
 
 import { normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
+import {
+  isAffirmativelyLowRiskContinuationCommand,
+  messageLooksActionDirective,
+  messageLooksSensitive,
+  messageLooksSlashCommand,
+} from "../follow-up-policy.ts";
 import type { SelfQuery, SelfResponse } from "../types.ts";
 import { extractQuotedContent } from "./helpers.ts";
 
+const DECLARED_MESSAGE_KINDS = new Set(["notification", "status", "continuation"]);
+
 export function handleDirectUserMessage(query: SelfQuery): SelfResponse {
   const context = normalizeInput(query.context);
+  const declaredKind = readDeclaredKind(context);
   const text = extractDirectUserMessageText(query, context);
 
   if (!text) {
@@ -72,6 +81,18 @@ export function handleDirectUserMessage(query: SelfQuery): SelfResponse {
     });
   }
 
+  if (declaredKind === "continuation" && !hasLowRiskContinuationAction(text)) {
+    return buildPrefillResponse(text, {
+      sendUserMessage: false,
+      dispatchMode: "operator_review_required",
+      declaredKind,
+      reason:
+        "Declared continuation messages must name an affirmatively low-risk local validation command; the text scan found none, so the declaration fails closed to editor prefill.",
+      boundary:
+        "Declarations do not bypass validation. A declared continuation is only sendable when its action line matches the shared low-risk continuation allowlist and the denylist scans stay clean.",
+    });
+  }
+
   return {
     understood: true,
     intent: "action",
@@ -81,6 +102,7 @@ export function handleDirectUserMessage(query: SelfQuery): SelfResponse {
       sendUserMessage: true,
       prefill: false,
       dispatchMode: "operator_notification",
+      ...(declaredKind ? { declaredKind } : {}),
       boundary:
         "Explicit low-risk operator notification only; not AK evidence, not a decision, and not durable diagnostic recording.",
     },
@@ -101,53 +123,17 @@ function extractDirectUserMessageText(query: SelfQuery, context: Record<string, 
   return text ? clampUserMessageText(text) : "";
 }
 
+function readDeclaredKind(context: Record<string, unknown>): string | undefined {
+  const declared = normalizeString(context.kind);
+  return declared && DECLARED_MESSAGE_KINDS.has(declared) ? declared : undefined;
+}
+
+function hasLowRiskContinuationAction(text: string): boolean {
+  return text.split("\n").some((line) => isAffirmativelyLowRiskContinuationCommand(line.trim()));
+}
+
 function clampUserMessageText(text: string): string {
   return text.trim().slice(0, 2000);
-}
-
-function messageLooksSensitive(text: string): boolean {
-  return /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\bgh[pousr]_[A-Za-z0-9_]{20,}\b|\bsk-[A-Za-z0-9]{20,}\b/u.test(
-    text,
-  );
-}
-
-function messageLooksSlashCommand(text: string): boolean {
-  const slashTokenPattern = /(^|[\s`'">(*_[-])\/([A-Za-z][\w-]*)(?=\s|$)/gu;
-  for (const match of text.matchAll(slashTokenPattern)) {
-    const commandName = match[2]?.toLowerCase();
-    if (commandName && !COMMON_ABSOLUTE_PATH_ROOTS.has(commandName)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-const COMMON_ABSOLUTE_PATH_ROOTS = new Set([
-  "bin",
-  "dev",
-  "etc",
-  "home",
-  "lib",
-  "lib64",
-  "media",
-  "mnt",
-  "opt",
-  "proc",
-  "root",
-  "run",
-  "sbin",
-  "srv",
-  "sys",
-  "tmp",
-  "usr",
-  "var",
-  "workspace",
-]);
-
-function messageLooksActionDirective(text: string): boolean {
-  return /(^|\n)\s*[!$]{1,2}\S|\b(?:run|execute|spawn|launch|commit|merge|delete|remove|reset|record|publish|promote)\b|(^|\n)\s*(?:(?:please|kindly)\s+|(?:can|could|would)\s+you\s+)?compact\b|\b(?:run|execute|start|trigger|perform)\s+(?:a\s+)?(?:compact|compaction)\b|\b(?:ak\s+task|agent_vent|scout_peer_spawn|candidate_peer_spawn|fork_peer_spawn|dispatch_subagent|toolbox\(|evidence_record|write\s+AK|write\s+KES|peer review|durable record)\b/iu.test(
-    text,
-  );
 }
 
 function buildPrefillResponse(text: string, extraData: Record<string, unknown> = {}): SelfResponse {

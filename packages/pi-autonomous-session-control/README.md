@@ -138,7 +138,22 @@ The `self` tool accepts operational handoff queries such as `controller handoff 
 
 The `self` tool also accepts `self memory status` / `memory lifecycle status` as a mirror-only status surface for its own scoped memory persistence. It reports the last persisted-memory load status plus counts for patterns, semantic-pressure annotations, traps, checkpoints, follow-ups, and continuation candidates; it does not promote ontology candidates, write evidence, record vents, launch loops, or create durable owner truth.
 
-`self({ query: "action summary" })` reports checkpoint/follow-up totals plus mirror-only continuation candidate counts/previews, separating current-cwd fresh candidates from cross-cwd or expired candidates so agents can inspect whether a same-cwd continuation hint exists before asking the operator to restate context.
+`self({ query: "action summary" })` reports checkpoint/followup totals plus mirror-only continuation candidate counts/previews, separating current-cwd fresh candidates from cross-cwd or expired candidates so agents can inspect whether a same-cwd continuation hint exists before asking the operator to restate context.
+
+### Follow-up send policy (self-driving budget)
+
+Every extension-originated `pi.sendUserMessage` follow-up in ASC goes through one canonical policy kernel (`extensions/self/follow-up-policy.ts`):
+
+- **Fail-closed continuation posture.** Continuation-class sends (`agent_continuation`) require the action line to affirmatively match a narrow low-risk local-validation command allowlist (`npm/pnpm/yarn/bun ... test|check|lint|build|verify`, `just check`-family, `npx tsc`, `node --test`). Everything else degrades to editor prefill with `operator_review_required`; the old denylist (`requiresOperatorReview`) remains as a second layer.
+- **Self-driving budget.** At most 3 consecutive continuation-class and 8 consecutive notification-class follow-ups may be delivered without an intervening operator-authored user message (`message_start` with role `user` that is not one of our own pending follow-up texts resets both counters). Over-budget sends are blocked to prefill with `self_driving_budget_exhausted`. Env overrides: `PI_SELF_MAX_CONSECUTIVE_FOLLOW_UPS`, `PI_SELF_MAX_CONSECUTIVE_NOTIFICATIONS`.
+- **Dedup cooldown.** Identical follow-up text inside a 10-minute cooldown is suppressed to prefill (`self_driving_dedup_suppressed`) instead of re-sent.
+- **Autonomy-mode gate.** `PI_SELF_SEND_USER_MESSAGE_MODE` binds the runtime to the autonomy ladder: `notifications_only` < `bounded_continuation` < `owner_bridge` (default ceiling, preserving the established allowlisted `/visible-loop` owner-bridge route). Lower modes block higher classes to prefill with `self_driving_mode_gate`.
+- **Guarded send seam.** The `pi.sendUserMessage` call is wrapped; a runtime failure reports `userMessageSendFailed`, falls back to editor prefill when a UI exists, and is tracked as an error instead of surfacing as an opaque tool error.
+- **Effect linkage.** A delivered continuation send marks its `self.continuation_candidate.v1` consumed (`consumedByFollowUpId`); consumed candidates are never re-selected for later sends.
+- **Telemetry.** Send outcomes are recorded as `self.follow_up_send.v1` records and surfaced in `action summary` (`data.followUpPolicy` plus a `follow-up sends sent=... blocked=...` sentence) so the operator can audit how much self-driving actually happened.
+- **Declared kinds.** `send user message`/`notify operator` accepts `context.kind` (`notification` | `status` | `continuation`); a declared `continuation` must still contain an affirmative low-risk action line or it fails closed to prefill. Declarations select the policy tier and never bypass validation.
+
+The owner-bridge allowlist is a versioned registry (`OWNER_BRIDGE_SEND_ALLOWLIST`) instead of an inline hard-coded triple, so a `/visible-loop` flag-set change in pi-little-helpers updates one reviewed entry.
 
 The `self` tool accepts `autonomy status` / `what level of autonomy is needed?` as a mirror-only explanation of the self-driving envelope. It makes the autonomy ladder explicit: Level 3 for supervised multi-session discovery/review, Level 4 for visible-loop campaigns, Level 5 for measured campaigns, and Level 6 only for explicitly gated durable owner-surface mutation. This status is not permission by itself and does not authorize hidden infinite loops, unbounded peer launch, candidate merge, owner writes, releases, or publication.
 

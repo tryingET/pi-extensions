@@ -1,5 +1,6 @@
 import { recordContinuationCandidate } from "../continuation-candidate.ts";
 import { normalizeInput, normalizeString, normalizeStringArray } from "../edge-contract-kernel.ts";
+import { followUpPolicyTelemetry } from "../follow-up-policy.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
 
 export function handleRecordContinuationCandidate(
@@ -75,7 +76,7 @@ export function handleListActionState(query: SelfQuery, state: SelfState): SelfR
   const now = Date.now();
   const cwd = normalizeCurrentCwd(query);
   const freshContinuationCandidates = state.continuationCandidates.filter(
-    (candidate) => candidate.expiresAt > now,
+    (candidate) => candidate.expiresAt > now && !candidate.consumedByFollowUpId,
   );
   const currentCwdFreshContinuationCandidates = freshContinuationCandidates.filter(
     (candidate) => candidate.cwd === cwd,
@@ -97,11 +98,13 @@ export function handleListActionState(query: SelfQuery, state: SelfState): SelfR
     .slice(0, 3)
     .map((candidate) => `${candidate.id}: ${candidate.slice} via ${candidate.owner}`)
     .join("; ");
+  const followUpTelemetry = followUpPolicyTelemetry(state);
+  const sendTelemetryText = `follow-up sends sent=${followUpTelemetry.totalSent} blocked=${followUpTelemetry.totalBlocked} prefilled=${followUpTelemetry.totalPrefilled} failed=${followUpTelemetry.sendFailedCount} (budgetExhausted=${followUpTelemetry.budgetExhaustedCount}, dedupSuppressed=${followUpTelemetry.dedupSuppressedCount}, modeGate=${followUpTelemetry.modeGateCount}); consecutive self-driving follow-ups since last operator message=${followUpTelemetry.consecutiveContinuationSends}/${followUpTelemetry.maxConsecutiveContinuations} continuations, ${followUpTelemetry.consecutiveNotificationSends}/${followUpTelemetry.maxConsecutiveNotifications} notifications (mode=${followUpTelemetry.mode})`;
 
   return {
     understood: true,
     intent: "action",
-    answer: `Action summary (totals, not per-query mutation delta): checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}; continuation candidates=${state.continuationCandidates.length}; current-cwd fresh mirror-only candidates=${currentCwdFreshContinuationCandidates.length}${continuationText ? ` (${continuationText})` : ""}; cross-cwd fresh candidates=${crossCwdFreshContinuationCandidateCount}; expired candidates=${expiredContinuationCandidateCount}. Continuation candidates are mirror-only routing hints, not authority.`,
+    answer: `Action summary (totals, not per-query mutation delta): checkpoints=${state.checkpoints.length}${checkpointText ? ` (${checkpointText})` : ""}; pending followups=${pendingFollowups.length}${followupText ? ` (${followupText})` : ""}; continuation candidates=${state.continuationCandidates.length}; current-cwd fresh mirror-only candidates=${currentCwdFreshContinuationCandidates.length}${continuationText ? ` (${continuationText})` : ""}; cross-cwd fresh candidates=${crossCwdFreshContinuationCandidateCount}; expired candidates=${expiredContinuationCandidateCount}; ${sendTelemetryText}. Continuation candidates are mirror-only routing hints, not authority.`,
     data: {
       checkpoints: [...state.checkpoints],
       followups: [...state.followups],
@@ -113,6 +116,7 @@ export function handleListActionState(query: SelfQuery, state: SelfState): SelfR
       crossCwdFreshContinuationCandidateCount,
       expiredContinuationCandidateCount,
       summaryScope: "totals_not_per_query_mutation_delta_current_cwd_candidates_separated",
+      followUpPolicy: followUpTelemetry,
       authority: "mirror_only",
       nonAuthorizations: [
         "Continuation candidates do not authorize peer launch, visible-loop launch, campaign run, durable owner writes, commit, merge, push, release, or evidence projection.",

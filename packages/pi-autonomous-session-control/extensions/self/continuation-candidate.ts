@@ -79,9 +79,31 @@ function latestFreshContinuationCandidateMatching(
 ): ContinuationCandidate | undefined {
   return state.continuationCandidates
     .filter(
-      (candidate) => candidate.cwd === cwd && candidate.expiresAt > now && predicate(candidate),
+      (candidate) =>
+        candidate.cwd === cwd &&
+        candidate.expiresAt > now &&
+        !candidate.consumedByFollowUpId &&
+        predicate(candidate),
     )
     .sort((left, right) => right.createdAt - left.createdAt)[0];
+}
+
+/**
+ * Links a successfully delivered follow-up send to the candidate it consumed.
+ * Consumed candidates are never re-selected for a later follow-up send.
+ */
+export function markContinuationCandidateConsumed(
+  state: SelfState,
+  candidateId: string,
+  followUpId: string,
+  now = Date.now(),
+): ContinuationCandidate | undefined {
+  const candidate = state.continuationCandidates.find((existing) => existing.id === candidateId);
+  if (!candidate || candidate.consumedByFollowUpId) return candidate;
+
+  candidate.consumedByFollowUpId = followUpId;
+  candidate.consumedAt = now;
+  return candidate;
 }
 
 export function candidateToSliceCandidate(candidate: ContinuationCandidate): SliceCandidate {

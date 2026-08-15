@@ -81,3 +81,15 @@ If the next move is obvious and local, do not suggest a peer, loop, compaction, 
 Prefer the boring command.
 
 If the suggestion needs a long explanation, do not prefill it; ask for a narrower decision first.
+
+## Self-driving send budget and follow-up policy
+
+Continuation-class `pi.sendUserMessage` sends are fail-closed, bounded, and observable (canonical kernel: `extensions/self/follow-up-policy.ts`):
+
+- The action line must affirmatively match the low-risk local-validation command allowlist; anything else degrades to editor prefill.
+- A consecutive-send budget (3 continuations / 8 notifications) is enforced between operator-authored user messages; over-budget sends prefill with `self_driving_budget_exhausted`.
+- Identical text inside a 10-minute dedup cooldown is suppressed (`self_driving_dedup_suppressed`).
+- `PI_SELF_SEND_USER_MESSAGE_MODE` binds classes to the autonomy ladder (`notifications_only` < `bounded_continuation` < `owner_bridge`, default ceiling).
+- The send seam is guarded (failures report `userMessageSendFailed` and fall back to prefill), delivered continuations mark their candidate consumed, and outcomes are recorded as `self.follow_up_send.v1` telemetry visible in `action summary`.
+
+Other extension-originated `pi.sendUserMessage` seams (for example pi-autoresearch auto-continuation) must implement the same contract at their own boundary — fail-closed text scans, bounded counts, and honest delivery reporting — until a shared package-level kernel exists.

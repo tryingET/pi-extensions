@@ -71,9 +71,16 @@ export async function scheduleAutoresearchAutoContinuationFollowUp(
         const sendUserMessage = (
           pi as unknown as { sendUserMessage?: ExtensionAPI["sendUserMessage"] }
         ).sendUserMessage;
-        if (typeof sendUserMessage === "function") {
-          sendUserMessage.call(pi, visibleFollowUpMessage, { deliverAs: "followUp" });
-          return;
+        if (
+          typeof sendUserMessage === "function" &&
+          !followUpMessageLooksUnsafe(visibleFollowUpMessage)
+        ) {
+          try {
+            sendUserMessage.call(pi, visibleFollowUpMessage, { deliverAs: "followUp" });
+            return;
+          } catch {
+            // Fall through to the visible notify fallback below.
+          }
         }
 
         ctx.ui?.notify?.(
@@ -128,4 +135,20 @@ export function buildAutoresearchAutoContinuationSessionGateForCwd(
 function getAutoresearchAutoContinuationSettleDelayMs(): number {
   const parsed = Number(process.env.PI_AUTORESEARCH_AUTO_CONTINUE_SETTLE_MS ?? "1500");
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 1500;
+}
+
+/**
+ * Minimal fail-closed scan aligned with the canonical follow-up send policy
+ * (packages/pi-autonomous-session-control/extensions/self/follow-up-policy.ts).
+ * The visible follow-up embeds caller-provided objective text, so slash-command-
+ * looking or secret-looking messages degrade to the visible notify fallback
+ * instead of being injected through the shared pi.sendUserMessage seam.
+ */
+function followUpMessageLooksUnsafe(text: string): boolean {
+  return (
+    /(^|[\s`'">(*_[-])\/([A-Za-z][\w-]*)(?=\s|$)/u.test(text) ||
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\bgh[pousr]_[A-Za-z0-9_]{20,}\b|\bsk-[A-Za-z0-9]{20,}\b/u.test(
+      text,
+    )
+  );
 }

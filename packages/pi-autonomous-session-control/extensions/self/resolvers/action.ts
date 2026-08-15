@@ -9,6 +9,7 @@ import {
   recordContinuationCandidate,
 } from "../continuation-candidate.ts";
 import { createEdgeMonotonicId, normalizeInput, normalizeString } from "../edge-contract-kernel.ts";
+import { isAffirmativelyLowRiskContinuationCommand } from "../follow-up-policy.ts";
 import { analyzePatterns, queryHandoffSummary } from "../perception.ts";
 import type { SelfQuery, SelfResponse, SelfState } from "../types.ts";
 import {
@@ -464,6 +465,18 @@ function handleContinueSuggestedNextMove(query: SelfQuery, state: SelfState): Se
       dispatchMode: "operator_review_required",
       reason:
         "Suggested move crosses a harness, peer, compaction, or high-severity recovery boundary; keep it as editor prefill for operator review.",
+    });
+  }
+
+  if (!isAffirmativelyLowRiskContinuationCommand(nextMove.prefillText)) {
+    return buildPrefillResponse(nextMove.prefillText, {
+      nextMove,
+      continuationCandidate: candidate,
+      usedPersistedContinuationCandidate,
+      sendUserMessage: false,
+      dispatchMode: "operator_review_required",
+      reason:
+        "Continuation sends are fail-closed: the action line must affirmatively match the low-risk local-validation command allowlist; anything else stays editor-prefilled for operator review.",
     });
   }
 

@@ -218,6 +218,9 @@ export interface ContinuationCandidate {
   source: "mirror_only";
   createdAt: number;
   expiresAt: number;
+  /** Set when a follow-up send consumed this candidate; consumed candidates are never re-sent. */
+  consumedByFollowUpId?: string;
+  consumedAt?: number;
 }
 
 export interface SelfEvolutionCandidate {
@@ -298,6 +301,36 @@ export type LiveRuntimeProofStateEntry =
   | LiveRuntimeProofStateEvent
   | LiveRuntimeProofStateInvalidation;
 
+export type FollowUpBlockedReason = "mode_gate" | "budget_exhausted" | "dedup_suppressed";
+
+export interface FollowUpSendRecord {
+  kind: "self.follow_up_send.v1";
+  id: string;
+  textHash: string;
+  dispatchMode: string;
+  followUpClass: "notification" | "continuation" | "owner_bridge";
+  delivered: boolean;
+  sentAt: number;
+  blockedReason?: FollowUpBlockedReason;
+  sendFailed?: boolean;
+  continuationCandidateId?: string;
+}
+
+export interface SelfFollowUpPolicyState {
+  consecutiveContinuationSends: number;
+  consecutiveNotificationSends: number;
+  totalAttempts: number;
+  totalSent: number;
+  totalPrefilled: number;
+  sendFailedCount: number;
+  budgetExhaustedCount: number;
+  dedupSuppressedCount: number;
+  modeGateCount: number;
+  lastOperatorMessageAt?: number;
+  recentSends: FollowUpSendRecord[];
+  pendingSelfOriginatedTextHashes: string[];
+}
+
 export interface SelfState {
   // Perception
   operations: OperationLog;
@@ -324,6 +357,9 @@ export interface SelfState {
   // Session-local typed candidate/feedback mirror (not durable owner evidence)
   evolutionCandidates: SelfEvolutionCandidate[];
   suggestionFeedback: SuggestionFeedback[];
+
+  // Follow-up send policy (self-driving budget, dedup, telemetry); session-local mirror
+  followUpPolicy: SelfFollowUpPolicyState;
 
   // Configuration
   config: SelfConfig;
