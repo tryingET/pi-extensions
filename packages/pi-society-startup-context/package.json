@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-society-startup-context",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Read-only AI Society startup context packet for Pi sessions",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
