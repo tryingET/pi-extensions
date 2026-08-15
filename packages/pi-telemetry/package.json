@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-telemetry",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi runtime telemetry: compaction, tools, vault, skills, follow-ups, subagents -> NDJSON shards, HTML dashboard, agent tool",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
