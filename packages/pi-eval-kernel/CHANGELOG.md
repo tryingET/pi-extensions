@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-eval-kernel-v0.2.0...pi-eval-kernel-v0.2.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* **agent-vent,pi-eval-kernel:** scope scratch-root guards to environment truth ([d9b0cdb](https://github.com/tryingET/pi-extensions/commit/d9b0cdb8267f0f3b93875f0e212b11a1ded8843b))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-eval-kernel-v0.1.0...pi-eval-kernel-v0.2.0) (2026-08-15)
 
 
