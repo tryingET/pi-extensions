@@ -28,6 +28,6 @@
   "packages/pi-society-startup-context": "0.2.0",
   "packages/pi-telemetry": "0.1.0",
   "packages/pi-toolbox-discovery": "0.3.0",
-  "packages/pi-vault-client": "0.4.0",
+  "packages/pi-vault-client": "0.5.0",
   "packages/pi-workstation-inference-provider": "0.2.0"
 }
