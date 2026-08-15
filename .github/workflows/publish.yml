@@ -69,8 +69,11 @@ jobs:
       - name: Install package dependencies
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
+          # Self-healing install: release waves bump sibling packages, and any
+          # committed package-lock referencing a bumped sibling makes npm ci
+          # fail. Regenerate the lock in that case instead of failing the publish.
           if [[ -f package-lock.json ]]; then
-            npm ci
+            npm ci || (npm install --package-lock-only --ignore-scripts && npm ci)
           else
             npm install --package-lock-only --ignore-scripts
             npm ci
