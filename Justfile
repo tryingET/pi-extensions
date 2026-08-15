@@ -64,6 +64,10 @@ install-drift:
 startup-latency-check:
     bash scripts/startup-latency/check.sh
 
+# Loop telemetry aggregation over orchestrator loop-runs (status, durations, repeat-failure alarm).
+loop-telemetry:
+    node scripts/loop-telemetry.mjs
+
 # Non-failing repo-loop-validation-v1 diagnostics for orchestration loops.
 loop-doctor:
     @echo "loop-doctor: pi-extensions diagnostics"

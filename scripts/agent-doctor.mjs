@@ -147,6 +147,20 @@ let npmGate = null;
 }
 info.npmGate = npmGate ? (npmGate.exitCode === 0 ? "ok" : "stale") : "skipped";
 
+// --- loop telemetry (repeat-failure alarm only; full report via just loop-telemetry) ---
+{
+  const telemetry = resolve(repoRoot, "scripts/loop-telemetry.mjs");
+  if (existsSync(telemetry)) {
+    const run = spawnSync(process.execPath, [telemetry], { encoding: "utf8", timeout: 30_000 });
+    const repeatAlarm = /REPEAT-FAILURE ALARM/.test(run.stdout ?? "");
+    info.loopTelemetry = repeatAlarm ? "repeat-failure-alarm" : "ok";
+    if (repeatAlarm) {
+      const causes = (run.stdout ?? "").split("\n").filter((l) => /^\s+\d+x\s/.test(l)).slice(0, 2);
+      for (const cause of causes) warnings.push(`loop repeat-failure: ${cause.trim().slice(0, 140)}`);
+    }
+  }
+}
+
 // --- drift ---
 let drift = null;
 if (!noDrift) {
