@@ -27,6 +27,41 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.5.1...pi-little-helpers-v0.6.0) (2026-08-15)
+
+
+### Features
+
+* **activity-strip:** add calm interactive session navigation ([812579c](https://github.com/tryingET/pi-extensions/commit/812579ca9d309df38a08baa5f4759eaad2bd04ee))
+* **little-helpers:** streamline governed loop prompt queues ([fda5b36](https://github.com/tryingET/pi-extensions/commit/fda5b36bafd3dda16587f49a97625984513332e6))
+* **pi-little-helpers:** add governed candidate closeout ([2d44b64](https://github.com/tryingET/pi-extensions/commit/2d44b64dfa940a95a0f6c5b1c3d0f019498f9a0c))
+* **pi-little-helpers:** add reality-anchored assertion harness for launch targeting ([bd3f73f](https://github.com/tryingET/pi-extensions/commit/bd3f73ffa23a9cc34fa69f2a0eddfdcbe4715e9e))
+* **pi-little-helpers:** compact terminal candidate retention ([5be92d3](https://github.com/tryingET/pi-extensions/commit/5be92d398e96055aae14b65b25415628be9f66eb))
+* **pi-little-helpers:** observe ASC execution in Ghostty ([52a1f67](https://github.com/tryingET/pi-extensions/commit/52a1f67090c0418a7125b20e1d2361b7b75197ed))
+* **pi:** add clean handoff tab continuation ([11b3fde](https://github.com/tryingET/pi-extensions/commit/11b3fde6026e11a3a6e189e3cdd95a9ebcc5e3d2))
+
+
+### Bug Fixes
+
+* harden delegated commit dispatch admission ([84b7ad9](https://github.com/tryingET/pi-extensions/commit/84b7ad988eca709f9b705792815152e47809225d))
+* **lifecycle:** verify oversized terminal events ([2931ea1](https://github.com/tryingET/pi-extensions/commit/2931ea11be2848db475ee5f914cbd47ab52a954a))
+* **little-helpers:** order child start before prompt status ([958bec7](https://github.com/tryingET/pi-extensions/commit/958bec78af01f9b56de8b0fe4207fa09b19b09d9))
+* **pi-little-helpers:** bind exact branch deletion ([d2b6285](https://github.com/tryingET/pi-extensions/commit/d2b62854754ad10a617c8766ef9a3a90bf64d90e))
+* **pi-little-helpers:** compare portable archive state ([4b99e32](https://github.com/tryingET/pi-extensions/commit/4b99e320f83a8621e959a1e476fdfd5ff7d6ef62))
+* **pi-little-helpers:** drop null codex auth headers and bump dev host to Pi 0.84.1 ([8231f6c](https://github.com/tryingET/pi-extensions/commit/8231f6c0009bf8532311ae46d515f16a9c26fa3d))
+* **pi-little-helpers:** guard governed deep-review prompts ([3bb44c7](https://github.com/tryingET/pi-extensions/commit/3bb44c746df5340e59ae7473c1515772bde911da))
+* **pi-little-helpers:** harden candidate lifecycle cleanup ([767925a](https://github.com/tryingET/pi-extensions/commit/767925a73ccbe2247db89203bc58f85d6d9bcc91))
+* **pi-little-helpers:** harden sidequest Ghostty origin detection and ASC observer launch ([de5ff9b](https://github.com/tryingET/pi-extensions/commit/de5ff9b4202303cbf5b1e180557b64e2d58984f6))
+* **pi-little-helpers:** recover fail-closed launch proofs ([d2c6c51](https://github.com/tryingET/pi-extensions/commit/d2c6c5184d8c2007c2b29fffdc0ebbf1c92194b6))
+* **pi-little-helpers:** refresh ordinary audit dependencies ([be2bd16](https://github.com/tryingET/pi-extensions/commit/be2bd165d86c7541546bfed89217eea5c4d4f592))
+* **pi-little-helpers:** reject malformed terminal refs ([4160e55](https://github.com/tryingET/pi-extensions/commit/4160e55a59e9a2f88460c8518f77e49a674a7019))
+* **pi-little-helpers:** rewrite packed local dependencies ([7deefb4](https://github.com/tryingET/pi-extensions/commit/7deefb4a1d9f31d49e1af5e27d8fd4ef4ee7f5b7))
+* **pi-little-helpers:** target ASC observer controller tabs ([be0bdcf](https://github.com/tryingET/pi-extensions/commit/be0bdcf64ca4efc724d93fbfb1e9b5031b99ce01))
+* **pi-little-helpers:** target Ghostty single-instance server for observer tabs ([ff1b13f](https://github.com/tryingET/pi-extensions/commit/ff1b13f283828e330f3a5d8395d35e2171b6c7d0))
+* **pi-little-helpers:** validate streamed lifecycle evidence ([361e0a3](https://github.com/tryingET/pi-extensions/commit/361e0a3159a9d3408c7c37e82a624a2fc9e1cb79))
+* **pi-little-helpers:** validate terminal ref storage ([98c1503](https://github.com/tryingET/pi-extensions/commit/98c15030591e1171daccb937627bd287cfff8cd5))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.5.0...pi-little-helpers-v0.5.1) (2026-08-01)
 
 
