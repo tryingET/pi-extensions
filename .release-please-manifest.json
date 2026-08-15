@@ -4,7 +4,7 @@
   "packages/pi-autonomous-session-control": "0.4.0",
   "packages/pi-autoresearch": "0.2.1",
   "packages/pi-better-openai": "0.2.0",
-  "packages/pi-context-overlay": "0.2.0",
+  "packages/pi-context-overlay": "0.2.1",
   "packages/pi-context-packer": "0.3.0",
   "packages/pi-designmd-foundry": "0.2.0",
   "packages/pi-eval-kernel": "0.1.0",
