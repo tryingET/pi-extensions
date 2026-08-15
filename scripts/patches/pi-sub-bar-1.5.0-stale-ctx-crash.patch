@@ -1,0 +1,44 @@
+--- index.ts.pre-stale-fix.bak	2026-08-15 03:59:37.873236327 +0200
++++ index.ts	2026-08-15 04:11:32.806231044 +0200
+@@ -565,8 +565,21 @@
+ 		return `${spacing}${theme.fg(dividerColor, dividerGlyph)}${spacing}`;
+ 	}
+ 
++	function isExtensionCtxActive(ctx: ExtensionContext | undefined): boolean {
++		// pi invalidates extension ctx after session replacement or /reload; any
++		// property access on a stale ctx throws. Probe liveness once instead of
++		// letting the throw escape into TUI render timers (which kills the host).
++		if (!ctx) return false;
++		try {
++			void ctx.cwd;
++			return true;
++		} catch {
++			return false;
++		}
++	}
++
+ 	function renderUsageWidget(ctx: ExtensionContext, usage: UsageSnapshot | undefined, message?: string): void {
+-		if (!ctx.hasUI || !uiEnabled) {
++		if (!isExtensionCtxActive(ctx) || !ctx.hasUI || !uiEnabled) {
+ 			return;
+ 		}
+ 
+@@ -628,7 +641,17 @@
+ 					const dividerConnect = settings.display.dividerFooterJoin ?? false;
+ 					const dividerLine = theme.fg(dividerColor, "─".repeat(safeWidth));
+ 
+-					let lines = formatUsageContent(ctx, theme, usage, safeWidth, message);
++					let lines: string[];
++				if (!isExtensionCtxActive(ctx)) {
++					// Stale ctx after session replacement/reload: this widget belongs
++					// to the previous session. Render nothing; the replacement
++					// session's widget takes over. Without this guard the throw
++					// escapes into the TUI render timer and exits pi.
++					lines = [];
++				} else {
++					lines = formatUsageContent(ctx, theme, usage, safeWidth, message);
++				}
++				if (lines.length === 0) return [];
+ 
+ 					if (showTopDivider) {
+ 						const baseLine = lines.length > 0 ? lines[0] : "";

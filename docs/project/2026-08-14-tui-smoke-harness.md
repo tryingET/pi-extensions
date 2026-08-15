@@ -58,3 +58,21 @@ Read-only regarding the repo: no files are committed or modified. Side effects a
 limited to pi session files under `~/.pi/agent/sessions/` (and, if a stray chat
 prompt were submitted, ordinary session logs — the harness avoids sending chat
 prompts).
+
+
+## 2026-08-15: /reload regression phase (assert 4)
+
+Added after a real crash class: `@marckrenn/pi-sub-bar` 1.5.0 captured the
+extension ctx in its usage-widget render closure; after `/reload` the orphaned
+closure threw from the TUI render timer and killed pi (uncaughtException).
+Root cause + fix tracked upstream (marckrenn/pi-sub#76, earendil-works/pi#8150);
+local stopgap patch: `scripts/patches/pi-sub-bar-1.5.0-stale-ctx-crash.patch`
+(re-apply after any pi-sub-bar update — npm updates silently revert it).
+
+The harness now drives `/reload` mid-session and asserts the TUI stays alive
+and responsive (a second `/changelog` must still render).
+
+Coverage limit, stated honestly: this exercises the reload lifecycle, but the
+sub-bar crash specifically requires live usage data (pi-sub-core snapshot) which
+the harness never generates (no model calls). The unpatched red case is proven
+by the operator's production crash, not by this harness.

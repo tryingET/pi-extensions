@@ -44,6 +44,27 @@ time.sleep(8)
 cmdout = drain(4)
 print("\n---CMDOUT---")
 sys.stdout.write(cmdout.decode("utf8", "replace"))
+
+# Session-lifecycle regression phase: /reload must not kill pi (stale-ctx
+# widget crash class — see docs/project/2026-08-14-tui-smoke-harness.md).
+for ch in "/reload":
+    os.write(fd, ch.encode())
+    time.sleep(0.3)
+time.sleep(2)
+drain(1)
+os.write(fd, b"\r")
+reloadout = drain(10)
+print("\n---RELOAD---")
+sys.stdout.write(reloadout.decode("utf8", "replace"))
+for ch in "/changelog":
+    os.write(fd, ch.encode())
+    time.sleep(0.3)
+time.sleep(2)
+drain(1)
+os.write(fd, b"\r")
+postout = drain(8)
+print("\n---POSTRELOAD---")
+sys.stdout.write(postout.decode("utf8", "replace"))
 os.write(fd, b"/quit\r")
 drain(3)
 try:

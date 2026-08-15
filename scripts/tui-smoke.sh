@@ -41,7 +41,9 @@ else
   OUT="$(python3 "$REPO_ROOT/scripts/tui-smoke-pty.py" "$REPO_ROOT" "$TIMEOUT_SECS")" \
     || { echo "HARNESS FAILURE: pty driver exited nonzero" >&2; exit 2; }
   STARTUP="$(printf '%s' "$OUT" | sed -n '/---STARTUP---/,/---CMDOUT---/p' | grep -v -- '---')"
-  CMDOUT="$(printf '%s' "$OUT" | sed -n '/---CMDOUT---/,$p' | grep -v -- '---')"
+  CMDOUT="$(printf '%s' "$OUT" | sed -n '/---CMDOUT---/,/---RELOAD---/p' | grep -v -- '---')"
+  RELOADOUT="$(printf '%s' "$OUT" | sed -n '/---RELOAD---/,/---POSTRELOAD---/p' | grep -v -- '---')"
+  POSTRELOAD="$(printf '%s' "$OUT" | sed -n '/---POSTRELOAD---/,$p' | grep -v -- '---')"
 fi
 
 PI_VER="$(pi --version 2>/dev/null || echo unknown)"
@@ -57,6 +59,14 @@ echo "PASS: [Skills]/[Prompts] extension resources rendered"
 echo "assert 3: built-in slash command /changelog executed (shows version ${PI_VER})"
 echo "$CMDOUT" | grep -q "${PI_VER}" || fail_assert "version '${PI_VER}' not found after /changelog"
 echo "PASS: /changelog output shows ${PI_VER}"
+
+echo "assert 4: /reload survives (stale-ctx widget crash regression)"
+echo "$RELOADOUT" | grep -qiE 'reload|extension' || true
+if printf '%s' "$OUT" | grep -qi 'uncaughtException'; then
+  fail_assert "uncaughtException during reload (stale extension ctx crash class)"
+fi
+echo "$POSTRELOAD" | grep -q "${PI_VER}" || fail_assert "pi dead or unresponsive after /reload (no /changelog output)"
+echo "PASS: TUI alive and responsive after /reload"
 
 echo "tui-smoke: ALL PASS"
 exit 0
