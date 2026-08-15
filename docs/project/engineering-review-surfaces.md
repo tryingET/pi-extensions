@@ -57,11 +57,12 @@ Refreshed on 2026-07-12 after adding `packages/pi-evidence-review`, which raised
 Refreshed on 2026-07-25 after recovering `packages/pi-semantic-code-intelligence` on the current canonical line, which raised the audited package count to `32`.
 Refreshed on 2026-08-01 after recovering `packages/pi-eval-kernel` onto the current released line, which raised the audited package count to `33`.
 Refreshed on 2026-08-03 after adding `packages/pi-session-insights`, which raised the audited package count to `34`.
+Refreshed on 2026-08-15 after adding `packages/pi-telemetry`, which raised the audited package count to `36`.
 
 Snapshot summary:
 
-- package entries audited: `35`
-- legacy-full: `26`
+- package entries audited: `36`
+- legacy-full: `27`
 - reduced-form: `1`
 - policy-only: `0`
 - no local surface: `8`
@@ -91,6 +92,7 @@ Snapshot summary:
 - `packages/pi-snapshot-edit`
 - `packages/pi-society-orchestrator`
 - `packages/pi-society-startup-context`
+- `packages/pi-telemetry`
 - `packages/pi-toolbox-discovery`
 - `packages/pi-vault-client`
 - `packages/pi-workstation-inference-provider`
