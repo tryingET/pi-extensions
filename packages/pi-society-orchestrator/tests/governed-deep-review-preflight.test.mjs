@@ -13,8 +13,8 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { homedir, tmpdir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import {
@@ -260,26 +260,62 @@ test("host provenance is derived from all four regular and hidden lock entries",
   );
 });
 
-test("governed npm receipt observes the unchanged release-age policy", () => {
-  const keys = ["npm_config_cache", "npm_config_globalconfig", "npm_config_userconfig"];
+/**
+ * Provisions a self-contained governed-npm posture instead of borrowing the
+ * operator's ambient environment. The gate must not depend on machine-local
+ * ~/.npmrc contents (min-release-age) or an exported TMPDIR; a fresh CI runner
+ * has neither, which made these tests fail there while passing locally.
+ */
+function withGovernedNpmPolicyFixture(run) {
+  const scratch = mkdtempSync(join(tmpdir(), "governed-npm-policy-"));
+  const cacheDir = join(scratch, "cache");
+  mkdirSync(cacheDir, { recursive: true });
+  const npmrcPath = join(scratch, "npmrc");
+  // `before` must pin now minus the release age (the gate re-derives it within
+  // a 5-minute tolerance), so bake a fresh pin into the fixture instead of
+  // relying on an ambient npmrc that maintains one.
+  const beforePin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  writeFileSync(
+    npmrcPath,
+    `min-release-age=7
+before=${beforePin}
+registry=https://registry.npmjs.org/
+offline=false
+prefer-offline=false
+force=false
+cache=${cacheDir}
+`,
+  );
+  // npm forbids loading one file as both user and global config; give global an
+  // empty fixture so ambient /etc/npmrc cannot leak machine-local policy in.
+  const globalrcPath = join(scratch, "globalrc");
+  writeFileSync(globalrcPath, "");
+  const keys = ["TMPDIR", "npm_config_userconfig", "npm_config_globalconfig", "npm_config_cache"];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   try {
-    process.env.npm_config_cache = resolve(homedir(), ".npm");
-    process.env.npm_config_globalconfig = "/etc/npmrc";
-    process.env.npm_config_userconfig = resolve(homedir(), ".npmrc");
-    const proof = inspectGovernedRuntimeNpmPolicy();
-    assert.equal(proof.minReleaseAgeDays >= 7, true);
-    assert.equal(proof.registry, "https://registry.npmjs.org/");
-    assert.equal(proof.cacheRealpath, realpathSync(resolve(homedir(), ".npm")));
-    assert.equal(proof.offline, false);
-    assert.equal(proof.force, false);
-    assert.deepEqual(proof.overrideEnvironment, {});
+    process.env.TMPDIR = scratch;
+    process.env.npm_config_userconfig = npmrcPath;
+    process.env.npm_config_globalconfig = globalrcPath;
+    process.env.npm_config_cache = cacheDir;
+    return run({ scratch, cacheDir });
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
   }
+}
+
+test("governed npm receipt observes the unchanged release-age policy", () => {
+  withGovernedNpmPolicyFixture(({ cacheDir }) => {
+    const proof = inspectGovernedRuntimeNpmPolicy();
+    assert.equal(proof.minReleaseAgeDays >= 7, true);
+    assert.equal(proof.registry, "https://registry.npmjs.org/");
+    assert.equal(proof.cacheRealpath, realpathSync(cacheDir));
+    assert.equal(proof.offline, false);
+    assert.equal(proof.force, false);
+    assert.deepEqual(proof.overrideEnvironment, {});
+  });
 });
 
 test("npm effects and receipts bind exact executable bytes, sanitized policy, argv, and canonical cwd", () => {
@@ -293,7 +329,7 @@ test("npm effects and receipts bind exact executable bytes, sanitized policy, ar
       ".tryinget-governed-peer-layer",
     );
     mkdirSync(peerCwd);
-    const npm = inspectGovernedRuntimeNpmPolicy();
+    const npm = withGovernedNpmPolicyFixture(() => inspectGovernedRuntimeNpmPolicy());
     const actualReceipts = [];
     assert.equal(
       runNpmEffect(npm, "test_probe", ["--version"], peerCwd, actualReceipts),
