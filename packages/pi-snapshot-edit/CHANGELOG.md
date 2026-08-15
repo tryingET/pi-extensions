@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.3.0...pi-snapshot-edit-v0.3.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* harden installed runtime composition ([8852cbf](https://github.com/tryingET/pi-extensions/commit/8852cbf79004c50035408225fd6cd18b021cba2d))
+* **snapshot-edit:** normalize revision-header base slips and infer missing edit op ([5306ee3](https://github.com/tryingET/pi-extensions/commit/5306ee386aa1a07a60bb0cec37ab5c0965ee1bf0))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-snapshot-edit-v0.2.2...pi-snapshot-edit-v0.3.0) (2026-07-11)
 
 
