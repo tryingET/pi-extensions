@@ -103,6 +103,39 @@ export function resolveAmbientCompanyContext(
   return undefined;
 }
 
+/**
+ * Fail-fast seam check for the loop dispatch boundary.
+ *
+ * The cognitive-tool seam resolves @tryinget/pi-vault-client through a package
+ * link into the shared monorepo source tree. A concurrent install (rm -rf
+ * node_modules + npm ci in any linked neighbor) transiently removes the
+ * compiled runtime files that link exposes, so a loop dispatch launched
+ * mid-install dies inside the effectful phase instead of before it.
+ *
+ * This check makes the seam state observable BEFORE dispatch: when the
+ * prompt-plane module is not currently loadable, the caller can refuse to
+ * enter the effectful phase (fail fast) instead of discovering the breakage
+ * as an unclassifiable mid-phase failure. It reports loadability only; it
+ * does not mutate anything and does not claim the module will still load a
+ * millisecond later — callers still receive a typed failure and must treat
+ * "unavailable" as retry-later, never as an effect event.
+ */
+export async function probeCognitiveToolSeam(): Promise<BoundaryResult<true>> {
+  // Resolution-only probe: import the module WITHOUT constructing the vault
+  // prompt-plane runtime. Runtime construction touches vault state (DB/dolt)
+  // and is contention-sensitive; a seam check must stay cheap, read-only, and
+  // side-effect free so it can never preempt or perturb later validation.
+  try {
+    await import("@tryinget/pi-vault-client/prompt-plane");
+    return { ok: true, value: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function getCognitiveToolByName(
   name: string,
   context: CognitiveToolLookupContext = {},

@@ -32,12 +32,16 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { type Component, matchesKey, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { isKesMaterializationError, KES_MATERIALIZATION_FAILURE_KIND } from "../kes/index.ts";
+import {
+  ensureKesRoots,
+  isKesMaterializationError,
+  KES_MATERIALIZATION_FAILURE_KIND,
+} from "../kes/index.ts";
 import { AGENT_PROFILES, type AgentDef } from "../runtime/agent-profiles.ts";
 import type { AgentResolution } from "../runtime/agent-routing.ts";
 import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
-import { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
+import { getCognitiveToolByName, probeCognitiveToolSeam } from "../runtime/cognitive-tools.ts";
 import {
   consumeD2EExecutionMemory,
   D2E_EXECUTION_MEMORY_OWNER,
@@ -256,6 +260,20 @@ export type LoopDispatchFn = (params: {
     elapsed: number;
     failureKind?: string;
     effectReceipt?: VerifiedDispatchEffectReceipt;
+    /**
+     * Dispatcher-owned attestation: this attempt failed before any child
+     * process was launched (agent resolution, cognitive-tool load, or another
+     * pre-spawn boundary). No ASC receipt can exist because ASC was never
+     * invoked; the dispatcher itself is the only possible effect owner at this
+     * boundary and owns no durable effects here. Treated as
+     * confirmed_no_effects for the effectful dispatch boundary; the
+     * orchestrator checkpoint keeps the failure evidence as internal
+     * bookkeeping (it does not claim literally nothing was ever written).
+     */
+    preDispatchNoEffects?: {
+      failureKind: string;
+      reason: string;
+    };
   }
 >;
 
@@ -905,6 +923,62 @@ export class LoopExecutor {
         verifiedOwnerReceipt?.disposition === "confirmed_no_effects" && this.plugin.onEnter
           ? undefined
           : verifiedOwnerReceipt;
+
+      // Dispatcher-owned pre-spawn attestation (agent resolution, cognitive-tool
+      // load, or another boundary before any child launch). ASC was never
+      // invoked, so no ASC receipt can exist; the dispatcher is the only
+      // possible effect owner at this boundary and owns none. This must not
+      // degrade to effect_indeterminate: a pre-spawn failure cannot become a
+      // durable-effect question. Evidence is kept as internal bookkeeping via
+      // the same attempt records; the disposition claims no effects only at the
+      // effectful dispatch boundary.
+      if (
+        !ownerReceipt &&
+        result.preDispatchNoEffects &&
+        result.effectReceipt === undefined &&
+        !this.plugin.onEnter
+      ) {
+        const preDispatch = result.preDispatchNoEffects;
+        const phaseResult: PhaseResult = {
+          phase,
+          attemptId,
+          output: result.output,
+          stderr: result.stderr,
+          outputTruncated: result.outputTruncated === true,
+          exitCode: result.exitCode,
+          status: "error",
+          effectDisposition: "confirmed_no_effects",
+          failureKind: preDispatch.failureKind,
+          elapsed: result.elapsed,
+          artifacts: [],
+          timestamp: new Date(),
+        };
+        context.history.push(phaseResult);
+        const preDispatchAttemptIndex = checkpoint.attempts.findIndex(
+          (attempt) => attempt.attemptId === attemptId,
+        );
+        checkpoint.attempts[preDispatchAttemptIndex] = toCheckpointAttempt(
+          phaseResult,
+          "confirmed_no_effects",
+          agent,
+          primaryTool,
+          objective,
+        );
+        checkpoint.status = "retryable";
+        checkpoint.stateFingerprint = this.captureStateFingerprint(this.cwd);
+        this.checkpointStore.save(checkpoint);
+        options.onUpdate?.({
+          event: "phase_complete",
+          plugin: this.plugin.name,
+          sessionId,
+          phase,
+          status: "error",
+          elapsed: result.elapsed,
+          failureKind: preDispatch.failureKind,
+        });
+        success = false;
+        break;
+      }
 
       if (ownerReceipt?.disposition === "confirmed_no_effects") {
         const phaseResult: PhaseResult = {
@@ -1997,6 +2071,58 @@ export function registerLoopTools(
       }
     }
 
+    // Validate the KES root before anything effectful can happen: an invalid
+    // PI_ORCH_KES_ROOT must surface as loop-kes-root-invalid here, not be
+    // discovered later as a mid-run failure (or masked as a retryable
+    // cognitive-tool failure when the broken root is what breaks the vault
+    // seam). ensureKesRoots only creates/validates directories; it emits no
+    // loop effects and is safe before the pre-dispatch boundary.
+    try {
+      ensureKesRoots(resolveLoopKesPackageRoot());
+    } catch (err) {
+      if (isKesMaterializationError(err)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Loop execution failed before dispatch because the configured KES root is invalid or not writable. Check PI_ORCH_KES_ROOT or package write permissions.",
+            },
+          ],
+          details: {
+            ok: false,
+            error: "loop-kes-root-invalid",
+            failureKind: KES_MATERIALIZATION_FAILURE_KIND,
+            operation: err.operation,
+            kesRootSource: process.env.PI_ORCH_KES_ROOT ? "env" : "package-default",
+          },
+        };
+      }
+      throw err;
+    }
+
+    // Fail fast when the cognitive-tool seam is currently unresolvable (for
+    // example a concurrent install rebuilding a linked neighbor's compiled
+    // runtime). Refusing here keeps the loop undispatched — retryable without
+    // any effect question — instead of letting the first phase discover the
+    // breakage mid-dispatch.
+    const seamProbe = await probeCognitiveToolSeam();
+    if (isBoundaryFailure(seamProbe)) {
+      const message = `Loop ${loop} refused to start: the cognitive-tool seam is currently unavailable (${seamProbe.error}). Retry once installs settle.`;
+      onUpdate?.({
+        content: [{ type: "text", text: message }],
+        details: { loop, objective, status: "pre_dispatch_seam_unavailable" },
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `${message}\nNo phase was dispatched and no effects were attempted; this is safely retryable.`,
+          },
+        ],
+        details: { loop, objective, status: "pre_dispatch_seam_unavailable", retryable: true },
+      };
+    }
+
     const executor = new LoopExecutor(plugin, ctx.cwd, vaultDir);
     const loopTimeoutMs =
       (normalizePositiveSeconds(loop_timeout_seconds) ?? DEFAULT_LOOP_TIMEOUT_MS / 1000) * 1000;
@@ -2022,6 +2148,11 @@ export function registerLoopTools(
             output: `Agent/team resolution failed for '${p.agent}': ${resolution.error}`,
             exitCode: 1,
             elapsed: 0,
+            failureKind: "agent_resolution_failed",
+            preDispatchNoEffects: {
+              failureKind: "agent_resolution_failed",
+              reason: `Agent/team resolution failed before any child launch: ${resolution.error}`,
+            },
           };
         }
         effectiveAgent = resolution.agent;
@@ -2041,6 +2172,11 @@ export function registerLoopTools(
           output: `Failed to load cognitive tool '${p.cognitiveTool}': ${toolResult.error}`,
           exitCode: 1,
           elapsed: 0,
+          failureKind: "cognitive_tool_load_failed",
+          preDispatchNoEffects: {
+            failureKind: "cognitive_tool_load_failed",
+            reason: `Cognitive tool load failed before any child launch: ${toolResult.error}`,
+          },
         };
       }
 
@@ -2049,6 +2185,11 @@ export function registerLoopTools(
           output: `Cognitive tool not found: ${p.cognitiveTool}`,
           exitCode: 1,
           elapsed: 0,
+          failureKind: "cognitive_tool_not_found",
+          preDispatchNoEffects: {
+            failureKind: "cognitive_tool_not_found",
+            reason: `Cognitive tool '${p.cognitiveTool}' is not visible; no child was launched.`,
+          },
         };
       }
 
