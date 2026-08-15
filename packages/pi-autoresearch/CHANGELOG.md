@@ -13,6 +13,26 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.3.0...pi-autoresearch-v0.4.0) (2026-08-15)
+
+
+### Features
+
+* **asc:** bounded self-driving follow-up send policy ([049bb4f](https://github.com/tryingET/pi-extensions/commit/049bb4f99e1179b59c554d667ce2174c17a68acf))
+* **pi-autoresearch:** fence lazy session effects ([ca56604](https://github.com/tryingET/pi-extensions/commit/ca566043ffe9efafd8713cabb3aa63579c4aaee6))
+
+
+### Bug Fixes
+
+* **autoresearch:** declare trigger runtime dependency ([0a4025a](https://github.com/tryingET/pi-extensions/commit/0a4025a6b895b65e2128b972be8169cc99640428))
+* **pi-autoresearch:** deadline-poll follow-up assertions instead of fixed sleeps ([1aa8fb1](https://github.com/tryingET/pi-extensions/commit/1aa8fb143b5bc6893a1715a2f8810af282dd6885))
+* **pi-autoresearch:** fence delayed host aborts ([d7d9e66](https://github.com/tryingET/pi-extensions/commit/d7d9e66d0dad0ac02a417b66f6b128cdd13c6b94))
+* **pi-autoresearch:** fence lazy tools by session ([fda30a6](https://github.com/tryingET/pi-extensions/commit/fda30a614df85f7ed356539bbbf4b68ba617a8ed))
+* **pi-autoresearch:** load only declared trigger adapter ([e29ab21](https://github.com/tryingET/pi-extensions/commit/e29ab21dd74d9fc7f78a0ce3073e051378ee710c))
+* **pi-autoresearch:** preserve campaign identity across continuations ([35a3af3](https://github.com/tryingET/pi-extensions/commit/35a3af3ed70c6c85fc8d6b8f14880961cb391b35))
+* **pi-autoresearch:** preserve runtime abort control flow ([ecff947](https://github.com/tryingET/pi-extensions/commit/ecff9476cab3db417c3607839eaf62b91256cc16))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.2.1...pi-autoresearch-v0.3.0) (2026-08-15)
 
 

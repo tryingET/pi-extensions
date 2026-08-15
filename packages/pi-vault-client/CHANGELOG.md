@@ -13,6 +13,32 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.5.0...pi-vault-client-v0.6.0) (2026-08-15)
+
+
+### Features
+
+* **orchestrator:** consume negative-only execution memory ([3fb5f20](https://github.com/tryingET/pi-extensions/commit/3fb5f200597f53a74786ad5288b98bd230682e45))
+* **orchestrator:** gate D2E transfer completion ([a04b007](https://github.com/tryingET/pi-extensions/commit/a04b0074f55ecea1fc5063d8e6b7ae2962b63d41))
+* **orchestrator:** integrate D2E transfer gate ([b00f3ec](https://github.com/tryingET/pi-extensions/commit/b00f3ec463c6ed120002f397143bba203338be23))
+* **pi-vault-client:** record retrieval analytics (schema v10 companion) ([d28b9ab](https://github.com/tryingET/pi-extensions/commit/d28b9ab3e75312d1a0a0339542feb5ac53aba262))
+* preflight governed deep review runtime ([1a65188](https://github.com/tryingET/pi-extensions/commit/1a651888ef4038a1520cf42986c9541e02b12d6d))
+
+
+### Bug Fixes
+
+* close governed deep-review provenance gaps ([c70967a](https://github.com/tryingET/pi-extensions/commit/c70967acd34dd321f889ca48f97ce0f5e0c31e7e))
+* exhaust deep-review blockers from the session commit wave ([0689d42](https://github.com/tryingET/pi-extensions/commit/0689d4279f92caa24c0b5b739c38de5f24c57fb6))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+* **vault:** align dispatch authorization with schema v9 ([b71ebbd](https://github.com/tryingET/pi-extensions/commit/b71ebbd1bc1fd9734bb7db930c42766cf8038658))
+* **vault:** seal public declaration boundary ([60c71d2](https://github.com/tryingET/pi-extensions/commit/60c71d2cea831850066a871ddbfe0fa9012611e2))
+* **visible-loop:** govern deep-review workflow dispatch ([f5384ff](https://github.com/tryingET/pi-extensions/commit/f5384ff524a92e78ea9af07c4d5c634bb31356d1))
+
+
+### Performance Improvements
+
+* **pi-vault-client:** defer startup initialization ([472eab8](https://github.com/tryingET/pi-extensions/commit/472eab811e8f22e3506f50cfa4984bba52af5e3a))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.4.0...pi-vault-client-v0.5.0) (2026-08-15)
 
 
