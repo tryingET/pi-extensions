@@ -10,7 +10,7 @@
   "packages/pi-eval-kernel": "0.1.0",
   "packages/pi-evalset-lab": "0.3.0",
   "packages/pi-interaction/pi-editor-registry": "0.2.0",
-  "packages/pi-interaction/pi-interaction": "0.3.0",
+  "packages/pi-interaction/pi-interaction": "0.3.1",
   "packages/pi-interaction/pi-interaction-kit": "0.2.0",
   "packages/pi-interaction/pi-runtime-registry": "0.2.0",
   "packages/pi-interaction/pi-trigger-adapter": "0.2.0",
