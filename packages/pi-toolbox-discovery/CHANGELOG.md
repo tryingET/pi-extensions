@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.3.0...pi-toolbox-discovery-v0.3.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+* **toolbox:** harden D2E read profile ([d117d27](https://github.com/tryingET/pi-extensions/commit/d117d275e0e0eb6075b3e72c646536bfa944be7e))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.2.0...pi-toolbox-discovery-v0.3.0) (2026-08-01)
 
 
