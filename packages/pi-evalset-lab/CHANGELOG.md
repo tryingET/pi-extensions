@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-evalset-lab-v0.3.0...pi-evalset-lab-v0.3.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* **pi-evalset-lab:** adopt provider headers contract and Pi 0.84.1 dev host ([f1d2745](https://github.com/tryingET/pi-extensions/commit/f1d27457a34187002734f1245c2f282ac398d242))
+* **release:** normalize package pack JSON under npm 12 ([5b7233b](https://github.com/tryingET/pi-extensions/commit/5b7233bce9ee98cedc95eb8defba91c50b6752d7))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-evalset-lab-v0.2.0...pi-evalset-lab-v0.3.0) (2026-07-13)
 
 
