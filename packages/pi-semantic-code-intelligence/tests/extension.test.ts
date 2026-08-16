@@ -39,6 +39,8 @@ type SchemaFixture = {
   properties?: Record<string, SchemaFixture>;
   required?: string[];
   default?: unknown;
+  enum?: unknown[];
+  description?: string;
   items?: SchemaFixture;
   maxItems?: number;
 };
@@ -113,6 +115,20 @@ test("registers the six composite workflows as native Pi tools with preferred ro
   }
 });
 
+test("explore_symbol_impact advertises all progressive disclosure modes", () => {
+  const fake = fakeBridge();
+  const harness = createHarness(fake.bridge);
+  const tool = harness.tools.get("explore_symbol_impact");
+  assert.ok(tool);
+  const schema = tool.parameters as SchemaFixture;
+
+  assert.deepEqual(schema.properties?.mode?.enum, ["compact", "standard", "debug"]);
+  assert.equal(schema.properties?.mode?.default, "compact");
+  assert.match(schema.properties?.mode?.description ?? "", /normalized bounded evidence/);
+  assert.match(tool.description, /24 KiB/);
+  assert.match(tool.description, /48 KiB/);
+});
+
 test("registering and startup-selecting SCI reads does not spawn MCP before execution", async (t) => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "pi-sci-lazy-startup-"));
   t.after(async () => {
@@ -163,7 +179,7 @@ test("native tool execution delegates one composite MCP call and records utiliza
   assert.ok(tool);
   const result = await tool.execute(
     "call-1",
-    { symbol: "ToolWorkflowRouter", depth: 1 },
+    { symbol: "ToolWorkflowRouter", depth: 1, mode: "debug" },
     new AbortController().signal,
     undefined,
     { cwd: "/workspace/repo" },
@@ -172,7 +188,7 @@ test("native tool execution delegates one composite MCP call and records utiliza
   assert.deepEqual(fake.calls, [
     {
       name: "explore_symbol_impact",
-      args: { symbol: "ToolWorkflowRouter", depth: 1 },
+      args: { symbol: "ToolWorkflowRouter", depth: 1, mode: "debug" },
       cwd: "/workspace/repo",
     },
   ]);

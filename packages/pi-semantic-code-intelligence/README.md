@@ -28,6 +28,8 @@ This private Pi package makes SCI's existing composite workflows first-class mod
 
 The tools use one lazily started, session-scoped `semantic-code-mcp` stdio process per workspace. The process closes on Pi session shutdown. Calls return `pi.sci_composite_call.v1` details containing the workflow, transport, elapsed time, and lightweight utilization evidence.
 
+`explore_symbol_impact` exposes SCI's progressive response modes directly: `compact` is the default decision-only packet, `standard` adds normalized bounded evidence, and `debug` adds bounded/redacted diagnostics and raw fragments. SCI enforces the output contracts and fixed detail budgets (24 KiB standard, 48 KiB debug); this Pi schema only makes the same mode choice discoverable and forwards it unchanged.
+
 ## Composite-first usage contract
 
 ```text

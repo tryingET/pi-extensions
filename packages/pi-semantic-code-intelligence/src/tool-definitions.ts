@@ -1,3 +1,4 @@
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
@@ -41,7 +42,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     name: "explore_symbol_impact",
     label: "SCI Explore Symbol Impact",
     description:
-      "PREFERRED first call for unfamiliar code changes involving a symbol. Combines definition lookup, AST symbol mapping, and graph-neighbor impact. Do not manually chain search/definition/reference primitives unless this result is insufficient.",
+      "PREFERRED first call for unfamiliar code changes involving a symbol. compact returns only the decision packet; standard adds normalized bounded evidence; debug adds bounded/redacted diagnostics and raw fragments. Standard details are capped at 24 KiB and debug at 48 KiB. Do not manually chain search/definition/reference primitives unless this result is insufficient.",
     profile: "read",
     parameters: Type.Object({
       symbol: Type.String({ description: "Symbol to investigate." }),
@@ -49,6 +50,13 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
       precise: Type.Optional(Type.Boolean({ default: true })),
       depth: Type.Optional(Type.Number({ minimum: 1, maximum: 5, default: 1 })),
       limit: Type.Optional(Type.Number({ minimum: 1, maximum: 200, default: 50 })),
+      mode: Type.Optional(
+        StringEnum(["compact", "standard", "debug"] as const, {
+          default: "compact",
+          description:
+            "compact: decision packet only; standard: normalized bounded evidence; debug: standard plus bounded/redacted diagnostics and raw fragments.",
+        }),
+      ),
     }),
   },
   {
