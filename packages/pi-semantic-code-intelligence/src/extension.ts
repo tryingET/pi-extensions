@@ -2,6 +2,7 @@ import { DEFAULT_MAX_BYTES, type ExtensionAPI } from "@earendil-works/pi-coding-
 
 import { type ExploreMode, validExplorePayload } from "./explore-result-validator.ts";
 import { type SciBridge, type SciBridgeCallResult, SciMcpBridge } from "./mcp-bridge.ts";
+import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
 import { SCI_COMPOSITE_TOOL_SPECS, type SciCompositeToolName } from "./tool-definitions.ts";
 
 export interface SemanticCodeExtensionOptions {
@@ -41,7 +42,7 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
           }
           if (result.isError) throw new Error(errorText(spec.name));
 
-          return formatPiResult(spec.name, Date.now() - startedAt, result, args);
+          return formatPiResult(spec.name, ctx.cwd, Date.now() - startedAt, result, args);
         },
       });
     }
@@ -75,11 +76,12 @@ type ProducerText = { text: string; truncated: boolean; sanitized: boolean };
 
 function formatPiResult(
   workflow: SciCompositeToolName,
+  workspace: string,
   elapsedMs: number,
   result: SciBridgeCallResult,
   args: Record<string, unknown>,
 ) {
-  const producer = resultText(result, workflow, exploreMode(args));
+  const producer = resultText(result, workflow, exploreMode(args), workspace);
 
   return {
     content: [{ type: "text" as const, text: producer.text }],
@@ -105,13 +107,14 @@ function resultText(
   result: SciBridgeCallResult,
   workflow: SciCompositeToolName,
   expectedMode: ExploreMode,
+  workspace: string,
 ): ProducerText {
   const content = Array.isArray(result.content) ? result.content.slice(0, 32) : [];
   const textItem = content.find(
     (item) => item && typeof item === "object" && "text" in item && typeof item.text === "string",
   );
   return textItem && typeof textItem === "object" && "text" in textItem
-    ? compactJsonText(String(textItem.text), workflow, expectedMode)
+    ? compactJsonText(String(textItem.text), workflow, expectedMode, workspace)
     : producerShapeFailure(
         workflow,
         "SCI producer returned no bounded text result; producer content was omitted.",
@@ -122,15 +125,10 @@ function compactJsonText(
   text: string,
   workflow: SciCompositeToolName,
   expectedMode: ExploreMode,
+  workspace: string,
 ): ProducerText {
   const observedBytes = Buffer.byteLength(text, "utf8");
   if (observedBytes > DEFAULT_MAX_BYTES) return producerOversizeFailure(workflow, observedBytes);
-  if (containsSensitiveProducerText(text)) {
-    return producerShapeFailure(
-      workflow,
-      "SCI producer result violated the native disclosure boundary; producer content was omitted.",
-    );
-  }
   try {
     const parsed = JSON.parse(text) as unknown;
     if (!validProducerPayload(parsed, workflow, expectedMode)) {
@@ -139,13 +137,23 @@ function compactJsonText(
         "SCI producer returned an invalid result shape; producer content was omitted.",
       );
     }
-    if (workflow === "safe_write" || workflow === "structural_patch_checks") {
-      sanitizePreviewOnlyPayload(parsed);
+    const previewSanitized = workflow === "safe_write" || workflow === "structural_patch_checks";
+    if (previewSanitized) sanitizePreviewOnlyPayload(parsed);
+    const disclosure = sanitizeProducerDisclosure(parsed, workflow, workspace);
+    if (!disclosure.ok) {
+      return producerShapeFailure(
+        workflow,
+        "SCI producer result violated the native disclosure boundary; producer content was omitted.",
+      );
     }
     const compact = JSON.stringify(parsed);
     return Buffer.byteLength(compact, "utf8") > DEFAULT_MAX_BYTES
       ? producerOversizeFailure(workflow, Buffer.byteLength(compact, "utf8"))
-      : { text: compact, truncated: false, sanitized: false };
+      : {
+          text: compact,
+          truncated: false,
+          sanitized: previewSanitized || disclosure.changed,
+        };
   } catch {
     return producerShapeFailure(
       workflow,
@@ -160,24 +168,49 @@ function validProducerPayload(
   expectedMode: ExploreMode,
 ): value is Record<string, unknown> {
   const record = recordOrUndefined(value);
-  if (!record || typeof record.ok !== "boolean") return false;
-  if (workflow !== "explore_symbol_impact") return true;
-  return validExplorePayload(record, expectedMode);
+  if (!record || typeof record.ok !== "boolean" || record.workflow !== workflow) return false;
+  if (workflow === "explore_symbol_impact") return validExplorePayload(record, expectedMode);
+  if (record.ok === false) return true;
+  switch (workflow) {
+    case "locate_confirm_definition":
+      return validLocatePayload(record);
+    case "safe_write":
+      return record.applied === false && validValidationPlan(record.validationPlan);
+    case "structural_patch_checks":
+      return record.applied === false && recordOrUndefined(record.checks)?.ok === true;
+    case "patch_checks_in_snapshot":
+      return (
+        typeof record.snapshot === "string" &&
+        recordOrUndefined(record.stage)?.accepted === true &&
+        validValidationPlan(record.validationPlan)
+      );
+    case "rename_safely":
+      return (
+        typeof record.snapshot === "string" &&
+        typeof record.filesAffected === "number" &&
+        typeof record.totalEdits === "number"
+      );
+  }
 }
 
-function containsSensitiveProducerText(text: string): boolean {
-  return (
-    /(?:^|["'=:\s])(?:file:\/\/|\/(?!\/)|[A-Za-z]:[\\/]|\\\\)/.test(text) ||
-    /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}\b/i.test(text) ||
-    /\b[A-Za-z_][A-Za-z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|DATABASE_URL)[A-Za-z0-9_]*\s*=/i.test(
-      text,
-    ) ||
-    /-----BEGIN [A-Z0-9 ]*(?:PRIVATE KEY|CERTIFICATE)-----/i.test(text) ||
-    /[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s/@:]+:[^\s/@]+@/.test(text) ||
-    /(?:Traceback \(most recent call last\):|Caused by:|[A-Za-z][A-Za-z0-9_.]*(?:Error|Exception):)/.test(
-      text,
-    )
-  );
+function validLocatePayload(record: Record<string, unknown>): boolean {
+  if (
+    typeof record.symbol !== "string" ||
+    typeof record.decision !== "string" ||
+    !Array.isArray(record.definitions) ||
+    record.definitions.length === 0
+  ) {
+    return false;
+  }
+  return record.definitions.every((definition) => {
+    const candidate = recordOrUndefined(definition);
+    return candidate !== undefined && typeof candidate.uri === "string";
+  });
+}
+
+function validValidationPlan(value: unknown): boolean {
+  const plan = recordOrUndefined(value);
+  return plan !== undefined && typeof plan.status === "string" && plan.status.length > 0;
 }
 
 function exploreMode(args: Record<string, unknown>): ExploreMode {
@@ -212,9 +245,10 @@ function producerOversizeFailure(
 function sanitizePreviewOnlyPayload(payload: Record<string, unknown>): void {
   payload.piBridge = {
     previewOnly: true,
-    note: "This native Pi surface does not accept apply; inspect snapshot evidence or use native exact edits after review.",
+    note: "Mutation is unavailable through this native Pi surface; inspect bounded evidence or use native exact edits after review.",
   };
-  payload.next = "Inspect snapshot evidence; apply is unavailable through this native Pi surface.";
+  payload.next =
+    "Inspect bounded evidence; mutation is unavailable through this native Pi surface.";
   payload.next_actions = ["Inspect the snapshot diff and validation evidence."];
   stripRollbackCommand(payload.rollback);
   const validationPlan = recordOrUndefined(payload.validationPlan);
