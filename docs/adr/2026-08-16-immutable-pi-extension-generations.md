@@ -73,4 +73,6 @@ A later explicit authorization must create a scoped AK task before implementatio
 
 ## Upstream disposition
 
-Record the semantic gap but do not open an upstream issue yet. Any future upstream proposal should cover staged immutable installs, prepare/validate/activate semantics, target locks, canonical generation snapshots, host-owned leases, provenance/rollback APIs, and transactional reload.
+Record the semantic gap but do not open an upstream issue yet. Any future upstream proposal should cover staged immutable installs, prepare/validate/activate semantics, target locks, canonical generation snapshots, host-owned leases, provenance/rollback APIs, and transactional reload.Record the semantic gap but do not open an upstream issue yet. Any future upstream proposal should cover staged immutable installs, prepare/validate/activate semantics, target locks, canonical generation snapshots, host-owned leases, provenance/rollback APIs, and transactional reload.
+
+Addendum (2026-08-16): the operator later authorized opening the upstream issue. Filed as [earendil-works/pi#8215](https://github.com/earendil-works/pi/issues/8215) using the upstream Contribution template. The upstream gate auto-closes new-contributor issues (`NOT_PLANNED`, bot) and reopens worthwhile ones at daily triage; submitted on a Sunday, so maintainer review is expected Monday at the earliest. The deferred "do not open yet" posture above is superseded by this addendum.
