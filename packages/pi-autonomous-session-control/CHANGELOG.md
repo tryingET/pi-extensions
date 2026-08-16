@@ -13,6 +13,16 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.5.0...pi-autonomous-session-control-v0.5.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **asc:** fail closed on proc snapshot churn ([87aa22c](https://github.com/tryingET/pi-extensions/commit/87aa22cee7773e50eda0e4c8535cf926a466a038))
+* **asc:** fence shared capacity recovery ([d5f33c5](https://github.com/tryingET/pi-extensions/commit/d5f33c58178a0977126dbea726d749bdc82f9b75))
+* **asc:** ignore foreign rewind commits in retention ([bd74a59](https://github.com/tryingET/pi-extensions/commit/bd74a59fd9d53e3227599a923cfb02e0c0e9b1c5))
+* **asc:** recover stranded subagent capacity safely ([b21406a](https://github.com/tryingET/pi-extensions/commit/b21406a73c8aa29beec608109067b63bd63eb17a))
+
 ## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.4.0...pi-autonomous-session-control-v0.5.0) (2026-08-15)
 
 

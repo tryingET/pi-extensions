@@ -62,8 +62,13 @@ fi
 node --test ./scripts/npm-pack-json.test.mjs
 
 # Keep these suites sequential: both intentionally exercise the canonical-checkout lock.
-node --test ./scripts/pi-host-compatibility-canary.test.mjs
-node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
+# Governed CI runs them before runtime materialization publishes package node_modules symlinks.
+if [ "${PI_SKIP_HOST_COMPAT_MUTATION_TESTS:-0}" = "1" ]; then
+  echo "skipping host compatibility mutation tests: already proven before governed materialization"
+else
+  node --test ./scripts/pi-host-compatibility-canary.test.mjs
+  node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
+fi
 
 if [ -f "./scripts/package-quality-gate.test.mjs" ]; then
   node --test ./scripts/package-quality-gate.test.mjs

@@ -63,7 +63,7 @@ export function validExplorePayload(
       !validLocation(packet.definition) ||
       !exactNumberRecord(packet.definitions, ["count"]) ||
       !validImpact(packet.impact) ||
-      !validEditRisk(packet.editRisk)
+      !validEditRisk(packet.editRisk, Number(record(packet.impact)?.totalFiles), packet.degraded)
     ) {
       return false;
     }

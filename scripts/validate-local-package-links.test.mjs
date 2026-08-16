@@ -213,6 +213,7 @@ test("root full gate runs link validation before entering full validation", (t) 
       PATH: `${binDir}:${process.env.PATH ?? ""}`,
       FAKE_NODE_LOG: logPath,
       PI_EXTENSIONS_TMPDIR: path.join(tmpRoot, "tmp"),
+      PI_SKIP_PACKAGES: "0",
     },
   });
 

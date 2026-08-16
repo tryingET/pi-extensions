@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.4.0...pi-autoresearch-v0.4.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **autoresearch:** restore xstate lock integrity ([69adfd2](https://github.com/tryingET/pi-extensions/commit/69adfd2b754a942da9966bd1afa895b6fa117fc8))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.3.0...pi-autoresearch-v0.4.0) (2026-08-15)
 
 

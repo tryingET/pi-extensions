@@ -3,6 +3,7 @@ import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
 import {
   createSemanticCodeExtension,
@@ -18,6 +19,7 @@ interface NativeToolResult {
   details: {
     transport: string;
     truncated: boolean;
+    producerResultSanitized: boolean;
     utilization: {
       sciCompositeCalls: string[];
       nativeFallbacks: string[];
@@ -350,25 +352,179 @@ test("native validator accepts structural risk evidence and rejects forged neste
 
   const detected = structuredClone(packet) as MutableExplorePacket;
   detected.editRisk.level = "high";
-  detected.editRisk.reasons = ["Target-specific export evidence may affect consumers."];
+  detected.editRisk.reasons = [
+    "Target-specific export evidence means downstream consumers may be affected.",
+  ];
+  Object.assign(detected.editRisk.analysis.structural, {
+    analyzedFiles: 1,
+    failedFiles: 0,
+    sourceBytesRead: 100,
+    sourceBytesAnalyzed: 100,
+    astNodesInspected: 1,
+    astWorkUnits: 1,
+    targetOccurrencesObserved: 1,
+    targetOccurrencesAnalyzed: 1,
+    limitations: [],
+  });
   detected.editRisk.signals.publicApi = {
     detected: true,
     status: "detected",
     confidence: "high",
     files: ["src/target.ts"],
     hiddenFiles: 0,
-    reasons: ["The target declaration is exported."],
+    reasons: ["An exact target occurrence participates directly in an export declaration."],
     provenance: ["ast.export_declaration"],
     namingFallback: {
       observed: true,
       confidence: "low",
       files: ["src/public-api.ts"],
       hiddenFiles: 0,
-      reasons: ["A conventional public API name matched without structural proof."],
+      reasons: [
+        "A conventional public/api/index/export name matched, but no target-specific export was proved.",
+      ],
       provenance: ["fallback.naming"],
     },
   };
   assert.equal(validExplorePayload(detected, "compact"), true);
+
+  const graphDetectedWithFailedSourceAnalysis = structuredClone(packet) as MutableExplorePacket;
+  graphDetectedWithFailedSourceAnalysis.editRisk.level = "high";
+  graphDetectedWithFailedSourceAnalysis.editRisk.reasons = [
+    "Target-specific export evidence means downstream consumers may be affected.",
+  ];
+  graphDetectedWithFailedSourceAnalysis.editRisk.signals.publicApi = {
+    detected: true,
+    status: "detected",
+    confidence: "high",
+    files: ["src/target.ts"],
+    hiddenFiles: 0,
+    reasons: ["The graph backend returned a target-matching export declaration."],
+    provenance: ["graph.exports"],
+    namingFallback: {
+      observed: false,
+      confidence: "low",
+      files: [],
+      hiddenFiles: 0,
+      reasons: [],
+      provenance: [],
+    },
+  };
+  assert.equal(validExplorePayload(graphDetectedWithFailedSourceAnalysis, "compact"), true);
+
+  const externalAssignmentWithFailedSourceAnalysis = structuredClone(
+    packet,
+  ) as MutableExplorePacket;
+  externalAssignmentWithFailedSourceAnalysis.editRisk.level = "high";
+  externalAssignmentWithFailedSourceAnalysis.editRisk.reasons = [
+    "Structural write evidence requires invariant review.",
+  ];
+  externalAssignmentWithFailedSourceAnalysis.editRisk.signals.state = {
+    detected: true,
+    status: "detected",
+    confidence: "medium",
+    files: ["src/target.ts"],
+    hiddenFiles: 0,
+    reasons: ["An AST-validated target occurrence is an assignment."],
+    provenance: ["reference.assignment"],
+    namingFallback: {
+      observed: false,
+      confidence: "low",
+      files: [],
+      hiddenFiles: 0,
+      reasons: [],
+      provenance: [],
+    },
+  };
+  assert.equal(validExplorePayload(externalAssignmentWithFailedSourceAnalysis, "compact"), true);
+
+  const postReadParseFailure = structuredClone(packet) as MutableExplorePacket;
+  Object.assign(postReadParseFailure.editRisk.analysis.structural, {
+    sourceBytesRead: 100,
+    sourceBytesAnalyzed: 100,
+  });
+  assert.equal(validExplorePayload(postReadParseFailure, "compact"), true);
+
+  const truncatedStateReasons = structuredClone(detected) as MutableExplorePacket;
+  truncatedStateReasons.editRisk.reasons = ["Structural write evidence requires invariant review."];
+  truncatedStateReasons.editRisk.signals.publicApi = fakeRiskSignal();
+  Object.assign(truncatedStateReasons.editRisk.analysis.structural, {
+    symbolBodiesObserved: 1,
+    symbolBodiesAnalyzed: 1,
+    writeNodesObserved: 1,
+    writeNodesAnalyzed: 1,
+  });
+  truncatedStateReasons.editRisk.signals.state = {
+    detected: true,
+    status: "detected",
+    confidence: "high",
+    files: ["src/target.ts"],
+    hiddenFiles: 0,
+    reasons: [
+      "SCIP marks this target occurrence as a write access.",
+      "The target occurrence is structurally on the written side of an assignment.",
+      "The target occurrence is structurally updated.",
+      "An AST-validated target occurrence is an assignment.",
+    ],
+    provenance: [
+      "ast.definition_write",
+      "ast.write_occurrence",
+      "reference.assignment",
+      "scip.roles.write",
+    ],
+    namingFallback: {
+      observed: false,
+      confidence: "low",
+      files: [],
+      hiddenFiles: 0,
+      reasons: [],
+      provenance: [],
+    },
+  };
+  assert.equal(validExplorePayload(truncatedStateReasons, "compact"), true);
+
+  const conservativeBreadthRisk = structuredClone(packet) as MutableExplorePacket;
+  conservativeBreadthRisk.editRisk.level = "medium";
+  conservativeBreadthRisk.editRisk.reasons = [];
+  Object.assign(conservativeBreadthRisk.impact as Record<string, unknown>, {
+    totalFiles: 4,
+    truncated: true,
+  });
+  assert.equal(validExplorePayload(conservativeBreadthRisk, "compact"), true);
+
+  const exhausted = structuredClone(packet) as MutableExplorePacket;
+  Object.assign(exhausted.editRisk.analysis.structural, {
+    observedFiles: 9,
+    selectedFiles: 9,
+    attemptedFiles: 9,
+    analyzedFiles: 8,
+    failedFiles: 0,
+    totalBudgetRejectedFiles: 1,
+    unattemptedFiles: 0,
+    omittedFiles: 1,
+    filesOmittedByTotalByteBudget: 1,
+    observedCandidates: 9,
+    selectedCandidates: 9,
+    sourceBytesRead: 4_000_000,
+    sourceBytesAnalyzed: 4_000_000,
+    totalSourceByteBudgetExhausted: true,
+    limitations: [
+      "Structural source analysis reached its total byte budget; remaining signals remain unknown.",
+    ],
+  });
+  assert.equal(validExplorePayload(exhausted, "compact"), true);
+
+  const mixedFailuresAcrossTwoFiles = structuredClone(packet) as MutableExplorePacket;
+  Object.assign(mixedFailuresAcrossTwoFiles.editRisk.analysis.structural, {
+    observedFiles: 2,
+    selectedFiles: 2,
+    attemptedFiles: 2,
+    failedFiles: 2,
+    observedCandidates: 2,
+    selectedCandidates: 2,
+    sourceBytesRead: 200,
+    sourceBytesAnalyzed: 100,
+  });
+  assert.equal(validExplorePayload(mixedFailuresAcrossTwoFiles, "compact"), true);
 
   const invalidPackets = [
     (() => {
@@ -410,6 +566,10 @@ test("native validator accepts structural risk evidence and rejects forged neste
       value.editRisk.level = ["high"];
     }),
     mutatedPacket(packet, (value) => {
+      value.editRisk.level = "medium";
+      value.editRisk.reasons = [];
+    }),
+    mutatedPacket(packet, (value) => {
       value.editRisk.signals.publicApi.files = ["src/forged.ts"];
     }),
     mutatedPacket(packet, (value) => {
@@ -441,6 +601,76 @@ test("native validator accepts structural risk evidence and rejects forged neste
     mutatedPacket(detected, (value) => {
       value.editRisk.level = "low";
       value.editRisk.reasons = [];
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.level = "low";
+      value.editRisk.reasons = [];
+    }),
+    mutatedPacket(detected, (value) => {
+      Object.assign(value.editRisk.analysis.structural, fakeStructuralAnalysis());
+    }),
+    mutatedPacket(detected, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        sourceBytesRead: 0,
+        sourceBytesAnalyzed: 0,
+        astNodesInspected: 0,
+        astWorkUnits: 0,
+      });
+    }),
+    mutatedPacket(exhausted, (value) => {
+      value.editRisk.analysis.structural.sourceBytesAnalyzed = 0;
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        sourceBytesRead: 200,
+        sourceBytesAnalyzed: 100,
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        sourceBytesRead: 524_288,
+        sourceBytesAnalyzed: 0,
+      });
+    }),
+    mutatedPacket(mixedFailuresAcrossTwoFiles, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        sourceBytesRead: 1_000_000,
+        sourceBytesAnalyzed: 300_000,
+      });
+    }),
+    mutatedPacket(truncatedStateReasons, (value) => {
+      value.editRisk.signals.state.reasons = Array.from(
+        { length: 4 },
+        () => "The target occurrence is structurally updated.",
+      );
+    }),
+    mutatedPacket(truncatedStateReasons, (value) => {
+      value.editRisk.signals.state.reasons = [
+        "The target occurrence is structurally on the written side of an assignment.",
+        "The target occurrence is structurally updated.",
+        "An AST-validated target occurrence is an assignment.",
+        "The target definition body contains a structural member or indexed write; shared-state aliasing is not proved.",
+      ];
+    }),
+    mutatedPacket(detected, (value) => {
+      value.editRisk.signals.publicApi.provenance = ["fallback.naming"];
+      value.editRisk.signals.publicApi.reasons = [
+        "A conventional public/api/index/export name matched, but no target-specific export was proved.",
+      ];
+    }),
+    mutatedPacket(detected, (value) => {
+      value.editRisk.signals.publicApi.reasons = ["forged structural reason"];
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 2,
+        selectedFiles: 2,
+        attemptedFiles: 1,
+        unattemptedFiles: 1,
+        omittedFiles: 1,
+        filesOmittedByTotalByteBudget: 1,
+        totalSourceByteBudgetExhausted: true,
+      });
     }),
     mutatedPacket(packet, (value) => {
       Object.assign(value.editRisk.analysis.structural, {
@@ -818,11 +1048,16 @@ test("preview-only results remove raw producer apply instructions from content a
           {
             type: "text",
             text: JSON.stringify({
+              workflow: "safe_write",
               ok: true,
               applied: false,
               next: "retry with apply:true and ALLOW_SNAPSHOT_APPLY=1",
-              rollback: { command: "ALLOW_SNAPSHOT_APPLY=1 sci apply" },
-              validationPlan: { rollback: { command: "sci apply --reverse" } },
+              rollback: { command: "ALLOW_SNAPSHOT_APPLY=1 sci apply /workspace/repo" },
+              validationPlan: {
+                status: "checks_passed",
+                apply: { enabled: true },
+                rollback: { command: "sci apply --reverse /workspace/repo/.ontology/snapshot" },
+              },
             }),
           },
         ],
@@ -843,9 +1078,266 @@ test("preview-only results remove raw producer apply instructions from content a
     { cwd: "/workspace/repo" },
   );
 
-  assert.doesNotMatch(result.content[0].text, /ALLOW_SNAPSHOT_APPLY|apply:true/);
-  assert.doesNotMatch(JSON.stringify(result.details), /ALLOW_SNAPSHOT_APPLY|apply:true/);
-  assert.match(result.content[0].text, /apply is unavailable through this native Pi surface/);
+  assert.doesNotMatch(
+    result.content[0].text,
+    /ALLOW_SNAPSHOT_APPLY|apply:true|\/workspace\/repo|"apply":/,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(result.details),
+    /ALLOW_SNAPSHOT_APPLY|apply:true|\/workspace\/repo/,
+  );
+  assert.equal(JSON.parse(result.content[0].text).ok, true);
+  assert.match(result.content[0].text, /mutation is unavailable through this native Pi surface/i);
+});
+
+test("preview-only output rejects applied state and recursive apply instructions", async () => {
+  const payloads = [
+    { workflow: "safe_write", ok: true, applied: true },
+    {
+      workflow: "safe_write",
+      ok: true,
+      applied: false,
+      validationPlan: { status: "checks_passed" },
+      nested: { instructions: "apply the snapshot now" },
+    },
+  ];
+
+  for (const payload of payloads) {
+    const bridge: SciBridge = {
+      async callTool() {
+        return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+      },
+      async advertisedToolNames() {
+        return [...SCI_COMPOSITE_TOOL_NAMES];
+      },
+      async close() {},
+    };
+    const safeWrite = createHarness(bridge).tools.get("safe_write");
+    assert.ok(safeWrite);
+    const result = await safeWrite.execute("call-preview-invalid", {}, undefined, undefined, {
+      cwd: "/workspace/repo",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.status, "indeterminate");
+    assert.doesNotMatch(result.content[0].text, /ALLOW_SNAPSHOT_APPLY|applied.true/);
+  }
+});
+
+test("contained file URIs become relative while outside paths and diagnostics fail closed", async () => {
+  const workspace = "/workspace/repo";
+  const payloads: Array<{
+    payload: Record<string, unknown>;
+    accepted: boolean;
+    expectedUri?: string;
+  }> = [
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        definitions: [{ uri: pathToFileURL(path.join(workspace, "src/target.ts")).href }],
+      },
+      accepted: true,
+      expectedUri: "src/target.ts",
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        definitions: [{ uri: pathToFileURL("/srv/private/target.ts").href }],
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        stderr: "compiler details",
+      },
+      accepted: true,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        nested: { cwd: workspace },
+      },
+      accepted: true,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        backend: "ast-grep",
+      },
+      accepted: true,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        note: "backend wrote /srv/private/target.ts",
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        note: "inspect file:///srv/private/target.ts",
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        note: "backend wrote [/srv/private/target.ts]",
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        nested: { "/srv/private/target.ts": "hidden key" },
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        definitions: [{ uri: "../../srv/private/target.ts" }],
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        note: "backend%20wrote%20%2Fsrv%2Fprivate%2Ftarget.ts",
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        note: "backend%252520wrote%252520%25252Fsrv%25252Fprivate%25252Ftarget.ts",
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        note: "snapshot:////srv/private/target.ts",
+      },
+      accepted: false,
+    },
+    {
+      payload: {
+        workflow: "safe_write",
+        ok: true,
+        applied: false,
+        validationPlan: { status: "checks_passed" },
+      },
+      accepted: false,
+    },
+  ];
+
+  for (const { payload, accepted, expectedUri } of payloads) {
+    if (payload.workflow === "locate_confirm_definition") {
+      payload.symbol ??= "Target";
+      payload.decision ??= "fast";
+      payload.definitions ??= [{ uri: pathToFileURL(path.join(workspace, "src/default.ts")).href }];
+    }
+    const bridge: SciBridge = {
+      async callTool() {
+        return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+      },
+      async advertisedToolNames() {
+        return [...SCI_COMPOSITE_TOOL_NAMES];
+      },
+      async close() {},
+    };
+    const locate = createHarness(bridge).tools.get("locate_confirm_definition");
+    assert.ok(locate);
+    const result = await locate.execute("call-disclosure", {}, undefined, undefined, {
+      cwd: workspace,
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    assert.equal(parsed.ok, accepted);
+    assert.doesNotMatch(result.content[0].text, /\/workspace\/repo|\/srv\/private|stderr/);
+    if (accepted) {
+      if (expectedUri) assert.equal(parsed.definitions[0].uri, expectedUri);
+      assert.equal(result.details.producerResultSanitized, true);
+    } else {
+      assert.equal(parsed.status, "indeterminate");
+    }
+  }
+});
+
+test("successful producer results require workflow-specific evidence", async () => {
+  const cases = [
+    {
+      tool: "locate_confirm_definition",
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        symbol: "Target",
+        decision: "fast",
+        definitions: [],
+      },
+    },
+    {
+      tool: "locate_confirm_definition",
+      payload: {
+        workflow: "locate_confirm_definition",
+        ok: true,
+        symbol: "Target",
+        decision: "fast",
+        definitions: [42],
+      },
+    },
+    {
+      tool: "safe_write",
+      payload: { workflow: "safe_write", ok: true, applied: false, validationPlan: {} },
+    },
+    {
+      tool: "structural_patch_checks",
+      payload: { workflow: "structural_patch_checks", ok: true, applied: false },
+    },
+    {
+      tool: "patch_checks_in_snapshot",
+      payload: { workflow: "patch_checks_in_snapshot", ok: true },
+    },
+    {
+      tool: "rename_safely",
+      payload: { workflow: "rename_safely", ok: true },
+    },
+  ];
+
+  for (const { tool: toolName, payload } of cases) {
+    const bridge: SciBridge = {
+      async callTool() {
+        return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+      },
+      async advertisedToolNames() {
+        return [...SCI_COMPOSITE_TOOL_NAMES];
+      },
+      async close() {},
+    };
+    const tool = createHarness(bridge).tools.get(toolName);
+    assert.ok(tool);
+    const result = await tool.execute("call-incomplete", {}, undefined, undefined, {
+      cwd: "/workspace/repo",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.status, "indeterminate");
+  }
 });
 
 test("fails closed when installed SCI schemas drift from the registered Pi subset", () => {

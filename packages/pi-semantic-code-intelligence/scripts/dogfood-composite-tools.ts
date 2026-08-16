@@ -91,11 +91,30 @@ try {
     timeoutSec: 30,
     brief: true,
   });
+  const structural = await execute("structural_patch_checks", {
+    language: "javascript",
+    pattern: "function greet($NAME) { $$$BODY }",
+    rewrite: "function welcome($NAME) { $$$BODY }",
+    paths: ["src/example.js"],
+    commands: ["true"],
+    timeoutSec: 30,
+  });
   const after = await readFile(sourcePath, "utf8");
   const afterSourceInventory = await inventoryWorkspaceSource(workspace);
   const sourceInventoryUnchanged =
     JSON.stringify(afterSourceInventory) === JSON.stringify(beforeSourceInventory);
+  const explorePayload = parseToolPayload(explore);
+  const locatePayload = parseToolPayload(locate);
   const safeWritePayload = parseToolPayload(safeWrite);
+  const structuralPayload = parseToolPayload(structural);
+  const exploreConfirmed =
+    explorePayload.workflow === "explore_symbol_impact" && explorePayload.ok === true;
+  const locateDefinitionConfirmed = confirmedLocatePayload(locatePayload);
+  const safeWriteChecksPassed = previewChecksPassed(safeWritePayload, "safe_write");
+  const structuralChecksPassed = previewChecksPassed(structuralPayload, "structural_patch_checks");
+  const structuralBackendWithheld = !/"backend"\s*:/.test(
+    String(structural.content[0]?.text ?? ""),
+  );
 
   const evidence = {
     schema: "pi.sci_composite_dogfood.v1",
@@ -103,22 +122,34 @@ try {
       tools.size === SCI_COMPOSITE_TOOL_NAMES.length &&
       missing.length === 0 &&
       explore.details.workflow === "explore_symbol_impact" &&
+      exploreConfirmed &&
       locate.details.workflow === "locate_confirm_definition" &&
+      locateDefinitionConfirmed &&
       safeWrite.details.workflow === "safe_write" &&
-      safeWritePayload.ok === true &&
+      safeWriteChecksPassed &&
       safeWritePayload.applied === false &&
+      structural.details.workflow === "structural_patch_checks" &&
+      structuralChecksPassed &&
+      structuralPayload.applied === false &&
+      structuralBackendWithheld &&
       after === original &&
       sourceInventoryUnchanged,
     transport: "mcp-stdio",
     elapsedMs: Date.now() - startedAt,
     nativeToolsRegistered: [...tools.keys()],
     advertisedCompositeTools: SCI_COMPOSITE_TOOL_NAMES.filter((name) => advertised.includes(name)),
-    sciCompositeCalls: ["explore_symbol_impact", "locate_confirm_definition", "safe_write"],
+    sciCompositeCalls: [
+      "explore_symbol_impact",
+      "locate_confirm_definition",
+      "safe_write",
+      "structural_patch_checks",
+    ],
     nativeFallbacks: [],
     rawShellAvoided: [
       "definition search plus AST map plus graph expansion",
       "fast lookup plus ambiguity detection plus precise retry",
       "snapshot creation plus patch staging plus checks plus rollback evidence",
+      "structural search plus rewrite diff generation plus snapshot checks",
     ],
     sourceInventory: {
       before: beforeSourceInventory,
@@ -130,14 +161,20 @@ try {
       nativeRegistrationComplete: tools.size === SCI_COMPOSITE_TOOL_NAMES.length,
       installedMcpContractComplete: missing.length === 0,
       exploreUsedSingleNativeCall: explore.details.utilization.sciCompositeCalls.length === 1,
+      exploreConfirmed,
       locateUsedSingleNativeCall: locate.details.utilization.sciCompositeCalls.length === 1,
+      locateDefinitionConfirmed,
       safeWriteUsedSingleNativeCall: safeWrite.details.utilization.sciCompositeCalls.length === 1,
-      safeWriteChecksPassed: safeWritePayload.ok === true,
+      safeWriteChecksPassed,
       safeWriteRemainedPreviewOnly: safeWritePayload.applied === false,
+      structuralUsedSingleNativeCall: structural.details.utilization.sciCompositeCalls.length === 1,
+      structuralChecksPassed,
+      structuralRemainedPreviewOnly: structuralPayload.applied === false,
+      structuralBackendWithheld,
       previewLeftWorkspaceUnchanged: after === original,
       allSourceOutsideOntologyUnchanged: sourceInventoryUnchanged,
     },
-    calls: [summarize(explore), summarize(locate), summarize(safeWrite)],
+    calls: [summarize(explore), summarize(locate), summarize(safeWrite), summarize(structural)],
   };
 
   process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
@@ -176,6 +213,44 @@ function parseToolPayload(result: NativeToolResult): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+function confirmedLocatePayload(payload: Record<string, unknown>): boolean {
+  if (payload.workflow !== "locate_confirm_definition" || payload.ok !== true) return false;
+  if (!Array.isArray(payload.definitions) || payload.definitions.length === 0) return false;
+  return payload.definitions.every((definition) => {
+    if (!definition || typeof definition !== "object" || Array.isArray(definition)) return false;
+    const uri = (definition as Record<string, unknown>).uri;
+    return (
+      typeof uri === "string" &&
+      uri.length > 0 &&
+      !uri.startsWith("file://") &&
+      !path.posix.isAbsolute(uri) &&
+      !path.win32.isAbsolute(uri) &&
+      !uri.split(/[\\/]/).includes("..")
+    );
+  });
+}
+
+function previewChecksPassed(payload: Record<string, unknown>, workflow: string): boolean {
+  if (payload.workflow !== workflow || payload.ok !== true || payload.applied !== false)
+    return false;
+  if (workflow === "structural_patch_checks") {
+    const checks = payload.checks;
+    return (
+      Boolean(checks) &&
+      typeof checks === "object" &&
+      !Array.isArray(checks) &&
+      (checks as Record<string, unknown>).ok === true
+    );
+  }
+  const validationPlan = payload.validationPlan;
+  return (
+    Boolean(validationPlan) &&
+    typeof validationPlan === "object" &&
+    !Array.isArray(validationPlan) &&
+    (validationPlan as Record<string, unknown>).status === "checks_passed"
+  );
 }
 
 async function inventoryWorkspaceSource(root: string): Promise<InventoryEntry[]> {
