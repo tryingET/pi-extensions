@@ -11,9 +11,14 @@ test:
     if [ -f ./scripts/release-components.test.mjs ]; then node --test ./scripts/release-components.test.mjs; fi
     node --test ./scripts/pi-host-compatibility-canary.test.mjs
     node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
+    node --test ./scripts/pi-extension-generations.test.mjs ./scripts/pi-extension-generations.concurrency.test.mjs
     if [ -f ./scripts/package-quality-gate.test.mjs ]; then node --test ./scripts/package-quality-gate.test.mjs; fi
     if [ -f ./scripts/root-doc-alignment.test.mjs ]; then node --test ./scripts/root-doc-alignment.test.mjs; fi
     ./scripts/ci/packages.sh
+
+# Focused immutable extension-generation unit and process-level concurrency suites.
+extension-generations-test:
+    npm run extensions:generations:test
 
 # Fast local validation gate
 check:
