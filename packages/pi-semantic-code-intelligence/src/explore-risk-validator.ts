@@ -1,0 +1,434 @@
+const SIGNAL_NAMES = ["publicApi", "state", "registry", "tests"] as const;
+type SignalName = (typeof SIGNAL_NAMES)[number];
+type StructuralCounter =
+  | "targetOccurrencesAnalyzed"
+  | "symbolBodiesAnalyzed"
+  | "writeNodesAnalyzed"
+  | "importNodesAnalyzed";
+
+type EvidenceContract = {
+  confidence: "high" | "medium";
+  reasons: readonly (string | RegExp)[];
+  requiredCounters?: readonly StructuralCounter[];
+};
+
+const SIGNAL_EVIDENCE: Record<SignalName, Record<string, EvidenceContract>> = {
+  publicApi: {
+    "graph.exports": {
+      confidence: "high",
+      reasons: ["The graph backend returned a target-matching export declaration."],
+    },
+    "declaration.kind": {
+      confidence: "high",
+      reasons: ["The target declaration is structurally labelled as an export."],
+    },
+    "ast.export_declaration": {
+      confidence: "high",
+      reasons: ["An exact target occurrence participates directly in an export declaration."],
+      requiredCounters: ["targetOccurrencesAnalyzed"],
+    },
+  },
+  state: {
+    "scip.roles.write": {
+      confidence: "high",
+      reasons: ["SCIP marks this target occurrence as a write access."],
+    },
+    "reference.assignment": {
+      confidence: "medium",
+      reasons: ["An AST-validated target occurrence is an assignment."],
+    },
+    "ast.definition_write": {
+      confidence: "medium",
+      reasons: [
+        "The target definition body contains a structural member or indexed write; shared-state aliasing is not proved.",
+      ],
+      requiredCounters: ["symbolBodiesAnalyzed", "writeNodesAnalyzed"],
+    },
+    "ast.write_occurrence": {
+      confidence: "high",
+      reasons: [
+        "The target occurrence is structurally on the written side of an assignment.",
+        "The target occurrence is structurally updated.",
+      ],
+      requiredCounters: ["targetOccurrencesAnalyzed", "writeNodesAnalyzed"],
+    },
+  },
+  registry: {
+    "ast.keyed_collection_write": {
+      confidence: "medium",
+      reasons: [
+        "The target is inserted by a structural keyed/set collection write; registry framework semantics are not proved.",
+      ],
+      requiredCounters: ["targetOccurrencesAnalyzed"],
+    },
+  },
+  tests: {
+    "scip.roles.test": {
+      confidence: "high",
+      reasons: ["SCIP marks this target occurrence as test code."],
+    },
+    "ast.imported_test_call": {
+      confidence: "high",
+      reasons: [
+        /^The target occurrence is enclosed by [A-Za-z_$][\w$]*\(\.\.\.\) imported from a supported test module\.$/,
+      ],
+      requiredCounters: ["targetOccurrencesAnalyzed", "importNodesAnalyzed"],
+    },
+  },
+};
+
+const UNKNOWN_SIGNAL_REASON = "No supported structural evidence proved this signal.";
+const FALLBACK_REASONS: Record<SignalName, string> = {
+  publicApi:
+    "A conventional public/api/index/export name matched, but no target-specific export was proved.",
+  state: "A conventional state/store/schema/database name matched, but no write was proved.",
+  registry:
+    "A conventional registry/plugin/register name matched, but no registration mutation was proved.",
+  tests: "A conventional test/spec path matched, but no test declaration or test role was proved.",
+};
+const STRUCTURAL_KEYS = [
+  "fileBudget",
+  "candidateBudgetPerFile",
+  "sourceFileByteBudget",
+  "totalSourceByteBudget",
+  "parseTimeoutMicros",
+  "astNodeBudgetPerFile",
+  "astWorkUnitBudgetPerFile",
+  "targetOccurrenceBudgetPerFile",
+  "symbolBodyBudgetPerFile",
+  "writeNodeBudgetPerFile",
+  "importNodeBudgetPerFile",
+  "observedFiles",
+  "selectedFiles",
+  "attemptedFiles",
+  "analyzedFiles",
+  "failedFiles",
+  "oversizedFiles",
+  "omittedFiles",
+  "filesOmittedByFileBudget",
+  "filesOmittedByTotalByteBudget",
+  "totalBudgetRejectedFiles",
+  "unattemptedFiles",
+  "observedCandidates",
+  "selectedCandidates",
+  "omittedCandidates",
+  "candidatesOmittedByFileBudget",
+  "rejectedCandidates",
+  "sourceBytesRead",
+  "sourceBytesAnalyzed",
+  "totalSourceByteBudgetExhausted",
+  "astNodesInspected",
+  "astNodeBudgetHits",
+  "astWorkUnits",
+  "astWorkBudgetHits",
+  "targetOccurrencesObserved",
+  "targetOccurrencesAnalyzed",
+  "omittedTargetOccurrences",
+  "symbolBodiesObserved",
+  "symbolBodiesAnalyzed",
+  "omittedSymbolBodies",
+  "writeNodesObserved",
+  "writeNodesAnalyzed",
+  "omittedWriteNodes",
+  "importNodesObserved",
+  "importNodesAnalyzed",
+  "omittedImportNodes",
+  "limitations",
+] as const;
+
+export function validEditRisk(value: unknown, totalFiles: number, degraded: boolean): boolean {
+  const risk = record(value);
+  const signals = record(risk?.signals);
+  const analysis = record(risk?.analysis);
+  const structural = record(analysis?.structural);
+  if (
+    !risk ||
+    !onlyKeys(risk, ["level", "reasons", "signals", "analysis"]) ||
+    typeof risk.level !== "string" ||
+    !["medium", "high", "unknown"].includes(risk.level) ||
+    !boundedStringArray(risk.reasons, 4, 200) ||
+    !signals ||
+    !onlyKeys(signals, SIGNAL_NAMES) ||
+    !analysis ||
+    !onlyKeys(analysis, ["structural"]) ||
+    !structural ||
+    !validStructuralAnalysis(structural) ||
+    !SIGNAL_NAMES.every((key) => validRiskSignal(key, signals[key], structural))
+  ) {
+    return false;
+  }
+  const detected = SIGNAL_NAMES.filter((key) => record(signals[key])?.detected === true);
+  const elevated = detected.some(
+    (key) => key === "publicApi" || key === "state" || key === "registry",
+  );
+  const expectedLevel = degraded || elevated ? "high" : totalFiles > 3 ? "medium" : "unknown";
+  const expectedReasons = [
+    ...(detected.includes("publicApi")
+      ? ["Target-specific export evidence means downstream consumers may be affected."]
+      : []),
+    ...(detected.includes("state") ? ["Structural write evidence requires invariant review."] : []),
+    ...(detected.includes("registry")
+      ? ["Structural registration evidence may require coordinated updates."]
+      : []),
+    ...(detected.includes("tests")
+      ? ["Structurally identified impacted tests provide a focused validation target."]
+      : []),
+    ...(degraded ? ["Impact evidence is degraded by failed subcalls."] : []),
+    ...(expectedLevel === "unknown"
+      ? ["No supported structural evidence established a low semantic edit risk."]
+      : []),
+  ].slice(0, 4);
+  return (
+    risk.level === expectedLevel && stringArraysEqual(risk.reasons as string[], expectedReasons)
+  );
+}
+
+function validRiskSignal(
+  name: SignalName,
+  value: unknown,
+  structural: Record<string, unknown>,
+): boolean {
+  const signal = record(value);
+  const fallback = record(signal?.namingFallback);
+  if (
+    !signal ||
+    !onlyKeys(signal, [
+      "detected",
+      "status",
+      "confidence",
+      "files",
+      "hiddenFiles",
+      "reasons",
+      "provenance",
+      "namingFallback",
+    ]) ||
+    typeof signal.detected !== "boolean" ||
+    !boundedStringArray(signal.files, 25, 1_024) ||
+    !nonnegativeInteger(signal.hiddenFiles) ||
+    !boundedStringArray(signal.reasons, 4, 200) ||
+    !uniqueStringArray(signal.reasons) ||
+    !boundedStringArray(signal.provenance, 4, 80) ||
+    !uniqueStringArray(signal.provenance) ||
+    !fallback ||
+    !validNamingFallback(name, fallback)
+  ) {
+    return false;
+  }
+  if (signal.detected) {
+    const provenance = signal.provenance as string[];
+    const contracts = SIGNAL_EVIDENCE[name];
+    if (
+      signal.status !== "detected" ||
+      signal.files.length + Number(signal.hiddenFiles) === 0 ||
+      provenance.length === 0 ||
+      provenance.some((item) => !Object.hasOwn(contracts, item))
+    ) {
+      return false;
+    }
+    const evidence = provenance.map((item) => contracts[item] as EvidenceContract);
+    const reasons = signal.reasons as string[];
+    if (
+      reasons.some((reason) => !evidence.some((item) => evidenceReasonMatches(item, reason))) ||
+      evidence.some(
+        (item) =>
+          !reasons.some((reason) => evidenceReasonMatches(item, reason)) &&
+          (item.confidence === "high" || reasons.length < 4),
+      ) ||
+      signal.confidence !==
+        (evidence.some((item) => item.confidence === "high") ? "high" : "medium")
+    ) {
+      return false;
+    }
+    return evidence.every((item, index) => {
+      if (!provenance[index]?.startsWith("ast.")) return true;
+      return (
+        Number(structural.analyzedFiles) > 0 &&
+        Number(structural.sourceBytesAnalyzed) > 0 &&
+        Number(structural.astNodesInspected) > 0 &&
+        Number(structural.astWorkUnits) > 0 &&
+        (item.requiredCounters ?? []).every((counter) => Number(structural[counter]) > 0)
+      );
+    });
+  }
+  return (
+    signal.status === "unknown" &&
+    signal.confidence === "unknown" &&
+    signal.files.length === 0 &&
+    signal.hiddenFiles === 0 &&
+    signal.reasons.length === 1 &&
+    signal.reasons[0] === UNKNOWN_SIGNAL_REASON &&
+    signal.provenance.length === 0
+  );
+}
+
+function evidenceReasonMatches(contract: EvidenceContract, reason: string): boolean {
+  return contract.reasons.some((candidate) =>
+    typeof candidate === "string" ? reason === candidate : candidate.test(reason),
+  );
+}
+
+function stringArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+function validNamingFallback(name: SignalName, value: Record<string, unknown>): boolean {
+  if (
+    !onlyKeys(value, ["observed", "confidence", "files", "hiddenFiles", "reasons", "provenance"]) ||
+    typeof value.observed !== "boolean" ||
+    value.confidence !== "low" ||
+    !boundedStringArray(value.files, 25, 1_024) ||
+    !nonnegativeInteger(value.hiddenFiles) ||
+    !boundedStringArray(value.reasons, 4, 200) ||
+    !uniqueStringArray(value.reasons) ||
+    !boundedStringArray(value.provenance, 1, 80) ||
+    !uniqueStringArray(value.provenance)
+  ) {
+    return false;
+  }
+  if (value.observed) {
+    return (
+      value.files.length + Number(value.hiddenFiles) > 0 &&
+      value.reasons.length === 1 &&
+      value.reasons[0] === FALLBACK_REASONS[name] &&
+      value.provenance.length === 1 &&
+      value.provenance[0] === "fallback.naming"
+    );
+  }
+  return (
+    value.files.length === 0 &&
+    value.hiddenFiles === 0 &&
+    value.reasons.length === 0 &&
+    value.provenance.length === 0
+  );
+}
+
+function validStructuralAnalysis(value: unknown): boolean {
+  const item = record(value);
+  if (!item || !onlyKeys(item, STRUCTURAL_KEYS)) return false;
+  const budgets: Record<string, number> = {
+    fileBudget: 64,
+    candidateBudgetPerFile: 256,
+    sourceFileByteBudget: 524_288,
+    totalSourceByteBudget: 4_194_304,
+    parseTimeoutMicros: 100_000,
+    astNodeBudgetPerFile: 100_000,
+    astWorkUnitBudgetPerFile: 10_000,
+    targetOccurrenceBudgetPerFile: 4_096,
+    symbolBodyBudgetPerFile: 256,
+    writeNodeBudgetPerFile: 4_096,
+    importNodeBudgetPerFile: 1_024,
+  };
+  if (Object.entries(budgets).some(([key, expected]) => item[key] !== expected)) return false;
+
+  const countKeys = STRUCTURAL_KEYS.filter(
+    (key) =>
+      ![...Object.keys(budgets), "totalSourceByteBudgetExhausted", "limitations"].includes(key),
+  );
+  if (!countKeys.every((key) => nonnegativeInteger(item[key]))) return false;
+  if (
+    typeof item.totalSourceByteBudgetExhausted !== "boolean" ||
+    !boundedStringArray(item.limitations, 8, 200)
+  ) {
+    return false;
+  }
+
+  const n = (key: string) => Number(item[key]);
+  return (
+    n("selectedFiles") <= n("fileBudget") &&
+    n("observedFiles") === n("selectedFiles") + n("filesOmittedByFileBudget") &&
+    n("selectedFiles") === n("attemptedFiles") + n("unattemptedFiles") &&
+    n("attemptedFiles") ===
+      n("analyzedFiles") + n("failedFiles") + n("oversizedFiles") + n("totalBudgetRejectedFiles") &&
+    n("filesOmittedByTotalByteBudget") === n("totalBudgetRejectedFiles") + n("unattemptedFiles") &&
+    n("omittedFiles") === n("filesOmittedByFileBudget") + n("filesOmittedByTotalByteBudget") &&
+    n("observedCandidates") ===
+      n("selectedCandidates") + n("omittedCandidates") + n("rejectedCandidates") &&
+    n("selectedCandidates") >= n("selectedFiles") &&
+    n("selectedCandidates") <= n("selectedFiles") * n("candidateBudgetPerFile") &&
+    n("candidatesOmittedByFileBudget") >= n("filesOmittedByFileBudget") &&
+    n("candidatesOmittedByFileBudget") <= n("omittedCandidates") &&
+    n("sourceBytesAnalyzed") <= n("sourceBytesRead") &&
+    n("sourceBytesRead") - n("sourceBytesAnalyzed") <=
+      n("failedFiles") * n("sourceFileByteBudget") &&
+    n("sourceBytesAnalyzed") <=
+      (n("analyzedFiles") + n("failedFiles")) * n("sourceFileByteBudget") &&
+    minimumFailedFilesForSourceBytes(item) <= n("failedFiles") &&
+    n("sourceBytesRead") <= n("totalSourceByteBudget") &&
+    n("sourceBytesRead") <= n("attemptedFiles") * n("sourceFileByteBudget") &&
+    n("astNodesInspected") <= n("astNodeBudgetPerFile") * n("analyzedFiles") &&
+    n("astWorkUnits") <= n("astWorkUnitBudgetPerFile") * n("analyzedFiles") &&
+    n("astNodeBudgetHits") <= n("analyzedFiles") &&
+    n("astWorkBudgetHits") <= n("analyzedFiles") &&
+    n("astNodesInspected") >= n("astNodeBudgetHits") * n("astNodeBudgetPerFile") &&
+    n("astWorkUnits") >= n("astWorkBudgetHits") * n("astWorkUnitBudgetPerFile") &&
+    n("targetOccurrencesAnalyzed") <= n("targetOccurrenceBudgetPerFile") * n("analyzedFiles") &&
+    n("symbolBodiesAnalyzed") <= n("symbolBodyBudgetPerFile") * n("analyzedFiles") &&
+    n("writeNodesAnalyzed") <= n("writeNodeBudgetPerFile") * n("analyzedFiles") &&
+    n("importNodesAnalyzed") <= n("importNodeBudgetPerFile") * n("analyzedFiles") &&
+    n("filesOmittedByTotalByteBudget") > 0 === item.totalSourceByteBudgetExhausted &&
+    (!item.totalSourceByteBudgetExhausted ||
+      n("sourceBytesRead") > n("totalSourceByteBudget") - n("sourceFileByteBudget")) &&
+    validObservedAnalyzedOmitted(item, "targetOccurrences") &&
+    validObservedAnalyzedOmitted(item, "symbolBodies") &&
+    validObservedAnalyzedOmitted(item, "writeNodes") &&
+    validObservedAnalyzedOmitted(item, "importNodes")
+  );
+}
+
+function minimumFailedFilesForSourceBytes(item: Record<string, unknown>): number {
+  const perFile = Number(item.sourceFileByteBudget);
+  const sourceRead = Number(item.sourceBytesRead);
+  const sourceAnalyzed = Number(item.sourceBytesAnalyzed);
+  const parsedCapacity = Number(item.analyzedFiles) * perFile;
+  const postReadFailures = Math.ceil(Math.max(0, sourceAnalyzed - parsedCapacity) / perFile);
+  const partialBytes = sourceRead - sourceAnalyzed;
+  const partialReadFailures = Math.ceil(partialBytes / (perFile - 1));
+  return postReadFailures + partialReadFailures;
+}
+
+function validObservedAnalyzedOmitted(item: Record<string, unknown>, prefix: string): boolean {
+  const observed = Number(item[`${prefix}Observed`]);
+  const analyzed = Number(item[`${prefix}Analyzed`]);
+  const omittedPrefix =
+    prefix === "targetOccurrences" ? "omittedTargetOccurrences" : `omitted${capitalize(prefix)}`;
+  const omitted = Number(item[omittedPrefix]);
+  return analyzed <= observed && observed === analyzed + omitted;
+}
+
+function capitalize(value: string): string {
+  return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function onlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  const expected = new Set(allowed);
+  return (
+    Object.keys(value).length === expected.size &&
+    Object.keys(value).every((key) => expected.has(key))
+  );
+}
+
+function uniqueStringArray(value: unknown): boolean {
+  return Array.isArray(value) && new Set(value).size === value.length;
+}
+
+function boundedStringArray(
+  value: unknown,
+  maxItems: number,
+  maxLength: number,
+): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= maxItems &&
+    value.every((item) => typeof item === "string" && item.length > 0 && item.length <= maxLength)
+  );
+}
+
+function nonnegativeInteger(value: unknown): boolean {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}

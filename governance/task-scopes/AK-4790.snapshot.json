@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-16T06:00:10.534356681+00:00",
+  "task_id": 4790,
+  "entity_version": 6,
+  "commit_sha": "591007292e399c7dfc34d8690dce8793bdeb9914",
+  "scope": {
+    "allowed_paths": [
+      "governance/task-scopes/AK-*.snapshot.json",
+      "packages/pi-semantic-code-intelligence/README.md",
+      "packages/pi-semantic-code-intelligence/src/explore-detail-validator.ts",
+      "packages/pi-semantic-code-intelligence/src/explore-result-validator.ts",
+      "packages/pi-semantic-code-intelligence/src/extension.ts",
+      "packages/pi-semantic-code-intelligence/src/mcp-bridge.ts",
+      "packages/pi-semantic-code-intelligence/src/tool-definitions.ts",
+      "packages/pi-semantic-code-intelligence/tests/extension.test.ts"
+    ],
+    "required_paths": [
+      "packages/pi-semantic-code-intelligence/src/explore-detail-validator.ts",
+      "packages/pi-semantic-code-intelligence/src/explore-result-validator.ts",
+      "packages/pi-semantic-code-intelligence/src/extension.ts",
+      "packages/pi-semantic-code-intelligence/src/mcp-bridge.ts",
+      "packages/pi-semantic-code-intelligence/src/tool-definitions.ts",
+      "packages/pi-semantic-code-intelligence/tests/extension.test.ts"
+    ],
+    "forbidden_paths": []
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}

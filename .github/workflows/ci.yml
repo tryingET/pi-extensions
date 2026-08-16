@@ -63,6 +63,12 @@ jobs:
             rm -f package-lock.json
           fi
 
+      - name: Run host compatibility mutation tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: |
+          node --test ./scripts/pi-host-compatibility-canary.test.mjs
+          node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
+
       - name: Materialize governed runtime canary dependencies
         working-directory: ${{ env.GOVERNED_CI_ROOT }}
         run: |
@@ -90,4 +96,9 @@ jobs:
         # Package checks and release contracts run in their dedicated matrices with package deps.
         # Hermetic ontology package checks use temporary fixtures there; the real-ROCS
         # owner-workspace lane remains an explicit pre-release command outside public CI.
-        run: PI_SKIP_ROCS=1 PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1 PI_SKIP_PACKAGES=1 npm run quality:ci
+        run: >-
+          PI_SKIP_ROCS=1
+          PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1
+          PI_SKIP_PACKAGES=1
+          PI_SKIP_HOST_COMPAT_MUTATION_TESTS=1
+          npm run quality:ci
