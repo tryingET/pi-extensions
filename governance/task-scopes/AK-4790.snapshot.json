@@ -3,7 +3,7 @@
   "exported_at": "2026-08-16T06:00:10.534356681+00:00",
   "task_id": 4790,
   "entity_version": 2,
-  "commit_sha": "97ee000377be9e6249ec6faa6fa5d20f5d8737c9",
+  "commit_sha": "a6c873e0113f552a712352ce93161e3b84f7a887",
   "scope": {
     "allowed_paths": [
       "governance/task-scopes/AK-*.snapshot.json",
