@@ -34,7 +34,7 @@ jobs:
           echo "TMPDIR=$governed_tmp" >> "$GITHUB_ENV"
           echo "GOVERNED_NPM_CACHE=$governed_cache" >> "$GITHUB_ENV"
           echo "NPM_CONFIG_USERCONFIG=$governed_npmrc" >> "$GITHUB_ENV"
-          npm install --global --prefix "$npm_global" npm@11.19.0
+          npm install --global --prefix "$npm_global" npm@12.0.2
           echo "$npm_global/bin" >> "$GITHUB_PATH"
           "$npm_global/bin/npm" --version
 
