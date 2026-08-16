@@ -23,7 +23,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 export const GOVERNED_RUNTIME_MATERIALIZATION_SCHEMA =
-  "pi.governed-loop-runtime-materialization.v5" as const;
+  "pi.governed-loop-runtime-materialization.v6" as const;
 export const GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH =
   "packages/pi-society-orchestrator/node_modules/.tryinget-governed-runtime.json";
 export const GOVERNED_RUNTIME_QUARANTINE_RELATIVE_PATH =
@@ -36,6 +36,9 @@ export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
   "sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==";
 export const GOVERNED_RUNTIME_HOST_VERSION = "0.83.0";
 export const GOVERNED_RUNTIME_NPM_MIN_RELEASE_AGE_DAYS = 7;
+// npm matches registry package names, not Git repository ownership. The owned public scope is the
+// narrow exemption; dependencies of matching packages remain age-gated unless they also match.
+export const GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS = ["@tryinget/*"] as const;
 export const GOVERNED_RUNTIME_NPM_REGISTRY = "https://registry.npmjs.org/";
 export const GOVERNED_RUNTIME_ASC_COMPILER = {
   name: "@typescript/native-preview",
@@ -400,6 +403,7 @@ export interface GovernedRuntimeNpmPolicyProof {
   observedAt: string;
   effectiveBefore: string;
   minReleaseAgeDays: number;
+  minReleaseAgeExclusions: string[];
   registry: string;
   cacheRealpath: string;
   temporaryDirectoryRealpath: string;
@@ -426,6 +430,7 @@ export interface GovernedRuntimeNpmEffectReceipt {
     TMPDIR: string;
     npm_config_audit: "false";
     npm_config_before: string;
+    npm_config_min_release_age_exclude: string;
     npm_config_cache: string;
     npm_config_force: "false";
     npm_config_fund: "false";
@@ -737,13 +742,14 @@ const GOVERNED_NPM_OVERRIDE_KEYS = new Set([
   "npm_config_before",
   "npm_config_force",
   "npm_config_min_release_age",
+  "npm_config_min_release_age_exclude",
   "npm_config_offline",
   "npm_config_prefer_offline",
   "npm_config_registry",
 ]);
 
 function resolveCurrentNpmExecutable(): string {
-  const selected = execFileSync("sh", ["-lc", "command -v npm"], {
+  const selected = execFileSync("sh", ["-c", "command -v npm"], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
@@ -761,6 +767,13 @@ function npmText(nodeExecutable: string, npmExecutable: string, args: string[]):
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
+}
+
+function npmStringList(nodeExecutable: string, npmExecutable: string, key: string): string[] {
+  return npmText(nodeExecutable, npmExecutable, ["config", "get", key])
+    .split(/\r?\n/u)
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function npmFalse(nodeExecutable: string, npmExecutable: string, key: string): false {
@@ -858,6 +871,7 @@ function assertNpmPolicyShape(proof: GovernedRuntimeNpmPolicyProof): void {
     !Number.isFinite(observedAt) ||
     !Number.isFinite(effectiveBefore) ||
     proof.minReleaseAgeDays < GOVERNED_RUNTIME_NPM_MIN_RELEASE_AGE_DAYS ||
+    !sameJson(proof.minReleaseAgeExclusions, [...GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS]) ||
     observedAgeMs < expectedAgeMs - 5 * 60 * 1000 ||
     observedAgeMs > expectedAgeMs + 5 * 60 * 1000 ||
     proof.registry !== GOVERNED_RUNTIME_NPM_REGISTRY ||
@@ -888,6 +902,11 @@ export function inspectGovernedRuntimeNpmPolicy(): GovernedRuntimeNpmPolicyProof
   const minReleaseAgeDays = Number(
     npmText(nodeExecutable.realpath, npmExecutable.realpath, ["config", "get", "min-release-age"]),
   );
+  const minReleaseAgeExclusions = npmStringList(
+    nodeExecutable.realpath,
+    npmExecutable.realpath,
+    "min-release-age-exclude",
+  );
   const proof: GovernedRuntimeNpmPolicyProof = {
     nodeExecutable,
     npmExecutable,
@@ -899,6 +918,7 @@ export function inspectGovernedRuntimeNpmPolicy(): GovernedRuntimeNpmPolicyProof
       "before",
     ]),
     minReleaseAgeDays,
+    minReleaseAgeExclusions,
     registry: npmText(nodeExecutable.realpath, npmExecutable.realpath, [
       "config",
       "get",
@@ -927,6 +947,7 @@ export function verifyGovernedRuntimeNpmPolicy(
     npmExecutable: candidate.npmExecutable,
     version: candidate.version,
     minReleaseAgeDays: candidate.minReleaseAgeDays,
+    minReleaseAgeExclusions: candidate.minReleaseAgeExclusions,
     registry: candidate.registry,
     cacheRealpath: candidate.cacheRealpath,
     temporaryDirectoryRealpath: candidate.temporaryDirectoryRealpath,
@@ -940,6 +961,7 @@ export function verifyGovernedRuntimeNpmPolicy(
     npmExecutable: current.npmExecutable,
     version: current.version,
     minReleaseAgeDays: current.minReleaseAgeDays,
+    minReleaseAgeExclusions: current.minReleaseAgeExclusions,
     registry: current.registry,
     cacheRealpath: current.cacheRealpath,
     temporaryDirectoryRealpath: current.temporaryDirectoryRealpath,
@@ -970,6 +992,7 @@ export function governedRuntimeNpmEffectEnvironment(
     TMPDIR: npm.temporaryDirectoryRealpath,
     npm_config_audit: "false",
     npm_config_before: npm.effectiveBefore,
+    npm_config_min_release_age_exclude: npm.minReleaseAgeExclusions.join("\n"),
     npm_config_cache: npm.cacheRealpath,
     npm_config_force: "false",
     npm_config_fund: "false",

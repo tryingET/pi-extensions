@@ -24,6 +24,20 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
+      - name: Prepare governed npm runtime policy
+        run: |
+          governed_tmp="$RUNNER_TEMP/governed-runtime"
+          governed_cache="$RUNNER_TEMP/governed-npm-cache"
+          governed_npmrc="$RUNNER_TEMP/governed-runtime.npmrc"
+          npm_global="$RUNNER_TEMP/npm-global"
+          mkdir -p "$governed_tmp" "$governed_cache" "$npm_global"
+          echo "TMPDIR=$governed_tmp" >> "$GITHUB_ENV"
+          echo "GOVERNED_NPM_CACHE=$governed_cache" >> "$GITHUB_ENV"
+          echo "NPM_CONFIG_USERCONFIG=$governed_npmrc" >> "$GITHUB_ENV"
+          npm install --global --prefix "$npm_global" npm@11.19.0
+          echo "$npm_global/bin" >> "$GITHUB_PATH"
+          "$npm_global/bin/npm" --version
+
       - name: Install Dolt for governed deep-review canary
         run: |
           curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh -o "$RUNNER_TEMP/install-dolt.sh"
@@ -51,10 +65,25 @@ jobs:
 
       - name: Materialize governed runtime canary dependencies
         working-directory: ${{ env.GOVERNED_CI_ROOT }}
-        run: >-
-          node ./scripts/governed-deep-review-canary.mjs materialize
-          --source-root "$GOVERNED_CI_ROOT"
-          --expected-commit "$GITHUB_SHA"
+        run: |
+          before="$(node -e 'console.log(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())')"
+          cat > "$NPM_CONFIG_USERCONFIG" <<EOF
+          min-release-age=7
+          min-release-age-exclude[]=@tryinget/*
+          before=$before
+          registry=https://registry.npmjs.org/
+          offline=false
+          prefer-offline=false
+          force=false
+          cache=$GOVERNED_NPM_CACHE
+          EOF
+          npm --version
+          npm config get min-release-age
+          npm config get min-release-age-exclude
+          npm config get before
+          node ./scripts/governed-deep-review-canary.mjs materialize \
+            --source-root "$GOVERNED_CI_ROOT" \
+            --expected-commit "$GITHUB_SHA"
 
       - name: Run quality gate (ci)
         working-directory: ${{ env.GOVERNED_CI_ROOT }}
