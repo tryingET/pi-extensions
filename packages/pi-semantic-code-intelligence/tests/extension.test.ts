@@ -194,6 +194,8 @@ test("native tool execution delegates one composite MCP call and records utiliza
   ]);
   assert.match(result.content[0].text, /explore_symbol_impact/);
   assert.equal(result.details.transport, "mcp-stdio");
+  assert.equal("workspace" in result.details, false);
+  assert.doesNotMatch(JSON.stringify(result.details), /\/workspace\/repo/);
   assert.deepEqual(result.details.utilization.sciCompositeCalls, ["explore_symbol_impact"]);
   assert.deepEqual(result.details.utilization.nativeFallbacks, []);
   assert.deepEqual(result.details.utilization.rawShellAvoided, [

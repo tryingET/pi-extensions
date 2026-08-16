@@ -39,7 +39,7 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
           const result = await bridge.callTool(spec.name, args, ctx.cwd, signal);
           if (result.isError) throw new Error(errorText(spec.name, result));
 
-          return formatPiResult(spec.name, ctx.cwd, Date.now() - startedAt, result);
+          return formatPiResult(spec.name, Date.now() - startedAt, result);
         },
       });
     }
@@ -71,7 +71,6 @@ function guidelineFor(name: SciCompositeToolName): string {
 
 function formatPiResult(
   workflow: SciCompositeToolName,
-  workspace: string,
   elapsedMs: number,
   result: SciBridgeCallResult,
 ) {
@@ -90,7 +89,6 @@ function formatPiResult(
     details: {
       schema: "pi.sci_composite_call.v1",
       workflow,
-      workspace,
       transport: "mcp-stdio",
       schemaCompatibility: "verified_on_connect",
       elapsedMs,
