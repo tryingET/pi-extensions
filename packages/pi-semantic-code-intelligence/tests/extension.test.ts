@@ -16,6 +16,7 @@ interface NativeToolResult {
   content: Array<{ type: string; text: string }>;
   details: {
     transport: string;
+    truncated: boolean;
     utilization: {
       sciCompositeCalls: string[];
       nativeFallbacks: string[];
@@ -69,12 +70,117 @@ function createHarness(bridge: SciBridge) {
 }
 
 function fakeBridge() {
+  function fakeExploreDetails(mode: "standard" | "debug") {
+    const section = {
+      count: 0,
+      emitted: 0,
+      omitted: 0,
+      truncated: false,
+      items: [],
+      shapeFailures: { invalid: 0, outsideWorkspace: 0 },
+    };
+    const provenance = {
+      present: false,
+      sources: [],
+      fields: [],
+      fieldCount: 0,
+      fieldCountExact: true,
+      fieldsTruncated: false,
+    };
+    const details = {
+      schemaVersion: 1,
+      mode,
+      definitions: section,
+      declarations: section,
+      references: section,
+      graph: {
+        hasImpactEvidence: false,
+        edges: { exports: section, callers: section, imports: section, callees: section },
+      },
+      provenance: { definitionLookup: provenance, symbolMap: provenance, graph: provenance },
+      counts: {},
+      omissions: [],
+      limitations: [],
+      disclosure: {
+        packetByteBudget: 49_152,
+        byteBudget: mode === "debug" ? 36_864 : 24_576,
+        emittedBytes: 0,
+        itemBudgetPerSection: 12,
+        analyzedItemBudgetPerSection: 4_096,
+        textCharacterBudget: 200,
+        truncated: false,
+        byteTruncated: false,
+        omittedItems: 0,
+        omittedRawFragments: 0,
+        truncatedRawFragments: 0,
+        packetOmissions: { impactFiles: 0, nextReads: 0, limitations: 0 },
+      },
+      ...(mode === "debug"
+        ? {
+            diagnostics: {
+              timingsMs: {},
+              subcalls: [],
+              redaction: {
+                policy: "bounded",
+                absolutePaths: "redacted",
+                secrets: "redacted",
+                environment: "redacted",
+                stackTraces: "redacted",
+                connectionCredentials: "redacted",
+              },
+              rawFragmentBudgetBytes: 768,
+            },
+          }
+        : {}),
+    };
+    for (let index = 0; index < 4; index++) {
+      details.disclosure.emittedBytes = Buffer.byteLength(JSON.stringify(details), "utf8");
+    }
+    return details;
+  }
+
   const calls: Array<{ name: string; args: Record<string, unknown>; cwd: string }> = [];
   let closes = 0;
   const bridge: SciBridge = {
     async callTool(name, args, cwd) {
       calls.push({ name, args, cwd });
-      return { content: [{ type: "text", text: JSON.stringify({ ok: true, workflow: name }) }] };
+      const payload =
+        name === "explore_symbol_impact"
+          ? {
+              schemaVersion: 1,
+              workflow: name,
+              ok: true,
+              symbol: String(args.symbol ?? "Target"),
+              status: "confirmed",
+              degraded: false,
+              definition: { path: "src/target.ts", line: 1, kind: "function" },
+              definitions: { count: 1 },
+              impact: {
+                files: [
+                  { path: "src/target.ts", score: 120, reasons: ["definition"], signals: [] },
+                ],
+                totalFiles: 1,
+                truncated: false,
+              },
+              editRisk: {
+                level: "low",
+                reasons: [],
+                signals: {
+                  publicApi: { detected: false, files: [], hiddenFiles: 0 },
+                  state: { detected: false, files: [], hiddenFiles: 0 },
+                  registry: { detected: false, files: [], hiddenFiles: 0 },
+                  tests: { detected: false, files: [], hiddenFiles: 0 },
+                },
+              },
+              nextReads: [{ path: "src/target.ts", reason: "Start at the confirmed definition." }],
+              limitations: [],
+              details:
+                args.mode === "standard" || args.mode === "debug"
+                  ? fakeExploreDetails(args.mode)
+                  : "mode: standard",
+            }
+          : { ok: true, workflow: name };
+      return { content: [{ type: "text", text: JSON.stringify(payload) }] };
     },
     async advertisedToolNames() {
       return [...SCI_COMPOSITE_TOOL_NAMES];
@@ -139,9 +245,11 @@ test("registering and startup-selecting SCI reads does not spawn MCP before exec
   const command = path.join(tempRoot, "semantic-code-mcp-sentinel");
   const runtimeDir = path.join(workspace, ".ontology", "pi-mcp");
   await mkdir(workspace);
-  await writeFile(command, '#!/bin/sh\nprintf "spawned" > "$SCI_SENTINEL_MARKER"\nexit 1\n', {
-    mode: 0o700,
-  });
+  await writeFile(
+    command,
+    '#!/bin/sh\nprintf "spawned" > "$SCI_SENTINEL_MARKER"\nprintf "secret /srv/private.ts" >&2\nexit 1\n',
+    { mode: 0o700 },
+  );
 
   const bridge = new SciMcpBridge({
     command,
@@ -164,8 +272,19 @@ test("registering and startup-selecting SCI reads does not spawn MCP before exec
       undefined,
       { cwd: workspace },
     ),
-    /Could not start installed semantic-code-mcp/,
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, /Backend diagnostics, paths, and stderr were withheld/);
+      assert.doesNotMatch(message, /\/srv\/private|pi-sci-lazy-startup/);
+      return true;
+    },
   );
+  await assert.rejects(bridge.advertisedToolNames(workspace), (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    assert.match(message, /Could not start installed semantic-code-mcp for this workspace/);
+    assert.doesNotMatch(message, /\/srv\/private|pi-sci-lazy-startup/);
+    return true;
+  });
 
   assert.equal(await exists(marker), true);
   assert.equal(await exists(runtimeDir), true);
@@ -203,6 +322,195 @@ test("native tool execution delegates one composite MCP call and records utiliza
     "AST symbol map",
     "graph expansion",
   ]);
+});
+
+test("native tool failures withhold backend paths, stderr, and producer diagnostics", async () => {
+  const cases: SciBridge[] = [
+    {
+      async callTool() {
+        throw new Error("backend stack at /srv/private.ts with xoxb-secret-value-123456");
+      },
+      async advertisedToolNames() {
+        return [...SCI_COMPOSITE_TOOL_NAMES];
+      },
+      async close() {},
+    },
+    {
+      async callTool() {
+        return {
+          isError: true,
+          content: [{ type: "text", text: '{"error":"/srv/private.ts xoxb-secret-value-123456"}' }],
+        };
+      },
+      async advertisedToolNames() {
+        return [...SCI_COMPOSITE_TOOL_NAMES];
+      },
+      async close() {},
+    },
+  ];
+
+  for (const bridge of cases) {
+    const tool = createHarness(bridge).tools.get("explore_symbol_impact");
+    assert.ok(tool);
+    await assert.rejects(
+      tool.execute("call-error", { symbol: "Target" }, undefined, undefined, {
+        cwd: "/srv/private",
+      }),
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        assert.doesNotMatch(message, /\/srv\/private|xoxb-secret|backend stack/);
+        assert.match(message, /withheld/);
+        return true;
+      },
+    );
+  }
+});
+
+test("native tool returns valid fail-closed JSON for malformed and oversized producer content", async () => {
+  const payloads = [
+    "not-json /srv/private.ts xoxb-secret-value-123456",
+    "null",
+    "42",
+    "[]",
+    "{}",
+    JSON.stringify({ workflow: "wrong_workflow", ok: true, status: "confirmed" }),
+    JSON.stringify({ workflow: "explore_symbol_impact", ok: true }),
+    JSON.stringify({
+      schemaVersion: 1,
+      workflow: "explore_symbol_impact",
+      ok: true,
+      symbol: "Target",
+      status: "confirmed",
+      degraded: false,
+      nextReads: [],
+      limitations: [],
+    }),
+    JSON.stringify({
+      schemaVersion: 999,
+      workflow: "explore_symbol_impact",
+      ok: true,
+      symbol: "Target",
+      status: "confirmed",
+      degraded: false,
+      error: "backend at /srv/private.ts Bearer abcDEF123456789xyz",
+      nextReads: [],
+      limitations: [],
+    }),
+    JSON.stringify({
+      workflow: "explore_symbol_impact",
+      ok: true,
+      status: "confirmed",
+      details: { raw: "x".repeat(100_000) },
+    }),
+  ];
+  for (const text of payloads) {
+    const bridge: SciBridge = {
+      async callTool() {
+        return { content: [{ type: "text", text }] };
+      },
+      async advertisedToolNames() {
+        return [...SCI_COMPOSITE_TOOL_NAMES];
+      },
+      async close() {},
+    };
+    const tool = createHarness(bridge).tools.get("explore_symbol_impact");
+    assert.ok(tool);
+    const result = await tool.execute("call-bounded", { symbol: "Target" }, undefined, undefined, {
+      cwd: "/srv/private",
+    });
+    const parsed = JSON.parse(result.content[0].text);
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.status, "indeterminate");
+    assert.doesNotMatch(result.content[0].text, /\/srv\/private|xoxb-secret|x{1000}/);
+    assert.equal("workspace" in result.details, false);
+  }
+});
+
+test("native explore validation rejects nested unknown fields and false budget receipts", async () => {
+  const fake = fakeBridge();
+  const base = await fake.bridge.callTool(
+    "explore_symbol_impact",
+    { symbol: "Target", mode: "standard" },
+    "/workspace/repo",
+  );
+  const textItem = base.content?.find(
+    (item) => item && typeof item === "object" && "text" in item && typeof item.text === "string",
+  );
+  assert.ok(textItem && typeof textItem === "object" && "text" in textItem);
+  const packet = JSON.parse(String(textItem.text)) as Record<string, unknown>;
+  const details = packet.details as Record<string, unknown>;
+  const definitions = details.definitions as Record<string, unknown>;
+  const disclosure = details.disclosure as Record<string, unknown>;
+  definitions.raw = "unrestricted backend";
+  disclosure.byteBudget = 50_000;
+  disclosure.emittedBytes = 1;
+
+  const bridge: SciBridge = {
+    async callTool() {
+      return { content: [{ type: "text", text: JSON.stringify(packet) }] };
+    },
+    async advertisedToolNames() {
+      return [...SCI_COMPOSITE_TOOL_NAMES];
+    },
+    async close() {},
+  };
+  const tool = createHarness(bridge).tools.get("explore_symbol_impact");
+  assert.ok(tool);
+  const result = await tool.execute(
+    "call-nested-invalid",
+    { symbol: "Target", mode: "standard" },
+    undefined,
+    undefined,
+    { cwd: "/workspace/repo" },
+  );
+  const parsed = JSON.parse(result.content[0].text);
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.status, "indeterminate");
+  assert.doesNotMatch(result.content[0].text, /unrestricted backend/);
+});
+
+test("native explore validation accepts ten next reads and rejects eleven", async () => {
+  const fake = fakeBridge();
+  const base = await fake.bridge.callTool(
+    "explore_symbol_impact",
+    { symbol: "Target" },
+    "/workspace/repo",
+  );
+  const textItem = base.content?.find(
+    (item) => item && typeof item === "object" && "text" in item && typeof item.text === "string",
+  );
+  assert.ok(textItem && typeof textItem === "object" && "text" in textItem);
+  const packet = JSON.parse(String(textItem.text)) as Record<string, unknown>;
+
+  for (const count of [10, 11]) {
+    packet.nextReads = Array.from({ length: count }, (_, index) => ({
+      path: `src/target-${index}.ts`,
+      reason: "Bounded read",
+    }));
+    const bridge: SciBridge = {
+      async callTool() {
+        return { content: [{ type: "text", text: JSON.stringify(packet) }] };
+      },
+      async advertisedToolNames() {
+        return [...SCI_COMPOSITE_TOOL_NAMES];
+      },
+      async close() {},
+    };
+    const tool = createHarness(bridge).tools.get("explore_symbol_impact");
+    assert.ok(tool);
+    const result = await tool.execute(
+      "call-next-reads",
+      { symbol: "Target" },
+      undefined,
+      undefined,
+      {
+        cwd: "/workspace/repo",
+      },
+    );
+    const parsed = JSON.parse(result.content[0].text);
+    assert.equal(parsed.ok, count === 10);
+    if (count === 11) assert.equal(parsed.status, "indeterminate");
+  }
 });
 
 test("session shutdown closes the long-lived MCP bridge", async () => {
