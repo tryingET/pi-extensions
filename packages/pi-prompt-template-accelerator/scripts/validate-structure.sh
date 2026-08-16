@@ -31,7 +31,6 @@ required_files=(
   "docs/dev/EXTENSION_SOP.md"
   "extensions/ptx.ts"
   "scripts/install-hooks.sh"
-  "scripts/docs-list.sh"
   "scripts/quality-gate.sh"
   "scripts/validate-structure.sh"
   "prompts/pi-prompt-template-accelerator-implementation-planning.md"
@@ -54,7 +53,6 @@ required_dirs=(
 
 required_executables=(
   "scripts/install-hooks.sh"
-  "scripts/docs-list.sh"
   "scripts/quality-gate.sh"
   "scripts/validate-structure.sh"
 )
@@ -212,18 +210,18 @@ try {
   }
 
   const docsListScript = p.scripts?.["docs:list"];
-  if (docsListScript !== "bash ./scripts/docs-list.sh") {
-    fail("package.json scripts.docs:list must be 'bash ./scripts/docs-list.sh'");
+  if (docsListScript !== "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs") {
+    fail("package.json scripts.docs:list must be 'node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs'");
   }
 
   const docsListWorkspaceScript = p.scripts?.["docs:list:workspace"];
-  if (docsListWorkspaceScript !== "bash ./scripts/docs-list.sh --workspace --discover") {
-    fail("package.json scripts.docs:list:workspace must be 'bash ./scripts/docs-list.sh --workspace --discover'");
+  if (docsListWorkspaceScript !== "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover") {
+    fail("package.json scripts.docs:list:workspace must be 'node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover'");
   }
 
   const docsListJsonScript = p.scripts?.["docs:list:json"];
-  if (docsListJsonScript !== "bash ./scripts/docs-list.sh --json") {
-    fail("package.json scripts.docs:list:json must be 'bash ./scripts/docs-list.sh --json'");
+  if (docsListJsonScript !== "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json") {
+    fail("package.json scripts.docs:list:json must be 'node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json'");
   }
 
   const versionPattern = /^\d+\.\d+\.\d+([-.][0-9A-Za-z.]+)?$/;

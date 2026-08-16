@@ -212,7 +212,7 @@ npm run docs:list:workspace
 npm run docs:list:json
 ```
 
-Wrapper script: [scripts/docs-list.sh](scripts/docs-list.sh)
+Canonical implementation: `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs`
 
 Resolution order:
 1. `DOCS_LIST_SCRIPT`

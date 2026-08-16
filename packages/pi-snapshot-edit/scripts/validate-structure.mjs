@@ -101,9 +101,10 @@ function validatePackageJson() {
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     check: "npm run quality:ci",
     test: "bash ../../scripts/package-quality-gate.sh test .",
-    "docs:list": "bash ./scripts/docs-list.sh",
-    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
-    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "docs:list": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs",
+    "docs:list:workspace":
+      "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover",
+    "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "bash ./scripts/release-check.sh",
   };

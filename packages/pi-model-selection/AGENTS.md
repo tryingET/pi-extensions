@@ -47,7 +47,7 @@ It is template-baseline-aligned with `../pi-extensions-template`, but it intenti
 - Use `npm run docs:list:workspace` for workspace/monorepo scans.
 - For TypeScript extension conventions, consult `engineering-core` lane `pi-ts`:
   - `uv tool run --from ~/ai-society/core/engineering-core engineering-core show pi-ts --prefer-repo`
-- If your docs-list script is not at `~/ai-society/core/agent-scripts/scripts/docs-list.mjs`, set `DOCS_LIST_SCRIPT`.
+- The docs scripts invoke `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs` directly; do not add a package-local wrapper or alternate implementation.
 
 ## Validation
 

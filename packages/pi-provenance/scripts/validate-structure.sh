@@ -31,7 +31,6 @@ required_files=(
   "docs/adr/.gitkeep"
   "policy/engineering-lane.json"
   "policy/security-policy.json"
-  "scripts/docs-list.sh"
   "scripts/release-check.sh"
   "scripts/validate-structure.sh"
   "scripts/validate-structure.mjs"
@@ -55,7 +54,6 @@ required_dirs=(
 )
 
 required_executables=(
-  "scripts/docs-list.sh"
   "scripts/release-check.sh"
   "scripts/validate-structure.sh"
   "scripts/validate-structure.mjs"

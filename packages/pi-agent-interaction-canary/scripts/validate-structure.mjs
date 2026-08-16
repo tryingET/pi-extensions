@@ -110,9 +110,10 @@ function validatePackageJson() {
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     check: "npm run quality:ci",
     test: "node --experimental-strip-types --test tests/*.test.mjs",
-    "docs:list": "bash ./scripts/docs-list.sh",
-    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
-    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "docs:list": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs",
+    "docs:list:workspace":
+      "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover",
+    "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
   };
 
   for (const [scriptName, expected] of Object.entries(scriptExpectations)) {

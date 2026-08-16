@@ -42,9 +42,9 @@
     "test:compat:parallel-tool-events": "node --test tests/self/registration.test.mjs tests/self/perception.test.mjs tests/self/perception-file-budget.test.mjs tests/self/perception-recovery-cues.test.mjs",
     "build:runtime": "node scripts/build-runtime.mjs",
     "prepare": "npm run build:runtime",
-    "docs:list": "bash ./scripts/docs-list.sh",
-    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
-    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "docs:list": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs",
+    "docs:list:workspace": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover",
+    "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
   },

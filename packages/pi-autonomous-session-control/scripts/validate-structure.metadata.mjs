@@ -212,9 +212,10 @@ try {
     test: "npm run quality:ci",
     "test:live:prompt-vault":
       "ASC_RUN_LIVE_PROMPT_VAULT_TESTS=1 node --test tests/prompt-vault-db-integration.live.mjs tests/prompt-vault-cross-extension.live.mjs",
-    "docs:list": "bash ./scripts/docs-list.sh",
-    "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
-    "docs:list:json": "bash ./scripts/docs-list.sh --json",
+    "docs:list": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs",
+    "docs:list:workspace":
+      "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover",
+    "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
     "release:check": "bash ./scripts/release-check.sh",
     "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
   };
