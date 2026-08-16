@@ -443,6 +443,7 @@ test("createOrchestratorSubagentExecutor reuses the ASC public runtime for orche
 
     const executor = createOrchestratorSubagentExecutor({
       sessionsDir: tempDir,
+      customSpawnerCapacityOwnership: "parent_owned",
       spawner: async (def, model, ctx, state, signal) => {
         calls.push({ def, model, ctx, state, signal });
         return {
@@ -512,6 +513,7 @@ test("createOrchestratorSubagentExecutor forwards model context for ASC child ex
 
     const executor = createOrchestratorSubagentExecutor({
       sessionsDir: tempDir,
+      customSpawnerCapacityOwnership: "parent_owned",
       spawner: async (def, model, ctx, state, signal) => {
         calls.push({ def, model, ctx, state, signal });
         return {
@@ -640,6 +642,7 @@ test("createOrchestratorSubagentExecutor preserves truncation metadata from ASC 
   try {
     const executor = createOrchestratorSubagentExecutor({
       sessionsDir: tempDir,
+      customSpawnerCapacityOwnership: "parent_owned",
       spawner: async () => ({
         output: "x".repeat(70_000),
         exitCode: 0,

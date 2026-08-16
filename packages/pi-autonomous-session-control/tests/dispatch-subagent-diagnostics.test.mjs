@@ -53,7 +53,7 @@ async function setup(spawnerOverride, stateOptions) {
     },
   };
 
-  registerSubagentTool(pi, state, () => "test/model", spawnerOverride);
+  registerSubagentTool(pi, state, () => "test/model", spawnerOverride, "parent_owned");
 
   return {
     tool,

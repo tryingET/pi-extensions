@@ -8,7 +8,17 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { EventEmitter, once } from "node:events";
 import { unlinkSync } from "node:fs";
-import { link, mkdtemp, readdir, readFile, rm, unlink, utimes, writeFile } from "node:fs/promises";
+import {
+  link,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  unlink,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -23,6 +33,7 @@ import { createAscExecutionRuntime } from "../extensions/self/subagent-runtime.t
 import {
   createSubagentState,
   getProcessStartTicks,
+  getSessionStatusPath,
   writeSessionStatus,
 } from "../extensions/self/subagent-session.ts";
 import { spawnSubagentWithSpawn } from "../extensions/self/subagent-spawn.ts";
@@ -52,6 +63,20 @@ async function withEnv(overrides, run) {
 
 function doneResult(output = "ok") {
   return { output, exitCode: 0, elapsed: 25, status: "done" };
+}
+
+async function writeDeadPreSpawnCapacityLease(lockPath, token = "dead-pre-spawn-owner") {
+  await writeFile(
+    lockPath,
+    JSON.stringify({
+      kind: "asc.subagent_capacity_lease.v1",
+      slot: 0,
+      pid: 2_147_483_647,
+      pidStartedAt: 0,
+      token,
+      createdAt: new Date().toISOString(),
+    }),
+  );
 }
 
 test("non-git working directories retain distinct repository ownership identities", async () => {
@@ -84,6 +109,7 @@ test("runtime forwards the typed task contract, thinking, progress, usage, and e
           effectiveModel: "openai-codex-2/gpt-test",
           source: "fallback",
         }),
+        customSpawnerCapacityOwnership: "parent_owned",
         spawner: async (def, _model, _ctx, _state, _signal, onProgress) => {
           capturedDef = def;
           onProgress?.({
@@ -167,6 +193,7 @@ test("profile thinking defaults remain distinct and explicit request thinking wi
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async (def) => {
       defs.push(def);
       return doneResult();
@@ -201,6 +228,7 @@ test("unlimited execution requires both request and host opt-in while startup st
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async (def) => {
       capturedDef = def;
       return doneResult();
@@ -249,6 +277,7 @@ test("resume requires one exact owned dispatch id and reuses only its canonical 
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async (def) => {
       defs.push(def);
       return doneResult(def.resumed ? "resumed" : "initial");
@@ -415,6 +444,7 @@ test("custom spawner sidecars cannot cancel the parent Pi process", async () => 
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => {
       await gate;
       return doneResult();
@@ -441,6 +471,41 @@ test("custom spawner sidecars cannot cancel the parent Pi process", async () => 
   }
 });
 
+test("custom status projection failure cannot skip capacity and reservation teardown", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-custom-status-failure-"));
+  try {
+    const runtime = createAscExecutionRuntime({
+      sessionsDir,
+      modelProvider: () => "test/model",
+      customSpawnerCapacityOwnership: "parent_owned",
+      spawner: async (def) => {
+        const statusPath = getSessionStatusPath(sessionsDir, def.name);
+        await unlink(statusPath);
+        await mkdir(statusPath);
+        return doneResult("custom work completed");
+      },
+    });
+
+    const result = await runtime.execute(
+      { profile: "reviewer", objective: "Exercise completion projection failure" },
+      { cwd: process.cwd(), sessionKey: "custom-status-parent" },
+    );
+
+    assert.equal(result.ok, false);
+    assert.equal(result.details.status, "error");
+    assert.match(result.text, /custom-spawner status projection failed/);
+    assert.equal(runtime.state.activeCount, 0);
+    assert.equal(
+      (await readdir(sessionsDir)).filter((entry) =>
+        /^\.asc-subagent-capacity-\d+\.lock/.test(entry),
+      ).length,
+      0,
+    );
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("shared capacity leases fail closed until the exact holder releases", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-dispatch-capacity-"));
   try {
@@ -458,7 +523,7 @@ test("shared capacity leases fail closed until the exact holder releases", async
   }
 });
 
-test("fresh malformed capacity locks fail closed and only age-bounded stale locks are reclaimed", async () => {
+test("malformed capacity locks remain fail-closed regardless of age", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-dispatch-malformed-capacity-"));
   const lockPath = join(sessionsDir, ".asc-subagent-capacity-0.lock");
   try {
@@ -476,9 +541,8 @@ test("fresh malformed capacity locks fail closed and only age-bounded stale lock
     assert.equal(reserveSharedSubagentCapacity(sessionsDir, 1), null);
     const staleTime = new Date(Date.now() - 10_000);
     await utimes(lockPath, staleTime, staleTime);
-    const reclaimed = reserveSharedSubagentCapacity(sessionsDir, 1);
-    assert.ok(reclaimed);
-    reclaimed.release();
+    assert.equal(reserveSharedSubagentCapacity(sessionsDir, 1), null);
+    await unlink(lockPath);
     await writeFile(
       lockPath,
       JSON.stringify({
@@ -500,9 +564,7 @@ test("stale lease takeover cannot unlink a replacement interposed after observat
   const lockPath = join(sessionsDir, ".asc-subagent-capacity-0.lock");
   let replacement;
   try {
-    await writeFile(lockPath, "malformed-stale-owner");
-    const staleTime = new Date(Date.now() - 10_000);
-    await utimes(lockPath, staleTime, staleTime);
+    await writeDeadPreSpawnCapacityLease(lockPath, "stale-takeover-owner");
 
     const takeover = reserveSharedSubagentCapacity(sessionsDir, 1, {
       afterStaleLeaseClaim() {
@@ -530,9 +592,7 @@ test("crashed capacity reclaim owners do not permanently strand a slot", async (
   const lockPath = join(sessionsDir, ".asc-subagent-capacity-0.lock");
   const reclaimPath = `${lockPath}.reclaim`;
   try {
-    await writeFile(lockPath, "malformed-stale-owner");
-    const staleTime = new Date(Date.now() - 10_000);
-    await utimes(lockPath, staleTime, staleTime);
+    await writeDeadPreSpawnCapacityLease(lockPath, "crashed-reclaimer-owner");
     const crashedPid = 2_147_483_647;
     await writeFile(
       reclaimPath,
@@ -561,9 +621,7 @@ test("concurrent stale reclaim contenders admit exactly one capacity owner", asy
   const lockPath = join(sessionsDir, ".asc-subagent-capacity-0.lock");
   const moduleUrl = pathToFileURL(join(process.cwd(), "extensions/self/subagent-capacity.ts")).href;
   try {
-    await writeFile(lockPath, "malformed-stale-owner");
-    const staleTime = new Date(Date.now() - 10_000);
-    await utimes(lockPath, staleTime, staleTime);
+    await writeDeadPreSpawnCapacityLease(lockPath, "concurrent-reclaim-owner");
     const startAt = Date.now() + 300;
     const script = `import { reserveSharedSubagentCapacity } from ${JSON.stringify(moduleUrl)}; const delay = Math.max(0, ${startAt} - Date.now()); setTimeout(() => { const lease = reserveSharedSubagentCapacity(${JSON.stringify(sessionsDir)}, 1); console.log(lease ? "acquired" : "blocked"); if (lease) setTimeout(() => { lease.release(); }, 500); }, delay);`;
     const contenders = Array.from({ length: 6 }, () =>

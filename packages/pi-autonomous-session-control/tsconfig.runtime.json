@@ -15,6 +15,7 @@
     "execution.ts",
     "extensions/self/subagent-pi-json-filter.ts",
     "extensions/self/subagent-pi-json-filter-v2.ts",
+    "extensions/self/subagent-raw-supervisor-v1.ts",
     "extensions/self/subagent-protocol-v2.ts"
   ]
 }

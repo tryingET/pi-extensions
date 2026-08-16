@@ -1,6 +1,7 @@
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SubagentState } from "./subagent-session.ts";
+import { getProcessStartTicks } from "./subagent-session-status.ts";
 import { getSubagentSessionFile } from "./subagent-spawn-status.ts";
 import type { SubagentDef } from "./subagent-spawn-types.ts";
 
@@ -55,6 +56,40 @@ export function createSubagentProtocolArgs(params: {
     "--execution-timeout-ms",
     String(params.executionTimeoutMs),
   ];
+
+  const parentPidStartedAt = getProcessStartTicks(process.pid);
+  if (parentPidStartedAt !== null) {
+    args.push(
+      "--parent-pid",
+      String(process.pid),
+      "--parent-pid-started-at",
+      String(parentPidStartedAt),
+    );
+  }
+
+  const custody = params.def.capacityCustody;
+  if (custody) {
+    args.push(
+      "--capacity-custody-path",
+      custody.path,
+      "--capacity-path",
+      custody.capacityPath,
+      "--capacity-spawn-committed-path",
+      custody.spawnCommittedPath,
+      "--capacity-slot",
+      String(custody.slot),
+      "--capacity-token",
+      custody.token,
+      "--capacity-dispatch-id",
+      custody.dispatchId,
+      "--capacity-attempt-id",
+      custody.attemptId,
+      "--capacity-parent-pid",
+      String(custody.parentPid),
+      "--capacity-parent-pid-started-at",
+      String(custody.parentPidStartedAt),
+    );
+  }
 
   for (const extensionSource of params.def.extensionSources ?? []) {
     if (typeof extensionSource === "string" && extensionSource.trim().length > 0) {

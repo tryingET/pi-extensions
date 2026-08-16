@@ -186,6 +186,7 @@ async function createParityHarness({ stateOptions, spawner, seed } = {}) {
       sessionsDir: runtimeSessionsDir,
       state: runtimeState,
       modelProvider: () => "test/model",
+      customSpawnerCapacityOwnership: "parent_owned",
       spawner: async (...args) => {
         runtimeDefs.push(args[0]);
         return executeSpawner(...args);
@@ -207,6 +208,7 @@ async function createParityHarness({ stateOptions, spawner, seed } = {}) {
         toolDefs.push(args[0]);
         return executeSpawner(...args);
       },
+      "parent_owned",
     );
 
     return {
@@ -258,6 +260,7 @@ async function executeTool(harness, request, toolCallId = "tc-public-parity") {
 
 test("public runtime parity: prompt envelope, updates, and result shaping match dispatch_subagent", async () => {
   const harness = await createParityHarness({
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => ({
       output: "runtime ok",
       exitCode: 0,
@@ -446,6 +449,7 @@ test("public runtime parity: live lock collisions pick the same suffixed session
 
 test("public runtime parity: concurrent same-name requests reserve the same unique session set", async () => {
   const harness = await createParityHarness({
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async (def) => {
       await new Promise((resolve) => setTimeout(resolve, 25));
       return {
@@ -485,6 +489,7 @@ test("public runtime parity: runtime-owned concurrency reservations apply to cus
   const toolGate = createDeferred();
   const harness = await createParityHarness({
     stateOptions: { maxConcurrent: 1 },
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async (def) => {
       if (def.objective === "runtime-held") {
         await runtimeGate.promise;

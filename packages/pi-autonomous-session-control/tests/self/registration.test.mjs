@@ -55,6 +55,7 @@ test("registerSubagentTool advertises prompt-envelope provenance on dispatch_sub
         elapsed: 10,
         status: "done",
       }),
+      "parent_owned",
     );
 
     const tool = tools.get("dispatch_subagent");

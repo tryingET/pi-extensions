@@ -99,6 +99,7 @@ export function createWorkflowExecutor(options: WorkflowExecutorOptions): Workfl
       sessionsDir: options.sessionsDir,
       state: options.state,
       spawner: options.spawner,
+      customSpawnerCapacityOwnership: options.customSpawnerCapacityOwnership,
     });
 
   return {

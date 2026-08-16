@@ -4,6 +4,10 @@
 
 import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
 import { getContextRepoRoot } from "./session-context.ts";
+import {
+  formatSharedSubagentCapacityHolders,
+  inspectSharedSubagentCapacity,
+} from "./subagent-capacity.ts";
 import { cancelSubagentDispatch } from "./subagent-control.ts";
 import {
   cleanupOldSessions,
@@ -77,9 +81,10 @@ export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState)
   });
 
   pi.registerCommand("subagent-status", {
-    description: "Show subagent statistics",
+    description: "Show subagent statistics and shared-capacity holders",
     handler: async (_args, ctx) => {
       const stats = getSubagentStats(state);
+      const capacityHolders = inspectSharedSubagentCapacity(state.sessionsDir, state.maxConcurrent);
       const oldestAge = stats.oldestSessionAge
         ? `${Math.round(stats.oldestSessionAge / ONE_DAY_MS)}d old`
         : "none";
@@ -94,7 +99,7 @@ export function registerSubagentCommands(pi: ExtensionAPI, state: SubagentState)
           `abandoned=${stats.statusCounts.abandoned}`,
         ].join(", ");
         ctx.ui.notify(
-          `Subagents: ${stats.active}/${stats.maxConcurrent} active, ${stats.completed} completed, ${stats.sessionFiles} sessions (${oldestAge}); ${statusSummary}`,
+          `Subagents: ${stats.active}/${stats.maxConcurrent} process-local active, shared holders=${capacityHolders.length}/${stats.maxConcurrent}, ${stats.completed} completed, ${stats.sessionFiles} sessions (${oldestAge}); ${statusSummary}${capacityHolders.length > 0 ? `; ${formatSharedSubagentCapacityHolders(capacityHolders)}` : ""}`,
           "info",
         );
       }

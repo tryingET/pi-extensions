@@ -58,13 +58,19 @@ export async function setup(spawnerOverride, modelProvider = () => "test/model")
       };
     });
 
-  registerSubagentTool(pi, state, modelProvider, async (...args) => {
-    const def = args[0];
-    const model = args[1];
-    capturedDef = def;
-    capturedModel = model;
-    return spawner(...args);
-  });
+  registerSubagentTool(
+    pi,
+    state,
+    modelProvider,
+    async (...args) => {
+      const def = args[0];
+      const model = args[1];
+      capturedDef = def;
+      capturedModel = model;
+      return spawner(...args);
+    },
+    "parent_owned",
+  );
 
   return {
     state,

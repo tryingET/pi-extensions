@@ -1,3 +1,4 @@
+import type { SubagentCapacityCustodyBinding } from "./subagent-capacity-custody.ts";
 import type { SubagentState } from "./subagent-session.ts";
 
 export interface SubagentDef {
@@ -24,6 +25,7 @@ export interface SubagentDef {
   parentSessionKey?: string;
   parentRepoRoot?: string;
   extensionSources?: string[];
+  capacityCustody?: SubagentCapacityCustodyBinding;
 }
 
 export const ASSISTANT_STOP_REASONS = ["stop", "length", "toolUse", "error", "aborted"] as const;

@@ -10,9 +10,15 @@ import {
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import {
+  removeSubagentCapacityCustody,
+  type SubagentCapacityCustodyBinding,
+} from "./subagent-capacity-custody.ts";
+import { ensureSharedSubagentCapacityLimit } from "./subagent-capacity-limit.ts";
+import {
   type CapacityLeaseMetadata,
   type CapacityLeasePayload,
   capacityLeaseIsStale,
+  getCapacityCustodyBinding,
   getCapacityPath,
   getCapacitySpawnCommittedPath,
   processOwnerIsStale,
@@ -43,10 +49,15 @@ interface OwnedCapacityReclaim {
   release(): void;
 }
 
+export interface SharedSubagentCapacityTransition {
+  release(): void;
+}
+
 export interface SharedSubagentCapacityLease {
   slot: number;
+  custodyBinding?: SubagentCapacityCustodyBinding;
   markSpawnCommitted(): void;
-  release(): void;
+  release(options?: { parentOwnedCompletion?: boolean; confirmedNoEffects?: boolean }): boolean;
 }
 
 export function reserveSharedSubagentCapacity(
@@ -58,6 +69,7 @@ export function reserveSharedSubagentCapacity(
   },
 ): SharedSubagentCapacityLease | null {
   let statusSnapshot: ReturnType<typeof readCapacityStatusSnapshot> | undefined;
+  if (!ensureSharedSubagentCapacityLimit(sessionsDir, maxConcurrent)) return null;
   for (let slot = 0; slot < maxConcurrent; slot += 1) {
     const path = getCapacityPath(sessionsDir, slot);
     const created = tryCreateCapacityLease(path, slot, options?.leaseMetadata);
@@ -77,6 +89,26 @@ export function reserveSharedSubagentCapacity(
   return null;
 }
 
+export function acquireSharedSubagentCapacityTransition(
+  binding: SubagentCapacityCustodyBinding,
+): SharedSubagentCapacityTransition | null {
+  const reclaim = tryAcquireCapacityReclaim(`${binding.capacityPath}.reclaim`, binding.slot);
+  if (!reclaim) return null;
+
+  const current = readCapacityLease(binding.capacityPath, binding.slot);
+  if (
+    current?.token !== binding.token ||
+    current.dispatchId !== binding.dispatchId ||
+    current.attemptId !== binding.attemptId ||
+    current.pid !== binding.parentPid ||
+    current.pidStartedAt !== binding.parentPidStartedAt
+  ) {
+    reclaim.release();
+    return null;
+  }
+  return reclaim;
+}
+
 function tryCreateCapacityLease(
   path: string,
   slot: number,
@@ -93,14 +125,17 @@ function tryCreateCapacityLease(
     pidStartedAt,
     token,
     createdAt: new Date().toISOString(),
-    ...metadata,
+    ...normalizeCapacityLeaseMetadata(metadata),
   };
   if (!tryPublishCapacityPayload(path, payload, pidStartedAt)) return null;
 
-  const spawnCommittedPath = getCapacitySpawnCommittedPath(dirname(path), payload);
+  const sessionsDir = dirname(path);
+  const spawnCommittedPath = getCapacitySpawnCommittedPath(sessionsDir, payload);
+  const custodyBinding = getCapacityCustodyBinding(sessionsDir, payload);
   let spawnCommitted = false;
   return {
     slot,
+    custodyBinding,
     markSpawnCommitted() {
       if (spawnCommitted) return;
       writeFileSync(
@@ -115,9 +150,20 @@ function tryCreateCapacityLease(
       );
       spawnCommitted = true;
     },
-    release() {
-      releaseOwnedCapacityPath(path, slot, token, readCapacityLease);
+    release(options = {}) {
+      if (
+        (spawnCommitted || existsSync(spawnCommittedPath)) &&
+        options.parentOwnedCompletion !== true &&
+        options.confirmedNoEffects !== true &&
+        !capacityLeaseIsStale(sessionsDir, payload)
+      ) {
+        return false;
+      }
+      const released = releaseOwnedCapacityPath(path, slot, token, readCapacityLease);
+      if (!released) return false;
       removeCapacitySpawnCommittedMarker(spawnCommittedPath);
+      if (custodyBinding) removeSubagentCapacityCustody(custodyBinding.path);
+      return true;
     },
   };
 }
@@ -166,9 +212,10 @@ function tryRemoveStaleCapacityLease(
 
   try {
     const observed = readCapacityLease(claimPath, slot);
-    const stale = observed
-      ? capacityLeaseIsStale(sessionsDir, observed, statuses)
-      : malformedCapacityLockIsStale(claimPath, MALFORMED_CAPACITY_LOCK_RECLAIM_AGE_MS);
+    // An unreadable capacity lease may still represent a live effect owner. Atomic publication
+    // prevents ASC writers from creating partial payloads, so malformed effect-bearing leases stay
+    // fail-closed instead of being reclaimed by age alone.
+    const stale = observed ? capacityLeaseIsStale(sessionsDir, observed, statuses) : false;
     if (!stale) return false;
 
     hooks?.afterStaleLeaseClaim?.();
@@ -188,6 +235,10 @@ function tryRemoveStaleCapacityLease(
     unlinkSync(path);
     if (observed) {
       removeCapacitySpawnCommittedMarker(getCapacitySpawnCommittedPath(sessionsDir, observed));
+    }
+    if (observed) {
+      const custodyBinding = getCapacityCustodyBinding(sessionsDir, observed);
+      if (custodyBinding) removeSubagentCapacityCustody(custodyBinding.path);
     }
     return true;
   } catch (error) {
@@ -347,20 +398,21 @@ function releaseOwnedCapacityPath<T extends { token: string }>(
   slot: number,
   token: string,
   read: (path: string, expectedSlot: number) => T | undefined,
-): void {
+): boolean {
   const pidStartedAt = getProcessStartTicks(process.pid);
-  if (pidStartedAt === null) return;
+  if (pidStartedAt === null) return false;
   const claimPath = `${path}.release-${process.pid}-${pidStartedAt}-${randomUUID()}`;
 
   try {
     linkSync(path, claimPath);
   } catch (error) {
-    if (getErrorCode(error) === "ENOENT") return;
+    if (getErrorCode(error) === "ENOENT") return true;
     throw error;
   }
 
+  let released = false;
   try {
-    if (read(claimPath, slot)?.token !== token) return;
+    if (read(claimPath, slot)?.token !== token) return false;
     const claimStat = statSync(claimPath);
     const ownerStat = statSync(path);
     if (
@@ -368,11 +420,13 @@ function releaseOwnedCapacityPath<T extends { token: string }>(
       claimStat.ino !== ownerStat.ino ||
       claimStat.nlink !== 2
     ) {
-      return;
+      return false;
     }
     unlinkSync(path);
+    released = true;
   } catch {
     // Best effort release; an exact dead owner is reclaimed on the next reservation.
+    released = false;
   } finally {
     try {
       unlinkSync(claimPath);
@@ -380,6 +434,7 @@ function releaseOwnedCapacityPath<T extends { token: string }>(
       // Another cleanup path may already have removed the release claim.
     }
   }
+  return released;
 }
 
 function readCapacityReclaim(
@@ -425,6 +480,21 @@ function malformedCapacityLockIsStale(path: string, reclaimAgeMs: number): boole
   } catch {
     return false;
   }
+}
+
+function normalizeCapacityLeaseMetadata(
+  metadata: CapacityLeaseMetadata | undefined,
+): CapacityLeaseMetadata {
+  const bound = (value: string | undefined) =>
+    typeof value === "string" ? value.slice(0, 240) : undefined;
+  return {
+    ...(bound(metadata?.dispatchId) ? { dispatchId: bound(metadata?.dispatchId) } : {}),
+    ...(bound(metadata?.attemptId) ? { attemptId: bound(metadata?.attemptId) } : {}),
+    ...(bound(metadata?.sessionName) ? { sessionName: bound(metadata?.sessionName) } : {}),
+    ...(metadata?.custodyMode === "helper_owned" || metadata?.custodyMode === "parent_owned"
+      ? { custodyMode: metadata.custodyMode }
+      : {}),
+  };
 }
 
 function getErrorCode(error: unknown): string {

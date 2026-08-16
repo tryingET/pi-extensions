@@ -199,6 +199,7 @@ test(
             status: "done",
           };
         },
+        "parent_owned",
       );
 
       const queryTool = harness.tools.get("vault_query");

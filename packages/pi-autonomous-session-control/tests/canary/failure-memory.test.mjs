@@ -138,7 +138,7 @@ async function runDispatchCard(card) {
     },
   };
 
-  registerSubagentTool(pi, state, () => "test/model", createCardSpawner(card));
+  registerSubagentTool(pi, state, () => "test/model", createCardSpawner(card), "parent_owned");
 
   try {
     const results = [];

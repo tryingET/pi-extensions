@@ -2,6 +2,7 @@
  * Subagent session management.
  */
 
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   lstatSync,
@@ -9,6 +10,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -64,7 +66,21 @@ export function writeSessionStatus(
     updatedAt: options.updatedAt ?? new Date().toISOString(),
     sessionKind: "subagent",
   };
-  writeFileSync(path, JSON.stringify(payload, null, 2), "utf-8");
+  const temporaryPath = `${path}.publish-${process.pid}-${randomUUID()}`;
+  try {
+    writeFileSync(temporaryPath, JSON.stringify(payload, null, 2), {
+      encoding: "utf-8",
+      flag: "wx",
+      mode: 0o600,
+    });
+    renameSync(temporaryPath, path);
+  } finally {
+    try {
+      unlinkSync(temporaryPath);
+    } catch {
+      // A successful rename consumed the temporary name.
+    }
+  }
 }
 
 function readSessionStatus(path: string): SubagentSessionStatus | null {

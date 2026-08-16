@@ -93,6 +93,7 @@ test("dispatch_subagent rejects malformed objective via edge invariants", async 
         status: "done",
       };
     },
+    "parent_owned",
   );
 
   try {
@@ -162,6 +163,7 @@ test("dispatch_subagent admits long delegated objectives without a package-owned
         status: "done",
       };
     },
+    "parent_owned",
   );
 
   try {
