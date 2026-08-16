@@ -192,12 +192,10 @@ export class SciMcpBridge implements SciBridge {
         timeout,
         maxTotalTimeout: timeout,
       })) as SciBridgeCallResult;
-    } catch (error) {
+    } catch {
       await this.resetConnection(connection);
-      const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `SCI MCP call ${name} failed; effect state may be indeterminate for check workflows. Inspect the workspace before retrying. ${message}`,
-        { cause: error },
+        `SCI MCP call ${name} failed; effect state may be indeterminate for check workflows. Inspect the workspace before retrying. Backend diagnostics were withheld.`,
       );
     }
   }
@@ -271,13 +269,11 @@ export class SciMcpBridge implements SciBridge {
         throw new Error(`missing required composite tools: ${missing.join(", ")}`);
       }
       return { cwd, client, transport, advertisedTools };
-    } catch (error) {
+    } catch {
       await Promise.allSettled([client.close(), transport.close()]);
-      const stderr = stderrTail.join("").trim();
-      const message = error instanceof Error ? error.message : String(error);
+      const stderrObserved = stderrTail.some((entry) => entry.length > 0);
       throw new Error(
-        `Could not start installed semantic-code-mcp in ${cwd}: ${message}${stderr ? `; stderr: ${stderr}` : ""}`,
-        { cause: error },
+        `Could not start installed semantic-code-mcp for this workspace. Backend diagnostics were withheld${stderrObserved ? "; stderr was observed" : ""}.`,
       );
     }
   }
