@@ -1,0 +1,62 @@
+name: immutable-extension-generations
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generation-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install exact isolated Pi host
+        shell: bash
+        run: |
+          set -euo pipefail
+          host_root="$RUNNER_TEMP/immutable-generation-pi-host"
+          private_home="$RUNNER_TEMP/immutable-generation-home"
+          npm_cache="$RUNNER_TEMP/immutable-generation-npm-cache"
+          test_tmp="$RUNNER_TEMP/immutable-generation-tests"
+          mkdir -p "$host_root" "$private_home" "$npm_cache" "$test_tmp"
+          HOME="$private_home" npm_config_cache="$npm_cache" \
+            npm install --prefix "$host_root" --ignore-scripts --no-package-lock --no-save \
+            @earendil-works/pi-coding-agent@0.84.1
+          host_cli="$(realpath "$host_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js")"
+          test -x "$host_cli"
+          test "$(HOME="$private_home" "$host_cli" --version)" = "0.84.1"
+          echo "PI_GENERATION_TEST_PI=$host_cli" >> "$GITHUB_ENV"
+          echo "PI_GENERATION_TRACE_FILE=$test_tmp/concurrency-trace.ndjson" >> "$GITHUB_ENV"
+
+      - name: Run hermetic and pinned-host generation tests
+        env:
+          HOME: ${{ runner.temp }}/immutable-generation-home
+          TMPDIR: ${{ runner.temp }}/immutable-generation-tests
+          TMP: ${{ runner.temp }}/immutable-generation-tests
+          TEMP: ${{ runner.temp }}/immutable-generation-tests
+          npm_config_cache: ${{ runner.temp }}/immutable-generation-npm-cache
+          npm_config_ignore_scripts: "true"
+          npm_config_audit: "false"
+          npm_config_fund: "false"
+        run: npm run extensions:generations:test
+
+      - name: Validate structured concurrency trace
+        run: |
+          test -f "$PI_GENERATION_TRACE_FILE"
+          test "$(stat -c '%a' "$PI_GENERATION_TRACE_FILE")" = "600"
+          node -e 'const fs=require("node:fs"); const rows=fs.readFileSync(process.env.PI_GENERATION_TRACE_FILE,"utf8").trim().split("\n").map(JSON.parse); if(!rows.some((row)=>row.event==="trace-completed")) process.exit(1)'

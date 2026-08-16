@@ -31,6 +31,8 @@ function usage() {
 Published generations have no delete, replace, or cleanup command.`;
 }
 
+const COMMANDS = new Set(["plan", "materialize", "verify", "status", "init-agent", "activate", "recover", "rollback", "probe"]);
+
 function parse(argv) {
   const [command, ...rest] = argv;
   const options = { command };
@@ -91,6 +93,7 @@ export async function runCli(argv) {
     console.log(usage());
     return 0;
   }
+  if (!COMMANDS.has(options.command)) throw new Error(`unknown command: ${options.command}`);
   if (options.help) {
     const surplus = Object.keys(options).filter((name) => !["command", "help"].includes(name));
     if (surplus.length > 0) throw new Error(`option(s) cannot accompany help: ${surplus.join(", ")}`);

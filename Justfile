@@ -11,12 +11,12 @@ test:
     if [ -f ./scripts/release-components.test.mjs ]; then node --test ./scripts/release-components.test.mjs; fi
     node --test ./scripts/pi-host-compatibility-canary.test.mjs
     node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
-    node --test ./scripts/pi-extension-generations.test.mjs ./scripts/pi-extension-generations.concurrency.test.mjs
+    npm run extensions:generations:test
     if [ -f ./scripts/package-quality-gate.test.mjs ]; then node --test ./scripts/package-quality-gate.test.mjs; fi
     if [ -f ./scripts/root-doc-alignment.test.mjs ]; then node --test ./scripts/root-doc-alignment.test.mjs; fi
     ./scripts/ci/packages.sh
 
-# Focused immutable extension-generation unit and process-level concurrency suites.
+# Hermetic generation tests always run; real-Pi concurrency runs only with an explicit canonical PI_GENERATION_TEST_PI.
 extension-generations-test:
     npm run extensions:generations:test
 

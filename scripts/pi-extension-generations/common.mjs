@@ -26,7 +26,6 @@ export const AGENT_SCHEMA = "pi-extension-generations-private-agent.v1";
 export const JOURNAL_SCHEMA = "pi-extension-generations-activation-journal.v1";
 export const SUPPORTED_PACKAGE_ROOT = "packages/pi-agent-interaction-canary";
 export const SUPPORTED_PACKAGE_NAME = "@tryinget/pi-agent-interaction-canary";
-export const INSTALL_ARGS = ["ci", "--omit=dev", "--ignore-scripts", "--legacy-peer-deps"];
 
 export function canonical(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value);

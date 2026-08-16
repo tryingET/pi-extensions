@@ -15,7 +15,6 @@ import {
   canonical,
   fail,
   makeTreeReadOnly,
-  run,
   sha256,
   stableJson,
   syncDirectory,
@@ -69,43 +68,21 @@ async function exportCommit(plan, destination) {
   }
 }
 
-function isolatedNpmEnvironment(supportRoot) {
-  const env = {};
-  for (const key of ["PATH", "LANG", "LC_ALL", "SystemRoot", "WINDIR"]) if (process.env[key]) env[key] = process.env[key];
-  const home = path.join(supportRoot, "home");
-  const temporary = path.join(supportRoot, "tmp");
-  const cache = path.join(supportRoot, "npm-cache");
-  Object.assign(env, {
-    HOME: home,
-    TMPDIR: temporary,
-    TMP: temporary,
-    TEMP: temporary,
-    npm_config_cache: cache,
-    npm_config_offline: "true",
-    npm_config_ignore_scripts: "true",
-    npm_config_audit: "false",
-    npm_config_fund: "false",
-    npm_config_update_notifier: "false",
-  });
-  return { env, directories: [home, temporary, cache] };
+function assertNoInstallPlan(plan) {
+  if (plan?.builder?.installPolicy !== "no-install" || plan?.closure?.install !== "no-install" || !Array.isArray(plan.closure.runtimeDependencies) || plan.closure.runtimeDependencies.length !== 0 || !Array.isArray(plan.closure.optionalDependencies) || plan.closure.optionalDependencies.length !== 0) {
+    fail("materialization accepts only an empty-runtime-dependency no-install first-slice plan");
+  }
 }
 
-async function installRuntimeClosure(plan, repoDir, candidateRoot) {
-  if (plan.closure.install === "no-install") {
-    return { performed: false, command: null, reason: "selected package has no runtime dependencies" };
-  }
-  if (plan.closure.install !== "npm-ci-production") fail(`unsupported install mode: ${plan.closure.install}`);
-  const supportRoot = path.join(candidateRoot, "support");
-  await mkdir(supportRoot, { mode: 0o700 });
-  const isolated = isolatedNpmEnvironment(supportRoot);
-  for (const directory of isolated.directories) await mkdir(directory, { recursive: true, mode: 0o700 });
-  const packageDir = path.join(repoDir, plan.selection.packageRoot);
-  await run(plan.builder.npmCommand, plan.builder.installArgs, {
-    cwd: packageDir,
-    env: isolated.env,
-    maxOutputBytes: 4 * 1024 * 1024,
+async function reconstructSuppliedPlan(plan) {
+  const reconstructed = await planGeneration({
+    repoRoot: plan?.source?.repoRoot,
+    commit: plan?.source?.commit,
+    packageRoot: plan?.selection?.packageRoot,
+    stateRoot: plan?.paths?.stateRoot,
   });
-  return { performed: true, command: [plan.builder.npmCommand, ...plan.builder.installArgs], cache: isolated.directories[2] };
+  if (canonical(reconstructed) !== canonical(plan)) fail("supplied generation plan does not exactly equal its fresh canonical reconstruction");
+  return reconstructed;
 }
 
 async function writeFailure(root, plan, error) {
@@ -194,9 +171,9 @@ async function recoverPublication(plan, state) {
     fail("recoverable generation provenance mismatch");
   }
   validateCompleteMarker(markerBytes, marker, plan, provenanceBytes, verificationBytes);
-  const allowNodeModules = plan.closure.install !== "no-install";
+  assertNoInstallPlan(plan);
   await verifyReadOnlyTree(path.join(plan.paths.generationDir, "repo"));
-  await verifyPackageInventory(path.join(plan.paths.generationDir, "repo"), plan, { allowNodeModules, requireReadOnly: true });
+  await verifyPackageInventory(path.join(plan.paths.generationDir, "repo"), plan, { allowNodeModules: false, requireReadOnly: true });
   if (markerInfo) {
     const finalBytes = await readFile(plan.paths.marker);
     if (!finalBytes.equals(markerBytes)) fail("existing generation marker differs from retained complete temporary");
@@ -212,6 +189,8 @@ async function recoverPublication(plan, state) {
 }
 
 export async function materializePlan(plan, hooks = {}) {
+  plan = await reconstructSuppliedPlan(plan);
+  assertNoInstallPlan(plan);
   const state = await ensureStateLayout(plan.paths.stateRoot);
   const lock = await acquireOwnedLock({
     lockPath: path.join(state.directories.locks, `${plan.generationId}.lock`),
@@ -233,9 +212,8 @@ export async function materializePlan(plan, hooks = {}) {
     await exportCommit(plan, repoDir);
     await hooks.afterExport?.({ candidateRoot, repoDir, plan });
     await verifyPackageInventory(repoDir, plan, { allowNodeModules: false });
-    const install = await installRuntimeClosure(plan, repoDir, candidateRoot);
-    const allowNodeModules = plan.closure.install !== "no-install";
-    const candidateInventory = await verifyPackageInventory(repoDir, plan, { allowNodeModules });
+    const install = { performed: false, command: null, reason: "first slice forbids runtime and optional dependencies" };
+    const candidateInventory = await verifyPackageInventory(repoDir, plan, { allowNodeModules: false });
 
     const provenance = {
       schema: PROVENANCE_SCHEMA,
@@ -281,7 +259,7 @@ export async function materializePlan(plan, hooks = {}) {
     await rename(provenancePath, publishedProvenancePath);
     await makeTreeReadOnly(publishedRepoDir);
     await verifyReadOnlyTree(publishedRepoDir);
-    await verifyPackageInventory(publishedRepoDir, plan, { allowNodeModules, requireReadOnly: true });
+    await verifyPackageInventory(publishedRepoDir, plan, { allowNodeModules: false, requireReadOnly: true });
     await chmod(publishedProvenancePath, 0o444);
     const verificationBytes = stableJson(verification);
     await writeExclusive(publishedVerificationPath, verificationBytes, 0o444);

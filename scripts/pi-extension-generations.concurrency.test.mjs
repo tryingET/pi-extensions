@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { access, chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -39,11 +39,36 @@ async function scratch(t) {
 
 async function findPi() {
   const explicit = process.env.PI_GENERATION_TEST_PI;
-  const candidates = explicit ? [explicit] : (process.env.PATH ?? "").split(path.delimiter).map((directory) => path.join(directory, "pi"));
-  for (const candidate of candidates) {
-    try { await access(candidate, constants.X_OK); return realpath(candidate); } catch {}
+  if (!explicit || !path.isAbsolute(explicit) || path.resolve(explicit) !== explicit) throw new Error("PI_GENERATION_TEST_PI must name an absolute canonical real Pi executable");
+  await access(explicit, constants.X_OK);
+  if (await realpath(explicit) !== explicit) throw new Error("PI_GENERATION_TEST_PI must name an absolute canonical real Pi executable");
+  return explicit;
+}
+
+async function createTrace(t, fallbackRoot) {
+  const previous = process.env.PI_GENERATION_TRACE_FILE;
+  const tracePath = previous || path.join(fallbackRoot, "generation-concurrency-trace.ndjson");
+  if (!previous) process.env.PI_GENERATION_TRACE_FILE = tracePath;
+  t.after(() => {
+    if (previous === undefined) delete process.env.PI_GENERATION_TRACE_FILE;
+    else process.env.PI_GENERATION_TRACE_FILE = previous;
+  });
+  if (!path.isAbsolute(tracePath) || path.resolve(tracePath) !== tracePath) throw new Error("PI_GENERATION_TRACE_FILE must be absolute and normalized");
+  const canonicalTmp = await realpath(tmpdir());
+  const canonicalParent = await realpath(path.dirname(tracePath));
+  const relative = path.relative(canonicalTmp, tracePath);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative) || path.join(canonicalParent, path.basename(tracePath)) !== tracePath) {
+    throw new Error("PI_GENERATION_TRACE_FILE must be canonical and beneath TMPDIR");
   }
-  throw new Error("real Pi executable is required for the generation concurrency regression");
+  const handle = await open(tracePath, "wx", 0o600);
+  await chmod(tracePath, 0o600);
+  let closed = false;
+  t.after(async () => { if (!closed) await handle.close().catch(() => {}); });
+  return {
+    path: tracePath,
+    async emit(event, details = {}) { await handle.write(`${JSON.stringify({ schema: "pi-extension-generation-concurrency-trace.v1", at: new Date().toISOString(), event, ...details })}\n`); },
+    async close() { if (!closed) { await handle.sync(); await handle.close(); closed = true; } },
+  };
 }
 
 async function writeSelectedPackage(repo, generation) {
@@ -196,9 +221,11 @@ async function churnNeighbor({ candidateRoot, repoDir }, hooks = {}) {
   await hooks.afterNeighborRemoved?.();
   const failedChurnCommand = await run("npm", ["pack", "../neighbor", "--ignore-scripts", "--json"], { cwd: app, env, allowFailure: true });
   assert.notEqual(failedChurnCommand.code, 0, "the explicit absent-neighbor churn command must actually fail");
-  const candidateInstall = await run("npm", ["ci", "--omit=dev", "--ignore-scripts", "--legacy-peer-deps"], { cwd: app, env, allowFailure: true });
+  const candidateInstall = await run("npm", ["ci", "--prefix", neighbor, "--omit=dev", "--ignore-scripts", "--legacy-peer-deps"], { cwd: app, env, allowFailure: true });
+  assert.notEqual(candidateInstall.code, 0, "candidate npm install must fail while the neighboring package root is absent");
   const absentLoad = await run(process.execPath, [path.join(app, "index.mjs")], { env, allowFailure: true });
   assert.notEqual(absentLoad.code, 0, "candidate verification must reject the absent neighboring file dependency");
+  await rm(neighbor, { recursive: true, force: true });
   await mkdir(neighbor, { mode: 0o700 });
   await writeFile(path.join(neighbor, "package.json"), neighborManifest);
   await writeFile(path.join(neighbor, "index.mjs"), neighborSource);
@@ -224,6 +251,8 @@ function explicitBarrier() {
 
 test("real Pi keeps verified G1 active through explicitly overlapping failed/successful G2 materialization, then activation and rollback stay unmixed", async (t) => {
   const root = await scratch(t);
+  const trace = await createTrace(t, root);
+  await trace.emit("trace-started", { tmpdir: await realpath(tmpdir()) });
   const piExecutable = await findPi();
   const version = (await run(piExecutable, ["--version"])).stdout.toString("utf8").trim();
   assert.equal(version, "0.84.1");
@@ -244,7 +273,8 @@ test("real Pi keeps verified G1 active through explicitly overlapping failed/suc
   await mkdir(sandboxRoot, { mode: 0o700 });
   await initPrivateEnvironment({ sandboxRoot, agentDir, projectDir });
   await mkdir(path.join(sandboxRoot, "home"), { mode: 0o700 });
-  await activateGeneration({ sandboxRoot, agentDir, projectDir, generationDir: g1.generationDir });
+  const initialActivation = await activateGeneration({ sandboxRoot, agentDir, projectDir, generationDir: g1.generationDir });
+  await trace.emit("activation-completed", { generation: "G1", generationId: g1.plan.generationId, result: initialActivation });
   const rpcTmp = path.join(sandboxRoot, "rpc-tmp");
   await mkdir(rpcTmp, { mode: 0o700 });
   const rpc = startRealRpc(piExecutable, { projectDir, env: hostEnvironment(sandboxRoot, agentDir, rpcTmp) });
@@ -256,40 +286,55 @@ test("real Pi keeps verified G1 active through explicitly overlapping failed/suc
   await writeChurnPackages(repo);
   const g2Commit = await commit(repo, "G2 with neighboring file dependency churn fixture");
   const g2Plan = await planGeneration(planOptions(repo, stateRoot, g2Commit));
+  await trace.emit("generation-identities", { g1GenerationId: g1.plan.generationId, g2GenerationId: g2Plan.generationId });
   const failedBarrier = explicitBarrier();
   const failedChurn = [];
   const failedOutcome = materializePlan(g2Plan, {
-    async afterExport(context) { failedChurn.push(await churnNeighbor(context, { afterNeighborRemoved: () => failedBarrier.hold() })); },
+    async afterExport(context) { failedChurn.push(await churnNeighbor(context, { afterNeighborRemoved: async () => { await trace.emit("barrier-entered", { phase: "failed-materialization", g1GenerationId: g1.plan.generationId, g2GenerationId: g2Plan.generationId }); await failedBarrier.hold(); } })); },
     beforePublish() { throw new Error("injected prepublication failure"); },
   }).then((value) => ({ value }), (error) => ({ error }));
   await failedBarrier.entered;
   let failedOverlapSource;
-  try { failedOverlapSource = (await invokeGenerationCommand(rpc, "G1", g1.packageDir)).baseDir; }
-  finally { failedBarrier.release(); }
+  try {
+    failedOverlapSource = (await invokeGenerationCommand(rpc, "G1", g1.packageDir)).baseDir;
+    await trace.emit("g1-invocation-completed", { phase: "failed-materialization", sourceInfoBaseDir: failedOverlapSource });
+  } finally {
+    failedBarrier.release();
+    await trace.emit("barrier-released", { phase: "failed-materialization" });
+  }
   const failed = await failedOutcome;
   assert.equal(failedOverlapSource, g1.packageDir, "G1 invocation must complete while failed G2 materialization is held in flight");
   observedPaths.push(failedOverlapSource);
   assert.match(failed.error?.message ?? "", /injected prepublication failure/u);
   assert.equal(failedChurn.length, 1);
   assert.notEqual(failedChurn[0].failedChurnCommandCode, 0);
+  assert.notEqual(failedChurn[0].candidateInstallCode, 0);
   assert.notEqual(failedChurn[0].absentLoadCode, 0);
+  await trace.emit("churn-results", { phase: "failed-materialization", ...failedChurn[0] });
   await assert.rejects(stat(g2Plan.paths.generationDir), /ENOENT/u);
 
   const successBarrier = explicitBarrier();
   const successfulChurn = [];
   const successOutcome = materializePlan(g2Plan, {
-    async afterExport(context) { successfulChurn.push(await churnNeighbor(context, { afterNeighborRemoved: () => successBarrier.hold() })); },
+    async afterExport(context) { successfulChurn.push(await churnNeighbor(context, { afterNeighborRemoved: async () => { await trace.emit("barrier-entered", { phase: "successful-materialization", g1GenerationId: g1.plan.generationId, g2GenerationId: g2Plan.generationId }); await successBarrier.hold(); } })); },
   }).then((value) => ({ value }), (error) => ({ error }));
   await successBarrier.entered;
   let successOverlapSource;
-  try { successOverlapSource = (await invokeGenerationCommand(rpc, "G1", g1.packageDir)).baseDir; }
-  finally { successBarrier.release(); }
+  try {
+    successOverlapSource = (await invokeGenerationCommand(rpc, "G1", g1.packageDir)).baseDir;
+    await trace.emit("g1-invocation-completed", { phase: "successful-materialization", sourceInfoBaseDir: successOverlapSource });
+  } finally {
+    successBarrier.release();
+    await trace.emit("barrier-released", { phase: "successful-materialization" });
+  }
   const successful = await successOutcome;
   assert.equal(successOverlapSource, g1.packageDir, "G1 invocation must complete while successful G2 materialization is held in flight");
   observedPaths.push(successOverlapSource);
   assert.equal(successfulChurn.length, 1);
   assert.notEqual(successfulChurn[0].failedChurnCommandCode, 0);
+  assert.notEqual(successfulChurn[0].candidateInstallCode, 0);
   assert.equal(successfulChurn[0].successfulInstallCode, 0);
+  await trace.emit("churn-results", { phase: "successful-materialization", ...successfulChurn[0] });
   assert.equal(successful.error, undefined);
   const g2 = successful.value;
   await verifyGeneration(g2.generationDir);
@@ -300,19 +345,51 @@ test("real Pi keeps verified G1 active through explicitly overlapping failed/suc
   assert.equal(close.code, 0, Buffer.concat(rpc.stderr).toString("utf8"));
   assert.equal(Buffer.concat(rpc.stderr).toString("utf8"), "");
 
-  await activateGeneration({ sandboxRoot, agentDir, projectDir, generationDir: g2.generationDir });
+  const g2Activation = await activateGeneration({ sandboxRoot, agentDir, projectDir, generationDir: g2.generationDir });
+  await trace.emit("activation-completed", { generation: "G2", generationId: g2.plan.generationId, result: g2Activation });
   const requestFile = path.join(sandboxRoot, "request.json");
   await writeFile(requestFile, "{}\n", { mode: 0o600 });
   const g2Probe = await probeFreshHost({ sandboxRoot, agentDir, projectDir, generationDir: g2.generationDir, hostExecutable: piExecutable, commandName: COMMAND_NAME, expectedInlineCommands: ["llama"], requestFile });
   assert.equal(g2Probe.hostVersion, "0.84.1");
+  assert.ok(Number.isInteger(g2Probe.pid) && g2Probe.pid > 0);
+  assert.equal(g2Probe.argv[0], piExecutable);
+  assert.deepEqual(g2Probe.closeResult, { code: 0, signal: null });
+  assert.match(g2Probe.hostExecutableSha256, /^sha256:[a-f0-9]{64}$/u);
   assert.equal(g2Probe.commandResult.generation, "G2");
   assert.equal(g2Probe.selectedCommand.sourceInfo.baseDir, g2.packageDir);
   assert.ok(!JSON.stringify(g2Probe).includes(g1.packageDir));
+  await trace.emit("probe-completed", { generation: "G2", sourceInfoBaseDir: g2Probe.selectedCommand.sourceInfo.baseDir });
 
-  await rollbackActivation({ sandboxRoot, agentDir, projectDir });
+  const rollback = await rollbackActivation({ sandboxRoot, agentDir, projectDir });
+  await trace.emit("rollback-completed", { fromGeneration: "G2", toGeneration: "G1", result: rollback });
   const g1Probe = await probeFreshHost({ sandboxRoot, agentDir, projectDir, generationDir: g1.generationDir, hostExecutable: piExecutable, commandName: COMMAND_NAME, expectedInlineCommands: ["llama"], requestFile });
   assert.equal(g1Probe.commandResult.generation, "G1");
+  assert.equal(g1Probe.argv[0], piExecutable);
+  assert.deepEqual(g1Probe.closeResult, { code: 0, signal: null });
+  assert.equal(g1Probe.hostExecutableSha256, g2Probe.hostExecutableSha256);
   assert.equal(g1Probe.selectedCommand.sourceInfo.baseDir, g1.packageDir);
   assert.ok(!JSON.stringify(g1Probe).includes(g2.packageDir));
+  await trace.emit("probe-completed", { generation: "G1-after-rollback", sourceInfoBaseDir: g1Probe.selectedCommand.sourceInfo.baseDir });
   assert.deepEqual((await readdir(path.join(stateRoot, "generations"))).sort(), [g1.plan.generationId, g2.plan.generationId].sort());
+  await trace.emit("trace-completed", { g1GenerationId: g1.plan.generationId, g2GenerationId: g2.plan.generationId });
+  await trace.close();
+
+  const traceInfo = await stat(trace.path);
+  assert.equal(traceInfo.mode & 0o777, 0o600);
+  const records = (await readFile(trace.path, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert.ok(records.every((record) => record.schema === "pi-extension-generation-concurrency-trace.v1" && new Date(record.at).toISOString() === record.at));
+  const identities = records.find((record) => record.event === "generation-identities");
+  assert.deepEqual({ g1: identities.g1GenerationId, g2: identities.g2GenerationId }, { g1: g1.plan.generationId, g2: g2.plan.generationId });
+  for (const phase of ["failed-materialization", "successful-materialization"]) {
+    const phaseRecords = records.filter((record) => record.phase === phase);
+    assert.deepEqual(phaseRecords.filter((record) => ["barrier-entered", "g1-invocation-completed", "barrier-released"].includes(record.event)).map((record) => record.event), ["barrier-entered", "g1-invocation-completed", "barrier-released"]);
+    const churn = phaseRecords.find((record) => record.event === "churn-results");
+    assert.notEqual(churn.failedChurnCommandCode, 0);
+    assert.notEqual(churn.candidateInstallCode, 0);
+    assert.notEqual(churn.absentLoadCode, 0);
+    assert.equal(churn.successfulInstallCode, 0);
+  }
+  assert.equal(records.filter((record) => record.event === "activation-completed").length, 2);
+  assert.equal(records.filter((record) => record.event === "rollback-completed").length, 1);
+  assert.deepEqual(records.filter((record) => record.event === "probe-completed").map((record) => record.sourceInfoBaseDir), [g2.packageDir, g1.packageDir]);
 });

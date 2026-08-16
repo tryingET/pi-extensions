@@ -22,7 +22,7 @@ Implement and dogfood the smallest truthful generation path:
 - isolated Pi agent-directory activation and conditional rollback;
 - fresh-process proof as primary;
 - externally supervised reload measurement;
-- process-level concurrency regression proving active G1 survives G2 installation and neighboring dependency churn.
+- process-level concurrency regression proving active G1 survives synthetic G2 neighboring-dependency churn outside the selected production package.
 
 ## First supported canary
 
@@ -31,12 +31,12 @@ Implement and dogfood the smallest truthful generation path:
 Reasons:
 
 - one command and one tool;
-- no production or local `file:` dependencies;
+- no runtime or optional dependencies of any kind;
 - no build/lifecycle output;
 - no runtime filesystem, process, cache, or network effects;
 - deterministic compact/expand and fail-closed behavior for dogfood.
 
-The production CLI rejects unsupported build recipes and local dependency shapes in this first slice. Synthetic test fixtures exercise neighboring `file:` dependency churn without claiming broad package-family support.
+The production CLI rejects every non-empty runtime or optional dependency set, all build recipes, and local dependency shapes in this first slice. There is no public `npm-ci-production` path. Synthetic test fixtures exercise neighboring `file:` dependency and isolated npm churn only inside the concurrency harness, without placing that dependency in the selected production package or claiming broad package-family support.
 
 ## Owner and file scope
 
@@ -48,6 +48,8 @@ Root control-plane implementation:
 - `package.json`
 - `Justfile`
 - `scripts/ci/full.sh`
+- `.github/workflows/immutable-extension-generations.yml`
+- `README.md`
 - this plan, the validation/rollout/rollback document, and the final dogfood evidence note
 
 No package source, package manifest, package lock, existing package `node_modules`, Pi operator settings, or historical mitigation code is in scope.
@@ -58,7 +60,7 @@ No package source, package manifest, package lock, existing package `node_module
 
 `plan` requires:
 
-- repository root;
+- repository root exactly equal to canonical `git rev-parse --show-toplevel`;
 - exact full commit;
 - selected repo-relative package root;
 - explicit generation state root.
@@ -69,10 +71,10 @@ It reads package inputs from the commit, not working-tree bytes, and emits a det
 
 `materialize`:
 
-1. acquires an exclusive generation lock;
-2. exports the exact commit into a fresh candidate;
-3. runs only the first-slice npm command `npm ci --omit=dev --ignore-scripts --legacy-peer-deps` when the selected package has runtime dependencies; otherwise records a no-install closure;
-4. rejects tracked manifest/lock drift, local runtime dependencies, lifecycle/build requirements, symlink escapes, and unexpected generated outputs;
+1. rejects any plan that is not an empty-runtime/optional-dependency `no-install` plan before state-root effects;
+2. acquires an exclusive generation lock;
+3. exports the exact commit into a fresh candidate and records that no install was performed;
+4. rejects tracked manifest/lock drift, every runtime/optional dependency, lifecycle/build requirements, symlink escapes, and unexpected generated outputs;
 5. verifies extension entrypoint containment and hashes;
 6. writes verification and provenance records;
 7. publishes `generation.json` last using exclusive creation;
@@ -107,11 +109,11 @@ Rollback is conditional on the exact activated digest and restores prior bytes/m
 2. dirty-working-tree bytes excluded from generation;
 3. incomplete candidate never published;
 4. same generation cannot be replaced;
-5. manifest/lock/build/local-edge rejection for unsupported production paths;
+5. manifest/lock/build rejection, complete runtime/optional dependency rejection, canonical Git-top-level enforcement, and no public install path;
 6. private settings activation, mode, journal, crash-state recovery, and conditional rollback;
 7. cross-scope/duplicate logical identity rejection in the isolated fixture;
 8. provenance reconstruction and tamper detection;
-9. active G1 Pi fixture repeatedly succeeds while G2 install/build churns and its neighboring `file:` dependency is absent/recreated;
+9. active G1 Pi fixture succeeds at explicit barriers while a synthetic non-selected G2 neighbor is absent/recreated and isolated npm/load churn runs;
 10. activation yields only G2 in a fresh Pi process;
 11. experimental reload yields only G2 with zero load errors and exact inventory;
 12. rollback yields only G1 in a fresh process; same-process reload rollback is measured but not a recovery guarantee.

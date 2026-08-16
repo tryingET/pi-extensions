@@ -5,7 +5,7 @@
 // ---
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -15,10 +15,10 @@ import {
   recoverActivation,
   rollbackActivation,
 } from "./pi-extension-generations/activation.mjs";
-import { run } from "./pi-extension-generations/common.mjs";
+import { canonical, JOURNAL_SCHEMA, run, sha256, stableJson } from "./pi-extension-generations/common.mjs";
 import { acquireOwnedLock } from "./pi-extension-generations/lock.mjs";
 import { materializePlan } from "./pi-extension-generations/materialize.mjs";
-import { planGeneration } from "./pi-extension-generations/plan.mjs";
+import { planGeneration, recomputePlanIdentity } from "./pi-extension-generations/plan.mjs";
 import { probeFreshHost } from "./pi-extension-generations/probe.mjs";
 import { generationStatus, verifyGeneration } from "./pi-extension-generations/verify.mjs";
 import { runCli } from "./pi-extension-generations.mjs";
@@ -132,6 +132,62 @@ async function crashMaterializationAtMarkerTemporary(t, root, plan, label) {
   await killAndWait(child);
 }
 
+async function forgeStoredNoInstallClaimsAroundRuntimeDependency(published) {
+  const oldDir = published.generationDir;
+  const packageDir = published.packageDir;
+  const manifestPath = path.join(packageDir, "package.json");
+  const provenancePath = path.join(oldDir, "provenance.json");
+  const verificationPath = path.join(oldDir, "verification.json");
+  const markerPath = path.join(oldDir, "generation.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.dependencies = { forged: "1.0.0" };
+  const manifestBytes = Buffer.from(stableJson(manifest));
+  const provenance = JSON.parse(await readFile(provenancePath, "utf8"));
+  const verification = JSON.parse(await readFile(verificationPath, "utf8"));
+  const marker = JSON.parse(await readFile(markerPath, "utf8"));
+  const plan = provenance.plan;
+  plan.selection.manifest.sha256 = sha256(manifestBytes);
+  plan.selection.packageFiles = plan.selection.packageFiles.map((file) => file.path === `${PACKAGE_ROOT}/package.json` ? { ...file, sha256: sha256(manifestBytes) } : file);
+  plan.selection.packageDigest = sha256(canonical(plan.selection.packageFiles));
+  const identity = recomputePlanIdentity(plan);
+  const newDir = path.join(path.dirname(oldDir), identity.generationId);
+  const newPackageDir = path.join(newDir, "repo", PACKAGE_ROOT);
+  Object.assign(plan, identity, {
+    paths: {
+      stateRoot: plan.paths.stateRoot,
+      generationDir: newDir,
+      repoDir: path.join(newDir, "repo"),
+      packageDir: newPackageDir,
+      marker: path.join(newDir, "generation.json"),
+    },
+  });
+  verification.generationId = identity.generationId;
+  verification.packagePath = newPackageDir;
+  verification.entrypoints = verification.entrypoints.map((entrypoint) => ({ ...entrypoint, absolutePath: path.join(newDir, "repo", entrypoint.path), baseDir: newPackageDir }));
+  const provenanceBytes = Buffer.from(stableJson(provenance));
+  const verificationBytes = Buffer.from(stableJson(verification));
+  Object.assign(marker, {
+    generationId: identity.generationId,
+    inputDigest: identity.inputDigest,
+    provenanceSha256: sha256(provenanceBytes),
+    verificationSha256: sha256(verificationBytes),
+  });
+  await chmod(oldDir, 0o755);
+  await chmod(packageDir, 0o755);
+  await chmod(manifestPath, 0o644);
+  await writeFile(manifestPath, manifestBytes);
+  await chmod(manifestPath, 0o444);
+  await chmod(packageDir, 0o555);
+  for (const [target, bytes] of [[provenancePath, provenanceBytes], [verificationPath, verificationBytes], [markerPath, Buffer.from(stableJson(marker))]]) {
+    await chmod(target, 0o644);
+    await writeFile(target, bytes);
+    await chmod(target, 0o444);
+  }
+  await chmod(oldDir, 0o555);
+  await rename(oldDir, newDir);
+  return newDir;
+}
+
 async function privateEnvironment(root, name = "private") {
   const sandboxRoot = path.join(root, name);
   const agentDir = path.join(sandboxRoot, "agent-dir");
@@ -230,6 +286,35 @@ test("failed candidates remain unpublished and provenance tampering fails verifi
   await assert.rejects(readFile(tamperedRecoveryPlan.paths.marker), /ENOENT/u);
   assert.ok(!(await readdir(tamperedRecoveryPlan.paths.generationDir)).includes("failure.json"));
 
+  const routineMarker = await fixture(t);
+  const routinePublished = await materializePlan(await planGeneration(planOptions(routineMarker)));
+  const routineMarkerPath = path.join(routinePublished.generationDir, "generation.json");
+  const routineMarkerValue = JSON.parse(await readFile(routineMarkerPath, "utf8"));
+  routineMarkerValue.unexpected = true;
+  await chmod(routinePublished.generationDir, 0o755);
+  await chmod(routineMarkerPath, 0o644);
+  await writeFile(routineMarkerPath, `${JSON.stringify(routineMarkerValue, null, 2)}\n`);
+  await chmod(routineMarkerPath, 0o444);
+  await chmod(routinePublished.generationDir, 0o555);
+  await assert.rejects(verifyGeneration(routinePublished.generationDir), /marker keys are not exact/u);
+
+  const invalidPublishedAt = await fixture(t);
+  const invalidTimePublished = await materializePlan(await planGeneration(planOptions(invalidPublishedAt)));
+  const invalidTimeMarkerPath = path.join(invalidTimePublished.generationDir, "generation.json");
+  const invalidTimeMarker = JSON.parse(await readFile(invalidTimeMarkerPath, "utf8"));
+  invalidTimeMarker.publishedAt = "not-an-iso-time";
+  await chmod(invalidTimePublished.generationDir, 0o755);
+  await chmod(invalidTimeMarkerPath, 0o644);
+  await writeFile(invalidTimeMarkerPath, `${JSON.stringify(invalidTimeMarker, null, 2)}\n`);
+  await chmod(invalidTimeMarkerPath, 0o444);
+  await chmod(invalidTimePublished.generationDir, 0o555);
+  await assert.rejects(verifyGeneration(invalidTimePublished.generationDir), /publishedAt is invalid/u);
+
+  const forgedVerification = await fixture(t);
+  const forgedPublished = await materializePlan(await planGeneration(planOptions(forgedVerification)));
+  const forgedGenerationDir = await forgeStoredNoInstallClaimsAroundRuntimeDependency(forgedPublished);
+  await assert.rejects(verifyGeneration(forgedGenerationDir), /exported package manifest dependencies must be empty/u);
+
   const value = await fixture(t);
   const published = await materializePlan(await planGeneration(planOptions(value)));
   const entrypoint = path.join(published.packageDir, "extensions", "canary.mjs");
@@ -302,13 +387,14 @@ test("real SIGKILL owners leave recoverable atomic lock records for micro-window
   await assert.rejects(materializePlan(unknownPlan), /lock owner|unknown|invalid/u);
 });
 
-test("planner and CLI reject build/lifecycle recipes, local production edges, lock drift, escaping symlinks, and surplus options", async (t) => {
+test("planner and CLI reject build/lifecycle recipes, all runtime dependencies, nested repo roots, lock drift, escaping symlinks, and surplus options", async (t) => {
   await assert.rejects(runCli(["verify", "--generation", "/not-used", "--host", "/surplus"]), /not valid for verify/u);
   await assert.rejects(runCli(["verify", "--generation", "/one", "--generation", "/two"]), /duplicate argument/u);
   await assert.rejects(runCli(["--help", "--repo", "/surplus"]), /cannot accompany top-level help/u);
   await assert.rejects(runCli(["plan", "--help", "--repo", "/surplus"]), /cannot accompany help/u);
   await assert.rejects(runCli(["plan", "--repo", "/surplus", "--help"]), /cannot accompany help/u);
   await assert.rejects(runCli(["plan", "--help", "--help"]), /duplicate argument/u);
+  await assert.rejects(runCli(["bogus-command", "--help"]), /unknown command: bogus-command/u);
   const build = await fixture(t);
   const buildManifest = manifest({ scripts: { build: "node build.mjs" } });
   await writePackage(build.repo, { packageManifest: buildManifest });
@@ -323,18 +409,52 @@ test("planner and CLI reject build/lifecycle recipes, local production edges, lo
   await assert.rejects(planGeneration(planOptions(lifecycle, lifecycleCommit)), /unsupported lifecycle\/build recipe/u);
   await assert.rejects(readFile(lifecycleEffect), /ENOENT/u);
 
+  const registryRuntime = await fixture(t);
+  const registryManifest = manifest({ dependencies: { remote: "1.0.0" } });
+  await writePackage(registryRuntime.repo, { packageManifest: registryManifest, lock: lockFor(registryManifest) });
+  const registryCommit = await commit(registryRuntime.repo, "registry runtime dependency");
+  await assert.rejects(planGeneration(planOptions(registryRuntime, registryCommit)), /runtime and optional dependencies are unsupported/u);
+
   const local = await fixture(t);
   const localManifest = manifest({ dependencies: { neighbor: "file:../neighbor" } });
   const localLock = lockFor(localManifest, { packages: { "../neighbor": { name: "neighbor", version: "1.0.0" }, "node_modules/neighbor": { resolved: "../neighbor", link: true } } });
   await writePackage(local.repo, { packageManifest: localManifest, lock: localLock });
-  const localCommit = await commit(local.repo, "local dependency");
-  await assert.rejects(planGeneration(planOptions(local, localCommit)), /unsupported local production dependency/u);
+  const localCommit = await commit(local.repo, "local runtime dependency");
+  await assert.rejects(planGeneration(planOptions(local, localCommit)), /runtime and optional dependencies are unsupported/u);
+
+  const optional = await fixture(t);
+  const optionalManifest = manifest({ optionalDependencies: { optional: "2.0.0" } });
+  await writePackage(optional.repo, { packageManifest: optionalManifest, lock: lockFor(optionalManifest) });
+  const optionalCommit = await commit(optional.repo, "optional runtime dependency");
+  await assert.rejects(planGeneration(planOptions(optional, optionalCommit)), /runtime and optional dependencies are unsupported/u);
+
+  const noInstallOnly = await fixture(t);
+  const noInstallPlan = await planGeneration(planOptions(noInstallOnly));
+  const unsupportedInstallPlan = { ...noInstallPlan, closure: { ...noInstallPlan.closure, runtimeDependencies: [["remote", "1.0.0"]], install: "npm-ci-production" } };
+  await assert.rejects(materializePlan(unsupportedInstallPlan), /fresh canonical reconstruction/u);
+  await assert.rejects(stat(noInstallOnly.stateRoot), /ENOENT/u);
+
+  const craftedPlanFixture = await fixture(t);
+  const craftedPlan = structuredClone(await planGeneration(planOptions(craftedPlanFixture)));
+  craftedPlan.selection.packageName = "@attacker/crafted-plan";
+  Object.assign(craftedPlan, recomputePlanIdentity(craftedPlan));
+  craftedPlan.paths.generationDir = path.join(craftedPlan.paths.stateRoot, "generations", craftedPlan.generationId);
+  craftedPlan.paths.repoDir = path.join(craftedPlan.paths.generationDir, "repo");
+  craftedPlan.paths.packageDir = path.join(craftedPlan.paths.repoDir, craftedPlan.selection.packageRoot);
+  craftedPlan.paths.marker = path.join(craftedPlan.paths.generationDir, "generation.json");
+  await assert.rejects(materializePlan(craftedPlan), /fresh canonical reconstruction/u);
+  await assert.rejects(stat(craftedPlanFixture.stateRoot), /ENOENT/u);
+
+  const nested = await fixture(t);
+  const nestedRepoArgument = path.join(nested.repo, PACKAGE_ROOT);
+  await assert.rejects(planGeneration({ ...planOptions(nested), repoRoot: nestedRepoArgument, stateRoot: path.join(nested.repo, "state-inside") }), /canonical Git top-level/u);
+  await assert.rejects(stat(path.join(nested.repo, "state-inside")), /ENOENT/u);
 
   const drift = await fixture(t);
-  const driftManifest = manifest({ dependencies: { remote: "1.0.0" } });
+  const driftManifest = manifest({ devDependencies: { remote: "1.0.0" } });
   await writePackage(drift.repo, { packageManifest: driftManifest, lock: lockFor(manifest()) });
   const driftCommit = await commit(drift.repo, "lock drift");
-  await assert.rejects(planGeneration(planOptions(drift, driftCommit)), /lock root dependencies/u);
+  await assert.rejects(planGeneration(planOptions(drift, driftCommit)), /lock root devDependencies/u);
 
   const escape = await fixture(t);
   await symlink("../../../../outside", path.join(escape.repo, PACKAGE_ROOT, "extensions", "escape.mjs"));
@@ -368,6 +488,13 @@ test("private activation journals effects, recovers crashes, and conditionally r
   const recovered = await recoverActivation(crash);
   assert.equal(recovered.phase, "aborted-before-effect");
   await activateGeneration({ ...crash, generationDir: value.g1.generationDir });
+
+  const traversal = await privateEnvironment(value.root, "journal-traversal");
+  const outsideTarget = path.join(traversal.sandboxRoot, "outside.json");
+  await writeFile(path.join(traversal.agentDir, ".pi-extension-generations-activation.json"), stableJson({ schema: JOURNAL_SCHEMA, transactionId: "../../outside", phase: "completed" }), { mode: 0o600 });
+  await assert.rejects(recoverActivation(traversal), /transactionId must be a canonical UUID/u);
+  await assert.rejects(readFile(outsideTarget), /ENOENT/u);
+  await assert.rejects(stat(path.join(traversal.agentDir, ".pi-extension-generations-journals")), /ENOENT/u);
 });
 
 test("activation rejects forged/operator-like dirs, unsafe settings, duplicate identity, cross-scope conflict, and a running host", async (t) => {
@@ -446,6 +573,14 @@ process.stdin.on("end", () => { if (trailingExtensionError) console.log(JSON.str
   assert.equal(receipt.sourceCommit, value.g2Plan.source.commit);
   assert.equal(receipt.selectedCommand.sourceInfo.baseDir, value.g2.packageDir);
   assert.equal(receipt.commandResult.packageDir, value.g2.packageDir);
+  assert.ok(Number.isInteger(receipt.pid) && receipt.pid > 0);
+  assert.equal(receipt.argv[0], host);
+  assert.deepEqual(receipt.argv.slice(1, 3), ["--mode", "rpc"]);
+  assert.equal(new Date(receipt.startedAt).toISOString(), receipt.startedAt);
+  assert.equal(new Date(receipt.completedAt).toISOString(), receipt.completedAt);
+  assert.ok(receipt.completedAt >= receipt.startedAt);
+  assert.deepEqual(receipt.closeResult, { code: 0, signal: null });
+  assert.equal(receipt.hostExecutableSha256, sha256(await readFile(host)));
   assert.deepEqual(receipt.expectedExtensionInventory.allowedInlineCommands.map((command) => command.name), ["llama"]);
   assert.equal(receipt.expectedExtensionInventory.exactCount, 2);
   assert.deepEqual(receipt.extensionErrors, []);

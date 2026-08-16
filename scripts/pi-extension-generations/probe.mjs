@@ -15,6 +15,7 @@ import {
   ensurePrivateDirectory,
   fail,
   run,
+  sha256,
 } from "./common.mjs";
 import { assertActivatedGeneration } from "./activation.mjs";
 import { assertCanonicalFileWithin, ensureOwnedDirectory } from "./roots.mjs";
@@ -44,6 +45,8 @@ function startRpc(hostExecutable, cwd, env, timeoutMs) {
     "--mode", "rpc", "--no-session", "--offline", "--no-approve", "--no-context-files",
     "--no-builtin-tools", "--no-skills", "--no-prompt-templates", "--no-themes",
   ];
+  const argv = [hostExecutable, ...args];
+  const startedAt = new Date().toISOString();
   const child = spawn(hostExecutable, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
   const pending = new Map();
   const events = [];
@@ -95,6 +98,9 @@ function startRpc(hostExecutable, cwd, env, timeoutMs) {
   const exited = new Promise((resolve) => child.on("close", (code, signal) => resolve({ code, signal })));
   const spawnError = new Promise((_, reject) => child.on("error", reject));
   return {
+    pid: child.pid,
+    argv,
+    startedAt,
     events,
     errors,
     stderr,
@@ -161,6 +167,7 @@ export async function probeFreshHost(options) {
   if (await realpath(options.hostExecutable) !== options.hostExecutable) fail("host executable must use its canonical path");
   const hostInfo = await assertRegularFile(options.hostExecutable, "host executable");
   if ((hostInfo.mode & 0o111) === 0) fail("host executable is not executable");
+  const hostExecutableSha256 = sha256(await readFile(options.hostExecutable));
   if (typeof options.commandName !== "string" || !options.commandName) fail("expected command name is required");
   const inlineNames = expectedInlineNames(options.expectedInlineCommands);
   if (inlineNames.includes(options.commandName)) fail("selected generation command cannot also be an expected inline command");
@@ -242,10 +249,21 @@ export async function probeFreshHost(options) {
     };
   } catch (error) { operationError = error; }
   const closeResult = await rpc.close();
+  const completedAt = new Date().toISOString();
   const stderr = Buffer.concat(rpc.stderr).toString("utf8");
   if (operationError) throw operationError;
   if (closeResult?.code !== 0) fail(`fresh host exited ${closeResult?.code ?? closeResult?.signal}: ${stderr.trim()}`);
   if (rpc.errors.length > 0) fail(`fresh host reported extension-load diagnostics: ${JSON.stringify(rpc.errors)}`);
   if (stderr.trim()) fail(`fresh host emitted stderr diagnostics: ${stderr.trim()}`);
-  return { ...receipt, extensionErrors: [...rpc.errors], stderr };
+  return {
+    ...receipt,
+    pid: rpc.pid,
+    argv: rpc.argv,
+    startedAt: rpc.startedAt,
+    completedAt,
+    closeResult,
+    hostExecutableSha256,
+    extensionErrors: [...rpc.errors],
+    stderr,
+  };
 }

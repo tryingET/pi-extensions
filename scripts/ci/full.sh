@@ -60,7 +60,13 @@ if [ -f "./scripts/release-components.test.mjs" ]; then
 fi
 
 node --test ./scripts/npm-pack-json.test.mjs
-node --test ./scripts/pi-extension-generations.test.mjs ./scripts/pi-extension-generations.concurrency.test.mjs
+node --test ./scripts/pi-extension-generations.test.mjs
+if [ -n "${PI_GENERATION_TEST_PI:-}" ]; then
+  node -e 'const fs=require("node:fs"),path=require("node:path"); const p=process.env.PI_GENERATION_TEST_PI; if(!path.isAbsolute(p)||path.resolve(p)!==p||fs.realpathSync(p)!==p) throw new Error("PI_GENERATION_TEST_PI must be canonical and absolute"); fs.accessSync(p,fs.constants.X_OK);'
+  node --test ./scripts/pi-extension-generations.concurrency.test.mjs
+else
+  echo "skipping real-Pi immutable-generation concurrency: PI_GENERATION_TEST_PI is not set"
+fi
 
 # Keep these suites sequential: both intentionally exercise the canonical-checkout lock.
 node --test ./scripts/pi-host-compatibility-canary.test.mjs
@@ -71,7 +77,7 @@ if [ -f "./scripts/package-quality-gate.test.mjs" ]; then
 fi
 
 if [ -f "./scripts/validate-local-package-links.test.mjs" ]; then
-  node --test ./scripts/validate-local-package-links.test.mjs
+  (unset PI_SKIP_PACKAGES; node --test ./scripts/validate-local-package-links.test.mjs)
 fi
 
 if [ -f "./scripts/root-doc-alignment.test.mjs" ]; then
@@ -79,7 +85,11 @@ if [ -f "./scripts/root-doc-alignment.test.mjs" ]; then
 fi
 
 if [ -f "./scripts/governed-deep-review-canary.mjs" ]; then
-  node ./scripts/governed-deep-review-canary.mjs test --source-root "$repo_root"
+  if [ "${PI_SKIP_GOVERNED_DEEP_REVIEW:-0}" = "1" ]; then
+    echo "skipping governed deep-review canary: PI_SKIP_GOVERNED_DEEP_REVIEW=1"
+  else
+    node ./scripts/governed-deep-review-canary.mjs test --source-root "$repo_root"
+  fi
 fi
 
 if [ -x "./scripts/ci/packages.sh" ]; then

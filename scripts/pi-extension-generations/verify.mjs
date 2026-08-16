@@ -14,8 +14,10 @@ import {
   assertDirectory,
   assertObject,
   assertRegularFile,
+  canonical,
   fail,
   sha256,
+  stableJson,
 } from "./common.mjs";
 import { verifyPackageInventory, verifyReadOnlyTree } from "./inventory.mjs";
 import { recomputePlanIdentity } from "./plan.mjs";
@@ -25,6 +27,29 @@ function parse(bytes, label) {
     return JSON.parse(bytes.toString("utf8"));
   } catch (error) {
     fail(`${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function validateRoutineMarker(markerRecord, marker) {
+  const expectedKeys = ["generationId", "inputDigest", "packageName", "packageRoot", "provenanceSha256", "publishedAt", "schema", "sourceCommit", "status", "verificationSha256"];
+  if (canonical(Object.keys(marker).sort()) !== canonical(expectedKeys)) fail("generation marker keys are not exact");
+  if (!Buffer.from(stableJson(marker)).equals(markerRecord.bytes)) fail("generation marker is not canonical deterministic JSON");
+  let canonicalPublishedAt;
+  try { canonicalPublishedAt = new Date(marker.publishedAt).toISOString(); } catch { fail("generation marker publishedAt is invalid"); }
+  if (typeof marker.publishedAt !== "string" || canonicalPublishedAt !== marker.publishedAt) fail("generation marker publishedAt is invalid");
+}
+
+function assertNoInstallPlan(plan) {
+  if (plan?.builder?.installPolicy !== "no-install" || plan?.closure?.install !== "no-install" || !Array.isArray(plan.closure.runtimeDependencies) || plan.closure.runtimeDependencies.length !== 0 || !Array.isArray(plan.closure.optionalDependencies) || plan.closure.optionalDependencies.length !== 0) {
+    fail("published generation violates the empty-runtime-dependency no-install first-slice policy");
+  }
+}
+
+function assertEmptyManifestDependencies(manifest) {
+  for (const field of ["dependencies", "optionalDependencies"]) {
+    if (manifest[field] === undefined) continue;
+    const value = assertObject(manifest[field], `exported package manifest ${field}`);
+    if (Object.keys(value).length !== 0) fail(`exported package manifest ${field} must be empty in the first no-install slice`);
   }
 }
 
@@ -49,6 +74,7 @@ export async function verifyGeneration(generationDir) {
   const provenanceRecord = await readAttested(path.join(generationDir, "provenance.json"), "generation provenance");
   const verificationRecord = await readAttested(path.join(generationDir, "verification.json"), "generation verification");
   const marker = assertObject(markerRecord.value, "generation marker");
+  validateRoutineMarker(markerRecord, marker);
   const provenance = assertObject(provenanceRecord.value, "generation provenance");
   const verification = assertObject(verificationRecord.value, "generation verification");
   if (marker.schema !== GENERATION_SCHEMA || marker.status !== "published") fail("generation marker is not a published supported generation");
@@ -59,6 +85,7 @@ export async function verifyGeneration(generationDir) {
 
   const plan = assertObject(provenance.plan, "generation plan");
   if (plan.schema !== PLAN_SCHEMA) fail("unsupported generation plan schema");
+  assertNoInstallPlan(plan);
   const identity = recomputePlanIdentity(plan);
   if (plan.inputDigest !== identity.inputDigest || plan.generationId !== identity.generationId) fail("generation plan identity reconstruction failed");
   if (marker.inputDigest !== identity.inputDigest || marker.generationId !== identity.generationId) fail("generation marker identity mismatch");
@@ -74,10 +101,11 @@ export async function verifyGeneration(generationDir) {
   };
   for (const [key, value] of Object.entries(expectedPaths)) if (plan.paths?.[key] !== value) fail(`generation plan ${key} path mismatch`);
 
-  const allowNodeModules = plan.closure.install !== "no-install";
+  const exportedManifest = await readAttested(path.join(expectedPaths.packageDir, "package.json"), "exported package manifest");
+  assertEmptyManifestDependencies(assertObject(exportedManifest.value, "exported package manifest"));
   await verifyReadOnlyTree(expectedPaths.repoDir);
-  const inventory = await verifyPackageInventory(expectedPaths.repoDir, plan, { allowNodeModules, requireReadOnly: true });
-  const expectedNodeModulesPolicy = allowNodeModules ? "installed-only" : "absent";
+  const inventory = await verifyPackageInventory(expectedPaths.repoDir, plan, { allowNodeModules: false, requireReadOnly: true });
+  const expectedNodeModulesPolicy = "absent";
   if (verification.generationId !== identity.generationId || verification.packagePath !== expectedPaths.packageDir || verification.nodeModulesPolicy !== expectedNodeModulesPolicy) {
     fail("verification record generation/package path mismatch");
   }

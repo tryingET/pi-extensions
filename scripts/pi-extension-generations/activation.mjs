@@ -35,6 +35,12 @@ const LOCK_NAME = ".pi-extension-generations-activation.lock";
 const LOCK_SCHEMA = "pi-extension-generation-activation-lock.v2";
 const ABSENT_DIGEST = sha256("pi-extension-generations:settings-absent");
 const UNRESOLVED_PHASES = new Set(["prepared", "rollback-prepared"]);
+const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+function canonicalTransactionId(value) {
+  if (typeof value !== "string" || !CANONICAL_UUID.test(value)) fail("activation journal transactionId must be a canonical UUID");
+  return value;
+}
 
 function rejectOperatorLike(agentDir) {
   const normalized = agentDir.split(path.sep).join("/");
@@ -269,13 +275,16 @@ async function readJournal(agentDir) {
   try { value = assertObject(JSON.parse(bytes.toString("utf8")), "activation journal"); }
   catch { fail("activation journal is invalid"); }
   if (value.schema !== JOURNAL_SCHEMA) fail("activation journal schema is unsupported");
+  canonicalTransactionId(value.transactionId);
   return { path: journalPath, bytes, value };
 }
 
 async function retainJournal(agentDir, journal) {
   if (!journal) return;
   const historyDir = await ensureOwnedDirectory(agentDir, ".pi-extension-generations-journals", "activation journal history");
-  const target = path.join(historyDir, `${journal.value.transactionId}.json`);
+  const transactionId = canonicalTransactionId(journal.value.transactionId);
+  const target = path.join(historyDir, `${transactionId}.json`);
+  assertWithin(historyDir, target, "retained activation journal target");
   try { await writeExclusive(target, journal.bytes, 0o600); }
   catch (error) {
     if (error?.code !== "EEXIST") throw error;

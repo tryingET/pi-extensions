@@ -6,14 +6,12 @@
 import { realpath } from "node:fs/promises";
 import path from "node:path";
 import {
-  INSTALL_ARGS,
   PLAN_SCHEMA,
   SUPPORTED_PACKAGE_NAME,
   SUPPORTED_PACKAGE_ROOT,
   assertAbsolute,
   assertObject,
   canonical,
-  commandVersion,
   fail,
   isWithin,
   run,
@@ -80,12 +78,10 @@ function validateManifest(manifest) {
   const scripts = dependencyObject(value.scripts, "package scripts");
   const unsupportedScript = Object.keys(scripts).find((name) => BUILD_SCRIPTS.has(name));
   if (unsupportedScript) fail(`unsupported lifecycle/build recipe: scripts.${unsupportedScript}`);
-  const runtime = {
-    ...dependencyObject(value.dependencies, "dependencies"),
-    ...dependencyObject(value.optionalDependencies, "optionalDependencies"),
-  };
-  for (const [name, spec] of Object.entries(runtime)) {
-    if (LOCAL_SPEC.test(spec)) fail(`unsupported local production dependency: ${name}@${spec}`);
+  const dependencies = dependencyObject(value.dependencies, "dependencies");
+  const optionalDependencies = dependencyObject(value.optionalDependencies, "optionalDependencies");
+  if (Object.keys(dependencies).length > 0 || Object.keys(optionalDependencies).length > 0) {
+    fail("runtime and optional dependencies are unsupported in the first no-install slice");
   }
   if (value.bundledDependencies !== undefined || value.bundleDependencies !== undefined) {
     fail("bundled dependencies are unsupported in the first slice");
@@ -99,7 +95,7 @@ function validateManifest(manifest) {
   if (!piManifest.extensions.every((entry) => typeof entry === "string" && entry.length > 0 && !GLOB.test(entry))) {
     fail("pi.extensions entries must be exact non-glob strings");
   }
-  return { manifest: value, runtime, peers, declaredEntrypoints: piManifest.extensions };
+  return { manifest: value, peers, declaredEntrypoints: piManifest.extensions };
 }
 
 function validateLock(lock, manifest) {
@@ -164,6 +160,8 @@ export async function planGeneration({ repoRoot, commit, packageRoot, stateRoot 
   assertAbsolute(stateRoot, "state root");
   const canonicalRepo = await realpath(repoRoot);
   if (canonicalRepo !== repoRoot) fail("repo root must use its canonical path");
+  const gitTopLevel = (await git(repoRoot, ["rev-parse", "--show-toplevel"])).stdout.toString("utf8").trim();
+  if (gitTopLevel !== repoRoot) fail("repo root must equal the canonical Git top-level checkout");
   if (packageRoot !== SUPPORTED_PACKAGE_ROOT) fail(`only ${SUPPORTED_PACKAGE_ROOT} is supported in the first slice`);
   if (isWithin(repoRoot, stateRoot) || isWithin(stateRoot, repoRoot)) fail("generation state root must be outside the source repository");
   await resolveExactCommit(repoRoot, commit);
@@ -201,9 +199,7 @@ export async function planGeneration({ repoRoot, commit, packageRoot, stateRoot 
   const builder = {
     schemaVersion: 1,
     nodeVersion: process.version,
-    npmVersion: await commandVersion("npm"),
-    npmCommand: "npm",
-    installArgs: INSTALL_ARGS,
+    installPolicy: "no-install",
   };
   const selection = {
     packageRoot,
@@ -214,11 +210,11 @@ export async function planGeneration({ repoRoot, commit, packageRoot, stateRoot 
     packageFiles,
     packageDigest: sha256(canonical(packageFiles)),
   };
-  const runtimeDependencies = Object.entries(validated.runtime).sort(([left], [right]) => left.localeCompare(right));
   const closure = {
-    runtimeDependencies,
+    runtimeDependencies: [],
+    optionalDependencies: [],
     peerDependencies: Object.entries(validated.peers).sort(([left], [right]) => left.localeCompare(right)),
-    install: runtimeDependencies.length === 0 ? "no-install" : "npm-ci-production",
+    install: "no-install",
   };
   const partial = { schema: PLAN_SCHEMA, builder, source: { repoRoot, commit }, selection, closure };
   const identity = recomputePlanIdentity(partial);
