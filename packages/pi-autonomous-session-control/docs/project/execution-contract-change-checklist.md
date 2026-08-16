@@ -30,10 +30,18 @@ Do **not** land the change if it would introduce any of the following:
 - UI, dashboard, or tool-registration concerns in the headless public contract
 - observer launch/rendering ownership in ASC, or any observation-listener result influencing execution, cancellation, settlement, retry, or effect-receipt truth
 - observation payloads that carry prompt/objective/output/stderr/environment/session-path/receipt-path content, truncate caller-controlled group identity into collisions, or grow without explicit field/array bounds
-- unbounded stdout/stderr/raw-event buffering or weaker truncation signaling
+- unbounded stdout/stderr/raw-event buffering, a backpressure watchdog that covers only one helper output stream, or weaker truncation signaling
 - weaker abort, startup/execution timeout, cancellation identity, assistant-protocol terminal-event, model-selection, or malformed-output truth in execution results
 - drift between raw `fullOutput`, normalized `displayOutput`, and consumer-side rendering helpers for the same failure mode
 - weaker session-name reservation, sidecar occupancy handling, or lock-failure surfacing
+- capacity metadata that the writer can emit but the reader rejects, or age-only reclaim of malformed effect-bearing leases
+- caller-expandable shared slot namespaces; one repository session root must retain one atomically published `maxConcurrent` contract and mismatches must fail closed
+- post-spawn lease release without exact helper/raw custody and kernel-proven process-group absence, including marker/custody cleanup when exact lease deletion failed
+- custody publication that depends on the parent parsing helper stdout, or unlimited execution that also disables parent-death/backpressure supervision
+- replaceable custody records, raw Pi start before immutable custody/marker publication, a stale-takeover race with helper custody/start publication, or helper death that leaves the supervised raw child running without a custody-pipe fence
+- custom-spawner parent ownership inferred from function identity instead of an explicit runtime option
+- a terminal `done`/settled result when exact capacity deletion or managed process-group quiescence was not proved
+- process-group containment described as a general sandbox without explicitly excluding deliberate `setsid` escape
 - public API growth justified only by today's bundled publish/install bridge or smoke-harness convenience
 
 ## 3. Keep contract and stewardship docs in sync
@@ -65,6 +73,7 @@ Run these whenever the ASC public runtime itself, the named transport-safety inv
 - `tests/subagent-transport-live.test.mjs`
 - `tests/subagent-file-lock.test.mjs`
 - `tests/dispatch-subagent-lifecycle-control.test.mjs`
+- `tests/subagent-capacity-recovery.test.mjs`
 - `tests/execution-observation.test.mjs`
 
 This layer proves the supported seam semantics owned by ASC.

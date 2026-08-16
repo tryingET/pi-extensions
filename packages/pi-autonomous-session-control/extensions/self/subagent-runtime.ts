@@ -355,6 +355,7 @@ export async function executeDispatchSubagentRequest(options: {
     allowedPaths,
     forbiddenPaths,
   });
+  const spawner = options.spawner ?? spawnSubagent;
   const sharedCapacityLease = reserveSharedSubagentCapacity(
     options.state.sessionsDir,
     options.state.maxConcurrent,
@@ -363,6 +364,7 @@ export async function executeDispatchSubagentRequest(options: {
         dispatchId,
         attemptId,
         sessionName: name || profile,
+        custodyMode: spawner === spawnSubagent ? "helper_owned" : "parent_owned",
       },
     },
   );
@@ -386,9 +388,13 @@ export async function executeDispatchSubagentRequest(options: {
       },
     });
   }
-  const releaseExecutionReservations = (completed = false) => {
-    sharedCapacityLease.release();
+  const releaseExecutionReservations = (
+    completed = false,
+    capacityRelease?: { parentOwnedCompletion?: boolean; confirmedNoEffects?: boolean },
+  ) => {
+    const released = sharedCapacityLease.release(capacityRelease);
     executionSlot.release({ completed });
+    return released;
   };
 
   const baseSystemPrompt = systemPrompt || profileDef?.systemPrompt;
@@ -409,7 +415,6 @@ export async function executeDispatchSubagentRequest(options: {
     reservationsEnabled &&
     process.env.PI_SUBAGENT_FILE_LOCK_SESSION_NAMES?.trim().toLowerCase() !== "false";
 
-  const spawner = options.spawner ?? spawnSubagent;
   let selectedModel: ResolvedSubagentModelSelection;
   try {
     selectedModel = normalizeModelProviderResult(options.modelProvider(options.ctx));
@@ -507,6 +512,7 @@ export async function executeDispatchSubagentRequest(options: {
   let sessionFile: string | undefined;
   let activeDef: SubagentDef | undefined;
   let spawnAttempted = false;
+  let capacityReleaseDeferred = false;
   const attemptCreatedAt = new Date().toISOString();
   const runtimeOwnsStatusProjection = spawner !== spawnSubagent;
   let progressSequence = 0;
@@ -560,6 +566,7 @@ export async function executeDispatchSubagentRequest(options: {
       noSkills: skillSelection.noSkills,
       skillSources: skillSelection.skillSources,
       env: envPolicy.env,
+      capacityCustody: spawner === spawnSubagent ? sharedCapacityLease.custodyBinding : undefined,
     };
     activeDef = def;
 
@@ -619,7 +626,7 @@ export async function executeDispatchSubagentRequest(options: {
         cancelSupported: false,
       });
     }
-    sharedCapacityLease.markSpawnCommitted();
+    if (runtimeOwnsStatusProjection) sharedCapacityLease.markSpawnCommitted();
     spawnAttempted = true;
     result = await spawner(
       def,
@@ -663,18 +670,53 @@ export async function executeDispatchSubagentRequest(options: {
     };
   } finally {
     if (runtimeOwnsStatusProjection && activeDef && spawnAttempted && result) {
-      writeCompletedSubagentStatus({
-        state: options.state,
-        def: activeDef,
-        result,
-        createdAt: attemptCreatedAt,
-        pid: process.pid,
-        model: selectedModel.effectiveModel,
-      });
+      try {
+        writeCompletedSubagentStatus({
+          state: options.state,
+          def: activeDef,
+          result,
+          createdAt: attemptCreatedAt,
+          pid: process.pid,
+          model: selectedModel.effectiveModel,
+        });
+      } catch (error) {
+        result = {
+          ...result,
+          output: `${result.output}\n\nASC custom-spawner status projection failed: ${error instanceof Error ? error.message : String(error)}`,
+          exitCode: 1,
+          status: "error",
+        };
+      }
     }
     await skillSelection.cleanup?.().catch(() => undefined);
     sessionReservation?.release();
-    releaseExecutionReservations(spawnAttempted);
+    const capacityReleased = releaseExecutionReservations(spawnAttempted, {
+      parentOwnedCompletion: spawnAttempted && spawner !== spawnSubagent,
+      confirmedNoEffects: result.executionState?.transport.rawChildSpawnIntent === false,
+    });
+    if (spawnAttempted && spawner === spawnSubagent && !capacityReleased) {
+      capacityReleaseDeferred = true;
+      result = {
+        ...result,
+        output: `${result.output}\n\nASC retained shared capacity because exact helper/raw process-group quiescence was not proved.`,
+        exitCode: 1,
+        status: "error",
+      };
+      if (activeDef) {
+        try {
+          writeCompletedSubagentStatus({
+            state: options.state,
+            def: activeDef,
+            result,
+            createdAt: attemptCreatedAt,
+            pid: process.pid,
+            model: selectedModel.effectiveModel,
+          });
+        } catch {
+          // The retained exact-token lease/custody remains authoritative when projection fails.
+        }
+      }
+    }
   }
 
   const lifecycleInvariants = validateSubagentLifecycle(options.state);
@@ -706,11 +748,13 @@ export async function executeDispatchSubagentRequest(options: {
   const promptWarning = promptEnvelope.prompt_warning
     ? `\nPrompt envelope warning: ${promptEnvelope.prompt_warning}`
     : "";
-  const executionFailureKind = getDispatchSubagentFailureKind({
-    status,
-    timeoutPhase: result.timeoutPhase,
-    executionState: result.executionState,
-  });
+  const executionFailureKind = capacityReleaseDeferred
+    ? "capacity_release_deferred"
+    : getDispatchSubagentFailureKind({
+        status,
+        timeoutPhase: result.timeoutPhase,
+        executionState: result.executionState,
+      });
   // ASC owns this attestation. Persist it before returning so consumers never
   // have to infer effect truth from status, exit code, or output.
   let effectReceipt: ReturnType<typeof writeDispatchEffectReceipt> | undefined;
@@ -804,6 +848,15 @@ export async function executeDispatchSubagentRequest(options: {
 export function createAscExecutionRuntime(
   options: AscExecutionRuntimeOptions,
 ): AscExecutionRuntime {
+  if (
+    options.spawner &&
+    options.spawner !== spawnSubagent &&
+    options.customSpawnerCapacityOwnership !== "parent_owned"
+  ) {
+    throw new Error(
+      "AscExecutionRuntime custom spawners require customSpawnerCapacityOwnership=parent_owned.",
+    );
+  }
   if (options.state && options.state.sessionsDir !== options.sessionsDir) {
     throw new Error(
       `AscExecutionRuntime state.sessionsDir (${options.state.sessionsDir}) must match options.sessionsDir (${options.sessionsDir}).`,

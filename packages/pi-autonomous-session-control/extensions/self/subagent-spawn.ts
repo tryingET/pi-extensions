@@ -427,14 +427,19 @@ export function spawnSubagentWithSpawn(
       settled = true;
       clearTimers();
       removeAbortListener();
-      writeCompletedSubagentStatus({
-        state,
-        def,
-        result,
-        createdAt,
-        pid: proc?.pid ?? process.pid,
-        model,
-      });
+      try {
+        writeCompletedSubagentStatus({
+          state,
+          def,
+          result,
+          createdAt,
+          pid: proc?.pid ?? process.pid,
+          model,
+        });
+      } catch {
+        // Capacity custody is published independently by the helper. A status projection failure
+        // must not prevent promise settlement or weaken shared-capacity release checks.
+      }
       if (managesExecutionSlot) {
         state.activeCount = Math.max(0, state.activeCount - 1);
         state.completedCount++;
@@ -660,6 +665,21 @@ export function spawnSubagentWithSpawn(
       }, DEFAULT_SUBAGENT_PROGRESS_HEARTBEAT_MS);
       progressHeartbeatHandle.unref?.();
     } catch (error) {
+      if (proc) {
+        try {
+          proc.kill("SIGTERM");
+        } catch {
+          // Best effort helper shutdown after spawn/status setup failure.
+        }
+        const teardownHandle = setTimeout(() => {
+          try {
+            proc?.kill("SIGKILL");
+          } catch {
+            // Exact custody keeps shared capacity fail-closed if raw effects survive helper loss.
+          }
+        }, SUBAGENT_FORCE_KILL_GRACE_MS);
+        teardownHandle.unref?.();
+      }
       finalize({
         output: `Error spawning subagent: ${error instanceof Error ? error.message : String(error)}`,
         exitCode: 1,

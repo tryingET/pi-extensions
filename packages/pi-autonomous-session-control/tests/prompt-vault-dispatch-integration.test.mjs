@@ -45,7 +45,7 @@ async function setup() {
     };
   };
 
-  registerSubagentTool(pi, state, () => "test/model", spawner);
+  registerSubagentTool(pi, state, () => "test/model", spawner, "parent_owned");
 
   return {
     tool: registeredTool,

@@ -19,6 +19,7 @@ for (const required of [
   join(distDir, "execution.d.ts"),
   join(distDir, "extensions", "self", "subagent-pi-json-filter.js"),
   join(distDir, "extensions", "self", "subagent-pi-json-filter-v2.js"),
+  join(distDir, "extensions", "self", "subagent-raw-supervisor-v1.js"),
   join(distDir, "extensions", "self", "subagent-protocol-v2.js"),
 ]) {
   if (!existsSync(required)) {

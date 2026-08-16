@@ -385,6 +385,7 @@ export function registerSubagentTool(
   state: SubagentState,
   modelProvider: (ctx?: SubagentModelContext) => SubagentModelProviderResult,
   spawner: SubagentSpawner = spawnSubagent,
+  customSpawnerCapacityOwnership?: "parent_owned",
 ): void {
   registerDispatchSubagentTool(
     pi,
@@ -392,6 +393,7 @@ export function registerSubagentTool(
       sessionsDir: state.sessionsDir,
       state,
       modelProvider,
+      customSpawnerCapacityOwnership,
       spawner,
     }),
   );

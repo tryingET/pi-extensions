@@ -91,6 +91,7 @@ export interface OrchestratorSubagentExecutorOptions {
   sessionsDir: string;
   state?: SubagentState;
   spawner?: SubagentSpawner;
+  customSpawnerCapacityOwnership?: "parent_owned";
   onObservation?: (observation: AscExecutionObservation) => void;
 }
 
@@ -134,6 +135,11 @@ export function buildCombinedSystemPrompt(params: {
 export function createOrchestratorSubagentExecutor(
   options: OrchestratorSubagentExecutorOptions,
 ): OrchestratorSubagentExecutor {
+  if (options.spawner && options.customSpawnerCapacityOwnership !== "parent_owned") {
+    throw new Error(
+      "Orchestrator custom spawners require customSpawnerCapacityOwnership=parent_owned.",
+    );
+  }
   if (options.state && options.state.sessionsDir !== options.sessionsDir) {
     throw new Error(
       `Orchestrator subagent state.sessionsDir (${options.state.sessionsDir}) must match options.sessionsDir (${options.sessionsDir}).`,
@@ -150,6 +156,7 @@ export function createOrchestratorSubagentExecutor(
         sessionsDir: options.sessionsDir,
         state,
         modelProvider: () => params.model,
+        customSpawnerCapacityOwnership: options.customSpawnerCapacityOwnership,
         spawner: options.spawner,
       });
 

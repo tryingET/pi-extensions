@@ -120,6 +120,7 @@ test("orchestrator adapter projects ASC progress and terminal events through a n
   try {
     const executor = createOrchestratorSubagentExecutor({
       sessionsDir,
+      customSpawnerCapacityOwnership: "parent_owned",
       onObservation(observation) {
         observations.push(observation);
       },
@@ -172,6 +173,7 @@ test("a throwing orchestrator observation sink cannot fail ASC execution", async
   try {
     const executor = createOrchestratorSubagentExecutor({
       sessionsDir,
+      customSpawnerCapacityOwnership: "parent_owned",
       onObservation() {
         throw new Error("observer unavailable");
       },

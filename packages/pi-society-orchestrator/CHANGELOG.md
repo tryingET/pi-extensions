@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.7.0...pi-society-orchestrator-v0.7.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **asc:** fail closed on proc snapshot churn ([97ee000](https://github.com/tryingET/pi-extensions/commit/97ee000377be9e6249ec6faa6fa5d20f5d8737c9))
+* **asc:** fence shared capacity recovery ([d5f33c5](https://github.com/tryingET/pi-extensions/commit/d5f33c58178a0977126dbea726d749bdc82f9b75))
+* **orchestrator:** classify pre-spawn dispatch failures as confirmed_no_effects ([5e6e061](https://github.com/tryingET/pi-extensions/commit/5e6e0611a5e014987ec9c3987312ab8cfe61d766))
+
 ## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.6.0...pi-society-orchestrator-v0.7.0) (2026-08-15)
 
 

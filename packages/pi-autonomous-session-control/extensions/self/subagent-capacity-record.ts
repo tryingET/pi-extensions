@@ -1,5 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import {
+  getCapacityCustodyPath,
+  readSubagentCapacityCustody,
+  type SubagentCapacityCustodyBinding,
+} from "./subagent-capacity-custody.ts";
 import {
   getProcessStartTicks,
   listSubagentSessionStatuses,
@@ -14,11 +19,11 @@ export interface CapacityLeaseMetadata {
   dispatchId?: string;
   attemptId?: string;
   sessionName?: string;
+  custodyMode?: "helper_owned" | "parent_owned";
 }
 
-export interface LinuxProcView {
-  listEntries(): string[];
-  readStat(pid: string): string;
+export interface LinuxProcessGroupProbe {
+  signalZero(processGroupId: number): void;
 }
 
 export interface CapacityLeasePayload extends CapacityLeaseMetadata {
@@ -32,11 +37,12 @@ export interface CapacityLeasePayload extends CapacityLeaseMetadata {
 
 export interface SharedSubagentCapacityHolder {
   slot: number;
-  parentPid: number;
+  parentPid?: number;
   parentProcessState?: string;
   createdAt: string;
   ageMs: number;
   stale: boolean;
+  unreadable?: boolean;
   dispatchId?: string;
   attemptId?: string;
   sessionName?: string;
@@ -53,11 +59,36 @@ export function getCapacityPath(sessionsDir: string, slot: number): string {
   return join(sessionsDir, `.asc-subagent-capacity-${slot}.lock`);
 }
 
+export function getCapacityLimitPath(sessionsDir: string): string {
+  return join(sessionsDir, ".asc-subagent-capacity-limit.v1");
+}
+
 export function getCapacitySpawnCommittedPath(
   sessionsDir: string,
   payload: Pick<CapacityLeasePayload, "slot" | "token">,
 ): string {
   return `${getCapacityPath(sessionsDir, payload.slot)}.spawn-${payload.token}`;
+}
+
+export function getCapacityCustodyBinding(
+  sessionsDir: string,
+  payload: CapacityLeasePayload,
+): SubagentCapacityCustodyBinding | undefined {
+  if (!payload.dispatchId || !payload.attemptId || payload.custodyMode === "parent_owned") {
+    return undefined;
+  }
+  const capacityPath = getCapacityPath(sessionsDir, payload.slot);
+  return {
+    capacityPath,
+    path: getCapacityCustodyPath(capacityPath, payload.token),
+    spawnCommittedPath: getCapacitySpawnCommittedPath(sessionsDir, payload),
+    slot: payload.slot,
+    token: payload.token,
+    dispatchId: payload.dispatchId,
+    attemptId: payload.attemptId,
+    parentPid: payload.pid,
+    parentPidStartedAt: payload.pidStartedAt,
+  };
 }
 
 export function readCapacityLease(
@@ -78,7 +109,8 @@ export function readCapacityLease(
       Number.isFinite(Date.parse(parsed.createdAt)) &&
       optionalIdentityIsValid(parsed.dispatchId) &&
       optionalIdentityIsValid(parsed.attemptId) &&
-      optionalIdentityIsValid(parsed.sessionName)
+      optionalIdentityIsValid(parsed.sessionName) &&
+      optionalCustodyModeIsValid(parsed.custodyMode)
       ? (parsed as CapacityLeasePayload)
       : undefined;
   } catch {
@@ -101,23 +133,45 @@ export function capacityLeaseIsStale(
   // Legacy leases have no child-custody identity. Preserve their historical parent-owned
   // semantics, but never infer a child match from timestamps for reclamation.
   if (!payload.dispatchId || !payload.attemptId) return parentStale;
-  if (!status) {
-    return parentStale && !existsSync(getCapacitySpawnCommittedPath(sessionsDir, payload));
+
+  const spawnCommitted = existsSync(getCapacitySpawnCommittedPath(sessionsDir, payload));
+  if (payload.custodyMode === "parent_owned") {
+    return status ? status.status !== "running" : parentStale && !spawnCommitted;
   }
 
-  // Custom spawners never publish owned child custody. A running custom sidecar therefore stays
-  // fail-closed even after parent death; only its terminal owner projection permits reclaim.
-  if (status.cancelSupported !== true) return status.status !== "running";
+  const custodyBinding = getCapacityCustodyBinding(sessionsDir, payload);
+  const custody = custodyBinding ? readSubagentCapacityCustody(custodyBinding) : undefined;
 
-  const helperIdentityValid = processIdentityIsValid(status.pid, status.pidStartedAt);
-  const rawIdentityValid = processIdentityIsValid(status.rawChildPid, status.rawChildPidStartedAt);
-  const rawGroupId = status.rawChildProcessGroupId;
+  if (payload.custodyMode === "helper_owned" && !custody) {
+    if (spawnCommitted || !parentStale) return false;
+    if (
+      status &&
+      processIdentityIsValid(status.pid, status.pidStartedAt) &&
+      !processOwnerIsStale({ pid: status.pid, pidStartedAt: status.pidStartedAt as number })
+    ) {
+      return false;
+    }
+    return true;
+  }
 
-  // An owned helper may die under SIGKILL before its exit handler can reap a detached raw Pi
-  // process group. Missing raw-child custody therefore fails closed even when helper/parent dies.
+  // Compatibility for leases created before custodyMode existed: terminal custom sidecars remain
+  // parent-owned, while owned legacy sidecars retain their exact status custody fallback.
+  if (!custody && status?.cancelSupported !== true) {
+    if (!status) return parentStale && !spawnCommitted;
+    return status.status !== "running";
+  }
+
+  const helperPid = custody?.helperPid ?? status?.pid;
+  const helperPidStartedAt = custody?.helperPidStartedAt ?? status?.pidStartedAt;
+  const rawChildPid = custody?.rawChildPid ?? status?.rawChildPid;
+  const rawChildPidStartedAt = custody?.rawChildPidStartedAt ?? status?.rawChildPidStartedAt;
+  const rawGroupId = custody?.rawChildProcessGroupId ?? status?.rawChildProcessGroupId;
+
+  // Missing exact post-spawn custody remains fail-closed. The helper-written custody record closes
+  // the parent-transport window without treating transport output as durable effect authority.
   if (
-    !helperIdentityValid ||
-    !rawIdentityValid ||
+    !processIdentityIsValid(helperPid, helperPidStartedAt) ||
+    !processIdentityIsValid(rawChildPid, rawChildPidStartedAt) ||
     !Number.isSafeInteger(rawGroupId) ||
     (rawGroupId as number) <= 0
   ) {
@@ -125,16 +179,17 @@ export function capacityLeaseIsStale(
   }
 
   const rawChildStale = processOwnerIsStale({
-    pid: status.rawChildPid as number,
-    pidStartedAt: status.rawChildPidStartedAt as number,
+    pid: rawChildPid as number,
+    pidStartedAt: rawChildPidStartedAt as number,
   });
   if (!rawChildStale || !processGroupIsQuiescent(rawGroupId as number)) return false;
 
   const helperStale = processOwnerIsStale({
-    pid: status.pid,
-    pidStartedAt: status.pidStartedAt as number,
+    pid: helperPid as number,
+    pidStartedAt: helperPidStartedAt as number,
   });
-  return status.status !== "running" || helperStale || parentStale;
+  if (!helperStale) return false;
+  return true;
 }
 
 export function inspectSharedSubagentCapacity(
@@ -145,19 +200,35 @@ export function inspectSharedSubagentCapacity(
   const holders: SharedSubagentCapacityHolder[] = [];
 
   for (let slot = 0; slot < maxConcurrent && holders.length < MAX_HOLDER_DIAGNOSTICS; slot += 1) {
-    const lease = readCapacityLease(getCapacityPath(sessionsDir, slot), slot);
-    if (!lease) continue;
+    const capacityPath = getCapacityPath(sessionsDir, slot);
+    const lease = readCapacityLease(capacityPath, slot);
+    if (!lease) {
+      if (existsSync(capacityPath)) {
+        const metadata = unreadableCapacityMetadata(capacityPath);
+        holders.push({
+          slot,
+          createdAt: metadata.createdAt,
+          ageMs: metadata.ageMs,
+          stale: false,
+          unreadable: true,
+        });
+      }
+      continue;
+    }
     const exactStatus = findExactLeaseStatusFromList(statuses, lease);
-    const helperPid =
-      exactStatus?.cancelSupported === true &&
-      processIdentityIsValid(exactStatus.pid, exactStatus.pidStartedAt)
-        ? exactStatus.pid
-        : undefined;
-    const rawChildPid = processIdentityIsValid(
-      exactStatus?.rawChildPid,
-      exactStatus?.rawChildPidStartedAt,
+    const custodyBinding = getCapacityCustodyBinding(sessionsDir, lease);
+    const custody = custodyBinding ? readSubagentCapacityCustody(custodyBinding) : undefined;
+    const helperPid = processIdentityIsValid(
+      custody?.helperPid ?? exactStatus?.pid,
+      custody?.helperPidStartedAt ?? exactStatus?.pidStartedAt,
     )
-      ? exactStatus?.rawChildPid
+      ? (custody?.helperPid ?? exactStatus?.pid)
+      : undefined;
+    const rawChildPid = processIdentityIsValid(
+      custody?.rawChildPid ?? exactStatus?.rawChildPid,
+      custody?.rawChildPidStartedAt ?? exactStatus?.rawChildPidStartedAt,
+    )
+      ? (custody?.rawChildPid ?? exactStatus?.rawChildPid)
       : undefined;
     const legacySessionCandidates = lease.dispatchId
       ? undefined
@@ -191,9 +262,11 @@ export function inspectSharedSubagentCapacity(
         "rawChildProcessState",
         rawChildPid ? readLinuxProcessState(rawChildPid) : undefined,
       ),
-      ...(exactStatus?.rawChildProcessGroupId
+      ...((custody?.rawChildProcessGroupId ?? exactStatus?.rawChildProcessGroupId)
         ? {
-            rawChildGroupQuiescent: processGroupIsQuiescent(exactStatus.rawChildProcessGroupId),
+            rawChildGroupQuiescent: processGroupIsQuiescent(
+              (custody?.rawChildProcessGroupId ?? exactStatus?.rawChildProcessGroupId) as number,
+            ),
           }
         : {}),
       ...(legacySessionCandidates?.length ? { legacySessionCandidates } : {}),
@@ -209,6 +282,9 @@ export function formatSharedSubagentCapacityHolders(
   if (holders.length === 0) return "No readable holder metadata was available.";
   return holders
     .map((holder) => {
+      if (holder.unreadable) {
+        return `slot=${holder.slot} lease=unreadable age=${formatAge(holder.ageMs)} stale=false`;
+      }
       const session = holder.sessionName
         ? `session=${holder.sessionName}`
         : holder.legacySessionCandidates?.length
@@ -220,7 +296,7 @@ export function formatSharedSubagentCapacityHolders(
       const raw = holder.rawChildPid
         ? ` rawPid=${holder.rawChildPid}${holder.rawChildProcessState ? `(${holder.rawChildProcessState})` : ""} rawGroupQuiescent=${String(holder.rawChildGroupQuiescent)}`
         : " rawPid=unknown";
-      return `slot=${holder.slot} ${session} age=${formatAge(holder.ageMs)} parentPid=${holder.parentPid}${holder.parentProcessState ? `(${holder.parentProcessState})` : ""}${helper}${raw}`;
+      return `slot=${holder.slot} ${session} age=${formatAge(holder.ageMs)} parentPid=${holder.parentPid ?? "unknown"}${holder.parentProcessState ? `(${holder.parentProcessState})` : ""}${helper}${raw}`;
     })
     .join("; ")
     .slice(0, 2_000);
@@ -229,25 +305,27 @@ export function formatSharedSubagentCapacityHolders(
 export function processOwnerIsStale(payload: { pid: number; pidStartedAt: number }): boolean {
   try {
     process.kill(payload.pid, 0);
-  } catch {
-    return true;
+  } catch (error) {
+    return getErrorCode(error) === "ESRCH";
   }
-  if (readLinuxProcessState(payload.pid) === "Z") return true;
-  return getProcessStartTicks(payload.pid) !== payload.pidStartedAt;
+  const state = readLinuxProcessState(payload.pid);
+  if (state === undefined) return false;
+  if (state === "Z" || state === "X") return true;
+  const startedAt = getProcessStartTicks(payload.pid);
+  return startedAt !== null && startedAt !== payload.pidStartedAt;
 }
 
 export function parseLinuxProcessState(statLine: string): string | undefined {
   return parseLinuxProcessStat(statLine)?.state;
 }
 
-const linuxProcView: LinuxProcView = {
-  listEntries: () => readdirSync("/proc"),
-  readStat: (pid) => readFileSync(`/proc/${pid}/stat`, "utf8"),
+const linuxProcessGroupProbe: LinuxProcessGroupProbe = {
+  signalZero: (processGroupId) => process.kill(-processGroupId, 0),
 };
 
 export function processGroupIsQuiescent(
   processGroupId: number,
-  procView: LinuxProcView = linuxProcView,
+  probe: LinuxProcessGroupProbe = linuxProcessGroupProbe,
 ): boolean {
   if (
     process.platform !== "linux" ||
@@ -256,29 +334,15 @@ export function processGroupIsQuiescent(
   ) {
     return false;
   }
-  let entries: string[];
   try {
-    entries = procView.listEntries();
-  } catch {
+    // killpg(..., 0) asks the kernel whether the process-group identity still exists. Unlike a
+    // userspace /proc directory snapshot, it cannot miss a same-group fork between observations.
+    // Zombies keep the group non-quiescent until their kernel identity is reaped.
+    probe.signalZero(processGroupId);
     return false;
+  } catch (error) {
+    return getErrorCode(error) === "ESRCH";
   }
-
-  for (const entry of entries) {
-    if (!/^\d+$/.test(entry)) continue;
-    let statLine: string;
-    try {
-      statLine = procView.readStat(entry);
-    } catch {
-      // The /proc snapshot can churn. A listed process may fork a same-group child before
-      // disappearing, so any unreadable listed PID makes this observation inconclusive.
-      return false;
-    }
-    const parsed = parseLinuxProcessStat(statLine);
-    if (!parsed) return false;
-    if (parsed.processGroupId !== processGroupId) continue;
-    if (parsed.state !== "Z" && parsed.state !== "X") return false;
-  }
-  return true;
 }
 
 function readLinuxProcessState(pid: number): string | undefined {
@@ -327,8 +391,30 @@ function processIdentityIsValid(pid: unknown, pidStartedAt: unknown): boolean {
   );
 }
 
+function getErrorCode(error: unknown): string {
+  return error && typeof error === "object" && "code" in error
+    ? String((error as NodeJS.ErrnoException).code ?? "")
+    : "";
+}
+
 function optionalIdentityIsValid(value: unknown): boolean {
   return value === undefined || (typeof value === "string" && value.length <= MAX_IDENTITY_CHARS);
+}
+
+function optionalCustodyModeIsValid(value: unknown): boolean {
+  return value === undefined || value === "helper_owned" || value === "parent_owned";
+}
+
+function unreadableCapacityMetadata(path: string): { createdAt: string; ageMs: number } {
+  try {
+    const modifiedAt = statSync(path).mtimeMs;
+    return {
+      createdAt: new Date(modifiedAt).toISOString(),
+      ageMs: Math.max(0, Date.now() - modifiedAt),
+    };
+  } catch {
+    return { createdAt: new Date(0).toISOString(), ageMs: 0 };
+  }
 }
 
 function createdAtIsNear(left: string, right: string): boolean {

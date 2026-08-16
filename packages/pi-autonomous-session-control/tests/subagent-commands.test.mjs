@@ -7,6 +7,7 @@ import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { reserveSharedSubagentCapacity } from "../extensions/self/subagent-capacity.ts";
 import { registerSubagentCommands } from "../extensions/self/subagent-commands.ts";
 import { createSubagentState, getSessionStatusPath } from "../extensions/self/subagent-session.ts";
 
@@ -36,6 +37,42 @@ async function writeStatus(sessionsDir, sessionName, extras = {}) {
     }),
   );
 }
+
+test("subagent-status reports repository-scoped shared capacity holders", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-command-shared-status-"));
+  let lease;
+  try {
+    const state = createSubagentState(sessionsDir);
+    lease = reserveSharedSubagentCapacity(sessionsDir, state.maxConcurrent, {
+      leaseMetadata: {
+        dispatchId: "dispatch-status-holder",
+        attemptId: "attempt-status-holder",
+        sessionName: "status-holder",
+      },
+    });
+    assert.ok(lease);
+    const harness = createPiHarness();
+    registerSubagentCommands(harness.pi, state);
+    const notifications = [];
+
+    await harness.commands.get("subagent-status").handler("", {
+      hasUI: true,
+      ui: {
+        notify(message, level) {
+          notifications.push({ message, level });
+        },
+      },
+    });
+
+    assert.equal(notifications.length, 1);
+    assert.match(notifications[0].message, /shared holders=1\/5/);
+    assert.match(notifications[0].message, /session=status-holder/);
+    assert.equal(notifications[0].level, "info");
+  } finally {
+    lease?.release();
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
 
 test("subagent-cleanup preserves sessions unless destructive deletion is explicit", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "subagent-command-cleanup-preserve-"));

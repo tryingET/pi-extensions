@@ -45,6 +45,7 @@ async function setup(spawnerOverride, stateOptions) {
       capturedDef = def;
       return spawner(...args);
     },
+    "parent_owned",
   );
 
   return {

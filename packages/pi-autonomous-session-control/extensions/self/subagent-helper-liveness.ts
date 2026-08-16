@@ -1,22 +1,29 @@
-import type { ChildProcessByStdio } from "node:child_process";
-import type { Readable } from "node:stream";
+import type { ChildProcess } from "node:child_process";
+import { getProcessStartTicks } from "./subagent-session-status.ts";
 
 const CHILD_FORCE_KILL_GRACE_MS = 250;
 const HELPER_FORCE_EXIT_GRACE_MS = 400;
+const DEFAULT_BACKPRESSURE_TIMEOUT_MS = 60_000;
+const PARENT_LIVENESS_POLL_MS = 1_000;
 
 export interface SubagentHelperLivenessController {
   writeProtocolLine(line: string): void;
+  writeDiagnosticChunk(chunk: string): void;
   markTransportReady(): void;
   start(): void;
   handleChildClose(code: number | null, signal: NodeJS.Signals | null): void;
   handleChildError(): void;
+  handleHelperFailure(exitCode?: number): void;
 }
 
 export function createSubagentHelperLivenessController(options: {
-  child: ChildProcessByStdio<null, Readable, Readable>;
+  child: ChildProcess;
   startupTimeoutMs: number;
   executionTimeoutMs: number;
   cleanupSync: () => void;
+  parentPid?: number;
+  parentPidStartedAt?: number;
+  backpressureTimeoutMs?: number;
 }): SubagentHelperLivenessController {
   const { child } = options;
   let childExited = false;
@@ -25,9 +32,12 @@ export function createSubagentHelperLivenessController(options: {
   let childForceKillHandle: ReturnType<typeof setTimeout> | null = null;
   let helperDeadlineHandle: ReturnType<typeof setTimeout> | null = null;
   let helperForceExitHandle: ReturnType<typeof setTimeout> | null = null;
+  let backpressureTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  let parentLivenessHandle: ReturnType<typeof setInterval> | null = null;
   let helperDeadlineExpired = false;
   let forcedExitCode: number | undefined;
   let stdoutBackpressured = false;
+  let stderrBackpressured = false;
 
   const clearChildForceKill = () => {
     if (!childForceKillHandle) return;
@@ -45,6 +55,18 @@ export function createSubagentHelperLivenessController(options: {
     if (!helperForceExitHandle) return;
     clearTimeout(helperForceExitHandle);
     helperForceExitHandle = null;
+  };
+
+  const clearBackpressureTimeout = () => {
+    if (!backpressureTimeoutHandle) return;
+    clearTimeout(backpressureTimeoutHandle);
+    backpressureTimeoutHandle = null;
+  };
+
+  const clearParentLiveness = () => {
+    if (!parentLivenessHandle) return;
+    clearInterval(parentLivenessHandle);
+    parentLivenessHandle = null;
   };
 
   const scheduleHelperForceExit = (exitCode: number) => {
@@ -79,6 +101,53 @@ export function createSubagentHelperLivenessController(options: {
     childForceKillHandle.unref?.();
   };
 
+  const stopForHelperFailure = (exitCode: number) => {
+    requestChildStop("SIGTERM");
+    scheduleHelperForceExit(exitCode);
+  };
+
+  const parentIdentityIsLive = () => {
+    const parentPid = options.parentPid;
+    const parentPidStartedAt = options.parentPidStartedAt;
+    if (
+      !Number.isSafeInteger(parentPid) ||
+      (parentPid as number) <= 0 ||
+      !Number.isSafeInteger(parentPidStartedAt) ||
+      (parentPidStartedAt as number) < 0
+    ) {
+      return true;
+    }
+    try {
+      process.kill(parentPid as number, 0);
+    } catch (error) {
+      return getErrorCode(error) !== "ESRCH";
+    }
+    const currentStartedAt = getProcessStartTicks(parentPid as number);
+    return currentStartedAt === null || currentStartedAt === parentPidStartedAt;
+  };
+
+  const startParentLivenessMonitor = () => {
+    if (parentLivenessHandle) return;
+    parentLivenessHandle = setInterval(() => {
+      if (!parentIdentityIsLive()) stopForHelperFailure(125);
+    }, PARENT_LIVENESS_POLL_MS);
+    parentLivenessHandle.unref?.();
+  };
+
+  const armBackpressureTimeout = () => {
+    if (backpressureTimeoutHandle) return;
+    const timeoutMs = options.backpressureTimeoutMs ?? DEFAULT_BACKPRESSURE_TIMEOUT_MS;
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) return;
+    backpressureTimeoutHandle = setTimeout(() => {
+      stopForHelperFailure(125);
+    }, timeoutMs);
+    backpressureTimeoutHandle.unref?.();
+  };
+
+  const clearBackpressureWhenDrained = () => {
+    if (!stdoutBackpressured && !stderrBackpressured) clearBackpressureTimeout();
+  };
+
   const armDeadline = (timeoutMs: number) => {
     clearHelperDeadline();
     if (timeoutMs <= 0) return;
@@ -100,15 +169,28 @@ export function createSubagentHelperLivenessController(options: {
   process.once("exit", () => {
     clearChildForceKill();
     clearHelperDeadline();
+    clearBackpressureTimeout();
+    clearParentLiveness();
     options.cleanupSync();
     if (!childExited) killRawChild("SIGKILL");
   });
   process.stdout.on("drain", () => {
     stdoutBackpressured = false;
+    clearBackpressureWhenDrained();
     child.stdout?.resume();
-    if (childExited && !helperDeadlineExpired) clearHelperForceExit();
+    if (childExited && !helperDeadlineExpired && !stderrBackpressured) clearHelperForceExit();
   });
   process.stdout.on("error", () => {
+    requestChildStop("SIGTERM");
+    scheduleHelperForceExit(1);
+  });
+  process.stderr.on("drain", () => {
+    stderrBackpressured = false;
+    clearBackpressureWhenDrained();
+    child.stderr?.resume();
+    if (childExited && !helperDeadlineExpired && !stdoutBackpressured) clearHelperForceExit();
+  });
+  process.stderr.on("error", () => {
     requestChildStop("SIGTERM");
     scheduleHelperForceExit(1);
   });
@@ -117,8 +199,15 @@ export function createSubagentHelperLivenessController(options: {
     childExited = true;
     clearChildForceKill();
     clearHelperDeadline();
+    clearBackpressureTimeout();
+    clearParentLiveness();
     process.exitCode = forcedExitCode ?? exitCode;
-    if (stdoutBackpressured || process.stdout.writableNeedDrain) {
+    if (
+      stdoutBackpressured ||
+      stderrBackpressured ||
+      process.stdout.writableNeedDrain ||
+      process.stderr.writableNeedDrain
+    ) {
       scheduleHelperForceExit(process.exitCode);
     }
   };
@@ -129,6 +218,19 @@ export function createSubagentHelperLivenessController(options: {
         if (!process.stdout.write(line)) {
           stdoutBackpressured = true;
           child.stdout?.pause();
+          armBackpressureTimeout();
+        }
+      } catch {
+        requestChildStop("SIGTERM");
+        scheduleHelperForceExit(1);
+      }
+    },
+    writeDiagnosticChunk(chunk) {
+      try {
+        if (!process.stderr.write(chunk)) {
+          stderrBackpressured = true;
+          child.stderr?.pause();
+          armBackpressureTimeout();
         }
       } catch {
         requestChildStop("SIGTERM");
@@ -139,15 +241,26 @@ export function createSubagentHelperLivenessController(options: {
       armDeadline(options.executionTimeoutMs);
     },
     start() {
+      startParentLivenessMonitor();
       armDeadline(options.startupTimeoutMs);
     },
     handleChildClose(code, signal) {
+      // The supervisor tears down its own complete group while it is still the live leader.
       finish(signalToExitCode(terminationSignal) ?? code ?? signalToExitCode(signal) ?? 0);
     },
     handleChildError() {
       finish(signalToExitCode(terminationSignal) ?? 1);
     },
+    handleHelperFailure(exitCode = 1) {
+      stopForHelperFailure(exitCode);
+    },
   };
+}
+
+function getErrorCode(error: unknown): string {
+  return error && typeof error === "object" && "code" in error
+    ? String((error as NodeJS.ErrnoException).code ?? "")
+    : "";
 }
 
 function signalToExitCode(signal: NodeJS.Signals | null | undefined): number | undefined {

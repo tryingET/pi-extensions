@@ -127,6 +127,23 @@ async function withFakePiOnPath(scriptBody, run, version = "0.80.6") {
   }
 }
 
+test("custom spawners require explicit parent-owned capacity semantics", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-custom-spawner-ownership-"));
+  try {
+    assert.throws(
+      () =>
+        createAscExecutionRuntime({
+          sessionsDir,
+          modelProvider: () => "test/model",
+          spawner: async () => ({ output: "done", exitCode: 0, elapsed: 1, status: "done" }),
+        }),
+      /customSpawnerCapacityOwnership=parent_owned/,
+    );
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("createAscExecutionRuntime exposes the ASC execution contract for non-tool consumers", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-public-runtime-"));
   const updates = [];
@@ -138,6 +155,7 @@ test("createAscExecutionRuntime exposes the ASC execution contract for non-tool 
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async (def, model, ctx, state) => {
       capturedDef = def;
       capturedModel = model;
@@ -232,6 +250,7 @@ test("createAscExecutionRuntime rejects unapproved request env before spawn with
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => {
       spawnerCalled = true;
       return {
@@ -279,6 +298,7 @@ test("createAscExecutionRuntime returns structured model-selection errors withou
     modelProvider: () => {
       throw new Error("model provider exploded");
     },
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => {
       spawnerCalled = true;
       return {
@@ -333,6 +353,7 @@ test("createAscExecutionRuntime rejects whitespace-only model strings before spa
       effectiveModel: "test/model",
       source: "session",
     }),
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => {
       spawnerCalled = true;
       return {
@@ -480,6 +501,7 @@ test("createAscExecutionRuntime forwards AbortSignal to the ASC spawner", async 
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async (_def, _model, _ctx, _state, signal) => {
       capturedSignal = signal;
       return {
@@ -516,6 +538,7 @@ test("createAscExecutionRuntime shapes timeout results without output determinis
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => ({ ...timeoutEmptyOutputCase.spawnerResult }),
   });
 
@@ -551,6 +574,7 @@ test("createAscExecutionRuntime keeps whitespace-only transport output from blan
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => ({ ...timeoutWhitespaceOutputCase.spawnerResult }),
   });
 
@@ -689,6 +713,7 @@ test("registerDispatchSubagentTool binds dispatch_subagent to the shared ASC run
   const runtime = createAscExecutionRuntime({
     sessionsDir,
     modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
     spawner: async () => ({
       output: "tool ok",
       exitCode: 0,

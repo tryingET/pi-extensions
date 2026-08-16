@@ -49,6 +49,7 @@ function createHarness(sessionsDir, capturedDefs) {
         status: "done",
       };
     },
+    "parent_owned",
   );
 
   return { tool, state };
@@ -200,6 +201,7 @@ test("dispatch_subagent writes lock metadata for live reservations", async () =>
           status: "done",
         };
       },
+      "parent_owned",
     );
 
     await tool.execute(

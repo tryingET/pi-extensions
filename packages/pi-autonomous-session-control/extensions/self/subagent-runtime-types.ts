@@ -66,7 +66,8 @@ export type DispatchSubagentFailureKind =
   | "unknown_profile"
   | "rate_limited"
   | "model_selection_failed"
-  | "effect_receipt_write_failed";
+  | "effect_receipt_write_failed"
+  | "capacity_release_deferred";
 
 export interface DispatchSubagentPreDispatchFailureAttestation {
   schema: "asc.dispatch_pre_dispatch_failure.v1";
@@ -198,6 +199,7 @@ export interface AscExecutionRuntimeOptions {
   sessionsDir: string;
   modelProvider: (ctx?: SubagentModelContext) => SubagentModelProviderResult;
   spawner?: SubagentSpawner;
+  customSpawnerCapacityOwnership?: "parent_owned";
   state?: SubagentState;
   maxConcurrent?: number;
 }

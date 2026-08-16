@@ -389,6 +389,7 @@ test("ASC confirmed-no-effects receipt enables one exact same-lineage retry", as
     const first = await harness.executor.execute(objective, async ({ effectCorrelationId }) => {
       const rejectedRuntime = createAscExecutionRuntime({
         sessionsDir,
+        customSpawnerCapacityOwnership: "parent_owned",
         modelProvider: () => {
           throw new Error("transient model selection failure");
         },
@@ -420,6 +421,7 @@ test("ASC confirmed-no-effects receipt enables one exact same-lineage retry", as
         resumedCalls.push(phase);
         const runtime = createAscExecutionRuntime({
           sessionsDir,
+          customSpawnerCapacityOwnership: "parent_owned",
           modelProvider: () => "test/model",
           spawner: async () => ({
             output:

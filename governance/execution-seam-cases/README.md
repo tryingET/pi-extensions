@@ -20,9 +20,20 @@ Initial seed cases:
 - `assistant-protocol-parse-error` — malformed raw pi JSON output must preserve parse-error classification and body text across translation into the helper protocol seam
 - `assistant-protocol-incomplete` — a clean transport exit without exactly one terminal assistant event must fail closed and preserve partial output plus incomplete-protocol classification
 - `bundled-bridge-import` — installed release smoke must still see the temporary bundled ASC bridge in the isolated package copy
-- `capacity-parent-not-draining` — helper protocol backpressure must remain bounded and helper-owned deadlines must terminate the helper even when the parent never drains stdout
+- `capacity-parent-not-draining` — helper protocol backpressure must remain bounded and a separate positive watchdog must terminate raw work even when execution is explicitly unlimited and the parent never drains stdout
+- `capacity-parent-not-draining-stderr` — forwarded raw stderr must honor the same finite backpressure supervision when a live parent stops draining helper stderr
 - `capacity-dead-helper-live-raw-group` — helper death alone must not reclaim capacity while the exact detached raw Pi process group remains live; missing custody metadata stays fail-closed
 - `capacity-pre-spawn-dead-owner` — an exact-token lease still in the proven pre-spawn phase may be reclaimed after owner death, while a spawn-committed/no-status lease remains blocked
+- `capacity-helper-direct-custody` — a dormant supervisor must receive immutable no-replace helper/raw/process-group custody and a spawn marker before the raw Pi start gate or `transport_ready`, so parent loss cannot create an unowned spawn window
+- `capacity-start-takeover-fence` — stale takeover and helper custody/start publication must share one per-slot transition fence so parent death inside the handoff cannot admit overlapping effects
+- `capacity-shared-limit-immutable` — the first reservation fixes one persistent repository-session-root `maxConcurrent` contract and later callers cannot expand the slot namespace
+- `capacity-malformed-lease-hard-cap` — writer metadata must remain reader-valid and malformed effect-bearing leases must never become reclaimable by age alone
+- `capacity-release-marker-claim-race` — a failed exact lease deletion must preserve its spawn marker and custody evidence; only successful compare/delete permits cleanup
+- `capacity-kernel-group-absence` — post-spawn release/reclaim requires exact helper/raw death plus one kernel process-group probe whose `ESRCH` result is the only absence proof
+- `capacity-unlimited-parent-death` — helper supervision of the exact parent PID/start identity remains finite even when workload execution timeout is disabled
+- `capacity-helper-sigkill-supervisor` — helper `SIGKILL` must close the custody pipe and make the still-live supervisor leader terminate the complete managed group without helper cleanup or post-reap PGID signaling
+- `capacity-release-deferred-truth` — failed exact lease deletion or non-quiescent managed group must change terminal success into `capacity_release_deferred` error with effect-indeterminate disposition
+- `capacity-custom-spawner-explicit-owner` — custom runtime spawners must declare `parent_owned` capacity semantics instead of receiving an implicit function-identity bypass
 
 Usage today:
 - ASC contract tests load these cases from `packages/pi-autonomous-session-control/tests/`

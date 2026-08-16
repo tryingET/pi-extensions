@@ -82,7 +82,7 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
     systemPrompt: normalizeString(normalized.systemPrompt, {
       allowEmpty: true,
     }),
-    name: normalizeString(normalized.name),
+    name: normalizeString(normalized.name, { maxLength: 200 }),
     timeout: normalizeNumber(normalized.timeout, { min: 0, max: 86_400 }),
     extensions: normalizeStringArray(normalized.extensions),
     env: normalizeStringRecord(normalized.env),

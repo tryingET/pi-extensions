@@ -34,6 +34,7 @@ import {
   GOVERNED_RUNTIME_HOST_CACHE_TARBALLS,
   GOVERNED_RUNTIME_HOST_PEERS,
   GOVERNED_RUNTIME_HOST_VERSION,
+  GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS,
   GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX,
   GOVERNED_RUNTIME_PACKAGES,
   GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH,
@@ -51,6 +52,7 @@ import {
   verifyGovernedRuntimeFileIntegrity,
   verifyGovernedRuntimeNodeModulesLayout,
   verifyGovernedRuntimeNpmEffectReceipts,
+  verifyGovernedRuntimeNpmPolicy,
   verifyGovernedRuntimePackageClosures,
   verifyGovernedRuntimePeerClosure,
 } from "../src/runtime/governed-runtime-materialization.ts";
@@ -278,6 +280,7 @@ function withGovernedNpmPolicyFixture(run) {
   writeFileSync(
     npmrcPath,
     `min-release-age=7
+min-release-age-exclude[]=@tryinget/*
 before=${beforePin}
 registry=https://registry.npmjs.org/
 offline=false
@@ -306,15 +309,42 @@ cache=${cacheDir}
   }
 }
 
-test("governed npm receipt observes the unchanged release-age policy", () => {
+test("governed npm receipt age-gates third parties and exempts only the owned scope", () => {
   withGovernedNpmPolicyFixture(({ cacheDir }) => {
     const proof = inspectGovernedRuntimeNpmPolicy();
     assert.equal(proof.minReleaseAgeDays >= 7, true);
+    assert.deepEqual(proof.minReleaseAgeExclusions, [
+      ...GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS,
+    ]);
     assert.equal(proof.registry, "https://registry.npmjs.org/");
     assert.equal(proof.cacheRealpath, realpathSync(cacheDir));
     assert.equal(proof.offline, false);
     assert.equal(proof.force, false);
     assert.deepEqual(proof.overrideEnvironment, {});
+  });
+});
+
+test("governed npm policy rejects widened or ambient release-age exclusions", () => {
+  withGovernedNpmPolicyFixture(() => {
+    const proof = inspectGovernedRuntimeNpmPolicy();
+    assert.throws(
+      () =>
+        verifyGovernedRuntimeNpmPolicy({
+          ...proof,
+          minReleaseAgeExclusions: [...proof.minReleaseAgeExclusions, "third-party-*"],
+        }),
+      (error) => error?.failureClass === "materialization_npm_policy_mismatch",
+    );
+
+    process.env.npm_config_min_release_age_exclude = "third-party-*";
+    try {
+      assert.throws(
+        () => inspectGovernedRuntimeNpmPolicy(),
+        (error) => error?.failureClass === "materialization_npm_policy_mismatch",
+      );
+    } finally {
+      delete process.env.npm_config_min_release_age_exclude;
+    }
   });
 });
 
@@ -340,6 +370,7 @@ test("npm effects and receipts bind exact executable bytes, sanitized policy, ar
     assert.deepEqual(actualReceipts[0].npmExecutable, npm.npmExecutable);
     assert.equal("NODE_OPTIONS" in actualReceipts[0].environment, false);
     assert.equal(actualReceipts[0].environment.npm_config_before, npm.effectiveBefore);
+    assert.equal(actualReceipts[0].environment.npm_config_min_release_age_exclude, "@tryinget/*");
     const ascEnvironment = governedRuntimeAscBuildEnvironment(npm);
     assert.equal("NODE_OPTIONS" in ascEnvironment, false);
     assert.equal(Object.keys(ascEnvironment).length, 7);

@@ -1,17 +1,28 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { link, mkdtemp, readFile, rm, unlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import {
+  acquireSharedSubagentCapacityTransition,
   inspectSharedSubagentCapacity,
   parseLinuxProcessState,
   reserveSharedSubagentCapacity,
 } from "../extensions/self/subagent-capacity.ts";
-import { processGroupIsQuiescent } from "../extensions/self/subagent-capacity-record.ts";
+import {
+  readSubagentCapacityCustody,
+  writeSubagentCapacityCustody,
+} from "../extensions/self/subagent-capacity-custody.ts";
+import {
+  getCapacityCustodyBinding,
+  getCapacityPath,
+  getCapacitySpawnCommittedPath,
+  processGroupIsQuiescent,
+  readCapacityLease,
+} from "../extensions/self/subagent-capacity-record.ts";
 import { createAscExecutionRuntime } from "../extensions/self/subagent-runtime.ts";
 import { getProcessStartTicks, writeSessionStatus } from "../extensions/self/subagent-session.ts";
 
@@ -39,7 +50,7 @@ function writeRunningStatus(sessionsDir, overrides = {}) {
 
 async function leaveDeadOwnerLease(sessionsDir, spawnCommitted) {
   const moduleUrl = pathToFileURL(join(process.cwd(), "extensions/self/subagent-capacity.ts")).href;
-  const script = `import { reserveSharedSubagentCapacity } from ${JSON.stringify(moduleUrl)}; const lease = reserveSharedSubagentCapacity(${JSON.stringify(sessionsDir)}, 1, { leaseMetadata: { dispatchId: "dispatch-dead-owner", attemptId: "attempt-dead-owner", sessionName: "dead-owner" } }); if (!lease) process.exit(2); if (${JSON.stringify(spawnCommitted)}) lease.markSpawnCommitted();`;
+  const script = `import { reserveSharedSubagentCapacity } from ${JSON.stringify(moduleUrl)}; const lease = reserveSharedSubagentCapacity(${JSON.stringify(sessionsDir)}, 1, { leaseMetadata: { dispatchId: "dispatch-dead-owner", attemptId: "attempt-dead-owner", sessionName: "dead-owner", custodyMode: "helper_owned" } }); if (!lease) process.exit(2); if (${JSON.stringify(spawnCommitted)}) lease.markSpawnCommitted();`;
   const child = spawn(process.execPath, ["--input-type=module", "-e", script], {
     stdio: "ignore",
   });
@@ -63,24 +74,36 @@ test("Linux process-state parsing recognizes zombies even when comm contains spa
 });
 
 test(
-  "process-group quiescence fails closed when a listed proc entry disappears",
+  "process-group quiescence uses one kernel group probe and only ESRCH proves absence",
   { skip: process.platform !== "linux" },
   () => {
-    const reads = [];
-    const procView = {
-      // PID 4100 represents a group member that forked a same-group child and exited
-      // after this snapshot. The new child is deliberately absent from the snapshot.
-      listEntries: () => ["self", "4100"],
-      readStat: (pid) => {
-        reads.push(pid);
-        const error = new Error("simulated proc churn");
-        error.code = "ENOENT";
-        throw error;
-      },
-    };
+    let probes = 0;
+    assert.equal(
+      processGroupIsQuiescent(7300, {
+        signalZero: () => {
+          probes += 1;
+          const error = new Error("missing group");
+          error.code = "ESRCH";
+          throw error;
+        },
+      }),
+      true,
+    );
+    assert.equal(probes, 1);
 
-    assert.equal(processGroupIsQuiescent(7300, procView), false);
-    assert.deepEqual(reads, ["4100"]);
+    for (const code of ["EPERM", "EACCES"]) {
+      assert.equal(
+        processGroupIsQuiescent(7300, {
+          signalZero: () => {
+            const error = new Error("inconclusive group probe");
+            error.code = code;
+            throw error;
+          },
+        }),
+        false,
+      );
+    }
+    assert.equal(processGroupIsQuiescent(7300, { signalZero: () => undefined }), false);
   },
 );
 
@@ -101,6 +124,180 @@ test("spawn-committed dead owners without custody status remain fail-closed", as
   try {
     await leaveDeadOwnerLease(sessionsDir, true);
     assert.equal(reserveSharedSubagentCapacity(sessionsDir, 1), null);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("shared capacity limit cannot be expanded by a later runtime", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-shared-capacity-limit-"));
+  try {
+    const lease = reserveSharedSubagentCapacity(sessionsDir, 1);
+    assert.ok(lease);
+    assert.equal(reserveSharedSubagentCapacity(sessionsDir, 2), null);
+    lease.release();
+    assert.equal(
+      reserveSharedSubagentCapacity(sessionsDir, 2),
+      null,
+      "the repository session root retains its first immutable shared limit",
+    );
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("stale takeover and helper start transition are mutually exclusive", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-capacity-start-fence-"));
+  try {
+    await leaveDeadOwnerLease(sessionsDir, false);
+    const observed = readCapacityLease(getCapacityPath(sessionsDir, 0), 0);
+    assert.ok(observed);
+    const binding = getCapacityCustodyBinding(sessionsDir, observed);
+    assert.ok(binding);
+
+    let transitionDuringTakeover;
+    const replacement = reserveSharedSubagentCapacity(sessionsDir, 1, {
+      afterStaleLeaseClaim() {
+        transitionDuringTakeover = acquireSharedSubagentCapacityTransition(binding);
+      },
+    });
+    assert.equal(transitionDuringTakeover, null);
+    assert.ok(replacement);
+    replacement.release();
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("helper-written custody closes the parent transport window", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-helper-custody-"));
+  let replacement;
+  try {
+    const lease = reserveSharedSubagentCapacity(sessionsDir, 1, {
+      leaseMetadata: {
+        dispatchId: "dispatch-helper-custody",
+        attemptId: "attempt-helper-custody",
+        sessionName: "helper-custody",
+        custodyMode: "helper_owned",
+      },
+    });
+    assert.ok(lease?.custodyBinding);
+    lease.markSpawnCommitted();
+    writeSubagentCapacityCustody(lease.custodyBinding, {
+      helperPid: DEAD_PID,
+      helperPidStartedAt: 0,
+      rawChildPid: DEAD_PID,
+      rawChildPidStartedAt: 0,
+      rawChildProcessGroupId: DEAD_PID,
+    });
+
+    replacement = reserveSharedSubagentCapacity(sessionsDir, 1);
+    assert.ok(replacement);
+  } finally {
+    replacement?.release();
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("helper custody is immutable under duplicate publication", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-immutable-helper-custody-"));
+  try {
+    const lease = reserveSharedSubagentCapacity(sessionsDir, 1, {
+      leaseMetadata: {
+        dispatchId: "dispatch-immutable-custody",
+        attemptId: "attempt-immutable-custody",
+        sessionName: "immutable-custody",
+        custodyMode: "helper_owned",
+      },
+    });
+    assert.ok(lease?.custodyBinding);
+    writeSubagentCapacityCustody(lease.custodyBinding, {
+      helperPid: DEAD_PID,
+      helperPidStartedAt: 1,
+      rawChildPid: DEAD_PID,
+      rawChildPidStartedAt: 2,
+      rawChildProcessGroupId: DEAD_PID,
+    });
+
+    assert.throws(
+      () =>
+        writeSubagentCapacityCustody(lease.custodyBinding, {
+          helperPid: DEAD_PID - 1,
+          helperPidStartedAt: 3,
+          rawChildPid: DEAD_PID - 1,
+          rawChildPidStartedAt: 4,
+          rawChildProcessGroupId: DEAD_PID - 1,
+        }),
+      { code: "EEXIST" },
+    );
+    const retained = readSubagentCapacityCustody(lease.custodyBinding);
+    assert.equal(retained?.rawChildPid, DEAD_PID);
+    lease.release({ confirmedNoEffects: true });
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("oversized writer metadata remains readable and cannot bypass the hard cap", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-bounded-capacity-metadata-"));
+  try {
+    const lease = reserveSharedSubagentCapacity(sessionsDir, 1, {
+      leaseMetadata: {
+        dispatchId: "dispatch-bounded",
+        attemptId: "attempt-bounded",
+        sessionName: "x".repeat(1_000),
+      },
+    });
+    assert.ok(lease);
+    const payload = readCapacityLease(getCapacityPath(sessionsDir, 0), 0);
+    assert.equal(payload?.sessionName?.length, 240);
+    assert.equal(reserveSharedSubagentCapacity(sessionsDir, 1), null);
+    lease.release();
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("malformed effect-bearing capacity leases never become reclaimable by age", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-malformed-capacity-"));
+  try {
+    const path = getCapacityPath(sessionsDir, 0);
+    await writeFile(path, "{malformed", { mode: 0o600 });
+    const old = new Date(Date.now() - 60_000);
+    await utimes(path, old, old);
+    assert.equal(reserveSharedSubagentCapacity(sessionsDir, 1), null);
+    const holders = inspectSharedSubagentCapacity(sessionsDir, 1);
+    assert.equal(holders.length, 1);
+    assert.equal(holders[0].unreadable, true);
+    assert.equal(holders[0].stale, false);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+test("failed exact lease release preserves its spawn marker", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-release-marker-race-"));
+  try {
+    const lease = reserveSharedSubagentCapacity(sessionsDir, 1, {
+      leaseMetadata: {
+        dispatchId: "dispatch-release-race",
+        attemptId: "attempt-release-race",
+        sessionName: "release-race",
+      },
+    });
+    assert.ok(lease);
+    lease.markSpawnCommitted();
+    const capacityPath = getCapacityPath(sessionsDir, 0);
+    const payload = readCapacityLease(capacityPath, 0);
+    assert.ok(payload);
+    const markerPath = getCapacitySpawnCommittedPath(sessionsDir, payload);
+    const contenderPath = `${capacityPath}.simulated-contender`;
+    await link(capacityPath, contenderPath);
+
+    assert.equal(lease.release({ confirmedNoEffects: true }), false);
+    assert.equal(await readFile(markerPath, "utf8").then(() => true), true);
+    await unlink(contenderPath);
+    assert.equal(lease.release({ confirmedNoEffects: true }), true);
+    await assert.rejects(readFile(markerPath, "utf8"), { code: "ENOENT" });
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }
@@ -154,18 +351,27 @@ test(
       detached: true,
       stdio: "ignore",
     });
+    let lease;
     try {
       assert.equal(typeof rawChild.pid, "number");
       const rawStartedAt = getProcessStartTicks(rawChild.pid);
       assert.equal(typeof rawStartedAt, "number");
-      const lease = reserveSharedSubagentCapacity(sessionsDir, 1, {
+      lease = reserveSharedSubagentCapacity(sessionsDir, 1, {
         leaseMetadata: {
           dispatchId: "dispatch-live-raw",
           attemptId: "attempt-live-raw",
           sessionName: "live-raw",
         },
       });
-      assert.ok(lease);
+      assert.ok(lease?.custodyBinding);
+      lease.markSpawnCommitted();
+      writeSubagentCapacityCustody(lease.custodyBinding, {
+        helperPid: DEAD_PID,
+        helperPidStartedAt: 0,
+        rawChildPid: rawChild.pid,
+        rawChildPidStartedAt: rawStartedAt,
+        rawChildProcessGroupId: rawChild.pid,
+      });
       writeRunningStatus(sessionsDir, {
         sessionName: "live-raw",
         dispatchId: "dispatch-live-raw",
@@ -178,12 +384,13 @@ test(
       });
 
       assert.equal(reserveSharedSubagentCapacity(sessionsDir, 1), null);
-      lease.release();
+      assert.equal(lease.release(), false);
     } finally {
       if (rawChild.exitCode === null && rawChild.signalCode === null) {
         process.kill(-rawChild.pid, "SIGKILL");
         await once(rawChild, "exit");
       }
+      assert.equal(lease?.release(), true);
       await rm(sessionsDir, { recursive: true, force: true });
     }
   },
@@ -232,6 +439,8 @@ test(
         sessionName: "terminal",
         dispatchId: "dispatch-terminal",
         attemptId: "attempt-terminal",
+        pid: DEAD_PID,
+        pidStartedAt: 0,
         rawChildPid: DEAD_PID,
         rawChildPidStartedAt: 0,
         rawChildProcessGroupId: DEAD_PID,
@@ -279,6 +488,7 @@ test("rate-limit diagnostics identify bounded repository-scoped holders without 
       sessionsDir,
       maxConcurrent: 1,
       modelProvider: () => "test/model",
+      customSpawnerCapacityOwnership: "parent_owned",
       spawner: async () => assert.fail("capacity denial must happen before spawn"),
     });
     const result = await runtime.execute(

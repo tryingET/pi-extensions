@@ -1,6 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { writeSync } from "node:fs";
-
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { acquireSharedSubagentCapacityTransition } from "./subagent-capacity.ts";
+import {
+  type SubagentCapacityCustodyBinding,
+  writeSubagentCapacityCustody,
+  writeSubagentCapacitySpawnCommitted,
+} from "./subagent-capacity-custody.ts";
 // Protocol generation v2: raw_child_spawn_intent synchronously precedes raw Pi spawn.
 // Keep this event-order contract stable; a future incompatible protocol gets a new helper file.
 import {
@@ -26,6 +33,14 @@ const DEFAULT_RAW_PI_EVENT_BUFFER_BYTES = 8 * 1024 * 1024;
 const DEFAULT_HELPER_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_HELPER_EXECUTION_TIMEOUT_MS = 4 * 60 * 60 * 1_000;
 
+const RAW_SUPERVISOR_BASENAME = "subagent-raw-supervisor-v1";
+
+export function resolveRawSupervisorPath(moduleUrl = import.meta.url): string {
+  const modulePath = fileURLToPath(moduleUrl);
+  const extension = modulePath.endsWith(".js") ? ".js" : ".ts";
+  return join(dirname(modulePath), `${RAW_SUPERVISOR_BASENAME}${extension}`);
+}
+
 interface RunnerOptions {
   cwd: string;
   model: string;
@@ -35,6 +50,9 @@ interface RunnerOptions {
   objective: string;
   startupTimeoutMs: number;
   executionTimeoutMs: number;
+  parentPid?: number;
+  parentPidStartedAt?: number;
+  capacityCustody?: SubagentCapacityCustodyBinding;
   /** Accepted only for already-loaded v2 parents; new dispatches keep task variation in objective. */
   legacySystemPrompt?: string;
   extensionSources: string[];
@@ -55,6 +73,10 @@ async function main(): Promise<void> {
   const maxRawPiEventBufferBytes = readNonNegativeIntEnv(
     ["PI_SUBAGENT_RAW_PI_EVENT_BUFFER_BYTES", "PI_ORCH_SUBAGENT_RAW_PI_EVENT_BUFFER_BYTES"],
     DEFAULT_RAW_PI_EVENT_BUFFER_BYTES,
+  );
+  const backpressureTimeoutMs = readPositiveIntEnv(
+    ["PI_SUBAGENT_HELPER_BACKPRESSURE_TIMEOUT_MS"],
+    60_000,
   );
 
   const settlementContract = detectPiSettlementContract(options.cwd || process.cwd());
@@ -113,18 +135,21 @@ async function main(): Promise<void> {
     );
   }
 
-  // This synchronous owner-issued intent is ordered before raw Pi spawn. ASC may
-  // attest confirmed_no_effects only when the helper exits without this marker.
-  writeSync(process.stdout.fd, `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n`);
-  const child = spawn("pi", args, {
-    stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      ...(isolatedAgentDir ? { [SUBAGENT_CHILD_AGENT_DIR_ENV]: isolatedAgentDir.agentDir } : {}),
+  // The detached raw supervisor remains dormant until exact custody and the durable spawn marker
+  // are published. Parent/helper death before the gate therefore cannot leave an unowned raw Pi.
+  const child = spawn(
+    process.execPath,
+    [resolveRawSupervisorPath(), "--cwd", options.cwd, "--", ...args],
+    {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        ...(isolatedAgentDir ? { [SUBAGENT_CHILD_AGENT_DIR_ENV]: isolatedAgentDir.agentDir } : {}),
+      },
+      cwd: options.cwd || process.cwd(),
+      detached: process.platform !== "win32",
     },
-    cwd: options.cwd || process.cwd(),
-    detached: process.platform !== "win32",
-  });
+  );
 
   const cleanupIsolatedAgentDir = async () => {
     if (!isolatedAgentDir) {
@@ -153,7 +178,56 @@ async function main(): Promise<void> {
     startupTimeoutMs: options.startupTimeoutMs,
     executionTimeoutMs: options.executionTimeoutMs,
     cleanupSync: cleanupIsolatedAgentDirSync,
+    parentPid: options.parentPid,
+    parentPidStartedAt: options.parentPidStartedAt,
+    backpressureTimeoutMs,
   });
+
+  const capacityTransition = options.capacityCustody
+    ? acquireSharedSubagentCapacityTransition(options.capacityCustody)
+    : undefined;
+  if (options.capacityCustody && !capacityTransition) {
+    process.stderr.write("Unable to fence the exact ASC capacity start transition.\n");
+    liveness.handleHelperFailure(1);
+    liveness.start();
+    return;
+  }
+
+  if (options.capacityCustody) {
+    const rawChildPid = typeof child.pid === "number" && child.pid > 0 ? child.pid : undefined;
+    const rawChildPidStartedAt = rawChildPid ? getProcessStartTicks(rawChildPid) : null;
+    const helperPidStartedAt = getProcessStartTicks(process.pid);
+    if (
+      rawChildPid === undefined ||
+      rawChildPidStartedAt === null ||
+      helperPidStartedAt === null ||
+      process.platform === "win32"
+    ) {
+      capacityTransition?.release();
+      process.stderr.write("Unable to establish exact ASC raw-child custody.\n");
+      liveness.handleHelperFailure(1);
+      liveness.start();
+      return;
+    }
+    try {
+      writeSubagentCapacityCustody(options.capacityCustody, {
+        helperPid: process.pid,
+        helperPidStartedAt,
+        rawChildPid,
+        rawChildPidStartedAt,
+        rawChildProcessGroupId: rawChildPid,
+      });
+      writeSubagentCapacitySpawnCommitted(options.capacityCustody);
+    } catch (error) {
+      capacityTransition?.release();
+      process.stderr.write(
+        `Unable to publish ASC raw-child custody: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      liveness.handleHelperFailure(1);
+      liveness.start();
+      return;
+    }
+  }
 
   child.stdout?.setEncoding("utf-8");
   child.stderr?.setEncoding("utf-8");
@@ -260,7 +334,7 @@ async function main(): Promise<void> {
   });
 
   child.stderr?.on("data", (chunk: string) => {
-    process.stderr.write(chunk);
+    liveness.writeDiagnosticChunk(chunk);
   });
 
   child.on("close", (code, signal) => {
@@ -274,13 +348,29 @@ async function main(): Promise<void> {
 
   child.on("error", (error) => {
     void cleanupIsolatedAgentDir();
-    process.stderr.write(
+    liveness.writeDiagnosticChunk(
       `Error spawning pi: ${error instanceof Error ? error.message : String(error)}\n`,
     );
     liveness.handleChildError();
   });
 
   liveness.start();
+  // This synchronous owner-issued intent still precedes raw Pi spawn. The supervisor starts Pi
+  // only after receiving the gate, while new parents already have immutable custody on disk. The
+  // shared transition lock makes lease takeover and custody publication/start mutually exclusive.
+  try {
+    writeSync(process.stdout.fd, `${JSON.stringify({ type: "raw_child_spawn_intent" })}\n`);
+    if (!child.stdin) throw new Error("Raw supervisor start gate is unavailable.");
+    child.stdin.once("error", () => liveness.handleHelperFailure(1));
+    child.stdin.write("start\n");
+  } catch (error) {
+    process.stderr.write(
+      `Unable to open ASC raw-child start gate: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    liveness.handleHelperFailure(1);
+  } finally {
+    capacityTransition?.release();
+  }
 }
 
 function detectPiSettlementContract(
@@ -327,6 +417,14 @@ function parseArgs(argv: string[]): RunnerOptions {
   const sessionFile = requireArg(values, "--session-file");
   const objective = requireArg(values, "--objective");
   const legacySystemPrompt = firstArg(values, "--system-prompt") || undefined;
+  const parentPid = optionalNonNegativeIntegerArg(values, "--parent-pid");
+  const parentPidStartedAt = optionalNonNegativeIntegerArg(values, "--parent-pid-started-at");
+  if ((parentPid === undefined) !== (parentPidStartedAt === undefined) || parentPid === 0) {
+    throw new Error(
+      "Parent process identity must provide a positive PID and start ticks together.",
+    );
+  }
+  const capacityCustody = parseCapacityCustodyBinding(values);
 
   return {
     cwd,
@@ -345,6 +443,9 @@ function parseArgs(argv: string[]): RunnerOptions {
       "--execution-timeout-ms",
       DEFAULT_HELPER_EXECUTION_TIMEOUT_MS,
     ),
+    parentPid,
+    parentPidStartedAt,
+    capacityCustody,
     legacySystemPrompt,
     extensionSources: values.get("--extension") ?? [],
     noSkills: firstArg(values, "--no-skills") === "true",
@@ -369,13 +470,70 @@ function nonNegativeIntegerArg(
   key: string,
   fallback: number,
 ): number {
+  return optionalNonNegativeIntegerArg(values, key) ?? fallback;
+}
+
+function optionalNonNegativeIntegerArg(
+  values: Map<string, string[]>,
+  key: string,
+): number | undefined {
   const raw = firstArg(values, key);
-  if (raw === undefined) return fallback;
+  if (raw === undefined) return undefined;
   const parsed = Number(raw);
   if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error(`${key} must be a non-negative integer.`);
   }
   return parsed;
+}
+
+function parseCapacityCustodyBinding(
+  values: Map<string, string[]>,
+): SubagentCapacityCustodyBinding | undefined {
+  const path = firstArg(values, "--capacity-custody-path");
+  const keys = [
+    "--capacity-path",
+    "--capacity-slot",
+    "--capacity-spawn-committed-path",
+    "--capacity-token",
+    "--capacity-dispatch-id",
+    "--capacity-attempt-id",
+    "--capacity-parent-pid",
+    "--capacity-parent-pid-started-at",
+  ];
+  if (path === undefined && keys.every((key) => firstArg(values, key) === undefined)) {
+    return undefined;
+  }
+  if (!path) throw new Error("Incomplete ASC capacity custody binding.");
+  const capacityPath = requireArg(values, "--capacity-path");
+  const spawnCommittedPath = requireArg(values, "--capacity-spawn-committed-path");
+  const token = requireArg(values, "--capacity-token");
+  const dispatchId = requireArg(values, "--capacity-dispatch-id");
+  const attemptId = requireArg(values, "--capacity-attempt-id");
+  const slot = optionalNonNegativeIntegerArg(values, "--capacity-slot");
+  const parentPid = optionalNonNegativeIntegerArg(values, "--capacity-parent-pid");
+  const parentPidStartedAt = optionalNonNegativeIntegerArg(
+    values,
+    "--capacity-parent-pid-started-at",
+  );
+  if (
+    slot === undefined ||
+    parentPid === undefined ||
+    parentPid <= 0 ||
+    parentPidStartedAt === undefined
+  ) {
+    throw new Error("Invalid ASC capacity custody process identity.");
+  }
+  return {
+    path,
+    capacityPath,
+    spawnCommittedPath,
+    slot,
+    token,
+    dispatchId,
+    attemptId,
+    parentPid,
+    parentPidStartedAt,
+  };
 }
 
 function serializeProtocolEventWithinLimit(
@@ -433,6 +591,11 @@ function serializeBoundedAssistantMessageEndEvent(
   }
 
   return bestSerialized;
+}
+
+function readPositiveIntEnv(names: string[], fallback: number): number {
+  const value = readNonNegativeIntEnv(names, fallback);
+  return value > 0 ? value : fallback;
 }
 
 function readNonNegativeIntEnv(names: string[], fallback: number): number {
