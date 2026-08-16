@@ -2,16 +2,18 @@
   "schema_version": 1,
   "exported_at": "2026-08-16T06:00:10.534356681+00:00",
   "task_id": 4790,
-  "entity_version": 2,
-  "commit_sha": "a6c873e0113f552a712352ce93161e3b84f7a887",
+  "entity_version": 3,
+  "commit_sha": "1ee3ee97c790ff16fe3f133955f9bc64502036bb",
   "scope": {
     "allowed_paths": [
       "governance/task-scopes/AK-*.snapshot.json",
       "packages/pi-semantic-code-intelligence/README.md",
+      "packages/pi-semantic-code-intelligence/src/extension.ts",
       "packages/pi-semantic-code-intelligence/src/tool-definitions.ts",
       "packages/pi-semantic-code-intelligence/tests/extension.test.ts"
     ],
     "required_paths": [
+      "packages/pi-semantic-code-intelligence/src/extension.ts",
       "packages/pi-semantic-code-intelligence/src/tool-definitions.ts",
       "packages/pi-semantic-code-intelligence/tests/extension.test.ts"
     ],
