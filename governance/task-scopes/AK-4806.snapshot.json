@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-16T09:00:35.086703129+00:00",
+  "task_id": 4806,
+  "entity_version": 2,
+  "commit_sha": "4f52d609187e94c869a3d27ce909e3dc9996d46a",
+  "scope": {
+    "allowed_paths": [
+      "governance/task-scopes/AK-*.snapshot.json",
+      "packages/pi-semantic-code-intelligence/README.md",
+      "packages/pi-semantic-code-intelligence/scripts/dogfood-composite-tools.ts",
+      "packages/pi-semantic-code-intelligence/src/explore-result-validator.ts",
+      "packages/pi-semantic-code-intelligence/src/explore-risk-validator.ts",
+      "packages/pi-semantic-code-intelligence/tests/extension.test.ts"
+    ],
+    "required_paths": [],
+    "forbidden_paths": []
+  },
+  "default_applies": false,
+  "export_tool": "ak task scope export",
+  "export_tool_version": "snapshot-v1"
+}
