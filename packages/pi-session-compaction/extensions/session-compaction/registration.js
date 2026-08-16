@@ -1,18 +1,20 @@
 /**
-summary: "Guards and registers input tracking and session-before-compact handlers without duplicate activation."
+summary: "Guards and registers compaction with runtime ownership arbitration and status."
 read_when:
-  - "Changing live registration preflights, duplicate-handler protection, tracked-command cleanup, or extension wiring."
- * Non-live registration guard for the future pi-session-compaction extension entrypoint.
- *
- * This file intentionally does not make the package live. It provides the
- * fail-closed controls that a future extension entrypoint must use before
- * registering `session_before_compact`.
- */
+  - "Changing live registration, duplicate-owner protection, command cleanup, or status."
+*/
 
-import { runSessionCompaction } from "./handler.js";
+import { runGuardedSessionCompaction } from "./guarded-handler.js";
+import {
+  claimCompactionOwnership,
+  formatCompactionOwnershipStatus,
+  getCompactionOwnershipStatus,
+  releaseCompactionOwnership,
+  SESSION_BEFORE_COMPACT_EVENT,
+} from "./ownership.js";
 import { createTrackedCommandStore } from "./user-prompts.js";
 
-export const SESSION_BEFORE_COMPACT_EVENT = "session_before_compact";
+export { SESSION_BEFORE_COMPACT_EVENT };
 export const INPUT_EVENT = "input";
 
 export function createCompactionRegistrationState() {
@@ -132,7 +134,18 @@ export function registerSessionBeforeCompact(
   const evaluation = evaluateSessionCompactionRegistration(options, state);
   if (!evaluation.ok) return evaluation;
 
-  const handler = options.handler ?? runSessionCompaction;
+  const claim = options.claimCompactionOwnership ?? claimCompactionOwnership;
+  const ownership = claim(pi, options.owner);
+  if (!ownership.ok) {
+    return {
+      ok: false,
+      reason: ownership.reason,
+      message: ownership.message,
+      ownership,
+    };
+  }
+
+  const handler = options.handler ?? runGuardedSessionCompaction;
   const handlerDeps = options.handlerDeps ?? {};
   const getTrackedCommands =
     options.getTrackedCommands ??
@@ -140,24 +153,69 @@ export function registerSessionBeforeCompact(
       ? () => options.trackedCommandStore.trackedCommands
       : handlerDeps.getTrackedCommands);
 
-  pi.on(SESSION_BEFORE_COMPACT_EVENT, async (event, ctx) => {
-    const result = await handler(event, ctx, {
-      ...handlerDeps,
-      ...(getTrackedCommands ? { getTrackedCommands } : {}),
+  try {
+    pi.on(SESSION_BEFORE_COMPACT_EVENT, async (event, ctx) => {
+      const result = await handler(event, ctx, {
+        ...handlerDeps,
+        ...(getTrackedCommands ? { getTrackedCommands } : {}),
+      });
+
+      if (
+        result?.compaction &&
+        options.trackedCommandStore &&
+        Array.isArray(event?.branchEntries)
+      ) {
+        const messages = event.branchEntries
+          .filter((entry) => entry?.type === "message")
+          .map((entry) => entry.message);
+        options.trackedCommandStore.clearMatched(messages);
+      }
+
+      return result;
     });
-
-    if (result?.compaction && options.trackedCommandStore && Array.isArray(event?.branchEntries)) {
-      const messages = event.branchEntries
-        .filter((entry) => entry?.type === "message")
-        .map((entry) => entry.message);
-      options.trackedCommandStore.clearMatched(messages);
-    }
-
-    return result;
-  });
+  } catch (error) {
+    releaseCompactionOwnership(pi, ownership.lease);
+    throw error;
+  }
 
   state.sessionBeforeCompactRegistered = true;
-  return evaluation;
+  state.ownershipLease = ownership.lease;
+  return {
+    ...evaluation,
+    ownership,
+  };
+}
+
+export function registerCompactionStatusCommand(
+  pi,
+  options = {},
+  state = createCompactionRegistrationState(),
+) {
+  if (options.enabled !== true) {
+    return { ok: false, reason: "disabled" };
+  }
+  if (state.statusCommandRegistered) {
+    return { ok: false, reason: "already_registered_by_this_package" };
+  }
+  try {
+    pi.registerCommand("compaction-status", {
+      description: "Show custom compaction ownership and handler-introspection posture",
+      handler: async (_args, ctx) => {
+        const status = getCompactionOwnershipStatus(pi);
+        const message = formatCompactionOwnershipStatus(status);
+        ctx?.ui?.notify?.(message, status.claimed ? "info" : "warning");
+        return message;
+      },
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "registration_failed",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+  state.statusCommandRegistered = true;
+  return { ok: true, command: "compaction-status" };
 }
 
 export function createSessionCompactionExtension(options = {}) {
@@ -183,10 +241,17 @@ export function createSessionCompactionExtension(options = {}) {
       },
       state,
     );
+    const statusCommand = registerCompactionStatusCommand(
+      pi,
+      { enabled: options.enableSessionBeforeCompact === true },
+      state,
+    );
 
     return {
       inputTracking,
       compaction,
+      statusCommand,
+      ownership: getCompactionOwnershipStatus(pi),
     };
   };
 }
