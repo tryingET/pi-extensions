@@ -1,4 +1,5 @@
 import { validExploreDetails, validLocation } from "./explore-detail-validator.ts";
+import { validEditRisk } from "./explore-risk-validator.ts";
 
 export type ExploreMode = "compact" | "standard" | "debug";
 
@@ -104,31 +105,6 @@ function validRankedFile(value: unknown): boolean {
     stringArray(item.reasons, 8) &&
     stringArray(item.signals, 4) &&
     optionalNumber(item.line)
-  );
-}
-
-function validEditRisk(value: unknown): boolean {
-  const risk = record(value);
-  const signals = record(risk?.signals);
-  return !!(
-    risk &&
-    onlyKeys(risk, ["level", "reasons", "signals"]) &&
-    (risk.level === "low" || risk.level === "medium" || risk.level === "high") &&
-    stringArray(risk.reasons, 4) &&
-    signals &&
-    onlyKeys(signals, ["publicApi", "state", "registry", "tests"]) &&
-    ["publicApi", "state", "registry", "tests"].every((key) => validRiskSignal(signals[key]))
-  );
-}
-
-function validRiskSignal(value: unknown): boolean {
-  const signal = record(value);
-  return !!(
-    signal &&
-    onlyKeys(signal, ["detected", "files", "hiddenFiles"]) &&
-    typeof signal.detected === "boolean" &&
-    stringArray(signal.files, 25) &&
-    nonnegativeInteger(signal.hiddenFiles)
   );
 }
 

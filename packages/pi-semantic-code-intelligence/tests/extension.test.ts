@@ -8,6 +8,7 @@ import {
   createSemanticCodeExtension,
   SCI_COMPOSITE_TOOL_NAMES,
 } from "../extensions/semantic-code-intelligence.ts";
+import { validExplorePayload } from "../src/explore-result-validator.ts";
 import { assertSciSchemaCompatibility, type SciBridge, SciMcpBridge } from "../src/mcp-bridge.ts";
 import { SCI_COMPOSITE_TOOL_SPECS } from "../src/tool-definitions.ts";
 import { registerToolboxBundle } from "../src/toolboxBundle.ts";
@@ -45,6 +46,115 @@ type SchemaFixture = {
   items?: SchemaFixture;
   maxItems?: number;
 };
+
+type MutableExplorePacket = Record<string, unknown> & {
+  editRisk: {
+    level: unknown;
+    reasons: unknown;
+    signals: {
+      publicApi: Record<string, unknown>;
+      state: Record<string, unknown>;
+      registry: Record<string, unknown>;
+      tests: Record<string, unknown>;
+    };
+    analysis: { structural: Record<string, unknown> };
+  };
+};
+
+function mutatedPacket(
+  packet: Record<string, unknown>,
+  mutate: (value: MutableExplorePacket) => void,
+): MutableExplorePacket {
+  const value = structuredClone(packet) as MutableExplorePacket;
+  mutate(value);
+  return value;
+}
+
+function fakeRiskSignal() {
+  return {
+    detected: false,
+    status: "unknown",
+    confidence: "unknown",
+    files: [],
+    hiddenFiles: 0,
+    reasons: ["No supported structural evidence proved this signal."],
+    provenance: [],
+    namingFallback: {
+      observed: false,
+      confidence: "low",
+      files: [],
+      hiddenFiles: 0,
+      reasons: [],
+      provenance: [],
+    },
+  };
+}
+
+function fakeStructuralAnalysis() {
+  return {
+    fileBudget: 64,
+    candidateBudgetPerFile: 256,
+    sourceFileByteBudget: 524_288,
+    totalSourceByteBudget: 4_194_304,
+    parseTimeoutMicros: 100_000,
+    astNodeBudgetPerFile: 100_000,
+    astWorkUnitBudgetPerFile: 10_000,
+    targetOccurrenceBudgetPerFile: 4_096,
+    symbolBodyBudgetPerFile: 256,
+    writeNodeBudgetPerFile: 4_096,
+    importNodeBudgetPerFile: 1_024,
+    observedFiles: 1,
+    selectedFiles: 1,
+    attemptedFiles: 1,
+    analyzedFiles: 0,
+    failedFiles: 1,
+    oversizedFiles: 0,
+    omittedFiles: 0,
+    filesOmittedByFileBudget: 0,
+    filesOmittedByTotalByteBudget: 0,
+    totalBudgetRejectedFiles: 0,
+    unattemptedFiles: 0,
+    observedCandidates: 1,
+    selectedCandidates: 1,
+    omittedCandidates: 0,
+    candidatesOmittedByFileBudget: 0,
+    rejectedCandidates: 0,
+    sourceBytesRead: 0,
+    sourceBytesAnalyzed: 0,
+    totalSourceByteBudgetExhausted: false,
+    astNodesInspected: 0,
+    astNodeBudgetHits: 0,
+    astWorkUnits: 0,
+    astWorkBudgetHits: 0,
+    targetOccurrencesObserved: 0,
+    targetOccurrencesAnalyzed: 0,
+    omittedTargetOccurrences: 0,
+    symbolBodiesObserved: 0,
+    symbolBodiesAnalyzed: 0,
+    omittedSymbolBodies: 0,
+    writeNodesObserved: 0,
+    writeNodesAnalyzed: 0,
+    omittedWriteNodes: 0,
+    importNodesObserved: 0,
+    importNodesAnalyzed: 0,
+    omittedImportNodes: 0,
+    limitations: ["Structural source analysis failed for one or more files."],
+  };
+}
+
+function fakeEditRisk() {
+  return {
+    level: "unknown",
+    reasons: ["No supported structural evidence established a low semantic edit risk."],
+    signals: {
+      publicApi: fakeRiskSignal(),
+      state: fakeRiskSignal(),
+      registry: fakeRiskSignal(),
+      tests: fakeRiskSignal(),
+    },
+    analysis: { structural: fakeStructuralAnalysis() },
+  };
+}
 
 function createHarness(bridge: SciBridge) {
   const tools = new Map<string, RegisteredTool>();
@@ -162,16 +272,7 @@ function fakeBridge() {
                 totalFiles: 1,
                 truncated: false,
               },
-              editRisk: {
-                level: "low",
-                reasons: [],
-                signals: {
-                  publicApi: { detected: false, files: [], hiddenFiles: 0 },
-                  state: { detected: false, files: [], hiddenFiles: 0 },
-                  registry: { detected: false, files: [], hiddenFiles: 0 },
-                  tests: { detected: false, files: [], hiddenFiles: 0 },
-                },
-              },
+              editRisk: fakeEditRisk(),
               nextReads: [{ path: "src/target.ts", reason: "Start at the confirmed definition." }],
               limitations: [],
               details:
@@ -233,6 +334,176 @@ test("explore_symbol_impact advertises all progressive disclosure modes", () => 
   assert.match(schema.properties?.mode?.description ?? "", /normalized bounded evidence/);
   assert.match(tool.description, /24 KiB/);
   assert.match(tool.description, /48 KiB/);
+});
+
+test("native validator accepts structural risk evidence and rejects forged nested receipts", async () => {
+  const fake = fakeBridge();
+  const result = await fake.bridge.callTool(
+    "explore_symbol_impact",
+    { symbol: "Target" },
+    "/workspace",
+  );
+  const text = result.content?.find((item) => item.type === "text")?.text;
+  assert.equal(typeof text, "string");
+  const packet = JSON.parse(String(text)) as Record<string, unknown>;
+  assert.equal(validExplorePayload(packet, "compact"), true);
+
+  const detected = structuredClone(packet) as MutableExplorePacket;
+  detected.editRisk.level = "high";
+  detected.editRisk.reasons = ["Target-specific export evidence may affect consumers."];
+  detected.editRisk.signals.publicApi = {
+    detected: true,
+    status: "detected",
+    confidence: "high",
+    files: ["src/target.ts"],
+    hiddenFiles: 0,
+    reasons: ["The target declaration is exported."],
+    provenance: ["ast.export_declaration"],
+    namingFallback: {
+      observed: true,
+      confidence: "low",
+      files: ["src/public-api.ts"],
+      hiddenFiles: 0,
+      reasons: ["A conventional public API name matched without structural proof."],
+      provenance: ["fallback.naming"],
+    },
+  };
+  assert.equal(validExplorePayload(detected, "compact"), true);
+
+  const invalidPackets = [
+    (() => {
+      const value = structuredClone(packet) as MutableExplorePacket;
+      value.editRisk.signals.publicApi.status = "detected";
+      return value;
+    })(),
+    (() => {
+      const value = structuredClone(packet) as MutableExplorePacket;
+      value.editRisk.signals.publicApi.confidence = "low";
+      return value;
+    })(),
+    (() => {
+      const value = structuredClone(packet) as MutableExplorePacket;
+      value.editRisk.signals.publicApi.unbounded = [];
+      return value;
+    })(),
+    (() => {
+      const value = structuredClone(packet) as MutableExplorePacket;
+      value.editRisk.analysis.structural.astWorkUnitBudgetPerFile = 200_000;
+      return value;
+    })(),
+    (() => {
+      const value = structuredClone(packet) as MutableExplorePacket;
+      value.editRisk.analysis.structural.observedCandidates = 2;
+      return value;
+    })(),
+    (() => {
+      const value = structuredClone(packet) as MutableExplorePacket;
+      value.editRisk.analysis.structural.sourceBytesRead = 4_194_305;
+      return value;
+    })(),
+    (() => {
+      const value = structuredClone(packet) as MutableExplorePacket;
+      value.editRisk.analysis.structural.limitations = Array.from({ length: 9 }, () => "x");
+      return value;
+    })(),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.level = ["high"];
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.signals.publicApi.files = ["src/forged.ts"];
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.level = "high";
+      value.editRisk.reasons = ["forged"];
+      Object.assign(value.editRisk.signals.publicApi, {
+        detected: true,
+        status: "detected",
+        confidence: "high",
+        files: [],
+        hiddenFiles: 0,
+        reasons: ["forged"],
+        provenance: ["ast.export_declaration"],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.signals.publicApi.namingFallback = {
+        observed: true,
+        confidence: "low",
+        files: [],
+        hiddenFiles: 0,
+        reasons: ["forged"],
+        provenance: ["fallback.naming"],
+      };
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.signals.publicApi.reasons = [""];
+    }),
+    mutatedPacket(detected, (value) => {
+      value.editRisk.level = "low";
+      value.editRisk.reasons = [];
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 65,
+        selectedFiles: 65,
+        attemptedFiles: 1,
+        unattemptedFiles: 64,
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 4,
+        selectedFiles: 4,
+        attemptedFiles: 1,
+        unattemptedFiles: 3,
+        observedCandidates: 1_025,
+        selectedCandidates: 1_025,
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 4,
+        selectedFiles: 4,
+        attemptedFiles: 4,
+        analyzedFiles: 4,
+        failedFiles: 0,
+        sourceBytesRead: 2_097_153,
+        sourceBytesAnalyzed: 2_097_153,
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 4,
+        selectedFiles: 4,
+        attemptedFiles: 4,
+        analyzedFiles: 4,
+        failedFiles: 0,
+        targetOccurrencesObserved: 16_385,
+        targetOccurrencesAnalyzed: 16_385,
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.analysis.structural.failedFiles = 0;
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.analysis.structural.observedFiles = 2;
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.analysis.structural.astNodeBudgetHits = 1;
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.analysis.structural.astWorkBudgetHits = 1;
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedCandidates: Number.MAX_SAFE_INTEGER + 1,
+        selectedCandidates: Number.MAX_SAFE_INTEGER + 1,
+        omittedCandidates: 1,
+      });
+    }),
+  ];
+  for (const invalid of invalidPackets)
+    assert.equal(validExplorePayload(invalid, "compact"), false);
 });
 
 test("registering and startup-selecting SCI reads does not spawn MCP before execution", async (t) => {
