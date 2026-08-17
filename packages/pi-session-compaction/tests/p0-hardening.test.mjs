@@ -211,8 +211,14 @@ describe("P0 primitives", () => {
     assert.doesNotMatch(serialized, /private reasoning/u);
     assert.doesNotMatch(serialized, new RegExp(GITHUB_SECRET, "u"));
     const selected = selectMessagesWithinBudget(event.preparation.messagesToSummarize, 2_000);
-    assert.equal(selected.messages.some((message) => message.role === "assistant"), true);
-    assert.equal(selected.messages.some((message) => message.role === "toolResult"), true);
+    assert.equal(
+      selected.messages.some((message) => message.role === "assistant"),
+      true,
+    );
+    assert.equal(
+      selected.messages.some((message) => message.role === "toolResult"),
+      true,
+    );
   });
 
   it("preserves failed operations as deterministic receipts", () => {

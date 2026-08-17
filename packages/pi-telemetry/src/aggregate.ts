@@ -1,7 +1,7 @@
 // ---
 // summary: bounded aggregations over telemetry events for the agent tool and dashboard.
 // read_when:
-//   - changing aggregate windows, groupings, failure rankings, or stall detection.
+//   - changing aggregate windows, groupings, failure rankings, or compaction quality metrics.
 // ---
 
 import type { TelemetryEvent } from "./events.ts";
@@ -29,6 +29,57 @@ export interface TelemetrySummary {
     unresolvedBegins: number;
     stalledAfterCompaction: number;
   };
+  compactionQuality: {
+    total: number;
+    validationFailures: number;
+    validationFailureRatePct: number;
+    fallbacks: number;
+    fallbackRatePct: number;
+    repairs: number;
+    repairRatePct: number;
+    splitTurns: number;
+    splitTurnRatePct: number;
+    worktreeVerified: number;
+    worktreeVerifiedRatePct: number;
+    totalCompactedMessages: number;
+    avgCompactedMessages: number | null;
+    avgSelectedMessages: number | null;
+    avgOmittedMessages: number | null;
+    messageOmissionRatePct: number;
+    avgSummaryChars: number | null;
+    avgInputTokenBudget: number | null;
+    avgFinalTokenBudget: number | null;
+    avgDurationMs: number | null;
+    totalOmittedManagedRecords: number;
+    totalOmittedManagedBlocks: number;
+    totalRedactions: number;
+    totalTruncatedRecords: number;
+    avgContinuityRecords: number | null;
+    avgEvidenceAnchors: number | null;
+    byMode: Array<{ mode: string; n: number }>;
+  };
+  recall: {
+    total: number;
+    hits: number;
+    totalRankedHits: number;
+    zeroHit: number;
+    zeroHitRatePct: number;
+    scopeWidened: number;
+    scopeWidenedRatePct: number;
+    degraded: number;
+    degradedRatePct: number;
+    avgSourceEntries: number | null;
+    avgSourceEntriesOmitted: number | null;
+    sourceOmissionRatePct: number;
+    avgCandidates: number | null;
+    avgTotalHits: number | null;
+    avgHits: number | null;
+    avgExpanded: number | null;
+    avgDirectRefs: number | null;
+    avgDurationMs: number | null;
+    byMode: Array<{ mode: string; n: number }>;
+    byScope: Array<{ scope: string; n: number }>;
+  };
   vault: { total: number; failed: number };
   compactionFailures: Array<{ stage: string; n: number; topError?: string }>;
   sources: Array<{ source: string; n: number }>;
@@ -44,6 +95,27 @@ export interface TelemetrySummary {
     failed: number;
     byProfile: Array<{ profile: string; n: number; failed: number }>;
   };
+}
+
+function average(sum: number, count: number): number | null {
+  return count > 0 ? Math.round((sum / count) * 10) / 10 : null;
+}
+
+function percentage(numerator: number, denominator: number): number {
+  return denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : 0;
+}
+
+function eventCounter(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function sortedCounts(
+  map: Map<string, number>,
+  key: string,
+): Array<Record<string, string | number>> {
+  return [...map.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([value, n]) => ({ [key]: value, n }));
 }
 
 export function summarizeTelemetryEvents(
@@ -63,6 +135,42 @@ export function summarizeTelemetryEvents(
   let summaryCharsSum = 0;
   let summaryCharsCount = 0;
   let maxSummaryChars: number | null = null;
+  let qualityTotal = 0;
+  let qualityValidationFailures = 0;
+  let qualityFallbacks = 0;
+  let qualityRepairs = 0;
+  let qualitySplitTurns = 0;
+  let qualityWorktreeVerified = 0;
+  let qualityCompactedMessages = 0;
+  let qualitySelectedMessages = 0;
+  let qualityOmittedMessages = 0;
+  let qualitySummaryChars = 0;
+  let qualityInputTokenBudget = 0;
+  let qualityFinalTokenBudget = 0;
+  let qualityDurationSum = 0;
+  let qualityDurationCount = 0;
+  let qualityOmittedManagedRecords = 0;
+  let qualityOmittedManagedBlocks = 0;
+  let qualityRedactions = 0;
+  let qualityTruncatedRecords = 0;
+  let qualityContinuityRecords = 0;
+  let qualityEvidenceAnchors = 0;
+  const qualityModes = new Map<string, number>();
+  let recallTotal = 0;
+  let recallHits = 0;
+  let recallTotalRankedHits = 0;
+  let recallZeroHit = 0;
+  let recallScopeWidened = 0;
+  let recallDegraded = 0;
+  let recallSourceEntries = 0;
+  let recallSourceEntriesOmitted = 0;
+  let recallCandidates = 0;
+  let recallExpanded = 0;
+  let recallDirectRefs = 0;
+  let recallDurationSum = 0;
+  let recallDurationCount = 0;
+  const recallModes = new Map<string, number>();
+  const recallScopes = new Map<string, number>();
   let vaultTotal = 0;
   let vaultFailed = 0;
   let followUpTotal = 0;
@@ -125,6 +233,50 @@ export function summarizeTelemetryEvents(
         failureStages.set(event.stage, entry);
         break;
       }
+      case "compaction_quality":
+        qualityTotal += 1;
+        qualityValidationFailures += Number(!event.validationOk);
+        qualityFallbacks += Number(event.fallback);
+        qualityRepairs += Number(event.repaired);
+        qualitySplitTurns += Number(event.splitTurn);
+        qualityWorktreeVerified += Number(event.worktreeVerified);
+        qualityCompactedMessages += eventCounter(event.compactedMessages);
+        qualitySelectedMessages += eventCounter(event.selectedMessages);
+        qualityOmittedMessages += eventCounter(event.omittedMessages);
+        qualitySummaryChars += eventCounter(event.summaryChars);
+        qualityInputTokenBudget += eventCounter(event.inputTokenBudget);
+        qualityFinalTokenBudget += eventCounter(event.finalTokenBudget);
+        qualityOmittedManagedRecords += eventCounter(event.omittedManagedRecords);
+        qualityOmittedManagedBlocks += eventCounter(event.omittedManagedBlocks);
+        qualityRedactions += eventCounter(event.redactions);
+        qualityTruncatedRecords += eventCounter(event.truncatedRecords);
+        qualityContinuityRecords += eventCounter(event.continuityRecords);
+        qualityEvidenceAnchors += eventCounter(event.evidenceAnchors);
+        if (typeof event.durationMs === "number") {
+          qualityDurationSum += eventCounter(event.durationMs);
+          qualityDurationCount += 1;
+        }
+        qualityModes.set(event.mode, (qualityModes.get(event.mode) ?? 0) + 1);
+        break;
+      case "compaction_recall":
+        recallTotal += 1;
+        recallHits += eventCounter(event.hitCount);
+        recallTotalRankedHits += eventCounter(event.totalHits);
+        recallZeroHit += Number(event.hitCount === 0);
+        recallScopeWidened += Number(event.scopeWidened);
+        recallDegraded += Number(event.scope === "degraded");
+        recallSourceEntries += eventCounter(event.sourceEntries);
+        recallSourceEntriesOmitted += eventCounter(event.sourceEntriesOmitted);
+        recallCandidates += eventCounter(event.candidateCount);
+        recallExpanded += eventCounter(event.expandedCount);
+        recallDirectRefs += eventCounter(event.directRefCount);
+        recallModes.set(event.mode, (recallModes.get(event.mode) ?? 0) + 1);
+        recallScopes.set(event.scope, (recallScopes.get(event.scope) ?? 0) + 1);
+        if (typeof event.durationMs === "number") {
+          recallDurationSum += eventCounter(event.durationMs);
+          recallDurationCount += 1;
+        }
+        break;
       case "skill_load":
         skillCounts.set(event.skill, (skillCounts.get(event.skill) ?? 0) + 1);
         break;
@@ -200,6 +352,57 @@ export function summarizeTelemetryEvents(
       unresolvedBegins: countUnresolvedBegins(compactionBegins, compactionEnds, now),
       stalledAfterCompaction: countStalledCompactions(compactionEnds, turnTimes),
     },
+    compactionQuality: {
+      total: qualityTotal,
+      validationFailures: qualityValidationFailures,
+      validationFailureRatePct: percentage(qualityValidationFailures, qualityTotal),
+      fallbacks: qualityFallbacks,
+      fallbackRatePct: percentage(qualityFallbacks, qualityTotal),
+      repairs: qualityRepairs,
+      repairRatePct: percentage(qualityRepairs, qualityTotal),
+      splitTurns: qualitySplitTurns,
+      splitTurnRatePct: percentage(qualitySplitTurns, qualityTotal),
+      worktreeVerified: qualityWorktreeVerified,
+      worktreeVerifiedRatePct: percentage(qualityWorktreeVerified, qualityTotal),
+      totalCompactedMessages: qualityCompactedMessages,
+      avgCompactedMessages: average(qualityCompactedMessages, qualityTotal),
+      avgSelectedMessages: average(qualitySelectedMessages, qualityTotal),
+      avgOmittedMessages: average(qualityOmittedMessages, qualityTotal),
+      messageOmissionRatePct: percentage(qualityOmittedMessages, qualityCompactedMessages),
+      avgSummaryChars: average(qualitySummaryChars, qualityTotal),
+      avgInputTokenBudget: average(qualityInputTokenBudget, qualityTotal),
+      avgFinalTokenBudget: average(qualityFinalTokenBudget, qualityTotal),
+      avgDurationMs: average(qualityDurationSum, qualityDurationCount),
+      totalOmittedManagedRecords: qualityOmittedManagedRecords,
+      totalOmittedManagedBlocks: qualityOmittedManagedBlocks,
+      totalRedactions: qualityRedactions,
+      totalTruncatedRecords: qualityTruncatedRecords,
+      avgContinuityRecords: average(qualityContinuityRecords, qualityTotal),
+      avgEvidenceAnchors: average(qualityEvidenceAnchors, qualityTotal),
+      byMode: sortedCounts(qualityModes, "mode") as Array<{ mode: string; n: number }>,
+    },
+    recall: {
+      total: recallTotal,
+      hits: recallHits,
+      totalRankedHits: recallTotalRankedHits,
+      zeroHit: recallZeroHit,
+      zeroHitRatePct: percentage(recallZeroHit, recallTotal),
+      scopeWidened: recallScopeWidened,
+      scopeWidenedRatePct: percentage(recallScopeWidened, recallTotal),
+      degraded: recallDegraded,
+      degradedRatePct: percentage(recallDegraded, recallTotal),
+      avgSourceEntries: average(recallSourceEntries, recallTotal),
+      avgSourceEntriesOmitted: average(recallSourceEntriesOmitted, recallTotal),
+      sourceOmissionRatePct: percentage(recallSourceEntriesOmitted, recallSourceEntries),
+      avgCandidates: average(recallCandidates, recallTotal),
+      avgTotalHits: average(recallTotalRankedHits, recallTotal),
+      avgHits: average(recallHits, recallTotal),
+      avgExpanded: average(recallExpanded, recallTotal),
+      avgDirectRefs: average(recallDirectRefs, recallTotal),
+      avgDurationMs: average(recallDurationSum, recallDurationCount),
+      byMode: sortedCounts(recallModes, "mode") as Array<{ mode: string; n: number }>,
+      byScope: sortedCounts(recallScopes, "scope") as Array<{ scope: string; n: number }>,
+    },
     vault: { total: vaultTotal, failed: vaultFailed },
     compactionFailures: [...failureStages.entries()]
       .sort((left, right) => right[1].n - left[1].n)
@@ -233,10 +436,6 @@ export function summarizeTelemetryEvents(
   };
 }
 
-/**
- * A compaction_begin with no matching compaction end in the same session
- * within the window means an aborted or failed compaction pass.
- */
 function countUnresolvedBegins(
   begins: Array<{ ts: number; sessionId?: string }>,
   ends: Array<{ ts: number; sessionId?: string }>,
@@ -255,10 +454,6 @@ function countUnresolvedBegins(
   return unresolved;
 }
 
-/**
- * A compaction after which no turn started within the stall threshold
- * in the same session: the classic "compacted then sat idle" signature.
- */
 function countStalledCompactions(
   ends: Array<{ ts: number; sessionId?: string }>,
   turns: Array<{ ts: number; sessionId?: string }>,

@@ -177,9 +177,7 @@ export function claimCompactionOwnership(pi, owner = {}) {
   const existing = readLease(pi);
   const inspection = inspectCompactionHandlers(pi);
   const staleSameOwnerLease =
-    existing?.ownerId === requestedOwner.ownerId &&
-    inspection.known &&
-    inspection.count === 0;
+    existing?.ownerId === requestedOwner.ownerId && inspection.known && inspection.count === 0;
   if (existing && !staleSameOwnerLease) {
     return {
       ok: false,

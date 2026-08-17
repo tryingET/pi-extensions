@@ -1,7 +1,7 @@
 /**
 summary: "Renders a deterministic continuation checkpoint when model summarization is unavailable."
 read_when:
-  - "Changing emergency fallback shape, objective extraction, or evidence presentation."
+  - "Changing emergency fallback shape, objective extraction, evidence presentation, or worktree truth."
 */
 import { sanitizeDisplayText } from "./redaction.js";
 
@@ -19,7 +19,9 @@ export function extractVisibleText(message) {
     return message.content
       .map((part) => {
         if (!part || typeof part !== "object") return "";
-        if (part.type === "thinking" || part.type === "toolCall") return "";
+        if (["thinking", "reasoning", "analysis", "toolCall", "tool_call"].includes(part.type)) {
+          return "";
+        }
         return typeof part.text === "string" ? part.text : "";
       })
       .filter(Boolean)
@@ -55,13 +57,11 @@ function constraintLines(messages, maxItems = 8) {
 }
 
 function observedFileLines(files, maxItems = 12) {
-  return (Array.isArray(files) ? files : [])
-    .slice(0, maxItems)
-    .map((file) => {
-      const path = clip(file.displayPath ?? file.path ?? "unknown", 300);
-      const operations = [...(file.operations ?? [])].join(", ") || "observed activity";
-      return `${path} — ${operations}`;
-    });
+  return (Array.isArray(files) ? files : []).slice(0, maxItems).map((file) => {
+    const filePath = clip(file.displayPath ?? file.path ?? "unknown", 300);
+    const operations = [...(file.operations ?? [])].join(", ") || "observed activity";
+    return `${filePath} — ${operations}`;
+  });
 }
 
 function receiptLines(receipts, predicate, maxItems = 8) {
@@ -77,12 +77,39 @@ function bullets(items, emptyText) {
   return items.map((item) => `- ${item}`).join("\n");
 }
 
+function worktreeLines(worktree) {
+  if (!worktree?.ok || !worktree?.verified || !worktree.state) {
+    return [
+      "- Current git/worktree state: unavailable from the verified read-only provider; verify with the git owner surface.",
+    ];
+  }
+  const state = worktree.state;
+  const lines = [
+    `- Verified git/worktree state: branch=${clip(state.branch, 120)}${state.detached ? " (detached)" : ""}; clean=${state.clean === true}; staged=${state.counts?.staged ?? 0}; unstaged=${state.counts?.unstaged ?? 0}; untracked=${state.counts?.untracked ?? 0}; conflicted=${state.counts?.conflicted ?? 0}.`,
+  ];
+  if (state.cwdRelative) {
+    lines.push(`- Working directory within repository: ${clip(state.cwdRelative, 240)}.`);
+  }
+  const paths = (state.changedPaths ?? [])
+    .slice(0, 8)
+    .map((entry) => `${entry.status} ${clip(entry.path, 240)}`);
+  if (paths.length > 0) lines.push(`- Verified changed paths (bounded): ${paths.join(", ")}.`);
+  if ((state.omittedPathCount ?? 0) > 0) {
+    lines.push(
+      `- ${state.omittedPathCount} additional path(s) were omitted by provider safety/budget bounds.`,
+    );
+  }
+  return lines;
+}
+
 export function buildDeterministicCompactionSummary(input = {}) {
   const messages = Array.isArray(input.messages) ? input.messages : [];
   const latestUser = latestMessage(messages, "user");
   const latestAssistant = latestMessage(messages, "assistant");
   const objective = clip(
-    extractVisibleText(latestUser) || input.focusText || "Recover current intent from the retained tail.",
+    extractVisibleText(latestUser) ||
+      input.focusText ||
+      "Recover current intent from the retained tail.",
     1_000,
   );
   const assistantState = clip(
@@ -98,31 +125,43 @@ export function buildDeterministicCompactionSummary(input = {}) {
     input.receipts,
     (receipt) => receipt.status === "success" && receipt.isValidation !== true,
   );
+  const compacted = Number.isFinite(input.compactedMessageCount)
+    ? Math.max(0, Math.floor(input.compactedMessageCount))
+    : messages.length;
   const omitted = Number.isFinite(input.omittedMessageCount)
-    ? Math.max(0, input.omittedMessageCount)
+    ? Math.max(0, Math.floor(input.omittedMessageCount))
     : 0;
-
   return [
     "## Self-contained continuation snapshot",
-    `- Current repo/cwd: ${clip(input.cwd ?? "unknown", 500)}`,
+    "- Current repo/cwd: current Pi runtime working directory; absolute local path intentionally not persisted in this checkpoint.",
     `- Latest explicit user request: ${objective}`,
     `- Current implementation state: ${assistantState}`,
+    ...worktreeLines(input.worktree),
     "- Evidence posture: this deterministic checkpoint is derived continuity context, not canonical git, task, or evidence truth.",
     "- Current blocker or risk: model-generated compaction was unavailable or invalid; verify state from retained context and owner sources.",
     "",
     "## Compaction boundary",
-    `- This checkpoint replaces the selected older history span; ${omitted} lower-priority message(s) were omitted from the model packet when budgeting required it.`,
+    `- This checkpoint replaces a compacted span of ${compacted} message(s); ${omitted} lower-priority message(s) were omitted from the model packet when budgeting required it.`,
     `- Split-turn compaction: ${input.isSplitTurn === true ? "yes" : "no"}.`,
     "- More recent kept context may supersede this checkpoint.",
+    ...(compacted > 0
+      ? [
+          "- Use session_compaction_recall (active-lineage scope by default) for exact sanitized historical evidence absent from this packet.",
+        ]
+      : []),
     "",
     "## Next action",
     "1. Read the retained recent context and confirm the latest user request.",
     "2. Verify current git/worktree and task state from their owning surfaces.",
     "3. Resolve the newest failed or unverified receipt before claiming completion.",
-    "4. Continue with the smallest reversible step; fall back or roll back if verification disagrees.",
+    "4. Use session_compaction_recall when a needed historical fact is not present in the compact packet.",
+    "5. Continue with the smallest reversible step; fall back or roll back if verification disagrees.",
     "",
     "## Constraints and preferences",
-    bullets(constraints, "No deterministic constraint phrase was extracted; preserve retained user instructions."),
+    bullets(
+      constraints,
+      "No deterministic constraint phrase was extracted; preserve retained user instructions.",
+    ),
     "",
     "## Work performed",
     bullets(successfulWork, "No successful execution receipt was recovered."),
@@ -134,12 +173,10 @@ export function buildDeterministicCompactionSummary(input = {}) {
     ...(validations.length > 0
       ? ["Observed validation receipts:", bullets(validations, "No validation receipts.")]
       : ["- No validation receipt was recovered; completion remains unverified."]),
-    ...(failures.length > 0
-      ? ["", "Observed failures:", bullets(failures, "No failures.")]
-      : []),
+    ...(failures.length > 0 ? ["", "Observed failures:", bullets(failures, "No failures.")] : []),
     "",
     "## Open issues and uncertainties",
-    "- The fallback does not infer current dirty state, completion, or external task authority.",
-    "- Exact prompts, failures, file activity, and the latest assistant message are preserved in bounded managed records when available.",
+    "- The fallback does not infer current dirty state, completion, or external task authority beyond the explicitly verified Git snapshot.",
+    "- Exact prompts, failures, file activity, evidence anchors, and the latest assistant message are preserved in bounded managed records when available.",
   ].join("\n");
 }

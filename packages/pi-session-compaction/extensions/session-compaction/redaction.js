@@ -43,7 +43,7 @@ const SECRET_PATTERNS = [
   },
   {
     kind: "bearer_token",
-    pattern: /\bBearer\s+[A-Za-z0-9._~+\/-]{24,}={0,2}\b/giu,
+    pattern: /\bBearer\s+[A-Za-z0-9._~+/-]{24,}={0,2}\b/giu,
   },
   {
     kind: "url_credentials",
@@ -132,11 +132,12 @@ export function sanitizeDisplayText(value, options = {}) {
   const maxChars = Number.isFinite(options.maxChars)
     ? Math.max(0, Math.floor(options.maxChars))
     : undefined;
-  const raw = normalizeText(value).replace(/\u0000/gu, "");
+  const raw = normalizeText(value).replaceAll("\u0000", "");
   const redacted = redactSecrets(raw);
-  let text = options.singleLine === true
-    ? redacted.text.replace(/[\r\n\t]+/gu, " ").replace(/\s{2,}/gu, " ")
-    : redacted.text;
+  let text =
+    options.singleLine === true
+      ? redacted.text.replace(/[\r\n\t]+/gu, " ").replace(/\s{2,}/gu, " ")
+      : redacted.text;
   let truncated = false;
 
   if (maxChars !== undefined && text.length > maxChars) {

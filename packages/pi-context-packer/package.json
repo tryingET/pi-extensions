@@ -27,6 +27,18 @@
   "engines": {
     "node": ">=22.19.0"
   },
+  "exports": {
+    ".": "./src/context-pack.js",
+    "./api": "./src/provider-api.js",
+    "./src/*": "./src/*",
+    "./extensions/*": "./extensions/*",
+    "./prompts/*": "./prompts/*",
+    "./examples/*": "./examples/*",
+    "./policy/*": "./policy/*",
+    "./scripts/*": "./scripts/*",
+    "./docs/*": "./docs/*",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
@@ -52,7 +64,9 @@
   },
   "files": [
     "extensions/context-pack.ts",
+    "extensions/context-provider-api.ts",
     "src",
+    "docs",
     "scripts",
     "prompts",
     "examples",
@@ -61,7 +75,8 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/context-pack.ts"
+      "./extensions/context-pack.ts",
+      "./extensions/context-provider-api.ts"
     ],
     "prompts": [
       "./prompts"

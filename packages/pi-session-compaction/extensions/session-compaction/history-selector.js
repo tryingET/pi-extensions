@@ -3,11 +3,7 @@ summary: "Selects bounded, high-value history while preserving user and tool-res
 read_when:
   - "Changing history priorities, recent-tail preservation, or tool call/result coupling."
 */
-import {
-  estimateTextTokens,
-  fitTextToTokenBudget,
-  tokenBudgetToChars,
-} from "./budget.js";
+import { estimateTextTokens, fitTextToTokenBudget, tokenBudgetToChars } from "./budget.js";
 import {
   contentText,
   estimateMessageChars,
@@ -109,10 +105,7 @@ function fitMessageToCharBudget(message, maxChars, charsPerToken) {
   }).text;
   return {
     ...message,
-    content:
-      typeof message?.content === "string"
-        ? fitted
-        : [{ type: "text", text: fitted }],
+    content: typeof message?.content === "string" ? fitted : [{ type: "text", text: fitted }],
   };
 }
 
@@ -121,27 +114,14 @@ export function selectMessagesWithinBudget(messages, maxTokens, options = {}) {
   const maxChars = tokenBudgetToChars(maxTokens, charsPerToken);
   const sanitized = sanitizeMessagesForCompaction(messages, {
     ...options,
-    maxMessageChars: Math.min(
-      options.maxMessageChars ?? 8_000,
-      Math.max(1, maxChars - 24),
-    ),
+    maxMessageChars: Math.min(options.maxMessageChars ?? 8_000, Math.max(1, maxChars - 24)),
   });
   const list = sanitized.messages;
   const latestUserIndex = list.findLastIndex((message) => message?.role === "user");
-  if (
-    latestUserIndex >= 0 &&
-    estimateMessageChars(list[latestUserIndex]) + 24 > maxChars
-  ) {
-    list[latestUserIndex] = fitMessageToCharBudget(
-      list[latestUserIndex],
-      maxChars,
-      charsPerToken,
-    );
+  if (latestUserIndex >= 0 && estimateMessageChars(list[latestUserIndex]) + 24 > maxChars) {
+    list[latestUserIndex] = fitMessageToCharBudget(list[latestUserIndex], maxChars, charsPerToken);
   }
-  const preserveRecentMessages = Math.max(
-    0,
-    Math.floor(options.preserveRecentMessages ?? 12),
-  );
+  const preserveRecentMessages = Math.max(0, Math.floor(options.preserveRecentMessages ?? 12));
   const costs = list.map((message) => Math.max(1, estimateMessageChars(message) + 24));
   const coupled = buildToolCoupling(list);
   const selected = new Set();
@@ -152,13 +132,7 @@ export function selectMessagesWithinBudget(messages, maxTokens, options = {}) {
     index >= Math.max(0, list.length - preserveRecentMessages);
     index -= 1
   ) {
-    const result = addClosure(
-      selected,
-      closureFor(index, coupled),
-      costs,
-      usedChars,
-      maxChars,
-    );
+    const result = addClosure(selected, closureFor(index, coupled), costs, usedChars, maxChars);
     if (result.added) usedChars = result.usedChars;
   }
 
@@ -201,9 +175,7 @@ export function selectMessagesWithinBudget(messages, maxTokens, options = {}) {
     usedChars,
     maxChars,
     estimatedTokens: estimateTextTokens(
-      selectedMessages
-        .map((message) => contentText(message.content))
-        .join("\n\n"),
+      selectedMessages.map((message) => contentText(message.content)).join("\n\n"),
       charsPerToken,
     ),
     sanitization: sanitized.stats,

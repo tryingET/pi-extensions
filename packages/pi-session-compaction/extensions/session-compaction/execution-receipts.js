@@ -81,10 +81,7 @@ function statusForResult(message, text) {
   if (message?.isError === true) return "failed";
   if (Number.isFinite(message?.exitCode) && message.exitCode !== 0) return "failed";
   if (NOOP_RE.test(text)) return "noop";
-  if (
-    FAILURE_RE.test(text) &&
-    !/0 failures|no failures|0 errors|no errors|0 failed/iu.test(text)
-  ) {
+  if (FAILURE_RE.test(text) && !/0 failures|no failures|0 errors|no errors|0 failed/iu.test(text)) {
     return "failed";
   }
   return "success";
@@ -209,11 +206,7 @@ export function renderExecutionReceiptsBlock(receipts, options = {}) {
     records: (Array.isArray(receipts) ? receipts : []).map((receipt) => ({
       id: receipt.id,
       kind:
-        receipt.status === "failed"
-          ? "failure"
-          : receipt.isValidation
-            ? "validation"
-            : "receipt",
+        receipt.status === "failed" ? "failure" : receipt.isValidation ? "validation" : "receipt",
       text: receipt.text ?? receiptText(receipt),
       timestamp: receipt.timestamp,
       sourceEntryId: receipt.sourceEntryId,
