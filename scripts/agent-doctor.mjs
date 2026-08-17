@@ -131,21 +131,36 @@ for (const logName of ["pi-crash.log", "pi-debug.log"]) {
 }
 info.logs = logs;
 
-// --- npm release-age gate ---
-let npmGate = null;
+// --- npm release-age posture (read-only) ---
+// The governed design supplies `before` per npm effect under neutralized config
+// (docs/project/2026-07-26-governed-deep-review-preflight-canary.md). npm >= 11
+// rejects a `before` key combined with `min-release-age`, breaking every npm
+// invocation machine-wide, so repo tooling must never write `before=` into
+// ~/.npmrc. This check reads the file directly (never spawns npm) and warns on
+// the breaker posture: a stray `before=` key or a missing/too-low native gate.
+let npmGate = "ok";
 {
-  const maintainer = resolve(repoRoot, "scripts/maintain-npm-release-age.mjs");
-  if (existsSync(maintainer)) {
-    const run = spawnSync(process.execPath, [maintainer, "--check"], { encoding: "utf8" });
-    npmGate = { exitCode: run.status };
-    if (run.status !== 0) {
-      warnings.push(
-        `npm release-age gate 'before' is unset or stale; governed preflight will fail closed (run: node scripts/maintain-npm-release-age.mjs)`,
-      );
-    }
+  const npmrcPath = resolve(homedir(), ".npmrc");
+  const npmrcText = existsSync(npmrcPath) ? readFileSync(npmrcPath, "utf8") : "";
+  const hasBeforeKey = /^[ \t]*before[ \t]*=/m.test(npmrcText);
+  const minAge = Number(/^[ \t]*min-release-age[ \t]*=[ \t]*(\d+)/m.exec(npmrcText)?.[1] ?? Number.NaN);
+  const problems = [];
+  if (hasBeforeKey) {
+    problems.push(
+      "a 'before=' key is set in ~/.npmrc; npm >= 11 fails every invocation when it is combined with min-release-age — remove the line",
+    );
+  }
+  if (!Number.isFinite(minAge)) {
+    problems.push("min-release-age is not set in ~/.npmrc; the governed release-age gate relies on it");
+  } else if (minAge < 7) {
+    problems.push(`min-release-age must be >= 7 days (observed ${minAge})`);
+  }
+  if (problems.length > 0) {
+    npmGate = "degraded";
+    warnings.push(`npm release-age posture: ${problems.join("; ")}`);
   }
 }
-info.npmGate = npmGate ? (npmGate.exitCode === 0 ? "ok" : "stale") : "skipped";
+info.npmGate = npmGate;
 
 // --- loop telemetry (repeat-failure alarm only; full report via just loop-telemetry) ---
 {

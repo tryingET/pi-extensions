@@ -191,12 +191,6 @@ run_tests_target() {
     return 0
   fi
 
-  # Governed-runtime packages verify the npm release-age gate (before = now -
-  # min-release-age, ±5min); refresh it immediately before those tests run.
-  if [[ "$workdir" == *"pi-society-orchestrator" ]] && [[ -f "$REPO_ROOT/scripts/maintain-npm-release-age.mjs" ]]; then
-    node "$REPO_ROOT/scripts/maintain-npm-release-age.mjs" >/dev/null || true
-  fi
-
   # Loop-tool tests must never write run records into the operator's live
   # loop-runs telemetry state; redirect the checkpoint store to gate scratch.
   if [[ "$workdir" == *"pi-society-orchestrator"* ]]; then
