@@ -30,13 +30,6 @@
   "exports": {
     ".": "./src/context-pack.js",
     "./api": "./src/provider-api.js",
-    "./src/*": "./src/*",
-    "./extensions/*": "./extensions/*",
-    "./prompts/*": "./prompts/*",
-    "./examples/*": "./examples/*",
-    "./policy/*": "./policy/*",
-    "./scripts/*": "./scripts/*",
-    "./docs/*": "./docs/*",
     "./package.json": "./package.json"
   },
   "scripts": {

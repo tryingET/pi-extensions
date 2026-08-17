@@ -81,12 +81,6 @@
   "exports": {
     "./emit": "./src/emit.ts",
     "./quality": "./src/quality.ts",
-    "./src/*": "./src/*",
-    "./extensions/*": "./extensions/*",
-    "./prompts/*": "./prompts/*",
-    "./examples/*": "./examples/*",
-    "./policy/*": "./policy/*",
-    "./docs/*": "./docs/*",
     "./package.json": "./package.json"
   }
 }
