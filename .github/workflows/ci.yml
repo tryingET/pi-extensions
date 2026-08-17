@@ -72,11 +72,14 @@ jobs:
       - name: Materialize governed runtime canary dependencies
         working-directory: ${{ env.GOVERNED_CI_ROOT }}
         run: |
-          before="$(node -e 'console.log(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())')"
+          # npm >= 11.13 derives the effective `before` cutoff from
+          # min-release-age itself and hard-fails when an explicit `before`
+          # key coexists with it, so never write a `before=` line here.
+          # `npm config get before` below prints the derived cutoff as the
+          # live age proof (min-release-age reads back as null on npm >= 11.13).
           cat > "$NPM_CONFIG_USERCONFIG" <<EOF
           min-release-age=7
           min-release-age-exclude[]=@tryinget/*
-          before=$before
           registry=https://registry.npmjs.org/
           offline=false
           prefer-offline=false
@@ -84,7 +87,6 @@ jobs:
           cache=$GOVERNED_NPM_CACHE
           EOF
           npm --version
-          npm config get min-release-age
           npm config get min-release-age-exclude
           npm config get before
           node ./scripts/governed-deep-review-canary.mjs materialize \

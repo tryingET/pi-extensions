@@ -273,15 +273,15 @@ function withGovernedNpmPolicyFixture(run) {
   const cacheDir = join(scratch, "cache");
   mkdirSync(cacheDir, { recursive: true });
   const npmrcPath = join(scratch, "npmrc");
-  // `before` must pin now minus the release age (the gate re-derives it within
-  // a 5-minute tolerance), so bake a fresh pin into the fixture instead of
-  // relying on an ambient npmrc that maintains one.
-  const beforePin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  // npm >= 11.13 derives the effective `before` cutoff from `min-release-age`
+  // itself (always fresh, within the gate's 5-minute tolerance) and hard-fails
+  // config resolution when an explicit `before` key coexists with
+  // `min-release-age` in any config or env layer. The fixture therefore pins
+  // only the declarative policy and lets npm derive the cutoff.
   writeFileSync(
     npmrcPath,
     `min-release-age=7
 min-release-age-exclude[]=@tryinget/*
-before=${beforePin}
 registry=https://registry.npmjs.org/
 offline=false
 prefer-offline=false
