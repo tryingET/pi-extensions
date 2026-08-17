@@ -67,8 +67,7 @@ function normalizeRecord(record, options = {}) {
     text,
     timestamp,
     source: typeof record?.source === "string" ? record.source : undefined,
-    sourceEntryId:
-      typeof record?.sourceEntryId === "string" ? record.sourceEntryId : undefined,
+    sourceEntryId: typeof record?.sourceEntryId === "string" ? record.sourceEntryId : undefined,
     priority: Number.isFinite(record?.priority) ? record.priority : 0,
     pinned: record?.pinned === true,
     checksum,
@@ -189,10 +188,7 @@ export function buildManagedBlock({ type, heading, records, ...options }) {
     r: selected.redactionCount,
     tr: selected.truncatedCount,
   });
-  const lines = [
-    `<!-- pi-session-compaction:managed:v2:${type}:start ${blockMeta} -->`,
-    heading,
-  ];
+  const lines = [`<!-- pi-session-compaction:managed:v2:${type}:start ${blockMeta} -->`, heading];
 
   if (selected.records.length === 0) {
     lines.push("(none)");
@@ -296,7 +292,12 @@ export function stripManagedBlocks(summary) {
     }
   }
   const out = lines.filter((_line, index) => !skippedIndices.has(index));
-  return out.join("\n").replace(/\n{3,}/gu, "\n\n").trim() || undefined;
+  return (
+    out
+      .join("\n")
+      .replace(/\n{3,}/gu, "\n\n")
+      .trim() || undefined
+  );
 }
 
 export function countManagedBlocks(summary, type) {

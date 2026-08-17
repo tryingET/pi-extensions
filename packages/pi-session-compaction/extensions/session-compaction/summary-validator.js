@@ -10,10 +10,11 @@ import {
 } from "./managed-block-codec.js";
 import { containsPotentialSecret, sanitizeDisplayText } from "./redaction.js";
 
-const ORIENTATION_HEADING_RE =
-  /^##\s+(?:Self-contained continuation snapshot|Brief)\s*$/imu;
+const ORIENTATION_HEADING_RE = /^##\s+(?:Self-contained continuation snapshot|Brief)\s*$/imu;
 const NEXT_ACTION_HEADING_RE = /^##\s+(?:Next action|Immediate next steps)\s*$/imu;
 const MANAGED_TYPE_PRIORITY = [
+  "continuity-state",
+  "evidence-anchors",
   "essential-prompts",
   "execution-receipts",
   "last-assistant",
@@ -30,7 +31,6 @@ function stripLegacyManagedBlocks(value) {
   const lines = summary.split(/\r?\n/u);
   const out = [];
   let skipMode;
-
   for (let index = 0; index < lines.length; index += 1) {
     const trimmed = lines[index].trim();
     if (
@@ -47,9 +47,8 @@ function stripLegacyManagedBlocks(value) {
         /^## Files touched(?: \(cumulative\))?$/iu.test(trimmed) ||
         /^## Essential user prompts \/ commands \+ arguments used$/iu.test(trimmed) ||
         /^### User prompts in this turn$/iu.test(trimmed)
-      ) {
+      )
         skipMode = "section";
-      }
       continue;
     }
     if (skipMode === "section") {
@@ -61,8 +60,10 @@ function stripLegacyManagedBlocks(value) {
     }
     out.push(lines[index]);
   }
-
-  return out.join("\n").replace(/\n{3,}/gu, "\n\n").trim();
+  return out
+    .join("\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
 }
 
 export function cleanSummaryBody(value) {
@@ -71,10 +72,9 @@ export function cleanSummaryBody(value) {
 
 function evidenceRefWarnings(summary) {
   const warnings = [];
-  for (const match of normalizeText(summary).matchAll(/\bevidence=([^\s|]+)/giu)) {
-    if (!/^[A-Za-z0-9._:-]+$/u.test(match[1])) {
+  for (const match of normalizeText(summary).matchAll(/\b(?:evidence|ref)=([^\s|]+)/giu)) {
+    if (!/^[A-Za-z0-9._:-]+$/u.test(match[1]))
       warnings.push(`Malformed evidence reference '${match[1]}'`);
-    }
   }
   return warnings;
 }
@@ -86,36 +86,25 @@ export function validateCompactionSummary(summary, options = {}) {
     : 32_000;
   const errors = [];
   const warnings = [];
-
   if (!text) errors.push("Summary is empty");
-  if (text.length > maxChars) {
+  if (text.length > maxChars)
     errors.push(`Summary exceeds hard cap (${text.length} > ${maxChars} characters)`);
-  }
-  if (!ORIENTATION_HEADING_RE.test(text)) {
+  if (!ORIENTATION_HEADING_RE.test(text))
     errors.push("Summary is missing its continuation-orientation section");
-  }
-  if (!NEXT_ACTION_HEADING_RE.test(text)) {
-    errors.push("Summary is missing its next-action section");
-  }
-  if (containsPotentialSecret(text)) {
+  if (!NEXT_ACTION_HEADING_RE.test(text)) errors.push("Summary is missing its next-action section");
+  if (containsPotentialSecret(text))
     errors.push("Summary contains a high-confidence credential shape");
-  }
-
   const blocks = decodeManagedBlocks(text);
   const types = new Set(blocks.map((block) => block.type));
   for (const type of types) {
     const count = countManagedBlocks(text, type);
     if (count > 1) errors.push(`Summary contains ${count} managed '${type}' blocks`);
   }
-  for (const block of blocks) {
-    for (const record of block.records) {
-      if (record.checksumValid !== true) {
+  for (const block of blocks)
+    for (const record of block.records)
+      if (record.checksumValid !== true)
         errors.push(`Managed record '${record.id ?? "unknown"}' failed checksum validation`);
-      }
-    }
-  }
   warnings.push(...evidenceRefWarnings(text));
-
   return {
     ok: errors.length === 0,
     errors,
@@ -128,23 +117,18 @@ export function validateCompactionSummary(summary, options = {}) {
 export function fitTextToCharBudget(text, maxChars, options = {}) {
   const normalized = normalizeText(text);
   const limit = Math.max(0, Math.floor(maxChars));
-  if (normalized.length <= limit) {
+  if (normalized.length <= limit)
     return { text: normalized, truncated: false, originalChars: normalized.length };
-  }
-  if (limit === 0) {
+  if (limit === 0)
     return { text: "", truncated: normalized.length > 0, originalChars: normalized.length };
-  }
   const marker = options.marker ?? "\n\n[... body omitted to satisfy hard cap ...]\n\n";
-  if (marker.length >= limit) {
+  if (marker.length >= limit)
     return { text: marker.slice(0, limit), truncated: true, originalChars: normalized.length };
-  }
   const available = limit - marker.length;
   const tailChars = Math.floor(available * 0.25);
   const headChars = available - tailChars;
   return {
-    text: `${normalized.slice(0, headChars)}${marker}${normalized.slice(
-      normalized.length - tailChars,
-    )}`,
+    text: `${normalized.slice(0, headChars)}${marker}${normalized.slice(normalized.length - tailChars)}`,
     truncated: true,
     originalChars: normalized.length,
   };
@@ -183,9 +167,7 @@ function selectManagedBlocks(blocks, availableChars) {
     if (usedChars + cost <= availableChars) {
       selected.push(block);
       usedChars += cost;
-    } else {
-      omitted.push(block.type);
-    }
+    } else omitted.push(block.type);
   }
   return { selected, omitted, usedChars };
 }
@@ -194,11 +176,8 @@ function candidateBody(modelBody, fallbackBody, maxBodyChars) {
   const sanitizedModel = sanitizeDisplayText(cleanSummaryBody(modelBody), {
     maxChars: maxBodyChars * 2,
   }).text;
-  const modelValidation = validateCompactionSummary(sanitizedModel, {
-    maxChars: maxBodyChars,
-  });
+  const modelValidation = validateCompactionSummary(sanitizedModel, { maxChars: maxBodyChars });
   if (modelValidation.ok) return { body: sanitizedModel, mode: "model" };
-
   const sanitizedFallback = sanitizeDisplayText(cleanSummaryBody(fallbackBody), {
     maxChars: maxBodyChars,
   }).text;
@@ -206,12 +185,8 @@ function candidateBody(modelBody, fallbackBody, maxBodyChars) {
     maxChars: maxBodyChars,
   });
   if (fallbackValidation.ok) return { body: sanitizedFallback, mode: "deterministic_fallback" };
-
   const fitted = fitTextToCharBudget(sanitizedFallback, maxBodyChars);
-  return {
-    body: fitted.text,
-    mode: "deterministic_fallback_truncated",
-  };
+  return { body: fitted.text, mode: "deterministic_fallback_truncated" };
 }
 
 export function assembleBoundedSummary(input = {}) {
@@ -220,20 +195,21 @@ export function assembleBoundedSummary(input = {}) {
     : 32_000;
   const blocks = orderedManagedBlocks(input.managedBlocks);
   const managedDemand = blocks.reduce((sum, block) => sum + block.text.length + 2, 0);
-  const maximumManagedShare = Math.floor(maxChars * 0.48);
+  // Durable continuity/evidence records get a guaranteed bounded reserve, but the body
+  // stays the primary packet: a full deterministic fallback body must never be
+  // pre-squeezed below a valid size (P0 fallback contract). Lower-priority blocks are
+  // dropped by selection instead of truncating the body into invalidity.
+  const maximumManagedShare = Math.floor(maxChars * 0.3);
   const reservedManagedChars = Math.min(managedDemand, maximumManagedShare);
   const maxBodyChars = Math.max(384, maxChars - reservedManagedChars - 2);
   let selectedBody = candidateBody(input.modelBody, input.fallbackBody, maxBodyChars);
-
-  if (selectedBody.body.length > maxBodyChars) {
+  if (selectedBody.body.length > maxBodyChars)
     selectedBody = candidateBody(undefined, input.fallbackBody, maxBodyChars);
-  }
   const managed = selectManagedBlocks(blocks, Math.max(0, maxChars - selectedBody.body.length - 2));
   let summary = [selectedBody.body, ...managed.selected.map((block) => block.text)]
     .filter(Boolean)
     .join("\n\n")
     .trim();
-
   if (summary.length > maxChars) {
     selectedBody = candidateBody(
       undefined,
@@ -245,7 +221,6 @@ export function assembleBoundedSummary(input = {}) {
       .join("\n\n")
       .trim();
   }
-
   return {
     summary,
     mode: selectedBody.mode,
@@ -253,7 +228,6 @@ export function assembleBoundedSummary(input = {}) {
     selectedManagedBlocks: managed.selected.map((block) => block.type),
   };
 }
-
 
 function minimalEmergencyBody() {
   return [
@@ -264,32 +238,18 @@ function minimalEmergencyBody() {
     "## Next action",
     "1. Read the retained recent context.",
     "2. Verify current git, task, and validation state.",
-    "3. Continue only from observed evidence.",
+    "3. Use session_compaction_recall for exact sanitized historical evidence when a needed fact is absent.",
+    "4. Continue only from observed evidence.",
   ].join("\n");
 }
 
 export function repairAndValidateSummary(input = {}) {
   const assembled = assembleBoundedSummary(input);
-  let validation = validateCompactionSummary(assembled.summary, {
-    maxChars: input.maxChars,
-  });
+  let validation = validateCompactionSummary(assembled.summary, { maxChars: input.maxChars });
   if (validation.ok) return { ...assembled, validation };
-
-  const fallbackOnly = assembleBoundedSummary({
-    ...input,
-    modelBody: undefined,
-  });
-  validation = validateCompactionSummary(fallbackOnly.summary, {
-    maxChars: input.maxChars,
-  });
-  if (validation.ok) {
-    return {
-      ...fallbackOnly,
-      mode: "deterministic_repair",
-      validation,
-    };
-  }
-
+  const fallbackOnly = assembleBoundedSummary({ ...input, modelBody: undefined });
+  validation = validateCompactionSummary(fallbackOnly.summary, { maxChars: input.maxChars });
+  if (validation.ok) return { ...fallbackOnly, mode: "deterministic_repair", validation };
   const emergency = assembleBoundedSummary({
     ...input,
     modelBody: minimalEmergencyBody(),

@@ -1,14 +1,17 @@
 /**
-summary: "Wraps custom compaction with bounded inputs, exact records, validation, and fallback."
+summary: "Wraps custom compaction with bounded inputs, structured continuity, exact recall anchors, validation, and fallback."
 read_when:
-  - "Changing P0 compaction hardening, deterministic degradation, or final packet assembly."
+  - "Changing compaction hardening, P1 provider integration, continuity state, quality telemetry, or final packet assembly."
 */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { parseBudgetConfig, planCompactionBudget } from "./budget.js";
+import { collectCurrentWorktreeState } from "./context-provider.js";
+import { buildContinuityRecords, renderContinuityStateBlock } from "./continuity-state.js";
 import { buildDeterministicCompactionSummary } from "./deterministic-summary.js";
+import { buildEvidenceAnchors, renderEvidenceAnchorsBlock } from "./evidence-anchors.js";
 import {
   collectExecutionReceipts,
   extractPreviousExecutionReceipts,
@@ -16,14 +19,6 @@ import {
   renderFileActivityBlock,
 } from "./execution-receipts.js";
 import { collectFilesTouched } from "./files-touched.js";
-import {
-  DEFAULT_CONFIG,
-  loadConfig,
-  parseCompactInstructions,
-  runSessionCompaction,
-  stripManagedSummaryBlocks,
-} from "./handler.js";
-import { completeWithHostModelRegistry } from "./host-completion.js";
 import {
   detailsForHardening,
   inputTokenSplit,
@@ -33,23 +28,32 @@ import {
 import {
   ESSENTIAL_PROMPTS_HEADING,
   ESSENTIAL_PROMPTS_TYPE,
-  lastAssistantRecords,
   LAST_ASSISTANT_HEADING,
   LAST_ASSISTANT_TYPE,
+  lastAssistantRecords,
   promptRecords,
 } from "./guarded-handler-records.js";
+import {
+  DEFAULT_CONFIG,
+  loadCompactionPromptContract,
+  loadConfig,
+  parseCompactInstructions,
+  runSessionCompaction,
+  stripManagedSummaryBlocks,
+} from "./handler.js";
 import {
   estimateMessagesChars,
   sanitizeBranchEntries,
   selectMessagesWithinBudget,
 } from "./history-normalizer.js";
+import { completeWithHostModelRegistry } from "./host-completion.js";
 import { buildManagedBlock, stripManagedBlocks } from "./managed-block-codec.js";
-import {
-  repairAndValidateSummary,
-  validateCompactionSummary,
-} from "./summary-validator.js";
+import { recordCompactionQuality } from "./quality-telemetry.js";
+import { sanitizeDisplayText } from "./redaction.js";
+import { repairAndValidateSummary, validateCompactionSummary } from "./summary-validator.js";
 
 const EXTENSION_DIR = path.dirname(fileURLToPath(import.meta.url));
+
 function messagesFromPreparation(event) {
   return [
     ...(event?.preparation?.messagesToSummarize ?? []),
@@ -83,9 +87,74 @@ function notify(ctx, message, level = "warning") {
   if (ctx?.hasUI && typeof ctx.ui?.notify === "function") ctx.ui.notify(message, level);
 }
 
+function verifiedWorktreePromptContext(worktree) {
+  if (!worktree?.ok || !worktree?.verified || !worktree.state) {
+    return [
+      "## Verified read-only worktree snapshot",
+      "- Unavailable from pi-context-packer's stable git-worktree provider.",
+      "- Do not infer clean/dirty state from historical tool calls; mark it unverified instead.",
+    ].join("\n");
+  }
+  const state = worktree.state;
+  const branch = sanitizeDisplayText(state.branch, { maxChars: 240 }).text || "unknown";
+  const paths = sanitizeDisplayText(
+    (state.changedPaths ?? [])
+      .slice(0, 12)
+      .map((entry) => `${entry.status} ${entry.path}`)
+      .join(", "),
+    { maxChars: 2_400 },
+  ).text;
+  return [
+    "## Verified read-only worktree snapshot",
+    "This live snapshot is source-owned Git metadata supplied by pi-context-packer's stable provider API. Prefer it over historical file-touch inference for current worktree claims.",
+    `- Branch: ${branch}${state.detached ? " (detached)" : ""}`,
+    `- Clean: ${state.clean === true}`,
+    `- Counts: staged=${state.counts?.staged ?? 0}; unstaged=${state.counts?.unstaged ?? 0}; untracked=${state.counts?.untracked ?? 0}; conflicted=${state.counts?.conflicted ?? 0}`,
+    ...(paths ? [`- Changed paths (bounded): ${paths}`] : []),
+    ...((state.omittedPathCount ?? 0) > 0
+      ? [`- ${state.omittedPathCount} additional path(s) omitted by provider bounds.`]
+      : []),
+    "- Non-authorization: this snapshot did not stage, reset, commit, checkout, or mutate the worktree.",
+  ].join("\n");
+}
+
+function p1ManagedBudgets(plan) {
+  const total = Math.max(0, plan.managed.totalChars);
+  // Scale every managed block to the managed envelope (shares sum to 1.0) while each
+  // floor stays large enough that at least one full record with its framing survives;
+  // floors are additionally capped by the envelope for very tight budgets.
+  const share = (fraction, floor) =>
+    Math.min(
+      plan.finalSummaryChars,
+      Math.max(Math.min(floor, total), Math.floor(total * fraction)),
+    );
+  return {
+    continuityChars: share(0.24, 640),
+    anchorsChars: share(0.16, 560),
+    promptsChars: share(0.2, 640),
+    receiptsChars: share(0.14, 640),
+    lastAssistantChars: share(0.12, 480),
+    filesChars: share(0.14, 480),
+  };
+}
+
+function blockStats(blocks) {
+  return blocks.reduce(
+    (stats, block) => {
+      stats.omitted += block?.omittedCount ?? 0;
+      stats.redactions += block?.redactionCount ?? 0;
+      stats.truncated += block?.truncatedCount ?? 0;
+      return stats;
+    },
+    { omitted: 0, redactions: 0, truncated: 0 },
+  );
+}
+
 export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
+  const startedAt = Date.now();
   const baseHandler = deps.baseHandler ?? runSessionCompaction;
   const baseLoadConfig = deps.loadConfig ?? loadConfig;
+  const baseLoadPrompt = deps.loadCompactionPrompt ?? loadCompactionPromptContract;
   const complete =
     deps.complete ??
     ((model, context, options) => completeWithHostModelRegistry(ctx, model, context, options));
@@ -93,7 +162,7 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
   const trackedCommands =
     typeof deps.getTrackedCommands === "function"
       ? deps.getTrackedCommands()
-      : deps.trackedCommands ?? [];
+      : (deps.trackedCommands ?? []);
   const parsedInstructions = parseCompactInstructions(event?.customInstructions);
   const explicitPreset = parsedInstructions.usesPresetDirective === true;
   const originalHistory = event?.preparation?.messagesToSummarize ?? [];
@@ -102,6 +171,18 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
   const sourceChars = estimateMessagesChars(summarizedMessages);
   const historyChars = estimateMessagesChars(originalHistory);
   const turnPrefixChars = estimateMessagesChars(originalTurnPrefix);
+
+  let worktree;
+  try {
+    worktree = await collectCurrentWorktreeState(
+      { cwd: ctx?.cwd, signal: event?.signal, maxPaths: 24 },
+      deps,
+    );
+  } catch (error) {
+    if (isAbortError(error) || event?.signal?.aborted) return { cancel: true };
+    worktree = { ok: false, verified: false, omissions: [{ reason: "unavailable" }] };
+  }
+
   let baseConfig;
   try {
     baseConfig = await baseLoadConfig(EXTENSION_DIR);
@@ -173,10 +254,7 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
       ? Math.max(1, plan.split.turnPrefixTokens)
       : Math.max(1, plan.split.historyTokens);
     const sanitizedContext = sanitizeCompletionContext(context, model, callTokens, plan);
-    return complete(model, sanitizedContext, {
-      ...options,
-      maxTokens: callTokens,
-    });
+    return complete(model, sanitizedContext, { ...options, maxTokens: callTokens });
   };
 
   let baseResult;
@@ -187,6 +265,8 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
       complete: wrappedComplete,
       collectFilesTouched: collectFilesTouchedImpl,
       loadConfig: async () => forcedConfig,
+      loadCompactionPrompt: async (extensionDir) =>
+        `${await baseLoadPrompt(extensionDir)}\n\n${verifiedWorktreePromptContext(worktree)}`,
       getTrackedCommands: () => trackedCommands,
     });
   } catch (error) {
@@ -229,52 +309,59 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
     trackedCommands,
     customInstructions: event?.customInstructions,
   });
-  const assistantRecords = baseConfig.includeLastAssistantMessage === false
-    ? []
-    : lastAssistantRecords({
-        previousSummary,
-        messages: summarizedMessages,
-      });
-  const promptBlockBudget = Math.min(
-    plan.finalSummaryChars,
-    Math.max(plan.managed.promptsChars, 1_200),
-  );
-  const receiptBlockBudget = Math.min(
-    plan.finalSummaryChars,
-    Math.max(plan.managed.receiptsChars, 900),
-  );
-  const lastAssistantBlockBudget = Math.min(
-    plan.finalSummaryChars,
-    Math.max(plan.managed.lastAssistantChars, 600),
-  );
-  const fileBlockBudget = Math.min(
-    plan.finalSummaryChars,
-    Math.max(plan.managed.filesChars, 600),
-  );
+  const assistantRecords =
+    baseConfig.includeLastAssistantMessage === false
+      ? []
+      : lastAssistantRecords({ previousSummary, messages: summarizedMessages });
+  const omittedMessageCount = historySelection.omittedCount + turnPrefixSelection.omittedCount;
+  const continuityRecords = buildContinuityRecords({
+    previousSummary,
+    messages: summarizedMessages,
+    receipts,
+    worktree,
+  });
+  const evidenceAnchors = buildEvidenceAnchors({
+    messages: summarizedMessages,
+    receipts,
+    worktree,
+    compactedMessageCount: summarizedMessages.length,
+    omittedMessageCount,
+  });
+  const managedBudgets = p1ManagedBudgets(plan);
+  const continuityBlock = renderContinuityStateBlock(continuityRecords, {
+    maxItems: 32,
+    maxChars: managedBudgets.continuityChars,
+    maxRecordChars: Math.max(500, Math.floor(managedBudgets.continuityChars / 2)),
+  });
+  const evidenceBlock = renderEvidenceAnchorsBlock(evidenceAnchors, {
+    maxItems: 18,
+    maxChars: managedBudgets.anchorsChars,
+    maxRecordChars: Math.max(400, Math.floor(managedBudgets.anchorsChars / 2)),
+  });
   const promptBlock = buildManagedBlock({
     type: ESSENTIAL_PROMPTS_TYPE,
     heading: ESSENTIAL_PROMPTS_HEADING,
     records: prompts,
     maxItems: plan.managed.maxPromptItems,
-    maxChars: promptBlockBudget,
-    maxRecordChars: Math.max(500, promptBlockBudget),
+    maxChars: managedBudgets.promptsChars,
+    maxRecordChars: Math.max(500, managedBudgets.promptsChars),
   });
   const lastAssistantBlock = buildManagedBlock({
     type: LAST_ASSISTANT_TYPE,
     heading: LAST_ASSISTANT_HEADING,
     records: assistantRecords,
     maxItems: 1,
-    maxChars: lastAssistantBlockBudget,
-    maxRecordChars: Math.max(500, lastAssistantBlockBudget),
+    maxChars: managedBudgets.lastAssistantChars,
+    maxRecordChars: Math.max(500, managedBudgets.lastAssistantChars),
   });
   const receiptBlock = renderExecutionReceiptsBlock(receipts, {
     maxItems: plan.managed.maxReceiptItems,
-    maxChars: receiptBlockBudget,
-    maxRecordChars: Math.max(500, Math.floor(receiptBlockBudget / 2)),
+    maxChars: managedBudgets.receiptsChars,
+    maxRecordChars: Math.max(500, Math.floor(managedBudgets.receiptsChars / 2)),
   });
   const fileBlock = renderFileActivityBlock(files, {
     maxItems: plan.managed.maxFileLines,
-    maxChars: fileBlockBudget,
+    maxChars: managedBudgets.filesChars,
   });
   const fallbackBody = buildDeterministicCompactionSummary({
     messages: summarizedMessages,
@@ -282,16 +369,15 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
     focusText: parsedInstructions.focusText ?? previousBody,
     receipts: currentReceipts,
     files,
+    worktree,
     cwd: ctx?.cwd,
     isSplitTurn: event?.preparation?.isSplitTurn,
-    omittedMessageCount:
-      historySelection.omittedCount + turnPrefixSelection.omittedCount,
+    compactedMessageCount: summarizedMessages.length,
+    omittedMessageCount,
   });
   const modelBody = baseResult?.compaction?.summary;
   const modelBodyValidation = modelBody
-    ? validateCompactionSummary(cleanPreviousSummary(modelBody), {
-        maxChars: plan.bodyChars,
-      })
+    ? validateCompactionSummary(cleanPreviousSummary(modelBody), { maxChars: plan.bodyChars })
     : undefined;
 
   if (explicitPreset && modelBodyValidation?.ok !== true) {
@@ -299,14 +385,41 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
     return { cancel: true };
   }
 
+  // A block whose budget dropped every record renders only framing; carry no such
+  // empty block into assembly — selection space is precious and a framing-only block
+  // would count as present without preserving any exact record.
+  // In the fallback path the deterministic body is itself the self-contained exact
+  // packet, so continuity/evidence records yield to prompts/receipts; in the model
+  // path (small summarized body) they stay the top-priority durable records.
+  const preferModelBody = modelBodyValidation?.ok === true;
+  const anchorPriority = (modelPriority, fallbackPriority) =>
+    preferModelBody ? modelPriority : fallbackPriority;
   const assembly = repairAndValidateSummary({
     modelBody,
     fallbackBody,
     managedBlocks: [
-      ...(prompts.length > 0
+      ...(continuityBlock.records.length > 0
+        ? [
+            {
+              ...continuityBlock,
+              required: preferModelBody,
+              priority: anchorPriority(120, 60),
+            },
+          ]
+        : []),
+      ...(evidenceBlock.records.length > 0
+        ? [
+            {
+              ...evidenceBlock,
+              required: preferModelBody,
+              priority: anchorPriority(115, 55),
+            },
+          ]
+        : []),
+      ...(promptBlock.records.length > 0
         ? [{ ...promptBlock, required: true, priority: 100 }]
         : []),
-      ...(receipts.length > 0
+      ...(receiptBlock.records.length > 0
         ? [
             {
               ...receiptBlock,
@@ -315,12 +428,10 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
             },
           ]
         : []),
-      ...(assistantRecords.length > 0
+      ...(lastAssistantBlock.records.length > 0
         ? [{ ...lastAssistantBlock, required: false, priority: 80 }]
         : []),
-      ...(files.length > 0
-        ? [{ ...fileBlock, required: false, priority: 70 }]
-        : []),
+      ...(fileBlock.records.length > 0 ? [{ ...fileBlock, required: false, priority: 70 }] : []),
     ],
     maxChars: plan.finalSummaryChars,
   });
@@ -328,9 +439,7 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
   if (!assembly.validation.ok) {
     notify(
       ctx,
-      `Guarded compaction produced an invalid bounded packet: ${assembly.validation.errors.join(
-        "; ",
-      )}`,
+      `Guarded compaction produced an invalid bounded packet: ${assembly.validation.errors.join("; ")}`,
     );
     if (explicitPreset) return { cancel: true };
   }
@@ -340,18 +449,69 @@ export async function runGuardedSessionCompaction(event, ctx, deps = {}) {
     : baseError
       ? "deterministic_fallback_after_error"
       : "deterministic_fallback_after_empty_result";
-  const hardening = detailsForHardening({
-    mode,
-    plan,
-    historySelection,
-    turnPrefixSelection,
-    branchSanitization: sanitizedBranch.stats,
+  const allBlocks = [
+    continuityBlock,
+    evidenceBlock,
     promptBlock,
     lastAssistantBlock,
     receiptBlock,
     fileBlock,
-    assembly,
-  });
+  ];
+  const managedStats = blockStats(allBlocks);
+  const hardening = {
+    ...detailsForHardening({
+      mode,
+      plan,
+      historySelection,
+      turnPrefixSelection,
+      branchSanitization: sanitizedBranch.stats,
+      continuityBlock,
+      evidenceBlock,
+      promptBlock,
+      lastAssistantBlock,
+      receiptBlock,
+      fileBlock,
+      worktree,
+      assembly,
+    }),
+    p1: {
+      providerApi: worktree?.providerApi ?? "@tryinget/pi-context-packer/api:v1",
+      worktreeVerified: worktree?.verified === true,
+      continuityRecordCount: continuityBlock.records.length,
+      evidenceAnchorCount: evidenceBlock.records.length,
+      recallSurface: "session_compaction_recall",
+      omittedManagedRecords: managedStats.omitted,
+    },
+  };
+
+  await (deps.recordQualityTelemetry ?? recordCompactionQuality)(
+    {
+      mode,
+      validationOk: assembly.validation.ok,
+      fallback: !String(mode).startsWith("model"),
+      repaired: /repair|emergency/iu.test(String(mode)),
+      splitTurn: event?.preparation?.isSplitTurn === true,
+      summaryChars: assembly.summary.length,
+      compactedMessages: summarizedMessages.length,
+      selectedMessages: historySelection.messages.length + turnPrefixSelection.messages.length,
+      omittedMessages: omittedMessageCount,
+      omittedManagedRecords: managedStats.omitted,
+      omittedManagedBlocks: assembly.omittedManagedBlocks?.length ?? 0,
+      continuityRecords: continuityBlock.records.length,
+      evidenceAnchors: evidenceBlock.records.length,
+      redactions:
+        sanitizedBranch.stats.redactionCount +
+        managedStats.redactions +
+        (worktree?.measurement?.redactions ?? 0),
+      truncatedRecords: sanitizedBranch.stats.truncatedCount + managedStats.truncated,
+      inputTokenBudget: plan.inputTokens,
+      finalTokenBudget: plan.finalSummaryTokens,
+      worktreeVerified: worktree?.verified === true,
+      durationMs: Date.now() - startedAt,
+    },
+    ctx,
+    deps,
+  );
 
   return {
     compaction: {

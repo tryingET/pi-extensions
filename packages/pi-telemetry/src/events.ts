@@ -7,8 +7,8 @@
 /**
  * Telemetry records are metadata-only projections for observability.
  * Hard boundary: never store message text, tool payloads, file contents,
- * environment values, or secrets. Bounded derived labels are allowed
- * (tool names, skill names, error first-line signatures).
+ * queries, environment values, absolute paths, or secrets. Bounded derived
+ * labels are allowed (tool names, skill names, error first-line signatures).
  */
 
 export const TELEMETRY_SCHEMA_VERSION = 1;
@@ -18,6 +18,8 @@ export type TelemetryKind =
   | "compaction"
   | "compaction_begin"
   | "compaction_failure"
+  | "compaction_quality"
+  | "compaction_recall"
   | "skill_load"
   | "vault_query"
   | "follow_up"
@@ -63,6 +65,57 @@ export interface CompactionFailureTelemetryEvent extends TelemetryEventBase {
   errorSignature: string;
 }
 
+export type CompactionQualityMode =
+  | "model"
+  | "deterministic_fallback"
+  | "deterministic_repair"
+  | "minimal_emergency"
+  | "other";
+
+export interface CompactionQualityTelemetryEvent extends TelemetryEventBase {
+  kind: "compaction_quality";
+  mode: CompactionQualityMode;
+  validationOk: boolean;
+  fallback: boolean;
+  repaired: boolean;
+  splitTurn: boolean;
+  summaryChars: number;
+  /** Total messages in the compacted span before deterministic selection. */
+  compactedMessages?: number;
+  selectedMessages: number;
+  omittedMessages: number;
+  omittedManagedRecords: number;
+  omittedManagedBlocks?: number;
+  continuityRecords?: number;
+  evidenceAnchors?: number;
+  redactions: number;
+  truncatedRecords: number;
+  inputTokenBudget: number;
+  finalTokenBudget: number;
+  worktreeVerified: boolean;
+  durationMs?: number;
+}
+
+export type CompactionRecallScope = "lineage" | "all" | "degraded";
+export type CompactionRecallMode = "hybrid" | "files" | "failures" | "commands";
+
+export interface CompactionRecallTelemetryEvent extends TelemetryEventBase {
+  kind: "compaction_recall";
+  scope: CompactionRecallScope;
+  mode: CompactionRecallMode;
+  queryTokens: number;
+  sourceEntries?: number;
+  sourceEntriesOmitted?: number;
+  candidateCount: number;
+  totalHits?: number;
+  hitCount: number;
+  page: number;
+  expandedCount: number;
+  directRefCount?: number;
+  scopeWidened: boolean;
+  durationMs?: number;
+}
+
 export interface SkillLoadTelemetryEvent extends TelemetryEventBase {
   kind: "skill_load";
   skill: string;
@@ -99,6 +152,8 @@ export type TelemetryEvent =
   | CompactionTelemetryEvent
   | CompactionBeginTelemetryEvent
   | CompactionFailureTelemetryEvent
+  | CompactionQualityTelemetryEvent
+  | CompactionRecallTelemetryEvent
   | SkillLoadTelemetryEvent
   | VaultQueryTelemetryEvent
   | FollowUpTelemetryEvent

@@ -95,9 +95,7 @@ export function parseBudgetConfig(value = {}) {
     out.filesManagedFraction +
     out.receiptsManagedFraction;
   if (Math.abs(managedFractions - 1) > 0.001) {
-    throw new Error(
-      "Invalid pi-session-compaction config: managed-record fractions must sum to 1",
-    );
+    throw new Error("Invalid pi-session-compaction config: managed-record fractions must sum to 1");
   }
   return out;
 }
@@ -199,9 +197,7 @@ export function planCompactionBudget(input = {}) {
     totalTokens: managedTokens,
     totalChars: managedChars,
     promptsChars: Math.floor(managedChars * config.promptManagedFraction),
-    lastAssistantChars: Math.floor(
-      managedChars * config.lastAssistantManagedFraction,
-    ),
+    lastAssistantChars: Math.floor(managedChars * config.lastAssistantManagedFraction),
     filesChars: Math.floor(managedChars * config.filesManagedFraction),
     receiptsChars: Math.floor(managedChars * config.receiptsManagedFraction),
     maxPromptItems: config.maxPromptItems,

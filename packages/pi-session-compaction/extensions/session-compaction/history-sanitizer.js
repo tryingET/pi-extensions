@@ -68,9 +68,7 @@ export function messageFromEntry(entry) {
 }
 
 export function messagesFromEntries(entries) {
-  return (Array.isArray(entries) ? entries : [])
-    .map(messageFromEntry)
-    .filter(Boolean);
+  return (Array.isArray(entries) ? entries : []).map(messageFromEntry).filter(Boolean);
 }
 
 export function estimateMessageChars(message) {

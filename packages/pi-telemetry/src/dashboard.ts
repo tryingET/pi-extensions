@@ -23,7 +23,7 @@ export function renderTelemetryDashboard(summary: TelemetrySummary, meta: Dashbo
         `<div class="card">${barChart(summary.perDay, "events/day (all kinds)")}</div>`,
         `<div class="card"><table>
           <tr><th>reason</th><th>count</th></tr>
-          ${rows(summary.compaction.byReason.map((r) => [r.reason, String(r.n)]))}
+          ${rows(summary.compaction.byReason.map((entry) => [entry.reason, String(entry.n)]))}
         </table></div>`,
         `<div class="card"><table>
           <tr><th>stage</th><th>failures</th><th>top error</th></tr>
@@ -53,6 +53,102 @@ export function renderTelemetryDashboard(summary: TelemetrySummary, meta: Dashbo
             ],
           ])}
         </table></div>`,
+      ].join(""),
+    ),
+    section(
+      "compaction-quality",
+      "Compaction quality",
+      [
+        `<div class="card"><table>
+          <tr><th>metric</th><th>value</th></tr>
+          ${rows([
+            ["quality events", String(summary.compactionQuality.total)],
+            [
+              "validation failures",
+              `${summary.compactionQuality.validationFailures} (${summary.compactionQuality.validationFailureRatePct}%)`,
+            ],
+            [
+              "fallbacks",
+              `${summary.compactionQuality.fallbacks} (${summary.compactionQuality.fallbackRatePct}%)`,
+            ],
+            [
+              "repairs",
+              `${summary.compactionQuality.repairs} (${summary.compactionQuality.repairRatePct}%)`,
+            ],
+            [
+              "split turns",
+              `${summary.compactionQuality.splitTurns} (${summary.compactionQuality.splitTurnRatePct}%)`,
+            ],
+            [
+              "verified worktree",
+              `${summary.compactionQuality.worktreeVerified} (${summary.compactionQuality.worktreeVerifiedRatePct}%)`,
+            ],
+            ["message omission rate", `${summary.compactionQuality.messageOmissionRatePct}%`],
+            ["avg compacted messages", nullable(summary.compactionQuality.avgCompactedMessages)],
+            ["avg selected messages", nullable(summary.compactionQuality.avgSelectedMessages)],
+            ["avg omitted messages", nullable(summary.compactionQuality.avgOmittedMessages)],
+            ["avg continuity records", nullable(summary.compactionQuality.avgContinuityRecords)],
+            ["avg evidence anchors", nullable(summary.compactionQuality.avgEvidenceAnchors)],
+            ["avg duration ms", nullable(summary.compactionQuality.avgDurationMs)],
+          ])}
+        </table></div>`,
+        `<div class="card"><table>
+          <tr><th>boundedness / safety metric</th><th>value</th></tr>
+          ${rows([
+            [
+              "omitted managed records",
+              String(summary.compactionQuality.totalOmittedManagedRecords),
+            ],
+            ["omitted managed blocks", String(summary.compactionQuality.totalOmittedManagedBlocks)],
+            ["redactions", String(summary.compactionQuality.totalRedactions)],
+            ["truncated records", String(summary.compactionQuality.totalTruncatedRecords)],
+            ["avg summary chars", nullable(summary.compactionQuality.avgSummaryChars)],
+            ["avg input token budget", nullable(summary.compactionQuality.avgInputTokenBudget)],
+            ["avg final token budget", nullable(summary.compactionQuality.avgFinalTokenBudget)],
+          ])}
+        </table></div>`,
+        `<div class="card"><table>
+          <tr><th>mode</th><th>events</th></tr>
+          ${rows(summary.compactionQuality.byMode.map((entry) => [entry.mode, String(entry.n)]))}
+        </table></div>`,
+      ].join(""),
+    ),
+    section(
+      "recall",
+      "Compaction recall",
+      [
+        `<div class="card"><table>
+          <tr><th>metric</th><th>value</th></tr>
+          ${rows([
+            ["recall calls", String(summary.recall.total)],
+            ["hits returned", String(summary.recall.hits)],
+            ["ranked hits", String(summary.recall.totalRankedHits)],
+            ["zero-hit calls", `${summary.recall.zeroHit} (${summary.recall.zeroHitRatePct}%)`],
+            [
+              "scope widened",
+              `${summary.recall.scopeWidened} (${summary.recall.scopeWidenedRatePct}%)`,
+            ],
+            ["lineage degraded", `${summary.recall.degraded} (${summary.recall.degradedRatePct}%)`],
+            ["source omission rate", `${summary.recall.sourceOmissionRatePct}%`],
+            ["avg source entries", nullable(summary.recall.avgSourceEntries)],
+            ["avg source entries omitted", nullable(summary.recall.avgSourceEntriesOmitted)],
+            ["avg candidates", nullable(summary.recall.avgCandidates)],
+            ["avg ranked hits", nullable(summary.recall.avgTotalHits)],
+            ["avg page hits", nullable(summary.recall.avgHits)],
+            ["avg expanded", nullable(summary.recall.avgExpanded)],
+            ["avg direct refs", nullable(summary.recall.avgDirectRefs)],
+            ["avg duration ms", nullable(summary.recall.avgDurationMs)],
+          ])}
+        </table></div>`,
+        `<div class="card"><table>
+          <tr><th>mode</th><th>calls</th></tr>
+          ${rows(summary.recall.byMode.map((entry) => [entry.mode, String(entry.n)]))}
+        </table></div>`,
+        `<div class="card"><table>
+          <tr><th>scope</th><th>calls</th></tr>
+          ${rows(summary.recall.byScope.map((entry) => [entry.scope, String(entry.n)]))}
+        </table>
+        <p class="muted">metadata only: no query text, recalled content, file contents, or absolute paths are persisted</p></div>`,
       ].join(""),
     ),
     section(
@@ -118,6 +214,18 @@ export function renderTelemetryDashboard(summary: TelemetrySummary, meta: Dashbo
     ),
   ].join("\n");
 
+  const navigation = [
+    "compaction",
+    "compaction-quality",
+    "recall",
+    "tools",
+    "vault",
+    "skills",
+    "selfdriving",
+    "subagents",
+    "raw",
+  ];
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -155,7 +263,7 @@ export function renderTelemetryDashboard(summary: TelemetrySummary, meta: Dashbo
   <h1>Pi telemetry</h1>
   <p class="muted">window ${meta.windowDays}d · generated ${generated} · source ${escapeHtml(meta.sourceDir)} · ${escapeHtml(provenance(summary))} · mirror-only observability, not authority</p>
 </header>
-<nav>${["compaction", "tools", "vault", "skills", "selfdriving", "subagents", "raw"].map((id) => `<a href="#${id}">${id}</a>`).join("")}</nav>
+<nav>${navigation.map((id) => `<a href="#${id}">${id}</a>`).join("")}</nav>
 <main>
 ${sections}
 </main>
@@ -176,6 +284,9 @@ function kpis(summary: TelemetrySummary): string {
   const entries: Array<[string, string]> = [
     ["events", String(summary.totalEvents)],
     ["compactions", String(summary.compaction.total)],
+    ["quality fallbacks", String(summary.compactionQuality.fallbacks)],
+    ["recall calls", String(summary.recall.total)],
+    ["recall zero-hit", String(summary.recall.zeroHit)],
     ["stalled >10m", String(summary.compaction.stalledAfterCompaction)],
     ["tool failures", String(summary.toolCalls.failed)],
     ["vault queries", String(summary.vault.total)],
@@ -186,14 +297,20 @@ function kpis(summary: TelemetrySummary): string {
   return `<div id="overview" class="kpis">${entries.map(([label, value]) => `<div class="kpi"><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span></div>`).join("")}</div>`;
 }
 
+function nullable(value: number | null): string {
+  return value === null ? "n/a" : String(value);
+}
+
 function section(id: string, title: string, body: string): string {
   return `<section id="${id}"><h2>${escapeHtml(title)}</h2>${body}</section>`;
 }
 
-function rows(entries: Array<[string, string]>): string {
-  if (entries.length === 0) return `<tr><td class="muted">no data in window</td><td></td></tr>`;
+function rows(entries: Array<Array<string>>): string {
+  if (entries.length === 0) {
+    return `<tr><td class="muted">no data in window</td><td></td></tr>`;
+  }
   return entries
-    .map((entry) => `<tr><td>${escapeHtml(entry[0])}</td><td>${escapeHtml(entry[1])}</td></tr>`)
+    .map((entry) => `<tr>${entry.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`)
     .join("");
 }
 

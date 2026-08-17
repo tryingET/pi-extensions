@@ -44,6 +44,7 @@
   "files": [
     "extensions/telemetry.ts",
     "src",
+    "docs",
     "prompts",
     "examples",
     "policy/security-policy.json",
@@ -78,6 +79,14 @@
     "@mariozechner/pi-coding-agent": "*"
   },
   "exports": {
-    "./emit": "./src/emit.ts"
+    "./emit": "./src/emit.ts",
+    "./quality": "./src/quality.ts",
+    "./src/*": "./src/*",
+    "./extensions/*": "./extensions/*",
+    "./prompts/*": "./prompts/*",
+    "./examples/*": "./examples/*",
+    "./policy/*": "./policy/*",
+    "./docs/*": "./docs/*",
+    "./package.json": "./package.json"
   }
 }

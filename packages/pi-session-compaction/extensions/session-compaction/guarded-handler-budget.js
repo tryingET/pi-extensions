@@ -7,17 +7,12 @@ import { fitTextToTokenBudget } from "./budget.js";
 import { sanitizeDisplayText } from "./redaction.js";
 
 export function inputTokenSplit(totalTokens, historyChars, turnPrefixChars) {
-  if (turnPrefixChars <= 0) {
-    return { historyTokens: totalTokens, turnPrefixTokens: 0 };
-  }
+  if (turnPrefixChars <= 0) return { historyTokens: totalTokens, turnPrefixTokens: 0 };
   const totalChars = Math.max(1, historyChars + turnPrefixChars);
   const minimum = Math.min(128, Math.max(1, Math.floor(totalTokens / 2)));
   let historyTokens = Math.round((totalTokens * historyChars) / totalChars);
   historyTokens = Math.max(minimum, Math.min(totalTokens - minimum, historyTokens));
-  return {
-    historyTokens,
-    turnPrefixTokens: totalTokens - historyTokens,
-  };
+  return { historyTokens, turnPrefixTokens: totalTokens - historyTokens };
 }
 
 function contextText(context) {
@@ -41,18 +36,13 @@ export function isTurnPrefixContext(context) {
 }
 
 export function sanitizeCompletionContext(context, model, maxOutputTokens, plan) {
-  const system = sanitizeDisplayText(context?.systemPrompt ?? "", {
-    maxChars: 16_000,
-  }).text;
+  const system = sanitizeDisplayText(context?.systemPrompt ?? "", { maxChars: 16_000 }).text;
   const contextWindow = Number.isFinite(model?.contextWindow)
     ? model.contextWindow
     : plan.inputTokens + maxOutputTokens + plan.config.contextSafetyTokens;
   const availableTokens = Math.max(
     256,
-    Math.min(
-      plan.inputTokens,
-      contextWindow - maxOutputTokens - plan.config.contextSafetyTokens,
-    ),
+    Math.min(plan.inputTokens, contextWindow - maxOutputTokens - plan.config.contextSafetyTokens),
   );
   const systemFit = fitTextToTokenBudget(system, Math.min(availableTokens, 4_000), {
     charsPerToken: plan.calibration.charsPerToken,
@@ -73,16 +63,22 @@ export function sanitizeCompletionContext(context, model, maxOutputTokens, plan)
       charsPerToken: plan.calibration.charsPerToken,
       preserveTailFraction: 0.35,
     });
-    return {
-      ...message,
-      content: [{ type: "text", text: fitted.text }],
-    };
+    return { ...message, content: [{ type: "text", text: fitted.text }] };
   });
-  return {
-    ...context,
-    systemPrompt: systemFit.text,
-    messages,
-  };
+  return { ...context, systemPrompt: systemFit.text, messages };
+}
+
+function blockTotals(blocks) {
+  return blocks.filter(Boolean).reduce(
+    (totals, block) => {
+      totals.omitted += block.omittedCount ?? 0;
+      totals.redactions += block.redactionCount ?? 0;
+      totals.truncated += block.truncatedCount ?? 0;
+      totals.records += block.records?.length ?? 0;
+      return totals;
+    },
+    { omitted: 0, redactions: 0, truncated: 0, records: 0 },
+  );
 }
 
 export function detailsForHardening({
@@ -91,14 +87,25 @@ export function detailsForHardening({
   historySelection,
   turnPrefixSelection,
   branchSanitization,
+  continuityBlock,
+  evidenceBlock,
   promptBlock,
   lastAssistantBlock,
   receiptBlock,
   fileBlock,
+  worktree,
   assembly,
 }) {
+  const managed = blockTotals([
+    continuityBlock,
+    evidenceBlock,
+    promptBlock,
+    lastAssistantBlock,
+    receiptBlock,
+    fileBlock,
+  ]);
   return {
-    version: 1,
+    version: 2,
     mode,
     budget: {
       finalSummaryTokens: plan.finalSummaryTokens,
@@ -126,21 +133,20 @@ export function detailsForHardening({
     managed: {
       selectedBlocks: assembly.selectedManagedBlocks,
       omittedBlocks: assembly.omittedManagedBlocks,
-      omittedRecords:
-        promptBlock.omittedCount +
-        lastAssistantBlock.omittedCount +
-        receiptBlock.omittedCount +
-        fileBlock.omittedCount,
-      redactions:
-        promptBlock.redactionCount +
-        lastAssistantBlock.redactionCount +
-        receiptBlock.redactionCount +
-        fileBlock.redactionCount,
-      truncatedRecords:
-        promptBlock.truncatedCount +
-        lastAssistantBlock.truncatedCount +
-        receiptBlock.truncatedCount +
-        fileBlock.truncatedCount,
+      selectedRecords: managed.records,
+      omittedRecords: managed.omitted,
+      redactions: managed.redactions,
+      truncatedRecords: managed.truncated,
+    },
+    providers: {
+      gitWorktree: {
+        api: worktree?.providerApi ?? "@tryinget/pi-context-packer/api:v1",
+        verified: worktree?.verified === true,
+        omissionReasons: (worktree?.omissions ?? [])
+          .map((omission) => omission.reason)
+          .filter(Boolean)
+          .slice(0, 8),
+      },
     },
     validation: assembly.validation,
   };

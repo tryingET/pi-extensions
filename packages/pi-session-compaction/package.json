@@ -60,13 +60,16 @@
   },
   "exports": {
     "./branch-summary": "./extensions/session-compaction/branch-summary.js",
+    "./continuity-state": "./extensions/session-compaction/continuity-state.js",
     "./files-touched": "./extensions/session-compaction/files-touched.js",
     "./handler": "./extensions/session-compaction/handler.js",
     "./handoff-generation": "./extensions/session-compaction/handoff-generation.js",
     "./handoff-prompt": "./extensions/session-compaction/handoff-prompt.js",
     "./model-resolver": "./extensions/session-compaction/model-resolver.js",
+    "./recall": "./extensions/session-compaction/session-recall.js",
     "./registration": "./extensions/session-compaction/registration.js",
-    "./user-prompts": "./extensions/session-compaction/user-prompts.js"
+    "./user-prompts": "./extensions/session-compaction/user-prompts.js",
+    "./prompt-selection": "./extensions/session-compaction/prompt-selection.js"
   },
   "dependencies": {
     "@tryinget/pi-model-selection": "file:../pi-model-selection",

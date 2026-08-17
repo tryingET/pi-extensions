@@ -1,7 +1,7 @@
 // ---
 // summary: shared external emitter for package-owned telemetry events (schema-stable, best-effort, never throws).
 // read_when:
-//   - emitting telemetry from another package (e.g. pi-session-compaction failure chain) or changing the emit contract.
+//   - emitting telemetry from another package or changing the emit contract.
 // ---
 
 import {
@@ -10,6 +10,12 @@ import {
   TELEMETRY_SCHEMA_VERSION,
   type TelemetryEvent,
 } from "./events.ts";
+import {
+  type CompactionQualityInput,
+  type CompactionRecallInput,
+  createCompactionQualityTelemetryEvent,
+  createCompactionRecallTelemetryEvent,
+} from "./quality.ts";
 import { appendTelemetryEvent, resolveTelemetryDir } from "./store.ts";
 
 export interface CompactionFailureInput {
@@ -20,13 +26,31 @@ export interface CompactionFailureInput {
   ts?: number;
 }
 
+export interface TelemetryEmitOptions {
+  dir?: string;
+  env?: NodeJS.ProcessEnv;
+  append?: typeof appendTelemetryEvent;
+}
+
+async function appendBestEffort(
+  event: TelemetryEvent,
+  options: TelemetryEmitOptions,
+): Promise<void> {
+  try {
+    const append = options.append ?? appendTelemetryEvent;
+    await append(options.dir ?? resolveTelemetryDir(options.env), event);
+  } catch {
+    // Telemetry must never break the owning package.
+  }
+}
+
 /**
  * Record a compaction failure/fallback from the owning component.
  * Best-effort: telemetry failures are swallowed so they can never break compaction.
  */
 export async function recordCompactionFailureTelemetry(
   input: CompactionFailureInput,
-  options: { dir?: string; env?: NodeJS.ProcessEnv } = {},
+  options: TelemetryEmitOptions = {},
 ): Promise<void> {
   const errorSignature = deriveErrorSignature(
     input.error instanceof Error ? input.error.message : String(input.error ?? "unknown error"),
@@ -41,12 +65,26 @@ export async function recordCompactionFailureTelemetry(
     ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     ...(input.cwd ? { cwd: input.cwd } : {}),
   };
-  await appendTelemetryEvent(options.dir ?? resolveTelemetryDir(options.env), event);
+  await appendBestEffort(event, options);
+}
+
+export async function recordCompactionQualityTelemetry(
+  input: CompactionQualityInput,
+  options: TelemetryEmitOptions = {},
+): Promise<void> {
+  await appendBestEffort(createCompactionQualityTelemetryEvent(input), options);
+}
+
+export async function recordCompactionRecallTelemetry(
+  input: CompactionRecallInput,
+  options: TelemetryEmitOptions = {},
+): Promise<void> {
+  await appendBestEffort(createCompactionRecallTelemetryEvent(input), options);
 }
 
 export async function recordTelemetryEvent(
   event: TelemetryEvent,
-  options: { dir?: string; env?: NodeJS.ProcessEnv } = {},
+  options: TelemetryEmitOptions = {},
 ): Promise<void> {
-  await appendTelemetryEvent(options.dir ?? resolveTelemetryDir(options.env), event);
+  await appendBestEffort(event, options);
 }
