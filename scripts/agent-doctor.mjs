@@ -162,6 +162,32 @@ let npmGate = "ok";
 }
 info.npmGate = npmGate;
 
+// --- quest worktree zombies ---
+// Quest sessions create worktrees under the pi-quests state tree; when content
+// reaches main through another path nothing removes the leftover. Surface
+// provably-converged zombies (dry-run only; the reaper itself gates removal).
+{
+  const reaper = resolve(repoRoot, "scripts/quest-worktree-reap.mjs");
+  if (existsSync(reaper)) {
+    const run = spawnSync(process.execPath, [reaper, "--json"], { encoding: "utf8", timeout: 60_000 });
+    if (run.status === 0 && run.stdout) {
+      try {
+        const report = JSON.parse(run.stdout);
+        info.questWorktrees = { checked: report.checked ?? 0, zombies: report.reapable?.length ?? 0 };
+        if ((report.reapable?.length ?? 0) > 0) {
+          warnings.push(
+            `${report.reapable.length} converged quest worktree(s) under ${report.managedRoot}; reap with: node scripts/quest-worktree-reap.mjs --apply`,
+          );
+        }
+      } catch {
+        info.questWorktrees = "unparsable";
+      }
+    } else {
+      info.questWorktrees = "unavailable";
+    }
+  }
+}
+
 // --- loop telemetry (repeat-failure alarm only; full report via just loop-telemetry) ---
 {
   const telemetry = resolve(repoRoot, "scripts/loop-telemetry.mjs");

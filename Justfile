@@ -13,6 +13,7 @@ test:
     node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
     npm run extensions:generations:test
     if [ -f ./scripts/package-quality-gate.test.mjs ]; then node --test ./scripts/package-quality-gate.test.mjs; fi
+    if [ -f ./scripts/quest-worktree-reap.test.mjs ]; then node --test ./scripts/quest-worktree-reap.test.mjs; fi
     if [ -f ./scripts/root-doc-alignment.test.mjs ]; then node --test ./scripts/root-doc-alignment.test.mjs; fi
     ./scripts/ci/packages.sh
 
