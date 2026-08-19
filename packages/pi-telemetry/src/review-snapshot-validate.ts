@@ -26,6 +26,9 @@ const REQUIRED_NONCLAIMS = [
   "This snapshot does not establish causality, safety, compliance, adoption, or promotion readiness.",
   "Missing or zero events may reflect disabled collection, retention, incomplete backfill, unavailable shards, or no observed activity.",
 ] as const;
+const METRICS_WITH_NON_EVENT_SAMPLE_DOMAINS = new Set([
+  "compaction_quality_message_omission_rate_pct",
+]);
 const MAX_JSON_DEPTH = 64;
 
 interface ValidatedWindow {
@@ -219,7 +222,7 @@ function validateMetrics(value: unknown, coverage: ValidatedCoverage): void {
       throw new Error(`metric ${key}.value exceeds 100 percent`);
     }
     const sample = nonnegative(metric.sampleSize, `metric ${key}.sampleSize`);
-    if (sample > coverage.total) {
+    if (sample > coverage.total && !METRICS_WITH_NON_EVENT_SAMPLE_DOMAINS.has(key)) {
       throw new Error(`metric ${key}.sampleSize exceeds totalEvents`);
     }
     const numerator =

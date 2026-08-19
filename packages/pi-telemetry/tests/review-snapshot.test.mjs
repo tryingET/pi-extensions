@@ -125,6 +125,36 @@ test("rejects inconsistent percentage arithmetic with a recomputed digest", () =
   );
 });
 
+test("allows a message-domain sample to exceed the number of telemetry events", () => {
+  const changed = structuredClone(snapshot());
+  changed.metrics.compaction_quality_message_omission_rate_pct = {
+    value: 25,
+    unit: "percent",
+    sampleSize: 400,
+    numerator: null,
+    denominator: 400,
+  };
+  resign(changed);
+  assert.equal(
+    validateTelemetryReviewSnapshot(changed).metrics
+      .compaction_quality_message_omission_rate_pct.sampleSize,
+    400,
+  );
+});
+
+test("still rejects event-domain samples that exceed total events", () => {
+  const changed = structuredClone(snapshot());
+  changed.metrics.tool_failure_rate_pct = {
+    value: 25,
+    unit: "percent",
+    sampleSize: 400,
+    numerator: 100,
+    denominator: 400,
+  };
+  resign(changed);
+  assert.throws(() => validateTelemetryReviewSnapshot(changed), /sampleSize exceeds totalEvents/);
+});
+
 test("requires generatedAt to bind the end of the review window", () => {
   const changed = structuredClone(snapshot());
   changed.generatedAt = "2026-08-19T11:59:59.000Z";
