@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/tryingET/pi-extensions/blob/main/packages/pi-telemetry/schemas/telemetry-review-snapshot-v1.schema.json",
   "title": "Pi telemetry review snapshot v1",
-  "description": "A bounded, digest-bound observational projection. It is not evidence authority, causality proof, or promotion authorization.",
+  "description": "A bounded, digest-bound observational projection. It is not evidence authority, causality proof, or promotion authorization. Cross-field arithmetic, canonical UTC timestamps, duplicate JSON member rejection, file custody, and SHA-256 recomputation are enforced by the package validator.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -75,7 +75,9 @@
         "perKind": { "$ref": "#/$defs/kindCounts" },
         "limitations": {
           "type": "array",
+          "minItems": 2,
           "maxItems": 16,
+          "uniqueItems": true,
           "items": { "type": "string", "minLength": 1, "maxLength": 500 }
         }
       }
@@ -103,23 +105,23 @@
         "subagent_failure_rate_pct"
       ],
       "properties": {
-        "total_events": { "$ref": "#/$defs/metric" },
-        "live_event_share_pct": { "$ref": "#/$defs/metric" },
-        "backfill_event_share_pct": { "$ref": "#/$defs/metric" },
-        "tool_failure_rate_pct": { "$ref": "#/$defs/metric" },
-        "compaction_stalled_rate_pct": { "$ref": "#/$defs/metric" },
-        "compaction_unresolved_begin_count": { "$ref": "#/$defs/metric" },
-        "compaction_failure_count": { "$ref": "#/$defs/metric" },
-        "compaction_quality_validation_failure_rate_pct": { "$ref": "#/$defs/metric" },
-        "compaction_quality_fallback_rate_pct": { "$ref": "#/$defs/metric" },
-        "compaction_quality_repair_rate_pct": { "$ref": "#/$defs/metric" },
-        "compaction_quality_message_omission_rate_pct": { "$ref": "#/$defs/metric" },
-        "recall_zero_hit_rate_pct": { "$ref": "#/$defs/metric" },
-        "recall_degraded_rate_pct": { "$ref": "#/$defs/metric" },
-        "recall_scope_widened_rate_pct": { "$ref": "#/$defs/metric" },
-        "vault_failure_rate_pct": { "$ref": "#/$defs/metric" },
-        "follow_up_blocked_rate_pct": { "$ref": "#/$defs/metric" },
-        "subagent_failure_rate_pct": { "$ref": "#/$defs/metric" }
+        "total_events": { "$ref": "#/$defs/countMetric" },
+        "live_event_share_pct": { "$ref": "#/$defs/percentageMetric" },
+        "backfill_event_share_pct": { "$ref": "#/$defs/percentageMetric" },
+        "tool_failure_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "compaction_stalled_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "compaction_unresolved_begin_count": { "$ref": "#/$defs/countMetric" },
+        "compaction_failure_count": { "$ref": "#/$defs/countMetric" },
+        "compaction_quality_validation_failure_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "compaction_quality_fallback_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "compaction_quality_repair_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "compaction_quality_message_omission_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "recall_zero_hit_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "recall_degraded_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "recall_scope_widened_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "vault_failure_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "follow_up_blocked_rate_pct": { "$ref": "#/$defs/percentageMetric" },
+        "subagent_failure_rate_pct": { "$ref": "#/$defs/percentageMetric" }
       }
     },
     "breakdowns": {
@@ -142,6 +144,7 @@
         "subagentProfiles": {
           "type": "array",
           "maxItems": 20,
+          "uniqueItems": true,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -157,66 +160,88 @@
     },
     "sourceEventSetSha256": { "$ref": "#/$defs/sha256" },
     "nonclaims": {
-      "type": "array",
-      "maxItems": 8,
-      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+      "const": [
+        "This snapshot is a bounded observational projection, not AK/KES evidence or owner authority.",
+        "This snapshot does not establish causality, safety, compliance, adoption, or promotion readiness.",
+        "Missing or zero events may reflect disabled collection, retention, incomplete backfill, unavailable shards, or no observed activity."
+      ]
     },
     "snapshotSha256": { "$ref": "#/$defs/sha256" }
   },
   "$defs": {
     "nonnegativeInteger": { "type": "integer", "minimum": 0 },
-    "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001F\\u007F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]+$"
+    },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "metric": {
+    "countMetric": {
       "type": "object",
       "additionalProperties": false,
       "required": ["value", "unit", "sampleSize", "numerator", "denominator"],
       "properties": {
-        "value": { "type": "number", "minimum": 0 },
-        "unit": { "enum": ["count", "percent"] },
+        "value": { "$ref": "#/$defs/nonnegativeInteger" },
+        "unit": { "const": "count" },
+        "sampleSize": { "$ref": "#/$defs/nonnegativeInteger" },
+        "numerator": { "type": "null" },
+        "denominator": { "type": "null" }
+      }
+    },
+    "percentageMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "unit", "sampleSize", "numerator", "denominator"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 100 },
+        "unit": { "const": "percent" },
         "sampleSize": { "$ref": "#/$defs/nonnegativeInteger" },
         "numerator": {
           "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/nonnegativeInteger" }]
         },
-        "denominator": {
-          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/nonnegativeInteger" }]
-        }
+        "denominator": { "$ref": "#/$defs/nonnegativeInteger" }
       }
     },
-    "sourceCounts": { "$ref": "#/$defs/countRowsSource" },
+    "sourceCounts": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/countRowSource" }
+    },
     "kindCounts": { "$ref": "#/$defs/countRowsKind" },
     "toolCounts": { "$ref": "#/$defs/countRowsTool" },
     "reasonCounts": { "$ref": "#/$defs/countRowsReason" },
     "stageCounts": { "$ref": "#/$defs/countRowsStage" },
     "skillCounts": { "$ref": "#/$defs/countRowsSkill" },
-    "countRowsSource": {
-      "type": "array",
-      "maxItems": 20,
-      "items": { "$ref": "#/$defs/countRowSource" }
-    },
     "countRowsKind": {
       "type": "array",
       "maxItems": 20,
+      "uniqueItems": true,
       "items": { "$ref": "#/$defs/countRowKind" }
     },
     "countRowsTool": {
       "type": "array",
       "maxItems": 20,
+      "uniqueItems": true,
       "items": { "$ref": "#/$defs/countRowTool" }
     },
     "countRowsReason": {
       "type": "array",
       "maxItems": 20,
+      "uniqueItems": true,
       "items": { "$ref": "#/$defs/countRowReason" }
     },
     "countRowsStage": {
       "type": "array",
       "maxItems": 20,
+      "uniqueItems": true,
       "items": { "$ref": "#/$defs/countRowStage" }
     },
     "countRowsSkill": {
       "type": "array",
       "maxItems": 20,
+      "uniqueItems": true,
       "items": { "$ref": "#/$defs/countRowSkill" }
     },
     "countRowSource": {
@@ -224,7 +249,7 @@
       "additionalProperties": false,
       "required": ["source", "n"],
       "properties": {
-        "source": { "$ref": "#/$defs/label" },
+        "source": { "enum": ["live", "backfill", "unspecified"] },
         "n": { "$ref": "#/$defs/nonnegativeInteger" }
       }
     },
