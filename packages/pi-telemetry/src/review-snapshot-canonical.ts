@@ -1,7 +1,7 @@
 // ---
 // summary: "Canonicalization, digest, label, and package-version helpers for telemetry snapshots."
 // read_when:
-//   - "Changing telemetry snapshot hashing or bounded label semantics."
+//   - "Changing telemetry snapshot hashing, privacy exclusions, or bounded label semantics."
 // ---
 
 import { createHash } from "node:crypto";
@@ -38,13 +38,25 @@ export function boundedTelemetryReviewLabel(value: unknown): string {
   if (typeof value !== "string") return "unknown";
   const normalized = value
     .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   return (normalized || "unknown").slice(0, TELEMETRY_REVIEW_MAX_LABEL_CHARS);
 }
 
+/**
+ * Return only review-relevant metadata for source-set hashing.
+ *
+ * Private origin fields and bounded error prose are deliberately excluded so
+ * changes to session identity, workspace location, or an error's text cannot be
+ * inferred by comparing snapshot digests. Aggregate failure counts remain bound
+ * through the snapshot metrics and breakdowns.
+ */
 export function telemetryEventForReviewDigest(event: TelemetryEvent): Record<string, unknown> {
-  const { sessionId: _sessionId, cwd: _cwd, ...boundedEvent } = event;
+  const boundedEvent: Record<string, unknown> = { ...event };
+  delete boundedEvent.sessionId;
+  delete boundedEvent.cwd;
+  delete boundedEvent.errorSignature;
   return boundedEvent;
 }
 
