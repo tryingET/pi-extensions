@@ -1,7 +1,7 @@
 // ---
-// summary: pi-telemetry extension entry — collector wiring, /telemetry dashboard command, telemetry agent tool.
+// summary: pi-telemetry extension entry — collector wiring, dashboard/review commands, telemetry agent tool.
 // read_when:
-//   - changing live collector wiring, dashboard command flags, or the agent tool surface.
+//   - changing live collector wiring, dashboard/review command flags, or the agent tool surface.
 // ---
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -10,6 +10,10 @@ import { summarizeTelemetryEvents } from "../src/aggregate.ts";
 import { backfillSessionsTelemetry } from "../src/backfill.ts";
 import { registerTelemetryCollector } from "../src/collector.ts";
 import { renderTelemetryDashboard } from "../src/dashboard.ts";
+import {
+  buildTelemetryReviewSnapshot,
+  writeTelemetryReviewSnapshot,
+} from "../src/review-snapshot.ts";
 import { readTelemetryEvents, resolveTelemetryDir } from "../src/store.ts";
 
 const DEFAULT_WINDOW_DAYS = 14;
@@ -22,10 +26,11 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
 
   pi.registerCommand("telemetry", {
     description:
-      "Regenerate the telemetry HTML dashboard; /telemetry backfill [days] seeds history from session JSONL",
+      "Regenerate the dashboard; /telemetry review [days] writes a digest-bound snapshot; /telemetry backfill [days] derives bounded history",
     handler: async (args, ctx) => {
-      if (args.trim().startsWith("backfill")) {
-        const days = parseWindowDays(args.trim().replace(/^backfill\s*/, ""));
+      const command = args.trim();
+      if (/^backfill(?:\s|$)/u.test(command)) {
+        const days = parseWindowDays(command.replace(/^backfill\s*/u, ""));
         const result = await backfillSessionsTelemetry({ days });
         const message =
           `Telemetry backfill: ${result.events} events derived from ${result.filesBackfilled} sessions ` +
@@ -35,11 +40,29 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
         return message;
       }
 
-      const days = parseWindowDays(args);
-      const events = await readTelemetryEvents(dir, days);
-      const summary = summarizeTelemetryEvents(events, days);
+      const review = /^review(?:\s|$)/u.test(command);
+      const days = parseWindowDays(review ? command.replace(/^review\s*/u, "") : command);
+      const now = Date.now();
+      const events = await readTelemetryEvents(dir, days, now);
+      const summary = summarizeTelemetryEvents(events, days, now);
+
+      if (review) {
+        const snapshot = buildTelemetryReviewSnapshot({
+          events,
+          summary,
+          windowDays: days,
+          generatedAt: now,
+        });
+        const target = await writeTelemetryReviewSnapshot(dir, snapshot);
+        const message =
+          `Telemetry review snapshot written: ${target} ` +
+          `(${events.length} events, ${days}d, sha256:${snapshot.snapshotSha256})`;
+        if (ctx?.hasUI) ctx.ui.notify(message, "info");
+        return message;
+      }
+
       const html = renderTelemetryDashboard(summary, {
-        generatedAt: Date.now(),
+        generatedAt: now,
         windowDays: days,
         sourceDir: dir,
       });
@@ -77,8 +100,9 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, params) {
       const windowDays = clampWindowDays(params.window_days);
-      const events = await readTelemetryEvents(dir, windowDays);
-      const summary = summarizeTelemetryEvents(events, windowDays);
+      const now = Date.now();
+      const events = await readTelemetryEvents(dir, windowDays, now);
+      const summary = summarizeTelemetryEvents(events, windowDays, now);
 
       if (params.group_by === "day") {
         return ok({ windowDays, perDay: summary.perDay });
