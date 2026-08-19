@@ -42,7 +42,9 @@ pi events -> pi.telemetry.v1 records -> ~/.pi/agent/telemetry/<day>.jsonl shards
   The snapshot binds the exact window, producer version, live/backfill coverage,
   controlled metrics, bounded breakdowns, source-event-set digest, explicit
   nonclaims, and a canonical snapshot digest. It excludes session IDs, working
-  directories, raw errors, payloads, queries, and message text.
+  directories, raw errors, payloads, queries, and message text. Its reader rejects
+  duplicate JSON members and final-component symlinks; files are owner-only,
+  single-link regular files and are checked for mutation during reads.
 - **`/telemetry backfill [days]`** — derives telemetry from persisted session JSONL
   into `<day>.backfill.jsonl` shards (idempotent per session file, skips sessions
   already covered by live collection). Backfilled events carry `source: "backfill"`
@@ -76,9 +78,14 @@ See [`docs/telemetry-review-snapshots.md`](docs/telemetry-review-snapshots.md).
 
 - Telemetry is a **mirror-only projection**. It is not AK/KES evidence, not decision
   authority, and not a durable owner surface.
-- Review snapshots preserve source coverage and sample size. Missing or zero events
-  may reflect disabled collection, retention, malformed/unavailable shards,
-  incomplete backfill, or no observed activity.
+- Review snapshots preserve source coverage and metric-domain sample size. Most
+  samples are event counts; message-omission rate uses compacted-message count and
+  may exceed the number of telemetry events.
+- Missing or zero events may reflect disabled collection, retention,
+  malformed/unavailable shards, incomplete backfill, or no observed activity.
+- The source-event-set digest excludes session IDs, working directories, and raw
+  error signatures. Aggregate failures remain visible without making private origin
+  or error prose observable through digest changes.
 - Compaction failures are emitted at the source: pi-session-compaction records
   stage-tagged `compaction_failure` events (preset / preset_directive / default_preset /
   stock_fallback / final) through `@tryinget/pi-telemetry/emit` at every fallback and
