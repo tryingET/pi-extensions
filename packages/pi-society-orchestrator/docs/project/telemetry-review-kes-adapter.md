@@ -6,13 +6,13 @@ read_when:
 system4d:
   container: "Package-owned integration contract between pi-telemetry observations, orchestrator KES, and optional AK evidence persistence."
   compass: "Turn bounded observations into reviewable candidates without converting measurements into authority."
-  engine: "Validate snapshot -> evaluate predeclared trigger -> plan -> explicit materialize -> optional authorized AK record -> owner review."
+  engine: "Validate snapshot -> bind subject/revision and explicit policy -> plan -> explicit materialize -> optional authorized AK record -> owner review."
   fog: "The failure mode is auto-promoting a threshold, KES artifact, or AK row into claim truth or shared doctrine."
 ---
 
 # Telemetry review to KES adapter
 
-`telemetry_learning_kes_adapter` consumes exactly one validated `pi.telemetry-review-snapshot.v1` file and evaluates one predeclared metric trigger. It defaults to `plan`. `materialize` writes one package-owned KES diary and one candidate-only learning only when the metric sample, coverage policy, and threshold all pass.
+`telemetry_learning_kes_adapter` consumes exactly one validated `pi.telemetry-review-snapshot.v1` file and evaluates one explicitly scoped metric trigger. It defaults to `plan`. `materialize` writes one package-owned KES diary and one candidate-only learning only when the metric sample, coverage policy, measured-live requirement, and threshold all pass.
 
 ## Required separation
 
@@ -35,19 +35,25 @@ No transition authorizes the next one.
 
 ## Explicit inputs
 
-The caller supplies:
+The caller supplies every policy-bearing value:
 
-- the snapshot path;
+- snapshot path;
+- stable subject identifier;
+- immutable subject revision such as a commit or package/configuration version;
+- optional configuration/profile reference;
 - one v1 metric key;
 - threshold and comparison;
 - minimum sample size;
-- coverage policy and minimum live-event count;
-- an owner-authored candidate claim;
+- source-coverage policy;
+- minimum measured-live event count;
+- owner-authored candidate claim;
 - falsification condition;
 - review trigger;
 - retirement signal.
 
-The default `live-required` policy accepts live-only or mixed windows only when the minimum number of measured-live events is present. `any-observed` is an explicit owner decision to permit backfill-only or otherwise non-live observations. The distinction remains visible in the KES candidate and AK handoff.
+There is no hidden sample-size or source-coverage default. `live-required` requires `minimum_live_events >= 1`. `any-observed` is an explicit acceptance of backfill-only or otherwise non-live observations and requires `minimum_live_events = 0`. The selected policy remains visible in the KES candidate and AK handoff.
+
+The subject/revision binding is required because the telemetry snapshot deliberately describes a bounded Pi observation rather than guessing repository authority from `cwd` or session identity. A reviewer must identify what code, package, workflow, experiment, or configuration the proposed learning is about.
 
 ## Runtime dependency
 
@@ -60,7 +66,21 @@ Materialization uses the existing package-owned KES seam under:
 - `diary/` for the validation capture;
 - `docs/learnings/` for the candidate.
 
-Snapshot paths and raw telemetry payloads are not copied into the public KES prose. The candidate binds the snapshot and source-event-set digests, window, coverage, selected metric, sample, and trigger result. Private runtime evidence can remain in Agent Kernel or the owner-controlled telemetry store.
+The KES timestamp defaults to the snapshot generation time so the artifact remains tied to the reviewed window rather than the wall-clock time of a later invocation. Snapshot paths and raw telemetry payloads are not copied into the public KES prose. The candidate binds the subject/revision, optional configuration, snapshot and source-event-set digests, window, coverage, selected metric, sample policy, and trigger result. Private runtime evidence can remain in Agent Kernel or the owner-controlled telemetry store.
+
+## Agent Kernel handoff
+
+The returned `akEvidenceHandoff` uses the existing evidence-entry shape but is not executed. It binds:
+
+- subject and immutable revision;
+- optional configuration reference;
+- snapshot and source-event-set digests;
+- producer version;
+- window and coverage;
+- selected metric, threshold, comparison, sample policy, and review blockers;
+- an explicit authority ceiling.
+
+A separately authorized caller may submit the handoff through the normal Agent Kernel evidence path. `result=pass` means only that the snapshot contract and digest were validated; `review_ready` separately records whether the predeclared sample, source, and threshold gates passed. Neither field verifies causality or the candidate claim.
 
 ## Non-goals
 
@@ -68,6 +88,8 @@ The adapter does not:
 
 - infer a claim from telemetry automatically;
 - establish causality;
+- infer the subject from a session or working directory;
+- apply hidden sample or source-coverage defaults;
 - treat missing or expired telemetry as zero failures;
 - merge live and backfilled coverage invisibly;
 - create a global KES writer for other packages;
