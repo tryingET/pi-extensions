@@ -273,11 +273,10 @@ function withGovernedNpmPolicyFixture(run) {
   const cacheDir = join(scratch, "cache");
   mkdirSync(cacheDir, { recursive: true });
   const npmrcPath = join(scratch, "npmrc");
-  // npm >= 11.13 derives the effective `before` cutoff from `min-release-age`
-  // itself (always fresh, within the gate's 5-minute tolerance) and hard-fails
-  // config resolution when an explicit `before` key coexists with
-  // `min-release-age` in any config or env layer. The fixture therefore pins
-  // only the declarative policy and lets npm derive the cutoff.
+  // npm derives a runtime-only flat `before` option from this declarative
+  // relative policy. The governed proof reads min-release-age directly because
+  // `npm config get before` exposes only a raw explicit cutoff, not the derived
+  // flat option used by install resolution.
   writeFileSync(
     npmrcPath,
     `min-release-age=7
@@ -300,7 +299,7 @@ cache=${cacheDir}
     process.env.npm_config_userconfig = npmrcPath;
     process.env.npm_config_globalconfig = globalrcPath;
     process.env.npm_config_cache = cacheDir;
-    return run({ scratch, cacheDir });
+    return run({ scratch, cacheDir, npmrcPath });
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
@@ -321,6 +320,38 @@ test("governed npm receipt age-gates third parties and exempts only the owned sc
     assert.equal(proof.offline, false);
     assert.equal(proof.force, false);
     assert.deepEqual(proof.overrideEnvironment, {});
+  });
+});
+
+test("governed npm policy accepts one explicit-before fallback", () => {
+  withGovernedNpmPolicyFixture(({ cacheDir, npmrcPath }) => {
+    const before = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    writeFileSync(
+      npmrcPath,
+      `before=${before}
+min-release-age-exclude[]=@tryinget/*
+registry=https://registry.npmjs.org/
+offline=false
+prefer-offline=false
+force=false
+cache=${cacheDir}
+`,
+    );
+    const proof = inspectGovernedRuntimeNpmPolicy();
+    assert.equal(proof.minReleaseAgeDays >= 7, true);
+    assert.equal(proof.effectiveBefore, before);
+  });
+});
+
+test("governed npm policy rejects simultaneous relative and absolute cutoffs", () => {
+  withGovernedNpmPolicyFixture(({ npmrcPath }) => {
+    const before = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    writeFileSync(npmrcPath, `${readFileSync(npmrcPath, "utf8")}before=${before}
+`);
+    assert.throws(
+      () => inspectGovernedRuntimeNpmPolicy(),
+      (error) => error?.failureClass === "materialization_npm_policy_mismatch",
+    );
   });
 });
 

@@ -903,27 +903,50 @@ export function inspectGovernedRuntimeNpmPolicy(): GovernedRuntimeNpmPolicyProof
   const temporaryDirectoryRealpath = realpathSync(selectedTemporaryDirectory);
   const observedAtMs = Date.now();
   const observedAt = new Date(observedAtMs).toISOString();
-  // npm >= 11.13 converts a configured `min-release-age` into a derived effective
-  // `before` cutoff and erases `min-release-age` from every `config get`/`list`
-  // surface (it reads back as `null`), and it hard-fails config resolution when a
-  // `before` key coexists with `min-release-age` in any config or env layer. The
-  // observable age proof is therefore the derived `before`: derive the policy days
-  // from it and fail closed when it is unset or unparsable. An explicit `before=`
-  // key must never be written into any npm config file.
-  const effectiveBeforeText = npmText(nodeExecutable.realpath, npmExecutable.realpath, [
+  // npm keeps the declared `min-release-age` value in config while deriving a
+  // runtime-only flat `before` option for install resolution. `npm config get
+  // before` reads the raw key, not that derived flat option, so it legitimately
+  // returns null when only the relative policy is configured. Prove the declared
+  // relative policy directly and derive the exact cutoff used by the governed npm
+  // effects. Retain an explicit-before fallback for older/operator-controlled
+  // environments, but reject simultaneous raw values because their precedence is
+  // easy to misread and can silently relax the intended age gate.
+  const configuredMinReleaseAgeText = npmText(
+    nodeExecutable.realpath,
+    npmExecutable.realpath,
+    ["config", "get", "min-release-age"],
+  );
+  const configuredMinReleaseAge =
+    configuredMinReleaseAgeText && configuredMinReleaseAgeText !== "null"
+      ? Number(configuredMinReleaseAgeText)
+      : Number.NaN;
+  const configuredBeforeText = npmText(nodeExecutable.realpath, npmExecutable.realpath, [
     "config",
     "get",
     "before",
   ]);
-  const effectiveBeforeMs = Date.parse(effectiveBeforeText);
-  if (!Number.isFinite(effectiveBeforeMs)) {
+  const configuredBeforeMs = Date.parse(configuredBeforeText);
+  let minReleaseAgeDays: number;
+  let effectiveBeforeMs: number;
+  if (Number.isFinite(configuredMinReleaseAge)) {
+    if (configuredMinReleaseAge < 0 || Number.isFinite(configuredBeforeMs)) {
+      throw new GovernedRuntimeMaterializationError(
+        "materialization_npm_policy_mismatch",
+        "Governed npm policy requires one non-negative min-release-age value and no simultaneous explicit before cutoff.",
+      );
+    }
+    minReleaseAgeDays = configuredMinReleaseAge;
+    effectiveBeforeMs = observedAtMs - configuredMinReleaseAge * 86_400_000;
+  } else if (Number.isFinite(configuredBeforeMs)) {
+    effectiveBeforeMs = configuredBeforeMs;
+    minReleaseAgeDays = Math.round((observedAtMs - effectiveBeforeMs) / 86_400_000);
+  } else {
     throw new GovernedRuntimeMaterializationError(
       "materialization_npm_policy_mismatch",
-      "The effective npm 'before' cutoff is unset or unparsable; npm >= 11.13 derives it from min-release-age, so min-release-age (>= 7 days) must be configured without any explicit 'before' key.",
+      "Governed npm policy requires min-release-age (preferred) or one explicit before cutoff equivalent to at least seven days.",
     );
   }
   const effectiveBefore = new Date(effectiveBeforeMs).toISOString();
-  const minReleaseAgeDays = Math.round((observedAtMs - effectiveBeforeMs) / 86_400_000);
   const minReleaseAgeExclusions = npmStringList(
     nodeExecutable.realpath,
     npmExecutable.realpath,
