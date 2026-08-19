@@ -3,12 +3,15 @@ import { mkdtemp, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import telemetryKesAdapterExtension from "../extensions/telemetry-kes-adapter.ts";
 import {
   buildTelemetryLearningKesAdapterResult,
   TELEMETRY_REVIEW_METRIC_KEYS,
 } from "../src/runtime/telemetry-learning-kes-adapter.ts";
 
 const now = new Date("2026-08-19T12:00:00.000Z");
+const subject = "tryingET/pi-extensions:pi-society-orchestrator";
+const subjectRevision = "0123456789abcdef0123456789abcdef01234567";
 
 function metric(value = 0, unit = "percent", sampleSize = 100) {
   return {
@@ -58,13 +61,19 @@ function snapshot(overrides = {}) {
 }
 
 async function build(root, overrides = {}) {
-  const fixture = overrides.snapshot ?? snapshot();
+  const { snapshot: fixture = snapshot(), ...inputOverrides } = overrides;
   return buildTelemetryLearningKesAdapterResult({
     packageRoot: root,
     snapshotPath: path.join(root, "telemetry-review.json"),
+    subject,
+    subjectRevision,
+    configurationRef: "orchestrator-profile-v1",
     metric: "tool_failure_rate_pct",
     threshold: 10,
     comparison: "at-or-above",
+    coveragePolicy: "live-required",
+    minimumSampleSize: 20,
+    minimumLiveEvents: 1,
     candidateClaim: "Repeated tool failures justify a bounded pilot of clearer recovery guidance.",
     falsificationCondition:
       "Reject or narrow the rule if representative pilot windows do not reduce tool failures.",
@@ -72,10 +81,23 @@ async function build(root, overrides = {}) {
     retirementSignal: "Retire when the underlying tool failure mode no longer exists.",
     timestamp: now,
     loadSnapshot: async () => fixture,
-    ...overrides,
-    snapshot: undefined,
+    ...inputOverrides,
   });
 }
+
+test("registers the adapter without importing pi-telemetry at extension load time", () => {
+  let registered;
+  telemetryKesAdapterExtension({
+    registerTool(tool) {
+      registered = tool;
+    },
+  });
+  assert.equal(registered.name, "telemetry_learning_kes_adapter");
+  assert.equal(typeof registered.execute, "function");
+  assert.equal(registered.parameters.required.includes("subject"), true);
+  assert.equal(registered.parameters.required.includes("minimum_sample_size"), true);
+  assert.equal(registered.parameters.required.includes("coverage_policy"), true);
+});
 
 test("plans a Proposal candidate without mutating KES, telemetry, AK, or promotion state", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "telemetry-kes-plan-"));
@@ -88,13 +110,15 @@ test("plans a Proposal candidate without mutating KES, telemetry, AK, or promoti
   assert.equal(result.effect.telemetryMutated, false);
   assert.equal(result.effect.akCalled, false);
   assert.equal(result.effect.promotionStateChanged, false);
+  assert.equal(result.subject.id, subject);
+  assert.equal(result.subject.revision, subjectRevision);
+  assert.equal(result.snapshot.fileName, "telemetry-review.json");
   assert.equal(result.kesPlan.learningCandidate.metadata.lifecycle_entry_stage, "proposal");
+  assert.equal(result.kesPlan.learningCandidate.metadata.subject_revision, subjectRevision);
   assert.equal(result.akEvidenceHandoff.result, "pass");
+  assert.equal(result.akEvidenceHandoff.details.subject, subject);
   assert.match(result.akEvidenceHandoff.authorityCeiling, /snapshot contract and digest/);
-  assert.doesNotMatch(
-    result.kesPlan.learningCandidate.content,
-    /telemetry-review\.json|\/tmp\//,
-  );
+  assert.doesNotMatch(result.kesPlan.learningCandidate.content, /telemetry-review\.json|\/tmp\//);
   await assert.rejects(() => readdir(path.join(root, "diary")));
 });
 
@@ -125,7 +149,7 @@ test("fails closed when the predeclared threshold is not crossed", async () => {
   );
 });
 
-test("requires live coverage by default and allows backfill-only only when explicitly selected", async () => {
+test("requires live coverage by explicit policy and accepts backfill only with explicit zero-live policy", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "telemetry-kes-coverage-"));
   const backfillOnly = snapshot({
     coverage: {
@@ -146,15 +170,29 @@ test("requires live coverage by default and allows backfill-only only when expli
     action: "plan",
     snapshot: backfillOnly,
     coveragePolicy: "any-observed",
+    minimumLiveEvents: 0,
   });
   assert.deepEqual(accepted.review.blockers, []);
   assert.equal(accepted.review.coveragePolicy, "any-observed");
 });
 
-test("the AK handoff records validation only, not claim or promotion truth", async () => {
+test("rejects contradictory source policy instead of applying a hidden default", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "telemetry-kes-policy-"));
+  await assert.rejects(
+    () => build(root, { coveragePolicy: "live-required", minimumLiveEvents: 0 }),
+    /must be at least 1/,
+  );
+  await assert.rejects(
+    () => build(root, { coveragePolicy: "any-observed", minimumLiveEvents: 1 }),
+    /must be 0/,
+  );
+});
+
+test("the AK handoff records artifact validation and subject lineage, not claim truth", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "telemetry-kes-ak-"));
   const result = await build(root);
   assert.equal(result.akEvidenceHandoff.check_type, "pi-telemetry-review-snapshot-v1");
+  assert.equal(result.akEvidenceHandoff.details.subject_revision, subjectRevision);
   assert.equal(result.akEvidenceHandoff.details.review_ready, true);
   assert.match(result.akEvidenceHandoff.details.authority_ceiling, /does not verify causality/);
   assert.equal(result.effect.akCalled, false);
