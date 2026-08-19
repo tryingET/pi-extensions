@@ -62,6 +62,7 @@
     "src",
     "prompts",
     "examples",
+    "docs/project/telemetry-review-kes-adapter.md",
     "policy/security-policy.json",
     "policy/engineering-lane.json"
   ],
