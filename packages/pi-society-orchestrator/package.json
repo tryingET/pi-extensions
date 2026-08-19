@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./toolbox-bundle": "./src/toolboxBundle.ts",
-    "./governed-deep-review-preflight": "./src/runtime/governed-deep-review-preflight.ts"
+    "./governed-deep-review-preflight": "./src/runtime/governed-deep-review-preflight.ts",
+    "./telemetry-learning-kes-adapter": "./src/runtime/telemetry-learning-kes-adapter.ts"
   },
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -57,16 +58,19 @@
   "files": [
     "extensions/runtime-footer.ts",
     "extensions/society-orchestrator.ts",
+    "extensions/telemetry-kes-adapter.ts",
     "src",
     "prompts",
     "examples",
+    "docs/project/telemetry-review-kes-adapter.md",
     "policy/security-policy.json",
     "policy/engineering-lane.json"
   ],
   "pi": {
     "extensions": [
       "./extensions/runtime-footer.ts",
-      "./extensions/society-orchestrator.ts"
+      "./extensions/society-orchestrator.ts",
+      "./extensions/telemetry-kes-adapter.ts"
     ],
     "prompts": [
       "./prompts"
