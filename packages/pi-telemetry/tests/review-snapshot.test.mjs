@@ -1,18 +1,31 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, symlink } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
   buildTelemetryReviewSnapshot,
   loadTelemetryReviewSnapshot,
+  parseTelemetryReviewSnapshotJson,
   validateTelemetryReviewSnapshot,
   writeTelemetryReviewSnapshot,
 } from "../src/review-snapshot.ts";
+import {
+  canonicalTelemetryReviewJson,
+  telemetryReviewSha256,
+} from "../src/review-snapshot-canonical.ts";
 
 const now = Date.parse("2026-08-19T12:00:00.000Z");
 const events = [
-  { v: 1, kind: "tool_call", ts: now - 1000, tool: "bash", ok: false, source: "live" },
+  {
+    v: 1,
+    kind: "tool_call",
+    ts: now - 1000,
+    tool: "bash",
+    ok: false,
+    errorSignature: "private failure 123",
+    source: "live",
+  },
   { v: 1, kind: "subagent", ts: now - 2000, profile: "reviewer", ok: true, source: "live" },
   { v: 1, kind: "turn", ts: now - 3000, index: 1, source: "backfill" },
 ];
@@ -54,6 +67,12 @@ function snapshot() {
   return buildTelemetryReviewSnapshot({ events, summary, windowDays: 7, generatedAt: now });
 }
 
+function resign(value) {
+  const { snapshotSha256: _snapshotSha256, ...payload } = value;
+  value.snapshotSha256 = telemetryReviewSha256(canonicalTelemetryReviewJson(payload));
+  return value;
+}
+
 test("builds a deterministic bounded review snapshot", () => {
   const first = snapshot();
   const second = snapshot();
@@ -64,14 +83,15 @@ test("builds a deterministic bounded review snapshot", () => {
   assert.equal(first.metrics.tool_failure_rate_pct.value, 100);
   assert.equal(first.metrics.tool_failure_rate_pct.sampleSize, 1);
   assert.match(first.snapshotSha256, /^[a-f0-9]{64}$/);
-  assert.doesNotMatch(JSON.stringify(first), /sessionId|cwd|topError|secret/);
+  assert.doesNotMatch(JSON.stringify(first), /sessionId|cwd|errorSignature|topError|secret/);
 });
 
-test("excludes session and cwd metadata from the source event-set digest", () => {
+test("excludes private origin and error prose from the source event-set digest", () => {
   const changedEvents = events.map((event, index) => ({
     ...event,
     sessionId: `different-session-${index}`,
     cwd: `/private/worktree/${index}`,
+    errorSignature: `different private failure ${index}`,
   }));
   const changed = buildTelemetryReviewSnapshot({
     events: changedEvents,
@@ -85,22 +105,49 @@ test("excludes session and cwd metadata from the source event-set digest", () =>
 test("rejects tampered snapshots", () => {
   const changed = structuredClone(snapshot());
   changed.metrics.tool_failure_rate_pct.value = 0;
-  assert.throws(() => validateTelemetryReviewSnapshot(changed), /digest mismatch/);
+  assert.throws(() => validateTelemetryReviewSnapshot(changed), /does not match|digest mismatch/);
 });
 
-test("rejects internally inconsistent coverage with a recomputed digest", async () => {
+test("rejects internally inconsistent coverage with a recomputed digest", () => {
   const changed = structuredClone(snapshot());
   changed.coverage.liveEvents = 1;
+  resign(changed);
   assert.throws(() => validateTelemetryReviewSnapshot(changed), /coverage counts do not sum/);
 });
 
-test("writes and loads one digest-bound snapshot idempotently", async () => {
+test("rejects inconsistent percentage arithmetic with a recomputed digest", () => {
+  const changed = structuredClone(snapshot());
+  changed.metrics.tool_failure_rate_pct.numerator = 0;
+  resign(changed);
+  assert.throws(
+    () => validateTelemetryReviewSnapshot(changed),
+    /does not match numerator and denominator/,
+  );
+});
+
+test("requires generatedAt to bind the end of the review window", () => {
+  const changed = structuredClone(snapshot());
+  changed.generatedAt = "2026-08-19T11:59:59.000Z";
+  resign(changed);
+  assert.throws(() => validateTelemetryReviewSnapshot(changed), /generatedAt must equal window.end/);
+});
+
+test("rejects duplicate JSON object members before validation", () => {
+  const text = JSON.stringify(snapshot()).replace(
+    "{",
+    '{"schema":"pi.telemetry-review-snapshot.v1",',
+  );
+  assert.throws(() => parseTelemetryReviewSnapshotJson(text), /duplicate JSON object member/);
+});
+
+test("writes and loads one owner-only digest-bound snapshot idempotently", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "pi-telemetry-review-"));
   const first = await writeTelemetryReviewSnapshot(root, snapshot());
   const second = await writeTelemetryReviewSnapshot(root, snapshot());
   assert.equal(first, second);
   assert.deepEqual(await loadTelemetryReviewSnapshot(first), snapshot());
   assert.equal((await readFile(first, "utf8")).endsWith("\n"), true);
+  assert.equal((await lstat(first)).mode & 0o077, 0);
 });
 
 test("does not follow a snapshot symlink on Linux", async (t) => {
@@ -110,4 +157,16 @@ test("does not follow a snapshot symlink on Linux", async (t) => {
   const link = path.join(root, "snapshot-link.json");
   await symlink(target, link);
   await assert.rejects(() => loadTelemetryReviewSnapshot(link));
+});
+
+test("does not accept a symlink interposed at an idempotent target", async (t) => {
+  if (process.platform !== "linux") t.skip("O_NOFOLLOW proof is Linux-specific");
+  const root = await mkdtemp(path.join(os.tmpdir(), "pi-telemetry-review-interpose-"));
+  const target = await writeTelemetryReviewSnapshot(root, snapshot());
+  const attacker = path.join(root, "attacker.json");
+  await writeFile(attacker, `${JSON.stringify(snapshot(), null, 2)}\n`, "utf8");
+  await chmod(attacker, 0o600);
+  await rm(target);
+  await symlink(attacker, target);
+  await assert.rejects(() => writeTelemetryReviewSnapshot(root, snapshot()));
 });
