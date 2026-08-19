@@ -1,7 +1,7 @@
 // ---
-// summary: "Strictly validates telemetry review snapshots and their canonical digest."
+// summary: "Strictly validates telemetry review snapshots, JSON members, invariants, and canonical digest."
 // read_when:
-//   - "Changing telemetry snapshot validation, internal consistency, or byte limits."
+//   - "Changing telemetry snapshot validation, JSON parsing, internal consistency, or byte limits."
 // ---
 
 import {
@@ -20,6 +20,28 @@ import {
   type TelemetryReviewSnapshot,
 } from "./review-snapshot-types.ts";
 import { TELEMETRY_RETENTION_DAYS } from "./store.ts";
+
+const REQUIRED_NONCLAIMS = [
+  "This snapshot is a bounded observational projection, not AK/KES evidence or owner authority.",
+  "This snapshot does not establish causality, safety, compliance, adoption, or promotion readiness.",
+  "Missing or zero events may reflect disabled collection, retention, incomplete backfill, unavailable shards, or no observed activity.",
+] as const;
+const MAX_JSON_DEPTH = 64;
+
+interface ValidatedWindow {
+  days: number;
+  start: number;
+  end: number;
+}
+
+interface ValidatedCoverage {
+  total: number;
+  live: number;
+  backfill: number;
+  unspecified: number;
+}
+
+class DuplicateJsonObjectMemberError extends Error {}
 
 export function validateTelemetryReviewSnapshot(value: unknown): TelemetryReviewSnapshot {
   const root = record(value, "telemetry review snapshot");
@@ -40,13 +62,16 @@ export function validateTelemetryReviewSnapshot(value: unknown): TelemetryReview
   }
 
   validateProducer(root.producer);
-  timestamp(root.generatedAt, "generatedAt");
-  validateWindow(root.window);
-  validateCoverage(root.coverage, root.window);
-  validateMetrics(root.metrics);
+  const generatedAt = timestamp(root.generatedAt, "generatedAt");
+  const window = validateWindow(root.window);
+  if (generatedAt !== window.end) {
+    throw new Error("generatedAt must equal window.end");
+  }
+  const coverage = validateCoverage(root.coverage, window);
+  validateMetrics(root.metrics, coverage);
   validateBreakdowns(root.breakdowns);
   sha256(root.sourceEventSetSha256, "sourceEventSetSha256");
-  stringArray(root.nonclaims, "nonclaims", 8, 500);
+  validateNonclaims(root.nonclaims);
   sha256(root.snapshotSha256, "snapshotSha256");
 
   const { snapshotSha256: _snapshotSha256, ...payload } = root;
@@ -63,14 +88,21 @@ export function parseTelemetryReviewSnapshotJson(text: string): TelemetryReviewS
   if (Buffer.byteLength(text, "utf8") > TELEMETRY_REVIEW_SNAPSHOT_MAX_BYTES) {
     throw new Error("telemetry review snapshot exceeds the maximum byte size");
   }
+
+  let parsed: unknown;
   try {
-    return validateTelemetryReviewSnapshot(JSON.parse(text));
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error("telemetry review snapshot is not valid JSON");
-    }
-    throw error;
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("telemetry review snapshot is not valid JSON");
   }
+
+  try {
+    rejectDuplicateJsonObjectMembers(text);
+  } catch (error) {
+    if (error instanceof DuplicateJsonObjectMemberError) throw error;
+    throw new Error("telemetry review snapshot is not valid JSON");
+  }
+  return validateTelemetryReviewSnapshot(parsed);
 }
 
 function validateProducer(value: unknown): void {
@@ -87,7 +119,7 @@ function validateProducer(value: unknown): void {
   }
 }
 
-function validateWindow(value: unknown): void {
+function validateWindow(value: unknown): ValidatedWindow {
   const candidate = record(value, "window");
   exact(candidate, ["days", "start", "end"]);
   const days = windowDays(candidate.days);
@@ -96,9 +128,10 @@ function validateWindow(value: unknown): void {
   if (end <= start || end - start !== days * TELEMETRY_REVIEW_DAY_MS) {
     throw new Error("telemetry review snapshot window bounds are inconsistent");
   }
+  return { days, start, end };
 }
 
-function validateCoverage(value: unknown, windowValue: unknown): void {
+function validateCoverage(value: unknown, window: ValidatedWindow): ValidatedCoverage {
   const coverage = record(value, "coverage");
   exact(coverage, [
     "mode",
@@ -126,9 +159,6 @@ function validateCoverage(value: unknown, windowValue: unknown): void {
     throw new Error("coverage mode does not match counts");
   }
 
-  const reviewWindow = record(windowValue, "window");
-  const start = timestamp(reviewWindow.start, "window.start");
-  const end = timestamp(reviewWindow.end, "window.end");
   const first =
     coverage.firstObservedAt === null
       ? null
@@ -140,7 +170,7 @@ function validateCoverage(value: unknown, windowValue: unknown): void {
   if ((total === 0) !== (first === null && last === null)) {
     throw new Error("coverage observed bounds do not match totalEvents");
   }
-  if (first !== null && last !== null && (first > last || first < start || last > end)) {
+  if (first !== null && last !== null && (first > last || first < window.start || last > window.end)) {
     throw new Error("coverage observed bounds fall outside the review window");
   }
   if (coverage.retentionCeilingDays !== TELEMETRY_RETENTION_DAYS) {
@@ -148,17 +178,32 @@ function validateCoverage(value: unknown, windowValue: unknown): void {
   }
 
   const sourceRows = countRows(coverage.sourceCounts, "source");
-  const kindRows = countRows(coverage.perKind, "kind");
+  const sourceMap = new Map(sourceRows.map((row) => [row.label, row.n]));
+  for (const source of sourceMap.keys()) {
+    if (source !== "live" && source !== "backfill" && source !== "unspecified") {
+      throw new Error("coverage sourceCounts contains an unsupported source");
+    }
+  }
+  if (
+    (sourceMap.get("live") ?? 0) !== live ||
+    (sourceMap.get("backfill") ?? 0) !== backfill ||
+    (sourceMap.get("unspecified") ?? 0) !== unspecified
+  ) {
+    throw new Error("coverage sourceCounts do not match source totals");
+  }
   if (sourceRows.reduce((sum, row) => sum + row.n, 0) !== total) {
     throw new Error("coverage sourceCounts do not sum to totalEvents");
   }
+
+  const kindRows = countRows(coverage.perKind, "kind");
   if (kindRows.reduce((sum, row) => sum + row.n, 0) !== total) {
     throw new Error("coverage perKind does not sum to totalEvents");
   }
-  stringArray(coverage.limitations, "coverage.limitations", 16, 500);
+  stringArray(coverage.limitations, "coverage.limitations", 2, 16, 500);
+  return { total, live, backfill, unspecified };
 }
 
-function validateMetrics(value: unknown): void {
+function validateMetrics(value: unknown, coverage: ValidatedCoverage): void {
   const candidate = record(value, "metrics");
   exact(candidate, [...TELEMETRY_REVIEW_METRIC_KEYS]);
   for (const key of TELEMETRY_REVIEW_METRIC_KEYS) {
@@ -174,6 +219,9 @@ function validateMetrics(value: unknown): void {
       throw new Error(`metric ${key}.value exceeds 100 percent`);
     }
     const sample = nonnegative(metric.sampleSize, `metric ${key}.sampleSize`);
+    if (sample > coverage.total) {
+      throw new Error(`metric ${key}.sampleSize exceeds totalEvents`);
+    }
     const numerator =
       metric.numerator === null
         ? null
@@ -188,9 +236,50 @@ function validateMetrics(value: unknown): void {
     if (numerator !== null && denominator !== null && numerator > denominator) {
       throw new Error(`metric ${key}.numerator exceeds denominator`);
     }
-    if (metric.unit === "count" && !Number.isSafeInteger(metric.value)) {
-      throw new Error(`metric ${key}.value must be an integer count`);
+    if (metric.unit === "count") {
+      if (!Number.isSafeInteger(metric.value)) {
+        throw new Error(`metric ${key}.value must be an integer count`);
+      }
+      if (numerator !== null || denominator !== null) {
+        throw new Error(`metric ${key} count must not carry numerator or denominator`);
+      }
+    } else {
+      if (denominator === null) {
+        throw new Error(`metric ${key} percent must carry a denominator`);
+      }
+      if (numerator !== null) {
+        const expected = denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : 0;
+        if (metric.value !== expected) {
+          throw new Error(`metric ${key}.value does not match numerator and denominator`);
+        }
+      } else if (sample === 0 && metric.value !== 0) {
+        throw new Error(`metric ${key}.value must be zero when no sample exists`);
+      }
     }
+  }
+
+  const totalMetric = record(candidate.total_events, "metric total_events");
+  if (totalMetric.value !== coverage.total || totalMetric.sampleSize !== coverage.total) {
+    throw new Error("total_events metric does not match coverage");
+  }
+  validateCoverageShareMetric(candidate.live_event_share_pct, coverage.live, coverage.total, "live");
+  validateCoverageShareMetric(
+    candidate.backfill_event_share_pct,
+    coverage.backfill,
+    coverage.total,
+    "backfill",
+  );
+}
+
+function validateCoverageShareMetric(
+  value: unknown,
+  numerator: number,
+  denominator: number,
+  label: string,
+): void {
+  const metric = record(value, `${label} coverage share metric`);
+  if (metric.numerator !== numerator || metric.denominator !== denominator) {
+    throw new Error(`${label} coverage share metric does not match coverage`);
   }
 }
 
@@ -213,28 +302,44 @@ function validateBreakdowns(value: unknown): void {
   if (candidate.subagentProfiles.length > TELEMETRY_REVIEW_BREAKDOWN_LIMIT) {
     throw new Error("too many subagent profiles");
   }
+  const seenProfiles = new Set<string>();
   for (const row of candidate.subagentProfiles) {
     const item = record(row, "subagent profile");
     exact(item, ["profile", "n", "failed"]);
-    label(item.profile, "profile");
+    const profile = label(item.profile, "profile");
+    if (seenProfiles.has(profile)) throw new Error("duplicate subagent profile");
+    seenProfiles.add(profile);
     const total = nonnegative(item.n, "subagent profile n");
     const failed = nonnegative(item.failed, "subagent profile failed");
     if (failed > total) throw new Error("subagent profile failed count exceeds total");
   }
 }
 
-function countRows(value: unknown, key: string): Array<{ n: number }> {
+function countRows(value: unknown, key: string): Array<{ label: string; n: number }> {
   if (!Array.isArray(value) || value.length > TELEMETRY_REVIEW_BREAKDOWN_LIMIT) {
     throw new Error(`invalid ${key} breakdown`);
   }
-  const result: Array<{ n: number }> = [];
+  const result: Array<{ label: string; n: number }> = [];
+  const seen = new Set<string>();
   for (const row of value) {
     const item = record(row, `${key} breakdown row`);
     exact(item, [key, "n"]);
-    label(item[key], key);
-    result.push({ n: nonnegative(item.n, `${key} breakdown count`) });
+    const rowLabel = label(item[key], key);
+    if (seen.has(rowLabel)) throw new Error(`duplicate ${key} breakdown label`);
+    seen.add(rowLabel);
+    result.push({ label: rowLabel, n: nonnegative(item.n, `${key} breakdown count`) });
   }
   return result;
+}
+
+function validateNonclaims(value: unknown): void {
+  stringArray(value, "nonclaims", REQUIRED_NONCLAIMS.length, REQUIRED_NONCLAIMS.length, 500);
+  if (
+    !Array.isArray(value) ||
+    value.some((item, index) => item !== REQUIRED_NONCLAIMS[index])
+  ) {
+    throw new Error("telemetry review snapshot nonclaims do not match the v1 contract");
+  }
 }
 
 function expectedCoverageMode(
@@ -259,7 +364,13 @@ function windowDays(value: unknown): number {
 
 function timestamp(value: unknown, field: string): number {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
-  if (!Number.isFinite(parsed)) throw new Error(`${field} must be a valid timestamp`);
+  if (
+    !Number.isFinite(parsed) ||
+    typeof value !== "string" ||
+    new Date(parsed).toISOString() !== value
+  ) {
+    throw new Error(`${field} must be a canonical UTC timestamp`);
+  }
   return parsed;
 }
 
@@ -270,21 +381,37 @@ function nonnegative(value: unknown, field: string): number {
   return Number(value);
 }
 
-function label(value: unknown, field: string): void {
+function label(value: unknown, field: string): string {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
-    value.length > TELEMETRY_REVIEW_MAX_LABEL_CHARS
+    value.length > TELEMETRY_REVIEW_MAX_LABEL_CHARS ||
+    value.trim() !== value ||
+    /[\u0000-\u001f\u007f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u.test(value)
   ) {
     throw new Error(`${field} is invalid`);
   }
+  return value;
 }
 
-function stringArray(value: unknown, field: string, maxItems: number, maxChars: number): void {
+function stringArray(
+  value: unknown,
+  field: string,
+  minItems: number,
+  maxItems: number,
+  maxChars: number,
+): void {
   if (
     !Array.isArray(value) ||
+    value.length < minItems ||
     value.length > maxItems ||
-    value.some((item) => typeof item !== "string" || item.length === 0 || item.length > maxChars)
+    value.some(
+      (item) =>
+        typeof item !== "string" ||
+        item.length === 0 ||
+        item.length > maxChars ||
+        /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(item),
+    )
   ) {
     throw new Error(`${field} is invalid`);
   }
@@ -307,4 +434,118 @@ function exact(value: Record<string, unknown>, expected: string[]): void {
 function record(value: unknown, field: string): Record<string, unknown> {
   if (!isTelemetryReviewRecord(value)) throw new Error(`${field} must be an object`);
   return value;
+}
+
+function rejectDuplicateJsonObjectMembers(text: string): void {
+  let index = 0;
+
+  function skipWhitespace(): void {
+    while (index < text.length && /[\u0009\u000a\u000d\u0020]/u.test(text[index] ?? "")) {
+      index += 1;
+    }
+  }
+
+  function parseString(): string {
+    const start = index;
+    index += 1;
+    while (index < text.length) {
+      const character = text[index] ?? "";
+      index += 1;
+      if (character === '"') {
+        return JSON.parse(text.slice(start, index)) as string;
+      }
+      if (character === "\\") {
+        const escape = text[index] ?? "";
+        index += 1;
+        if (escape === "u") index += 4;
+      }
+    }
+    throw new Error("unterminated JSON string");
+  }
+
+  function parseValue(depth: number): void {
+    if (depth > MAX_JSON_DEPTH) throw new Error("JSON nesting exceeds limit");
+    skipWhitespace();
+    const character = text[index];
+    if (character === "{") {
+      parseObject(depth + 1);
+      return;
+    }
+    if (character === "[") {
+      parseArray(depth + 1);
+      return;
+    }
+    if (character === '"') {
+      parseString();
+      return;
+    }
+    if (text.startsWith("true", index)) {
+      index += 4;
+      return;
+    }
+    if (text.startsWith("false", index)) {
+      index += 5;
+      return;
+    }
+    if (text.startsWith("null", index)) {
+      index += 4;
+      return;
+    }
+    const match = text.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/u);
+    if (!match) throw new Error("invalid JSON value");
+    index += match[0].length;
+  }
+
+  function parseObject(depth: number): void {
+    index += 1;
+    skipWhitespace();
+    if (text[index] === "}") {
+      index += 1;
+      return;
+    }
+    const keys = new Set<string>();
+    while (index < text.length) {
+      skipWhitespace();
+      if (text[index] !== '"') throw new Error("invalid JSON object key");
+      const key = parseString();
+      if (keys.has(key)) throw new DuplicateJsonObjectMemberError("duplicate JSON object member");
+      keys.add(key);
+      skipWhitespace();
+      if (text[index] !== ":") throw new Error("invalid JSON object separator");
+      index += 1;
+      parseValue(depth);
+      skipWhitespace();
+      if (text[index] === "}") {
+        index += 1;
+        return;
+      }
+      if (text[index] !== ",") throw new Error("invalid JSON object delimiter");
+      index += 1;
+    }
+    throw new Error("unterminated JSON object");
+  }
+
+  function parseArray(depth: number): void {
+    index += 1;
+    skipWhitespace();
+    if (text[index] === "]") {
+      index += 1;
+      return;
+    }
+    while (index < text.length) {
+      parseValue(depth);
+      skipWhitespace();
+      if (text[index] === "]") {
+        index += 1;
+        return;
+      }
+      if (text[index] !== ",") throw new Error("invalid JSON array delimiter");
+      index += 1;
+    }
+    throw new Error("unterminated JSON array");
+  }
+
+  parseValue(0);
+  skipWhitespace();
+  if (index !== text.length) throw new Error("trailing JSON content");
 }
