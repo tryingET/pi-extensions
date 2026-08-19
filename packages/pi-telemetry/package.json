@@ -44,6 +44,7 @@
   "files": [
     "extensions/telemetry.ts",
     "src",
+    "schemas",
     "docs",
     "prompts",
     "examples",
@@ -81,6 +82,7 @@
   "exports": {
     "./emit": "./src/emit.ts",
     "./quality": "./src/quality.ts",
+    "./review-snapshot": "./src/review-snapshot.ts",
     "./package.json": "./package.json"
   }
 }
