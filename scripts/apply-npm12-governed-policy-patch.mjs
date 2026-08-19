@@ -1,4 +1,4 @@
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 function replaceOnce(filePath, before, after) {
   const content = readFileSync(filePath, "utf8");
@@ -134,32 +134,3 @@ test("governed npm policy rejects simultaneous relative and absolute cutoffs", (
 test("governed npm policy rejects widened or ambient release-age exclusions", () => {
 `,
 );
-
-replaceOnce(
-  ".github/workflows/ci.yml",
-  `          # npm >= 11.13 derives the effective \`before\` cutoff from
-          # min-release-age itself and hard-fails when an explicit \`before\`
-          # key coexists with it, so never write a \`before=\` line here.
-          # \`npm config get before\` below prints the derived cutoff as the
-          # live age proof (min-release-age reads back as null on npm >= 11.13).
-`,
-  `          # npm derives an internal install cutoff from min-release-age, but
-          # \`npm config get before\` reports only an explicitly configured raw
-          # key. The governed preflight therefore proves min-release-age itself
-          # and derives the exact cutoff carried into every sanitized npm effect.
-`,
-);
-
-replaceOnce(
-  ".github/workflows/ci.yml",
-  `          npm config get min-release-age-exclude
-          npm config get before
-`,
-  `          npm config get min-release-age
-          npm config get min-release-age-exclude
-          npm config get before
-`,
-);
-
-rmSync("scripts/apply-npm12-governed-policy-patch.mjs");
-rmSync(".github/workflows/apply-npm12-governed-policy-patch.yml");
