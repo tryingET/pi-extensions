@@ -1,20 +1,21 @@
 name: Apply npm 12 governed-policy repair
 
 on:
-  push:
-    branches:
-      - agent/npm12-governed-policy
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.head_ref == 'agent/npm12-governed-policy'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/npm12-governed-policy
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -30,4 +31,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "fix(ci): prove npm 12 release-age policy directly"
-          git push origin HEAD:agent/npm12-governed-policy
+          git push origin HEAD:${{ github.head_ref }}
