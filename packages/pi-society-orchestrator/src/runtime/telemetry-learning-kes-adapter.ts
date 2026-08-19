@@ -73,6 +73,9 @@ export type TelemetryReviewSnapshotLoader = (snapshotPath: string) => Promise<un
 export interface BuildTelemetryLearningKesAdapterInput {
   packageRoot: string;
   snapshotPath: string;
+  subject: string;
+  subjectRevision: string;
+  configurationRef?: string;
   metric: TelemetryReviewMetricKey;
   threshold: number;
   comparison: TelemetryThresholdComparison;
@@ -80,10 +83,10 @@ export interface BuildTelemetryLearningKesAdapterInput {
   falsificationCondition: string;
   reviewTrigger: string;
   retirementSignal: string;
+  coveragePolicy: TelemetryCoveragePolicy;
+  minimumSampleSize: number;
+  minimumLiveEvents: number;
   action?: TelemetryLearningKesAdapterAction;
-  coveragePolicy?: TelemetryCoveragePolicy;
-  minimumSampleSize?: number;
-  minimumLiveEvents?: number;
   sessionId?: string;
   timestamp?: Date;
   loadSnapshot?: TelemetryReviewSnapshotLoader;
@@ -94,8 +97,13 @@ export interface TelemetryLearningKesAdapterResult {
   action: TelemetryLearningKesAdapterAction;
   status: "planned" | "materialized";
   packageRoot: string;
+  subject: {
+    id: string;
+    revision: string;
+    configurationRef: string | null;
+  };
   snapshot: {
-    path: string;
+    fileName: string;
     schema: typeof TELEMETRY_REVIEW_SNAPSHOT_SCHEMA;
     digest: string;
     sourceEventSetDigest: string;
@@ -135,8 +143,6 @@ export interface TelemetryLearningKesAdapterResult {
 
 const TELEMETRY_REVIEW_MODULE = "@tryinget/pi-telemetry/review-snapshot";
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
-const DEFAULT_MINIMUM_SAMPLE_SIZE = 20;
-const DEFAULT_MINIMUM_LIVE_EVENTS = 1;
 const MAX_POLICY_COUNT = 10_000_000;
 const ADAPTER_BOUNDARY =
   "The adapter validates one digest-bound telemetry observation, evaluates one predeclared review trigger, and may write only package-owned KES diary/candidate artifacts. It does not call Agent Kernel, prove causality or claim truth, mutate telemetry or ontology, or promote content beyond Proposal.";
@@ -147,18 +153,21 @@ export async function buildTelemetryLearningKesAdapterResult(
   const action = normalizeAction(input.action ?? "plan");
   const packageRoot = path.resolve(input.packageRoot);
   const snapshotPath = path.resolve(input.snapshotPath);
+  const subject = boundedText(input.subject, "subject", 300);
+  const subjectRevision = boundedText(input.subjectRevision, "subjectRevision", 200);
+  const configurationRef = optionalBoundedText(input.configurationRef, "configurationRef", 500);
   const metricKey = normalizeMetricKey(input.metric);
   const threshold = finiteNumber(input.threshold, "threshold");
   const comparison = normalizeComparison(input.comparison);
-  const coveragePolicy = normalizeCoveragePolicy(input.coveragePolicy ?? "live-required");
-  const minimumSampleSize = boundedCount(
-    input.minimumSampleSize ?? DEFAULT_MINIMUM_SAMPLE_SIZE,
-    "minimumSampleSize",
-  );
-  const minimumLiveEvents = boundedCount(
-    input.minimumLiveEvents ?? DEFAULT_MINIMUM_LIVE_EVENTS,
-    "minimumLiveEvents",
-  );
+  const coveragePolicy = normalizeCoveragePolicy(input.coveragePolicy);
+  const minimumSampleSize = boundedCount(input.minimumSampleSize, "minimumSampleSize");
+  const minimumLiveEvents = boundedCount(input.minimumLiveEvents, "minimumLiveEvents");
+  if (coveragePolicy === "live-required" && minimumLiveEvents < 1) {
+    throw new Error("minimumLiveEvents must be at least 1 when coveragePolicy is live-required");
+  }
+  if (coveragePolicy === "any-observed" && minimumLiveEvents !== 0) {
+    throw new Error("minimumLiveEvents must be 0 when coveragePolicy is any-observed");
+  }
   const candidateClaim = boundedText(input.candidateClaim, "candidateClaim", 2_000);
   const falsificationCondition = boundedText(
     input.falsificationCondition,
@@ -178,9 +187,7 @@ export async function buildTelemetryLearningKesAdapterResult(
   const thresholdCrossed = compareThreshold(metric.value, threshold, comparison);
   const blockers: string[] = [];
   if (metric.sampleSize < minimumSampleSize) {
-    blockers.push(
-      `metric sample is insufficient (${metric.sampleSize} < ${minimumSampleSize})`,
-    );
+    blockers.push(`metric sample is insufficient (${metric.sampleSize} < ${minimumSampleSize})`);
   }
   if (snapshot.coverage.totalEvents === 0) {
     blockers.push("snapshot coverage is empty");
@@ -197,13 +204,18 @@ export async function buildTelemetryLearningKesAdapterResult(
     blockers.push("the predeclared metric threshold was not crossed");
   }
 
+  const subjectEvidence = configurationRef
+    ? `Subject: ${subject}@${subjectRevision}; configuration=${configurationRef}`
+    : `Subject: ${subject}@${subjectRevision}`;
   const snapshotEvidence = [
+    subjectEvidence,
     `Snapshot: ${snapshot.schema} sha256:${snapshot.snapshotSha256}`,
     `Source event set: sha256:${snapshot.sourceEventSetSha256}`,
-    `Window: ${snapshot.window.start} through ${snapshot.window.end} (${snapshot.window.days} days)` ,
+    `Window: ${snapshot.window.start} through ${snapshot.window.end} (${snapshot.window.days} days)`,
     `Coverage: ${snapshot.coverage.mode}; total=${snapshot.coverage.totalEvents}; live=${snapshot.coverage.liveEvents}; backfill=${snapshot.coverage.backfillEvents}; unspecified=${snapshot.coverage.unspecifiedSourceEvents}`,
     `Metric: ${metricKey}=${metric.value} ${metric.unit}; sample=${metric.sampleSize}; trigger=${comparison} ${threshold}; crossed=${thresholdCrossed}`,
   ];
+  const kesTimestamp = input.timestamp ?? new Date(snapshot.generatedAt);
 
   const kesPlan = createKesArtifactPlan(packageRoot, {
     diary: {
@@ -214,10 +226,11 @@ export async function buildTelemetryLearningKesAdapterResult(
         packageName: "pi-society-orchestrator",
         sessionId: input.sessionId,
         objective:
-          "Review one digest-bound Pi telemetry observation without promoting it into evidence or doctrine authority.",
+          `Review one digest-bound Pi telemetry observation for ${subject}@${subjectRevision} without promoting it into evidence or doctrine authority.`,
       },
       actions: [
         "Validated one pi.telemetry-review-snapshot.v1 artifact through the telemetry package contract.",
+        `Bound the observation to ${subject}@${subjectRevision}.`,
         `Evaluated the predeclared ${metricKey} trigger against its sample and source-coverage policy.`,
         "Prepared an owner-local candidate only; no Agent Kernel call or content promotion was performed.",
       ],
@@ -228,6 +241,9 @@ export async function buildTelemetryLearningKesAdapterResult(
       candidateHints: blockers.length === 0 ? [candidateClaim] : [],
       followUps: [reviewTrigger, falsificationCondition, retirementSignal],
       metadata: {
+        subject,
+        subject_revision: subjectRevision,
+        configuration_ref: configurationRef,
         telemetry_snapshot_schema: snapshot.schema,
         telemetry_snapshot_sha256: snapshot.snapshotSha256,
         telemetry_source_event_set_sha256: snapshot.sourceEventSetSha256,
@@ -235,7 +251,7 @@ export async function buildTelemetryLearningKesAdapterResult(
         telemetry_threshold_crossed: thresholdCrossed,
         telemetry_review_blockers: blockers,
       },
-      timestamp: input.timestamp,
+      timestamp: kesTimestamp,
     },
     learningCandidate: {
       kind: "learning",
@@ -256,6 +272,9 @@ export async function buildTelemetryLearningKesAdapterResult(
         `Retirement: ${retirementSignal}`,
       ],
       metadata: {
+        subject,
+        subject_revision: subjectRevision,
+        configuration_ref: configurationRef,
         telemetry_snapshot_schema: snapshot.schema,
         telemetry_snapshot_sha256: snapshot.snapshotSha256,
         telemetry_source_event_set_sha256: snapshot.sourceEventSetSha256,
@@ -266,6 +285,8 @@ export async function buildTelemetryLearningKesAdapterResult(
         telemetry_threshold: threshold,
         telemetry_comparison: comparison,
         telemetry_coverage_policy: coveragePolicy,
+        telemetry_minimum_sample_size: minimumSampleSize,
+        telemetry_minimum_live_events: minimumLiveEvents,
         lifecycle_entry_stage: "proposal",
       },
     },
@@ -282,6 +303,9 @@ export async function buildTelemetryLearningKesAdapterResult(
     check_type: "pi-telemetry-review-snapshot-v1",
     result: "pass",
     details: {
+      subject,
+      subject_revision: subjectRevision,
+      configuration_ref: configurationRef,
       schema: snapshot.schema,
       snapshot_sha256: snapshot.snapshotSha256,
       source_event_set_sha256: snapshot.sourceEventSetSha256,
@@ -294,6 +318,9 @@ export async function buildTelemetryLearningKesAdapterResult(
         threshold,
         comparison,
         threshold_crossed: thresholdCrossed,
+        minimum_sample_size: minimumSampleSize,
+        coverage_policy: coveragePolicy,
+        minimum_live_events: minimumLiveEvents,
       },
       review_ready: blockers.length === 0,
       review_blockers: blockers,
@@ -309,8 +336,13 @@ export async function buildTelemetryLearningKesAdapterResult(
     action,
     status: action === "materialize" ? "materialized" : "planned",
     packageRoot,
+    subject: {
+      id: subject,
+      revision: subjectRevision,
+      configurationRef,
+    },
     snapshot: {
-      path: snapshotPath,
+      fileName: path.basename(snapshotPath),
       schema: snapshot.schema,
       digest: snapshot.snapshotSha256,
       sourceEventSetDigest: snapshot.sourceEventSetSha256,
@@ -476,10 +508,22 @@ function finiteNumber(value: unknown, field: string): number {
 function boundedText(value: unknown, field: string, maxChars: number): string {
   if (typeof value !== "string") throw new Error(`${field} must be a string`);
   const normalized = value.trim();
-  if (!normalized || normalized.length > maxChars || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(normalized)) {
+  if (
+    !normalized ||
+    normalized.length > maxChars ||
+    /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(normalized)
+  ) {
     throw new Error(`${field} is empty, oversized, or contains control characters`);
   }
   return normalized;
+}
+
+function optionalBoundedText(
+  value: unknown,
+  field: string,
+  maxChars: number,
+): string | null {
+  return value === undefined || value === null ? null : boundedText(value, field, maxChars);
 }
 
 function record(value: unknown, field: string): Record<string, unknown> {
