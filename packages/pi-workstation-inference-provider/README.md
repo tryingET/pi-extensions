@@ -14,6 +14,16 @@ system4d:
 
 Pi provider adapter for workstation-owned inference endpoints. Ordinary text/provider discovery remains lifecycle-read-only; the explicitly invoked audio path consumes one externally issued scheduler claim.
 
+## Local-first hot path
+
+This package treats the workstation as the primary inference plane. Contract files are parsed into an immutable in-memory generation, ordinary text requests use cached nonblocking health, and governed audio retains blocking owner checks. Modal or another remote provider is an explicit overflow lane rather than a dependency.
+
+Design and rollout details:
+
+- [Local-first workstation design packet](docs/project/2026-08-20-local-first-workstation-design-packet.md)
+- [Implementation plan](docs/project/2026-08-20-local-first-workstation-implementation-plan.md)
+- [Hot-path ADR](docs/adr/2026-08-20-local-first-workstation-hot-path.md)
+
 This package is intentionally **not** a llama.cpp manager. It does not download models, build
 runtimes, start services, stop services, warm models, or decide promotion. Workstation `lane-op`
 remains the runtime authority for baseline/canary/experiment state, GPU/coexistence gates, receipts,
@@ -27,8 +37,8 @@ The audio path is not globally read-only: it mutates only the externally owned s
 - Registers a Pi provider, default id `workstation-inference`, with a provider-local API id `workstation-inference`.
 - Delegates internally to Pi's OpenAI-compatible transport for workstation requests only, without owning the shared `openai-completions` transport.
 - Maps contract models into Pi model entries.
-- Performs read-only health checks before provider requests.
-- Provides `/workstation-inference status` and `/workstation-inference contract`.
+- Primes and caches read-only health probes; ordinary text uses nonblocking stale-while-revalidate while governed audio remains blocking.
+- Provides `/workstation-inference status`, `/workstation-inference hot-path`, and `/workstation-inference contract`.
 - Implements the Pi 0.83 one-shot Inkling `audio-send` payload membrane; it requires and consumes an exact externally issued scheduler handoff before one provider dispatch.
 
 ## What it must not do

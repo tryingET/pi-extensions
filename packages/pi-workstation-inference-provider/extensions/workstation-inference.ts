@@ -26,11 +26,13 @@ import {
   LANE_OP_SCRIPT,
   normalizeBaseUrl,
   notifyOrLog,
+  primeWorkstationHealth,
   providerModel,
   resolveContractStatus,
   WORKSTATION_API_ID,
   WORKSTATION_ROOT_ENV,
   type WorkstationInferenceContract,
+  workstationProviderHotPathStatus,
   workstationRoot,
 } from "./workstation-inference-contract.ts";
 import {
@@ -40,9 +42,14 @@ import {
 
 export { sendWorkbenchAudioTurn } from "./workstation-inference-audio-turn.ts";
 export {
+  clearWorkstationContractCache,
   clearWorkstationHealthCache,
+  clearWorkstationProviderCaches,
+  primeWorkstationHealth,
   providerModel,
+  refreshWorkstationContractGeneration,
   resolveContractStatus,
+  workstationProviderHotPathStatus,
 } from "./workstation-inference-contract.ts";
 export { streamWorkstationInference } from "./workstation-inference-stream.ts";
 
@@ -71,11 +78,21 @@ async function runLaneOp(
 
 function statusText(status: ContractStatus): string {
   const contract = status.contract;
+  const generation = status.generation;
+  const unhealthy = status.health?.filter((entry) => entry.unhealthy).length ?? 0;
   const lines = [
     `status: ${status.status}`,
     `summary: ${status.summary}`,
     status.source ? `source: ${status.source}` : undefined,
     status.detail ? `detail: ${status.detail}` : undefined,
+    generation?.initialized
+      ? `contract_generation: ${generation.generationId} (${generation.modelCount} models from ${generation.sourceCount} sources)`
+      : "contract_generation: uninitialized",
+    generation?.refreshInFlight ? "contract_refresh: in-flight" : undefined,
+    generation?.lastRefreshError
+      ? `contract_refresh_error: ${generation.lastRefreshError}`
+      : undefined,
+    status.health ? `health_cache: ${status.health.length} endpoints, ${unhealthy} unhealthy` : undefined,
     contract ? `provider: ${contract.provider_id ?? DEFAULT_PROVIDER_ID}` : undefined,
     contract ? `base_url: ${normalizeBaseUrl(contract.base_url)}` : undefined,
     contract ? `health_url: ${contract.health_url ?? defaultHealthUrl(contract)}` : undefined,
@@ -140,7 +157,8 @@ export default async function (pi: ExtensionAPI) {
         notifyOrLog(
           ctx,
           [
-            "/workstation-inference status  Show contract and health status",
+            "/workstation-inference status  Reload contracts and show blocking health status",
+            "/workstation-inference hot-path  Show in-memory generation and health-cache status",
             "/workstation-inference refresh  Ask lane-op to refresh canonical and canary provider contracts",
             "/workstation-inference lane-status  Show lane-op baseline-text status",
             "/workstation-inference contract  Show the expected contract path/env",
@@ -148,6 +166,10 @@ export default async function (pi: ExtensionAPI) {
             "/workstation-inference workbench-audio-send <audio> -- <prompt>  Consume one broker-owned inherited authority turn",
           ].join("\n"),
         );
+        return;
+      }
+      if (action === "hot-path") {
+        notifyOrLog(ctx, JSON.stringify(workstationProviderHotPathStatus(), null, 2));
         return;
       }
       if (action === "contract") {
@@ -229,9 +251,14 @@ export default async function (pi: ExtensionAPI) {
         if (!inklingRefresh.ok) {
           inklingWarning = `optional Inkling refresh unavailable: ${inklingRefresh.detail}`;
         }
-        const status = await resolveContractStatus({ checkHealth: true });
-        if (status.status === "ok" && status.contract)
+        const status = await resolveContractStatus({
+          checkHealth: true,
+          refreshContracts: true,
+        });
+        if (status.status === "ok" && status.contract) {
           registerContractProvider(pi, status.contract);
+          void primeWorkstationHealth().catch(() => {});
+        }
         notifyOrLog(
           ctx,
           ["refresh: ok", inklingWarning, statusText(status)]
@@ -254,11 +281,20 @@ export default async function (pi: ExtensionAPI) {
         notifyOrLog(ctx, `unknown action: ${action}; try /workstation-inference help`, "warning");
         return;
       }
-      const status = await resolveContractStatus({ checkHealth: true });
-      if (status.status === "ok" && status.contract) registerContractProvider(pi, status.contract);
+      const status = await resolveContractStatus({
+        checkHealth: true,
+        refreshContracts: true,
+      });
+      if (status.status === "ok" && status.contract) {
+        registerContractProvider(pi, status.contract);
+        void primeWorkstationHealth().catch(() => {});
+      }
       notifyOrLog(ctx, statusText(status));
     },
   });
 
-  if (initial.status === "ok" && initial.contract) registerContractProvider(pi, initial.contract);
+  if (initial.status === "ok" && initial.contract) {
+    registerContractProvider(pi, initial.contract);
+    void primeWorkstationHealth().catch(() => {});
+  }
 }
