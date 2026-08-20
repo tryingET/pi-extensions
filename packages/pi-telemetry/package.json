@@ -30,6 +30,8 @@
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
     "typecheck": "tsgo --noEmit",
+    "build:review-runtime": "node ./scripts/build-review-runtime.mjs",
+    "prepack": "npm run build:review-runtime",
     "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
     "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
@@ -44,6 +46,7 @@
   "files": [
     "extensions/telemetry.ts",
     "src",
+    "dist",
     "schemas",
     "docs",
     "prompts",
@@ -85,7 +88,11 @@
   "exports": {
     "./emit": "./src/emit.ts",
     "./quality": "./src/quality.ts",
-    "./review-snapshot": "./src/review-snapshot.ts",
+    "./review-snapshot": {
+      "types": "./dist/review-snapshot.d.ts",
+      "import": "./dist/review-snapshot.js",
+      "default": "./dist/review-snapshot.js"
+    },
     "./package.json": "./package.json"
   }
 }
