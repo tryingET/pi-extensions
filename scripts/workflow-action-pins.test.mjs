@@ -124,3 +124,26 @@ test("workflows do not reintroduce mutable action tags", () => {
     );
   }
 });
+
+test("Dolt bootstrap is versioned and bound to reviewed source", () => {
+  const lock = loadLock();
+  assert.deepEqual(lock.dolt, {
+    version: "2.3.1",
+    tag: "v2.3.1",
+    tagCommit: "b15770fe588268027d799c11356af0ce24ba882a",
+    installerTemplateBlobSha: "b212efe0dcb5b8ac05ceeefad17a65f19a5f502b",
+  });
+
+  const combined = workflowFiles().map(({ content }) => content).join("\n");
+  assert.doesNotMatch(combined, /dolthub\/dolt\/releases\/latest\//u);
+  assert.ok(
+    combined.includes("dolthub/dolt/releases/download/v$dolt_version/install.sh"),
+    "Dolt installation must use the locked versioned release asset",
+  );
+  assert.ok(combined.includes(lock.dolt.tagCommit));
+  assert.ok(combined.includes(lock.dolt.installerTemplateBlobSha));
+  assert.ok(
+    combined.includes('cmp "$expected" "$installer"'),
+    "downloaded release installer must match the installer generated from locked source",
+  );
+});
