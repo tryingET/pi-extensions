@@ -86,12 +86,21 @@ async function build(root, overrides = {}) {
   });
 }
 
-test("declares the telemetry producer as an optional feature-compatible peer", async () => {
+test("declares telemetry as a registry-independent optional producer contract", async () => {
   const manifest = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8"),
   );
-  assert.equal(manifest.peerDependencies?.["@tryinget/pi-telemetry"], "^0.3.0");
-  assert.equal(manifest.peerDependenciesMeta?.["@tryinget/pi-telemetry"]?.optional, true);
+  assert.deepEqual(
+    manifest["x-pi-integrations"]?.optionalProducers?.["@tryinget/pi-telemetry"],
+    {
+      contract: "pi.telemetry-review-snapshot.v1",
+      testedProducerVersion: "0.3.0",
+      loading: "dynamic",
+      registryDependency: false,
+    },
+  );
+  assert.equal(manifest.peerDependencies?.["@tryinget/pi-telemetry"], undefined);
+  assert.equal(manifest.peerDependenciesMeta?.["@tryinget/pi-telemetry"], undefined);
 });
 
 test("registers the adapter without importing pi-telemetry at extension load time", () => {
