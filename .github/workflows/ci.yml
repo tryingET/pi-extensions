@@ -1,9 +1,10 @@
-name: CI
+name: ci
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -13,131 +14,101 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  package-ci:
+  check:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - package_path: packages/pi-agent-interaction-canary
-            install: true
-          - package_path: packages/pi-agent-vent
-            install: true
-          - package_path: packages/pi-autonomous-session-control
-            install: true
-          - package_path: packages/pi-better-openai
-            install: true
-          - package_path: packages/pi-context-packer
-            install: true
-          - package_path: packages/pi-eval-kernel
-            install: true
-          - package_path: packages/pi-evalset-lab
-            install: true
-          - package_path: packages/pi-evidence-review
-            install: true
-          - package_path: packages/pi-little-helpers
-            install: true
-          - package_path: packages/pi-llamacpp
-            install: true
-          - package_path: packages/pi-mermaid
-            install: true
-          - package_path: packages/pi-modes
-            install: true
-          - package_path: packages/pi-provenance
-            install: true
-          - package_path: packages/pi-session-compaction
-            install: true
-          - package_path: packages/pi-session-insights
-            install: true
-          - package_path: packages/pi-snapshot-edit
-            install: true
-          - package_path: packages/pi-society-orchestrator
-            install: true
-          - package_path: packages/pi-telemetry
-            install: true
-          - package_path: packages/pi-workstation-inference-provider
-            install: true
-          - package_path: packages/pi-autoresearch
-            install: true
-          - package_path: packages/pi-interaction/pi-editor-registry
-            install: true
-          - package_path: packages/pi-interaction/pi-interaction
-            install: true
-          - package_path: packages/pi-interaction/pi-interaction-kit
-            install: true
-          - package_path: packages/pi-interaction/pi-runtime-registry
-            install: true
-          - package_path: packages/pi-interaction/pi-trigger-adapter
-            install: true
-          - package_path: packages/pi-multi-pass
-            install: true
-          - package_path: packages/pi-prompt-inject
-            install: true
-          - package_path: packages/pi-prompt-template-accelerator
-            install: true
-          - package_path: packages/pi-toolbox-discovery
-            install: true
-          - package_path: packages/pi-vault-client
-            install: true
-          - package_path: packages/pi-context-engineering
-            install: true
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: "22.19.0"
-      - name: Install governed npm client
-        run: npm install --global npm@12.0.2
-      - name: Install dependencies
-        if: matrix.install
-        working-directory: ${{ matrix.package_path }}
-        run: npm ci
-      - name: Run package checks
-        working-directory: ${{ matrix.package_path }}
-        run: npm run check
 
-  root-ci:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.19.0"
-      - name: Install governed npm client
-        run: npm install --global npm@12.0.2
+          package-manager-cache: false
+
+      - name: Prepare governed npm runtime policy
+        run: |
+          governed_tmp="$RUNNER_TEMP/governed-runtime"
+          governed_cache="$RUNNER_TEMP/governed-npm-cache"
+          governed_npmrc="$RUNNER_TEMP/governed-runtime.npmrc"
+          npm_global="$RUNNER_TEMP/npm-global"
+          mkdir -p "$governed_tmp" "$governed_cache" "$npm_global"
+          echo "TMPDIR=$governed_tmp" >> "$GITHUB_ENV"
+          echo "GOVERNED_NPM_CACHE=$governed_cache" >> "$GITHUB_ENV"
+          echo "NPM_CONFIG_USERCONFIG=$governed_npmrc" >> "$GITHUB_ENV"
+          npm install --global --prefix "$npm_global" npm@12.0.2
+          echo "$npm_global/bin" >> "$GITHUB_PATH"
+          "$npm_global/bin/npm" --version
+
       - name: Validate immutable workflow inputs
         run: node --test ./scripts/workflow-action-pins.test.mjs
-      - name: Validate release component metadata
-        run: node ./scripts/release-components.mjs validate
-      - name: Test release component resolver
-        run: node --test ./scripts/release-components.test.mjs
-      - name: Test standalone extension generations
-        run: node --test ./scripts/standalone-extension-generations.test.mjs
-      - name: Test package corpus summary
-        run: node --test ./scripts/package-corpus-summary.test.mjs
-      - name: Test package quality gate entrypoints
-        run: node --test ./scripts/package-quality-gate.test.mjs
-      - name: Test package release-check fast paths
-        run: node --test ./scripts/package-release-check.test.mjs
-      - name: Test package migration ledger
-        run: node --test ./scripts/package-migration-ledger.test.mjs
-      - name: Check copied release-check drift
-        run: node ./scripts/check-release-check-drift.mjs
-      - name: Validate package release policy
-        run: bash ./scripts/release-policy-check.sh
-      - name: Enforce semantic commit subjects
-        run: bash ./scripts/semantic-commit-check.sh
-      - name: Check dashboard asset policy
-        run: bash ./scripts/check-dashboard-assets.sh
-      - name: Check duplicate extension basenames
-        run: bash ./scripts/check-extension-basename-collisions.sh
-      - name: Check forbidden external extension symlinks
-        run: bash ./scripts/check-no-external-extension-symlinks.sh
-      - name: Run monorepo quality gate
-        run: bash ./scripts/monorepo-quality-gate.sh ci
+
+      - name: Install Dolt for governed deep-review canary
+        run: |
+          curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh -o "$RUNNER_TEMP/install-dolt.sh"
+          sudo bash "$RUNNER_TEMP/install-dolt.sh"
+          dolt config --global --set user.name "github-actions[bot]"
+          dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          dolt version
+
+      - name: Create immutable CI worktree
+        run: |
+          runtime_root="$RUNNER_TEMP/pi-extensions-${GITHUB_SHA:0:8}"
+          git worktree add --detach "$runtime_root" "$GITHUB_SHA"
+          echo "GOVERNED_CI_ROOT=$runtime_root" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install --package-lock-only --ignore-scripts
+            npm ci
+            rm -f package-lock.json
+          fi
+
+      - name: Run host compatibility mutation tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: |
+          node --test ./scripts/pi-host-compatibility-canary.test.mjs
+          node --test ./scripts/pi-host-compatibility-canary.recovery.test.mjs
+
+      - name: Materialize governed runtime canary dependencies
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: |
+          # npm derives the install cutoff from min-release-age in its internal
+          # flat options. `npm config get before` reports only an explicitly
+          # configured raw key, so the governed preflight proves the declared
+          # relative policy and derives the exact cutoff used by npm effects.
+          cat > "$NPM_CONFIG_USERCONFIG" <<EOF
+          min-release-age=7
+          min-release-age-exclude[]=@tryinget/*
+          registry=https://registry.npmjs.org/
+          offline=false
+          prefer-offline=false
+          force=false
+          cache=$GOVERNED_NPM_CACHE
+          EOF
+          npm --version
+          npm config get min-release-age
+          npm config get min-release-age-exclude
+          npm config get before
+          node ./scripts/governed-deep-review-canary.mjs materialize \
+            --source-root "$GOVERNED_CI_ROOT" \
+            --expected-commit "$GITHUB_SHA"
+
+      - name: Run quality gate (ci)
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        # Package checks and release contracts run in their dedicated matrices with package deps.
+        # Hermetic ontology package checks use temporary fixtures there; the real-ROCS
+        # owner-workspace lane remains an explicit pre-release command outside public CI.
+        run: >-
+          PI_SKIP_ROCS=1
+          PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1
+          PI_SKIP_PACKAGES=1
+          PI_SKIP_HOST_COMPAT_MUTATION_TESTS=1
+          npm run quality:ci
