@@ -27,7 +27,14 @@ jobs:
         with:
           node-version: "22.22.2"
       - name: Install governed npm client
-        run: npm install --global npm@12.0.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_global="$RUNNER_TEMP/npm-global"
+          mkdir -p "$npm_global"
+          npm install --global --prefix "$npm_global" npm@12.0.2
+          echo "$npm_global/bin" >> "$GITHUB_PATH"
+          "$npm_global/bin/npm" --version
       - name: Validate immutable workflow inputs
         run: node --test ./scripts/workflow-action-pins.test.mjs
       - name: Validate release component projections
