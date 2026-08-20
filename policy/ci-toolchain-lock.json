@@ -15,13 +15,9 @@
       "version": "v7",
       "sha": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
     },
-    "actions/github-script": {
-      "version": "v8",
-      "sha": "5d0a6c5505dcf00cb12f1ed09dd261c769d8b353"
-    },
     "googleapis/release-please-action": {
-      "version": "v4",
-      "sha": "cc61a07e2da466bebbc19bd7682a655e9db616a5"
+      "version": "v5.0.0",
+      "sha": "45996ed1f6d02564a971a2fa1b5860e934307cf7"
     },
     "mitchellh/vouch/action/check-pr": {
       "version": "reviewed",
