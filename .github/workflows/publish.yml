@@ -38,7 +38,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "22.19.0"
+          node-version: "22.22.2"
           registry-url: https://registry.npmjs.org
       - name: Install governed npm client
         run: npm install --global npm@12.0.2
@@ -132,8 +132,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh | sudo bash
-          dolt version
+          dolt_version="2.3.1"
+          dolt_commit="b15770fe588268027d799c11356af0ce24ba882a"
+          dolt_template_blob="b212efe0dcb5b8ac05ceeefad17a65f19a5f502b"
+          template="$RUNNER_TEMP/install-dolt.template.sh"
+          expected="$RUNNER_TEMP/install-dolt.expected.sh"
+          installer="$RUNNER_TEMP/install-dolt.sh"
+          curl -fsSL "https://raw.githubusercontent.com/dolthub/dolt/$dolt_commit/go/utils/publishrelease/install.sh" -o "$template"
+          test "$(git hash-object "$template")" = "$dolt_template_blob"
+          sed "s/__DOLT_VERSION__/$dolt_version/g" "$template" > "$expected"
+          curl -fsSL "https://github.com/dolthub/dolt/releases/download/v$dolt_version/install.sh" -o "$installer"
+          cmp "$expected" "$installer"
+          sudo bash "$installer"
+          dolt version | grep -F "$dolt_version"
       - name: Run package quality gate
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm run check
