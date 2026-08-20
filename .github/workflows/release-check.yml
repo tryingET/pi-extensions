@@ -1,9 +1,11 @@
 name: release-check
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -13,69 +15,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release-check:
+  discover-components:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - package_path: packages/pi-agent-interaction-canary
-          - package_path: packages/pi-agent-vent
-          - package_path: packages/pi-autonomous-session-control
-          - package_path: packages/pi-better-openai
-          - package_path: packages/pi-context-packer
-          - package_path: packages/pi-eval-kernel
-          - package_path: packages/pi-evalset-lab
-          - package_path: packages/pi-little-helpers
-          - package_path: packages/pi-llamacpp
-          - package_path: packages/pi-mermaid
-          - package_path: packages/pi-modes
-          - package_path: packages/pi-multi-pass
-          - package_path: packages/pi-prompt-inject
-          - package_path: packages/pi-prompt-template-accelerator
-          - package_path: packages/pi-provenance
-          - package_path: packages/pi-session-compaction
-          - package_path: packages/pi-snapshot-edit
-          - package_path: packages/pi-society-orchestrator
-          - package_path: packages/pi-telemetry
-          - package_path: packages/pi-autoresearch
-          - package_path: packages/pi-toolbox-discovery
-          - package_path: packages/pi-vault-client
-          - package_path: packages/pi-workstation-inference-provider
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: "22.22.2"
-      - name: Install governed npm client
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm_global="$RUNNER_TEMP/npm-global"
-          mkdir -p "$npm_global"
-          npm install --global --prefix "$npm_global" npm@12.0.2
-          echo "$npm_global/bin" >> "$GITHUB_PATH"
-          "$npm_global/bin/npm" --version
-      - name: Install dependencies
-        working-directory: ${{ matrix.package_path }}
-        run: npm ci
-      - name: Run package release check
-        working-directory: ${{ matrix.package_path }}
-        run: npm run release:check
 
-  root-repository-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.22.2"
+          package-manager-cache: false
+
       - name: Install governed npm client
         shell: bash
         run: |
@@ -85,17 +41,82 @@ jobs:
           npm install --global --prefix "$npm_global" npm@12.0.2
           echo "$npm_global/bin" >> "$GITHUB_PATH"
           "$npm_global/bin/npm" --version
+
       - name: Validate immutable workflow inputs
         run: node --test ./scripts/workflow-action-pins.test.mjs
+
       - name: Validate root dependency installation contract
         run: node --test ./scripts/root-package-install-contract.test.mjs
-      - name: Validate release component metadata
+
+      - name: Validate release-please component metadata
         run: node ./scripts/release-components.mjs validate
-      - name: Test release component resolver
+
+      - name: Run release component tests
         run: node --test ./scripts/release-components.test.mjs
-      - name: Test package release-check fast paths
-        run: node --test ./scripts/package-release-check.test.mjs
-      - name: Check copied release-check drift
-        run: node ./scripts/check-release-check-drift.mjs
-      - name: Validate package release policy
-        run: bash ./scripts/release-policy-check.sh
+
+      - id: matrix
+        name: Build component matrix
+        run: |
+          echo 'matrix<<EOF' >> "$GITHUB_OUTPUT"
+          node ./scripts/release-components.mjs matrix --json >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+
+  package-release-check:
+    needs: discover-components
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover-components.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.22.2"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Prepare managed package release scratch
+        run: |
+          release_tmp="$RUNNER_TEMP/package-release-check"
+          mkdir -p "$release_tmp"
+          echo "TMPDIR=$release_tmp" >> "$GITHUB_ENV"
+
+      - name: Install governed npm client
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_global="$RUNNER_TEMP/npm-global"
+          mkdir -p "$npm_global"
+          npm install --global --prefix "$npm_global" npm@12.0.2
+          echo "$npm_global/bin" >> "$GITHUB_PATH"
+          "$npm_global/bin/npm" --version
+
+      - name: Prepare linked ASC source runtime
+        if: matrix.component == 'pi-society-orchestrator'
+        run: bash ./scripts/prepare-asc-source-build-owner.sh
+
+      - name: Install package dependencies
+        working-directory: ${{ matrix.package_path }}
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install --package-lock-only --ignore-scripts
+            npm ci
+          fi
+
+      - name: Run pi-modes credential-free installed-artifact checks
+        if: matrix.component == 'pi-modes'
+        working-directory: ${{ matrix.package_path }}
+        run: npm run release:check:ci
+
+      - name: Run generic release checks (artifact-only)
+        if: matrix.component != 'pi-modes'
+        working-directory: ${{ matrix.package_path }}
+        run: npm run release:check:quick
