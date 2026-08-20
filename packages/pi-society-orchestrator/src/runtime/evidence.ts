@@ -187,19 +187,24 @@ async function determineEvidenceWriteMode(
   };
 }
 
+export function buildAkEvidenceRecordArgs(entry: EvidenceEntry): string[] {
+  const args = ["evidence", "record", "--check-type", entry.check_type, "--result", entry.result];
+  if (typeof entry.task_id === "number") {
+    args.push("--task", String(entry.task_id));
+  }
+  if (entry.details) {
+    args.push("--details", JSON.stringify(entry.details));
+  }
+  return args;
+}
+
 export async function recordEvidence(
   entry: EvidenceEntry,
   signal: AbortSignal | undefined,
   config: RecordEvidenceConfig,
 ): Promise<EvidenceWriteResult> {
   const repoPath = path.resolve(config.cwd || process.cwd());
-  const akArgs = ["evidence", "record", "--check-type", entry.check_type, "--result", entry.result];
-  if (typeof entry.task_id === "number") {
-    akArgs.push("--task", String(entry.task_id));
-  }
-  if (entry.details) {
-    akArgs.push("--details", JSON.stringify(entry.details));
-  }
+  const akArgs = buildAkEvidenceRecordArgs(entry);
 
   const mode = await determineEvidenceWriteMode(config, signal, repoPath);
   if (mode.mode === "failed") {
