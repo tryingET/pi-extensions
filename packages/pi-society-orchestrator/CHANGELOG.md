@@ -13,6 +13,18 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.7.1...pi-society-orchestrator-v0.8.0) (2026-08-20)
+
+
+### Features
+
+* **pi-society-orchestrator:** verify telemetry review KES handoff ([#131](https://github.com/tryingET/pi-extensions/issues/131)) ([d38a469](https://github.com/tryingET/pi-extensions/commit/d38a46950894435f8411a88ddbe7c7b0fba3b2af))
+
+
+### Bug Fixes
+
+* **orchestrator:** derive npm age proof from effective before; never write before= ([542bed3](https://github.com/tryingET/pi-extensions/commit/542bed3d12797712f6a5300202e29b202ca0dfda))
+
 ## [0.7.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.7.0...pi-society-orchestrator-v0.7.1) (2026-08-16)
 
 
