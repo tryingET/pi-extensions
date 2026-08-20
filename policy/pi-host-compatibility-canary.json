@@ -181,10 +181,14 @@
         "node",
         "--test",
         "--experimental-strip-types",
+        "--test-name-pattern",
+        "^(?!end-to-end: raw stdout noise does not satisfy startup readiness$).*",
         "tests/rewind-runtime.test.mjs",
         "tests/subagent-transport-live.test.mjs",
+        "tests/startup-noise-host-contract.test.mjs",
         "tests/dispatch-subagent-lifecycle-control.test.mjs"
-      ]
+      ],
+      "notes": "Runs the broad lifecycle suite while replacing the scheduler-sensitive 250ms single-write startup-noise assertion with a dedicated repeated-noise host contract that preserves the same fail-closed readiness invariant under loaded CI runners."
     },
     {
       "id": "prompt-mode-base-composition-parity",
