@@ -3,11 +3,12 @@ name: compatibility-canary
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       profile:
-        description: Compatibility profile to execute
+        description: "Canary profile to run"
         required: false
         default: current
         type: choice
@@ -15,15 +16,11 @@ on:
           - current
           - upgrade
       host_version:
-        description: Exact Pi host version for the upgrade profile
+        description: "Exact @earendil-works/pi-coding-agent version for upgrade runs"
         required: false
         type: string
       changelog_ref:
-        description: Exact upstream review anchor for the upgrade profile
-        required: false
-        type: string
-      scenario:
-        description: Optional exact scenario id
+        description: "Exact reviewed changelog anchor (tag/commit/diff URL) for upgrade runs"
         required: false
         type: string
 
@@ -35,51 +32,160 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate-policy:
-    name: validate-policy
+  discover:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      profile: ${{ steps.profile.outputs.value }}
+      host_version: ${{ steps.host.outputs.version }}
+      review_anchor: ${{ steps.host.outputs.review_anchor }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.19.0"
-      - name: Install governed npm client
-        run: npm install --global npm@12.0.2
-      - name: Validate compatibility policy and runner contract
-        run: npm exec --yes --package=tsx@4.20.5 -- tsx scripts/pi-host-compat-canary.ts --list
+          package-manager-cache: false
 
-  compatibility-canary:
-    name: compatibility-canary
-    needs: validate-policy
+      - name: Install governed npm client
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-global"
+          npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
+
+      - id: profile
+        name: Select canary profile
+        env:
+          WORKFLOW_PROFILE: ${{ inputs.profile }}
+        run: |
+          profile="${WORKFLOW_PROFILE:-current}"
+          if [ -z "$profile" ]; then
+            profile="current"
+          fi
+          echo "value=$profile" >> "$GITHUB_OUTPUT"
+
+      - name: Validate canary manifest
+        run: node ./scripts/pi-host-compatibility-canary.mjs validate
+
+      - id: host
+        name: Resolve exact host contract
+        env:
+          WORKFLOW_PROFILE: ${{ steps.profile.outputs.value }}
+          PI_HOST_COMPAT_HOST_VERSION: ${{ inputs.host_version }}
+          PI_HOST_COMPAT_CHANGELOG_REF: ${{ inputs.changelog_ref }}
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const { execFileSync } = require("node:child_process");
+
+          const profile = process.env.WORKFLOW_PROFILE;
+          const payload = JSON.parse(
+            execFileSync(
+              process.execPath,
+              [
+                "./scripts/pi-host-compatibility-canary.mjs",
+                "resolve-host",
+                "--profile",
+                profile,
+                "--json",
+              ],
+              { encoding: "utf8" },
+            ),
+          );
+
+          console.log(`version=${payload.host.version}`);
+          console.log(`review_anchor=${payload.host.reviewAnchor}`);
+          NODE
+
+      - id: matrix
+        name: Build scenario matrix
+        env:
+          PI_HOST_COMPAT_PROFILE: ${{ steps.profile.outputs.value }}
+          PI_HOST_COMPAT_HOST_VERSION: ${{ steps.host.outputs.version }}
+          PI_HOST_COMPAT_CHANGELOG_REF: ${{ steps.host.outputs.review_anchor }}
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const { execFileSync } = require("node:child_process");
+
+          const profile = process.env.PI_HOST_COMPAT_PROFILE || "current";
+          const payload = JSON.parse(
+            execFileSync(
+              process.execPath,
+              [
+                "./scripts/pi-host-compatibility-canary.mjs",
+                "list",
+                "--profile",
+                profile,
+                "--json",
+              ],
+              { encoding: "utf8" },
+            ),
+          );
+
+          const include = payload.scenarios.map((scenario) => ({
+            id: scenario.id,
+            title: scenario.title,
+            cwd: scenario.cwd,
+          }));
+
+          if (include.length === 0) {
+            throw new Error(`No canary scenarios resolved for profile '${profile}'.`);
+          }
+
+          console.log("matrix<<EOF");
+          console.log(JSON.stringify({ include }));
+          console.log("EOF");
+          NODE
+
+  run-scenario:
+    needs: discover
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    name: ${{ matrix.id }}
     env:
-      PI_HOST_COMPAT_PROFILE: ${{ inputs.profile || 'current' }}
-      PI_HOST_COMPAT_HOST_VERSION: ${{ inputs.host_version || '' }}
-      PI_HOST_COMPAT_CHANGELOG_REF: ${{ inputs.changelog_ref || '' }}
-      PI_HOST_COMPAT_SCENARIO: ${{ inputs.scenario || '' }}
+      PI_HOST_COMPAT_PROFILE: ${{ needs.discover.outputs.profile }}
+      PI_HOST_COMPAT_SCENARIO: ${{ matrix.id }}
+      PI_HOST_COMPAT_HOST_VERSION: ${{ needs.discover.outputs.host_version }}
+      PI_HOST_COMPAT_CHANGELOG_REF: ${{ needs.discover.outputs.review_anchor }}
+      PI_HOST_VERSION: ${{ needs.discover.outputs.host_version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.19.0"
+          package-manager-cache: false
+
       - name: Install governed npm client
-        run: npm install --global npm@12.0.2
-      - name: Validate requested profile input
-        shell: bash
         run: |
-          set -euo pipefail
-          if [[ "$PI_HOST_COMPAT_PROFILE" == "upgrade" ]]; then
-            if [[ -z "$PI_HOST_COMPAT_HOST_VERSION" || -z "$PI_HOST_COMPAT_CHANGELOG_REF" ]]; then
-              echo "The upgrade profile requires both host_version and changelog_ref inputs." >&2
-              exit 1
-            fi
-          fi
-      - name: Run exact Pi host compatibility canary
+          mkdir -p "$RUNNER_TEMP/npm-global"
+          npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare linked ASC source runtime
+        if: matrix.cwd == 'packages/pi-society-orchestrator'
+        run: bash ./scripts/prepare-asc-source-build-owner.sh
+
+      - name: Install scenario dependencies
+        working-directory: ${{ matrix.cwd }}
         run: |
-          args=(--profile "$PI_HOST_COMPAT_PROFILE")
-          if [[ -n "$PI_HOST_COMPAT_SCENARIO" ]]; then
-            args+=(--scenario "$PI_HOST_COMPAT_SCENARIO")
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install --package-lock-only --ignore-scripts
+            npm ci
           fi
-          npm exec --yes --package=tsx@4.20.5 -- tsx scripts/pi-host-compat-canary.ts "${args[@]}"
+
+      - name: Run canary scenario against exact host contract
+        run: |
+          node ./scripts/pi-host-compatibility-canary.mjs run \
+            --profile "$PI_HOST_COMPAT_PROFILE" \
+            --scenario "$PI_HOST_COMPAT_SCENARIO" \
+            --fail-fast
