@@ -18,9 +18,15 @@ test("declares the runtime peers used by the Pi extension entrypoint", () => {
   assert.equal(manifest.peerDependenciesMeta?.typebox, undefined);
 });
 
-test("publishes the versioned telemetry review snapshot API", () => {
-  assert.equal(manifest.exports?.["./review-snapshot"], "./src/review-snapshot.ts");
+test("publishes the versioned telemetry review snapshot API as compiled JavaScript", () => {
+  assert.deepEqual(manifest.exports?.["./review-snapshot"], {
+    types: "./dist/review-snapshot.d.ts",
+    import: "./dist/review-snapshot.js",
+    default: "./dist/review-snapshot.js",
+  });
+  assert.equal(manifest.scripts?.prepack, "npm run build:review-runtime");
   assert.ok(manifest.files?.includes("src"));
+  assert.ok(manifest.files?.includes("dist"));
   assert.ok(manifest.files?.includes("schemas"));
   assert.ok(manifest.files?.includes("docs"));
 });
