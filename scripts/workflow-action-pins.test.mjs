@@ -115,6 +115,19 @@ test("workflow Node and npm inputs are exact and match the toolchain lock", () =
   assert.ok(npmUses > 0, "no npm bootstrap version was checked");
 });
 
+test("npm bootstrap never mutates the active setup-node installation", () => {
+  for (const workflow of workflowFiles()) {
+    for (const line of workflow.content.split(/\r?\n/u)) {
+      if (!/\bnpm\s+install\s+--global\b/u.test(line) || !/\bnpm@/u.test(line)) continue;
+      assert.match(
+        line,
+        /--prefix\s+/u,
+        `${workflow.name}: install the governed npm client into an isolated prefix`,
+      );
+    }
+  }
+});
+
 test("workflows do not reintroduce mutable action tags", () => {
   for (const workflow of workflowFiles()) {
     assert.doesNotMatch(
