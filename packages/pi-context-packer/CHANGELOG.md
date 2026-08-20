@@ -13,6 +13,18 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.3.1...pi-context-packer-v0.4.0) (2026-08-20)
+
+
+### Features
+
+* add stable context providers and P1 compaction continuity ([47cfcd1](https://github.com/tryingET/pi-extensions/commit/47cfcd1b15170e47c217b970bb615a9e572bf1bd))
+
+
+### Bug Fixes
+
+* **packages:** drop wildcard exports the release-contract validator rejects ([ae3504f](https://github.com/tryingET/pi-extensions/commit/ae3504f2d44fb175e88ab8d4f21e803c4bdf793b))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.3.0...pi-context-packer-v0.3.1) (2026-08-15)
 
 
