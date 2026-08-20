@@ -29,7 +29,7 @@
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
-    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "typecheck": "tsgo --noEmit",
     "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
     "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
@@ -68,7 +68,9 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
     "@earendil-works/pi-ai": "0.83.0",
-    "@earendil-works/pi-coding-agent": "0.83.0"
+    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@types/node": "^22.0.0",
+    "@typescript/native-preview": "7.0.0-dev.20260417.1"
   },
   "overrides": {
     "fast-xml-parser": "5.3.6"
