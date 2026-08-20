@@ -1,27 +1,21 @@
-name: vouch-check-pr
+name: Vouch Pull Request Check
 
 on:
   pull_request_target:
-    types:
-      - opened
-      - reopened
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
+    timeout-minutes: 10
     steps:
-      - name: Enforce vouch trust gate on PR author
-        uses: mitchellh/vouch/action/check-pr@d66fa29a64600490892131ad87597c30c91fcac4
+      - uses: mitchellh/vouch/action/check-pr@d66fa29a64600490892131ad87597c30c91fcac4
         with:
-          pr-number: ${{ github.event.pull_request.number }}
-          vouched-file: .github/VOUCHED.td
-          require-vouch: "true"
-          auto-close: "true"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          trustedFile: .github/ci-trusted-users.txt
+          requiredApprovals: "1"
+          dismissStaleReviews: "true"
