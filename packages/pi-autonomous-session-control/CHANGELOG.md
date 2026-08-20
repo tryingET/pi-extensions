@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.2](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.5.1...pi-autonomous-session-control-v0.5.2) (2026-08-20)
+
+
+### Bug Fixes
+
+* **pi-autonomous-session-control:** stabilize startup-noise host canary ([#132](https://github.com/tryingET/pi-extensions/issues/132)) ([f8060ea](https://github.com/tryingET/pi-extensions/commit/f8060ea91de9b1a9bcf87b314b7aee32b44465de))
+
 ## [0.5.1](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.5.0...pi-autonomous-session-control-v0.5.1) (2026-08-16)
 
 
