@@ -1,78 +1,102 @@
-name: release-please
+name: Release Please
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
 
 concurrency:
   group: release-please-main
   cancel-in-progress: false
 
-permissions:
-  contents: read
-  pull-requests: read
-
 jobs:
-  release-please:
+  validate-release-config:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      actions: write
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "22"
-          package-manager-cache: false
-
-      - name: Validate release-please component metadata
+          node-version: "22.19.0"
+      - name: Install governed npm client
+        run: npm install --global npm@12.0.2
+      - name: Validate immutable workflow inputs
+        run: node --test ./scripts/workflow-action-pins.test.mjs
+      - name: Validate release component projections
         run: node ./scripts/release-components.mjs validate
-
-      - name: Run release component tests
+      - name: Test release component resolver
         run: node --test ./scripts/release-components.test.mjs
 
-      - name: Run release-please
+  release-please:
+    needs: validate-release-config
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      paths_released: ${{ steps.release.outputs.paths_released }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run Release Please
         id: release
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        uses: googleapis/release-please-action@cc61a07e2da466bebbc19bd7682a655e9db616a5 # reviewed v4
         with:
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
-
-      - name: Dispatch npm publication for created releases
-        if: steps.release.outputs.releases_created == 'true'
+      - name: Check out repository at release tag
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release.outputs.tag_name }}
+      - name: Verify released tag provenance
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          PATHS_RELEASED: ${{ steps.release.outputs.paths_released }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
-          tags_file="$RUNNER_TEMP/release-tags.txt"
-          node <<'NODE' > "$tags_file"
-          const fs = require("node:fs");
-          const path = require("node:path");
-          const paths = JSON.parse(process.env.PATHS_RELEASED || "[]");
-          const config = JSON.parse(fs.readFileSync(".release-please-config.json", "utf8"));
-          for (const packagePath of paths) {
-            const component = config.packages?.[packagePath]?.component;
-            const manifestPath = path.join(packagePath, "package.json");
-            if (typeof component !== "string" || !component || !fs.existsSync(manifestPath)) {
-              throw new Error(`Cannot resolve released component at ${packagePath}`);
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ -n "$RELEASE_TAG" ]]
+          [[ "$(git rev-parse HEAD)" == "$(git rev-list -n 1 "$RELEASE_TAG")" ]]
+
+  dispatch-publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Dispatch publish workflow per released component
+        uses: actions/github-script@5d0a6c5505dcf00cb12f1ed09dd261c769d8b353 # v8
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PATHS_RELEASED_JSON: ${{ needs.release-please.outputs.paths_released }}
+        with:
+          script: |
+            const paths = JSON.parse(process.env.PATHS_RELEASED_JSON || '[]');
+            if (!Array.isArray(paths) || paths.length === 0) {
+              throw new Error('Release Please reported releases_created=true without paths_released');
             }
-            const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-            if (typeof manifest.version !== "string" || !manifest.version) {
-              throw new Error(`Cannot resolve released version at ${packagePath}`);
+            for (const packagePath of paths) {
+              const pkg = require(`./${packagePath}/package.json`);
+              const component = pkg['x-pi-template']?.releaseComponent;
+              if (!component) throw new Error(`Missing release component for ${packagePath}`);
+              const tag = `${component}-v${pkg.version}`;
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'publish.yml',
+                ref: tag,
+                inputs: { tag },
+              });
             }
-            process.stdout.write(`${component}-v${manifest.version}\n`);
-          }
-          NODE
-          while IFS= read -r tag; do
-            [[ -n "$tag" ]] || continue
-            gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
-            gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=$tag"
-          done < "$tags_file"
