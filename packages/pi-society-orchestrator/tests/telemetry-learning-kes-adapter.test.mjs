@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import telemetryKesAdapterExtension from "../extensions/telemetry-kes-adapter.ts";
+import { buildAkEvidenceRecordArgs } from "../src/runtime/evidence.ts";
 import {
   buildTelemetryLearningKesAdapterResult,
   TELEMETRY_REVIEW_METRIC_KEYS,
@@ -84,6 +85,14 @@ async function build(root, overrides = {}) {
     ...inputOverrides,
   });
 }
+
+test("declares the telemetry producer as an optional feature-compatible peer", async () => {
+  const manifest = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  assert.equal(manifest.peerDependencies?.["@tryinget/pi-telemetry"], "^0.3.0");
+  assert.equal(manifest.peerDependenciesMeta?.["@tryinget/pi-telemetry"]?.optional, true);
+});
 
 test("registers the adapter without importing pi-telemetry at extension load time", () => {
   let registered;
@@ -196,4 +205,27 @@ test("the AK handoff records artifact validation and subject lineage, not claim 
   assert.equal(result.akEvidenceHandoff.details.review_ready, true);
   assert.match(result.akEvidenceHandoff.details.authority_ceiling, /does not verify causality/);
   assert.equal(result.effect.akCalled, false);
+});
+
+test("serializes the inert handoff through the same AK evidence command contract", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "telemetry-kes-ak-args-"));
+  const result = await build(root);
+  const args = buildAkEvidenceRecordArgs(result.akEvidenceHandoff);
+
+  assert.deepEqual(args.slice(0, 6), [
+    "evidence",
+    "record",
+    "--check-type",
+    "pi-telemetry-review-snapshot-v1",
+    "--result",
+    "pass",
+  ]);
+  assert.equal(args.includes("--task"), false);
+  const detailsIndex = args.indexOf("--details");
+  assert.notEqual(detailsIndex, -1);
+  const details = JSON.parse(args[detailsIndex + 1]);
+  assert.equal(details.subject, subject);
+  assert.equal(details.subject_revision, subjectRevision);
+  assert.equal(details.review_ready, true);
+  assert.match(details.authority_ceiling, /does not verify causality/);
 });
