@@ -57,7 +57,9 @@ The subject/revision binding is required because the telemetry snapshot delibera
 
 ## Runtime dependency
 
-The adapter loads `@tryinget/pi-telemetry/review-snapshot` only when invoked. The orchestrator remains loadable without the telemetry package, but invoking this tool without a linked or installed compatible telemetry package fails with an explicit diagnostic. This keeps the integration optional rather than turning the public orchestrator package into a mandatory telemetry collector.
+The adapter loads `@tryinget/pi-telemetry/review-snapshot` only when invoked. The orchestrator remains loadable without the telemetry package, but invoking this tool without a linked or installed compatible telemetry producer fails with an explicit diagnostic.
+
+Compatibility is defined by the versioned `pi.telemetry-review-snapshot.v1` artifact contract, not by npm peer resolution. The producer may come from a reviewed registry package, a pinned repository checkout, or a local workspace link. Package metadata records the tested producer version and `registryDependency: false`; it intentionally does not declare telemetry as an npm peer. This keeps the integration optional and avoids making the public orchestrator package depend on a registry publication that its ordinary runtime does not require.
 
 ## Materialization boundaries
 
