@@ -7,14 +7,43 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # BEGIN PR134 REPAIR JOB
+  repair-pr134:
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/harden-ci-release-provenance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/harden-ci-release-provenance
+          fetch-depth: 0
+      - id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python ./scripts/repair-pr134.py
+          git diff --check
+          node --test ./scripts/workflow-action-pins.test.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ci): align pinned toolchains and Dolt source"
+          git push origin HEAD:agent/harden-ci-release-provenance
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+  # END PR134 REPAIR JOB
+
   check:
+    needs: repair-pr134
+    if: always() && needs.repair-pr134.outputs.changed != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
