@@ -38,9 +38,19 @@ function externalUses(content) {
     if (value.startsWith("./")) continue;
     const separator = value.lastIndexOf("@");
     assert.notEqual(separator, -1, `external action is missing a ref: ${value}`);
-    uses.push({ action: value.slice(0, separator), ref: value.slice(separator + 1), line });
+    uses.push({ action: value.slice(0, separator), ref: value.slice(separator + 1) });
   }
   return uses;
+}
+
+function npmBootstrapVersions(content) {
+  const versions = [];
+  for (const line of content.split(/\r?\n/u)) {
+    if (!/\bnpm\s+install\b/u.test(line) || !/\bnpm@/u.test(line)) continue;
+    const match = line.match(/\bnpm@([^\s"'\\]+)/u);
+    if (match) versions.push(match[1]);
+  }
+  return versions;
 }
 
 test("every external GitHub Action is pinned to the reviewed full commit SHA", () => {
@@ -55,7 +65,10 @@ test("every external GitHub Action is pinned to the reviewed full commit SHA", (
         `${workflow.name}: ${use.action} must use a full immutable commit SHA`,
       );
       const expected = lock.actions[use.action];
-      assert.ok(expected, `${workflow.name}: ${use.action} is not present in ${path.relative(ROOT, LOCK_PATH)}`);
+      assert.ok(
+        expected,
+        `${workflow.name}: ${use.action} is not present in ${path.relative(ROOT, LOCK_PATH)}`,
+      );
       assert.equal(
         use.ref,
         expected.sha,
@@ -66,24 +79,35 @@ test("every external GitHub Action is pinned to the reviewed full commit SHA", (
   }
 
   for (const action of Object.keys(lock.actions)) {
-    assert.ok(observed.has(action), `${action} is locked but unused; remove or update the lock deliberately`);
+    assert.ok(observed.has(action), `${action} is locked but unused; remove or update it deliberately`);
   }
 });
 
 test("workflow Node and npm inputs are exact and match the toolchain lock", () => {
   const lock = loadLock();
-  const workflows = workflowFiles();
   let nodeUses = 0;
   let npmUses = 0;
 
-  for (const workflow of workflows) {
+  for (const workflow of workflowFiles()) {
     for (const match of workflow.content.matchAll(/node-version:\s*["']?([^\s"']+)["']?/gu)) {
       nodeUses += 1;
       assert.equal(match[1], lock.nodeVersion, `${workflow.name}: node-version must match the lock`);
     }
-    for (const match of workflow.content.matchAll(/npm install --global npm@([^\s"']+)/gu)) {
+
+    const versions = npmBootstrapVersions(workflow.content);
+    for (const version of versions) {
       npmUses += 1;
-      assert.equal(match[1], lock.npmVersion, `${workflow.name}: npm must match the lock exactly`);
+      assert.equal(version, lock.npmVersion, `${workflow.name}: npm must match the lock exactly`);
+    }
+
+    const performsNpmEffects = /\bnpm\s+(?:ci|install|run|exec|pack|publish|view)\b/u.test(
+      workflow.content,
+    );
+    if (performsNpmEffects) {
+      assert.ok(
+        versions.includes(lock.npmVersion),
+        `${workflow.name}: npm effects require an exact governed npm bootstrap`,
+      );
     }
   }
 
