@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.3.0...pi-session-compaction-v0.4.0) (2026-08-20)
+
+
+### Features
+
+* add stable context providers and P1 compaction continuity ([47cfcd1](https://github.com/tryingET/pi-extensions/commit/47cfcd1b15170e47c217b970bb615a9e572bf1bd))
+* **pi-session-compaction:** harden P0 compaction path ([#119](https://github.com/tryingET/pi-extensions/issues/119)) ([e7328d1](https://github.com/tryingET/pi-extensions/commit/e7328d1ebe88c39197b6d3112c16694a0ac43970))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.2.1...pi-session-compaction-v0.3.0) (2026-08-15)
 
 
