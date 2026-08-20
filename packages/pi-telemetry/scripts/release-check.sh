@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ---
-# summary: verifies the pi-provenance publish artifact and isolated pi installation flow
+# summary: verifies the pi-telemetry publish artifact, public review-snapshot export, and isolated pi installation flow
 # read_when:
-#   - preparing a package release or diagnosing provenance tarball smoke failures
+#   - preparing a pi-telemetry release or diagnosing tarball and installed-export smoke failures
 # ---
 set -euo pipefail
 
@@ -147,6 +147,7 @@ fi
 
 TEST_AGENT_DIR=""
 TEST_NPM_PREFIX=""
+PACKAGE_CONTRACT_DIR=""
 TARBALL_PATH=""
 cleanup() {
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
@@ -155,6 +156,9 @@ cleanup() {
     fi
     if [[ -n "$TEST_NPM_PREFIX" && -d "$TEST_NPM_PREFIX" ]]; then
       rm -rf "$TEST_NPM_PREFIX"
+    fi
+    if [[ -n "$PACKAGE_CONTRACT_DIR" && -d "$PACKAGE_CONTRACT_DIR" ]]; then
+      rm -rf "$PACKAGE_CONTRACT_DIR"
     fi
     if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
       rm -f "$TARBALL_PATH"
@@ -167,6 +171,43 @@ echo "== npm pack"
 TARBALL="$(npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
+
+echo "== isolated public review-snapshot export smoke"
+PACKAGE_CONTRACT_DIR="$(mktemp -d /tmp/pi-telemetry-package-contract-XXXXXX)"
+cat > "$PACKAGE_CONTRACT_DIR/package.json" <<'JSON'
+{
+  "private": true,
+  "type": "module"
+}
+JSON
+(
+  cd "$PACKAGE_CONTRACT_DIR"
+  npm install --ignore-scripts --legacy-peer-deps --no-audit --no-fund "$TARBALL_PATH"
+  node --experimental-strip-types --input-type=module <<'NODE'
+const review = await import("@tryinget/pi-telemetry/review-snapshot");
+const requiredFunctions = [
+  "buildTelemetryReviewSnapshot",
+  "loadTelemetryReviewSnapshot",
+  "parseTelemetryReviewSnapshotJson",
+  "validateTelemetryReviewSnapshot",
+  "writeTelemetryReviewSnapshot",
+];
+for (const name of requiredFunctions) {
+  if (typeof review[name] !== "function") {
+    throw new Error(`Missing public review-snapshot function: ${name}`);
+  }
+}
+if (review.TELEMETRY_REVIEW_SNAPSHOT_SCHEMA !== "pi.telemetry-review-snapshot.v1") {
+  throw new Error(
+    `Unexpected telemetry review schema: ${String(review.TELEMETRY_REVIEW_SNAPSHOT_SCHEMA)}`,
+  );
+}
+if (!Array.isArray(review.TELEMETRY_REVIEW_METRIC_KEYS)) {
+  throw new Error("TELEMETRY_REVIEW_METRIC_KEYS must be an exported array.");
+}
+console.log("Installed review-snapshot export OK.");
+NODE
+)
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
