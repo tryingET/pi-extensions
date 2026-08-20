@@ -82,6 +82,16 @@
     "releaseComponent": "pi-society-orchestrator",
     "releaseConfigMode": "component"
   },
+  "x-pi-integrations": {
+    "optionalProducers": {
+      "@tryinget/pi-telemetry": {
+        "contract": "pi.telemetry-review-snapshot.v1",
+        "testedProducerVersion": "0.3.0",
+        "loading": "dynamic",
+        "registryDependency": false
+      }
+    }
+  },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
     "@earendil-works/pi-ai": "0.83.0",
