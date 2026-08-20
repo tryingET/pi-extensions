@@ -70,15 +70,16 @@ jobs:
           git worktree add --detach "$runtime_root" "$GITHUB_SHA"
           echo "GOVERNED_CI_ROOT=$runtime_root" >> "$GITHUB_ENV"
 
-      - name: Install dependencies
+      - name: Enforce root dependency installation contract
         working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        shell: bash
         run: |
+          set -euo pipefail
+          node --test ./scripts/root-package-install-contract.test.mjs
           if [[ -f package-lock.json ]]; then
             npm ci
           else
-            npm install --package-lock-only --ignore-scripts
-            npm ci
-            rm -f package-lock.json
+            echo "Root package is dependency-free; no lockfile or install is required."
           fi
 
       - name: Run host compatibility mutation tests
