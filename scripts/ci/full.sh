@@ -21,6 +21,8 @@ export TMPDIR="$tmp_root"
 export TMP="$tmp_root"
 export TEMP="$tmp_root"
 
+node --test ./scripts/root-package-install-contract.test.mjs
+
 if [ "${PI_SKIP_PACKAGES:-0}" = "1" ]; then
   echo "skipping local package link validation: PI_SKIP_PACKAGES=1"
 else
