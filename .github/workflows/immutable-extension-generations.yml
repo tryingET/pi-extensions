@@ -2,61 +2,72 @@ name: immutable-extension-generations
 
 on:
   pull_request:
+    paths:
+      - "packages/**"
+      - "scripts/standalone-extension-generations.mjs"
+      - "scripts/standalone-extension-generations.test.mjs"
+      - "scripts/verify-standalone-extension-generations.mjs"
+      - "scripts/package-quality-gate.sh"
+      - ".github/workflows/immutable-extension-generations.yml"
   push:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "scripts/standalone-extension-generations.mjs"
+      - "scripts/standalone-extension-generations.test.mjs"
+      - "scripts/verify-standalone-extension-generations.mjs"
+      - "scripts/package-quality-gate.sh"
+      - ".github/workflows/immutable-extension-generations.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  generation-tests:
+  verify-generations:
+    name: immutable-generation-proof
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          package-manager-cache: false
-
-      - name: Install exact isolated Pi host
+          node-version: "22.19.0"
+      - name: Install governed npm client
+        run: npm install --global npm@12.0.2
+      - name: Test generation ledger mechanics
+        run: node --test ./scripts/standalone-extension-generations.test.mjs
+      - name: Verify declared extension generations
+        run: node ./scripts/verify-standalone-extension-generations.mjs
+      - name: Run standalone quality gates
         shell: bash
         run: |
           set -euo pipefail
-          host_root="$RUNNER_TEMP/immutable-generation-pi-host"
-          private_home="$RUNNER_TEMP/immutable-generation-home"
-          npm_cache="$RUNNER_TEMP/immutable-generation-npm-cache"
-          test_tmp="$RUNNER_TEMP/immutable-generation-tests"
-          mkdir -p "$host_root" "$private_home" "$npm_cache" "$test_tmp"
-          HOME="$private_home" npm_config_cache="$npm_cache" \
-            npm install --prefix "$host_root" --ignore-scripts --no-package-lock --no-save \
-            @earendil-works/pi-coding-agent@0.84.1
-          host_cli="$(realpath "$host_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js")"
-          test -x "$host_cli"
-          test "$(HOME="$private_home" "$host_cli" --version)" = "0.84.1"
-          echo "PI_GENERATION_TEST_PI=$host_cli" >> "$GITHUB_ENV"
-          echo "PI_GENERATION_TRACE_FILE=$test_tmp/concurrency-trace.ndjson" >> "$GITHUB_ENV"
-
-      - name: Run hermetic and pinned-host generation tests
-        env:
-          HOME: ${{ runner.temp }}/immutable-generation-home
-          TMPDIR: ${{ runner.temp }}/immutable-generation-tests
-          TMP: ${{ runner.temp }}/immutable-generation-tests
-          TEMP: ${{ runner.temp }}/immutable-generation-tests
-          npm_config_cache: ${{ runner.temp }}/immutable-generation-npm-cache
-          npm_config_ignore_scripts: "true"
-          npm_config_audit: "false"
-          npm_config_fund: "false"
-        run: npm run extensions:generations:test
-
-      - name: Validate structured concurrency trace
-        run: |
-          test -f "$PI_GENERATION_TRACE_FILE"
-          test "$(stat -c '%a' "$PI_GENERATION_TRACE_FILE")" = "600"
-          node -e 'const fs=require("node:fs"); const rows=fs.readFileSync(process.env.PI_GENERATION_TRACE_FILE,"utf8").trim().split("\n").map(JSON.parse); if(!rows.some((row)=>row.event==="trace-completed")) process.exit(1)'
+          while IFS=$'\t' read -r current_path _previous_path _previous_commit _migration_pr; do
+            [[ -n "$current_path" ]] || continue
+            package_dir="${current_path%/extensions/*}"
+            if [[ ! -f "$package_dir/package.json" ]]; then
+              echo "Missing owning package for $current_path" >&2
+              exit 1
+            fi
+            echo "==> immutable generation package quality: $package_dir"
+            if [[ -f "$package_dir/package-lock.json" ]]; then
+              (
+                cd "$package_dir"
+                npm ci
+              )
+            fi
+            ./scripts/package-quality-gate.sh ci "$package_dir"
+          done < <(
+            node -e '
+              const fs = require("node:fs");
+              const ledger = JSON.parse(fs.readFileSync("governance/standalone-extension-generations.json", "utf8"));
+              for (const generation of ledger.generations) {
+                console.log([generation.currentPath, generation.previousPath, generation.previousCommit, generation.migrationPr].join("\t"));
+              }
+            '
+          )
