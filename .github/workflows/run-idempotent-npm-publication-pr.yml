@@ -85,7 +85,7 @@ jobs:
               return block([
                   f'      - name: {name}',
                   f'        if: {condition}',
-                  '        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}',
+                  '        working-directory: $' + '{{ env.RELEASE_PACKAGE_PATH }}',
                   '        env:',
                   '          NPM_CONFIG_BIN_LINKS: "false"',
                   '        run: |',
