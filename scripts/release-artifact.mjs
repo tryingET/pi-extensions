@@ -85,15 +85,58 @@ function run(command, args, options = {}) {
   return result;
 }
 
-function parsePackJson(text) {
-  const first = text.indexOf("[");
-  const last = text.lastIndexOf("]");
-  if (first < 0 || last < first) fail("npm pack did not emit a JSON array");
-  const parsed = JSON.parse(text.slice(first, last + 1));
-  if (!Array.isArray(parsed) || parsed.length !== 1 || !parsed[0]) {
-    fail("npm pack must produce exactly one artifact");
+function matchingArrayEnd(text, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+    } else if (char === "[") {
+      depth += 1;
+    } else if (char === "]") {
+      depth -= 1;
+      if (depth === 0) return index;
+      if (depth < 0) return -1;
+    }
   }
-  return parsed[0];
+  return -1;
+}
+
+function parsePackJson(text) {
+  const valid = [];
+  for (let start = 0; start < text.length; start += 1) {
+    if (text[start] !== "[") continue;
+    const end = matchingArrayEnd(text, start);
+    if (end < 0) continue;
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      if (
+        Array.isArray(parsed) &&
+        parsed.length === 1 &&
+        parsed[0] &&
+        typeof parsed[0] === "object" &&
+        typeof parsed[0].filename === "string"
+      ) {
+        valid.push(parsed[0]);
+      }
+    } catch {
+      // Lifecycle output may contain bracketed non-JSON text. Keep scanning.
+    }
+  }
+  if (valid.length === 0) fail("npm pack did not emit one valid artifact JSON array");
+  return valid.at(-1);
 }
 
 function writeEnv(envFile, pairs) {
