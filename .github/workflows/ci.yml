@@ -112,14 +112,57 @@ jobs:
             --source-root "$GOVERNED_CI_ROOT" \
             --expected-commit "$GITHUB_SHA"
 
-      - name: Run quality gate (ci)
+      - name: Prepare root quality scratch
         working-directory: ${{ env.GOVERNED_CI_ROOT }}
-        # Package checks and release contracts run in their dedicated matrices with package deps.
-        # Hermetic ontology package checks use temporary fixtures there; the real-ROCS
-        # owner-workspace lane remains an explicit pre-release command outside public CI.
-        run: >-
-          PI_SKIP_ROCS=1
-          PI_SKIP_PACKAGE_RELEASE_CONTRACTS=1
-          PI_SKIP_PACKAGES=1
-          PI_SKIP_HOST_COMPAT_MUTATION_TESTS=1
-          npm run quality:ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          quality_tmp="$HOME/.pi/tmp/pi-extensions"
+          mkdir -p "$quality_tmp"
+          echo "PI_EXTENSIONS_TMPDIR=$quality_tmp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$quality_tmp" >> "$GITHUB_ENV"
+          echo "TMP=$quality_tmp" >> "$GITHUB_ENV"
+          echo "TEMP=$quality_tmp" >> "$GITHUB_ENV"
+
+      - name: Run CI smoke contract
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: ./scripts/ci/smoke.sh
+
+      - name: Validate root release and host metadata
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: |
+          node --test ./scripts/root-package-install-contract.test.mjs
+          node ./scripts/release-components.mjs validate
+          node ./scripts/pi-host-compatibility-canary.mjs validate
+
+      - name: Run release component contract tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: node --test ./scripts/release-components.test.mjs
+
+      - name: Run npm pack JSON tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: node --test ./scripts/npm-pack-json.test.mjs
+
+      - name: Run extension generation tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: node --test ./scripts/pi-extension-generations.test.mjs
+
+      - name: Run package quality-gate tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: node --test ./scripts/package-quality-gate.test.mjs
+
+      - name: Run local package-link contract tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset PI_SKIP_PACKAGES
+          node --test ./scripts/validate-local-package-links.test.mjs
+
+      - name: Run root documentation-alignment tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: node --test ./scripts/root-doc-alignment.test.mjs
+
+      - name: Run governed deep-review canary tests
+        working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        run: node ./scripts/governed-deep-review-canary.mjs test --source-root "$GOVERNED_CI_ROOT"
