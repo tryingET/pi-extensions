@@ -61,6 +61,8 @@ if [ -f "./scripts/release-components.test.mjs" ]; then
   node --test ./scripts/release-components.test.mjs
 fi
 
+node --test ./scripts/release-artifact.test.mjs
+node --test ./scripts/release-artifact-workflow.test.mjs
 node --test ./scripts/npm-pack-json.test.mjs
 node --test ./scripts/pi-extension-generations.test.mjs
 if [ -n "${PI_GENERATION_TEST_PI:-}" ]; then
