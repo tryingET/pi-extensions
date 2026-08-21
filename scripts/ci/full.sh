@@ -68,6 +68,8 @@ node --test ./scripts/release-evidence-workflow.test.mjs
 node --test ./scripts/release-evidence-archive.test.mjs
 node --test ./scripts/release-state.test.mjs
 node --test ./scripts/release-recovery-workflow.test.mjs
+node --test ./scripts/release-npm-state.test.mjs
+node --test ./scripts/release-npm-workflow.test.mjs
 node --test ./scripts/npm-pack-json.test.mjs
 node --test ./scripts/pi-extension-generations.test.mjs
 if [ -n "${PI_GENERATION_TEST_PI:-}" ]; then

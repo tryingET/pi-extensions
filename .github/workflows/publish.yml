@@ -333,18 +333,46 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Inspect immutable npm publication state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node ./scripts/release-npm-state.mjs inspect \
+            --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
+            --output-env-file "$GITHUB_ENV"
+
       - name: Publish retained tarball to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         env:
           NPM_CONFIG_BIN_LINKS: "false"
         run: |
+          set -euo pipefail
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
           node "$GITHUB_WORKSPACE/scripts/release-sbom.mjs" verify \
             --evidence "$RELEASE_EVIDENCE_MANIFEST_PATH"
-          npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+          case "$RELEASE_NPM_PUBLICATION_STATE" in
+            absent)
+              npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+              ;;
+            exact)
+              echo "npm already contains the exact immutable bytes; publication is a verified no-op."
+              ;;
+            mismatch)
+              echo "npm contains different immutable bytes; refusing to overwrite $RELEASE_PACKAGE_NAME@$RELEASE_PACKAGE_VERSION." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unknown npm publication state: $RELEASE_NPM_PUBLICATION_STATE" >&2
+              exit 1
+              ;;
+          esac
+          node "$GITHUB_WORKSPACE/scripts/release-npm-state.mjs" inspect \
+            --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
+            --require exact
+
 
       - name: Publish generic package directory to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
@@ -359,12 +387,31 @@ jobs:
         env:
           NPM_CONFIG_BIN_LINKS: "false"
         run: |
+          set -euo pipefail
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
           node "$GITHUB_WORKSPACE/scripts/release-sbom.mjs" verify \
             --evidence "$RELEASE_EVIDENCE_MANIFEST_PATH"
-          npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+          case "$RELEASE_NPM_PUBLICATION_STATE" in
+            absent)
+              npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+              ;;
+            exact)
+              echo "npm already contains the exact immutable bytes; publication is a verified no-op."
+              ;;
+            mismatch)
+              echo "npm contains different immutable bytes; refusing to overwrite $RELEASE_PACKAGE_NAME@$RELEASE_PACKAGE_VERSION." >&2
+              exit 1
+              ;;
+            *)
+              echo "Unknown npm publication state: $RELEASE_NPM_PUBLICATION_STATE" >&2
+              exit 1
+              ;;
+          esac
+          node "$GITHUB_WORKSPACE/scripts/release-npm-state.mjs" inspect \
+            --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
+            --require exact
 
 
   retain-github-release-evidence:
