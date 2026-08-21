@@ -72,7 +72,7 @@ jobs:
         if: env.RELEASE_COMPONENT == 'pi-society-orchestrator'
         run: bash ./scripts/prepare-asc-source-build-owner.sh
 
-      - name: Install package dependencies without rewriting release metadata
+      - name: Install package dependencies
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         shell: bash
         run: |
@@ -164,6 +164,21 @@ jobs:
         run: npm run check
 
       - name: Create immutable retained release tarball
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # release-artifact.mjs performs the single authoritative npm pack and exports:
+          # RELEASE_TARBALL_PATH=$tarball_path
+          # RELEASE_TARBALL_BASENAME=$tarball_basename
+          # RELEASE_TARBALL_SHA256=$tarball_sha256
+          node ./scripts/release-artifact.mjs pack \
+            --package-path "$RELEASE_PACKAGE_PATH" \
+            --artifact-dir "$RUNNER_TEMP/release-package" \
+            --env-file "$GITHUB_ENV"
+
+      - name: Create authoritative generic release tarball
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         shell: bash
         run: |
           set -euo pipefail
@@ -185,15 +200,34 @@ jobs:
       - name: Run generic package release checks (artifact-only)
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
-        env:
-          AUTHORITATIVE_RELEASE_TARBALL: ${{ env.RELEASE_TARBALL_PATH }}
-          AUTHORITATIVE_RELEASE_TARBALL_SHA256: ${{ env.RELEASE_TARBALL_SHA256 }}
         run: npm run release:check:quick
 
       - name: Verify retained tarball after release checks
-        run: node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
+        run: |
+          echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
+          node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
+
+      - name: Verify authoritative generic tarball after release checks
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
+        run: |
+          echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
+          node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
 
       - name: Upload retained release tarball
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
+          path: |
+            ${{ env.RELEASE_TARBALL_PATH }}
+            ${{ env.RELEASE_TARBALL_CHECKSUM_PATH }}
+            ${{ env.RELEASE_ARTIFACT_MANIFEST_PATH }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload authoritative generic release tarball
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
@@ -205,8 +239,26 @@ jobs:
           retention-days: 30
 
       - name: Publish retained tarball to npm (OIDC + provenance)
+        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
+          echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
+          node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
+            --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
+          npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+
+      - name: Publish generic package directory to npm (OIDC + provenance)
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        env:
+          NPM_CONFIG_DRY_RUN: "true"
+        run: npm publish --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+
+      - name: Publish authoritative generic tarball to npm (OIDC + provenance)
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        run: |
+          echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
           npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
