@@ -1,0 +1,65 @@
+name: Run idempotent npm publication applicator
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-idempotent-npm-publication-pr
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: >-
+      github.repository == 'tryingET/pi-extensions' &&
+      github.head_ref == 'agent/release-recovery-integrity' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/release-recovery-integrity
+          fetch-depth: 0
+
+      - name: Execute reviewed applicator and remove temporary workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/apply-idempotent-npm-publication.yml').read_text(encoding='utf-8')
+          marker = "          python <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end = workflow.index("\n          PY\n", start)
+          source = workflow[start:end]
+          source = '\n'.join(line[10:] if line.startswith('          ') else line for line in source.splitlines())
+          exec(compile(source, 'idempotent-npm-applicator', 'exec'), {'__name__': '__main__'})
+          PY
+
+          git rm \
+            .github/workflows/apply-idempotent-npm-publication.yml \
+            .github/workflows/run-idempotent-npm-publication-pr.yml
+          git diff --check
+          node --check scripts/release-npm-state.mjs
+          node --test scripts/release-npm-state.test.mjs
+          node --test scripts/release-npm-workflow.test.mjs
+          node --test scripts/release-evidence-workflow.test.mjs
+          node --test scripts/release-artifact-workflow.test.mjs
+          node --test scripts/release-recovery-workflow.test.mjs
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'release: make exact npm publication resumable'
+          git push origin HEAD:agent/release-recovery-integrity
