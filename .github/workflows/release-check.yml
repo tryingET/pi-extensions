@@ -91,3 +91,15 @@ jobs:
         if: matrix.component != 'pi-modes'
         working-directory: ${{ matrix.package_path }}
         run: npm run release:check:quick
+
+      - name: Pack authoritative release artifact
+        env:
+          RELEASE_COMPONENT: ${{ matrix.component }}
+        run: |
+          node ./scripts/release-artifact.mjs pack \
+            --package-path "${{ matrix.package_path }}" \
+            --artifact-dir "$RUNNER_TEMP/release-artifact" \
+            --env-file "$GITHUB_ENV"
+
+      - name: Verify authoritative release artifact
+        run: node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
