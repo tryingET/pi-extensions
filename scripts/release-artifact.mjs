@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
-summary: "Creates one authoritative npm release tarball and verifies the exact bytes through an isolated install."
+summary: "Creates one authoritative npm release tarball plus exact local-dependency artifacts, then verifies the bytes through an isolated install."
 read_when:
-  - "Changing npm publication, retained release artifacts, checksums, or installed-artifact verification."
+  - "Changing npm publication, retained release artifacts, checksums, local package dependencies, or installed-artifact verification."
 */
 
 import assert from "node:assert/strict";
@@ -19,6 +19,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const SCHEMA = "pi.release-artifact.v1";
 const SHA256_RE = /^[0-9a-f]{64}$/u;
+const LOCAL_RUNTIME_FIELDS = ["dependencies", "optionalDependencies"];
 
 function fail(message) {
   throw new Error(message);
@@ -45,15 +46,25 @@ function requireOption(options, name) {
 }
 
 function canonicalExisting(filePath) {
-  const absolute = path.resolve(filePath);
-  const real = fs.realpathSync(absolute);
-  return real;
+  return fs.realpathSync(path.resolve(filePath));
 }
 
 function assertWithin(parent, child, label) {
   const relative = path.relative(parent, child);
   if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) return;
   fail(`${label} escapes ${parent}: ${child}`);
+}
+
+function readManifest(packageRoot) {
+  const manifestPath = path.join(packageRoot, "package.json");
+  const stat = fs.statSync(manifestPath);
+  if (!stat.isFile()) fail(`Missing package.json: ${manifestPath}`);
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  if (typeof manifest.name !== "string" || !manifest.name) fail(`${manifestPath}: name is required`);
+  if (typeof manifest.version !== "string" || !manifest.version) {
+    fail(`${manifestPath}: version is required`);
+  }
+  return manifest;
 }
 
 function sha256File(filePath) {
@@ -85,10 +96,6 @@ function run(command, args, options = {}) {
     fail(`${command} ${args.join(" ")} failed with exit ${result.status}${detail}`);
   }
   return result;
-}
-
-function parsePackJson(text) {
-  return parseNpmPackJson(text);
 }
 
 function writeEnv(envFile, pairs) {
@@ -139,53 +146,197 @@ function verifyInstalledTargets(packageRoot, manifest) {
   }
 }
 
+function directLocalDependencies(packageRoot, manifest) {
+  const dependencies = [];
+  for (const field of LOCAL_RUNTIME_FIELDS) {
+    const values = manifest[field];
+    if (!values || typeof values !== "object" || Array.isArray(values)) continue;
+    for (const [declaredName, spec] of Object.entries(values)) {
+      if (typeof spec !== "string" || !spec.startsWith("file:")) continue;
+      const dependencyRoot = canonicalExisting(path.resolve(packageRoot, spec.slice("file:".length)));
+      assertWithin(ROOT, dependencyRoot, `${manifest.name} ${field}.${declaredName}`);
+      const dependencyManifest = readManifest(dependencyRoot);
+      if (dependencyManifest.name !== declaredName) {
+        fail(
+          `${manifest.name} ${field}.${declaredName} resolves to ${dependencyManifest.name}`,
+        );
+      }
+      dependencies.push({ field, root: dependencyRoot, manifest: dependencyManifest });
+    }
+  }
+  return dependencies;
+}
+
+function collectLocalDependencyClosure(packageRoot, packageManifest) {
+  const ordered = [];
+  const visiting = new Set();
+  const byName = new Map();
+
+  function visit(ownerRoot, ownerManifest) {
+    for (const dependency of directLocalDependencies(ownerRoot, ownerManifest)) {
+      const name = dependency.manifest.name;
+      const existing = byName.get(name);
+      if (existing) {
+        if (
+          existing.root !== dependency.root ||
+          existing.manifest.version !== dependency.manifest.version
+        ) {
+          fail(`Conflicting local dependency identity for ${name}`);
+        }
+        continue;
+      }
+      if (visiting.has(name)) fail(`Local dependency cycle detected at ${name}`);
+      visiting.add(name);
+      visit(dependency.root, dependency.manifest);
+      visiting.delete(name);
+      byName.set(name, dependency);
+      ordered.push(dependency);
+    }
+  }
+
+  visit(packageRoot, packageManifest);
+  return ordered;
+}
+
+function ensurePackageDependencies(packageRoot) {
+  if (fs.existsSync(path.join(packageRoot, "package-lock.json"))) {
+    run("npm", ["ci", "--include=dev"], { cwd: packageRoot });
+  } else {
+    run("npm", ["install", "--include=dev", "--no-package-lock"], { cwd: packageRoot });
+  }
+}
+
+function packedManifest(tarballPath) {
+  const result = run("tar", ["-xOf", tarballPath, "package/package.json"], { capture: true });
+  return JSON.parse(result.stdout);
+}
+
+function validatePackedLocalDependencyVersions(
+  sourceRoot,
+  sourceManifest,
+  packed,
+) {
+  for (const dependency of directLocalDependencies(sourceRoot, sourceManifest)) {
+    const value = packed?.[dependency.field]?.[dependency.manifest.name];
+    if (value !== dependency.manifest.version) {
+      fail(
+        `${sourceManifest.name} packed ${dependency.field}.${dependency.manifest.name} expected ${dependency.manifest.version}, got ${value ?? "<missing>"}`,
+      );
+    }
+  }
+}
+
+function packOne(packageRoot, destination, artifactRoot) {
+  const manifest = readManifest(packageRoot);
+  const result = run(
+    "npm",
+    ["pack", "--json", "--pack-destination", destination],
+    { cwd: packageRoot, capture: true },
+  );
+  const pack = parseNpmPackJson(result.stdout ?? "");
+  if (pack.name !== manifest.name) fail(`Packed name mismatch: ${pack.name} != ${manifest.name}`);
+  if (pack.version !== manifest.version) {
+    fail(`Packed version mismatch: ${pack.version} != ${manifest.version}`);
+  }
+  const basename = path.basename(String(pack.filename ?? ""));
+  if (!basename || basename !== pack.filename) fail(`Unsafe npm pack filename: ${pack.filename}`);
+  const tarballPath = canonicalExisting(path.join(destination, basename));
+  assertWithin(canonicalExisting(artifactRoot), tarballPath, `${manifest.name} release tarball`);
+  const stat = fs.lstatSync(tarballPath);
+  if (!stat.isFile() || stat.isSymbolicLink()) fail(`${manifest.name} tarball must be a regular file`);
+  if (stat.size <= 0) fail(`${manifest.name} tarball is empty`);
+  validatePackedLocalDependencyVersions(packageRoot, manifest, packedManifest(tarballPath));
+  return {
+    root: packageRoot,
+    manifest,
+    tarballPath,
+    relativePath: path.relative(artifactRoot, tarballPath).replaceAll(path.sep, "/"),
+    basename,
+    sha256: sha256File(tarballPath),
+    size: stat.size,
+    npmIntegrity: typeof pack.integrity === "string" ? pack.integrity : null,
+    npmShasum: typeof pack.shasum === "string" ? pack.shasum : null,
+    fileCount: Array.isArray(pack.files) ? pack.files.length : null,
+    unpackedSize: Number.isSafeInteger(pack.unpackedSize) ? pack.unpackedSize : null,
+  };
+}
+
+function artifactRecord(packed) {
+  return {
+    name: packed.manifest.name,
+    version: packed.manifest.version,
+    repositoryPath: path.relative(ROOT, packed.root).replaceAll(path.sep, "/"),
+    relativePath: packed.relativePath,
+    sha256: packed.sha256,
+    size: packed.size,
+    npmIntegrity: packed.npmIntegrity,
+    npmShasum: packed.npmShasum,
+  };
+}
+
+function verifyRecordedArtifact(artifactDir, record, label) {
+  if (!record || typeof record !== "object") fail(`${label} record is missing`);
+  const relativePath = String(record.relativePath ?? record.basename ?? "");
+  if (!relativePath || path.isAbsolute(relativePath)) fail(`${label} has an unsafe relative path`);
+  const artifactPath = canonicalExisting(path.join(artifactDir, relativePath));
+  assertWithin(canonicalExisting(artifactDir), artifactPath, label);
+  const expectedSha = String(record.sha256 ?? "");
+  if (!SHA256_RE.test(expectedSha)) fail(`${label} has an invalid SHA-256`);
+  const actualSha = sha256File(artifactPath);
+  if (actualSha !== expectedSha) fail(`${label} SHA-256 changed: ${actualSha}`);
+  const stat = fs.statSync(artifactPath);
+  if (!stat.isFile() || stat.size !== record.size) fail(`${label} size changed`);
+  const manifest = packedManifest(artifactPath);
+  if (manifest.name !== record.name || manifest.version !== record.version) {
+    fail(`${label} package identity changed`);
+  }
+  return artifactPath;
+}
+
 function packArtifact(options) {
   const packagePath = requireOption(options, "package-path");
   const artifactDirInput = requireOption(options, "artifact-dir");
   const envFile = options["env-file"];
   const packageRoot = canonicalExisting(path.resolve(ROOT, packagePath));
   assertWithin(ROOT, packageRoot, "package path");
-  const packageJsonPath = path.join(packageRoot, "package.json");
-  if (!fs.statSync(packageJsonPath).isFile()) fail(`Missing package.json: ${packageJsonPath}`);
-  const packageManifest = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  const expectedName = String(packageManifest.name ?? "");
-  const expectedVersion = String(packageManifest.version ?? "");
-  if (!expectedName || !expectedVersion) fail("package name and version are required");
+  const packageManifest = readManifest(packageRoot);
 
   const artifactDir = path.resolve(artifactDirInput);
   fs.mkdirSync(artifactDir, { recursive: true, mode: 0o700 });
-  const existing = fs.readdirSync(artifactDir);
-  if (existing.length > 0) fail(`Artifact directory must start empty: ${artifactDir}`);
-
-  const packResult = run(
-    "npm",
-    ["pack", "--json", "--pack-destination", artifactDir],
-    { cwd: packageRoot, capture: true },
-  );
-  const pack = parsePackJson(packResult.stdout ?? "");
-  if (pack.name !== expectedName) fail(`Packed name mismatch: ${pack.name} != ${expectedName}`);
-  if (pack.version !== expectedVersion) {
-    fail(`Packed version mismatch: ${pack.version} != ${expectedVersion}`);
+  if (fs.readdirSync(artifactDir).length > 0) {
+    fail(`Artifact directory must start empty: ${artifactDir}`);
   }
-  const basename = path.basename(String(pack.filename ?? ""));
-  if (!basename || basename !== pack.filename) fail(`Unsafe npm pack filename: ${pack.filename}`);
-  const tarballPath = canonicalExisting(path.join(artifactDir, basename));
-  assertWithin(canonicalExisting(artifactDir), tarballPath, "release tarball");
-  const stat = fs.lstatSync(tarballPath);
-  if (!stat.isFile() || stat.isSymbolicLink()) fail("Release tarball must be a regular file");
-  if (stat.size <= 0) fail("Release tarball is empty");
 
-  const sha256 = sha256File(tarballPath);
-  const checksumPath = `${tarballPath}.sha256`;
-  fs.writeFileSync(checksumPath, `${sha256}  ${basename}\n`, { encoding: "utf8", mode: 0o600 });
+  const localDirectory = path.join(artifactDir, "local-dependencies");
+  const closure = collectLocalDependencyClosure(packageRoot, packageManifest);
+  const localArtifacts = [];
+  if (closure.length > 0) fs.mkdirSync(localDirectory, { mode: 0o700 });
+  for (const dependency of closure) {
+    ensurePackageDependencies(dependency.root);
+    const packed = packOne(dependency.root, localDirectory, artifactDir);
+    const record = artifactRecord(packed);
+    const checksumPath = `${packed.tarballPath}.sha256`;
+    fs.writeFileSync(checksumPath, `${record.sha256}  ${packed.basename}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    localArtifacts.push(record);
+  }
+
+  const packed = packOne(packageRoot, artifactDir, artifactDir);
+  const checksumPath = `${packed.tarballPath}.sha256`;
+  fs.writeFileSync(checksumPath, `${packed.sha256}  ${packed.basename}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
 
   const artifactManifest = {
     schema: SCHEMA,
     producer: "scripts/release-artifact.mjs",
     package: {
       component: process.env.RELEASE_COMPONENT ?? null,
-      name: expectedName,
-      version: expectedVersion,
+      name: packageManifest.name,
+      version: packageManifest.version,
       repositoryPath: path.relative(ROOT, packageRoot).replaceAll(path.sep, "/"),
     },
     source: {
@@ -193,25 +344,30 @@ function packArtifact(options) {
       commit: process.env.GITHUB_SHA ?? null,
     },
     artifact: {
-      basename,
-      sha256,
-      size: stat.size,
-      npmIntegrity: typeof pack.integrity === "string" ? pack.integrity : null,
-      npmShasum: typeof pack.shasum === "string" ? pack.shasum : null,
-      fileCount: Array.isArray(pack.files) ? pack.files.length : null,
-      unpackedSize: Number.isSafeInteger(pack.unpackedSize) ? pack.unpackedSize : null,
+      basename: packed.basename,
+      relativePath: packed.relativePath,
+      sha256: packed.sha256,
+      size: packed.size,
+      npmIntegrity: packed.npmIntegrity,
+      npmShasum: packed.npmShasum,
+      fileCount: packed.fileCount,
+      unpackedSize: packed.unpackedSize,
+    },
+    dependencies: {
+      localArtifacts,
     },
   };
-  const manifestPath = path.join(artifactDir, `${basename}.manifest.json`);
+  const manifestPath = path.join(artifactDir, `${packed.basename}.manifest.json`);
   fs.writeFileSync(manifestPath, `${JSON.stringify(artifactManifest, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   });
 
   writeEnv(envFile, {
-    RELEASE_TARBALL_PATH: tarballPath,
-    RELEASE_TARBALL_BASENAME: basename,
-    RELEASE_TARBALL_SHA256: sha256,
+    RELEASE_ARTIFACT_DIRECTORY: canonicalExisting(artifactDir),
+    RELEASE_TARBALL_PATH: packed.tarballPath,
+    RELEASE_TARBALL_BASENAME: packed.basename,
+    RELEASE_TARBALL_SHA256: packed.sha256,
     RELEASE_TARBALL_CHECKSUM_PATH: checksumPath,
     RELEASE_ARTIFACT_MANIFEST_PATH: manifestPath,
   });
@@ -223,18 +379,37 @@ function verifyArtifact(options) {
   const artifactDir = path.dirname(manifestPath);
   const record = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   assert.equal(record.schema, SCHEMA, `Unsupported release artifact schema: ${record.schema}`);
-  const basename = String(record.artifact?.basename ?? "");
-  const expectedSha = String(record.artifact?.sha256 ?? "");
-  if (!basename || basename !== path.basename(basename)) fail(`Unsafe artifact basename: ${basename}`);
-  if (!SHA256_RE.test(expectedSha)) fail("Artifact manifest has an invalid SHA-256");
-  const tarballPath = canonicalExisting(path.join(artifactDir, basename));
-  assertWithin(canonicalExisting(artifactDir), tarballPath, "release tarball");
-  const actualSha = sha256File(tarballPath);
-  if (actualSha !== expectedSha) fail(`Release tarball SHA-256 changed: ${actualSha}`);
-  const stat = fs.statSync(tarballPath);
-  if (stat.size !== record.artifact.size) fail("Release tarball size changed");
+  const mainRecord = {
+    name: record.package?.name,
+    version: record.package?.version,
+    relativePath: record.artifact?.relativePath ?? record.artifact?.basename,
+    sha256: record.artifact?.sha256,
+    size: record.artifact?.size,
+  };
+  const tarballPath = verifyRecordedArtifact(artifactDir, mainRecord, "Release tarball");
   const checksumText = fs.readFileSync(`${tarballPath}.sha256`, "utf8");
-  if (checksumText !== `${expectedSha}  ${basename}\n`) fail("Checksum sidecar does not match");
+  if (checksumText !== `${mainRecord.sha256}  ${path.basename(tarballPath)}\n`) {
+    fail("Checksum sidecar does not match");
+  }
+
+  const localRecords = record.dependencies?.localArtifacts ?? [];
+  if (!Array.isArray(localRecords)) fail("localArtifacts must be an array");
+  const localPaths = [];
+  const localNames = new Set();
+  for (const localRecord of localRecords) {
+    if (localNames.has(localRecord.name)) fail(`Duplicate local artifact: ${localRecord.name}`);
+    localNames.add(localRecord.name);
+    const localPath = verifyRecordedArtifact(
+      artifactDir,
+      localRecord,
+      `Local dependency ${localRecord.name}`,
+    );
+    const sidecar = fs.readFileSync(`${localPath}.sha256`, "utf8");
+    if (sidecar !== `${localRecord.sha256}  ${path.basename(localPath)}\n`) {
+      fail(`Local dependency checksum sidecar differs: ${localRecord.name}`);
+    }
+    localPaths.push(localPath);
+  }
 
   const tempParent = process.env.RUNNER_TEMP || os.tmpdir();
   const installRoot = fs.mkdtempSync(path.join(tempParent, "pi-release-artifact-"));
@@ -254,25 +429,33 @@ function verifyArtifact(options) {
         "--no-fund",
         "--no-package-lock",
         "--no-save",
+        ...localPaths,
         tarballPath,
       ],
       { cwd: installRoot },
     );
-    const installedRoot = path.join(installRoot, "node_modules", ...String(record.package.name).split("/"));
-    const installedManifestPath = path.join(installedRoot, "package.json");
-    if (!fs.existsSync(installedManifestPath)) fail("Exact tarball did not install expected package");
-    const installed = JSON.parse(fs.readFileSync(installedManifestPath, "utf8"));
-    if (installed.name !== record.package.name) fail("Installed package name differs from artifact manifest");
-    if (installed.version !== record.package.version) {
-      fail("Installed package version differs from artifact manifest");
+    for (const packageRecord of [...localRecords, mainRecord]) {
+      const installedRoot = path.join(
+        installRoot,
+        "node_modules",
+        ...String(packageRecord.name).split("/"),
+      );
+      const installedManifestPath = path.join(installedRoot, "package.json");
+      if (!fs.existsSync(installedManifestPath)) {
+        fail(`Exact install omitted ${packageRecord.name}`);
+      }
+      const installed = JSON.parse(fs.readFileSync(installedManifestPath, "utf8"));
+      if (installed.name !== packageRecord.name || installed.version !== packageRecord.version) {
+        fail(`Installed identity differs for ${packageRecord.name}`);
+      }
+      verifyInstalledTargets(installedRoot, installed);
     }
-    verifyInstalledTargets(installedRoot, installed);
   } finally {
     fs.rmSync(installRoot, { recursive: true, force: true });
   }
 
   process.stdout.write(
-    `Verified exact artifact ${record.package.name}@${record.package.version} (${expectedSha}).\n`,
+    `Verified exact artifact ${record.package.name}@${record.package.version} with ${localRecords.length} local dependency artifact(s) (${mainRecord.sha256}).\n`,
   );
 }
 
@@ -292,4 +475,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
   }
 }
 
-export { collectConcreteTargets, sha256File };
+export {
+  collectConcreteTargets,
+  collectLocalDependencyClosure,
+  sha256File,
+};
