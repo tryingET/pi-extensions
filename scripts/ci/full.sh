@@ -21,8 +21,6 @@ export TMPDIR="$tmp_root"
 export TMP="$tmp_root"
 export TEMP="$tmp_root"
 
-node --test ./scripts/root-package-install-contract.test.mjs
-
 if [ "${PI_SKIP_PACKAGES:-0}" = "1" ]; then
   echo "skipping local package link validation: PI_SKIP_PACKAGES=1"
 else
@@ -44,6 +42,8 @@ fi
 if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.json" ] && [ -f "./.release-please-manifest.json" ]; then
   node ./scripts/release-components.mjs validate
 fi
+
+node --test ./scripts/root-package-install-contract.test.mjs
 
 if [ -f "./scripts/validate-package-release-contracts.mjs" ]; then
   if [ "${PI_SKIP_PACKAGE_RELEASE_CONTRACTS:-0}" = "1" ]; then
