@@ -1,0 +1,68 @@
+name: Retain local release closure
+
+on:
+  push:
+    branches:
+      - agent/exact-release-artifact
+
+permissions:
+  contents: write
+
+concurrency:
+  group: retain-local-release-closure
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor == 'tryingET'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/exact-release-artifact
+          fetch-depth: 0
+
+      - name: Retain closure and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/publish.yml')
+          text = path.read_text(encoding='utf-8')
+          old_paths = '''          path: |
+            ${{ env.RELEASE_TARBALL_PATH }}
+            ${{ env.RELEASE_TARBALL_CHECKSUM_PATH }}
+            ${{ env.RELEASE_ARTIFACT_MANIFEST_PATH }}
+'''
+          if text.count(old_paths) != 2:
+              raise SystemExit(f'expected two retained path blocks, found {text.count(old_paths)}')
+          text = text.replace(
+              old_paths,
+              '          path: ${{ env.RELEASE_ARTIFACT_DIRECTORY }}\n',
+          )
+          anchor = '''      - name: Upload retained release tarball
+'''
+          insert = '''      - name: Verify release preparation restored tagged source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- .
+
+'''
+          if text.count(anchor) != 1:
+              raise SystemExit('upload anchor not found exactly once')
+          text = text.replace(anchor, insert + anchor, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          git rm .github/workflows/retain-local-release-closure.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- .github/workflows/publish.yml
+          git commit -m "feat(release): retain local dependency artifact closure"
+          git push origin HEAD:agent/exact-release-artifact
