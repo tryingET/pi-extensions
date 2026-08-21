@@ -99,7 +99,7 @@ jobs:
           node ./scripts/release-artifact.mjs pack \
             --package-path "${{ matrix.package_path }}" \
             --artifact-dir "$RUNNER_TEMP/release-artifact" \
-            --env-file "$GITHUB_ENV"
+            --output-env-file "$GITHUB_ENV"
 
       - name: Verify authoritative release artifact
         run: node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"

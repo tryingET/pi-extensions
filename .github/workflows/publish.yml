@@ -175,7 +175,7 @@ jobs:
           node ./scripts/release-artifact.mjs pack \
             --package-path "$RELEASE_PACKAGE_PATH" \
             --artifact-dir "$RUNNER_TEMP/release-package" \
-            --env-file "$GITHUB_ENV"
+            --output-env-file "$GITHUB_ENV"
 
       - name: Create authoritative generic release tarball
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
@@ -185,7 +185,7 @@ jobs:
           node ./scripts/release-artifact.mjs pack \
             --package-path "$RELEASE_PACKAGE_PATH" \
             --artifact-dir "$RUNNER_TEMP/release-package" \
-            --env-file "$GITHUB_ENV"
+            --output-env-file "$GITHUB_ENV"
 
       - name: Run snapshot-edit release checks against retained tarball
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'

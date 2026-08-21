@@ -11,7 +11,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { parseNpmPackJson } from "./npm-pack-json.mjs";
 
@@ -96,6 +96,64 @@ function run(command, args, options = {}) {
     fail(`${command} ${args.join(" ")} failed with exit ${result.status}${detail}`);
   }
   return result;
+}
+
+function writeToStderr(value) {
+  const text = String(value ?? "");
+  if (!text) return;
+  process.stderr.write(text);
+  if (!text.endsWith("\n")) process.stderr.write("\n");
+}
+
+function readJsonValueEnd(text, start) {
+  const expected = [];
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === "{") expected.push("}");
+    else if (character === "[") expected.push("]");
+    else if (character === "}" || character === "]") {
+      if (expected.pop() !== character) return -1;
+      if (expected.length === 0) return index + 1;
+    }
+  }
+  return -1;
+}
+
+function parseCapturedNpmPackOutput(raw) {
+  const text = String(raw ?? "");
+  let selected = null;
+  for (let start = 0; start < text.length; start += 1) {
+    if (text[start] !== "[" && text[start] !== "{") continue;
+    const end = readJsonValueEnd(text, start);
+    if (end < 0) continue;
+    try {
+      selected = {
+        pack: parseNpmPackJson(text.slice(start, end)),
+        start,
+        end,
+      };
+      start = end - 1;
+    } catch {
+      // Lifecycle output can contain unrelated JSON. Keep scanning for the final pack payload.
+    }
+  }
+  if (!selected) return { pack: parseNpmPackJson(text), noise: "" };
+  return {
+    pack: selected.pack,
+    noise: `${text.slice(0, selected.start)}${text.slice(selected.end)}`,
+  };
 }
 
 function writeEnv(envFile, pairs) {
@@ -199,11 +257,14 @@ function collectLocalDependencyClosure(packageRoot, packageManifest) {
 }
 
 function ensurePackageDependencies(packageRoot) {
-  if (fs.existsSync(path.join(packageRoot, "package-lock.json"))) {
-    run("npm", ["ci", "--include=dev"], { cwd: packageRoot });
-  } else {
-    run("npm", ["install", "--include=dev", "--no-package-lock"], { cwd: packageRoot });
-  }
+  const result = fs.existsSync(path.join(packageRoot, "package-lock.json"))
+    ? run("npm", ["ci", "--include=dev"], { cwd: packageRoot, capture: true })
+    : run("npm", ["install", "--include=dev", "--no-package-lock"], {
+        cwd: packageRoot,
+        capture: true,
+      });
+  writeToStderr(result.stdout);
+  writeToStderr(result.stderr);
 }
 
 function packedManifest(tarballPath) {
@@ -233,7 +294,10 @@ function packOne(packageRoot, destination, artifactRoot) {
     ["pack", "--json", "--pack-destination", destination],
     { cwd: packageRoot, capture: true },
   );
-  const pack = parseNpmPackJson(result.stdout ?? "");
+  const parsedOutput = parseCapturedNpmPackOutput(result.stdout ?? "");
+  writeToStderr(parsedOutput.noise);
+  writeToStderr(result.stderr);
+  const pack = parsedOutput.pack;
   if (pack.name !== manifest.name) fail(`Packed name mismatch: ${pack.name} != ${manifest.name}`);
   if (pack.version !== manifest.version) {
     fail(`Packed version mismatch: ${pack.version} != ${manifest.version}`);
@@ -296,7 +360,7 @@ function verifyRecordedArtifact(artifactDir, record, label) {
 function packArtifact(options) {
   const packagePath = requireOption(options, "package-path");
   const artifactDirInput = requireOption(options, "artifact-dir");
-  const envFile = options["env-file"];
+  const envFile = options["output-env-file"];
   const packageRoot = canonicalExisting(path.resolve(ROOT, packagePath));
   assertWithin(ROOT, packageRoot, "package path");
   const packageManifest = readManifest(packageRoot);
@@ -374,6 +438,29 @@ function packArtifact(options) {
   process.stdout.write(`${JSON.stringify(artifactManifest, null, 2)}\n`);
 }
 
+function buildExactInstallManifest(entries) {
+  const dependencies = {};
+  for (const entry of entries) {
+    const name = String(entry?.name ?? "");
+    if (!name) fail("Exact install artifact name is required");
+    if (Object.hasOwn(dependencies, name)) {
+      fail(`Duplicate exact install artifact: ${name}`);
+    }
+    const artifactPath = canonicalExisting(entry.artifactPath);
+    const stat = fs.lstatSync(artifactPath);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      fail(`Exact install artifact must be a regular file: ${name}`);
+    }
+    dependencies[name] = pathToFileURL(artifactPath).href;
+  }
+  return {
+    name: "pi-release-artifact-verifier",
+    version: "0.0.0",
+    private: true,
+    dependencies,
+  };
+}
+
 function verifyArtifact(options) {
   const manifestPath = canonicalExisting(requireOption(options, "manifest"));
   const artifactDir = path.dirname(manifestPath);
@@ -411,14 +498,21 @@ function verifyArtifact(options) {
     localPaths.push(localPath);
   }
 
+  const exactArtifacts = [
+    ...localRecords.map((localRecord, index) => ({
+      name: localRecord.name,
+      artifactPath: localPaths[index],
+    })),
+    { name: mainRecord.name, artifactPath: tarballPath },
+  ];
+  const consumerManifest = buildExactInstallManifest(exactArtifacts);
+  const consumerManifestText = `${JSON.stringify(consumerManifest, null, 2)}\n`;
+
   const tempParent = process.env.RUNNER_TEMP || os.tmpdir();
   const installRoot = fs.mkdtempSync(path.join(tempParent, "pi-release-artifact-"));
   try {
-    fs.writeFileSync(
-      path.join(installRoot, "package.json"),
-      `${JSON.stringify({ private: true }, null, 2)}\n`,
-      "utf8",
-    );
+    const consumerManifestPath = path.join(installRoot, "package.json");
+    fs.writeFileSync(consumerManifestPath, consumerManifestText, "utf8");
     run(
       "npm",
       [
@@ -427,13 +521,17 @@ function verifyArtifact(options) {
         "--legacy-peer-deps",
         "--no-audit",
         "--no-fund",
-        "--no-package-lock",
+        "--package-lock=false",
         "--no-save",
-        ...localPaths,
-        tarballPath,
       ],
       { cwd: installRoot },
     );
+    if (fs.readFileSync(consumerManifestPath, "utf8") !== consumerManifestText) {
+      fail("Exact install rewrote the verification consumer manifest");
+    }
+    if (fs.existsSync(path.join(installRoot, "package-lock.json"))) {
+      fail("Exact install generated a package-lock.json");
+    }
     for (const packageRecord of [...localRecords, mainRecord]) {
       const installedRoot = path.join(
         installRoot,
@@ -476,6 +574,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
 }
 
 export {
+  buildExactInstallManifest,
+  parseCapturedNpmPackOutput,
   collectConcreteTargets,
   collectLocalDependencyClosure,
   sha256File,

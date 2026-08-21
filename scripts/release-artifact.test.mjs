@@ -9,9 +9,10 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  buildExactInstallManifest,
   collectConcreteTargets,
   collectLocalDependencyClosure,
 } from "./release-artifact.mjs";
@@ -114,7 +115,7 @@ function packFixture(packageRoot, artifactDir, envFile) {
       path.relative(ROOT, packageRoot),
       "--artifact-dir",
       artifactDir,
-      "--env-file",
+      "--output-env-file",
       envFile,
     ],
     {
@@ -137,6 +138,37 @@ function packFixture(packageRoot, artifactDir, envFile) {
   );
   return { record, env };
 }
+
+test("builds one exact file dependency manifest and rejects duplicate identities", (t) => {
+  const root = fs.mkdtempSync(path.join(ROOT, ".release-artifact-manifest-test-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const dependencyPath = path.join(root, "dependency.tgz");
+  const packagePath = path.join(root, "package.tgz");
+  fs.writeFileSync(dependencyPath, "dependency", "utf8");
+  fs.writeFileSync(packagePath, "package", "utf8");
+
+  const manifest = buildExactInstallManifest([
+    { name: "@example/dependency", artifactPath: dependencyPath },
+    { name: "@example/package", artifactPath: packagePath },
+  ]);
+  assert.deepEqual(manifest, {
+    name: "pi-release-artifact-verifier",
+    version: "0.0.0",
+    private: true,
+    dependencies: {
+      "@example/dependency": pathToFileURL(dependencyPath).href,
+      "@example/package": pathToFileURL(packagePath).href,
+    },
+  });
+  assert.throws(
+    () =>
+      buildExactInstallManifest([
+        { name: "@example/package", artifactPath: packagePath },
+        { name: "@example/package", artifactPath: dependencyPath },
+      ]),
+    /Duplicate exact install artifact/u,
+  );
+});
 
 test("collects concrete package targets without treating patterns as files", () => {
   assert.deepEqual(

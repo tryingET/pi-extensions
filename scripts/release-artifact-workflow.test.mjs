@@ -40,10 +40,13 @@ test("publish never repairs tagged lockfiles or leaves source mutations", () => 
 test("the artifact helper reuses the canonical npm parser and records local closure", () => {
   const helper = fs.readFileSync(ARTIFACT_HELPER_PATH, "utf8");
   assert.match(helper, /import \{ parseNpmPackJson \} from "\.\/npm-pack-json\.mjs";/u);
-  assert.match(helper, /parseNpmPackJson\(result\.stdout/u);
+  assert.match(helper, /parseCapturedNpmPackOutput\(result\.stdout/u);
   assert.match(helper, /collectLocalDependencyClosure/u);
-  assert.match(helper, /dependencies:\s*\{\s*localArtifacts/usu);
-  assert.match(helper, /\.\.\.localPaths,\s*tarballPath/usu);
+  assert.match(helper, /dependencies:\s*\{\s*localArtifacts/su);
+  assert.match(helper, /buildExactInstallManifest\(exactArtifacts\)/u);
+  assert.match(helper, /dependencies\[name\] = pathToFileURL\(artifactPath\)\.href/u);
+  assert.match(helper, /"--package-lock=false"/u);
+  assert.doesNotMatch(helper, /\.\.\.localPaths/u);
   assert.doesNotMatch(helper, /function matchingArrayEnd/u);
 });
 
@@ -59,7 +62,7 @@ test("special and generic components each create one authoritative artifact", ()
     assert.match(step, /release-artifact\.mjs pack/u);
     assert.match(step, /--package-path "\$RELEASE_PACKAGE_PATH"/u);
     assert.match(step, /--artifact-dir "\$RUNNER_TEMP\/release-package"/u);
-    assert.match(step, /--env-file "\$GITHUB_ENV"/u);
+    assert.match(step, /--output-env-file "\$GITHUB_ENV"/u);
   }
   assert.equal((workflow.match(/release-artifact\.mjs pack/gu) ?? []).length, 2);
   const directPacks = workflow
