@@ -19,15 +19,25 @@ function step(workflow, name) {
   return workflow.slice(start, next < 0 ? workflow.length : next);
 }
 
+function job(workflow, name) {
+  const marker = `  ${name}:\n`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `workflow job not found: ${name}`);
+  const jobHeader = /^  [A-Za-z0-9_-]+:\n/gmu;
+  jobHeader.lastIndex = start + marker.length;
+  const match = jobHeader.exec(workflow);
+  return workflow.slice(start, match ? match.index : workflow.length);
+}
+
 test("publish uses least-privilege attestations and a locked immutable action", () => {
   const workflow = fs.readFileSync(PUBLISH, "utf8");
-  const job = workflow.slice(workflow.indexOf("  publish-npm:"));
-  assert.match(job, /^      contents: read$/mu);
-  assert.match(job, /^      id-token: write$/mu);
-  assert.match(job, /^      attestations: write$/mu);
-  assert.doesNotMatch(job, /^      contents: write$/mu);
+  const publishJob = job(workflow, "publish-npm");
+  assert.match(publishJob, /^      contents: read$/mu);
+  assert.match(publishJob, /^      id-token: write$/mu);
+  assert.match(publishJob, /^      attestations: write$/mu);
+  assert.doesNotMatch(publishJob, /^      contents: write$/mu);
   assert.equal(
-    (workflow.match(new RegExp(`uses: actions/attest@${ATTEST_SHA}`, "gu")) ?? []).length,
+    (publishJob.match(new RegExp(`uses: actions/attest@${ATTEST_SHA}`, "gu")) ?? []).length,
     3,
   );
   const lock = JSON.parse(fs.readFileSync(LOCK, "utf8"));
@@ -35,6 +45,17 @@ test("publish uses least-privilege attestations and a locked immutable action", 
     version: "v4.1.0",
     sha: ATTEST_SHA,
   });
+});
+
+test("durable retention isolates write permission from npm publication", () => {
+  const workflow = fs.readFileSync(PUBLISH, "utf8");
+  const publishJob = job(workflow, "publish-npm");
+  const retainJob = job(workflow, "retain-github-release-evidence");
+  assert.doesNotMatch(publishJob, /^      contents: write$/mu);
+  assert.match(retainJob, /^      contents: write$/mu);
+  assert.doesNotMatch(retainJob, /^      id-token: write$/mu);
+  assert.doesNotMatch(retainJob, /^      attestations: write$/mu);
+  assert.match(retainJob, /needs: publish-npm/u);
 });
 
 test("evidence is generated, verified, attested, retained, then published", () => {
