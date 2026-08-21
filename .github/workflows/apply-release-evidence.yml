@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - agent/release-sbom-attestations
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: write
@@ -16,7 +23,10 @@ jobs:
   apply:
     if: >-
       github.repository == 'tryingET/pi-extensions' &&
-      github.ref == 'refs/heads/agent/release-sbom-attestations'
+      ((github.event_name == 'push' && github.ref == 'refs/heads/agent/release-sbom-attestations') ||
+       (github.event_name == 'pull_request' &&
+        github.head_ref == 'agent/release-sbom-attestations' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
