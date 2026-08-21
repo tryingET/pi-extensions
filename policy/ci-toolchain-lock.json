@@ -3,6 +3,10 @@
   "nodeVersion": "22.22.2",
   "npmVersion": "12.0.2",
   "actions": {
+    "actions/attest": {
+      "version": "v4.1.0",
+      "sha": "1e69f48acb82d1966a394da916b4c1698aa569d6"
+    },
     "actions/checkout": {
       "version": "v7.0.1",
       "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1"
