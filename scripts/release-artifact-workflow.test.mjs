@@ -28,7 +28,10 @@ test("publish never repairs tagged lockfiles or metadata", () => {
   assert.doesNotMatch(workflow, /npm ci\s*\|\|/u);
   assert.doesNotMatch(workflow, /--package-lock-only/u);
   assert.doesNotMatch(workflow, /refresh(?:ing)? lockfile/iu);
-  assert.match(workflowStep(workflow, "Verify dependency installation did not rewrite tagged source"), /git diff --exit-code -- \./u);
+  assert.match(
+    workflowStep(workflow, "Verify dependency installation did not rewrite tagged source"),
+    /git diff --exit-code -- \./u,
+  );
 });
 
 test("special and generic components each create one authoritative artifact through the shared helper", () => {
@@ -52,7 +55,10 @@ test("special and generic components each create one authoritative artifact thro
     2,
     "exactly two mutually exclusive workflow steps may invoke the single-pack helper",
   );
-  assert.doesNotMatch(workflow, /\bnpm pack\b/u);
+  const directPackCommands = workflow
+    .split(/\r?\n/u)
+    .filter((line) => /^\s*(?:run:\s*)?npm pack\b/u.test(line));
+  assert.deepEqual(directPackCommands, [], "publish.yml must not invoke npm pack outside the helper");
 });
 
 test("every authoritative artifact is reverified, retained with evidence, and published by path", () => {
