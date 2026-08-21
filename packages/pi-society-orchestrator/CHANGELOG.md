@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.9.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.8.0...pi-society-orchestrator-v0.9.0) (2026-08-21)
+
+
+### Features
+
+* **orchestrator:** add Agent Kernel custody for release evidence ([#139](https://github.com/tryingET/pi-extensions/issues/139)) ([b7a14ec](https://github.com/tryingET/pi-extensions/commit/b7a14ec1517537a3a1454d2640f067910f27cb4b))
+
 ## [0.8.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.7.1...pi-society-orchestrator-v0.8.0) (2026-08-20)
 
 
