@@ -42,7 +42,7 @@ test("missing bytes publish once, exact bytes are a no-op, and mismatches fail c
     assert.match(publish, /already contains the exact immutable bytes/u);
     assert.match(publish, /mismatch\)/u);
     assert.match(publish, /refusing to overwrite/u);
-    assert.match(publish, /release-npm-state\.mjs inspect[\s\S]*--require exact/u);
+    assert.match(publish, /release-npm-state\.mjs"?\s+inspect[\s\S]*--require exact/u);
   }
 });
 
