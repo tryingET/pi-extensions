@@ -1,0 +1,49 @@
+name: Apply release evidence bundle
+
+on:
+  push:
+    branches:
+      - agent/release-sbom-attestations
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-release-evidence
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor == 'tryingET'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/release-sbom-attestations
+          fetch-depth: 0
+
+      - name: Apply, validate, and remove the one-shot transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/release-evidence-bundle.part* | base64 --decode > "$RUNNER_TEMP/release-evidence.tgz"
+          tar -xzf "$RUNNER_TEMP/release-evidence.tgz"
+          python apply.py
+          rm -f apply.py .github/release-evidence-bundle.part*
+          git rm .github/workflows/apply-release-evidence.yml
+
+          git diff --check
+          node --check scripts/release-sbom.mjs
+          node --test scripts/release-sbom.test.mjs
+          node --test scripts/release-evidence-workflow.test.mjs
+          node --test scripts/workflow-action-pins.test.mjs
+          node --test scripts/release-components.test.mjs
+          node ./scripts/release-components.mjs validate
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "release: retain deterministic SBOM and attestation evidence"
+          git push origin HEAD:agent/release-sbom-attestations
