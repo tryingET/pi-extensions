@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   apply:
-    if: github.actor == 'tryingET'
+    if: >-
+      github.repository == 'tryingET/pi-extensions' &&
+      github.ref == 'refs/heads/agent/release-sbom-attestations'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
