@@ -88,7 +88,9 @@ test("every artifact closure is reverified, retained, and published by exact pat
     "Upload authoritative generic release tarball",
   ]) {
     const step = workflowStep(workflow, name);
-    assert.match(step, /path: \$\{\{ env\.RELEASE_ARTIFACT_DIRECTORY \}\}/u);
+    assert.match(step, /RELEASE_ARTIFACT_DIRECTORY/u);
+    assert.match(step, /RELEASE_EVIDENCE_ARCHIVE_PATH/u);
+    assert.match(step, /RELEASE_EVIDENCE_ARCHIVE_CHECKSUM_PATH/u);
     assert.match(step, /if-no-files-found: error/u);
   }
   for (const name of [
