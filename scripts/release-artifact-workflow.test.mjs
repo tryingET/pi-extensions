@@ -24,29 +24,33 @@ function workflowStep(workflow, name) {
   return workflow.slice(start, next === -1 ? workflow.length : next);
 }
 
-test("publish never repairs tagged lockfiles or metadata", () => {
+test("publish never repairs tagged lockfiles or leaves source mutations", () => {
   const workflow = fs.readFileSync(PUBLISH_PATH, "utf8");
   assert.doesNotMatch(workflow, /npm ci\s*\|\|/u);
   assert.doesNotMatch(workflow, /--package-lock-only/u);
   assert.doesNotMatch(workflow, /refresh(?:ing)? lockfile/iu);
-  assert.match(
-    workflowStep(workflow, "Verify dependency installation did not rewrite tagged source"),
-    /git diff --exit-code -- \./u,
-  );
+  for (const name of [
+    "Verify dependency installation did not rewrite tagged source",
+    "Verify release preparation restored tagged source",
+  ]) {
+    assert.match(workflowStep(workflow, name), /git diff --exit-code -- \./u);
+  }
 });
 
-test("the artifact helper reuses the repository's npm 10, 11, and 12 parser", () => {
+test("the artifact helper reuses the canonical npm parser and records local closure", () => {
   const helper = fs.readFileSync(ARTIFACT_HELPER_PATH, "utf8");
   assert.match(helper, /import \{ parseNpmPackJson \} from "\.\/npm-pack-json\.mjs";/u);
-  assert.match(helper, /return parseNpmPackJson\(text\);/u);
+  assert.match(helper, /parseNpmPackJson\(result\.stdout/u);
+  assert.match(helper, /collectLocalDependencyClosure/u);
+  assert.match(helper, /dependencies:\s*\{\s*localArtifacts/usu);
+  assert.match(helper, /\.\.\.localPaths,\s*tarballPath/usu);
   assert.doesNotMatch(helper, /function matchingArrayEnd/u);
 });
 
-test("special and generic components each create one authoritative artifact through the shared helper", () => {
+test("special and generic components each create one authoritative artifact", () => {
   const workflow = fs.readFileSync(PUBLISH_PATH, "utf8");
   const retained = workflowStep(workflow, "Create immutable retained release tarball");
   const generic = workflowStep(workflow, "Create authoritative generic release tarball");
-
   assert.match(retained, /env\.RELEASE_COMPONENT == 'pi-snapshot-edit'/u);
   assert.match(retained, /env\.RELEASE_COMPONENT == 'pi-modes'/u);
   assert.match(generic, /env\.RELEASE_COMPONENT != 'pi-snapshot-edit'/u);
@@ -57,60 +61,45 @@ test("special and generic components each create one authoritative artifact thro
     assert.match(step, /--artifact-dir "\$RUNNER_TEMP\/release-package"/u);
     assert.match(step, /--env-file "\$GITHUB_ENV"/u);
   }
-
-  assert.equal(
-    (workflow.match(/release-artifact\.mjs pack/gu) ?? []).length,
-    2,
-    "exactly two mutually exclusive workflow steps may invoke the single-pack helper",
-  );
-  const directPackCommands = workflow
+  assert.equal((workflow.match(/release-artifact\.mjs pack/gu) ?? []).length, 2);
+  const directPacks = workflow
     .split(/\r?\n/u)
     .filter((line) => /^\s*(?:run:\s*)?npm pack\b/u.test(line));
-  assert.deepEqual(directPackCommands, [], "publish.yml must not invoke npm pack outside the helper");
+  assert.deepEqual(directPacks, []);
 });
 
-test("every authoritative artifact is reverified, retained with evidence, and published by path", () => {
+test("every artifact closure is reverified, retained, and published by exact path", () => {
   const workflow = fs.readFileSync(PUBLISH_PATH, "utf8");
-  const specialVerify = workflowStep(workflow, "Verify retained tarball after release checks");
-  const genericVerify = workflowStep(
-    workflow,
-    "Verify authoritative generic tarball after release checks",
-  );
-  const specialUpload = workflowStep(workflow, "Upload retained release tarball");
-  const genericUpload = workflowStep(workflow, "Upload authoritative generic release tarball");
-  const specialPublish = workflowStep(
-    workflow,
-    "Publish retained tarball to npm (OIDC + provenance)",
-  );
-  const genericPublish = workflowStep(
-    workflow,
-    "Publish authoritative generic tarball to npm (OIDC + provenance)",
-  );
-
-  for (const step of [specialVerify, genericVerify, specialPublish, genericPublish]) {
+  const verifySteps = [
+    workflowStep(workflow, "Verify retained tarball after release checks"),
+    workflowStep(workflow, "Verify authoritative generic tarball after release checks"),
+    workflowStep(workflow, "Publish retained tarball to npm (OIDC + provenance)"),
+    workflowStep(workflow, "Publish authoritative generic tarball to npm (OIDC + provenance)"),
+  ];
+  for (const step of verifySteps) {
     assert.match(step, /release-artifact\.mjs"? verify/u);
     assert.match(step, /--manifest "\$RELEASE_ARTIFACT_MANIFEST_PATH"/u);
   }
-  for (const step of [specialUpload, genericUpload]) {
-    assert.match(step, /RELEASE_TARBALL_PATH/u);
-    assert.match(step, /RELEASE_TARBALL_CHECKSUM_PATH/u);
-    assert.match(step, /RELEASE_ARTIFACT_MANIFEST_PATH/u);
+  for (const name of [
+    "Upload retained release tarball",
+    "Upload authoritative generic release tarball",
+  ]) {
+    const step = workflowStep(workflow, name);
+    assert.match(step, /path: \$\{\{ env\.RELEASE_ARTIFACT_DIRECTORY \}\}/u);
     assert.match(step, /if-no-files-found: error/u);
   }
-  for (const step of [specialPublish, genericPublish]) {
-    assert.match(step, /npm publish "\$RELEASE_TARBALL_PATH" --provenance/u);
+  for (const name of [
+    "Publish retained tarball to npm (OIDC + provenance)",
+    "Publish authoritative generic tarball to npm (OIDC + provenance)",
+  ]) {
+    assert.match(workflowStep(workflow, name), /npm publish "\$RELEASE_TARBALL_PATH" --provenance/u);
   }
-
-  const genericDirectory = workflowStep(
+  const compatibilityDryRun = workflowStep(
     workflow,
     "Publish generic package directory to npm (OIDC + provenance)",
   );
-  assert.match(genericDirectory, /NPM_CONFIG_DRY_RUN: "true"/u);
-  assert.doesNotMatch(genericDirectory, /RELEASE_TARBALL/u);
-  assert.ok(
-    workflow.indexOf(genericDirectory) < workflow.indexOf(genericPublish),
-    "the compatibility dry-run must precede exact-path publication",
-  );
+  assert.match(compatibilityDryRun, /NPM_CONFIG_DRY_RUN: "true"/u);
+  assert.doesNotMatch(compatibilityDryRun, /RELEASE_TARBALL/u);
 });
 
 test("release-check packs and installs the exact artifact for every managed component", () => {
@@ -126,7 +115,7 @@ test("release-check packs and installs the exact artifact for every managed comp
   assert.ok(workflow.indexOf(pack) < workflow.indexOf(verify));
 });
 
-test("the root full gate executes release-artifact unit and workflow tests", () => {
+test("the root full gate executes exact-artifact tests", () => {
   const gate = fs.readFileSync(FULL_GATE_PATH, "utf8");
   assert.match(gate, /node --test \.\/scripts\/release-artifact\.test\.mjs/u);
   assert.match(gate, /node --test \.\/scripts\/release-artifact-workflow\.test\.mjs/u);
