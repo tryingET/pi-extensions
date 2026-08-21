@@ -1,0 +1,60 @@
+name: Apply release evidence AK custody bundle
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-release-evidence-ak-custody
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: >-
+      github.repository == 'tryingET/pi-extensions' &&
+      github.head_ref == 'agent/release-evidence-ak-custody' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/release-evidence-ak-custody
+          fetch-depth: 0
+
+      - name: Apply bounded custody implementation and validate focused contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f .github/release-evidence-ak-bundle.part00 ]]; then
+            echo 'Release evidence AK custody bundle is already applied.'
+            exit 0
+          fi
+
+          base64 --decode .github/release-evidence-ak-bundle.part00 > "$RUNNER_TEMP/release-evidence-ak-custody.tgz"
+          echo '69df02e360784d6e8964f083b34881fc6adb55a6b025e7abf543921aada89d15  '"$RUNNER_TEMP/release-evidence-ak-custody.tgz" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/release-evidence-ak-custody.tgz"
+          rm -f .github/release-evidence-ak-bundle.part00
+
+          git diff --check
+          cd packages/pi-society-orchestrator
+          npm ci
+          npm run typecheck
+          node --test ./tests/release-evidence-ak-adapter.test.mjs
+          npm pack --dry-run >/dev/null
+          cd ../..
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat(pi-society-orchestrator): add release evidence AK custody adapter'
+          git push origin HEAD:agent/release-evidence-ak-custody
