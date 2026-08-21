@@ -47,6 +47,12 @@ function fixture(t) {
         pi: {
           extensions: ["./index.js"],
         },
+        scripts: {
+          prepack:
+            "node -e \"console.log('[lifecycle-prepack]'); console.log(JSON.stringify({phase:'prepack'}))\"",
+          postpack:
+            "node -e \"console.log('[lifecycle-postpack]'); console.log(JSON.stringify({phase:'postpack'}))\"",
+        },
       },
       null,
       2,
@@ -71,7 +77,7 @@ test("collects concrete package targets without treating patterns as files", () 
   );
 });
 
-test("packs once, records a digest, and installs the exact tarball", (t) => {
+test("packs once amid lifecycle output, records a digest, and installs the exact tarball", (t) => {
   const packageRoot = fixture(t);
   const artifactDir = path.join(packageRoot, "artifacts");
   const envFile = path.join(packageRoot, "github.env");
