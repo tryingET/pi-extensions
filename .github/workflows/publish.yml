@@ -26,6 +26,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -224,6 +225,54 @@ jobs:
           set -euo pipefail
           git diff --exit-code -- .
 
+      - name: Generate deterministic release SBOM and evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_date_epoch="$(git show -s --format=%ct HEAD)"
+          node ./scripts/release-sbom.mjs generate \
+            --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
+            --source-date-epoch "$source_date_epoch" \
+            --output-env-file "$GITHUB_ENV"
+
+      - name: Verify deterministic release evidence
+        run: node ./scripts/release-sbom.mjs verify --evidence "$RELEASE_EVIDENCE_MANIFEST_PATH"
+
+      - name: Attest exact release tarball provenance
+        id: attest-provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.1.0
+        with:
+          subject-path: ${{ env.RELEASE_TARBALL_PATH }}
+          show-summary: false
+
+      - name: Attest exact release SBOM
+        id: attest-sbom
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.1.0
+        with:
+          subject-path: ${{ env.RELEASE_TARBALL_PATH }}
+          sbom-path: ${{ env.RELEASE_SBOM_PATH }}
+          show-summary: false
+
+      - name: Attest retained release evidence manifests
+        id: attest-evidence
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.1.0
+        with:
+          subject-path: |
+            ${{ env.RELEASE_ARTIFACT_MANIFEST_PATH }}
+            ${{ env.RELEASE_EVIDENCE_MANIFEST_PATH }}
+          show-summary: false
+
+      - name: Retain attestation bundles with the exact artifact closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -- "${{ steps.attest-provenance.outputs.bundle-path }}" \
+            "$RELEASE_ARTIFACT_DIRECTORY/$RELEASE_TARBALL_BASENAME.provenance.sigstore.json"
+          cp -- "${{ steps.attest-sbom.outputs.bundle-path }}" \
+            "$RELEASE_ARTIFACT_DIRECTORY/$RELEASE_TARBALL_BASENAME.sbom.sigstore.json"
+          cp -- "${{ steps.attest-evidence.outputs.bundle-path }}" \
+            "$RELEASE_ARTIFACT_DIRECTORY/$RELEASE_TARBALL_BASENAME.evidence.sigstore.json"
+
       - name: Upload retained release tarball
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -251,6 +300,8 @@ jobs:
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
+          node "$GITHUB_WORKSPACE/scripts/release-sbom.mjs" verify \
+            --evidence "$RELEASE_EVIDENCE_MANIFEST_PATH"
           npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
 
       - name: Publish generic package directory to npm (OIDC + provenance)
@@ -269,4 +320,6 @@ jobs:
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
+          node "$GITHUB_WORKSPACE/scripts/release-sbom.mjs" verify \
+            --evidence "$RELEASE_EVIDENCE_MANIFEST_PATH"
           npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"

@@ -105,3 +105,17 @@ jobs:
         env:
           NPM_CONFIG_BIN_LINKS: "false"
         run: node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
+
+
+      - name: Generate deterministic release SBOM and evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_date_epoch="$(git show -s --format=%ct HEAD)"
+          node ./scripts/release-sbom.mjs generate \
+            --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
+            --source-date-epoch "$source_date_epoch" \
+            --output-env-file "$GITHUB_ENV"
+
+      - name: Verify deterministic release evidence
+        run: node ./scripts/release-sbom.mjs verify --evidence "$RELEASE_EVIDENCE_MANIFEST_PATH"
