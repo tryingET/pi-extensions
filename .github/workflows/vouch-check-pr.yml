@@ -14,8 +14,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: mitchellh/vouch/action/check-pr@d66fa29a64600490892131ad87597c30c91fcac4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          trustedFile: .github/ci-trusted-users.txt
-          requiredApprovals: "1"
-          dismissStaleReviews: "true"
+          pr-number: ${{ github.event.number }}
+          require-vouch: "true"
