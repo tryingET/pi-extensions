@@ -23,7 +23,7 @@ jobs:
       github.head_ref == 'agent/release-evidence-ak-custody' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout exact feature branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,6 +46,7 @@ jobs:
           rm -f .github/release-evidence-ak-bundle.part00
 
           git diff --check
+          bash ./scripts/prepare-asc-source-build-owner.sh
           cd packages/pi-society-orchestrator
           npm ci
           npm run typecheck
