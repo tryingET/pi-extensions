@@ -102,4 +102,6 @@ jobs:
             --output-env-file "$GITHUB_ENV"
 
       - name: Verify authoritative release artifact
+        env:
+          NPM_CONFIG_BIN_LINKS: "false"
         run: node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"

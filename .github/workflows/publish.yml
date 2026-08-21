@@ -204,12 +204,16 @@ jobs:
 
       - name: Verify retained tarball after release checks
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
+        env:
+          NPM_CONFIG_BIN_LINKS: "false"
         run: |
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
 
       - name: Verify authoritative generic tarball after release checks
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
+        env:
+          NPM_CONFIG_BIN_LINKS: "false"
         run: |
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
@@ -241,6 +245,8 @@ jobs:
       - name: Publish retained tarball to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        env:
+          NPM_CONFIG_BIN_LINKS: "false"
         run: |
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
@@ -257,6 +263,8 @@ jobs:
       - name: Publish authoritative generic tarball to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        env:
+          NPM_CONFIG_BIN_LINKS: "false"
         run: |
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
