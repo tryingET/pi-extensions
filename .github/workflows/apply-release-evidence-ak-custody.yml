@@ -49,7 +49,10 @@ jobs:
           bash ./scripts/prepare-asc-source-build-owner.sh
           cd packages/pi-society-orchestrator
           npm ci
-          npm run typecheck
+          # The temporary applicator proves the new compile boundary directly.
+          # The normal release-check and root CI workflows retain ownership of
+          # the complete monorepo local-link audit on the resulting source commit.
+          ./node_modules/.bin/tsgo --noEmit
           node --test ./tests/release-evidence-ak-adapter.test.mjs
           npm pack --dry-run >/dev/null
           cd ../..
