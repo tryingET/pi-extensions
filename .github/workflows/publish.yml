@@ -14,9 +14,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: publish-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: npm-publish
     permissions:
       contents: read
@@ -26,6 +31,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -66,52 +72,71 @@ jobs:
         if: env.RELEASE_COMPONENT == 'pi-society-orchestrator'
         run: bash ./scripts/prepare-asc-source-build-owner.sh
 
-      - name: Install package dependencies
+      - name: Install package dependencies without rewriting release metadata
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        shell: bash
         run: |
-          # Self-healing install: release waves bump sibling packages, and any
-          # committed package-lock referencing a bumped sibling makes npm ci
-          # fail. Regenerate the lock in that case instead of failing the publish.
+          set -euo pipefail
           if [[ -f package-lock.json ]]; then
-            npm ci || (npm install --package-lock-only --ignore-scripts && npm ci)
-          else
-            npm install --package-lock-only --ignore-scripts
             npm ci
+          else
+            npm install --no-package-lock
           fi
 
-      - name: Install local file dependency dependencies
+      - name: Install local file dependency dependencies without lock repair
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        shell: bash
         run: |
+          set -euo pipefail
           node <<'NODE'
           const fs = require('node:fs');
           const path = require('node:path');
           const { execFileSync } = require('node:child_process');
           const root = process.cwd();
+          const repositoryPackagesRoot = path.resolve(root, '..');
           const seen = new Set();
+
           function installLocalDeps(packageDir) {
-            const manifestPath = path.join(packageDir, 'package.json');
+            const real = fs.realpathSync(packageDir);
+            if (seen.has(real)) return;
+            seen.add(real);
+            const manifestPath = path.join(real, 'package.json');
             if (!fs.existsSync(manifestPath)) return;
             const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-            const deps = { ...(manifest.dependencies || {}), ...(manifest.devDependencies || {}) };
+            const deps = {
+              ...(manifest.dependencies || {}),
+              ...(manifest.devDependencies || {}),
+              ...(manifest.optionalDependencies || {}),
+            };
             for (const spec of Object.values(deps)) {
               if (typeof spec !== 'string' || !spec.startsWith('file:')) continue;
-              const depDir = path.resolve(packageDir, spec.slice('file:'.length));
-              if (!depDir.startsWith(path.resolve(root, '..'))) continue;
-              if (seen.has(depDir)) continue;
-              seen.add(depDir);
+              const depDir = path.resolve(real, spec.slice('file:'.length));
+              const relative = path.relative(repositoryPackagesRoot, depDir);
+              if (relative.startsWith('..') || path.isAbsolute(relative)) {
+                throw new Error(`Local dependency escapes repository packages: ${depDir}`);
+              }
               installLocalDeps(depDir);
               if (!fs.existsSync(path.join(depDir, 'package.json'))) continue;
               console.log(`Installing local file dependency dependencies in ${depDir}`);
               if (fs.existsSync(path.join(depDir, 'package-lock.json'))) {
                 execFileSync('npm', ['ci'], { cwd: depDir, stdio: 'inherit' });
               } else {
-                execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts'], { cwd: depDir, stdio: 'inherit' });
-                execFileSync('npm', ['ci'], { cwd: depDir, stdio: 'inherit' });
+                execFileSync('npm', ['install', '--no-package-lock'], {
+                  cwd: depDir,
+                  stdio: 'inherit',
+                });
               }
             }
           }
+
           installLocalDeps(root);
           NODE
+
+      - name: Verify dependency installation did not rewrite tagged source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- .
 
       - name: Install Dolt for package checks that exercise Prompt Vault fixtures
         if: env.RELEASE_COMPONENT == 'pi-society-orchestrator' || env.RELEASE_COMPONENT == 'pi-vault-client'
@@ -139,22 +164,13 @@ jobs:
         run: npm run check
 
       - name: Create immutable retained release tarball
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
-        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        shell: bash
         run: |
           set -euo pipefail
-          artifact_dir="$RUNNER_TEMP/release-package"
-          mkdir -p "$artifact_dir"
-          tarball_basename="$(npm pack --silent --pack-destination "$artifact_dir" | tail -n 1)"
-          tarball_path="$(realpath "$artifact_dir/$tarball_basename")"
-          tarball_sha256="$(sha256sum "$tarball_path" | awk '{print $1}')"
-          {
-            echo "RELEASE_TARBALL_PATH=$tarball_path"
-            echo "RELEASE_TARBALL_BASENAME=$tarball_basename"
-            echo "RELEASE_TARBALL_SHA256=$tarball_sha256"
-          } >> "$GITHUB_ENV"
-          echo "$tarball_sha256  $tarball_basename" > "$artifact_dir/$tarball_basename.sha256"
-          echo "Retained $tarball_path ($tarball_sha256)"
+          node ./scripts/release-artifact.mjs pack \
+            --package-path "$RELEASE_PACKAGE_PATH" \
+            --artifact-dir "$RUNNER_TEMP/release-package" \
+            --env-file "$GITHUB_ENV"
 
       - name: Run snapshot-edit release checks against retained tarball
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit'
@@ -166,34 +182,31 @@ jobs:
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: npm run release:check:ci -- "$RELEASE_TARBALL_PATH"
 
+      - name: Run generic package release checks (artifact-only)
+        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
+        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
+        env:
+          AUTHORITATIVE_RELEASE_TARBALL: ${{ env.RELEASE_TARBALL_PATH }}
+          AUTHORITATIVE_RELEASE_TARBALL_SHA256: ${{ env.RELEASE_TARBALL_SHA256 }}
+        run: npm run release:check:quick
+
       - name: Verify retained tarball after release checks
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
-        run: echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
+        run: node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
 
       - name: Upload retained release tarball
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
           path: |
             ${{ env.RELEASE_TARBALL_PATH }}
-            ${{ env.RELEASE_TARBALL_PATH }}.sha256
+            ${{ env.RELEASE_TARBALL_CHECKSUM_PATH }}
+            ${{ env.RELEASE_ARTIFACT_MANIFEST_PATH }}
           if-no-files-found: error
           retention-days: 30
 
-      - name: Run generic package release checks (artifact-only)
-        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
-        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
-        run: npm run release:check:quick
-
       - name: Publish retained tarball to npm (OIDC + provenance)
-        if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         run: |
-          echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
+          node "$GITHUB_WORKSPACE/scripts/release-artifact.mjs" verify \
+            --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
           npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
-
-      - name: Publish generic package directory to npm (OIDC + provenance)
-        if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
-        working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
-        run: npm publish --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
