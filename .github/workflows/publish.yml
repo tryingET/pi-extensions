@@ -214,15 +214,18 @@ jobs:
           echo "$RELEASE_TARBALL_SHA256  $RELEASE_TARBALL_PATH" | sha256sum --check --status
           node ./scripts/release-artifact.mjs verify --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH"
 
+      - name: Verify release preparation restored tagged source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- .
+
       - name: Upload retained release tarball
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
-          path: |
-            ${{ env.RELEASE_TARBALL_PATH }}
-            ${{ env.RELEASE_TARBALL_CHECKSUM_PATH }}
-            ${{ env.RELEASE_ARTIFACT_MANIFEST_PATH }}
+          path: ${{ env.RELEASE_ARTIFACT_DIRECTORY }}
           if-no-files-found: error
           retention-days: 30
 
@@ -231,10 +234,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
-          path: |
-            ${{ env.RELEASE_TARBALL_PATH }}
-            ${{ env.RELEASE_TARBALL_CHECKSUM_PATH }}
-            ${{ env.RELEASE_ARTIFACT_MANIFEST_PATH }}
+          path: ${{ env.RELEASE_ARTIFACT_DIRECTORY }}
           if-no-files-found: error
           retention-days: 30
 
