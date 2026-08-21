@@ -1,0 +1,58 @@
+name: Reuse canonical npm pack parser
+
+on:
+  push:
+    branches:
+      - agent/exact-release-artifact
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reuse-npm-pack-parser
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor == 'tryingET'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/exact-release-artifact
+          fetch-depth: 0
+
+      - name: Reuse repository parser and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/release-artifact.mjs")
+          text = path.read_text(encoding="utf-8")
+          import_anchor = 'import { fileURLToPath } from "node:url";\n'
+          parser_import = 'import { parseNpmPackJson } from "./npm-pack-json.mjs";\n'
+          if parser_import not in text:
+              if text.count(import_anchor) != 1:
+                  raise SystemExit("fileURLToPath import anchor was not found exactly once")
+              text = text.replace(import_anchor, import_anchor + "\n" + parser_import, 1)
+
+          start = text.index("function matchingArrayEnd(")
+          end = text.index("\n\nfunction writeEnv", start)
+          replacement = '''function parsePackJson(text) {
+            return parseNpmPackJson(text);
+          }'''
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          git rm .github/workflows/reuse-npm-pack-parser.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- scripts/release-artifact.mjs
+          git commit -m "fix(release): reuse canonical npm pack JSON parser"
+          git push origin HEAD:agent/exact-release-artifact
