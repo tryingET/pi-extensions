@@ -20,6 +20,12 @@ concurrency:
 
 jobs:
   publish-npm:
+    outputs:
+      release_tag: ${{ steps.release-identifiers.outputs.release_tag }}
+      component: ${{ steps.release-identifiers.outputs.component }}
+      version: ${{ steps.release-identifiers.outputs.version }}
+      workflow_artifact: ${{ steps.release-identifiers.outputs.workflow_artifact }}
+      archive_name: ${{ steps.release-identifiers.outputs.archive_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: npm-publish
@@ -68,6 +74,22 @@ jobs:
             echo "Resolved package version ($RELEASE_PACKAGE_VERSION) does not match release tag version ($RELEASE_TAG_VERSION)." >&2
             exit 1
           fi
+
+      - name: Expose durable release identifiers
+        id: release-identifiers
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_name="${RELEASE_COMPONENT}-v${RELEASE_PACKAGE_VERSION}.release-evidence.tar.gz"
+          {
+            echo "release_tag=$RELEASE_TAG"
+            echo "component=$RELEASE_COMPONENT"
+            echo "version=$RELEASE_PACKAGE_VERSION"
+            echo "workflow_artifact=npm-${RELEASE_COMPONENT}-${RELEASE_PACKAGE_VERSION}"
+            echo "archive_name=$archive_name"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Prepare linked ASC source runtime
         if: env.RELEASE_COMPONENT == 'pi-society-orchestrator'
@@ -273,12 +295,29 @@ jobs:
           cp -- "${{ steps.attest-evidence.outputs.bundle-path }}" \
             "$RELEASE_ARTIFACT_DIRECTORY/$RELEASE_TARBALL_BASENAME.evidence.sigstore.json"
 
+      - name: Create deterministic durable release evidence archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_date_epoch="$(git show -s --format=%ct HEAD)"
+          archive_dir="$RUNNER_TEMP/release-evidence-archive"
+          archive_name="${RELEASE_COMPONENT}-v${RELEASE_PACKAGE_VERSION}.release-evidence.tar.gz"
+          mkdir -p "$archive_dir"
+          node ./scripts/release-evidence-archive.mjs create \
+            --directory "$RELEASE_ARTIFACT_DIRECTORY" \
+            --output "$archive_dir/$archive_name" \
+            --source-date-epoch "$source_date_epoch" \
+            --output-env-file "$GITHUB_ENV"
+
       - name: Upload retained release tarball
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
-          path: ${{ env.RELEASE_ARTIFACT_DIRECTORY }}
+          path: |
+            ${{ env.RELEASE_ARTIFACT_DIRECTORY }}
+            ${{ env.RELEASE_EVIDENCE_ARCHIVE_PATH }}
+            ${{ env.RELEASE_EVIDENCE_ARCHIVE_CHECKSUM_PATH }}
           if-no-files-found: error
           retention-days: 30
 
@@ -287,7 +326,10 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
-          path: ${{ env.RELEASE_ARTIFACT_DIRECTORY }}
+          path: |
+            ${{ env.RELEASE_ARTIFACT_DIRECTORY }}
+            ${{ env.RELEASE_EVIDENCE_ARCHIVE_PATH }}
+            ${{ env.RELEASE_EVIDENCE_ARCHIVE_CHECKSUM_PATH }}
           if-no-files-found: error
           retention-days: 30
 
@@ -323,3 +365,110 @@ jobs:
           node "$GITHUB_WORKSPACE/scripts/release-sbom.mjs" verify \
             --evidence "$RELEASE_EVIDENCE_MANIFEST_PATH"
           npm publish "$RELEASE_TARBALL_PATH" --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+
+
+  retain-github-release-evidence:
+    needs: publish-npm
+    if: ${{ needs.publish-npm.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.publish-npm.outputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.22.2"
+          package-manager-cache: false
+
+      - name: Download exact workflow release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.publish-npm.outputs.workflow_artifact }}
+          path: ${{ runner.temp }}/release-evidence-download
+
+      - name: Verify tag and downloaded durable evidence
+        env:
+          RELEASE_TAG: ${{ needs.publish-npm.outputs.release_tag }}
+          ARCHIVE_NAME: ${{ needs.publish-npm.outputs.archive_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
+          git merge-base --is-ancestor HEAD origin/main
+          archive="$(find "$RUNNER_TEMP/release-evidence-download" -type f -name "$ARCHIVE_NAME" -print -quit)"
+          test -n "$archive"
+          checksum="$(find "$RUNNER_TEMP/release-evidence-download" -type f -name "$ARCHIVE_NAME.sha256" -print -quit)"
+          test -n "$checksum"
+          node ./scripts/release-evidence-archive.mjs verify \\
+            --archive "$archive" \\
+            --checksum "$checksum"
+          {
+            echo "REMOTE_ARCHIVE_PATH=$archive"
+            echo "REMOTE_CHECKSUM_PATH=$checksum"
+          } >> "$GITHUB_ENV"
+
+      - name: Retain or verify immutable GitHub Release evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.publish-npm.outputs.release_tag }}
+          ARCHIVE_NAME: ${{ needs.publish-npm.outputs.archive_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          assets="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          archive_exists=false
+          checksum_exists=false
+          if grep -Fxq "$ARCHIVE_NAME" <<<"$assets"; then archive_exists=true; fi
+          if grep -Fxq "$ARCHIVE_NAME.sha256" <<<"$assets"; then checksum_exists=true; fi
+
+          existing="$RUNNER_TEMP/existing-release-evidence"
+          mkdir -p "$existing"
+          if [[ "$archive_exists" == true ]]; then
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \\
+              --pattern "$ARCHIVE_NAME" --dir "$existing"
+            cmp -- "$REMOTE_ARCHIVE_PATH" "$existing/$ARCHIVE_NAME" || {
+              echo "Existing GitHub Release asset differs: $ARCHIVE_NAME" >&2
+              exit 1
+            }
+          fi
+          if [[ "$checksum_exists" == true ]]; then
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \\
+              --pattern "$ARCHIVE_NAME.sha256" --dir "$existing"
+            cmp -- "$REMOTE_CHECKSUM_PATH" "$existing/$ARCHIVE_NAME.sha256" || {
+              echo "Existing GitHub Release asset differs: $ARCHIVE_NAME.sha256" >&2
+              exit 1
+            }
+          fi
+
+          if [[ "$archive_exists" != true ]]; then
+            gh release upload "$RELEASE_TAG" "$REMOTE_ARCHIVE_PATH" --repo "$GITHUB_REPOSITORY"
+          fi
+          if [[ "$checksum_exists" != true ]]; then
+            gh release upload "$RELEASE_TAG" "$REMOTE_CHECKSUM_PATH" --repo "$GITHUB_REPOSITORY"
+          fi
+
+          verified="$RUNNER_TEMP/verified-release-evidence"
+          mkdir -p "$verified"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \\
+            --pattern "$ARCHIVE_NAME" --pattern "$ARCHIVE_NAME.sha256" --dir "$verified"
+          cmp -- "$REMOTE_ARCHIVE_PATH" "$verified/$ARCHIVE_NAME" || {
+            echo "Remote release evidence differs after retention: $ARCHIVE_NAME" >&2
+            exit 1
+          }
+          cmp -- "$REMOTE_CHECKSUM_PATH" "$verified/$ARCHIVE_NAME.sha256" || {
+            echo "Remote release evidence differs after retention: $ARCHIVE_NAME.sha256" >&2
+            exit 1
+          }
+          node ./scripts/release-evidence-archive.mjs verify \\
+            --archive "$verified/$ARCHIVE_NAME" \\
+            --checksum "$verified/$ARCHIVE_NAME.sha256"
