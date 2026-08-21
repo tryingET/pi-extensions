@@ -14,6 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLISH_PATH = path.join(ROOT, ".github", "workflows", "publish.yml");
 const RELEASE_CHECK_PATH = path.join(ROOT, ".github", "workflows", "release-check.yml");
 const FULL_GATE_PATH = path.join(ROOT, "scripts", "ci", "full.sh");
+const ARTIFACT_HELPER_PATH = path.join(ROOT, "scripts", "release-artifact.mjs");
 
 function workflowStep(workflow, name) {
   const marker = `      - name: ${name}\n`;
@@ -32,6 +33,13 @@ test("publish never repairs tagged lockfiles or metadata", () => {
     workflowStep(workflow, "Verify dependency installation did not rewrite tagged source"),
     /git diff --exit-code -- \./u,
   );
+});
+
+test("the artifact helper reuses the repository's npm 10, 11, and 12 parser", () => {
+  const helper = fs.readFileSync(ARTIFACT_HELPER_PATH, "utf8");
+  assert.match(helper, /import \{ parseNpmPackJson \} from "\.\/npm-pack-json\.mjs";/u);
+  assert.match(helper, /return parseNpmPackJson\(text\);/u);
+  assert.doesNotMatch(helper, /function matchingArrayEnd/u);
 });
 
 test("special and generic components each create one authoritative artifact through the shared helper", () => {
