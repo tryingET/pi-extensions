@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "nodeVersion": "22.22.2",
+  "npmVersion": "12.0.2",
+  "actions": {
+    "actions/checkout": {
+      "version": "v7.0.1",
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1"
+    },
+    "actions/setup-node": {
+      "version": "v7",
+      "sha": "820762786026740c76f36085b0efc47a31fe5020"
+    },
+    "actions/upload-artifact": {
+      "version": "v7",
+      "sha": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    },
+    "googleapis/release-please-action": {
+      "version": "v5.0.0",
+      "sha": "45996ed1f6d02564a971a2fa1b5860e934307cf7"
+    },
+    "mitchellh/vouch/action/check-pr": {
+      "version": "reviewed",
+      "sha": "d66fa29a64600490892131ad87597c30c91fcac4"
+    },
+    "mitchellh/vouch/action/manage-by-issue": {
+      "version": "reviewed",
+      "sha": "d66fa29a64600490892131ad87597c30c91fcac4"
+    }
+  },
+  "dolt": {
+    "version": "2.3.1",
+    "tag": "v2.3.1",
+    "tagCommit": "b15770fe588268027d799c11356af0ce24ba882a",
+    "installerTemplateBlobSha": "b212efe0dcb5b8ac05ceeefad17a65f19a5f502b"
+  }
+}

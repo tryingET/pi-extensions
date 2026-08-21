@@ -23,21 +23,21 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "22"
+          node-version: "22.22.2"
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
       - name: Upgrade npm for trusted publishing
         run: |
           mkdir -p "$RUNNER_TEMP/npm-global"
-          npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@^11.5.1
+          npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
           echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/npm-global/bin/npm" --version
 
@@ -116,13 +116,21 @@ jobs:
       - name: Install Dolt for package checks that exercise Prompt Vault fixtures
         if: env.RELEASE_COMPONENT == 'pi-society-orchestrator' || env.RELEASE_COMPONENT == 'pi-vault-client'
         run: |
-          if ! command -v dolt >/dev/null 2>&1; then
-            curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh -o /tmp/install-dolt.sh
-            sudo bash /tmp/install-dolt.sh
-          fi
+          dolt_version="2.3.1"
+          dolt_commit="b15770fe588268027d799c11356af0ce24ba882a"
+          dolt_template_blob="b212efe0dcb5b8ac05ceeefad17a65f19a5f502b"
+          template="$RUNNER_TEMP/install-dolt.template.sh"
+          expected="$RUNNER_TEMP/install-dolt.expected.sh"
+          installer="$RUNNER_TEMP/install-dolt.sh"
+          curl -fsSL "https://raw.githubusercontent.com/dolthub/dolt/$dolt_commit/go/utils/publishrelease/install.sh" -o "$template"
+          test "$(git hash-object "$template")" = "$dolt_template_blob"
+          sed "s/__DOLT_VERSION__/$dolt_version/g" "$template" > "$expected"
+          curl -fsSL "https://github.com/dolthub/dolt/releases/download/v$dolt_version/install.sh" -o "$installer"
+          cmp "$expected" "$installer"
+          sudo bash "$installer"
+          dolt version | grep -F "$dolt_version"
           dolt config --global --set user.name "github-actions[bot]"
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          dolt version
 
       - name: Run package quality gate
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
@@ -164,7 +172,7 @@ jobs:
 
       - name: Upload retained release tarball
         if: env.RELEASE_COMPONENT == 'pi-snapshot-edit' || env.RELEASE_COMPONENT == 'pi-modes'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: npm-${{ env.RELEASE_COMPONENT }}-${{ env.RELEASE_PACKAGE_VERSION }}
           path: |

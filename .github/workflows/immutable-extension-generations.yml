@@ -10,20 +10,31 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   generation-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "22"
+          node-version: "22.22.2"
           package-manager-cache: false
+
+      - name: Install governed npm client
+        run: |
+          mkdir -p "$RUNNER_TEMP/npm-global"
+          npm install --global --prefix "$RUNNER_TEMP/npm-global" npm@12.0.2
+          echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
 
       - name: Install exact isolated Pi host
         shell: bash

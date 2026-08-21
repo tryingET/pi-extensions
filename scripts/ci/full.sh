@@ -43,6 +43,8 @@ if [ -f "./scripts/release-components.mjs" ] && [ -f "./.release-please-config.j
   node ./scripts/release-components.mjs validate
 fi
 
+node --test ./scripts/root-package-install-contract.test.mjs
+
 if [ -f "./scripts/validate-package-release-contracts.mjs" ]; then
   if [ "${PI_SKIP_PACKAGE_RELEASE_CONTRACTS:-0}" = "1" ]; then
     echo "skipping aggregate package release contracts: dedicated release-check matrix owns CI coverage"
