@@ -23,8 +23,10 @@ function job(workflow, name) {
   const marker = `  ${name}:\n`;
   const start = workflow.indexOf(marker);
   assert.notEqual(start, -1, `workflow job not found: ${name}`);
-  const next = workflow.indexOf("\n  ", start + marker.length);
-  return workflow.slice(start, next < 0 ? workflow.length : next);
+  const jobHeader = /^  [A-Za-z0-9_-]+:\n/gmu;
+  jobHeader.lastIndex = start + marker.length;
+  const match = jobHeader.exec(workflow);
+  return workflow.slice(start, match ? match.index : workflow.length);
 }
 
 test("publish uses least-privilege attestations and a locked immutable action", () => {
@@ -48,7 +50,7 @@ test("publish uses least-privilege attestations and a locked immutable action", 
 test("durable retention isolates write permission from npm publication", () => {
   const workflow = fs.readFileSync(PUBLISH, "utf8");
   const publishJob = job(workflow, "publish-npm");
-  const retainJob = job(workflow, "retain-release-evidence");
+  const retainJob = job(workflow, "retain-github-release-evidence");
   assert.doesNotMatch(publishJob, /^      contents: write$/mu);
   assert.match(retainJob, /^      contents: write$/mu);
   assert.doesNotMatch(retainJob, /^      id-token: write$/mu);
