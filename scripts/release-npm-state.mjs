@@ -71,11 +71,15 @@ function normalizeObservedPublication(value) {
       `npm view result must be an object; received ${JSON.stringify(value)?.slice(0, 400) ?? String(value)}`,
     );
   }
+  // npm <= 11 nests dist fields under `dist`; npm >= 12 flattens dotted
+  // selectors into literal keys such as "dist.integrity".
+  const integrity = value.integrity ?? value.dist?.integrity ?? value["dist.integrity"];
+  const shasum = value.shasum ?? value.dist?.shasum ?? value["dist.shasum"];
   return {
     name: requireString(value.name, "npm package name"),
     version: requireString(value.version, "npm package version"),
-    integrity: requireString(value.integrity ?? value.dist?.integrity, "npm dist.integrity"),
-    shasum: requireString(value.shasum ?? value.dist?.shasum, "npm dist.shasum").toLowerCase(),
+    integrity: requireString(integrity, "npm dist.integrity"),
+    shasum: requireString(shasum, "npm dist.shasum").toLowerCase(),
   };
 }
 
