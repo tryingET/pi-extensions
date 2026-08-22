@@ -1,0 +1,16 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "TRUST",
+  "requirements": [
+    {
+      "requirement_id": "TRUST-001",
+      "normative_requirement": "The Pi host process and all loaded extensions are explicitly part of the trusted computing base.",
+      "threat_or_failure": "False claim of in-process isolation",
+      "design_sections": "§4",
+      "primary_verification": "Threat-model review and status wording test; malicious host extension is documented as out of scope.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

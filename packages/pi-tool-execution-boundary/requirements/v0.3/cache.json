@@ -1,0 +1,16 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "CACHE",
+  "requirements": [
+    {
+      "requirement_id": "CACHE-001",
+      "normative_requirement": "Writable caches are scoped to one lease and never reused across independent checkouts or lease generations.",
+      "threat_or_failure": "Cross-repository cache poisoning",
+      "design_sections": "§7",
+      "primary_verification": "Poison one lease cache and prove another lease cannot observe or execute it.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

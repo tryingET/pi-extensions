@@ -1,0 +1,244 @@
+{
+  "schema": "pi-tool-boundary-cbor-vectors/v2",
+  "vectors": [
+    {
+      "name": "effective-policy-default",
+      "domainTextWithoutTerminator": "pi-tool-boundary/effective-policy/v1",
+      "domainUtf8Hex": "70692d746f6f6c2d626f756e646172792f6566666563746976652d706f6c6963792f763100",
+      "semanticBody": {
+        "1": "pi-tool-boundary-policy/v1",
+        "2": "microvm-offline",
+        "3": {
+          "1": "committed-clean-tree/v1",
+          "2": true,
+          "3": 200000,
+          "4": 2147483648,
+          "5": 268435456,
+          "6": 4096,
+          "7": 128,
+          "8": false
+        },
+        "4": {
+          "1": 8,
+          "2": 12884901888,
+          "3": 12884901888,
+          "4": 512,
+          "5": 900000,
+          "6": 33554432,
+          "7": 1073741824,
+          "8": 268435456
+        },
+        "5": {
+          "1": [
+            "bash",
+            "edit",
+            "find",
+            "grep",
+            "ls",
+            "read",
+            "write"
+          ],
+          "2": true
+        },
+        "6": {
+          "1": 1,
+          "2": 1,
+          "3": 4,
+          "4": 25769803776,
+          "5": 10,
+          "6": 2,
+          "7": 5,
+          "8": "deny"
+        },
+        "7": {
+          "1": false,
+          "2": true,
+          "3": 7,
+          "4": 34359738368,
+          "5": 10000
+        },
+        "8": {
+          "1": true,
+          "2": "preferred"
+        }
+      },
+      "deterministicCborHex": "a801781a70692d746f6f6c2d626f756e646172792d706f6c6963792f7631026f6d6963726f766d2d6f66666c696e6503a80177636f6d6d69747465642d636c65616e2d747265652f763102f5031a00030d40041a80000000051a100000000619100007188008f404a80108021b0000000300000000031b000000030000000004190200051a000dbba0061a02000000071a40000000081a1000000005a20187646261736864656469746466696e646467726570626c73647265616465777269746502f506a8010102010304041b0000000600000000050a06020705086464656e7907a501f402f50307041b00000008000000000519271008a201f50269707265666572726564",
+      "sha256": "1226ee94f142099b4c458c14e967731d5f5a59e72cc719f4af63d57478d82a50"
+    },
+    {
+      "name": "requested-read-operation",
+      "domainTextWithoutTerminator": "pi-tool-boundary/requested-operation/v1",
+      "domainUtf8Hex": "70692d746f6f6c2d626f756e646172792f7265717565737465642d6f7065726174696f6e2f763100",
+      "semanticBody": {
+        "1": "read",
+        "2": [
+          "src",
+          "main.ts"
+        ],
+        "3": 0,
+        "4": 200
+      },
+      "deterministicCborHex": "a4016472656164028263737263676d61696e2e747303000418c8",
+      "sha256": "b6e0a04be00efea218c815dc973a78712f587a7b986c4b8958f1918aa708b746"
+    },
+    {
+      "name": "requested-write-call-x",
+      "domainTextWithoutTerminator": "pi-tool-boundary/requested-call/v1",
+      "domainUtf8Hex": "70692d746f6f6c2d626f756e646172792f7265717565737465642d63616c6c2f763100",
+      "semanticBody": {
+        "1": "018f0000-0000-7000-8000-000000000001",
+        "2": "session-1",
+        "3": "epoch-1",
+        "4": "lease-1",
+        "5": 1000,
+        "6": 1,
+        "7": {
+          "1": "write",
+          "2": [
+            "a.txt"
+          ],
+          "3": {
+            "$bytesHex": "78"
+          }
+        }
+      },
+      "deterministicCborHex": "a701782430313866303030302d303030302d373030302d383030302d303030303030303030303031026973657373696f6e2d31036765706f63682d3104676c656173652d31051903e8060107a301657772697465028165612e747874034178",
+      "sha256": "e6c8ceda85b5335f11f603be92fb2d64950104dea963f510f7e33fcb5f54db88"
+    },
+    {
+      "name": "requested-write-call-y",
+      "domainTextWithoutTerminator": "pi-tool-boundary/requested-call/v1",
+      "domainUtf8Hex": "70692d746f6f6c2d626f756e646172792f7265717565737465642d63616c6c2f763100",
+      "semanticBody": {
+        "1": "018f0000-0000-7000-8000-000000000001",
+        "2": "session-1",
+        "3": "epoch-1",
+        "4": "lease-1",
+        "5": 1000,
+        "6": 1,
+        "7": {
+          "1": "write",
+          "2": [
+            "a.txt"
+          ],
+          "3": {
+            "$bytesHex": "79"
+          }
+        }
+      },
+      "deterministicCborHex": "a701782430313866303030302d303030302d373030302d383030302d303030303030303030303031026973657373696f6e2d31036765706f63682d3104676c656173652d31051903e8060107a301657772697465028165612e747874034179",
+      "sha256": "edb6a2c10cde435bdab13371a23800727c0a54e04eb92f4fe79c672df811e4a7"
+    },
+    {
+      "name": "semantic-plan-default",
+      "domainTextWithoutTerminator": "pi-tool-boundary/semantic-plan/v1",
+      "domainUtf8Hex": "70692d746f6f6c2d626f756e646172792f73656d616e7469632d706c616e2f763100",
+      "semanticBody": {
+        "1": "pi-tool-boundary-semantic-plan/v1",
+        "2": "microvm-offline",
+        "3": "1226ee94f142099b4c458c14e967731d5f5a59e72cc719f4af63d57478d82a50",
+        "4": [
+          [
+            "bash",
+            "exec",
+            "fresh-read-write-cell",
+            "exclusive",
+            "D1"
+          ],
+          [
+            "edit",
+            "edit",
+            "structured-agent-rpc",
+            "exclusive",
+            "D1"
+          ],
+          [
+            "find",
+            "find",
+            "fresh-read-only-cell",
+            "shared",
+            "D0"
+          ],
+          [
+            "grep",
+            "grep",
+            "fresh-read-only-cell",
+            "shared",
+            "D0"
+          ],
+          [
+            "ls",
+            "list",
+            "structured-agent-rpc",
+            "shared",
+            "D0"
+          ],
+          [
+            "read",
+            "read",
+            "structured-agent-rpc",
+            "shared",
+            "D0"
+          ],
+          [
+            "write",
+            "write",
+            "structured-agent-rpc",
+            "exclusive",
+            "D1"
+          ]
+        ],
+        "5": {
+          "1": 8,
+          "2": 12884901888,
+          "3": 12884901888,
+          "4": 512,
+          "5": 900000,
+          "6": 33554432,
+          "7": 1073741824,
+          "8": 268435456
+        },
+        "6": [
+          "microvm",
+          "noHostFallback",
+          "guestNetworkAbsent",
+          "hostFilesystemAbsent",
+          "immutableRoot",
+          "boundedWritableBlock",
+          "bootChallenge",
+          "attestationBinding",
+          "freshPidNamespace",
+          "freshMountNamespace",
+          "freshIpcNamespace",
+          "freshNetworkNamespace",
+          "atomicCgroupPlacement",
+          "pidfdLifecycle",
+          "recursiveCgroupKill",
+          "descendantEmptyProof",
+          "controllerChannelIsolated",
+          "hostSocketReachabilityAbsent",
+          "systemdUserUnit",
+          "resourceReadback"
+        ],
+        "7": {
+          "1": "committed-clean-tree/v1",
+          "2": true,
+          "3": false,
+          "4": false
+        },
+        "8": {
+          "1": "absent",
+          "2": "absent",
+          "3": "absent"
+        },
+        "9": {
+          "1": "lease",
+          "2": "call",
+          "3": false
+        }
+      },
+      "deterministicCborHex": "a901782170692d746f6f6c2d626f756e646172792d73656d616e7469632d706c616e2f7631026f6d6963726f766d2d6f66666c696e6503784031323236656539346631343230393962346334353863313465393637373331643566356135396537326363373139663461663633643537343738643832613530048785646261736864657865637566726573682d726561642d77726974652d63656c6c696578636c7573697665624431856465646974646564697474737472756374757265642d6167656e742d727063696578636c7573697665624431856466696e646466696e647466726573682d726561642d6f6e6c792d63656c6c6673686172656462443085646772657064677265707466726573682d726561642d6f6e6c792d63656c6c6673686172656462443085626c73646c69737474737472756374757265642d6167656e742d72706366736861726564624430856472656164647265616474737472756374757265642d6167656e742d727063667368617265646244308565777269746565777269746574737472756374757265642d6167656e742d727063696578636c757369766562443105a80108021b0000000300000000031b000000030000000004190200051a000dbba0061a02000000071a40000000081a100000000694676d6963726f766d6e6e6f486f737446616c6c6261636b7267756573744e6574776f726b416273656e7474686f737446696c6573797374656d416273656e746d696d6d757461626c65526f6f7474626f756e6465645772697461626c65426c6f636b6d626f6f744368616c6c656e6765726174746573746174696f6e42696e64696e677166726573685069644e616d6573706163657366726573684d6f756e744e616d6573706163657166726573684970634e616d6573706163657566726573684e6574776f726b4e616d6573706163657561746f6d69634367726f7570506c6163656d656e746e70696466644c6966656379636c65737265637572736976654367726f75704b696c6c7464657363656e64616e74456d70747950726f6f667819636f6e74726f6c6c65724368616e6e656c49736f6c61746564781c686f7374536f636b657452656163686162696c697479416273656e746f73797374656d6455736572556e6974707265736f75726365526561646261636b07a40177636f6d6d69747465642d636c65616e2d747265652f763102f503f404f408a30166616273656e740266616273656e740366616273656e7409a301656c65617365026463616c6c03f4",
+      "sha256": "0427628a3cb429375be569b12184ea63b8b690c077460c5d81fcac95e4b953de"
+    }
+  ]
+}

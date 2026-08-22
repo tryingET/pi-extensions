@@ -1,0 +1,70 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "PROTO",
+  "requirements": [
+    {
+      "requirement_id": "PROTO-001",
+      "normative_requirement": "Host/daemon/agent control frames use a versioned length-framed Protocol Buffers schema with strict size limits.",
+      "threat_or_failure": "Parser ambiguity and memory exhaustion",
+      "design_sections": "§14",
+      "primary_verification": "Coverage-guided protobuf/framing fuzzing and oversize corpus.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROTO-002",
+      "normative_requirement": "Every call uses a UUIDv7 identity unique across sessions and restarts; duplicate identities cannot execute twice.",
+      "threat_or_failure": "Duplicate effect execution",
+      "design_sections": "§14",
+      "primary_verification": "Replay same ID before, during, and after terminal state.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROTO-003",
+      "normative_requirement": "D1 call admission is durably committed before execution starts; D0 read admission may remain volatile only when read-only enforcement is mechanically proven.",
+      "threat_or_failure": "Unjournaled effect",
+      "design_sections": "§14",
+      "primary_verification": "Crash at each admission transaction boundary.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROTO-004",
+      "normative_requirement": "Streaming uses monotonic sequence numbers, bounded chunks, bounded credits, and bounded daemon memory.",
+      "threat_or_failure": "Unbounded output/backpressure failure",
+      "design_sections": "§14",
+      "primary_verification": "Slow/no-reading client, huge stdout/stderr, chunk reorder/duplicate tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROTO-005",
+      "normative_requirement": "Cancellation and terminal completion have specified durable linearization points; uncertainty is returned as unknown.",
+      "threat_or_failure": "Invented cancel/success outcome",
+      "design_sections": "§14",
+      "primary_verification": "Race cancellation against exit and terminal DB commit under fault injection.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROTO-006",
+      "normative_requirement": "The user-scoped Unix socket authenticates clients with filesystem permissions and SO_PEERCRED.",
+      "threat_or_failure": "Cross-user/client spoofing",
+      "design_sections": "§14",
+      "primary_verification": "Wrong UID, stale socket, symlinked socket, and forged session-registration attempts.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROTO-007",
+      "normative_requirement": "Reconnect and daemon restart never replay an already accepted effectful call.",
+      "threat_or_failure": "At-least-once retry after transport loss",
+      "design_sections": "§14",
+      "primary_verification": "Disconnect/reconnect at every call state and verify state lookup instead of rerun.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

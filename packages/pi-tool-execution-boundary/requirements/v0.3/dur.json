@@ -1,0 +1,52 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "DUR",
+  "requirements": [
+    {
+      "requirement_id": "DUR-001",
+      "normative_requirement": "D0 operations are mechanically read-only, replay-safe, and may use volatile admission.",
+      "threat_or_failure": "D0 latency destroyed by durable writes or hidden mutation",
+      "design_sections": "§§2, 11, 14-15",
+      "primary_verification": "Read-only enforcement proof, daemon restart repeat, and fsync tracing.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DUR-002",
+      "normative_requirement": "D1 admission is durably committed before workspace mutation or arbitrary process start.",
+      "threat_or_failure": "Effect replay after crash",
+      "design_sections": "§§2, 11, 14-15",
+      "primary_verification": "Crash before/after D1 admission and verify no effect before durable state.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DUR-003",
+      "normative_requirement": "D2 external-effect operations require durable pre-dispatch intent before bytes can leave; D2 is disabled in Release 0.1.",
+      "threat_or_failure": "Ambiguous future external effects",
+      "design_sections": "§§2, 11, 14-15",
+      "primary_verification": "Profile/compiler test proving D2 cannot be constructed in Release 0.1.",
+      "target_release": "0.4 design; disabled in 0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DUR-004",
+      "normative_requirement": "D0 retries cannot mutate or advance workspace generation.",
+      "threat_or_failure": "Replay-safe read mutates workspace",
+      "design_sections": "§§2, 11, 14-15",
+      "primary_verification": "Read-only mount/RPC negative canaries and TLA+ invariant.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DUR-005",
+      "normative_requirement": "Ordinary D0 telemetry performs no per-call FULL-durability database transaction or fsync.",
+      "threat_or_failure": "Million-call hot path performs synchronous storage",
+      "design_sections": "§§2, 11, 14-15",
+      "primary_verification": "Syscall trace plus million-D0-call benchmark and bounded audit overflow test.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "IR",
+  "requirements": [
+    {
+      "requirement_id": "IR-001",
+      "normative_requirement": "Security-significant human policy is parsed into a closed normalized IR before authorization or backend rendering.",
+      "threat_or_failure": "Different components interpret policy differently",
+      "design_sections": "§§1, 5, 11, 14, 17",
+      "primary_verification": "Type/dependency tests proving backend API accepts only normalized/effective IR.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "IR-002",
+      "normative_requirement": "Requested operations are a closed tagged union; effect and durability classes are derived and never caller-selected.",
+      "threat_or_failure": "Caller chooses effect or durability",
+      "design_sections": "§§1, 5, 11, 14, 17",
+      "primary_verification": "Compile-fail/property tests over every operation variant.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "IR-003",
+      "normative_requirement": "Semantic enforcement plans are distinct from backend-rendered plans.",
+      "threat_or_failure": "Semantic intent confused with backend configuration",
+      "design_sections": "§§1, 5, 11, 14, 17",
+      "primary_verification": "Independent semantic/rendered plan digest and renderer tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "IR-004",
+      "normative_requirement": "Protocol DTOs are converted immediately into domain types and are not semantic or digest authority.",
+      "threat_or_failure": "Wire encoding becomes semantic authority",
+      "design_sections": "§§1, 5, 11, 14, 17",
+      "primary_verification": "Vary Protobuf ordering/unknown fields while preserving semantic digest.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "IR-005",
+      "normative_requirement": "Security-significant IR contains no arbitrary expressions or untyped extension maps.",
+      "threat_or_failure": "Unbounded extensibility enters TCB",
+      "design_sections": "§§1, 5, 11, 14, 17",
+      "primary_verification": "Schema/type scan rejects generic expression or untyped extension maps.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "IR-006",
+      "normative_requirement": "Canonical artifacts use the deterministic-CBOR v1 profile and domain-separated SHA-256.",
+      "threat_or_failure": "Cross-language digest disagreement",
+      "design_sections": "§§1, 5, 11, 14, 17",
+      "primary_verification": "Rust/TypeScript deterministic-CBOR golden vectors.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

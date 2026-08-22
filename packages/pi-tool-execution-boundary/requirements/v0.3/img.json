@@ -1,0 +1,34 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "IMG",
+  "requirements": [
+    {
+      "requirement_id": "IMG-001",
+      "normative_requirement": "Guest kernel, initramfs, immutable rootfs, boundary-init, boundary-agent, adapter, daemon, compiler, canonicalization, backend, and protocol are pinned in one immutable TCB generation.",
+      "threat_or_failure": "Supply-chain drift and unreviewed runtime change",
+      "design_sections": "§8",
+      "primary_verification": "Attestation mismatch test for each component digest.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "IMG-002",
+      "normative_requirement": "The image bundle includes an SBOM and reproducible provenance tied to the released package.",
+      "threat_or_failure": "Unknown vulnerable components",
+      "design_sections": "§8",
+      "primary_verification": "SBOM/provenance schema validation and digest linkage in release evidence.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "IMG-003",
+      "normative_requirement": "QEMU runs unprivileged with seccomp sandboxing, no NIC, and no GPU, USB, audio, clipboard, host filesystem, or arbitrary device passthrough.",
+      "threat_or_failure": "Hypervisor/device attack-surface expansion",
+      "design_sections": "§8",
+      "primary_verification": "Effective QEMU argv and device-tree attestation plus negative device/network canaries.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

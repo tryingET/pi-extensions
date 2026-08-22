@@ -29,6 +29,7 @@ This is the repository-wide behavior map. [`root-capabilities.md`](root-capabili
 | Guarded low-risk continuation | `pi-autonomous-session-control` | `self` may use `pi.sendUserMessage` for explicit safe continuation; risky/directive text is editor-prefilled. |
 | Visible repeated prompts | `pi-little-helpers` | Visible-loop transport and visible peer/worktree tools; communication is not durable evidence. |
 | One-call local code aggregation | `pi-eval-kernel` | Disposable Python/JavaScript workers with persistent logical state and explicit capability adapters; it does not disable Bash, expose arbitrary registered Pi tools, or provide a security sandbox. |
+| Generic computer-effect placement and isolated standard-tool execution | `packages/pi-tool-execution-boundary` | The package owns the strict policy/operation/controller contract and an offline micro-VM target. Real Pi tool replacement remains disabled until one workstation backend passes attestation, cleanup, durability, compatibility, and voice-contention gates; no missing dependency may fall back to host execution. |
 | Bounded measured optimization | `pi-autoresearch` | Experiment machine, budgets, receipts, candidate binding, empirical interpretation; no package self-promotion. |
 | Fixed prompt/system comparison | `pi-evalset-lab` | Reproducible task-set comparisons and reports; a passing eval is evidence, not authorization. |
 | Multi-owner loop/workflow routing | `pi-society-orchestrator` | Routes and supervises owner surfaces; does not replace ASC execution or autoresearch measurement. |

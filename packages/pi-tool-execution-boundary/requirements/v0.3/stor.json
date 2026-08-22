@@ -1,0 +1,34 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "STOR",
+  "requirements": [
+    {
+      "requirement_id": "STOR-001",
+      "normative_requirement": "Each lease uses a fixed-virtual-size qcow2 overlay over a pinned read-only base image.",
+      "threat_or_failure": "Unbounded disk growth and mutable base contamination",
+      "design_sections": "§7",
+      "primary_verification": "Sparse/truncate/rename/hardlink/reflink write campaign until quota; base image digest unchanged.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "STOR-002",
+      "normative_requirement": "The daemon reserves host storage and enforces a minimum-free-space gate before lease acquisition.",
+      "threat_or_failure": "Host ENOSPC and workstation outage",
+      "design_sections": "§7",
+      "primary_verification": "Low-space simulation and concurrent lease acquisition prove admission is rejected before QEMU start.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "STOR-003",
+      "normative_requirement": "Special files and unsupported inode types are rejected during import and export.",
+      "threat_or_failure": "Device/socket/FIFO abuse and ambiguous promotion",
+      "design_sections": "§7",
+      "primary_verification": "Create every unsupported inode type inside the guest and prove export rejects the change set.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

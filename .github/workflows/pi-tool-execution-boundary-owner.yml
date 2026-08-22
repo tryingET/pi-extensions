@@ -1,0 +1,41 @@
+name: pi-tool-execution-boundary owner workstation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pi-tool-execution-boundary-owner
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: [self-hosted, linux, x64, pi-tool-boundary-owner]
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: packages/pi-tool-execution-boundary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+      - name: Install Node toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Semantic regression tests
+        run: npm test
+      - name: Owner-workstation preflight
+        run: |
+          mkdir -p evidence/owner-workstation
+          node scripts/owner-workstation-preflight.mjs | tee evidence/owner-workstation/preflight.json
+      - name: Host facts
+        run: npm run bakeoff:host-facts -- --output evidence/owner-workstation/host-facts.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pi-tool-execution-boundary-owner-${{ github.sha }}
+          path: packages/pi-tool-execution-boundary/evidence/owner-workstation/**
+          if-no-files-found: error
+          retention-days: 30

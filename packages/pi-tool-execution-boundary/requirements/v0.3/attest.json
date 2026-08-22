@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "ATTEST",
+  "requirements": [
+    {
+      "requirement_id": "ATTEST-001",
+      "normative_requirement": "Attestation binds exact daemon, backend, QEMU, image, agent, kernel, policy, device, storage, and systemd plan digests.",
+      "threat_or_failure": "Version/config substitution",
+      "design_sections": "§§9, 19, 28",
+      "primary_verification": "Mutate each component independently and prove READY is denied.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "ATTEST-002",
+      "normative_requirement": "Negative canaries run in sacrificial bounded cells/leases and verify filesystem, network, socket, resource, descendant, and controller isolation.",
+      "threat_or_failure": "Configured control is ineffective",
+      "design_sections": "§§9, 19, 28",
+      "primary_verification": "Canary suite with deliberate broken backends.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "ATTEST-003",
+      "normative_requirement": "Any enforcement-plan change after canaries invalidates readiness and requires re-attestation.",
+      "threat_or_failure": "Attestation TOCTOU",
+      "design_sections": "§§9, 19, 28",
+      "primary_verification": "Change unit/device/image/policy after attestation and prove calls stop.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "ATTEST-004",
+      "normative_requirement": "Capabilities are proven empirically and structurally; a backend name or version alone is insufficient.",
+      "threat_or_failure": "Backend marketing mistaken for enforcement",
+      "design_sections": "§§9, 19, 28",
+      "primary_verification": "Mock backend advertises version but fails canary and is rejected.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

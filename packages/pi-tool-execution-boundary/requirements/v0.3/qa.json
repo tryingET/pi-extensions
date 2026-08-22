@@ -1,0 +1,61 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "QA",
+  "requirements": [
+    {
+      "requirement_id": "QA-001",
+      "normative_requirement": "The TLA+ model includes D0/D1 semantics, multiple client epochs, resources, output credits, workspace generations, and TCB generations.",
+      "threat_or_failure": "Formal model omits important concurrency classes",
+      "design_sections": "§§26-28",
+      "primary_verification": "Model inspection and action-to-requirement mapping.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "QA-002",
+      "normative_requirement": "TLC model checking is a release gate with recorded tool version, configuration, states, and exit status.",
+      "threat_or_failure": "Formal model remains documentation only",
+      "design_sections": "§§26-28",
+      "primary_verification": "CI TLC artifact with tool version, configuration, state count, and exit status.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "QA-003",
+      "normative_requirement": "Every parser and cross-trust message appears in an attack-surface inventory with a fuzz target or explicit approved rationale.",
+      "threat_or_failure": "Cross-trust parser lacks adversarial testing",
+      "design_sections": "§§26-28",
+      "primary_verification": "Generated parser inventory checked against fuzz target registry.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "QA-004",
+      "normative_requirement": "Canonical CBOR implementations pass independent Rust and TypeScript golden vectors.",
+      "threat_or_failure": "Canonical identity differs between Rust and TypeScript",
+      "design_sections": "§§26-28",
+      "primary_verification": "Independent golden-vector CI.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "QA-005",
+      "normative_requirement": "SQLite effective pragmas, application_id, schema version, and checkpoint policy are asserted at runtime.",
+      "threat_or_failure": "SQLite requested settings not effective",
+      "design_sections": "§§26-28",
+      "primary_verification": "Runtime open/readback refusal tests for every required setting.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "QA-006",
+      "normative_requirement": "Phase 0 compares at least two independently implemented micro-VM renderings of one semantic plan when compatible.",
+      "threat_or_failure": "Backend selected without comparative evidence",
+      "design_sections": "§§26-28",
+      "primary_verification": "Bake-off report for at least two independently implemented renderers where compatible.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "package": "@tryinget/pi-tool-execution-boundary",
+  "current_effects": "none",
+  "real_execution_enabled": false,
+  "standard_tools_overridden": [],
+  "network": "none",
+  "secrets": "none",
+  "host_fallback": false,
+  "implemented": [
+    "policy-compiler",
+    "closed-operation-ir",
+    "semantic-plan",
+    "canonical-identity",
+    "controller-state-machine",
+    "bounded-d0-audit",
+    "sqlite-d1-conformance-authority",
+    "typed-evidence-ir",
+    "protocol-framing",
+    "direct-qemu-candidate-renderer"
+  ],
+  "blocked_until_evidence": [
+    "owner-workstation-backend-selection",
+    "rendered-plan-attestation",
+    "guest-image-boundary-init-boundary-agent",
+    "live-pi-tool-differential"
+  ]
+}

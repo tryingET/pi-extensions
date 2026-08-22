@@ -1,0 +1,94 @@
+name: pi-tool-execution-boundary
+
+on:
+  pull_request:
+    paths:
+      - "packages/pi-tool-execution-boundary/**"
+      - ".github/workflows/pi-tool-execution-boundary.yml"
+  push:
+    paths:
+      - "packages/pi-tool-execution-boundary/**"
+      - ".github/workflows/pi-tool-execution-boundary.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pi-tool-execution-boundary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: packages/pi-tool-execution-boundary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Rust 1.82
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal --component rustfmt
+          rustup override set 1.82.0
+      - name: Install Node toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Regenerate canonical vectors
+        run: |
+          npm run vectors:generate
+          git diff --exit-code -- canonicalization/golden-vectors.json
+      - name: Validate and generate Protocol Buffers
+        run: |
+          npm run proto:lint
+          npm run proto:generate
+          REQUIRE_GENERATED_PROTO=1 npm run proto:test
+      - name: Node semantic and controller tests
+        run: npm test
+      - name: Artifact validation
+        run: REQUIRE_GENERATED_PROTO=1 npm run validate:artifacts
+      - name: Rust semantic core
+        run: |
+          npm run rust:fmt
+          cargo test --manifest-path rust/Cargo.toml --workspace --all-targets
+      - name: Download and verify TLA+ tools
+        run: |
+          curl --fail --location --retry 3 \
+            --output /tmp/tla2tools.jar \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          echo "bee4a54f3ee3d4afc347c3240ec2d9e93b075104  /tmp/tla2tools.jar" | sha1sum --check --strict
+      - name: Model-check controller invariants
+        env:
+          TLA2TOOLS_JAR: /tmp/tla2tools.jar
+        run: npm run formal:check
+      - name: Package quality and publication boundary
+        run: |
+          bash scripts/validate-structure.sh
+          mkdir -p evidence
+          npm pack --json --dry-run > evidence/npm-pack.json
+          node -e '
+            const fs = require("fs");
+            const report = JSON.parse(fs.readFileSync("evidence/npm-pack.json", "utf8"));
+            const files = report[0].files.map((entry) => entry.path);
+            for (const forbidden of ["tests/", "experiments/", "evidence/"]) {
+              if (files.some((file) => file.startsWith(forbidden))) throw new Error(`published ${forbidden}`);
+            }
+          '
+      - name: Collect non-authoritative runner facts
+        run: npm run bakeoff:host-facts -- --output evidence/github-runner-host-facts.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pi-tool-execution-boundary-evidence-${{ github.sha }}
+          path: |
+            packages/pi-tool-execution-boundary/protocol/generated/**
+            packages/pi-tool-execution-boundary/package-lock.json
+            packages/pi-tool-execution-boundary/rust/Cargo.lock
+            packages/pi-tool-execution-boundary/evidence/**
+          if-no-files-found: warn
+          retention-days: 14

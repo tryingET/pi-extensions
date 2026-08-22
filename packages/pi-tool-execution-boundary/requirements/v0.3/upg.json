@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "UPG",
+  "requirements": [
+    {
+      "requirement_id": "UPG-001",
+      "normative_requirement": "Every lease belongs to exactly one immutable complete TCB generation.",
+      "threat_or_failure": "Lease behavior changes under mixed TCB",
+      "design_sections": "§§8-9",
+      "primary_verification": "Lease-generation binding test.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "UPG-002",
+      "normative_requirement": "No in-place adapter/compiler/backend/kernel/rootfs/agent replacement occurs in a running production lease.",
+      "threat_or_failure": "In-place upgrade creates semantic split",
+      "design_sections": "§§8-9",
+      "primary_verification": "Attempted hot replacement blocks or drains.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "UPG-003",
+      "normative_requirement": "New generations serve only new leases; old generations drain or are explicitly destroyed.",
+      "threat_or_failure": "Vulnerable old generation accepts new work",
+      "design_sections": "§§8-9",
+      "primary_verification": "Upgrade-under-load test.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "UPG-004",
+      "normative_requirement": "Rollback selects a complete previously attested generation and is exercised before release.",
+      "threat_or_failure": "Rollback is incomplete or unusable",
+      "design_sections": "§§8-9",
+      "primary_verification": "Complete-generation rollback drill.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

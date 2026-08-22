@@ -1,0 +1,16 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "SRCART",
+  "requirements": [
+    {
+      "requirement_id": "SRCART-001",
+      "normative_requirement": "SourceArtifactIR is defined but remains disabled until performance evidence and security review approve immutable source caching.",
+      "threat_or_failure": "Premature source-image cache creates identity/retention debt",
+      "design_sections": "§17",
+      "primary_verification": "Release profile rejects SourceArtifactIR and benchmark gate remains false.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "schema": "pi-tool-boundary-policy/v1",
+  "profile": "microvm-offline",
+  "source": {
+    "mode": "committed-clean-tree/v1",
+    "requireCleanGit": true,
+    "maxFiles": 200000,
+    "maxAggregateBytes": 2147483648,
+    "maxBlobBytes": 268435456,
+    "maxPathBytes": 4096,
+    "maxPathSegments": 128,
+    "allowRelativeSymlinks": false
+  },
+  "resources": {
+    "vcpus": 8,
+    "memoryBytes": 12884901888,
+    "workspaceVirtualBytes": 12884901888,
+    "cellPids": 512,
+    "callTimeoutMs": 900000,
+    "outputBytes": 33554432,
+    "tmpBytes": 1073741824,
+    "shmBytes": 268435456
+  },
+  "tools": {
+    "allowed": ["read", "write", "edit", "ls", "grep", "find", "bash"],
+    "userBash": true
+  },
+  "admission": {
+    "maxActiveReadWriteLeases": 1,
+    "maxStartingLeases": 1,
+    "maxAcquireQueue": 4,
+    "minimumHostFreeBytes": 25769803776,
+    "cpuPsiSomeAvg10Max": 10,
+    "memoryPsiSomeAvg10Max": 2,
+    "ioPsiSomeAvg10Max": 5,
+    "voiceActiveBatchAdmission": "deny"
+  },
+  "retention": {
+    "retainSuccessfulWorkspace": false,
+    "retainFailedWorkspace": true,
+    "quarantineDays": 7,
+    "globalRetainedBytes": 34359738368,
+    "d0AuditQueueEvents": 10000
+  },
+  "hostDefense": {
+    "requireSystemdHardening": true,
+    "landlock": "preferred"
+  }
+}

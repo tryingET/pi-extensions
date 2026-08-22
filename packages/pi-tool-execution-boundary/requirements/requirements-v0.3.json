@@ -1,0 +1,197 @@
+{
+  "schema": "pi-tool-boundary-requirements-index/v1",
+  "specification_version": "0.3",
+  "total_requirements": 143,
+  "parts": [
+    {
+      "domain": "ARCH",
+      "path": "v0.3/arch.json",
+      "count": 2
+    },
+    {
+      "domain": "ATTEST",
+      "path": "v0.3/attest.json",
+      "count": 4
+    },
+    {
+      "domain": "BOOT",
+      "path": "v0.3/boot.json",
+      "count": 3
+    },
+    {
+      "domain": "CACHE",
+      "path": "v0.3/cache.json",
+      "count": 1
+    },
+    {
+      "domain": "CELL",
+      "path": "v0.3/cell.json",
+      "count": 7
+    },
+    {
+      "domain": "COMPAT",
+      "path": "v0.3/compat.json",
+      "count": 1
+    },
+    {
+      "domain": "COV",
+      "path": "v0.3/cov.json",
+      "count": 2
+    },
+    {
+      "domain": "DATA",
+      "path": "v0.3/data.json",
+      "count": 5
+    },
+    {
+      "domain": "DB",
+      "path": "v0.3/db.json",
+      "count": 5
+    },
+    {
+      "domain": "DEBUG",
+      "path": "v0.3/debug.json",
+      "count": 1
+    },
+    {
+      "domain": "DUR",
+      "path": "v0.3/dur.json",
+      "count": 5
+    },
+    {
+      "domain": "IMG",
+      "path": "v0.3/img.json",
+      "count": 3
+    },
+    {
+      "domain": "IR",
+      "path": "v0.3/ir.json",
+      "count": 6
+    },
+    {
+      "domain": "LEASE",
+      "path": "v0.3/lease.json",
+      "count": 3
+    },
+    {
+      "domain": "LIFE",
+      "path": "v0.3/life.json",
+      "count": 4
+    },
+    {
+      "domain": "OBS",
+      "path": "v0.3/obs.json",
+      "count": 3
+    },
+    {
+      "domain": "OUT",
+      "path": "v0.3/out.json",
+      "count": 4
+    },
+    {
+      "domain": "PERF",
+      "path": "v0.3/perf.json",
+      "count": 6
+    },
+    {
+      "domain": "PI",
+      "path": "v0.3/pi.json",
+      "count": 5
+    },
+    {
+      "domain": "POL",
+      "path": "v0.3/pol.json",
+      "count": 3
+    },
+    {
+      "domain": "PRESS",
+      "path": "v0.3/press.json",
+      "count": 3
+    },
+    {
+      "domain": "PRIV",
+      "path": "v0.3/priv.json",
+      "count": 4
+    },
+    {
+      "domain": "PROM",
+      "path": "v0.3/prom.json",
+      "count": 5
+    },
+    {
+      "domain": "PROTO",
+      "path": "v0.3/proto.json",
+      "count": 7
+    },
+    {
+      "domain": "QA",
+      "path": "v0.3/qa.json",
+      "count": 6
+    },
+    {
+      "domain": "RES",
+      "path": "v0.3/res.json",
+      "count": 4
+    },
+    {
+      "domain": "RET",
+      "path": "v0.3/ret.json",
+      "count": 2
+    },
+    {
+      "domain": "SOCK",
+      "path": "v0.3/sock.json",
+      "count": 2
+    },
+    {
+      "domain": "SRC",
+      "path": "v0.3/src.json",
+      "count": 7
+    },
+    {
+      "domain": "SRCART",
+      "path": "v0.3/srcart.json",
+      "count": 1
+    },
+    {
+      "domain": "STOR",
+      "path": "v0.3/stor.json",
+      "count": 3
+    },
+    {
+      "domain": "SUP",
+      "path": "v0.3/sup.json",
+      "count": 5
+    },
+    {
+      "domain": "TEST",
+      "path": "v0.3/test.json",
+      "count": 4
+    },
+    {
+      "domain": "TRUST",
+      "path": "v0.3/trust.json",
+      "count": 1
+    },
+    {
+      "domain": "UPG",
+      "path": "v0.3/upg.json",
+      "count": 4
+    },
+    {
+      "domain": "UX",
+      "path": "v0.3/ux.json",
+      "count": 4
+    },
+    {
+      "domain": "VFS",
+      "path": "v0.3/vfs.json",
+      "count": 3
+    },
+    {
+      "domain": "WS",
+      "path": "v0.3/ws.json",
+      "count": 5
+    }
+  ]
+}

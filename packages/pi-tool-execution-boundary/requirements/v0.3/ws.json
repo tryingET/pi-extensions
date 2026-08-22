@@ -1,0 +1,52 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "WS",
+  "requirements": [
+    {
+      "requirement_id": "WS-001",
+      "normative_requirement": "Concurrent structured reads are allowed only when no mutator holds the workspace token; mutations are serialized.",
+      "threat_or_failure": "Incoherent reads and lost updates",
+      "design_sections": "§12",
+      "primary_verification": "Model-based concurrent read/mutate/process interleavings.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "WS-002",
+      "normative_requirement": "Every known mutation advances a monotonic workspace generation.",
+      "threat_or_failure": "Stale snapshot/edit success",
+      "design_sections": "§12",
+      "primary_verification": "Generation assertions for every mutation path and no-op process call.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "WS-003",
+      "normative_requirement": "Any unknown mutation disposition quarantines the lease and prevents further tool calls or export as known state.",
+      "threat_or_failure": "Continuing from corrupt/ambiguous state",
+      "design_sections": "§12",
+      "primary_verification": "Kill agent/QEMU/controller at every mutation phase.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "WS-004",
+      "normative_requirement": "Interactive and batch work never share one writable checkout.",
+      "threat_or_failure": "Noisy-neighbor and consistency failure",
+      "design_sections": "§12",
+      "primary_verification": "Admission test for competing lanes.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "WS-005",
+      "normative_requirement": "Generic process calls are conservatively treated as mutating unless a future read-only mount enforces otherwise.",
+      "threat_or_failure": "Caller lies about effect class",
+      "design_sections": "§12",
+      "primary_verification": "Command declared read-only attempts writes and cannot bypass mutation rules.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "PRIV",
+  "requirements": [
+    {
+      "requirement_id": "PRIV-001",
+      "normative_requirement": "The privileged guest launcher is separate from the unprivileged protocol and structured-tool broker.",
+      "threat_or_failure": "Privileged parser and broker too large",
+      "design_sections": "§§5, 10",
+      "primary_verification": "Binary/component boundary review and privilege separation integration tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PRIV-002",
+      "normative_requirement": "The privileged launcher accepts no arbitrary paths, shell text, policy expressions, environment maps, or mount specifications.",
+      "threat_or_failure": "Privileged launcher accepts attacker-controlled semantics",
+      "design_sections": "§§5, 10",
+      "primary_verification": "Fuzz/negative corpus for paths, env, mount, shell, and policy fields.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PRIV-003",
+      "normative_requirement": "Workload cells cannot reach, signal, ptrace, modify, or impersonate the launcher or control channel.",
+      "threat_or_failure": "Workload compromises guest controller",
+      "design_sections": "§§5, 10",
+      "primary_verification": "UID, proc, ptrace, signal, mount, FD, and channel reachability tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PRIV-004",
+      "normative_requirement": "The host daemon self-restricts ambient authority using effective systemd and Landlock controls where supported and reports them.",
+      "threat_or_failure": "Trusted daemon compromise exposes host home",
+      "design_sections": "§§5, 10",
+      "primary_verification": "Systemd/Landlock effective readback and denied-host-path canaries.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

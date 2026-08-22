@@ -1,0 +1,7 @@
+version: v2
+plugins:
+  - local: protoc-gen-es
+    out: protocol/generated
+    opt:
+      - target=js+dts
+      - import_extension=js

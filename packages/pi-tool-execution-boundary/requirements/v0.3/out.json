@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "OUT",
+  "requirements": [
+    {
+      "requirement_id": "OUT-001",
+      "normative_requirement": "Effect disposition separately records process, workspace mutation, network dispatch, external outcome, output completeness, descendants, and retry safety.",
+      "threat_or_failure": "One-dimensional ambiguity hides risk",
+      "design_sections": "§21",
+      "primary_verification": "Schema and scenario tests for every dimension combination used by 0.1.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "OUT-002",
+      "normative_requirement": "Effectful or ambiguous calls are never blindly retried.",
+      "threat_or_failure": "Duplicate mutation/external effect",
+      "design_sections": "§21",
+      "primary_verification": "Transport-loss and timeout retry attempts are denied.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "OUT-003",
+      "normative_requirement": "Output completeness is independent of process and mutation success.",
+      "threat_or_failure": "Truncated output misreported as full result",
+      "design_sections": "§21",
+      "primary_verification": "Output-cap and client-disconnect tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "OUT-004",
+      "normative_requirement": "Critical-event and controller-state recovery is crash-consistent and deterministic.",
+      "threat_or_failure": "Split journal/controller truth",
+      "design_sections": "§21",
+      "primary_verification": "State-machine fault injection plus filesystem-level crash corpus.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

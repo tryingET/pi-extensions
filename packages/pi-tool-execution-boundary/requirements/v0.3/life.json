@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "LIFE",
+  "requirements": [
+    {
+      "requirement_id": "LIFE-001",
+      "normative_requirement": "VM ownership and orphan recovery use systemd unit identity, cgroup, lease nonce, VM UUID, and process start identity rather than numeric PID alone.",
+      "threat_or_failure": "PID-reuse kill of unrelated process",
+      "design_sections": "§20",
+      "primary_verification": "PID reuse simulation and stale state directory corpus.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "LIFE-002",
+      "normative_requirement": "pidfds are used for call-process lifecycle where available and mandatory under the 0.1 host profile.",
+      "threat_or_failure": "PID race during signal/wait",
+      "design_sections": "§20",
+      "primary_verification": "Rapid PID reuse and signal/wait stress.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "LIFE-003",
+      "normative_requirement": "Release 0.1 never adopts a surviving VM after daemon restart; it stops and quarantines unverifiable state.",
+      "threat_or_failure": "Trusting unauthenticated stale guest state",
+      "design_sections": "§20",
+      "primary_verification": "Crash daemon with live VM at every lease state.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "LIFE-004",
+      "normative_requirement": "Client disconnect, daemon death, guest-agent death, and system shutdown have explicit drain/stop/quarantine behavior.",
+      "threat_or_failure": "Orphaned execution and state leak",
+      "design_sections": "§20",
+      "primary_verification": "Kill each component and reboot/shutdown simulation.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "OBS",
+  "requirements": [
+    {
+      "requirement_id": "OBS-001",
+      "normative_requirement": "Status and attestation are available as a versioned machine-readable record and truthful human rendering.",
+      "threat_or_failure": "Unverifiable or misleading operator state",
+      "design_sections": "§23",
+      "primary_verification": "Schema validation and snapshot tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "OBS-002",
+      "normative_requirement": "Critical effect and ambiguity records are durable; ordinary telemetry remains buffered and non-authoritative.",
+      "threat_or_failure": "Metrics mistaken for evidence or hot-path fsync",
+      "design_sections": "§23",
+      "primary_verification": "Crash and throughput tests separating the two paths.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "OBS-003",
+      "normative_requirement": "Telemetry has bounded cardinality, retention, queue size, and content/path redaction.",
+      "threat_or_failure": "Privacy leak and telemetry resource exhaustion",
+      "design_sections": "§23",
+      "primary_verification": "High-cardinality and secret/path canary corpus.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

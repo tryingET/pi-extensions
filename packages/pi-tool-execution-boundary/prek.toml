@@ -1,0 +1,11 @@
+[tool.prek]
+minimum_pre_commit_version = "4.0.0"
+
+[[repos]]
+repo = "local"
+[[repos.hooks]]
+id = "package-quality"
+name = "package quality"
+entry = "npm run quality:pre-commit"
+language = "system"
+pass_filenames = false

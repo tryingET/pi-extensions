@@ -1,0 +1,25 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "ARCH",
+  "requirements": [
+    {
+      "requirement_id": "ARCH-001",
+      "normative_requirement": "No backend, daemon, journal, attestation, or resource failure may fall back to unrestricted host execution.",
+      "threat_or_failure": "Silent downgrade / host compromise",
+      "design_sections": "§§0-1, 5, 28",
+      "primary_verification": "Remove or kill each dependency and prove the tool call fails closed before any host effect.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "ARCH-002",
+      "normative_requirement": "One user-scoped daemon coordinates all Pi clients, leases, reservations, retention, and recovery for the operator account.",
+      "threat_or_failure": "Split-brain ownership and aggregate exhaustion",
+      "design_sections": "§§0-1, 5, 28",
+      "primary_verification": "Start simultaneous Pi sessions and prove one authoritative daemon/database controls admission.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

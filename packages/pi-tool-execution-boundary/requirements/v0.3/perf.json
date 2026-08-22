@@ -1,0 +1,61 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "PERF",
+  "requirements": [
+    {
+      "requirement_id": "PERF-001",
+      "normative_requirement": "VM startup is amortized at lease scope while per-call security state remains fresh.",
+      "threat_or_failure": "Security weakened for speed or latency excessive",
+      "design_sections": "§22",
+      "primary_verification": "Cold/warm benchmark plus state-leak test.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PERF-002",
+      "normative_requirement": "Adapter, protocol, structured-tool, process-cell, export, and cleanup overheads are benchmarked independently.",
+      "threat_or_failure": "Unattributed latency",
+      "design_sections": "§22",
+      "primary_verification": "Reproducible benchmark suite with p50/p95/p99 and payload distributions.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PERF-003",
+      "normative_requirement": "Batch admission cannot violate the configured realtime/voice resource and queue budget.",
+      "threat_or_failure": "Noisy-neighbor voice degradation",
+      "design_sections": "§22",
+      "primary_verification": "Voice workload under CPU/memory/disk/process contention.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PERF-004",
+      "normative_requirement": "The Pi event loop and D0 call completion path perform no long scan, process wait, durable fsync, database checkpoint, or controller maintenance.",
+      "threat_or_failure": "Host UI/voice stalls",
+      "design_sections": "§22",
+      "primary_verification": "Event-loop delay instrumentation under heavy tool activity.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PERF-005",
+      "normative_requirement": "D0 and D1 admission latency are measured and reported separately through p99.",
+      "threat_or_failure": "D0 and D1 latency hidden in one average",
+      "design_sections": "§22",
+      "primary_verification": "Separate benchmark/evidence schemas.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PERF-006",
+      "normative_requirement": "Release evidence includes local-inference and voice-active contention with PSI and model latency.",
+      "threat_or_failure": "Pressure and model latency ignored in admission",
+      "design_sections": "§22",
+      "primary_verification": "PSI/inference threshold and voice-active p99 campaign.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

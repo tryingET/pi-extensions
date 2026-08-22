@@ -1,0 +1,34 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "BOOT",
+  "requirements": [
+    {
+      "requirement_id": "BOOT-001",
+      "normative_requirement": "Every lease uses a unique CSPRNG boot secret and nonce unavailable to workload cells.",
+      "threat_or_failure": "Stale/miswired guest obtains lease authority",
+      "design_sections": "§9",
+      "primary_verification": "Attempt to read boot material from workload cells and run duplicate/stale boot sessions.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "BOOT-002",
+      "normative_requirement": "READY requires an HMAC transcript binding lease, plans, protocol, and all TCB artifact digests.",
+      "threat_or_failure": "Handshake not bound to exact intended plan/TCB",
+      "design_sections": "§9",
+      "primary_verification": "Vary one transcript field at a time and require READY rejection.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "BOOT-003",
+      "normative_requirement": "Replay, stale sequence, wrong plan, wrong image, mixed generation, and transcript rollback fail closed.",
+      "threat_or_failure": "Replay or mixed-generation readiness",
+      "design_sections": "§9",
+      "primary_verification": "Replay, sequence rollback, wrong image, wrong plan, and mixed artifact corpus.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

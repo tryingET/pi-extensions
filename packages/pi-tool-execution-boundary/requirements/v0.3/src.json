@@ -1,0 +1,70 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "SRC",
+  "requirements": [
+    {
+      "requirement_id": "SRC-001",
+      "normative_requirement": "Release 0.1 accepts only a clean Git repository at one exact committed tree.",
+      "threat_or_failure": "Ambiguous or secret-bearing dirty import",
+      "design_sections": "§6",
+      "primary_verification": "Dirty tracked, staged, untracked, ignored, conflicted, unborn, and non-Git source corpus.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SRC-002",
+      "normative_requirement": "The source identity records repository identity, exact commit, tree digest, path profile, and pre/post snapshot observations.",
+      "threat_or_failure": "Source race / wrong base",
+      "design_sections": "§6",
+      "primary_verification": "Mutate refs or worktree during snapshot and prove import aborts before lease acquisition.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SRC-003",
+      "normative_requirement": "Source snapshot construction uses fixed Git plumbing and invokes no clone transport, hook, filter, LFS, submodule, credential helper, or external diff.",
+      "threat_or_failure": "Repository-controlled code execution during import",
+      "design_sections": "§6",
+      "primary_verification": "Malicious hooks, attributes, filters, helpers, LFS config, and transport config are installed and never invoked.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SRC-004",
+      "normative_requirement": "Gitlinks/submodules are rejected in Release 0.1.",
+      "threat_or_failure": "Nested repository authority and network expansion",
+      "design_sections": "§6",
+      "primary_verification": "Tree containing mode 160000 is rejected with a typed reason.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SRC-005",
+      "normative_requirement": "Only the Release 0.1 path and inode profile is importable; unsupported names, modes, and objects fail closed.",
+      "threat_or_failure": "Parser/UI confusion and unsafe special files",
+      "design_sections": "§6",
+      "primary_verification": "Corpus with non-UTF-8, non-NFC, newline, control characters, devices, FIFOs, sockets, hardlinks, and unsupported symlinks.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SRC-006",
+      "normative_requirement": "Every imported blob and manifest is content-addressed and reverified by the guest agent before materialization.",
+      "threat_or_failure": "Transport corruption / confused source",
+      "design_sections": "§6",
+      "primary_verification": "Flip manifest and blob bytes in transit and prove materialization fails before execution.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SRC-007",
+      "normative_requirement": "Release 0.1 imports only the selected tree, not repository history or shared object storage.",
+      "threat_or_failure": "Historical secret exposure and shared-object corruption",
+      "design_sections": "§6",
+      "primary_verification": "Verify guest object set contains only synthetic repository objects and imported tree content.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

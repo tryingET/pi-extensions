@@ -1,0 +1,70 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "CELL",
+  "requirements": [
+    {
+      "requirement_id": "CELL-001",
+      "normative_requirement": "Every arbitrary process call receives fresh PID, mount, IPC, network, and UTS namespaces.",
+      "threat_or_failure": "Cross-call process and IPC contamination",
+      "design_sections": "§10",
+      "primary_verification": "Namespace inode comparison and cross-cell IPC/abstract-socket tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "CELL-002",
+      "normative_requirement": "No untrusted instruction executes before atomic placement in its per-call cgroup using clone3(CLONE_INTO_CGROUP).",
+      "threat_or_failure": "Fork-before-move resource escape",
+      "design_sections": "§10",
+      "primary_verification": "Instrument first instruction and descendant creation; reject kernels/backends without the primitive.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "CELL-003",
+      "normative_requirement": "Execution cells have empty capabilities, no_new_privs, disabled core dumps, and a bounded seccomp policy.",
+      "threat_or_failure": "Privilege gain and host/guest attack surface",
+      "design_sections": "§10",
+      "primary_verification": "Capability, setuid, file-capability, ptrace, keyring, and forbidden-syscall canaries.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "CELL-004",
+      "normative_requirement": "Each call receives private temporary, HOME, XDG, runtime, and shared-memory state.",
+      "threat_or_failure": "Cross-call persistence and poisoning",
+      "design_sections": "§10",
+      "primary_verification": "Write marker data in one call and prove subsequent calls cannot observe it outside /workspace and named per-lease caches.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "CELL-005",
+      "normative_requirement": "The workload user cannot read, write, signal, ptrace, or reach the trusted guest agent or control channel.",
+      "threat_or_failure": "Compromised workload falsifies later results",
+      "design_sections": "§10",
+      "primary_verification": "UID, procfs, ptrace, filesystem, and channel reachability adversarial tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "CELL-006",
+      "normative_requirement": "A clean terminal result requires cgroup.kill capability and recursive cgroup.events populated=0 proof.",
+      "threat_or_failure": "Surviving descendant daemon",
+      "design_sections": "§10",
+      "primary_verification": "Double-fork, setsid, orphan, fork bomb, and cancellation campaign.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "CELL-007",
+      "normative_requirement": "Cancellation uses terminate, bounded grace, recursive cgroup kill, and descendant-empty proof; uncertainty quarantines the lease.",
+      "threat_or_failure": "Partial cancellation and hidden work",
+      "design_sections": "§10",
+      "primary_verification": "Cancel at each process state and inject cleanup failures.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

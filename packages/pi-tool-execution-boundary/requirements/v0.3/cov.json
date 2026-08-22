@@ -1,0 +1,25 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "COV",
+  "requirements": [
+    {
+      "requirement_id": "COV-001",
+      "normative_requirement": "Every enabled standard computer tool and user shell path is covered by the boundary or strict activation fails.",
+      "threat_or_failure": "Partial routing / host bypass",
+      "design_sections": "§11",
+      "primary_verification": "Dynamic tool-ownership inventory, post-activation registration test, and one bypass attempt per tool.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "COV-002",
+      "normative_requirement": "Strict mode blocks undeclared model-callable host-effect tools at call time, not only at startup.",
+      "threat_or_failure": "Late extension activation / hidden egress",
+      "design_sections": "§11",
+      "primary_verification": "Register an undeclared tool after activation and prove the central tool-call guard blocks it.",
+      "target_release": "0.5",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

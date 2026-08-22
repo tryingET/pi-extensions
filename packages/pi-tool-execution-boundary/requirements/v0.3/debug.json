@@ -1,0 +1,16 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "DEBUG",
+  "requirements": [
+    {
+      "requirement_id": "DEBUG-001",
+      "normative_requirement": "Debug, SSH, retained-shell, extra-device, or relaxed-policy modes have distinct profile IDs and cannot satisfy production attestation.",
+      "threat_or_failure": "Debug bypass shipped as production",
+      "design_sections": "§23",
+      "primary_verification": "Attempt to attest with every debug option enabled.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

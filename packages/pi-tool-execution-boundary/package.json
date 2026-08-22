@@ -1,0 +1,101 @@
+{
+  "name": "@tryinget/pi-tool-execution-boundary",
+  "version": "0.1.0",
+  "description": "Typed policy, controller semantics, and attested execution boundary for Pi computer tools",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-tool-execution-boundary"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-tool-execution-boundary",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "sandbox",
+    "microvm",
+    "tool-execution",
+    "policy",
+    "semantic-ir"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "node --test tests/*.test.mjs",
+    "test:node": "node --test tests/*.test.mjs",
+    "rust:fmt": "cargo fmt --manifest-path rust/Cargo.toml --all -- --check",
+    "rust:test": "cargo test --manifest-path rust/Cargo.toml --workspace --all-targets",
+    "proto:lint": "buf lint && buf format --diff --exit-code",
+    "proto:generate": "rm -rf protocol/generated && buf generate",
+    "proto:test": "node scripts/validate-generated-proto.mjs",
+    "vectors:generate": "node scripts/generate-golden-vectors.mjs",
+    "formal:check": "bash scripts/run-tlc.sh",
+    "validate:artifacts": "node scripts/validate-artifacts.mjs && node scripts/validate-controller-safety.mjs",
+    "bakeoff:host-facts": "node scripts/backend-host-facts.mjs",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_RUST=1 SKIP_PROTO=1 SKIP_TLC=1 bash ./scripts/release-check.sh"
+  },
+  "files": [
+    "extensions",
+    "src",
+    "protocol",
+    "rust",
+    "formal",
+    "schemas",
+    "requirements",
+    "canonicalization",
+    "docs/project",
+    "policy/security-policy.json",
+    "policy/engineering-lane.json",
+    "buf.yaml",
+    "buf.gen.yaml",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/tool-execution-boundary.js"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-tool-execution-boundary",
+    "releaseComponent": "pi-tool-execution-boundary",
+    "releaseConfigMode": "component"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.14.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@bufbuild/buf": "1.72.0",
+    "@bufbuild/protoc-gen-es": "2.14.0",
+    "@earendil-works/pi-ai": "0.83.0",
+    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@types/node": "22.14.0",
+    "typescript": "5.9.2"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

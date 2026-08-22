@@ -1,0 +1,34 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "PRESS",
+  "requirements": [
+    {
+      "requirement_id": "PRESS-001",
+      "normative_requirement": "Admission observes host CPU, memory, and I/O PSI in addition to static resource limits.",
+      "threat_or_failure": "Static limits miss real host contention",
+      "design_sections": "§16",
+      "primary_verification": "CPU/memory/I/O PSI injection with admission observations.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PRESS-002",
+      "normative_requirement": "Batch admission may be refused or paused when configured PSI or inference-latency thresholds are exceeded.",
+      "threat_or_failure": "Batch work starves voice/local inference",
+      "design_sections": "§16",
+      "primary_verification": "Voice-active noisy-neighbor and hysteresis tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PRESS-003",
+      "normative_requirement": "Unknown D1 effects are never preempted or replayed as if they were restartable D0 reads.",
+      "threat_or_failure": "Load shedding duplicates/corrupts unknown effects",
+      "design_sections": "§16",
+      "primary_verification": "Cancellation/preemption tests proving D1 unknown is quarantined, not replayed.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

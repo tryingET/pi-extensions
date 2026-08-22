@@ -1,0 +1,52 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "DB",
+  "requirements": [
+    {
+      "requirement_id": "DB-001",
+      "normative_requirement": "The controller state database uses SQLite WAL, synchronous=FULL for D1/D2 authority, foreign keys, trusted_schema=OFF, an assigned application_id, an asserted schema version, and local durable storage.",
+      "threat_or_failure": "Partial journal and unsafe extension behavior",
+      "design_sections": "§15",
+      "primary_verification": "PRAGMA verification and power-loss/fault-injection recovery tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DB-002",
+      "normative_requirement": "The database schema enforces client, lease, call, reservation, export, and critical-event relationships.",
+      "threat_or_failure": "Orphaned or contradictory state",
+      "design_sections": "§15",
+      "primary_verification": "Constraint/property tests and malformed migration attempts.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DB-003",
+      "normative_requirement": "No successful D1 call result is returned before its terminal disposition transaction is durable; D0 reads do not require per-call durable database writes.",
+      "threat_or_failure": "Success without evidence",
+      "design_sections": "§15",
+      "primary_verification": "Inject commit/fsync failure after process completion.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DB-004",
+      "normative_requirement": "The daemon maintains an emergency storage reserve and stops admission before journal ENOSPC.",
+      "threat_or_failure": "Cannot record terminal/unknown state",
+      "design_sections": "§15",
+      "primary_verification": "Disk-fill test consuming ordinary free space while preserving reserve.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DB-005",
+      "normative_requirement": "Recovery classifies admitted/started calls without terminal records as unknown and quarantines affected writable leases.",
+      "threat_or_failure": "Silent replay or false success after crash",
+      "design_sections": "§15",
+      "primary_verification": "Kill daemon at every durable state and restart.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

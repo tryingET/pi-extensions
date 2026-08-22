@@ -1,0 +1,25 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "SOCK",
+  "requirements": [
+    {
+      "requirement_id": "SOCK-001",
+      "normative_requirement": "No host Unix socket or unexpected socket descriptor is mounted or inherited into the VM or cell.",
+      "threat_or_failure": "Host service reachability",
+      "design_sections": "§10",
+      "primary_verification": "Descriptor audit, filesystem socket search, and attempted Docker/SSH/Wayland/system bus access.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SOCK-002",
+      "normative_requirement": "Guest-local Unix sockets are permitted only inside isolated cell or workspace namespaces; the controller channel remains unreachable.",
+      "threat_or_failure": "Compatibility breakage or cross-cell covert channel",
+      "design_sections": "§10",
+      "primary_verification": "Legitimate local socket workload plus cross-cell abstract and filesystem socket isolation tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

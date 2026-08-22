@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package pi.tool_boundary.v1;
+
+option java_multiple_files = true;
+
+message WorkspacePathV1 {
+  repeated string segments = 1;
+}
+
+message EnvironmentEntryV1 {
+  string key = 1;
+  string value = 2;
+}
+
+message ReadFileV1 {
+  WorkspacePathV1 path = 1;
+  uint64 offset = 2;
+  uint64 limit = 3;
+}
+
+message WriteFileV1 {
+  WorkspacePathV1 path = 1;
+  bytes content = 2;
+}
+
+message EditFileV1 {
+  WorkspacePathV1 path = 1;
+  bytes old_text = 2;
+  bytes new_text = 3;
+  uint32 occurrence = 4;
+}
+
+message ListDirectoryV1 {
+  WorkspacePathV1 path = 1;
+  uint32 limit = 2;
+}
+
+message GrepFilesV1 {
+  WorkspacePathV1 path = 1;
+  string pattern = 2;
+  optional string glob = 3;
+  bool literal = 4;
+  bool ignore_case = 5;
+  uint32 limit = 6;
+}
+
+message FindFilesV1 {
+  WorkspacePathV1 path = 1;
+  string pattern = 2;
+  uint32 limit = 3;
+}
+
+message ExecProcessV1 {
+  repeated string argv = 1;
+  WorkspacePathV1 cwd = 2;
+  repeated EnvironmentEntryV1 environment = 3;
+  bool user_initiated = 4;
+}
+
+message RequestedCallV1 {
+  string call_id = 1;
+  string client_session_id = 2;
+  string client_epoch = 3;
+  string lease_id = 4;
+  uint64 requested_timeout_ms = 5;
+  uint64 expected_workspace_generation = 6;
+
+  oneof operation {
+    ReadFileV1 read = 10;
+    WriteFileV1 write = 11;
+    EditFileV1 edit = 12;
+    ListDirectoryV1 list = 13;
+    GrepFilesV1 grep = 14;
+    FindFilesV1 find = 15;
+    ExecProcessV1 exec = 16;
+  }
+
+  reserved 7 to 9;
+}
+
+message ClientHelloV1 {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  string pi_host_version = 3;
+  string extension_version = 4;
+  string client_session_id = 5;
+  string client_epoch = 6;
+}
+
+message ServerHelloV1 {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  string daemon_version = 3;
+  bytes daemon_digest = 4;
+  bytes current_tcb_generation_digest = 5;
+}
+
+message OutputCreditV1 {
+  string call_id = 1;
+  OutputStreamV1 stream = 2;
+  uint64 through_sequence = 3;
+  uint64 additional_bytes = 4;
+}
+
+message CancelCallV1 {
+  string call_id = 1;
+}
+
+message QueryCallV1 {
+  string call_id = 1;
+}
+
+enum OutputStreamV1 {
+  OUTPUT_STREAM_V1_UNSPECIFIED = 0;
+  OUTPUT_STREAM_V1_STDOUT = 1;
+  OUTPUT_STREAM_V1_STDERR = 2;
+}
+
+enum CallStateKindV1 {
+  CALL_STATE_KIND_V1_UNSPECIFIED = 0;
+  CALL_STATE_KIND_V1_ADMITTED = 1;
+  CALL_STATE_KIND_V1_QUEUED = 2;
+  CALL_STATE_KIND_V1_STARTED = 3;
+  CALL_STATE_KIND_V1_TERMINAL_KNOWN = 4;
+  CALL_STATE_KIND_V1_TERMINAL_UNKNOWN = 5;
+  CALL_STATE_KIND_V1_CANCELLED_PRE_EFFECT = 6;
+  CALL_STATE_KIND_V1_CANCEL_REQUESTED = 7;
+  CALL_STATE_KIND_V1_TERMINAL_CANCELLED_KNOWN = 8;
+}
+
+message OutputChunkV1 {
+  string call_id = 1;
+  OutputStreamV1 stream = 2;
+  uint64 sequence = 3;
+  bytes data = 4;
+  bool truncated = 5;
+}
+
+message CallStateV1 {
+  string call_id = 1;
+  CallStateKindV1 state = 2;
+  bytes request_digest = 3;
+  bytes disposition_cbor = 4;
+  bytes disposition_digest = 5;
+}
+
+message ProtocolErrorV1 {
+  string code = 1;
+  string message = 2;
+  string call_id = 3;
+}
+
+message ClientFrameV1 {
+  oneof body {
+    ClientHelloV1 hello = 1;
+    RequestedCallV1 requested_call = 2;
+    OutputCreditV1 output_credit = 3;
+    CancelCallV1 cancel_call = 4;
+    QueryCallV1 query_call = 5;
+  }
+}
+
+message ServerFrameV1 {
+  oneof body {
+    ServerHelloV1 hello = 1;
+    OutputChunkV1 output_chunk = 2;
+    CallStateV1 call_state = 3;
+    ProtocolErrorV1 error = 4;
+  }
+}

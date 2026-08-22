@@ -1,0 +1,34 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "VFS",
+  "requirements": [
+    {
+      "requirement_id": "VFS-001",
+      "normative_requirement": "The canonical checkout and host repository metadata are never mounted or exposed through a writable host VFS provider.",
+      "threat_or_failure": "Host confused deputy and canonical mutation",
+      "design_sections": "§§6-7",
+      "primary_verification": "Mount/provider inventory plus malicious symlink/rename campaign; canonical pre/post digest unchanged.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "VFS-002",
+      "normative_requirement": "The writable workspace resides entirely on guest-owned block storage.",
+      "threat_or_failure": "Host pathname authority under adversarial mutation",
+      "design_sections": "§§6-7",
+      "primary_verification": "Backend attestation proves no writable host filesystem device/provider is attached.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "VFS-003",
+      "normative_requirement": "Host-to-guest import is read-only and bounded; guest-to-host export is typed and bounded.",
+      "threat_or_failure": "Bidirectional arbitrary filesystem authority",
+      "design_sections": "§§6-7",
+      "primary_verification": "Protocol fuzzing and attempts to request arbitrary host paths through both channels.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

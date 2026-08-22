@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: 9c09ca7
+_src_path: /home/tryinget/ai-society/softwareco/owned/pi-extensions-package-template
+command_name: tool-execution-boundary
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-tool-execution-boundary
+release_config_mode: component
+repo_name: pi-tool-execution-boundary
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-tool-execution-boundary

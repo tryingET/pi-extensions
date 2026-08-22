@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "RES",
+  "requirements": [
+    {
+      "requirement_id": "RES-001",
+      "normative_requirement": "Every process call has enforced CPU, memory, PID, wall-time, output, and scratch limits.",
+      "threat_or_failure": "Single-call resource exhaustion",
+      "design_sections": "§16",
+      "primary_verification": "Fork/memory/CPU/output/disk bombs inside sacrificial cells.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "RES-002",
+      "normative_requirement": "Every VM lease runs in a dedicated systemd transient unit and cgroup with bounded aggregate resources.",
+      "threat_or_failure": "QEMU/guest resource exhaustion",
+      "design_sections": "§16",
+      "primary_verification": "Effective unit properties and QEMU/guest stress tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "RES-003",
+      "normative_requirement": "Global reservations bound active and starting leases, memory, vCPU, PIDs, disk, retention, and quarantine across all Pi sessions.",
+      "threat_or_failure": "Valid-lease exhaustion attack",
+      "design_sections": "§16",
+      "primary_verification": "Concurrent client acquisition storm.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "RES-004",
+      "normative_requirement": "Lease acquisition queues are bounded, deadline-aware, and priority-aware.",
+      "threat_or_failure": "Unbounded wait and voice starvation",
+      "design_sections": "§16",
+      "primary_verification": "Queue overflow/deadline/noisy-neighbor tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

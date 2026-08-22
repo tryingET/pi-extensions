@@ -1,0 +1,52 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "PI",
+  "requirements": [
+    {
+      "requirement_id": "PI-001",
+      "normative_requirement": "The model-visible schemas and names of covered Pi standard tools remain stable.",
+      "threat_or_failure": "Model/tool compatibility regression",
+      "design_sections": "§11",
+      "primary_verification": "Differential corpus against pinned Pi built-ins.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PI-002",
+      "normative_requirement": "Each standard tool has one normative execution path, lock class, deadline, output cap, and generation rule.",
+      "threat_or_failure": "Implementation ambiguity and bypass",
+      "design_sections": "§11",
+      "primary_verification": "Table-driven conformance test for read/write/edit/ls/grep/find/bash.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PI-003",
+      "normative_requirement": "User ! shell commands use the same bounded arbitrary-process path as bash.",
+      "threat_or_failure": "Interactive host-shell bypass",
+      "design_sections": "§11",
+      "primary_verification": "User-shell routing and cancellation tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PI-004",
+      "normative_requirement": "Host absolute paths are translated only when beneath the source root; every other host absolute path is rejected.",
+      "threat_or_failure": "Host path disclosure or escape",
+      "design_sections": "§11",
+      "primary_verification": "Property tests for relative, absolute, traversal, symlink, Unicode, and prefix-collision paths.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PI-005",
+      "normative_requirement": "Conflicting standard-tool owners, including snapshot-edit overrides, cause explicit activation failure until a reviewed composition seam exists.",
+      "threat_or_failure": "Multiple owners and inconsistent state",
+      "design_sections": "§11",
+      "primary_verification": "Load-order matrix with built-ins, snapshot-edit, and another override.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "UX",
+  "requirements": [
+    {
+      "requirement_id": "UX-001",
+      "normative_requirement": "Human errors identify the failed invariant and an operator recovery action without suggesting host bypass.",
+      "threat_or_failure": "Operator bypasses boundary after opaque failure",
+      "design_sections": "§23",
+      "primary_verification": "Denial-recovery evaluation and no-host-bypass wording test.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "UX-002",
+      "normative_requirement": "Doctor, status, explain, and destroy have versioned machine-readable schemas and human renderings.",
+      "threat_or_failure": "Human and automation status diverge",
+      "design_sections": "§23",
+      "primary_verification": "JSON schema fixtures and shared-IR rendering tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "UX-003",
+      "normative_requirement": "Production and debug generations are visually and cryptographically distinct.",
+      "threat_or_failure": "Debug state mistaken for production",
+      "design_sections": "§23",
+      "primary_verification": "Visual and digest identity tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "UX-004",
+      "normative_requirement": "Dynamic tool-owner conflicts invalidate coverage and block affected calls without host fallback.",
+      "threat_or_failure": "Late tool owner bypasses isolation",
+      "design_sections": "§23",
+      "primary_verification": "Dynamic registration conflict/call-time guard test.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "DATA",
+  "requirements": [
+    {
+      "requirement_id": "DATA-001",
+      "normative_requirement": "Release 0.1 injects no host credentials or separately brokered secrets into the guest.",
+      "threat_or_failure": "Credential theft",
+      "design_sections": "§18",
+      "primary_verification": "Guest environment, memory, disk, FD, and config scan using canary credentials.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DATA-002",
+      "normative_requirement": "Status exposes guest network, current model-provider locality, host connectors, raw-output retention, change-set retention, and quarantine retention as separate DataExposureIR fields.",
+      "threat_or_failure": "Offline claim hides remote LLM egress",
+      "design_sections": "§18",
+      "primary_verification": "Switch between local and remote model providers and verify status/claim changes.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DATA-003",
+      "normative_requirement": "The package makes no end-to-end DLP or repository-confidentiality claim.",
+      "threat_or_failure": "Security theater / operator misunderstanding",
+      "design_sections": "§18",
+      "primary_verification": "Documentation and UI wording review.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DATA-004",
+      "normative_requirement": "A versioned DataExposureIR reports guest network, model egress, host connectors, and retention surfaces separately.",
+      "threat_or_failure": "Exposure dimensions collapsed into misleading secure flag",
+      "design_sections": "§18",
+      "primary_verification": "Human/JSON status generated from one DataExposureIR.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "DATA-005",
+      "normative_requirement": "Unknown model-provider locality is displayed as unknown and never inferred as local.",
+      "threat_or_failure": "Unknown provider locality shown as local",
+      "design_sections": "§18",
+      "primary_verification": "Unknown/stale provider fixtures.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

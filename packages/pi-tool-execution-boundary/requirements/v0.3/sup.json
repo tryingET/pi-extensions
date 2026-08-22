@@ -1,0 +1,52 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "SUP",
+  "requirements": [
+    {
+      "requirement_id": "SUP-001",
+      "normative_requirement": "All TCB artifacts have versioned digests, SBOMs, and provenance.",
+      "threat_or_failure": "Untracked trusted artifact drift",
+      "design_sections": "§8",
+      "primary_verification": "Offline digest inventory verification.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SUP-002",
+      "normative_requirement": "Production rootfs is immutable and integrity-verified before READY.",
+      "threat_or_failure": "Mutable/tampered guest root becomes trusted",
+      "design_sections": "§8",
+      "primary_verification": "Root bit-flip/tamper prevents READY.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SUP-003",
+      "normative_requirement": "Debug and production generations have distinct identities and debug cannot satisfy production attestation.",
+      "threat_or_failure": "Debug mode satisfies production claims",
+      "design_sections": "§8",
+      "primary_verification": "Profile/digest/attestation mismatch tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SUP-004",
+      "normative_requirement": "Denylisted or vulnerable artifact digests block new leases.",
+      "threat_or_failure": "Known vulnerable artifact starts new lease",
+      "design_sections": "§8",
+      "primary_verification": "Denylist simulation and doctor/status evidence.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "SUP-005",
+      "normative_requirement": "Mixed artifact generations cannot negotiate a production lease.",
+      "threat_or_failure": "Mixed artifact generation negotiates lease",
+      "design_sections": "§8",
+      "primary_verification": "Cross-generation handshake negative matrix.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

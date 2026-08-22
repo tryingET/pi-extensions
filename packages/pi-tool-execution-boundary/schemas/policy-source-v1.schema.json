@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tryinget.invalid/pi-tool-boundary/policy-source-v1.schema.json",
+  "title": "pi-tool-boundary-policy/v1",
+  "description": "Strict human-authored Release 0.1 policy DSL. Backends never interpret this source document directly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile",
+    "source",
+    "resources",
+    "tools",
+    "admission",
+    "retention",
+    "hostDefense"
+  ],
+  "properties": {
+    "schema": { "const": "pi-tool-boundary-policy/v1" },
+    "profile": { "const": "microvm-offline" },
+    "source": { "$ref": "#/$defs/source" },
+    "resources": { "$ref": "#/$defs/resources" },
+    "tools": { "$ref": "#/$defs/tools" },
+    "admission": { "$ref": "#/$defs/admission" },
+    "retention": { "$ref": "#/$defs/retention" },
+    "hostDefense": { "$ref": "#/$defs/hostDefense" }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "requireCleanGit",
+        "maxFiles",
+        "maxAggregateBytes",
+        "maxBlobBytes",
+        "maxPathBytes",
+        "maxPathSegments",
+        "allowRelativeSymlinks"
+      ],
+      "properties": {
+        "mode": { "const": "committed-clean-tree/v1" },
+        "requireCleanGit": { "const": true },
+        "maxFiles": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "maxAggregateBytes": { "type": "integer", "minimum": 1, "maximum": 1099511627776 },
+        "maxBlobBytes": { "type": "integer", "minimum": 1, "maximum": 17179869184 },
+        "maxPathBytes": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "maxPathSegments": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "allowRelativeSymlinks": { "type": "boolean" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vcpus",
+        "memoryBytes",
+        "workspaceVirtualBytes",
+        "cellPids",
+        "callTimeoutMs",
+        "outputBytes",
+        "tmpBytes",
+        "shmBytes"
+      ],
+      "properties": {
+        "vcpus": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "memoryBytes": { "type": "integer", "minimum": 536870912, "maximum": 274877906944 },
+        "workspaceVirtualBytes": { "type": "integer", "minimum": 1073741824, "maximum": 1099511627776 },
+        "cellPids": { "type": "integer", "minimum": 16, "maximum": 32768 },
+        "callTimeoutMs": { "type": "integer", "minimum": 100, "maximum": 86400000 },
+        "outputBytes": { "type": "integer", "minimum": 1024, "maximum": 1073741824 },
+        "tmpBytes": { "type": "integer", "minimum": 1048576, "maximum": 68719476736 },
+        "shmBytes": { "type": "integer", "minimum": 1048576, "maximum": 17179869184 }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "userBash"],
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["read", "write", "edit", "ls", "grep", "find", "bash"] }
+        },
+        "userBash": { "type": "boolean" }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxActiveReadWriteLeases",
+        "maxStartingLeases",
+        "maxAcquireQueue",
+        "minimumHostFreeBytes",
+        "cpuPsiSomeAvg10Max",
+        "memoryPsiSomeAvg10Max",
+        "ioPsiSomeAvg10Max",
+        "voiceActiveBatchAdmission"
+      ],
+      "properties": {
+        "maxActiveReadWriteLeases": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "maxStartingLeases": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "maxAcquireQueue": { "type": "integer", "minimum": 0, "maximum": 128 },
+        "minimumHostFreeBytes": { "type": "integer", "minimum": 1073741824, "maximum": 10995116277760 },
+        "cpuPsiSomeAvg10Max": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "memoryPsiSomeAvg10Max": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "ioPsiSomeAvg10Max": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "voiceActiveBatchAdmission": { "enum": ["deny", "queue"] }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retainSuccessfulWorkspace",
+        "retainFailedWorkspace",
+        "quarantineDays",
+        "globalRetainedBytes",
+        "d0AuditQueueEvents"
+      ],
+      "properties": {
+        "retainSuccessfulWorkspace": { "type": "boolean" },
+        "retainFailedWorkspace": { "type": "boolean" },
+        "quarantineDays": { "type": "integer", "minimum": 0, "maximum": 90 },
+        "globalRetainedBytes": { "type": "integer", "minimum": 0, "maximum": 1099511627776 },
+        "d0AuditQueueEvents": { "type": "integer", "minimum": 100, "maximum": 1000000 }
+      }
+    },
+    "hostDefense": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requireSystemdHardening", "landlock"],
+      "properties": {
+        "requireSystemdHardening": { "const": true },
+        "landlock": { "enum": ["required", "preferred", "disabled-by-operator"] }
+      }
+    }
+  }
+}

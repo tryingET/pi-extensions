@@ -1,0 +1,52 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "PROM",
+  "requirements": [
+    {
+      "requirement_id": "PROM-001",
+      "normative_requirement": "Export is a typed content-addressed ChangeSet derived from the trusted base manifest and quiesced guest filesystem, not sandbox Git metadata.",
+      "threat_or_failure": "Malicious .git/config, refs, filters, or diff drivers",
+      "design_sections": "§13",
+      "primary_verification": "Poison sandbox .git comprehensively and prove identical trusted export.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROM-002",
+      "normative_requirement": "Release 0.1 never automatically applies, commits, pushes, or promotes the ChangeSet to the canonical checkout.",
+      "threat_or_failure": "Unexpected canonical or external effect",
+      "design_sections": "§13",
+      "primary_verification": "Search command surface and attempt every promotion action.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROM-003",
+      "normative_requirement": "Unsupported filename, inode, mode, symlink, size, or collision conditions reject export.",
+      "threat_or_failure": "Ambiguous or unsafe review/apply",
+      "design_sections": "§13",
+      "primary_verification": "Adversarial export corpus for paths, devices, sparse files, modes, symlinks, and collisions.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROM-004",
+      "normative_requirement": "The ChangeSet binds source-tree digest, checkout identity, workspace generation, entry digests, lengths, and manifest digest.",
+      "threat_or_failure": "Patch substitution or wrong-base apply",
+      "design_sections": "§13",
+      "primary_verification": "Bit-flip, reorder, deletion, duplicate path, and wrong-base verification tests.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "PROM-005",
+      "normative_requirement": "Export acquires quiescence and is invalidated by any mutation after its generation snapshot.",
+      "threat_or_failure": "Racy partial export",
+      "design_sections": "§13",
+      "primary_verification": "Concurrent writer during scan and after scan-before-commit.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "LEASE",
+  "requirements": [
+    {
+      "requirement_id": "LEASE-001",
+      "normative_requirement": "The expensive micro-VM is persistent for a lease; it is not booted per tool call.",
+      "threat_or_failure": "Unacceptable startup latency and churn",
+      "design_sections": "§9",
+      "primary_verification": "Warm-call benchmark and lease lifecycle soak.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "LEASE-002",
+      "normative_requirement": "At most one writable lease exists for one source checkout identity.",
+      "threat_or_failure": "Cross-agent lost updates",
+      "design_sections": "§9",
+      "primary_verification": "Concurrent acquisition test with identical source identity.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "LEASE-003",
+      "normative_requirement": "A lease becomes READY only after host confinement, boot transcript, TCB generation, semantic/rendered plan, image, storage, device, descriptor, and negative-canary attestation succeeds.",
+      "threat_or_failure": "Use before enforcement is proven",
+      "design_sections": "§9",
+      "primary_verification": "Fault injection at every handshake/canary step.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

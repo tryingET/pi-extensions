@@ -1,0 +1,43 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "TEST",
+  "requirements": [
+    {
+      "requirement_id": "TEST-001",
+      "normative_requirement": "Standard-tool behavior is differentially tested against the pinned Pi built-ins.",
+      "threat_or_failure": "Silent semantic incompatibility",
+      "design_sections": "§26",
+      "primary_verification": "Generated corpus across the pinned built-in, the controller reference model where applicable, and the selected real micro-VM backend.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "TEST-002",
+      "normative_requirement": "Protocol, policy, source, canonical CBOR, operation IR, plans, export, boot transcript, cell launch, and state-machine components receive fuzz/property/mutation/model-based testing.",
+      "threat_or_failure": "Unhandled parser/race edge cases",
+      "design_sections": "§26",
+      "primary_verification": "Coverage and invariant reports.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "TEST-003",
+      "normative_requirement": "Release validation includes repeated acquire/use/close cycles, long soak, fault injection, and resource exhaustion.",
+      "threat_or_failure": "Lifecycle leaks and rare failures",
+      "design_sections": "§26",
+      "primary_verification": "1,000-cycle, 24-hour, and targeted failure reports.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "TEST-004",
+      "normative_requirement": "Owner-workstation validation measures real build/test workloads and local-model voice coexistence.",
+      "threat_or_failure": "Synthetic benchmark overconfidence",
+      "design_sections": "§26",
+      "primary_verification": "Threadripper/RTX workstation evidence bundle.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "RET",
+  "requirements": [
+    {
+      "requirement_id": "RET-001",
+      "normative_requirement": "Active, retained, and quarantined artifacts share one globally bounded storage policy.",
+      "threat_or_failure": "Quarantine as disk denial of service",
+      "design_sections": "§16",
+      "primary_verification": "Repeated unknown-outcome campaign until budget is reached.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    },
+    {
+      "requirement_id": "RET-002",
+      "normative_requirement": "Retention cleanup never follows sandbox-controlled paths or executes sandbox-controlled metadata.",
+      "threat_or_failure": "Cleanup confused deputy",
+      "design_sections": "§16",
+      "primary_verification": "Malicious symlink/tree cleanup campaign.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

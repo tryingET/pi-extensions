@@ -1,0 +1,16 @@
+{
+  "schema": "pi-tool-boundary-requirements/v1",
+  "specification_version": "0.3",
+  "domain": "COMPAT",
+  "requirements": [
+    {
+      "requirement_id": "COMPAT-001",
+      "normative_requirement": "Release evidence is pinned to an exact Pi host version and invalidated by host tool-schema or lifecycle changes.",
+      "threat_or_failure": "Semantic drift from upstream Pi",
+      "design_sections": "§§2, 11, 26",
+      "primary_verification": "Compatibility canary against the pinned host plus negative test against a deliberately changed schema.",
+      "target_release": "0.1",
+      "status": "v0.3 normative; implementation evidence pending"
+    }
+  ]
+}

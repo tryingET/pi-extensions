@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "lane": "pi-ts-rust-security",
+  "package": "pi-tool-execution-boundary",
+  "release_managed": true,
+  "effectful_runtime_enabled": false,
+  "required_checks": [
+    "node-tests",
+    "artifact-validation",
+    "protobuf-generation",
+    "rust-tests",
+    "tlc-model-check",
+    "package-quality-gate"
+  ]
+}

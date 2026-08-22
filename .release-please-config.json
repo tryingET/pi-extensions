@@ -117,6 +117,10 @@
       "release-type": "node",
       "component": "pi-telemetry"
     },
+    "packages/pi-tool-execution-boundary": {
+      "release-type": "node",
+      "component": "pi-tool-execution-boundary"
+    },
     "packages/pi-toolbox-discovery": {
       "release-type": "node",
       "component": "pi-toolbox-discovery"
