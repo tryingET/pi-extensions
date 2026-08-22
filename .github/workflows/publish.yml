@@ -525,7 +525,7 @@ jobs:
           existing="$RUNNER_TEMP/existing-release-evidence"
           mkdir -p "$existing"
           if [[ "$archive_exists" == true ]]; then
-            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \\
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
               --pattern "$ARCHIVE_NAME" --dir "$existing"
             cmp -- "$REMOTE_ARCHIVE_PATH" "$existing/$ARCHIVE_NAME" || {
               echo "Existing GitHub Release asset differs: $ARCHIVE_NAME" >&2
@@ -533,7 +533,7 @@ jobs:
             }
           fi
           if [[ "$checksum_exists" == true ]]; then
-            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \\
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
               --pattern "$ARCHIVE_NAME.sha256" --dir "$existing"
             cmp -- "$REMOTE_CHECKSUM_PATH" "$existing/$ARCHIVE_NAME.sha256" || {
               echo "Existing GitHub Release asset differs: $ARCHIVE_NAME.sha256" >&2
@@ -550,7 +550,7 @@ jobs:
 
           verified="$RUNNER_TEMP/verified-release-evidence"
           mkdir -p "$verified"
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \\
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern "$ARCHIVE_NAME" --pattern "$ARCHIVE_NAME.sha256" --dir "$verified"
           cmp -- "$REMOTE_ARCHIVE_PATH" "$verified/$ARCHIVE_NAME" || {
             echo "Remote release evidence differs after retention: $ARCHIVE_NAME" >&2
@@ -560,6 +560,6 @@ jobs:
             echo "Remote release evidence differs after retention: $ARCHIVE_NAME.sha256" >&2
             exit 1
           }
-          node ./scripts/release-evidence-archive.mjs verify \\
-            --archive "$verified/$ARCHIVE_NAME" \\
+          node ./scripts/release-evidence-archive.mjs verify \
+            --archive "$verified/$ARCHIVE_NAME" \
             --checksum "$verified/$ARCHIVE_NAME.sha256"
