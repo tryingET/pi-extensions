@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.3.0...pi-workstation-inference-provider-v0.3.1) (2026-08-22)
+
+
+### Performance Improvements
+
+* **pi-workstation-inference-provider:** optimize local inference hot path ([#135](https://github.com/tryingET/pi-extensions/issues/135)) ([d82ba66](https://github.com/tryingET/pi-extensions/commit/d82ba661025a3a47b59cfcf8a0d54aed30b0bc3f))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.2.0...pi-workstation-inference-provider-v0.3.0) (2026-08-15)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-workstation-inference-provider",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pi provider adapter for workstation inference with lifecycle-read-only text paths and scheduler-claimed one-shot audio dispatch.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
