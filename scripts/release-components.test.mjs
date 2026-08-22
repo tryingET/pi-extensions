@@ -310,7 +310,13 @@ test("generic publish path preserves directory-based release check and publish",
     assert.doesNotMatch(step, /RELEASE_TARBALL/);
   }
   assert.match(check, /run: npm run release:check:quick\n/);
-  assert.match(publish, /run: npm publish --provenance --access public --tag "\$RELEASE_NPM_DIST_TAG"/);
+  // The generic step is an advisory dry-run smoke; the authoritative exact
+  // publication is the retained-tarball step. npm 12 applies the registry
+  // version guard even under --dry-run, so the smoke tolerates that specific
+  // rejection instead of failing against already-published versions.
+  assert.match(publish, /run: \|/);
+  assert.match(publish, /npm publish --dry-run --provenance --access public --tag "\$RELEASE_NPM_DIST_TAG"/);
+  assert.match(publish, /previously published/);
   assert.ok(workflow.indexOf(check) < workflow.indexOf(publish), "generic check must precede publish");
 });
 
