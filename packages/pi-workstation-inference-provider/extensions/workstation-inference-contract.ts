@@ -11,6 +11,7 @@ import {
   type EndpointHealthStatus,
   type HealthMode,
   type HealthProbeResult,
+  type LaneHealthInfo,
 } from "./workstation-provider-hot-path.ts";
 
 type NotifyLevel = "info" | "warning" | "error";
@@ -416,13 +417,29 @@ async function probeHealthUrl(healthUrl: string): Promise<HealthProbeResult> {
     // body (for example "degraded-side-lanes" with per-lane detail). HTTP
     // status alone would hide a dead model route behind a healthy process.
     try {
-      const body = (await response.json()) as { status?: unknown };
-      if (
+      const body = (await response.json()) as {
+        status?: unknown;
+        lanes?: unknown;
+      };
+      const degraded =
         typeof body?.status === "string" &&
         body.status !== "ok" &&
-        body.status.startsWith("degraded")
-      ) {
-        return { degraded: String(body.status) };
+        body.status.startsWith("degraded");
+      const lanes = Array.isArray(body?.lanes)
+        ? (body.lanes.filter(
+            (lane): lane is LaneHealthInfo =>
+              !!lane &&
+              typeof lane === "object" &&
+              typeof (lane as LaneHealthInfo).lane_id === "string" &&
+              typeof (lane as LaneHealthInfo).healthy === "boolean" &&
+              Array.isArray((lane as LaneHealthInfo).models),
+          ) as LaneHealthInfo[])
+        : undefined;
+      if (degraded || lanes?.length) {
+        return {
+          ...(degraded ? { degraded: String(body.status) } : {}),
+          ...(lanes?.length ? { lanes } : {}),
+        };
       }
     } catch {
       // Non-JSON health bodies stay gated on HTTP status only.
@@ -502,7 +519,29 @@ export async function resolveContractForModel(
     if (unhealthy) throw new Error(`workstation inference endpoint is not healthy: ${unhealthy}`);
   }
 
+  // Typed per-lane truth (IW9): a model whose lane is known-dead fails fast
+  // with a lane-named error instead of an opaque upstream 502. Uses only the
+  // already-cached probe result - no additional I/O, SWR semantics intact.
+  const deadLane = deadLaneForModel(modelId);
+  if (deadLane) {
+    throw new Error(
+      `workstation inference model ${modelId} maps to unhealthy lane ${deadLane.laneId}` +
+        (deadLane.detail ? `: ${deadLane.detail}` : ""),
+    );
+  }
+
   return selected;
+}
+
+export function deadLaneForModel(modelId: string): { laneId: string; detail?: string } | undefined {
+  for (const entry of workstationHealthStatus()) {
+    for (const lane of entry.lanes ?? []) {
+      if (!lane.healthy && lane.models.includes(modelId)) {
+        return { laneId: lane.lane_id, detail: lane.detail };
+      }
+    }
+  }
+  return undefined;
 }
 
 export async function resolveContractStatus(

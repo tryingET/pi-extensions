@@ -37,6 +37,8 @@ export type EndpointHealthStatus = {
   checkedAt?: number;
   expiresAt?: number;
   unhealthy?: string;
+  degraded?: string;
+  lanes?: LaneHealthInfo[];
   probeInFlight: boolean;
 };
 
@@ -255,9 +257,18 @@ export class ContractGenerationCache<TContract, TModel> {
  * partial degradation. Degradation never gates requests by itself; it is
  * carried so status surfaces can tell the truth about partial lanes.
  */
+export interface LaneHealthInfo {
+  lane_id: string;
+  models: string[];
+  healthy: boolean;
+  is_default?: boolean;
+  detail?: string;
+}
+
 export interface HealthProbeOutcome {
   unhealthy?: string;
   degraded?: string;
+  lanes?: LaneHealthInfo[];
 }
 
 export type HealthProbeResult = string | undefined | HealthProbeOutcome;
@@ -265,6 +276,7 @@ export type HealthProbeResult = string | undefined | HealthProbeOutcome;
 export function healthProbeOutcome(result: HealthProbeResult): {
   unhealthy?: string;
   degraded?: string;
+  lanes?: LaneHealthInfo[];
 } {
   if (result === undefined || typeof result === "string") {
     return { unhealthy: result };
@@ -283,6 +295,7 @@ interface HealthEntry {
   expiresAt: number;
   unhealthy?: string;
   degraded?: string;
+  lanes?: LaneHealthInfo[];
 }
 
 /** Singleflight endpoint health with stale-while-revalidate semantics. */
@@ -322,13 +335,14 @@ export class EndpointHealthCache {
     await Promise.all([...new Set(keys)].map((key) => this.#probe(key)));
   }
 
-  mark(key: string, unhealthy?: string, degraded?: string): void {
+  mark(key: string, unhealthy?: string, degraded?: string, lanes?: LaneHealthInfo[]): void {
     const checkedAt = this.#now();
     this.#entries.set(key, {
       checkedAt,
       expiresAt: checkedAt + resolveNumber(this.#options.ttlMs),
       unhealthy,
       degraded,
+      lanes,
     });
   }
 
@@ -342,6 +356,7 @@ export class EndpointHealthCache {
         expiresAt: entry?.expiresAt,
         unhealthy: entry?.unhealthy,
         degraded: entry?.degraded,
+        lanes: entry?.lanes,
         probeInFlight: this.#inflight.has(key),
       };
     });
@@ -363,8 +378,8 @@ export class EndpointHealthCache {
       .then(() => this.#options.probe(key))
       .catch((error: unknown) => errorText(error))
       .then((result) => {
-        const { unhealthy, degraded } = healthProbeOutcome(result);
-        if (probeEpoch === this.#epoch) this.mark(key, unhealthy, degraded);
+        const { unhealthy, degraded, lanes } = healthProbeOutcome(result);
+        if (probeEpoch === this.#epoch) this.mark(key, unhealthy, degraded, lanes);
         return unhealthy;
       })
       .finally(() => {

@@ -26,6 +26,7 @@ import extension, {
 import {
   __resetWorkstationInferenceCachesForTests,
   primeWorkstationHealth,
+  resolveContractForModel,
   workstationHealthStatus,
 } from "../extensions/workstation-inference-contract.ts";
 import {
@@ -432,6 +433,68 @@ test("degraded adapter health propagates without gating ordinary requests", asyn
     assert.ok(degraded, `expected a degraded entry among: ${JSON.stringify(healthStatuses)}`);
     assert.match(degraded.degraded, /degraded-side-lanes/);
     assert.equal(degraded.unhealthy, undefined, "degradation is not hard unhealthiness");
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldInline === undefined) delete process.env[CONTRACT_JSON_ENV];
+    else process.env[CONTRACT_JSON_ENV] = oldInline;
+    __resetWorkstationInferenceCachesForTests();
+  }
+});
+
+test("IW9: known-dead lanes deny their models fast; healthy lanes proceed", async () => {
+  const oldFetch = globalThis.fetch;
+  const oldInline = process.env[CONTRACT_JSON_ENV];
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input instanceof URL ? input : (input?.url ?? input));
+      if (url.endsWith("/health")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            status: "degraded-side-lanes",
+            adapter: "ok",
+            lanes: [
+              {
+                lane_id: "qwen27b_configi",
+                models: ["baseline-text", "baseline-text-visible"],
+                healthy: false,
+                is_default: true,
+                detail: "connection refused",
+              },
+              {
+                lane_id: "qwopus4b_q8_f16",
+                models: ["baseline-text-small", "baseline-text-small-visible"],
+                healthy: true,
+                is_default: false,
+              },
+            ],
+          }),
+        };
+      }
+      throw new Error(`unexpected network call: ${url}`);
+    };
+    process.env[CONTRACT_JSON_ENV] = JSON.stringify(
+      contract({
+        models: [
+          { id: "baseline-text" },
+          { id: "baseline-text-visible" },
+          { id: "baseline-text-small" },
+        ],
+      }),
+    );
+    __resetWorkstationInferenceCachesForTests();
+    await extension({
+      registerCommand() {},
+      registerProvider() {},
+    });
+    await primeWorkstationHealth();
+
+    const dead = resolveContractForModel("baseline-text");
+    await assert.rejects(dead, /unhealthy lane qwen27b_configi.*connection refused/u);
+
+    const alive = await resolveContractForModel("baseline-text-small");
+    assert.equal(alive.model.id, "baseline-text-small");
   } finally {
     globalThis.fetch = oldFetch;
     if (oldInline === undefined) delete process.env[CONTRACT_JSON_ENV];
