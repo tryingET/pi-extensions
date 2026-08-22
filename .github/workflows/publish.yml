@@ -40,6 +40,17 @@ jobs:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
           fetch-depth: 0
 
+      # The tag's own scripts are frozen at release time; npm-state inspection
+      # must track current tooling so registry/npm behavior drift (for example
+      # npm >= 12 returning arrays from `npm view --json`) cannot permanently
+      # block publication of already-tagged releases.
+      - name: Checkout current release tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 1
+          path: release-tooling
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -372,7 +383,7 @@ jobs:
           # npm registry reads lag writes by a few seconds; poll briefly so a
           # successful publication is not misread as absent.
           for attempt in 1 2 3 4 5 6; do
-            if node "$GITHUB_WORKSPACE/scripts/release-npm-state.mjs" inspect \
+            if node "$GITHUB_WORKSPACE/release-tooling/scripts/release-npm-state.mjs" inspect \
               --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
               --require exact; then
               break
@@ -423,7 +434,7 @@ jobs:
           # npm registry reads lag writes by a few seconds; poll briefly so a
           # successful publication is not misread as absent.
           for attempt in 1 2 3 4 5 6; do
-            if node "$GITHUB_WORKSPACE/scripts/release-npm-state.mjs" inspect \
+            if node "$GITHUB_WORKSPACE/release-tooling/scripts/release-npm-state.mjs" inspect \
               --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
               --require exact; then
               break
