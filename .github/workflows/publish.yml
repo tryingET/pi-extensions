@@ -399,9 +399,9 @@ jobs:
       - name: Publish generic package directory to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
-        env:
-          NPM_CONFIG_DRY_RUN: "true"
-        run: npm publish --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+        # Pass --dry-run explicitly; newer npm does not honor the
+        # NPM_CONFIG_DRY_RUN environment form reliably.
+        run: npm publish --dry-run --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
 
       - name: Publish authoritative generic tarball to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
