@@ -5,7 +5,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "LicenseRef-Project"
-rust-version = "1.82"
+rust-version = "1.88"
 
 [workspace.dependencies]
 hex = "0.4.3"
