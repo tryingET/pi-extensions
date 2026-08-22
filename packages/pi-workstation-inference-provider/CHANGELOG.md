@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.3.1...pi-workstation-inference-provider-v0.3.2) (2026-08-22)
+
+
+### Bug Fixes
+
+* **provider:** propagate partial lane degradation from adapter health bodies ([0d93c77](https://github.com/tryingET/pi-extensions/commit/0d93c77eca0fc50283a0544bb2b19528a6c3e05d))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.3.0...pi-workstation-inference-provider-v0.3.1) (2026-08-22)
 
 
