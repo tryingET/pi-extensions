@@ -32,8 +32,8 @@ test("dogfoods supporting, falsifying, and insufficient-evidence lifecycle paths
   assert.deepEqual(
     supporting.materializedFiles.map((entry) => entry.path),
     [
-      "docs/learnings/candidates/2026-07-28-subagent-failure-rates-at-or-above-the-declared-threshold-justify-an-owner-reviewed-kes-proposal.md",
-      "docs/learnings/diary/2026-07-28-telemetry-subagent-failure-rate-pct.md",
+      "diary/2026-07-28--validation-review-telemetry-signal-subagent-failure.md",
+      "docs/learnings/2026-07-28--learning-telemetry-candidate-for-subagent-failure-rate-pc.md",
     ],
   );
   for (const file of supporting.materializedFiles) {

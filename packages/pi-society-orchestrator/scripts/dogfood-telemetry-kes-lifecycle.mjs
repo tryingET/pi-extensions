@@ -13,7 +13,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildTelemetryLearningKesAdapterResult } from "../src/runtime/telemetry-learning-kes-adapter.ts";
+import {
+  buildTelemetryLearningKesAdapterResult,
+  TELEMETRY_REVIEW_METRIC_KEYS,
+} from "../src/runtime/telemetry-learning-kes-adapter.ts";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const OUTPUT_SCHEMA = "pi.telemetry-kes-dogfood.v1";
@@ -29,83 +32,51 @@ function canonicalJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function dogfoodMetric(value, unit, sampleSize) {
+  return {
+    value,
+    unit,
+    sampleSize,
+    numerator: unit === "percent" ? Math.round((value / 100) * sampleSize) : null,
+    denominator: unit === "percent" ? sampleSize : null,
+  };
+}
+
 function makeSnapshot() {
+  const metrics = Object.fromEntries(
+    TELEMETRY_REVIEW_METRIC_KEYS.map((key) => [key, dogfoodMetric(0, "percent", 100)]),
+  );
+  metrics.total_events = dogfoodMetric(100, "count", 100);
+  metrics.subagent_failure_rate_pct = dogfoodMetric(20, "percent", 100);
   return {
     schema: "pi.telemetry-review-snapshot.v1",
     producer: {
       package: "@tryinget/pi-telemetry",
-      version: "0.3.0",
+      packageVersion: "0.3.0",
+      telemetrySchemaVersion: 1,
     },
     generatedAt: FIXED_GENERATED_AT,
     window: {
+      days: 7,
       start: "2026-07-21T12:00:00.000Z",
       end: FIXED_GENERATED_AT,
-      requestedDays: 7,
-      retentionDays: 30,
-    },
-    source: {
-      eventPath: "~/.pi/agent/telemetry/events.ndjson",
-      aggregatePath: "~/.pi/agent/telemetry/aggregates.json",
     },
     coverage: {
-      eventCount: 100,
-      liveEventCount: 100,
-      backfillEventCount: 0,
-      unspecifiedEventCount: 0,
-      sourceMode: "live-only",
-      partialHistory: false,
+      mode: "live-only",
+      totalEvents: 100,
+      liveEvents: 100,
+      backfillEvents: 0,
+      unspecifiedSourceEvents: 0,
       limitations: [],
     },
-    metrics: {
-      topTools: [],
-      topSkills: [],
-      compaction: {
-        validated: 10,
-        fallback: 2,
-        repair: 1,
-        omittedToolOutputs: 0,
-        omittedTokens: 0,
-        evidenceAnchorCount: 10,
-        zeroEvidenceRecallCount: 0,
-        totalCompactedMessages: 20,
-        avgCompactionDurationMs: 100,
-        fallbackRatePct: 20,
-        repairRatePct: 10,
-        zeroEvidenceRecallRatePct: 0,
-      },
-      recall: {
-        total: 10,
-        hits: 9,
-        directReference: 5,
-        evidenceAnchor: 4,
-        zeroHit: 1,
-        degraded: 0,
-        errors: 0,
-        hitRatePct: 90,
-        zeroHitRatePct: 10,
-        degradedRatePct: 0,
-      },
-      followups: {
-        total: 10,
-        sent: 8,
-        blocked: 2,
-        blockedReasons: [],
-        sentRatePct: 80,
-        blockedRatePct: 20,
-      },
-      subagentThroughput: {
-        total: 100,
-        completed: 80,
-        failed: 20,
-        cancelled: 0,
-        timedOut: 0,
-        avgDurationMs: 1000,
-        failureRatePct: 20,
-        byProfile: [],
-      },
-    },
+    metrics,
     sourceEventSetSha256: "a".repeat(64),
-    sha256: "b".repeat(64),
+    snapshotSha256: "b".repeat(64),
+    nonclaims: [
+      "This snapshot is observational only.",
+      "It does not establish causality.",
+      "Missing events are not zero failures.",
+    ],
   };
 }
 
@@ -140,10 +111,10 @@ function adapterInput({ snapshot, packageRoot, action, threshold, minimumSampleS
     subjectRevision: FIXED_REVISION,
     configurationRef: "config://pi-society-orchestrator/telemetry-kes-dogfood-v1",
     metric: "subagent_failure_rate_pct",
-    comparison: "gte",
+    comparison: "at-or-above",
     threshold,
     minimumSampleSize,
-    requireLiveEvents: true,
+    coveragePolicy: "live-required",
     minimumLiveEvents: 25,
     candidateClaim:
       "Subagent failure rates at or above the declared threshold justify an owner-reviewed KES proposal.",
@@ -165,11 +136,16 @@ function summarizeResult(id, expectedDisposition, result, outputs) {
     expectedDisposition,
     status: result.status,
     review: {
-      observedValue: result.review.observedValue,
+      observedValue: result.review.value,
       sampleSize: result.review.sampleSize,
       thresholdCrossed: result.review.thresholdCrossed,
-      sampleSufficient: result.review.sampleSufficient,
-      liveCoverageSufficient: result.review.liveCoverageSufficient,
+      // Derived from adapter evidence: the adapter reports raw inputs and
+      // blockers, not pre-baked sufficiency flags.
+      sampleSufficient:
+        result.review.sampleSize >= result.review.minimumSampleSize &&
+        !result.review.blockers.some((blocker) => blocker.includes("sample is insufficient")),
+      liveCoverageSufficient:
+        result.snapshot.coverage.liveEvents >= result.review.minimumLiveEvents,
       blockerCount: result.review.blockers.length,
     },
     materializedFiles: outputs,
