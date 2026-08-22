@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.10.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.10.0...pi-society-orchestrator-v0.10.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* **orchestrator:** repair telemetry/KES dogfood against the real adapter contract ([72fa469](https://github.com/tryingET/pi-extensions/commit/72fa469ec4100a44bd6690dd979b72a1ab9770ef))
+
 ## [0.10.0](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.9.0...pi-society-orchestrator-v0.10.0) (2026-08-22)
 
 
