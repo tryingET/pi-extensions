@@ -40,8 +40,8 @@ jobs:
       - name: Install pinned Rust toolchain
         run: |
           set -euo pipefail
-          rustup toolchain install 1.82.0 --profile minimal --component rustfmt
-          rustup override set 1.82.0
+          rustup toolchain install 1.88.0 --profile minimal --component rustfmt
+          rustup override set 1.88.0
           rustc --version
           cargo --version
 
