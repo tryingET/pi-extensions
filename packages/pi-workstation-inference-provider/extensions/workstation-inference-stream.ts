@@ -221,7 +221,7 @@ export function streamWorkstationInference(
         throw new Error("audio marker must bind the latest user message exactly");
       }
       const selected = await resolveContractForModel(model.id, {
-        checkHealth: true,
+        healthMode: attachment ? "blocking" : "background",
         signal: (options as (SimpleStreamOptions & { signal?: AbortSignal }) | undefined)?.signal,
       });
       const providerId = selected.contract.provider_id ?? DEFAULT_PROVIDER_ID;

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { clearWorkstationHealthCache } from "../extensions/workstation-inference.ts";
+import { clearWorkstationProviderCaches } from "../extensions/workstation-inference.ts";
 
 export const CONTRACT_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT";
 export const CONTRACT_JSON_ENV = "PI_WORKSTATION_INFERENCE_CONTRACT_JSON";
@@ -9,7 +9,7 @@ export function withInlineContract(contract, fn) {
   const oldJson = process.env[CONTRACT_JSON_ENV];
   delete process.env[CONTRACT_ENV];
   process.env[CONTRACT_JSON_ENV] = JSON.stringify(contract);
-  clearWorkstationHealthCache();
+  clearWorkstationProviderCaches();
   return Promise.resolve()
     .then(fn)
     .finally(() => {
@@ -17,6 +17,7 @@ export function withInlineContract(contract, fn) {
       else process.env[CONTRACT_ENV] = oldPath;
       if (oldJson === undefined) delete process.env[CONTRACT_JSON_ENV];
       else process.env[CONTRACT_JSON_ENV] = oldJson;
+      clearWorkstationProviderCaches();
     });
 }
 

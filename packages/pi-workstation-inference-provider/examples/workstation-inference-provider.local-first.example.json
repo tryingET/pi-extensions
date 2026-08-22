@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "authority": "workstation/lane-op",
+  "family": "baseline-text",
+  "surface": "canonical",
+  "generated_at": "2026-08-20T00:00:00.000Z",
+  "refresh_after_seconds": 300,
+  "provider_id": "workstation-inference",
+  "provider_name": "Workstation Inference",
+  "base_url": "http://127.0.0.1:8000/v1",
+  "health_url": "http://127.0.0.1:8000/health",
+  "models": [
+    {
+      "pi_model_id": "local-realtime",
+      "name": "Local realtime",
+      "upstream_model": "replace-with-the-server-model-id",
+      "context_window": 65536,
+      "max_tokens": 4096,
+      "reasoning": false,
+      "input": ["text"]
+    }
+  ],
+  "recovery_hint": "Use workstation lane-op to restore the canonical runtime; the Pi adapter does not start or warm servers."
+}
