@@ -111,8 +111,6 @@ async function syncDirectory(directory: string): Promise<void> {
 
 function isErrno(value: unknown, code: string): boolean {
   return (
-    value instanceof Error &&
-    "code" in value &&
-    (value as NodeJS.ErrnoException).code === code
+    value instanceof Error && "code" in value && (value as NodeJS.ErrnoException).code === code
   );
 }

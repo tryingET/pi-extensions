@@ -27,7 +27,12 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
   pi.registerCommand("telemetry", {
     description:
       "Regenerate the dashboard; /telemetry review [days] writes a digest-bound snapshot; /telemetry backfill [days] derives bounded history",
-    handler: async (args, ctx) => {
+    handler: async (args, ctx): Promise<void> => {
+      const emit = (message: string): void => {
+        if (ctx?.hasUI) ctx.ui.notify(message, "info");
+        else console.log(message);
+      };
+
       const command = args.trim();
       if (/^backfill(?:\s|$)/u.test(command)) {
         const days = parseWindowDays(command.replace(/^backfill\s*/u, ""));
@@ -37,7 +42,8 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
           `(${result.filesSkippedAlreadyBackfilled} already done, ${result.filesSkippedLiveOverlap} live-covered) ` +
           `into ${result.shardDays.length} day shards.`;
         if (ctx?.hasUI) ctx.ui.notify(message, "info");
-        return message;
+        emit(message);
+        return;
       }
 
       const review = /^review(?:\s|$)/u.test(command);
@@ -58,7 +64,8 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
           `Telemetry review snapshot written: ${target} ` +
           `(${events.length} events, ${days}d, sha256:${snapshot.snapshotSha256})`;
         if (ctx?.hasUI) ctx.ui.notify(message, "info");
-        return message;
+        emit(message);
+        return;
       }
 
       const html = renderTelemetryDashboard(summary, {
@@ -77,7 +84,8 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
       if (ctx?.hasUI) {
         ctx.ui.notify(message, "info");
       }
-      return message;
+      emit(message);
+      return;
     },
   });
 
@@ -98,7 +106,7 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
       ),
       group_by: Type.Optional(Type.String({ description: "Optional focus: day | kind | tool" })),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       const windowDays = clampWindowDays(params.window_days);
       const now = Date.now();
       const events = await readTelemetryEvents(dir, windowDays, now);
@@ -132,7 +140,7 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
 
 function ok(data: unknown) {
   return {
-    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
     details: { data },
   };
 }

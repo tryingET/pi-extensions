@@ -37,6 +37,7 @@ export function telemetryReviewSha256(value: string | Buffer): string {
 export function boundedTelemetryReviewLabel(value: unknown): string {
   if (typeof value !== "string") return "unknown";
   const normalized = value
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting/stripping control characters is this code's purpose
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ")
     .replace(/\s+/g, " ")
@@ -60,10 +61,7 @@ export function telemetryEventForReviewDigest(event: TelemetryEvent): Record<str
   return boundedEvent;
 }
 
-export function compareTelemetryReviewEvents(
-  left: TelemetryEvent,
-  right: TelemetryEvent,
-): number {
+export function compareTelemetryReviewEvents(left: TelemetryEvent, right: TelemetryEvent): number {
   return (
     left.ts - right.ts ||
     left.kind.localeCompare(right.kind) ||

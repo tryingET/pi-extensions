@@ -29,7 +29,7 @@
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
     "build:review-runtime": "node ./scripts/build-review-runtime.mjs",
     "prepack": "npm run build:review-runtime",
     "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",

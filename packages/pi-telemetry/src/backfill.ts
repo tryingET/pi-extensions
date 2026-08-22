@@ -4,6 +4,7 @@
 //   - changing historical backfill derivation, the live/backfill overlap guard, or backfill shard naming.
 // ---
 
+import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -322,7 +323,7 @@ async function listSessionFiles(dirs: string[], now: number, days: number): Prom
   const cutoff = now - days * 24 * 60 * 60 * 1000;
   const files: string[] = [];
   for (const dir of dirs) {
-    let entries: Awaited<ReturnType<typeof readdir>>;
+    let entries: Dirent<string>[] | undefined;
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {
