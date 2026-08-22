@@ -10,6 +10,27 @@ import {
   EndpointHealthCache,
 } from "../extensions/workstation-provider-hot-path.ts";
 
+test("endpoint health cache distinguishes hard failure from partial degradation", async () => {
+  const cache = new EndpointHealthCache({
+    probe: async (key) =>
+      key === "dead" ? "connection refused" : { degraded: "degraded-side-lanes" },
+    ttlMs: 60_000,
+  });
+
+  const deadStatus = (await cache.check("dead")) ?? "";
+  const degradedStatus = await cache.check("degraded");
+  assert.equal(deadStatus, "connection refused");
+  assert.equal(degradedStatus, undefined, "degradation must not gate requests");
+
+  const statuses = cache.status();
+  const dead = statuses.find((entry) => entry.key === "dead");
+  const degraded = statuses.find((entry) => entry.key === "degraded");
+  assert.equal(dead.unhealthy, "connection refused");
+  assert.equal(dead.degraded, undefined);
+  assert.equal(degraded.unhealthy, undefined);
+  assert.equal(degraded.degraded, "degraded-side-lanes");
+});
+
 function makeCache(options) {
   return new ContractGenerationCache({
     load: options.load,

@@ -23,7 +23,11 @@ import extension, {
   resolveContractStatus,
   streamWorkstationInference,
 } from "../extensions/workstation-inference.ts";
-import { __resetWorkstationInferenceCachesForTests } from "../extensions/workstation-inference-contract.ts";
+import {
+  __resetWorkstationInferenceCachesForTests,
+  primeWorkstationHealth,
+  workstationHealthStatus,
+} from "../extensions/workstation-inference-contract.ts";
 import {
   clearSchedulerHandoff,
   completeSchedulerHandoff,
@@ -396,6 +400,44 @@ test("streamWorkstationInference returns an error event when health is bad", asy
       assert.match(errorEvent.errorErrorMessage ?? errorEvent.error?.errorMessage ?? "", /./);
     },
   );
+});
+
+test("degraded adapter health propagates without gating ordinary requests", async () => {
+  const oldFetch = globalThis.fetch;
+  const oldInline = process.env[CONTRACT_JSON_ENV];
+  const providers = [];
+  try {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "degraded-side-lanes",
+        default_lane: { healthy: true },
+        side_lanes: { qwen27b_configi: { healthy: false } },
+      }),
+    });
+    process.env[CONTRACT_JSON_ENV] = JSON.stringify(contract());
+    __resetWorkstationInferenceCachesForTests();
+    await extension({
+      registerCommand() {},
+      registerProvider(_name, provider) {
+        providers.push(provider);
+      },
+    });
+    assert.equal(providers.length, 1, "degradation must not block provider registration");
+    await primeWorkstationHealth();
+
+    const healthStatuses = workstationHealthStatus();
+    const degraded = healthStatuses.find((entry) => entry.degraded);
+    assert.ok(degraded, `expected a degraded entry among: ${JSON.stringify(healthStatuses)}`);
+    assert.match(degraded.degraded, /degraded-side-lanes/);
+    assert.equal(degraded.unhealthy, undefined, "degradation is not hard unhealthiness");
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldInline === undefined) delete process.env[CONTRACT_JSON_ENV];
+    else process.env[CONTRACT_JSON_ENV] = oldInline;
+    __resetWorkstationInferenceCachesForTests();
+  }
 });
 
 test("ordinary Inkling requests are denied before health or provider network effects", async () => {

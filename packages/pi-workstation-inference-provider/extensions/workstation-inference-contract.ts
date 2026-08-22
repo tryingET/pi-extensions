@@ -10,6 +10,7 @@ import {
   EndpointHealthCache,
   type EndpointHealthStatus,
   type HealthMode,
+  type HealthProbeResult,
 } from "./workstation-provider-hot-path.ts";
 
 type NotifyLevel = "info" | "warning" | "error";
@@ -397,7 +398,7 @@ function endpointHealthCache() {
   return endpointHealth;
 }
 
-async function probeHealthUrl(healthUrl: string): Promise<string | undefined> {
+async function probeHealthUrl(healthUrl: string): Promise<HealthProbeResult> {
   const controller = new AbortController();
   const timeoutMs = boundedPositiveIntegerEnv(
     HEALTH_TIMEOUT_ENV,
@@ -410,7 +411,23 @@ async function probeHealthUrl(healthUrl: string): Promise<string | undefined> {
   );
   try {
     const response = await fetch(healthUrl, { signal: controller.signal });
-    return response.ok ? undefined : `health returned HTTP ${response.status}`;
+    if (!response.ok) return `health returned HTTP ${response.status}`;
+    // The workstation adapter reports partial lane degradation inside a 200
+    // body (for example "degraded-side-lanes" with per-lane detail). HTTP
+    // status alone would hide a dead model route behind a healthy process.
+    try {
+      const body = (await response.json()) as { status?: unknown };
+      if (
+        typeof body?.status === "string" &&
+        body.status !== "ok" &&
+        body.status.startsWith("degraded")
+      ) {
+        return { degraded: String(body.status) };
+      }
+    } catch {
+      // Non-JSON health bodies stay gated on HTTP status only.
+    }
+    return undefined;
   } catch (error) {
     return controller.signal.reason instanceof Error
       ? controller.signal.reason.message

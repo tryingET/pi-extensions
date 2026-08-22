@@ -249,8 +249,31 @@ export class ContractGenerationCache<TContract, TModel> {
   }
 }
 
+/**
+ * A probe may return a plain string (hard-unhealthy reason), undefined
+ * (healthy), or a structured outcome that distinguishes hard failure from
+ * partial degradation. Degradation never gates requests by itself; it is
+ * carried so status surfaces can tell the truth about partial lanes.
+ */
+export interface HealthProbeOutcome {
+  unhealthy?: string;
+  degraded?: string;
+}
+
+export type HealthProbeResult = string | undefined | HealthProbeOutcome;
+
+export function healthProbeOutcome(result: HealthProbeResult): {
+  unhealthy?: string;
+  degraded?: string;
+} {
+  if (result === undefined || typeof result === "string") {
+    return { unhealthy: result };
+  }
+  return result;
+}
+
 export interface EndpointHealthCacheOptions {
-  probe: (key: string) => Promise<string | undefined>;
+  probe: (key: string) => Promise<HealthProbeResult>;
   ttlMs: number | (() => number);
   now?: () => number;
 }
@@ -259,6 +282,7 @@ interface HealthEntry {
   checkedAt: number;
   expiresAt: number;
   unhealthy?: string;
+  degraded?: string;
 }
 
 /** Singleflight endpoint health with stale-while-revalidate semantics. */
@@ -298,12 +322,13 @@ export class EndpointHealthCache {
     await Promise.all([...new Set(keys)].map((key) => this.#probe(key)));
   }
 
-  mark(key: string, unhealthy?: string): void {
+  mark(key: string, unhealthy?: string, degraded?: string): void {
     const checkedAt = this.#now();
     this.#entries.set(key, {
       checkedAt,
       expiresAt: checkedAt + resolveNumber(this.#options.ttlMs),
       unhealthy,
+      degraded,
     });
   }
 
@@ -316,6 +341,7 @@ export class EndpointHealthCache {
         checkedAt: entry?.checkedAt,
         expiresAt: entry?.expiresAt,
         unhealthy: entry?.unhealthy,
+        degraded: entry?.degraded,
         probeInFlight: this.#inflight.has(key),
       };
     });
@@ -336,8 +362,9 @@ export class EndpointHealthCache {
     probe = Promise.resolve()
       .then(() => this.#options.probe(key))
       .catch((error: unknown) => errorText(error))
-      .then((unhealthy) => {
-        if (probeEpoch === this.#epoch) this.mark(key, unhealthy);
+      .then((result) => {
+        const { unhealthy, degraded } = healthProbeOutcome(result);
+        if (probeEpoch === this.#epoch) this.mark(key, unhealthy, degraded);
         return unhealthy;
       })
       .finally(() => {
