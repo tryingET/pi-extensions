@@ -28,7 +28,8 @@ export default function releaseEvidenceAkAdapterExtension(pi: ExtensionAPI) {
       artifact_ref: Type.String({
         minLength: 1,
         maxLength: 1000,
-        description: "Stable GitHub Release asset, artifact, or owner-controlled evidence reference.",
+        description:
+          "Stable GitHub Release asset, artifact, or owner-controlled evidence reference.",
       }),
       repo_root: Type.String({
         minLength: 1,

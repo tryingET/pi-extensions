@@ -35,13 +35,15 @@ export default function telemetryKesAdapterExtension(pi: ExtensionAPI) {
       subject_revision: Type.String({
         minLength: 1,
         maxLength: 200,
-        description: "Immutable commit, package version, configuration revision, or equivalent subject revision.",
+        description:
+          "Immutable commit, package version, configuration revision, or equivalent subject revision.",
       }),
       configuration_ref: Type.Optional(
         Type.String({
           minLength: 1,
           maxLength: 500,
-          description: "Optional bounded configuration/profile reference relevant to the observation.",
+          description:
+            "Optional bounded configuration/profile reference relevant to the observation.",
         }),
       ),
       metric: Type.Union(TELEMETRY_REVIEW_METRIC_KEYS.map((key) => Type.Literal(key))),
@@ -68,7 +70,8 @@ export default function telemetryKesAdapterExtension(pi: ExtensionAPI) {
       retirement_signal: Type.String({ minLength: 1, maxLength: 1000 }),
       action: Type.Optional(
         Type.Union([Type.Literal("plan"), Type.Literal("materialize")], {
-          description: "Defaults to plan. Materialize fails closed when any review blocker remains.",
+          description:
+            "Defaults to plan. Materialize fails closed when any review blocker remains.",
         }),
       ),
       session_id: Type.Optional(Type.String({ maxLength: 200 })),

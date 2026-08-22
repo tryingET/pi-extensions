@@ -1,3 +1,15 @@
+---
+summary: "Deterministic synthetic dogfood for the telemetry-to-KES lifecycle: supporting, falsifying, and insufficient-evidence cases."
+read_when:
+  - "Running or extending dogfood-telemetry-kes-lifecycle.mjs."
+  - "Distinguishing synthetic integration evidence from live operational evidence."
+system4d:
+  container: "Package-owned deterministic fixture exercising the telemetry/KES adapter boundary."
+  compass: "Synthetic evidence proves contract behavior only; it makes no operational claim."
+  engine: "Run node ./scripts/dogfood-telemetry-kes-lifecycle.mjs from the package root."
+  fog: "Live campaign policy lives in the owner-local KES adapter doc, not here."
+---
+
 # Telemetry-to-KES lifecycle dogfood
 
 `dogfood-telemetry-kes-lifecycle.mjs` exercises the real owner-local telemetry/KES adapter with three bounded synthetic cases:

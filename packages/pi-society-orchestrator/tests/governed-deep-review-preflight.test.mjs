@@ -346,8 +346,11 @@ cache=${cacheDir}
 test("governed npm policy rejects simultaneous relative and absolute cutoffs", () => {
   withGovernedNpmPolicyFixture(({ npmrcPath }) => {
     const before = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    writeFileSync(npmrcPath, `${readFileSync(npmrcPath, "utf8")}before=${before}
-`);
+    writeFileSync(
+      npmrcPath,
+      `${readFileSync(npmrcPath, "utf8")}before=${before}
+`,
+    );
     assert.throws(
       () => inspectGovernedRuntimeNpmPolicy(),
       (error) => error?.failureClass === "materialization_npm_policy_mismatch",

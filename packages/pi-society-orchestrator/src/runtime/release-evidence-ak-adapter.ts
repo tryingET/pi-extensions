@@ -124,10 +124,7 @@ export async function buildReleaseEvidenceAkAdapterResult(
     evidence.artifactManifest,
     "release artifact manifest",
   );
-  const artifactManifestFile = readCanonicalJson(
-    artifactManifestPath,
-    "release artifact manifest",
-  );
+  const artifactManifestFile = readCanonicalJson(artifactManifestPath, "release artifact manifest");
   if (artifactManifestFile.sha256 !== evidence.artifactManifest.sha256) {
     throw new Error("release artifact manifest SHA-256 differs after canonical parsing");
   }
@@ -193,7 +190,9 @@ export async function buildReleaseEvidenceAkAdapterResult(
       cwd: repoRoot,
     });
     if (!writeResult.ok) {
-      throw new Error(`Agent Kernel evidence custody failed: ${writeResult.akError ?? "unknown error"}`);
+      throw new Error(
+        `Agent Kernel evidence custody failed: ${writeResult.akError ?? "unknown error"}`,
+      );
     }
   }
 
@@ -254,7 +253,9 @@ function readCanonicalJson(
   try {
     value = JSON.parse(text);
   } catch (error) {
-    throw new Error(`${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   if (`${JSON.stringify(value, null, 2)}\n` !== text) {
     throw new Error(`${label} must use canonical two-space JSON with one trailing newline`);
@@ -299,13 +300,22 @@ function verifyArtifactBinding(
   evidence: ReleaseEvidenceManifest,
   artifact: ReleaseArtifactManifest,
 ): void {
-  if (artifact.package.name !== evidence.subject.name || artifact.package.version !== evidence.subject.version) {
+  if (
+    artifact.package.name !== evidence.subject.name ||
+    artifact.package.version !== evidence.subject.version
+  ) {
     throw new Error("release artifact package identity differs from release evidence");
   }
-  if (artifact.source.tag !== evidence.source.tag || artifact.source.commit !== evidence.source.commit) {
+  if (
+    artifact.source.tag !== evidence.source.tag ||
+    artifact.source.commit !== evidence.source.commit
+  ) {
     throw new Error("release artifact source identity differs from release evidence");
   }
-  if (artifact.artifact.sha256 !== evidence.subject.sha256 || artifact.artifact.size !== evidence.subject.size) {
+  if (
+    artifact.artifact.sha256 !== evidence.subject.sha256 ||
+    artifact.artifact.size !== evidence.subject.size
+  ) {
     throw new Error("release artifact subject binding differs from release evidence");
   }
 }
@@ -342,9 +352,11 @@ function verifySpdxBinding(value: unknown, evidence: ReleaseEvidenceManifest): v
     const record = candidate as Record<string, unknown>;
     return record.name === evidence.subject.name && record.versionInfo === evidence.subject.version;
   });
-  if (matches.length !== 1) throw new Error("SPDX must describe exactly one release subject package");
+  if (matches.length !== 1)
+    throw new Error("SPDX must describe exactly one release subject package");
   const subject = matches[0] as Record<string, unknown>;
-  if (!Array.isArray(subject.checksums)) throw new Error("SPDX release subject checksum is missing");
+  if (!Array.isArray(subject.checksums))
+    throw new Error("SPDX release subject checksum is missing");
   const checksum = subject.checksums.find((candidate) => {
     if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return false;
     const record = candidate as Record<string, unknown>;
@@ -367,7 +379,8 @@ function releaseEvidenceManifest(value: unknown): ReleaseEvidenceManifest {
   const toolchain = object(record.toolchain, "toolchain");
   const boundaries = object(record.boundaries, "boundaries");
   if (!Array.isArray(record.localArtifacts)) throw new Error("localArtifacts must be an array");
-  if (record.localArtifacts.length > 128) throw new Error("localArtifacts exceeds the supported bound");
+  if (record.localArtifacts.length > 128)
+    throw new Error("localArtifacts exceeds the supported bound");
   return {
     schema: RELEASE_EVIDENCE_SCHEMA,
     producer: boundedText(record.producer, "producer", 200),
@@ -397,7 +410,10 @@ function releaseEvidenceManifest(value: unknown): ReleaseEvidenceManifest {
           : sourcePackageLock(object(sbom.sourcePackageLock, "sbom.sourcePackageLock")),
     },
     localArtifacts: record.localArtifacts.map((candidate, index) =>
-      localArtifactRecord(object(candidate, `localArtifacts[${index}]`), `localArtifacts[${index}]`),
+      localArtifactRecord(
+        object(candidate, `localArtifacts[${index}]`),
+        `localArtifacts[${index}]`,
+      ),
     ),
     toolchain: {
       npm: boundedText(toolchain.npm, "toolchain.npm", 100),
@@ -467,10 +483,7 @@ function fileRecord(record: Record<string, unknown>, label: string): FileRecord 
   };
 }
 
-function localArtifactRecord(
-  record: Record<string, unknown>,
-  label: string,
-): LocalArtifactRecord {
+function localArtifactRecord(record: Record<string, unknown>, label: string): LocalArtifactRecord {
   return {
     name: boundedText(record.name, `${label}.name`, 300),
     version: boundedText(record.version, `${label}.version`, 100),
@@ -495,6 +508,7 @@ function object(value: unknown, label: string): Record<string, unknown> {
 function boundedText(value: unknown, label: string, maximum: number): string {
   if (typeof value !== "string") throw new Error(`${label} must be a string`);
   const normalized = value.trim();
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is this validator's purpose
   if (!normalized || normalized.length > maximum || /[\u0000-\u001f\u007f]/u.test(normalized)) {
     throw new Error(`${label} is empty, too long, or contains control characters`);
   }
@@ -516,7 +530,8 @@ function digest(value: unknown, label: string): string {
 
 function commit(value: unknown, label: string): string {
   const normalized = boundedText(value, label, 40);
-  if (!COMMIT_PATTERN.test(normalized)) throw new Error(`${label} must be a lowercase full Git commit`);
+  if (!COMMIT_PATTERN.test(normalized))
+    throw new Error(`${label} must be a lowercase full Git commit`);
   return normalized;
 }
 

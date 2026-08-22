@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -87,18 +87,13 @@ async function build(root, overrides = {}) {
 }
 
 test("declares telemetry as a registry-independent optional producer contract", async () => {
-  const manifest = JSON.parse(
-    await readFile(new URL("../package.json", import.meta.url), "utf8"),
-  );
-  assert.deepEqual(
-    manifest["x-pi-integrations"]?.optionalProducers?.["@tryinget/pi-telemetry"],
-    {
-      contract: "pi.telemetry-review-snapshot.v1",
-      testedProducerVersion: "0.3.0",
-      loading: "dynamic",
-      registryDependency: false,
-    },
-  );
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.deepEqual(manifest["x-pi-integrations"]?.optionalProducers?.["@tryinget/pi-telemetry"], {
+    contract: "pi.telemetry-review-snapshot.v1",
+    testedProducerVersion: "0.3.0",
+    loading: "dynamic",
+    registryDependency: false,
+  });
   assert.equal(manifest.peerDependencies?.["@tryinget/pi-telemetry"], undefined);
   assert.equal(manifest.peerDependenciesMeta?.["@tryinget/pi-telemetry"], undefined);
 });

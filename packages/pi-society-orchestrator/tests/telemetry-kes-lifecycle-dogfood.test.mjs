@@ -81,6 +81,9 @@ test("dogfood CLI is byte-deterministic and contains no temporary paths", () => 
   const report = JSON.parse(first.stdout);
   assert.equal(report.schema, "pi.telemetry-kes-dogfood.v1");
   assert.doesNotMatch(first.stdout, /\/tmp\//u);
-  assert.doesNotMatch(first.stdout, /pi-telemetry-kes-(?:supporting|falsifying|insufficient-evidence)-/u);
+  assert.doesNotMatch(
+    first.stdout,
+    /pi-telemetry-kes-(?:supporting|falsifying|insufficient-evidence)-/u,
+  );
   assert.doesNotMatch(first.stdout, /society\.db|ak evidence record/iu);
 });

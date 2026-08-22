@@ -1,3 +1,15 @@
+---
+summary: "Optional, plan-first Agent Kernel custody for retained pi.release-evidence.v1 closures."
+read_when:
+  - "Recording or reviewing release evidence in Agent Kernel."
+  - "Changing release_evidence_ak_adapter or its authority boundary."
+system4d:
+  container: "Package-owned adapter between retained release evidence and optional Agent Kernel custody."
+  compass: "Custody records lineage and ownership; it never proves correctness, safety, or adoption."
+  engine: "Read the adapter and its tests before changing the closure contract."
+  fog: "AK-specific semantics stay in Agent Kernel; this file stays package-scoped."
+---
+
 # Release evidence custody in Agent Kernel
 
 `release_evidence_ak_adapter` validates one retained `pi.release-evidence.v1` closure and prepares or explicitly records a bounded Agent Kernel evidence entry.
