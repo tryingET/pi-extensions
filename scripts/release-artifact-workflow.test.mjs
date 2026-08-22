@@ -103,7 +103,12 @@ test("every artifact closure is reverified, retained, and published by exact pat
     workflow,
     "Publish generic package directory to npm (OIDC + provenance)",
   );
-  assert.match(compatibilityDryRun, /NPM_CONFIG_DRY_RUN: "true"/u);
+  // npm >= 12 does not honor NPM_CONFIG_DRY_RUN from the environment; the
+  // smoke passes --dry-run explicitly and tolerates the registry version
+  // guard for already-published versions.
+  assert.match(compatibilityDryRun, /npm publish --dry-run/u);
+  assert.doesNotMatch(compatibilityDryRun, /NPM_CONFIG_DRY_RUN/u);
+  assert.match(compatibilityDryRun, /previously published/u);
   assert.doesNotMatch(compatibilityDryRun, /RELEASE_TARBALL/u);
 });
 
