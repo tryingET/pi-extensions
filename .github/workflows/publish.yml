@@ -499,8 +499,8 @@ jobs:
           test -n "$archive"
           checksum="$(find "$RUNNER_TEMP/release-evidence-download" -type f -name "$ARCHIVE_NAME.sha256" -print -quit)"
           test -n "$checksum"
-          node ./scripts/release-evidence-archive.mjs verify \\
-            --archive "$archive" \\
+          node ./scripts/release-evidence-archive.mjs verify \
+            --archive "$archive" \
             --checksum "$checksum"
           {
             echo "REMOTE_ARCHIVE_PATH=$archive"
