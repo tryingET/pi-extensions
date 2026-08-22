@@ -67,7 +67,9 @@ function normalizeObservedPublication(value) {
     if (value === null) return null;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    fail("npm view result must be an object");
+    fail(
+      `npm view result must be an object; received ${JSON.stringify(value)?.slice(0, 400) ?? String(value)}`,
+    );
   }
   return {
     name: requireString(value.name, "npm package name"),
