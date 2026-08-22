@@ -348,7 +348,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node ./scripts/release-npm-state.mjs inspect \
+          node "$GITHUB_WORKSPACE/release-tooling/scripts/release-npm-state.mjs" inspect \
             --manifest "$RELEASE_ARTIFACT_MANIFEST_PATH" \
             --output-env-file "$GITHUB_ENV"
 
