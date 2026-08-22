@@ -60,6 +60,12 @@ function expectedPublication(artifact) {
 
 function normalizeObservedPublication(value) {
   if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) {
+    // npm >= 12 returns an array of matching packuments for multi-field
+    // `npm view` queries; older versions returned a single object.
+    value = value.find((entry) => entry && typeof entry === "object") ?? null;
+    if (value === null) return null;
+  }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     fail("npm view result must be an object");
   }
