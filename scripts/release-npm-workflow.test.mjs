@@ -21,7 +21,10 @@ test("publication inspects immutable npm state before either exact publish path"
   const inspect = step(workflow, "Inspect immutable npm publication state");
   const special = step(workflow, "Publish retained tarball to npm (OIDC + provenance)");
   const generic = step(workflow, "Publish authoritative generic tarball to npm (OIDC + provenance)");
-  assert.match(inspect, /release-npm-state\.mjs inspect/u);
+  // Inspection runs from the current main tooling checkout, not the frozen
+  // tag scripts, so registry/npm behavior drift cannot block old tags.
+  assert.match(inspect, /release-tooling\/scripts\/release-npm-state\.mjs"?\s+inspect/u);
+  assert.doesNotMatch(inspect, /node \.\/scripts\/release-npm-state\.mjs/u);
   assert.match(inspect, /--manifest "\$RELEASE_ARTIFACT_MANIFEST_PATH"/u);
   assert.match(inspect, /--output-env-file "\$GITHUB_ENV"/u);
   assert.ok(workflow.indexOf(inspect) < workflow.indexOf(special));
