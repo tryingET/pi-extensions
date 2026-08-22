@@ -400,8 +400,19 @@ jobs:
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
         # Pass --dry-run explicitly; newer npm does not honor the
-        # NPM_CONFIG_DRY_RUN environment form reliably.
-        run: npm publish --dry-run --provenance --access public --tag "$RELEASE_NPM_DIST_TAG"
+        # NPM_CONFIG_DRY_RUN environment form reliably. npm 12 also applies
+        # the registry version guard during dry-runs, so treat that specific
+        # rejection as advisory (the authoritative tarball step owns the
+        # exact-byte publication decision).
+        run: |
+          set +e
+          SMOKE_OUTPUT="$(npm publish --dry-run --provenance --access public --tag "$RELEASE_NPM_DIST_TAG" 2>&1)"
+          SMOKE_STATUS=$?
+          set -e
+          printf '%s\n' "$SMOKE_OUTPUT"
+          if [[ "$SMOKE_STATUS" -ne 0 ]] && ! grep -qi "previously published" <<<"$SMOKE_OUTPUT"; then
+            exit "$SMOKE_STATUS"
+          fi
 
       - name: Publish authoritative generic tarball to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
