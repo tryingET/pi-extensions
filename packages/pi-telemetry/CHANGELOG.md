@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-telemetry-v0.3.0...pi-telemetry-v0.3.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* **telemetry:** satisfy the package's own enforced TypeScript and lint contracts ([ad988c2](https://github.com/tryingET/pi-extensions/commit/ad988c2988bc3e8172b40e8c1b19746c0a8f0bc6))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-telemetry-v0.2.0...pi-telemetry-v0.3.0) (2026-08-20)
 
 
