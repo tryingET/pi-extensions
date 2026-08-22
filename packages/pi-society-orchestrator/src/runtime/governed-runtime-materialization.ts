@@ -911,11 +911,11 @@ export function inspectGovernedRuntimeNpmPolicy(): GovernedRuntimeNpmPolicyProof
   // effects. Retain an explicit-before fallback for older/operator-controlled
   // environments, but reject simultaneous raw values because their precedence is
   // easy to misread and can silently relax the intended age gate.
-  const configuredMinReleaseAgeText = npmText(
-    nodeExecutable.realpath,
-    npmExecutable.realpath,
-    ["config", "get", "min-release-age"],
-  );
+  const configuredMinReleaseAgeText = npmText(nodeExecutable.realpath, npmExecutable.realpath, [
+    "config",
+    "get",
+    "min-release-age",
+  ]);
   const configuredMinReleaseAge =
     configuredMinReleaseAgeText && configuredMinReleaseAgeText !== "null"
       ? Number(configuredMinReleaseAgeText)

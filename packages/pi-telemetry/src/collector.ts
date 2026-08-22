@@ -105,7 +105,9 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
     const errorSignature = ok ? undefined : deriveErrorSignature(readErrorText(event));
 
     if (inflightEntry.skill) {
-      record({ ...(base({ kind: "skill_load", skill: inflightEntry.skill }) as TelemetryEvent) });
+      record({
+        ...(base({ kind: "skill_load", skill: inflightEntry.skill }) as unknown as TelemetryEvent),
+      });
     }
 
     if (inflightEntry.tool.startsWith(VAULT_TOOL_PREFIX)) {
@@ -116,7 +118,7 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
           ok,
           durationMs,
           ...(errorSignature ? { errorSignature } : {}),
-        }) as TelemetryEvent),
+        }) as unknown as TelemetryEvent),
       });
     } else {
       record({
@@ -126,13 +128,14 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
           ok,
           durationMs,
           ...(errorSignature ? { errorSignature } : {}),
-        }) as TelemetryEvent),
+        }) as unknown as TelemetryEvent),
       });
     }
 
     if (inflightEntry.tool === "self") {
       const followUp = extractFollowUpOutcome(event.result);
-      if (followUp) record({ ...(base({ kind: "follow_up", ...followUp }) as TelemetryEvent) });
+      if (followUp)
+        record({ ...(base({ kind: "follow_up", ...followUp }) as unknown as TelemetryEvent) });
     }
 
     if (inflightEntry.tool === "dispatch_subagent") {
@@ -143,7 +146,7 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
           ok,
           durationMs,
           ...(errorSignature ? { errorSignature } : {}),
-        }) as TelemetryEvent),
+        }) as unknown as TelemetryEvent),
       });
     }
   };
@@ -163,7 +166,7 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
           ...(base({
             kind: "turn",
             index: typeof event.turnIndex === "number" ? event.turnIndex : -1,
-          }) as TelemetryEvent),
+          }) as unknown as TelemetryEvent),
         });
         return;
       case "session_before_compact":
@@ -172,7 +175,7 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
             kind: "compaction_begin",
             reason: typeof event.reason === "string" ? event.reason : "unknown",
             willRetry: event.willRetry === true,
-          }) as TelemetryEvent),
+          }) as unknown as TelemetryEvent),
         });
         return;
       case "session_compact": {
@@ -185,7 +188,10 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
             fromExtension: event.fromExtension === true,
             ...(typeof entry.tokensBefore === "number" ? { tokensBefore: entry.tokensBefore } : {}),
             ...(typeof entry.summary === "string" ? { summaryChars: entry.summary.length } : {}),
-          }) as TelemetryEvent),
+            // Legacy best-effort compaction record; consumers tolerate the
+            // partial shape, so bridge through unknown instead of widening
+            // the shared event type.
+          }) as unknown as TelemetryEvent),
         });
         return;
       }

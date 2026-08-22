@@ -1,34 +1,25 @@
-name: vouch-manage
+name: Vouch Trusted Contributor Management
 
 on:
-  issue_comment:
-    types:
-      - created
-
-concurrency:
-  group: vouch-manage-${{ github.repository }}
-  cancel-in-progress: false
+  issues:
+    types: [labeled]
 
 permissions:
   contents: read
 
 jobs:
   manage:
+    if: github.event.label.name == 'vouch'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       issues: write
-      pull-requests: read
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Apply vouch / denounce / unvouch from maintainer comments
-        uses: mitchellh/vouch/action/manage-by-issue@d66fa29a64600490892131ad87597c30c91fcac4
+      - uses: mitchellh/vouch/action/manage-by-issue@d66fa29a64600490892131ad87597c30c91fcac4
         with:
-          repo: ${{ github.repository }}
-          issue-id: ${{ github.event.issue.number }}
-          comment-id: ${{ github.event.comment.id }}
-          vouched-file: .github/VOUCHED.td
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          trustedFile: .github/ci-trusted-users.txt
+          vouchLabel: vouch

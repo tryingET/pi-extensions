@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "observationSchema": "pi.release-state-observation.v1",
+  "decisionSchema": "pi.release-recovery-decision.v1",
+  "statuses": {
+    "tag": ["absent", "exact", "mismatch"],
+    "githubRelease": ["absent", "draft", "published"],
+    "npm": ["absent", "exact", "mismatch"],
+    "durableEvidence": ["absent", "partial", "exact", "mismatch"],
+    "attestations": ["absent", "partial", "exact", "mismatch"],
+    "trust": ["normal", "suspected-compromise", "confirmed-compromise"]
+  },
+  "globalProhibitions": [
+    "overwrite-an-existing-npm-version",
+    "move-or-reuse-a-release-tag",
+    "clobber-a-different-github-release-asset",
+    "rewrite-tagged-source-to-make-release-pass",
+    "delete-evidence-before-preservation"
+  ],
+  "states": {
+    "candidate-no-tag": {
+      "severity": "normal",
+      "resumable": true,
+      "allowedActions": ["complete-local-release-proof", "create-an-exact-version-tag"],
+      "summary": "The release candidate has not crossed an immutable publication boundary."
+    },
+    "tag-awaiting-github-release": {
+      "severity": "warning",
+      "resumable": true,
+      "allowedActions": ["create-or-publish-the-github-release-from-the-exact-tag"],
+      "summary": "An exact tag exists, but its GitHub Release is missing or still a draft."
+    },
+    "github-release-awaiting-npm": {
+      "severity": "warning",
+      "resumable": true,
+      "allowedActions": ["resume-exact-npm-publication-from-the-tag", "preserve-current-release-evidence"],
+      "summary": "The GitHub Release exists, but the immutable npm version is absent."
+    },
+    "npm-published-evidence-pending": {
+      "severity": "warning",
+      "resumable": true,
+      "allowedActions": ["verify-existing-release-assets", "retain-only-the-missing-exact-evidence", "verify-attestations"],
+      "summary": "The npm version is immutable and exact, while durable evidence or attestations remain incomplete."
+    },
+    "component-complete-wave-partial": {
+      "severity": "warning",
+      "resumable": true,
+      "allowedActions": ["continue-only-unpublished-components", "leave-published-component-versions-immutable"],
+      "summary": "This component is complete, but another component in the release wave is unfinished."
+    },
+    "complete": {
+      "severity": "normal",
+      "resumable": false,
+      "allowedActions": ["no-op", "periodically-reverify-evidence"],
+      "summary": "Tag, GitHub Release, npm version, durable evidence, and attestations are exact."
+    },
+    "source-tag-mismatch": {
+      "severity": "critical",
+      "resumable": false,
+      "allowedActions": ["freeze-release-automation", "preserve-evidence", "issue-a-corrective-new-version"],
+      "summary": "The release tag does not identify the expected source or is not contained in the release branch."
+    },
+    "npm-artifact-mismatch": {
+      "severity": "critical",
+      "resumable": false,
+      "allowedActions": ["freeze-release-automation", "preserve-evidence", "deprecate-the-bad-version", "publish-a-corrective-new-version"],
+      "summary": "The immutable npm bytes or package identity differ from the retained exact artifact."
+    },
+    "release-evidence-mismatch": {
+      "severity": "critical",
+      "resumable": false,
+      "allowedActions": ["freeze-release-automation", "preserve-evidence", "investigate-builder-and-storage-boundaries", "publish-a-corrective-new-version-if-subject-bytes-are-affected"],
+      "summary": "Durable evidence or attestations differ from the exact release subject."
+    },
+    "compromise-suspected": {
+      "severity": "critical",
+      "resumable": false,
+      "allowedActions": ["freeze-release-automation", "revoke-or-narrow-trust", "preserve-evidence", "rotate-credentials-and-oidc-trust", "investigate-before-republication"],
+      "summary": "A release identity, workflow, account, or publisher may be compromised."
+    },
+    "compromise-confirmed": {
+      "severity": "critical",
+      "resumable": false,
+      "allowedActions": ["freeze-release-automation", "revoke-trust", "preserve-evidence", "rotate-all-affected-credentials", "deprecate-affected-versions", "publish-corrective-versions", "communicate-the-incident"],
+      "summary": "A release identity, workflow, account, or publisher is confirmed compromised."
+    }
+  }
+}

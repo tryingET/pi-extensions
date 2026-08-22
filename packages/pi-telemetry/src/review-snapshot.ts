@@ -5,8 +5,8 @@
 // ---
 
 export {
-  buildTelemetryReviewSnapshot,
   type BuildTelemetryReviewSnapshotInput,
+  buildTelemetryReviewSnapshot,
 } from "./review-snapshot-build.ts";
 export {
   loadTelemetryReviewSnapshot,

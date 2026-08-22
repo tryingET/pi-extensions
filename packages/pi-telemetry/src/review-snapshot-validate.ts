@@ -167,13 +167,15 @@ function validateCoverage(value: unknown, window: ValidatedWindow): ValidatedCov
       ? null
       : timestamp(coverage.firstObservedAt, "firstObservedAt");
   const last =
-    coverage.lastObservedAt === null
-      ? null
-      : timestamp(coverage.lastObservedAt, "lastObservedAt");
+    coverage.lastObservedAt === null ? null : timestamp(coverage.lastObservedAt, "lastObservedAt");
   if ((total === 0) !== (first === null && last === null)) {
     throw new Error("coverage observed bounds do not match totalEvents");
   }
-  if (first !== null && last !== null && (first > last || first < window.start || last > window.end)) {
+  if (
+    first !== null &&
+    last !== null &&
+    (first > last || first < window.start || last > window.end)
+  ) {
     throw new Error("coverage observed bounds fall outside the review window");
   }
   if (coverage.retentionCeilingDays !== TELEMETRY_RETENTION_DAYS) {
@@ -226,9 +228,7 @@ function validateMetrics(value: unknown, coverage: ValidatedCoverage): void {
       throw new Error(`metric ${key}.sampleSize exceeds totalEvents`);
     }
     const numerator =
-      metric.numerator === null
-        ? null
-        : nonnegative(metric.numerator, `metric ${key}.numerator`);
+      metric.numerator === null ? null : nonnegative(metric.numerator, `metric ${key}.numerator`);
     const denominator =
       metric.denominator === null
         ? null
@@ -265,7 +265,12 @@ function validateMetrics(value: unknown, coverage: ValidatedCoverage): void {
   if (totalMetric.value !== coverage.total || totalMetric.sampleSize !== coverage.total) {
     throw new Error("total_events metric does not match coverage");
   }
-  validateCoverageShareMetric(candidate.live_event_share_pct, coverage.live, coverage.total, "live");
+  validateCoverageShareMetric(
+    candidate.live_event_share_pct,
+    coverage.live,
+    coverage.total,
+    "live",
+  );
   validateCoverageShareMetric(
     candidate.backfill_event_share_pct,
     coverage.backfill,
@@ -337,10 +342,7 @@ function countRows(value: unknown, key: string): Array<{ label: string; n: numbe
 
 function validateNonclaims(value: unknown): void {
   stringArray(value, "nonclaims", REQUIRED_NONCLAIMS.length, REQUIRED_NONCLAIMS.length, 500);
-  if (
-    !Array.isArray(value) ||
-    value.some((item, index) => item !== REQUIRED_NONCLAIMS[index])
-  ) {
+  if (!Array.isArray(value) || value.some((item, index) => item !== REQUIRED_NONCLAIMS[index])) {
     throw new Error("telemetry review snapshot nonclaims do not match the v1 contract");
   }
 }
@@ -390,6 +392,7 @@ function label(value: unknown, field: string): string {
     value.length === 0 ||
     value.length > TELEMETRY_REVIEW_MAX_LABEL_CHARS ||
     value.trim() !== value ||
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting/stripping control characters is this code's purpose
     /[\u0000-\u001f\u007f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u.test(value)
   ) {
     throw new Error(`${field} is invalid`);
@@ -413,6 +416,7 @@ function stringArray(
         typeof item !== "string" ||
         item.length === 0 ||
         item.length > maxChars ||
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting/stripping control characters is this code's purpose
         /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(item),
     )
   ) {
@@ -443,6 +447,7 @@ function rejectDuplicateJsonObjectMembers(text: string): void {
   let index = 0;
 
   function skipWhitespace(): void {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting/stripping control characters is this code's purpose
     while (index < text.length && /[\u0009\u000a\u000d\u0020]/u.test(text[index] ?? "")) {
       index += 1;
     }
@@ -458,6 +463,7 @@ function rejectDuplicateJsonObjectMembers(text: string): void {
         return JSON.parse(text.slice(start, index)) as string;
       }
       if (character === "\\") {
+        // biome-ignore lint/suspicious/noShadowRestrictedNames: mirrors the JSON escape terminology of the surrounding parser
         const escape = text[index] ?? "";
         index += 1;
         if (escape === "u") index += 4;

@@ -136,8 +136,8 @@ test("allows a message-domain sample to exceed the number of telemetry events", 
   };
   resign(changed);
   assert.equal(
-    validateTelemetryReviewSnapshot(changed).metrics
-      .compaction_quality_message_omission_rate_pct.sampleSize,
+    validateTelemetryReviewSnapshot(changed).metrics.compaction_quality_message_omission_rate_pct
+      .sampleSize,
     400,
   );
 });
@@ -159,7 +159,10 @@ test("requires generatedAt to bind the end of the review window", () => {
   const changed = structuredClone(snapshot());
   changed.generatedAt = "2026-08-19T11:59:59.000Z";
   resign(changed);
-  assert.throws(() => validateTelemetryReviewSnapshot(changed), /generatedAt must equal window.end/);
+  assert.throws(
+    () => validateTelemetryReviewSnapshot(changed),
+    /generatedAt must equal window.end/,
+  );
 });
 
 test("rejects duplicate JSON object members before validation", () => {

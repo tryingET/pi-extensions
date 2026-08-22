@@ -9,19 +9,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "22"
+          node-version: "22.22.2"
           package-manager-cache: false
 
       - name: Prepare governed npm runtime policy
@@ -38,13 +43,26 @@ jobs:
           echo "$npm_global/bin" >> "$GITHUB_PATH"
           "$npm_global/bin/npm" --version
 
+      - name: Validate immutable workflow inputs
+        run: node --test ./scripts/workflow-action-pins.test.mjs
+
       - name: Install Dolt for governed deep-review canary
         run: |
-          curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh -o "$RUNNER_TEMP/install-dolt.sh"
-          sudo bash "$RUNNER_TEMP/install-dolt.sh"
+          dolt_version="2.3.1"
+          dolt_commit="b15770fe588268027d799c11356af0ce24ba882a"
+          dolt_template_blob="b212efe0dcb5b8ac05ceeefad17a65f19a5f502b"
+          template="$RUNNER_TEMP/install-dolt.template.sh"
+          expected="$RUNNER_TEMP/install-dolt.expected.sh"
+          installer="$RUNNER_TEMP/install-dolt.sh"
+          curl -fsSL "https://raw.githubusercontent.com/dolthub/dolt/$dolt_commit/go/utils/publishrelease/install.sh" -o "$template"
+          test "$(git hash-object "$template")" = "$dolt_template_blob"
+          sed "s/__DOLT_VERSION__/$dolt_version/g" "$template" > "$expected"
+          curl -fsSL "https://github.com/dolthub/dolt/releases/download/v$dolt_version/install.sh" -o "$installer"
+          cmp "$expected" "$installer"
+          sudo bash "$installer"
+          dolt version | grep -F "$dolt_version"
           dolt config --global --set user.name "github-actions[bot]"
           dolt config --global --set user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          dolt version
 
       - name: Create immutable CI worktree
         run: |
@@ -52,15 +70,16 @@ jobs:
           git worktree add --detach "$runtime_root" "$GITHUB_SHA"
           echo "GOVERNED_CI_ROOT=$runtime_root" >> "$GITHUB_ENV"
 
-      - name: Install dependencies
+      - name: Enforce root dependency installation contract
         working-directory: ${{ env.GOVERNED_CI_ROOT }}
+        shell: bash
         run: |
+          set -euo pipefail
+          node --test ./scripts/root-package-install-contract.test.mjs
           if [[ -f package-lock.json ]]; then
             npm ci
           else
-            npm install --package-lock-only --ignore-scripts
-            npm ci
-            rm -f package-lock.json
+            echo "Root package is dependency-free; no lockfile or install is required."
           fi
 
       - name: Run host compatibility mutation tests

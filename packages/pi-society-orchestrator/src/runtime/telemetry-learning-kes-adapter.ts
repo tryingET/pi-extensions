@@ -7,8 +7,8 @@
 import path from "node:path";
 import {
   createKesArtifactPlan,
-  materializeKesArtifactPlan,
   type KesArtifactPlan,
+  materializeKesArtifactPlan,
 } from "../kes/index.ts";
 import type { EvidenceEntry } from "./evidence.ts";
 
@@ -192,10 +192,7 @@ export async function buildTelemetryLearningKesAdapterResult(
   if (snapshot.coverage.totalEvents === 0) {
     blockers.push("snapshot coverage is empty");
   }
-  if (
-    coveragePolicy === "live-required" &&
-    snapshot.coverage.liveEvents < minimumLiveEvents
-  ) {
+  if (coveragePolicy === "live-required" && snapshot.coverage.liveEvents < minimumLiveEvents) {
     blockers.push(
       `measured-live coverage is insufficient (${snapshot.coverage.liveEvents} < ${minimumLiveEvents})`,
     );
@@ -225,8 +222,7 @@ export async function buildTelemetryLearningKesAdapterResult(
         kind: "manual",
         packageName: "pi-society-orchestrator",
         sessionId: input.sessionId,
-        objective:
-          `Review one digest-bound Pi telemetry observation for ${subject}@${subjectRevision} without promoting it into evidence or doctrine authority.`,
+        objective: `Review one digest-bound Pi telemetry observation for ${subject}@${subjectRevision} without promoting it into evidence or doctrine authority.`,
       },
       actions: [
         "Validated one pi.telemetry-review-snapshot.v1 artifact through the telemetry package contract.",
@@ -431,7 +427,8 @@ function telemetryReviewSnapshot(value: unknown): TelemetryReviewSnapshot {
   ) {
     throw new Error("telemetry review snapshot is missing required validated fields");
   }
-  for (const metricKey of TELEMETRY_REVIEW_METRIC_KEYS) telemetryMetric(metrics[metricKey], metricKey);
+  for (const metricKey of TELEMETRY_REVIEW_METRIC_KEYS)
+    telemetryMetric(metrics[metricKey], metricKey);
   return root as unknown as TelemetryReviewSnapshot;
 }
 
@@ -493,7 +490,9 @@ function compareThreshold(
 
 function boundedCount(value: unknown, field: string): number {
   if (!Number.isSafeInteger(value) || Number(value) < 0 || Number(value) > MAX_POLICY_COUNT) {
-    throw new Error(`${field} must be a non-negative safe integer no greater than ${MAX_POLICY_COUNT}`);
+    throw new Error(
+      `${field} must be a non-negative safe integer no greater than ${MAX_POLICY_COUNT}`,
+    );
   }
   return Number(value);
 }
@@ -511,6 +510,7 @@ function boundedText(value: unknown, field: string, maxChars: number): string {
   if (
     !normalized ||
     normalized.length > maxChars ||
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is this validator's purpose
     /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(normalized)
   ) {
     throw new Error(`${field} is empty, oversized, or contains control characters`);
@@ -518,11 +518,7 @@ function boundedText(value: unknown, field: string, maxChars: number): string {
   return normalized;
 }
 
-function optionalBoundedText(
-  value: unknown,
-  field: string,
-  maxChars: number,
-): string | null {
+function optionalBoundedText(value: unknown, field: string, maxChars: number): string | null {
   return value === undefined || value === null ? null : boundedText(value, field, maxChars);
 }
 

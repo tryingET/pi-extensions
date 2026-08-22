@@ -134,10 +134,7 @@ function buildMetrics(
       summary.compaction.unresolvedBegins,
       compactionBegins,
     ),
-    compaction_failure_count: countMetric(
-      kinds.get("compaction_failure") ?? 0,
-      compactionBegins,
-    ),
+    compaction_failure_count: countMetric(kinds.get("compaction_failure") ?? 0, compactionBegins),
     compaction_quality_validation_failure_rate_pct: percentMetric(
       summary.compactionQuality.validationFailures,
       summary.compactionQuality.total,
@@ -156,19 +153,10 @@ function buildMetrics(
     ),
     recall_zero_hit_rate_pct: percentMetric(summary.recall.zeroHit, summary.recall.total),
     recall_degraded_rate_pct: percentMetric(summary.recall.degraded, summary.recall.total),
-    recall_scope_widened_rate_pct: percentMetric(
-      summary.recall.scopeWidened,
-      summary.recall.total,
-    ),
+    recall_scope_widened_rate_pct: percentMetric(summary.recall.scopeWidened, summary.recall.total),
     vault_failure_rate_pct: percentMetric(summary.vault.failed, summary.vault.total),
-    follow_up_blocked_rate_pct: percentMetric(
-      summary.followUps.blocked,
-      summary.followUps.total,
-    ),
-    subagent_failure_rate_pct: percentMetric(
-      summary.subagents.failed,
-      summary.subagents.total,
-    ),
+    follow_up_blocked_rate_pct: percentMetric(summary.followUps.blocked, summary.followUps.total),
+    subagent_failure_rate_pct: percentMetric(summary.subagents.failed, summary.subagents.total),
   };
 }
 
@@ -186,10 +174,7 @@ function percentMetric(numerator: unknown, denominator: unknown): TelemetryRevie
   const safeNumerator = finiteCount(numerator);
   const safeDenominator = finiteCount(denominator);
   return {
-    value:
-      safeDenominator > 0
-        ? Math.round((safeNumerator / safeDenominator) * 1000) / 10
-        : 0,
+    value: safeDenominator > 0 ? Math.round((safeNumerator / safeDenominator) * 1000) / 10 : 0,
     unit: "percent",
     sampleSize: safeDenominator,
     numerator: safeNumerator,
@@ -198,8 +183,7 @@ function percentMetric(numerator: unknown, denominator: unknown): TelemetryRevie
 }
 
 function observedPercentMetric(value: unknown, sampleSize: unknown): TelemetryReviewMetric {
-  const observed =
-    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+  const observed = typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
   const sample = finiteCount(sampleSize);
   return {
     value: Math.round(observed * 10) / 10,
@@ -239,16 +223,11 @@ function breakdown<K extends "tool" | "reason" | "stage" | "skill">(
   return value
     .filter(isRecord)
     .map((row) => ({ [key]: boundedTelemetryReviewLabel(row[key]), n: finiteCount(row.n) }))
-    .sort(
-      (left, right) =>
-        right.n - left.n || String(left[key]).localeCompare(String(right[key])),
-    )
+    .sort((left, right) => right.n - left.n || String(left[key]).localeCompare(String(right[key])))
     .slice(0, TELEMETRY_REVIEW_BREAKDOWN_LIMIT) as Array<Record<K, string> & { n: number }>;
 }
 
-function profileBreakdown(
-  value: unknown,
-): Array<{ profile: string; n: number; failed: number }> {
+function profileBreakdown(value: unknown): Array<{ profile: string; n: number; failed: number }> {
   if (!Array.isArray(value)) return [];
   return value
     .filter(isRecord)
@@ -315,9 +294,7 @@ function assertKindSummary(value: unknown, actual: Map<string, number>): void {
 }
 
 function finiteCount(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? Math.floor(value)
-    : 0;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function reviewWindowDays(value: unknown): number {

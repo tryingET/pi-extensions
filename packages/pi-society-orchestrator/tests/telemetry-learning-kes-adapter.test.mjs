@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -87,18 +87,13 @@ async function build(root, overrides = {}) {
 }
 
 test("declares telemetry as a registry-independent optional producer contract", async () => {
-  const manifest = JSON.parse(
-    await readFile(new URL("../package.json", import.meta.url), "utf8"),
-  );
-  assert.deepEqual(
-    manifest["x-pi-integrations"]?.optionalProducers?.["@tryinget/pi-telemetry"],
-    {
-      contract: "pi.telemetry-review-snapshot.v1",
-      testedProducerVersion: "0.3.0",
-      loading: "dynamic",
-      registryDependency: false,
-    },
-  );
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.deepEqual(manifest["x-pi-integrations"]?.optionalProducers?.["@tryinget/pi-telemetry"], {
+    contract: "pi.telemetry-review-snapshot.v1",
+    testedProducerVersion: "0.3.0",
+    loading: "dynamic",
+    registryDependency: false,
+  });
   assert.equal(manifest.peerDependencies?.["@tryinget/pi-telemetry"], undefined);
   assert.equal(manifest.peerDependenciesMeta?.["@tryinget/pi-telemetry"], undefined);
 });
@@ -131,8 +126,8 @@ test("plans a Proposal candidate without mutating KES, telemetry, AK, or promoti
   assert.equal(result.subject.id, subject);
   assert.equal(result.subject.revision, subjectRevision);
   assert.equal(result.snapshot.fileName, "telemetry-review.json");
-  assert.equal(result.kesPlan.learningCandidate.metadata.lifecycle_entry_stage, "proposal");
-  assert.equal(result.kesPlan.learningCandidate.metadata.subject_revision, subjectRevision);
+  assert.match(result.kesPlan.learningCandidate.content, /"lifecycle_entry_stage": "proposal"/u);
+  assert.ok(result.kesPlan.learningCandidate.content.includes(subjectRevision));
   assert.equal(result.akEvidenceHandoff.result, "pass");
   assert.equal(result.akEvidenceHandoff.details.subject, subject);
   assert.match(result.akEvidenceHandoff.authorityCeiling, /snapshot contract and digest/);
