@@ -34,6 +34,16 @@ jobs:
           node-version: "22.22.2"
           package-manager-cache: false
 
+      - name: Prepare governed npm runtime policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          governed_npm_version="12.0.2"
+          governed_npm_prefix="${RUNNER_TEMP}/npm-prefix"
+          mkdir -p "$governed_npm_prefix"
+          npm install --global --prefix "$governed_npm_prefix" "npm@${governed_npm_version}" --ignore-scripts
+          echo "$governed_npm_prefix/bin" >> "$GITHUB_PATH"
+
       - name: Verify runner Java
         run: java -version
 
