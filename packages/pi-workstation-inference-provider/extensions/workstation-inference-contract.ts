@@ -334,6 +334,13 @@ function mergeContracts(loadedContracts: LoadedContract[]): LoadedContract {
   };
 }
 
+/** Test isolation hook: drops process-global caches so each scenario
+ * starts from an uninitialized state. Not part of the public surface. */
+export function __resetWorkstationInferenceCachesForTests(): void {
+  contractGenerations = undefined;
+  endpointHealth = undefined;
+}
+
 function contractGenerationCache() {
   contractGenerations ??= new ContractGenerationCache({
     load: loadAvailableContracts,
@@ -482,11 +489,7 @@ export async function resolveContractForModel(
 }
 
 export async function resolveContractStatus(
-  options: {
-    checkHealth?: boolean;
-    signal?: AbortSignal;
-    refreshContracts?: boolean;
-  } = {},
+  options: { checkHealth?: boolean; signal?: AbortSignal; refreshContracts?: boolean } = {},
 ): Promise<ContractStatus> {
   let refreshError: string | undefined;
   if (options.refreshContracts) {
@@ -512,9 +515,10 @@ export async function resolveContractStatus(
   }
 
   const stale = staleDetail(loaded.contract);
-  const advisory = [refreshError ? `contract refresh failed: ${refreshError}` : undefined, stale]
-    .filter((detail): detail is string => Boolean(detail))
-    .join("; ") || undefined;
+  const advisory =
+    [refreshError ? `contract refresh failed: ${refreshError}` : undefined, stale]
+      .filter((detail): detail is string => Boolean(detail))
+      .join("; ") || undefined;
 
   if (options.checkHealth) {
     const unhealthy = await checkHealth(loaded.contract, options.signal, "blocking");

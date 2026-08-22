@@ -309,18 +309,16 @@ export class EndpointHealthCache {
 
   status(): EndpointHealthStatus[] {
     const keys = new Set([...this.#entries.keys(), ...this.#inflight.keys()]);
-    return [...keys]
-      .sort()
-      .map((key) => {
-        const entry = this.#entries.get(key);
-        return {
-          key,
-          checkedAt: entry?.checkedAt,
-          expiresAt: entry?.expiresAt,
-          unhealthy: entry?.unhealthy,
-          probeInFlight: this.#inflight.has(key),
-        };
-      });
+    return [...keys].sort().map((key) => {
+      const entry = this.#entries.get(key);
+      return {
+        key,
+        checkedAt: entry?.checkedAt,
+        expiresAt: entry?.expiresAt,
+        unhealthy: entry?.unhealthy,
+        probeInFlight: this.#inflight.has(key),
+      };
+    });
   }
 
   clear(): void {

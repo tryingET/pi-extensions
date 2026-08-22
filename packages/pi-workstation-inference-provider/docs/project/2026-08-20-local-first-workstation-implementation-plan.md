@@ -2,6 +2,11 @@
 summary: "Implementation and rollout plan for the workstation provider hot path."
 read_when:
   - "Implementing, validating, or rolling out the local-first provider changes."
+system4d:
+  container: "Implementation and rollout plan for the workstation provider hot path."
+  compass: "Land the cached hot path without changing lane-op runtime authority."
+  engine: "Benchmarks, integration tests, live workstation validation, then rollout."
+  fog: "Live TTFT/inter-token latency numbers are unvalidated until owner-workstation runs complete."
 ---
 
 # Local-first workstation inference implementation plan

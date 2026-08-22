@@ -92,7 +92,9 @@ function statusText(status: ContractStatus): string {
     generation?.lastRefreshError
       ? `contract_refresh_error: ${generation.lastRefreshError}`
       : undefined,
-    status.health ? `health_cache: ${status.health.length} endpoints, ${unhealthy} unhealthy` : undefined,
+    status.health
+      ? `health_cache: ${status.health.length} endpoints, ${unhealthy} unhealthy`
+      : undefined,
     contract ? `provider: ${contract.provider_id ?? DEFAULT_PROVIDER_ID}` : undefined,
     contract ? `base_url: ${normalizeBaseUrl(contract.base_url)}` : undefined,
     contract ? `health_url: ${contract.health_url ?? defaultHealthUrl(contract)}` : undefined,

@@ -2,6 +2,11 @@
 summary: "Design packet for local-first, voice-sensitive inference on a Threadripper plus RTX 6000-class workstation."
 read_when:
   - "Planning local model serving, voice latency, provider capacity, or optional cloud overflow."
+system4d:
+  container: "Design packet for local-first, voice-sensitive inference on the owner workstation."
+  compass: "Workstation is the primary inference plane; remote routing stays optional and explicit."
+  engine: "Threadripper host, RTX 6000-class GPU, lane-op runtime authority, Pi-side provider adapter."
+  fog: "Capacity and voice-latency budgets may force model or routing changes; cloud overflow is opt-in."
 ---
 
 # Local-first workstation inference design packet

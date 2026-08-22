@@ -73,7 +73,8 @@ test("TTL refresh is singleflight and leaves the current generation available", 
   assert.equal(generations.resolveCurrent("m1")?.model.value, 1);
   assert.equal(generations.status().refreshInFlight, true);
   gate.resolve([{ contract: { name: "v2", models: [{ id: "m1", value: 2 }] }, source: "v2" }]);
-  while (generations.status().refreshInFlight) await new Promise((resolve) => setImmediate(resolve));
+  while (generations.status().refreshInFlight)
+    await new Promise((resolve) => setImmediate(resolve));
   assert.equal(generations.resolveCurrent("m1")?.model.value, 2);
 });
 
@@ -95,7 +96,8 @@ test("failed refresh preserves the previous generation and applies retry backoff
   await generations.initialize();
   now = 11;
   generations.resolveCurrent("m1");
-  while (generations.status().refreshInFlight) await new Promise((resolve) => setImmediate(resolve));
+  while (generations.status().refreshInFlight)
+    await new Promise((resolve) => setImmediate(resolve));
   assert.equal(generations.resolveCurrent("m1")?.contract.name, "v1");
   assert.equal(loads, 2);
   now = 20;

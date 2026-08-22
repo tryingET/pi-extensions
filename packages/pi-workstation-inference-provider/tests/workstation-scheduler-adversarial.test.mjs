@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { beforeEach, test } from "node:test";
 import {
   armAudio,
   clearArmedAudio,
@@ -20,7 +20,12 @@ import {
   WorkbenchInheritedAuthorityChannel,
 } from "../extensions/workstation-authority-channel.ts";
 import extension, { clearWorkstationHealthCache } from "../extensions/workstation-inference.ts";
+import { __resetWorkstationInferenceCachesForTests } from "../extensions/workstation-inference-contract.ts";
 import { readSchedulerHandoff } from "../extensions/workstation-scheduler.ts";
+
+beforeEach(() => {
+  __resetWorkstationInferenceCachesForTests();
+});
 
 test("audio payload binds the latest user marker and base64-encodes once", () => {
   const data = Buffer.from("RIFF0000WAVE", "ascii");
@@ -81,9 +86,9 @@ test("ordinary Inkling requests are denied before health or provider network eff
   const oldInline = process.env.PI_WORKSTATION_INFERENCE_CONTRACT_JSON;
   const oldPath = process.env.PI_WORKSTATION_INFERENCE_CONTRACT;
   const providers = [];
-  let fetchCalls = 0;
-  globalThis.fetch = async () => {
-    fetchCalls += 1;
+  const fetchUrls = [];
+  globalThis.fetch = async (input) => {
+    fetchUrls.push(String(input instanceof URL ? input : (input?.url ?? input)));
     throw new Error("network should not be reached");
   };
   try {
@@ -107,7 +112,13 @@ test("ordinary Inkling requests are denied before health or provider network eff
     assert.equal(events.length, 1);
     assert.equal(events[0].type, "error");
     assert.match(events[0].error.errorMessage, /exact external scheduler claim/);
-    assert.equal(fetchCalls, 0);
+    // Registration primes endpoint health once (ADR 2026-08-20, decision 5);
+    // the denial itself must cause no inference network effect.
+    assert.equal(
+      fetchUrls.filter((url) => !url.endsWith("/health")).length,
+      0,
+      `unexpected non-health network effects: ${fetchUrls.join(", ")}`,
+    );
   } finally {
     globalThis.fetch = originalFetch;
     if (oldInline === undefined) delete process.env.PI_WORKSTATION_INFERENCE_CONTRACT_JSON;

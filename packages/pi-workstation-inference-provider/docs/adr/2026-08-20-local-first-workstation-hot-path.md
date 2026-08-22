@@ -2,6 +2,11 @@
 summary: "Adopts workstation-first inference and removes contract/health I/O from ordinary provider requests."
 read_when:
   - "Changing workstation provider startup, request routing, health checks, or cloud fallback posture."
+system4d:
+  container: "ADR scoping the workstation-first inference hot path."
+  compass: "Ordinary text requests must not pay contract/health I/O; governed audio keeps blocking health."
+  engine: "Cached immutable contract generations, singleflight stale-while-revalidate health, explicit fallback."
+  fog: "Main risk is silently weakening governed-audio strictness for latency."
 ---
 
 # ADR: local workstation is the primary inference plane

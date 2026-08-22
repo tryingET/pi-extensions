@@ -6,9 +6,10 @@ read_when:
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { beforeEach, test } from "node:test";
 import {
   armAudio,
   clearArmedAudio,
@@ -22,6 +23,7 @@ import extension, {
   resolveContractStatus,
   streamWorkstationInference,
 } from "../extensions/workstation-inference.ts";
+import { __resetWorkstationInferenceCachesForTests } from "../extensions/workstation-inference-contract.ts";
 import {
   clearSchedulerHandoff,
   completeSchedulerHandoff,
@@ -42,6 +44,10 @@ import {
   schedulerHandoffPayload,
   withInlineContract,
 } from "./workstation-inference-test-helpers.mjs";
+
+beforeEach(() => {
+  __resetWorkstationInferenceCachesForTests();
+});
 
 test("stale contracts warn but remain loadable so committed defaults do not disappear", async () => {
   await withInlineContract(contract({ health_url: undefined }), async () => {
@@ -348,31 +354,48 @@ test("lane-status command delegates to lane-op read-only status", async () => {
 });
 
 test("streamWorkstationInference returns an error event when health is bad", async () => {
-  await withInlineContract(contract(), async () => {
-    const events = [];
-    const stream = streamWorkstationInference(
-      {
-        id: "baseline-text-visible",
-        name: "Visible",
-        provider: "workstation-inference",
-        api: "workstation-inference",
-        baseUrl: "http://127.0.0.1:1234/v1",
-        reasoning: false,
-        input: ["text"],
-        contextWindow: 32768,
-        maxTokens: 16384,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      },
-      { messages: [] },
-      { apiKey: "workstation-local" },
-    );
-    for await (const event of stream) {
-      events.push(event);
-      break;
-    }
-    assert.equal(events[0].type, "error");
-    assert.match(events[0].error.errorMessage, /not healthy|fetch failed|ECONNREFUSED/);
+  const unreachable = await new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(0, "127.0.0.1", () => {
+      const port = server.address().port;
+      server.close(() => resolve(port));
+    });
   });
+  await withInlineContract(
+    contract({ base_url: `http://127.0.0.1:${unreachable}/v1` }),
+    async () => {
+      const events = [];
+      const stream = streamWorkstationInference(
+        {
+          id: "baseline-text-visible",
+          name: "Visible",
+          provider: "workstation-inference",
+          api: "workstation-inference",
+          baseUrl: "http://127.0.0.1:1234/v1",
+          reasoning: false,
+          input: ["text"],
+          contextWindow: 32768,
+          maxTokens: 16384,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        },
+        { messages: [] },
+        { apiKey: "workstation-local" },
+      );
+      // Stale-while-revalidate health (ADR 2026-08-20, decision 6) lets the
+      // ordinary-text request start; the unreachable endpoint surfaces as an
+      // error event from the transport instead of a blocking preflight.
+      for await (const event of stream) {
+        events.push(event);
+        if (events.length > 10) break;
+      }
+      const errorEvent = events.find((event) => event.type === "error");
+      assert.ok(
+        errorEvent,
+        `expected an error event among: ${events.map((e) => e.type).join(",")}`,
+      );
+      assert.match(errorEvent.errorErrorMessage ?? errorEvent.error?.errorMessage ?? "", /./);
+    },
+  );
 });
 
 test("ordinary Inkling requests are denied before health or provider network effects", async () => {
