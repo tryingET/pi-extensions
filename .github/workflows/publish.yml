@@ -399,8 +399,8 @@ jobs:
       - name: Publish generic package directory to npm (OIDC + provenance)
         if: env.RELEASE_COMPONENT != 'pi-snapshot-edit' && env.RELEASE_COMPONENT != 'pi-modes'
         working-directory: ${{ env.RELEASE_PACKAGE_PATH }}
-        # Pass --dry-run explicitly; newer npm does not honor the
-        # NPM_CONFIG_DRY_RUN environment form reliably. npm 12 also applies
+        # Pass --dry-run explicitly; newer npm does not honor the dry-run
+        # environment form reliably. npm 12 also applies
         # the registry version guard during dry-runs, so treat that specific
         # rejection as advisory (the authoritative tarball step owns the
         # exact-byte publication decision).
