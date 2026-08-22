@@ -4,6 +4,11 @@ read_when:
   - "Starting work in this package."
   - "Choosing where Pi computer tools execute."
   - "Reviewing the implementation and release boundary."
+system4d:
+  container: "Monorepo package for a Pi-side policy, controller, and future attested execution-plane boundary."
+  compass: "Preserve standard Pi tool schemas while making effect placement explicit, bounded, and fail-closed."
+  engine: "Strict policy -> semantic plan -> attested lease -> admitted D0/D1 operation -> truthful disposition."
+  fog: "Real effects remain disabled until a workstation backend proves isolation, cleanup, durability, compatibility, and voice coexistence."
 ---
 
 # @tryinget/pi-tool-execution-boundary
@@ -29,7 +34,7 @@ Implemented:
 - typed source snapshot, change-set, disposition, and data-exposure IR;
 - a direct-QEMU candidate renderer and non-authoritative host-fact probe;
 - an independent Rust semantic-core implementation;
-- a bounded TLA+ controller model;
+- bounded TLA+ controller models;
 - diagnostics-only `/tool-boundary status|doctor|explain` commands.
 
 Not implemented or claimed:
