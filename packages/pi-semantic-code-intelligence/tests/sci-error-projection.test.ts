@@ -55,10 +55,13 @@ function createErrorHarness(resultFactory: (name: SciCompositeToolName) => SciBr
   return { tools, calls };
 }
 
-async function rejectedMessage(tool: RegisteredTool): Promise<string> {
+async function rejectedMessage(
+  tool: RegisteredTool,
+  params: Record<string, unknown> = {},
+): Promise<string> {
   let observed: unknown;
   try {
-    await tool.execute("boundary-call", {}, undefined, undefined, { cwd: "/workspace/repo" });
+    await tool.execute("boundary-call", params, undefined, undefined, { cwd: "/workspace/repo" });
   } catch (error) {
     observed = error;
   }
@@ -78,7 +81,7 @@ test("all six native tools project the exact workspace-boundary envelope into lo
     const message = await rejectedMessage(tool);
     assert.equal(
       message,
-      `SCI workflow ${name} rejected the request (reason: outside_workspace). Retry with a workspace-relative path or an absolute path contained by the configured workspace. Producer diagnostics, paths, and stderr were withheld.`,
+      `SCI workflow ${name} rejected the request (reason: outside_workspace). Use a repo-relative path in a Pi session started at the target repository root. A shell cd does not rebind this Pi session's workspace; start a target-root Pi session and retry. Producer diagnostics, paths, and stderr were withheld.`,
     );
     assert.equal(message.includes(PRODUCER_MESSAGE), false);
     assert.equal(message.includes(PRODUCER_REMEDIATION), false);
@@ -86,6 +89,32 @@ test("all six native tools project the exact workspace-boundary envelope into lo
   }
 
   assert.deepEqual(harness.calls, [...SCI_COMPOSITE_TOOL_NAMES]);
+});
+
+test("allowlisted reason projection tolerates safe producer wording drift without echoing it", async () => {
+  const bridgeMessage = "The requested file does not belong to this workspace.";
+  const bridgeRemediation = "Open the intended project and use a relative file.";
+  const harness = createErrorHarness(() => ({
+    isError: true,
+    error: {
+      code: "InvalidParams",
+      message: bridgeMessage,
+      data: {
+        reason: "outside_workspace",
+        remediation: bridgeRemediation,
+      },
+    },
+    content: [{ type: "text", text: bridgeMessage }],
+  }));
+  const tool = harness.tools.get("locate_confirm_definition");
+  assert.ok(tool);
+
+  const message = await rejectedMessage(tool);
+  assert.match(message, /reason: outside_workspace/);
+  assert.match(message, /target repository root/);
+  assert.match(message, /shell cd does not rebind/);
+  assert.equal(message.includes(bridgeMessage), false);
+  assert.equal(message.includes(bridgeRemediation), false);
 });
 
 test("forged or drifted boundary metadata falls back to the generic redacted error", async () => {
@@ -155,7 +184,100 @@ test("forged or drifted boundary metadata falls back to the generic redacted err
       },
     },
     {
-      label: "producer message drift",
+      label: "unknown reason",
+      result: {
+        ...boundaryResult(),
+        error: {
+          ...(boundaryResult().error as object),
+          data: {
+            reason: "future_reason",
+            remediation: "Use a bounded recovery path.",
+          },
+        },
+      },
+    },
+    {
+      label: "bare password assignment in producer message",
+      result: {
+        ...boundaryResult(),
+        error: { ...(boundaryResult().error as object), message: "PASSWORD=hunter2" },
+        content: [{ type: "text", text: "PASSWORD=hunter2" }],
+      },
+    },
+    {
+      label: "password-labelled producer remediation",
+      result: {
+        ...boundaryResult(),
+        error: {
+          ...(boundaryResult().error as object),
+          data: {
+            reason: "outside_workspace",
+            remediation: "password: hunter2",
+          },
+        },
+      },
+    },
+    {
+      label: "stderr-labelled producer message",
+      result: {
+        ...boundaryResult(),
+        error: { ...(boundaryResult().error as object), message: "stderr: connection reset" },
+        content: [{ type: "text", text: "stderr: connection reset" }],
+      },
+    },
+    {
+      label: "empty producer prose",
+      result: {
+        ...boundaryResult(),
+        error: {
+          ...(boundaryResult().error as object),
+          message: "",
+          data: { reason: "outside_workspace", remediation: "" },
+        },
+        content: [{ type: "text", text: "" }],
+      },
+    },
+    {
+      label: "inconsistent producer content receipt",
+      result: {
+        ...boundaryResult(),
+        content: [{ type: "text", text: "Different safe producer wording." }],
+      },
+    },
+    {
+      label: "stderr prose without punctuation label",
+      result: {
+        ...boundaryResult(),
+        error: { ...(boundaryResult().error as object), message: "stderr output follows" },
+        content: [{ type: "text", text: "stderr output follows" }],
+      },
+    },
+    {
+      label: "password prose without punctuation label",
+      result: {
+        ...boundaryResult(),
+        error: { ...(boundaryResult().error as object), message: "password is hunter" },
+        content: [{ type: "text", text: "password is hunter" }],
+      },
+    },
+    {
+      label: "stack trace prose",
+      result: {
+        ...boundaryResult(),
+        error: { ...(boundaryResult().error as object), message: "stack trace: redacted" },
+        content: [{ type: "text", text: "stack trace: redacted" }],
+      },
+    },
+    {
+      label: "unicode control-bearing prose",
+      result: {
+        ...boundaryResult(),
+        error: { ...(boundaryResult().error as object), message: "workspace\u0085mismatch" },
+        content: [{ type: "text", text: "workspace\u0085mismatch" }],
+      },
+    },
+    {
+      label: "secret-bearing producer message",
       result: {
         ...boundaryResult(),
         error: {
@@ -165,7 +287,7 @@ test("forged or drifted boundary metadata falls back to the generic redacted err
       },
     },
     {
-      label: "producer remediation drift",
+      label: "secret-bearing producer remediation",
       result: {
         ...boundaryResult(),
         error: {
@@ -229,4 +351,66 @@ test("forged or drifted boundary metadata falls back to the generic redacted err
     );
     assert.doesNotMatch(message, /\/srv\/private|xoxb-secret/, label);
   }
+});
+
+test("obvious non-relative file inputs fail locally while relative and symlink-shaped paths reach SCI", async () => {
+  const invalidValues = [
+    "/srv/private/outside.ts",
+    "file:///srv/private/outside.ts",
+    "../outside.ts",
+    "src/../../outside.ts",
+    "C:\\private\\outside.ts",
+    "\\\\server\\share\\outside.ts",
+    "%2e%2e/outside.ts",
+    "src/inside\0outside.ts",
+  ];
+  const blocked = createErrorHarness((name) => ({
+    content: [{ type: "text", text: JSON.stringify({ workflow: name, ok: false }) }],
+  }));
+
+  for (const name of [
+    "explore_symbol_impact",
+    "locate_confirm_definition",
+    "rename_safely",
+  ] as const) {
+    const tool = blocked.tools.get(name);
+    assert.ok(tool);
+    for (const file of invalidValues) {
+      const message = await rejectedMessage(tool, { file });
+      assert.equal(
+        message,
+        `SCI workflow ${name} rejected a path before execution (reason: repo_relative_path_required). Use a repo-relative path in a Pi session started at the target repository root. A shell cd does not rebind this Pi session's workspace; start a target-root Pi session and retry. The supplied path and current workspace were withheld.`,
+      );
+      assert.equal(message.includes(file), false);
+      assert.equal(message.includes("/workspace/repo"), false);
+    }
+  }
+
+  const structural = blocked.tools.get("structural_patch_checks");
+  assert.ok(structural);
+  for (const file of invalidValues) {
+    const message = await rejectedMessage(structural, { paths: ["src/ok.ts", file] });
+    assert.match(message, /reason: repo_relative_path_required/);
+    assert.equal(message.includes(file), false);
+  }
+  assert.deepEqual(blocked.calls, []);
+
+  const forwarded = createErrorHarness((name) => ({
+    content: [{ type: "text", text: JSON.stringify({ workflow: name, ok: false }) }],
+  }));
+  const relativeCases: Array<[SciCompositeToolName, Record<string, unknown>]> = [
+    ["explore_symbol_impact", { file: "./src/example.ts" }],
+    ["locate_confirm_definition", { file: "src/outside-link.ts" }],
+    ["rename_safely", { file: "src/example.ts" }],
+    ["structural_patch_checks", { paths: ["src/example.ts", "src/outside-link.ts"] }],
+  ];
+  for (const [name, params] of relativeCases) {
+    const tool = forwarded.tools.get(name);
+    assert.ok(tool);
+    await tool.execute("relative-call", params, undefined, undefined, { cwd: "/workspace/repo" });
+  }
+  assert.deepEqual(
+    forwarded.calls,
+    relativeCases.map(([name]) => name),
+  );
 });

@@ -18,7 +18,7 @@ import {
 import { type ExploreMode, validExplorePayload } from "./explore-result-validator.ts";
 import { type SciBridge, type SciBridgeCallResult, SciMcpBridge } from "./mcp-bridge.ts";
 import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
-import { hasSciErrorSignal, sciErrorText } from "./sci-error-projection.ts";
+import { hasSciErrorSignal, sciErrorText, sciInputPathError } from "./sci-error-projection.ts";
 import { SCI_COMPOSITE_TOOL_SPECS, type SciCompositeToolName } from "./tool-definitions.ts";
 
 export interface SemanticCodeExtensionOptions {
@@ -86,6 +86,8 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
           : {}),
         async execute(toolCallId, params, signal, _onUpdate, ctx) {
           const args = params as Record<string, unknown>;
+          const inputPathError = sciInputPathError(spec.name, args);
+          if (inputPathError) throw new Error(inputPathError);
           if (
             (spec.name === "safe_write" || spec.name === "structural_patch_checks") &&
             Object.hasOwn(args, "apply")

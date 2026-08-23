@@ -10,6 +10,7 @@ import {
   readFile,
   readlink,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -66,10 +67,15 @@ interface InventoryEntry {
 }
 
 const workspace = await mkdtemp(path.join(tmpdir(), "pi-sci-dogfood-"));
+const outsideWorkspace = await mkdtemp(path.join(tmpdir(), "pi-sci-outside-"));
 const sourcePath = path.join(workspace, "src", "example.js");
+const outsideSourcePath = path.join(outsideWorkspace, "outside.js");
+const outsideLinkRelative = "src/outside-link.js";
+const outsideLinkPath = path.join(workspace, outsideLinkRelative);
 await mkdir(path.dirname(sourcePath), { recursive: true });
 const original = 'export function greet(name) {\n  return "hi " + name;\n}\n';
 await writeFile(sourcePath, original, "utf8");
+await writeFile(outsideSourcePath, "export const outside = true;\n", "utf8");
 const beforeSourceInventory = await inventoryWorkspaceSource(workspace);
 
 const bridge = new SciMcpBridge();
@@ -91,13 +97,11 @@ createSemanticCodeExtension({ bridgeFactory: () => bridge })({
     if (event === "session_shutdown") shutdownHandlers.push(handler);
   },
 } as never);
-
 const startedAt = Date.now();
 try {
   const advertised = await bridge.advertisedToolNames(workspace);
   const missing = SCI_COMPOSITE_TOOL_NAMES.filter((name) => !advertised.includes(name));
   if (missing.length > 0) throw new Error(`installed MCP missing: ${missing.join(", ")}`);
-
   const exploreArgs = {
     symbol: "greet",
     file: "src/example.js",
@@ -110,16 +114,18 @@ try {
     file: "src/example.js",
     precise: true,
   });
-  const outsideWorkspacePath = path.join(
-    path.dirname(workspace),
-    `${path.basename(workspace)}-outside.ts`,
-  );
-  const workspaceBoundaryFailure = await executeExpectingFailure("locate_confirm_definition", {
-    symbol: "greet",
-    file: outsideWorkspacePath,
+  const noDefinition = await execute("locate_confirm_definition", {
+    symbol: "MissingForAk4863",
+    file: "src/example.js",
     precise: true,
   });
-
+  await symlink(outsideSourcePath, outsideLinkPath);
+  const workspaceBoundaryFailure = await executeExpectingFailure("locate_confirm_definition", {
+    symbol: "outside",
+    file: outsideLinkRelative,
+    precise: true,
+  });
+  await rm(outsideLinkPath, { force: true });
   const modified = original.replace('"hi " + name', '"hello " + name');
   const patch = unifiedPatch(original, modified, "src/example.js");
   const safeWrite = await execute("safe_write", {
@@ -142,6 +148,7 @@ try {
     JSON.stringify(afterSourceInventory) === JSON.stringify(beforeSourceInventory);
   const explorePayload = parseToolPayload(explore);
   const locatePayload = parseToolPayload(locate);
+  const noDefinitionPayload = parseToolPayload(noDefinition);
   const safeWritePayload = parseToolPayload(safeWrite);
   const structuralPayload = parseToolPayload(structural);
   const exploreDecision = record(explorePayload.decision);
@@ -161,13 +168,20 @@ try {
     !JSON.stringify(explore.details).includes('"packet"');
   const rendering = verifyExploreRendering(exploreArgs, explore);
   const locateDefinitionConfirmed = confirmedLocatePayload(locatePayload);
+  const noDefinitionNonError =
+    noDefinitionPayload.workflow === "locate_confirm_definition" &&
+    noDefinitionPayload.ok === false &&
+    Array.isArray(noDefinitionPayload.definitions) &&
+    noDefinitionPayload.definitions.length === 0;
   const expectedWorkspaceBoundaryMessage =
-    "SCI workflow locate_confirm_definition rejected the request (reason: outside_workspace). Retry with a workspace-relative path or an absolute path contained by the configured workspace. Producer diagnostics, paths, and stderr were withheld.";
+    "SCI workflow locate_confirm_definition rejected the request (reason: outside_workspace). Use a repo-relative path in a Pi session started at the target repository root. A shell cd does not rebind this Pi session's workspace; start a target-root Pi session and retry. Producer diagnostics, paths, and stderr were withheld.";
   const workspaceBoundaryActionable =
     workspaceBoundaryFailure.threw &&
     workspaceBoundaryFailure.message === expectedWorkspaceBoundaryMessage;
   const workspaceBoundarySanitized =
-    !workspaceBoundaryFailure.message.includes(outsideWorkspacePath) &&
+    !workspaceBoundaryFailure.message.includes(outsideLinkRelative) &&
+    !workspaceBoundaryFailure.message.includes(outsideSourcePath) &&
+    !workspaceBoundaryFailure.message.includes(workspace) &&
     !workspaceBoundaryFailure.message.includes(
       "Requested path must stay within the configured workspace",
     ) &&
@@ -196,6 +210,7 @@ try {
       rendering.durableReadable &&
       locate.details.workflow === "locate_confirm_definition" &&
       locateDefinitionConfirmed &&
+      noDefinitionNonError &&
       workspaceBoundaryActionable &&
       workspaceBoundarySanitized &&
       safeWrite.details.workflow === "safe_write" &&
@@ -224,6 +239,8 @@ try {
       actionable: workspaceBoundaryActionable,
       sanitized: workspaceBoundarySanitized,
       reason: "outside_workspace",
+      inputPosture: "repo_relative_symlink",
+      finalAuthority: "sci_realpath_containment",
     },
     sciCompositeCalls: [
       "explore_symbol_impact",
@@ -259,6 +276,7 @@ try {
       exploreDurableEntryReadable: rendering.durableReadable,
       locateUsedSingleNativeCall: locate.details.utilization.sciCompositeCalls.length === 1,
       locateDefinitionConfirmed,
+      noDefinitionNonError,
       workspaceBoundaryActionable,
       workspaceBoundarySanitized,
       safeWriteUsedSingleNativeCall: safeWrite.details.utilization.sciCompositeCalls.length === 1,
@@ -271,7 +289,7 @@ try {
       previewLeftWorkspaceUnchanged: after === original,
       allSourceOutsideOntologyUnchanged: sourceInventoryUnchanged,
     },
-    calls: [summarize(explore), summarize(locate), summarize(safeWrite), summarize(structural)],
+    calls: [explore, locate, noDefinition, safeWrite, structural].map(summarize),
   };
 
   process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
@@ -279,6 +297,7 @@ try {
 } finally {
   for (const handler of shutdownHandlers) await handler();
   await rm(workspace, { recursive: true, force: true });
+  await rm(outsideWorkspace, { recursive: true, force: true });
 }
 
 function verifyExploreRendering(args: Record<string, unknown>, result: NativeToolResult) {

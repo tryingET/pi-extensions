@@ -60,7 +60,7 @@ This package does not authorize hosted, network-exposed, multi-user, or public S
 
 ### Safe workspace-boundary recovery
 
-All six native composites recognize only SCI's exact, fixed `outside_workspace` application-error envelope from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2`. The bridge replaces that envelope with locally authored model-visible recovery text containing the stable reason code and guidance to retry with a workspace-relative path or a contained absolute path. It never copies producer error text, remediation, paths, stderr, or diagnostics. Missing, malformed, extended, or drifted boundary metadata falls back to the generic redacted workflow error.
+All six native composites recognize SCI's allowlisted `outside_workspace` reason contract from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2` without matching or copying producer prose. The bridge emits locally authored model-visible recovery: use a repo-relative path in a Pi session started at the target repository root. A shell `cd` does not rebind the session's `ctx.cwd`; start a target-root Pi session instead. Obvious absolute, file-URI, Windows drive/UNC, NUL, and `..` traversal inputs fail locally for the declared repo-relative `file` and `paths` fields, while repo-relative symlinks still reach SCI so realpath containment remains final authority. Unknown, malformed, extended, secret-bearing, transport, startup, stderr, and backend errors retain generic redaction, and no rejected path or workspace path is reflected.
 
 ## Install and activate
 
