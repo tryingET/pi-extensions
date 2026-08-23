@@ -4,12 +4,11 @@
 //   - "Changing release evidence validation, AK recording, or custody authority boundaries."
 // ---
 
-import * as os from "node:os";
-import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolveAkPath } from "../src/runtime/ak.ts";
 import { buildReleaseEvidenceAkAdapterResult } from "../src/runtime/release-evidence-ak-adapter.ts";
+import { resolveSocietyDbPath } from "../src/runtime/society-db-path.ts";
 
 export default function releaseEvidenceAkAdapterExtension(pi: ExtensionAPI) {
   pi.registerTool({
@@ -56,10 +55,7 @@ export default function releaseEvidenceAkAdapterExtension(pi: ExtensionAPI) {
           ? {
               akConfig: {
                 akPath: resolveAkPath({ cwd: params.repo_root }),
-                societyDb:
-                  process.env.SOCIETY_DB ||
-                  process.env.AK_DB ||
-                  path.join(os.homedir(), "ai-society", "society.db"),
+                societyDb: resolveSocietyDbPath(),
               },
             }
           : {}),

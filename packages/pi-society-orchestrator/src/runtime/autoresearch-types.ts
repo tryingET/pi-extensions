@@ -4,8 +4,6 @@
 //   - "Changing autoresearch packet, campaign, wave, or supervision type contracts."
 // ---
 
-import * as os from "node:os";
-import * as path from "node:path";
 import type {
   AutoresearchAutoplanPlanner,
   AutoresearchLedgerLoadResult,
@@ -18,11 +16,6 @@ import type {
 } from "@tryinget/pi-autoresearch/src/runtime.ts";
 import type { AutoresearchSupervisorLedgerLike } from "../loops/autoresearch-supervisor.ts";
 import type { AutoresearchAkProjectorResult } from "./autoresearch-ak-projector.ts";
-
-const _DEFAULT_SOCIETY_DB =
-  process.env.SOCIETY_DB ||
-  process.env.AK_DB ||
-  path.join(os.homedir(), "ai-society", "society.db");
 
 type MaybePromise<T> = T | Promise<T>;
 

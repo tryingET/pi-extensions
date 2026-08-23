@@ -66,6 +66,7 @@ import {
   getExecutionStatus,
 } from "../runtime/execution-status.ts";
 import type { GovernedDeepReviewPreflightRuntime } from "../runtime/governed-deep-review-preflight.ts";
+import { resolveSocietyDbPath } from "../runtime/society-db-path.ts";
 import {
   ASC_EXECUTION_OBSERVATION_EVENT,
   type AscExecutionObservation,
@@ -111,10 +112,7 @@ function emitExecutionObservation(
   }
 }
 
-const DEFAULT_SOCIETY_DB =
-  process.env.SOCIETY_DB ||
-  process.env.AK_DB ||
-  path.join(os.homedir(), "ai-society", "society.db");
+const DEFAULT_SOCIETY_DB = resolveSocietyDbPath();
 // Whole-loop emergency deadman. Per-phase activity is visible and classified separately.
 const DEFAULT_LOOP_TIMEOUT_MS = parsePositiveMilliseconds(
   process.env.PI_ORCH_LOOP_TIMEOUT_MS,

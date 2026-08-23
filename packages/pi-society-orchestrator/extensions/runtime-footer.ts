@@ -5,8 +5,6 @@
 // ---
 
 import * as fs from "node:fs";
-import * as os from "node:os";
-import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
@@ -38,6 +36,7 @@ import {
   type SessionTokenHistoryCache,
   summarizeSessionTokenEntries,
 } from "../src/runtime/session-token-history.js";
+import { resolveSocietyDbPath } from "../src/runtime/society-db-path.ts";
 import {
   createRuntimeTruthSnapshot,
   fitRuntimeFooterLayout,
@@ -49,10 +48,7 @@ import {
 } from "../src/runtime/status-semantics.ts";
 import { getGlobalSessionTeamStore, type TeamScopedContext } from "../src/runtime/team-state.ts";
 
-const SOCIETY_DB =
-  process.env.SOCIETY_DB ||
-  process.env.AK_DB ||
-  path.join(os.homedir(), "ai-society", "society.db");
+const SOCIETY_DB = resolveSocietyDbPath();
 const DEFAULT_FOOTER_HEALTH_REFRESH_MS = 30_000;
 
 const sessionTeams = getGlobalSessionTeamStore();

@@ -4,7 +4,6 @@
 //   - "Changing autoresearch live supervision sessions, polling intervals, session state derivation, or lifecycle outcomes."
 // ---
 
-import * as os from "node:os";
 import * as path from "node:path";
 import type { AutoresearchLedgerProjection } from "@tryinget/pi-autoresearch/src/runtime.ts";
 import {
@@ -82,10 +81,8 @@ import type {
   AutoresearchPostFaninFinalizerRequest,
   AutoresearchPostFaninFinalizerResult,
 } from "./autoresearch-types.ts";
-export const DEFAULT_SOCIETY_DB =
-  process.env.SOCIETY_DB ||
-  process.env.AK_DB ||
-  path.join(os.homedir(), "ai-society", "society.db");
+import { resolveSocietyDbPath } from "./society-db-path.ts";
+export const DEFAULT_SOCIETY_DB = resolveSocietyDbPath();
 
 export type TimerHandle = unknown;
 

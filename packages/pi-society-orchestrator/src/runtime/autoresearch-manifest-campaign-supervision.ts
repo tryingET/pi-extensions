@@ -4,7 +4,6 @@
 //   - "Changing manifest campaign observation, projection persistence, task verification, evidence recording, or next-step guidance."
 // ---
 
-import * as os from "node:os";
 import * as path from "node:path";
 import {
   buildLlamacppCampaignAkBindingDetails,
@@ -23,11 +22,9 @@ import {
   querySqliteJsonAsync,
 } from "./boundaries.ts";
 import { type EvidenceWriteResult, recordEvidence } from "./evidence.ts";
+import { resolveSocietyDbPath } from "./society-db-path.ts";
 
-const DEFAULT_SOCIETY_DB =
-  process.env.SOCIETY_DB ||
-  process.env.AK_DB ||
-  path.join(os.homedir(), "ai-society", "society.db");
+const DEFAULT_SOCIETY_DB = resolveSocietyDbPath();
 
 export type AutoresearchManifestCampaignSupervisionAction = "observe" | "record_evidence";
 

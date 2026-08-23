@@ -130,6 +130,7 @@ import { getExecutionIcon } from "../src/runtime/execution-status.ts";
 import { createGovernedDeepReviewPreflightRuntime } from "../src/runtime/governed-deep-review-preflight.ts";
 import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/ontology.ts";
 import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
+import { resolveSocietyDbPath } from "../src/runtime/society-db-path.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
 import { getGlobalSessionTeamStore } from "../src/runtime/team-state.ts";
 import {
@@ -164,10 +165,7 @@ function registerCompatTool(pi: ExtensionAPI, tool: CompatToolDefinition): void 
 // CONFIGURATION
 // ============================================================================
 
-const SOCIETY_DB =
-  process.env.SOCIETY_DB ||
-  process.env.AK_DB ||
-  path.join(os.homedir(), "ai-society", "society.db");
+const SOCIETY_DB = resolveSocietyDbPath();
 const DEFAULT_VAULT_DIR = path.join(
   os.homedir(),
   "ai-society",

@@ -6,7 +6,6 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import {
   type AutoresearchSelfHostingContractV1,
@@ -25,11 +24,9 @@ import {
   querySqliteJsonAsync,
 } from "./boundaries.ts";
 import { type EvidenceWriteResult, recordEvidence } from "./evidence.ts";
+import { resolveSocietyDbPath } from "./society-db-path.ts";
 
-const DEFAULT_SOCIETY_DB =
-  process.env.SOCIETY_DB ||
-  process.env.AK_DB ||
-  path.join(os.homedir(), "ai-society", "society.db");
+const DEFAULT_SOCIETY_DB = resolveSocietyDbPath();
 
 export type AutoresearchSelfHostingSupervisionAction = "observe" | "record_evidence";
 export type AutoresearchSelfHostingPromotionPosture =
