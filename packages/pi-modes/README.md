@@ -190,7 +190,7 @@ THEN
 
 `replace_final` preserves configured bytes exactly at the `pi-modes` handler. A later `before_agent_start` extension may still modify them; provider-payload exactness requires control of the full extension chain.
 
-`replace_base` is compatibility-tested against Pi's pinned host prompt builder. This release supports `@earendil-works/pi-ai`, `pi-coding-agent`, and `pi-tui` `>=0.83.0 <0.85.0`; advance that range only with the parity canary and installed-artifact smoke passing.
+`replace_base` is compatibility-tested against Pi's pinned host prompt builder with both read-enabled and no-read skill-omission fixtures. Pi 0.84.2 added a final line feed to the custom-base envelope, so exact output cannot also match older hosts; this release truthfully supports `@earendil-works/pi-ai`, `pi-coding-agent`, and `pi-tui` `>=0.84.2 <0.85.0`. Advance that range only with the parity canary and installed-artifact smoke passing.
 
 ## Drift-resistant state and observability
 

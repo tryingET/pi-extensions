@@ -32,6 +32,7 @@ import {
   selectionFromEntries,
   startupModeFromEnvironment,
 } from "../src/modes.ts";
+import { PI_HOST_COMPATIBILITY } from "../src/prompt-composition.ts";
 
 const appendMode = parseModeDefinition({
   key: "review",
@@ -78,7 +79,7 @@ test("replace_base mirrors Pi custom-base composition", () => {
   assert.match(result, /Project policy/);
   assert.match(result, /<name>example-skill<\/name>/);
   assert.doesNotMatch(result, /Current date:/);
-  assert.match(result, /Current working directory: \/workspace\/demo$/);
+  assert.ok(result.endsWith("Current working directory: /workspace/demo\n"));
   assert.doesNotMatch(result, /HOST PROMPT/);
 });
 
@@ -87,6 +88,20 @@ test("replace_base has complete-output parity with the pinned Pi host builder", 
   const expected = buildHostSystemPrompt({ ...promptOptions, customPrompt });
   const actual = buildCustomBasePrompt(customPrompt, promptOptions);
   assert.equal(actual, expected);
+  assert.ok(actual.endsWith("Current working directory: /workspace/demo\n"));
+});
+
+test("runtime host compatibility matches every Pi peer range", () => {
+  const packageJson = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { peerDependencies: Record<string, string> };
+  for (const peer of [
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-coding-agent",
+    "@earendil-works/pi-tui",
+  ]) {
+    assert.equal(packageJson.peerDependencies[peer], PI_HOST_COMPATIBILITY);
+  }
 });
 
 test("replace_final returns the exact configured prompt", () => {
@@ -99,11 +114,10 @@ test("replace_final returns the exact configured prompt", () => {
   assert.equal(composeModePrompt(mode, promptOptions, "HOST PROMPT"), "EXACT FINAL PROMPT");
 });
 
-test("replace_base omits skills when read is inactive", () => {
-  const result = buildCustomBasePrompt("BASE", {
-    ...promptOptions,
-    selectedTools: ["bash"],
-  });
+test("replace_base has no-read skill-omission parity with the pinned Pi host builder", () => {
+  const noReadOptions = { ...promptOptions, selectedTools: ["bash"] };
+  const result = buildCustomBasePrompt("BASE", noReadOptions);
+  assert.equal(result, buildHostSystemPrompt({ ...noReadOptions, customPrompt: "BASE" }));
   assert.doesNotMatch(result, /example-skill/);
 });
 

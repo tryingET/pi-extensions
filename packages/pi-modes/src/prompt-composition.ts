@@ -12,6 +12,8 @@ import {
   selectedKeys,
 } from "./modes.ts";
 
+export const PI_HOST_COMPATIBILITY = ">=0.84.2 <0.85.0";
+
 /** Compose one legacy mode; retained as a compatibility helper. */
 export function composeModePrompt(
   mode: ModeDefinition,
@@ -229,7 +231,7 @@ export function buildCustomBasePrompt(
     ? (options.skills ?? []).filter((skill) => !skill.disableModelInvocation)
     : [];
   if (visibleSkills.length > 0) prompt += formatSkills(visibleSkills);
-  prompt += `\nCurrent working directory: ${options.cwd.replace(/\\/g, "/")}`;
+  prompt += `\nCurrent working directory: ${options.cwd.replace(/\\/g, "/")}\n`;
   return prompt;
 }
 

@@ -32,9 +32,10 @@ import {
   type SelectionDiagnostic,
   selectionFromEntries,
 } from "../src/modes.ts";
-import { selectionDefinitionFingerprint, selectionLabel } from "../src/selection-commands.ts";
+import { PI_HOST_COMPATIBILITY } from "../src/prompt-composition.ts";
+export { PI_HOST_COMPATIBILITY };
 
-export const PI_HOST_COMPATIBILITY = ">=0.83.0 <0.85.0";
+import { selectionDefinitionFingerprint, selectionLabel } from "../src/selection-commands.ts";
 
 type AnyContext = ExtensionContext | ExtensionCommandContext;
 

@@ -11,8 +11,8 @@
     "current": {
       "description": "Run against the root-owned pinned Pi host contract that defines the current canary baseline for this monorepo.",
       "host": {
-        "version": "0.84.1",
-        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.84.1"
+        "version": "0.84.2",
+        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.84.2"
       }
     },
     "upgrade": {
@@ -206,6 +206,7 @@
         "BuildSystemPromptOptions shape",
         "custom base prompt composition",
         "project context and skill formatting",
+        "read-unavailable skill omission",
         "before_agent_start system prompt replacement"
       ],
       "cwd": "packages/pi-modes",
@@ -215,10 +216,10 @@
         "tsx",
         "--test",
         "--test-name-pattern",
-        "replace_base has complete-output parity with the pinned Pi host builder",
+        "replace_base has (complete-output|no-read skill-omission) parity with the pinned Pi host builder",
         "tests/modes.test.ts"
       ],
-      "notes": "Focused complete-output parity check. Mode activation remains prompt-only and does not continue turns, dispatch agents, or start campaigns."
+      "notes": "Focused read-enabled and no-read complete-output parity checks. Mode activation remains prompt-only and does not continue turns, dispatch agents, or start campaigns."
     },
     {
       "id": "autoresearch-runtime-packet-contract",
