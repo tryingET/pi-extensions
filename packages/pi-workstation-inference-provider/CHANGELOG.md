@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.3.2...pi-workstation-inference-provider-v0.4.0) (2026-08-22)
+
+
+### Features
+
+* **provider:** IW9 per-lane health truth - pre-deny known-dead lanes with lane-named errors ([4b7acd0](https://github.com/tryingET/pi-extensions/commit/4b7acd0b882cac58e67f2cf3f4e7797efa2e9a0a))
+
 ## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.3.1...pi-workstation-inference-provider-v0.3.2) (2026-08-22)
 
 
