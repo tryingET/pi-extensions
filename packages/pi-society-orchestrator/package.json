@@ -59,6 +59,7 @@
   "files": [
     "extensions/runtime-footer.ts",
     "extensions/society-orchestrator.ts",
+    "extensions/autoresearch-tool-adapters.ts",
     "extensions/telemetry-kes-adapter.ts",
     "extensions/release-evidence-ak-adapter.ts",
     "src",

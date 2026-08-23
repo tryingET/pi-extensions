@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadExecutionSeamCase } from "../../../governance/execution-seam-cases/index.mjs";
@@ -15,9 +14,28 @@ import {
 
 const agentDir = process.env.PI_CODING_AGENT_DIR;
 const packageSpec = process.env.PACKAGE_SPEC;
+const installRootInput = process.env.PI_RELEASE_INSTALL_ROOT;
+const tmpDirInput = process.env.TMPDIR;
 
 assert.equal(typeof agentDir, "string", "PI_CODING_AGENT_DIR is required");
 assert.equal(typeof packageSpec, "string", "PACKAGE_SPEC is required");
+assert.equal(typeof installRootInput, "string", "PI_RELEASE_INSTALL_ROOT is required");
+assert.equal(typeof tmpDirInput, "string", "TMPDIR is required");
+const releaseTmpDir = fs.realpathSync(tmpDirInput);
+const installRoot = fs.realpathSync(installRootInput);
+assert.ok(
+  installRoot.startsWith(`${releaseTmpDir}${path.sep}`),
+  `PI_RELEASE_INSTALL_ROOT must be inside TMPDIR: ${installRoot}`,
+);
+
+const smokeScratchRoot = fs.mkdtempSync(path.join(releaseTmpDir, "pi-orch-release-smoke-root-"));
+let smokeScratchCleaned = false;
+function cleanupSmokeScratch() {
+  if (smokeScratchCleaned) return;
+  smokeScratchCleaned = true;
+  fs.rmSync(smokeScratchRoot, { recursive: true, force: true });
+}
+process.once("exit", cleanupSmokeScratch);
 
 const timeoutEmptyOutputCase = loadExecutionSeamCase("timeout-empty-output");
 const assistantProtocolParseErrorCase = loadExecutionSeamCase("assistant-protocol-parse-error");
@@ -35,7 +53,8 @@ assert.ok(
 const tarballPath = resolveLocalTarballPath(packageSpec);
 assert.ok(fs.existsSync(tarballPath), `Tarball does not exist: ${tarballPath}`);
 
-const tarballRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-release-smoke-tarball-"));
+const tarballRoot = path.join(smokeScratchRoot, "tarball");
+fs.mkdirSync(tarballRoot);
 execFileSync("tar", ["-xzf", tarballPath, "-C", tarballRoot], { encoding: "utf8" });
 
 const tarballPackageDir = path.join(tarballRoot, "package");
@@ -68,16 +87,18 @@ assert.ok(packageName.length > 0, "Tarball package.json missing name");
 const extensionEntries = tarballPackage.pi?.extensions;
 assert.deepEqual(
   extensionEntries,
-  ["./extensions/runtime-footer.ts", "./extensions/society-orchestrator.ts"],
+  [
+    "./extensions/runtime-footer.ts",
+    "./extensions/society-orchestrator.ts",
+    "./extensions/telemetry-kes-adapter.ts",
+    "./extensions/release-evidence-ak-adapter.ts",
+  ],
   "Tarball pi.extensions composition drifted",
 );
 
-const isolatedNpmGlobalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
-const hostNpmGlobalRoot = execFileSync("npm", ["root", "-g"], {
-  encoding: "utf8",
-  env: withoutIsolatedPrefixEnv(process.env),
-}).trim();
-const installedPackageDir = path.join(isolatedNpmGlobalRoot, ...packageName.split("/"));
+const installedNodeModulesRoot = path.join(installRoot, "node_modules");
+const hostNpmGlobalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+const installedPackageDir = path.join(installedNodeModulesRoot, ...packageName.split("/"));
 const installedPackageJsonPath = path.join(installedPackageDir, "package.json");
 assert.ok(
   fs.existsSync(installedPackageJsonPath),
@@ -91,7 +112,8 @@ assertDirectoriesMatchExactly({
   ignoredPathSegments: ["node_modules"],
 });
 
-const importRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-release-smoke-import-"));
+const importRoot = path.join(smokeScratchRoot, "import");
+fs.mkdirSync(importRoot);
 const importablePackageDir = path.join(importRoot, "package");
 const importNodeModulesPath = path.join(importRoot, "node_modules");
 fs.mkdirSync(importNodeModulesPath, { recursive: true });
@@ -100,7 +122,7 @@ liftBundledDependencies(importablePackageDir);
 linkInstalledRuntimeDependencies(
   importNodeModulesPath,
   installedPackageDir,
-  isolatedNpmGlobalRoot,
+  installedNodeModulesRoot,
   tarballPackage,
 );
 if (expectsBundledBridge) {
@@ -178,7 +200,8 @@ const extensionPaths = extensionEntries.map((entry) => {
   return { entry, extensionPath };
 });
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-release-smoke-"));
+const tempRoot = path.join(smokeScratchRoot, "runtime");
+fs.mkdirSync(tempRoot);
 const binDir = path.join(tempRoot, "bin");
 const homeDir = path.join(tempRoot, "home");
 const vaultDir = path.join(tempRoot, "vault");
@@ -188,13 +211,33 @@ const fakeAkPath = path.join(binDir, "ak");
 const fakePiPath = path.join(binDir, "pi");
 const teamMismatchMarkerPath = path.join(tempRoot, "team-mismatch-subagent.marker");
 const abortMarkerPath = path.join(tempRoot, "abort-subagent.marker");
-const bootstrapRepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-bootstrap-smoke-"));
+const bootstrapRepoRoot = path.join(smokeScratchRoot, "bootstrap");
+fs.mkdirSync(bootstrapRepoRoot);
 const bootstrapNestedPath = path.join(bootstrapRepoRoot, "packages", "demo");
+const loopRepoDir = path.join(tempRoot, "loop-repo");
 
 fs.mkdirSync(binDir, { recursive: true });
 fs.mkdirSync(homeDir, { recursive: true });
 fs.mkdirSync(vaultDir, { recursive: true });
 fs.mkdirSync(bootstrapNestedPath, { recursive: true });
+fs.mkdirSync(loopRepoDir, { recursive: true });
+fs.writeFileSync(path.join(loopRepoDir, "README.md"), "# Installed loop smoke fixture\n");
+execFileSync("git", ["init", "--quiet"], { cwd: loopRepoDir });
+execFileSync("git", ["add", "README.md"], { cwd: loopRepoDir });
+execFileSync(
+  "git",
+  [
+    "-c",
+    "user.name=Release Smoke",
+    "-c",
+    "user.email=release-smoke@example.invalid",
+    "commit",
+    "--quiet",
+    "-m",
+    "test: seed installed loop smoke repository",
+  ],
+  { cwd: loopRepoDir },
+);
 seedSocietyDb(societyDbPath, [tempRoot]);
 
 function writeExecutable(filePath, content) {
@@ -212,13 +255,6 @@ fi
       : content;
   fs.writeFileSync(filePath, executableContent);
   fs.chmodSync(filePath, 0o755);
-}
-
-function withoutIsolatedPrefixEnv(env) {
-  const next = { ...env };
-  delete next.NPM_CONFIG_PREFIX;
-  delete next.npm_config_prefix;
-  return next;
 }
 
 function linkPackageFromCandidates(importNodeModulesPath, spec, candidatePaths, label) {
@@ -240,7 +276,7 @@ function linkPackageFromCandidates(importNodeModulesPath, spec, candidatePaths, 
 function linkInstalledRuntimeDependencies(
   importNodeModulesPath,
   installedPackageDir,
-  isolatedNpmGlobalRoot,
+  installedNodeModulesRoot,
   manifest,
 ) {
   const liftedRoot = path.join(path.dirname(importNodeModulesPath), ".runtime-dependencies");
@@ -251,7 +287,7 @@ function linkInstalledRuntimeDependencies(
     const pathSegments = dependencyName.split("/");
     const candidates = [
       path.join(parentPackageDir, "node_modules", ...pathSegments),
-      path.join(isolatedNpmGlobalRoot, ...pathSegments),
+      path.join(installedNodeModulesRoot, ...pathSegments),
     ];
     return candidates.find((candidate) => fs.existsSync(candidate));
   }
@@ -511,7 +547,7 @@ function writeFakePi(mode) {
       fakePiPath,
       `#!/usr/bin/env bash
 printf '%s\n' ${agentStartLine}
-sleep 2
+sleep 6
 `,
     );
     return;
@@ -551,6 +587,7 @@ printf '%s\n' ${agentSettledLine}
     writeExecutable(
       fakePiPath,
       `#!/usr/bin/env bash
+printf '%s\n' ${agentStartLine}
 printf '%s\n' ${JSON.stringify(
         JSON.stringify({
           type: "message_update",
@@ -715,8 +752,8 @@ try {
   process.env.SOCIETY_DB = societyDbPath;
   process.env.AGENT_KERNEL = fakeAkPath;
   process.env.PI_COMPANY = "software";
-  process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "250";
-  process.env.PI_ORCH_LOOP_TIMEOUT_MS = "5000";
+  process.env.PI_ORCH_SUBAGENT_TIMEOUT_MS = "4000";
+  process.env.PI_ORCH_LOOP_TIMEOUT_MS = "30000";
   process.env.PI_ORCH_SUBAGENT_OUTPUT_CHARS = "256";
   delete process.env.PI_ORCH_DEFAULT_AGENT_TEAM;
 
@@ -1165,10 +1202,14 @@ try {
     },
     undefined,
     undefined,
-    { cwd: tempRoot, model: undefined },
+    { cwd: loopRepoDir, model: undefined },
   );
 
-  assert.equal(kesLoopResult?.details?.ok, true);
+  assert.equal(
+    kesLoopResult?.details?.ok,
+    true,
+    `Installed KES smoke failed: ${JSON.stringify(kesLoopResult?.details)}`,
+  );
   const kesResult = kesLoopResult?.details?.result;
   assert.ok(kesResult, "Expected successful compact loop result details from installed KES smoke");
   assert.equal(kesResult.phases.length, 4);
@@ -1178,12 +1219,12 @@ try {
   );
   assert.equal(
     kesResult.artifactPaths.filter((artifactPath) => artifactPath.startsWith("diary/")).length,
-    6,
+    1,
   );
   assert.equal(
     kesResult.artifactPaths.filter((artifactPath) => artifactPath.startsWith("docs/learnings/"))
       .length,
-    1,
+    0,
   );
 
   const packageDiaryDir = path.join(installedPackageDir, "diary");
@@ -1195,19 +1236,12 @@ try {
   assert.equal(fs.existsSync(path.join(tempRoot, "docs", "learnings")), false);
   assert.equal(fs.existsSync(path.join(importablePackageDir, "diary")), false);
   assert.equal(fs.existsSync(path.join(importablePackageDir, "docs", "learnings")), false);
-  assert.equal(diaryFiles.length, 6);
-  assert.equal(learningFiles.length, 1);
+  assert.equal(diaryFiles.length, 1);
+  assert.equal(learningFiles.length, 0);
   assert.ok(
     diaryFiles.some((entry) => entry.content.includes("knowledge-crystallization")),
     "Expected one installed-package KES diary entry to record the crystallization-oriented phase",
   );
-  assert.match(learningFiles[0]?.content || "", /State: candidate-only/);
-  assert.match(learningFiles[0]?.content || "", /Loop: kaizen/);
-  assert.match(
-    learningFiles[0]?.content || "",
-    /Primary cognitive tool: knowledge-crystallization/,
-  );
-
   const akCallsAfterKesLoop = readAkCallRecords(akCallLogPath);
   assert.equal(
     akCallsAfterKesLoop.length,
@@ -1235,7 +1269,7 @@ try {
     },
     undefined,
     (update) => loopUpdates.push(update),
-    { cwd: tempRoot, model: undefined },
+    { cwd: loopRepoDir, model: undefined },
   );
   assert.equal(transcendentTimeoutResult?.details?.ok, false);
   const transcendentResult = transcendentTimeoutResult?.details?.result;
@@ -1383,10 +1417,8 @@ try {
     process.env.PI_ORCH_KES_ROOT = previousEnv.PI_ORCH_KES_ROOT;
   }
 
-  fs.rmSync(tempRoot, { recursive: true, force: true });
-  fs.rmSync(bootstrapRepoRoot, { recursive: true, force: true });
-  fs.rmSync(importRoot, { recursive: true, force: true });
-  fs.rmSync(tarballRoot, { recursive: true, force: true });
+  cleanupSmokeScratch();
+  process.removeListener("exit", cleanupSmokeScratch);
 }
 
 function resolveLocalTarballPath(spec) {

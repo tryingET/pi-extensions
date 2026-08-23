@@ -14,8 +14,8 @@ import {
 test("settingsPackagesContainSpec accepts string and object package entries", () => {
   const settings = {
     packages: [
-      "npm:/tmp/string-spec.tgz",
-      { source: "npm:/tmp/object-spec.tgz" },
+      "npm:/fixtures/string-spec.tgz",
+      { source: "npm:/fixtures/object-spec.tgz" },
       { source: 42 },
       { unexpected: "ignored" },
       null,
@@ -23,12 +23,12 @@ test("settingsPackagesContainSpec accepts string and object package entries", ()
   };
 
   assert.deepEqual(listConfiguredPackageSources(settings), [
-    "npm:/tmp/string-spec.tgz",
-    "npm:/tmp/object-spec.tgz",
+    "npm:/fixtures/string-spec.tgz",
+    "npm:/fixtures/object-spec.tgz",
   ]);
-  assert.equal(settingsPackagesContainSpec(settings, "npm:/tmp/string-spec.tgz"), true);
-  assert.equal(settingsPackagesContainSpec(settings, "npm:/tmp/object-spec.tgz"), true);
-  assert.equal(settingsPackagesContainSpec(settings, "npm:/tmp/missing-spec.tgz"), false);
+  assert.equal(settingsPackagesContainSpec(settings, "npm:/fixtures/string-spec.tgz"), true);
+  assert.equal(settingsPackagesContainSpec(settings, "npm:/fixtures/object-spec.tgz"), true);
+  assert.equal(settingsPackagesContainSpec(settings, "npm:/fixtures/missing-spec.tgz"), false);
 });
 
 test("runtime footer smoke fixtures expose fast and Starship-style Git state", async () => {
