@@ -13,6 +13,7 @@ import { validExplorePayload } from "../src/explore-result-validator.ts";
 import { assertSciSchemaCompatibility, type SciBridge, SciMcpBridge } from "../src/mcp-bridge.ts";
 import { SCI_COMPOSITE_TOOL_SPECS } from "../src/tool-definitions.ts";
 import { registerToolboxBundle } from "../src/toolboxBundle.ts";
+import { fakeExploreDetails } from "./explore-test-fixtures.ts";
 
 interface NativeToolResult {
   content: Array<{ type: string; text: string }>;
@@ -34,6 +35,8 @@ interface RegisteredTool {
   parameters: unknown;
   promptGuidelines: string[];
   execute: (...args: unknown[]) => Promise<NativeToolResult>;
+  renderCall?: (...args: unknown[]) => { render(width: number): string[] };
+  renderResult?: (...args: unknown[]) => { render(width: number): string[] };
 }
 
 type EventHandler = (...args: unknown[]) => unknown;
@@ -169,9 +172,17 @@ function fakeEditRisk() {
 function createHarness(bridge: SciBridge) {
   const tools = new Map<string, RegisteredTool>();
   const handlers = new Map<string, EventHandler[]>();
+  const entryRenderers = new Map<string, (...args: unknown[]) => unknown>();
+  const customEntries: Array<{ type: "custom"; customType: string; data: unknown }> = [];
   const pi = {
     registerTool(tool: RegisteredTool) {
       tools.set(tool.name, tool);
+    },
+    registerEntryRenderer(customType: string, renderer: (...args: unknown[]) => unknown) {
+      entryRenderers.set(customType, renderer);
+    },
+    appendEntry(customType: string, data: unknown) {
+      customEntries.push({ type: "custom", customType, data });
     },
     on(event: string, handler: EventHandler) {
       const entries = handlers.get(event) ?? [];
@@ -183,82 +194,19 @@ function createHarness(bridge: SciBridge) {
   return {
     pi,
     tools,
+    entryRenderers,
+    customEntries,
     async emit(event: string) {
-      for (const handler of handlers.get(event) ?? []) await handler({}, {});
+      const ctx = {
+        cwd: "/workspace/repo",
+        sessionManager: { getBranch: () => customEntries },
+      };
+      for (const handler of handlers.get(event) ?? []) await handler({}, ctx);
     },
   };
 }
 
 function fakeBridge() {
-  function fakeExploreDetails(mode: "standard" | "debug") {
-    const section = {
-      count: 0,
-      emitted: 0,
-      omitted: 0,
-      truncated: false,
-      items: [],
-      shapeFailures: { invalid: 0, outsideWorkspace: 0 },
-    };
-    const provenance = {
-      present: false,
-      sources: [],
-      fields: [],
-      fieldCount: 0,
-      fieldCountExact: true,
-      fieldsTruncated: false,
-    };
-    const details = {
-      schemaVersion: 1,
-      mode,
-      definitions: section,
-      declarations: section,
-      references: section,
-      graph: {
-        hasImpactEvidence: false,
-        edges: { exports: section, callers: section, imports: section, callees: section },
-      },
-      provenance: { definitionLookup: provenance, symbolMap: provenance, graph: provenance },
-      counts: {},
-      omissions: [],
-      limitations: [],
-      disclosure: {
-        packetByteBudget: 49_152,
-        byteBudget: mode === "debug" ? 36_864 : 24_576,
-        emittedBytes: 0,
-        itemBudgetPerSection: 12,
-        analyzedItemBudgetPerSection: 4_096,
-        textCharacterBudget: 200,
-        truncated: false,
-        byteTruncated: false,
-        omittedItems: 0,
-        omittedRawFragments: 0,
-        truncatedRawFragments: 0,
-        packetOmissions: { impactFiles: 0, nextReads: 0, limitations: 0 },
-      },
-      ...(mode === "debug"
-        ? {
-            diagnostics: {
-              timingsMs: {},
-              subcalls: [],
-              redaction: {
-                policy: "bounded",
-                absolutePaths: "redacted",
-                secrets: "redacted",
-                environment: "redacted",
-                stackTraces: "redacted",
-                connectionCredentials: "redacted",
-              },
-              rawFragmentBudgetBytes: 768,
-            },
-          }
-        : {}),
-    };
-    for (let index = 0; index < 4; index++) {
-      details.disclosure.emittedBytes = Buffer.byteLength(JSON.stringify(details), "utf8");
-    }
-    return details;
-  }
-
   const calls: Array<{ name: string; args: Record<string, unknown>; cwd: string }> = [];
   let closes = 0;
   const bridge: SciBridge = {
@@ -341,7 +289,12 @@ test("explore_symbol_impact advertises all progressive disclosure modes", () => 
 
   assert.deepEqual(schema.properties?.mode?.enum, ["compact", "standard", "debug"]);
   assert.equal(schema.properties?.mode?.default, "compact");
-  assert.match(schema.properties?.mode?.description ?? "", /normalized bounded evidence/);
+  assert.match(schema.properties?.mode?.description ?? "", /selected normalized evidence/);
+  assert.match(
+    schema.properties?.mode?.description ?? "",
+    /raw detail retained only.*expanded TUI/,
+  );
+  assert.match(tool.description, /concise decision projection/);
   assert.match(tool.description, /24 KiB/);
   assert.match(tool.description, /48 KiB/);
 });
@@ -1100,7 +1053,9 @@ test("native tool execution delegates one composite MCP call and records utiliza
       cwd: "/workspace/repo",
     },
   ]);
-  assert.match(result.content[0].text, /explore_symbol_impact/);
+  const projected = JSON.parse(result.content[0].text);
+  assert.equal(projected.schema, "pi.sci_explore_model.v1");
+  assert.equal(projected.requestedMode, "debug");
   assert.equal(result.details.transport, "mcp-stdio");
   assert.equal("workspace" in result.details, false);
   assert.doesNotMatch(JSON.stringify(result.details), /\/workspace\/repo/);
@@ -1111,6 +1066,39 @@ test("native tool execution delegates one composite MCP call and records utiliza
     "AST symbol map",
     "graph expansion",
   ]);
+  const presentation = (
+    result.details as unknown as {
+      explorePresentation: {
+        modelBytes: number;
+        operatorBytes: number;
+        operatorDetailRetained: boolean;
+        operatorDetailPersisted: boolean;
+      };
+    }
+  ).explorePresentation;
+  assert.equal(presentation.modelBytes, Buffer.byteLength(result.content[0].text, "utf8"));
+  assert.ok(presentation.operatorBytes > presentation.modelBytes);
+  assert.equal(presentation.operatorDetailRetained, true);
+  assert.equal(presentation.operatorDetailPersisted, true);
+  assert.equal(harness.customEntries.length, 1);
+  assert.doesNotMatch(JSON.stringify(result.details), /"packet"|shapeFailures|rawFragments/);
+  assert.ok(tool.renderCall);
+  assert.ok(tool.renderResult);
+  const collapsed = tool.renderResult(
+    result,
+    { expanded: false, isPartial: false },
+    {},
+    { toolCallId: "call-1", lastComponent: undefined },
+  );
+  assert.ok(collapsed.render(20).every((line) => line.length <= 20));
+  const entryRenderer = harness.entryRenderers.get("pi-sci-explore-operator-v1");
+  assert.ok(entryRenderer);
+  const durable = entryRenderer(
+    { data: harness.customEntries[0]?.data },
+    { expanded: true },
+    {},
+  ) as { render(width: number): string[] };
+  assert.ok(durable.render(20).every((line) => line.length <= 20));
 });
 
 test("native tool failures withhold backend paths, stderr, and producer diagnostics", async () => {
@@ -1202,7 +1190,8 @@ test("native tool returns valid fail-closed JSON for malformed and oversized pro
       },
       async close() {},
     };
-    const tool = createHarness(bridge).tools.get("explore_symbol_impact");
+    const harness = createHarness(bridge);
+    const tool = harness.tools.get("explore_symbol_impact");
     assert.ok(tool);
     const result = await tool.execute("call-bounded", { symbol: "Target" }, undefined, undefined, {
       cwd: "/srv/private",
@@ -1212,6 +1201,8 @@ test("native tool returns valid fail-closed JSON for malformed and oversized pro
     assert.equal(parsed.status, "indeterminate");
     assert.doesNotMatch(result.content[0].text, /\/srv\/private|xoxb-secret|x{1000}/);
     assert.equal("workspace" in result.details, false);
+    assert.equal(harness.customEntries.length, 0);
+    assert.doesNotMatch(JSON.stringify(result.details), /"packet"/);
   }
 });
 
@@ -1228,7 +1219,8 @@ test("native explore validation rejects nested unknown fields and false budget r
   assert.ok(textItem && typeof textItem === "object" && "text" in textItem);
   const packet = JSON.parse(String(textItem.text)) as Record<string, unknown>;
   const details = packet.details as Record<string, unknown>;
-  const definitions = details.definitions as Record<string, unknown>;
+  const evidence = details.evidence as Record<string, unknown>;
+  const definitions = evidence.definitions as Record<string, unknown>;
   const disclosure = details.disclosure as Record<string, unknown>;
   definitions.raw = "unrestricted backend";
   disclosure.byteBudget = 50_000;
@@ -1297,8 +1289,13 @@ test("native explore validation accepts ten next reads and rejects eleven", asyn
       },
     );
     const parsed = JSON.parse(result.content[0].text);
-    assert.equal(parsed.ok, count === 10);
-    if (count === 11) assert.equal(parsed.status, "indeterminate");
+    if (count === 10) {
+      assert.equal(parsed.schema, "pi.sci_explore_model.v1");
+      assert.equal(parsed.status, "confirmed");
+    } else {
+      assert.equal(parsed.ok, false);
+      assert.equal(parsed.status, "indeterminate");
+    }
   }
 });
 

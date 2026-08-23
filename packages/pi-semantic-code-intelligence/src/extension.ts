@@ -1,5 +1,20 @@
-import { DEFAULT_MAX_BYTES, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-
+import {
+  DEFAULT_MAX_BYTES,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import {
+  createExplorePresentation,
+  EXPLORE_OPERATOR_ENTRY_TYPE,
+  type ExploreOperatorEntry,
+  type ExplorePresentation,
+  restoreExploreOperatorEntries,
+} from "./explore-presentation.ts";
+import {
+  renderExploreCall,
+  renderExploreOperatorEntry,
+  renderExploreResult,
+} from "./explore-renderer.ts";
 import { type ExploreMode, validExplorePayload } from "./explore-result-validator.ts";
 import { type SciBridge, type SciBridgeCallResult, SciMcpBridge } from "./mcp-bridge.ts";
 import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
@@ -12,6 +27,32 @@ export interface SemanticCodeExtensionOptions {
 export function createSemanticCodeExtension(options: SemanticCodeExtensionOptions = {}) {
   return function semanticCodeExtension(pi: ExtensionAPI): void {
     const bridge = options.bridgeFactory?.() ?? new SciMcpBridge();
+    const retainedExplorePackets = new Map<string, ExploreOperatorEntry>();
+    const retainExplorePacket = (entry: ExploreOperatorEntry): void => {
+      retainedExplorePackets.delete(entry.toolCallId);
+      retainedExplorePackets.set(entry.toolCallId, entry);
+      while (retainedExplorePackets.size > 128) {
+        const oldest = retainedExplorePackets.keys().next().value;
+        if (typeof oldest !== "string") break;
+        retainedExplorePackets.delete(oldest);
+      }
+    };
+    const reconstructExplorePackets = (ctx: ExtensionContext): void => {
+      retainedExplorePackets.clear();
+      const restored = restoreExploreOperatorEntries(ctx.sessionManager.getBranch(), ctx.cwd);
+      for (const entry of restored) retainExplorePacket(entry);
+    };
+
+    pi.registerEntryRenderer<ExploreOperatorEntry>(
+      EXPLORE_OPERATOR_ENTRY_TYPE,
+      (entry, { expanded }) => {
+        const data = recordOrUndefined(entry.data);
+        const toolCallId = typeof data?.toolCallId === "string" ? data.toolCallId : "";
+        return renderExploreOperatorEntry(retainedExplorePackets.get(toolCallId), expanded);
+      },
+    );
+    pi.on("session_start", async (_event, ctx) => reconstructExplorePackets(ctx));
+    pi.on("session_tree", async (_event, ctx) => reconstructExplorePackets(ctx));
 
     for (const spec of SCI_COMPOSITE_TOOL_SPECS) {
       pi.registerTool({
@@ -21,7 +62,28 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
         promptSnippet: spec.description,
         promptGuidelines: [guidelineFor(spec.name)],
         parameters: spec.parameters,
-        async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+        ...(spec.name === "explore_symbol_impact"
+          ? {
+              renderCall(args: unknown, _theme: unknown, context: { lastComponent?: unknown }) {
+                return renderExploreCall(recordOrUndefined(args) ?? {}, context.lastComponent);
+              },
+              renderResult(
+                result: { content: Array<{ type: string; text?: string }>; details?: unknown },
+                renderOptions: { expanded: boolean; isPartial: boolean },
+                _theme: unknown,
+                context: { toolCallId: string; lastComponent?: unknown },
+              ) {
+                return renderExploreResult(
+                  result,
+                  renderOptions,
+                  context.toolCallId,
+                  retainedExplorePackets,
+                  context.lastComponent,
+                );
+              },
+            }
+          : {}),
+        async execute(toolCallId, params, signal, _onUpdate, ctx) {
           const args = params as Record<string, unknown>;
           if (
             (spec.name === "safe_write" || spec.name === "structural_patch_checks") &&
@@ -42,12 +104,36 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
           }
           if (result.isError) throw new Error(errorText(spec.name));
 
-          return formatPiResult(spec.name, ctx.cwd, Date.now() - startedAt, result, args);
+          const formatted = formatPiResult(
+            spec.name,
+            ctx.cwd,
+            Date.now() - startedAt,
+            result,
+            args,
+            toolCallId,
+          );
+          if (formatted.operatorEntry) {
+            retainExplorePacket(formatted.operatorEntry);
+            let persisted = false;
+            try {
+              pi.appendEntry(EXPLORE_OPERATOR_ENTRY_TYPE, formatted.operatorEntry);
+              persisted = true;
+            } catch {
+              // The bounded in-memory operator view remains available for this runtime.
+            }
+            const presentation = recordOrUndefined(formatted.result.details.explorePresentation);
+            if (presentation) {
+              presentation.operatorDetailRetained = true;
+              presentation.operatorDetailPersisted = persisted;
+            }
+          }
+          return formatted.result;
         },
       });
     }
 
     pi.on("session_shutdown", async () => {
+      retainedExplorePackets.clear();
       await bridge.close();
     });
   };
@@ -72,7 +158,20 @@ function guidelineFor(name: SciCompositeToolName): string {
   }
 }
 
-type ProducerText = { text: string; truncated: boolean; sanitized: boolean };
+type ProducerText = {
+  text: string;
+  truncated: boolean;
+  sanitized: boolean;
+  explore?: ExplorePresentation;
+};
+
+type FormattedPiResult = {
+  result: {
+    content: Array<{ type: "text"; text: string }>;
+    details: Record<string, unknown>;
+  };
+  operatorEntry?: ExploreOperatorEntry;
+};
 
 function formatPiResult(
   workflow: SciCompositeToolName,
@@ -80,26 +179,39 @@ function formatPiResult(
   elapsedMs: number,
   result: SciBridgeCallResult,
   args: Record<string, unknown>,
-) {
-  const producer = resultText(result, workflow, exploreMode(args), workspace);
-
-  return {
-    content: [{ type: "text" as const, text: producer.text }],
-    details: {
-      schema: "pi.sci_composite_call.v1",
-      workflow,
-      transport: "mcp-stdio",
-      schemaCompatibility: "verified_on_connect",
-      elapsedMs,
-      utilization: {
-        sciCompositeCalls: [workflow],
-        nativeFallbacks: [],
-        rawShellAvoided: avoidedPrimitiveChain(workflow),
-      },
-      producerResultSanitized:
-        producer.sanitized || workflow === "safe_write" || workflow === "structural_patch_checks",
-      truncated: producer.truncated,
+  toolCallId: string,
+): FormattedPiResult {
+  const producer = resultText(result, workflow, exploreMode(args), workspace, toolCallId);
+  const details: Record<string, unknown> = {
+    schema: "pi.sci_composite_call.v1",
+    workflow,
+    transport: "mcp-stdio",
+    schemaCompatibility: "verified_on_connect",
+    elapsedMs,
+    utilization: {
+      sciCompositeCalls: [workflow],
+      nativeFallbacks: [],
+      rawShellAvoided: avoidedPrimitiveChain(workflow),
     },
+    producerResultSanitized:
+      producer.sanitized || workflow === "safe_write" || workflow === "structural_patch_checks",
+    truncated: producer.truncated,
+  };
+  if (producer.explore) {
+    details.explorePresentation = {
+      ...producer.explore.summary,
+      modelBytes: producer.explore.modelBytes,
+      operatorBytes: producer.explore.operatorEntry.producerBytes,
+      operatorDetailRetained: false,
+      operatorDetailPersisted: false,
+    };
+  }
+  return {
+    result: {
+      content: [{ type: "text", text: producer.text }],
+      details,
+    },
+    ...(producer.explore ? { operatorEntry: producer.explore.operatorEntry } : {}),
   };
 }
 
@@ -108,13 +220,14 @@ function resultText(
   workflow: SciCompositeToolName,
   expectedMode: ExploreMode,
   workspace: string,
+  toolCallId: string,
 ): ProducerText {
   const content = Array.isArray(result.content) ? result.content.slice(0, 32) : [];
   const textItem = content.find(
     (item) => item && typeof item === "object" && "text" in item && typeof item.text === "string",
   );
   return textItem && typeof textItem === "object" && "text" in textItem
-    ? compactJsonText(String(textItem.text), workflow, expectedMode, workspace)
+    ? compactJsonText(String(textItem.text), workflow, expectedMode, workspace, toolCallId)
     : producerShapeFailure(
         workflow,
         "SCI producer returned no bounded text result; producer content was omitted.",
@@ -126,6 +239,7 @@ function compactJsonText(
   workflow: SciCompositeToolName,
   expectedMode: ExploreMode,
   workspace: string,
+  toolCallId: string,
 ): ProducerText {
   const observedBytes = Buffer.byteLength(text, "utf8");
   if (observedBytes > DEFAULT_MAX_BYTES) return producerOversizeFailure(workflow, observedBytes);
@@ -145,6 +259,26 @@ function compactJsonText(
         workflow,
         "SCI producer result violated the native disclosure boundary; producer content was omitted.",
       );
+    }
+    if (workflow === "explore_symbol_impact" && !validExplorePayload(parsed, expectedMode)) {
+      return producerShapeFailure(
+        workflow,
+        "SCI producer result changed to an invalid shape during disclosure sanitization; producer content was omitted.",
+      );
+    }
+    if (workflow === "explore_symbol_impact") {
+      const explore = createExplorePresentation(parsed, expectedMode, toolCallId);
+      return explore
+        ? {
+            text: explore.modelText,
+            truncated: false,
+            sanitized: disclosure.changed,
+            explore,
+          }
+        : producerShapeFailure(
+            workflow,
+            "SCI producer result could not be projected safely; producer content was omitted.",
+          );
     }
     const compact = JSON.stringify(parsed);
     return Buffer.byteLength(compact, "utf8") > DEFAULT_MAX_BYTES

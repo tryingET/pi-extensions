@@ -28,7 +28,9 @@ This private Pi package makes SCI's existing composite workflows first-class mod
 
 The tools use one lazily started, session-scoped `semantic-code-mcp` stdio process per workspace. The process closes on Pi session shutdown. Calls return `pi.sci_composite_call.v1` details containing the workflow, transport, elapsed time, and lightweight utilization evidence.
 
-`explore_symbol_impact` exposes SCI's progressive response modes directly: `compact` is the default decision packet, `standard` adds normalized bounded evidence, and `debug` adds bounded/redacted diagnostics and raw fragments. Compact risk signals distinguish structurally `detected` evidence from `unknown`; conventional path/name matches remain explicitly low-confidence `namingFallback` evidence. The native validator checks per-signal reason/provenance consistency plus exact structural file/source/AST budget receipts and omission counts. SCI enforces the output contracts and fixed budgets (24 KiB standard details, 36 KiB debug details, 48 KiB complete packets); this Pi schema only makes the same mode choice discoverable and forwards it unchanged. The native bridge checks the producer byte cap before parsing, accepts only a valid workflow result shape, and converts malformed or oversized producer content to valid fail-closed JSON without reflecting producer diagnostics.
+`explore_symbol_impact` preserves SCI's progressive mode choice while separating model and operator views. `compact` sends a decision-first model projection, `standard` adds selected normalized evidence without empty audit bookkeeping, and `debug` adds a bounded, clearly labelled diagnostic summary without raw fragments. The complete producer packet is retained only as a bounded, structurally validated, disclosure-sanitized Pi custom entry, which does not participate in LLM context. Custom call/result renderers show a concise collapsed status and, when expanded, readable model and operator views; renderer failure never falls back to raw producer JSON.
+
+Compact risk signals distinguish structurally `detected` evidence from `unknown`; conventional path/name matches remain explicitly low-confidence `namingFallback` evidence. The native validator checks per-signal reason/provenance consistency plus exact structural file/source/AST budget and omission receipts. SCI remains the schema and semantic owner and enforces fixed producer budgets (24 KiB standard details, 36 KiB debug details, 48 KiB complete packets). The bridge checks the producer byte cap before parsing, revalidates after recursive path/credential disclosure checks, and converts malformed, oversized, or unsafe producer content to bounded fail-closed JSON without retaining operator detail.
 
 ## Composite-first usage contract
 
@@ -96,12 +98,12 @@ npm run dogfood
 bash ../../scripts/package-quality-gate.sh ci packages/pi-semantic-code-intelligence
 ```
 
-`npm run dogfood` creates an isolated temporary target, invokes three registered native tools through the live MCP stdio bridge, verifies schema compatibility for all six composites, and proves the preview-only `safe_write` path leaves source content unchanged. Its JSON reports:
+`npm run dogfood` creates an isolated temporary target, invokes four registered native tools through the live MCP stdio bridge, verifies schema compatibility for all six composites, and proves preview workflows leave source content unchanged. Its JSON reports:
 
-- `sciCompositeCalls`
-- `nativeFallbacks`
-- `rawShellAvoided`
-- native registration and installed-MCP contract assertions
+- `sciCompositeCalls`, `nativeFallbacks`, and `rawShellAvoided`;
+- separate explore model/operator byte receipts and custom-entry retention;
+- narrow-width call, collapsed, expanded, and durable-entry renderer assertions;
+- native registration, installed-MCP contract, and preview-only assertions.
 
 ## Release posture
 

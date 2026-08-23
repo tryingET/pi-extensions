@@ -62,7 +62,15 @@ export function validExplorePayload(
         "details",
         "truncation",
       ];
-  if (!onlyKeys(packet, allowed) || !packet.nextReads.every(validNextRead)) return false;
+  if (!onlyKeys(packet, allowed)) return false;
+  if (confirmed) {
+    if (!packet.nextReads.every(validPathNextRead)) return false;
+  } else if (
+    packet.nextReads.length !== 1 ||
+    !validRecoveryNextRead(packet.nextReads[0], packet.symbol)
+  ) {
+    return false;
+  }
 
   if (confirmed) {
     const definitions = record(packet.definitions);
@@ -134,17 +142,33 @@ function validRankedFile(value: unknown): boolean {
   );
 }
 
-function validNextRead(value: unknown): boolean {
+function validPathNextRead(value: unknown): boolean {
   const next = record(value);
-  if (!next || typeof next.reason !== "string") return false;
-  if (typeof next.path === "string") {
-    return (
-      onlyKeys(next, ["path", "line", "reason"]) &&
-      next.path.length <= 1_024 &&
-      optionalNumber(next.line)
-    );
-  }
-  return next.action === "locate_confirm_definition" && onlyKeys(next, ["action", "reason"]);
+  return !!(
+    next &&
+    onlyKeys(next, ["path", "line", "reason"]) &&
+    typeof next.path === "string" &&
+    next.path.length <= 1_024 &&
+    optionalNumber(next.line) &&
+    typeof next.reason === "string" &&
+    next.reason.length > 0
+  );
+}
+
+function validRecoveryNextRead(value: unknown, symbol: unknown): boolean {
+  const next = record(value);
+  const args = record(next?.arguments);
+  return !!(
+    next &&
+    onlyKeys(next, ["action", "arguments", "reason"]) &&
+    next.action === "locate_confirm_definition" &&
+    typeof next.reason === "string" &&
+    next.reason.length > 0 &&
+    args &&
+    onlyKeys(args, ["symbol", "precise"]) &&
+    args.symbol === symbol &&
+    args.precise === true
+  );
 }
 
 function validEvidence(value: unknown): boolean {

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
+import { containsHighConfidenceCredential } from "./high-confidence-credential.ts";
 import type { SciCompositeToolName } from "./tool-definitions.ts";
 
 const FORBIDDEN_FIELDS = new Set([
@@ -106,11 +106,12 @@ function sanitizeArray(
 }
 
 function sanitizeString(value: string, workspace: string): string | undefined {
-  if (/^file:\/\//i.test(value)) return containedFileUri(value, workspace);
-  if (validSnapshotUri(value)) return value;
   const decoded = decodeForInspection(value);
   if (!decoded.complete) return undefined;
   const inspected = decoded.value;
+  if (containsHighConfidenceCredential(inspected)) return undefined;
+  if (/^file:\/\//i.test(value)) return containedFileUri(value, workspace);
+  if (validSnapshotUri(value)) return value;
   if (path.isAbsolute(inspected)) return containedAbsolutePath(inspected, workspace);
   if (
     /file:\/\//i.test(inspected) ||

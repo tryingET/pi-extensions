@@ -19,6 +19,10 @@ import { createSemanticCodeExtension } from "../src/extension.ts";
 import { SciMcpBridge } from "../src/mcp-bridge.ts";
 import { SCI_COMPOSITE_TOOL_NAMES } from "../src/tool-definitions.ts";
 
+interface RenderComponent {
+  render(width: number): string[];
+}
+
 interface NativeToolResult {
   content: Array<{ type: string; text: string }>;
   details: {
@@ -30,13 +34,28 @@ interface NativeToolResult {
       nativeFallbacks: string[];
       rawShellAvoided: string[];
     };
+    explorePresentation?: {
+      modelBytes: number;
+      operatorBytes: number;
+      operatorDetailRetained: boolean;
+      operatorDetailPersisted: boolean;
+    };
   };
 }
 
 interface RegisteredTool {
   name: string;
   execute: (...args: unknown[]) => Promise<NativeToolResult>;
+  renderCall?: (...args: unknown[]) => RenderComponent;
+  renderResult?: (...args: unknown[]) => RenderComponent;
 }
+
+interface CapturedCustomEntry {
+  customType: string;
+  data: unknown;
+}
+
+type CapturedEntryRenderer = (...args: unknown[]) => RenderComponent | undefined;
 
 interface InventoryEntry {
   path: string;
@@ -56,9 +75,17 @@ const beforeSourceInventory = await inventoryWorkspaceSource(workspace);
 const bridge = new SciMcpBridge();
 const tools = new Map<string, RegisteredTool>();
 const shutdownHandlers: Array<() => Promise<void>> = [];
+const customEntries: CapturedCustomEntry[] = [];
+const entryRenderers = new Map<string, CapturedEntryRenderer>();
 createSemanticCodeExtension({ bridgeFactory: () => bridge })({
   registerTool(tool: RegisteredTool) {
     tools.set(tool.name, tool);
+  },
+  registerEntryRenderer(customType: string, renderer: CapturedEntryRenderer) {
+    entryRenderers.set(customType, renderer);
+  },
+  appendEntry(customType: string, data: unknown) {
+    customEntries.push({ customType, data });
   },
   on(event: string, handler: () => Promise<void>) {
     if (event === "session_shutdown") shutdownHandlers.push(handler);
@@ -71,12 +98,13 @@ try {
   const missing = SCI_COMPOSITE_TOOL_NAMES.filter((name) => !advertised.includes(name));
   if (missing.length > 0) throw new Error(`installed MCP missing: ${missing.join(", ")}`);
 
-  const explore = await execute("explore_symbol_impact", {
+  const exploreArgs = {
     symbol: "greet",
     file: "src/example.js",
     depth: 1,
     limit: 20,
-  });
+  };
+  const explore = await execute("explore_symbol_impact", exploreArgs);
   const locate = await execute("locate_confirm_definition", {
     symbol: "greet",
     file: "src/example.js",
@@ -107,8 +135,22 @@ try {
   const locatePayload = parseToolPayload(locate);
   const safeWritePayload = parseToolPayload(safeWrite);
   const structuralPayload = parseToolPayload(structural);
+  const exploreDecision = record(explorePayload.decision);
+  const explorePresentation = explore.details.explorePresentation;
   const exploreConfirmed =
-    explorePayload.workflow === "explore_symbol_impact" && explorePayload.ok === true;
+    explorePayload.schema === "pi.sci_explore_model.v1" &&
+    explorePayload.status === "confirmed" &&
+    exploreDecision?.definitionConfirmed === true;
+  const exploreOperatorDetailPersisted =
+    explorePresentation?.operatorDetailRetained === true &&
+    explorePresentation.operatorDetailPersisted === true &&
+    customEntries.some((entry) => entry.customType === "pi-sci-explore-operator-v1");
+  const exploreModelSmallerThanOperator =
+    Number.isSafeInteger(explorePresentation?.modelBytes) &&
+    Number.isSafeInteger(explorePresentation?.operatorBytes) &&
+    Number(explorePresentation?.modelBytes) < Number(explorePresentation?.operatorBytes) &&
+    !JSON.stringify(explore.details).includes('"packet"');
+  const rendering = verifyExploreRendering(exploreArgs, explore);
   const locateDefinitionConfirmed = confirmedLocatePayload(locatePayload);
   const safeWriteChecksPassed = previewChecksPassed(safeWritePayload, "safe_write");
   const structuralChecksPassed = previewChecksPassed(structuralPayload, "structural_patch_checks");
@@ -123,6 +165,13 @@ try {
       missing.length === 0 &&
       explore.details.workflow === "explore_symbol_impact" &&
       exploreConfirmed &&
+      exploreOperatorDetailPersisted &&
+      exploreModelSmallerThanOperator &&
+      rendering.widthSafe &&
+      rendering.callConcise &&
+      rendering.collapsedConcise &&
+      rendering.expandedReadable &&
+      rendering.durableReadable &&
       locate.details.workflow === "locate_confirm_definition" &&
       locateDefinitionConfirmed &&
       safeWrite.details.workflow === "safe_write" &&
@@ -138,6 +187,8 @@ try {
     elapsedMs: Date.now() - startedAt,
     nativeToolsRegistered: [...tools.keys()],
     advertisedCompositeTools: SCI_COMPOSITE_TOOL_NAMES.filter((name) => advertised.includes(name)),
+    retainedCustomEntryTypes: customEntries.map((entry) => entry.customType),
+    rendering,
     sciCompositeCalls: [
       "explore_symbol_impact",
       "locate_confirm_definition",
@@ -162,6 +213,14 @@ try {
       installedMcpContractComplete: missing.length === 0,
       exploreUsedSingleNativeCall: explore.details.utilization.sciCompositeCalls.length === 1,
       exploreConfirmed,
+      exploreProjectionSchema: explorePayload.schema === "pi.sci_explore_model.v1",
+      exploreOperatorDetailPersisted,
+      exploreModelSmallerThanOperator,
+      exploreRendererWidthSafe: rendering.widthSafe,
+      exploreCallConcise: rendering.callConcise,
+      exploreCollapsedConcise: rendering.collapsedConcise,
+      exploreExpandedReadable: rendering.expandedReadable,
+      exploreDurableEntryReadable: rendering.durableReadable,
       locateUsedSingleNativeCall: locate.details.utilization.sciCompositeCalls.length === 1,
       locateDefinitionConfirmed,
       safeWriteUsedSingleNativeCall: safeWrite.details.utilization.sciCompositeCalls.length === 1,
@@ -184,6 +243,54 @@ try {
   await rm(workspace, { recursive: true, force: true });
 }
 
+function verifyExploreRendering(args: Record<string, unknown>, result: NativeToolResult) {
+  const tool = tools.get("explore_symbol_impact");
+  if (!tool?.renderCall || !tool.renderResult) {
+    throw new Error("explore renderCall/renderResult were not registered");
+  }
+  const context = {
+    toolCallId: "dogfood-explore_symbol_impact",
+    lastComponent: undefined,
+  };
+  const call = tool.renderCall(args, {}, context);
+  const collapsed = tool.renderResult(result, { expanded: false, isPartial: false }, {}, context);
+  const expanded = tool.renderResult(result, { expanded: true, isPartial: false }, {}, context);
+  const operatorEntry = customEntries.find(
+    (entry) => entry.customType === "pi-sci-explore-operator-v1",
+  );
+  const entryRenderer = entryRenderers.get("pi-sci-explore-operator-v1");
+  const durable =
+    operatorEntry && entryRenderer
+      ? entryRenderer({ data: operatorEntry.data }, { expanded: true }, {})
+      : undefined;
+  if (!durable) throw new Error("durable explore operator renderer was unavailable");
+
+  const components = [call, collapsed, expanded, durable];
+  const widths = [8, 20, 80];
+  const widthSafe = widths.every((width) =>
+    components.every((component) => component.render(width).every((line) => line.length <= width)),
+  );
+  const callText = call.render(120).join("\n");
+  const collapsedText = collapsed.render(120).join("\n");
+  const expandedText = expanded.render(120).join("\n");
+  const durableText = durable.render(120).join("\n");
+  return {
+    widths,
+    widthSafe,
+    callConcise: callText.includes("SCI explore_symbol_impact") && !callText.includes("{"),
+    collapsedConcise:
+      collapsedText.includes("SCI explore [compact]") && !collapsedText.includes("{"),
+    expandedReadable:
+      expandedText.includes("Model projection (sent to the model):") &&
+      expandedText.includes(
+        "Operator packet (validated, disclosure-sanitized, bounded, TUI-only):",
+      ),
+    durableReadable: durableText.includes("Validated sanitized producer packet:"),
+    callPreview: callText.slice(0, 200),
+    collapsedPreview: collapsedText.slice(0, 300),
+  };
+}
+
 async function execute(name: string, params: Record<string, unknown>): Promise<NativeToolResult> {
   const tool = tools.get(name);
   if (!tool) throw new Error(`native tool not registered: ${name}`);
@@ -199,10 +306,21 @@ function summarize(result: NativeToolResult) {
     transport: result.details.transport,
     elapsedMs: result.details.elapsedMs,
     utilization: result.details.utilization,
-    domainOk: payload.ok,
+    domainOk:
+      result.details.workflow === "explore_symbol_impact"
+        ? payload.status === "confirmed"
+        : payload.ok,
     applied: payload.applied,
+    modelBytes: result.details.explorePresentation?.modelBytes,
+    operatorBytes: result.details.explorePresentation?.operatorBytes,
     outputPreview: String(result.content[0]?.text ?? "").slice(0, 500),
   };
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function parseToolPayload(result: NativeToolResult): Record<string, unknown> {

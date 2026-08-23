@@ -42,7 +42,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     name: "explore_symbol_impact",
     label: "SCI Explore Symbol Impact",
     description:
-      "PREFERRED first call for unfamiliar code changes involving a symbol. compact returns only the decision packet; standard adds normalized bounded evidence; debug adds bounded/redacted diagnostics and raw fragments. Standard details are capped at 24 KiB, debug details at 36 KiB, and complete packets at 48 KiB. Do not manually chain search/definition/reference primitives unless this result is insufficient.",
+      "PREFERRED first call for unfamiliar code changes involving a symbol. compact returns a concise decision projection; standard adds selected normalized evidence; debug adds a bounded labelled diagnostic summary. The full validated and sanitized producer packet, including debug raw fragments, is available only in the expanded TUI operator view. Producer standard details are capped at 24 KiB, debug details at 36 KiB, and complete packets at 48 KiB. Do not manually chain search/definition/reference primitives unless this result is insufficient.",
     profile: "read",
     parameters: Type.Object({
       symbol: Type.String({ description: "Symbol to investigate." }),
@@ -54,7 +54,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
         StringEnum(["compact", "standard", "debug"] as const, {
           default: "compact",
           description:
-            "compact: decision packet only; standard: normalized bounded evidence; debug: standard plus bounded/redacted diagnostics and raw fragments; complete packets remain under 48 KiB.",
+            "compact: concise decision projection; standard: selected normalized evidence; debug: standard plus a bounded diagnostic summary, with validated raw detail retained only for the expanded TUI; complete producer packets remain under 48 KiB.",
         }),
       ),
     }),
