@@ -4,10 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import {
-  createTranspiledModuleHarness,
-  PACKAGE_ROOT,
-} from "./helpers/transpiled-module-harness.mjs";
+import { createTranspiledModuleHarness } from "./helpers/transpiled-module-harness.mjs";
 
 test("logRetrievalBatch writes retrieval_events rows to the SQLite sidecar and stays fail-open", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "pi-vault-retrievals-"));
