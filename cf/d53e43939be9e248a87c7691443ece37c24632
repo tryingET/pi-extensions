@@ -1,0 +1,36 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "cfd53e43939be9e248a87c7691443ece37c24632"
+created_at: "2026-08-23T20:17:40Z"
+intent: "Restore exact pi-modes custom-base bytes and truthful host compatibility on Pi 0.84.2"
+files:
+  - "packages/pi-modes/README.md"
+  - "packages/pi-modes/docs/project/2026-07-11-implementation-plan.md"
+  - "packages/pi-modes/docs/project/2026-07-11-prompt-mode-architecture.md"
+  - "packages/pi-modes/extensions/mode.ts"
+  - "packages/pi-modes/package-lock.json"
+  - "packages/pi-modes/package.json"
+  - "packages/pi-modes/src/prompt-composition.ts"
+  - "packages/pi-modes/tests/modes.test.ts"
+  - "policy/pi-host-compatibility-canary.json"
+validation:
+  fast_gate:
+    command: "commit pre-commit hook"
+    status: "pass"
+  full_gate:
+    command: "npm run check + 0.84.2 upgrade compatibility canary"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "One host-byte compatibility correction plus truthful package and canary surfaces"
+links:
+  task_ids:
+    - 4892
+  evidence_ids:
+    - 7332
+    - 7333
+    - 7334
+    - 7335
