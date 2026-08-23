@@ -18,6 +18,7 @@ import {
 import { type ExploreMode, validExplorePayload } from "./explore-result-validator.ts";
 import { type SciBridge, type SciBridgeCallResult, SciMcpBridge } from "./mcp-bridge.ts";
 import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
+import { hasSciErrorSignal, sciErrorText } from "./sci-error-projection.ts";
 import { SCI_COMPOSITE_TOOL_SPECS, type SciCompositeToolName } from "./tool-definitions.ts";
 
 export interface SemanticCodeExtensionOptions {
@@ -102,7 +103,7 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
               `SCI workflow ${spec.name} failed. Backend diagnostics, paths, and stderr were withheld.`,
             );
           }
-          if (result.isError) throw new Error(errorText(spec.name));
+          if (hasSciErrorSignal(result)) throw new Error(sciErrorText(spec.name, result));
 
           const formatted = formatPiResult(
             spec.name,
@@ -398,10 +399,6 @@ function recordOrUndefined(value: unknown): Record<string, unknown> | undefined 
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
-}
-
-function errorText(name: SciCompositeToolName): string {
-  return `SCI workflow ${name} returned an error. Producer diagnostics, paths, and stderr were withheld.`;
 }
 
 function avoidedPrimitiveChain(name: SciCompositeToolName): string[] {

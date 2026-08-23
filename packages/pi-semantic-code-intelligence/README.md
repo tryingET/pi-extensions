@@ -58,6 +58,10 @@ At MCP connect time, the bridge compares every registered Pi schema subset with 
 
 This package does not authorize hosted, network-exposed, multi-user, or public SCI operation.
 
+### Safe workspace-boundary recovery
+
+All six native composites recognize only SCI's exact, fixed `outside_workspace` application-error envelope from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2`. The bridge replaces that envelope with locally authored model-visible recovery text containing the stable reason code and guidance to retry with a workspace-relative path or a contained absolute path. It never copies producer error text, remediation, paths, stderr, or diagnostics. Missing, malformed, extended, or drifted boundary metadata falls back to the generic redacted workflow error.
+
 ## Install and activate
 
 ```bash

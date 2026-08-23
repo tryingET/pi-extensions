@@ -110,6 +110,15 @@ try {
     file: "src/example.js",
     precise: true,
   });
+  const outsideWorkspacePath = path.join(
+    path.dirname(workspace),
+    `${path.basename(workspace)}-outside.ts`,
+  );
+  const workspaceBoundaryFailure = await executeExpectingFailure("locate_confirm_definition", {
+    symbol: "greet",
+    file: outsideWorkspacePath,
+    precise: true,
+  });
 
   const modified = original.replace('"hi " + name', '"hello " + name');
   const patch = unifiedPatch(original, modified, "src/example.js");
@@ -152,6 +161,19 @@ try {
     !JSON.stringify(explore.details).includes('"packet"');
   const rendering = verifyExploreRendering(exploreArgs, explore);
   const locateDefinitionConfirmed = confirmedLocatePayload(locatePayload);
+  const expectedWorkspaceBoundaryMessage =
+    "SCI workflow locate_confirm_definition rejected the request (reason: outside_workspace). Retry with a workspace-relative path or an absolute path contained by the configured workspace. Producer diagnostics, paths, and stderr were withheld.";
+  const workspaceBoundaryActionable =
+    workspaceBoundaryFailure.threw &&
+    workspaceBoundaryFailure.message === expectedWorkspaceBoundaryMessage;
+  const workspaceBoundarySanitized =
+    !workspaceBoundaryFailure.message.includes(outsideWorkspacePath) &&
+    !workspaceBoundaryFailure.message.includes(
+      "Requested path must stay within the configured workspace",
+    ) &&
+    !workspaceBoundaryFailure.message.includes(
+      "Use a path within the configured workspace, expressed as a workspace-relative path or a contained absolute path.",
+    );
   const safeWriteChecksPassed = previewChecksPassed(safeWritePayload, "safe_write");
   const structuralChecksPassed = previewChecksPassed(structuralPayload, "structural_patch_checks");
   const structuralBackendWithheld = !/"backend"\s*:/.test(
@@ -174,6 +196,8 @@ try {
       rendering.durableReadable &&
       locate.details.workflow === "locate_confirm_definition" &&
       locateDefinitionConfirmed &&
+      workspaceBoundaryActionable &&
+      workspaceBoundarySanitized &&
       safeWrite.details.workflow === "safe_write" &&
       safeWriteChecksPassed &&
       safeWritePayload.applied === false &&
@@ -189,6 +213,18 @@ try {
     advertisedCompositeTools: SCI_COMPOSITE_TOOL_NAMES.filter((name) => advertised.includes(name)),
     retainedCustomEntryTypes: customEntries.map((entry) => entry.customType),
     rendering,
+    expectedProducerContract: {
+      akTask: 4862,
+      commit: "b4f3c96ed4fc77439390426393244362f14334b2",
+      reason: "outside_workspace",
+    },
+    workspaceBoundary: {
+      workflow: "locate_confirm_definition",
+      threw: workspaceBoundaryFailure.threw,
+      actionable: workspaceBoundaryActionable,
+      sanitized: workspaceBoundarySanitized,
+      reason: "outside_workspace",
+    },
     sciCompositeCalls: [
       "explore_symbol_impact",
       "locate_confirm_definition",
@@ -223,6 +259,8 @@ try {
       exploreDurableEntryReadable: rendering.durableReadable,
       locateUsedSingleNativeCall: locate.details.utilization.sciCompositeCalls.length === 1,
       locateDefinitionConfirmed,
+      workspaceBoundaryActionable,
+      workspaceBoundarySanitized,
       safeWriteUsedSingleNativeCall: safeWrite.details.utilization.sciCompositeCalls.length === 1,
       safeWriteChecksPassed,
       safeWriteRemainedPreviewOnly: safeWritePayload.applied === false,
@@ -297,6 +335,18 @@ async function execute(name: string, params: Record<string, unknown>): Promise<N
   return tool.execute(`dogfood-${name}`, params, new AbortController().signal, undefined, {
     cwd: workspace,
   });
+}
+
+async function executeExpectingFailure(
+  name: string,
+  params: Record<string, unknown>,
+): Promise<{ threw: boolean; message: string }> {
+  try {
+    await execute(name, params);
+    return { threw: false, message: "" };
+  } catch (error) {
+    return { threw: true, message: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function summarize(result: NativeToolResult) {
