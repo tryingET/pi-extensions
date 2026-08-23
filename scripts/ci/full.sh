@@ -29,13 +29,13 @@ fi
 
 "$script_dir/smoke.sh"
 
+node --test "$script_dir/rocs-validation.test.mjs"
+
 if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then
   if [ "${PI_SKIP_ROCS:-0}" = "1" ]; then
     echo "skipping ROCS validation: PI_SKIP_ROCS=1 (workspace-owned runner unavailable)"
   else
-    ./scripts/rocs.sh version
-    ./scripts/rocs.sh build --repo . --resolve-refs --clean
-    ./scripts/rocs.sh validate --repo . --resolve-refs
+    "$script_dir/rocs-validation.sh"
   fi
 fi
 

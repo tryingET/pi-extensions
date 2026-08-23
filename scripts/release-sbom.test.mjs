@@ -22,24 +22,30 @@ function run(command, args, options = {}) {
     encoding: "utf8",
     env: { ...process.env, npm_config_update_notifier: "false", ...(options.env ?? {}) },
   });
-  assert.equal(
-    result.status,
-    options.expectFailure ? result.status : 0,
-    `${command} ${args.join(" ")}\n${result.stdout}\n${result.stderr}`,
-  );
+  const diagnostic = `${command} ${args.join(" ")}\n${result.stdout}\n${result.stderr}`;
+  assert.equal(result.error, undefined, diagnostic);
+  assert.equal(typeof result.status, "number", diagnostic);
+  if (options.expectFailure) {
+    assert.notEqual(result.status, 0, diagnostic);
+  } else {
+    assert.equal(result.status, 0, diagnostic);
+  }
   return result;
 }
 
-function runScript(args, expectFailure = false) {
+function runScript(args, options = {}) {
   const result = spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: ROOT,
     encoding: "utf8",
-    env: { ...process.env, npm_config_update_notifier: "false" },
+    env: { ...process.env, npm_config_update_notifier: "false", ...(options.env ?? {}) },
   });
-  if (!expectFailure) {
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const diagnostic = `${process.execPath} ${SCRIPT} ${args.join(" ")}\n${result.stdout}\n${result.stderr}`;
+  assert.equal(result.error, undefined, diagnostic);
+  assert.equal(typeof result.status, "number", diagnostic);
+  if (options.expectFailure) {
+    assert.notEqual(result.status, 0, diagnostic);
   } else {
-    assert.notEqual(result.status, 0);
+    assert.equal(result.status, 0, diagnostic);
   }
   return result;
 }
@@ -76,15 +82,47 @@ function fileRecord(filePath, name, version, artifactDir) {
   };
 }
 
+function liveGitSnapshot() {
+  const indexResult = run("git", ["rev-parse", "--git-path", "index"]);
+  const indexPath = path.resolve(ROOT, indexResult.stdout.trim());
+  return {
+    index: fs.readFileSync(indexPath),
+    lsFiles: run("git", ["ls-files", "-z"]).stdout,
+  };
+}
+
+function assertLiveGitUnchanged(f) {
+  const current = liveGitSnapshot();
+  assert.deepEqual(current.index, f.liveGitBefore.index, "live Git index bytes changed");
+  assert.equal(current.lsFiles, f.liveGitBefore.lsFiles, "live git ls-files changed");
+}
+
 function fixture(t, { trackedLock = false } = {}) {
+  const liveGitBefore = liveGitSnapshot();
   const root = fs.mkdtempSync(path.join(ROOT, ".release-sbom-fixture-"));
   t.after(() => {
-    spawnSync("git", ["rm", "--cached", "--ignore-unmatch", "--", path.relative(ROOT, path.join(root, "main", "package-lock.json"))], {
-      cwd: ROOT,
-      encoding: "utf8",
-    });
-    fs.rmSync(root, { recursive: true, force: true });
+    try {
+      assertLiveGitUnchanged({ liveGitBefore });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
+
+  const privateObjects = path.join(root, "git-objects");
+  fs.mkdirSync(privateObjects);
+  const objectsResult = run("git", ["rev-parse", "--git-path", "objects"]);
+  const repositoryObjects = path.resolve(ROOT, objectsResult.stdout.trim());
+  const gitEnv = {
+    GIT_INDEX_FILE: path.join(root, "git-index"),
+    GIT_OBJECT_DIRECTORY: privateObjects,
+    GIT_ALTERNATE_OBJECT_DIRECTORIES: [
+      repositoryObjects,
+      process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES,
+    ]
+      .filter(Boolean)
+      .join(path.delimiter),
+  };
+  run("git", ["read-tree", "HEAD"], { env: gitEnv });
   const mainRoot = path.join(root, "main");
   const localRoot = path.join(root, "local");
   const artifacts = path.join(root, "artifacts");
@@ -158,7 +196,7 @@ function fixture(t, { trackedLock = false } = {}) {
     },
   });
   if (trackedLock) {
-    run("git", ["add", "-f", "--", path.relative(ROOT, lockPath)], { cwd: ROOT });
+    run("git", ["add", "-f", "--", path.relative(ROOT, lockPath)], { env: gitEnv });
   }
 
   const localTarball = npmPack(localRoot, artifacts);
@@ -195,6 +233,8 @@ function fixture(t, { trackedLock = false } = {}) {
   writeJson(artifactManifestPath, artifactManifest);
   return {
     root,
+    gitEnv,
+    liveGitBefore,
     mainRoot,
     artifacts,
     artifactManifestPath,
@@ -215,7 +255,7 @@ function generate(f) {
     "1700000000",
     "--output-env-file",
     envPath,
-  ]);
+  ], { env: f.gitEnv });
   const evidence = JSON.parse(result.stdout);
   const env = Object.fromEntries(
     fs
@@ -260,8 +300,11 @@ test("declaration mode labels external ranges and binds exact local artifacts", 
       pkg.checksums?.some((checksum) => checksum.checksumValue === f.localRecord.sha256),
   );
   assert.ok(local);
-  const verified = runScript(["verify", "--evidence", env.RELEASE_EVIDENCE_MANIFEST_PATH]);
+  const verified = runScript(["verify", "--evidence", env.RELEASE_EVIDENCE_MANIFEST_PATH], {
+    env: f.gitEnv,
+  });
   assert.match(verified.stdout, /Verified packed-manifest-declarations SPDX evidence/u);
+  assertLiveGitUnchanged(f);
 });
 
 test("tracked lock mode is deterministic and records resolved direct dependencies", (t) => {
@@ -288,34 +331,50 @@ test("tracked lock mode is deterministic and records resolved direct dependencie
     spdx.documentNamespace,
     `https://github.com/tryingET/pi-extensions/sbom/sha256/${f.mainRecord.sha256}`,
   );
-  const verified = runScript(["verify", "--evidence", second.env.RELEASE_EVIDENCE_MANIFEST_PATH]);
+  const verified = runScript(["verify", "--evidence", second.env.RELEASE_EVIDENCE_MANIFEST_PATH], {
+    env: f.gitEnv,
+  });
   assert.match(verified.stdout, /Verified tagged-package-lock SPDX evidence/u);
+  assertLiveGitUnchanged(f);
 });
 
 test("untracked generated lockfiles never become tagged evidence", (t) => {
   const f = fixture(t, { trackedLock: true });
-  run("git", ["rm", "--cached", "--", path.relative(ROOT, f.lockPath)], { cwd: ROOT });
+  run("git", ["rm", "--cached", "--", path.relative(ROOT, f.lockPath)], { env: f.gitEnv });
   const { evidence } = generate(f);
   assert.equal(evidence.sbom.mode, "packed-manifest-declarations");
+  assertLiveGitUnchanged(f);
 });
 
 test("verification fails closed on SBOM, subject, and lock tampering", (t) => {
   const f = fixture(t, { trackedLock: true });
   let generated = generate(f);
   fs.appendFileSync(generated.env.RELEASE_SBOM_PATH, "tamper");
-  let result = runScript(["verify", "--evidence", generated.env.RELEASE_EVIDENCE_MANIFEST_PATH], true);
+  let result = runScript(["verify", "--evidence", generated.env.RELEASE_EVIDENCE_MANIFEST_PATH], {
+    expectFailure: true,
+    env: f.gitEnv,
+  });
   assert.match(`${result.stdout}\n${result.stderr}`, /SPDX SBOM evidence differs/u);
+  assertLiveGitUnchanged(f);
 
   fs.rmSync(f.root, { recursive: true, force: true });
   const subjectFixture = fixture(t, { trackedLock: true });
   generated = generate(subjectFixture);
   fs.appendFileSync(subjectFixture.mainTarball, "tamper");
-  result = runScript(["verify", "--evidence", generated.env.RELEASE_EVIDENCE_MANIFEST_PATH], true);
+  result = runScript(["verify", "--evidence", generated.env.RELEASE_EVIDENCE_MANIFEST_PATH], {
+    expectFailure: true,
+    env: subjectFixture.gitEnv,
+  });
   assert.match(`${result.stdout}\n${result.stderr}`, /Evidence subject SHA-256 changed/u);
+  assertLiveGitUnchanged(subjectFixture);
 
   const lockFixture = fixture(t, { trackedLock: true });
   generated = generate(lockFixture);
   fs.appendFileSync(lockFixture.lockPath, "\n");
-  result = runScript(["verify", "--evidence", generated.env.RELEASE_EVIDENCE_MANIFEST_PATH], true);
+  result = runScript(["verify", "--evidence", generated.env.RELEASE_EVIDENCE_MANIFEST_PATH], {
+    expectFailure: true,
+    env: lockFixture.gitEnv,
+  });
   assert.match(`${result.stdout}\n${result.stderr}`, /Tracked package-lock\.json digest differs/u);
+  assertLiveGitUnchanged(lockFixture);
 });

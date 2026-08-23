@@ -250,5 +250,5 @@ test("root full gate skips link validation when package validation is explicitly
   assert.equal(result.status, 23);
   const firstNodeCall = fs.readFileSync(logPath, "utf8");
   assert.doesNotMatch(firstNodeCall, /validate-local-package-links\.mjs/);
-  assert.match(firstNodeCall, /release-components\.mjs validate/);
+  assert.match(firstNodeCall, /rocs-validation\.test\.mjs/);
 });
