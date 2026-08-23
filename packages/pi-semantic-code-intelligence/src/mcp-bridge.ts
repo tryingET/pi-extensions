@@ -12,6 +12,11 @@ import {
   type SciCompositeToolName,
 } from "./tool-definitions.ts";
 
+export const PI_SCI_MCP_CLIENT_INFO = Object.freeze({
+  name: "pi-semantic-code-intelligence",
+  version: "0.1.1-rc.1",
+});
+
 export interface SciBridgeCallResult {
   content?: unknown[];
   isError?: boolean;
@@ -254,10 +259,7 @@ export class SciMcpBridge implements SciBridge {
       if (stderrTail.length > 20) stderrTail.shift();
     });
 
-    const client = new Client(
-      { name: "pi-semantic-code-intelligence", version: "0.1.0" },
-      { capabilities: {} },
-    );
+    const client = new Client(PI_SCI_MCP_CLIENT_INFO, { capabilities: {} });
 
     try {
       await client.connect(transport);

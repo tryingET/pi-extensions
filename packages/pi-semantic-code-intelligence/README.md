@@ -15,6 +15,21 @@ system4d:
 
 This private Pi package makes SCI's existing composite workflows first-class model-callable Pi tools. It removes the need for an agent to construct shell-wrapped CLI JSON calls or manually chain SCI primitives.
 
+## Compatibility identity and producer contract
+
+`@tryinget/pi-semantic-code-intelligence@0.1.1-rc.1` is the independently versioned private Pi companion candidate for producer SCI `2.1.0-rc.1`; mirroring the producer's `2.1.0-rc.1` package version would misstate the companion's own `0.1.x` lineage. The producer authority reviewed for this target is semantic-code-intelligence commit `aa5c23fa16d8589cb546997639fa1d576fdf8eff`, especially `docs/project/releases/2.1.0-rc.1.md` and `CHANGELOG.md` at that commit. This identifies a compatibility target, not a publication, distribution, or immutable-artifact claim.
+
+The minimum producer contract consumed or preserved by this companion is:
+
+- exactly six composite workflows: `explore_symbol_impact`, `locate_confirm_definition`, `rename_safely`, `structural_patch_checks`, `patch_checks_in_snapshot`, and `safe_write`;
+- structural public-API, state, registry, and test risk signals with explicit evidence/unknown accounting; path or name conventions remain low-confidence naming fallback rather than structural detection, and no signal claims whole-program semantics;
+- progressive `explore_symbol_impact` disclosure: `compact` is the bounded decision-first default, `standard` adds sparse normalized evidence under `details.schemaVersion: 2`, and `debug` adds separately bounded and redacted diagnostics;
+- a model/operator split in Pi: the compact/standard/debug model projection participates in model context, while the validated, disclosure-sanitized producer packet is retained only in a bounded TUI custom entry;
+- safe boundary recovery only for the exact allowlisted reason `outside_workspace`, projected to locally authored target-root/repo-relative guidance without producer prose, submitted paths, host paths, raw diagnostics, stderr, or stack traces;
+- preview-only native Pi schemas: no `apply` input, no `ALLOW_SNAPSHOT_APPLY`, and no companion authority to apply a producer snapshot to the working tree.
+
+The producer candidate supports installed CLI and MCP stdio for one trusted local operator and repository. Its experimental `semantic-code-intelligence experimental structural-evidence-receipt` command is outside that production-candidate interface commitment, and repository closeout receipt tooling is source-checkout-only. HTTP/MCP HTTP/LSP, hosted or network-exposed operation, multiple users or tenants, untrusted repositories, public publication, broad adoption/effectiveness claims, and performance/SLO claims remain unsupported. This companion does not promote those surfaces.
+
 ## Native tools
 
 | Intent | Native tool | Posture |

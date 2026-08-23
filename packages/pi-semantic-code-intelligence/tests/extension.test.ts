@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,10 +10,36 @@ import {
   SCI_COMPOSITE_TOOL_NAMES,
 } from "../extensions/semantic-code-intelligence.ts";
 import { validExplorePayload } from "../src/explore-result-validator.ts";
-import { assertSciSchemaCompatibility, type SciBridge, SciMcpBridge } from "../src/mcp-bridge.ts";
+import {
+  assertSciSchemaCompatibility,
+  PI_SCI_MCP_CLIENT_INFO,
+  type SciBridge,
+  SciMcpBridge,
+} from "../src/mcp-bridge.ts";
 import { SCI_COMPOSITE_TOOL_SPECS } from "../src/tool-definitions.ts";
 import { registerToolboxBundle } from "../src/toolboxBundle.ts";
 import { fakeExploreDetails } from "./explore-test-fixtures.ts";
+
+test("package, lock, and MCP client metadata share one companion identity", async () => {
+  const [packageText, lockText] = await Promise.all([
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../package-lock.json", import.meta.url), "utf8"),
+  ]);
+  const packageManifest = JSON.parse(packageText) as { name: string; version: string };
+  const lock = JSON.parse(lockText) as {
+    name: string;
+    version: string;
+    packages: Record<string, { name?: string; version?: string }>;
+  };
+  const packageClientName = packageManifest.name.replace(/^@[^/]+\//, "");
+
+  assert.equal(lock.name, packageManifest.name);
+  assert.equal(lock.version, packageManifest.version);
+  assert.equal(lock.packages[""]?.name, packageManifest.name);
+  assert.equal(lock.packages[""]?.version, packageManifest.version);
+  assert.equal(PI_SCI_MCP_CLIENT_INFO.name, packageClientName);
+  assert.equal(PI_SCI_MCP_CLIENT_INFO.version, packageManifest.version);
+});
 
 interface NativeToolResult {
   content: Array<{ type: string; text: string }>;
