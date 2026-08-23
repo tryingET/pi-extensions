@@ -1,0 +1,39 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "d8d48c16cf35b8626a1e04fc75e6cf8b87a9e995"
+created_at: "2026-08-23T22:30:00Z"
+intent: "Converge the governed orchestrator dependency closure on secure Pi 0.84.2 and one exact registry ASC owner"
+files:
+  - "packages/pi-autonomous-session-control/package-lock.json"
+  - "packages/pi-autonomous-session-control/package.json"
+  - "packages/pi-autoresearch/package-lock.json"
+  - "packages/pi-autoresearch/package.json"
+  - "packages/pi-society-orchestrator/package-lock.json"
+  - "packages/pi-society-orchestrator/package.json"
+  - "packages/pi-society-orchestrator/scripts/release-smoke.mjs"
+  - "packages/pi-society-orchestrator/src/runtime/governed-deep-review-preflight.ts"
+  - "packages/pi-society-orchestrator/src/runtime/governed-runtime-materialization.ts"
+  - "packages/pi-society-orchestrator/tests/governed-deep-review-preflight.test.mjs"
+  - "packages/pi-vault-client/package-lock.json"
+  - "packages/pi-vault-client/package.json"
+validation:
+  fast_gate:
+    command: "commit pre-commit hook"
+    status: "pass"
+  full_gate:
+    command: "four package checks/audits + 0.84.2 canary + orchestrator full release check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "One cross-package host and installed-owner closure with npm-generated locks"
+links:
+  task_ids:
+    - 4891
+  evidence_ids:
+    - 7375
+    - 7376
+    - 7377
+    - 7378
