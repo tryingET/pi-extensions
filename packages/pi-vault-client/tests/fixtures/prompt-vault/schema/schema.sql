@@ -7,8 +7,11 @@
 -- - Executions/feedback enable the quality feedback loop
 -- - Collections provide logical grouping without hierarchy
 --
--- Schema Version: 9
+-- Schema Version: 12
 -- Changelog:
+--   v12: Drop retrieval analytics tables; moved to SQLite sidecar (analytics.db)
+--   v11: Add retrieval_rollups table for bounded retrievals retention
+--   v10: Add retrievals table for retrieval-usage analytics
 --   v9: Add optional execution output capture with explicit privacy mode
 --   v8: Enforce one feedback row per execution via schema-level uniqueness
 --   v7: Add owner_company + visibility_companies governance boundary for prompts and skills
@@ -32,7 +35,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if not exists
 INSERT IGNORE INTO schema_version (version, description) VALUES (9, 'Add optional execution output capture with explicit privacy mode');
-INSERT IGNORE INTO schema_version (version, description) VALUES (10, 'Add retrievals table for retrieval-usage analytics');
+INSERT IGNORE INTO schema_version (version, description) VALUES (12, 'Drop retrieval analytics tables; moved to SQLite sidecar (analytics.db)');
 
 -- Core entity: reusable prompt templates
 -- Variables use pi syntax: $1, $2, $@, ${@:N}, ${@:N:M} (N and M must be positive integers)
@@ -122,22 +125,8 @@ CREATE TABLE IF NOT EXISTS executions (
     INDEX idx_created (created_at)
 );
 
--- Retrieval analytics: which templates were surfaced by vault_query/vault_retrieve
-CREATE TABLE IF NOT EXISTS retrievals (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    entity_type ENUM('template', 'skill') NOT NULL DEFAULT 'template',
-    entity_id INT NOT NULL,
-    entity_version INT,
-    tool ENUM('vault_query', 'vault_retrieve', 'other') NOT NULL,
-    query_context TEXT,                       -- JSON: filters or requested names (bounded)
-    selected_rank INT,                        -- 1-based rank in the returned list
-    result_count INT,                         -- total templates in that tool result
-    company VARCHAR(100),                     -- resolved company context
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_entity (entity_type, entity_id),
-    INDEX idx_tool (tool),
-    INDEX idx_created (created_at)
-);
+-- Retrieval analytics live in a SQLite sidecar (analytics.db), not here.
+-- See migrations/012_drop_retrieval_tables.sql and analytics_ensure in pv-lib.sh.
 
 -- Human judgment: the "learn" in the feedback loop
 -- High ratings → keep. Low ratings → iterate.

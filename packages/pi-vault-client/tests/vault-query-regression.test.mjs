@@ -38,8 +38,8 @@ const TRIGGER_ADAPTER_SOURCE = readFileSync(
 const PACKAGE_JSON_SOURCE = readFileSync(new URL("../package.json", import.meta.url), "utf8");
 const ROOT_INDEX_SOURCE = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
 
-test("vault runtime targets Prompt Vault schema v10", () => {
-  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s+10/);
+test("vault runtime targets Prompt Vault schema v12", () => {
+  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s+12/);
   assert.match(TYPES_SOURCE, /const\s+DEFAULT_VAULT_QUERY_LIMIT\s*=\s*20/);
   assert.match(SCHEMA_SOURCE, /SELECT MAX\(version\) AS version FROM schema_version/);
   assert.match(DB_SOURCE, /checkSchemaCompatibilityDetailed as computeSchemaCompatibilityDetailed/);
