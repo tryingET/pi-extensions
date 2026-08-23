@@ -128,6 +128,7 @@ test("fast mode publishes rabbit and turtle footer status across toggles and mod
       path.join(configDir, "better-openai.json"),
       JSON.stringify({
         persistState: false,
+        desiredActive: false,
         supportedModels: ["openai/gpt-5.4"],
       }),
     );
