@@ -3,6 +3,12 @@ import { validEditRisk } from "./explore-risk-validator.ts";
 
 export type ExploreMode = "compact" | "standard" | "debug";
 
+type ValidatedImpact = Record<string, unknown> & {
+  files: Array<Record<string, unknown>>;
+  totalFiles: number;
+  truncated: boolean;
+};
+
 export function validExplorePayload(
   value: unknown,
   expectedMode: ExploreMode,
@@ -59,11 +65,22 @@ export function validExplorePayload(
   if (!onlyKeys(packet, allowed) || !packet.nextReads.every(validNextRead)) return false;
 
   if (confirmed) {
+    const definitions = record(packet.definitions);
+    const impact = packet.impact;
     if (
       !validLocation(packet.definition) ||
-      !exactNumberRecord(packet.definitions, ["count"]) ||
-      !validImpact(packet.impact) ||
-      !validEditRisk(packet.editRisk, Number(record(packet.impact)?.totalFiles), packet.degraded)
+      !exactNumberRecord(definitions, ["count"]) ||
+      Number(definitions?.count) < 1 ||
+      !validImpact(impact) ||
+      !validEditRisk(
+        packet.editRisk,
+        {
+          totalFiles: impact.totalFiles,
+          truncated: impact.truncated,
+          emittedPaths: new Set(impact.files.map((item) => String(item.path))),
+        },
+        packet.degraded,
+      )
     ) {
       return false;
     }
@@ -81,16 +98,25 @@ export function validExplorePayload(
   return validExploreDetails(packet.details, expectedMode);
 }
 
-function validImpact(value: unknown): boolean {
+function validImpact(value: unknown): value is ValidatedImpact {
   const impact = record(value);
-  return !!(
-    impact &&
-    onlyKeys(impact, ["files", "totalFiles", "truncated"]) &&
-    Array.isArray(impact.files) &&
-    impact.files.length <= 25 &&
-    impact.files.every(validRankedFile) &&
-    nonnegativeInteger(impact.totalFiles) &&
-    typeof impact.truncated === "boolean"
+  if (
+    !impact ||
+    !onlyKeys(impact, ["files", "totalFiles", "truncated"]) ||
+    !Array.isArray(impact.files) ||
+    impact.files.length > 25 ||
+    !impact.files.every(validRankedFile) ||
+    !nonnegativeInteger(impact.totalFiles) ||
+    Number(impact.totalFiles) < 1 ||
+    typeof impact.truncated !== "boolean"
+  ) {
+    return false;
+  }
+  const paths = impact.files.map((item) => String(record(item)?.path));
+  return (
+    new Set(paths).size === paths.length &&
+    Number(impact.totalFiles) >= impact.files.length &&
+    impact.truncated === Number(impact.totalFiles) > impact.files.length
   );
 }
 
@@ -170,7 +196,7 @@ function stringArray(value: unknown, max: number): boolean {
 }
 
 function nonnegativeInteger(value: unknown): boolean {
-  return Number.isInteger(value) && Number(value) >= 0;
+  return Number.isSafeInteger(value) && Number(value) >= 0;
 }
 
 function optionalNumber(value: unknown): boolean {

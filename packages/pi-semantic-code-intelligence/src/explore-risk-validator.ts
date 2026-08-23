@@ -1,5 +1,13 @@
 const SIGNAL_NAMES = ["publicApi", "state", "registry", "tests"] as const;
 type SignalName = (typeof SIGNAL_NAMES)[number];
+
+export type RiskImpactContext = {
+  totalFiles: number;
+  truncated: boolean;
+  emittedPaths: ReadonlySet<string>;
+};
+
+const DEGRADED_RISK_REASON = "Impact evidence is degraded by failed or unusable evidence.";
 type StructuralCounter =
   | "targetOccurrencesAnalyzed"
   | "symbolBodiesAnalyzed"
@@ -136,12 +144,19 @@ const STRUCTURAL_KEYS = [
   "limitations",
 ] as const;
 
-export function validEditRisk(value: unknown, totalFiles: number, degraded: boolean): boolean {
+export function validEditRisk(
+  value: unknown,
+  impact: RiskImpactContext,
+  degraded: boolean,
+): boolean {
   const risk = record(value);
   const signals = record(risk?.signals);
   const analysis = record(risk?.analysis);
   const structural = record(analysis?.structural);
   if (
+    !Number.isSafeInteger(impact.totalFiles) ||
+    impact.totalFiles < 1 ||
+    typeof impact.truncated !== "boolean" ||
     !risk ||
     !onlyKeys(risk, ["level", "reasons", "signals", "analysis"]) ||
     typeof risk.level !== "string" ||
@@ -153,7 +168,7 @@ export function validEditRisk(value: unknown, totalFiles: number, degraded: bool
     !onlyKeys(analysis, ["structural"]) ||
     !structural ||
     !validStructuralAnalysis(structural) ||
-    !SIGNAL_NAMES.every((key) => validRiskSignal(key, signals[key], structural))
+    !SIGNAL_NAMES.every((key) => validRiskSignal(key, signals[key], structural, impact))
   ) {
     return false;
   }
@@ -161,7 +176,8 @@ export function validEditRisk(value: unknown, totalFiles: number, degraded: bool
   const elevated = detected.some(
     (key) => key === "publicApi" || key === "state" || key === "registry",
   );
-  const expectedLevel = degraded || elevated ? "high" : totalFiles > 3 ? "medium" : "unknown";
+  const expectedLevel =
+    degraded || elevated ? "high" : impact.totalFiles > 3 ? "medium" : "unknown";
   const expectedReasons = [
     ...(detected.includes("publicApi")
       ? ["Target-specific export evidence means downstream consumers may be affected."]
@@ -173,7 +189,7 @@ export function validEditRisk(value: unknown, totalFiles: number, degraded: bool
     ...(detected.includes("tests")
       ? ["Structurally identified impacted tests provide a focused validation target."]
       : []),
-    ...(degraded ? ["Impact evidence is degraded by failed subcalls."] : []),
+    ...(degraded ? [DEGRADED_RISK_REASON] : []),
     ...(expectedLevel === "unknown"
       ? ["No supported structural evidence established a low semantic edit risk."]
       : []),
@@ -187,6 +203,7 @@ function validRiskSignal(
   name: SignalName,
   value: unknown,
   structural: Record<string, unknown>,
+  impact: RiskImpactContext,
 ): boolean {
   const signal = record(value);
   const fallback = record(signal?.namingFallback);
@@ -203,14 +220,13 @@ function validRiskSignal(
       "namingFallback",
     ]) ||
     typeof signal.detected !== "boolean" ||
-    !boundedStringArray(signal.files, 25, 1_024) ||
-    !nonnegativeInteger(signal.hiddenFiles) ||
+    !validSignalFiles(signal.files, signal.hiddenFiles, impact) ||
     !boundedStringArray(signal.reasons, 4, 200) ||
     !uniqueStringArray(signal.reasons) ||
     !boundedStringArray(signal.provenance, 4, 80) ||
     !uniqueStringArray(signal.provenance) ||
     !fallback ||
-    !validNamingFallback(name, fallback)
+    !validNamingFallback(name, fallback, impact)
   ) {
     return false;
   }
@@ -267,17 +283,41 @@ function evidenceReasonMatches(contract: EvidenceContract, reason: string): bool
   );
 }
 
+function validSignalFiles(
+  files: unknown,
+  hiddenFiles: unknown,
+  impact: RiskImpactContext,
+): files is string[] {
+  if (
+    !boundedStringArray(files, 25, 1_024) ||
+    !uniqueStringArray(files) ||
+    !nonnegativeInteger(hiddenFiles)
+  ) {
+    return false;
+  }
+  const hidden = Number(hiddenFiles);
+  return (
+    files.length + hidden <= impact.totalFiles &&
+    hidden < impact.totalFiles &&
+    (impact.truncated || hidden === 0) &&
+    (impact.truncated || files.every((file) => impact.emittedPaths.has(file)))
+  );
+}
+
 function stringArraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((item, index) => item === right[index]);
 }
 
-function validNamingFallback(name: SignalName, value: Record<string, unknown>): boolean {
+function validNamingFallback(
+  name: SignalName,
+  value: Record<string, unknown>,
+  impact: RiskImpactContext,
+): boolean {
   if (
     !onlyKeys(value, ["observed", "confidence", "files", "hiddenFiles", "reasons", "provenance"]) ||
     typeof value.observed !== "boolean" ||
     value.confidence !== "low" ||
-    !boundedStringArray(value.files, 25, 1_024) ||
-    !nonnegativeInteger(value.hiddenFiles) ||
+    !validSignalFiles(value.files, value.hiddenFiles, impact) ||
     !boundedStringArray(value.reasons, 4, 200) ||
     !uniqueStringArray(value.reasons) ||
     !boundedStringArray(value.provenance, 1, 80) ||
@@ -333,12 +373,37 @@ function validStructuralAnalysis(value: unknown): boolean {
   }
 
   const n = (key: string) => Number(item[key]);
+  const specializedCounters = [
+    "targetOccurrencesObserved",
+    "targetOccurrencesAnalyzed",
+    "omittedTargetOccurrences",
+    "symbolBodiesObserved",
+    "symbolBodiesAnalyzed",
+    "omittedSymbolBodies",
+    "writeNodesObserved",
+    "writeNodesAnalyzed",
+    "omittedWriteNodes",
+    "importNodesObserved",
+    "importNodesAnalyzed",
+    "omittedImportNodes",
+  ] as const;
+  const hasSpecializedWork = specializedCounters.some((key) => n(key) > 0);
+  const completedFiles =
+    n("attemptedFiles") - n("failedFiles") - n("oversizedFiles") - n("totalBudgetRejectedFiles");
+  if (!stringArraysEqual(item.limitations as string[], expectedStructuralLimitations(item))) {
+    return false;
+  }
+
   return (
-    n("selectedFiles") <= n("fileBudget") &&
+    n("selectedFiles") === Math.min(n("observedFiles"), n("fileBudget")) &&
     n("observedFiles") === n("selectedFiles") + n("filesOmittedByFileBudget") &&
     n("selectedFiles") === n("attemptedFiles") + n("unattemptedFiles") &&
-    n("attemptedFiles") ===
+    n("analyzedFiles") + n("oversizedFiles") + n("totalBudgetRejectedFiles") <=
+      n("attemptedFiles") &&
+    n("failedFiles") + n("oversizedFiles") + n("totalBudgetRejectedFiles") <= n("attemptedFiles") &&
+    n("attemptedFiles") <=
       n("analyzedFiles") + n("failedFiles") + n("oversizedFiles") + n("totalBudgetRejectedFiles") &&
+    n("totalBudgetRejectedFiles") <= 1 &&
     n("filesOmittedByTotalByteBudget") === n("totalBudgetRejectedFiles") + n("unattemptedFiles") &&
     n("omittedFiles") === n("filesOmittedByFileBudget") + n("filesOmittedByTotalByteBudget") &&
     n("observedCandidates") ===
@@ -346,25 +411,55 @@ function validStructuralAnalysis(value: unknown): boolean {
     n("selectedCandidates") >= n("selectedFiles") &&
     n("selectedCandidates") <= n("selectedFiles") * n("candidateBudgetPerFile") &&
     n("candidatesOmittedByFileBudget") >= n("filesOmittedByFileBudget") &&
+    n("candidatesOmittedByFileBudget") <=
+      n("filesOmittedByFileBudget") * n("candidateBudgetPerFile") &&
     n("candidatesOmittedByFileBudget") <= n("omittedCandidates") &&
+    n("candidatesOmittedByFileBudget") > 0 === n("filesOmittedByFileBudget") > 0 &&
+    (n("omittedCandidates") === n("candidatesOmittedByFileBudget") ||
+      n("selectedCandidates") + n("candidatesOmittedByFileBudget") >=
+        n("candidateBudgetPerFile")) &&
     n("sourceBytesAnalyzed") <= n("sourceBytesRead") &&
     n("sourceBytesRead") - n("sourceBytesAnalyzed") <=
       n("failedFiles") * n("sourceFileByteBudget") &&
-    n("sourceBytesAnalyzed") <=
-      (n("analyzedFiles") + n("failedFiles")) * n("sourceFileByteBudget") &&
+    n("sourceBytesAnalyzed") <= (completedFiles + n("failedFiles")) * n("sourceFileByteBudget") &&
     minimumFailedFilesForSourceBytes(item) <= n("failedFiles") &&
     n("sourceBytesRead") <= n("totalSourceByteBudget") &&
-    n("sourceBytesRead") <= n("attemptedFiles") * n("sourceFileByteBudget") &&
-    n("astNodesInspected") <= n("astNodeBudgetPerFile") * n("analyzedFiles") &&
-    n("astWorkUnits") <= n("astWorkUnitBudgetPerFile") * n("analyzedFiles") &&
-    n("astNodeBudgetHits") <= n("analyzedFiles") &&
-    n("astWorkBudgetHits") <= n("analyzedFiles") &&
-    n("astNodesInspected") >= n("astNodeBudgetHits") * n("astNodeBudgetPerFile") &&
+    n("sourceBytesRead") <= (completedFiles + n("failedFiles")) * n("sourceFileByteBudget") &&
+    completedFiles >= 0 &&
+    completedFiles <= n("analyzedFiles") &&
+    n("astNodesInspected") <= n("astNodeBudgetPerFile") * completedFiles &&
+    n("astWorkUnits") <= n("astWorkUnitBudgetPerFile") * completedFiles &&
+    n("astNodesInspected") >= completedFiles &&
+    n("astWorkUnits") >= completedFiles &&
+    n("astNodesInspected") <= n("astWorkUnits") &&
+    n("astNodeBudgetHits") <= completedFiles &&
+    n("astWorkBudgetHits") <= completedFiles &&
+    n("astNodeBudgetHits") <= n("astWorkBudgetHits") &&
+    n("astNodesInspected") >=
+      n("astNodeBudgetHits") * Math.min(n("astNodeBudgetPerFile"), n("astWorkUnitBudgetPerFile")) &&
     n("astWorkUnits") >= n("astWorkBudgetHits") * n("astWorkUnitBudgetPerFile") &&
-    n("targetOccurrencesAnalyzed") <= n("targetOccurrenceBudgetPerFile") * n("analyzedFiles") &&
-    n("symbolBodiesAnalyzed") <= n("symbolBodyBudgetPerFile") * n("analyzedFiles") &&
-    n("writeNodesAnalyzed") <= n("writeNodeBudgetPerFile") * n("analyzedFiles") &&
-    n("importNodesAnalyzed") <= n("importNodeBudgetPerFile") * n("analyzedFiles") &&
+    (n("astWorkBudgetHits") > 0 ||
+      n("astWorkUnits") >=
+        n("astNodesInspected") +
+          2 * n("targetOccurrencesAnalyzed") +
+          Number(n("writeNodesAnalyzed") > 0)) &&
+    n("targetOccurrencesObserved") + n("writeNodesObserved") + n("importNodesObserved") <=
+      n("astNodesInspected") &&
+    n("symbolBodiesObserved") <= n("targetOccurrencesAnalyzed") &&
+    n("targetOccurrencesAnalyzed") <= n("targetOccurrenceBudgetPerFile") * completedFiles &&
+    n("symbolBodiesAnalyzed") <= n("symbolBodyBudgetPerFile") * completedFiles &&
+    n("writeNodesAnalyzed") <= n("writeNodeBudgetPerFile") * completedFiles &&
+    n("importNodesAnalyzed") <= n("importNodeBudgetPerFile") * completedFiles &&
+    (n("omittedTargetOccurrences") === 0 ||
+      n("targetOccurrencesAnalyzed") >= n("targetOccurrenceBudgetPerFile")) &&
+    (n("omittedSymbolBodies") === 0 || n("symbolBodiesAnalyzed") >= n("symbolBodyBudgetPerFile")) &&
+    (n("omittedWriteNodes") === 0 || n("writeNodesAnalyzed") >= n("writeNodeBudgetPerFile")) &&
+    (n("omittedImportNodes") === 0 || n("importNodesAnalyzed") >= n("importNodeBudgetPerFile")) &&
+    (!hasSpecializedWork ||
+      (n("analyzedFiles") > 0 &&
+        n("sourceBytesAnalyzed") > 0 &&
+        n("astNodesInspected") > 0 &&
+        n("astWorkUnits") > 0)) &&
     n("filesOmittedByTotalByteBudget") > 0 === item.totalSourceByteBudgetExhausted &&
     (!item.totalSourceByteBudgetExhausted ||
       n("sourceBytesRead") > n("totalSourceByteBudget") - n("sourceFileByteBudget")) &&
@@ -375,11 +470,54 @@ function validStructuralAnalysis(value: unknown): boolean {
   );
 }
 
+function expectedStructuralLimitations(item: Record<string, unknown>): string[] {
+  const n = (key: string) => Number(item[key]);
+  return [
+    ...(n("omittedCandidates") > 0
+      ? ["Structural source candidates exceeded an analysis budget and were omitted."]
+      : []),
+    ...(n("omittedFiles") > 0
+      ? ["Structural source files exceeded an analysis budget and were omitted deterministically."]
+      : []),
+    ...(n("oversizedFiles") > 0
+      ? [
+          "Oversized structural source files were not read or parsed; affected signals remain unknown.",
+        ]
+      : []),
+    ...(n("failedFiles") > 0
+      ? [
+          "Structural source analysis failed for one or more files; affected signals remain unknown.",
+        ]
+      : []),
+    ...(n("astNodeBudgetHits") > 0 || n("astWorkBudgetHits") > 0
+      ? [
+          "Structural AST analysis reached a deterministic work budget; affected signals remain unknown.",
+        ]
+      : []),
+    ...(n("omittedTargetOccurrences") > 0 ||
+    n("omittedSymbolBodies") > 0 ||
+    n("omittedWriteNodes") > 0 ||
+    n("omittedImportNodes") > 0
+      ? ["Structural AST evidence exceeded an item budget and was omitted deterministically."]
+      : []),
+    ...(item.totalSourceByteBudgetExhausted
+      ? [
+          "Structural source analysis reached its total byte budget; remaining signals remain unknown.",
+        ]
+      : []),
+  ].sort();
+}
+
 function minimumFailedFilesForSourceBytes(item: Record<string, unknown>): number {
   const perFile = Number(item.sourceFileByteBudget);
   const sourceRead = Number(item.sourceBytesRead);
   const sourceAnalyzed = Number(item.sourceBytesAnalyzed);
-  const parsedCapacity = Number(item.analyzedFiles) * perFile;
+  const completedFiles =
+    Number(item.attemptedFiles) -
+    Number(item.failedFiles) -
+    Number(item.oversizedFiles) -
+    Number(item.totalBudgetRejectedFiles);
+  const parsedCapacity = completedFiles * perFile;
   const postReadFailures = Math.ceil(Math.max(0, sourceAnalyzed - parsedCapacity) / perFile);
   const partialBytes = sourceRead - sourceAnalyzed;
   const partialReadFailures = Math.ceil(partialBytes / (perFile - 1));

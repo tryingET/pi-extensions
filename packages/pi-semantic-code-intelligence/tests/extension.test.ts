@@ -50,6 +50,12 @@ type SchemaFixture = {
 };
 
 type MutableExplorePacket = Record<string, unknown> & {
+  degraded: unknown;
+  impact: {
+    files: Array<Record<string, unknown>>;
+    totalFiles: unknown;
+    truncated: unknown;
+  };
   editRisk: {
     level: unknown;
     reasons: unknown;
@@ -140,7 +146,9 @@ function fakeStructuralAnalysis() {
     importNodesObserved: 0,
     importNodesAnalyzed: 0,
     omittedImportNodes: 0,
-    limitations: ["Structural source analysis failed for one or more files."],
+    limitations: [
+      "Structural source analysis failed for one or more files; affected signals remain unknown.",
+    ],
   };
 }
 
@@ -360,8 +368,8 @@ test("native validator accepts structural risk evidence and rejects forged neste
     failedFiles: 0,
     sourceBytesRead: 100,
     sourceBytesAnalyzed: 100,
-    astNodesInspected: 1,
-    astWorkUnits: 1,
+    astNodesInspected: 2,
+    astWorkUnits: 6,
     targetOccurrencesObserved: 1,
     targetOccurrencesAnalyzed: 1,
     limitations: [],
@@ -385,6 +393,13 @@ test("native validator accepts structural risk evidence and rejects forged neste
       provenance: ["fallback.naming"],
     },
   };
+  detected.impact.files.push({
+    path: "src/public-api.ts",
+    score: 1,
+    reasons: ["reference"],
+    signals: [],
+  });
+  detected.impact.totalFiles = 2;
   assert.equal(validExplorePayload(detected, "compact"), true);
 
   const graphDetectedWithFailedSourceAnalysis = structuredClone(packet) as MutableExplorePacket;
@@ -448,6 +463,8 @@ test("native validator accepts structural risk evidence and rejects forged neste
   truncatedStateReasons.editRisk.reasons = ["Structural write evidence requires invariant review."];
   truncatedStateReasons.editRisk.signals.publicApi = fakeRiskSignal();
   Object.assign(truncatedStateReasons.editRisk.analysis.structural, {
+    astNodesInspected: 4,
+    astWorkUnits: 12,
     symbolBodiesObserved: 1,
     symbolBodiesAnalyzed: 1,
     writeNodesObserved: 1,
@@ -506,9 +523,12 @@ test("native validator accepts structural risk evidence and rejects forged neste
     selectedCandidates: 9,
     sourceBytesRead: 4_000_000,
     sourceBytesAnalyzed: 4_000_000,
+    astNodesInspected: 8,
+    astWorkUnits: 8,
     totalSourceByteBudgetExhausted: true,
     limitations: [
       "Structural source analysis reached its total byte budget; remaining signals remain unknown.",
+      "Structural source files exceeded an analysis budget and were omitted deterministically.",
     ],
   });
   assert.equal(validExplorePayload(exhausted, "compact"), true);
@@ -526,7 +546,275 @@ test("native validator accepts structural risk evidence and rejects forged neste
   });
   assert.equal(validExplorePayload(mixedFailuresAcrossTwoFiles, "compact"), true);
 
+  const lawfulPacketFitRemoval = mutatedPacket(graphDetectedWithFailedSourceAnalysis, (value) => {
+    value.impact.files = [];
+    value.impact.totalFiles = 1;
+    value.impact.truncated = true;
+  });
+  assert.equal(validExplorePayload(lawfulPacketFitRemoval, "compact"), true);
+
+  const lawfulHiddenSignal = mutatedPacket(graphDetectedWithFailedSourceAnalysis, (value) => {
+    value.impact.totalFiles = 2;
+    value.impact.truncated = true;
+    value.editRisk.signals.publicApi.hiddenFiles = 1;
+  });
+  assert.equal(validExplorePayload(lawfulHiddenSignal, "compact"), true);
+
+  const lawfulPostParseFailureOverlap = mutatedPacket(packet, (value) => {
+    Object.assign(value.editRisk.analysis.structural, {
+      analyzedFiles: 1,
+      sourceBytesRead: 100,
+      sourceBytesAnalyzed: 100,
+    });
+  });
+  assert.equal(validExplorePayload(lawfulPostParseFailureOverlap, "compact"), true);
+
+  const lawfulEarlyNodeBudgetHit = mutatedPacket(packet, (value) => {
+    Object.assign(value.editRisk.analysis.structural, {
+      analyzedFiles: 1,
+      failedFiles: 0,
+      sourceBytesRead: 100,
+      sourceBytesAnalyzed: 100,
+      astNodesInspected: 10_000,
+      astNodeBudgetHits: 1,
+      astWorkUnits: 10_000,
+      astWorkBudgetHits: 1,
+      limitations: [
+        "Structural AST analysis reached a deterministic work budget; affected signals remain unknown.",
+      ],
+    });
+  });
+  assert.equal(validExplorePayload(lawfulEarlyNodeBudgetHit, "compact"), true);
+
+  const lawfulWriteInspection = mutatedPacket(packet, (value) => {
+    Object.assign(value.editRisk.analysis.structural, {
+      analyzedFiles: 1,
+      failedFiles: 0,
+      sourceBytesRead: 1,
+      sourceBytesAnalyzed: 1,
+      astNodesInspected: 1,
+      astWorkUnits: 2,
+      writeNodesObserved: 1,
+      writeNodesAnalyzed: 1,
+      limitations: [],
+    });
+  });
+  assert.equal(validExplorePayload(lawfulWriteInspection, "compact"), true);
+
+  const degraded = mutatedPacket(packet, (value) => {
+    value.degraded = true;
+    value.editRisk.level = "high";
+    value.editRisk.reasons = ["Impact evidence is degraded by failed or unusable evidence."];
+  });
+  assert.equal(validExplorePayload(degraded, "compact"), true);
+
   const invalidPackets = [
+    mutatedPacket(packet, (value) => {
+      value.impact.truncated = true;
+    }),
+    mutatedPacket(packet, (value) => {
+      value.impact.totalFiles = 2;
+    }),
+    mutatedPacket(packet, (value) => {
+      value.impact.totalFiles = 0;
+    }),
+    mutatedPacket(packet, (value) => {
+      value.impact.files.push(structuredClone(value.impact.files[0] as Record<string, unknown>));
+      value.impact.totalFiles = 2;
+    }),
+    mutatedPacket(graphDetectedWithFailedSourceAnalysis, (value) => {
+      value.editRisk.signals.publicApi.hiddenFiles = 1;
+    }),
+    mutatedPacket(lawfulPacketFitRemoval, (value) => {
+      value.editRisk.signals.publicApi.files = [];
+      value.editRisk.signals.publicApi.hiddenFiles = 1;
+    }),
+    mutatedPacket(lawfulPacketFitRemoval, (value) => {
+      value.editRisk.signals.publicApi.namingFallback = {
+        observed: true,
+        confidence: "low",
+        files: [],
+        hiddenFiles: 1,
+        reasons: [
+          "A conventional public/api/index/export name matched, but no target-specific export was proved.",
+        ],
+        provenance: ["fallback.naming"],
+      };
+    }),
+    mutatedPacket(graphDetectedWithFailedSourceAnalysis, (value) => {
+      value.editRisk.signals.publicApi.files = ["src/forged.ts"];
+    }),
+    mutatedPacket(graphDetectedWithFailedSourceAnalysis, (value) => {
+      value.impact.files = [];
+      value.impact.truncated = true;
+      Object.assign(value.editRisk.signals.publicApi, {
+        files: ["src/target.ts"],
+        hiddenFiles: 1,
+      });
+    }),
+    mutatedPacket(lawfulHiddenSignal, (value) => {
+      value.editRisk.signals.publicApi.files = ["src/target.ts", "src/target.ts"];
+      value.editRisk.signals.publicApi.hiddenFiles = 0;
+    }),
+    mutatedPacket(detected, (value) => {
+      const fallback = value.editRisk.signals.publicApi.namingFallback as Record<string, unknown>;
+      fallback.files = ["src/forged.ts"];
+    }),
+    mutatedPacket(detected, (value) => {
+      value.editRisk.analysis.structural.astWorkUnits = 1;
+    }),
+    mutatedPacket(lawfulPostParseFailureOverlap, (value) => {
+      value.editRisk.analysis.structural.astNodesInspected = 1;
+      value.editRisk.analysis.structural.astWorkUnits = 1;
+    }),
+    mutatedPacket(lawfulWriteInspection, (value) => {
+      value.editRisk.analysis.structural.astWorkUnits = 1;
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 2,
+        selectedFiles: 2,
+        attemptedFiles: 2,
+        analyzedFiles: 1,
+        failedFiles: 1,
+        oversizedFiles: 1,
+        observedCandidates: 2,
+        selectedCandidates: 2,
+        sourceBytesRead: 1_048_576,
+        sourceBytesAnalyzed: 1_048_576,
+        limitations: [
+          "Oversized structural source files were not read or parsed; affected signals remain unknown.",
+          "Structural source analysis failed for one or more files; affected signals remain unknown.",
+        ],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 65,
+        selectedFiles: 64,
+        attemptedFiles: 64,
+        failedFiles: 64,
+        omittedFiles: 1,
+        filesOmittedByFileBudget: 1,
+        observedCandidates: 1_064,
+        selectedCandidates: 64,
+        omittedCandidates: 1_000,
+        candidatesOmittedByFileBudget: 1_000,
+        limitations: [
+          "Structural source analysis failed for one or more files; affected signals remain unknown.",
+          "Structural source candidates exceeded an analysis budget and were omitted.",
+          "Structural source files exceeded an analysis budget and were omitted deterministically.",
+        ],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedFiles: 2,
+        selectedFiles: 1,
+        attemptedFiles: 1,
+        omittedFiles: 1,
+        filesOmittedByFileBudget: 1,
+        observedCandidates: 2,
+        selectedCandidates: 1,
+        omittedCandidates: 1,
+        candidatesOmittedByFileBudget: 1,
+        limitations: [
+          "Structural source analysis failed for one or more files; affected signals remain unknown.",
+          "Structural source candidates exceeded an analysis budget and were omitted.",
+          "Structural source files exceeded an analysis budget and were omitted deterministically.",
+        ],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        observedCandidates: 2,
+        selectedCandidates: 1,
+        omittedCandidates: 1,
+        limitations: [
+          "Structural source analysis failed for one or more files; affected signals remain unknown.",
+          "Structural source candidates exceeded an analysis budget and were omitted.",
+        ],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        analyzedFiles: 1,
+        failedFiles: 0,
+        sourceBytesRead: 1,
+        sourceBytesAnalyzed: 1,
+        astNodesInspected: 1,
+        astWorkUnits: 1,
+        targetOccurrencesObserved: 1,
+        omittedTargetOccurrences: 1,
+        limitations: [
+          "Structural AST evidence exceeded an item budget and was omitted deterministically.",
+        ],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        analyzedFiles: 1,
+        failedFiles: 0,
+        sourceBytesRead: 1,
+        sourceBytesAnalyzed: 1,
+        astNodesInspected: 1,
+        astWorkUnits: 3,
+        targetOccurrencesObserved: 1,
+        targetOccurrencesAnalyzed: 1,
+        writeNodesObserved: 1,
+        writeNodesAnalyzed: 1,
+        importNodesObserved: 1,
+        importNodesAnalyzed: 1,
+        limitations: [],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        analyzedFiles: 1,
+        failedFiles: 0,
+        limitations: [],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        analyzedFiles: 1,
+        failedFiles: 0,
+        targetOccurrencesObserved: 1,
+        targetOccurrencesAnalyzed: 1,
+        limitations: [],
+      });
+    }),
+    mutatedPacket(packet, (value) => {
+      Object.assign(value.editRisk.analysis.structural, {
+        analyzedFiles: 1,
+        failedFiles: 0,
+        sourceBytesRead: 1,
+        sourceBytesAnalyzed: 1,
+        astNodesInspected: 1,
+        astWorkUnits: 1,
+        targetOccurrencesObserved: 4_096,
+        targetOccurrencesAnalyzed: 4_096,
+        symbolBodiesObserved: 256,
+        symbolBodiesAnalyzed: 256,
+        writeNodesObserved: 4_096,
+        writeNodesAnalyzed: 4_096,
+        importNodesObserved: 1_024,
+        importNodesAnalyzed: 1_024,
+        limitations: [],
+      });
+    }),
+    mutatedPacket(lawfulEarlyNodeBudgetHit, (value) => {
+      value.editRisk.analysis.structural.astNodesInspected = 1;
+    }),
+    mutatedPacket(packet, (value) => {
+      value.editRisk.analysis.structural.limitations = [];
+    }),
+    mutatedPacket(lawfulEarlyNodeBudgetHit, (value) => {
+      value.editRisk.analysis.structural.limitations = [];
+    }),
+    mutatedPacket(degraded, (value) => {
+      value.editRisk.reasons = ["Impact evidence is degraded by failed subcalls."];
+    }),
     (() => {
       const value = structuredClone(packet) as MutableExplorePacket;
       value.editRisk.signals.publicApi.status = "detected";
