@@ -58,6 +58,7 @@ function createTranspiledVaultModules() {
   return createTranspiledModuleHarness({
     prefix: "vault-dolt-",
     files: [
+      "src/generatedPromptVaultContract.ts",
       "src/vaultTypes.ts",
       "src/companyContext.ts",
       "src/vaultSchema.ts",
@@ -869,15 +870,19 @@ test("vault runtime fails closed when a governed contract file contains invalid 
   }
 });
 
-test("vault runtime exposes detailed schema compatibility diagnostics for v12", async () => {
+test("vault runtime exposes range + epoch compatibility diagnostics for v13", async () => {
   await withTempVaultRuntime(async ({ importModule, repoDir }) => {
     const { createVaultRuntime } = await importModule("src/vaultDb.js");
     const runtime = createVaultRuntime();
 
     const okReport = runtime.checkSchemaCompatibilityDetailed();
     assert.equal(okReport.ok, true);
-    assert.equal(okReport.expectedVersion, 12);
-    assert.equal(okReport.actualVersion, 12);
+    assert.equal(okReport.minimumVersion, 9);
+    assert.equal(okReport.maximumTestedVersion, 13);
+    assert.equal(okReport.actualVersion, 13);
+    assert.equal(okReport.versionStatus, "compatible");
+    assert.equal(okReport.actualCompatibilityEpoch, 1);
+    assert.equal(okReport.compatibilityEpochStatus, "compatible");
     assert.deepEqual(okReport.missingPromptTemplateColumns, []);
     assert.deepEqual(okReport.missingExecutionColumns, []);
     assert.deepEqual(okReport.missingFeedbackColumns, []);
@@ -886,8 +891,8 @@ test("vault runtime exposes detailed schema compatibility diagnostics for v12", 
 
     const mismatchReport = runtime.checkSchemaCompatibilityDetailed();
     assert.equal(mismatchReport.ok, false);
-    assert.equal(mismatchReport.expectedVersion, 12);
-    assert.equal(mismatchReport.actualVersion, 12);
+    assert.equal(mismatchReport.minimumVersion, 9);
+    assert.equal(mismatchReport.actualVersion, 13);
     assert.deepEqual(mismatchReport.missingExecutionColumns, ["output_text"]);
   });
 });

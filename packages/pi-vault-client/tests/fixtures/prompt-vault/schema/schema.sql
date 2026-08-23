@@ -7,8 +7,9 @@
 -- - Executions/feedback enable the quality feedback loop
 -- - Collections provide logical grouping without hierarchy
 --
--- Schema Version: 12
+-- Schema Version: 13
 -- Changelog:
+--   v13: Add explicit client compatibility epoch contract
 --   v12: Drop retrieval analytics tables; moved to SQLite sidecar (analytics.db)
 --   v11: Add retrieval_rollups table for bounded retrievals retention
 --   v10: Add retrievals table for retrieval-usage analytics
@@ -35,7 +36,25 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version if not exists
 INSERT IGNORE INTO schema_version (version, description) VALUES (9, 'Add optional execution output capture with explicit privacy mode');
-INSERT IGNORE INTO schema_version (version, description) VALUES (12, 'Drop retrieval analytics tables; moved to SQLite sidecar (analytics.db)');
+INSERT IGNORE INTO schema_version (version, description) VALUES (13, 'Add explicit client compatibility epoch contract');
+
+-- Consumer compatibility: migration versions may advance independently;
+-- compatibility_epoch changes only for a breaking consumer contract.
+CREATE TABLE IF NOT EXISTS schema_contract (
+    id TINYINT PRIMARY KEY,
+    compatibility_epoch INT NOT NULL,
+    analytics_schema_version INT NOT NULL,
+    minimum_client_schema_version INT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO schema_contract
+    (id, compatibility_epoch, analytics_schema_version, minimum_client_schema_version)
+VALUES (1, 1, 1, 9)
+ON DUPLICATE KEY UPDATE
+    compatibility_epoch = 1,
+    analytics_schema_version = 1,
+    minimum_client_schema_version = 9;
 
 -- Core entity: reusable prompt templates
 -- Variables use pi syntax: $1, $2, $@, ${@:N}, ${@:N:M} (N and M must be positive integers)

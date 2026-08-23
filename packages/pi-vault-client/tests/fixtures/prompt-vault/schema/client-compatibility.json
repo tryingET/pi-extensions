@@ -1,0 +1,32 @@
+{
+  "schema_version": 13,
+  "minimum_supported_schema_version": 9,
+  "maximum_tested_schema_version": 13,
+  "compatibility_epoch": 1,
+  "compatibility_epoch_introduced_schema_version": 13,
+  "analytics_schema_version": 1,
+  "required_columns": {
+    "prompt_templates": [
+      "artifact_kind",
+      "control_mode",
+      "formalization_level",
+      "owner_company",
+      "visibility_companies",
+      "controlled_vocabulary",
+      "export_to_pi",
+      "version"
+    ],
+    "executions": [
+      "id",
+      "entity_type",
+      "entity_id",
+      "entity_version",
+      "input_context",
+      "model",
+      "output_capture_mode",
+      "output_text",
+      "success"
+    ],
+    "feedback": ["execution_id", "rating", "notes", "issues"]
+  }
+}

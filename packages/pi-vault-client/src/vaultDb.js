@@ -4,6 +4,7 @@ import os from "node:os";
 import path, { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { resolveCompanyContext } from "./companyContext.js";
+import { ANALYTICS_SCHEMA_SQL, ANALYTICS_SCHEMA_VERSION } from "./generatedPromptVaultContract.js";
 import { rateTemplate as executeFeedbackRating } from "./vaultFeedback.js";
 import { authorizeTemplateInsert, authorizeTemplateUpdate, insertTemplate as executeTemplateInsert, updateTemplate as executeTemplateUpdate, prepareTemplateUpdate, resolveMutationActorContext, validateTemplateContent, } from "./vaultMutations.js";
 import { checkSchemaCompatibilityDetailed as computeSchemaCompatibilityDetailed, checkSchemaVersion as computeSchemaVersion, } from "./vaultSchema.js";
@@ -1091,33 +1092,12 @@ function describeRetrievalFailure(error) {
     const message = error instanceof Error ? error.message : String(error);
     return `retrieval-log-failed: ${message.slice(0, 200)}`;
 }
-// Mirrors analytics_ensure() in prompt-vault scripts/pv-lib.sh. Kept in sync
-// by contract test; CREATE IF NOT EXISTS makes both sides idempotent.
-const ANALYTICS_SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS retrieval_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      entity_type TEXT NOT NULL DEFAULT 'template'
-          CHECK (entity_type IN ('template', 'skill')),
-      entity_id INTEGER NOT NULL,
-      entity_version INTEGER,
-      tool TEXT NOT NULL CHECK (tool IN ('vault_query', 'vault_retrieve', 'other')),
-      query_context TEXT,
-      selected_rank INTEGER,
-      result_count INTEGER,
-      company TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_re_events_entity
-      ON retrieval_events(entity_type, entity_id);
-  CREATE INDEX IF NOT EXISTS idx_re_events_created
-      ON retrieval_events(created_at);
-`;
 function logRetrievalBatch(entries, context) {
     // Retrieval analytics are best-effort by contract: a logging failure must
     // never break the tool call that produced the retrieval.
     // Storage: WAL-mode SQLite sidecar (analytics.db) next to the dolt store —
     // machine-local exhaust, not governed content, so it must not grow the
-    // versioned repo's history. Schema v12+.
+    // versioned repo's history. The sidecar has an independent schema version.
     try {
         const valid = entries.filter((entry) => Number.isFinite(entry.templateId));
         if (valid.length === 0)
@@ -1129,9 +1109,19 @@ function logRetrievalBatch(entries, context) {
         const dbPath = join(getActiveVaultDir(), "analytics.db");
         const db = new DatabaseSync(dbPath);
         try {
-            db.exec("PRAGMA journal_mode = WAL;");
-            db.exec("PRAGMA busy_timeout = 5000;");
+            const before = db.prepare("PRAGMA user_version;").get();
+            const currentVersion = Number(before?.user_version ?? 0);
+            if (currentVersion > ANALYTICS_SCHEMA_VERSION) {
+                throw new Error(`analytics.db schema v${currentVersion} is newer than supported v${ANALYTICS_SCHEMA_VERSION}`);
+            }
+            if (currentVersion !== 0 && currentVersion < ANALYTICS_SCHEMA_VERSION) {
+                throw new Error(`analytics.db schema v${currentVersion} requires an explicit migration to v${ANALYTICS_SCHEMA_VERSION}`);
+            }
             db.exec(ANALYTICS_SCHEMA_SQL);
+            const after = db.prepare("PRAGMA user_version;").get();
+            if (Number(after?.user_version ?? 0) !== ANALYTICS_SCHEMA_VERSION) {
+                throw new Error(`analytics.db failed to reach schema v${ANALYTICS_SCHEMA_VERSION}`);
+            }
             const insert = db.prepare(`INSERT INTO retrieval_events
            (entity_type, entity_id, entity_version, tool, query_context,
             selected_rank, result_count, company)

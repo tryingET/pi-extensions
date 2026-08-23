@@ -48,6 +48,8 @@
   },
   "scripts": {
     "build:runtime": "node ./scripts/build-runtime.mjs",
+    "sync:prompt-vault-contract": "node ./scripts/sync-prompt-vault-contract.mjs --write",
+    "check:prompt-vault-contract": "node ./scripts/sync-prompt-vault-contract.mjs --check",
     "check:generated-runtime": "node ./scripts/check-generated-runtime-clean.mjs",
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",

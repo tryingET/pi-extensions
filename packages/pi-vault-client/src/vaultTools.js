@@ -118,8 +118,17 @@ function formatSchemaDiagnosticsReport(runtime, currentCompany, currentCompanySo
     const lines = [
         "# Vault Schema Diagnostics",
         "",
-        `- schema_required: ${report.expectedVersion}`,
+        `- schema_minimum: ${report.minimumVersion ?? report.expectedVersion}`,
+        `- schema_maximum_tested: ${report.maximumTestedVersion ?? report.expectedVersion}`,
         `- schema_actual: ${report.actualVersion ?? "unknown"}`,
+        `- schema_version_status: ${report.versionStatus ?? "unknown"}`,
+        `- compatibility_epoch_supported: ${report.supportedCompatibilityEpoch ?? "unknown"}`,
+        `- compatibility_epoch_actual: ${report.actualCompatibilityEpoch ?? "unknown"}`,
+        `- compatibility_epoch_status: ${report.compatibilityEpochStatus ?? "unknown"}`,
+        `- analytics_schema_supported: ${report.analyticsSchemaVersion ?? "unknown"}`,
+        `- analytics_schema_actual: ${report.actualAnalyticsSchemaVersion ?? "unknown"}`,
+        `- analytics_schema_status: ${report.analyticsSchemaStatus ?? "unknown"}`,
+        `- schema_warnings: ${report.warnings?.join("; ") || "none"}`,
         `- schema_status: ${report.ok ? "ok" : "mismatch"}`,
         `- missing_prompt_template_columns: ${report.missingPromptTemplateColumns.join(", ") || "none"}`,
         `- missing_execution_columns: ${report.missingExecutionColumns.join(", ") || "none"}`,
@@ -146,7 +155,7 @@ export function registerVaultDiagnosticsTool(pi, runtime) {
         description: `Inspect Prompt Vault schema compatibility for this client runtime.
 
 Use when /vault or vault tools may be unavailable due to schema drift.
-Reports expected vs actual schema version plus missing prompt/execution/feedback columns.`,
+Reports the compatible schema range, actual migration version, compatibility epoch, analytics schema version, warnings, and missing required columns.`,
         promptSnippet: "Inspect Prompt Vault schema compatibility for this runtime.",
         promptGuidelines: [
             "Use vault_schema_diagnostics when vault tools may be failing due to local schema drift.",
@@ -187,8 +196,17 @@ Reports expected vs actual schema version plus missing prompt/execution/feedback
                 content: [{ type: "text", text: output }],
                 details: {
                     ok: report.ok && projectionOk,
-                    expectedVersion: report.expectedVersion,
+                    minimumVersion: report.minimumVersion,
+                    maximumTestedVersion: report.maximumTestedVersion,
                     actualVersion: report.actualVersion,
+                    versionStatus: report.versionStatus,
+                    supportedCompatibilityEpoch: report.supportedCompatibilityEpoch,
+                    actualCompatibilityEpoch: report.actualCompatibilityEpoch,
+                    compatibilityEpochStatus: report.compatibilityEpochStatus,
+                    analyticsSchemaVersion: report.analyticsSchemaVersion,
+                    actualAnalyticsSchemaVersion: report.actualAnalyticsSchemaVersion,
+                    analyticsSchemaStatus: report.analyticsSchemaStatus,
+                    warnings: report.warnings,
                     missingPromptTemplateColumns: report.missingPromptTemplateColumns,
                     missingExecutionColumns: report.missingExecutionColumns,
                     missingFeedbackColumns: report.missingFeedbackColumns,

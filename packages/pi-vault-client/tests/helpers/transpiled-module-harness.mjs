@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
@@ -42,7 +50,16 @@ export function createTranspiledModuleHarness({
     writeFileSync(outputPath, source, "utf8");
   }
 
-  for (const relativePath of files) {
+  // Owner-contract constants are generated and imported transitively by both
+  // vaultTypes and vaultSchema. Always project them into isolated harnesses so
+  // individual tests cannot silently depend on the checked-in runtime JS.
+  const generatedContract = "src/generatedPromptVaultContract.ts";
+  const projectedFiles = new Set(files);
+  if (existsSync(path.join(PACKAGE_ROOT, generatedContract))) {
+    projectedFiles.add(generatedContract);
+  }
+
+  for (const relativePath of projectedFiles) {
     const sourcePath = path.join(PACKAGE_ROOT, relativePath);
     const source = readFileSync(sourcePath, "utf8");
     const outputPath = path.join(tempDir, relativePath.replace(/\.ts$/, ".js"));

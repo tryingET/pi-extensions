@@ -12,6 +12,7 @@ test("logRetrievalBatch writes retrieval_events rows to the SQLite sidecar and s
   const harness = await createTranspiledModuleHarness({
     prefix: "vault-retrievals-",
     files: [
+      "src/generatedPromptVaultContract.ts",
       "src/vaultTypes.ts",
       "src/companyContext.ts",
       "src/vaultSchema.ts",
@@ -54,6 +55,8 @@ test("logRetrievalBatch writes retrieval_events rows to the SQLite sidecar and s
     try {
       const journalMode = db.prepare("PRAGMA journal_mode;").get();
       assert.equal(journalMode.journal_mode, "wal");
+      const userVersion = db.prepare("PRAGMA user_version;").get();
+      assert.equal(Number(userVersion.user_version), 1);
 
       const rows = db
         .prepare(
@@ -75,16 +78,30 @@ test("logRetrievalBatch writes retrieval_events rows to the SQLite sidecar and s
       const queryContext = JSON.parse(rows[0].query_context);
       assert.equal(queryContext.filters.artifact_kind[0], "cognitive");
 
-      const tables = db
+      const objects = db
         .prepare(
           `SELECT count(*) AS n FROM sqlite_master
-           WHERE name IN ('retrieval_events') AND type = 'table'`,
+           WHERE name IN ('retrieval_events', 'v_retrievals_daily', 'v_retrievals_by_entity')`,
         )
         .get();
-      assert.equal(Number(tables.n), 1);
+      assert.equal(Number(objects.n), 3);
     } finally {
       db.close();
     }
+
+    // A newer sidecar schema fails open and is never silently downgraded.
+    const newer = new DatabaseSync(path.join(dir, "analytics.db"));
+    newer.exec("PRAGMA user_version = 2;");
+    const rowsBefore = Number(newer.prepare("SELECT count(*) AS n FROM retrieval_events").get().n);
+    newer.close();
+    runtime.logRetrievalBatch([{ templateId: 3, rank: 1 }], { tool: "vault_query" });
+    const afterNewer = new DatabaseSync(path.join(dir, "analytics.db"), { readOnly: true });
+    assert.equal(Number(afterNewer.prepare("PRAGMA user_version;").get().user_version), 2);
+    assert.equal(
+      Number(afterNewer.prepare("SELECT count(*) AS n FROM retrieval_events").get().n),
+      rowsBefore,
+    );
+    afterNewer.close();
 
     // fail-open: invalid entries and a missing vault dir must never throw
     runtime.logRetrievalBatch([{ templateId: Number.NaN }], { tool: "vault_retrieve" });

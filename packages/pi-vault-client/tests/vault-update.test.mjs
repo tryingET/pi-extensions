@@ -491,8 +491,18 @@ test("vault_schema_diagnostics reports detailed compatibility in headless tool m
       checkSchemaCompatibilityDetailed() {
         return {
           ok: false,
+          minimumVersion: 9,
+          maximumTestedVersion: 13,
           expectedVersion: 9,
           actualVersion: 8,
+          versionStatus: "too_old",
+          supportedCompatibilityEpoch: 1,
+          actualCompatibilityEpoch: 1,
+          compatibilityEpochStatus: "compatible",
+          analyticsSchemaVersion: 1,
+          actualAnalyticsSchemaVersion: 1,
+          analyticsSchemaStatus: "compatible",
+          warnings: [],
           missingPromptTemplateColumns: ["controlled_vocabulary"],
           missingExecutionColumns: ["output_capture_mode", "output_text"],
           missingFeedbackColumns: [],
@@ -528,8 +538,12 @@ test("vault_schema_diagnostics reports detailed compatibility in headless tool m
 
     const text = result.content[0]?.text || "";
     assert.match(text, /# Vault Schema Diagnostics/);
-    assert.match(text, /schema_required: 9/);
+    assert.match(text, /schema_minimum: 9/);
+    assert.match(text, /schema_maximum_tested: 13/);
     assert.match(text, /schema_actual: 8/);
+    assert.match(text, /schema_version_status: too_old/);
+    assert.match(text, /compatibility_epoch_status: compatible/);
+    assert.match(text, /analytics_schema_status: compatible/);
     assert.match(text, /schema_status: mismatch/);
     assert.match(text, /missing_prompt_template_columns: controlled_vocabulary/);
     assert.match(text, /missing_execution_columns: output_capture_mode, output_text/);

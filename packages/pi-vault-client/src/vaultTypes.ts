@@ -14,7 +14,13 @@ export const LIVE_VAULT_TRIGGER_DEBOUNCE_MS = 150;
 export const LIVE_VAULT_MIN_QUERY = 0;
 export const LIVE_TRIGGER_TELEMETRY_LIMIT = 100;
 export const DOLT_TELEMETRY_LIMIT = 200;
-export const SCHEMA_VERSION = 12;
+export {
+  ANALYTICS_SCHEMA_VERSION,
+  COMPATIBILITY_EPOCH_INTRODUCED_SCHEMA_VERSION,
+  MAX_TESTED_SCHEMA_VERSION,
+  MIN_SUPPORTED_SCHEMA_VERSION,
+  SUPPORTED_COMPATIBILITY_EPOCH,
+} from "./generatedPromptVaultContract.js";
 
 export const COMPANIES = [
   "core",
@@ -460,10 +466,25 @@ export type VaultResult<T> =
   | { ok: true; value: T; error: null }
   | { ok: false; value: null; error: string };
 
+export type SchemaVersionStatus = "compatible" | "too_old" | "newer_untested" | "unknown";
+export type CompatibilityEpochStatus = "compatible" | "mismatch" | "unknown";
+export type AnalyticsSchemaStatus = "compatible" | "mismatch" | "unknown";
+
 export interface SchemaCompatibilityReport {
   ok: boolean;
+  minimumVersion: number;
+  maximumTestedVersion: number;
+  /** @deprecated Compatibility is a range; use minimumVersion. */
   expectedVersion: number;
   actualVersion: number | null;
+  versionStatus: SchemaVersionStatus;
+  supportedCompatibilityEpoch: number;
+  actualCompatibilityEpoch: number | null;
+  compatibilityEpochStatus: CompatibilityEpochStatus;
+  analyticsSchemaVersion: number;
+  actualAnalyticsSchemaVersion: number | null;
+  analyticsSchemaStatus: AnalyticsSchemaStatus;
+  warnings: string[];
   missingPromptTemplateColumns: string[];
   missingExecutionColumns: string[];
   missingFeedbackColumns: string[];

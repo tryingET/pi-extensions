@@ -8,6 +8,10 @@ const COMPANY_CONTEXT_SOURCE = readFileSync(
   "utf8",
 );
 const SCHEMA_SOURCE = readFileSync(new URL("../src/vaultSchema.ts", import.meta.url), "utf8");
+const CONTRACT_SOURCE = readFileSync(
+  new URL("../src/generatedPromptVaultContract.ts", import.meta.url),
+  "utf8",
+);
 const MUTATIONS_SOURCE = readFileSync(new URL("../src/vaultMutations.ts", import.meta.url), "utf8");
 const FEEDBACK_SOURCE = readFileSync(new URL("../src/vaultFeedback.ts", import.meta.url), "utf8");
 const PICKER_SOURCE = readFileSync(new URL("../src/vaultPicker.ts", import.meta.url), "utf8");
@@ -38,8 +42,11 @@ const TRIGGER_ADAPTER_SOURCE = readFileSync(
 const PACKAGE_JSON_SOURCE = readFileSync(new URL("../package.json", import.meta.url), "utf8");
 const ROOT_INDEX_SOURCE = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
 
-test("vault runtime targets Prompt Vault schema v12", () => {
-  assert.match(TYPES_SOURCE, /const\s+SCHEMA_VERSION\s*=\s+12/);
+test("vault runtime targets generated Prompt Vault compatibility contract", () => {
+  assert.match(CONTRACT_SOURCE, /minimum_supported_schema_version"?:\s*9/);
+  assert.match(CONTRACT_SOURCE, /maximum_tested_schema_version"?:\s*13/);
+  assert.match(CONTRACT_SOURCE, /compatibility_epoch"?:\s*1/);
+  assert.match(CONTRACT_SOURCE, /analytics_schema_version"?:\s*1/);
   assert.match(TYPES_SOURCE, /const\s+DEFAULT_VAULT_QUERY_LIMIT\s*=\s*20/);
   assert.match(SCHEMA_SOURCE, /SELECT MAX\(version\) AS version FROM schema_version/);
   assert.match(DB_SOURCE, /checkSchemaCompatibilityDetailed as computeSchemaCompatibilityDetailed/);
@@ -121,7 +128,7 @@ test("schema compatibility requires governed prompt columns plus execution captu
     "notes",
     "issues",
   ]) {
-    assert.match(SCHEMA_SOURCE, new RegExp(`"${column}"`));
+    assert.match(CONTRACT_SOURCE, new RegExp(`"${column}"`));
   }
   assert.match(TYPES_SOURCE, /interface\s+SchemaCompatibilityReport/);
   assert.match(
@@ -134,7 +141,10 @@ test("schema compatibility requires governed prompt columns plus execution captu
   );
   assert.match(DB_SOURCE, /function\s+checkSchemaCompatibilityDetailed\(\) \{/);
   assert.match(DB_SOURCE, /return computeSchemaCompatibilityDetailed\(queryVaultJson\)/);
-  assert.match(SCHEMA_SOURCE, /expectedVersion: SCHEMA_VERSION/);
+  assert.match(SCHEMA_SOURCE, /actualVersion\s*>=\s*MIN_SUPPORTED_SCHEMA_VERSION/);
+  assert.match(SCHEMA_SOURCE, /versionStatus\s*===\s*"newer_untested"/);
+  assert.match(SCHEMA_SOURCE, /compatibilityEpochStatus\s*===\s*"compatible"/);
+  assert.match(SCHEMA_SOURCE, /analyticsSchemaStatus\s*===\s*"compatible"/);
   assert.match(SCHEMA_SOURCE, /actualVersion,/);
   assert.match(SCHEMA_SOURCE, /missingPromptTemplateColumns/);
   assert.match(SCHEMA_SOURCE, /missingExecutionColumns/);

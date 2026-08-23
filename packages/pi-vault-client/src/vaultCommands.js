@@ -19,9 +19,14 @@ function formatVaultTemplateRenderError(templateName, error) {
 }
 function formatSchemaMismatchMessage(runtime) {
     const report = runtime.checkSchemaCompatibilityDetailed();
+    const minimum = report.minimumVersion ?? report.expectedVersion;
+    const maximum = report.maximumTestedVersion ?? report.expectedVersion;
     const parts = [
-        `expected=${report.expectedVersion}`,
+        `minimum=${minimum}`,
+        `maximum_tested=${maximum}`,
         `actual=${report.actualVersion ?? "unknown"}`,
+        `version_status=${report.versionStatus ?? "unknown"}`,
+        `epoch_status=${report.compatibilityEpochStatus ?? "unknown"}`,
     ];
     if (report.missingPromptTemplateColumns.length > 0)
         parts.push(`prompt_templates:[${report.missingPromptTemplateColumns.join(", ")}]`);
@@ -703,8 +708,12 @@ export function registerVaultCommands(pi, runtime, receipts, dispatchRuntime) {
             const output = [
                 "# Vault Check",
                 "",
-                `- schema_required: ${schemaReport.expectedVersion}`,
+                `- schema_minimum: ${schemaReport.minimumVersion ?? schemaReport.expectedVersion}`,
+                `- schema_maximum_tested: ${schemaReport.maximumTestedVersion ?? schemaReport.expectedVersion}`,
                 `- schema_actual: ${schemaReport.actualVersion ?? "unknown"}`,
+                `- schema_version_status: ${schemaReport.versionStatus ?? "unknown"}`,
+                `- compatibility_epoch_status: ${schemaReport.compatibilityEpochStatus ?? "unknown"}`,
+                `- analytics_schema_status: ${schemaReport.analyticsSchemaStatus ?? "unknown"}`,
                 `- schema_status: ${schemaOk ? "ok" : "mismatch"}`,
                 `- missing_prompt_template_columns: ${schemaReport.missingPromptTemplateColumns.join(", ") || "none"}`,
                 `- missing_execution_columns: ${schemaReport.missingExecutionColumns.join(", ") || "none"}`,
