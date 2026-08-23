@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path, { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { resolveCompanyContext } from "./companyContext.js";
 import { rateTemplate as executeFeedbackRating } from "./vaultFeedback.js";
 import {
@@ -1360,6 +1361,28 @@ function describeRetrievalFailure(error: unknown): string {
   return `retrieval-log-failed: ${message.slice(0, 200)}`;
 }
 
+// Mirrors analytics_ensure() in prompt-vault scripts/pv-lib.sh. Kept in sync
+// by contract test; CREATE IF NOT EXISTS makes both sides idempotent.
+const ANALYTICS_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS retrieval_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL DEFAULT 'template'
+          CHECK (entity_type IN ('template', 'skill')),
+      entity_id INTEGER NOT NULL,
+      entity_version INTEGER,
+      tool TEXT NOT NULL CHECK (tool IN ('vault_query', 'vault_retrieve', 'other')),
+      query_context TEXT,
+      selected_rank INTEGER,
+      result_count INTEGER,
+      company TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_re_events_entity
+      ON retrieval_events(entity_type, entity_id);
+  CREATE INDEX IF NOT EXISTS idx_re_events_created
+      ON retrieval_events(created_at);
+`;
+
 export interface VaultRetrievalEntry {
   templateId: number;
   entityVersion?: number | null;
@@ -1375,28 +1398,45 @@ export interface VaultRetrievalContext {
 
 function logRetrievalBatch(entries: VaultRetrievalEntry[], context: VaultRetrievalContext): void {
   // Retrieval analytics are best-effort by contract: a logging failure must
-  // never break the tool call that produced the retrieval. Schema v10+.
+  // never break the tool call that produced the retrieval.
+  // Storage: WAL-mode SQLite sidecar (analytics.db) next to the dolt store —
+  // machine-local exhaust, not governed content, so it must not grow the
+  // versioned repo's history. Schema v12+.
   try {
     const valid = entries.filter((entry) => Number.isFinite(entry.templateId));
     if (valid.length === 0) return;
     const tool =
       context.tool === "vault_query" || context.tool === "vault_retrieve" ? context.tool : "other";
-    const escapedQueryContext = escapeSql(
-      JSON.stringify(context.queryContext ?? null).slice(0, 1000),
-    );
+    const queryContext = JSON.stringify(context.queryContext ?? null).slice(0, 1000);
     const resultCount = Number.isFinite(context.resultCount) ? Number(context.resultCount) : null;
-    const escapedCompany = escapeSql(String(context.company ?? ""));
-    const values = valid
-      .map((entry) => {
-        const version = Number.isFinite(entry.entityVersion) ? Number(entry.entityVersion) : null;
-        const rank = Number.isFinite(entry.rank) ? Number(entry.rank) : null;
-        return `('template', ${Number(entry.templateId)}, ${version ?? "NULL"}, '${tool}', '${escapedQueryContext}', ${rank ?? "NULL"}, ${resultCount ?? "NULL"}, ${escapedCompany.length > 0 ? `'${escapedCompany}'` : "NULL"}, NOW())`;
-      })
-      .join(", ");
-    const ok = execVault(
-      `INSERT INTO retrievals (entity_type, entity_id, entity_version, tool, query_context, selected_rank, result_count, company, created_at) VALUES ${values}`,
-    );
-    if (ok) commitVault(`Log ${valid.length} vault retrieval(s): ${tool}`, ["retrievals"]);
+    const company = String(context.company ?? "");
+
+    const dbPath = join(getActiveVaultDir(), "analytics.db");
+    const db = new DatabaseSync(dbPath);
+    try {
+      db.exec("PRAGMA journal_mode = WAL;");
+      db.exec("PRAGMA busy_timeout = 5000;");
+      db.exec(ANALYTICS_SCHEMA_SQL);
+      const insert = db.prepare(
+        `INSERT INTO retrieval_events
+           (entity_type, entity_id, entity_version, tool, query_context,
+            selected_rank, result_count, company)
+         VALUES ('template', ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const entry of valid) {
+        insert.run(
+          Number(entry.templateId),
+          Number.isFinite(entry.entityVersion) ? Number(entry.entityVersion) : null,
+          tool,
+          queryContext,
+          Number.isFinite(entry.rank) ? Number(entry.rank) : null,
+          resultCount,
+          company.length > 0 ? company : null,
+        );
+      }
+    } finally {
+      db.close();
+    }
   } catch (error) {
     // fail-open: retrieval analytics must not perturb the retrieval surface,
     // but failures are recorded locally so systematic loss is detectable.
