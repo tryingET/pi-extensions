@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createOwnedRuntime, isOwnedRuntime } from "./governed-deep-review-owner-registry.mjs";
 import {
+  GOVERNED_RUNTIME_ASC_REGISTRY_OWNER,
   GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH,
   GovernedRuntimeMaterializationError,
   verifyGovernedRuntimeMaterialization,
@@ -29,6 +30,8 @@ const REQUIRED_REGISTERED_TOOL_OWNERS = {
 } as const;
 const ORCHESTRATOR_PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ORCHESTRATOR_SOURCE_ROOT = resolve(ORCHESTRATOR_PACKAGE_ROOT, "../..");
+const ASC_PACKAGE_NAME = GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name;
+const ASC_PACKAGE_VERSION = GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version;
 const MATERIALIZATION_MANIFEST_PATH = resolve(
   ORCHESTRATOR_SOURCE_ROOT,
   GOVERNED_RUNTIME_MANIFEST_RELATIVE_PATH,
@@ -266,19 +269,49 @@ function createGovernedDeepReviewPreflightRuntimeLocal(
           require.resolve("@tryinget/pi-vault-client/prompt-plane"),
           require.resolve("@tryinget/pi-vault-client/dispatch-guard"),
         ].map((modulePath) => realpathSync(modulePath));
-        const ascModulePath = realpathSync(
-          require.resolve("@tryinget/pi-autonomous-session-control/execution"),
-        );
+        const ascModulePath = realpathSync(require.resolve(`${ASC_PACKAGE_NAME}/execution`));
+        const ascExtensionPath = realpathSync(require.resolve(ASC_PACKAGE_NAME));
         const vaultRoot = sourceRootFromResolvedPackagePath(vaultModulePaths[0], "pi-vault-client");
-        const ascRoot = sourceRootFromResolvedPackagePath(
+        const ascExecutionOwner = packageOwnerFromResolvedPackagePath(
           ascModulePath,
           "pi-autonomous-session-control",
         );
+        const ascExtensionOwner = packageOwnerFromResolvedPackagePath(
+          ascExtensionPath,
+          "pi-autonomous-session-control",
+        );
         const sourceRoot = realpathSync(ORCHESTRATOR_SOURCE_ROOT);
-        if (vaultRoot !== sourceRoot || ascRoot !== sourceRoot) {
+        const installedAscPackageRoot = realpathSync(
+          resolve(ORCHESTRATOR_PACKAGE_ROOT, "node_modules", ASC_PACKAGE_NAME),
+        );
+        if (vaultRoot !== sourceRoot) {
           return failed(
-            `Deferred execution owners cross source roots (orchestrator=${sourceRoot}, vault=${vaultRoot}, asc=${ascRoot}).`,
+            `Deferred Vault owner crosses source roots (orchestrator=${sourceRoot}, vault=${vaultRoot}).`,
             "deferred_owner_source_root_mismatch",
+          );
+        }
+        if (
+          ascExecutionOwner.packageRoot !== installedAscPackageRoot ||
+          ascExtensionOwner.packageRoot !== installedAscPackageRoot
+        ) {
+          return failed(
+            `ASC execution and root extension must resolve from the exact installed dependency root ${installedAscPackageRoot}; observed execution=${ascExecutionOwner.packageRoot}, extension=${ascExtensionOwner.packageRoot}.`,
+            "asc_owner_package_root_mismatch",
+          );
+        }
+        if (
+          ascExecutionOwner.packageRoot !== ascExtensionOwner.packageRoot ||
+          ascExecutionOwner.version !== ascExtensionOwner.version
+        ) {
+          return failed(
+            `ASC execution and root extension resolve from different package owners (execution=${ascExecutionOwner.packageRoot}@${ascExecutionOwner.version}, extension=${ascExtensionOwner.packageRoot}@${ascExtensionOwner.version}).`,
+            "asc_owner_package_mismatch",
+          );
+        }
+        if (ascExecutionOwner.version !== ASC_PACKAGE_VERSION) {
+          return failed(
+            `ASC deferred owner must be exact ${ASC_PACKAGE_NAME}@${ASC_PACKAGE_VERSION}; observed ${ascExecutionOwner.name}@${ascExecutionOwner.version} at ${ascExecutionOwner.packageRoot}.`,
+            "asc_owner_package_version_mismatch",
           );
         }
         for (const modulePath of vaultModulePaths) {
@@ -301,9 +334,7 @@ function createGovernedDeepReviewPreflightRuntimeLocal(
             ),
           ),
           vault: realpathSync(resolve(sourceRoot, "packages/pi-vault-client/extensions/vault.js")),
-          asc: realpathSync(
-            resolve(sourceRoot, "packages/pi-autonomous-session-control/extensions/self.ts"),
-          ),
+          asc: ascExtensionPath,
         });
         if (toolSourceFailure) {
           return failed(toolSourceFailure, "registered_tool_source_path_mismatch");
@@ -625,27 +656,46 @@ function sourceRootFromModuleUrl(moduleUrl: string, expectedPackage: string): st
 }
 
 function sourceRootFromResolvedPackagePath(modulePath: string, expectedPackage: string): string {
+  const owner = packageOwnerFromResolvedPackagePath(modulePath, expectedPackage);
+  const candidate = expectedPackage.startsWith("pi-interaction-")
+    ? resolve(owner.packageRoot, "../../..")
+    : resolve(owner.packageRoot, "../..");
+  return realpathSync(candidate);
+}
+
+function packageOwnerFromResolvedPackagePath(
+  modulePath: string,
+  expectedPackage: string,
+): { packageRoot: string; name: string; version: string } {
+  const expectedName = `@tryinget/${expectedPackage}`;
   let cursor = dirname(realpathSync(modulePath));
   for (;;) {
     const packagePath = resolve(cursor, "package.json");
     if (existsSync(packagePath)) {
       try {
-        const pkg = JSON.parse(readFileSync(packagePath, "utf8")) as { name?: string };
-        if (pkg.name === `@tryinget/${expectedPackage}`) {
-          const packagesDir = dirname(cursor);
-          const candidate = expectedPackage.startsWith("pi-interaction-")
-            ? resolve(cursor, "../../..")
-            : resolve(cursor, "../..");
-          void packagesDir;
-          return realpathSync(candidate);
+        const pkg = JSON.parse(readFileSync(packagePath, "utf8")) as {
+          name?: unknown;
+          version?: unknown;
+        };
+        if (pkg.name === expectedName) {
+          if (typeof pkg.version !== "string" || pkg.version.length === 0) {
+            throw new Error(
+              `Package owner ${expectedName} has no exact version at ${packagePath}.`,
+            );
+          }
+          return {
+            packageRoot: realpathSync(cursor),
+            name: expectedName,
+            version: pkg.version,
+          };
         }
-      } catch {
-        // Continue upward until the owning package manifest is found.
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Package owner ")) throw error;
+        // Continue upward until the exact owning package manifest is found.
       }
     }
     const parent = dirname(cursor);
-    if (parent === cursor)
-      throw new Error(`Cannot locate @tryinget/${expectedPackage} for ${modulePath}.`);
+    if (parent === cursor) throw new Error(`Cannot locate ${expectedName} for ${modulePath}.`);
     cursor = parent;
   }
 }

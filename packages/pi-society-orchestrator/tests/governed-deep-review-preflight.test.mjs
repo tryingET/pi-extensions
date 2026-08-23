@@ -9,10 +9,12 @@ import {
   readFileSync,
   readlinkSync,
   realpathSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -28,16 +30,20 @@ import {
   isGovernedDeepReviewPreflightRuntimeOwner,
 } from "../src/runtime/governed-deep-review-preflight.ts";
 import {
+  classifyGovernedRuntimeAscRegistryOwnerEvidence,
   classifyGovernedRuntimeHostLockEvidence,
   GOVERNED_RUNTIME_ASC_COMPILER,
+  GOVERNED_RUNTIME_ASC_REGISTRY_OWNER,
   GOVERNED_RUNTIME_ASC_RUNTIME_FILES,
   GOVERNED_RUNTIME_HOST_CACHE_TARBALLS,
   GOVERNED_RUNTIME_HOST_PEERS,
   GOVERNED_RUNTIME_HOST_VERSION,
+  GOVERNED_RUNTIME_LOCAL_EDGES,
   GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS,
   GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX,
   GOVERNED_RUNTIME_PACKAGES,
   GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH,
+  GOVERNED_RUNTIME_REGISTRY_EDGES,
   GOVERNED_RUNTIME_TYPEBOX_INTEGRITY,
   GOVERNED_RUNTIME_TYPEBOX_VERSION,
   governedRuntimeAscBuildEnvironment,
@@ -58,6 +64,17 @@ import {
 } from "../src/runtime/governed-runtime-materialization.ts";
 
 const SOURCE_ROOT = resolve(import.meta.dirname, "../../..");
+const testRequire = createRequire(import.meta.url);
+const INSTALLED_ASC_EXTENSION_PATH = realpathSync(
+  testRequire.resolve("@tryinget/pi-autonomous-session-control"),
+);
+const INSTALLED_ASC_PACKAGE_ROOT = realpathSync(
+  resolve(dirname(INSTALLED_ASC_EXTENSION_PATH), ".."),
+);
+const LOCAL_ASC_EXTENSION_PATH = resolve(
+  SOURCE_ROOT,
+  "packages/pi-autonomous-session-control/extensions/self.ts",
+);
 const CALLER_URL = pathToFileURL(
   resolve(SOURCE_ROOT, "packages/pi-little-helpers/src/visibleLoop.ts"),
 ).href;
@@ -68,7 +85,7 @@ const TOOL_PATHS = {
     "packages/pi-society-orchestrator/extensions/society-orchestrator.ts",
   ),
   vault: resolve(SOURCE_ROOT, "packages/pi-vault-client/extensions/vault.js"),
-  asc: resolve(SOURCE_ROOT, "packages/pi-autonomous-session-control/extensions/self.ts"),
+  asc: INSTALLED_ASC_EXTENSION_PATH,
 };
 
 function createVaultFixture(root) {
@@ -103,10 +120,11 @@ function createPiRuntime(overrides = {}) {
     vault_dispatch_check: "vault",
     dispatch_subagent: "asc",
   };
+  const toolPaths = overrides.toolPaths ?? TOOL_PATHS;
   const allTools = Object.entries(ownerByTool).map(([name, owner]) => ({
     name,
     sourceInfo: {
-      path: overrides.toolPathOverrides?.[name] ?? TOOL_PATHS[owner],
+      path: overrides.toolPathOverrides?.[name] ?? toolPaths[owner],
     },
   }));
   return {
@@ -193,7 +211,7 @@ function createPackageGenerationFixture(root) {
   return { stagingRoot: generationRoot, modulesByPackage };
 }
 
-test("governed runtime pins match the Pi 0.83 lock identities", () => {
+test("governed runtime pins match the Pi 0.84.2 lock identities", () => {
   const lock = JSON.parse(
     readFileSync(
       resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/package-lock.json"),
@@ -202,7 +220,7 @@ test("governed runtime pins match the Pi 0.83 lock identities", () => {
   );
   const lockedPackages = lock.packages ?? {};
 
-  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "0.83.0");
+  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "0.84.2");
   for (const [name, expected] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
     const direct = lockedPackages[`node_modules/${name}`];
     const nested = Object.entries(lockedPackages).find(([packagePath]) =>
@@ -220,7 +238,7 @@ test("governed runtime pins match the Pi 0.83 lock identities", () => {
   assert.equal(lockedTypebox?.integrity, GOVERNED_RUNTIME_TYPEBOX_INTEGRITY);
 });
 
-test("cache-backed host closure pins all four Pi 0.83 runtime owners", () => {
+test("cache-backed host closure pins all four Pi 0.84.2 runtime owners", () => {
   assert.deepEqual(Object.keys(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS), [
     "@earendil-works/pi-ai",
     "@earendil-works/pi-agent-core",
@@ -232,6 +250,53 @@ test("cache-backed host closure pins all four Pi 0.83 runtime owners", () => {
     assert.match(expected.url, /^https:\/\/registry\.npmjs\.org\//u);
     assert.match(expected.integrity, /^sha512-/u);
   }
+});
+
+test("ASC registry handoff atomically binds selector, regular lock, hidden lock, and graph class", () => {
+  const manifest = JSON.parse(
+    readFileSync(resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/package.json"), "utf8"),
+  );
+  const regularLock = JSON.parse(
+    readFileSync(
+      resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/package-lock.json"),
+      "utf8",
+    ),
+  );
+  const hiddenLock = JSON.parse(
+    readFileSync(
+      resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/node_modules/.package-lock.json"),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(
+    classifyGovernedRuntimeAscRegistryOwnerEvidence(manifest, regularLock, hiddenLock),
+    {
+      name: "@tryinget/pi-autonomous-session-control",
+      version: "0.5.1",
+      selector: "^0.5.0",
+      url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.5.1.tgz",
+      integrity:
+        "sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==",
+    },
+  );
+  assert.equal(
+    GOVERNED_RUNTIME_LOCAL_EDGES.some(
+      ({ expectedOwnerName }) => expectedOwnerName === GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
+    ),
+    false,
+  );
+  assert.deepEqual(
+    GOVERNED_RUNTIME_REGISTRY_EDGES.map(({ specifier }) => specifier),
+    [...GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.specifiers],
+  );
+
+  const driftedHiddenLock = structuredClone(hiddenLock);
+  driftedHiddenLock.packages[`node_modules/${GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name}`].version =
+    "0.5.2";
+  assert.throws(
+    () => classifyGovernedRuntimeAscRegistryOwnerEvidence(manifest, regularLock, driftedHiddenLock),
+    (error) => error?.failureClass === "materialization_registry_owner_lock_mismatch",
+  );
 });
 
 test("host provenance is derived from all four regular and hidden lock entries", () => {
@@ -294,18 +359,27 @@ cache=${cacheDir}
   writeFileSync(globalrcPath, "");
   const keys = ["TMPDIR", "npm_config_userconfig", "npm_config_globalconfig", "npm_config_cache"];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-  try {
-    process.env.TMPDIR = scratch;
-    process.env.npm_config_userconfig = npmrcPath;
-    process.env.npm_config_globalconfig = globalrcPath;
-    process.env.npm_config_cache = cacheDir;
-    return run({ scratch, cacheDir, npmrcPath });
-  } finally {
+  const restore = () => {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+    rmSync(scratch, { recursive: true, force: true });
+  };
+  process.env.TMPDIR = scratch;
+  process.env.npm_config_userconfig = npmrcPath;
+  process.env.npm_config_globalconfig = globalrcPath;
+  process.env.npm_config_cache = cacheDir;
+  let result;
+  try {
+    result = run({ scratch, cacheDir, npmrcPath });
+  } catch (error) {
+    restore();
+    throw error;
   }
+  if (result && typeof result.then === "function") return result.finally(restore);
+  restore();
+  return result;
 }
 
 test("governed npm receipt age-gates third parties and exempts only the owned scope", () => {
@@ -1009,6 +1083,70 @@ test("runtime cleanliness rejects source drift but excludes node_modules", () =>
   }
 });
 
+function createImmutableMaterializationCandidate(scratch) {
+  const stagingRoot = resolve(scratch, "candidate-staging");
+  execFileSync("git", ["clone", "--local", "--no-hardlinks", SOURCE_ROOT, stagingRoot], {
+    stdio: "ignore",
+  });
+  const workingDiff = execFileSync("git", ["-C", SOURCE_ROOT, "diff", "--binary", "HEAD"], {
+    encoding: "buffer",
+  });
+  if (workingDiff.length > 0) {
+    const applied = spawnSync("git", ["-C", stagingRoot, "apply", "--binary", "-"], {
+      input: workingDiff,
+      encoding: "buffer",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    assert.equal(applied.status, 0, applied.stderr?.toString());
+  }
+  execFileSync("git", ["-C", stagingRoot, "add", "--all"]);
+  execFileSync(
+    "git",
+    [
+      "-C",
+      stagingRoot,
+      "-c",
+      "user.name=Governed Fixture",
+      "-c",
+      "user.email=governed-fixture@example.invalid",
+      "commit",
+      "--allow-empty",
+      "-m",
+      "governed materialization fixture",
+    ],
+    { stdio: "ignore" },
+  );
+  const commit = execFileSync("git", ["-C", stagingRoot, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  const candidateRoot = resolve(scratch, `candidate-${commit.slice(0, 8)}`);
+  renameSync(stagingRoot, candidateRoot);
+  return { candidateRoot, commit };
+}
+
+function materializeProductionCandidate(candidateRoot, commit) {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(candidateRoot, "scripts/governed-deep-review-canary.mjs"),
+      "materialize",
+      "--source-root",
+      candidateRoot,
+      "--expected-commit",
+      commit,
+    ],
+    {
+      cwd: candidateRoot,
+      encoding: "utf8",
+      env: process.env,
+      maxBuffer: 50 * 1024 * 1024,
+      timeout: 10 * 60 * 1000,
+    },
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return { ok: true, stdout: result.stdout };
+}
+
 test("a newer owner runtime revokes stale same-root runtime attestation", () => {
   const first = createGovernedDeepReviewPreflightRuntime(createPiRuntime(), {
     requireMaterializationManifest: false,
@@ -1021,6 +1159,179 @@ test("a newer owner runtime revokes stale same-root runtime attestation", () => 
   assert.equal(isGovernedDeepReviewPreflightRuntimeOwner(second), true);
 });
 
+test(
+  "production manifest preflight accepts one exact registry ASC owner and rejects local or duplicate owners",
+  { timeout: 12 * 60 * 1000 },
+  async () => {
+    const materializationScratch = mkdtempSync(`${tmpdir()}/governed-registry-asc-production-`);
+    try {
+      await withGovernedNpmPolicyFixture(async () => {
+        const { candidateRoot, commit } =
+          createImmutableMaterializationCandidate(materializationScratch);
+        const materialized = materializeProductionCandidate(candidateRoot, commit);
+        assert.equal(materialized.ok, true);
+        const candidatePreflightModule = await import(
+          pathToFileURL(
+            resolve(
+              candidateRoot,
+              "packages/pi-society-orchestrator/src/runtime/governed-deep-review-preflight.ts",
+            ),
+          ).href
+        );
+        const candidateMaterializationModule = await import(
+          pathToFileURL(
+            resolve(
+              candidateRoot,
+              "packages/pi-society-orchestrator/src/runtime/governed-runtime-materialization.ts",
+            ),
+          ).href
+        );
+        const candidateRequire = createRequire(
+          resolve(candidateRoot, "packages/pi-society-orchestrator/package.json"),
+        );
+        const registryAscExtension = realpathSync(
+          candidateRequire.resolve("@tryinget/pi-autonomous-session-control"),
+        );
+        const registryAscExecution = realpathSync(
+          candidateRequire.resolve("@tryinget/pi-autonomous-session-control/execution"),
+        );
+        const registryAscRoot = realpathSync(resolve(dirname(registryAscExtension), ".."));
+        const registryAscManifest = JSON.parse(
+          readFileSync(resolve(registryAscRoot, "package.json"), "utf8"),
+        );
+        assert.equal(registryAscManifest.name, GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name);
+        assert.equal(registryAscManifest.version, GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version);
+        assert.equal(registryAscExecution.startsWith(`${registryAscRoot}/`), true);
+
+        const candidateToolPaths = {
+          toolbox: resolve(candidateRoot, "packages/pi-toolbox-discovery/extensions/toolbox.ts"),
+          orchestrator: resolve(
+            candidateRoot,
+            "packages/pi-society-orchestrator/extensions/society-orchestrator.ts",
+          ),
+          vault: resolve(candidateRoot, "packages/pi-vault-client/extensions/vault.js"),
+          asc: registryAscExtension,
+        };
+        const candidateCallerUrl = pathToFileURL(
+          resolve(candidateRoot, "packages/pi-little-helpers/src/visibleLoop.ts"),
+        ).href;
+        const prepareCandidate = (runtime, nonce, runId) =>
+          runtime.prepare({
+            nonce,
+            runId,
+            cwd: candidateRoot,
+            callerModuleUrl: candidateCallerUrl,
+          });
+
+        await withFixture(async (scratch) => {
+          const pi = createPiRuntime({ toolPaths: candidateToolPaths });
+          const runtime = candidatePreflightModule.createGovernedDeepReviewPreflightRuntime(pi, {
+            dispatchReceiptPath: resolve(scratch, "production-handoffs.jsonl"),
+          });
+          const result = await prepareCandidate(
+            runtime,
+            "66666666-6666-4666-8666-666666666666",
+            "production-registry-owner",
+          );
+          assert.equal(result.ok, true, result.ok ? "" : result.error);
+          assert.equal(result.receipt.materializationManifestPath !== null, true);
+          assert.equal(result.receipt.ascModulePath, registryAscExecution);
+        });
+
+        const graph = candidateMaterializationModule.resolveGovernedRuntimeGraph(candidateRoot);
+        for (const specifier of GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.specifiers) {
+          const resolution =
+            graph.resolutions[`${GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.consumer} -> ${specifier}`];
+          assert.equal(resolution.ownership, "registry_external");
+          assert.equal(resolution.ownerName, GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name);
+          assert.equal(resolution.ownerVersion, GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version);
+          assert.equal(resolution.ownerRoot, registryAscRoot);
+        }
+
+        await withFixture(async (scratch) => {
+          const pi = createPiRuntime({
+            toolPaths: candidateToolPaths,
+            toolPathOverrides: {
+              dispatch_subagent: resolve(
+                candidateRoot,
+                "packages/pi-autonomous-session-control/extensions/self.ts",
+              ),
+            },
+          });
+          const runtime = candidatePreflightModule.createGovernedDeepReviewPreflightRuntime(pi, {
+            dispatchReceiptPath: resolve(scratch, "local-owner-handoffs.jsonl"),
+          });
+          const result = await prepareCandidate(
+            runtime,
+            "77777777-7777-4777-8777-777777777777",
+            "production-local-tool-owner",
+          );
+          assert.equal(result.ok, false);
+          assert.equal(result.failureClass, "registered_tool_source_path_mismatch");
+        });
+
+        const duplicateRoot = resolve(
+          candidateRoot,
+          "packages/pi-vault-client/node_modules",
+          GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
+        );
+        mkdirSync(duplicateRoot, { recursive: true });
+        writeFileSync(
+          resolve(duplicateRoot, "package.json"),
+          `${JSON.stringify({
+            name: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
+            version: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version,
+          })}
+`,
+        );
+        await withFixture(async (scratch) => {
+          const pi = createPiRuntime({ toolPaths: candidateToolPaths });
+          const runtime = candidatePreflightModule.createGovernedDeepReviewPreflightRuntime(pi, {
+            dispatchReceiptPath: resolve(scratch, "duplicate-owner-handoffs.jsonl"),
+          });
+          const result = await prepareCandidate(
+            runtime,
+            "88888888-8888-4888-8888-888888888888",
+            "production-duplicate-owner",
+          );
+          assert.equal(result.ok, false);
+          assert.equal(result.failureClass, "materialization_registry_owner_multiplicity");
+        });
+        rmSync(duplicateRoot, { recursive: true, force: true });
+        assert.equal(
+          candidateMaterializationModule.verifyGovernedRuntimeMaterialization(candidateRoot, commit)
+            .sourceCommit,
+          commit,
+        );
+
+        const lexicalRegistryRoot = resolve(
+          candidateRoot,
+          "packages/pi-society-orchestrator/node_modules",
+          GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
+        );
+        const retainedRegistryRoot = `${lexicalRegistryRoot}.registry-fixture`;
+        renameSync(lexicalRegistryRoot, retainedRegistryRoot);
+        symlinkSync(
+          resolve(candidateRoot, "packages/pi-autonomous-session-control"),
+          lexicalRegistryRoot,
+          "dir",
+        );
+        try {
+          assert.throws(
+            () => candidateMaterializationModule.resolveGovernedRuntimeGraph(candidateRoot),
+            (error) => error?.failureClass === "materialization_registry_owner_mismatch",
+          );
+        } finally {
+          rmSync(lexicalRegistryRoot, { force: true });
+          renameSync(retainedRegistryRoot, lexicalRegistryRoot);
+        }
+      });
+    } finally {
+      rmSync(materializationScratch, { recursive: true, force: true });
+    }
+  },
+);
+
 test("owner preflight binds the exact tool call and owner-brands its receipt", async () => {
   await withFixture(async (scratch) => {
     const pi = createPiRuntime();
@@ -1032,6 +1343,10 @@ test("owner preflight binds the exact tool call and owner-brands its receipt", a
 
     const result = await prepare(runtime, "11111111-1111-4111-8111-111111111111", "run-1");
     assert.equal(result.ok, true, result.ok ? "" : result.error);
+    assert.equal(
+      realpathSync(resolve(dirname(result.receipt.ascModulePath), "..")),
+      INSTALLED_ASC_PACKAGE_ROOT,
+    );
     assert.equal(runtime.verifyReceipt(result.receipt), true);
     assert.equal(runtime.verifyReceipt({ ...result.receipt }), false);
     assert.equal(runtime.bindToolCall(result.receipt.nonce, "tool-call-1"), true);
@@ -1082,6 +1397,23 @@ test("overlapping preflight leases retain tools until the final owner settles", 
     );
     assert.equal(runtime.cancel(second.receipt.nonce), true);
     assert.deepEqual(pi.getActiveTools(), ["read", "workflow_execute"]);
+  });
+});
+
+test("preflight rejects the local ASC extension when execution uses the registry owner", async () => {
+  await withFixture(async (scratch) => {
+    const pi = createPiRuntime({
+      toolPathOverrides: { dispatch_subagent: LOCAL_ASC_EXTENSION_PATH },
+    });
+    const runtime = createGovernedDeepReviewPreflightRuntime(pi, {
+      requireMaterializationManifest: false,
+      dispatchReceiptPath: resolve(scratch, "handoffs.jsonl"),
+    });
+    const result = await prepare(runtime, "55555555-5555-4555-8555-555555555555", "run-local-asc");
+    assert.equal(result.ok, false);
+    assert.equal(result.failureClass, "registered_tool_source_path_mismatch");
+    assert.match(result.error, /dispatch_subagent resolves from/);
+    assert.deepEqual(pi.getActiveTools(), ["read"]);
   });
 });
 

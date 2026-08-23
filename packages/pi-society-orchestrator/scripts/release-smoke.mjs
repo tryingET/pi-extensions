@@ -247,7 +247,7 @@ function writeExecutable(filePath, content) {
           /^#!\/usr\/bin\/env bash\n/u,
           `#!/usr/bin/env bash
 if [[ "$1" == "--version" ]]; then
-  printf '%s\\n' '0.83.0'
+  printf '%s\\n' '0.84.2'
   exit 0
 fi
 `,

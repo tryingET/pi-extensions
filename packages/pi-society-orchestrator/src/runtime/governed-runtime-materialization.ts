@@ -34,12 +34,26 @@ export const GOVERNED_RUNTIME_PEER_LAYER_RELATIVE_PATH =
 export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.3.7";
 export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
   "sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==";
-export const GOVERNED_RUNTIME_HOST_VERSION = "0.83.0";
+export const GOVERNED_RUNTIME_HOST_VERSION = "0.84.2";
 export const GOVERNED_RUNTIME_NPM_MIN_RELEASE_AGE_DAYS = 7;
 // npm matches registry package names, not Git repository ownership. The owned public scope is the
 // narrow exemption; dependencies of matching packages remain age-gated unless they also match.
 export const GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS = ["@tryinget/*"] as const;
 export const GOVERNED_RUNTIME_NPM_REGISTRY = "https://registry.npmjs.org/";
+export const GOVERNED_RUNTIME_ASC_REGISTRY_OWNER = {
+  consumer: "packages/pi-society-orchestrator",
+  name: "@tryinget/pi-autonomous-session-control",
+  version: "0.5.1",
+  selector: "^0.5.0",
+  url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.5.1.tgz",
+  integrity:
+    "sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==",
+  specifiers: [
+    "@tryinget/pi-autonomous-session-control/execution",
+    "@tryinget/pi-autonomous-session-control",
+  ],
+} as const;
+
 export const GOVERNED_RUNTIME_ASC_COMPILER = {
   name: "@typescript/native-preview",
   version: "7.0.0-dev.20260417.1",
@@ -50,7 +64,7 @@ export const GOVERNED_RUNTIME_ASC_COMPILER = {
 export const GOVERNED_RUNTIME_HOST_PEERS = {
   "@earendil-works/pi-ai": {
     integrity:
-      "sha512-m3IZD4g3er0V8TC9+Vpgw/sjTKqcJlkcIBy/JvsgRubuuik3tAVzyugUg4rVrShIkkOT69mEd34NEqKUIsl6JQ==",
+      "sha512-6MzsrYIYNVlE7SfpbL2yYb67Qo58p/7Q+xWG1RZvoX1P80aRCHSod2/13aFpxkow1lPO2LEh3c495J0Gwmyjig==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -66,12 +80,12 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-agent-core": {
     integrity:
-      "sha512-RorGp9OH5l3ElpuC5a5ZQ2eWcchZGXflXRzVGkV99y3y6tT+LLNyxoYIdVKvTKWEObwhExeQbTH0fI2tE4iX4g==",
+      "sha512-8Pn3wSCxj0cfo5I6jxQYVB/3uuQRmHhAlEclyjqpOuMEdQMIODHizRogv56FLdbU+dTiGnybeHQ2N+sV1/L2YA==",
     consumers: [],
   },
   "@earendil-works/pi-coding-agent": {
     integrity:
-      "sha512-uYhF+FsZxogoSX/AxBcUdiY+ZklubwaXyAoEGA2eQwsHcyEAhUYIKh/WLXe/a8+k8eTCmxb+ZN2Zo9mzQtzbWw==",
+      "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -88,7 +102,7 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-tui": {
     integrity:
-      "sha512-IoYrb0rORjELmEpNtoCA/U8je3KopMkRAVJRdSzvXRvgb+Huo1gNh8Q5CSZvNOiYtDxJdj2tYZZHZ4B3+IN3hA==",
+      "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-society-orchestrator",
@@ -101,30 +115,39 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
 } as const;
 
+const GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES = [
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-client",
+  "@earendil-works/pi-protocol",
+  "@earendil-works/pi-telemetry",
+  "@earendil-works/pi-tui",
+] as const;
+
 export const GOVERNED_RUNTIME_HOST_CACHE_TARBALLS = {
   "@earendil-works/pi-ai": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.83.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.2.tgz",
     integrity:
-      "sha512-m3IZD4g3er0V8TC9+Vpgw/sjTKqcJlkcIBy/JvsgRubuuik3tAVzyugUg4rVrShIkkOT69mEd34NEqKUIsl6JQ==",
+      "sha512-6MzsrYIYNVlE7SfpbL2yYb67Qo58p/7Q+xWG1RZvoX1P80aRCHSod2/13aFpxkow1lPO2LEh3c495J0Gwmyjig==",
   },
   "@earendil-works/pi-agent-core": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.83.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.84.2.tgz",
     integrity:
-      "sha512-RorGp9OH5l3ElpuC5a5ZQ2eWcchZGXflXRzVGkV99y3y6tT+LLNyxoYIdVKvTKWEObwhExeQbTH0fI2tE4iX4g==",
+      "sha512-8Pn3wSCxj0cfo5I6jxQYVB/3uuQRmHhAlEclyjqpOuMEdQMIODHizRogv56FLdbU+dTiGnybeHQ2N+sV1/L2YA==",
   },
   "@earendil-works/pi-coding-agent": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.83.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.84.2.tgz",
     integrity:
-      "sha512-uYhF+FsZxogoSX/AxBcUdiY+ZklubwaXyAoEGA2eQwsHcyEAhUYIKh/WLXe/a8+k8eTCmxb+ZN2Zo9mzQtzbWw==",
+      "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA==",
   },
   "@earendil-works/pi-tui": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.83.0.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.84.2.tgz",
     integrity:
-      "sha512-IoYrb0rORjELmEpNtoCA/U8je3KopMkRAVJRdSzvXRvgb+Huo1gNh8Q5CSZvNOiYtDxJdj2tYZZHZ4B3+IN3hA==",
+      "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg==",
   },
 } as const;
 
@@ -192,12 +215,6 @@ export const GOVERNED_RUNTIME_LOCAL_EDGES = [
     "@tryinget/pi-vault-client/dispatch-guard",
     "@tryinget/pi-vault-client",
     "packages/pi-vault-client",
-  ),
-  edge(
-    "packages/pi-society-orchestrator",
-    "@tryinget/pi-autonomous-session-control/execution",
-    "@tryinget/pi-autonomous-session-control",
-    "packages/pi-autonomous-session-control",
   ),
   edge(
     "packages/pi-society-orchestrator",
@@ -297,6 +314,18 @@ export const GOVERNED_RUNTIME_LOCAL_EDGES = [
   ),
 ] as const;
 
+export const GOVERNED_RUNTIME_REGISTRY_EDGES = GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.specifiers.map(
+  (specifier) => ({
+    consumer: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.consumer,
+    specifier,
+    expectedOwnerName: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
+    expectedOwnerVersion: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version,
+    expectedSelector: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.selector,
+    expectedUrl: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.url,
+    expectedIntegrity: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.integrity,
+  }),
+);
+
 export interface GovernedRuntimeCleanliness {
   trackedChanges: string[];
   untrackedSourcePaths: string[];
@@ -319,7 +348,9 @@ export interface GovernedRuntimeResolution {
   specifier: string;
   resolvedPath: string;
   ownerName: string;
+  ownerVersion: string;
   ownerRoot: string;
+  ownership: "local_source" | "registry_external";
 }
 
 export interface GovernedRuntimeGraphProof {
@@ -1253,6 +1284,28 @@ function assertNoEscapingSymlinks(root: string): void {
   visit(root);
 }
 
+function codingAgentShrinkwrapPackageName(lockPath: string): string | undefined {
+  const prefix = "node_modules/@earendil-works/pi-coding-agent/node_modules/";
+  if (!lockPath.startsWith(prefix)) return undefined;
+  const packageName = lockPath.slice(prefix.length);
+  return GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES.find(
+    (candidate) => candidate === packageName,
+  );
+}
+
+function isExactCodingAgentShrinkwrapEntry(
+  lockPath: string,
+  entry: { version?: string; resolved?: string },
+): boolean {
+  const packageName = codingAgentShrinkwrapPackageName(lockPath);
+  if (!packageName || entry.version !== GOVERNED_RUNTIME_HOST_VERSION) return false;
+  const tarballName = packageName.slice(packageName.indexOf("/") + 1);
+  return (
+    entry.resolved ===
+    `https://registry.npmjs.org/${packageName}/-/${tarballName}-${GOVERNED_RUNTIME_HOST_VERSION}.tgz`
+  );
+}
+
 export function verifyGovernedRuntimePeerClosure(
   sourceRoot: string,
 ): GovernedRuntimePeerClosureProof {
@@ -1284,7 +1337,10 @@ export function verifyGovernedRuntimePeerClosure(
   assertNoEscapingSymlinks(nodeModulesRoot);
   const hiddenLock = JSON.parse(hiddenLockBytes.toString("utf8")) as {
     lockfileVersion?: number;
-    packages?: Record<string, { version?: string; integrity?: string; link?: boolean }>;
+    packages?: Record<
+      string,
+      { version?: string; integrity?: string; resolved?: string; link?: boolean }
+    >;
   };
   if (hiddenLock.lockfileVersion !== 3) {
     throw new GovernedRuntimeMaterializationError(
@@ -1295,10 +1351,14 @@ export function verifyGovernedRuntimePeerClosure(
   const installed = Object.entries(hiddenLock.packages ?? {}).filter(([key]) => Boolean(key));
   const lockedPackagePaths = installed
     .map(([key, value]) => {
-      if (value.link || !value.version || !value.integrity) {
+      if (
+        value.link ||
+        !value.version ||
+        (!value.integrity && !isExactCodingAgentShrinkwrapEntry(key, value))
+      ) {
         throw new GovernedRuntimeMaterializationError(
           "materialization_closure_package_proof_missing",
-          `Installed closure package lacks a versioned integrity proof: ${key}.`,
+          `Installed closure package lacks exact SRI or the one bounded Pi 0.84.2 coding-agent shrinkwrap identity: ${key}.`,
         );
       }
       return key;
@@ -1314,11 +1374,30 @@ export function verifyGovernedRuntimePeerClosure(
       if (topLevel === ".bin" || topLevel.startsWith(".tryinget-")) continue;
       const packageManifestPath = resolve(absolutePath, "package.json");
       if (existsSync(packageManifestPath)) {
-        readJsonNoFollow<{ name?: string }>(
+        const owner = readJsonNoFollow<{ name?: string; version?: string }>(
           packageManifestPath,
           "materialization_closure_package_manifest_invalid",
         );
-        physicalPackagePaths.push(`node_modules/${relativePath.split(sep).join("/")}`);
+        const lockPath = `node_modules/${relativePath.split(sep).join("/")}`;
+        const locked = hiddenLock.packages?.[lockPath];
+        if (locked && owner.version !== locked.version) {
+          throw new GovernedRuntimeMaterializationError(
+            "materialization_closure_package_manifest_invalid",
+            `Installed closure manifest version does not match its hidden lock: ${lockPath}.`,
+          );
+        }
+        if (
+          locked &&
+          !locked.integrity &&
+          (!isExactCodingAgentShrinkwrapEntry(lockPath, locked) ||
+            owner.name !== codingAgentShrinkwrapPackageName(lockPath))
+        ) {
+          throw new GovernedRuntimeMaterializationError(
+            "materialization_closure_package_proof_missing",
+            `Installed closure shrinkwrap owner drifted: ${lockPath}.`,
+          );
+        }
+        physicalPackagePaths.push(lockPath);
         const nestedNodeModules = resolve(absolutePath, "node_modules");
         if (existsSync(nestedNodeModules)) {
           const nestedStat = lstatSync(nestedNodeModules);
@@ -1394,6 +1473,50 @@ interface GovernedRuntimePeerManifest {
   dependencies?: Record<string, string>;
 }
 
+export function classifyGovernedRuntimeAscRegistryOwnerEvidence(
+  packageManifest: GovernedRuntimePeerManifest,
+  regularLock: GovernedRuntimePackageLock,
+  hiddenLock: GovernedRuntimePackageLock,
+): {
+  name: typeof GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name;
+  version: typeof GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version;
+  selector: typeof GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.selector;
+  url: typeof GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.url;
+  integrity: typeof GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.integrity;
+} {
+  const expected = GOVERNED_RUNTIME_ASC_REGISTRY_OWNER;
+  const lockPath = `node_modules/${expected.name}`;
+  const regularRoot = regularLock.packages?.[""];
+  const regular = regularLock.packages?.[lockPath];
+  const hidden = hiddenLock.packages?.[lockPath];
+  if (
+    regularLock.lockfileVersion !== 3 ||
+    hiddenLock.lockfileVersion !== 3 ||
+    packageManifest.dependencies?.[expected.name] !== expected.selector ||
+    regularRoot?.dependencies?.[expected.name] !== expected.selector ||
+    regular?.link === true ||
+    hidden?.link === true ||
+    regular?.version !== expected.version ||
+    hidden?.version !== expected.version ||
+    regular.resolved !== expected.url ||
+    hidden.resolved !== expected.url ||
+    regular.integrity !== expected.integrity ||
+    hidden.integrity !== expected.integrity
+  ) {
+    throw new GovernedRuntimeMaterializationError(
+      "materialization_registry_owner_lock_mismatch",
+      `ASC registry handoff must remain atomic: ${expected.name}=${expected.selector} must resolve as exact ${expected.version} with one registry URL/SRI in the manifest plus regular and hidden locks. Coordinate any movement with AK #4883.`,
+    );
+  }
+  return {
+    name: expected.name,
+    version: expected.version,
+    selector: expected.selector,
+    url: expected.url,
+    integrity: expected.integrity,
+  };
+}
+
 export function classifyGovernedRuntimeHostLockEvidence(
   packageManifest: GovernedRuntimePeerManifest,
   regularLock: GovernedRuntimePackageLock,
@@ -1420,10 +1543,25 @@ export function classifyGovernedRuntimeHostLockEvidence(
       ...Object.keys(hiddenLock.packages ?? {}),
     ])) {
       if (key !== lockKey && key.endsWith(`/node_modules/${packageName}`)) {
-        throw new GovernedRuntimeMaterializationError(
-          "materialization_host_lock_duplicate",
-          `Governed host lock contains a nested duplicate for ${packageName}: ${key}.`,
-        );
+        const regularDuplicate = regularLock.packages?.[key];
+        const hiddenDuplicate = hiddenLock.packages?.[key];
+        if (
+          regularDuplicate?.link ||
+          hiddenDuplicate?.link ||
+          regularDuplicate?.version !== expected.version ||
+          hiddenDuplicate?.version !== expected.version ||
+          regularDuplicate.resolved !== expected.url ||
+          hiddenDuplicate.resolved !== expected.url ||
+          (regularDuplicate.integrity !== undefined &&
+            regularDuplicate.integrity !== expected.integrity) ||
+          (hiddenDuplicate.integrity !== undefined &&
+            hiddenDuplicate.integrity !== expected.integrity)
+        ) {
+          throw new GovernedRuntimeMaterializationError(
+            "materialization_host_lock_duplicate",
+            `Governed host lock contains a non-identical nested duplicate for ${packageName}: ${key}.`,
+          );
+        }
       }
     }
     const selector = packageManifest.dependencies?.[packageName];
@@ -2083,12 +2221,14 @@ export function resolveGovernedRuntimeGraph(sourceRoot: string): GovernedRuntime
     const expectedOwnerRoot = realpathSync(resolve(root, definition.expectedOwnerPath));
     if (
       owner.name !== definition.expectedOwnerName ||
+      typeof owner.version !== "string" ||
+      !owner.version ||
       owner.root !== expectedOwnerRoot ||
       !pathInside(root, resolvedPath)
     ) {
       throw new GovernedRuntimeMaterializationError(
         "materialization_resolution_owner_mismatch",
-        `${definition.consumer} -> ${definition.specifier} resolved to ${owner.name} at ${owner.root}; expected ${definition.expectedOwnerName} at ${expectedOwnerRoot}.`,
+        `${definition.consumer} -> ${definition.specifier} resolved to ${owner.name}@${owner.version ?? "unknown"} at ${owner.root}; expected local source owner ${definition.expectedOwnerName} at ${expectedOwnerRoot}.`,
       );
     }
     const key = `${definition.consumer} -> ${definition.specifier}`;
@@ -2097,12 +2237,75 @@ export function resolveGovernedRuntimeGraph(sourceRoot: string): GovernedRuntime
       specifier: definition.specifier,
       resolvedPath,
       ownerName: owner.name,
+      ownerVersion: owner.version,
       ownerRoot: owner.root,
+      ownership: "local_source",
     };
     if (definition.expectedOwnerName === "@tryinget/pi-runtime-registry") {
       registryRoots.add(owner.root);
     }
   }
+
+  const expectedExternalRoots = new Set<string>();
+  for (const definition of GOVERNED_RUNTIME_REGISTRY_EDGES) {
+    const consumerRoot = resolve(root, definition.consumer);
+    const require = createRequire(resolve(consumerRoot, "package.json"));
+    const resolvedPath = realpathSync(require.resolve(definition.specifier));
+    const owner = ownerPackageRoot(resolvedPath);
+    const expectedOwnerRoot = realpathSync(
+      resolve(consumerRoot, "node_modules", definition.expectedOwnerName),
+    );
+    if (
+      owner.name !== definition.expectedOwnerName ||
+      owner.version !== definition.expectedOwnerVersion ||
+      owner.root !== expectedOwnerRoot ||
+      !pathInside(root, resolvedPath)
+    ) {
+      throw new GovernedRuntimeMaterializationError(
+        "materialization_registry_owner_mismatch",
+        `${definition.consumer} -> ${definition.specifier} resolved to ${owner.name}@${owner.version ?? "unknown"} at ${owner.root}; expected exact registry owner ${definition.expectedOwnerName}@${definition.expectedOwnerVersion} at ${expectedOwnerRoot}.`,
+      );
+    }
+    const packageManifest = readJsonNoFollow<GovernedRuntimePeerManifest>(
+      resolve(consumerRoot, "package.json"),
+      "materialization_registry_owner_lock_mismatch",
+    );
+    const regularLock = readJsonNoFollow<GovernedRuntimePackageLock>(
+      resolve(consumerRoot, "package-lock.json"),
+      "materialization_registry_owner_lock_mismatch",
+    );
+    const hiddenLock = readJsonNoFollow<GovernedRuntimePackageLock>(
+      resolve(consumerRoot, "node_modules/.package-lock.json"),
+      "materialization_registry_owner_lock_mismatch",
+    );
+    classifyGovernedRuntimeAscRegistryOwnerEvidence(packageManifest, regularLock, hiddenLock);
+    expectedExternalRoots.add(expectedOwnerRoot);
+    const key = `${definition.consumer} -> ${definition.specifier}`;
+    resolutions[key] = {
+      consumer: definition.consumer,
+      specifier: definition.specifier,
+      resolvedPath,
+      ownerName: owner.name,
+      ownerVersion: definition.expectedOwnerVersion,
+      ownerRoot: owner.root,
+      ownership: "registry_external",
+    };
+  }
+
+  const observedExternalRoots = collectPhysicalPackageOwnerRoots(
+    root,
+    GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
+  );
+  if (
+    observedExternalRoots.size !== expectedExternalRoots.size ||
+    [...observedExternalRoots].some((ownerRoot) => !expectedExternalRoots.has(ownerRoot))
+  ) {
+    throw new GovernedRuntimeMaterializationError(
+      "materialization_registry_owner_multiplicity",
+      `Governed runtime expected one physical ${GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name}@${GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version} registry owner at ${[...expectedExternalRoots].join(", ")}; observed ${[...observedExternalRoots].join(", ") || "none"}.`,
+    );
+  }
+
   const expectedRegistryRoot = realpathSync(
     resolve(root, "packages/pi-interaction/pi-runtime-registry"),
   );
@@ -2113,6 +2316,43 @@ export function resolveGovernedRuntimeGraph(sourceRoot: string): GovernedRuntime
     );
   }
   return { resolutions, runtimeRegistryRoot: expectedRegistryRoot };
+}
+
+function collectPhysicalPackageOwnerRoots(sourceRoot: string, expectedName: string): Set<string> {
+  const roots = new Set<string>();
+  const visitedNodeModules = new Set<string>();
+  const inspectNodeModules = (rawNodeModulesRoot: string): void => {
+    const nodeModulesRoot = realpathSync(rawNodeModulesRoot);
+    if (visitedNodeModules.has(nodeModulesRoot)) return;
+    visitedNodeModules.add(nodeModulesRoot);
+    for (const entry of readdirSync(nodeModulesRoot, { withFileTypes: true })) {
+      if (entry.isSymbolicLink() || !entry.isDirectory() || entry.name === ".bin") continue;
+      const absolutePath = resolve(nodeModulesRoot, entry.name);
+      if (entry.name.startsWith("@") && !existsSync(resolve(absolutePath, "package.json"))) {
+        for (const scopedEntry of readdirSync(absolutePath, { withFileTypes: true })) {
+          if (scopedEntry.isSymbolicLink() || !scopedEntry.isDirectory()) continue;
+          inspectPackage(resolve(absolutePath, scopedEntry.name));
+        }
+      } else {
+        inspectPackage(absolutePath);
+      }
+    }
+  };
+  const inspectPackage = (packageRoot: string): void => {
+    const manifestPath = resolve(packageRoot, "package.json");
+    if (!existsSync(manifestPath)) return;
+    const owner = readJsonNoFollow<{ name?: string }>(
+      manifestPath,
+      "materialization_registry_owner_manifest_invalid",
+    );
+    if (owner.name === expectedName) roots.add(realpathSync(packageRoot));
+    const nestedNodeModules = resolve(packageRoot, "node_modules");
+    if (existsSync(nestedNodeModules)) inspectNodeModules(nestedNodeModules);
+  };
+  for (const packagePath of GOVERNED_RUNTIME_PACKAGES) {
+    inspectNodeModules(resolve(sourceRoot, packagePath, "node_modules"));
+  }
+  return roots;
 }
 
 export function verifyGovernedRuntimeTypebox(sourceRoot: string): GovernedRuntimeTypeboxProof {
