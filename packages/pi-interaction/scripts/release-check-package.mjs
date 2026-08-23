@@ -16,15 +16,34 @@ const keepArtifacts = process.env.KEEP_RELEASE_ARTIFACTS === "1";
 
 const packageDir = process.cwd();
 const packageJsonPath = path.join(packageDir, "package.json");
+const manifestStatePaths = [
+  ".package.json.prepack.backup",
+  ".package.json.publish-manifest.lock",
+  ".package.json.publish-manifest.guard",
+  ".package.json.publish-manifest.recovery",
+].map((name) => path.join(packageDir, name));
+const manifestLifecycleScriptPath = path.resolve(
+  packageDir,
+  "../scripts/prepare-publish-manifest.mjs",
+);
 
 if (!fs.existsSync(packageJsonPath)) {
   console.error(`Missing package.json in ${packageDir}`);
   process.exit(1);
 }
 
-const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+const originalPackageJsonText = fs.readFileSync(packageJsonPath, "utf8");
+const pkg = JSON.parse(originalPackageJsonText);
 
 const normalize = (value) => String(value).replace(/^\.\//, "").replace(/\\/g, "/");
+const statePathExists = (statePath) => {
+  try {
+    fs.lstatSync(statePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 function fail(message) {
   console.error(message);
@@ -134,8 +153,8 @@ function validatePackWhitelist(packJson, manifest) {
   const expectedPatternPrefixes = [];
 
   for (const entry of filesEntries) {
-    if (/[*?\[]/.test(entry)) {
-      const prefix = normalize(entry.split(/[*?\[]/, 1)[0]);
+    if (/[*?[]/.test(entry)) {
+      const prefix = normalize(entry.split(/[*?[]/, 1)[0]);
       if (!prefix) {
         fail(`Unsupported files[] wildcard entry without prefix: ${entry}`);
       }
@@ -160,7 +179,10 @@ function validatePackWhitelist(packJson, manifest) {
     fail("Could not parse npm pack --dry-run --json output.");
   }
 
-  const actual = packJson[0].files.map((file) => normalize(String(file.path ?? ""))).filter(Boolean).sort();
+  const actual = packJson[0].files
+    .map((file) => normalize(String(file.path ?? "")))
+    .filter(Boolean)
+    .sort();
   const actualSet = new Set(actual);
   const allowByAlwaysIncluded = (filePath) => {
     return (
@@ -210,7 +232,15 @@ function readPackedManifest(tarballPath) {
   return JSON.parse(result.stdout);
 }
 
-function validatePackedManifest(packedManifest, originalManifest, packageName, tarballPath) {
+function dependencyProjection(manifest) {
+  return Object.fromEntries(
+    dependencyFields
+      .filter((field) => manifest[field] && Object.keys(manifest[field]).length > 0)
+      .map((field) => [field, manifest[field]]),
+  );
+}
+
+function validatePackedManifest(packedManifest, originalManifest, packageName, artifactLabel) {
   for (const field of dependencyFields) {
     const deps = packedManifest[field];
     if (!deps || typeof deps !== "object" || Array.isArray(deps)) {
@@ -219,12 +249,17 @@ function validatePackedManifest(packedManifest, originalManifest, packageName, t
 
     for (const [dependencyName, spec] of Object.entries(deps)) {
       if (typeof spec === "string" && spec.startsWith("file:")) {
-        fail(`Packed manifest still contains file dependency ${field}.${dependencyName}=${spec} in ${tarballPath}`);
+        fail(
+          `Prepared manifest still contains file dependency ${field}.${dependencyName}=${spec} in ${artifactLabel}`,
+        );
       }
     }
   }
 
-  const directLocalDependencyVersions = collectDirectLocalDependencyVersions(originalManifest, packageDir);
+  const directLocalDependencyVersions = collectDirectLocalDependencyVersions(
+    originalManifest,
+    packageDir,
+  );
   for (const dependency of directLocalDependencyVersions) {
     const packedValue = packedManifest?.[dependency.field]?.[dependency.dependencyName];
     if (packedValue !== dependency.expectedVersion) {
@@ -234,15 +269,15 @@ function validatePackedManifest(packedManifest, originalManifest, packageName, t
     }
   }
 
-  console.log("Packed manifest dependency rewrite OK.");
+  console.log(
+    `${artifactLabel} dependency projection: ${JSON.stringify(dependencyProjection(packedManifest))}`,
+  );
+  console.log(`${artifactLabel} dependency rewrite OK.`);
 }
 
-if (typeof pkg.name !== "string" || pkg.name.length === 0) {
-  fail("package.json name is required.");
-}
-if (typeof pkg.version !== "string" || pkg.version.length === 0) {
+if (typeof pkg.name !== "string" || pkg.name.length === 0) fail("package.json name is required.");
+if (typeof pkg.version !== "string" || pkg.version.length === 0)
   fail("package.json version is required.");
-}
 
 const repositoryUrl = (() => {
   const repository = pkg.repository;
@@ -255,18 +290,49 @@ const repositoryUrl = (() => {
 
 console.log(`== release-check: ${pkg.name}@${pkg.version}`);
 
-if (!repositoryUrl) {
-  fail("package.json repository.url is required for provenance release publishing.");
-}
-if (pkg.name !== pkg.name.toLowerCase()) {
+if (!repositoryUrl) fail("package.json repository.url is required for provenance publishing.");
+if (pkg.name !== pkg.name.toLowerCase())
   fail(`Invalid npm package name: must be lowercase: ${pkg.name}`);
-}
 
 const dependencyPackages = listLocalDependencies(packageDir);
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-interaction-release-check-"));
 const createdTarballs = [];
+function restorePublishManifest() {
+  if (!manifestStatePaths.some(statePathExists)) {
+    return true;
+  }
+
+  const result = spawnSync(process.execPath, [manifestLifecycleScriptPath, "restore"], {
+    cwd: packageDir,
+    env: process.env,
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.status !== 0) {
+    console.error(
+      `Could not restore package.json after publish modeling (exit ${result.status ?? "unknown"}).`,
+    );
+    return false;
+  }
+  return true;
+}
+
+function validateDeveloperManifestRestored(context) {
+  if (fs.readFileSync(packageJsonPath, "utf8") !== originalPackageJsonText) {
+    fail(`Developer package.json was not restored after ${context}.`);
+  }
+  if (manifestStatePaths.some(statePathExists)) {
+    fail(`Manifest lifecycle state remains after ${context}.`);
+  }
+  console.log(`Developer package.json restoration OK after ${context}.`);
+}
 
 const cleanupPaths = () => {
+  if (!restorePublishManifest()) {
+    process.exitCode = 1;
+  }
   if (keepArtifacts) {
     console.log(`Keeping release-check artifacts under ${tempDir}`);
     for (const tarballPath of createdTarballs) {
@@ -282,14 +348,12 @@ const cleanupPaths = () => {
 };
 
 process.on("exit", cleanupPaths);
-process.on("SIGINT", () => {
+const exitAfterCleanup = (exitCode) => {
   cleanupPaths();
-  process.exit(130);
-});
-process.on("SIGTERM", () => {
-  cleanupPaths();
-  process.exit(143);
-});
+  process.exit(exitCode);
+};
+process.on("SIGINT", () => exitAfterCleanup(130));
+process.on("SIGTERM", () => exitAfterCleanup(143));
 
 const packDryRunResult = run("npm", ["pack", "--dry-run", "--json"]);
 let packEntry;
@@ -307,7 +371,53 @@ if (packEntry.name !== pkg.name || packEntry.version !== pkg.version) {
 }
 validatePackWhitelist([packEntry], pkg);
 
+const npmVersion = run("npm", ["--version"]).stdout.trim();
+if (!/^11\./.test(npmVersion)) fail(`Release checks require npm 11; found ${npmVersion}.`);
+const registry = pkg.publishConfig?.registry ?? "https://registry.npmjs.org/";
+for (const dependencyPackage of dependencyPackages) {
+  const spec = `${dependencyPackage.name}@${dependencyPackage.version}`;
+  const result = run("npm", ["view", spec, "version", "--json", "--registry", registry], {
+    allowFailure: true,
+  });
+  let availableVersion;
+  try {
+    availableVersion = JSON.parse(result.stdout || "null");
+  } catch {
+    availableVersion = undefined;
+  }
+  if (result.status !== 0 || availableVersion !== dependencyPackage.version) {
+    fail(`${spec} must be available in ${registry} before publishing ${pkg.name}.`);
+  }
+  console.log(`Registry publish-order gate OK: ${spec} is available before ${pkg.name}.`);
+}
+if (dependencyPackages.length === 0)
+  console.log("Registry publish-order gate OK: no local runtime dependencies.");
+
+const modeledOwner = `release-check-${process.pid}-${Date.now()}`;
+const modeledPublishEnv = {
+  npm_command: "publish",
+  npm_config_user_agent: `npm/${npmVersion} release-check`,
+  PI_PUBLISH_MANIFEST_OWNER: modeledOwner,
+  PI_PUBLISH_MANIFEST_OWNER_PID: String(process.pid),
+};
+run(process.execPath, [manifestLifecycleScriptPath, "prepack"], {
+  env: { ...modeledPublishEnv, npm_lifecycle_event: "prepack" },
+});
+run(process.execPath, [manifestLifecycleScriptPath, "postpack"], {
+  env: { ...modeledPublishEnv, npm_lifecycle_event: "postpack" },
+});
+const publishReadyManifest = loadManifest(packageDir);
+validatePackedManifest(publishReadyManifest, pkg, pkg.name, "Publish-ready package.json");
+run(process.execPath, [manifestLifecycleScriptPath, "restore"], {
+  env: { ...modeledPublishEnv, npm_command: "run-script" },
+});
+validateDeveloperManifestRestored("modeled npm publish manifest reread");
+
 const publishDryRunResult = run("npm", ["publish", "--dry-run"], { allowFailure: true });
+if (!restorePublishManifest()) {
+  fail("Could not restore package.json after npm publish --dry-run.");
+}
+validateDeveloperManifestRestored("npm publish --dry-run");
 if (
   publishDryRunResult.status !== 0 &&
   !/You cannot publish over the previously published versions/i.test(
@@ -345,27 +455,46 @@ const dependencyTarballs = dependencyPackages.map((dependencyPackage) => ({
 
 const packageTarballPath = packPackage(packageDir);
 const packedManifest = readPackedManifest(packageTarballPath);
-validatePackedManifest(packedManifest, pkg, pkg.name, packageTarballPath);
+validatePackedManifest(
+  packedManifest,
+  pkg,
+  pkg.name,
+  `Packed package.json (${packageTarballPath})`,
+);
 
 run("npm", ["init", "-y"], { cwd: tempDir });
 
 if (dependencyTarballs.length > 0) {
   run(
     "npm",
-    ["install", ...dependencyTarballs.map((dependencyPackage) => dependencyPackage.tarballPath)],
+    [
+      "install",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      ...dependencyTarballs.map((dependencyPackage) => dependencyPackage.tarballPath),
+    ],
     { cwd: tempDir },
   );
 }
 
-run("npm", ["install", packageTarballPath], { cwd: tempDir });
-run(
-  "node",
-  [
-    "--input-type=module",
-    "-e",
-    `import(${JSON.stringify(pkg.name)}).then(() => console.log(${JSON.stringify(`Import smoke OK for ${pkg.name}`)})).catch((error) => { console.error(error?.stack || error?.message || error); process.exit(1); });`,
-  ],
-  { cwd: tempDir },
-);
+run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", packageTarballPath], {
+  cwd: tempDir,
+});
+console.log(`Coordinated local artifact-set install OK for ${pkg.name}.`);
+
+if (pkg.main || pkg.exports) {
+  run(
+    "node",
+    [
+      "--input-type=module",
+      "-e",
+      `import(${JSON.stringify(pkg.name)}).then(() => console.log(${JSON.stringify(`Import smoke OK for ${pkg.name}`)})).catch((error) => { console.error(error?.stack || error?.message || error); process.exit(1); });`,
+    ],
+    { cwd: tempDir },
+  );
+} else {
+  console.log(`Import smoke skipped for ${pkg.name}: package.json has no main or exports entry.`);
+}
 
 console.log("release-check done");

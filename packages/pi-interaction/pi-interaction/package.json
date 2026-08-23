@@ -37,8 +37,9 @@
     "check": "npm run quality:ci",
     "prepack": "node ../scripts/prepare-publish-manifest.mjs prepack",
     "postpack": "node ../scripts/prepare-publish-manifest.mjs postpack",
+    "postpublish": "node ../scripts/prepare-publish-manifest.mjs postpublish",
     "release:check": "bash ./scripts/release-check.sh",
-    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh"
+    "release:check:quick": "node --test ../tests/prepare-publish-manifest.test.mjs && node ../scripts/release-check-package.mjs"
   },
   "files": [
     "index.ts",
