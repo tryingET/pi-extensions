@@ -49,7 +49,11 @@ export function createPiPromptTemplateHostAdapter(pi, ctx = {}) {
       return requireFunction(pi, "setThinkingLevel", "setThinking")(thinking);
     },
     sendUserMessage(content) {
-      return requireFunction(pi, "sendUserMessage")(content);
+      // Explicit non-expansion (pi >= 0.84.2 expandPromptTemplates, #7857):
+      // this package renders prompt templates itself and dispatches final
+      // user-message text. Host-side re-expansion would be double expansion
+      // and could execute slash-looking tokens embedded in rendered content.
+      return requireFunction(pi, "sendUserMessage")(content, { expandPromptTemplates: false });
     },
     getCommands() {
       return typeof pi?.getCommands === "function" ? pi.getCommands() : [];

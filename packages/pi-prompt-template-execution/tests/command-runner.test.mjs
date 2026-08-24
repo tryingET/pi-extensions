@@ -75,8 +75,8 @@ function createHost(overrides = {}) {
       async setThinking(thinking) {
         calls.push({ type: "setThinking", thinking });
       },
-      async sendUserMessage(content) {
-        calls.push({ type: "sendUserMessage", content });
+      async sendUserMessage(content, options) {
+        calls.push({ type: "sendUserMessage", content, options });
       },
       ...overrides,
     },
@@ -124,7 +124,11 @@ describe("prompt-template command runner", () => {
     assert.deepEqual(calls, [
       { type: "setModel", model: target },
       { type: "setThinking", thinking: "medium" },
-      { type: "sendUserMessage", content: "Commit all changes" },
+      {
+        type: "sendUserMessage",
+        content: "Commit all changes",
+        options: { expandPromptTemplates: false },
+      },
       { type: "setThinking", thinking: "low" },
       { type: "setModel", model: current },
     ]);
@@ -151,7 +155,7 @@ describe("prompt-template command runner", () => {
     assert.equal(result.ok, true);
     assert.deepEqual(calls, [
       { type: "setThinking", thinking: "medium" },
-      { type: "sendUserMessage", content: "Commit" },
+      { type: "sendUserMessage", content: "Commit", options: { expandPromptTemplates: false } },
     ]);
   });
 
@@ -179,7 +183,7 @@ describe("prompt-template command runner", () => {
     assert.deepEqual(calls, [
       { type: "setModel", model: target },
       { type: "setThinking", thinking: "medium" },
-      { type: "sendUserMessage", content: "Commit" },
+      { type: "sendUserMessage", content: "Commit", options: { expandPromptTemplates: false } },
     ]);
     assert.deepEqual(result.deferredRestore, { model: current, thinking: "low" });
 
@@ -352,8 +356,8 @@ describe("prompt-template command runner", () => {
       setThinkingLevel(thinking) {
         calls.push({ type: "setThinkingLevel", thinking });
       },
-      sendUserMessage(content) {
-        calls.push({ type: "sendUserMessage", content });
+      sendUserMessage(content, options) {
+        calls.push({ type: "sendUserMessage", content, options });
       },
     };
     const notifications = [];
@@ -373,7 +377,7 @@ describe("prompt-template command runner", () => {
       { type: "getThinkingLevel" },
       { type: "setModel", model },
       { type: "setThinkingLevel", thinking: "medium" },
-      { type: "sendUserMessage", content: "hello" },
+      { type: "sendUserMessage", content: "hello", options: { expandPromptTemplates: false } },
     ]);
     assert.deepEqual(notifications, [{ message: "heads up", level: "info" }]);
   });
@@ -417,7 +421,11 @@ describe("prompt-template command runner", () => {
           details: { skillName: "reviewer", skillContent: "Review guidance", skillPath },
         },
       },
-      { type: "sendUserMessage", content: "Review changes" },
+      {
+        type: "sendUserMessage",
+        content: "Review changes",
+        options: { expandPromptTemplates: false },
+      },
     ]);
   });
 

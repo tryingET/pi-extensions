@@ -139,7 +139,10 @@ export async function executePromptTemplateCommand(prompt, args, ctx, host = {},
       return { ok: false, reason: "missing_send_user_message", plan };
     }
 
-    await sendUserMessage(plan.content);
+    // Explicit non-expansion (pi >= 0.84.2 expandPromptTemplates, #7857):
+    // plan.content is already rendered by this package; host-side expansion
+    // would double-expand and could execute slash-looking tokens.
+    await sendUserMessage(plan.content, { expandPromptTemplates: false });
     sent = true;
     return {
       ok: true,
