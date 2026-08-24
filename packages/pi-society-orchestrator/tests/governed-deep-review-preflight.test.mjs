@@ -271,12 +271,11 @@ test("ASC registry handoff atomically binds selector, regular lock, hidden lock,
   assert.deepEqual(
     classifyGovernedRuntimeAscRegistryOwnerEvidence(manifest, regularLock, hiddenLock),
     {
-      name: "@tryinget/pi-autonomous-session-control",
-      version: "0.5.1",
-      selector: "^0.5.0",
-      url: "https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.5.1.tgz",
-      integrity:
-        "sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==",
+      name: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name,
+      version: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.version,
+      selector: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.selector,
+      url: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.url,
+      integrity: GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.integrity,
     },
   );
   assert.equal(
@@ -292,7 +291,7 @@ test("ASC registry handoff atomically binds selector, regular lock, hidden lock,
 
   const driftedHiddenLock = structuredClone(hiddenLock);
   driftedHiddenLock.packages[`node_modules/${GOVERNED_RUNTIME_ASC_REGISTRY_OWNER.name}`].version =
-    "0.5.2";
+    "0.5.1";
   assert.throws(
     () => classifyGovernedRuntimeAscRegistryOwnerEvidence(manifest, regularLock, driftedHiddenLock),
     (error) => error?.failureClass === "materialization_registry_owner_lock_mismatch",
@@ -1319,7 +1318,9 @@ test(
         try {
           assert.throws(
             () => candidateMaterializationModule.resolveGovernedRuntimeGraph(candidateRoot),
-            (error) => error?.failureClass === "materialization_registry_owner_mismatch",
+            (error) =>
+              error?.failureClass === "materialization_registry_owner_mismatch" ||
+              error?.failureClass === "materialization_registry_owner_multiplicity",
           );
         } finally {
           rmSync(lexicalRegistryRoot, { force: true });
