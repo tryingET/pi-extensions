@@ -1,0 +1,75 @@
+{
+  "schema": "engineering-core.v1.g4-participant/1",
+  "stage": "g4-participant-disposition",
+  "cycle_id": "cycle-softwareco-g1-scanner-completeness-is-not-active-resolution",
+  "candidate": "g1-scanner-completeness-is-not-active-resolution",
+  "candidate_identity": "unassigned",
+  "origin_group": "softwareco",
+  "origin_repo": "/home/tryinget/ai-society/softwareco/owned/pi-extensions",
+  "origin_task": 5020,
+  "claimed_by": "softwareco-g4a-5020",
+  "non_qualifying_predecessor": {
+    "cycle_id": "cycle-softwareco-package-scopes",
+    "task": 4954,
+    "path": "docs/v1-proof/g4a-cycle.json",
+    "status": "historical_lockstep_not_counted"
+  },
+  "pilot_groups": [
+    "holdingco",
+    "teachingco"
+  ],
+  "candidate_markdown": {
+    "path": "docs/v1-proof/g4a-candidate.md",
+    "sha256": "b87f14772bf0413db868bd22dff02d28d98c64a876576437133b8abd10c2851f"
+  },
+  "evidence_artifacts": [
+    {
+      "path": "docs/v1-proof/g1-run.json",
+      "sha256": "0f06c6cf63276204dacdebdb7d02f338bb666ab4c4f8e592865421b1966e2b43",
+      "role": "direct_g1_observation"
+    },
+    {
+      "path": "docs/v1-proof/admission.md",
+      "sha256": "81b83462c9d5e99ba417f4571b1a084e310730b2fe46ce85a340cd19e77fda56",
+      "role": "admission_lineage"
+    }
+  ],
+  "participant_disposition": {
+    "disposition": "supports_pilot_only",
+    "evidence_supported": true,
+    "decided_by": "softwareco-g4a-5020",
+    "coerced": false,
+    "reason": "This repo's G1 replica run shows scan-adoption completeness beside a structured init --apply refusal and a blocked doctor; that polarity split is real enough to pilot, not enough to change shared G1 scoring from one owner."
+  },
+  "minimum_decision_record": {
+    "problem": "G1 prove_active_resolution was scored pass from scan-adoption completeness=complete with zero diagnostics on replica pos-4 at b313becf, while the same run's init --apply exited 2 with applied=false and doctor reported 0 healthy/degraded plus 1 blocked/degraded. Missing-target init --repo /this/path/does/not/exist also exited 0 with a create-plan JSON after traversal correctly fail-closed. Scanner snapshots can therefore stand in for an active owner resolution.",
+    "audience_and_scope": "Heterogeneous SoftwareCo monorepos that already pin policy/engineering-lane.json (this repo: 8f59f4178f0c40f73d64c417e7a591de42a0f0d2, lane pi-ts). Non-goals: splitting the monorepo, promoting a G1 field from one owner, mutating engineering-core src/, claiming G1 or G4 PASS, or writing a content-owner decision.",
+    "invariant_or_decision_rule": "scan-adoption completeness is a diagnostic, not proof of an active v1 resolution. prove_active_resolution may pass only when the same revision's owner-apply either applies a declared resolution or is scored as a lawful structured refusal. Missing-target and traversal inputs must fail closed with no plan JSON. Repo-level green checks, complete scanner reports, and doctor exit 0 cannot substitute for that polarity.",
+    "load_triggers": "G1 or adoption scan of a brownfield consumer that already has policy/engineering-lane.json; a prove_active_resolution journey that would pass from completeness=complete alone; init/plan --repo against a missing path or a path containing ..; review of a G1 run with mixed journey status and g1_pass_claimed=false.",
+    "evidence_references": "docs/v1-proof/g1-run.json sha256 0f06c6cf63276204dacdebdb7d02f338bb666ab4c4f8e592865421b1966e2b43 (schema engineering-core.v1.g1-run/1, candidate b313becf7f1bf5261843d7b29c939b0bc5072ef1, g1_pass_claimed=false, counts pass=6 fail=1 incomplete=3). prove_active_resolution pass via scan-adoption completeness=complete. apply_owner_plan incomplete via init --apply exit 2 applied=false. diagnose_v1_adoption doctor static-only, 1 blocked/degraded. failure_boundaries fail: traversal exit 1, missing-dir init exit 0 create plan. Consumer pin policy/engineering-lane.json ref 8f59f4178f0c40f73d64c417e7a591de42a0f0d2. admission.md sha256 81b83462c9d5e99ba417f4571b1a084e310730b2fe46ce85a340cd19e77fda56.",
+    "strongest_alternative": "Keep prove_active_resolution defined as scanner completeness on the scope root. Rejected: this packet already refused G1 PASS while that journey passed. Treating every structured init --apply refusal as adoption failure is also rejected; a brownfield pin can be lawful local adoption truth.",
+    "counterevidence_and_exceptions": "A greenfield repo with no policy/engineering-lane.json may receive an init create plan. A single-package repo may not show the doctor-blocked/scanner-complete split. Doctor exit 0 is not a health claim. Live Pi install/reload proof is a different unit. One SoftwareCo monorepo is not two owner groups.",
+    "falsification_conditions": "A second distinct positive owner group observes scanner completeness and an applied owner resolution and a non-blocked doctor on the same revision; or missing-target init fail-closes and prove_active_resolution can no longer pass from scanner completeness while apply is refused; or owners use this rule to hide a failing root check by labeling every refusal lawful.",
+    "adoption_and_compatibility": "Pilot only. No G1 field, harness edit, or catalog/lane/template change is requested here. A later content-owner task could bind prove_active_resolution to owner-apply polarity and keep scan-adoption diagnostic. Rollback is to drop that scoring rule. No pre-v1 compatibility claim. distribution_status=not_distributed; adoption_status=not_adopted.",
+    "review_trigger": "2026-09-30, or the first other positive owner group's G1 run that would pass prove_active_resolution from scanner completeness while init --apply is a structured refusal, or the first missing-target init that still exits 0 with plan JSON.",
+    "retirement_signal": "Engineering-core G1 journey definitions already separate scanner diagnostics from active-resolution polarity, missing-target init fail-closes, and this candidate is redundant.",
+    "semantic_references": "none_yet"
+  },
+  "pilot_bounds": {
+    "opt_in": true,
+    "bounded": true,
+    "expiry_or_review_event": "2026-09-30",
+    "can_become_default_silently": false
+  },
+  "rollback_drill": {
+    "restored_exact_prior_stable_selection": true,
+    "history_preserved": true,
+    "note": "Prior stable shared selection is no shared content change. Participant rollback is a no-op that keeps this record and the 4954 historical files."
+  },
+  "distribution_status": "not_distributed",
+  "adoption_status": "not_adopted",
+  "deferred_to_later_engineering_core_task": [
+    "content_owner_decision",
+    "final_state"
+  ]
+}
