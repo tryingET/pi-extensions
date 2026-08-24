@@ -356,7 +356,23 @@ cache=${cacheDir}
   // empty fixture so ambient /etc/npmrc cannot leak machine-local policy in.
   const globalrcPath = join(scratch, "globalrc");
   writeFileSync(globalrcPath, "");
-  const keys = ["TMPDIR", "npm_config_userconfig", "npm_config_globalconfig", "npm_config_cache"];
+  // Also scrub ambient npm_config_* policy overrides: when the gate runs via
+  // `npm run` (e.g. the pre-push hook), npm exports user .npmrc policy
+  // (min-release-age*, registry, ...) as environment variables. The governed
+  // runtime must see none of them, exactly like a fresh CI runner.
+  const keys = [
+    "TMPDIR",
+    "npm_config_userconfig",
+    "npm_config_globalconfig",
+    "npm_config_cache",
+    "npm_config_before",
+    "npm_config_force",
+    "npm_config_min_release_age",
+    "npm_config_min_release_age_exclude",
+    "npm_config_offline",
+    "npm_config_prefer_offline",
+    "npm_config_registry",
+  ];
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   const restore = () => {
     for (const [key, value] of Object.entries(previous)) {
@@ -369,6 +385,20 @@ cache=${cacheDir}
   process.env.npm_config_userconfig = npmrcPath;
   process.env.npm_config_globalconfig = globalrcPath;
   process.env.npm_config_cache = cacheDir;
+  // Being listed above only saves/restores; policy overrides must additionally
+  // be REMOVED while the fixture runs so the governed proof observes a clean
+  // environment regardless of how the gate was invoked (direct or npm run).
+  for (const key of keys) {
+    if (
+      key === "TMPDIR" ||
+      key === "npm_config_userconfig" ||
+      key === "npm_config_globalconfig" ||
+      key === "npm_config_cache"
+    ) {
+      continue;
+    }
+    delete process.env[key];
+  }
   let result;
   try {
     result = run({ scratch, cacheDir, npmrcPath });
