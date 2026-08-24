@@ -66,7 +66,7 @@ export function handleDirectUserMessage(query: SelfQuery): SelfResponse {
       reason:
         "Direct user-message text contains a slash-command-looking token; keep it as editor prefill so the operator can submit it through Pi's slash-command parser.",
       boundary:
-        "Extension-originated pi.sendUserMessage does not invoke Pi slash-command expansion. ASC/self must not inject command-looking text as a follow-up or become a hidden loop runner.",
+        "Extension-originated pi.sendUserMessage does not invoke Pi slash-command expansion by default. Upstream 0.84.2 added an explicit expandPromptTemplates option (#7857); ASC deliberately does NOT adopt it — machine-authored follow-ups must never auto-execute command-looking text, so expansion stays off here by design. ASC/self must not inject command-looking text as a follow-up or become a hidden loop runner.",
     });
   }
 
