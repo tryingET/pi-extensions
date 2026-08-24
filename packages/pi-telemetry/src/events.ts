@@ -13,6 +13,16 @@
 
 export const TELEMETRY_SCHEMA_VERSION = 1;
 
+/**
+ * Causal-era revision marker for compaction-family records.
+ * Records carrying `rev >= CAUSAL_SCHEMA_REV` include host-event correlation
+ * (composite `(sessionId, compactionSeq)` keying and causal failure causes);
+ * records without `rev` predate causal correlation and are treated as
+ * version 0 by consumers. Introduced with `session_compact_failed` adoption
+ * (ADR 2026-08-24-pi-0.84.x-adoption P0-A).
+ */
+export const CAUSAL_SCHEMA_REV = 2;
+
 export type TelemetryKind =
   | "tool_call"
   | "compaction"
@@ -34,6 +44,8 @@ export interface TelemetryEventBase {
   cwd?: string;
   /** "live" events are measured at runtime; "backfill" events are derived from persisted session JSONL. */
   source?: "live" | "backfill";
+  /** Causal-era revision marker; absent on pre-causal records (treated as version 0). */
+  rev?: number;
 }
 
 export interface ToolCallTelemetryEvent extends TelemetryEventBase {
@@ -51,18 +63,34 @@ export interface CompactionTelemetryEvent extends TelemetryEventBase {
   fromExtension: boolean;
   tokensBefore?: number;
   summaryChars?: number;
+  /** Composite correlation key half; paired with sessionId. Absent on orphan success. */
+  compactionSeq?: number;
+  /** True when at least one causal failure was recorded for this seq before terminal success. */
+  retriedAfterFailure?: boolean;
 }
 
 export interface CompactionBeginTelemetryEvent extends TelemetryEventBase {
   kind: "compaction_begin";
   reason: string;
   willRetry: boolean;
+  /** Composite correlation key half; paired with sessionId. */
+  compactionSeq?: number;
 }
 
 export interface CompactionFailureTelemetryEvent extends TelemetryEventBase {
   kind: "compaction_failure";
-  stage: "preset" | "preset_directive" | "default_preset" | "stock_fallback" | "final";
+  stage: "preset" | "preset_directive" | "default_preset" | "stock_fallback" | "final" | "host";
   errorSignature: string;
+  /** Host-sourced failures only (stage === "host"): what triggered the compaction. */
+  reason?: string;
+  /** Host-sourced failures only: true when compaction was cancelled or aborted. */
+  aborted?: boolean;
+  /** True when no matching begin existed under the current session context. */
+  orphan?: boolean;
+  /** True when aborted && willRetry — recoverable class, excluded from hard-failure counts. */
+  recoverable?: boolean;
+  /** Composite correlation key half; paired with sessionId. Absent when orphan. */
+  compactionSeq?: number;
 }
 
 export type CompactionQualityMode =

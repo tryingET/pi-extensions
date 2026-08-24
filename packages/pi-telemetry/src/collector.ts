@@ -6,6 +6,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
+  CAUSAL_SCHEMA_REV,
   deriveErrorSignature,
   normalizeSkillName,
   normalizeToolName,
@@ -45,6 +46,28 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
   const append = options.append ?? appendTelemetryEvent;
   const inflight = new Map<string, InflightToolCall>();
   let currentCtx: CollectorContext | undefined;
+
+  // Compaction correlation (ADR 2026-08-24-pi-0.84.x-adoption P0-A):
+  // composite (sessionId, compactionSeq) keying. The seq counter is scoped to
+  // the active session context and resets whenever the observed sessionId
+  // changes (fork, new, resume-with-new-file); uniqueness comes from the
+  // composite key, never from seq alone.
+  let correlatedSessionId: string | undefined;
+  let compactionSeqCounter = 0;
+  let openCompactionSeq: number | null = null;
+  let failedSinceLastTerminal = false;
+
+  const observedSessionId = (): string | undefined =>
+    options.sessionId?.() ?? withSessionId(currentCtx).sessionId;
+
+  const resetCorrelationIfSessionChanged = (): void => {
+    const sid = observedSessionId();
+    if (sid === correlatedSessionId) return;
+    correlatedSessionId = sid;
+    compactionSeqCounter = 0;
+    openCompactionSeq = null;
+    failedSinceLastTerminal = false;
+  };
 
   const base = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
     v: TELEMETRY_SCHEMA_VERSION,
@@ -153,50 +176,98 @@ export function createTelemetryCollector(options: TelemetryOptionsBound = {}): {
 
   const handle = (event: CollectorEvent, ctx?: CollectorContext): void => {
     currentCtx = ctx;
-    switch (event.type) {
-      case "tool_call":
-        handleToolCall(event, ctx);
-        return;
-      case "tool_execution_end":
-      case "tool_result":
-        handleToolCompletion(event);
-        return;
-      case "turn_start":
-        record({
-          ...(base({
-            kind: "turn",
-            index: typeof event.turnIndex === "number" ? event.turnIndex : -1,
-          }) as unknown as TelemetryEvent),
-        });
-        return;
-      case "session_before_compact":
-        record({
-          ...(base({
-            kind: "compaction_begin",
-            reason: typeof event.reason === "string" ? event.reason : "unknown",
-            willRetry: event.willRetry === true,
-          }) as unknown as TelemetryEvent),
-        });
-        return;
-      case "session_compact": {
-        const entry = (event.compactionEntry ?? {}) as Record<string, unknown>;
-        record({
-          ...(base({
-            kind: "compaction",
-            reason: typeof event.reason === "string" ? event.reason : "unknown",
-            willRetry: event.willRetry === true,
-            fromExtension: event.fromExtension === true,
-            ...(typeof entry.tokensBefore === "number" ? { tokensBefore: entry.tokensBefore } : {}),
-            ...(typeof entry.summary === "string" ? { summaryChars: entry.summary.length } : {}),
-            // Legacy best-effort compaction record; consumers tolerate the
-            // partial shape, so bridge through unknown instead of widening
-            // the shared event type.
-          }) as unknown as TelemetryEvent),
-        });
-        return;
+    try {
+      resetCorrelationIfSessionChanged();
+      switch (event.type) {
+        case "tool_call":
+          handleToolCall(event, ctx);
+          return;
+        case "tool_execution_end":
+        case "tool_result":
+          handleToolCompletion(event);
+          return;
+        case "turn_start":
+          record({
+            ...(base({
+              kind: "turn",
+              index: typeof event.turnIndex === "number" ? event.turnIndex : -1,
+            }) as unknown as TelemetryEvent),
+          });
+          return;
+        case "session_before_compact": {
+          compactionSeqCounter += 1;
+          openCompactionSeq = compactionSeqCounter;
+          // NOTE: failedSinceLastTerminal intentionally persists across a retry
+          // begin so the eventual terminal success can be marked retriedAfterFailure.
+          record({
+            ...(base({
+              kind: "compaction_begin",
+              reason: typeof event.reason === "string" ? event.reason : "unknown",
+              willRetry: event.willRetry === true,
+              compactionSeq: compactionSeqCounter,
+              rev: CAUSAL_SCHEMA_REV,
+            }) as unknown as TelemetryEvent),
+          });
+          return;
+        }
+        case "session_compact": {
+          const entry = (event.compactionEntry ?? {}) as Record<string, unknown>;
+          const seq = openCompactionSeq;
+          const retriedAfterFailure = failedSinceLastTerminal && seq !== null;
+          openCompactionSeq = null;
+          failedSinceLastTerminal = false;
+          record({
+            ...(base({
+              kind: "compaction",
+              reason: typeof event.reason === "string" ? event.reason : "unknown",
+              willRetry: event.willRetry === true,
+              fromExtension: event.fromExtension === true,
+              ...(typeof entry.tokensBefore === "number"
+                ? { tokensBefore: entry.tokensBefore }
+                : {}),
+              ...(typeof entry.summary === "string" ? { summaryChars: entry.summary.length } : {}),
+              // Causal-era correlation; orphan success (no prior begin under this
+              // session context) stays seq-less for legacy-shape compatibility.
+              ...(seq !== null ? { compactionSeq: seq } : {}),
+              ...(retriedAfterFailure ? { retriedAfterFailure: true } : {}),
+              ...(seq !== null ? { rev: CAUSAL_SCHEMA_REV } : {}),
+            }) as unknown as TelemetryEvent),
+          });
+          return;
+        }
+        case "session_compact_failed": {
+          const aborted = event.aborted === true;
+          const willRetry = event.willRetry === true;
+          const recoverable = aborted && willRetry;
+          const orphan = openCompactionSeq === null;
+          const seq = openCompactionSeq;
+          openCompactionSeq = null;
+          failedSinceLastTerminal = !orphan;
+          const errorSignature =
+            deriveErrorSignature(
+              typeof event.errorMessage === "string" ? event.errorMessage : "",
+            ) ?? (aborted ? "aborted without error text" : "unknown error");
+          record({
+            ...(base({
+              kind: "compaction_failure",
+              stage: "host",
+              errorSignature,
+              reason: typeof event.reason === "string" ? event.reason : "unknown",
+              aborted,
+              orphan,
+              ...(recoverable ? { recoverable: true } : {}),
+              ...(seq !== null ? { compactionSeq: seq } : {}),
+              rev: CAUSAL_SCHEMA_REV,
+            }) as unknown as TelemetryEvent),
+          });
+          return;
+        }
+        default:
+          return;
       }
-      default:
-        return;
+    } catch {
+      // Telemetry is best-effort: never let a capture failure (including stale
+      // host ctx proxies after session replacement) break the host session.
     }
   };
 
@@ -215,6 +286,8 @@ export interface CollectorEvent {
   reason?: string;
   willRetry?: boolean;
   fromExtension?: boolean;
+  errorMessage?: string;
+  aborted?: boolean;
   compactionEntry?: unknown;
 }
 
@@ -224,14 +297,19 @@ export interface CollectorContext {
 }
 
 function readCtxCwd(ctx: CollectorContext | undefined): { cwd?: string } {
-  return typeof ctx?.cwd === "string" && ctx.cwd.trim() ? { cwd: ctx.cwd } : {};
+  try {
+    return typeof ctx?.cwd === "string" && ctx.cwd.trim() ? { cwd: ctx.cwd } : {};
+  } catch {
+    // Host ctx proxies can throw after session replacement/reload; identity is best-effort.
+    return {};
+  }
 }
 
 function withSessionId(ctx: CollectorContext | undefined): { sessionId?: string } {
-  const manager = ctx?.sessionManager as Record<string, unknown> | undefined;
-  const getSessionFile = manager?.getSessionFile;
-  if (typeof getSessionFile !== "function") return {};
   try {
+    const manager = ctx?.sessionManager as Record<string, unknown> | undefined;
+    const getSessionFile = manager?.getSessionFile;
+    if (typeof getSessionFile !== "function") return {};
     const file = (getSessionFile as () => unknown).call(manager);
     if (typeof file === "string" && file.trim()) {
       const base = file.split("/").pop() ?? "";
@@ -239,6 +317,7 @@ function withSessionId(ctx: CollectorContext | undefined): { sessionId?: string 
     }
   } catch {
     // Session identity is best-effort; stall detection degrades to cross-session matching.
+    // Host ctx proxies may also reject property access entirely after session replacement.
   }
   return {};
 }
@@ -317,4 +396,7 @@ export function registerTelemetryCollector(
   pi.on("turn_start", handler as never);
   pi.on("session_before_compact", handler as never);
   pi.on("session_compact", handler as never);
+  // Event name cast: local peer typings (0.83.0) predate session_compact_failed;
+  // the live host (>= 0.84.3) registers it natively.
+  pi.on("session_compact_failed" as never, handler as never);
 }

@@ -28,6 +28,10 @@ export interface TelemetrySummary {
     maxSummaryChars: number | null;
     unresolvedBegins: number;
     stalledAfterCompaction: number;
+    /** Host-sourced causal failures (stage === "host"). */
+    hostFailures: number;
+    /** Host failures with no matching begin under the session context. */
+    orphanHostFailures: number;
   };
   compactionQuality: {
     total: number;
@@ -180,7 +184,13 @@ export function summarizeTelemetryEvents(
   let subagentTotal = 0;
   let subagentFailed = 0;
   const subagentProfiles = new Map<string, { n: number; failed: number }>();
-  const compactionBegins: Array<{ ts: number; sessionId?: string }> = [];
+  const compactionBegins: Array<{ ts: number; sessionId?: string; compactionSeq?: number }> = [];
+  const hostCompactionFailures: Array<{
+    ts: number;
+    sessionId?: string;
+    compactionSeq?: number;
+    orphan?: boolean;
+  }> = [];
   const failureStages = new Map<string, { n: number; errors: Map<string, number> }>();
   const sourceCounts = new Map<string, number>();
   const compactionEnds: Array<{ ts: number; sessionId?: string }> = [];
@@ -224,9 +234,25 @@ export function summarizeTelemetryEvents(
         break;
       }
       case "compaction_begin":
-        compactionBegins.push({ ts: event.ts, sessionId: event.sessionId });
+        compactionBegins.push({
+          ts: event.ts,
+          sessionId: event.sessionId,
+          ...(typeof event.compactionSeq === "number"
+            ? { compactionSeq: event.compactionSeq }
+            : {}),
+        });
         break;
       case "compaction_failure": {
+        if (event.stage === "host") {
+          hostCompactionFailures.push({
+            ts: event.ts,
+            sessionId: event.sessionId,
+            ...(typeof event.compactionSeq === "number"
+              ? { compactionSeq: event.compactionSeq }
+              : {}),
+            ...(event.orphan === true ? { orphan: true } : {}),
+          });
+        }
         const entry = failureStages.get(event.stage) ?? { n: 0, errors: new Map() };
         entry.n += 1;
         entry.errors.set(event.errorSignature, (entry.errors.get(event.errorSignature) ?? 0) + 1);
@@ -349,8 +375,16 @@ export function summarizeTelemetryEvents(
       avgSummaryChars:
         summaryCharsCount > 0 ? Math.round(summaryCharsSum / summaryCharsCount) : null,
       maxSummaryChars,
-      unresolvedBegins: countUnresolvedBegins(compactionBegins, compactionEnds, now),
+      unresolvedBegins: countUnresolvedBegins(
+        compactionBegins,
+        compactionEnds,
+        hostCompactionFailures,
+        now,
+      ),
       stalledAfterCompaction: countStalledCompactions(compactionEnds, turnTimes),
+      hostFailures: hostCompactionFailures.length,
+      orphanHostFailures: hostCompactionFailures.filter((failure) => failure.orphan === true)
+        .length,
     },
     compactionQuality: {
       total: qualityTotal,
@@ -437,12 +471,23 @@ export function summarizeTelemetryEvents(
 }
 
 function countUnresolvedBegins(
-  begins: Array<{ ts: number; sessionId?: string }>,
+  begins: Array<{ ts: number; sessionId?: string; compactionSeq?: number }>,
   ends: Array<{ ts: number; sessionId?: string }>,
+  hostFailures: Array<{ sessionId?: string; compactionSeq?: number }>,
   now: number,
 ): number {
   let unresolved = 0;
   for (const begin of begins) {
+    // Causal resolution first: a host failure with the same composite
+    // (sessionId, compactionSeq) key resolves the begin with a known cause.
+    if (
+      begin.compactionSeq !== undefined &&
+      hostFailures.some(
+        (failure) => failure.compactionSeq === begin.compactionSeq && sameSession(failure, begin),
+      )
+    ) {
+      continue;
+    }
     const resolved = ends.some(
       (end) =>
         end.ts > begin.ts &&
