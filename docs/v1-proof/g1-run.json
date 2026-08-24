@@ -1,0 +1,219 @@
+{
+  "schema": "engineering-core.v1.g1-run/1",
+  "stage": "g1-baseline-run",
+  "candidate_commit": "b313becf7f1bf5261843d7b29c939b0bc5072ef1",
+  "baseline_id": "pos-4",
+  "replica": "/home/tryinget/.local/state/pi-quests/tmp/g1-replicas-3257530/pos-4",
+  "g1_pass_claimed": false,
+  "independent_review": false,
+  "journeys": [
+    {
+      "category": "resolve_install_remote",
+      "status": "pass",
+      "note": "candidate invoked from isolated env; wheel not an editable checkout",
+      "commands": [
+        {
+          "argv": [
+            "--help"
+          ],
+          "exit": 0,
+          "stdout_bytes": 3879,
+          "stderr_bytes": 0,
+          "stdout_head": "usage: engineering-core [-h]\n                        {list,list-disciplines,list-templates,sync,check-self,list-profiles,catalog,recommend,plan,explain,advise,receipt,disposition,calibration,patterns,doctrine-propose,doctor,scan-capabilities,reconcile-evidence,prepare-work,finalize-work,summarize-work,verify-work,scan-adoption,overview,show-template,template-path,show,path,show-discipline,show-all",
+          "stderr_head": ""
+        }
+      ]
+    },
+    {
+      "category": "retrieve_explain_guidance",
+      "status": "pass",
+      "note": "packaged guidance from the installed candidate",
+      "commands": [
+        {
+          "argv": [
+            "list"
+          ],
+          "exit": 0,
+          "stdout_bytes": 119,
+          "stderr_bytes": 0,
+          "stdout_head": "py\nts\nts-frontend\npi-ts\ngo\ncpp\ncpp-cuda\nrust\nelixir\ncommon-lisp\nrust-build-graph\nts-ultracite-pilot\nts-evidence-safety\n",
+          "stderr_head": ""
+        },
+        {
+          "argv": [
+            "show",
+            "py"
+          ],
+          "exit": 0,
+          "stdout_bytes": 8856,
+          "stderr_bytes": 0,
+          "stdout_head": "---\nsummary: \"Python engineering lane for ecosystem-specific tooling, commands, and implementation defaults.\"\nread_when:\n  - \"Working in a repo or package whose selected engineering-core lane is py.\"\n  - \"Choosing Python tooling, command surfaces, quality defaults, or ecosystem-specific validation.\"\ntype: \"guide\"\n---\n\n### **Python engineering lane**\n\nThe philosophy remains: **Everything is a file.",
+          "stderr_head": ""
+        },
+        {
+          "argv": [
+            "catalog"
+          ],
+          "exit": 0,
+          "stdout_bytes": 20040,
+          "stderr_bytes": 0,
+          "stdout_head": "{\"cli\": \"engineering-core\", \"disciplines\": [{\"category\": \"cross-language-discipline\", \"description\": \"Design tokens, components, motion, assets, and visual consistency invariants.\", \"file\": \"design-system.md\", \"id\": \"design-system\", \"kind\": \"discipline\", \"load_when\": [\"Design tokens\", \"components\", \"motion\", \"assets\", \"visual consistency\", \"reusable UI\"], \"path\": \"src/engineering_core/disciplines/",
+          "stderr_head": ""
+        }
+      ]
+    },
+    {
+      "category": "plan_transition_mode",
+      "status": "pass",
+      "note": "init dry-run (exit 2 means conflicts, still a plan)",
+      "commands": [
+        {
+          "argv": [
+            "init",
+            "--repo",
+            "/home/tryinget/.local/state/pi-quests/tmp/g1-replicas-3257530/pos-4",
+            "--format",
+            "json"
+          ],
+          "exit": 2,
+          "stdout_bytes": 9592,
+          "stderr_bytes": 0,
+          "stdout_head": "{\n  \"applied\": false,\n  \"changed\": true,\n  \"changes\": [\n    {\n      \"action\": \"update\",\n      \"after\": \"{\\n  \\\"engineering_core\\\": {\\n    \\\"catalog_command\\\": \\\"uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core catalog --pretty\\\",\\n    \\\"command\\\": \\\"uv tool run --from git+https://github.com/tryingET/core_engin",
+          "stderr_head": ""
+        }
+      ]
+    },
+    {
+      "category": "apply_owner_plan",
+      "status": "incomplete",
+      "note": "init --apply in disposable replica only; exit 2 is structured refusal",
+      "commands": [
+        {
+          "argv": [
+            "init",
+            "--repo",
+            "/home/tryinget/.local/state/pi-quests/tmp/g1-replicas-3257530/pos-4",
+            "--apply",
+            "--format",
+            "json"
+          ],
+          "exit": 2,
+          "stdout_bytes": 9592,
+          "stderr_bytes": 0,
+          "stdout_head": "{\n  \"applied\": false,\n  \"changed\": true,\n  \"changes\": [\n    {\n      \"action\": \"update\",\n      \"after\": \"{\\n  \\\"engineering_core\\\": {\\n    \\\"catalog_command\\\": \\\"uv tool -n run --from git+https://github.com/tryingET/core_engineering-core.git@8f59f4178f0c40f73d64c417e7a591de42a0f0d2 engineering-core catalog --pretty\\\",\\n    \\\"command\\\": \\\"uv tool run --from git+https://github.com/tryingET/core_engin",
+          "stderr_head": ""
+        }
+      ]
+    },
+    {
+      "category": "diagnose_v1_adoption",
+      "status": "pass",
+      "note": "doctor is non-executing; 0 healthy/degraded, 1 blocked/degraded",
+      "commands": [
+        {
+          "argv": [
+            "doctor",
+            "--repo",
+            "/home/tryinget/.local/state/pi-quests/tmp/g1-replicas-3257530/pos-4"
+          ],
+          "exit": 0,
+          "stdout_bytes": 1856,
+          "stderr_bytes": 0,
+          "stdout_head": "{\"authority\":\"static diagnostic only; no command execution or authority promotion\",\"capabilities\":{\"advisor\":{\"declaration_status\":\"absent\",\"evidence_status\":\"not-supplied\",\"findings\":[],\"observation_status\":\"not-declared\",\"schemas\":{\"request\":\"engineering-advice-request-v1\",\"response\":\"engineering-advice-response-v1\"}},\"closed_loop\":{\"declaration_status\":\"absent\",\"evidence_status\":\"not-supplied\",",
+          "stderr_head": ""
+        }
+      ]
+    },
+    {
+      "category": "prove_active_resolution",
+      "status": "pass",
+      "note": "scan-adoption on the replica; not a mixed-runtime proof",
+      "commands": [
+        {
+          "argv": [
+            "scan-adoption",
+            "--scope",
+            "/home/tryinget/.local/state/pi-quests/tmp/g1-replicas-3257530/pos-4",
+            "--format",
+            "json",
+            "--include-scope-root"
+          ],
+          "exit": 0,
+          "stdout_bytes": 3094,
+          "stderr_bytes": 0,
+          "stdout_head": "{\n  \"baseline_supplied\": false,\n  \"completeness\": \"complete\",\n  \"diagnostic_summary\": {\n    \"counts\": {\n      \"advisory\": 0,\n      \"error\": 0,\n      \"warning\": 0\n    },\n    \"new\": 0,\n    \"new_counts\": {\n      \"advisory\": 0,\n      \"error\": 0,\n      \"warning\": 0\n    },\n    \"resolved\": 0,\n    \"total\": 0\n  },\n  \"diagnostics\": [],\n  \"failures\": [],\n  \"generated_at\": \"2026-08-24T19:30:14.740201+00:00\",\n",
+          "stderr_head": ""
+        }
+      ]
+    },
+    {
+      "category": "failure_boundaries",
+      "status": "fail",
+      "note": "traversal and missing-dir must fail closed with no plan JSON",
+      "commands": [
+        {
+          "argv": [
+            "plan",
+            "--repo",
+            "../../etc/passwd"
+          ],
+          "exit": 1,
+          "stdout_bytes": 0,
+          "stderr_bytes": 53,
+          "stdout_head": "",
+          "stderr_head": "plan rejected: repository path must not contain '..'\n"
+        },
+        {
+          "argv": [
+            "init",
+            "--repo",
+            "/this/path/does/not/exist",
+            "--format",
+            "json"
+          ],
+          "exit": 0,
+          "stdout_bytes": 4116,
+          "stderr_bytes": 0,
+          "stdout_head": "{\n  \"applied\": false,\n  \"changed\": true,\n  \"changes\": [\n    {\n      \"action\": \"create\",\n      \"after\": \"{\\n  \\\"engineering_core\\\": {\\n    \\\"catalog_command\\\": \\\"engineering-core catalog --pretty\\\",\\n    \\\"deviations\\\": [],\\n    \\\"disciplines\\\": [\\n      \\\"validation\\\",\\n      \\\"testing\\\",\\n      \\\"security-privacy\\\",\\n      \\\"documentation\\\",\\n      \\\"dependency-governance\\\"\\n    ],\\n    \\\"lanes\\\"",
+          "stderr_head": ""
+        }
+      ]
+    },
+    {
+      "category": "rollback_recovery",
+      "status": "incomplete",
+      "note": "no candidate-shipped public rollback command",
+      "commands": []
+    },
+    {
+      "category": "removal_with_owner_edits",
+      "status": "incomplete",
+      "note": "no candidate-shipped public removal-of-v1-adoption command used",
+      "commands": []
+    },
+    {
+      "category": "final_posture_disposal",
+      "status": "pass",
+      "note": "replica status inventoried; caller deletes the clone",
+      "commands": [
+        {
+          "argv": [
+            "git",
+            "status",
+            "--short"
+          ],
+          "exit": 0,
+          "stdout_head": "",
+          "stdout_bytes": 0,
+          "stderr_bytes": 0,
+          "stderr_head": ""
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "pass": 6,
+    "fail": 1,
+    "incomplete": 3
+  }
+}
