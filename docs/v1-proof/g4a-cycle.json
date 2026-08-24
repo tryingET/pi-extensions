@@ -1,0 +1,63 @@
+{
+  "schema": "engineering-core.v1.g4/1",
+  "stage": "g4-live-cycle",
+  "template_digest": "b270f669830f9d51e9706879328ed8bae4c6cf2a7662c13e46bae3443fc7013f",
+  "cycle_id": "cycle-softwareco-package-scopes",
+  "candidate": "package-local-validation-scopes-in-monorepos",
+  "candidate_identity": "unassigned",
+  "origin_group": "softwareco",
+  "pilot_groups": [
+    "holdingco",
+    "teachingco"
+  ],
+  "participant_disposition": {
+    "disposition": "supports_pilot_only",
+    "evidence_supported": true
+  },
+  "content_owner_decision": {
+    "decision": "revised",
+    "decided_by": "engineering_core_content_owner",
+    "coerced": false,
+    "reason": "honest pilot; not default shared content"
+  },
+  "final_state": {
+    "disposition": "revised",
+    "preserved_lineage": [
+      {
+        "ref": "cycle-softwareco-package-scopes-proposal",
+        "immutable": true
+      },
+      {
+        "ref": "cycle-softwareco-package-scopes-counterevidence",
+        "immutable": true
+      }
+    ]
+  },
+  "minimum_decision_record": {
+    "problem": "see sibling g4a-candidate.md",
+    "audience_and_scope": "see sibling g4a-candidate.md",
+    "invariant_or_decision_rule": "see sibling g4a-candidate.md",
+    "load_triggers": "see sibling g4a-candidate.md",
+    "evidence_references": "see sibling g4a-candidate.md",
+    "strongest_alternative": "see sibling g4a-candidate.md",
+    "counterevidence_and_exceptions": "see sibling g4a-candidate.md",
+    "falsification_conditions": "see sibling g4a-candidate.md",
+    "adoption_and_compatibility": "see sibling g4a-candidate.md",
+    "review_trigger": "see sibling g4a-candidate.md",
+    "retirement_signal": "see sibling g4a-candidate.md",
+    "semantic_references": "none_yet"
+  },
+  "pilot_bounds": {
+    "opt_in": true,
+    "bounded": true,
+    "expiry_or_review_event": "2026-09-30",
+    "can_become_default_silently": false
+  },
+  "rollback_drill": {
+    "restored_exact_prior_stable_selection": true,
+    "history_preserved": true,
+    "note": "prior stable selection is 'no shared content change'; restore is a no-op that keeps this record"
+  },
+  "distribution_status": "not_distributed",
+  "adoption_status": "not_adopted"
+}
