@@ -7,6 +7,13 @@ type: "changelog"
 
 # Changelog
 
+## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.2.1...pi-trigger-adapter-v0.2.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* **pi-interaction:** preserve publish-ready manifests ([3195381](https://github.com/tryingET/pi-extensions/commit/31953819f8c31ee2a84737b82d84d2ac90696df7))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-trigger-adapter-v0.2.0...pi-trigger-adapter-v0.2.1) (2026-08-15)
 
 
