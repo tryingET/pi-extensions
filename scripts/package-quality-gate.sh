@@ -17,6 +17,12 @@ export TMPDIR="$TMP_ROOT"
 export TMP="$TMP_ROOT"
 export TEMP="$TMP_ROOT"
 
+# Release checks parse `npm view --json` output; npm config warnings (e.g.
+# unknown min-release-age keys in a user .npmrc) are emitted on stderr but
+# merged into that output by the scripts, breaking JSON.parse. Suppress
+# warn-level npm noise for gate children; callers may override.
+export NPM_CONFIG_LOGLEVEL="${NPM_CONFIG_LOGLEVEL:-error}"
+
 usage() {
   cat <<'USAGE' >&2
 Usage: bash ./scripts/package-quality-gate.sh <lint|fix|typecheck|test|pre-commit|pre-push|ci> <target> [--mode <auto|simple-package|package-group>]
