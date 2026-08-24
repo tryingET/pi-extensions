@@ -53,22 +53,27 @@ observed alongside.
 
 ## 2. Upstream pi#8175 — compaction failure events for extensions
 
-Follow-up only; nothing owed until maintainers engage.
+RESOLVED 2026-08-24: the proposed event shipped upstream in pi-coding-agent
+**0.84.3** as `session_compact_failed` (carrying `reason`, `errorMessage?`,
+`aborted`, `willRetry`, `fromExtension`; verified against installed 0.84.3
+`dist/core/extensions/types.d.ts`) — despite the issue having been auto-closed
+`NOT_PLANNED` by triage automation before landing.
 
 - Issue: https://github.com/earendil-works/pi/issues/8175 ("Compaction
   failures are not exposed to extension handlers")
-- Current state: auto-closed `NOT_PLANNED` by the new-contributor triage
-  automation (`untriaged` label); maintainers review auto-closed issues
-  daily. Same flow as the earlier #6000 report. Do not open duplicates.
-- If a maintainer replies `lgtmi`, future issues stay open automatically.
-- If maintainers engage: offer the motivating evidence (pi-telemetry
-  unresolved-begins data, ~1.4k stalled compactions over 30 days with zero
-  recorded causes) and note the implementation is routing-only (dispatch
-  the already-built internal `compaction_end` failure payload through the
-  extension runner as `session_compact_failed`; no new bookkeeping).
-- Filed from the issue-tracker canary:
-  softwareco/infra/issue-tracker `pi-mono-upstream/compaction-failure-extension-events`,
-  status tracked in AK/STATE.json with real GitHub state.
+- History: submitted 2026-08-15 with explicit operator approval; auto-closed
+  `NOT_PLANNED` within a minute by the new-contributor triage automation
+  (`untriaged` label, same flow as #6000). Feature shipped anyway in 0.84.3.
+- Adoption: tracked in monorepo ADR `docs/adr/2026-08-24-pi-0.84.x-adoption.md`
+  and RFC `docs/project/2026-08-24-pi-0.84.x-adoption-rfc.md`. pi-telemetry is
+  adopting `session_compact_failed` for causal failure records (AK #5005), which
+  closes the unresolved-begins (~1.4k stalled compactions / 30d) blind spot
+  described below.
+- Tracker record: softwareco/infra/issue-tracker
+  `pi-mono-upstream/compaction-failure-extension-events` updated with the
+  resolution (AK #5007, upstream commit 75e3bfc).
+- Outstanding: optional drafted closure comment on #8175 awaits explicit
+  operator authority per Decision 68 before posting (RFC Appendix A).
 
 ## 3. Correct export order for frozen task-scope snapshots
 
