@@ -17,7 +17,7 @@ This private Pi package makes SCI's existing composite workflows first-class mod
 
 ## Compatibility identity and producer contract
 
-`@tryinget/pi-semantic-code-intelligence@0.1.1-rc.1` is the independently versioned private Pi companion candidate for producer SCI `2.1.0-rc.1`; mirroring the producer's `2.1.0-rc.1` package version would misstate the companion's own `0.1.x` lineage. The producer authority reviewed for this target is semantic-code-intelligence commit `aa5c23fa16d8589cb546997639fa1d576fdf8eff`, especially `docs/project/releases/2.1.0-rc.1.md` and `CHANGELOG.md` at that commit. This identifies a compatibility target, not a publication, distribution, or immutable-artifact claim.
+`@tryinget/pi-semantic-code-intelligence@0.1.1-rc.1` is the independently versioned private Pi companion candidate for producer SCI `2.1.0-rc.1` and the later published hygiene successor `2.1.0-rc.2`. Mirroring the producer package version would misstate the companion's own `0.1.x` lineage. The producer authority originally reviewed for this target is semantic-code-intelligence commit `aa5c23fa16d8589cb546997639fa1d576fdf8eff` (`2.1.0-rc.1` notes/changelog). `2.1.0-rc.2` is compatible at the same installed CLI + MCP stdio composite contract (six workflows, `details.schemaVersion: 2`, preview-first apply posture). This identifies a compatibility target, not a publication or immutable-artifact claim.
 
 The minimum producer contract consumed or preserved by this companion is:
 
@@ -76,6 +76,21 @@ This package does not authorize hosted, network-exposed, multi-user, or public S
 ### Safe workspace-boundary recovery
 
 All six native composites recognize SCI's allowlisted `outside_workspace` reason contract from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2` without matching or copying producer prose. The bridge emits locally authored model-visible recovery: use a repo-relative path in a Pi session started at the target repository root. A shell `cd` does not rebind the session's `ctx.cwd`; start a target-root Pi session instead. Obvious absolute, file-URI, Windows drive/UNC, NUL, and `..` traversal inputs fail locally for the declared repo-relative `file` and `paths` fields, while repo-relative symlinks still reach SCI so realpath containment remains final authority. Unknown, malformed, extended, secret-bearing, transport, startup, stderr, and backend errors retain generic redaction, and no rejected path or workspace path is reflected.
+
+## Pairing with a published SCI candidate
+
+Clone or open this repo only to install the companion. SCI itself should come from a reviewed
+local tarball so `semantic-code-mcp` is on `PATH`:
+
+1. Download `semantic-code-intelligence-2.1.0-rc.2.tgz` from the public GitHub Release and verify
+   SHA-256 `178edcc86de976ae8c1bb4608522c7c81e4d3baaaffe92cc2c305c48b2740b96` (or the earlier
+   `2.1.0-rc.1` asset `afbda42999edc3e7cd54eba6d2273b7e00f71c41980be9d3a391c8caa3c973db`).
+2. Install that archive with SCI's bundled lifecycle (`SCI_ROOT` / `versions/<version>` / `current`).
+3. Prepend the activated `node_modules/.bin` directory to `PATH`.
+4. Install this package from source (`pi install "$PWD"`) and `/reload`.
+
+Start the Pi session at the trusted target repository root. A shell `cd` does not rebind `ctx.cwd`.
+This pairing is still unpublished: the companion stays private and is not an npm distribution.
 
 ## Install and activate
 
