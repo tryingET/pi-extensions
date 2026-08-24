@@ -72,7 +72,7 @@ async function rejectedMessage(
   return observed.message;
 }
 
-test("all six native tools project the exact workspace-boundary envelope into local recovery text", async () => {
+test("all five native tools project the exact workspace-boundary envelope into local recovery text", async () => {
   const harness = createErrorHarness(() => boundaryResult());
 
   for (const name of SCI_COMPOSITE_TOOL_NAMES) {

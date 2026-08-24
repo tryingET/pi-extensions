@@ -89,7 +89,7 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
           const inputPathError = sciInputPathError(spec.name, args);
           if (inputPathError) throw new Error(inputPathError);
           if (
-            (spec.name === "safe_write" || spec.name === "structural_patch_checks") &&
+            (spec.name === "patch_checks_in_snapshot" || spec.name === "structural_patch_checks") &&
             Object.hasOwn(args, "apply")
           ) {
             throw new Error(
@@ -149,15 +149,13 @@ function guidelineFor(name: SciCompositeToolName): string {
     case "explore_symbol_impact":
       return "Use explore_symbol_impact before raw search/read chains when a code task involves an unfamiliar symbol or uncertain impact; use bounded native reads after it identifies relevant files.";
     case "locate_confirm_definition":
-      return "Use locate_confirm_definition instead of guessing a symbol definition; use native read after SCI returns candidates.";
+      return "Use locate_confirm_definition only when explore_symbol_impact did not confirm the definition; skip it when explore already returned definitionConfirmed.";
     case "rename_safely":
-      return "Use rename_safely instead of ad-hoc cross-file search/replace for symbol renames.";
+      return "Use rename_safely for symbol renames. Preview first. Apply only through this workflow or snapshot apply when the operator asks; never apply_rename.";
     case "structural_patch_checks":
       return "Use structural_patch_checks for syntax-shaped transformations; this native Pi surface is preview-only.";
     case "patch_checks_in_snapshot":
-      return "Use patch_checks_in_snapshot to validate a prepared diff without editing the working tree.";
-    case "safe_write":
-      return "Use safe_write as the normal patch preview/check path; this native Pi surface is preview-only.";
+      return "Use patch_checks_in_snapshot as the one Pi door for a prepared diff. Preview only. Apply only via snapshot apply when the operator asks; never apply_rename.";
   }
 }
 
@@ -197,7 +195,9 @@ function formatPiResult(
       rawShellAvoided: avoidedPrimitiveChain(workflow),
     },
     producerResultSanitized:
-      producer.sanitized || workflow === "safe_write" || workflow === "structural_patch_checks",
+      producer.sanitized ||
+      workflow === "patch_checks_in_snapshot" ||
+      workflow === "structural_patch_checks",
     truncated: producer.truncated,
   };
   if (producer.explore) {
@@ -254,7 +254,8 @@ function compactJsonText(
         "SCI producer returned an invalid result shape; producer content was omitted.",
       );
     }
-    const previewSanitized = workflow === "safe_write" || workflow === "structural_patch_checks";
+    const previewSanitized =
+      workflow === "patch_checks_in_snapshot" || workflow === "structural_patch_checks";
     if (previewSanitized) sanitizePreviewOnlyPayload(parsed);
     const disclosure = sanitizeProducerDisclosure(parsed, workflow, workspace);
     if (!disclosure.ok) {
@@ -311,8 +312,6 @@ function validProducerPayload(
   switch (workflow) {
     case "locate_confirm_definition":
       return validLocatePayload(record);
-    case "safe_write":
-      return record.applied === false && validValidationPlan(record.validationPlan);
     case "structural_patch_checks":
       return record.applied === false && recordOrUndefined(record.checks)?.ok === true;
     case "patch_checks_in_snapshot":
@@ -415,7 +414,5 @@ function avoidedPrimitiveChain(name: SciCompositeToolName): string[] {
       return ["structural search", "rewrite diff generation", "snapshot checks"];
     case "rename_safely":
       return ["reference search", "rename planning", "snapshot checks"];
-    case "safe_write":
-      return ["snapshot creation", "patch staging", "check execution", "rollback evidence"];
   }
 }
