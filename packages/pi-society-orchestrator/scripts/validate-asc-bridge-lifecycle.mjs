@@ -5,7 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ASC_PACKAGE_NAME = "@tryinget/pi-autonomous-session-control";
+export const ASC_MINIMUM_RELEASE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const REPO_REGISTRY = "https://registry.npmjs.org/";
+const ASC_LOCK_KEY = `node_modules/${ASC_PACKAGE_NAME}`;
+const SLSA_PROVENANCE_V1 = "https://slsa.dev/provenance/v1";
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -101,32 +104,19 @@ export function classifyAscBridgeLifecycle(pkg) {
   const usesLocalFileDependency = isLocalDependencySpec(normalizedAscSpec);
   const usesSupportedRegistrySemver = isSupportedRegistrySemverSpec(normalizedAscSpec);
 
-  if (!usesLocalFileDependency && !usesSupportedRegistrySemver) {
+  if (usesLocalFileDependency) {
     issues.push(
-      `Dependency ${ASC_PACKAGE_NAME}=${normalizedAscSpec} is not a supported registry semver selector. Use an exact version or caret range; local paths, tags, URLs, aliases, and git specs cannot prove registry installability.`,
+      `Local dependency ${ASC_PACKAGE_NAME}=${normalizedAscSpec} is forbidden after registry cutover; use the declared registry semver range and a registry-backed lock.`,
     );
-    return {
-      ok: false,
-      mode: "invalid",
-      ascSpec: normalizedAscSpec,
-      bundledDependencies,
-      extraBundles,
-      issues,
-    };
-  }
-
-  if (usesLocalFileDependency && hasAscBundle) {
-    return {
-      ok: issues.length === 0,
-      mode: "transitional-bundled-bridge",
-      ascSpec: normalizedAscSpec,
-      bundledDependencies,
-      extraBundles,
-      issues,
-    };
-  }
-
-  if (usesSupportedRegistrySemver && !hasAscBundle) {
+  } else if (!usesSupportedRegistrySemver) {
+    issues.push(
+      `Dependency ${ASC_PACKAGE_NAME}=${normalizedAscSpec} is not a supported registry semver selector. Use an exact version or caret range; tags, URLs, aliases, and git specs cannot prove registry installability.`,
+    );
+  } else if (hasAscBundle) {
+    issues.push(
+      `Bundled ${ASC_PACKAGE_NAME} must remain retired for registry dependency ${normalizedAscSpec}.`,
+    );
+  } else {
     return {
       ok: issues.length === 0,
       mode: "registry-cutover",
@@ -135,16 +125,6 @@ export function classifyAscBridgeLifecycle(pkg) {
       extraBundles,
       issues,
     };
-  }
-
-  if (usesLocalFileDependency && !hasAscBundle) {
-    issues.push(
-      `Local dependency ${ASC_PACKAGE_NAME}=${normalizedAscSpec} must keep bundleDependencies aligned until the registry-backed cutover is complete.`,
-    );
-  } else if (!usesLocalFileDependency && hasAscBundle) {
-    issues.push(
-      `Bundled ${ASC_PACKAGE_NAME} must be removed once orchestrator consumes it as a normal dependency (${normalizedAscSpec}).`,
-    );
   }
 
   return {
@@ -157,127 +137,239 @@ export function classifyAscBridgeLifecycle(pkg) {
   };
 }
 
-export function parsePublishedPackageVersionLookup(
-  result,
-  registrySelector = ASC_PACKAGE_NAME,
-  ascSpec,
-) {
-  if (result.status === 0) {
-    const raw = String(result.stdout ?? "").trim();
-    if (raw.length === 0) {
-      return {
-        ok: false,
-        versions: [],
-        error: `npm view ${registrySelector} returned empty output; the declared ASC range is not proven installable.`,
-      };
-    }
-
-    try {
-      const parsed = JSON.parse(raw);
-      const candidates = typeof parsed === "string" ? [parsed] : parsed;
-      if (!Array.isArray(candidates)) {
-        return {
-          ok: false,
-          versions: [],
-          error: `npm view ${registrySelector} returned unexpected JSON: ${raw}`,
-        };
-      }
-      const versions = candidates.map((value) => (typeof value === "string" ? value.trim() : ""));
-      if (versions.length === 0 || versions.some((version) => !parseStrictSemver(version))) {
-        return {
-          ok: false,
-          versions: [],
-          error: `npm view ${registrySelector} returned no usable strict-semver published versions.`,
-        };
-      }
-      if (
-        typeof ascSpec === "string" &&
-        !isLocalDependencySpec(ascSpec.trim()) &&
-        versions.some((version) => !versionSatisfiesAscRange(version, ascSpec))
-      ) {
-        return {
-          ok: false,
-          versions: [],
-          error: `npm view ${registrySelector} returned a version that does not satisfy the declared ASC range ${ascSpec}.`,
-        };
-      }
-      return { ok: true, versions: [...new Set(versions)] };
-    } catch (error) {
-      return {
-        ok: false,
-        versions: [],
-        error:
-          error instanceof Error
-            ? `Could not parse npm view ${registrySelector} output: ${error.message}`
-            : `Could not parse npm view ${registrySelector} output`,
-      };
-    }
-  }
-
-  const combined = [result.stderr, result.stdout]
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean)
-    .join("\n");
-
-  if (/\bE404\b|404 Not Found|could not be found|not found/i.test(combined)) {
+export function parseAscRegistryReleaseStateLookup(result) {
+  if (result.status !== 0) {
+    const combined = [result.stderr, result.stdout]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .join("\n");
     return {
       ok: false,
       versions: [],
-      error: `No published ${ASC_PACKAGE_NAME} version satisfies the declared selector ${registrySelector} (npm E404).`,
+      time: {},
+      error:
+        combined.length > 0
+          ? `Could not read ASC registry release state: ${combined.split(/\r?\n/).slice(-8).join(" | ")}`
+          : `Could not read ASC registry release state (npm exited ${result.status ?? "unknown"})`,
     };
   }
-  if (/\bETARGET\b|No matching version found/i.test(combined)) {
+
+  try {
+    const parsed = JSON.parse(String(result.stdout ?? ""));
+    const versions = Array.isArray(parsed?.versions) ? parsed.versions : [];
+    const time = isRecord(parsed?.time) ? parsed.time : {};
+    if (
+      versions.length === 0 ||
+      versions.some((version) => typeof version !== "string" || !parseStrictSemver(version)) ||
+      versions.some((version) => typeof time[version] !== "string")
+    ) {
+      return {
+        ok: false,
+        versions: [],
+        time: {},
+        error: "ASC registry release state is missing strict-semver versions or publication times.",
+      };
+    }
+    return { ok: true, versions: [...new Set(versions)], time };
+  } catch (error) {
     return {
       ok: false,
       versions: [],
-      error: `No published ${ASC_PACKAGE_NAME} version satisfies the declared selector ${registrySelector} (npm ETARGET).`,
+      time: {},
+      error:
+        error instanceof Error
+          ? `Could not parse ASC registry release state: ${error.message}`
+          : "Could not parse ASC registry release state.",
     };
   }
-
-  return {
-    ok: false,
-    versions: [],
-    error:
-      combined.length > 0
-        ? `Could not determine ASC registry state for ${registrySelector}: ${combined.split(/\r?\n/).slice(-8).join(" | ")}`
-        : `Could not determine ASC registry state for ${registrySelector} (npm exited ${result.status ?? "unknown"})`,
-  };
 }
 
-export function ascRegistrySelector(ascSpec) {
-  return typeof ascSpec === "string" && !ascSpec.trim().startsWith("file:")
-    ? `${ASC_PACKAGE_NAME}@${ascSpec.trim()}`
-    : ASC_PACKAGE_NAME;
-}
-
-export function lookupPublishedAscVersions(ascSpec, spawn = spawnSync) {
-  const registrySelector = ascRegistrySelector(ascSpec);
+export function lookupAscRegistryReleaseState(spawn = spawnSync) {
   const result = spawn(
     "npm",
-    ["view", registrySelector, "version", "--json", "--registry", REPO_REGISTRY],
-    {
-      encoding: "utf8",
-      env: process.env,
-    },
+    ["view", ASC_PACKAGE_NAME, "versions", "time", "--json", "--registry", REPO_REGISTRY],
+    { encoding: "utf8", env: process.env },
   );
-  return {
-    registrySelector,
-    ...parsePublishedPackageVersionLookup(result, registrySelector, ascSpec),
-  };
+  return parseAscRegistryReleaseStateLookup(result);
 }
 
-function readWorkspaceAscVersion() {
-  try {
-    const ascManifestPath = path.resolve(
-      import.meta.dirname,
-      "../../pi-autonomous-session-control/package.json",
-    );
-    const manifest = JSON.parse(fs.readFileSync(ascManifestPath, "utf8"));
-    const version = manifest?.version;
-    return typeof version === "string" && parseStrictSemver(version) ? version : null;
-  } catch {
-    return null;
+export function parseAscRegistryArtifactLookup(result, selectedVersion) {
+  if (result.status !== 0) {
+    const combined = [result.stderr, result.stdout]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .join("\n");
+    return {
+      ok: false,
+      error:
+        combined.length > 0
+          ? `Could not read ${ASC_PACKAGE_NAME}@${selectedVersion} artifact metadata: ${combined.split(/\r?\n/).slice(-8).join(" | ")}`
+          : `Could not read ${ASC_PACKAGE_NAME}@${selectedVersion} artifact metadata.`,
+    };
   }
+
+  try {
+    const artifact = JSON.parse(String(result.stdout ?? ""));
+    if (artifact?.version !== selectedVersion || !isRecord(artifact?.dist)) {
+      return {
+        ok: false,
+        error: `Registry artifact metadata did not identify ${ASC_PACKAGE_NAME}@${selectedVersion}.`,
+      };
+    }
+    return { ok: true, artifact };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? `Could not parse ${ASC_PACKAGE_NAME}@${selectedVersion} artifact metadata: ${error.message}`
+          : `Could not parse ${ASC_PACKAGE_NAME}@${selectedVersion} artifact metadata.`,
+    };
+  }
+}
+
+export function lookupAscRegistryArtifact(selectedVersion, spawn = spawnSync) {
+  const result = spawn(
+    "npm",
+    [
+      "view",
+      `${ASC_PACKAGE_NAME}@${selectedVersion}`,
+      "version",
+      "dist",
+      "--json",
+      "--registry",
+      REPO_REGISTRY,
+    ],
+    { encoding: "utf8", env: process.env },
+  );
+  return parseAscRegistryArtifactLookup(result, selectedVersion);
+}
+
+function canonicalAscTarballUrl(version) {
+  return `${REPO_REGISTRY}@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-${version}.tgz`;
+}
+
+export function evaluateAscRegistryLock({
+  pkg,
+  lock,
+  registryReleaseState,
+  registryArtifact,
+  now = Date.now(),
+  minimumReleaseAgeMs = ASC_MINIMUM_RELEASE_AGE_MS,
+}) {
+  const issues = [];
+  const ascSpec = pkg?.dependencies?.[ASC_PACKAGE_NAME];
+  const rootAscSpec = lock?.packages?.[""]?.dependencies?.[ASC_PACKAGE_NAME];
+  const lockEntry = lock?.packages?.[ASC_LOCK_KEY];
+
+  if (typeof ascSpec !== "string" || !isSupportedRegistrySemverSpec(ascSpec.trim())) {
+    issues.push(
+      `Cannot validate an ASC registry lock for unsupported selector ${String(ascSpec)}.`,
+    );
+  }
+  if (rootAscSpec !== ascSpec) {
+    issues.push(
+      `package-lock root selector ${String(rootAscSpec)} does not match package.json ${String(ascSpec)}.`,
+    );
+  }
+  if (!isRecord(lockEntry)) {
+    issues.push(`package-lock.json is missing ${ASC_LOCK_KEY}.`);
+  }
+
+  const selectedVersion = isRecord(lockEntry) ? lockEntry.version : null;
+  const resolved = isRecord(lockEntry) ? lockEntry.resolved : null;
+  const integrity = isRecord(lockEntry) ? lockEntry.integrity : null;
+  if (isRecord(lockEntry) && lockEntry.link === true) {
+    issues.push("ASC package-lock entry is a local link; registry artifact proof is required.");
+  }
+  if (typeof selectedVersion !== "string" || !parseStrictSemver(selectedVersion)) {
+    issues.push("ASC package-lock entry is missing a strict-semver version.");
+  } else if (typeof ascSpec === "string" && !versionSatisfiesAscRange(selectedVersion, ascSpec)) {
+    issues.push(`Locked ASC ${selectedVersion} does not satisfy ${ascSpec}.`);
+  }
+  if (typeof selectedVersion === "string" && resolved !== canonicalAscTarballUrl(selectedVersion)) {
+    issues.push(
+      `Locked ASC resolved value is not the canonical npm registry tarball for ${selectedVersion}.`,
+    );
+  }
+  if (typeof integrity !== "string" || !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(integrity)) {
+    issues.push("Locked ASC artifact is missing a sha512 integrity value.");
+  }
+
+  const strayAscEntries = isRecord(lock?.packages)
+    ? Object.keys(lock.packages).filter(
+        (key) => key !== ASC_LOCK_KEY && key.includes("pi-autonomous-session-control"),
+      )
+    : [];
+  if (strayAscEntries.length > 0) {
+    issues.push(
+      `ASC package-lock contains non-registry/local entries: ${strayAscEntries.join(", ")}.`,
+    );
+  }
+
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
+  const cutoffMs = nowMs - minimumReleaseAgeMs;
+  const eligibleVersions = registryReleaseState?.versions
+    ?.filter(
+      (version) =>
+        typeof ascSpec === "string" &&
+        versionSatisfiesAscRange(version, ascSpec) &&
+        Number.isFinite(Date.parse(registryReleaseState.time?.[version])) &&
+        Date.parse(registryReleaseState.time[version]) <= cutoffMs,
+    )
+    .sort((left, right) => compareSemver(parseStrictSemver(left), parseStrictSemver(right)));
+  const latestEligibleVersion = eligibleVersions?.at(-1) ?? null;
+  if (!latestEligibleVersion) {
+    issues.push(
+      `No ${ascSpec} ASC release is eligible under the seven-day minimum-release-age floor.`,
+    );
+  } else if (selectedVersion !== latestEligibleVersion) {
+    issues.push(
+      `Locked ASC ${String(selectedVersion)} is not the latest seven-day-eligible ${ascSpec} release (${latestEligibleVersion}).`,
+    );
+  }
+
+  const publishedAt =
+    typeof selectedVersion === "string" ? registryReleaseState?.time?.[selectedVersion] : null;
+  if (!Number.isFinite(Date.parse(publishedAt))) {
+    issues.push(`Registry publication time is missing for locked ASC ${String(selectedVersion)}.`);
+  } else if (Date.parse(publishedAt) > cutoffMs) {
+    issues.push(
+      `Locked ASC ${selectedVersion} was published ${publishedAt}, inside the seven-day minimum-release-age floor.`,
+    );
+  }
+
+  const artifactDist = registryArtifact?.dist;
+  if (registryArtifact?.version !== selectedVersion || !isRecord(artifactDist)) {
+    issues.push(`Registry metadata does not prove locked ASC ${String(selectedVersion)}.`);
+  } else {
+    if (artifactDist.tarball !== resolved) {
+      issues.push("Locked ASC tarball URL does not match registry metadata.");
+    }
+    if (artifactDist.integrity !== integrity) {
+      issues.push("Locked ASC integrity does not match registry metadata.");
+    }
+    if (
+      artifactDist.attestations?.provenance?.predicateType !== SLSA_PROVENANCE_V1 ||
+      typeof artifactDist.attestations?.url !== "string"
+    ) {
+      issues.push("Registry ASC artifact is missing npm SLSA provenance metadata.");
+    }
+    if (!Array.isArray(artifactDist.signatures) || artifactDist.signatures.length === 0) {
+      issues.push("Registry ASC artifact is missing npm registry signatures.");
+    }
+  }
+
+  return {
+    ok: issues.length === 0,
+    issues,
+    selectedVersion,
+    latestEligibleVersion,
+    publishedAt,
+    cutoff: Number.isFinite(cutoffMs) ? new Date(cutoffMs).toISOString() : null,
+    resolved,
+    integrity,
+  };
 }
 
 export function evaluateAscBridgeLifecycle({ pkg, publishedAscVersions = [] }) {
@@ -296,24 +388,6 @@ export function evaluateAscBridgeLifecycle({ pkg, publishedAscVersions = [] }) {
     ) {
       issues.push(
         `Registry lookup returned a version that does not satisfy ${ASC_PACKAGE_NAME}=${classification.ascSpec}; release installability is not proven.`,
-      );
-    }
-  }
-
-  if (classification.mode === "transitional-bundled-bridge") {
-    // The review trigger fires only once the REGISTRY CUTOVER VERSION the
-    // transitional bundle exists for is actually published. While the newest
-    // published version predates the intended cutover, the transitional
-    // bundle is the sanctioned bootstrap state.
-    const intendedCutover = readWorkspaceAscVersion();
-    const cutoverPublished =
-      intendedCutover !== null &&
-      publishedAscVersions.some((version) =>
-        versionSatisfiesAscRange(version, `^${intendedCutover}`),
-      );
-    if (cutoverPublished) {
-      issues.push(
-        `${ASC_PACKAGE_NAME}@${publishedAscVersions.join(", ")} is visible on ${REPO_REGISTRY}, so the bundled bridge lifecycle review trigger has fired. Replace the local file dependency with the intended semver dependency and remove bundleDependencies before the next orchestrator release.`,
       );
     }
   }
@@ -338,14 +412,13 @@ function readManifest(packageDir) {
   return manifest;
 }
 
-export function formatAscBridgeLifecycleSummary(result, publishedAscVersions) {
+export function formatAscBridgeLifecycleSummary(result, publishedAscVersions, lockResult = null) {
   const modeLabel =
-    result.classification.mode === "transitional-bundled-bridge"
-      ? "transitional bundled bridge"
-      : result.classification.mode === "registry-cutover"
-        ? "registry-backed cutover"
-        : "invalid";
-  return `ASC bridge lifecycle OK (${modeLabel}; ${ASC_PACKAGE_NAME}@${publishedAscVersions.join(", ")} satisfies ${result.classification.ascSpec}).`;
+    result.classification.mode === "registry-cutover" ? "registry-backed cutover" : "invalid";
+  const lockLabel = lockResult
+    ? `; locked ${lockResult.selectedVersion} published ${lockResult.publishedAt} (eligibility cutoff ${lockResult.cutoff})`
+    : "";
+  return `ASC bridge lifecycle OK (${modeLabel}; ${ASC_PACKAGE_NAME}@${publishedAscVersions.join(", ")} satisfies ${result.classification.ascSpec}${lockLabel}).`;
 }
 
 function main() {
@@ -357,23 +430,51 @@ function main() {
     process.exit(1);
   }
 
-  const publishedAsc = lookupPublishedAscVersions(classification.ascSpec);
-  if (!publishedAsc.ok) {
-    console.error(publishedAsc.error);
+  const registryReleaseState = lookupAscRegistryReleaseState();
+  if (!registryReleaseState.ok) {
+    console.error(registryReleaseState.error);
     process.exit(1);
   }
 
+  const matchingVersions = registryReleaseState.versions.filter((version) =>
+    versionSatisfiesAscRange(version, classification.ascSpec),
+  );
   const evaluation = evaluateAscBridgeLifecycle({
     pkg: manifest,
-    publishedAscVersions: publishedAsc.versions,
+    publishedAscVersions: matchingVersions,
   });
-
   if (!evaluation.ok) {
     for (const issue of evaluation.issues) console.error(issue);
     process.exit(1);
   }
 
-  console.log(formatAscBridgeLifecycleSummary(evaluation, publishedAsc.versions));
+  let lockResult = null;
+  if (classification.mode === "registry-cutover") {
+    const lock = JSON.parse(fs.readFileSync(path.join(packageDir, "package-lock.json"), "utf8"));
+    const lockEntry = lock?.packages?.[ASC_LOCK_KEY];
+    const selectedVersion = lockEntry?.version;
+    if (typeof selectedVersion !== "string") {
+      console.error(`package-lock.json is missing a versioned ${ASC_LOCK_KEY} registry entry.`);
+      process.exit(1);
+    }
+    const artifactLookup = lookupAscRegistryArtifact(selectedVersion);
+    if (!artifactLookup.ok) {
+      console.error(artifactLookup.error);
+      process.exit(1);
+    }
+    lockResult = evaluateAscRegistryLock({
+      pkg: manifest,
+      lock,
+      registryReleaseState,
+      registryArtifact: artifactLookup.artifact,
+    });
+    if (!lockResult.ok) {
+      for (const issue of lockResult.issues) console.error(issue);
+      process.exit(1);
+    }
+  }
+
+  console.log(formatAscBridgeLifecycleSummary(evaluation, matchingVersions, lockResult));
 }
 
 const entryPath = process.argv[1] ? path.resolve(process.argv[1]) : null;

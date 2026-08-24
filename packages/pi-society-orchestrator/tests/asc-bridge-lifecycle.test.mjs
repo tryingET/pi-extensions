@@ -3,292 +3,292 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import {
+  ASC_MINIMUM_RELEASE_AGE_MS,
   ASC_PACKAGE_NAME,
-  ascRegistrySelector,
   classifyAscBridgeLifecycle,
   evaluateAscBridgeLifecycle,
+  evaluateAscRegistryLock,
   formatAscBridgeLifecycleSummary,
-  lookupPublishedAscVersions,
-  parsePublishedPackageVersionLookup,
+  lookupAscRegistryArtifact,
+  lookupAscRegistryReleaseState,
+  parseAscRegistryArtifactLookup,
+  parseAscRegistryReleaseStateLookup,
   versionSatisfiesAscRange,
 } from "../scripts/validate-asc-bridge-lifecycle.mjs";
 
-function createManifest(overrides = {}) {
+const REGISTRY_NOW = new Date("2026-08-23T18:13:50.000Z");
+const ASC_051_INTEGRITY =
+  "sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==";
+
+function createManifest(ascSpec = "^0.5.0", overrides = {}) {
   return {
     name: "@tryinget/pi-society-orchestrator",
     dependencies: {
-      [ASC_PACKAGE_NAME]: "file:../pi-autonomous-session-control",
+      [ASC_PACKAGE_NAME]: ascSpec,
       "@tryinget/pi-vault-client": "file:../pi-vault-client",
-      ...(overrides.dependencies || {}),
     },
-    bundleDependencies: [ASC_PACKAGE_NAME],
-    ...(overrides.bundleDependencies ? { bundleDependencies: overrides.bundleDependencies } : {}),
-    ...(overrides.bundledDependencies
-      ? { bundledDependencies: overrides.bundledDependencies }
-      : {}),
+    ...overrides,
   };
 }
 
-test("classifyAscBridgeLifecycle accepts the current transitional bundled bridge", () => {
-  const result = classifyAscBridgeLifecycle(createManifest());
-
-  assert.equal(result.ok, true);
-  assert.equal(result.mode, "transitional-bundled-bridge");
-  assert.equal(result.ascSpec, "file:../pi-autonomous-session-control");
-  assert.deepEqual(result.issues, []);
-});
-
-test("evaluateAscBridgeLifecycle keeps the transitional bridge quiet while the intended cutover version is unpublished", () => {
-  // Cutover-aware trigger: the workspace ASC version (>= the fixture's
-  // published 0.1.0-era baseline) is not yet on the registry, so the
-  // transitional bundled bridge remains the sanctioned state.
-  const result = evaluateAscBridgeLifecycle({
-    pkg: createManifest(),
-    publishedAscVersions: ["0.1.0"],
-  });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.classification.mode, "transitional-bundled-bridge");
-  assert.deepEqual(result.issues, []);
-});
-
-test("evaluateAscBridgeLifecycle blocks the transitional bridge once the cutover version is published", () => {
-  const result = evaluateAscBridgeLifecycle({
-    pkg: createManifest(),
-    publishedAscVersions: [readWorkspaceAscVersionForTest()],
-  });
-
-  assert.equal(result.ok, false);
-  assert.equal(result.classification.mode, "transitional-bundled-bridge");
-  assert.match(result.issues.join("\n"), /is visible/);
-});
-
-function readWorkspaceAscVersionForTest() {
-  const manifestPath = path.resolve(
-    import.meta.dirname,
-    "../../pi-autonomous-session-control/package.json",
-  );
-  return JSON.parse(fs.readFileSync(manifestPath, "utf8")).version;
+function ascTarball(version) {
+  return `https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-${version}.tgz`;
 }
 
-test("classifyAscBridgeLifecycle accepts the registry-backed cutover topology", () => {
-  const result = classifyAscBridgeLifecycle(
-    createManifest({
-      dependencies: {
-        [ASC_PACKAGE_NAME]: "^0.1.0",
+function createRegistryLock(version = "0.5.1", overrides = {}) {
+  return {
+    lockfileVersion: 3,
+    packages: {
+      "": { dependencies: { [ASC_PACKAGE_NAME]: "^0.5.0" } },
+      [`node_modules/${ASC_PACKAGE_NAME}`]: {
+        version,
+        resolved: ascTarball(version),
+        integrity: overrides.integrity ?? ASC_051_INTEGRITY,
+        ...overrides,
       },
-      bundleDependencies: [],
-    }),
-  );
+    },
+  };
+}
 
+function createRegistryReleaseState() {
+  return {
+    versions: ["0.5.0", "0.5.1", "0.5.2"],
+    time: {
+      "0.5.0": "2026-08-15T18:01:22.673Z",
+      "0.5.1": "2026-08-16T08:07:41.295Z",
+      "0.5.2": "2026-08-20T18:26:40.021Z",
+    },
+  };
+}
+
+function createRegistryArtifact(version = "0.5.1", integrity = ASC_051_INTEGRITY) {
+  return {
+    version,
+    dist: {
+      tarball: ascTarball(version),
+      integrity,
+      signatures: [{ keyid: "registry-key", sig: "registry-signature" }],
+      attestations: {
+        url: `https://registry.npmjs.org/-/npm/v1/attestations/${version}`,
+        provenance: { predicateType: "https://slsa.dev/provenance/v1" },
+      },
+    },
+  };
+}
+
+function evaluateLock({ version = "0.5.1", lock, artifact, now = REGISTRY_NOW } = {}) {
+  return evaluateAscRegistryLock({
+    pkg: createManifest(),
+    lock: lock ?? createRegistryLock(version),
+    registryReleaseState: createRegistryReleaseState(),
+    registryArtifact: artifact ?? createRegistryArtifact(version),
+    now,
+  });
+}
+
+test("classifyAscBridgeLifecycle accepts only the retired-bundle registry topology", () => {
+  const result = classifyAscBridgeLifecycle(createManifest());
   assert.equal(result.ok, true);
   assert.equal(result.mode, "registry-cutover");
-  assert.deepEqual(result.issues, []);
+  assert.equal(result.ascSpec, "^0.5.0");
+  assert.deepEqual(result.bundledDependencies, []);
 });
 
-test("classifyAscBridgeLifecycle rejects mixed local-file without bundle topology", () => {
-  const result = classifyAscBridgeLifecycle(
-    createManifest({
-      bundleDependencies: [],
-    }),
-  );
-
-  assert.equal(result.ok, false);
-  assert.equal(result.mode, "invalid");
-  assert.match(result.issues.join("\n"), /must keep bundleDependencies aligned/i);
-});
-
-test("classifyAscBridgeLifecycle rejects unbundled raw local paths and non-semver registry specs", () => {
+test("classifyAscBridgeLifecycle rejects local ASC dependencies after cutover", () => {
   for (const ascSpec of [
+    "file:../pi-autonomous-session-control",
     "../pi-autonomous-session-control",
     "/workspace/pi-autonomous-session-control",
+  ]) {
+    const result = classifyAscBridgeLifecycle(createManifest(ascSpec));
+    assert.equal(result.ok, false, `expected ${ascSpec} to fail closed`);
+    assert.equal(result.mode, "invalid");
+    assert.match(result.issues.join("\n"), /forbidden after registry cutover/i);
+  }
+});
+
+test("classifyAscBridgeLifecycle rejects non-semver selectors", () => {
+  for (const ascSpec of [
     "latest",
     "https://example.invalid/asc.tgz",
     "git+https://example.invalid/asc.git",
   ]) {
-    const result = classifyAscBridgeLifecycle(
-      createManifest({
-        dependencies: { [ASC_PACKAGE_NAME]: ascSpec },
-        bundleDependencies: [],
-      }),
-    );
+    const result = classifyAscBridgeLifecycle(createManifest(ascSpec));
     assert.equal(result.ok, false, `expected ${ascSpec} to fail closed`);
-    assert.equal(result.mode, "invalid");
+    assert.match(result.issues.join("\n"), /not a supported registry semver selector/i);
   }
 });
 
-test("classifyAscBridgeLifecycle rejects semver plus bundle topology", () => {
+test("classifyAscBridgeLifecycle rejects any revived bundle", () => {
   const result = classifyAscBridgeLifecycle(
-    createManifest({
-      dependencies: {
-        [ASC_PACKAGE_NAME]: "^0.1.0",
-      },
-    }),
+    createManifest("^0.5.0", { bundleDependencies: [ASC_PACKAGE_NAME, "left-pad"] }),
   );
-
   assert.equal(result.ok, false);
-  assert.equal(result.mode, "invalid");
-  assert.match(
-    result.issues.join("\n"),
-    /must be removed once orchestrator consumes it as a normal dependency/i,
-  );
+  assert.match(result.issues.join("\n"), /Unexpected bundled dependencies.*left-pad/i);
+  assert.match(result.issues.join("\n"), /must remain retired/i);
 });
 
-test("classifyAscBridgeLifecycle rejects unrelated extra bundled dependencies", () => {
-  const result = classifyAscBridgeLifecycle(
-    createManifest({
-      bundleDependencies: [ASC_PACKAGE_NAME, "left-pad"],
-    }),
-  );
-
-  assert.equal(result.ok, false);
-  assert.equal(result.mode, "transitional-bundled-bridge");
-  assert.match(result.issues.join("\n"), /Unexpected bundled dependencies present: left-pad/);
-});
-
-test("parsePublishedPackageVersionLookup accepts npm string and array response shapes", () => {
-  const selector = `${ASC_PACKAGE_NAME}@^0.4.0`;
-  assert.deepEqual(
-    parsePublishedPackageVersionLookup(
-      { status: 0, stdout: '"0.4.1"\n', stderr: "" },
-      selector,
-      "^0.4.0",
-    ),
-    { ok: true, versions: ["0.4.1"] },
-  );
-  assert.deepEqual(
-    parsePublishedPackageVersionLookup(
-      { status: 0, stdout: '["0.4.0", "0.4.1", "0.4.1"]\n', stderr: "" },
-      selector,
-      "^0.4.0",
-    ),
-    { ok: true, versions: ["0.4.0", "0.4.1"] },
-  );
-});
-
-test("parsePublishedPackageVersionLookup fails closed for E404 and ETARGET", () => {
-  const selector = `${ASC_PACKAGE_NAME}@^0.4.0`;
-  const e404 = parsePublishedPackageVersionLookup(
-    {
-      status: 1,
-      stdout: "",
-      stderr: "npm error code E404\nnpm error 404 Not Found - package not found\n",
-    },
-    selector,
-  );
-  assert.equal(e404.ok, false);
-  assert.deepEqual(e404.versions, []);
-  assert.match(e404.error, /E404/);
-
-  const etarget = parsePublishedPackageVersionLookup(
-    {
-      status: 1,
-      stdout: "",
-      stderr: "npm error code ETARGET\nnpm error No matching version found\n",
-    },
-    selector,
-  );
-  assert.equal(etarget.ok, false);
-  assert.deepEqual(etarget.versions, []);
-  assert.match(etarget.error, /ETARGET/);
-});
-
-test("parsePublishedPackageVersionLookup fails closed for malformed and empty responses", () => {
-  const selector = `${ASC_PACKAGE_NAME}@^0.4.0`;
-  for (const stdout of ["", "not-json", "{}", "[]", '["0.4.0", null]']) {
-    const result = parsePublishedPackageVersionLookup({ status: 0, stdout, stderr: "" }, selector);
-    assert.equal(result.ok, false, `expected response to fail closed: ${stdout}`);
-    assert.deepEqual(result.versions, []);
-    assert.ok(result.error.length > 0);
-  }
-});
-
-test("parsePublishedPackageVersionLookup rejects invalid or range-mismatched versions", () => {
-  const selector = `${ASC_PACKAGE_NAME}@^0.4.0`;
-  for (const stdout of ['"not-semver"', '"0.3.0"', '["0.4.0", "0.5.0"]']) {
-    const result = parsePublishedPackageVersionLookup(
-      { status: 0, stdout, stderr: "" },
-      selector,
-      "^0.4.0",
-    );
-    assert.equal(result.ok, false, `expected response to fail closed: ${stdout}`);
-    assert.deepEqual(result.versions, []);
-  }
-});
-
-test("versionSatisfiesAscRange implements the supported exact and caret range contract", () => {
-  assert.equal(versionSatisfiesAscRange("0.4.0", "^0.4.0"), true);
-  assert.equal(versionSatisfiesAscRange("0.4.9", "^0.4.0"), true);
-  assert.equal(versionSatisfiesAscRange("0.5.0", "^0.4.0"), false);
+test("versionSatisfiesAscRange implements exact and caret zero-major ranges", () => {
+  assert.equal(versionSatisfiesAscRange("0.5.0", "^0.5.0"), true);
+  assert.equal(versionSatisfiesAscRange("0.5.9", "^0.5.0"), true);
+  assert.equal(versionSatisfiesAscRange("0.6.0", "^0.5.0"), false);
   assert.equal(versionSatisfiesAscRange("1.2.9", "^1.2.3"), true);
   assert.equal(versionSatisfiesAscRange("2.0.0", "^1.2.3"), false);
-  assert.equal(versionSatisfiesAscRange("0.4.0", "0.4.0"), true);
-  assert.equal(versionSatisfiesAscRange("0.4.1", "0.4.0"), false);
-  assert.equal(versionSatisfiesAscRange("not-semver", "^0.4.0"), false);
+  assert.equal(versionSatisfiesAscRange("0.5.1", "0.5.1"), true);
+  assert.equal(versionSatisfiesAscRange("0.5.2", "0.5.1"), false);
+  assert.equal(versionSatisfiesAscRange("not-semver", "^0.5.0"), false);
 });
 
-test("lookupPublishedAscVersions queries the declared range rather than package latest", () => {
+test("evaluateAscBridgeLifecycle requires a satisfying published release", () => {
+  const missing = evaluateAscBridgeLifecycle({ pkg: createManifest(), publishedAscVersions: [] });
+  assert.equal(missing.ok, false);
+  assert.match(missing.issues.join("\n"), /no proven satisfying published version/i);
+
+  const unrelated = evaluateAscBridgeLifecycle({
+    pkg: createManifest(),
+    publishedAscVersions: ["0.4.0"],
+  });
+  assert.equal(unrelated.ok, false);
+  assert.match(unrelated.issues.join("\n"), /does not satisfy/i);
+
+  const valid = evaluateAscBridgeLifecycle({
+    pkg: createManifest(),
+    publishedAscVersions: ["0.5.0", "0.5.1"],
+  });
+  assert.equal(valid.ok, true);
+  assert.match(formatAscBridgeLifecycleSummary(valid, ["0.5.0", "0.5.1"]), /registry-backed/);
+});
+
+test("registry metadata lookups request release times and exact artifact provenance", () => {
   const calls = [];
-  const result = lookupPublishedAscVersions("^0.4.0", (command, args, options) => {
+  const stateResult = lookupAscRegistryReleaseState((command, args, options) => {
     calls.push({ command, args, options });
-    return {
-      status: 1,
-      stdout: "",
-      stderr: "npm error code ETARGET\nnpm error No matching version found",
-    };
+    return { status: 0, stdout: JSON.stringify(createRegistryReleaseState()), stderr: "" };
+  });
+  const artifactResult = lookupAscRegistryArtifact("0.5.1", (command, args, options) => {
+    calls.push({ command, args, options });
+    return { status: 0, stdout: JSON.stringify(createRegistryArtifact()), stderr: "" };
   });
 
-  assert.equal(ascRegistrySelector("^0.4.0"), `${ASC_PACKAGE_NAME}@^0.4.0`);
-  assert.equal(result.ok, false);
-  assert.match(result.error, /ETARGET/);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].command, "npm");
+  assert.equal(stateResult.ok, true);
+  assert.equal(artifactResult.ok, true);
   assert.deepEqual(calls[0].args, [
     "view",
-    `${ASC_PACKAGE_NAME}@^0.4.0`,
-    "version",
+    ASC_PACKAGE_NAME,
+    "versions",
+    "time",
     "--json",
     "--registry",
     "https://registry.npmjs.org/",
   ]);
+  assert.deepEqual(calls[1].args, [
+    "view",
+    `${ASC_PACKAGE_NAME}@0.5.1`,
+    "version",
+    "dist",
+    "--json",
+    "--registry",
+    "https://registry.npmjs.org/",
+  ]);
+  assert.equal(calls[0].command, "npm");
   assert.equal(calls[0].options.encoding, "utf8");
 });
 
-test("registry cutover cannot pass with no version satisfying the declared range", () => {
-  const pkg = createManifest({
-    dependencies: { [ASC_PACKAGE_NAME]: "^0.4.0" },
-    bundleDependencies: [],
-  });
-  const evaluation = evaluateAscBridgeLifecycle({ pkg, publishedAscVersions: [] });
-
-  assert.equal(evaluation.ok, false);
-  assert.match(evaluation.issues.join("\n"), /no proven satisfying published version/i);
-  assert.match(evaluation.issues.join("\n"), /unrelated registry versions/i);
-});
-
-test("registry cutover cannot pass with an unrelated published version", () => {
-  const pkg = createManifest({
-    dependencies: { [ASC_PACKAGE_NAME]: "^0.4.0" },
-    bundleDependencies: [],
-  });
-  const evaluation = evaluateAscBridgeLifecycle({ pkg, publishedAscVersions: ["0.3.0"] });
-
-  assert.equal(evaluation.ok, false);
-  assert.match(evaluation.issues.join("\n"), /does not satisfy/i);
-});
-
-test("formatAscBridgeLifecycleSummary reports the proven satisfying registry versions", () => {
-  const evaluation = evaluateAscBridgeLifecycle({
-    pkg: createManifest({
-      dependencies: { [ASC_PACKAGE_NAME]: "^0.4.0" },
-      bundleDependencies: [],
-    }),
-    publishedAscVersions: ["0.4.0", "0.4.1"],
-  });
-
-  assert.equal(evaluation.ok, true);
-  assert.match(
-    formatAscBridgeLifecycleSummary(evaluation, ["0.4.0", "0.4.1"]),
-    /registry-backed cutover; @tryinget\/pi-autonomous-session-control@0\.4\.0, 0\.4\.1 satisfies \^0\.4\.0/,
+test("registry metadata parsers fail closed", () => {
+  for (const stdout of ["", "not-json", "{}", '{"versions":["0.5.1"],"time":{}}']) {
+    assert.equal(
+      parseAscRegistryReleaseStateLookup({ status: 0, stdout, stderr: "" }).ok,
+      false,
+      `expected release state to fail: ${stdout}`,
+    );
+  }
+  assert.equal(
+    parseAscRegistryReleaseStateLookup({ status: 1, stdout: "", stderr: "npm E404" }).ok,
+    false,
   );
+  assert.equal(
+    parseAscRegistryArtifactLookup({ status: 0, stdout: "{}", stderr: "" }, "0.5.1").ok,
+    false,
+  );
+  assert.equal(
+    parseAscRegistryArtifactLookup({ status: 1, stdout: "", stderr: "npm ETARGET" }, "0.5.1").ok,
+    false,
+  );
+});
+
+test("evaluateAscRegistryLock accepts the latest seven-day-eligible artifact", () => {
+  const result = evaluateLock();
+  assert.equal(ASC_MINIMUM_RELEASE_AGE_MS, 604_800_000);
+  assert.equal(result.ok, true);
+  assert.equal(result.selectedVersion, "0.5.1");
+  assert.equal(result.latestEligibleVersion, "0.5.1");
+  assert.equal(result.publishedAt, "2026-08-16T08:07:41.295Z");
+  assert.deepEqual(result.issues, []);
+});
+
+test("evaluateAscRegistryLock rejects a local-link lock regression", () => {
+  const lock = createRegistryLock("0.5.1", {
+    resolved: "../pi-autonomous-session-control",
+    link: true,
+  });
+  lock.packages["../pi-autonomous-session-control"] = {
+    name: ASC_PACKAGE_NAME,
+    version: "0.5.1",
+  };
+  const result = evaluateLock({ lock });
+  assert.equal(result.ok, false);
+  assert.match(result.issues.join("\n"), /local link/i);
+  assert.match(result.issues.join("\n"), /canonical npm registry tarball/i);
+  assert.match(result.issues.join("\n"), /non-registry\/local entries/i);
+});
+
+test("evaluateAscRegistryLock rejects ineligible and stale selections", () => {
+  const alternateIntegrity = "sha512-YWJjZA==";
+  const ineligible = evaluateLock({
+    version: "0.5.2",
+    lock: createRegistryLock("0.5.2", { integrity: alternateIntegrity }),
+    artifact: createRegistryArtifact("0.5.2", alternateIntegrity),
+  });
+  assert.equal(ineligible.ok, false);
+  assert.equal(ineligible.latestEligibleVersion, "0.5.1");
+  assert.match(ineligible.issues.join("\n"), /inside the seven-day minimum-release-age floor/i);
+
+  const stale = evaluateLock({
+    version: "0.5.0",
+    lock: createRegistryLock("0.5.0", { integrity: alternateIntegrity }),
+    artifact: createRegistryArtifact("0.5.0", alternateIntegrity),
+  });
+  assert.equal(stale.ok, false);
+  assert.match(stale.issues.join("\n"), /latest seven-day-eligible.*0\.5\.1/i);
+});
+
+test("evaluateAscRegistryLock requires integrity, signatures, and SLSA provenance", () => {
+  const artifact = createRegistryArtifact();
+  artifact.dist.integrity = "sha512-YWJjZA==";
+  artifact.dist.signatures = [];
+  delete artifact.dist.attestations;
+  const result = evaluateLock({ artifact });
+  assert.equal(result.ok, false);
+  assert.match(result.issues.join("\n"), /integrity does not match/i);
+  assert.match(result.issues.join("\n"), /SLSA provenance/i);
+  assert.match(result.issues.join("\n"), /registry signatures/i);
+});
+
+test("checked-in ASC lock records the proven registry artifact", () => {
+  const packageDir = path.resolve(import.meta.dirname, "..");
+  const pkg = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf8"));
+  const lock = JSON.parse(fs.readFileSync(path.join(packageDir, "package-lock.json"), "utf8"));
+  const result = evaluateAscRegistryLock({
+    pkg,
+    lock,
+    registryReleaseState: createRegistryReleaseState(),
+    registryArtifact: createRegistryArtifact(),
+    now: REGISTRY_NOW,
+  });
+  const entry = lock.packages[`node_modules/${ASC_PACKAGE_NAME}`];
+  assert.equal(result.ok, true, result.issues.join("\n"));
+  assert.equal(entry.link, undefined);
+  assert.equal(entry.version, "0.5.1");
+  assert.equal(entry.resolved, ascTarball("0.5.1"));
+  assert.equal(entry.integrity, ASC_051_INTEGRITY);
 });
