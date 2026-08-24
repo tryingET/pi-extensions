@@ -155,18 +155,13 @@ test("session start enforces standard active profile", async () => {
 
 test("session start activates registered SCI reads while keeping check workflows latent", async () => {
   const harness = createHarness();
-  harness.setActiveTools(["read", "safe_write"]);
+  harness.setActiveTools(["read", "rename_safely"]);
 
   await harness.runEvent("session_start");
 
   assert.equal(harness.activeTools.includes("explore_symbol_impact"), true);
   assert.equal(harness.activeTools.includes("locate_confirm_definition"), true);
-  for (const tool of [
-    "patch_checks_in_snapshot",
-    "structural_patch_checks",
-    "rename_safely",
-    "safe_write",
-  ]) {
+  for (const tool of ["patch_checks_in_snapshot", "structural_patch_checks", "rename_safely"]) {
     assert.equal(harness.activeTools.includes(tool), false);
   }
 });
@@ -841,7 +836,6 @@ test("catalog routes composite-first SCI read and risk-gated snapshot profiles",
     "patch_checks_in_snapshot",
     "structural_patch_checks",
     "rename_safely",
-    "safe_write",
   ]);
   assert.equal(mutating.risk, "mutating");
   assert.equal(mutating.requiresExplicitUserIntent, true);
