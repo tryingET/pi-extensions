@@ -65,9 +65,9 @@ RESOLVED 2026-08-24: the proposed event shipped upstream in pi-coding-agent
   `NOT_PLANNED` within a minute by the new-contributor triage automation
   (`untriaged` label, same flow as #6000). Feature shipped anyway in 0.84.3.
 - Adoption: tracked in monorepo ADR `docs/adr/2026-08-24-pi-0.84.x-adoption.md`
-  and RFC `docs/project/2026-08-24-pi-0.84.x-adoption-rfc.md`. pi-telemetry is
-  adopting `session_compact_failed` for causal failure records (AK #5005), which
-  closes the unresolved-begins (~1.4k stalled compactions / 30d) blind spot
+  and RFC `docs/project/2026-08-24-pi-0.84.x-adoption-rfc.md`. pi-telemetry has adopted
+  `session_compact_failed` for causal failure records (AK #5005, commit
+  56d5782c), closing the unresolved-begins (~1.4k stalled compactions / 30d) blind spot
   described below.
 - Tracker record: softwareco/infra/issue-tracker
   `pi-mono-upstream/compaction-failure-extension-events` updated with the
