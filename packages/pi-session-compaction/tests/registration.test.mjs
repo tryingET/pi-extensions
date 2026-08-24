@@ -11,6 +11,7 @@ import {
   createSessionCompactionExtension,
   evaluateSessionCompactionRegistration,
   HOST_COMPACTION_FAILED_EVENT,
+  registerCompactionStatusCommand,
   registerInputTracking,
   registerSessionBeforeCompact,
   SESSION_BEFORE_COMPACT_EVENT,
@@ -144,6 +145,71 @@ describe("session compaction registration guard", () => {
     );
     assert.equal(duplicate.reason, "already_registered_by_this_package");
     assert.equal(handlers.length, 2);
+  });
+
+  it("joins the internal stage chain with the host cause and surfaces it in compaction-status", async () => {
+    const { pi, handlers, commands } = createPiRecorder();
+    const state = createCompactionRegistrationState();
+    const userTelemetry = [];
+    registerSessionBeforeCompact(
+      pi,
+      {
+        enableSessionBeforeCompact: true,
+        handlerTestsPassed: true,
+        noDoubleCompactionPreflight: true,
+        existingCompactionHandlerCount: 0,
+        handlerDeps: {
+          recordFailureTelemetry: async (input) => {
+            userTelemetry.push(input);
+          },
+        },
+        handler: async (_event, _ctx, deps) => {
+          await deps.recordFailureTelemetry({
+            stage: "preset",
+            error: new Error("provider exploded with 529"),
+          });
+          await deps.recordFailureTelemetry({
+            stage: "final",
+            error: new Error("summarization failed"),
+          });
+          return undefined;
+        },
+      },
+      state,
+    );
+    registerCompactionStatusCommand(pi, { enabled: true }, state);
+
+    // Failed attempt: internal chain recorded, caller's telemetry dep still invoked.
+    await handlers[0].handler({ type: SESSION_BEFORE_COMPACT_EVENT }, { cwd: "/repo" });
+    assert.equal(userTelemetry.length, 2);
+    assert.equal(state.internalFailureChain.length, 2);
+
+    // Host reports the failure; chain is joined into the last-failure record.
+    const failureHandler = handlers.find((h) => h.event === HOST_COMPACTION_FAILED_EVENT);
+    failureHandler.handler({
+      type: HOST_COMPACTION_FAILED_EVENT,
+      reason: "overflow",
+      errorMessage: "Context overflow recovery failed",
+      aborted: false,
+      willRetry: false,
+      fromExtension: false,
+    });
+
+    const last = state.lastHostCompactionFailure;
+    assert.equal(last.internalChain.length, 2);
+    assert.equal(last.internalChain[0].stage, "preset");
+    assert.equal(last.internalChain[0].errorSignature, "provider exploded with 529");
+    assert.equal(last.internalChain[1].stage, "final");
+    assert.equal(state.internalFailureChain.length, 0);
+
+    // compaction-status surfaces the combined cause + chain.
+    const statusHandler = commands.get("compaction-status").handler;
+    const message = await statusHandler({}, { ui: { notify() {} } });
+    assert.match(message, /reason=overflow/);
+    assert.match(
+      message,
+      /Internal failure chain: preset: provider exploded with 529 \| final: summarization failed/,
+    );
   });
 
   it("releases ownership on host-reported compaction failure and re-claims on the next attempt", async () => {

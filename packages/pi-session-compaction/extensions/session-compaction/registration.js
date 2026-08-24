@@ -26,6 +26,8 @@ export function createCompactionRegistrationState() {
     hostCompactionFailureSubscriptionRegistered: false,
     hostCompactionFailures: 0,
     lastHostCompactionFailure: undefined,
+    /** Stage-tagged internal failure records for the in-flight/last attempt. */
+    internalFailureChain: [],
   };
 }
 
@@ -173,10 +175,40 @@ export function registerSessionBeforeCompact(
         }
       }
 
-      const result = await handler(event, ctx, {
+      // Wrap the failure-telemetry dep so every internal stage failure is
+      // recorded into the attempt chain (joined with the host cause on
+      // session_compact_failed — ADR P1-A failure-chain correlation).
+      const baseDeps = {
         ...handlerDeps,
         ...(getTrackedCommands ? { getTrackedCommands } : {}),
-      });
+      };
+      const userRecordFailure = baseDeps.recordFailureTelemetry;
+      const wrappedHandlerDeps = {
+        ...baseDeps,
+        recordFailureTelemetry: async (input) => {
+          try {
+            state.internalFailureChain.push({
+              stage: input?.stage ?? "unknown",
+              errorSignature: String(input?.error?.message ?? input?.error ?? "unknown")
+                .split("\n")[0]
+                .slice(0, 200),
+              at: new Date().toISOString(),
+            });
+          } catch {
+            // Chain capture is best-effort; never mask the original failure.
+          }
+          if (typeof userRecordFailure === "function") return userRecordFailure(input);
+          try {
+            const emit = await import("@tryinget/pi-telemetry/emit");
+            await emit.recordCompactionFailureTelemetry(input);
+          } catch {
+            // pi-telemetry optional at runtime; compaction must not depend on it.
+          }
+          return undefined;
+        },
+      };
+
+      const result = await handler(event, ctx, wrappedHandlerDeps);
 
       if (
         result?.compaction &&
@@ -205,12 +237,16 @@ export function registerSessionBeforeCompact(
   try {
     pi.on(HOST_COMPACTION_FAILED_EVENT, (event) => {
       state.hostCompactionFailures += 1;
+      // Join the internal stage chain of the failed attempt with the host
+      // cause: host event owns the cause, internal telemetry owns location.
+      const internalChain = state.internalFailureChain.splice(0);
       state.lastHostCompactionFailure = Object.freeze({
         reason: typeof event?.reason === "string" ? event.reason : "unknown",
         aborted: event?.aborted === true,
         willRetry: event?.willRetry === true,
         fromExtension: event?.fromExtension === true,
         at: new Date().toISOString(),
+        internalChain,
       });
       if (state.ownershipLease) {
         try {
@@ -253,8 +289,21 @@ export function registerCompactionStatusCommand(
       handler: async (_args, ctx) => {
         const status = getCompactionOwnershipStatus(pi);
         const message = formatCompactionOwnershipStatus(status);
-        ctx?.ui?.notify?.(message, status.claimed ? "info" : "warning");
-        return message;
+        const lines = [message];
+        const last = state.lastHostCompactionFailure;
+        if (last) {
+          const flags = `reason=${last.reason} aborted=${last.aborted} willRetry=${last.willRetry} fromExtension=${last.fromExtension} at=${last.at}`;
+          lines.push(`Last host-reported compaction failure: ${flags}`);
+          if (Array.isArray(last.internalChain) && last.internalChain.length > 0) {
+            const chain = last.internalChain
+              .map((entry) => `${entry.stage}: ${entry.errorSignature}`)
+              .join(" | ");
+            lines.push(`Internal failure chain: ${chain}`);
+          }
+        }
+        const composed = lines.join("\n");
+        ctx?.ui?.notify?.(composed, status.claimed ? "info" : "warning");
+        return composed;
       },
     });
   } catch (error) {
