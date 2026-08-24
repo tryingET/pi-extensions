@@ -30,8 +30,9 @@ Orchestrator declares:
 - a lock for registry release `0.5.1`, with canonical npm tarball URL and sha512 integrity
 
 The checked-in lock remains registry `0.5.1`. If the lock is regenerated, use npm
-`min-release-age=7` with `min-release-age-exclude[]=@tryinget/*` so the age-eligible
-`@tryinget/*` 0.5.1 artifact is selected instead of ineligible 0.5.2. Registry
+`min-release-age=7` and do **not** exclude `@tryinget/pi-autonomous-session-control`
+from that floor, so npm cannot select ineligible 0.5.2. The validator independently
+rejects any lock that is not the latest seven-day-eligible `^0.5.0` release. Registry
 publication times were:
 
 - `0.5.0`: `2026-08-15T18:01:22.673Z`
