@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { parseNpmPackJson } from "../../../scripts/npm-pack-json.mjs";
 
 const groupDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lifecycleScript = path.join(groupDir, "scripts", "prepare-publish-manifest.mjs");
@@ -204,7 +205,7 @@ test("npm pack contains exact versions and releases lifecycle ownership", (t) =>
     env: { ...process.env, TMPDIR: fixture.root },
     encoding: "utf8",
   });
-  const [{ filename }] = JSON.parse(output);
+  const [{ filename }] = [parseNpmPackJson(output)];
   const packedText = execFileSync(
     "tar",
     ["-xOf", path.join(artifactDir, filename), "package/package.json"],
@@ -224,6 +225,16 @@ test("modeled npm 11 publish retains exact versions and postpublish releases own
   const publishReady = assertPrepared(fixture);
   console.log(`publish-ready projection: ${JSON.stringify(publishReady.dependencies)}`);
   runLifecycle(fixture, "postpublish");
+  assertRestored(fixture);
+});
+
+test("modeled npm 12 publish retains exact versions and postpublish releases ownership", (t) => {
+  const fixture = createFixture(t);
+  runLifecycle(fixture, "prepack", { npmMajor: 12 });
+  runLifecycle(fixture, "postpack", { npmMajor: 12 });
+  const publishReady = assertPrepared(fixture);
+  console.log(`publish-ready projection: ${JSON.stringify(publishReady.dependencies)}`);
+  runLifecycle(fixture, "postpublish", { npmMajor: 12 });
   assertRestored(fixture);
 });
 
@@ -319,7 +330,7 @@ test("unsupported npm publish majors fail before manifest mutation or ownership"
     encoding: "utf8",
   });
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /expected npm 11/);
+  assert.match(result.stderr, /expected npm 11 or 12/);
   assertRestored(fixture);
 });
 

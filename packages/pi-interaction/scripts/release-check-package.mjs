@@ -372,7 +372,9 @@ if (packEntry.name !== pkg.name || packEntry.version !== pkg.version) {
 validatePackWhitelist([packEntry], pkg);
 
 const npmVersion = run("npm", ["--version"]).stdout.trim();
-if (!/^11\./.test(npmVersion)) fail(`Release checks require npm 11; found ${npmVersion}.`);
+if (!/^(11|12)\./.test(npmVersion)) {
+  fail(`Release checks require npm 11 or 12; found ${npmVersion}.`);
+}
 const registry = pkg.publishConfig?.registry ?? "https://registry.npmjs.org/";
 for (const dependencyPackage of dependencyPackages) {
   const spec = `${dependencyPackage.name}@${dependencyPackage.version}`;
@@ -384,6 +386,13 @@ for (const dependencyPackage of dependencyPackages) {
     availableVersion = JSON.parse(result.stdout || "null");
   } catch {
     availableVersion = undefined;
+  }
+  // npm >= 12 returns arrays from `npm view --json` even for exact specs.
+  if (Array.isArray(availableVersion)) {
+    availableVersion =
+      availableVersion.length === 1 && typeof availableVersion[0] === "string"
+        ? availableVersion[0]
+        : undefined;
   }
   if (result.status !== 0 || availableVersion !== dependencyPackage.version) {
     fail(`${spec} must be available in ${registry} before publishing ${pkg.name}.`);

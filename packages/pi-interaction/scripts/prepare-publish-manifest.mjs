@@ -121,13 +121,15 @@ function resolveOwner() {
   };
 }
 
+const SUPPORTED_PUBLISH_NPM_MAJORS = new Set(["11", "12"]);
+
 function assertSupportedPublishLifecycle(owner) {
   if (process.env.npm_command !== "publish") return;
 
   const npmMajor = /^npm\/(\d+)\./.exec(process.env.npm_config_user_agent ?? "")?.[1];
-  if (npmMajor !== "11") {
+  if (!SUPPORTED_PUBLISH_NPM_MAJORS.has(npmMajor)) {
     throw new Error(
-      `unsupported npm publish lifecycle: expected npm 11, got ${process.env.npm_config_user_agent ?? "<missing user agent>"}`,
+      `unsupported npm publish lifecycle: expected npm 11 or 12, got ${process.env.npm_config_user_agent ?? "<missing user agent>"}`,
     );
   }
   if (mode !== "restore" && process.env.npm_lifecycle_event !== mode) {
