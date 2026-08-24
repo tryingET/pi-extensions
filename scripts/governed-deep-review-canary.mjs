@@ -24,6 +24,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -1015,10 +1016,19 @@ async function runGovernedDeepReviewHarness(options, { action, requireMaterializ
 
     const harness = createPiHarness();
     const vaultExtensionPath = resolve(sourceRoot, "packages/pi-vault-client/extensions/vault.js");
+    // ASC is a registry_external governed dependency (AK-4891): the governed
+    // deep-review preflight requires dispatch_subagent to resolve from the
+    // orchestrator's exact installed registry copy, never the monorepo-local
+    // source package. Fail closed when the orchestrator closure is not installed.
     const ascExtensionPath = resolve(
       sourceRoot,
-      "packages/pi-autonomous-session-control/extensions/self.ts",
+      "packages/pi-society-orchestrator/node_modules/@tryinget/pi-autonomous-session-control/extensions/self.ts",
     );
+    if (!existsSync(ascExtensionPath)) {
+      throw new Error(
+        "governed deep-review canary requires the registry-installed ASC extension at packages/pi-society-orchestrator/node_modules/@tryinget/pi-autonomous-session-control; run npm ci in packages/pi-society-orchestrator first",
+      );
+    }
     const orchestratorExtensionPath = resolve(
       sourceRoot,
       "packages/pi-society-orchestrator/extensions/society-orchestrator.ts",
@@ -1028,7 +1038,30 @@ async function runGovernedDeepReviewHarness(options, { action, requireMaterializ
       "packages/pi-toolbox-discovery/extensions/toolbox.ts",
     );
     const vaultExtension = (await import(pathToFileURL(vaultExtensionPath).href)).default;
-    const ascExtension = (await import(pathToFileURL(ascExtensionPath).href)).default;
+    // The registry-installed ASC extension ships TypeScript sources under
+    // node_modules, where Node's built-in type stripping refuses to load them.
+    // Load it with the same jiti transformer Pi's own extension loader uses,
+    // resolved from the exact installed registry root (AK-4891 owner contract).
+    const piExtensionLoaderPath = resolve(
+      sourceRoot,
+      "packages/pi-society-orchestrator/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js",
+    );
+    if (!existsSync(piExtensionLoaderPath)) {
+      throw new Error(
+        "governed deep-review canary requires the orchestrator's installed pi-coding-agent extension loader; run npm ci in packages/pi-society-orchestrator first",
+      );
+    }
+    const piLoaderRequire = createRequire(piExtensionLoaderPath);
+    const jitiPackagePath = piLoaderRequire.resolve("jiti/package.json");
+    const jitiStaticUrl = pathToFileURL(join(dirname(jitiPackagePath), "lib/jiti-static.mjs")).href;
+    const { createJiti } = await import(jitiStaticUrl);
+    const ascJiti = createJiti(pathToFileURL(ascExtensionPath).href, { moduleCache: false });
+    const ascExtension = await ascJiti.import(ascExtensionPath, { default: true });
+    if (typeof ascExtension !== "function") {
+      throw new Error(
+        "registry-installed ASC extension did not export an extension factory function",
+      );
+    }
     const orchestratorExtension = (await import(pathToFileURL(orchestratorExtensionPath).href))
       .default;
     const toolboxExtension = (await import(pathToFileURL(toolboxExtensionPath).href)).default;
