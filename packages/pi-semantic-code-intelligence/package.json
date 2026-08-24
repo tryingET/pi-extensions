@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-semantic-code-intelligence",
-  "version": "0.1.1-rc.1",
+  "version": "0.1.1-rc.2",
   "description": "Native Pi tools for SCI composite code-navigation and preview/check workflows",
   "private": true,
   "type": "module",

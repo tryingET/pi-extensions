@@ -128,11 +128,10 @@ try {
   await rm(outsideLinkPath, { force: true });
   const modified = original.replace('"hi " + name', '"hello " + name');
   const patch = unifiedPatch(original, modified, "src/example.js");
-  const safeWrite = await execute("safe_write", {
+  const patchChecks = await execute("patch_checks_in_snapshot", {
     patch,
     commands: ["true"],
     timeoutSec: 30,
-    brief: true,
   });
   const structural = await execute("structural_patch_checks", {
     language: "javascript",
@@ -149,7 +148,7 @@ try {
   const explorePayload = parseToolPayload(explore);
   const locatePayload = parseToolPayload(locate);
   const noDefinitionPayload = parseToolPayload(noDefinition);
-  const safeWritePayload = parseToolPayload(safeWrite);
+  const patchChecksPayload = parseToolPayload(patchChecks);
   const structuralPayload = parseToolPayload(structural);
   const exploreDecision = record(explorePayload.decision);
   const explorePresentation = explore.details.explorePresentation;
@@ -188,7 +187,7 @@ try {
     !workspaceBoundaryFailure.message.includes(
       "Use a path within the configured workspace, expressed as a workspace-relative path or a contained absolute path.",
     );
-  const safeWriteChecksPassed = previewChecksPassed(safeWritePayload, "safe_write");
+  const patchChecksPassed = previewChecksPassed(patchChecksPayload, "patch_checks_in_snapshot");
   const structuralChecksPassed = previewChecksPassed(structuralPayload, "structural_patch_checks");
   const structuralBackendWithheld = !/"backend"\s*:/.test(
     String(structural.content[0]?.text ?? ""),
@@ -213,9 +212,9 @@ try {
       noDefinitionNonError &&
       workspaceBoundaryActionable &&
       workspaceBoundarySanitized &&
-      safeWrite.details.workflow === "safe_write" &&
-      safeWriteChecksPassed &&
-      safeWritePayload.applied === false &&
+      patchChecks.details.workflow === "patch_checks_in_snapshot" &&
+      patchChecksPassed &&
+      patchChecksPayload.applied !== true &&
       structural.details.workflow === "structural_patch_checks" &&
       structuralChecksPassed &&
       structuralPayload.applied === false &&
@@ -245,14 +244,14 @@ try {
     sciCompositeCalls: [
       "explore_symbol_impact",
       "locate_confirm_definition",
-      "safe_write",
+      "patch_checks_in_snapshot",
       "structural_patch_checks",
     ],
     nativeFallbacks: [],
     rawShellAvoided: [
       "definition search plus AST map plus graph expansion",
       "fast lookup plus ambiguity detection plus precise retry",
-      "snapshot creation plus patch staging plus checks plus rollback evidence",
+      "snapshot creation plus patch staging plus checks",
       "structural search plus rewrite diff generation plus snapshot checks",
     ],
     sourceInventory: {
@@ -279,9 +278,10 @@ try {
       noDefinitionNonError,
       workspaceBoundaryActionable,
       workspaceBoundarySanitized,
-      safeWriteUsedSingleNativeCall: safeWrite.details.utilization.sciCompositeCalls.length === 1,
-      safeWriteChecksPassed,
-      safeWriteRemainedPreviewOnly: safeWritePayload.applied === false,
+      patchChecksUsedSingleNativeCall:
+        patchChecks.details.utilization.sciCompositeCalls.length === 1,
+      patchChecksPassed,
+      patchChecksRemainedPreviewOnly: patchChecksPayload.applied !== true,
       structuralUsedSingleNativeCall: structural.details.utilization.sciCompositeCalls.length === 1,
       structuralChecksPassed,
       structuralRemainedPreviewOnly: structuralPayload.applied === false,
@@ -289,7 +289,7 @@ try {
       previewLeftWorkspaceUnchanged: after === original,
       allSourceOutsideOntologyUnchanged: sourceInventoryUnchanged,
     },
-    calls: [explore, locate, noDefinition, safeWrite, structural].map(summarize),
+    calls: [explore, locate, noDefinition, patchChecks, structural].map(summarize),
   };
 
   process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
@@ -420,8 +420,9 @@ function confirmedLocatePayload(payload: Record<string, unknown>): boolean {
 }
 
 function previewChecksPassed(payload: Record<string, unknown>, workflow: string): boolean {
-  if (payload.workflow !== workflow || payload.ok !== true || payload.applied !== false)
+  if (payload.workflow !== workflow || payload.ok !== true || payload.applied === true)
     return false;
+  if (workflow === "structural_patch_checks" && payload.applied !== false) return false;
   if (workflow === "structural_patch_checks") {
     const checks = payload.checks;
     return (

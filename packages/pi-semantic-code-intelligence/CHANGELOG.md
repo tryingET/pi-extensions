@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.1.1-rc.2] - 2026-08-24
+
+### Changed
+
+- Pi registers five composites. Prepared diffs use only `patch_checks_in_snapshot`.
+  `safe_write` remains on SCI MCP/CLI, not as a second Pi door.
+- Teaching text: skip `locate_confirm_definition` when explore already confirmed;
+  apply only via `rename_safely`/snapshot apply, never `apply_rename`.
+
 ## [0.1.1-rc.1] - 2026-08-24
 
 ### Changed

@@ -8,7 +8,6 @@ export const SCI_COMPOSITE_TOOL_NAMES = [
   "patch_checks_in_snapshot",
   "structural_patch_checks",
   "rename_safely",
-  "safe_write",
 ] as const;
 
 export type SciCompositeToolName = (typeof SCI_COMPOSITE_TOOL_NAMES)[number];
@@ -42,7 +41,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     name: "explore_symbol_impact",
     label: "SCI Explore Symbol Impact",
     description:
-      "PREFERRED first call for unfamiliar code changes involving a symbol. compact returns a concise decision projection; standard adds selected normalized evidence; debug adds a bounded labelled diagnostic summary. The full validated and sanitized producer packet, including debug raw fragments, is available only in the expanded TUI operator view. Producer standard details are capped at 24 KiB, debug details at 36 KiB, and complete packets at 48 KiB. Do not manually chain search/definition/reference primitives unless this result is insufficient.",
+      "PREFERRED first call for unfamiliar code changes involving a symbol. Skip locate_confirm_definition when this returns definitionConfirmed. compact returns a concise decision projection; standard adds selected normalized evidence; debug adds a bounded labelled diagnostic summary. The full validated and sanitized producer packet, including debug raw fragments, is available only in the expanded TUI operator view. Producer standard details are capped at 24 KiB, debug details at 36 KiB, and complete packets at 48 KiB. Do not manually chain search/definition/reference primitives unless this result is insufficient.",
     profile: "read",
     parameters: Type.Object({
       symbol: Type.String({ description: "Symbol to investigate." }),
@@ -63,7 +62,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     name: "locate_confirm_definition",
     label: "SCI Locate and Confirm Definition",
     description:
-      "PREFERRED first call when a symbol definition is uncertain. Performs fast lookup and a precise retry when ambiguous. Use native read only after the relevant definition candidates are known.",
+      "PREFERRED only when explore_symbol_impact did not confirm the definition, or you never ran explore. Skip when explore already returned definitionConfirmed.",
     profile: "read",
     parameters: Type.Object({
       symbol: Type.String({ description: "Symbol whose definition must be confirmed." }),
@@ -76,7 +75,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     name: "patch_checks_in_snapshot",
     label: "SCI Patch Checks in Snapshot",
     description:
-      "PREFERRED one-call validation for a prepared unified diff. Stages the patch in an SCI snapshot, runs exact checks, and returns diff/check/evidence without editing the working tree.",
+      "PREFERRED one Pi door for a prepared unified diff: stage in a snapshot and run checks. Preview only. Apply only via rename_safely or snapshot apply when the operator explicitly asks; never apply_rename. Does not edit the working tree.",
     profile: "mutating",
     parameters: Type.Object({
       patch: Type.String({ description: "Unified diff to stage and validate." }),
@@ -116,7 +115,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     name: "rename_safely",
     label: "SCI Rename Safely",
     description:
-      "PREFERRED one-call path for symbol renames. Plans the cross-file rename in a snapshot and optionally runs checks. Avoid ad-hoc search/replace unless this workflow cannot represent the change.",
+      "PREFERRED one Pi door for symbol renames. Preview first in a snapshot. Apply only through this workflow or snapshot apply when the operator explicitly asks; never apply_rename or search/replace.",
     profile: "mutating",
     parameters: Type.Object({
       oldName: Type.String({ description: "Original symbol name." }),
@@ -125,24 +124,6 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
       commands,
       timeoutSec,
       runChecks: Type.Optional(Type.Boolean({ default: true })),
-    }),
-  },
-  {
-    name: "safe_write",
-    label: "SCI Safe Write",
-    description:
-      "PREFERRED one-call patch preview/check path. Stages a unified diff, runs checks, and returns validation/rollback evidence. This Pi surface is preview-only and does not expose SCI's apply parameter.",
-    profile: "mutating",
-    parameters: Type.Object({
-      patch: Type.String({ description: "Unified diff to stage and validate." }),
-      snapshot: Type.Optional(
-        Type.String({ description: "Existing SCI snapshot id, if continuing one." }),
-      ),
-      commands,
-      recommendChecks: Type.Optional(Type.Boolean({ default: false })),
-      impactSummary: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-      timeoutSec,
-      brief: Type.Optional(Type.Boolean({ default: false })),
     }),
   },
 ] as const;

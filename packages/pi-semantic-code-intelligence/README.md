@@ -17,11 +17,11 @@ This private Pi package makes SCI's existing composite workflows first-class mod
 
 ## Compatibility identity and producer contract
 
-`@tryinget/pi-semantic-code-intelligence@0.1.1-rc.1` is the independently versioned private Pi companion candidate for producer SCI `2.1.0-rc.1`; mirroring the producer's `2.1.0-rc.1` package version would misstate the companion's own `0.1.x` lineage. The producer authority reviewed for this target is semantic-code-intelligence commit `aa5c23fa16d8589cb546997639fa1d576fdf8eff`, especially `docs/project/releases/2.1.0-rc.1.md` and `CHANGELOG.md` at that commit. This identifies a compatibility target, not a publication, distribution, or immutable-artifact claim.
+`@tryinget/pi-semantic-code-intelligence@0.1.1-rc.2` is the independently versioned private Pi companion candidate for producer SCI `2.1.0-rc.3` (and the earlier published `2.1.0-rc.1` / `2.1.0-rc.2` CLI + MCP stdio contract). Mirroring the producer package version would misstate the companion's own `0.1.x` lineage. The producer still advertises six composites including `safe_write`; this companion registers five Pi doors and leaves `safe_write` on MCP/CLI. This identifies a compatibility target, not a publication or immutable-artifact claim.
 
 The minimum producer contract consumed or preserved by this companion is:
 
-- exactly six composite workflows: `explore_symbol_impact`, `locate_confirm_definition`, `rename_safely`, `structural_patch_checks`, `patch_checks_in_snapshot`, and `safe_write`;
+- five native Pi doors: `explore_symbol_impact`, `locate_confirm_definition`, `rename_safely`, `structural_patch_checks`, and `patch_checks_in_snapshot`; producer MCP/CLI still includes `safe_write`, but Pi does not register a second patch door;
 - structural public-API, state, registry, and test risk signals with explicit evidence/unknown accounting; path or name conventions remain low-confidence naming fallback rather than structural detection, and no signal claims whole-program semantics;
 - progressive `explore_symbol_impact` disclosure: `compact` is the bounded decision-first default, `standard` adds sparse normalized evidence under `details.schemaVersion: 2`, and `debug` adds separately bounded and redacted diagnostics;
 - a model/operator split in Pi: the compact/standard/debug model projection participates in model context, while the validated, disclosure-sanitized producer packet is retained only in a bounded TUI custom entry;
@@ -36,10 +36,9 @@ The producer candidate supports installed CLI and MCP stdio for one trusted loca
 |---|---|---|
 | unfamiliar symbol or change impact | `explore_symbol_impact` | read-only |
 | uncertain definition | `locate_confirm_definition` | read-only |
-| prepared unified diff | `patch_checks_in_snapshot` | snapshot/check execution |
+| prepared unified diff | `patch_checks_in_snapshot` | preview-only Pi schema |
 | syntax-shaped transformation | `structural_patch_checks` | preview-only Pi schema |
 | symbol rename | `rename_safely` | snapshot/check execution |
-| general patch preview/check | `safe_write` | preview-only Pi schema |
 
 The tools use one lazily started, session-scoped `semantic-code-mcp` stdio process per workspace. The process closes on Pi session shutdown. Calls return `pi.sci_composite_call.v1` details containing the workflow, transport, elapsed time, and lightweight utilization evidence.
 
@@ -51,10 +50,10 @@ Compact risk signals distinguish structurally `detected` evidence from `unknown`
 
 ```text
 unknown symbol or impact -> explore_symbol_impact
-uncertain definition     -> locate_confirm_definition
-rename                   -> rename_safely
+uncertain definition     -> locate_confirm_definition only if explore did not confirm
+rename                   -> rename_safely (never apply_rename)
 structural transformation -> structural_patch_checks
-prepared patch           -> patch_checks_in_snapshot or safe_write
+prepared patch           -> patch_checks_in_snapshot
 ```
 
 Do not decompose a composite into primitive searches unless its result is insufficient. Use native Pi `read`/`edit` after the relevant files are known and for exact textual or Markdown changes.
@@ -75,7 +74,21 @@ This package does not authorize hosted, network-exposed, multi-user, or public S
 
 ### Safe workspace-boundary recovery
 
-All six native composites recognize SCI's allowlisted `outside_workspace` reason contract from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2` without matching or copying producer prose. The bridge emits locally authored model-visible recovery: use a repo-relative path in a Pi session started at the target repository root. A shell `cd` does not rebind the session's `ctx.cwd`; start a target-root Pi session instead. Obvious absolute, file-URI, Windows drive/UNC, NUL, and `..` traversal inputs fail locally for the declared repo-relative `file` and `paths` fields, while repo-relative symlinks still reach SCI so realpath containment remains final authority. Unknown, malformed, extended, secret-bearing, transport, startup, stderr, and backend errors retain generic redaction, and no rejected path or workspace path is reflected.
+All five native composites recognize SCI's allowlisted `outside_workspace` reason contract from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2` without matching or copying producer prose. The bridge emits locally authored model-visible recovery: use a repo-relative path in a Pi session started at the target repository root. A shell `cd` does not rebind the session's `ctx.cwd`; start a target-root Pi session instead. Obvious absolute, file-URI, Windows drive/UNC, NUL, and `..` traversal inputs fail locally for the declared repo-relative `file` and `paths` fields, while repo-relative symlinks still reach SCI so realpath containment remains final authority. Unknown, malformed, extended, secret-bearing, transport, startup, stderr, and backend errors retain generic redaction, and no rejected path or workspace path is reflected.
+
+## Pairing with a published SCI candidate
+
+Clone or open this repo only to install the companion. SCI itself should come from a reviewed
+local tarball so `semantic-code-mcp` is on `PATH`:
+
+1. Install a published SCI local candidate so `semantic-code-mcp` is on `PATH`. Pair this companion
+   with `2.1.0-rc.3` (or the earlier `2.1.0-rc.2` / `2.1.0-rc.1` CLI + MCP stdio contract).
+2. Install that archive with SCI's bundled lifecycle (`SCI_ROOT` / `versions/<version>` / `current`).
+3. Prepend the activated `node_modules/.bin` directory to `PATH`.
+4. Install this package from source (`pi install "$PWD"`) and `/reload`.
+
+Start the Pi session at the trusted target repository root. A shell `cd` does not rebind `ctx.cwd`.
+This pairing is still unpublished: the companion stays private and is not an npm distribution.
 
 ## Install and activate
 
@@ -117,7 +130,7 @@ npm run dogfood
 bash ../../scripts/package-quality-gate.sh ci packages/pi-semantic-code-intelligence
 ```
 
-`npm run dogfood` creates an isolated temporary target, invokes four registered native tools through the live MCP stdio bridge, verifies schema compatibility for all six composites, and proves preview workflows leave source content unchanged. Its JSON reports:
+`npm run dogfood` creates an isolated temporary target, invokes four registered native tools through the live MCP stdio bridge, verifies schema compatibility for the five Pi composites, and proves preview workflows leave source content unchanged. Its JSON reports:
 
 - `sciCompositeCalls`, `nativeFallbacks`, and `rawShellAvoided`;
 - separate explore model/operator byte receipts and custom-entry retention;

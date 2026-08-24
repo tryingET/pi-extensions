@@ -14,7 +14,7 @@ import {
 
 export const PI_SCI_MCP_CLIENT_INFO = Object.freeze({
   name: "pi-semantic-code-intelligence",
-  version: "0.1.1-rc.1",
+  version: "0.1.1-rc.2",
 });
 
 export interface SciBridgeCallResult {

@@ -292,7 +292,7 @@ async function exists(target: string): Promise<boolean> {
   }
 }
 
-test("registers the six composite workflows as native Pi tools with preferred routing", () => {
+test("registers the five composite workflows as native Pi tools with preferred routing", () => {
   const fake = fakeBridge();
   const harness = createHarness(fake.bridge);
 
@@ -1335,18 +1335,18 @@ test("session shutdown closes the long-lived MCP bridge", async () => {
 test("preview-only Pi tools reject apply before reaching SCI", async () => {
   const fake = fakeBridge();
   const harness = createHarness(fake.bridge);
-  const safeWrite = harness.tools.get("safe_write");
-  assert.ok(safeWrite);
+  const patchChecks = harness.tools.get("patch_checks_in_snapshot");
+  assert.ok(patchChecks);
 
   await assert.rejects(
-    safeWrite.execute(
+    patchChecks.execute(
       "call-apply",
       { patch: "diff --git a/a b/a", apply: true },
       new AbortController().signal,
       undefined,
       { cwd: "/workspace/repo" },
     ),
-    /safe_write is preview-only in Pi/,
+    /patch_checks_in_snapshot is preview-only in Pi/,
   );
   assert.deepEqual(fake.calls, []);
 });
@@ -1359,9 +1359,11 @@ test("preview-only results remove raw producer apply instructions from content a
           {
             type: "text",
             text: JSON.stringify({
-              workflow: "safe_write",
+              workflow: "patch_checks_in_snapshot",
               ok: true,
               applied: false,
+              snapshot: "snap-preview",
+              stage: { accepted: true },
               next: "retry with apply:true and ALLOW_SNAPSHOT_APPLY=1",
               rollback: { command: "ALLOW_SNAPSHOT_APPLY=1 sci apply /workspace/repo" },
               validationPlan: {
@@ -1379,9 +1381,9 @@ test("preview-only results remove raw producer apply instructions from content a
     },
     async close() {},
   };
-  const safeWrite = createHarness(bridge).tools.get("safe_write");
-  assert.ok(safeWrite);
-  const result = await safeWrite.execute(
+  const patchChecks = createHarness(bridge).tools.get("patch_checks_in_snapshot");
+  assert.ok(patchChecks);
+  const result = await patchChecks.execute(
     "call-preview",
     { patch: "diff --git a/a b/a" },
     new AbortController().signal,
@@ -1403,9 +1405,9 @@ test("preview-only results remove raw producer apply instructions from content a
 
 test("preview-only output rejects applied state and recursive apply instructions", async () => {
   const payloads = [
-    { workflow: "safe_write", ok: true, applied: true },
+    { workflow: "patch_checks_in_snapshot", ok: true, applied: true },
     {
-      workflow: "safe_write",
+      workflow: "patch_checks_in_snapshot",
       ok: true,
       applied: false,
       validationPlan: { status: "checks_passed" },
@@ -1423,9 +1425,9 @@ test("preview-only output rejects applied state and recursive apply instructions
       },
       async close() {},
     };
-    const safeWrite = createHarness(bridge).tools.get("safe_write");
-    assert.ok(safeWrite);
-    const result = await safeWrite.execute("call-preview-invalid", {}, undefined, undefined, {
+    const patchChecks = createHarness(bridge).tools.get("patch_checks_in_snapshot");
+    assert.ok(patchChecks);
+    const result = await patchChecks.execute("call-preview-invalid", {}, undefined, undefined, {
       cwd: "/workspace/repo",
     });
     const parsed = JSON.parse(result.content[0].text);
@@ -1549,7 +1551,7 @@ test("contained file URIs become relative while outside paths and diagnostics fa
     },
     {
       payload: {
-        workflow: "safe_write",
+        workflow: "patch_checks_in_snapshot",
         ok: true,
         applied: false,
         validationPlan: { status: "checks_passed" },
@@ -1613,8 +1615,13 @@ test("successful producer results require workflow-specific evidence", async () 
       },
     },
     {
-      tool: "safe_write",
-      payload: { workflow: "safe_write", ok: true, applied: false, validationPlan: {} },
+      tool: "patch_checks_in_snapshot",
+      payload: {
+        workflow: "patch_checks_in_snapshot",
+        ok: true,
+        applied: false,
+        validationPlan: {},
+      },
     },
     {
       tool: "structural_patch_checks",
@@ -1658,21 +1665,18 @@ test("fails closed when installed SCI schemas drift from the registered Pi subse
   }));
   assert.doesNotThrow(() => assertSciSchemaCompatibility(advertised));
 
-  const safeWrite = advertised.find((tool) => tool.name === "safe_write");
-  assert.ok(safeWrite?.inputSchema.properties?.brief);
-  safeWrite.inputSchema.properties.brief.default = true;
-  assert.throws(
-    () => assertSciSchemaCompatibility(advertised),
-    /safe_write\.brief: default differs/,
-  );
+  const patchChecks = advertised.find((tool) => tool.name === "patch_checks_in_snapshot");
+  assert.ok(patchChecks?.inputSchema.properties?.recommendChecks);
+  patchChecks.inputSchema.properties.recommendChecks.default = true;
+  assert.throws(() => assertSciSchemaCompatibility(advertised), /patch_checks_in_snapshot/);
 
   const nestedDrift = SCI_COMPOSITE_TOOL_SPECS.map((spec) => ({
     name: spec.name,
     inputSchema: structuredClone(spec.parameters) as SchemaFixture,
   }));
-  const patchChecks = nestedDrift.find((tool) => tool.name === "patch_checks_in_snapshot");
-  assert.ok(patchChecks?.inputSchema.properties?.commands?.items);
-  patchChecks.inputSchema.properties.commands.items.type = "number";
+  const nestedPatchChecks = nestedDrift.find((tool) => tool.name === "patch_checks_in_snapshot");
+  assert.ok(nestedPatchChecks?.inputSchema.properties?.commands?.items);
+  nestedPatchChecks.inputSchema.properties.commands.items.type = "number";
   assert.throws(
     () => assertSciSchemaCompatibility(nestedDrift),
     /patch_checks_in_snapshot\.commands\.items: type differs/,
@@ -1694,7 +1698,7 @@ test("toolbox bundle exposes read and risk-gated mutating profiles", () => {
   const mutating = registerToolboxBundle(mutatingHarness.pi as never, { profile: "mutating" });
   assert.deepEqual(
     mutating.map((entry) => entry.name),
-    ["patch_checks_in_snapshot", "structural_patch_checks", "rename_safely", "safe_write"],
+    ["patch_checks_in_snapshot", "structural_patch_checks", "rename_safely"],
   );
   assert.ok(mutating.every((entry) => entry.risk === "mutating"));
 });

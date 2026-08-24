@@ -20,7 +20,10 @@ const FORBIDDEN_FIELDS = new Set([
   "workspace",
   "workspaceroot",
 ]);
-const PREVIEW_WORKFLOWS = new Set<SciCompositeToolName>(["safe_write", "structural_patch_checks"]);
+const PREVIEW_WORKFLOWS = new Set<SciCompositeToolName>([
+  "patch_checks_in_snapshot",
+  "structural_patch_checks",
+]);
 
 /**
  * Projects workspace-contained file URIs to repo-relative paths and rejects
