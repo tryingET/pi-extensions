@@ -9,6 +9,7 @@ import {
   evaluateAscBridgeLifecycle,
   evaluateAscRegistryLock,
   formatAscBridgeLifecycleSummary,
+  isMinimumReleaseAgeExempt,
   lookupAscRegistryArtifact,
   lookupAscRegistryReleaseState,
   parseAscRegistryArtifactLookup,
@@ -19,6 +20,8 @@ import {
 const REGISTRY_NOW = new Date("2026-08-23T18:13:50.000Z");
 const ASC_051_INTEGRITY =
   "sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==";
+const ASC_052_INTEGRITY =
+  "sha512-y+RvaTMca0VoMDI66TwLx5RzdTQGvov4a7MbrGKFXWNaXa86Ml9n3O/b812s+5pFIJOibWF7WAbM4n5uPaV7Nw==";
 
 function createManifest(ascSpec = "^0.5.0", overrides = {}) {
   return {
@@ -35,7 +38,7 @@ function ascTarball(version) {
   return `https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-${version}.tgz`;
 }
 
-function createRegistryLock(version = "0.5.1", overrides = {}) {
+function createRegistryLock(version = "0.5.2", overrides = {}) {
   return {
     lockfileVersion: 3,
     packages: {
@@ -43,7 +46,8 @@ function createRegistryLock(version = "0.5.1", overrides = {}) {
       [`node_modules/${ASC_PACKAGE_NAME}`]: {
         version,
         resolved: ascTarball(version),
-        integrity: overrides.integrity ?? ASC_051_INTEGRITY,
+        integrity:
+          overrides.integrity ?? (version === "0.5.1" ? ASC_051_INTEGRITY : ASC_052_INTEGRITY),
         ...overrides,
       },
     },
@@ -61,7 +65,10 @@ function createRegistryReleaseState() {
   };
 }
 
-function createRegistryArtifact(version = "0.5.1", integrity = ASC_051_INTEGRITY) {
+function createRegistryArtifact(
+  version = "0.5.2",
+  integrity = version === "0.5.1" ? ASC_051_INTEGRITY : ASC_052_INTEGRITY,
+) {
   return {
     version,
     dist: {
@@ -76,12 +83,13 @@ function createRegistryArtifact(version = "0.5.1", integrity = ASC_051_INTEGRITY
   };
 }
 
-function evaluateLock({ version = "0.5.1", lock, artifact, now = REGISTRY_NOW } = {}) {
+function evaluateLock({ version = "0.5.2", lock, artifact, now = REGISTRY_NOW, packageName } = {}) {
   return evaluateAscRegistryLock({
     pkg: createManifest(),
     lock: lock ?? createRegistryLock(version),
     registryReleaseState: createRegistryReleaseState(),
     registryArtifact: artifact ?? createRegistryArtifact(version),
+    packageName,
     now,
   });
 }
@@ -167,7 +175,7 @@ test("registry metadata lookups request release times and exact artifact provena
   });
   const artifactResult = lookupAscRegistryArtifact("0.5.1", (command, args, options) => {
     calls.push({ command, args, options });
-    return { status: 0, stdout: JSON.stringify(createRegistryArtifact()), stderr: "" };
+    return { status: 0, stdout: JSON.stringify(createRegistryArtifact("0.5.1")), stderr: "" };
   });
 
   assert.equal(stateResult.ok, true);
@@ -216,13 +224,15 @@ test("registry metadata parsers fail closed", () => {
   );
 });
 
-test("evaluateAscRegistryLock accepts the latest seven-day-eligible artifact", () => {
+test("evaluateAscRegistryLock accepts the latest published @tryinget artifact immediately", () => {
   const result = evaluateLock();
   assert.equal(ASC_MINIMUM_RELEASE_AGE_MS, 604_800_000);
+  assert.equal(isMinimumReleaseAgeExempt(ASC_PACKAGE_NAME), true);
   assert.equal(result.ok, true);
-  assert.equal(result.selectedVersion, "0.5.1");
-  assert.equal(result.latestEligibleVersion, "0.5.1");
-  assert.equal(result.publishedAt, "2026-08-16T08:07:41.295Z");
+  assert.equal(result.ageExempt, true);
+  assert.equal(result.selectedVersion, "0.5.2");
+  assert.equal(result.latestEligibleVersion, "0.5.2");
+  assert.equal(result.publishedAt, "2026-08-20T18:26:40.021Z");
   assert.deepEqual(result.issues, []);
 });
 
@@ -242,24 +252,28 @@ test("evaluateAscRegistryLock rejects a local-link lock regression", () => {
   assert.match(result.issues.join("\n"), /non-registry\/local entries/i);
 });
 
-test("evaluateAscRegistryLock rejects ineligible and stale selections", () => {
+test("evaluateAscRegistryLock rejects a stale owner-scoped selection", () => {
   const alternateIntegrity = "sha512-YWJjZA==";
-  const ineligible = evaluateLock({
-    version: "0.5.2",
-    lock: createRegistryLock("0.5.2", { integrity: alternateIntegrity }),
-    artifact: createRegistryArtifact("0.5.2", alternateIntegrity),
-  });
-  assert.equal(ineligible.ok, false);
-  assert.equal(ineligible.latestEligibleVersion, "0.5.1");
-  assert.match(ineligible.issues.join("\n"), /inside the seven-day minimum-release-age floor/i);
-
   const stale = evaluateLock({
-    version: "0.5.0",
-    lock: createRegistryLock("0.5.0", { integrity: alternateIntegrity }),
-    artifact: createRegistryArtifact("0.5.0", alternateIntegrity),
+    version: "0.5.1",
+    lock: createRegistryLock("0.5.1", { integrity: alternateIntegrity }),
+    artifact: createRegistryArtifact("0.5.1", alternateIntegrity),
   });
   assert.equal(stale.ok, false);
-  assert.match(stale.issues.join("\n"), /latest seven-day-eligible.*0\.5\.1/i);
+  assert.equal(stale.latestEligibleVersion, "0.5.2");
+  assert.match(stale.issues.join("\n"), /latest published.*0\.5\.2/i);
+});
+
+test("evaluateAscRegistryLock still applies the age floor to non-@tryinget artifacts", () => {
+  const result = evaluateLock({
+    version: "0.5.2",
+    packageName: "fast-xml-parser",
+  });
+  assert.equal(isMinimumReleaseAgeExempt("fast-xml-parser"), false);
+  assert.equal(result.ok, false);
+  assert.equal(result.ageExempt, false);
+  assert.equal(result.latestEligibleVersion, "0.5.1");
+  assert.match(result.issues.join("\n"), /inside the seven-day minimum-release-age floor/i);
 });
 
 test("evaluateAscRegistryLock requires integrity, signatures, and SLSA provenance", () => {
@@ -282,13 +296,13 @@ test("checked-in ASC lock records the proven registry artifact", () => {
     pkg,
     lock,
     registryReleaseState: createRegistryReleaseState(),
-    registryArtifact: createRegistryArtifact(),
+    registryArtifact: createRegistryArtifact("0.5.2"),
     now: REGISTRY_NOW,
   });
   const entry = lock.packages[`node_modules/${ASC_PACKAGE_NAME}`];
   assert.equal(result.ok, true, result.issues.join("\n"));
   assert.equal(entry.link, undefined);
-  assert.equal(entry.version, "0.5.1");
-  assert.equal(entry.resolved, ascTarball("0.5.1"));
-  assert.equal(entry.integrity, ASC_051_INTEGRITY);
+  assert.equal(entry.version, "0.5.2");
+  assert.equal(entry.resolved, ascTarball("0.5.2"));
+  assert.equal(entry.integrity, ASC_052_INTEGRITY);
 });

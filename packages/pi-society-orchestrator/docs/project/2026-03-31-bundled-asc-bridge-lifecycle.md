@@ -16,8 +16,9 @@ system4d:
 
 The bundled bridge is retired: `pi-society-orchestrator` consumes
 `@tryinget/pi-autonomous-session-control` through a normal registry dependency, and release
-validation must fail closed if the lock returns to a local link or selects an artifact that does
-not satisfy the active seven-day minimum-release-age policy.
+validation must fail closed if the lock returns to a local link or selects anything other than
+the latest published `^0.5.0` `@tryinget` artifact. The seven-day `min-release-age` floor applies
+to non-`@tryinget` dependencies only; owner-scoped packages are available immediately.
 
 ## Current topology (verified 2026-08-24)
 
@@ -27,23 +28,23 @@ Orchestrator declares:
 
 - `"@tryinget/pi-autonomous-session-control": "^0.5.0"`
 - no `bundleDependencies` / `bundledDependencies` entry for ASC
-- a lock for registry release `0.5.1`, with canonical npm tarball URL and sha512 integrity
+- a lock for registry release `0.5.2`, with canonical npm tarball URL and sha512 integrity
 
-The checked-in lock remains registry `0.5.1`. If the lock is regenerated, use npm
-`min-release-age=7` and do **not** exclude `@tryinget/pi-autonomous-session-control`
-from that floor, so npm cannot select ineligible 0.5.2. The validator independently
-rejects any lock that is not the latest seven-day-eligible `^0.5.0` release. Registry
-publication times were:
+The checked-in lock is registry `0.5.2`. If the lock is regenerated, use npm
+`min-release-age=7` with `min-release-age-exclude[]=@tryinget/*` so owner packages are
+available immediately while third-party artifacts stay age-gated. The validator treats
+`@tryinget/*` as age-floor exempt and requires the latest published `^0.5.0` release.
+Registry publication times were:
 
 - `0.5.0`: `2026-08-15T18:01:22.673Z`
-- `0.5.1`: `2026-08-16T08:07:41.295Z` — latest eligible `^0.5.0` release
-- `0.5.2`: `2026-08-20T18:26:40.021Z` — ineligible at task creation
+- `0.5.1`: `2026-08-16T08:07:41.295Z`
+- `0.5.2`: `2026-08-20T18:26:40.021Z` — latest published `^0.5.0` release
 
 The selected artifact is:
 
-- tarball: `https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.5.1.tgz`
-- integrity: `sha512-wNRFFqKEEyxtTwujf2lOBGF1aaYNmS2lUOyNlUtJDsBojfk/AuIOZGrnRArF9d2jTjzkqh+Cwogr/DXeGpvRUA==`
-- git head: `532f5d409d4eba352573b8f00d0ec7466cc15c1b`
+- tarball: `https://registry.npmjs.org/@tryinget/pi-autonomous-session-control/-/pi-autonomous-session-control-0.5.2.tgz`
+- integrity: `sha512-y+RvaTMca0VoMDI66TwLx5RzdTQGvov4a7MbrGKFXWNaXa86Ml9n3O/b812s+5pFIJOibWF7WAbM4n5uPaV7Nw==`
+- git head: `8e451bd0833ee4f9fb44b02c39d4fc5d8884c256`
 - npm registry signature key id: `SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U`
 - provenance predicate: `https://slsa.dev/provenance/v1`
 
@@ -83,14 +84,14 @@ an external model call.
 ## Fail-closed lock policy
 
 `validate-asc-bridge-lifecycle.mjs` queries registry versions and publication times, computes the
-latest version satisfying the manifest range and seven-day floor, then compares exact artifact
-metadata with `package-lock.json`. It rejects:
+latest published version satisfying the manifest range for `@tryinget/*` (seven-day floor applies
+only to non-owner packages), then compares exact artifact metadata with `package-lock.json`. It rejects:
 
 - `file:`, sibling paths, `link: true`, or any other ASC local lock entry
 - a missing version, non-canonical registry tarball URL, or missing sha512 integrity
 - a locked version outside `^0.5.0`
-- a release inside the seven-day floor
-- an older selection when a newer satisfying release is already age-eligible
+- a release inside the seven-day floor when the package is not `@tryinget/*`
+- an older selection when a newer satisfying owner-scoped release is already published
 - tarball or integrity disagreement between the lock and registry metadata
 - missing npm registry signatures or npm SLSA provenance metadata
 - malformed, empty, E404, ETARGET, or otherwise indeterminate registry responses

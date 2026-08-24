@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 
 export const ASC_PACKAGE_NAME = "@tryinget/pi-autonomous-session-control";
 export const ASC_MINIMUM_RELEASE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const OWNER_SCOPE_PREFIX = "@tryinget/";
+
+export function isMinimumReleaseAgeExempt(packageName) {
+  return typeof packageName === "string" && packageName.startsWith(OWNER_SCOPE_PREFIX);
+}
 const REPO_REGISTRY = "https://registry.npmjs.org/";
 const ASC_LOCK_KEY = `node_modules/${ASC_PACKAGE_NAME}`;
 const SLSA_PROVENANCE_V1 = "https://slsa.dev/provenance/v1";
@@ -254,6 +259,7 @@ export function evaluateAscRegistryLock({
   lock,
   registryReleaseState,
   registryArtifact,
+  packageName = ASC_PACKAGE_NAME,
   now = Date.now(),
   minimumReleaseAgeMs = ASC_MINIMUM_RELEASE_AGE_MS,
 }) {
@@ -309,23 +315,30 @@ export function evaluateAscRegistryLock({
 
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
   const cutoffMs = nowMs - minimumReleaseAgeMs;
+  const ageExempt = isMinimumReleaseAgeExempt(packageName);
   const eligibleVersions = registryReleaseState?.versions
-    ?.filter(
-      (version) =>
-        typeof ascSpec === "string" &&
-        versionSatisfiesAscRange(version, ascSpec) &&
-        Number.isFinite(Date.parse(registryReleaseState.time?.[version])) &&
-        Date.parse(registryReleaseState.time[version]) <= cutoffMs,
-    )
+    ?.filter((version) => {
+      if (typeof ascSpec !== "string" || !versionSatisfiesAscRange(version, ascSpec)) {
+        return false;
+      }
+      if (!Number.isFinite(Date.parse(registryReleaseState.time?.[version]))) {
+        return false;
+      }
+      return ageExempt || Date.parse(registryReleaseState.time[version]) <= cutoffMs;
+    })
     .sort((left, right) => compareSemver(parseStrictSemver(left), parseStrictSemver(right)));
   const latestEligibleVersion = eligibleVersions?.at(-1) ?? null;
   if (!latestEligibleVersion) {
     issues.push(
-      `No ${ascSpec} ASC release is eligible under the seven-day minimum-release-age floor.`,
+      ageExempt
+        ? `No ${ascSpec} ASC release is published.`
+        : `No ${ascSpec} ASC release is eligible under the seven-day minimum-release-age floor.`,
     );
   } else if (selectedVersion !== latestEligibleVersion) {
     issues.push(
-      `Locked ASC ${String(selectedVersion)} is not the latest seven-day-eligible ${ascSpec} release (${latestEligibleVersion}).`,
+      ageExempt
+        ? `Locked ASC ${String(selectedVersion)} is not the latest published ${ascSpec} release (${latestEligibleVersion}).`
+        : `Locked ASC ${String(selectedVersion)} is not the latest seven-day-eligible ${ascSpec} release (${latestEligibleVersion}).`,
     );
   }
 
@@ -333,7 +346,7 @@ export function evaluateAscRegistryLock({
     typeof selectedVersion === "string" ? registryReleaseState?.time?.[selectedVersion] : null;
   if (!Number.isFinite(Date.parse(publishedAt))) {
     issues.push(`Registry publication time is missing for locked ASC ${String(selectedVersion)}.`);
-  } else if (Date.parse(publishedAt) > cutoffMs) {
+  } else if (!ageExempt && Date.parse(publishedAt) > cutoffMs) {
     issues.push(
       `Locked ASC ${selectedVersion} was published ${publishedAt}, inside the seven-day minimum-release-age floor.`,
     );
@@ -366,6 +379,7 @@ export function evaluateAscRegistryLock({
     selectedVersion,
     latestEligibleVersion,
     publishedAt,
+    ageExempt,
     cutoff: Number.isFinite(cutoffMs) ? new Date(cutoffMs).toISOString() : null,
     resolved,
     integrity,
@@ -416,7 +430,7 @@ export function formatAscBridgeLifecycleSummary(result, publishedAscVersions, lo
   const modeLabel =
     result.classification.mode === "registry-cutover" ? "registry-backed cutover" : "invalid";
   const lockLabel = lockResult
-    ? `; locked ${lockResult.selectedVersion} published ${lockResult.publishedAt} (eligibility cutoff ${lockResult.cutoff})`
+    ? `; locked ${lockResult.selectedVersion} published ${lockResult.publishedAt}${lockResult.ageExempt ? "; @tryinget/* age-floor exempt" : ` (eligibility cutoff ${lockResult.cutoff})`}`
     : "";
   return `ASC bridge lifecycle OK (${modeLabel}; ${ASC_PACKAGE_NAME}@${publishedAscVersions.join(", ")} satisfies ${result.classification.ascSpec}${lockLabel}).`;
 }
