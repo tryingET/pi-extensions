@@ -1040,23 +1040,28 @@ async function runGovernedDeepReviewHarness(options, { action, requireMaterializ
     const vaultExtension = (await import(pathToFileURL(vaultExtensionPath).href)).default;
     // The registry-installed ASC extension ships TypeScript sources under
     // node_modules, where Node's built-in type stripping refuses to load them.
-    // Load it with the same jiti transformer Pi's own extension loader uses,
-    // resolved from the exact installed registry root (AK-4891 owner contract).
+    // Load them with the same jiti transformer Pi's own extension loader uses.
+    // jiti is resolved from the REAL installed pi-coding-agent location so it
+    // works in both a dev checkout (nested jiti) and a materialized governed
+    // root (governed peer layer), and the ASC factory is registered under its
+    // exact real installed owner path (AK-4891 registry_external contract).
     const piExtensionLoaderPath = resolve(
       sourceRoot,
       "packages/pi-society-orchestrator/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js",
     );
     if (!existsSync(piExtensionLoaderPath)) {
       throw new Error(
-        "governed deep-review canary requires the orchestrator's installed pi-coding-agent extension loader; run npm ci in packages/pi-society-orchestrator first",
+        "governed deep-review canary requires the orchestrator's installed pi-coding-agent extension loader; run npm ci in packages/pi-society-orchestrator (or materialize the governed runtime) first",
       );
     }
-    const piLoaderRequire = createRequire(piExtensionLoaderPath);
+    const piLoaderRequire = createRequire(realpathSync(piExtensionLoaderPath));
     const jitiPackagePath = piLoaderRequire.resolve("jiti/package.json");
-    const jitiStaticUrl = pathToFileURL(join(dirname(jitiPackagePath), "lib/jiti-static.mjs")).href;
-    const { createJiti } = await import(jitiStaticUrl);
-    const ascJiti = createJiti(pathToFileURL(ascExtensionPath).href, { moduleCache: false });
-    const ascExtension = await ascJiti.import(ascExtensionPath, { default: true });
+    const { createJiti } = await import(
+      pathToFileURL(join(dirname(jitiPackagePath), "lib/jiti-static.mjs")).href,
+    );
+    const ascOwnerEntryPath = realpathSync(ascExtensionPath);
+    const ascJiti = createJiti(pathToFileURL(ascOwnerEntryPath).href, { moduleCache: false });
+    const ascExtension = await ascJiti.import(ascOwnerEntryPath, { default: true });
     if (typeof ascExtension !== "function") {
       throw new Error(
         "registry-installed ASC extension did not export an extension factory function",
@@ -1066,7 +1071,7 @@ async function runGovernedDeepReviewHarness(options, { action, requireMaterializ
       .default;
     const toolboxExtension = (await import(pathToFileURL(toolboxExtensionPath).href)).default;
     harness.load(vaultExtensionPath, vaultExtension);
-    harness.load(ascExtensionPath, ascExtension);
+    harness.load(ascOwnerEntryPath, ascExtension);
     harness.load(orchestratorExtensionPath, orchestratorExtension, {
       workflowExecutorFactory: deterministicWorkflowExecutorFactory,
       governedDeepReviewPreflight: {
