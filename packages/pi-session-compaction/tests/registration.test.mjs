@@ -5,11 +5,12 @@ read_when:
 */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-
+import { getCompactionOwnershipStatus } from "../extensions/session-compaction/ownership.js";
 import {
   createCompactionRegistrationState,
   createSessionCompactionExtension,
   evaluateSessionCompactionRegistration,
+  HOST_COMPACTION_FAILED_EVENT,
   registerInputTracking,
   registerSessionBeforeCompact,
   SESSION_BEFORE_COMPACT_EVENT,
@@ -118,9 +119,10 @@ describe("session compaction registration guard", () => {
     assert.equal(result.ok, true);
     assert.equal(result.event, SESSION_BEFORE_COMPACT_EVENT);
     assert.equal(state.sessionBeforeCompactRegistered, true);
+    assert.equal(state.hostCompactionFailureSubscriptionRegistered, true);
     assert.deepEqual(
       handlers.map((handler) => handler.event),
-      [SESSION_BEFORE_COMPACT_EVENT],
+      [SESSION_BEFORE_COMPACT_EVENT, HOST_COMPACTION_FAILED_EVENT],
     );
 
     const handlerResult = await handlers[0].handler(
@@ -141,7 +143,70 @@ describe("session compaction registration guard", () => {
       state,
     );
     assert.equal(duplicate.reason, "already_registered_by_this_package");
-    assert.equal(handlers.length, 1);
+    assert.equal(handlers.length, 2);
+  });
+
+  it("releases ownership on host-reported compaction failure and re-claims on the next attempt", async () => {
+    const { pi, handlers } = createPiRecorder();
+    const state = createCompactionRegistrationState();
+    registerSessionBeforeCompact(
+      pi,
+      {
+        enableSessionBeforeCompact: true,
+        handlerTestsPassed: true,
+        noDoubleCompactionPreflight: true,
+        existingCompactionHandlerCount: 0,
+        handler: async () => ({ compaction: { summary: "ok", firstKeptEntryId: "k" } }),
+      },
+      state,
+    );
+
+    // Lease held after registration.
+    assert.equal(getCompactionOwnershipStatus(pi).claimed, true);
+
+    // Host reports a failed compaction (fromExtension false — provider-side).
+    const failureHandler = handlers.find((h) => h.event === HOST_COMPACTION_FAILED_EVENT);
+    assert.ok(failureHandler);
+    failureHandler.handler({
+      type: HOST_COMPACTION_FAILED_EVENT,
+      reason: "overflow",
+      errorMessage: "provider exploded",
+      aborted: false,
+      willRetry: false,
+      fromExtension: false,
+    });
+
+    assert.equal(state.hostCompactionFailures, 1);
+    assert.equal(state.lastHostCompactionFailure.reason, "overflow");
+    assert.equal(state.ownershipLease, undefined);
+    assert.equal(getCompactionOwnershipStatus(pi).claimed, false);
+
+    // Next before_compact attempt re-acquires via the normal claim path.
+    await handlers[0].handler({ type: SESSION_BEFORE_COMPACT_EVENT }, { cwd: "/repo" });
+    assert.equal(getCompactionOwnershipStatus(pi).claimed, true);
+    assert.equal(state.hostCompactionFailures, 1);
+  });
+
+  it("releases ownership regardless of fromExtension and tolerates hosts without the failure event", () => {
+    const { pi, handlers } = createPiRecorder();
+    const state = createCompactionRegistrationState();
+    registerSessionBeforeCompact(
+      pi,
+      {
+        enableSessionBeforeCompact: true,
+        handlerTestsPassed: true,
+        noDoubleCompactionPreflight: true,
+        existingCompactionHandlerCount: 0,
+        handler: async () => ({ cancel: true }),
+      },
+      state,
+    );
+
+    const failureHandler = handlers.find((h) => h.event === HOST_COMPACTION_FAILED_EVENT);
+    failureHandler.handler({ type: HOST_COMPACTION_FAILED_EVENT, fromExtension: true });
+    assert.equal(state.ownershipLease, undefined);
+    assert.equal(getCompactionOwnershipStatus(pi).claimed, false);
+    assert.equal(state.lastHostCompactionFailure.fromExtension, true);
   });
 
   it("clears matched commands only after successful custom compaction", async () => {
@@ -259,7 +324,7 @@ describe("session compaction registration guard", () => {
     assert.equal(result.compaction.ok, true);
     assert.deepEqual(
       handlers.map((handler) => handler.event),
-      ["input", SESSION_BEFORE_COMPACT_EVENT],
+      ["input", SESSION_BEFORE_COMPACT_EVENT, HOST_COMPACTION_FAILED_EVENT],
     );
   });
 
@@ -271,14 +336,14 @@ describe("session compaction registration guard", () => {
     assert.equal(result.compaction.ok, true);
     assert.deepEqual(
       handlers.map((handler) => handler.event),
-      ["input", SESSION_BEFORE_COMPACT_EVENT, "session_start"],
+      ["input", SESSION_BEFORE_COMPACT_EVENT, HOST_COMPACTION_FAILED_EVENT, "session_start"],
     );
     assert.equal(commands.has("compact-focus"), true);
     assert.equal(commands.has("compact-handoff"), true);
     assert.equal(tools.has("session_compaction_handoff"), true);
 
     const notices = [];
-    await handlers[2].handler(
+    await handlers[3].handler(
       {},
       {
         ui: {

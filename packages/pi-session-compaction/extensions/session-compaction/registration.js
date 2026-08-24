@@ -15,12 +15,17 @@ import {
 import { createTrackedCommandStore } from "./user-prompts.js";
 
 export { SESSION_BEFORE_COMPACT_EVENT };
+/** pi >= 0.84.3 (#8175): fired after context compaction fails or is aborted. */
+export const HOST_COMPACTION_FAILED_EVENT = "session_compact_failed";
 export const INPUT_EVENT = "input";
 
 export function createCompactionRegistrationState() {
   return {
     sessionBeforeCompactRegistered: false,
     inputTrackingRegistered: false,
+    hostCompactionFailureSubscriptionRegistered: false,
+    hostCompactionFailures: 0,
+    lastHostCompactionFailure: undefined,
   };
 }
 
@@ -155,6 +160,19 @@ export function registerSessionBeforeCompact(
 
   try {
     pi.on(SESSION_BEFORE_COMPACT_EVENT, async (event, ctx) => {
+      // Re-acquire ownership through the normal path if a prior host-reported
+      // failure released the lease (ADR 2026-08-24-pi-0.84.x-adoption P1-A).
+      // Best-effort: if another owner claimed in between, keep handling this
+      // attempt (we are still registered) but do not fight over the lease.
+      if (!state.ownershipLease) {
+        try {
+          const reacquired = claim(pi, options.owner);
+          if (reacquired.ok) state.ownershipLease = reacquired.lease;
+        } catch {
+          // Ownership is cooperative; handling continues regardless.
+        }
+      }
+
       const result = await handler(event, ctx, {
         ...handlerDeps,
         ...(getTrackedCommands ? { getTrackedCommands } : {}),
@@ -176,6 +194,38 @@ export function registerSessionBeforeCompact(
   } catch (error) {
     releaseCompactionOwnership(pi, ownership.lease);
     throw error;
+  }
+
+  // Host-reported compaction failure observer (pi >= 0.84.3, upstream #8175).
+  // Decision (ADR P1-A): a failed compaction leaves context state indeterminate,
+  // so ALL ownership claims are released regardless of `fromExtension` —
+  // downstream consumers of ownership status must never act on stale
+  // arbitration. Re-acquisition happens via the normal claim path on the next
+  // session_before_compact attempt above.
+  try {
+    pi.on(HOST_COMPACTION_FAILED_EVENT, (event) => {
+      state.hostCompactionFailures += 1;
+      state.lastHostCompactionFailure = Object.freeze({
+        reason: typeof event?.reason === "string" ? event.reason : "unknown",
+        aborted: event?.aborted === true,
+        willRetry: event?.willRetry === true,
+        fromExtension: event?.fromExtension === true,
+        at: new Date().toISOString(),
+      });
+      if (state.ownershipLease) {
+        try {
+          releaseCompactionOwnership(pi, state.ownershipLease);
+        } catch {
+          // Cooperative lease; release failure must not mask the host error path.
+        }
+        state.ownershipLease = undefined;
+      }
+      return { action: "continue" };
+    });
+    state.hostCompactionFailureSubscriptionRegistered = true;
+  } catch {
+    // Failure observation is additive observability; registration succeeds
+    // without it on hosts that predate the event (pi < 0.84.3).
   }
 
   state.sessionBeforeCompactRegistered = true;
