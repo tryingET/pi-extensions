@@ -1,6 +1,6 @@
 {
-  "schema": "engineering-core.v1.g4-participant/1",
-  "stage": "g4-participant-disposition",
+  "schema": "engineering-core.v1.g4/1",
+  "stage": "g4-live-cycle",
   "cycle_id": "cycle-softwareco-g1-scanner-completeness-is-not-active-resolution",
   "candidate": "g1-scanner-completeness-is-not-active-resolution",
   "candidate_identity": "unassigned",
@@ -71,5 +71,36 @@
   "deferred_to_later_engineering_core_task": [
     "content_owner_decision",
     "final_state"
-  ]
+  ],
+  "template_digest": "b270f669830f9d51e9706879328ed8bae4c6cf2a7662c13e46bae3443fc7013f",
+  "content_owner_decision": {
+    "decision": "revised",
+    "decided_by": "engineering_core_content_owner",
+    "decided_at": "2026-08-24",
+    "deciding_task": 5036,
+    "coerced": false,
+    "reason": "Digest-bound replica evidence (g1-run.json sha256 0f06c6cf...: prove_active_resolution passed from scan-adoption completeness=complete while the same run's init --apply exited 2 with applied=false and doctor reported the repo blocked) exposes a real engineering-core G1 journey-semantics gap, not just a SoftwareCo preference. The cycle stays a bounded single-group pilot (promotion structurally unavailable), but engineering-core acknowledges the gap and opens its own follow-up task to bind prove_active_resolution to owner-apply polarity (diagnostic scanner completeness alone can never pass it) on the candidate line, per G1-G4 sequencing.",
+    "follow_up": "engineering-core G1 journey semantics task (created at decision time, unclaimed)"
+  },
+  "final_state": {
+    "disposition": "revised",
+    "reached_via": "content_owner_decision",
+    "deciding_task": 5036,
+    "preserved_lineage": [
+      {
+        "role": "originated_participant_record",
+        "commit": "b9705cbb181b8fbee664123c6f01e71541a72966",
+        "sha256": "3eb90dd1898027b76391b62e32918b90e1656fc45e00c4ebfb4b9637f1e6ff48",
+        "immutable": true
+      },
+      {
+        "role": "historical_non_qualifying_predecessor",
+        "cycle_id": "cycle-softwareco-package-scopes",
+        "task": 4954,
+        "status": "non_qualifying_lockstep_origination",
+        "immutable": true
+      }
+    ],
+    "g4_pass_claimed": false
+  }
 }
