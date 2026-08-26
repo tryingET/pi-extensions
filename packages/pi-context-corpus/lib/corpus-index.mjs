@@ -97,7 +97,7 @@ export function topCategories(strata) {
 }
 
 /** Build one index entry from a strata.json artifact path. Failed reads are listed, never dropped. */
-export function buildEntry(strataFile, corpusDir, htmlDir) {
+export function buildEntry(strataFile, corpusDir, htmlDir, { sourceSession = null } = {}) {
   const strataDir = dirname(strataFile);
   const source = relative(corpusDir, strataFile).split(sep).join("/");
   const htmlPath = join(strataDir, SESSION_HTML_FILE);
@@ -120,6 +120,7 @@ export function buildEntry(strataFile, corpusDir, htmlDir) {
   return {
     id,
     source,
+    sourceSession,
     replayStatus: status,
     html,
     models,
@@ -141,22 +142,41 @@ export function buildEntry(strataFile, corpusDir, htmlDir) {
 
 /**
  * Assemble the full corpus index for corpusDir.
- * `failedSessions` ({id, source, error} from batch replays that produced no strata.json)
- * are merged in so failed sessions stay listed.
+ * `failedSessions` ({id, source, sourceSession, error} from batch replays that produced no
+ * strata.json) are merged in so failed sessions stay listed. `sessionSources` maps session
+ * id -> operator-given session .jsonl path (measured provenance from batch mode).
+ *
+ * Row ordering is chosen here, at build time, in tested deterministic code — never in the
+ * HTML: descending on-chain $ (sum-of-reported), failed sessions last (terminal position,
+ * still listed), ties broken by id so output is stable.
  */
-export function buildIndex(corpusDir, { failedSessions = [] } = {}) {
+export function buildIndex(corpusDir, { failedSessions = [], sessionSources = {} } = {}) {
   const htmlDir = join(corpusDir, "corpus");
-  const entries = findStrataFiles(corpusDir).map((file) => buildEntry(file, corpusDir, htmlDir));
+  const entries = findStrataFiles(corpusDir).map((file) => {
+    const entry = buildEntry(file, corpusDir, htmlDir);
+    const session = sessionSources[entry.id];
+    if (typeof session === "string") entry.sourceSession = session;
+    return entry;
+  });
   for (const failed of failedSessions) {
     if (entries.some((entry) => entry.id === failed.id)) continue;
     entries.push({
       id: failed.id,
       source: failed.source ?? null,
+      sourceSession: failed.sourceSession ?? null,
       replayStatus: "failed",
       html: null,
       error: failed.error ?? "replay produced no strata.json",
     });
   }
-  entries.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  entries.sort((a, b) => {
+    if ((a.replayStatus === "failed") !== (b.replayStatus === "failed"))
+      return a.replayStatus === "failed" ? 1 : -1;
+    if (a.replayStatus !== "failed" && b.replayStatus !== "failed") {
+      const byCost = (b.onChainCostUsd ?? 0) - (a.onChainCostUsd ?? 0);
+      if (byCost !== 0) return byCost;
+    }
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
   return { generatedAt: Date.now(), corpusDir, sessions: entries };
 }

@@ -70,21 +70,32 @@ Unknown names fail closed with the available listing (both via the CLI and via j
 
 ## Index data contract (`corpus/index.json`)
 
-Per-session entries carry `id`, `source`, `replayStatus`
-(`ok` | `empty` | `failed`), `html` (relative link when present), and derived
-facts sourced only from strata `meta`/`requests`: `models`, `requests`, `turns`,
-`faults`, `lastFaultR`, `onChainCostUsd`, `cacheHitShare`, `warmthAgreementMae`,
-`forks`, `lastResidentEst`, `contextWindow`, `runwayRequestsRemaining`,
+Per-session entries carry `id`, `source`, `sourceSession` (measured provenance:
+the operator-given session `.jsonl` path, recorded verbatim in batch mode;
+`null` otherwise), `replayStatus` (`ok` | `empty` | `failed`), `html` (relative
+link when present), and derived facts sourced only from strata
+`meta`/`requests`: `models`, `requests`, `turns`, `faults`, `lastFaultR`,
+`onChainCostUsd`, `cacheHitShare`, `warmthAgreementMae`, `forks`,
+`lastResidentEst`, `contextWindow`, `runwayRequestsRemaining`,
 `ghostShareOfToolTokenTurns`, `topCategories` (≤5, share of token-turns).
 
 Every numeric field inherits its strata epistemic class (measured / derived /
 estimated / inferred — see the overlay RFC §2). `null` is preserved as `null`
 ("unknown"/"no measurable burn"); it is never coerced to `0`. Failed sessions
-carry only identity fields plus an `error` string.
+carry only identity/provenance fields plus an `error` string.
+
+**Standing rule for index fields**: identity + measured provenance +
+already-derived strata facts only. Any new *question* becomes a named jq
+projection — never a new column, never a widget.
+
+**Row ordering** is chosen at build time in tested deterministic code: on-chain
+`$` descending, failed sessions last (still listed), ties broken by id. The
+HTML computes nothing; ranking questions route to jq.
 
 Known gap: `strata.json` does not carry a session `cwd`, so the index cannot
 expose one without an overlay-side change (proposed to the overlay RFC §9; do
-not fork the schema from here).
+not fork the schema from here, and never decode `cwd` from the sessions
+directory name — that would be inferred class posing as measured).
 
 ## Content rules
 

@@ -9,7 +9,7 @@
 //   node bin/corpus.mjs project <name> [file]   # file defaults to corpus/index.json
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -49,6 +49,27 @@ function writeCorpus(corpusDir, index) {
   return { indexPath, htmlPath };
 }
 
+/**
+ * Carry forward previously recorded session provenance from an existing index so
+ * incremental batch runs never lose measured provenance. This run's own batch
+ * results (if any) win over the prior index.
+ */
+function priorSessionSources(corpusDir) {
+  const prior = resolve(corpusDir, "corpus", "index.json");
+  if (!existsSync(prior)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(prior, "utf8"));
+    if (!Array.isArray(parsed?.sessions)) return {};
+    return Object.fromEntries(
+      parsed.sessions
+        .filter((s) => typeof s?.sourceSession === "string")
+        .map((s) => [s.id, s.sourceSession]),
+    );
+  } catch {
+    return {}; // unreadable prior index: rebuild provenance from this run only
+  }
+}
+
 function cmdIndex(argv) {
   const corpusDir = argv[0];
   if (!corpusDir || corpusDir.startsWith("--")) {
@@ -62,6 +83,7 @@ function cmdIndex(argv) {
   const sessionsGlob = argOf(argv, "--sessions");
   const replayScript = argOf(argv, "--replay-script");
   const failedSessions = [];
+  const sessionSources = {};
 
   if (sessionsGlob !== null) {
     if (replayScript === null) {
@@ -70,15 +92,24 @@ function cmdIndex(argv) {
     const sessions = expandSessionGlob(sessionsGlob);
     if (sessions.length === 0) fail(`--sessions glob matched no .jsonl files: ${sessionsGlob}`);
     for (const result of runBatch({ sessions, replayScript, corpusDir: resolved })) {
+      sessionSources[result.id] = result.sourceSession;
       if (!result.ok) {
-        failedSessions.push({ id: result.id, source: null, error: result.error });
+        failedSessions.push({
+          id: result.id,
+          source: null,
+          sourceSession: result.sourceSession,
+          error: result.error,
+        });
       }
     }
   } else if (replayScript !== null) {
     fail("--replay-script has no effect without --sessions");
   }
 
-  const index = buildIndex(resolved, { failedSessions });
+  const index = buildIndex(resolved, {
+    failedSessions,
+    sessionSources: { ...priorSessionSources(resolved), ...sessionSources },
+  });
   const { indexPath, htmlPath } = writeCorpus(resolved, index);
   const counts = { ok: 0, empty: 0, failed: 0 };
   for (const session of index.sessions) counts[session.replayStatus] += 1;

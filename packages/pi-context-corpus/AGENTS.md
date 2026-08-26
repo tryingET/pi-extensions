@@ -42,6 +42,15 @@ It does not own:
 - Zero cross-package imports: no dependency on `@tryinget/pi-context-overlay`.
   The corpus consumes artifacts, not code. Batch mode shells out to the overlay
   replay script path the operator provides.
+- **Index-field standing rule**: identity + measured provenance + already-derived
+  strata facts only. Any new *question* becomes a named jq projection — never a
+  new column, never a presentation widget. Measured provenance may cross into
+  the index (`sourceSession` = operator-given session path, recorded verbatim);
+  derived convenience never (e.g. a `cwd` decoded from the sessions directory
+  name would be inferred class posing as measured — forbidden).
+- Row ordering is a build-time decision in tested code (on-chain `$` descending,
+  failed sessions last, ties by id). The HTML switcher stays inert; no
+  client-side sort/filter/second query engine.
 
 ## JSONL rule
 

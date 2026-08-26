@@ -39,6 +39,9 @@ export function runBatch({ sessions, replayScript, corpusDir }) {
     const ok = result.status === 0;
     results.push({
       id,
+      // Measured provenance: the operator-given session path is the corpus's own
+      // input, recorded verbatim (not inferred from the sessions directory layout).
+      sourceSession: session,
       outDir,
       ok,
       error: ok

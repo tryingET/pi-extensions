@@ -61,8 +61,41 @@ the corpus consumes `meta.wasteRatio` as emitted.
 ## Open questions (for the RFC §9)
 
 - `strata.json` carries no session `cwd`; the index omits the field. Proposed
-  overlay-side change: emit `meta.cwd` from the session header in
-  `context-strata-replay.mjs` / lib. Do not fork the schema from here.
+  overlay-side change (filed in the overlay RFC §9): emit `meta.cwd` from the
+  session header in `context-strata-replay.mjs` / lib. Do not fork the schema
+  from here, and never decode `cwd` from the sessions directory name (inferred
+  class posing as measured).
 - Read-only HTTP layer over the corpus: **explicitly deferred** (separate
   decision); no agent-loop verification is claimed.
 - Child-arena (`--data-agnt-*`) rollup remains overlay debt; not opened here.
+
+## Follow-up (same day, post adjudication)
+
+Three decisions applied from the `many-of-the-greats` adjudication of these
+questions:
+
+1. **Measured provenance may cross into data; derived convenience never.**
+   `meta.cwd` proposal filed with the overlay (§9). Meanwhile batch mode records
+   the operator-given session path verbatim as `sourceSession` (the corpus
+   measuring its own input — not JSONL parsing, not directory-name inference).
+2. **Measurement versioning.** Overlay RFC §3 dead-heap figures now carry their
+   estimator lineage (73% first-cut → 8.7%/0.8% H1-corrected → 19.8%/2.0%
+   path-qualified v2) instead of silently disagreeing with the shipped miner.
+   Standing rule recorded in the overlay RFC §9: cited measurements must name
+   the estimator version that produced them.
+3. **The switcher stays inert.** No client-side sort/filter (nullable numeric
+   fields make naive interactivity an epistemics hazard). One concession, at
+   build time in tested code: rows are ordered on-chain `$` descending, failed
+   sessions last, ties by id.
+
+A gap surfaced during the real-session re-proof and was fixed in the same
+slice: incremental batch runs were dropping provenance recorded by earlier
+   runs (a second `index --sessions` rebuilt the index with only its own
+   `sourceSession` values). The CLI now carries forward previously recorded
+   session provenance from the existing `corpus/index.json`; this run's own
+   batch results win over the prior index. Pinned by test.
+
+Tests: 18/18 (added ordering, `sourceSession`, and incremental-provenance
+   pins). Gate re-run green; re-proven over S1/S2 with both `sourceSession`
+   values persisted across two incremental batch runs and cost-descending row
+   order verified.

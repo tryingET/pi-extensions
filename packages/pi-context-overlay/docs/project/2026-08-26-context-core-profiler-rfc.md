@@ -73,8 +73,18 @@ From two real sessions replayed through the prototype (`~/.pi/agent/sessions/…
   agrees within ~2% at request 1 and ~5–10% late-session (e.g. r=180: 112.8k model vs 123.4k
   measured; provider caches slightly more than the strict prefix-divergence model predicts).
   This means warmth is *measurable in production*, not just modeled.
-- **Mined dead heap**: 8.7% (S1) / 0.8% (S2) of pathed tool token-turns are never-referenced-again.
-  (First cut claimed 73% by counting pathless bash output as dead; unknown ≠ dead.)
+- **Mined dead heap** (estimator lineage — every figure is bound to the miner that
+  produced it):
+  - first-cut basename miner, pre-review: **73% / —** (wrong: counted pathless bash
+    output as dead; unknown ≠ dead);
+  - H1-corrected basename miner (reviewed): **8.7% (S1) / 0.8% (S2)** of pathed tool
+    token-turns never-referenced-again;
+  - path-qualified v2 miner (shipped, `refsAfter >= birthR`, path-qualified mining):
+    **19.8% (S1) / 2.0% (S2)** on the same sessions (measured via the corpus slice,
+    2026-08-26).
+  Basename → path-qualified tightened reference attribution (ambiguous basenames no
+  longer revive), so v2 deadness is strictly larger on S1; the two figures are not
+  comparable measurements of one quantity.
 - **Conservation**: `sum(series[c][r]) == residentEst[r]` for every request on both real sessions
   (0 mismatches after the residency-interval fix).
 - **Burn/runway**: S1 grew ~+500 est-tk/request across the final stretch; the runway gauge
@@ -197,10 +207,12 @@ Still open:
   not imported into the live path. Still missing vs the geological live counterpart:
   warm/cold split, runway slope, session-history core.
   Prompt: `docs/project/2026-08-26-context-core-live-tui-prompt.md`.
-- **P2.5 — corpus graduate (prompted, not started)**: multi-session `corpus/index.json` +
+- **P2.5 — corpus graduate (shipped 2026-08-26)**: multi-session `corpus/index.json` +
   named jq projections over `strata.json` in a new non-live package
   `packages/pi-context-corpus`. IR unchanged, jq as the DSL, no HTTP in that slice.
-  Paste-ready prompt: `docs/project/2026-08-26-context-core-corpus-prompt.md`.
+  Gate green (18/18 tests), proven over S1/S2; evidence:
+  `packages/pi-context-corpus/docs/project/2026-08-26-corpus-slice.md`.
+  Prompt: `docs/project/2026-08-26-context-core-corpus-prompt.md`.
 - **P3 — decision support**: compaction tradeoff calculator (fault now vs continue:
   Δoccupancy gain vs re-cold cost over re-warm horizon), AGENTS-edit re-cold warning
   ("this edit re-colds N tokens ≈ $X on the next request").
@@ -219,7 +231,19 @@ Still open:
   than growing inside this package? Current answer: keep the visual/TUI carrier here, keep
   deterministic extraction importable. The multi-session layer is a **separate non-live
   package** consuming `strata.json` as its IR (never `pi.session-insights.v1` chat facts):
-  `docs/project/2026-08-26-context-core-corpus-prompt.md`.
+  `docs/project/2026-08-26-context-core-corpus-prompt.md` (shipped as
+  `packages/pi-context-corpus`, 2026-08-26).
+- **Proposal (from the corpus slice): emit `meta.cwd`.** `strata.json` carries no session
+  cwd, so the corpus index cannot expose one. `meta.cwd` read from the session header by
+  the JSONL owner is *measured provenance* (exact, one field); consumers decoding it from
+  the sessions directory name would be *inferred* class. Boundary rule: measured
+  provenance may cross into the IR; derived convenience (e.g. `gitBranch` as a label)
+  should not. Until decided, the corpus records the operator-given session path as
+  `sourceSession` and omits `cwd` entirely.
+- **Standing rule (measurement versioning):** an RFC or evidence note may cite a measured
+  figure only together with the estimator version that produced it. §3's dead-heap figures
+  are now tagged by miner version (73% first-cut → 8.7%/0.8% H1-corrected → 19.8%/2.0%
+  path-qualified v2); future estimator changes append a row rather than rewrite history.
 
 ## 10. Commands
 

@@ -58,12 +58,30 @@ test("index build: linear, faulted, and failed fixtures are all listed, never dr
   assert.equal(byId[ID_NOREQS].replayStatus, "empty");
 });
 
+test("index ordering: build-time, cost-descending, failed sessions last, stable ties", (t) => {
+  const { index } = makeFixtureCorpus(t);
+  // fixture costs: faulted 0.09 > linear 0.03 > noreqs 0; corrupt is failed (terminal position)
+  assert.deepEqual(
+    index.sessions.map((s) => s.id),
+    [ID_FAULTED, ID_LINEAR, ID_NOREQS, ID_CORRUPT],
+  );
+  const costs = index.sessions
+    .filter((s) => s.replayStatus !== "failed")
+    .map((s) => s.onChainCostUsd);
+  assert.deepEqual(
+    [...costs].sort((a, b) => b - a),
+    costs,
+    "ok rows must be cost-descending",
+  );
+});
+
 test("index build: linear entry matches the pinned data contract exactly", (t) => {
   const { index } = makeFixtureCorpus(t);
   const linear = index.sessions.find((s) => s.id === ID_LINEAR);
   assert.deepEqual(linear, {
     id: ID_LINEAR,
     source: "sessions/linear/strata.json",
+    sourceSession: null,
     replayStatus: "ok",
     html: "../sessions/linear/context-strata.html",
     models: ["anthropic/claude-sonnet-4-5"],
@@ -367,6 +385,7 @@ writeFileSync(join(outDir, "context-strata.html"), "<!doctype html><title>stub</
   assert.deepEqual(index.sessions[0], {
     id: "a",
     source: "a/strata.json",
+    sourceSession: "src/a.jsonl",
     replayStatus: "ok",
     html: "../a/context-strata.html",
     models: ["stub/model"],
@@ -387,6 +406,7 @@ writeFileSync(join(outDir, "context-strata.html"), "<!doctype html><title>stub</
   assert.deepEqual(index.sessions[1], {
     id: "broken",
     source: null,
+    sourceSession: "src/broken.jsonl",
     replayStatus: "failed",
     html: null,
     error: "replay exited non-zero",
@@ -412,4 +432,47 @@ test("topCategories: bounded to 5, deterministic ties, zero-turn items ignored",
     ["cat0", "cat1", "cat2", "cat3", "cat4"],
   );
   assert.deepEqual(topCategories({ items: [] }), []);
+});
+
+test("incremental batch runs carry forward previously recorded session provenance", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "pi-context-corpus-incr-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "src"), { recursive: true });
+  for (const name of ["one", "two"]) writeFileSync(join(root, "src", `${name}.jsonl`), "{}\n");
+  const stub = join(root, "stub-replay.mjs");
+  writeFileSync(
+    stub,
+    `import { mkdirSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+const argv = process.argv.slice(2);
+const outDir = argv[argv.indexOf("--out") + 1];
+mkdirSync(outDir, { recursive: true });
+writeFileSync(join(outDir, "strata.json"), JSON.stringify({
+  meta: { file: basename(argv[0]), requests: 1, turns: 1, costTotal: 0.01, cacheHit: 0.5,
+    faults: [], runway: { residentLast: 10, contextWindow: 100, requestsRemaining: 90 },
+    warmthAgreement: { n: 1, mae: 0 }, forks: { count: 0 }, modelChanges: [], tokenTurns: 10, wasteRatio: 0 },
+  requests: [{}], items: [],
+}));
+`,
+  );
+
+  // run 1: index session one only
+  run(["index", ".", "--sessions", "src/one.jsonl", "--replay-script", "stub-replay.mjs"], {
+    cwd: root,
+  });
+  // run 2: incremental batch for session two; must not drop one's provenance
+  run(["index", ".", "--sessions", "src/two.jsonl", "--replay-script", "stub-replay.mjs"], {
+    cwd: root,
+  });
+  const index = JSON.parse(readFileSync(join(root, "corpus", "index.json"), "utf8"));
+  const byId = Object.fromEntries(index.sessions.map((s) => [s.id, s]));
+  assert.equal(byId.one.sourceSession, "src/one.jsonl");
+  assert.equal(byId.two.sourceSession, "src/two.jsonl");
+  // a plain re-index without --sessions also preserves prior provenance
+  run(["index", "."], { cwd: root });
+  const again = JSON.parse(readFileSync(join(root, "corpus", "index.json"), "utf8"));
+  assert.equal(
+    Object.fromEntries(again.sessions.map((s) => [s.id, s])).one.sourceSession,
+    "src/one.jsonl",
+  );
 });
