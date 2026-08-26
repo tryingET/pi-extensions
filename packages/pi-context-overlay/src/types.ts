@@ -31,6 +31,10 @@ export interface ContextItem {
   path?: string;
   toolName?: string;
   messageRole?: string;
+  /** Count of user messages emitted before this item; 0 for system items. */
+  turnIndex?: number;
+  /** Position in classifier emission order (window stack). */
+  ordinal?: number;
 }
 
 export interface ContextGroup {

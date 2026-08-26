@@ -23,11 +23,6 @@ const groupLabel: Record<ContextGroupId, string> = {
   other: "Other",
 };
 
-const mkItem = (partial: Omit<ContextItem, "id">, index: number): ContextItem => ({
-  id: `${partial.groupId}:${index}`,
-  ...partial,
-});
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -171,6 +166,16 @@ export const buildGroups = (
 ): ContextGroup[] => {
   const items: ContextItem[] = [];
   let i = 0;
+  let turnIndex = 0;
+  const mkItem = (
+    partial: Omit<ContextItem, "id" | "ordinal" | "turnIndex">,
+    index: number,
+  ): ContextItem => ({
+    ...partial,
+    id: `${partial.groupId}:${index}`,
+    ordinal: index,
+    turnIndex,
+  });
 
   const sys = extractSystemParts(systemPrompt);
 
@@ -280,6 +285,7 @@ export const buildGroups = (
           i++,
         ),
       );
+      turnIndex += 1;
       continue;
     }
 

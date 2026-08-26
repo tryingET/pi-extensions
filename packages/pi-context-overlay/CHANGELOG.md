@@ -38,6 +38,7 @@ All notable changes to this project should be documented here.
 
 ### Added
 
+- P2 live TUI: `/c` occupancy strip from host `ContextUsage`, icicle mode (`Tab`/`g`/`i`) for category → tool/file → item, and optional `turnIndex`/`ordinal` on context items. No runway (no live snapshot ring) and no fabricated cache warmth.
 - Promoted the former local `~/.pi/agent/extensions/context-overlay` implementation into the standalone `@tryinget/pi-context-overlay` package under `packages/pi-context-overlay`.
 - Added the `/c` command, overlay component, snapshot store, token estimation helpers, grouping logic, and `context-report` prompt as package-owned assets.
 - Added package-local live-smoke and handoff artifacts so the overlay can be revalidated after Pi host/runtime changes.

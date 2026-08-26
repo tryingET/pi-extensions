@@ -21,7 +21,8 @@ Use this package-level smoke flow after installing the package into Pi:
 
 Expected baseline:
 - `/c` opens the context inspector overlay
-- footer key hints render without runtime errors
+- header shows LIVE/FROZEN plus occupancy (`tokens/contextWindow (percent%)`); occupancy bar is measured when `tokens` is known and omitted/unknown otherwise
+- footer key hints render without runtime errors (`Tab`/`g`/`i` toggles groups vs icicle)
 - `/context-report` is available as a prompt command
 
 Recommended extended checks:

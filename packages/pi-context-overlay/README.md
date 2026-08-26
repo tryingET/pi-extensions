@@ -35,7 +35,7 @@ This package was re-scaffolded from `~/ai-society/softwareco/owned/pi-extensions
 
 ## Commands
 
-- `/c` — open the context inspector overlay
+- `/c` — open the context inspector overlay (occupancy strip; `Tab`/`g`/`i` toggles groups list vs icicle)
 - `/context-report` — generate a concise context-window report
 
 ## Package contents

@@ -104,9 +104,11 @@ One aesthetic ("the core"): a session is a sediment core; the overlay reads hist
    accounting: "the one-line question at turn 4 spawned 60k token-turns of read-edit loop."
 7. **Runway gauge** — resident vs context window with burn slope → predicted requests-until-fault.
 
-Live TUI counterpart (not yet built): the same allocation model feeds an icicle pane inside
-`/c` (width = token share, depth = category→tool→file taxonomy), plus a two-line strip in the
-overlay header: occupancy bar + warm/cold split + runway estimate.
+Live TUI counterpart (P2 shipped): `/c` has an occupancy strip from host `ContextUsage`
+`{ tokens, contextWindow, percent }` and an icicle pane of the *current* window
+(category → tool/file → item). It does not replay JSONL, draw a warm contour, or plot a
+second history graph — host usage has no `cacheRead`. Runway is omitted (no live snapshot
+ring). Warm/cold split remains forensic-only.
 
 ## 5. What exists today (P0 prototype, post-review)
 
@@ -160,16 +162,25 @@ Still open:
 - **Provider serialization vs file order**: y-axis is replay order, not wire order. Measured
   `cacheRead` still tracks the prefix model; `meta.warmthAgreement.mae` now reports the gap.
 - **Child-arena rollup**: `--data-agnt-*` session files are not joined as fork-cost children.
-- **Live TUI**: `/c` is still a grouped list. The ledger does not yet feed the overlay.
-  Prompt: `docs/project/2026-08-26-context-core-live-tui-prompt.md`.
+- **Live TUI (P2 occupancy + icicle shipped)**: `/c` is a current-window inspector with a
+  groups list (default) and icicle mode. Forensic ledger/JSONL still does not feed the
+  overlay. Missing vs the geological live counterpart: warm/cold split, runway slope,
+  session-history core.
 
 ## 8. Phases
 
 - **P1 — forensic (done, post-review + debt slice)**: replay, artifact, chain walk, conservation
   tests, path-qualified liveness, post-fault runway, model-change ticks, parent-side forks.
   Next: child-arena rollup, cross-session bedrock comparison.
-- **P2 — live TUI**: see the paste-ready prompt in
-  `docs/project/2026-08-26-context-core-live-tui-prompt.md`.
+- **P2 — live TUI (shipped, occupancy + icicle)**: `/c` header occupancy strip from host
+  `ContextUsage` `{ tokens, contextWindow, percent }` (unknown when `tokens` is null; no
+  fabricated warmth; no runway — live overlay does not keep a snapshot ring). Icicle mode
+  (`Tab`/`g`/`i`) shows current-window token share at category → tool/file → item; selected
+  frame drives the existing items/preview; Enter-open-file unchanged. Groups list remains
+  the default. Optional `turnIndex`/`ordinal` on `ContextItem`. Forensic JSONL replay is
+  not imported into the live path. Still missing vs the geological live counterpart:
+  warm/cold split, runway slope, session-history core.
+  Prompt: `docs/project/2026-08-26-context-core-live-tui-prompt.md`.
 - **P3 — decision support**: compaction tradeoff calculator (fault now vs continue:
   Δoccupancy gain vs re-cold cost over re-warm horizon), AGENTS-edit re-cold warning
   ("this edit re-colds N tokens ≈ $X on the next request").
