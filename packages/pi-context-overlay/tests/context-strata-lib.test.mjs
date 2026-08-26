@@ -225,3 +225,118 @@ test("reference mining ignores version strings and abbreviation stopwords", () =
   // pkg.ts basename IS referenced => live despite noise words around it
   assert.equal(callItem.d, 0);
 });
+
+test("ambiguous basename does not revive either path; full path does", () => {
+  const lines = [
+    line(session("root")),
+    line(userMsg("u1", "root", "go")),
+    line(
+      assistant("a1", "u1", { input: 800, cacheRead: 0, output: 1, cost: { total: 0 } }, [
+        { ...callRead("tc1", "/a/main.ts") },
+        { ...callRead("tc2", "/b/main.ts") },
+      ]),
+    ),
+    line(toolResult("t1", "a1", "tc1", "a")),
+    line(toolResult("t2", "t1", "tc2", "b")),
+    line(
+      assistant("a2", "t2", { input: 100, cacheRead: 900, output: 1, cost: { total: 0 } }, [
+        { type: "text", text: "see main.ts then /a/main.ts specifically" },
+      ]),
+    ),
+  ].join("\n");
+  const { strata } = buildStrataModel(lines);
+  const a = strata.items.find((it) => it.c === "toolCall" && it.p === "/a/main.ts");
+  const b = strata.items.find((it) => it.c === "toolCall" && it.p === "/b/main.ts");
+  assert.equal(a.d, 0); // revived by full path
+  assert.equal(b.d, 1); // basename was ambiguous, no full-path mention
+});
+
+test("runway re-baselines slope after a fault", () => {
+  const after = [];
+  let parent = "c1";
+  for (let i = 0; i < 4; i++) {
+    const id = `a${3 + i}`;
+    after.push(
+      line(
+        assistant(
+          id,
+          parent,
+          {
+            input: 200 + i * 50,
+            cacheRead: 100,
+            output: 1,
+            cost: { total: 0 },
+          },
+          [],
+        ),
+      ),
+    );
+    parent = id;
+  }
+  const text = [
+    LINEAR,
+    line(compact("c1", "a2", "summary")),
+    line(userMsg("u2", "c1", "continue")),
+    ...after,
+  ].join("\n");
+  const { strata } = buildStrataModel(text);
+  assert.equal(strata.meta.faults[0].r, 1);
+  assert.equal(strata.meta.runway.rebaselinedAfterFault, true);
+  assert.equal(strata.meta.runway.slopeFrom, 2);
+  assert.ok(Number.isFinite(strata.meta.runway.burnPerRequest));
+});
+
+test("modelChanges records provider switches; warmthAgreement is populated", () => {
+  const a1 = assistant(
+    "a1",
+    "u1",
+    { input: 500, cacheRead: 0, output: 1, cost: { total: 0.01 } },
+    [],
+  );
+  a1.message.model = "gpt-a";
+  const a2 = assistant(
+    "a2",
+    "a1",
+    { input: 100, cacheRead: 500, output: 1, cost: { total: 0.02 } },
+    [],
+  );
+  a2.message.model = "gpt-b";
+  const text = [line(session("root")), line(userMsg("u1", "root", "go")), line(a1), line(a2)].join(
+    "\n",
+  );
+  const { strata } = buildStrataModel(text);
+  assert.deepEqual(
+    strata.meta.modelChanges.map((m) => m.model),
+    ["gpt-a", "gpt-b"],
+  );
+  assert.equal(strata.meta.modelChanges[1].r, 1);
+  assert.ok(strata.meta.warmthAgreement.n >= 1);
+  assert.ok(strata.meta.warmthAgreement.mae >= 0);
+});
+
+test("parent-side dispatch_subagent forks are counted, not rolled up as child arenas", () => {
+  const lines = [
+    line(session("root")),
+    line(userMsg("u1", "root", "go")),
+    line(
+      assistant("a1", "u1", { input: 400, cacheRead: 0, output: 1, cost: { total: 0 } }, [
+        {
+          type: "toolCall",
+          id: "tc1",
+          name: "dispatch_subagent",
+          arguments: { profile: "explorer" },
+        },
+      ]),
+    ),
+    line(toolResult("t1", "a1", "tc1", "child done")),
+    line(assistant("a2", "t1", { input: 80, cacheRead: 400, output: 1, cost: { total: 0 } }, [])),
+  ].join("\n");
+  // toolResult helper hardcodes toolName read — construct the result inline
+  const recs = lines.split("\n");
+  const t1 = JSON.parse(recs[3]);
+  t1.message.toolName = "dispatch_subagent";
+  recs[3] = JSON.stringify(t1);
+  const { strata } = buildStrataModel(recs.join("\n"));
+  assert.equal(strata.meta.forks.count, 1);
+  assert.ok(strata.meta.forks.tokenTurns >= 0);
+});

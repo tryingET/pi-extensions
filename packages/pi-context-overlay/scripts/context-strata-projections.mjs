@@ -23,7 +23,18 @@ const csvField = (v) => {
 };
 
 export function assembleStrata(
-  { items, requests, faults, intents, lastR, bedrockTokens, turnIdx, dedup, excludedBranches },
+  {
+    items,
+    requests,
+    faults,
+    intents,
+    lastR,
+    bedrockTokens,
+    turnIdx,
+    dedup,
+    excludedBranches,
+    forks,
+  },
   opts = {},
 ) {
   const CONTEXT_WINDOW = Number(opts.contextWindow ?? 200000);
@@ -128,12 +139,19 @@ export function assembleStrata(
   const billed = totals.inputTokens + totals.cacheReadTokens;
   const cacheHit = billed > 0 ? totals.cacheReadTokens / billed : 0;
   const n = requests.length;
+  const lastFaultR = faults.length ? faults[faults.length - 1].r : -1;
+  const slopeFrom = Math.max(lastFaultR + 1, n >= 2 ? n - 11 : 0, 0);
+  const slopeSpan = n > 0 ? n - 1 - slopeFrom : 0;
   const burnPerRequest =
-    n >= 10 ? (requests[n - 1].residentEst - requests[Math.max(0, n - 11)].residentEst) / 10 : 0;
+    slopeSpan >= 1
+      ? (requests[n - 1].residentEst - requests[slopeFrom].residentEst) / slopeSpan
+      : 0;
   const runway = {
     residentLast: n ? requests[n - 1].residentEst : 0,
     burnPerRequest,
     contextWindow: CONTEXT_WINDOW,
+    slopeFrom,
+    rebaselinedAfterFault: lastFaultR >= 0 && slopeFrom === lastFaultR + 1,
     requestsRemaining:
       burnPerRequest > 0
         ? Math.max(
@@ -142,6 +160,23 @@ export function assembleStrata(
           )
         : null,
   };
+
+  let warmthMae = 0;
+  let warmthN = 0;
+  for (const q of requests) {
+    const billedR = q.input + q.cacheRead;
+    if (billedR <= 0 || q.residentEst <= 0) continue;
+    warmthMae += Math.abs(q.cacheRead / billedR - q.warmModelTokens / q.residentEst);
+    warmthN += 1;
+  }
+  const warmthAgreement = { n: warmthN, mae: warmthN > 0 ? warmthMae / warmthN : 0 };
+
+  const modelChanges = [];
+  for (let i = 0; i < requests.length; i++) {
+    if (i === 0 || requests[i].model !== requests[i - 1].model) {
+      modelChanges.push({ r: i, model: requests[i].model });
+    }
+  }
 
   // ---------- ghosts / waste ----------
   const ghosts = items
@@ -178,6 +213,9 @@ export function assembleStrata(
       faults,
       runway,
       excludedBranches,
+      forks: forks ?? { count: 0, tokenTurns: 0, tokens: 0 },
+      warmthAgreement,
+      modelChanges,
     },
     cats: CATS,
     requests,

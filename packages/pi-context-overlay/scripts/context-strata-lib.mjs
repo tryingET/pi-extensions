@@ -101,17 +101,30 @@ const pathFromArgs = (args) => {
   return undefined;
 };
 
-// Basename reference mining: extension must be 2-8 ASCII letters so version strings
-// ("v1.2.3") do not count; common abbreviation false positives are stopped explicitly.
+// Path-qualified reference mining: extension must be 2-8 ASCII letters so version
+// strings ("v1.2.3") do not count; abbreviation false positives are stopped explicitly.
+// Mentions are indexed under both the full match and its basename. Basename hits only
+// revive an allocation when that basename is unique among pathed items in the session.
 const REF_STOP = new Set(["e.g", "i.e", "etc"]);
+const pathKey = (p) =>
+  String(p ?? "")
+    .replaceAll("\\", "/")
+    .replace(/\/+/g, "/");
+const baseOf = (p) => pathKey(p).split("/").filter(Boolean).pop() ?? "";
 const noteRefMatches = (text, sink, r) => {
   for (const m of String(text ?? "").matchAll(/[A-Za-z0-9_\-./]+\.[A-Za-z][A-Za-z0-9]{0,7}/g)) {
-    const parts = m[0].split("/");
-    const base = parts[parts.length - 1];
+    const raw = pathKey(m[0]);
+    const base = baseOf(raw);
     if (base.length < 4 || REF_STOP.has(base.toLowerCase())) continue;
-    const arr = sink.get(base) ?? [];
-    arr.push(r);
-    sink.set(base, arr);
+    const add = (key) => {
+      const arr = sink.get(key) ?? [];
+      arr.push(r);
+      sink.set(key, arr);
+    };
+    add(base);
+    add(raw);
+    if (raw.startsWith("/")) add(raw.slice(1));
+    else add(`/${raw}`);
   }
 };
 
@@ -335,11 +348,28 @@ export function buildStrataModel(sessionText, opts = {}) {
         }
       }
     }
+    const basenameOwners = new Map();
     for (const it of items) {
       if (!it.path) continue;
-      const base = it.path.split("/").pop();
-      const refs = (refIndex.get(base) ?? []).filter((x) => x >= (it.birthR ?? 0));
-      it.refsAfter = refs.length;
+      const base = baseOf(it.path);
+      const set = basenameOwners.get(base) ?? new Set();
+      set.add(pathKey(it.path));
+      basenameOwners.set(base, set);
+    }
+    for (const it of items) {
+      if (!it.path) continue;
+      const full = pathKey(it.path);
+      const base = baseOf(it.path);
+      const unique = (basenameOwners.get(base)?.size ?? 0) === 1;
+      const stripped = full.replace(/^\//, "");
+      const fromFull = [
+        ...(refIndex.get(full) ?? []),
+        ...(refIndex.get(stripped) ?? []),
+        ...(refIndex.get(`/${stripped}`) ?? []),
+      ];
+      const fromBase = unique ? (refIndex.get(base) ?? []) : [];
+      it.refsAfter = [...fromFull, ...fromBase].filter((x) => x >= (it.birthR ?? 0)).length;
+      it.basenameAmbiguous = !unique;
     }
   }
   // deadness is only claimed where reference mining can decide it (pathed tool allocations)
@@ -350,6 +380,13 @@ export function buildStrataModel(sessionText, opts = {}) {
     const alive = Math.max(0, (it.freedR ?? lastR) - (it.birthR ?? 0) + 1);
     it.tokenTurns = (it.tokens ?? 0) * alive;
   }
+
+  const forkItems = items.filter((it) => it.toolName === "dispatch_subagent");
+  const forks = {
+    count: forkItems.filter((it) => it.cat === "toolCall").length,
+    tokenTurns: forkItems.reduce((a, x) => a + (x.tokenTurns ?? 0), 0),
+    tokens: forkItems.reduce((a, x) => a + (x.tokens ?? 0), 0),
+  };
 
   // ---------- dedup ----------
   const byPath = new Map();
@@ -375,7 +412,18 @@ export function buildStrataModel(sessionText, opts = {}) {
 
   // ---------- downstream projections ----------
   return assembleStrata(
-    { items, requests, faults, intents, lastR, bedrockTokens, turnIdx, dedup, excludedBranches },
+    {
+      items,
+      requests,
+      faults,
+      intents,
+      lastR,
+      bedrockTokens,
+      turnIdx,
+      dedup,
+      excludedBranches,
+      forks,
+    },
     { contextWindow: CONTEXT_WINDOW, generatedAt: opts.generatedAt, sourceFile: opts.sourceFile },
   );
 }

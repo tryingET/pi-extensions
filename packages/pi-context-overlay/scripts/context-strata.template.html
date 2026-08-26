@@ -120,6 +120,18 @@ const chips = [
   ["mined dead heap", fmt.pct(D.meta.wasteRatio) + " of pathed tool tk·req"],
   ["faults (compactions)", String(D.meta.faults.length)],
 ];
+if ((D.meta.excludedBranches?.requests ?? 0) > 0) {
+  chips.push(["off-chain requests", `${D.meta.excludedBranches.requests} / ${fmt.$(D.meta.excludedBranches.costTotal)}`]);
+}
+if ((D.meta.forks?.count ?? 0) > 0) {
+  chips.push(["parent-side forks", `${D.meta.forks.count} dispatch_subagent · ${fmt.k(D.meta.forks.tokenTurns)} tk·req`]);
+}
+if ((D.meta.modelChanges?.length ?? 0) > 1) {
+  chips.push(["models", D.meta.modelChanges.map(m => m.model || "?").filter((v, i, a) => a.indexOf(v) === i).join(" → ")]);
+}
+if (D.meta.warmthAgreement?.n) {
+  chips.push(["warmth MAE", fmt.pct(D.meta.warmthAgreement.mae)]);
+}
 document.getElementById("chips").innerHTML = chips.map(c => `<div class="chip">${c[0]}: <b>${c[1]}</b></div>`).join("");
 document.getElementById("catLegend").innerHTML = D.cats.map(c => `<span><i class="sw" style="background:${c.color}"></i>${c.label}</span>`).join("");
 
@@ -291,7 +303,14 @@ function drawCost() {
   }
   g.strokeStyle = "#1a2130"; g.beginPath(); g.moveTo(PADX, bh); g.lineTo(w - PADR, bh); g.stroke();
   g.fillStyle = "#4a5265"; g.font = "10px ui-monospace, monospace"; g.textAlign = "left";
-  g.fillText(`peak ${fmt.$(maxC)}${logC ? " (log)" : ""}`, PADX + 4, 10);
+  g.fillText(`peak ${fmt.$(maxC)}${logC ? " (log)" : ""} · ticks = model change`, PADX + 4, 10);
+  for (const mc of (D.meta.modelChanges ?? []).filter(m => m.r > 0 && m.r >= xMin && m.r <= xMax)) {
+    const x = X(mc.r);
+    g.strokeStyle = "rgba(111,191,143,.75)"; g.setLineDash([2, 3]);
+    g.beginPath(); g.moveTo(x, 8); g.lineTo(x, bh); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#6fbf8f"; g.textAlign = "center";
+    g.fillText(String(mc.model || "model").slice(0, 14), x, 10);
+  }
 }
 
 // ---- fossil record ----
@@ -393,7 +412,9 @@ function renderSide() {
       <div style="position:absolute;inset:0;width:${Math.min(100, (pctUsed || 0) * 100)}%;background:linear-gradient(90deg,#6fbf8f,#e0a458,#f7768e)"></div>
     </div>
     <div style="margin-top:6px;color:var(--dim)">
-      burn ≈ <b style="color:var(--ink)">${fmt.k(rw.burnPerRequest)}</b> tk/request →
+      burn ≈ <b style="color:var(--ink)">${fmt.k(rw.burnPerRequest)}</b> tk/request
+      ${rw.rebaselinedAfterFault ? "(post-fault slope)" : ""}
+      ${rw.slopeFrom != null ? `from #${rw.slopeFrom}` : ""} →
       ${rw.requestsRemaining != null
         ? `fault in ~<b style="color:var(--ink)">${rw.requestsRemaining}</b> requests`
         : "no measurable burn"}
@@ -418,7 +439,7 @@ document.getElementById("epistemic").innerHTML = [
   `<span><i class="dot" style="background:#6fbf8f"></i>measured: per-request usage/cost, message chain, fault events (session JSONL)</span>`,
   `<span><i class="dot" style="background:#ffb454"></i>derived: allocation sites, warm prefix model, dedup, runway</span>`,
   `<span><i class="dot" style="background:#7aa2f7"></i>estimated: per-item tokens (chars/4, residual-calibrated bedrock)</span>`,
-  `<span><i class="dot" style="background:#9096aa"></i>inferred: deadness via basename reference mining — decidable only for pathed tool allocations; bash output liveness is unknown, not dead</span>`,
+  `<span><i class="dot" style="background:#9096aa"></i>inferred: deadness via path-qualified reference mining — basename hits count only when unique in-session; bash output liveness is unknown, not dead</span>`,
 ].join("");
 
 // ---- tooltip + crosshair ----

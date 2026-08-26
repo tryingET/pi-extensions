@@ -148,29 +148,34 @@ Independent review + empirical conservation check against the first-cut prototyp
 
 ## 7. Remaining debt (honest, not deferred-as-done)
 
-- **Basename collisions**: two files named `main.ts` share a liveness bucket. Conservative
-  (false-live), not false-dead. Fine for advisory fossils; not fine for P4 targeted GC.
+Resolved in the follow-up slice:
+- Basename collisions → path-qualified mining; basename hits count only when unique in-session.
+- Runway after a recent fault → slope starts at `max(lastFault+1, n-11)`.
+- Mixed-model cost ridge → `modelChanges` ticks + chip; still uses each request's own `$`
+  (no invented global price table).
+- Parent-side `dispatch_subagent` → `meta.forks` count/token-turns. Child JSONL arenas are not
+  opened.
+
+Still open:
 - **Provider serialization vs file order**: y-axis is replay order, not wire order. Measured
-  `cacheRead` still tracks the prefix model within ~5–10% late-session.
-- **Runway after a recent fault**: last-10-request slope can go non-positive and the gauge
-  reports "no measurable burn" instead of re-baselining post-fault (reviewer L4).
-- **Cost ridge is single-table**: mixed-provider sessions mix dollar units; no relative-cold
-  normalization yet.
-- **Subagent arenas**: `--data-agnt-*` sessions are still separate files, not rolled up as
-  fork-cost children of the parent arena.
+  `cacheRead` still tracks the prefix model; `meta.warmthAgreement.mae` now reports the gap.
+- **Child-arena rollup**: `--data-agnt-*` session files are not joined as fork-cost children.
 - **Live TUI**: `/c` is still a grouped list. The ledger does not yet feed the overlay.
+  Prompt: `docs/project/2026-08-26-context-core-live-tui-prompt.md`.
 
 ## 8. Phases
 
-- **P1 — forensic (done, post-review)**: replay + artifact + chain walk + conservation tests.
-  Next: subagent arenas, cross-session bedrock comparison, runway re-baseline after faults.
-- **P2 — live TUI**: icicle pane in `/c` from the existing classifier items (add
-  position/turn fields), warm/cold split + runway in the header from `ctx` usage.
+- **P1 — forensic (done, post-review + debt slice)**: replay, artifact, chain walk, conservation
+  tests, path-qualified liveness, post-fault runway, model-change ticks, parent-side forks.
+  Next: child-arena rollup, cross-session bedrock comparison.
+- **P2 — live TUI**: see the paste-ready prompt in
+  `docs/project/2026-08-26-context-core-live-tui-prompt.md`.
 - **P3 — decision support**: compaction tradeoff calculator (fault now vs continue:
   Δoccupancy gain vs re-cold cost over re-warm horizon), AGENTS-edit re-cold warning
   ("this edit re-colds N tokens ≈ $X on the next request").
-- **P4 — targeted GC**: liveness-mined compaction input for `pi-session-compaction`
-  (drop measured-dead, keep referenced working set). Blocked on basename-collision honesty.
+- **P4 — targeted GC**: liveness-mined compaction input for `pi-session-compaction`.
+  Path-qualification unblocks advisory→actionable *for unique paths*; still advisory when
+  two same-basename files are both resident.
 
 ## 9. Open questions
 
@@ -178,7 +183,7 @@ Independent review + empirical conservation check against the first-cut prototyp
   how much does the positional y-axis drift from the true wire order?
 - Multi-provider cost semantics (cacheWrite pricing, non-Anthropic routers).
 - Is deadness-by-reference-mining actionable enough to gate compaction content, or only
-  advisory? (P4 answer is currently *advisory only* until collisions are path-qualified.)
+  advisory? Unique-path deadness is now decidable; ambiguous-basename cases stay advisory.
 - Should the replayer graduate into `pi-session-insights` (jq discipline, bounded JSON) rather
   than growing inside this package? Current answer: keep the visual/TUI carrier here, keep
   deterministic extraction importable.
