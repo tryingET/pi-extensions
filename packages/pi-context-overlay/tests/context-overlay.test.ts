@@ -532,23 +532,28 @@ test("overlay toggles icicle without regressing groups/items/Enter-open", async 
   const icicle = component.render(80).join("\n");
   assert.match(icicle, /ICICLE/);
   assert.match(icicle, /Icicle/);
+  assert.match(icicle, /frame/);
   assert.match(icicle, /User messages items/);
-  assert.match(icicle, /←\/→ pane/);
 
   component.handleInput(KEY.right);
+  assert.match(component.render(80).join("\n"), /Tool calls/);
+  assert.match(component.render(80).join("\n"), /ICICLE/);
+
+  component.handleInput(KEY.tab);
   assert.match(component.render(80).join("\n"), /ITEMS/);
-  component.handleInput(KEY.down);
   component.handleInput(KEY.enter);
   await Promise.resolve();
-  assert.equal(opened, undefined);
+  assert.equal(opened, "/repo/a.ts");
+  opened = undefined;
 
-  component.handleInput(KEY.left);
   component.handleInput(KEY.g);
   assert.match(component.render(80).join("\n"), /GROUPS/);
   assert.match(component.render(80).join("\n"), /Groups/);
 
   component.handleInput(KEY.tab);
   assert.match(component.render(80).join("\n"), /ICICLE/);
+  component.handleInput(KEY.tab);
+  assert.match(component.render(80).join("\n"), /ITEMS/);
   component.handleInput(KEY.tab);
   assert.match(component.render(80).join("\n"), /GROUPS/);
 
@@ -576,9 +581,8 @@ test("icicle Enter opens the selected file-backed item", async () => {
     },
   });
   component.handleInput(KEY.i);
-  assert.match(component.render(80).join("\n"), /user \(t:10\)/);
-  component.handleInput(KEY.down);
   component.handleInput(KEY.right);
+  component.handleInput(KEY.down);
   component.handleInput(KEY.enter);
   await Promise.resolve();
   assert.equal(opened, "/repo/a.ts");

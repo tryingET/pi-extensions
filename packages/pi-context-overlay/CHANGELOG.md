@@ -45,7 +45,7 @@ All notable changes to this project should be documented here.
 
 ### Fixed
 
-- Icicle mode keeps the file list on the right and the original `←`/`→` pane + `↑`/`↓` select keys; it no longer occupies arrows for depth/frame navigation.
+- `/c` keeps both languages: `i` uses icicle `←`/`→` frames and `↑`/`↓` depth; `Tab` hops to the file list so `↑`/`↓` select files again.
 
 ### Changed
 
