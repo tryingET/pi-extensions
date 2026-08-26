@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "generatedAt": "2026-08-26T00:00:00.000Z",
+    "file": "2026-01-02T00-00-00-000Z_fixture-linear.jsonl",
+    "requests": 2,
+    "turns": 1,
+    "costTotal": 0.03,
+    "costCacheRead": 0.01,
+    "costInput": 0.01,
+    "costOutput": 0.01,
+    "inputTokens": 1000,
+    "cacheReadTokens": 2000,
+    "cacheWriteTokens": 0,
+    "outputTokens": 15,
+    "bedrockTokens": 900,
+    "cacheHit": 0.6666666666666666,
+    "tokenTurns": 4000,
+    "wastedTokenTurns": 0,
+    "wasteRatio": 0,
+    "pathedTokenTurns": 320,
+    "calibrationFactor": 1.1,
+    "faults": [],
+    "runway": {
+      "residentLast": 1200,
+      "burnPerRequest": 100,
+      "contextWindow": 200000,
+      "slopeFrom": 0,
+      "rebaselinedAfterFault": false,
+      "requestsRemaining": 1988
+    },
+    "excludedBranches": { "records": 0, "requests": 0, "costTotal": 0 },
+    "forks": { "count": 0, "tokenTurns": 0, "tokens": 0 },
+    "warmthAgreement": { "n": 2, "mae": 0.05 },
+    "modelChanges": [{ "r": 0, "model": "anthropic/claude-sonnet-4-5" }]
+  },
+  "cats": [
+    { "id": "system", "label": "system + overhead", "color": "#5b6478" },
+    { "id": "agents", "label": "AGENTS/CLAUDE files", "color": "#b8a06a" },
+    { "id": "user", "label": "user messages", "color": "#4fd1c5" },
+    { "id": "assistantText", "label": "assistant text", "color": "#b794f6" },
+    { "id": "toolCall", "label": "tool calls", "color": "#e0a458" },
+    { "id": "toolResult", "label": "tool results", "color": "#c96f6a" }
+  ],
+  "requests": [
+    { "r": 0, "turn": 0, "ts": "2026-01-02T00:00:01Z", "model": "anthropic/claude-sonnet-4-5", "input": 1000, "cacheRead": 0, "cacheWrite": 0, "output": 10, "residentEst": 1000, "warmModelTokens": 0, "costInput": 0.01, "costCacheRead": 0, "costOutput": 0.01, "costTotal": 0.02 },
+    { "r": 1, "turn": 1, "ts": "2026-01-02T00:01:01Z", "model": "anthropic/claude-sonnet-4-5", "input": 200, "cacheRead": 1100, "cacheWrite": 0, "output": 5, "residentEst": 1200, "warmModelTokens": 1000, "costInput": 0.002, "costCacheRead": 0.01, "costOutput": 0.005, "costTotal": 0.017 }
+  ],
+  "series": {
+    "system": [900, 900],
+    "agents": [300, 300],
+    "user": [20, 20],
+    "assistantText": [0, 40],
+    "toolCall": [160, 160],
+    "toolResult": [0, 3000]
+  },
+  "items": [
+    { "c": "agents", "l": "AGENTS.md", "t": 300, "b": 0, "f": 1, "tt": 600, "d": 0, "r": 0 },
+    { "c": "user", "l": "look at things", "t": 20, "b": 0, "f": 1, "tt": 40, "d": 0, "r": 0 },
+    { "c": "toolCall", "l": "read", "p": "/x/a.ts", "t": 160, "b": 0, "f": 1, "tt": 320, "d": 0, "r": 1 },
+    { "c": "toolResult", "l": "read SECRETMARKER-zq9 <script>", "t": 3000, "b": 1, "f": 1, "tt": 3000, "d": 0, "r": 0 },
+    { "c": "assistantText", "l": "done", "t": 40, "b": 1, "f": 1, "tt": 40, "d": 0, "r": 0 }
+  ],
+  "sankey": { "links": [] },
+  "dedup": { "groups": 0, "savedTokens": 0 },
+  "ghosts": []
+}

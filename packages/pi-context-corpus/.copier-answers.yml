@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier. Do not edit manually.
+_commit: b8dcd22
+_src_path: ../pi-extensions-template
+command_name: corpus
+github_maintainer: tryingET
+monorepo_repo_name: pi-extensions
+npm_org: tryinget
+release_component_key: pi-context-corpus
+release_config_mode: none
+repo_name: pi-context-corpus
+scaffold_mode: simple-package
+workspace_relative_path: packages/pi-context-corpus

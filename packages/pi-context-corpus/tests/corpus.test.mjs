@@ -1,0 +1,415 @@
+// ---
+// summary: "Pins corpus index building, strata classification, content-free outputs, HTML switcher, named jq projections, and CLI fail-closed behavior."
+// read_when:
+//   - "Changing the index schema, projections dispatch, fixtures, or CLI contract."
+// ---
+import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { renderIndexHtml } from "../lib/corpus-html.mjs";
+import { findStrataFiles, topCategories } from "../lib/corpus-index.mjs";
+
+const PKG = fileURLToPath(new URL("..", import.meta.url));
+const BIN = join(PKG, "bin", "corpus.mjs");
+const JQ = join(PKG, "projections", "corpus.jq");
+const FIXTURES = join(PKG, "tests", "fixtures");
+
+const ID_FAULTED = "2026-01-01T00-00-00-000Z_fixture-faulted";
+const ID_LINEAR = "2026-01-02T00-00-00-000Z_fixture-linear";
+const ID_NOREQS = "2026-01-03T00-00-00-000Z_fixture-noreqs";
+const ID_CORRUPT = "corrupt";
+const SECRET_MARKER = "SECRETMARKER-zq9";
+const ALL_NAMES = ["occupancy", "faults", "spend", "ghosts", "runway", "sessions", "topfiles"];
+
+const run = (args, opts = {}) =>
+  execFileSync(process.execPath, [BIN, ...args], { encoding: "utf8", ...opts });
+const runStatus = (args, opts = {}) =>
+  spawnSync(process.execPath, [BIN, ...args], { encoding: "utf8", ...opts });
+
+/** Assemble a fresh corpus dir from the fixtures, build the index, return both. */
+function makeFixtureCorpus(t) {
+  const corpusDir = mkdtempSync(join(tmpdir(), "pi-context-corpus-test-"));
+  t.after(() => rmSync(corpusDir, { recursive: true, force: true }));
+  cpSync(join(FIXTURES, "sessions"), join(corpusDir, "sessions"), { recursive: true });
+  const out = run(["index", corpusDir]);
+  assert.match(out, /sessions \(ok=2 empty=1 failed=1\)/);
+  const index = JSON.parse(readFileSync(join(corpusDir, "corpus", "index.json"), "utf8"));
+  return { corpusDir, index };
+}
+
+const readIndexHtml = (corpusDir) => readFileSync(join(corpusDir, "corpus", "index.html"), "utf8");
+const project = (name, file, cwd) => JSON.parse(run(["project", name, file], { cwd }));
+
+test("index build: linear, faulted, and failed fixtures are all listed, never dropped", (t) => {
+  const { index } = makeFixtureCorpus(t);
+  assert.deepEqual(
+    index.sessions.map((s) => s.id),
+    [ID_FAULTED, ID_LINEAR, ID_NOREQS, ID_CORRUPT],
+  );
+  const byId = Object.fromEntries(index.sessions.map((s) => [s.id, s]));
+  assert.equal(byId[ID_CORRUPT].replayStatus, "failed");
+  assert.equal(byId[ID_CORRUPT].html, null);
+  assert.match(byId[ID_CORRUPT].error, /^invalid JSON:/);
+  assert.equal(byId[ID_NOREQS].replayStatus, "empty");
+});
+
+test("index build: linear entry matches the pinned data contract exactly", (t) => {
+  const { index } = makeFixtureCorpus(t);
+  const linear = index.sessions.find((s) => s.id === ID_LINEAR);
+  assert.deepEqual(linear, {
+    id: ID_LINEAR,
+    source: "sessions/linear/strata.json",
+    replayStatus: "ok",
+    html: "../sessions/linear/context-strata.html",
+    models: ["anthropic/claude-sonnet-4-5"],
+    requests: 2,
+    turns: 1,
+    faults: 0,
+    lastFaultR: null,
+    onChainCostUsd: 0.03,
+    cacheHitShare: 0.6666666666666666,
+    warmthAgreementMae: 0.05,
+    forks: 0,
+    lastResidentEst: 1200,
+    contextWindow: 200000,
+    runwayRequestsRemaining: 1988,
+    ghostShareOfToolTokenTurns: 0,
+    topCategories: [
+      { id: "toolResult", share: 0.75 },
+      { id: "agents", share: 0.15 },
+      { id: "toolCall", share: 0.08 },
+      { id: "assistantText", share: 0.01 },
+      { id: "user", share: 0.01 },
+    ],
+  });
+  const faulted = index.sessions.find((s) => s.id === ID_FAULTED);
+  assert.equal(faulted.faults, 1);
+  assert.equal(faulted.lastFaultR, 1);
+  assert.equal(faulted.runwayRequestsRemaining, null);
+  assert.deepEqual(faulted.models, ["anthropic/claude-sonnet-4-5", "openai/gpt-5.2"]);
+  assert.deepEqual(faulted.topCategories, [
+    { id: "system", share: 0.48 },
+    { id: "assistantText", share: 0.2 },
+    { id: "toolCall", share: 0.2 },
+    { id: "toolResult", share: 0.08 },
+    { id: "summary", share: 0.04 },
+  ]);
+});
+
+test("content-free: secret-marker text in fixture strata labels never reaches index.json or index.html", (t) => {
+  const { corpusDir, index } = makeFixtureCorpus(t);
+  const indexText = JSON.stringify(index);
+  const htmlText = readIndexHtml(corpusDir);
+  const sourceText = readFileSync(join(FIXTURES, "sessions", "linear", "strata.json"), "utf8");
+  assert.ok(sourceText.includes(SECRET_MARKER), "fixture must actually contain the marker");
+  assert.ok(!indexText.includes(SECRET_MARKER), "marker must not appear in index.json");
+  assert.ok(!htmlText.includes(SECRET_MARKER), "marker must not appear in index.html");
+});
+
+test("html switcher: ok rows link to per-session html; failed rows carry no link; embed escapes <", (t) => {
+  const { corpusDir } = makeFixtureCorpus(t);
+  const html = readIndexHtml(corpusDir);
+  const links = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual([...links].sort(), [
+    "../sessions/faulted/context-strata.html",
+    "../sessions/linear/context-strata.html",
+  ]);
+  assert.ok(!html.includes('href="../sessions/corrupt'));
+  assert.ok(!html.includes('href="../sessions/noreqs'));
+
+  // embed escaping unit: raw `<` in any id/label can never terminate the JSON script block
+  const hostile = renderIndexHtml({
+    generatedAt: 0,
+    corpusDir: "x",
+    sessions: [
+      {
+        id: "<script>alert(1)</script>",
+        source: "s/strata.json",
+        replayStatus: "ok",
+        html: null,
+        models: [],
+        requests: 1,
+        turns: 1,
+        faults: 0,
+        lastFaultR: null,
+        onChainCostUsd: 0,
+        cacheHitShare: 0,
+        warmthAgreementMae: 0,
+        forks: 0,
+        lastResidentEst: 0,
+        contextWindow: 0,
+        runwayRequestsRemaining: null,
+        ghostShareOfToolTokenTurns: 0,
+        topCategories: [],
+      },
+    ],
+  });
+  assert.ok(!hostile.includes("<script>alert"), "raw <script> must be escaped in the embed");
+  assert.ok(hostile.includes("\\u003cscript>alert(1)\\u003c/script>"));
+});
+
+test("projection: sessions — compact overview of every session", (t) => {
+  const { corpusDir } = makeFixtureCorpus(t);
+  const out = project("sessions", "corpus/index.json", corpusDir);
+  assert.deepEqual(out, [
+    { id: ID_FAULTED, replayStatus: "ok", requests: 3, turns: 2, onChainCostUsd: 0.09 },
+    { id: ID_LINEAR, replayStatus: "ok", requests: 2, turns: 1, onChainCostUsd: 0.03 },
+    { id: ID_NOREQS, replayStatus: "empty", requests: 0, turns: 1, onChainCostUsd: 0 },
+    { id: ID_CORRUPT, replayStatus: "failed", requests: null, turns: null, onChainCostUsd: null },
+  ]);
+});
+
+test("projection: occupancy — per-session last resident + window", (t) => {
+  const { corpusDir } = makeFixtureCorpus(t);
+  const out = project("occupancy", "corpus/index.json", corpusDir);
+  assert.deepEqual(out, [
+    { id: ID_FAULTED, lastResidentEst: 400, contextWindow: 200000 },
+    { id: ID_LINEAR, lastResidentEst: 1200, contextWindow: 200000 },
+    { id: ID_NOREQS, lastResidentEst: 0, contextWindow: 200000 },
+  ]);
+});
+
+test("projection: faults — count + last fault request", (t) => {
+  const { corpusDir } = makeFixtureCorpus(t);
+  const out = project("faults", "corpus/index.json", corpusDir);
+  assert.deepEqual(out, [{ id: ID_FAULTED, faults: 1, lastFaultR: 1 }]);
+});
+
+test("projection: spend — on-chain $ (sum-of-reported) + cache-hit share", (t) => {
+  const { corpusDir } = makeFixtureCorpus(t);
+  const out = project("spend", "corpus/index.json", corpusDir);
+  assert.deepEqual(out, [
+    { id: ID_FAULTED, onChainCostUsd: 0.09, cacheHitShare: 0.6 },
+    { id: ID_LINEAR, onChainCostUsd: 0.03, cacheHitShare: 0.6666666666666666 },
+    { id: ID_NOREQS, onChainCostUsd: 0, cacheHitShare: 0 },
+  ]);
+});
+
+test("projection: ghosts — ranked by mined-dead share (stable desc)", (t) => {
+  const { corpusDir } = makeFixtureCorpus(t);
+  const out = project("ghosts", "corpus/index.json", corpusDir);
+  assert.deepEqual(out, [
+    { id: ID_FAULTED, ghostShareOfToolTokenTurns: 0.5 },
+    { id: ID_NOREQS, ghostShareOfToolTokenTurns: 0 },
+    { id: ID_LINEAR, ghostShareOfToolTokenTurns: 0 },
+  ]);
+});
+
+test("projection: runway — ranked by requests-until-fault, nulls excluded", (t) => {
+  const { corpusDir } = makeFixtureCorpus(t);
+  const out = project("runway", "corpus/index.json", corpusDir);
+  assert.deepEqual(out, [
+    { id: ID_LINEAR, runwayRequestsRemaining: 1988, lastResidentEst: 1200, contextWindow: 200000 },
+  ]);
+});
+
+test("projection: topfiles — path-qualified, ranked, bounded (input: one strata.json)", () => {
+  const out = project("topfiles", join(FIXTURES, "strata-topfiles.json"), process.cwd());
+  assert.deepEqual(out, [
+    {
+      path: "/repo/docs/long-guide.md",
+      cat: "toolResult",
+      label: "read",
+      tokens: 2000,
+      birthR: 0,
+      freedR: 3,
+      tokenTurns: 8000,
+      dead: true,
+    },
+    {
+      path: "/repo/notes.md",
+      cat: "toolResult",
+      label: "read",
+      tokens: 500,
+      birthR: 0,
+      freedR: 2,
+      tokenTurns: 1500,
+      dead: false,
+    },
+    {
+      path: "/repo/src/main.ts",
+      cat: "toolCall",
+      label: "read",
+      tokens: 100,
+      birthR: 1,
+      freedR: 3,
+      tokenTurns: 300,
+      dead: false,
+    },
+    {
+      path: "/repo/src/util.ts",
+      cat: "toolCall",
+      label: "read",
+      tokens: 100,
+      birthR: 2,
+      freedR: 3,
+      tokenTurns: 200,
+      dead: false,
+    },
+  ]);
+  // bounded even if more than 10 path-qualified items exist
+  const many = {
+    items: Array.from({ length: 15 }, (_, i) => ({
+      c: "toolResult",
+      l: "read",
+      p: `/f/${i}`,
+      t: 1,
+      b: 0,
+      f: 0,
+      tt: i + 1,
+      d: 0,
+      r: 0,
+    })),
+  };
+  const root = mkdtempSync(join(tmpdir(), "pi-context-corpus-top-"));
+  try {
+    const file = join(root, "many.json");
+    writeFileSync(file, JSON.stringify(many));
+    const bounded = project("topfiles", file, process.cwd());
+    assert.equal(bounded.length, 10);
+    assert.deepEqual(
+      bounded.map((x) => x.tokenTurns),
+      [15, 14, 13, 12, 11, 10, 9, 8, 7, 6],
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI: unknown projection fails closed with the listing; jq dispatch and CLI stay in sync", () => {
+  const missing = runStatus(["project", "nope", join(FIXTURES, "strata-topfiles.json")]);
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, new RegExp(`available: ${ALL_NAMES.join(", ")}`));
+  const noName = runStatus(["project"]);
+  assert.notEqual(noName.status, 0);
+  assert.match(noName.stderr, /available projections/);
+
+  const jqText = readFileSync(JQ, "utf8");
+  const dispatched = [...jqText.matchAll(/\$p == "([a-z]+)"/g)].map((m) => m[1]);
+  const binText = readFileSync(BIN, "utf8");
+  const declaredMatch = /PROJECTION_NAMES = \[([\s\S]*?)\]/.exec(binText);
+  assert.ok(declaredMatch, "bin/corpus.mjs must declare PROJECTION_NAMES");
+  const declared = [...declaredMatch[1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(dispatched, declared, "jq dispatch names must equal CLI PROJECTION_NAMES");
+  const listingMatch = /def projection_names:\s*\[([\s\S]*?)\];/.exec(jqText);
+  assert.ok(listingMatch, "projections/corpus.jq must declare projection_names");
+  const listed = [...listingMatch[1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(listed, dispatched, "projection_names listing must equal dispatched names");
+});
+
+test("CLI: missing corpus dir and bad batch flags fail closed", () => {
+  const missing = runStatus(["index", "/nonexistent/pi-context-corpus-dir"]);
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /corpus dir not found/);
+  const noReplay = runStatus(["index", process.cwd(), "--sessions", "*.jsonl"]);
+  assert.notEqual(noReplay.status, 0);
+  assert.match(noReplay.stderr, /--sessions requires --replay-script/);
+  const emptyGlob = runStatus([
+    "index",
+    process.cwd(),
+    "--sessions",
+    "no-such-dir/*.jsonl",
+    "--replay-script",
+    BIN,
+  ]);
+  assert.notEqual(emptyGlob.status, 0);
+  assert.match(emptyGlob.stderr, /matched no \.jsonl files/);
+});
+
+test("batch orchestration: shells out to the replay script; failed replays stay listed", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "pi-context-corpus-batch-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src", "a.jsonl"), "{}\n");
+  writeFileSync(join(root, "src", "broken.jsonl"), "{}\n");
+  const stub = join(root, "stub-replay.mjs");
+  writeFileSync(
+    stub,
+    `import { mkdirSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+const argv = process.argv.slice(2);
+const outDir = argv[argv.indexOf("--out") + 1];
+const sessionFile = argv[0];
+if (basename(sessionFile).startsWith("broken")) process.exit(3);
+mkdirSync(outDir, { recursive: true });
+const strata = {
+  meta: {
+    file: basename(sessionFile), requests: 1, turns: 1, costTotal: 0.01, cacheHit: 0.5,
+    faults: [], runway: { residentLast: 10, contextWindow: 100, requestsRemaining: 90 },
+    warmthAgreement: { n: 1, mae: 0 }, forks: { count: 0 },
+    modelChanges: [{ r: 0, model: "stub/model" }], tokenTurns: 10, wasteRatio: 0,
+  },
+  requests: [{}],
+  items: [{ c: "user", l: "u", t: 10, b: 0, f: 0, tt: 10, d: 0, r: 0 }],
+};
+writeFileSync(join(outDir, "strata.json"), JSON.stringify(strata));
+writeFileSync(join(outDir, "context-strata.html"), "<!doctype html><title>stub</title>");
+`,
+  );
+
+  const out = run(
+    ["index", ".", "--sessions", "src/*.jsonl", "--replay-script", "stub-replay.mjs"],
+    {
+      cwd: root,
+    },
+  );
+  assert.match(out, /sessions \(ok=1 empty=0 failed=1\)/);
+  const index = JSON.parse(readFileSync(join(root, "corpus", "index.json"), "utf8"));
+  assert.deepEqual(
+    index.sessions.map((s) => s.id),
+    ["a", "broken"],
+  );
+  assert.deepEqual(index.sessions[0], {
+    id: "a",
+    source: "a/strata.json",
+    replayStatus: "ok",
+    html: "../a/context-strata.html",
+    models: ["stub/model"],
+    requests: 1,
+    turns: 1,
+    faults: 0,
+    lastFaultR: null,
+    onChainCostUsd: 0.01,
+    cacheHitShare: 0.5,
+    warmthAgreementMae: 0,
+    forks: 0,
+    lastResidentEst: 10,
+    contextWindow: 100,
+    runwayRequestsRemaining: 90,
+    ghostShareOfToolTokenTurns: 0,
+    topCategories: [{ id: "user", share: 1 }],
+  });
+  assert.deepEqual(index.sessions[1], {
+    id: "broken",
+    source: null,
+    replayStatus: "failed",
+    html: null,
+    error: "replay exited non-zero",
+  });
+});
+
+test("discovery: node_modules and generated corpus dirs are skipped", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "pi-context-corpus-scan-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const dir of ["sessions/keep", "node_modules/pkg", "corpus"]) {
+    mkdirSync(join(root, dir), { recursive: true });
+    writeFileSync(join(root, dir, "strata.json"), "{}");
+  }
+  assert.deepEqual(findStrataFiles(root), [join(root, "sessions", "keep", "strata.json")]);
+});
+
+test("topCategories: bounded to 5, deterministic ties, zero-turn items ignored", () => {
+  const items = [];
+  for (let i = 0; i < 7; i++) items.push({ c: `cat${i}`, tt: 10 });
+  items.push({ c: "zero", tt: 0 }, { c: "neg", tt: -5 }, { c: "missing" });
+  assert.deepEqual(
+    topCategories({ items }).map((c) => c.id),
+    ["cat0", "cat1", "cat2", "cat3", "cat4"],
+  );
+  assert.deepEqual(topCategories({ items: [] }), []);
+});

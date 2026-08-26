@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "generatedAt": "2026-08-26T00:00:00.000Z",
+    "file": "2026-02-01T00-00-00-000Z_fixture-topfiles.jsonl",
+    "requests": 4,
+    "tokenTurns": 10000
+  },
+  "items": [
+    { "c": "toolResult", "l": "read", "p": "/repo/docs/long-guide.md", "t": 2000, "b": 0, "f": 3, "tt": 8000, "d": 1, "r": 0 },
+    { "c": "toolCall", "l": "read", "p": "/repo/src/main.ts", "t": 100, "b": 1, "f": 3, "tt": 300, "d": 0, "r": 3 },
+    { "c": "toolCall", "l": "read", "p": "/repo/src/util.ts", "t": 100, "b": 2, "f": 3, "tt": 200, "d": 0, "r": 1 },
+    { "c": "toolResult", "l": "read", "p": "/repo/notes.md", "t": 500, "b": 0, "f": 2, "tt": 1500, "d": 0, "r": 2 },
+    { "c": "user", "l": "pathless user text", "t": 900, "b": 0, "f": 3, "tt": 3600, "d": 0, "r": 0 },
+    { "c": "toolResult", "l": "bash output has no path", "t": 400, "b": 1, "f": 1, "tt": 400, "d": 0, "r": 0 }
+  ]
+}
