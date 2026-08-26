@@ -12,8 +12,9 @@ system4d:
 
 # RFC — Context Core: profiling the Pi context window as an allocator
 
-Status: **prototype shipped and reviewed** (replayer + visual artifact + 11 invariant tests);
-adoption into the live overlay is the open decision.
+Status: **P1 forensic shipped and reviewed** (replayer + visual artifact + conservation tests);
+**P2 live occupancy + icicle shipped**. Open: geological live counterpart (warm/cold, runway,
+session-history core), P3/P4, and whether forensic extraction graduates out of this package.
 
 Artifact (S1, 362 on-chain requests, rev 3): <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
 
@@ -82,7 +83,8 @@ From two real sessions replayed through the prototype (`~/.pi/agent/sessions/…
 
 ## 4. Visual language — geological instruments
 
-One aesthetic ("the core"): a session is a sediment core; the overlay reads history from it.
+One aesthetic ("the core"): a session is a sediment core. The **HTML forensic artifact** reads
+history from it. Live `/c` does not; it inspects the current window only.
 
 1. **The Core (stratigraphy)** — x = provider request, y = token offset in the window, each
    allocation a colored block stacked in birth order (true memory-map, not category lanes).
@@ -147,6 +149,14 @@ Independent review + empirical conservation check against the first-cut prototyp
 | M1 | Era split required a non-empty summary item; empty-summary compaction never collapsed the core. | Era membership = count of faults with `f.r < birthR`. |
 | M2 | Bedrock `unshift`ed into the window but `push`ed late onto `items[]`; template stacked array order so user sat below bedrock. | Per-era sort by `birthR`, system-cat wins ties. |
 | L1–L3 | `import.meta.url` pathname not decoded; CSV unescaped; speedscope unit claimed milliseconds. | `fileURLToPath`; CSV field quoting; `unit: "none"`. |
+
+P2 live TUI review (2026-08-26, independent read-only; no Ghostty `/c` proof):
+ledger holds on the live path (no JSONL/strata import, no warmth/`cacheRead`, occupancy
+strip honors `tokens == null`, runway omitted). High residual: Ghostty `pi.exec` timeout
+(`killed`) is treated as editor-open success and dismisses `/c`. Medium: this status line
+and §4 intro were stale (fixed in the same slice). Do not merge corpus/API into this
+package or into `pi-session-insights` as-is — different IRs (`strata.json` vs
+`pi.session-insights.v1`).
 
 ## 7. Remaining debt (honest, not deferred-as-done)
 
