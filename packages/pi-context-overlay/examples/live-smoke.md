@@ -27,4 +27,4 @@ Expected baseline:
 
 Recommended extended checks:
 - navigate or compact the active session, then reopen `/c` and confirm the overlay reflects the current live session rather than stale prior state
-- if the active session includes a file-backed context item, open it from the overlay and confirm the editor/zellij path succeeds or fails clearly
+- if the active session includes a file-backed context item, press Enter and confirm it opens in `$VISUAL`/`$EDITOR` (zellij pane or a Ghostty tab/window)

@@ -11,15 +11,10 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { ContextOverlayComponent } from "../src/context-overlay-component.js";
+import { planOpenFile } from "../src/open-file.js";
 import { ContextSnapshotStore } from "../src/snapshot-store.js";
 
 const stripAtPrefix = (path: string): string => (path.startsWith("@") ? path.slice(1) : path);
-
-const resolveEditorCommand = (): string[] => {
-  const rawEditor = (process.env.VISUAL ?? process.env.EDITOR ?? "vi").trim();
-  const parts = rawEditor.split(/\s+/).filter((part) => part.length > 0);
-  return parts.length > 0 ? parts : ["vi"];
-};
 
 export default function contextOverlayExtension(pi: ExtensionAPI): void {
   const store = new ContextSnapshotStore();
@@ -73,12 +68,7 @@ export default function contextOverlayExtension(pi: ExtensionAPI): void {
 
       syncStoreFromSession(ctx);
 
-      const openPathInZellij = async (rawPath: string): Promise<boolean> => {
-        if (!process.env.ZELLIJ) {
-          ctx.ui.notify("Not running inside zellij session", "error");
-          return false;
-        }
-
+      const openPathInEditor = async (rawPath: string): Promise<boolean> => {
         const normalized = stripAtPrefix(rawPath.trim());
         const filePath = isAbsolute(normalized) ? normalized : resolve(ctx.cwd, normalized);
 
@@ -99,71 +89,26 @@ export default function contextOverlayExtension(pi: ExtensionAPI): void {
           return false;
         }
 
-        const sessionName = process.env.ZELLIJ_SESSION_NAME;
-        const sessionPrefix = sessionName ? ["--session", sessionName] : [];
-        const editorCommand = resolveEditorCommand();
-
-        const attempts: Array<{ label: string; args: string[] }> = [
-          {
-            label: "run",
-            args: [
-              ...sessionPrefix,
-              "run",
-              "--direction",
-              "down",
-              "--cwd",
-              ctx.cwd,
-              "--",
-              ...editorCommand,
-              filePath,
-            ],
-          },
-          {
-            label: "action-edit",
-            args: [
-              ...sessionPrefix,
-              "action",
-              "edit",
-              "--direction",
-              "down",
-              "--cwd",
-              ctx.cwd,
-              filePath,
-            ],
-          },
-          {
-            label: "edit",
-            args: [...sessionPrefix, "edit", "--direction", "down", "--cwd", ctx.cwd, filePath],
-          },
-        ];
-
-        if (sessionPrefix.length > 0) {
-          attempts.push({
-            label: "run-no-session",
-            args: [
-              "run",
-              "--direction",
-              "down",
-              "--cwd",
-              ctx.cwd,
-              "--",
-              ...editorCommand,
-              filePath,
-            ],
-          });
+        const attempts = planOpenFile({ filePath, cwd: ctx.cwd, env: process.env });
+        if (attempts.length === 0) {
+          ctx.ui.notify("No editor launch path (zellij or Ghostty)", "error");
+          return false;
         }
 
         let lastError = "unknown error";
         for (const attempt of attempts) {
-          const result = await pi.exec("zellij", attempt.args, { cwd: ctx.cwd });
-          if (result.code === 0) {
-            ctx.ui.notify(`Opened in zellij (${attempt.label}): ${filePath}`, "info");
+          const result = await pi.exec(attempt.command, attempt.args, {
+            cwd: ctx.cwd,
+            timeout: attempt.timeoutMs,
+          });
+          if (result.code === 0 || result.killed) {
+            ctx.ui.notify(`Opened in editor (${attempt.label}): ${filePath}`, "info");
             return true;
           }
           lastError = (result.stderr || result.stdout || `exit ${result.code}`).trim();
         }
 
-        ctx.ui.notify(`Failed to open in zellij: ${lastError}`, "error");
+        ctx.ui.notify(`Failed to open in editor: ${lastError}`, "error");
         return false;
       };
 
@@ -178,7 +123,7 @@ export default function contextOverlayExtension(pi: ExtensionAPI): void {
             keybindings,
             store.buildSnapshot(modelLabel),
             () => done(undefined),
-            openPathInZellij,
+            openPathInEditor,
             (message, level) => ctx.ui.notify(message, level ?? "info"),
           );
 

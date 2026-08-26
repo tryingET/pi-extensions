@@ -18,6 +18,7 @@ import {
   layoutOccupancyBar,
   moveIcicleCursor,
 } from "../src/icicle-layout.ts";
+import { planOpenFile, resolveEditorCommand } from "../src/open-file.ts";
 import type { ContextGroup, ContextItem, ContextSnapshot } from "../src/types.ts";
 
 initTheme();
@@ -490,6 +491,32 @@ test("icicle layout clamps cursor and stays empty-safe", () => {
   assert.equal(cursor.depth, 2);
   cursor = moveIcicleCursor(groups, cursor, "down");
   assert.equal(cursor.depth, 2);
+});
+
+test("planOpenFile prefers zellij in zellij and Ghostty editor launch otherwise", () => {
+  assert.deepEqual(resolveEditorCommand({ EDITOR: "micro" }), ["micro"]);
+  const zellij = planOpenFile({
+    filePath: "/repo/a.ts",
+    cwd: "/repo",
+    env: { ZELLIJ: "0", EDITOR: "micro" },
+  });
+  assert.equal(zellij[0]?.command, "zellij");
+  assert.ok(zellij.some((attempt) => attempt.label === "zellij-run"));
+
+  const ghostty = planOpenFile({
+    filePath: "/repo/a.ts",
+    cwd: "/repo",
+    env: { TERM_PROGRAM: "ghostty", EDITOR: "micro" },
+  });
+  assert.equal(ghostty[0]?.command, "ghostty");
+  assert.ok(ghostty.some((attempt) => attempt.label === "ghostty-new-window"));
+  assert.ok(
+    ghostty.some((attempt) => attempt.args.includes("-e") && attempt.args.includes("micro")),
+  );
+  assert.equal(
+    ghostty.some((attempt) => attempt.command === "zellij"),
+    false,
+  );
 });
 
 test("overlay occupancy strip uses host usage and stays unknown when tokens are null", () => {

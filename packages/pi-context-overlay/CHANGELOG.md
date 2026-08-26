@@ -46,6 +46,7 @@ All notable changes to this project should be documented here.
 ### Fixed
 
 - `/c` keeps both languages: `i` uses icicle `←`/`→` frames and `↑`/`↓` depth; `Tab` hops to the file list so `↑`/`↓` select files again.
+- `Enter` opens a file-backed item in `$VISUAL`/`$EDITOR` via zellij when present, otherwise Ghostty (`+new-tab` / `+new-window` / `-e`).
 
 ### Changed
 

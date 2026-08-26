@@ -21,7 +21,7 @@ It does **not** belong in `packages/pi-interaction/` because it is not an intera
 `@tryinget/pi-context-overlay` is a higher-level operator feature:
 - registers the `/c` command
 - renders a context inspection overlay
-- helps open context-related files in zellij
+- helps open context-related files in `$VISUAL`/`$EDITOR` (zellij pane or Ghostty tab/window)
 - ships the `context-report` prompt
 
 For `FCOS-M48` steward-continuity work, this package is the exact Pi wake-up presentation carrier named by `../../docs/project/2026-05-08-fcos-m48-pi-wakeup-carrier.md`. That means it participates in wake-up/context presentation; it does not own canonical continuity state.
@@ -35,7 +35,7 @@ This package was re-scaffolded from `~/ai-society/softwareco/owned/pi-extensions
 
 ## Commands
 
-- `/c` — open the context inspector overlay (occupancy strip; `Tab` cycles groups → icicle → files; `i` icicle frames/depth, `g` groups list)
+- `/c` — open the context inspector overlay (occupancy strip; `Tab` cycles groups → icicle → files; `i` icicle frames/depth, `g` groups list; `Enter` opens a file-backed item in `$VISUAL`/`$EDITOR`)
 - `/context-report` — generate a concise context-window report
 
 ## Package contents

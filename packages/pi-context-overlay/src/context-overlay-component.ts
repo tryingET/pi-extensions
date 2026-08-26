@@ -103,7 +103,7 @@ export class ContextOverlayComponent {
     }
 
     if (matchesKey(data, "enter")) {
-      if (this.focusPane === "items" || this.icicleNavActive()) this.openSelectedItem();
+      this.openSelectedItem();
       return;
     }
 
