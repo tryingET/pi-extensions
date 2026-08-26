@@ -152,9 +152,12 @@ Independent review + empirical conservation check against the first-cut prototyp
 
 P2 live TUI review (2026-08-26, independent read-only; no Ghostty `/c` proof):
 ledger holds on the live path (no JSONL/strata import, no warmth/`cacheRead`, occupancy
-strip honors `tokens == null`, runway omitted). High residual: Ghostty `pi.exec` timeout
-(`killed`) is treated as editor-open success and dismisses `/c`. Medium: this status line
-and §4 intro were stale (fixed in the same slice). Do not merge corpus/API into this
+strip honors `tokens == null`, runway omitted). High residual fixed in the follow-up
+slice: a host timeout kill was treated as editor-open success and dismissed `/c`; now
+`killed` is always failure, the Ghostty editor launch (`ghostty -e`) is detached and never
+signalled, and the `+new-window -e` payload misuse was removed. Icicle frames are labeled
+`est` so estimated shares stay distinct from measured occupancy. Medium (fixed in the same
+slice): this status line and §4 intro were stale. Do not merge corpus/API into this
 package or into `pi-session-insights` as-is — different IRs (`strata.json` vs
 `pi.session-insights.v1`).
 

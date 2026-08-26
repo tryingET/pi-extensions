@@ -18,7 +18,8 @@ import {
   layoutOccupancyBar,
   moveIcicleCursor,
 } from "../src/icicle-layout.ts";
-import { planOpenFile, resolveEditorCommand } from "../src/open-file.ts";
+import type { OpenFileAttempt } from "../src/open-file.ts";
+import { executeOpenFile, planOpenFile, resolveEditorCommand } from "../src/open-file.ts";
 import type { ContextGroup, ContextItem, ContextSnapshot } from "../src/types.ts";
 
 initTheme();
@@ -501,7 +502,8 @@ test("planOpenFile prefers zellij in zellij and Ghostty editor launch otherwise"
     env: { ZELLIJ: "0", EDITOR: "micro" },
   });
   assert.equal(zellij[0]?.command, "zellij");
-  assert.ok(zellij.some((attempt) => attempt.label === "zellij-run"));
+  assert.ok(zellij.every((attempt) => attempt.mode === "wait"));
+  assert.ok(zellij.every((attempt) => attempt.timeoutMs === 5000));
 
   const ghostty = planOpenFile({
     filePath: "/repo/a.ts",
@@ -509,14 +511,59 @@ test("planOpenFile prefers zellij in zellij and Ghostty editor launch otherwise"
     env: { TERM_PROGRAM: "ghostty", EDITOR: "micro" },
   });
   assert.equal(ghostty[0]?.command, "ghostty");
-  assert.ok(ghostty.some((attempt) => attempt.label === "ghostty-new-window"));
-  assert.ok(
-    ghostty.some((attempt) => attempt.args.includes("-e") && attempt.args.includes("micro")),
+  const tab = ghostty.find((attempt) => attempt.label === "ghostty-new-tab");
+  assert.equal(tab?.mode, "wait");
+  const win = ghostty.find((attempt) => attempt.label === "ghostty-new-window");
+  assert.equal(win?.mode, "detach");
+  assert.equal(win?.args[0], "--working-directory=/repo");
+  assert.ok(win?.args.includes("-e"));
+  assert.ok(win?.args.includes("micro"));
+  assert.ok(win?.args.includes("/repo/a.ts"));
+  // The contract-violating "+new-window -e" payload attempt must not exist.
+  assert.equal(
+    ghostty.some((attempt) => attempt.args.includes("+new-window")),
+    false,
   );
   assert.equal(
     ghostty.some((attempt) => attempt.command === "zellij"),
     false,
   );
+});
+
+test("executeOpenFile never treats a host kill as success", async () => {
+  const singleWait: OpenFileAttempt[] = [
+    { label: "only", command: "x", args: [], mode: "wait", timeoutMs: 1 },
+  ];
+  const killed = await executeOpenFile(singleWait, "/repo", {
+    wait: async () => ({ code: 0, killed: true }),
+    detach: async () => ({ timedOut: false, code: 0 }),
+  });
+  assert.equal(killed.ok, false);
+  assert.match(killed.ok === false ? killed.detail : "", /timed out \(killed\)/);
+
+  const plan = planOpenFile({
+    filePath: "/repo/a.ts",
+    cwd: "/repo",
+    env: { TERM_PROGRAM: "ghostty", EDITOR: "micro" },
+  });
+
+  const detached = await executeOpenFile(plan, "/repo", {
+    wait: async () => ({ code: 1, killed: false }),
+    detach: async () => ({ timedOut: true, code: null }),
+  });
+  assert.deepEqual(detached, { ok: true, label: "ghostty-new-window", kind: "detached" });
+
+  const ack = await executeOpenFile(plan, "/repo", {
+    wait: async (attempt) => ({ code: attempt.label === "ghostty-new-tab" ? 0 : 1, killed: false }),
+    detach: async () => ({ timedOut: false, code: 1 }),
+  });
+  assert.deepEqual(ack, { ok: true, label: "ghostty-new-tab", kind: "ack" });
+
+  const spawnError = await executeOpenFile(plan, "/repo", {
+    wait: async () => ({ code: 1, killed: false }),
+    detach: async () => ({ timedOut: false, code: null, error: "ENOENT" }),
+  });
+  assert.equal(spawnError.ok, false);
 });
 
 test("overlay occupancy strip uses host usage and stays unknown when tokens are null", () => {

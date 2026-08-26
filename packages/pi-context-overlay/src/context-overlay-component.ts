@@ -272,10 +272,10 @@ export class ContextOverlayComponent {
     const mode = this.modeLabel();
     const nav =
       mode === "icicle"
-        ? "Tab files • ←/→ frame • ↑/↓ depth"
+        ? "←/→ frame • ↑/↓ depth • Tab files • g groups"
         : mode === "items"
-          ? "Tab groups • ↑/↓ select • Enter open file"
-          : "Tab icicle • ←/→ pane • ↑/↓ select";
+          ? "↑/↓ select • Enter open file • Tab groups"
+          : "←/→ pane • ↑/↓ select • Tab icicle";
     return this.theme.fg("dim", `${close} • ${toggle} • ${mode.toUpperCase()} • ${nav}`);
   }
 
@@ -285,7 +285,7 @@ export class ContextOverlayComponent {
     const measured = usageTokens != null && usageTokens > 0 ? usageTokens : undefined;
     const barW = Math.max(0, width - ICICLE_PREFIX);
     const rows = layoutIcicleRows(view, barW, measured);
-    const out: string[] = [this.theme.fg("accent", "Icicle  cat → file → item")];
+    const out: string[] = [this.theme.fg("accent", "Icicle  cat → file → item (est)")];
     const focusDepth = this.icicleNavActive()
       ? view.cursor.depth
       : this.focusPane === "items"
@@ -312,7 +312,7 @@ export class ContextOverlayComponent {
     }
     const item = this.snapshot.groups[this.selectedGroup]?.items[this.selectedItem];
     const caption = item
-      ? `${item.path ? basename(item.path) : item.label} (t:${item.tokens})`
+      ? `${item.path ? basename(item.path) : item.label} (t:~${item.tokens} est)`
       : "empty";
     out.push(this.theme.fg("dim", caption));
     return out;

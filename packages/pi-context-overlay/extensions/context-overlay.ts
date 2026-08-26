@@ -11,7 +11,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { ContextOverlayComponent } from "../src/context-overlay-component.js";
-import { planOpenFile } from "../src/open-file.js";
+import { executeOpenFile, planOpenFile, spawnDetachRunner } from "../src/open-file.js";
 import { ContextSnapshotStore } from "../src/snapshot-store.js";
 
 const stripAtPrefix = (path: string): string => (path.startsWith("@") ? path.slice(1) : path);
@@ -95,20 +95,19 @@ export default function contextOverlayExtension(pi: ExtensionAPI): void {
           return false;
         }
 
-        let lastError = "unknown error";
-        for (const attempt of attempts) {
-          const result = await pi.exec(attempt.command, attempt.args, {
-            cwd: ctx.cwd,
-            timeout: attempt.timeoutMs,
-          });
-          if (result.code === 0 || result.killed) {
-            ctx.ui.notify(`Opened in editor (${attempt.label}): ${filePath}`, "info");
-            return true;
-          }
-          lastError = (result.stderr || result.stdout || `exit ${result.code}`).trim();
+        const result = await executeOpenFile(attempts, ctx.cwd, {
+          wait: async (attempt, cwd) =>
+            pi.exec(attempt.command, attempt.args, { cwd, timeout: attempt.timeoutMs }),
+          detach: spawnDetachRunner(),
+        });
+
+        if (result.ok) {
+          const how = result.kind === "detached" ? "editor session launched" : "opened in editor";
+          ctx.ui.notify(`${how} (${result.label}): ${filePath}`, "info");
+          return true;
         }
 
-        ctx.ui.notify(`Failed to open in editor: ${lastError}`, "error");
+        ctx.ui.notify(`Failed to open in editor: ${result.detail}`, "error");
         return false;
       };
 

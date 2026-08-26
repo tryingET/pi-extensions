@@ -46,7 +46,8 @@ All notable changes to this project should be documented here.
 ### Fixed
 
 - `/c` keeps both languages: `i` uses icicle `←`/`→` frames and `↑`/`↓` depth; `Tab` hops to the file list so `↑`/`↓` select files again.
-- `Enter` opens a file-backed item in `$VISUAL`/`$EDITOR` via zellij when present, otherwise Ghostty (`+new-tab` / `+new-window` / `-e`).
+- `Enter` opens a file-backed item in `$VISUAL`/`$EDITOR` via zellij when present, otherwise Ghostty.
+- Editor launch honesty: a host timeout kill is now a failure (never "opened"), `ghostty -e` is launched detached so the editor session is never signalled, the contract-violating `+new-window -e` payload was removed, and `/c` stays open on failure. Icicle frames are labeled `est` to keep estimated shares distinct from measured occupancy.
 
 ### Changed
 
