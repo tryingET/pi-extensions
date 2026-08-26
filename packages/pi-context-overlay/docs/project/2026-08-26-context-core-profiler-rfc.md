@@ -161,6 +161,9 @@ slice): this status line and §4 intro were stale. Do not merge corpus/API into 
 package or into `pi-session-insights` as-is — different IRs (`strata.json` vs
 `pi.session-insights.v1`).
 
+Live follow-up (operator-verified in Ghostty): after `/reload` + `/c`, `Enter` on a
+file-backed item opens `$EDITOR`; the launch-honesty fix is confirmed on the live desktop.
+
 ## 7. Remaining debt (honest, not deferred-as-done)
 
 Resolved in the follow-up slice:
