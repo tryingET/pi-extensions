@@ -66,6 +66,20 @@ npm run check
 npm run release:check:quick
 ```
 
+## Prototype: context core (allocator profiler)
+
+`scripts/context-strata-replay.mjs` replays a session JSONL into a context-window
+allocation ledger (per-request usage/warmth/cost, lifetimes, token-turns, liveness,
+dedup) and generates a self-contained visual artifact (stratigraphy core, warm
+contour, thermometer, cost ridge, fossil record, intent sankey, runway gauge):
+
+```bash
+node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
+```
+
+Model, measured evidence, and phased adoption plan:
+[docs/project/2026-08-26-context-core-profiler-rfc.md](docs/project/2026-08-26-context-core-profiler-rfc.md)
+
 See also:
 - [examples/live-smoke.md](examples/live-smoke.md)
 - [docs/project/2026-04-01-session-start-surface-compatibility.md](docs/project/2026-04-01-session-start-surface-compatibility.md)

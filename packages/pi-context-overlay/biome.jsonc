@@ -37,5 +37,18 @@
         "useTemplate": "error"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["scripts/context-strata.template.html"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useTemplate": "off",
+            "noDescendingSpecificity": "off"
+          }
+        }
+      }
+    }
+  ]
 }

@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Context Core — session stratigraphy</title>
+<style>
+  :root {
+    --bg: #0a0d13; --panel: #10141d; --line: #1d2433; --ink: #c8d3e8; --dim: #7a8296; --faint: #4a5265;
+    --amber: #ffb454; --cold: #7aa2f7; --fault: #f7768e; --green: #6fbf8f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 2px; color: #e8eefb; }
+  .sub { color: var(--dim); margin: 0 0 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 18px; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 12px; }
+  .chip b { color: #e8eefb; font-weight: 600; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 14px; padding: 12px 14px 10px; position: relative; }
+  .panel h2 { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+  .panel h2 em { font-style: normal; color: var(--faint); letter-spacing: 0; text-transform: none; margin-left: 8px; }
+  canvas { display: block; width: 100%; }
+  .toggles { position: absolute; top: 8px; right: 12px; display: flex; gap: 6px; }
+  .tg { font-size: 11px; color: var(--dim); border: 1px solid var(--line); background: transparent; border-radius: 3px; padding: 2px 8px; cursor: pointer; }
+  .tg.on { color: var(--amber); border-color: #3d3520; }
+  .tooltip { position: fixed; pointer-events: none; background: #0d1119; border: 1px solid #2a3346; border-radius: 4px; padding: 7px 10px; font-size: 12px; z-index: 50; display: none; max-width: 340px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+  .tooltip .tt-title { color: #e8eefb; font-weight: 600; margin-bottom: 3px; }
+  .tooltip .row { display: flex; justify-content: space-between; gap: 16px; color: var(--dim); }
+  .tooltip .row b { color: var(--ink); font-weight: 500; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th { text-align: left; color: var(--faint); font-weight: 500; padding: 3px 8px 5px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 3px 8px 3px 0; border-bottom: 1px solid #141926; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  td.num, th.num { text-align: right; }
+  td b { color: var(--ink); font-weight: 500; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 10px; }
+  .legend span { font-size: 11px; color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .epistemic { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Context Core — session stratigraphy</h1>
+  <p class="sub" id="subtitle">…</p>
+  <div class="chips" id="chips"></div>
+
+  <div class="panel" id="corePanel">
+    <h2>The core <em>y = token offset in window · x = provider request · each block = one allocation (message/block) · faults = compaction</em></h2>
+    <div class="toggles">
+      <button type="button" class="tg on" id="tgWarm">warm contour</button>
+      <button type="button" class="tg on" id="tgFaults">faults</button>
+      <button type="button" class="tg on" id="tgGhosts">ghost heap</button>
+      <button type="button" class="tg" id="tgLogY">log y</button>
+    </div>
+    <canvas id="core" height="560"></canvas>
+    <div class="legend" id="catLegend"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Thermometer <em>amber bars = measured cache-hit share of billed input · white line = model: warm prefix fraction</em></h2>
+    <canvas id="thermo" height="72"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Cost ridge <em>marginal $ per request · cold (fresh input price) vs warm (cache-priced) · aftershocks after faults</em></h2>
+    <div class="toggles"><button type="button" class="tg" id="tgLogC">log $</button></div>
+    <canvas id="cost" height="120"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Fossil record <em>dark = fraction of resident tool-heap known (post-hoc) to be dead — never referenced again</em></h2>
+    <canvas id="fossil" height="80"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Flow of cause <em>user intent → category · width = token-turns (size × requests-alive), the true residency bill</em></h2>
+    <canvas id="sankey" height="360"></canvas>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Runway <em>burn-rate projection</em></h2>
+      <div id="runway"></div>
+      <h2 style="margin-top:16px">Ghost heap <em>largest dead allocations (token-turns burned)</em></h2>
+      <table id="ghostTable"></table>
+    </div>
+    <div class="panel">
+      <h2>Duplicate allocations <em>same path tooled repeatedly</em></h2>
+      <table id="dedupTable"></table>
+    </div>
+  </div>
+
+  <div class="epistemic" id="epistemic"></div>
+</div>
+<div class="tooltip" id="tt"></div>
+
+<script>
+const D = __STRATA_JSON__;
+const fmt = {
+  k: (t) => t >= 1000 ? (t / 1000).toFixed(1) + "k" : String(Math.round(t)),
+  $: (v) => v >= 0.005 ? "$" + v.toFixed(v >= 1 ? 2 : 3) : "$" + v.toFixed(4),
+  pct: (v) => (v * 100).toFixed(1) + "%",
+};
+const rq = D.requests, N = rq.length;
+const catOf = Object.fromEntries(D.cats.map(c => [c.id, c]));
+const colorOf = (id) => catOf[id]?.color || "#7a8296";
+
+// ---- header ----
+document.getElementById("subtitle").textContent =
+  `${D.meta.file} · replayed allocation ledger · ${D.meta.turns} turns / ${N} requests`;
+const chips = [
+  ["total cost", fmt.$(D.meta.costTotal)],
+  ["cache-priced share", fmt.pct(D.meta.cacheHit)],
+  ["billed input", fmt.k(D.meta.inputTokens + D.meta.cacheReadTokens) + " tk"],
+  ["token-turns", fmt.k(D.meta.tokenTurns)],
+  ["mined dead heap", fmt.pct(D.meta.wasteRatio) + " of pathed tool tk·req"],
+  ["faults (compactions)", String(D.meta.faults.length)],
+];
+document.getElementById("chips").innerHTML = chips.map(c => `<div class="chip">${c[0]}: <b>${c[1]}</b></div>`).join("");
+document.getElementById("catLegend").innerHTML = D.cats.map(c => `<span><i class="sw" style="background:${c.color}"></i>${c.label}</span>`).join("");
+
+// ---- shared x scale with zoom ----
+let xMin = 0, xMax = Math.max(1, N - 1);
+const xScale = (w) => (r) => ((r - xMin) / Math.max(1e-9, xMax - xMin)) * (w - PADX) + PADX;
+const PADX = 44, PADR = 10;
+
+function canvas(id) {
+  const c = document.getElementById(id);
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = c.parentElement.clientWidth - 28;
+  const cssH = +c.getAttribute("height");
+  c.width = cssW * dpr; c.height = cssH * dpr; c.style.height = cssH + "px";
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { c, g, w: cssW, h: cssH };
+}
+const cv = {};
+["core", "thermo", "cost", "fossil", "sankey"].forEach(id => { cv[id] = canvas(id); });
+
+// ---- allocations: chronological stacking (append-only arena between faults) ----
+// group items into eras delimited by faults
+const faults = D.meta.faults.map(f => ({ ...f, afterR: f.r }));
+const itemsByEra = [];
+{
+  let era = [], lastR = 0;
+  for (const it of D.items) {
+    const f = faults.find(fl => it.b > fl.r && it.b <= fl.r + 1 && it.c === "summary");
+    if (f && era.length) { itemsByEra.push({ items: era, startR: lastR }); era = []; lastR = f.r + 1; }
+    era.push(it);
+  }
+  if (era.length) itemsByEra.push({ items: era, startR: lastR });
+}
+// simple, robust layout: restart stacking at each era; offset = cumulative tokens by birth
+const eraLayout = itemsByEra.map(({ items }) => {
+  let off = 0;
+  return items.map(it => {
+    const y0 = off; off += it.t;
+    return { ...it, y0, y1: off };
+  });
+});
+const maxTokens = Math.max(1, ...eraLayout.map(list => list[list.length - 1].y1), ...rq.map(r => r.residentEst));
+
+// ---- THE CORE ----
+let showWarm = true, showFaults = true, showGhosts = true, logY = false;
+function drawCore() {
+  const { g, w, h } = cv.core;
+  g.clearRect(0, 0, w, h);
+  const X = xScale(w), top = 14, bottom = h - 26;
+  const yTok = logY
+    ? (t) => top + (Math.log10(1 + t) / Math.log10(1 + maxTokens)) * (bottom - top)
+    : (t) => top + (t / maxTokens) * (bottom - top);
+
+  // grid: token lines
+  g.strokeStyle = "#1a2130"; g.fillStyle = "#4a5265"; g.font = "10px ui-monospace, monospace"; g.textAlign = "right";
+  const steps = logY ? [1e3, 1e4, 5e4, 1e5, 2e5] : [25e3, 50e3, 100e3, 150e3, 200e3];
+  for (const s of steps.filter(s => s < maxTokens)) {
+    const y = yTok(s);
+    g.beginPath(); g.moveTo(PADX, y); g.lineTo(w - PADR, y); g.stroke();
+    g.fillText(fmt.k(s), PADX - 6, y + 3);
+  }
+  // request ticks
+  g.textAlign = "center";
+  const tickEvery = Math.max(1, Math.round((xMax - xMin) / 12));
+  for (let r = Math.ceil(xMin / tickEvery) * tickEvery; r <= xMax; r += tickEvery) {
+    g.fillStyle = "#4a5265"; g.fillText("#" + r, X(r), h - 8);
+    g.strokeStyle = "#151b28"; g.beginPath(); g.moveTo(X(r), top); g.lineTo(X(r), bottom); g.stroke();
+  }
+
+  // allocations
+  for (const list of eraLayout) {
+    for (const it of list) {
+      const x0 = X(Math.max(xMin, it.b)), x1 = X(Math.min(xMax, it.f));
+      if (x1 <= x0) continue;
+      const col = colorOf(it.c);
+      if (it.d && showGhosts) {
+        g.globalAlpha = 0.28;
+      }
+      g.fillStyle = col;
+      const y0 = yTok(it.y0), y1 = Math.max(yTok(it.y0) + 0.6, yTok(it.y1));
+      g.fillRect(x0, y0, Math.max(0.75, x1 - x0), y1 - y0);
+      g.globalAlpha = 1;
+    }
+  }
+
+  // warm contour: model warm prefix over requests
+  if (showWarm) {
+    g.strokeStyle = "rgba(255,180,84,.85)"; g.lineWidth = 1.4; g.beginPath();
+    let started = false;
+    for (let r = 0; r < N; r++) {
+      if (r < xMin || r > xMax) continue;
+      const y = yTok(rq[r].warmModelTokens);
+      if (!started) { g.moveTo(X(r), y); started = true; } else g.lineTo(X(r), y);
+    }
+    g.stroke();
+    // fill above contour with cool tint (cold tail)
+    g.lineTo(X(Math.min(xMax, N - 1)), top); g.lineTo(X(xMin), top); g.closePath();
+    g.fillStyle = "rgba(122,162,247,.05)"; g.fill();
+    g.lineWidth = 1;
+  }
+
+  // faults
+  if (showFaults) {
+    for (const f of faults) {
+      if (f.r < xMin || f.r > xMax) continue;
+      const x = X(f.r);
+      g.strokeStyle = "rgba(247,118,142,.8)"; g.setLineDash([5, 4]);
+      g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]);
+      g.fillStyle = "#f7768e"; g.textAlign = "center"; g.font = "10px ui-monospace, monospace";
+      g.fillText("⌇ fault", x, top + 10);
+      g.fillText("free()", x, top + 22);
+    }
+  }
+  // high-water annotation
+  g.fillStyle = "#4a5265"; g.textAlign = "left";
+  g.fillText(logY ? "log tokens" : "tokens (est, chars/4)", PADX + 4, top + 2);
+}
+
+// ---- thermometer ----
+function drawThermo() {
+  const { g, w, h } = cv.thermo; g.clearRect(0, 0, w, h);
+  const X = xScale(w), bh = h - 26;
+  g.font = "10px ui-monospace, monospace"; g.fillStyle = "#4a5265";
+  g.fillText("100% warm", 4, 10); g.fillText("0", 4, bh);
+  for (let r = 0; r < N; r++) {
+    const x = X(r); if (x < PADX - 2 || x > w) continue;
+    const billed = rq[r].input + rq[r].cacheRead;
+    const frac = billed > 0 ? rq[r].cacheRead / billed : 0;
+    const barH = frac * (bh - 10);
+    g.fillStyle = "rgba(255,180,84,.55)";
+    g.fillRect(x, bh - barH, Math.max(0.8, X(r + 1) - x), barH);
+  }
+  // model warm fraction line
+  g.strokeStyle = "#e8eefb"; g.lineWidth = 1; g.beginPath();
+  let started = false;
+  for (let r = 0; r < N; r++) {
+    if (r < xMin || r > xMax) continue;
+    const frac = rq[r].residentEst > 0 ? rq[r].warmModelTokens / rq[r].residentEst : 0;
+    const y = bh - frac * (bh - 10);
+    if (!started) { g.moveTo(X(r), y); started = true; } else g.lineTo(X(r), y);
+  }
+  g.stroke();
+}
+
+// ---- cost ridge ----
+let logC = false;
+function drawCost() {
+  const { g, w, h } = cv.cost; g.clearRect(0, 0, w, h);
+  const X = xScale(w), bh = h - 22;
+  const maxC = Math.max(1e-9, ...rq.map(r => r.costInput + r.costCacheRead + r.costOutput));
+  const cy = (v) => logC
+    ? bh - (Math.log10(1e-6 + v) / Math.log10(1e-6 + maxC)) * (bh - 8)
+    : bh - (v / maxC) * (bh - 8);
+  const bw = Math.max(0.8, (w - PADX - PADR) / Math.max(1, xMax - xMin + 1));
+  for (let r = 0; r < N; r++) {
+    const x = X(r); if (x < PADX - 2 || x > w) continue;
+    // stack: warm (cache-priced) below, cold above
+    const warm = rq[r].costCacheRead + rq[r].costCacheWrite;
+    const cold = rq[r].costInput;
+    const yW = cy(warm), yC = cy(warm + cold);
+    g.fillStyle = "rgba(255,180,84,.45)"; g.fillRect(x, yW, bw, bh - yW);
+    g.fillStyle = "rgba(122,162,247,.75)"; g.fillRect(x, yC, bw, yW - yC);
+  }
+  g.strokeStyle = "#1a2130"; g.beginPath(); g.moveTo(PADX, bh); g.lineTo(w - PADR, bh); g.stroke();
+  g.fillStyle = "#4a5265"; g.font = "10px ui-monospace, monospace"; g.textAlign = "left";
+  g.fillText(`peak ${fmt.$(maxC)}${logC ? " (log)" : ""}`, PADX + 4, 10);
+}
+
+// ---- fossil record ----
+function drawFossil() {
+  const { g, w, h } = cv.fossil; g.clearRect(0, 0, w, h);
+  const X = xScale(w), bh = h - 22;
+  // resident dead tool-heap fraction per request
+  const deadFrac = rq.map(() => null);
+  const deadItems = D.items.filter(it => it.d && (it.c === "toolResult" || it.c === "toolCall"));
+  for (let r = 0; r < N; r++) {
+    const tool = (D.series.toolResult || [])[r] + (D.series.toolCall || [])[r];
+    if (tool <= 0) { deadFrac[r] = 0; continue; }
+    let dead = 0;
+    for (const it of deadItems) if (it.b <= r && r < it.f) dead += it.t;
+    deadFrac[r] = Math.min(1, dead / tool);
+  }
+  const bw = Math.max(0.8, (w - PADX - PADR) / Math.max(1, xMax - xMin + 1));
+  for (let r = 0; r < N; r++) {
+    const x = X(r); if (x < PADX - 2 || x > w) continue;
+    const dh = deadFrac[r] * (bh - 8);
+    g.fillStyle = "rgba(90,96,120,.8)";
+    g.fillRect(x, bh - dh, bw, dh);
+  }
+  g.strokeStyle = "#1a2130"; g.beginPath(); g.moveTo(PADX, bh); g.lineTo(w - PADR, bh); g.stroke();
+  g.fillStyle = "#4a5265"; g.font = "10px ui-monospace, monospace";
+  g.fillText("dark = dead (never referenced again)", PADX + 4, 10);
+}
+
+// ---- sankey ----
+function drawSankey() {
+  const { g, w, h } = cv.sankey; g.clearRect(0, 0, w, h);
+  const links = D.sankey.links;
+  const lefts = [...new Set(links.map(l => l.source))];
+  const rights = [...new Set(links.map(l => l.target))];
+  const x0 = 150, x1 = w - 130, midW = x1 - x0;
+  const pad = 14, nodeGap = 6;
+  const lv = Object.fromEntries(lefts.map(n => [n, links.filter(l => l.source === n).reduce((a, l) => a + l.value, 0)]));
+  const rv = Object.fromEntries(rights.map(n => [n, links.filter(l => l.target === n).reduce((a, l) => a + l.value, 0)]));
+  const lTot = Object.values(lv).reduce((a, b) => a + b, 0) || 1;
+  const rTot = Object.values(rv).reduce((a, b) => a + b, 0) || 1;
+  const H = h - 2 * pad;
+  const scaleY = (names, vals, tot) => {
+    const m = new Map(); let y = pad;
+    const usable = H - nodeGap * (names.length - 1);
+    for (const n of names) {
+      const size = Math.max(2, (vals[n] / tot) * usable);
+      m.set(n, { y, h: size }); y += size + nodeGap;
+    }
+    return m;
+  };
+  const L = scaleY(lefts, lv, lTot), R = scaleY(rights, rv, rTot);
+  // link offsets
+  const loff = new Map(lefts.map(n => [n, 0])), roff = new Map(rights.map(n => [n, 0]));
+  const sorted = [...links].sort((a, b) => (L.get(a.source).y - L.get(b.source).y));
+  const linkHitboxes = [];
+  for (const l of sorted) {
+    const ln = L.get(l.source), rn = R.get(l.target);
+    const thick = Math.max(0.5, (l.value / lTot) * (H - nodeGap * (lefts.length - 1)));
+    const ly = ln.y + loff.get(l.source); loff.set(l.source, loff.get(l.source) + thick);
+    const ry = rn.y + roff.get(l.target); roff.set(l.target, roff.get(l.target) + thick);
+    const col = colorOf(catIds().includes(l.target) ? l.target : "other");
+    g.fillStyle = col + "55";
+    g.beginPath();
+    g.moveTo(x0, ly); g.bezierCurveTo(x0 + midW * 0.5, ly, x1 - midW * 0.5, ry, x1, ry);
+    g.lineTo(x1, ry + thick); g.bezierCurveTo(x1 - midW * 0.5, ry + thick, x0 + midW * 0.5, ly + thick, x0, ly + thick);
+    g.closePath(); g.fill();
+    linkHitboxes.push({ x0, x1, ly, ry, thick, l, col });
+  }
+  cv.sankey._linkHitboxes = linkHitboxes;
+  // nodes + labels
+  g.font = "11px ui-monospace, monospace";
+  for (const n of lefts) {
+    const p = L.get(n);
+    g.fillStyle = "#8b95ad"; g.fillRect(x0 - 4, p.y, 4, p.h);
+    g.fillStyle = "#9aa5bd"; g.textAlign = "right";
+    g.fillText(n.length > 26 ? n.slice(0, 25) + "…" : n, x0 - 9, p.y + p.h / 2 + 3);
+  }
+  for (const n of rights) {
+    const p = R.get(n);
+    const col = colorOf(catIds().includes(n) ? n : "other");
+    g.fillStyle = col; g.fillRect(x1, p.y, 4, p.h);
+    g.fillStyle = col; g.textAlign = "left";
+    const label = D.cats.find(c => c.id === n)?.label || n;
+    g.fillText(`${label} · ${fmt.k(rv[n])}`, x1 + 9, p.y + p.h / 2 + 3);
+  }
+}
+const catIds = () => D.cats.map(c => c.id);
+
+// ---- side panels ----
+function renderSide() {
+  const m = D.meta, rw = m.runway;
+  const pctUsed = rw.contextWindow ? (rw.residentLast / rw.contextWindow) : null;
+  document.getElementById("runway").innerHTML = `
+    <div style="margin:6px 0 4px;color:var(--dim)">
+      resident <b style="color:var(--ink)">${fmt.k(rw.residentLast)}</b> of ${fmt.k(rw.contextWindow)} window
+      ${pctUsed != null ? `(${fmt.pct(pctUsed)})` : ""}
+    </div>
+    <div style="background:#151b28;border-radius:3px;height:14px;position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;width:${Math.min(100, (pctUsed || 0) * 100)}%;background:linear-gradient(90deg,#6fbf8f,#e0a458,#f7768e)"></div>
+    </div>
+    <div style="margin-top:6px;color:var(--dim)">
+      burn ≈ <b style="color:var(--ink)">${fmt.k(rw.burnPerRequest)}</b> tk/request →
+      ${rw.requestsRemaining != null
+        ? `fault in ~<b style="color:var(--ink)">${rw.requestsRemaining}</b> requests`
+        : "no measurable burn"}
+    </div>`;
+
+  document.getElementById("ghostTable").innerHTML =
+    `<tr><th>allocation</th><th class="num">tk</th><th class="num">born→freed</th><th class="num">tk·req</th></tr>` +
+    D.ghosts.slice(0, 10).map(x =>
+      `<tr><td><b>${esc(x.label)}</b></td><td class="num">${fmt.k(x.tokens)}</td><td class="num">#${x.born}→#${x.freed}</td><td class="num">${fmt.k(x.tokenTurns)}</td></tr>`
+    ).join("") || "";
+
+  document.getElementById("dedupTable").innerHTML =
+    `<tr><th>path</th><th>tool</th><th class="num">×dup</th><th class="num">tk·req</th></tr>` +
+    D.dedup.slice(0, 12).map(x =>
+      `<tr><td><b>${esc(x.path.split("/").pop())}</b></td><td>${esc(x.toolName || "")}</td><td class="num">${x.count}</td><td class="num">${fmt.k(x.tokenTurns)}</td></tr>`
+    ).join("") || "";
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+// ---- epistemic footer ----
+document.getElementById("epistemic").innerHTML = [
+  `<span><i class="dot" style="background:#6fbf8f"></i>measured: per-request usage/cost, message chain, fault events (session JSONL)</span>`,
+  `<span><i class="dot" style="background:#ffb454"></i>derived: allocation sites, warm prefix model, dedup, runway</span>`,
+  `<span><i class="dot" style="background:#7aa2f7"></i>estimated: per-item tokens (chars/4, residual-calibrated bedrock)</span>`,
+  `<span><i class="dot" style="background:#9096aa"></i>inferred: deadness via basename reference mining — decidable only for pathed tool allocations; bash output liveness is unknown, not dead</span>`,
+].join("");
+
+// ---- tooltip + crosshair ----
+const tt = document.getElementById("tt");
+function bindHover(id, onMove) {
+  const c = document.getElementById(id);
+  c.addEventListener("mousemove", (e) => {
+    const rect = c.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const r = Math.round(xMin + ((x - PADX) / Math.max(1e-9, rect.width - 28 - PADX)) * (xMax - xMin));
+    onMove(e, r);
+  });
+  c.addEventListener("mouseleave", () => { tt.style.display = "none"; redraw(); });
+}
+function showTT(e, title, rows) {
+  tt.style.display = "block";
+  tt.innerHTML = `<div class="tt-title">${title}</div>` + rows.map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join("");
+  const pw = tt.offsetWidth, ph = tt.offsetHeight;
+  tt.style.left = Math.min(window.innerWidth - pw - 12, e.clientX + 14) + "px";
+  tt.style.top = Math.max(8, Math.min(window.innerHeight - ph - 12, e.clientY + 14)) + "px";
+}
+const reqRows = (r) => {
+  const q = rq[r]; if (!q) return [];
+  const billed = q.input + q.cacheRead;
+  return [
+    ["request", `#${r} · turn ${q.turn}`],
+    ["billed input", `${fmt.k(billed)} tk (warm ${billed ? fmt.pct(q.cacheRead / billed) : "—"})`],
+    ["resident (est)", fmt.k(q.residentEst)],
+    ["model warm prefix", fmt.k(q.warmModelTokens)],
+    ["output", fmt.k(q.output) + " tk"],
+    ["cost", fmt.$(q.costTotal)],
+  ];
+};
+bindHover("core", (e, r) => { showTT(e, D.meta.file, reqRows(r)); crosshair = r; redraw(); });
+bindHover("thermo", (e, r) => { showTT(e, "thermometer", reqRows(r)); crosshair = r; redraw(); });
+bindHover("cost", (e, r) => { showTT(e, "cost ridge", reqRows(r)); crosshair = r; redraw(); });
+bindHover("fossil", (e, r) => { showTT(e, "fossil record", reqRows(r)); crosshair = r; redraw(); });
+let crosshair = null;
+function drawCross() {
+  if (crosshair == null) return;
+  for (const id of ["core", "thermo", "cost", "fossil"]) {
+    const { g, w, h } = cv[id];
+    const X = xScale(w);
+    if (crosshair >= xMin && crosshair <= xMax) {
+      g.strokeStyle = "rgba(232,238,251,.28)"; g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(X(crosshair), 8); g.lineTo(X(crosshair), h - 18); g.stroke(); g.setLineDash([]);
+    }
+  }
+}
+
+// ---- zoom on core: drag select, dblclick reset ----
+{
+  const c = document.getElementById("core");
+  let down = null;
+  c.addEventListener("mousedown", (e) => { down = e.offsetX; });
+  c.addEventListener("mouseup", (e) => {
+    if (down == null) return;
+    const up = e.offsetX; down = null;
+    const rect = c.getBoundingClientRect();
+    const toR = (x) => xMin + ((x - PADX) / Math.max(1e-9, rect.width - 28 - PADX)) * (xMax - xMin);
+    const a = Math.min(toR(down), toR(up)), b = Math.max(toR(down), toR(up));
+    if (b - a >= 2) { xMin = Math.max(0, a); xMax = Math.min(N - 1, b); redraw(); }
+  });
+  c.addEventListener("dblclick", () => { xMin = 0; xMax = Math.max(1, N - 1); redraw(); });
+}
+
+// ---- toggles ----
+const tg = (id, get, set) => {
+  const b = document.getElementById(id);
+  b.onclick = () => { set(!get()); b.classList.toggle("on", get()); redraw(); };
+};
+tg("tgWarm", () => showWarm, v => showWarm = v);
+tg("tgFaults", () => showFaults, v => showFaults = v);
+tg("tgGhosts", () => showGhosts, v => showGhosts = v);
+tg("tgLogY", () => logY, v => logY = v);
+tg("tgLogC", () => logC, v => logC = v);
+
+function redraw() {
+  drawCore(); drawThermo(); drawCost(); drawFossil(); drawCross();
+}
+window.addEventListener("resize", () => {
+  ["core", "thermo", "cost", "fossil", "sankey"].forEach(id => { cv[id] = canvas(id); });
+  redraw(); drawSankey();
+});
+renderSide();
+redraw();
+drawSankey();
+</script>
+</body>
+</html>
