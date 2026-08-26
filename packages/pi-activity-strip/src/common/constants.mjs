@@ -43,3 +43,5 @@ export const DEFAULT_ELECTRON_CANDIDATES = [
   "electron32",
   "electron31",
 ];
+export const ACTIVITY_STRIP_EVENT_STALL_MS = 15 * 60_000;
+export const ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS = [250, 750];

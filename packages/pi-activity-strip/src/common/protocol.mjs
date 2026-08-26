@@ -25,6 +25,7 @@ export function makeMessage(type, payload = {}) {
 export function normalizeSessionSnapshot(session = {}) {
   const now = Date.now();
   const updatedAt = Number(session.updatedAt ?? now) || now;
+  const lastEventAt = Number(session.lastEventAt ?? updatedAt) || updatedAt;
   const startedAt = Number(session.startedAt ?? updatedAt) || updatedAt;
   const agentStartedAt =
     session.agentStartedAt == null ? null : Number(session.agentStartedAt) || null;
@@ -36,6 +37,7 @@ export function normalizeSessionSnapshot(session = {}) {
 
   return {
     sessionId: String(session.sessionId ?? ""),
+    publisherId: String(session.publisherId ?? ""),
     processId: Number(session.processId ?? 0) || 0,
     cwd: String(session.cwd ?? ""),
     repoLabel: String(session.repoLabel ?? "pi session"),
@@ -48,6 +50,7 @@ export function normalizeSessionSnapshot(session = {}) {
     state,
     turnIndex: Number(session.turnIndex ?? 0) || 0,
     updatedAt,
+    lastEventAt,
     startedAt,
     agentStartedAt,
     agentActive: Boolean(session.agentActive),

@@ -65,5 +65,5 @@ await publishSessionSnapshot(sessions[1]);
 
 await delay(2000);
 for (const session of sessions) {
-  await removeSession(session.sessionId);
+  await removeSession({ sessionId: session.sessionId, publisherId: session.publisherId });
 }

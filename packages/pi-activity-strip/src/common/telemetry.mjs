@@ -67,15 +67,17 @@ export function createSessionId() {
   return `${os.hostname()}-${process.pid}-${Date.now()}-${randomUUID().slice(0, 6)}`;
 }
 
-/** @param {{ cwd?: string; sessionName?: string; sessionId?: string }} [options] @returns {SessionSnapshot} */
+/** @param {{ cwd?: string; sessionName?: string; sessionId?: string; publisherId?: string }} [options] @returns {SessionSnapshot} */
 export function createInitialSnapshot({
   cwd = process.cwd(),
   sessionName = "",
   sessionId = "",
+  publisherId = "",
 } = {}) {
   const now = Date.now();
   return {
     sessionId: sessionId.trim() || createSessionId(),
+    publisherId: publisherId.trim() || randomUUID(),
     processId: process.pid,
     cwd,
     repoLabel: formatRepoLabel(cwd, sessionName),
@@ -88,6 +90,7 @@ export function createInitialSnapshot({
     state: "idle",
     turnIndex: 0,
     updatedAt: now,
+    lastEventAt: now,
     startedAt: now,
     agentStartedAt: null,
     agentActive: false,

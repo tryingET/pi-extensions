@@ -152,7 +152,7 @@ export class ActivityStripBroker extends EventEmitter {
         }, 20);
         return;
       case "remove":
-        this.store.remove(message.sessionId);
+        this.store.remove(String(message.sessionId ?? ""), String(message.publisherId ?? ""));
         this.emitSnapshot();
         return;
       case "upsert":

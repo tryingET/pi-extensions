@@ -5,6 +5,7 @@
 // ---
 
 /** @typedef {import("../common/contracts.ts").SessionSnapshot} SessionSnapshot */
+/** @typedef {import("../common/contracts.ts").TurnEndEventLike} TurnEndEventLike */
 /** @typedef {import("../common/contracts.ts").SessionTelemetryOptions} SessionTelemetryOptions */
 /** @typedef {import("../common/contracts.ts").SessionStartContextLike} SessionStartContextLike */
 /** @typedef {import("../common/contracts.ts").BeforeAgentStartEventLike} BeforeAgentStartEventLike */
@@ -12,6 +13,7 @@
 /** @typedef {import("../common/contracts.ts").MessageUpdateEventLike} MessageUpdateEventLike */
 /** @typedef {import("../common/contracts.ts").ToolExecutionEventLike} ToolExecutionEventLike */
 import {
+  ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS,
   ACTIVITY_STRIP_HEARTBEAT_MS,
   ACTIVITY_STRIP_SEND_THROTTLE_MS,
 } from "../common/constants.mjs";
@@ -41,7 +43,14 @@ function extractAssistantDelta(event) {
 }
 
 /** @param {SessionTelemetryOptions} [options] */
-export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = "" } = {}) {
+export function createSessionTelemetry({
+  pi,
+  cwd = process.cwd(),
+  sessionName = "",
+  transport,
+} = {}) {
+  const publish = transport?.publish ?? publishSessionSnapshot;
+  const removePublisher = transport?.remove ?? removeSession;
   /** @type {SessionSnapshot} */
   let snapshot = createInitialSnapshot({ cwd, sessionName });
   /** @type {NodeJS.Timeout | null} */
@@ -50,20 +59,52 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
   let flushTimer = null;
   let disposed = false;
   let pendingAssistant = "";
+  let lastStopReason = "";
+  let confirmedSignature = "";
+  let retryIndex = 0;
+
+  /** Signature of the display-relevant fields, used to detect lost transitions. */
+  function publishSignature() {
+    return [
+      snapshot.sessionId,
+      snapshot.state,
+      snapshot.phase,
+      snapshot.detail,
+      snapshot.agentActive,
+      snapshot.turnIndex,
+      snapshot.toolName,
+      snapshot.toolTarget,
+      snapshot.errorMessage,
+    ].join("\u001f");
+  }
 
   async function flush() {
     flushTimer = null;
     if (disposed) return;
+    // Heartbeat republish refreshes transport liveness only; lastEventAt stays
+    // pinned to the last real lifecycle event so stalled streams stay visible.
     snapshot.updatedAt = now();
     snapshot.repoLabel = formatRepoLabel(
       snapshot.cwd,
       pi?.getSessionName?.() ?? snapshot.sessionName,
     );
     snapshot.sessionName = compactWhitespace(pi?.getSessionName?.() ?? snapshot.sessionName);
+    const signature = publishSignature();
     try {
-      await publishSessionSnapshot(snapshot);
+      await publish(snapshot);
+      confirmedSignature = signature;
+      retryIndex = 0;
     } catch {
-      // Broker is optional at runtime; silent failure keeps pi stable.
+      // Broker is optional at runtime; silent failure keeps pi stable. Retry a
+      // bounded number of times when a state transition may not have landed so
+      // a transient connect failure cannot freeze the displayed state.
+      if (
+        signature !== confirmedSignature &&
+        retryIndex < ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS.length
+      ) {
+        scheduleFlush(ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS[retryIndex]);
+        retryIndex += 1;
+      }
     }
   }
 
@@ -95,6 +136,7 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
       ...snapshot,
       ...partial,
       updatedAt: now(),
+      lastEventAt: now(),
     };
     scheduleFlush();
   }
@@ -185,8 +227,32 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
         toolName,
       });
     },
-    onTurnEnd() {
+    /** @param {TurnEndEventLike} event */
+    onTurnEnd(event) {
       if (!snapshot.agentActive) return;
+      const rawMessage = event?.message;
+      const message =
+        rawMessage && typeof rawMessage === "object"
+          ? /** @type {Record<string, unknown>} */ (rawMessage)
+          : null;
+      const stopReason = String(message?.stopReason ?? "");
+      if (stopReason) lastStopReason = stopReason;
+      if (stopReason === "error") {
+        const errorText = previewText(message?.errorMessage, 104) || "Provider error";
+        update({
+          state: "error",
+          phase: "Needs attention",
+          detail: errorText,
+          errorMessage: errorText,
+        });
+        return;
+      }
+      if (stopReason === "aborted") {
+        update({
+          detail: snapshot.assistantPreview || snapshot.detail || "Stopped",
+        });
+        return;
+      }
       update({
         state: snapshot.errorMessage ? "error" : "thinking",
         phase: snapshot.errorMessage ? "Needs attention" : "Thinking",
@@ -196,11 +262,12 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
     onAgentSettled() {
       const detail =
         snapshot.errorMessage || snapshot.assistantPreview || snapshot.lastPromptPreview || "Done";
+      const aborted = !snapshot.errorMessage && lastStopReason === "aborted";
       update({
         agentActive: false,
         agentStartedAt: null,
         state: snapshot.errorMessage ? "error" : "success",
-        phase: snapshot.errorMessage ? "Stopped" : "Done",
+        phase: snapshot.errorMessage ? "Stopped" : aborted ? "Stopped" : "Done",
         detail,
         toolName: "",
         toolTarget: "",
@@ -214,7 +281,10 @@ export function createSessionTelemetry({ pi, cwd = process.cwd(), sessionName = 
         flushTimer = null;
       }
       try {
-        await removeSession(snapshot.sessionId);
+        await removePublisher({
+          sessionId: snapshot.sessionId,
+          publisherId: snapshot.publisherId,
+        });
       } catch {
         // ignore broker absence on shutdown
       }

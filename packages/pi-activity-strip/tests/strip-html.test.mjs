@@ -19,6 +19,32 @@ test("strip keeps freshness live while ordering refreshes on a calm cadence", ()
   assert.match(html, /Date\.now\(\) >= nextOrderRefreshAt/);
 });
 
+test("stalled wedged sessions render as stalled instead of live activity", () => {
+  const html = createStripHtml();
+
+  assert.match(html, /const EVENT_STALL_MS = \d+/);
+  assert.match(html, /function isStalledSession\(session, nowMs, stallMs\)/);
+  assert.match(html, /isStalledSession\(session, Date\.now\(\), EVENT_STALL_MS\)/);
+  assert.match(html, /card\.dataset\.stalled = stalled \? "true" : "false"/);
+  assert.match(html, /stalled \? "stalled" : STATE_LABELS\[session\.state\]/);
+  assert.match(html, /\.card\[data-stalled="true"\] \{ opacity: 0\.72; \}/);
+});
+
+test("last-seen tracks the last real event, not heartbeat republishes", () => {
+  const html = createStripHtml();
+
+  assert.match(html, /session\.lastEventAt \|\| session\.updatedAt \|\| snapshot\.generatedAt/);
+});
+
+test("duplicate repo labels gain a process disambiguator", () => {
+  const html = createStripHtml();
+
+  assert.match(html, /function findDuplicateLabels\(sessions\)/);
+  assert.match(html, /const duplicateLabels = findDuplicateLabels\(sessions\)/);
+  assert.match(html, /function disambiguatedRepoLabel\(session, duplicateLabels\)/);
+  assert.match(html, /updateCard\(card, session, duplicateLabels\)/);
+});
+
 test("stale card focus cannot retain expansion after the strip loses focus", () => {
   assert.equal(
     shouldRetainExpandedCard({ hovered: false, activeElement: true, documentFocused: false }),

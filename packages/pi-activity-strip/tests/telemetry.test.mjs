@@ -98,3 +98,90 @@ test("activity-strip wires terminal completion to agent_settled, not agent_end",
   assert.equal(handlers.has("agent_settled"), true);
   assert.equal(handlers.has("agent_end"), false);
 });
+
+test("heartbeat republish keeps liveness without advancing lastEventAt", async () => {
+  const published = [];
+  const telemetry = createSessionTelemetry({
+    cwd: "/tmp/demo",
+    transport: {
+      publish: async (session) => {
+        published.push({ ...session });
+      },
+      remove: async () => {},
+    },
+  });
+  await telemetry.onSessionStart({ cwd: "/tmp/demo" });
+  const eventAt = telemetry.getSnapshot().lastEventAt;
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  telemetry.onBeforeAgentStart({ prompt: "work" });
+  const workingAt = telemetry.getSnapshot().lastEventAt;
+  assert.ok(workingAt >= eventAt);
+
+  // Simulate a wedged stream: no further events, only heartbeat flushes.
+  const before = telemetry.getSnapshot().lastEventAt;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await telemetry.shutdown();
+  const after = telemetry.getSnapshot().lastEventAt;
+  assert.equal(after, before);
+  assert.ok(published.length > 0);
+  const last = published[published.length - 1];
+  assert.ok(last.updatedAt >= last.lastEventAt);
+});
+
+test("provider error on turn end surfaces as error, not silent done", async () => {
+  const telemetry = createSessionTelemetry({
+    cwd: "/tmp/demo",
+    transport: { publish: async () => {}, remove: async () => {} },
+  });
+  await telemetry.onSessionStart({ cwd: "/tmp/demo" });
+  telemetry.onBeforeAgentStart({ prompt: "deploy" });
+  telemetry.onTurnEnd({ message: { stopReason: "error", errorMessage: "rate limited" } });
+  assert.equal(telemetry.getSnapshot().state, "error");
+  assert.equal(telemetry.getSnapshot().errorMessage, "rate limited");
+  telemetry.onAgentSettled();
+  assert.equal(telemetry.getSnapshot().state, "error");
+  assert.equal(telemetry.getSnapshot().phase, "Stopped");
+  await telemetry.shutdown();
+});
+
+test("aborted runs settle as stopped rather than done", async () => {
+  const telemetry = createSessionTelemetry({
+    cwd: "/tmp/demo",
+    transport: { publish: async () => {}, remove: async () => {} },
+  });
+  await telemetry.onSessionStart({ cwd: "/tmp/demo" });
+  telemetry.onBeforeAgentStart({ prompt: "deploy" });
+  telemetry.onTurnEnd({ message: { stopReason: "aborted" } });
+  telemetry.onAgentSettled();
+  assert.equal(telemetry.getSnapshot().state, "success");
+  assert.equal(telemetry.getSnapshot().phase, "Stopped");
+  await telemetry.shutdown();
+});
+
+test("lost state transitions are retried with a bounded backoff", async () => {
+  let failures = 2;
+  const published = [];
+  let removeCalls = 0;
+  const telemetry = createSessionTelemetry({
+    cwd: "/tmp/demo",
+    transport: {
+      publish: async (session) => {
+        if (failures > 0) {
+          failures -= 1;
+          throw new Error("broker unavailable");
+        }
+        published.push({ ...session });
+      },
+      remove: async () => {
+        removeCalls += 1;
+      },
+    },
+  });
+  await telemetry.onSessionStart({ cwd: "/tmp/demo" });
+  telemetry.onBeforeAgentStart({ prompt: "work" });
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  assert.ok(published.length > 0);
+  assert.equal(published[0].state, "thinking");
+  await telemetry.shutdown();
+  assert.equal(removeCalls, 1);
+});

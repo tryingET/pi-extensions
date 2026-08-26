@@ -11,6 +11,16 @@ import { normalizeSessionSnapshot, sortSessions } from "../common/protocol.mjs";
 /** @typedef {import("../common/contracts.ts").SessionStoreOptions} SessionStoreOptions */
 /** @typedef {import("../common/contracts.ts").BrokerSnapshot} BrokerSnapshot */
 
+/**
+ * Stable store key. Sessions resumed into a second process keep publishing under
+ * their own publisherId so two live processes never fight over one card; legacy
+ * publishers without a publisherId keep the bare sessionId key.
+ * @param {SessionSnapshot} session
+ */
+function sessionKey(session) {
+  return session.publisherId ? `${session.sessionId}|${session.publisherId}` : session.sessionId;
+}
+
 export class SessionStore {
   /** @param {SessionStoreOptions} [options] */
   constructor(options = {}) {
@@ -23,13 +33,17 @@ export class SessionStore {
   upsert(session) {
     const normalized = normalizeSessionSnapshot(session);
     if (!normalized.sessionId) return false;
-    this.sessions.set(normalized.sessionId, normalized);
+    this.sessions.set(sessionKey(normalized), normalized);
     return true;
   }
 
-  /** @param {string} sessionId */
-  remove(sessionId) {
-    return this.sessions.delete(String(sessionId ?? ""));
+  /** @param {string} sessionId @param {string} [publisherId] */
+  remove(sessionId, publisherId) {
+    const id = String(sessionId ?? "");
+    if (!id) return false;
+    return publisherId
+      ? this.sessions.delete(`${id}|${String(publisherId)}`)
+      : this.sessions.delete(id);
   }
 
   /** @param {number} [now] */

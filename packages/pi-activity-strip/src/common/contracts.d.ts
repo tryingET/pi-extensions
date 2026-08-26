@@ -8,6 +8,7 @@ export type SessionState = "idle" | "thinking" | "tool" | "waiting" | "success" 
 
 export interface SessionSnapshot {
   sessionId: string;
+  publisherId: string;
   processId: number;
   cwd: string;
   repoLabel: string;
@@ -20,6 +21,7 @@ export interface SessionSnapshot {
   state: SessionState;
   turnIndex: number;
   updatedAt: number;
+  lastEventAt: number;
   startedAt: number;
   agentStartedAt: number | null;
   agentActive: boolean;
@@ -71,7 +73,7 @@ export interface ActivityStripBrokerOptions {
   store?: {
     snapshot(): BrokerSnapshot;
     upsert(session: Partial<SessionSnapshot> | Record<string, unknown>): boolean;
-    remove(sessionId: string): boolean;
+    remove(sessionId: string, publisherId?: string): boolean;
   };
   getRuntimeStatus?: () => ActivityStripRuntimeStatus | undefined;
   focusSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; windowId?: number }>;
@@ -115,6 +117,11 @@ export interface TurnStartEventLike {
   turnIndex?: number;
 }
 
+export interface TurnEndEventLike {
+  turnIndex?: number;
+  message?: unknown;
+}
+
 export interface AssistantMessageEventLike {
   type?: string;
   delta?: unknown;
@@ -136,6 +143,10 @@ export interface SessionTelemetryOptions {
   pi?: TelemetryPiLike;
   cwd?: string;
   sessionName?: string;
+  transport?: {
+    publish: (session: SessionSnapshot) => Promise<unknown>;
+    remove: (session: { sessionId: string; publisherId: string }) => Promise<unknown>;
+  };
 }
 
 export interface ActivityStripCompatibilityReport {

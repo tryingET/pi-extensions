@@ -23,6 +23,10 @@ All notable changes to this project should be documented here.
 
 ### Changes
 
+- Split transport liveness (`updatedAt`) from real activity (`lastEventAt`); heartbeat republishes no longer mask a frozen event stream, and cards with no lifecycle events for 15 minutes render as dimmed `stalled` instead of live activity.
+- Classify provider-level run failures (`turn_end` with `stopReason: "error"`) as `error`/`Needs attention` instead of settling as `done`, and settle aborted runs as `Stopped`.
+- Key broker cards by `(sessionId, publisherId)` so one session resumed into a second process no longer lets an idle process overwrite a working card; duplicate repo labels gain a short process suffix.
+- Retry lost state-transition publishes with a bounded 250ms/750ms backoff instead of silently dropping them.
 - Collapse expanded detail when pointer/focus leaves the strip or another desktop window becomes active, and disable compositor/CSS shadows on the transparent overlay.
 - Keep the Wayland surface resize-capable, explicitly floating, and reconcile its native dimensions on every collapse request, so the transparent input mask returns to compact height with the card content.
 - Recover exact Pi identities for already-running tabs only through validated process-bound `pi-session-presence` sidecars; otherwise retain the `/reload` fail-closed path.

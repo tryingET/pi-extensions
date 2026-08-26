@@ -10,7 +10,15 @@ import {
   moveOrderItem,
   reconcileActivityOrder,
 } from "../common/activity-order.mjs";
-import { ACTIVITY_STRIP_ORDER_REFRESH_MS } from "../common/constants.mjs";
+import {
+  disambiguatedRepoLabel,
+  findDuplicateLabels,
+  isStalledSession,
+} from "../common/card-display.mjs";
+import {
+  ACTIVITY_STRIP_EVENT_STALL_MS,
+  ACTIVITY_STRIP_ORDER_REFRESH_MS,
+} from "../common/constants.mjs";
 
 const ORDER_RUNTIME = [
   'const ACTIVE_STATES = new Set(["thinking", "tool", "waiting"]);',
@@ -18,6 +26,9 @@ const ORDER_RUNTIME = [
   isMonitoringSession.toString(),
   reconcileActivityOrder.toString(),
   moveOrderItem.toString(),
+  isStalledSession.toString(),
+  findDuplicateLabels.toString(),
+  disambiguatedRepoLabel.toString(),
 ].join("\n");
 
 export function shouldRetainExpandedCard({ hovered, activeElement, documentFocused }) {
@@ -184,6 +195,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
       .placeholder__title { color: var(--text); font-size: 14px; font-weight: 650; }
       .placeholder__copy { color: var(--muted); font-size: 11px; line-height: 1.35; }
       .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+      .card[data-stalled="true"] { opacity: 0.72; } .card[data-stalled="true"] .card__phase { text-decoration: line-through; }
 
       @media (prefers-reduced-motion: reduce) {
         .card { transition: none; }
@@ -208,6 +220,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
       ${ORDER_RUNTIME}
       ${INTERACTION_RUNTIME}
       const ORDER_REFRESH_MS = ${ACTIVITY_STRIP_ORDER_REFRESH_MS};
+      const EVENT_STALL_MS = ${ACTIVITY_STRIP_EVENT_STALL_MS};
       const meta = document.getElementById("meta");
       const cards = document.getElementById("cards");
       const announcer = document.getElementById("announcer");
@@ -236,7 +249,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         return formatDuration(Math.max(0, Math.floor((Date.now() - anchor) / 1000)));
       }
       function formatLastSeen(session) {
-        const anchor = Number(session.updatedAt || snapshot.generatedAt || Date.now());
+        const anchor = Number(session.lastEventAt || session.updatedAt || snapshot.generatedAt || Date.now());
         return formatDuration(Math.max(0, Math.floor((Date.now() - anchor) / 1000)));
       }
       function sessionById(sessionId) {
@@ -271,11 +284,13 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         ].join("");
         return card;
       }
-      function updateCard(card, session) {
-        const stateColor = STATE_COLORS[session.state] || "var(--accent)";
-        const stateLabel = STATE_LABELS[session.state] || session.state || "idle";
+      function updateCard(card, session, duplicateLabels) {
+        const stalled = isStalledSession(session, Date.now(), EVENT_STALL_MS);
+        const stateColor = stalled ? "var(--waiting)" : STATE_COLORS[session.state] || "var(--accent)";
+        const stateLabel = stalled ? "stalled" : STATE_LABELS[session.state] || session.state || "idle";
         const isCurrent = session.sessionId === snapshot.focusedSessionId;
         card.style.setProperty("--state-color", stateColor);
+        card.dataset.stalled = stalled ? "true" : "false";
         card.dataset.group = isMonitoringSession(session)
           ? "monitoring"
           : isActiveSession(session)
@@ -284,9 +299,9 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         card.dataset.current = isCurrent ? "true" : "false";
         if (isCurrent) card.setAttribute("aria-current", "true");
         else card.removeAttribute("aria-current");
-        card.setAttribute("aria-label", (isCurrent ? "Current terminal, " : "") + (session.repoLabel || "Pi session") + ", " + (session.phase || "Idle") + ". Press Enter to focus its Ghostty window.");
+        card.setAttribute("aria-label", (stalled ? "Stalled, " : isCurrent ? "Current terminal, " : "") + (session.repoLabel || "Pi session") + ", " + (stalled ? "no events recently" : session.phase || "Idle") + ". Press Enter to focus its Ghostty window.");
         card.title = (isCurrent ? "Current terminal · " : "Focus ") + (session.repoLabel || "Pi session");
-        setText(card, ".card__repo", session.repoLabel || "pi session");
+        setText(card, ".card__repo", disambiguatedRepoLabel(session, duplicateLabels));
         setText(card, ".card__phase", session.phase || "Idle");
         setText(card, ".card__state", stateLabel);
         setText(card, ".tool", session.toolName || session.toolTarget || "monitoring");
@@ -332,6 +347,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
           setExpanded(null, false).catch(() => {});
         }
         let targetIndex = 0;
+        const duplicateLabels = findDuplicateLabels(sessions);
         for (const sessionId of orderedIds) {
           const session = byId.get(sessionId);
           if (!session) continue;
@@ -340,7 +356,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
             card = cardTemplate(sessionId);
             cardById.set(sessionId, card);
           }
-          updateCard(card, session);
+          updateCard(card, session, duplicateLabels);
           const nodeAtTarget = cards.children[targetIndex] ?? null;
           if (nodeAtTarget !== card) cards.insertBefore(card, nodeAtTarget);
           targetIndex += 1;

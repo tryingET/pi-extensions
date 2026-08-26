@@ -115,7 +115,21 @@ export async function publishSessionSnapshot(session, options = {}) {
   await sendBrokerMessage(makeMessage("upsert", { session }), options);
 }
 
-/** @param {string} sessionId @param {BrokerClientOptions} [options] */
-export async function removeSession(sessionId, options = {}) {
-  await sendBrokerMessage(makeMessage("remove", { sessionId }), options);
+/** @param {{ sessionId: string; publisherId: string }} session @param {BrokerClientOptions} [options] */
+export async function removeSession(session, options = {}) {
+  /** @type {Record<string, unknown>} */
+  let record = {};
+  let fallbackId = "";
+  if (session && typeof session === "object") {
+    record = session;
+  } else {
+    fallbackId = String(session ?? "");
+  }
+  await sendBrokerMessage(
+    makeMessage("remove", {
+      sessionId: String(record.sessionId ?? fallbackId),
+      publisherId: String(record.publisherId ?? ""),
+    }),
+    options,
+  );
 }

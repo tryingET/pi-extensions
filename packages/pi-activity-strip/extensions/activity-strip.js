@@ -194,8 +194,8 @@ export default function activityStripExtension(pi) {
     telemetry.onToolExecutionEnd(event);
   });
 
-  pi.on("turn_end", async () => {
-    telemetry.onTurnEnd();
+  pi.on("turn_end", async (event) => {
+    telemetry.onTurnEnd(event);
   });
 
   pi.on("agent_settled", async () => {

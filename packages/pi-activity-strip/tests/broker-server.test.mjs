@@ -9,6 +9,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { ActivityStripBroker } from "../src/broker/server.mjs";
+import { SessionStore } from "../src/broker/session-store.mjs";
+import { publishSessionSnapshot, removeSession } from "../src/client/broker-client.mjs";
 
 class FakeSocket extends EventEmitter {
   constructor(writeError) {
@@ -103,4 +105,34 @@ test("broker restricts its control socket to the current user", async (t) => {
   await broker.start();
   assert.equal(fs.statSync(socketDir).mode & 0o777, 0o700);
   assert.equal(fs.statSync(socketPath).mode & 0o777, 0o600);
+});
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+test("remove messages scope to one publisher when publisherId is present", async () => {
+  const store = new SessionStore({ staleAfterMs: 60_000 });
+  const socketPath = path.join(os.tmpdir(), `strip-remove-${Date.now()}.sock`);
+  const broker = new ActivityStripBroker({ store, socketDir: os.tmpdir(), socketPath });
+  await broker.start();
+  const clientOptions = { socketPath };
+  try {
+    const base = { sessionId: "019fa4d0-7142-7fb4-8d30-f98e951f0513", updatedAt: Date.now() };
+    await publishSessionSnapshot(
+      { ...base, publisherId: "pub-a", state: "success" },
+      clientOptions,
+    );
+    await publishSessionSnapshot({ ...base, publisherId: "pub-b", state: "tool" }, clientOptions);
+    await delay(150);
+    assert.equal(store.snapshot().sessions.length, 2);
+
+    await removeSession({ sessionId: base.sessionId, publisherId: "pub-a" }, clientOptions);
+    await delay(150);
+    const sessions = store.snapshot().sessions;
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0].publisherId, "pub-b");
+  } finally {
+    await broker.stop();
+  }
 });
