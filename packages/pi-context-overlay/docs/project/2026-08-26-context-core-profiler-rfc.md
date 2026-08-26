@@ -2,7 +2,7 @@
 summary: "RFC: context-window profiler ('context core') — allocator/lifetime/warmth/cost model, session-JSONL replay, and geological visual language for pi-context-overlay."
 read_when:
   - "Extending the context overlay beyond grouped lists into allocation timelines, warmth, cost accounting, or liveness."
-  - "Changing scripts/context-strata-replay.mjs or scripts/context-strata.template.html."
+  - "Changing scripts/context-strata-replay.mjs, context-strata-lib.mjs, context-strata-projections.mjs, or scripts/context-strata.template.html."
 system4d:
   container: "Package-local RFC for context-window profiling across forensic replay and the live overlay surface."
   compass: "Keep every visual claim tied to its epistemic class; occupancy, warmth, and cost must never blur."
@@ -12,10 +12,10 @@ system4d:
 
 # RFC — Context Core: profiling the Pi context window as an allocator
 
-Status: **prototype shipped** (replayer + visual artifact + evidence below); adoption into the live
-overlay is the open decision.
+Status: **prototype shipped and reviewed** (replayer + visual artifact + 11 invariant tests);
+adoption into the live overlay is the open decision.
 
-Artifact (real session, 363 requests): <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
+Artifact (S1, 362 on-chain requests, rev 3): <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
 
 ## 1. Problem
 
@@ -35,8 +35,10 @@ Artifact (real session, 363 requests): <https://radius.earendil.com/artifact/01m
   thinking, toolCall, toolResult, compaction summary). Size in est-tokens, birth request, freed
   at fault/end. The system prompt + AGENTS chain is **bedrock**: resident since request 0,
   never freed.
-- **Token-turns** (byte-seconds analog): `size × requests-alive`. This is the residency bill and
-  the honest cost axis — *area*, not height.
+- **Token-turns** (byte-seconds analog): `size × (freedR − birthR + 1)`. Residency is **inclusive**
+  on `[birthR .. freedR]`. This is the residency bill and the honest cost axis — *area*, not height.
+  Allocations born after the last billed request (final-assistant output with no follow-up) have
+  zero token-turns: they were billed as output, never as later input.
 - **Warmth**: provider prefix caching prices the warm prefix ~0.1× of fresh input. Warm prefix =
   longest unchanged prefix vs the previous request. Compaction, history edits, AGENTS.md edits
   re-cold everything after the mutation point.
@@ -50,8 +52,8 @@ Artifact (real session, 363 requests): <https://radius.earendil.com/artifact/01m
 
 | class | claims |
 |---|---|
-| measured | per-request `usage` (input/output/cacheRead/cacheWrite/cost), message `id`/`parentId` chain, compaction events |
-| derived | allocation sites, warm-prefix model, dedup groups, runway slope, token-turns |
+| measured | per-request `usage` (input/output/cacheRead/cacheWrite/cost), message `id`/`parentId` links, compaction events |
+| derived | active-chain walk from tail, allocation sites, warm-prefix model, dedup groups, runway slope, token-turns |
 | estimated | per-item token split (chars/4; bedrock residual-calibrated at request 1) |
 | inferred | deadness via reference mining (pathed tool heap only) |
 
@@ -59,20 +61,24 @@ Artifact (real session, 363 requests): <https://radius.earendil.com/artifact/01m
 
 From two real sessions replayed through the prototype (`~/.pi/agent/sessions/…`):
 
-- **S1** (2026-05-29, provisioning): 363 requests, 12 turns, 1 fault. Total $30.72, of which
-  $23.94 cache-priced. **Cache-hit share 98.6%** of billed input tokens. Last-request window
-  264k measured vs 238k estimated (calibration ×1.109).
-- **S2** (2026-04-16, pi-extensions): 306 requests, 26 turns, 0 faults. Total $33.51, cache-hit
-  93.6%. Calibration ×0.922.
+- **S1** (2026-05-29, provisioning): **362 on-chain requests**, 11 turns, 1 fault. Off-chain:
+  2 records / 1 request / $0.00. Total **on-chain** $30.72, of which $23.94 cache-priced.
+  **Cache-hit share 98.6%** of billed input. Last-request window 264k measured vs 238k estimated
+  (calibration ×1.109).
+- **S2** (2026-04-16, pi-extensions): **300 on-chain requests**, 0 faults. Off-chain: 15 records /
+  6 requests / **$0.48** (real billed spend, not modeled as resident). On-chain $33.03, cache-hit
+  93.6%. Calibration ×0.977.
 - **Warmth model validates against measurement**: model warm prefix vs measured `cacheRead`
   agrees within ~2% at request 1 and ~5–10% late-session (e.g. r=180: 112.8k model vs 123.4k
   measured; provider caches slightly more than the strict prefix-divergence model predicts).
   This means warmth is *measurable in production*, not just modeled.
-- **Mined dead heap**: 9.1% (S1) / 0.8% (S2) of pathed tool token-turns are provably
-  never-referenced-again. (First cut claimed 73% by wrongly counting pathless bash output as
-  dead; unknown ≠ dead.)
+- **Mined dead heap**: 8.7% (S1) / 0.8% (S2) of pathed tool token-turns are never-referenced-again.
+  (First cut claimed 73% by counting pathless bash output as dead; unknown ≠ dead.)
+- **Conservation**: `sum(series[c][r]) == residentEst[r]` for every request on both real sessions
+  (0 mismatches after the residency-interval fix).
 - **Burn/runway**: S1 grew ~+500 est-tk/request across the final stretch; the runway gauge
-  predicts the next fault request count from the slope.
+  predicts the next fault request count from the slope. After a fault inside the last 10 requests
+  the slope can go non-positive and the gauge reports "no measurable burn" rather than re-baselining.
 
 ## 4. Visual language — geological instruments
 
@@ -102,49 +108,85 @@ Live TUI counterpart (not yet built): the same allocation model feeds an icicle 
 `/c` (width = token share, depth = category→tool→file taxonomy), plus a two-line strip in the
 overlay header: occupancy bar + warm/cold split + runway estimate.
 
-## 5. What exists today (P0 prototype)
+## 5. What exists today (P0 prototype, post-review)
 
-- `scripts/context-strata-replay.mjs` — session JSONL → `strata.json` + `requests.csv` +
-  `speedscope.json` (sampled format; per-request window-composition stacks) + generated HTML.
-  No dependencies. Handles zero-fault and single-fault sessions; unknown roles → `other`.
-- `scripts/context-strata.template.html` — self-contained canvas artifact implementing all
-  seven instruments above (hover crosshair + tooltip, drag-zoom on x, dblclick reset, toggles).
-- Published artifact: <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
+- `scripts/context-strata-lib.mjs` — pure model: JSONL parse, active `parentId` chain from
+  the tail, allocation walk, liveness mining, dedup. Off-chain (abandoned-branch) records are
+  accounted in `meta.excludedBranches` and never modeled as resident.
+- `scripts/context-strata-projections.mjs` — conservation series, sankey, speedscope (`unit:
+  "none"`), runway/ghosts, `strata.json` + CSV assembly. Split so both files sit under the
+  500 LOC readability budget.
+- `scripts/context-strata-replay.mjs` — CLI I/O + HTML injection. Escapes `<` in the embedded
+  JSON so labels cannot terminate the `<script>` block.
+- `scripts/context-strata.template.html` — seven instruments; era membership from the fault
+  list (empty-summary compaction still breaks strata); bedrock wins birthR ties so it sits at
+  the base; hover/zoom use the same `plotW = width − PADX − PADR` mapping as the renderer.
+- `tests/context-strata-lib.test.mjs` — 11 `node:test` cases pinning conservation, warmth,
+  inclusive residency across faults, empty-summary faults, branch exclusion, liveness
+  boundaries, and zero-request sessions.
+- Published artifact rev 3: <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
 
-Verification performed: `node --check` on replayer and generated script; headless DOM-stub
-execution (3712 draw calls, no crash); Chromium headless screenshot of the real artifact
-(non-trivial rendered content confirmed via pixel statistics).
+Verification: `node --test` 11/11; `sum(series[c][r]) == residentEst[r]` on both real sessions
+(0 mismatches); Chromium headless screenshot of the regenerated artifact (HSL green-channel
+mean ~0.306, non-trivial rendered content); package `quality-gate.sh ci` green including
+file-budget.
 
-## 6. Phases
+## 6. Review record (2026-08-26)
 
-- **P1 — forensic (done, prototype)**: replay + artifact above. Next: multi-fault/branch-chain
-  sessions (parentId tree, not just linear), subagent arenas (`--data-agnt-*` sessions as
-  separate arenas with fork-cost attribution), cross-session bedrock comparison.
+Independent review + empirical conservation check against the first-cut prototype. Fixed:
+
+| id | finding | resolution |
+|---|---|---|
+| B1 | Fault-boundary off-by-one: series free-delta applied at `freedR` *before* recording `series[r]`; token-turns used half-open `[b, f)`. S1 empirically mismatched at r=362 (`sum=-545` vs `residentEst=238308`). | Inclusive `[birthR .. freedR]`; free deltas land at `freedR+1`; fossil/core predicates match. |
+| B2 | File-order walk ignored `parentId`; abandoned-branch messages modeled as resident. RFC claimed the chain as measured. | Active-chain walk from tail; excluded stats reported, not modeled. S2 hid 6 phantom requests / $0.48. |
+| H1 | `refsAfter` used `r > birthR`, classifying the typical read→reason mention at `r == birthR` as dead. | `r >= birthR`; creating toolCall still sits at `birthR-1` and is excluded. |
+| H2 | Hover/zoom inverse divided by `rect.width − 28 − PADX` while the renderer mapped onto `w − PADX`; `PADR` unused. | Shared `plotW = width − PADX − PADR`. |
+| H3 | Raw `JSON.stringify` into `<script>`: a `</script>` in any label terminates the page (XSS). | `.replaceAll("<", "\\u003c")` on the embed. |
+| M1 | Era split required a non-empty summary item; empty-summary compaction never collapsed the core. | Era membership = count of faults with `f.r < birthR`. |
+| M2 | Bedrock `unshift`ed into the window but `push`ed late onto `items[]`; template stacked array order so user sat below bedrock. | Per-era sort by `birthR`, system-cat wins ties. |
+| L1–L3 | `import.meta.url` pathname not decoded; CSV unescaped; speedscope unit claimed milliseconds. | `fileURLToPath`; CSV field quoting; `unit: "none"`. |
+
+## 7. Remaining debt (honest, not deferred-as-done)
+
+- **Basename collisions**: two files named `main.ts` share a liveness bucket. Conservative
+  (false-live), not false-dead. Fine for advisory fossils; not fine for P4 targeted GC.
+- **Provider serialization vs file order**: y-axis is replay order, not wire order. Measured
+  `cacheRead` still tracks the prefix model within ~5–10% late-session.
+- **Runway after a recent fault**: last-10-request slope can go non-positive and the gauge
+  reports "no measurable burn" instead of re-baselining post-fault (reviewer L4).
+- **Cost ridge is single-table**: mixed-provider sessions mix dollar units; no relative-cold
+  normalization yet.
+- **Subagent arenas**: `--data-agnt-*` sessions are still separate files, not rolled up as
+  fork-cost children of the parent arena.
+- **Live TUI**: `/c` is still a grouped list. The ledger does not yet feed the overlay.
+
+## 8. Phases
+
+- **P1 — forensic (done, post-review)**: replay + artifact + chain walk + conservation tests.
+  Next: subagent arenas, cross-session bedrock comparison, runway re-baseline after faults.
 - **P2 — live TUI**: icicle pane in `/c` from the existing classifier items (add
   position/turn fields), warm/cold split + runway in the header from `ctx` usage.
 - **P3 — decision support**: compaction tradeoff calculator (fault now vs continue:
   Δoccupancy gain vs re-cold cost over re-warm horizon), AGENTS-edit re-cold warning
   ("this edit re-colds N tokens ≈ $X on the next request").
 - **P4 — targeted GC**: liveness-mined compaction input for `pi-session-compaction`
-  (drop measured-dead, keep referenced working set; compaction fidelity score =
-  fraction of later-referenced entities surviving the summary).
+  (drop measured-dead, keep referenced working set). Blocked on basename-collision honesty.
 
-## 7. Open questions
+## 9. Open questions
 
 - Provider serialization ordering (toolCall/result interleaving) differs from file order;
-  how much does the positional y-axis drift from the true wire order? (Measured cacheRead
-  suggests prefix identity holds well enough to model.)
-- Multi-provider cost semantics (cacheWrite pricing, non-Anthropic routers) — the cost ridge
-  needs per-provider price tables or normalization to "relative cold units".
+  how much does the positional y-axis drift from the true wire order?
+- Multi-provider cost semantics (cacheWrite pricing, non-Anthropic routers).
 - Is deadness-by-reference-mining actionable enough to gate compaction content, or only
-  advisory?
+  advisory? (P4 answer is currently *advisory only* until collisions are path-qualified.)
 - Should the replayer graduate into `pi-session-insights` (jq discipline, bounded JSON) rather
   than growing inside this package? Current answer: keep the visual/TUI carrier here, keep
   deterministic extraction importable.
 
-## 8. Commands
+## 10. Commands
 
 ```bash
 node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
 # outputs: strata.json, requests.csv, speedscope.json, context-strata.html (open in browser)
+node --test tests/context-strata-lib.test.mjs
 ```

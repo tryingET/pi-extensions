@@ -125,7 +125,7 @@ document.getElementById("catLegend").innerHTML = D.cats.map(c => `<span><i class
 
 // ---- shared x scale with zoom ----
 let xMin = 0, xMax = Math.max(1, N - 1);
-const xScale = (w) => (r) => ((r - xMin) / Math.max(1e-9, xMax - xMin)) * (w - PADX) + PADX;
+const xScale = (w) => (r) => ((r - xMin) / Math.max(1e-9, xMax - xMin)) * (w - PADX - PADR) + PADX;
 const PADX = 44, PADR = 10;
 
 function canvas(id) {
@@ -141,22 +141,28 @@ const cv = {};
 ["core", "thermo", "cost", "fossil", "sankey"].forEach(id => { cv[id] = canvas(id); });
 
 // ---- allocations: chronological stacking (append-only arena between faults) ----
-// group items into eras delimited by faults
+// Era membership derives from the fault list itself (born after fault k ⇒ era k+1),
+// so empty-summary compactions still break the strata.
 const faults = D.meta.faults.map(f => ({ ...f, afterR: f.r }));
+const eraOf = (b) => { let e = 0; for (const f of faults) if (f.r < b) e += 1; return e; };
 const itemsByEra = [];
 {
-  let era = [], lastR = 0;
+  const byEra = new Map();
   for (const it of D.items) {
-    const f = faults.find(fl => it.b > fl.r && it.b <= fl.r + 1 && it.c === "summary");
-    if (f && era.length) { itemsByEra.push({ items: era, startR: lastR }); era = []; lastR = f.r + 1; }
-    era.push(it);
+    const e = eraOf(it.b);
+    if (!byEra.has(e)) byEra.set(e, []);
+    byEra.get(e).push(it);
   }
-  if (era.length) itemsByEra.push({ items: era, startR: lastR });
+  for (const e of [...byEra.keys()].sort((a, b2) => a - b2)) itemsByEra.push({ era: e, items: byEra.get(e) });
 }
-// simple, robust layout: restart stacking at each era; offset = cumulative tokens by birth
+// layout: restart stacking at each era; offset = cumulative tokens by birth order.
+// Sort by birthR (stable); bedrock (system cat, calibrated after the first user msg was
+// pushed) wins ties so it sits at the base of its era.
 const eraLayout = itemsByEra.map(({ items }) => {
+  const sorted = [...items].sort((a, b2) =>
+    (a.b - b2.b) || (a.c === "system" ? -1 : b2.c === "system" ? 1 : 0));
   let off = 0;
-  return items.map(it => {
+  return sorted.map(it => {
     const y0 = off; off += it.t;
     return { ...it, y0, y1: off };
   });
@@ -192,7 +198,7 @@ function drawCore() {
   // allocations
   for (const list of eraLayout) {
     for (const it of list) {
-      const x0 = X(Math.max(xMin, it.b)), x1 = X(Math.min(xMax, it.f));
+      const x0 = X(Math.max(xMin, it.b)), x1 = X(Math.min(xMax + 1, it.f + 1));
       if (x1 <= x0) continue;
       const col = colorOf(it.c);
       if (it.d && showGhosts) {
@@ -299,7 +305,7 @@ function drawFossil() {
     const tool = (D.series.toolResult || [])[r] + (D.series.toolCall || [])[r];
     if (tool <= 0) { deadFrac[r] = 0; continue; }
     let dead = 0;
-    for (const it of deadItems) if (it.b <= r && r < it.f) dead += it.t;
+    for (const it of deadItems) if (it.b <= r && r <= it.f) dead += it.t;
     deadFrac[r] = Math.min(1, dead / tool);
   }
   const bw = Math.max(0.8, (w - PADX - PADR) / Math.max(1, xMax - xMin + 1));
@@ -422,7 +428,8 @@ function bindHover(id, onMove) {
   c.addEventListener("mousemove", (e) => {
     const rect = c.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const r = Math.round(xMin + ((x - PADX) / Math.max(1e-9, rect.width - 28 - PADX)) * (xMax - xMin));
+    const plotW = Math.max(1e-9, rect.width - PADX - PADR);
+    const r = Math.round(xMin + ((x - PADX) / plotW) * (xMax - xMin));
     onMove(e, r);
   });
   c.addEventListener("mouseleave", () => { tt.style.display = "none"; redraw(); });
@@ -472,7 +479,7 @@ function drawCross() {
     if (down == null) return;
     const up = e.offsetX; down = null;
     const rect = c.getBoundingClientRect();
-    const toR = (x) => xMin + ((x - PADX) / Math.max(1e-9, rect.width - 28 - PADX)) * (xMax - xMin);
+    const toR = (x2) => xMin + ((x2 - PADX) / Math.max(1e-9, rect.width - PADX - PADR)) * (xMax - xMin);
     const a = Math.min(toR(down), toR(up)), b = Math.max(toR(down), toR(up));
     if (b - a >= 2) { xMin = Math.max(0, a); xMax = Math.min(N - 1, b); redraw(); }
   });
