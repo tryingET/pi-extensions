@@ -197,6 +197,10 @@ Still open:
   not imported into the live path. Still missing vs the geological live counterpart:
   warm/cold split, runway slope, session-history core.
   Prompt: `docs/project/2026-08-26-context-core-live-tui-prompt.md`.
+- **P2.5 — corpus graduate (prompted, not started)**: multi-session `corpus/index.json` +
+  named jq projections over `strata.json` in a new non-live package
+  `packages/pi-context-corpus`. IR unchanged, jq as the DSL, no HTTP in that slice.
+  Paste-ready prompt: `docs/project/2026-08-26-context-core-corpus-prompt.md`.
 - **P3 — decision support**: compaction tradeoff calculator (fault now vs continue:
   Δoccupancy gain vs re-cold cost over re-warm horizon), AGENTS-edit re-cold warning
   ("this edit re-colds N tokens ≈ $X on the next request").
@@ -213,7 +217,9 @@ Still open:
   advisory? Unique-path deadness is now decidable; ambiguous-basename cases stay advisory.
 - Should the replayer graduate into `pi-session-insights` (jq discipline, bounded JSON) rather
   than growing inside this package? Current answer: keep the visual/TUI carrier here, keep
-  deterministic extraction importable.
+  deterministic extraction importable. The multi-session layer is a **separate non-live
+  package** consuming `strata.json` as its IR (never `pi.session-insights.v1` chat facts):
+  `docs/project/2026-08-26-context-core-corpus-prompt.md`.
 
 ## 10. Commands
 
