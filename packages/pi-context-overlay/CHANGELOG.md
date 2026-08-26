@@ -43,6 +43,10 @@ All notable changes to this project should be documented here.
 - Added the `/c` command, overlay component, snapshot store, token estimation helpers, grouping logic, and `context-report` prompt as package-owned assets.
 - Added package-local live-smoke and handoff artifacts so the overlay can be revalidated after Pi host/runtime changes.
 
+### Fixed
+
+- Icicle mode keeps the file list on the right and the original `←`/`→` pane + `↑`/`↓` select keys; it no longer occupies arrows for depth/frame navigation.
+
 ### Changed
 
 - Reworked live snapshot sync to rebuild from `ctx.sessionManager` on `session_start`, `session_tree`, and `session_compact` instead of depending on legacy `session_switch` behavior.

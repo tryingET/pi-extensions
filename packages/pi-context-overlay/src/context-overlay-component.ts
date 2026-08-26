@@ -10,17 +10,14 @@ import { matchesKey, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import {
   buildIcicleView,
   cursorFromSelection,
-  type IcicleCursor,
-  type IcicleMove,
-  INITIAL_ICICLE_CURSOR,
   layoutIcicleRows,
   layoutOccupancyBar,
-  moveIcicleCursor,
 } from "./icicle-layout.js";
 import type { ContextSnapshot } from "./types.js";
 
 type OverlayBinding = AppKeybinding | "tui.select.cancel" | "app.tools.expand";
-type ViewMode = "groups" | "items" | "icicle";
+type LeftView = "groups" | "icicle";
+type FocusPane = "left" | "items";
 
 function matchesBinding(
   keybindings: KeybindingsManager,
@@ -48,8 +45,8 @@ export class ContextOverlayComponent {
   private selectedGroup = 0;
   private selectedItem = 0;
   private frozen = false;
-  private viewMode: ViewMode = "groups";
-  private icicleCursor: IcicleCursor = INITIAL_ICICLE_CURSOR;
+  private leftView: LeftView = "groups";
+  private focusPane: FocusPane = "left";
 
   constructor(
     private tui: TUI,
@@ -84,40 +81,31 @@ export class ContextOverlayComponent {
     }
 
     if (matchesKey(data, "tab") || matchesKey(data, "i") || matchesKey(data, "g")) {
-      const toIcicle =
-        matchesKey(data, "i") || (matchesKey(data, "tab") && this.viewMode !== "icicle");
-      if (toIcicle) this.enterIcicle();
-      else this.viewMode = "groups";
+      if (matchesKey(data, "i")) this.leftView = "icicle";
+      else if (matchesKey(data, "g")) this.leftView = "groups";
+      else this.leftView = this.leftView === "icicle" ? "groups" : "icicle";
       this.tui.requestRender();
       return;
     }
 
     if (matchesKey(data, "enter")) {
-      if (this.viewMode === "items" || this.viewMode === "icicle") this.openSelectedItem();
-      return;
-    }
-
-    if (this.viewMode === "icicle") {
-      if (matchesKey(data, "left")) this.moveIcicle("left");
-      else if (matchesKey(data, "right")) this.moveIcicle("right");
-      else if (matchesKey(data, "up")) this.moveIcicle("up");
-      else if (matchesKey(data, "down")) this.moveIcicle("down");
+      if (this.focusPane === "items") this.openSelectedItem();
       return;
     }
 
     if (matchesKey(data, "left")) {
-      this.viewMode = "groups";
+      this.focusPane = "left";
       this.tui.requestRender();
       return;
     }
     if (matchesKey(data, "right")) {
-      this.viewMode = "items";
+      this.focusPane = "items";
       this.tui.requestRender();
       return;
     }
 
     if (matchesKey(data, "up")) {
-      if (this.viewMode === "groups") this.selectedGroup -= 1;
+      if (this.focusPane === "left") this.selectedGroup -= 1;
       else this.selectedItem -= 1;
       this.clamp();
       this.tui.requestRender();
@@ -125,7 +113,7 @@ export class ContextOverlayComponent {
     }
 
     if (matchesKey(data, "down")) {
-      if (this.viewMode === "groups") this.selectedGroup += 1;
+      if (this.focusPane === "left") this.selectedGroup += 1;
       else this.selectedItem += 1;
       this.clamp();
       this.tui.requestRender();
@@ -166,24 +154,14 @@ export class ContextOverlayComponent {
     const group = groups[this.selectedGroup];
     const items = group?.items ?? [];
 
-    if (this.viewMode === "icicle") {
-      const icicle = this.renderIcicle(inner);
-      const itemLines = this.renderItems(items, inner);
-      const icicleRows = Math.min(icicle.length, 6);
-      for (let i = 0; i < BODY_ROWS; i++) {
-        const line = i < icicleRows ? (icicle[i] ?? "") : (itemLines[i - icicleRows] ?? "");
-        lines.push(border("│") + truncateToWidth(line, inner, "...", true) + border("│"));
-      }
-    } else {
-      const left = this.renderGroups(leftW);
-      const right = this.renderItems(items, rightW);
-      for (let i = 0; i < BODY_ROWS; i++) {
-        const l = truncateToWidth(left[i] ?? "", leftW, "...", true);
-        const r = truncateToWidth(right[i] ?? "", rightW, "...", true);
-        const sep = this.theme.fg("dim", " │ ");
-        const body = `${l.padEnd(leftW)}${sep}${r.padEnd(rightW)}`;
-        lines.push(border("│") + truncateToWidth(body, inner, "...", true) + border("│"));
-      }
+    const left = this.leftView === "icicle" ? this.renderIcicle(leftW) : this.renderGroups(leftW);
+    const right = this.renderItems(items, rightW);
+    for (let i = 0; i < BODY_ROWS; i++) {
+      const l = truncateToWidth(left[i] ?? "", leftW, "...", true);
+      const r = truncateToWidth(right[i] ?? "", rightW, "...", true);
+      const sep = this.theme.fg("dim", " │ ");
+      const body = `${l.padEnd(leftW)}${sep}${r.padEnd(rightW)}`;
+      lines.push(border("│") + truncateToWidth(body, inner, "...", true) + border("│"));
     }
 
     lines.push(border("├") + border("─".repeat(inner)) + border("┤"));
@@ -196,27 +174,9 @@ export class ContextOverlayComponent {
   invalidate(): void {}
   dispose(): void {}
 
-  private enterIcicle(): void {
-    this.viewMode = "icicle";
-    this.icicleCursor = cursorFromSelection(
-      this.snapshot.groups,
-      this.selectedGroup,
-      this.selectedItem,
-    );
-    this.syncIcicleSelection();
-  }
-
-  private moveIcicle(action: IcicleMove): void {
-    this.icicleCursor = moveIcicleCursor(this.snapshot.groups, this.icicleCursor, action);
-    this.syncIcicleSelection();
-    this.tui.requestRender();
-  }
-
-  private syncIcicleSelection(): void {
-    const view = buildIcicleView(this.snapshot.groups, this.icicleCursor);
-    this.icicleCursor = view.cursor;
-    this.selectedGroup = view.selectedGroup;
-    this.selectedItem = view.selectedItem;
+  private modeLabel(): "groups" | "items" | "icicle" {
+    if (this.focusPane === "items") return "items";
+    return this.leftView;
   }
 
   private buildHeader(innerW: number): string {
@@ -249,21 +209,21 @@ export class ContextOverlayComponent {
   private buildFooter(): string {
     const close = keyHint("tui.select.cancel", "close");
     const toggle = keyHint("app.tools.expand", "freeze/live");
-    const nav = this.viewMode === "icicle" ? "←/→ frame • ↑/↓ depth" : "←/→ pane • ↑/↓ select";
     return this.theme.fg(
       "dim",
-      `${close} • ${toggle} • ${this.viewMode.toUpperCase()} • Tab/g/i view • ${nav} • Enter open file`,
+      `${close} • ${toggle} • ${this.modeLabel().toUpperCase()} • Tab/g/i view • ←/→ pane • ↑/↓ select • Enter open file`,
     );
   }
 
   private renderIcicle(width: number): string[] {
-    const view = buildIcicleView(this.snapshot.groups, this.icicleCursor);
-    this.icicleCursor = view.cursor;
+    const cursor = cursorFromSelection(this.snapshot.groups, this.selectedGroup, this.selectedItem);
+    const view = buildIcicleView(this.snapshot.groups, { ...cursor, depth: 2 });
     const usageTokens = this.snapshot.usage?.tokens ?? undefined;
     const measured = usageTokens != null && usageTokens > 0 ? usageTokens : undefined;
     const barW = Math.max(0, width - ICICLE_PREFIX);
     const rows = layoutIcicleRows(view, barW, measured);
     const out: string[] = [this.theme.fg("accent", "Icicle  cat → file → item")];
+    const focusDepth = this.focusPane === "items" ? 2 : 0;
     for (let depth = 0; depth < 3; depth++) {
       const row = rows[depth];
       const frames = view.levels[depth] ?? [];
@@ -271,21 +231,21 @@ export class ContextOverlayComponent {
         out.push("");
         continue;
       }
-      const selected = view.cursor.depth === depth;
-      let line = selected ? this.theme.fg("accent", "▸") : " ";
-      line += this.theme.fg(selected ? "accent" : "dim", DEPTH_LABELS[depth] ?? "    ");
+      const focused = depth === focusDepth;
+      let line = focused ? this.theme.fg("accent", "▸") : " ";
+      line += this.theme.fg(focused ? "accent" : "dim", DEPTH_LABELS[depth] ?? "    ");
       line += " ".repeat(Math.max(0, row.offset));
       for (let i = 0; i < frames.length; i++) {
         const n = row.cells[i] ?? 0;
         if (n <= 0) continue;
-        const isSel = selected && i === row.selectedIndex;
+        const isSel = i === row.selectedIndex;
         line += this.theme.fg(isSel ? "accent" : "muted", (isSel ? "█" : "▀").repeat(n));
       }
       out.push(line);
     }
-    const frame = view.levels[view.cursor.depth]?.[view.cursor.indexByDepth[view.cursor.depth]];
-    const caption = frame
-      ? `${frame.label} (t:${frame.tokens}${frame.itemCount > 1 ? `, n:${frame.itemCount}` : ""})`
+    const item = this.snapshot.groups[this.selectedGroup]?.items[this.selectedItem];
+    const caption = item
+      ? `${item.path ? basename(item.path) : item.label} (t:${item.tokens})`
       : "empty";
     out.push(this.theme.fg("dim", caption));
     return out;
@@ -296,7 +256,7 @@ export class ContextOverlayComponent {
     for (let i = 0; i < this.snapshot.groups.length; i++) {
       const g = this.snapshot.groups[i];
       if (!g) continue;
-      const selected = i === this.selectedGroup && this.viewMode === "groups";
+      const selected = i === this.selectedGroup && this.focusPane === "left";
       const prefix = selected ? this.theme.fg("accent", "▶ ") : "  ";
       const text = `${g.label} (${g.tokens}, ${g.percent.toFixed(1)}%)`;
       out.push(prefix + truncateToWidth(text, width - 2, "...", true));
@@ -328,7 +288,7 @@ export class ContextOverlayComponent {
     for (let i = start; i < end; i++) {
       const it = items[i];
       if (!it) continue;
-      const selected = i === this.selectedItem && this.viewMode !== "groups";
+      const selected = i === this.selectedItem && this.focusPane === "items";
       const prefix = selected ? this.theme.fg("accent", "▶ ") : "  ";
       const fileName = it.path ? basename(it.path) : undefined;
       const rowText = fileName
@@ -381,7 +341,5 @@ export class ContextOverlayComponent {
     const items = this.snapshot.groups[this.selectedGroup]?.items ?? [];
     const maxItem = Math.max(0, items.length - 1);
     this.selectedItem = Math.min(Math.max(0, this.selectedItem), maxItem);
-
-    if (this.viewMode === "icicle") this.syncIcicleSelection();
   }
 }
