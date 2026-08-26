@@ -99,6 +99,12 @@ directory name — that would be inferred class posing as measured).
 
 ## Content rules
 
+- **IR contract** (owner: `pi-context-overlay`, RFC §9): `strata.json` is a declared
+  cross-package IR — additive-only; `meta.schemaVersion` (`1`) + `meta.estimator` carry
+  self-identity; the corpus ignores unknown fields and tolerates absent ones
+  (pre-versioning artifacts stay readable). `tests/corpus-cross-check.test.mjs` replays a
+  synthetic session through the *real* overlay replayer and indexes the artifact, so IR
+  drift fails this package's gate, not just the overlay's.
 - No message bodies, tool outputs, previews, base64, or file contents in any
   corpus output. Derived aggregates and path/label metadata only (test-enforced
   with a secret-marker fixture).

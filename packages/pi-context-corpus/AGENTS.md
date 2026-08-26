@@ -36,6 +36,12 @@ It does not own:
 
 - `strata.json` as emitted today is the only input IR. Never change its shape
   from here, never re-derive it from JSONL.
+- The IR is **declared cross-package** (owner: `pi-context-overlay`; overlay RFC §9):
+  additive-only changes; `meta.schemaVersion` (now `1`) and `meta.estimator` carry
+  artifact self-identity. The corpus **ignores unknown fields and tolerates absent
+  ones** (pre-versioning artifacts stay readable; pinned by
+  `tests/corpus-cross-check.test.mjs`). A breaking IR change arrives as a major
+  `schemaVersion` bump with a migration note — never worked around here.
 - If a needed field is missing from the IR (current case: session `cwd`),
   propose an overlay-side change and stop; do not fork the schema and do not
   invent substitute sources.

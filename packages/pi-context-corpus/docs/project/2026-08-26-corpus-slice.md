@@ -99,3 +99,31 @@ Tests: 18/18 (added ordering, `sourceSession`, and incremental-provenance
    pins). Gate re-run green; re-proven over S1/S2 with both `sourceSession`
    values persisted across two incremental batch runs and cost-descending row
    order verified.
+
+## Review round 2 (post-RFC-review, 2026-08-26)
+
+An architecture review (3 lenses; verdict: revise before ADR) forced five
+questions; they were adjudicated (many-of-the-greats) and resolved:
+
+1. **IR contract declared** (was implicit): `strata.json` is a cross-package IR,
+   additive-only, owned by the overlay. Overlay now emits `meta.schemaVersion: 1`
+   and `meta.estimator` (self-identity provenance; binds `wasteRatio` to its
+   miner). Corpus ignores unknown fields, tolerates absence — pinned by
+   `tests/corpus-cross-check.test.mjs`, which also replays a synthetic session
+   through the **real** overlay replayer and indexes its artifact (the executable
+   corpus↔overlay tie the review demanded; hand-authored fixtures alone could not
+   detect IR drift).
+2. **Wire-order gate for P3**: no positional claims until drift is measured
+   (≥3 sessions, ≥2 providers); order-free quantities exempt.
+3. **HTTP posture**: files-only stands; "no HTTP ever" withdrawn as overclaim —
+   staged with explicit triggers (real non-author consumer, or jq scans slow).
+4. **ADR scope/placement**: one ADR in the overlay `docs/adr/`, shipped scope
+   only; P3/P4 excluded.
+5. **Mechanical honesty fixes in the overlay RFC**: status line, §5 test counts
+   (15 model / 16 live / 20 corpus), §10 commands, §4.1 "true memory-map" →
+   replay-order (derived class), §2 alternatives-considered; plus
+   `tests/rfc-freshness.test.mjs`, a rendered-vs-tree check that fails the gate
+   when RFC-claimed counts/paths drift from the tree.
+
+Corpus suite: 20/20 (18 prior + cross-check + legacy-tolerance). Gates green in
+both packages.

@@ -4,6 +4,14 @@
 //   - "Changing strata.json shape, per-request series assembly, sankey/speedscope output, or runway/waste accounting."
 // ---
 
+// strata.json is a declared cross-package IR (consumed by packages/pi-context-corpus).
+// Contract: additive-only changes; consumers ignore unknown fields and tolerate absent ones
+// (pre-versioning artifacts stay readable); a breaking change bumps IR_SCHEMA_VERSION with a
+// migration note. IR_ESTIMATOR is self-identity provenance: it binds every derived figure
+// (wasteRatio, ghosts) to the miner that produced it.
+export const IR_SCHEMA_VERSION = 1;
+export const IR_ESTIMATOR = "context-strata:path-qualified-liveness-v2";
+
 export const CATS = [
   { id: "system", label: "system + overhead", color: "#5b6478" },
   { id: "agents", label: "AGENTS/CLAUDE files", color: "#b8a06a" },
@@ -202,6 +210,8 @@ export function assembleStrata(
 
   const strata = {
     meta: {
+      schemaVersion: IR_SCHEMA_VERSION,
+      estimator: IR_ESTIMATOR,
       generatedAt: opts.generatedAt ?? new Date().toISOString(),
       ...totals,
       cacheHit,

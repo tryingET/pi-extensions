@@ -13,8 +13,11 @@ system4d:
 # RFC — Context Core: profiling the Pi context window as an allocator
 
 Status: **P1 forensic shipped and reviewed** (replayer + visual artifact + conservation tests);
-**P2 live occupancy + icicle shipped**. Open: geological live counterpart (warm/cold, runway,
-session-history core), P3/P4, and whether forensic extraction graduates out of this package.
+**P2 live occupancy + icicle shipped and operator-verified**; **P2.5 corpus graduate shipped**
+(`packages/pi-context-corpus`, non-live). Open: geological live counterpart (warm/cold,
+runway, session-history core), child-arena rollup, wire-order drift measurement,
+provider-generality of warmth pricing, P3/P4. `strata.json` is a **declared cross-package
+IR** (§9 contract).
 
 Artifact (S1, 362 on-chain requests, rev 3): <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
 
@@ -58,6 +61,24 @@ Artifact (S1, 362 on-chain requests, rev 3): <https://radius.earendil.com/artifa
 | estimated | per-item token split (chars/4; bedrock residual-calibrated at request 1) |
 | inferred | deadness via reference mining (pathed tool heap only) |
 
+### Alternatives considered (model)
+
+- **Token-turns (area) vs occupancy (height)**: height-only accounting calls a 20k allocation
+  born late worse than a 2k allocation resident for 300 requests; area is the honest residency
+  bill. Chosen: token-turns. Occupancy is retained only where it is what providers enforce
+  (runway vs context window).
+- **Reference mining vs provider-side liveness**: no provider exposes per-allocation liveness;
+  reference mining is the only available signal, at the cost of *inferred* class and
+  basename ambiguity. Chosen: mining, constrained to the pathed heap, `unknown ≠ dead`.
+- **Replay order vs wire order for the positional axis**: wire order is not observable from
+  session JSONL; replay order is. Chosen: replay order, explicitly *derived* class (§4.1, §9
+  gate), because positional instruments are still useful with the drift named.
+- **Doc-level lineage vs artifact-level lineage**: measured figures detached from their
+  estimator caused the 8.7% vs 19.8% confusion. Chosen: artifact-level (`meta.estimator`).
+
+The corpus-split alternative analysis lives in
+`docs/project/2026-08-26-context-core-corpus-prompt.md` ("Decisions already made").
+
 ## 3. Measured evidence (why this is not speculative)
 
 From two real sessions replayed through the prototype (`~/.pi/agent/sessions/…`):
@@ -97,7 +118,8 @@ One aesthetic ("the core"): a session is a sediment core. The **HTML forensic ar
 history from it. Live `/c` does not; it inspects the current window only.
 
 1. **The Core (stratigraphy)** — x = provider request, y = token offset in the window, each
-   allocation a colored block stacked in birth order (true memory-map, not category lanes).
+   allocation a colored block stacked in birth order (a replay-order memory-map, not category
+   lanes; *derived* class — provider wire order is unmeasured, see §9 gate).
    Bedrock at the base; the growth edge is visible as deposition. Compaction renders as a
    **fault line** (`free()`): everything above collapses to a thin summary stratum.
    Toggle: log-y, ghost-heap desaturation, faults, warm contour.
@@ -135,12 +157,20 @@ ring). Warm/cold split remains forensic-only.
 - `scripts/context-strata.template.html` — seven instruments; era membership from the fault
   list (empty-summary compaction still breaks strata); bedrock wins birthR ties so it sits at
   the base; hover/zoom use the same `plotW = width − PADX − PADR` mapping as the renderer.
-- `tests/context-strata-lib.test.mjs` — 11 `node:test` cases pinning conservation, warmth,
+- `tests/context-strata-lib.test.mjs` — 15 `node:test` cases pinning conservation, warmth,
   inclusive residency across faults, empty-summary faults, branch exclusion, liveness
   boundaries, and zero-request sessions.
+- `tests/context-overlay.test.ts` — 16 cases pinning the live TUI surface (occupancy strip
+  null-handling, icicle, launch honesty).
+- `tests/rfc-freshness.test.mjs` — rendered-vs-tree check: RFC-claimed test counts and
+  §10 command paths must match the actual tree (stale status lines fail the gate).
+- Corpus side (`packages/pi-context-corpus`): 20 `node:test` cases + a cross-package
+  integration test that replays a synthetic session through the real overlay replayer and
+  indexes the artifact it produced (executable corpus↔overlay tie).
 - Published artifact rev 3: <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
 
-Verification: `node --test` 11/11; `sum(series[c][r]) == residentEst[r]` on both real sessions
+Verification: `node --test tests/context-strata-lib.test.mjs` 15/15 (live suite 16/16);
+`sum(series[c][r]) == residentEst[r]` on both real sessions
 (0 mismatches); Chromium headless screenshot of the regenerated artifact (HSL green-channel
 mean ~0.306, non-trivial rendered content); package `quality-gate.sh ci` green including
 file-budget.
@@ -220,11 +250,42 @@ Still open:
   Path-qualification unblocks advisory→actionable *for unique paths*; still advisory when
   two same-basename files are both resident.
 
-## 9. Open questions
+## 9. Decisions and open questions
+
+### Decided (post-review, 2026-08-26)
+
+- **IR contract.** `strata.json` is a declared cross-package IR (second consumer: `pi-context-corpus`).
+  Protocol: additive-only changes; owner/approver = this package via its RFC review flow;
+  consumers ignore unknown fields and tolerate absent ones (pre-versioning artifacts stay
+  readable); a breaking change bumps `meta.schemaVersion` (now `1`) with a migration note.
+  Self-identity is provenance, not convenience: the overlay emits `meta.schemaVersion` and
+  `meta.estimator` (binds `wasteRatio`/ghosts to the miner that produced them). Derived
+  convenience fields (`gitBranch`-style labels) remain refused.
+- **`meta.cwd` proposal stands** (measured provenance from the session header; boundary rule:
+  measured provenance may cross into the IR, derived convenience never). Not yet implemented;
+  corpus records `sourceSession` meanwhile and never infers cwd from directory names.
+- **Wire-order evidence gate.** No P3 instrument may make positional claims until wire-order
+  drift is measured (≥3 real sessions, ≥2 providers, a `warmthAgreement.mae`-style drift bound
+  over prefix-divergence points). Order-free quantities (token-turns, $, cacheHit, runway
+  slope) are exempt and may proceed.
+- **Corpus HTTP posture.** Files-only stands as the current posture; "no HTTP ever" is withdrawn
+  as overclaim. Staged: revisit via a short dedicated RFC only when a real non-author consumer
+  needs programmatic access in practice, or corpus size makes jq scans operationally slow.
+- **ADR scope and placement.** One ADR in this package's `docs/adr/`, adopting shipped scope
+  only: the allocator model, epistemic ledger, live/forensic split, corpus package boundary,
+  and the IR contract above. P3/P4 excluded — they get their own decisions when prompted.
+  Corpus-side standing rules (index fields = identity + measured provenance + derived strata
+  facts; new questions become projections) are referenced, not duplicated.
+- **Standing rule (measurement versioning):** a cited measured figure must travel with the
+  estimator version that produced it — now machine-checkable via `meta.estimator`, doc-level
+  lineage (§3) retained for history. Future estimator changes append a lineage row.
+
+### Open questions
 
 - Provider serialization ordering (toolCall/result interleaving) differs from file order;
-  how much does the positional y-axis drift from the true wire order?
-- Multi-provider cost semantics (cacheWrite pricing, non-Anthropic routers).
+  how much does the positional y-axis drift from the true wire order? (Gated per decision above.)
+- Multi-provider cost semantics (cacheWrite pricing, non-Anthropic routers; the ~0.1× warm
+  tier is validated on one provider family only — same evidence gate applies).
 - Is deadness-by-reference-mining actionable enough to gate compaction content, or only
   advisory? Unique-path deadness is now decidable; ambiguous-basename cases stay advisory.
 - Should the replayer graduate into `pi-session-insights` (jq discipline, bounded JSON) rather
@@ -248,7 +309,9 @@ Still open:
 ## 10. Commands
 
 ```bash
+# forensic replay: strata.json, requests.csv, speedscope.json, context-strata.html
 node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
-# outputs: strata.json, requests.csv, speedscope.json, context-strata.html (open in browser)
-node --test tests/context-strata-lib.test.mjs
+# model tests (15) + live TUI tests (16) + rendered-vs-tree RFC freshness check
+node --test tests/context-strata-lib.test.mjs tests/context-overlay.test.ts tests/rfc-freshness.test.mjs
+# corpus side: see packages/pi-context-corpus/README.md (index/project CLI + 20-test suite)
 ```
