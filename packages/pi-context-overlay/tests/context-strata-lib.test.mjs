@@ -315,8 +315,20 @@ test("modelChanges records provider switches; warmthAgreement is populated", () 
     ["gpt-a", "gpt-b"],
   );
   assert.equal(strata.meta.modelChanges[1].r, 1);
-  assert.ok(strata.meta.warmthAgreement.n >= 1);
-  assert.ok(strata.meta.warmthAgreement.mae >= 0);
+  const wa = strata.meta.warmthAgreement;
+  assert.ok(wa.n >= 1);
+  assert.ok(wa.mae >= 0);
+  // wire-order drift bound channel: p95/max must exist, be ordered, and bound the mean
+  assert.ok(Number.isFinite(wa.p95) && wa.p95 >= 0);
+  assert.ok(Number.isFinite(wa.max) && wa.max >= 0);
+  assert.ok(wa.mae <= wa.p95 + Number.EPSILON, "mae <= p95");
+  assert.ok(wa.p95 <= wa.max + Number.EPSILON, "p95 <= max");
+});
+
+test("warmthAgreement is well-formed for a zero-request session", () => {
+  const NO_REQ = [line(session("root")), line(userMsg("u1", "root", "hi"))].join("\n");
+  const { strata } = buildStrataModel(NO_REQ);
+  assert.deepEqual(strata.meta.warmthAgreement, { n: 0, mae: 0, p95: 0, max: 0 });
 });
 
 test("parent-side dispatch_subagent forks are counted, not rolled up as child arenas", () => {

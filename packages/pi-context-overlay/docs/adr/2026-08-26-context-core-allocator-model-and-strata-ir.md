@@ -80,9 +80,12 @@ late-session.
 - **Warmth is adopted as model + validation method with a measured bound of one provider
   family** (gpt-5.x via the Radius router). It is *not* adopted as a general pricing
   claim; multi-provider generality is gated (RFC §9).
-- Wire order is unmeasured; the positional y-axis is replay order (*derived* class).
-  No P3 positional instrument may be built before a dated wire-order evidence note
-  (≥3 sessions, ≥2 providers, drift bound) exists — enforced mechanically by
+- Wire order itself is unobserved; its claim-relevant effect is now bounded by measurement
+  (`docs/project/2026-08-26-wire-order-drift-bound.md`: 5 sessions / 5 provider identities /
+  2851 requests — p90 ≤ 3.9%, median ≤ 0.4%, discontinuity tail 0.6%–5.7% at near-total
+  divergence). P3 positional/warmth instruments must state the per-session bound
+  (`meta.warmthAgreement` mae/p95/max) and flag or exclude tail requests (Δ > 0.5); no
+  global "replay order ≈ wire order" claim — enforced mechanically by
   `tests/rfc-freshness.test.mjs`, which also fails on stale RFC counts/paths.
 
 ## Consequences

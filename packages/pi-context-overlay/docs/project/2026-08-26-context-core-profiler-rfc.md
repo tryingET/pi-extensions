@@ -159,7 +159,7 @@ ring). Warm/cold split remains forensic-only.
 - `scripts/context-strata.template.html` — seven instruments; era membership from the fault
   list (empty-summary compaction still breaks strata); bedrock wins birthR ties so it sits at
   the base; hover/zoom use the same `plotW = width − PADX − PADR` mapping as the renderer.
-- `tests/context-strata-lib.test.mjs` — 17 `node:test` cases pinning conservation, warmth,
+- `tests/context-strata-lib.test.mjs` — 18 `node:test` cases pinning conservation, warmth,
   inclusive residency across faults, empty-summary faults, branch exclusion, liveness
   boundaries, and zero-request sessions.
 - `tests/context-overlay.test.ts` — 16 cases pinning the live TUI surface (occupancy strip
@@ -276,13 +276,18 @@ Still open:
   cwd (measured provenance; absent header cwd stays absent) and emits `meta.cwd`; the corpus
   surfaces it per session. Boundary rule held: measured provenance may cross into the IR,
   derived convenience never; the corpus never infers cwd from directory names.
-- **Wire-order evidence gate.** No P3 instrument may make positional claims until wire-order
-  drift is measured (≥3 real sessions, ≥2 providers, a `warmthAgreement.mae`-style drift bound
-  over prefix-divergence points). Order-free quantities (token-turns, $, cacheHit, runway
-  slope) are exempt and may proceed. **Owner/mechanism:** this package (the replayer owner)
-  executes the measurement as a dated evidence note under `docs/project/` recording the
-  drift bound; the gate is enforced mechanically — `tests/rfc-freshness.test.mjs` fails if
-  a P3/decision-support prompt exists without that evidence note.
+- **Wire-order evidence gate — discharged (2026-08-26).** Measured per
+  `docs/project/2026-08-26-wire-order-drift-bound.md`: 5 real sessions, 5 provider
+  identities, 2851 requests. Bound: ≥90% of requests agree within 4% share divergence
+  (p90 ≤ 3.9%, median ≤ 0.4%), with a discontinuity tail of 0.6%–5.7% of requests at
+  near-total divergence (max ≈ 1.0 in every session); wire order itself remains unobserved
+  (the instrument bounds its claim-relevant effect via warmth — `meta.warmthAgreement` now
+  carries `p95`/`max`, additive). **Licensing:** P3 positional/warmth instruments are
+  licensed only when they state the per-session bound and flag or exclude discontinuity-tail
+  requests (Δ > 0.5); no global "replay order ≈ wire order" claim. Order-free quantities
+  (token-turns, $, cacheHit, runway slope) were never gated. **Mechanism:** the gate stays
+  mechanical — `tests/rfc-freshness.test.mjs` fails if a P3/decision-support prompt exists
+  without a wire-order evidence note stating a measured bound.
 - **Corpus HTTP posture.** Files-only stands as the current posture; "no HTTP ever" is withdrawn
   as overclaim. Staged: revisit via a short dedicated RFC only when a real non-author consumer
   needs programmatic access in practice, or corpus size makes jq scans operationally slow.
@@ -326,7 +331,7 @@ Still open:
 ```bash
 # forensic replay: strata.json, requests.csv, speedscope.json, context-strata.html
 node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
-# model tests (17) + live TUI tests (16) + freshness/P3 gates
+# model tests (18) + live TUI tests (16) + freshness/P3 gates
 node --test tests/context-strata-lib.test.mjs tests/context-overlay.test.ts tests/rfc-freshness.test.mjs
 # corpus side: see packages/pi-context-corpus/README.md (index/project CLI + 20-test suite)
 ```

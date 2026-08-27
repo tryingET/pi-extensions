@@ -170,15 +170,31 @@ export function assembleStrata(
         : null,
   };
 
-  let warmthMae = 0;
-  let warmthN = 0;
+  // Warmth agreement doubles as the wire-order drift bound channel (RFC §9): warmth is
+  // positional, so |model warm share - measured cache share| per request bounds how much
+  // replay-order error can matter to positional claims. mae is the mean; p95/max are the bound.
+  const warmthDeltas = [];
   for (const q of requests) {
     const billedR = q.input + q.cacheRead;
     if (billedR <= 0 || q.residentEst <= 0) continue;
-    warmthMae += Math.abs(q.cacheRead / billedR - q.warmModelTokens / q.residentEst);
-    warmthN += 1;
+    warmthDeltas.push(Math.abs(q.cacheRead / billedR - q.warmModelTokens / q.residentEst));
   }
-  const warmthAgreement = { n: warmthN, mae: warmthN > 0 ? warmthMae / warmthN : 0 };
+  const warmthN = warmthDeltas.length;
+  const sortedDeltas = [...warmthDeltas].sort((a, b) => a - b);
+  const p95Of = (sorted) => {
+    if (sorted.length === 0) return 0;
+    const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil(0.95 * sorted.length) - 1));
+    return sorted[idx];
+  };
+  const warmthAgreement =
+    warmthN > 0
+      ? {
+          n: warmthN,
+          mae: warmthDeltas.reduce((a, x) => a + x, 0) / warmthN,
+          p95: p95Of(sortedDeltas),
+          max: sortedDeltas[sortedDeltas.length - 1],
+        }
+      : { n: 0, mae: 0, p95: 0, max: 0 };
 
   const modelChanges = [];
   for (let i = 0; i < requests.length; i++) {
