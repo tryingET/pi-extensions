@@ -34,37 +34,55 @@ function loadManifest(dir) {
   return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 }
 
-function collectLocalDependencies(dir, seen = new Set(), visiting = new Set(), collected = []) {
-  const resolvedDir = fs.realpathSync(path.resolve(dir));
-  if (visiting.has(resolvedDir)) {
-    fail(`Local dependency cycle detected at ${resolvedDir}`);
+function collectLocalDependencies(dir) {
+  const rootDir = fs.realpathSync(path.resolve(dir));
+  const states = new Map();
+  const manifests = new Map();
+  const collected = [];
+
+  function manifestFor(resolvedDir) {
+    if (!manifests.has(resolvedDir)) manifests.set(resolvedDir, loadManifest(resolvedDir));
+    return manifests.get(resolvedDir);
   }
-  visiting.add(resolvedDir);
-  const manifest = loadManifest(resolvedDir);
-  for (const field of runtimeDependencyFields) {
-    const dependencies = manifest[field];
-    if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) continue;
-    for (const [dependencyName, spec] of Object.entries(dependencies)) {
-      if (typeof spec !== "string" || !spec.startsWith("file:")) continue;
-      const dependencyDir = fs.realpathSync(path.resolve(resolvedDir, spec.slice("file:".length)));
-      const dependencyManifest = loadManifest(dependencyDir);
-      if (dependencyManifest.name !== dependencyName) {
-        fail(
-          `${manifest.name} ${field}.${dependencyName} points to ${spec}, but resolved package is ${dependencyManifest.name ?? "<missing>"}`,
+
+  function visit(candidateDir) {
+    const resolvedDir = fs.realpathSync(path.resolve(candidateDir));
+    const state = states.get(resolvedDir);
+    if (state === "gray") fail(`Local dependency cycle detected at ${resolvedDir}`);
+    if (state === "black") return;
+
+    states.set(resolvedDir, "gray");
+    const manifest = manifestFor(resolvedDir);
+    for (const field of runtimeDependencyFields) {
+      const dependencies = manifest[field];
+      if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies))
+        continue;
+      for (const [dependencyName, spec] of Object.entries(dependencies)) {
+        if (typeof spec !== "string" || !spec.startsWith("file:")) continue;
+        const dependencyDir = fs.realpathSync(
+          path.resolve(resolvedDir, spec.slice("file:".length)),
         );
+        const dependencyManifest = manifestFor(dependencyDir);
+        if (dependencyManifest.name !== dependencyName) {
+          fail(
+            `${manifest.name} ${field}.${dependencyName} points to ${spec}, but resolved package is ${dependencyManifest.name ?? "<missing>"}`,
+          );
+        }
+        visit(dependencyDir);
       }
-      collectLocalDependencies(dependencyDir, seen, visiting, collected);
-      if (seen.has(dependencyDir)) continue;
-      seen.add(dependencyDir);
+    }
+    states.set(resolvedDir, "black");
+    if (resolvedDir !== rootDir) {
       collected.push({
-        name: dependencyManifest.name,
-        version: dependencyManifest.version,
-        dir: dependencyDir,
+        name: manifest.name,
+        version: manifest.version,
+        dir: resolvedDir,
       });
     }
   }
-  visiting.delete(resolvedDir);
-  return collected;
+
+  visit(rootDir);
+  return { packageManifest: manifestFor(rootDir), localDependencies: collected };
 }
 
 function isInside(root, candidate) {
@@ -262,8 +280,7 @@ function packDependency(dependency, context) {
 }
 
 const packageDir = process.cwd();
-const packageManifest = loadManifest(packageDir);
-const localDependencies = collectLocalDependencies(packageDir);
+const { packageManifest, localDependencies } = collectLocalDependencies(packageDir);
 
 if (packDir) {
   fs.mkdirSync(packDir, { recursive: true, mode: 0o700 });

@@ -841,6 +841,69 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
   }
 });
 
+test("local dependency collection visits a shared DAG once in dependency-first order", () => {
+  const root = makeTestRoot("local-dependency-diamond");
+  try {
+    const appDir = path.join(root, "app");
+    const packageA = path.join(root, "package-a");
+    const packageB = path.join(root, "package-b");
+    const shared = path.join(root, "shared");
+    for (const directory of [appDir, packageA, packageB, shared]) fs.mkdirSync(directory);
+
+    const writeManifest = (directory, name, dependencies = {}) => {
+      fs.writeFileSync(
+        path.join(directory, "package.json"),
+        `${JSON.stringify({ name, version: "1.0.0", dependencies })}\n`,
+      );
+    };
+    writeManifest(appDir, "@fixture/app", {
+      "@fixture/package-a": "file:../package-a",
+      "@fixture/package-b": "file:../package-b",
+    });
+    writeManifest(packageA, "@fixture/package-a", { "@fixture/shared": "file:../shared" });
+    writeManifest(packageB, "@fixture/package-b", { "@fixture/shared": "file:../shared" });
+    writeManifest(shared, "@fixture/shared");
+
+    const readCountPath = path.join(root, "manifest-read-count");
+    const preloadPath = path.join(root, "count-manifest-reads.cjs");
+    fs.writeFileSync(
+      preloadPath,
+      `const fs = require("node:fs");
+const path = require("node:path");
+const original = fs.readFileSync;
+const originalWrite = fs.writeFileSync;
+let count = 0;
+fs.readFileSync = function(file, ...args) {
+  if (path.basename(String(file)) === "package.json") count += 1;
+  return original.call(this, file, ...args);
+};
+process.on("exit", () => originalWrite(${JSON.stringify(readCountPath)}, String(count)));
+`,
+    );
+    const result = spawnSync(
+      process.execPath,
+      ["--require", preloadPath, releaseLocalDependenciesPath, "--output", "json"],
+      {
+        cwd: appDir,
+        encoding: "utf8",
+        env: fixtureEnv(root),
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      fs.readFileSync(readCountPath, "utf8"),
+      "4",
+      "each manifest in the shared DAG must be read exactly once",
+    );
+    assert.deepEqual(
+      JSON.parse(result.stdout).localDependencies.map(({ name }) => name),
+      ["@fixture/shared", "@fixture/package-a", "@fixture/package-b"],
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("local dependency collection rejects cycles before packing", () => {
   const root = makeTestRoot("local-dependency-cycle");
   try {
