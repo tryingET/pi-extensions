@@ -35,7 +35,7 @@ function loadManifest(dir) {
 }
 
 function collectLocalDependencies(dir, seen = new Set(), visiting = new Set(), collected = []) {
-  const resolvedDir = path.resolve(dir);
+  const resolvedDir = fs.realpathSync(path.resolve(dir));
   if (visiting.has(resolvedDir)) {
     fail(`Local dependency cycle detected at ${resolvedDir}`);
   }
@@ -46,7 +46,7 @@ function collectLocalDependencies(dir, seen = new Set(), visiting = new Set(), c
     if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) continue;
     for (const [dependencyName, spec] of Object.entries(dependencies)) {
       if (typeof spec !== "string" || !spec.startsWith("file:")) continue;
-      const dependencyDir = path.resolve(dir, spec.slice("file:".length));
+      const dependencyDir = fs.realpathSync(path.resolve(resolvedDir, spec.slice("file:".length)));
       const dependencyManifest = loadManifest(dependencyDir);
       if (dependencyManifest.name !== dependencyName) {
         fail(
@@ -73,8 +73,8 @@ function isInside(root, candidate) {
 }
 
 function commonAncestor(paths) {
-  let current = path.resolve(paths[0]);
-  while (!paths.every((candidate) => isInside(current, path.resolve(candidate)))) {
+  let current = fs.realpathSync(path.resolve(paths[0]));
+  while (!paths.every((candidate) => isInside(current, fs.realpathSync(path.resolve(candidate))))) {
     const parent = path.dirname(current);
     if (parent === current) fail("Could not derive a bounded local dependency source root");
     current = parent;
@@ -104,20 +104,40 @@ function copySource(source, destination) {
       if (["node_modules", ".git", ".tmp"].includes(basename)) return false;
       if (basename.endsWith(".tgz")) return false;
       if (basename.startsWith(".package.json.")) return false;
+      if (fs.lstatSync(candidate).isSymbolicLink()) {
+        fail(`Symlink is not allowed in release dependency source: ${candidate}`);
+      }
       return true;
     },
   });
 }
 
-function prepareWorkspace(packageDir, dependencies) {
+function createScratchContext(packageDir, dependencies) {
   const dependencyDirs = dependencies.map((dependency) => dependency.dir);
   const git = gitContext(packageDir, dependencyDirs);
   const sourceRoot = git?.root ?? commonAncestor([packageDir, ...dependencyDirs]);
-  const workspaceRoot = path.join(packDir, ".source-workspace");
-  fs.mkdirSync(workspaceRoot, { recursive: true, mode: 0o700 });
+  let workspaceRoot;
+  let npmHome;
+  try {
+    workspaceRoot = fs.mkdtempSync(path.join(packDir, ".source-workspace."));
+    npmHome = fs.mkdtempSync(path.join(packDir, ".npm-home."));
+    fs.mkdirSync(path.join(npmHome, ".config"), { recursive: true, mode: 0o700 });
+    fs.mkdirSync(path.join(npmHome, ".cache"), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(npmHome, "user.npmrc"), "", { mode: 0o600 });
+    fs.writeFileSync(path.join(npmHome, "global.npmrc"), "", { mode: 0o600 });
+    return { sourceRoot, workspaceRoot, npmHome, git };
+  } catch (error) {
+    if (workspaceRoot) fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    if (npmHome) fs.rmSync(npmHome, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function prepareWorkspace(context, dependencies) {
+  const { sourceRoot, workspaceRoot } = context;
   const projected = new Set();
   const projectDirectory = (sourceDir) => {
-    const resolved = path.resolve(sourceDir);
+    const resolved = fs.realpathSync(path.resolve(sourceDir));
     const relative = path.relative(sourceRoot, resolved);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
       fail(`Local dependency escaped scratch projection: ${resolved}`);
@@ -149,13 +169,6 @@ function prepareWorkspace(packageDir, dependencies) {
     const target = path.join(workspaceRoot, "packages", "pi-interaction", "scripts");
     if (!fs.existsSync(target)) copySource(interactionScripts, target);
   }
-
-  const npmHome = path.join(packDir, ".npm-home");
-  fs.mkdirSync(path.join(npmHome, ".config"), { recursive: true, mode: 0o700 });
-  fs.mkdirSync(path.join(npmHome, ".cache"), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(npmHome, "user.npmrc"), "", { mode: 0o600 });
-  fs.writeFileSync(path.join(npmHome, "global.npmrc"), "", { mode: 0o600 });
-  return { workspaceRoot, npmHome, git };
 }
 
 function npmEnv(context) {
@@ -243,15 +256,31 @@ const localDependencies = collectLocalDependencies(packageDir);
 
 if (packDir) {
   fs.mkdirSync(packDir, { recursive: true, mode: 0o700 });
-  const context = prepareWorkspace(packageDir, localDependencies);
+  const invocationLock = path.join(packDir, ".release-local-dependencies.lock");
+  let lockOwned = false;
+  let context;
   try {
+    try {
+      fs.mkdirSync(invocationLock);
+      lockOwned = true;
+    } catch (error) {
+      if (error?.code === "EEXIST") {
+        fail(`Local dependency pack directory is already active: ${packDir}`);
+      }
+      throw error;
+    }
+    context = createScratchContext(packageDir, localDependencies);
+    prepareWorkspace(context, localDependencies);
     for (const dependency of localDependencies) {
       dependency.tarballPath = packDependency(dependency, context);
     }
   } finally {
     for (const dependency of localDependencies) delete dependency.scratchDir;
-    fs.rmSync(context.workspaceRoot, { recursive: true, force: true });
-    fs.rmSync(context.npmHome, { recursive: true, force: true });
+    if (context) {
+      fs.rmSync(context.workspaceRoot, { recursive: true, force: true });
+      fs.rmSync(context.npmHome, { recursive: true, force: true });
+    }
+    if (lockOwned) fs.rmSync(invocationLock, { recursive: true, force: true });
   }
 }
 

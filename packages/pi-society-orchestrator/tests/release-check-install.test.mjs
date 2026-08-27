@@ -17,6 +17,10 @@ const vaultReleaseLocalDependenciesPath = path.resolve(
   packageDir,
   "../pi-vault-client/scripts/release-local-dependencies.mjs",
 );
+const vaultReleaseCheckPath = path.resolve(
+  packageDir,
+  "../pi-vault-client/scripts/release-check.sh",
+);
 const processTmpDirInput = process.env.TMPDIR;
 assert.equal(typeof processTmpDirInput, "string", "TMPDIR is required for focused release tests");
 assert.ok(
@@ -605,6 +609,19 @@ test("shipped-entry closure detects an omitted exported entry and its imports", 
   }
 });
 
+test("vault release check refuses system temporary storage", () => {
+  const source = fs.readFileSync(vaultReleaseCheckPath, "utf8");
+  assert.doesNotMatch(source, /mktemp(?: -d)? \/tmp\//);
+  assert.match(source, /npm install --ignore-scripts --legacy-peer-deps/);
+  const result = spawnSync("bash", [vaultReleaseCheckPath], {
+    cwd: path.dirname(vaultReleaseCheckPath),
+    encoding: "utf8",
+    env: { ...process.env, TMPDIR: "/tmp" },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /refuses system \/tmp/);
+});
+
 test("local dependency packing prepares locked dev tools in isolated scratch", () => {
   const root = makeTestRoot("local-dependency-prepack-dev");
   try {
@@ -612,25 +629,35 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
     const dependencyDir = path.join(root, "dependency");
     const buildToolDir = path.join(root, "build-tool");
     const prepackMarker = path.join(root, "prepack.marker");
+    const dependencyLink = path.join(root, "dependency-link");
+    const installMarker = path.join(root, "install.marker");
     fs.mkdirSync(appDir);
     fs.mkdirSync(dependencyDir);
     fs.mkdirSync(buildToolDir);
+    fs.symlinkSync(dependencyDir, dependencyLink, "dir");
     fs.writeFileSync(
       path.join(appDir, "package.json"),
       `${JSON.stringify({
         name: "@fixture/app",
         version: "1.0.0",
-        dependencies: { "@fixture/dependency": "file:../dependency" },
+        dependencies: { "@fixture/dependency": "file:../dependency-link" },
       })}\n`,
     );
     fs.writeFileSync(
       path.join(buildToolDir, "package.json"),
-      `${JSON.stringify({ name: "@fixture/build-tool", version: "1.0.0", main: "index.cjs" })}\n`,
+      `${JSON.stringify({
+        name: "@fixture/build-tool",
+        version: "1.0.0",
+        main: "index.cjs",
+        scripts: {
+          postinstall: `node -e 'require("node:fs").writeFileSync(${JSON.stringify(installMarker)}, "ran")'`,
+        },
+      })}\n`,
     );
     fs.writeFileSync(path.join(buildToolDir, "index.cjs"), "module.exports = 'ready';\n");
     fs.writeFileSync(
       path.join(dependencyDir, "verify-prepack.cjs"),
-      `const fs = require("node:fs");\nif (require("@fixture/build-tool") !== "ready") process.exit(1);\nfs.writeFileSync(${JSON.stringify(prepackMarker)}, "ran");\n`,
+      `const fs = require("node:fs");\nif (require("@fixture/build-tool") !== "ready") process.exit(1);\nfs.writeFileSync(${JSON.stringify(prepackMarker)}, "ran");\nfs.writeFileSync("relative-prepack.marker", "scratch-only");\n`,
     );
     fs.writeFileSync(
       path.join(dependencyDir, "package.json"),
@@ -665,6 +692,10 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
       vaultReleaseLocalDependenciesPath,
     ].entries()) {
       const packDir = path.join(root, `packed-${index}`);
+      fs.mkdirSync(path.join(packDir, ".source-workspace"), { recursive: true });
+      fs.mkdirSync(path.join(packDir, ".npm-home"), { recursive: true });
+      fs.writeFileSync(path.join(packDir, ".source-workspace", "sentinel"), "preserve");
+      fs.writeFileSync(path.join(packDir, ".npm-home", "sentinel"), "preserve");
       fs.rmSync(prepackMarker, { force: true });
       const packed = spawnSync(
         process.execPath,
@@ -684,11 +715,30 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
       assert.equal(tarballs.length, 1);
       assert.ok(fs.existsSync(tarballs[0]));
       assert.equal(fs.readFileSync(prepackMarker, "utf8"), "ran");
-      assert.equal(fs.existsSync(path.join(packDir, ".source-workspace")), false);
-      assert.equal(fs.existsSync(path.join(packDir, ".npm-home")), false);
+      assert.equal(
+        fs.readFileSync(path.join(packDir, ".source-workspace", "sentinel"), "utf8"),
+        "preserve",
+      );
+      assert.equal(
+        fs.readFileSync(path.join(packDir, ".npm-home", "sentinel"), "utf8"),
+        "preserve",
+      );
+      assert.deepEqual(
+        fs
+          .readdirSync(packDir)
+          .filter(
+            (entry) =>
+              entry.startsWith(".source-workspace.") ||
+              entry.startsWith(".npm-home.") ||
+              entry === ".release-local-dependencies.lock",
+          ),
+        [],
+      );
     }
 
     assert.equal(fs.existsSync(path.join(dependencyDir, "node_modules")), false);
+    assert.equal(fs.existsSync(path.join(dependencyDir, "relative-prepack.marker")), false);
+    assert.equal(fs.existsSync(installMarker), false);
     assert.deepEqual(fs.readFileSync(packagePath), packageBytes);
     assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
 
@@ -701,8 +751,54 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
     );
     assert.notEqual(lockless.status, 0);
     assert.match(lockless.stderr, /Locked dev dependency preparation is required/);
-    assert.equal(fs.existsSync(path.join(locklessPackDir, ".source-workspace")), false);
-    assert.equal(fs.existsSync(path.join(locklessPackDir, ".npm-home")), false);
+    assert.deepEqual(
+      fs
+        .readdirSync(locklessPackDir)
+        .filter(
+          (entry) =>
+            entry.startsWith(".source-workspace.") ||
+            entry.startsWith(".npm-home.") ||
+            entry === ".release-local-dependencies.lock",
+        ),
+      [],
+    );
+
+    fs.writeFileSync(lockPath, lockBytes);
+    const brokenManifest = JSON.parse(packageBytes.toString("utf8"));
+    brokenManifest.devDependencies["@fixture/build-tool"] = "file:../missing-build-tool";
+    fs.writeFileSync(packagePath, `${JSON.stringify(brokenManifest)}\n`);
+    const partialPackDir = path.join(root, "packed-partial-failure");
+    const partial = spawnSync(
+      process.execPath,
+      [releaseLocalDependenciesPath, "--pack-dir", partialPackDir, "--output", "tarballs"],
+      { cwd: appDir, encoding: "utf8", env: fixtureEnv(root) },
+    );
+    assert.notEqual(partial.status, 0);
+    assert.deepEqual(
+      fs
+        .readdirSync(partialPackDir)
+        .filter(
+          (entry) =>
+            entry.startsWith(".source-workspace.") ||
+            entry.startsWith(".npm-home.") ||
+            entry === ".release-local-dependencies.lock",
+        ),
+      [],
+    );
+    fs.writeFileSync(packagePath, packageBytes);
+
+    const activePackDir = path.join(root, "packed-active");
+    const activeLock = path.join(activePackDir, ".release-local-dependencies.lock");
+    fs.mkdirSync(activeLock, { recursive: true });
+    fs.writeFileSync(path.join(activeLock, "sentinel"), "active");
+    const concurrent = spawnSync(
+      process.execPath,
+      [releaseLocalDependenciesPath, "--pack-dir", activePackDir, "--output", "tarballs"],
+      { cwd: appDir, encoding: "utf8", env: fixtureEnv(root) },
+    );
+    assert.notEqual(concurrent.status, 0);
+    assert.match(concurrent.stderr, /pack directory is already active/);
+    assert.equal(fs.readFileSync(path.join(activeLock, "sentinel"), "utf8"), "active");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

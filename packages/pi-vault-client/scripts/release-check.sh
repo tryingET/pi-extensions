@@ -8,6 +8,36 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+: "${TMPDIR:?TMPDIR must name managed release-check scratch}"
+TMPDIR_REAL="$(node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$TMPDIR")"
+if [[ "$TMPDIR_REAL" == "/tmp" || "$TMPDIR_REAL" == /tmp/* ]]; then
+  echo "Release check refuses system /tmp: $TMPDIR" >&2
+  exit 1
+fi
+release_temp_assert() {
+  local candidate="$1"
+  local parent
+  parent="$(node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$(dirname "$candidate")")"
+  case "$parent" in
+    "$TMPDIR_REAL"|"$TMPDIR_REAL"/*) ;;
+    *) echo "Release scratch escaped TMPDIR: $candidate" >&2; return 1 ;;
+  esac
+}
+release_temp_dir() {
+  local label="$1"
+  local created
+  created="$(mktemp -d "$TMPDIR/pi-vault-${label}.XXXXXX")"
+  release_temp_assert "$created"
+  printf '%s\n' "$created"
+}
+release_temp_file() {
+  local label="$1"
+  local created
+  created="$(mktemp "$TMPDIR/pi-vault-${label}.XXXXXX")"
+  release_temp_assert "$created"
+  printf '%s\n' "$created"
+}
+
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 REPOSITORY_URL="$(node -p "(() => { const pkg = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')); const repo = pkg.repository; if (typeof repo === 'string') return repo.trim(); if (repo && typeof repo === 'object' && typeof repo.url === 'string') return repo.url.trim(); return ''; })()")"
@@ -32,8 +62,8 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
   exit 1
 fi
 
-PACK_JSON_FILE="$(mktemp "${TMPDIR:-/tmp}/pi-vault-pack-json-XXXXXX.json")"
-PACK_JSON_NORMALIZED_FILE="$(mktemp "${TMPDIR:-/tmp}/pi-vault-pack-normalized-XXXXXX.json")"
+PACK_JSON_FILE="$(release_temp_file pack-json)"
+PACK_JSON_NORMALIZED_FILE="$(release_temp_file pack-normalized)"
 
 echo "== npm pack --dry-run --json"
 npm pack --dry-run --json > "$PACK_JSON_FILE"
@@ -292,12 +322,12 @@ TARBALL_PATH="$ROOT_DIR/$TARBALL"
 PACKAGE_SPEC="npm:$TARBALL_PATH"
 echo "Tarball: $TARBALL_PATH"
 
-LOCAL_DEP_PACK_DIR="$(mktemp -d /tmp/pi-vault-local-deps-XXXXXX)"
+LOCAL_DEP_PACK_DIR="$(release_temp_dir local-deps)"
 mapfile -t LOCAL_DEP_TARBALLS < <(node ./scripts/release-local-dependencies.mjs --pack-dir "$LOCAL_DEP_PACK_DIR" --output tarballs)
 INSTALL_TARBALLS=("${LOCAL_DEP_TARBALLS[@]}" "$TARBALL_PATH")
 
-PACKED_ARTIFACT_DIR="$(mktemp -d /tmp/pi-extension-packed-artifact-XXXXXX)"
-PACKED_TARBALL_JSON_FILE="$(mktemp /tmp/pi-vault-packed-json-XXXXXX.json)"
+PACKED_ARTIFACT_DIR="$(release_temp_dir packed-artifact)"
+PACKED_TARBALL_JSON_FILE="$(release_temp_file packed-json)"
 tar -xzf "$TARBALL_PATH" -C "$PACKED_ARTIFACT_DIR"
 TARBALL_PATH="$TARBALL_PATH" PACKED_TARBALL_JSON_FILE="$PACKED_TARBALL_JSON_FILE" node <<'NODE'
 const { execFileSync } = require("node:child_process");
@@ -379,10 +409,10 @@ console.log("Packed manifest dependency audit OK.");
 NODE
 
 echo "== clean-room tarball install"
-CLEANROOM_DIR="$(mktemp -d /tmp/pi-extension-release-install-XXXXXX)"
+CLEANROOM_DIR="$(release_temp_dir clean-install)"
 pushd "$CLEANROOM_DIR" >/dev/null
 npm init -y >/dev/null 2>&1
-npm install --ignore-scripts "${INSTALL_TARBALLS[@]}" >/dev/null
+npm install --ignore-scripts --legacy-peer-deps "${INSTALL_TARBALLS[@]}" >/dev/null
 PACKAGE_NAME="$NAME" CLEANROOM_DIR="$CLEANROOM_DIR" node <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
@@ -428,7 +458,7 @@ popd >/dev/null
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping installed-package smoke (SKIP_PI_SMOKE=1)."
 else
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
+  TEST_AGENT_DIR="$(release_temp_dir installed-smoke)"
   NPM_GLOBAL_PREFIX="$TEST_AGENT_DIR/npm-global"
   mkdir -p "$NPM_GLOBAL_PREFIX"
 
