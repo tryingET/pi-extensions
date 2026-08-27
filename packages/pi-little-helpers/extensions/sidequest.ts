@@ -21,6 +21,7 @@ import {
 } from "../src/ascExecutionObserver.ts";
 import {
   bindCandidateAdmission,
+  CandidateAdmissionPrerequisiteError,
   type CandidateAdmissionReservation,
   releaseCandidateAdmission,
   reserveCandidateAdmission,
@@ -486,7 +487,10 @@ const candidatePeerCloseoutParameters = asPiToolParameters(
 
 const candidatePeerSpawnParameters = asPiToolParameters(
   Type.Object({
-    objective: Type.String({ description: "Required non-empty candidate mutation objective." }),
+    objective: Type.String({
+      description:
+        "Required non-empty candidate mutation objective. It must exactly match the pre-authorized lifecycle-v2 permit after trimming; do not paraphrase it.",
+    }),
     cwd: Type.Optional(Type.String({ description: "Parent/controller cwd. Defaults to ctx.cwd." })),
     baseRef: Type.Optional(Type.String({ description: "Git base ref. Defaults to HEAD." })),
     branchName: Type.Optional(
@@ -512,6 +516,35 @@ const candidatePeerSpawnParameters = asPiToolParameters(
     ),
   }),
 );
+
+function classifyCandidateAdmissionFailure(error: unknown) {
+  const reason = error instanceof Error ? error.message : String(error);
+  const prerequisiteFailure = error instanceof CandidateAdmissionPrerequisiteError;
+  const nextAction = prerequisiteFailure
+    ? "Ask the owner/controller to authorize or reconcile exactly one lifecycle-v2 permit for this exact repository and trimmed objective. Retry only after the owner confirms admission state changed."
+    : "Ask the owner/controller to inspect and reconcile lifecycle-v2 admission state. Retry only after the owner confirms admission state changed.";
+  const effectDisposition = prerequisiteFailure ? "confirmed_no_effects" : "effect_indeterminate";
+  const effectSummary = prerequisiteFailure
+    ? "Admission was blocked before reservation, worktree creation, or peer launch."
+    : "No worktree or peer launch was attempted, but admission state may require owner reconciliation.";
+  return {
+    message: `${reason}. ${effectSummary} Do not retry this request unchanged. This surface cannot create or authorize permits. ${nextAction}`,
+    details: {
+      reasonCode: prerequisiteFailure ? error.code : "candidate_admission_reconciliation_required",
+      ...(prerequisiteFailure
+        ? { matchingAuthorizedPermitCount: error.matchingAuthorizedPermitCount }
+        : {}),
+      ownerActionRequired: true,
+      retryDisposition: "blocked_until_owner_state_change",
+      retryableWithoutOwnerStateChange: false,
+      effectDisposition,
+      admissionEffectDisposition: effectDisposition,
+      worktreeEffectDisposition: "confirmed_no_effects",
+      launchEffectDisposition: "confirmed_no_effects",
+      nextAction,
+    },
+  };
+}
 
 function getPrompt(args?: string): string | undefined {
   const prompt = args?.trim();
@@ -2567,11 +2600,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       try {
         admission = reserveAdmission({ repoRoot: repository.repoRoot, objective }, env);
       } catch (error) {
+        const failure = classifyCandidateAdmissionFailure(error);
         if (ctx.hasUI) {
-          ctx.ui.notify(
-            `${commandName} admission blocked: ${error instanceof Error ? error.message : String(error)}`,
-            "error",
-          );
+          ctx.ui.notify(`${commandName} admission blocked: ${failure.message}`, "error");
         }
         return;
       }
@@ -3154,18 +3185,17 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       try {
         admission = reserveAdmission({ repoRoot: repository.repoRoot, objective }, env);
       } catch (error) {
-        return errorToolResult(
-          `${toolName} admission blocked: ${error instanceof Error ? error.message : String(error)}`,
-          {
-            ok: false,
-            tool: toolName,
-            canonicalTool: "candidate_peer_spawn",
-            reportBack,
-            parentCwd,
-            repoRoot: repository.repoRoot,
-            error: "candidate_admission_blocked",
-          },
-        );
+        const failure = classifyCandidateAdmissionFailure(error);
+        return errorToolResult(`${toolName} admission blocked: ${failure.message}`, {
+          ok: false,
+          tool: toolName,
+          canonicalTool: "candidate_peer_spawn",
+          reportBack,
+          parentCwd,
+          repoRoot: repository.repoRoot,
+          error: "candidate_admission_blocked",
+          ...failure.details,
+        });
       }
 
       const worktree = await prepareCandidatePeerWorktree({
@@ -3458,7 +3488,8 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       });
 
       pi.registerCommand(PARALLELQUEST_COMMAND, {
-        description: "Launch a clean visible candidate peer in an isolated git worktree",
+        description:
+          "Launch a one-shot candidate peer only after owner authorization for the exact repository and objective; blocked admission must not be retried unchanged",
         handler: (args, ctx) =>
           runCandidatePeerCommand(args, ctx, PARALLELQUEST_COMMAND, "Parallelquest"),
       });
@@ -3628,9 +3659,9 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       name: CANDIDATE_PEER_SPAWN_TOOL,
       label: "Candidate Peer Spawn",
       description:
-        "Launch a clean visible candidate peer Pi session in an isolated git worktree for bounded mutation.",
+        "One-shot owner-authorized candidate launch. Requires exactly one pre-existing lifecycle-v2 permit matching the resolved repository and exact trimmed objective before it creates an isolated git worktree or launches a visible mutation peer; this tool cannot create or broaden that authority.",
       promptSnippet:
-        "Use to create an isolated git worktree and launch a clean visible candidate peer for bounded mutation. It does not merge, push, open PRs, mutate AK, or claim promotion.",
+        "Call only after the owner/controller confirms exactly one lifecycle-v2 permit is authorized for the resolved repository and this exact objective. This is not a permit probe. If admission is blocked, stop and do not repeat the same call; retry only after confirmed owner admission-state change. It does not merge, push, open PRs, mutate AK, or claim promotion.",
       parameters: candidatePeerSpawnParameters,
       execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
         executeCandidatePeerSpawn(CANDIDATE_PEER_SPAWN_TOOL, params, ctx),

@@ -71,6 +71,19 @@ export {
 
 const TERMINAL_STATES = new Set(["cleaned", "closed_with_retained_effects", "reconciled_missing"]);
 
+export class CandidateAdmissionPrerequisiteError extends Error {
+  readonly code = "matching_owner_permit_required";
+  readonly matchingAuthorizedPermitCount: number;
+
+  constructor(matchingAuthorizedPermitCount: number) {
+    super(
+      `candidate spawn requires exactly one matching authorized permit; found ${matchingAuthorizedPermitCount}`,
+    );
+    this.name = "CandidateAdmissionPrerequisiteError";
+    this.matchingAuthorizedPermitCount = matchingAuthorizedPermitCount;
+  }
+}
+
 function resourceRepository(resource: CandidateInventoryResource): string {
   return resource.repoRoots.length === 1 ? resolve(resource.repoRoots[0]) : "<ambiguous>";
 }
@@ -468,10 +481,7 @@ export function reserveCandidateAdmission(
         permit.repoRoot === repoRoot &&
         permit.objectiveDigest === candidateObjectiveDigest(input.objective),
     );
-    if (matches.length !== 1)
-      throw new Error(
-        `candidate spawn requires exactly one matching authorized permit; found ${matches.length}`,
-      );
+    if (matches.length !== 1) throw new CandidateAdmissionPrerequisiteError(matches.length);
     const permit = matches[0];
     const reservationTime = finiteTimestamp(now, "candidate admission reservation time");
     if (finiteTimestamp(permit.expiresAt, "candidate admission permit expiry") <= reservationTime)

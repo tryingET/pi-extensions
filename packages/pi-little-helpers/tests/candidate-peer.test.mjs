@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import { createSidequestExtension as createProductionSidequestExtension } from "../extensions/sidequest.ts";
+import { CandidateAdmissionPrerequisiteError } from "../src/candidatePeerAdmission.ts";
 import {
   createContext,
   extractPiArgs,
@@ -199,6 +200,51 @@ test("/parallelquest launches a human candidate peer worktree", async () => {
   });
 });
 
+test("/parallelquest exposes owner action and forbids unchanged retry when admission is absent", async () => {
+  const execStub = createCandidatePeerExecStub();
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    candidateAdmission: {
+      reserve() {
+        throw new CandidateAdmissionPrerequisiteError(0);
+      },
+      bind() {
+        throw new Error("unreachable");
+      },
+      release() {
+        throw new Error("unreachable");
+      },
+    },
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { commands } = registerExtension(extension);
+  const harness = createContext({ cwd: "/repo" });
+
+  await commands.get("parallelquest").handler("Try a blocked candidate", harness.ctx);
+
+  assert.match(commands.get("parallelquest").description, /owner authorization/);
+  assert.match(harness.notifications.at(-1)?.message ?? "", /found 0/);
+  assert.match(harness.notifications.at(-1)?.message ?? "", /Do not retry this request unchanged/);
+  assert.match(harness.notifications.at(-1)?.message ?? "", /cannot create or authorize permits/);
+  assert.equal(
+    execStub.calls.some((call) => call.command === "git" && call.args.includes("worktree")),
+    false,
+  );
+  assert.equal(
+    execStub.calls.some((call) => call.command === "/usr/bin/ghostty"),
+    false,
+  );
+});
+
 test("candidate_peer_spawn rejects a blank objective before git or Ghostty", async () => {
   const execStub = createCandidatePeerExecStub();
   const extension = createSidequestExtension({
@@ -243,7 +289,79 @@ test("candidate_peer_spawn fails before worktree mutation when admission is abse
     exec: execStub.exec,
     candidateAdmission: {
       reserve() {
-        throw new Error("exact owner permit missing");
+        throw new CandidateAdmissionPrerequisiteError(0);
+      },
+      bind() {
+        throw new Error("unreachable");
+      },
+      release() {
+        throw new Error("unreachable");
+      },
+    },
+    pathExists(path) {
+      return path === "/usr/bin/ghostty";
+    },
+  });
+  const { tools } = registerExtension(extension);
+  const candidatePeerSpawn = tools.get("candidate_peer_spawn");
+  const result = await candidatePeerSpawn.execute(
+    "tool-call-admission",
+    { objective: "Try a blocked candidate", reportBack: "none" },
+    undefined,
+    undefined,
+    createContext().ctx,
+  );
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.error, "candidate_admission_blocked");
+  assert.equal(result.details.reasonCode, "matching_owner_permit_required");
+  assert.equal(result.details.matchingAuthorizedPermitCount, 0);
+  assert.equal(result.details.ownerActionRequired, true);
+  assert.equal(result.details.retryDisposition, "blocked_until_owner_state_change");
+  assert.equal(result.details.retryableWithoutOwnerStateChange, false);
+  assert.equal(result.details.admissionEffectDisposition, "confirmed_no_effects");
+  assert.equal(result.details.effectDisposition, "confirmed_no_effects");
+  assert.equal(result.details.worktreeEffectDisposition, "confirmed_no_effects");
+  assert.equal(result.details.launchEffectDisposition, "confirmed_no_effects");
+  assert.match(result.content[0].text, /exactly one matching authorized permit; found 0/);
+  assert.match(result.content[0].text, /Do not retry this request unchanged/);
+  assert.match(result.content[0].text, /cannot create or authorize permits/);
+  assert.match(result.details.nextAction, /owner\/controller/);
+  assert.match(result.details.nextAction, /exact repository and trimmed objective/);
+  assert.match(
+    candidatePeerSpawn.description,
+    /Requires exactly one pre-existing lifecycle-v2 permit/,
+  );
+  assert.match(candidatePeerSpawn.promptSnippet, /This is not a permit probe/);
+  assert.match(candidatePeerSpawn.promptSnippet, /do not repeat the same call/);
+  assert.match(
+    candidatePeerSpawn.parameters.properties.objective.description,
+    /exactly match the pre-authorized lifecycle-v2 permit after trimming/,
+  );
+  assert.equal(
+    execStub.calls.some((call) => call.command === "git" && call.args.includes("worktree")),
+    false,
+  );
+  assert.equal(
+    execStub.calls.some((call) => call.command === "/usr/bin/ghostty"),
+    false,
+  );
+});
+
+test("candidate_peer_spawn treats an unclassified admission failure as admission-indeterminate", async () => {
+  const execStub = createCandidatePeerExecStub();
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      TERM_PROGRAM: "ghostty",
+      GHOSTTY_BIN_DIR: "/usr/bin",
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    currentSessionGhosttyBin: "/usr/bin/ghostty",
+    exec: execStub.exec,
+    candidateAdmission: {
+      reserve() {
+        throw new Error("durability acknowledgement unavailable");
       },
       bind() {
         throw new Error("unreachable");
@@ -260,8 +378,8 @@ test("candidate_peer_spawn fails before worktree mutation when admission is abse
   const result = await tools
     .get("candidate_peer_spawn")
     .execute(
-      "tool-call-admission",
-      { objective: "Try a blocked candidate", reportBack: "none" },
+      "tool-call-admission-indeterminate",
+      { objective: "Try an indeterminate admission", reportBack: "none" },
       undefined,
       undefined,
       createContext().ctx,
@@ -269,7 +387,18 @@ test("candidate_peer_spawn fails before worktree mutation when admission is abse
 
   assert.equal(result.isError, true);
   assert.equal(result.details.error, "candidate_admission_blocked");
-  assert.match(result.content[0].text, /exact owner permit missing/);
+  assert.equal(result.details.reasonCode, "candidate_admission_reconciliation_required");
+  assert.equal(result.details.ownerActionRequired, true);
+  assert.equal(result.details.retryDisposition, "blocked_until_owner_state_change");
+  assert.equal(result.details.retryableWithoutOwnerStateChange, false);
+  assert.equal(result.details.effectDisposition, "effect_indeterminate");
+  assert.equal(result.details.admissionEffectDisposition, "effect_indeterminate");
+  assert.equal(result.details.worktreeEffectDisposition, "confirmed_no_effects");
+  assert.equal(result.details.launchEffectDisposition, "confirmed_no_effects");
+  assert.match(result.content[0].text, /admission state may require owner reconciliation/);
+  assert.match(result.content[0].text, /durability acknowledgement unavailable/);
+  assert.match(result.details.nextAction, /inspect and reconcile lifecycle-v2 admission state/);
+  assert.match(result.content[0].text, /Do not retry this request unchanged/);
   assert.equal(
     execStub.calls.some((call) => call.command === "git" && call.args.includes("worktree")),
     false,

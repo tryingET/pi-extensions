@@ -16,6 +16,7 @@ import {
   activateCandidateAdmission,
   authorizeCandidateAdmission,
   bindCandidateAdmission,
+  CandidateAdmissionPrerequisiteError,
   captureCandidateAdmissionPressure,
   expireCandidateAdmission,
   getCandidateAdmissionConfigPath,
@@ -185,6 +186,52 @@ function writeTerminalRecord({ env, repoRoot, resourceId, worktreePath, peerRunI
   );
   return { path, record, digest: digestObject(record) };
 }
+
+test("candidate admission reports a typed no-match prerequisite before reservation", () => {
+  const { env, repoRoot } = setup();
+  assert.throws(
+    () =>
+      reserveCandidateAdmission(
+        { repoRoot, objective: "No owner permit exists" },
+        env,
+        "2026-07-18T00:01:00.000Z",
+      ),
+    (error) => {
+      assert.equal(error instanceof CandidateAdmissionPrerequisiteError, true);
+      assert.equal(error.code, "matching_owner_permit_required");
+      assert.equal(error.matchingAuthorizedPermitCount, 0);
+      assert.match(error.message, /exactly one matching authorized permit; found 0/);
+      return true;
+    },
+  );
+});
+
+test("candidate admission reports multiple matching permits without reserving either", () => {
+  const { env, repoRoot, now } = setup();
+  const first = authorize({ env, repoRoot, now });
+  const second = authorize({ env, repoRoot, now });
+
+  assert.throws(
+    () =>
+      reserveCandidateAdmission(
+        { repoRoot, objective: "Run exact canary" },
+        env,
+        "2026-07-18T00:01:00.000Z",
+      ),
+    (error) => {
+      assert.equal(error instanceof CandidateAdmissionPrerequisiteError, true);
+      assert.equal(error.matchingAuthorizedPermitCount, 2);
+      assert.match(error.message, /found 2/);
+      return true;
+    },
+  );
+  for (const permit of [first, second]) {
+    const persisted = JSON.parse(
+      readFileSync(candidateAdmissionPermitPath(permit.admissionId, env), "utf8"),
+    );
+    assert.equal(persisted.status, "authorized");
+  }
+});
 
 test("canary admission reserves, binds, releases, and supersedes only the spawn hold", () => {
   const { env, repoRoot, now, holdPath } = setup();
