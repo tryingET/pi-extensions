@@ -72,12 +72,17 @@ Unknown names fail closed with the available listing (both via the CLI and via j
 
 Per-session entries carry `id`, `source`, `sourceSession` (measured provenance:
 the operator-given session `.jsonl` path, recorded verbatim in batch mode;
-`null` otherwise), `replayStatus` (`ok` | `empty` | `failed`), `html` (relative
-link when present), and derived facts sourced only from strata
+`null` otherwise), `replayStatus` (`ok` | `empty` | `failed` | `unsupported`), `html`
+(relative link when present), and derived facts sourced only from strata
 `meta`/`requests`: `models`, `requests`, `turns`, `faults`, `lastFaultR`,
 `onChainCostUsd`, `cacheHitShare`, `warmthAgreementMae`, `forks`,
 `lastResidentEst`, `contextWindow`, `runwayRequestsRemaining`,
 `ghostShareOfToolTokenTurns`, `topCategories` (≤5, share of token-turns).
+
+`failed` = read/producer problem (remedy: fix or re-replay). `unsupported` = the
+artifact's `schemaVersion` major is newer than this package supports (remedy: upgrade
+this package — re-replaying cannot help). Both are listed with identity + `error` and
+no facts.
 
 Every numeric field inherits its strata epistemic class (measured / derived /
 estimated / inferred — see the overlay RFC §2). `null` is preserved as `null`
@@ -99,12 +104,15 @@ directory name — that would be inferred class posing as measured).
 
 ## Content rules
 
-- **IR contract** (owner: `pi-context-overlay`, RFC §9): `strata.json` is a declared
-  cross-package IR — additive-only; `meta.schemaVersion` (`1`) + `meta.estimator` carry
-  self-identity; the corpus ignores unknown fields and tolerates absent ones
-  (pre-versioning artifacts stay readable). `tests/corpus-cross-check.test.mjs` replays a
-  synthetic session through the *real* overlay replayer and indexes the artifact, so IR
-  drift fails this package's gate, not just the overlay's.
+- **IR contract** (owner: `pi-context-overlay`, RFC §9 / ADR
+  `docs/adr/2026-08-26-context-core-allocator-model-and-strata-ir.md`): `strata.json` is a
+  declared cross-package IR — additive-only; `meta.schemaVersion` (`1`) + `meta.estimator`
+  carry self-identity; unknown additive fields are ignored and absent version fields mean a
+  legacy artifact (both pinned). **Newer schema major → `replayStatus: "unsupported"`**:
+  the session is listed (identity + error naming both majors), never dropped, never
+  fact-indexed; fact projections include only `ok`/`empty`. `tests/corpus-cross-check.test.mjs`
+  replays a synthetic session through the *real* overlay replayer and indexes the artifact,
+  so IR drift fails this package's gate, not just the overlay's.
 - No message bodies, tool outputs, previews, base64, or file contents in any
   corpus output. Derived aggregates and path/label metadata only (test-enforced
   with a secret-marker fixture).

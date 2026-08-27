@@ -9,14 +9,21 @@
 #
 # index.json projections take corpus/index.json as input; `topfiles` takes one
 # strata.json. Unknown names fail closed with the available listing.
+#
+# Fact projections include only sessions whose facts the corpus could derive
+# (replayStatus "ok" or "empty"); "failed" and "unsupported" (schema major newer
+# than supported) are excluded from facts but stay visible in the inventory
+# projection `sessions` — listed, never dropped.
 
 def projection_names:
   ["occupancy", "faults", "spend", "ghosts", "runway", "sessions", "topfiles"];
 
+def facts: map(select(.replayStatus == "ok" or .replayStatus == "empty"));
+
 # per-session last occupancy + context window
 def occupancy:
   .sessions
-  | map(select(.replayStatus != "failed"))
+  | facts
   | map({id, lastResidentEst, contextWindow});
 
 # sessions with faults: count + last fault request
@@ -28,13 +35,13 @@ def faults:
 # per-session on-chain $ (sum-of-reported) + measured cache-hit share
 def spend:
   .sessions
-  | map(select(.replayStatus != "failed"))
+  | facts
   | map({id, onChainCostUsd, cacheHitShare});
 
 # sessions ranked by mined-dead share of pathed tool token-turns
 def ghosts:
   .sessions
-  | map(select(.replayStatus != "failed"))
+  | facts
   | sort_by(.ghostShareOfToolTokenTurns)
   | reverse
   | map({id, ghostShareOfToolTokenTurns});
@@ -42,6 +49,7 @@ def ghosts:
 # sessions ranked by requests-until-fault (nulls excluded)
 def runway:
   .sessions
+  | facts
   | map(select(.runwayRequestsRemaining != null))
   | sort_by(.runwayRequestsRemaining)
   | map({id, runwayRequestsRemaining, lastResidentEst, contextWindow});

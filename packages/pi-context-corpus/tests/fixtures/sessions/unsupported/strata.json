@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "schemaVersion": 2,
+    "estimator": "context-strata:some-future-miner-v1",
+    "generatedAt": "2027-01-01T00:00:00.000Z",
+    "file": "2027-01-01T00-00-00-000Z_fixture-future.jsonl",
+    "requests": 5,
+    "turns": 2,
+    "costTotal": 9.99,
+    "cacheHit": 0.9,
+    "faults": [],
+    "runway": { "residentLast": 5000, "contextWindow": 400000, "requestsRemaining": 10 },
+    "warmthAgreement": { "n": 5, "mae": 0.01 },
+    "forks": { "count": 0 },
+    "modelChanges": [{ "r": 0, "model": "future/model" }],
+    "tokenTurns": 100,
+    "wasteRatio": 0
+  },
+  "requests": [{}, {}, {}, {}, {}],
+  "items": []
+}

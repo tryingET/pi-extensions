@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "schemaVersion": 1,
+    "estimator": "context-strata:path-qualified-liveness-v2",
+    "generatedAt": "2026-09-01T00:00:00.000Z",
+    "file": "2026-09-01T00-00-00-000Z_fixture-additive.jsonl",
+    "requests": 1,
+    "turns": 1,
+    "costTotal": 0.04,
+    "cacheHit": 0.5,
+    "faults": [],
+    "runway": { "residentLast": 20, "contextWindow": 200000, "requestsRemaining": 100 },
+    "warmthAgreement": { "n": 1, "mae": 0 },
+    "forks": { "count": 0 },
+    "modelChanges": [{ "r": 0, "model": "any/model" }],
+    "tokenTurns": 20,
+    "wasteRatio": 0,
+    "someFutureMetaField": { "nested": ["unknown", "additive"] }
+  },
+  "requests": [{}],
+  "items": [{ "c": "user", "l": "u", "t": 20, "b": 0, "f": 0, "tt": 20, "d": 0, "r": 0 }],
+  "someFutureTopLevelField": true
+}

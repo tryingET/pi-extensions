@@ -72,3 +72,25 @@ test("every script path named in RFC §10 exists in the tree", () => {
     assert.ok(existsSync(join(PKG_ROOT, p)), `RFC §10 names ${p} but it does not exist`);
   }
 });
+
+test("P3 gate: no P3/decision-support prompt may exist without wire-order drift evidence", () => {
+  // RFC §9 decision: positional P3 claims require a dated wire-order evidence note
+  // (≥3 sessions, ≥2 providers, drift bound). This makes the gate mechanical: authoring
+  // a P3 prompt without the evidence note fails CI here, not in prose.
+  const projectDir = join(PKG_ROOT, "docs", "project");
+  const files = readdirSync(projectDir);
+  const p3Prompt = files.find((f) => /p3|decision-support/.test(f) && f.endsWith(".md"));
+  if (!p3Prompt) return; // gate satisfied vacuously until P3 is prompted
+  const evidence = files.find((f) => /wire-order/.test(f) && f.endsWith(".md"));
+  assert.ok(
+    evidence,
+    `RFC §9 wire-order gate violated: ${p3Prompt} exists without a wire-order evidence note in docs/project/`,
+  );
+  // The evidence note must itself state a measured bound, not just exist.
+  const evidenceText = readFileSync(join(projectDir, evidence), "utf8");
+  assert.match(
+    evidenceText,
+    /drift bound|mae|divergence/i,
+    "wire-order evidence note must state a measured drift bound",
+  );
+});

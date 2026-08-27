@@ -62,7 +62,7 @@ test("corpus consumes real overlay replay output; IR carries schemaVersion + est
     [BIN, "index", root, "--sessions", join(root, "probe.jsonl"), "--replay-script", REPLAY],
     { encoding: "utf8" },
   );
-  assert.match(out, /sessions \(ok=1 empty=0 failed=0\)/);
+  assert.match(out, /sessions \(ok=1 empty=0 failed=0 unsupported=0\)/);
 
   // The IR self-describes (overlay-side contract): identity travels with the artifact.
   const strata = JSON.parse(readFileSync(join(root, "probe", "strata.json"), "utf8"));

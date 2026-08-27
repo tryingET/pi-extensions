@@ -10,6 +10,12 @@ import { basename, dirname, join, relative, sep } from "node:path";
 export const STRATA_FILE = "strata.json";
 export const SESSION_HTML_FILE = "context-strata.html";
 
+// IR contract (owner: pi-context-overlay, RFC §9): consumers fail closed on a newer schema
+// major — the session is listed as "unsupported" (identity + error, no facts), never
+// dropped; unknown additive fields are ignored; an absent schemaVersion means a
+// pre-versioning (legacy) artifact, which stays readable.
+export const IR_MAJOR_SUPPORTED = 1;
+
 /**
  * Discover strata.json artifacts under corpusDir (recursive).
  * `node_modules` and the generated `corpus` output dir are skipped.
@@ -30,7 +36,8 @@ export function findStrataFiles(corpusDir) {
 
 /**
  * Read and classify one strata.json artifact.
- * - "failed": unreadable, invalid JSON, or not a strata document (missing meta / requests array)
+ * - "failed": unreadable, invalid JSON, not a strata document, or malformed schemaVersion
+ * - "unsupported": valid strata document whose schemaVersion major exceeds IR_MAJOR_SUPPORTED
  * - "empty": valid strata ledger with zero measured requests
  * - "ok": valid strata ledger with at least one measured request
  */
@@ -53,6 +60,21 @@ export function readStrata(filePath) {
   const meta = parsed.meta;
   if (typeof meta !== "object" || meta === null || !Array.isArray(parsed.requests)) {
     return { status: "failed", error: "missing meta object or requests array" };
+  }
+  const schemaVersion = meta.schemaVersion;
+  if (schemaVersion !== undefined) {
+    if (typeof schemaVersion !== "number" || !Number.isFinite(schemaVersion)) {
+      return {
+        status: "failed",
+        error: `invalid schemaVersion: ${JSON.stringify(schemaVersion)}`,
+      };
+    }
+    if (schemaVersion > IR_MAJOR_SUPPORTED) {
+      return {
+        status: "unsupported",
+        error: `schemaVersion ${schemaVersion} > supported ${IR_MAJOR_SUPPORTED}; upgrade the corpus package, do not re-replay`,
+      };
+    }
   }
   const requestCount = Number(meta.requests ?? parsed.requests.length);
   if (!Number.isFinite(requestCount) || requestCount <= 0) {
@@ -105,8 +127,10 @@ export function buildEntry(strataFile, corpusDir, htmlDir, { sourceSession = nul
 
   const { status, strata, error } = readStrata(strataFile);
   const id = sessionId({ strata, strataDir, strataFile, corpusDir });
-  if (status === "failed") {
-    return { id, source, replayStatus: "failed", html, error };
+  if (status === "failed" || status === "unsupported") {
+    // Listed, never dropped; no facts. Distinct states: failed = read/producer problem
+    // (remedy: fix/re-replay); unsupported = consumer lacks semantics (remedy: upgrade).
+    return { id, source, sourceSession, replayStatus: status, html, error };
   }
 
   const meta = strata.meta;
@@ -170,9 +194,10 @@ export function buildIndex(corpusDir, { failedSessions = [], sessionSources = {}
     });
   }
   entries.sort((a, b) => {
-    if ((a.replayStatus === "failed") !== (b.replayStatus === "failed"))
-      return a.replayStatus === "failed" ? 1 : -1;
-    if (a.replayStatus !== "failed" && b.replayStatus !== "failed") {
+    const terminal = (s) => s === "failed" || s === "unsupported";
+    if (terminal(a.replayStatus) !== terminal(b.replayStatus))
+      return terminal(a.replayStatus) ? 1 : -1;
+    if (!terminal(a.replayStatus) && !terminal(b.replayStatus)) {
       const byCost = (b.onChainCostUsd ?? 0) - (a.onChainCostUsd ?? 0);
       if (byCost !== 0) return byCost;
     }

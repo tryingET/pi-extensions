@@ -111,10 +111,10 @@ function cmdIndex(argv) {
     sessionSources: { ...priorSessionSources(resolved), ...sessionSources },
   });
   const { indexPath, htmlPath } = writeCorpus(resolved, index);
-  const counts = { ok: 0, empty: 0, failed: 0 };
+  const counts = { ok: 0, empty: 0, failed: 0, unsupported: 0 };
   for (const session of index.sessions) counts[session.replayStatus] += 1;
   console.log(
-    `corpus: ${index.sessions.length} sessions (ok=${counts.ok} empty=${counts.empty} failed=${counts.failed})`,
+    `corpus: ${index.sessions.length} sessions (ok=${counts.ok} empty=${counts.empty} failed=${counts.failed} unsupported=${counts.unsupported ?? 0})`,
   );
   console.log(`index: ${indexPath}`);
   console.log(`html: ${htmlPath}`);

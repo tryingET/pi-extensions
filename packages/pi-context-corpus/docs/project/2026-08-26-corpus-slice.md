@@ -127,3 +127,31 @@ questions; they were adjudicated (many-of-the-greats) and resolved:
 
 Corpus suite: 20/20 (18 prior + cross-check + legacy-tolerance). Gates green in
 both packages.
+
+## Review round 3 (ADR conditions, 2026-08-26)
+
+Round 2 approved the RFC as ADR basis with conditions; the four forced questions
+were adjudicated (many-of-the-greats) and resolved:
+
+1. **Newer schema major → `replayStatus: "unsupported"`** (three-layer synthesis:
+  fail closed on facts, degrade on inventory, precise state). Listed with identity +
+  error naming both majors (remedy = upgrade, not re-replay); terminal sort position
+  alongside `failed`; fact projections (`spend`/`occupancy`/`ghosts`/`runway`) include
+  only `ok`/`empty`; the inventory projection (`sessions`) keeps it visible. Identity
+  for unsupported artifacts is consumer-side (directory path) — their contents are not
+  trusted for identity. Pinned by fixture `sessions/unsupported/` (schemaVersion 2).
+2. **`meta.estimator` is an open convention, not a registry**: `producer:method[-version]`,
+  producer-owned, compared by string equality for lineage only; no ordering semantics.
+3. **Warmth adopted evidence-bound** in the ADR: model + validation method with a
+  measured one-family bound; the general pricing claim stays gated (RFC §3 now tags
+  the scope inline).
+4. **Wire-order gate is mechanical**: owner = the overlay package; a P3/decision-support
+  prompt cannot exist in `docs/project/` without a wire-order evidence note stating a
+  measured bound — `tests/rfc-freshness.test.mjs` fails CI otherwise.
+
+Also: unknown-additive-field tolerance pinned (fixture `sessions/additive/`, exact
+entry-key contract); ADR written at
+`packages/pi-context-overlay/docs/adr/2026-08-26-context-core-allocator-model-and-strata-ir.md`
+(shipped scope only; P3/P4 excluded; cross-refs this package's AGENTS/README by name).
+
+Corpus suite: 22/22. Freshness gates: 5/5. Both package gates green.

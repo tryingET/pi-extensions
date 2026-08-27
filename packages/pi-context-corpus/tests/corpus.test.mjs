@@ -23,6 +23,8 @@ const ID_FAULTED = "2026-01-01T00-00-00-000Z_fixture-faulted";
 const ID_LINEAR = "2026-01-02T00-00-00-000Z_fixture-linear";
 const ID_NOREQS = "2026-01-03T00-00-00-000Z_fixture-noreqs";
 const ID_CORRUPT = "corrupt";
+const ID_ADDITIVE = "2026-09-01T00-00-00-000Z_fixture-additive";
+const ID_UNSUPPORTED = "unsupported"; // id = location: unsupported-major contents are not trusted for identity
 const SECRET_MARKER = "SECRETMARKER-zq9";
 const ALL_NAMES = ["occupancy", "faults", "spend", "ghosts", "runway", "sessions", "topfiles"];
 
@@ -37,7 +39,7 @@ function makeFixtureCorpus(t) {
   t.after(() => rmSync(corpusDir, { recursive: true, force: true }));
   cpSync(join(FIXTURES, "sessions"), join(corpusDir, "sessions"), { recursive: true });
   const out = run(["index", corpusDir]);
-  assert.match(out, /sessions \(ok=2 empty=1 failed=1\)/);
+  assert.match(out, /sessions \(ok=3 empty=1 failed=1 unsupported=1\)/);
   const index = JSON.parse(readFileSync(join(corpusDir, "corpus", "index.json"), "utf8"));
   return { corpusDir, index };
 }
@@ -49,7 +51,7 @@ test("index build: linear, faulted, and failed fixtures are all listed, never dr
   const { index } = makeFixtureCorpus(t);
   assert.deepEqual(
     index.sessions.map((s) => s.id),
-    [ID_FAULTED, ID_LINEAR, ID_NOREQS, ID_CORRUPT],
+    [ID_FAULTED, ID_ADDITIVE, ID_LINEAR, ID_NOREQS, ID_CORRUPT, ID_UNSUPPORTED],
   );
   const byId = Object.fromEntries(index.sessions.map((s) => [s.id, s]));
   assert.equal(byId[ID_CORRUPT].replayStatus, "failed");
@@ -58,12 +60,63 @@ test("index build: linear, faulted, and failed fixtures are all listed, never dr
   assert.equal(byId[ID_NOREQS].replayStatus, "empty");
 });
 
+test("IR gate: newer schema major is listed as unsupported, never dropped, never fact-indexed", (t) => {
+  const { corpusDir, index } = makeFixtureCorpus(t);
+  const entry = index.sessions.find((s) => s.id === ID_UNSUPPORTED);
+  // distinct state: not "failed" (that would mislabel a producer problem)
+  assert.equal(entry.replayStatus, "unsupported");
+  assert.match(entry.error, /schemaVersion 2 > supported 1; upgrade the corpus/);
+  // no facts consumed from a schema the consumer cannot verify
+  assert.equal(entry.requests, undefined);
+  assert.equal(entry.onChainCostUsd, undefined);
+  // fact projections exclude it; the inventory projection keeps it visible
+  const spend = project("spend", "corpus/index.json", corpusDir);
+  assert.ok(!spend.some((s) => s.id === ID_UNSUPPORTED));
+  const sessions = project("sessions", "corpus/index.json", corpusDir);
+  assert.equal(sessions.find((s) => s.id === ID_UNSUPPORTED)?.replayStatus, "unsupported");
+  // terminal sort position (with failed), never interleaved with fact-bearing rows
+  const ids = index.sessions.map((s) => s.id);
+  assert.ok(ids.indexOf(ID_UNSUPPORTED) > ids.indexOf(ID_NOREQS));
+});
+
+test("IR gate: unknown additive fields are ignored (unknown-field tolerance)", (t) => {
+  const { index } = makeFixtureCorpus(t);
+  const entry = index.sessions.find((s) => s.id === ID_ADDITIVE);
+  assert.equal(entry.replayStatus, "ok");
+  assert.equal(entry.requests, 1);
+  assert.equal(entry.onChainCostUsd, 0.04);
+  // no unknown-field content leaks into the index beyond the pinned contract
+  assert.deepEqual(Object.keys(entry).sort(), [
+    "cacheHitShare",
+    "contextWindow",
+    "faults",
+    "forks",
+    "ghostShareOfToolTokenTurns",
+    "html",
+    "id",
+    "lastFaultR",
+    "lastResidentEst",
+    "models",
+    "onChainCostUsd",
+    "replayStatus",
+    "requests",
+    "runwayRequestsRemaining",
+    "source",
+    "sourceSession",
+    "topCategories",
+    "turns",
+    "warmthAgreementMae",
+  ]);
+});
+
 test("index ordering: build-time, cost-descending, failed sessions last, stable ties", (t) => {
   const { index } = makeFixtureCorpus(t);
   // fixture costs: faulted 0.09 > linear 0.03 > noreqs 0; corrupt is failed (terminal position)
+  // fixture costs: faulted 0.09 > additive 0.04 > linear 0.03 > noreqs 0;
+  // corrupt (failed) and future (unsupported) take terminal positions
   assert.deepEqual(
     index.sessions.map((s) => s.id),
-    [ID_FAULTED, ID_LINEAR, ID_NOREQS, ID_CORRUPT],
+    [ID_FAULTED, ID_ADDITIVE, ID_LINEAR, ID_NOREQS, ID_CORRUPT, ID_UNSUPPORTED],
   );
   const costs = index.sessions
     .filter((s) => s.replayStatus !== "failed")
@@ -176,9 +229,23 @@ test("projection: sessions — compact overview of every session", (t) => {
   const out = project("sessions", "corpus/index.json", corpusDir);
   assert.deepEqual(out, [
     { id: ID_FAULTED, replayStatus: "ok", requests: 3, turns: 2, onChainCostUsd: 0.09 },
+    {
+      id: ID_ADDITIVE,
+      replayStatus: "ok",
+      requests: 1,
+      turns: 1,
+      onChainCostUsd: 0.04,
+    },
     { id: ID_LINEAR, replayStatus: "ok", requests: 2, turns: 1, onChainCostUsd: 0.03 },
     { id: ID_NOREQS, replayStatus: "empty", requests: 0, turns: 1, onChainCostUsd: 0 },
     { id: ID_CORRUPT, replayStatus: "failed", requests: null, turns: null, onChainCostUsd: null },
+    {
+      id: ID_UNSUPPORTED,
+      replayStatus: "unsupported",
+      requests: null,
+      turns: null,
+      onChainCostUsd: null,
+    },
   ]);
 });
 
@@ -187,6 +254,7 @@ test("projection: occupancy — per-session last resident + window", (t) => {
   const out = project("occupancy", "corpus/index.json", corpusDir);
   assert.deepEqual(out, [
     { id: ID_FAULTED, lastResidentEst: 400, contextWindow: 200000 },
+    { id: ID_ADDITIVE, lastResidentEst: 20, contextWindow: 200000 },
     { id: ID_LINEAR, lastResidentEst: 1200, contextWindow: 200000 },
     { id: ID_NOREQS, lastResidentEst: 0, contextWindow: 200000 },
   ]);
@@ -203,6 +271,7 @@ test("projection: spend — on-chain $ (sum-of-reported) + cache-hit share", (t)
   const out = project("spend", "corpus/index.json", corpusDir);
   assert.deepEqual(out, [
     { id: ID_FAULTED, onChainCostUsd: 0.09, cacheHitShare: 0.6 },
+    { id: ID_ADDITIVE, onChainCostUsd: 0.04, cacheHitShare: 0.5 },
     { id: ID_LINEAR, onChainCostUsd: 0.03, cacheHitShare: 0.6666666666666666 },
     { id: ID_NOREQS, onChainCostUsd: 0, cacheHitShare: 0 },
   ]);
@@ -213,8 +282,10 @@ test("projection: ghosts — ranked by mined-dead share (stable desc)", (t) => {
   const out = project("ghosts", "corpus/index.json", corpusDir);
   assert.deepEqual(out, [
     { id: ID_FAULTED, ghostShareOfToolTokenTurns: 0.5 },
+    // jq sort_by is stable; `reverse` flips ties too (noreqs, linear, additive)
     { id: ID_NOREQS, ghostShareOfToolTokenTurns: 0 },
     { id: ID_LINEAR, ghostShareOfToolTokenTurns: 0 },
+    { id: ID_ADDITIVE, ghostShareOfToolTokenTurns: 0 },
   ]);
 });
 
@@ -222,6 +293,7 @@ test("projection: runway — ranked by requests-until-fault, nulls excluded", (t
   const { corpusDir } = makeFixtureCorpus(t);
   const out = project("runway", "corpus/index.json", corpusDir);
   assert.deepEqual(out, [
+    { id: ID_ADDITIVE, runwayRequestsRemaining: 100, lastResidentEst: 20, contextWindow: 200000 },
     { id: ID_LINEAR, runwayRequestsRemaining: 1988, lastResidentEst: 1200, contextWindow: 200000 },
   ]);
 });
@@ -376,7 +448,7 @@ writeFileSync(join(outDir, "context-strata.html"), "<!doctype html><title>stub</
       cwd: root,
     },
   );
-  assert.match(out, /sessions \(ok=1 empty=0 failed=1\)/);
+  assert.match(out, /sessions \(ok=1 empty=0 failed=1 unsupported=0\)/);
   const index = JSON.parse(readFileSync(join(root, "corpus", "index.json"), "utf8"));
   assert.deepEqual(
     index.sessions.map((s) => s.id),

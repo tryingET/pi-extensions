@@ -90,7 +90,9 @@ From two real sessions replayed through the prototype (`~/.pi/agent/sessions/…
 - **S2** (2026-04-16, pi-extensions): **300 on-chain requests**, 0 faults. Off-chain: 15 records /
   6 requests / **$0.48** (real billed spend, not modeled as resident). On-chain $33.03, cache-hit
   93.6%. Calibration ×0.977.
-- **Warmth model validates against measurement**: model warm prefix vs measured `cacheRead`
+- **Warmth model validates against measurement** (validated on one provider family — the
+  gpt-5.x line via the Radius router — across S1/S2; generality to other providers is gated
+  per §9, not claimed): model warm prefix vs measured `cacheRead`
   agrees within ~2% at request 1 and ~5–10% late-session (e.g. r=180: 112.8k model vs 123.4k
   measured; provider caches slightly more than the strict prefix-divergence model predicts).
   This means warmth is *measurable in production*, not just modeled.
@@ -164,7 +166,7 @@ ring). Warm/cold split remains forensic-only.
   null-handling, icicle, launch honesty).
 - `tests/rfc-freshness.test.mjs` — rendered-vs-tree check: RFC-claimed test counts and
   §10 command paths must match the actual tree (stale status lines fail the gate).
-- Corpus side (`packages/pi-context-corpus`): 20 `node:test` cases + a cross-package
+- Corpus side (`packages/pi-context-corpus`): 22 `node:test` cases + a cross-package
   integration test that replays a synthetic session through the real overlay replayer and
   indexes the artifact it produced (executable corpus↔overlay tie).
 - Published artifact rev 3: <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
@@ -240,7 +242,8 @@ Still open:
 - **P2.5 — corpus graduate (shipped 2026-08-26)**: multi-session `corpus/index.json` +
   named jq projections over `strata.json` in a new non-live package
   `packages/pi-context-corpus`. IR unchanged, jq as the DSL, no HTTP in that slice.
-  Gate green (18/18 tests), proven over S1/S2; evidence:
+  Gate green (18/18 tests at ship; corpus suite now 22 incl. the round-2 cross-check and
+  schema-gate pins), proven over S1/S2; evidence:
   `packages/pi-context-corpus/docs/project/2026-08-26-corpus-slice.md`.
   Prompt: `docs/project/2026-08-26-context-core-corpus-prompt.md`.
 - **P3 — decision support**: compaction tradeoff calculator (fault now vs continue:
@@ -258,6 +261,14 @@ Still open:
   Protocol: additive-only changes; owner/approver = this package via its RFC review flow;
   consumers ignore unknown fields and tolerate absent ones (pre-versioning artifacts stay
   readable); a breaking change bumps `meta.schemaVersion` (now `1`) with a migration note.
+  **Consumer clause (major versions):** on a `schemaVersion` greater than the consumer's
+  supported major, the consumer fails closed on facts and degrades on inventory — the
+  session is listed under a distinct `unsupported` state (identity + error naming both
+  majors; remedy = upgrade the consumer, not re-replay), never dropped, never fact-indexed.
+  `meta.estimator` is an **open convention, not a registry**: format
+  `producer:method[-version]`, owned by the producer; consumers may compare values by
+  string equality for lineage attribution only — no ordering, no cross-version compatibility
+  inference (estimator versions are not comparable measurements).
   Self-identity is provenance, not convenience: the overlay emits `meta.schemaVersion` and
   `meta.estimator` (binds `wasteRatio`/ghosts to the miner that produced them). Derived
   convenience fields (`gitBranch`-style labels) remain refused.
@@ -267,7 +278,10 @@ Still open:
 - **Wire-order evidence gate.** No P3 instrument may make positional claims until wire-order
   drift is measured (≥3 real sessions, ≥2 providers, a `warmthAgreement.mae`-style drift bound
   over prefix-divergence points). Order-free quantities (token-turns, $, cacheHit, runway
-  slope) are exempt and may proceed.
+  slope) are exempt and may proceed. **Owner/mechanism:** this package (the replayer owner)
+  executes the measurement as a dated evidence note under `docs/project/` recording the
+  drift bound; the gate is enforced mechanically — `tests/rfc-freshness.test.mjs` fails if
+  a P3/decision-support prompt exists without that evidence note.
 - **Corpus HTTP posture.** Files-only stands as the current posture; "no HTTP ever" is withdrawn
   as overclaim. Staged: revisit via a short dedicated RFC only when a real non-author consumer
   needs programmatic access in practice, or corpus size makes jq scans operationally slow.
@@ -311,7 +325,7 @@ Still open:
 ```bash
 # forensic replay: strata.json, requests.csv, speedscope.json, context-strata.html
 node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
-# model tests (15) + live TUI tests (16) + rendered-vs-tree RFC freshness check
+# model tests (15) + live TUI tests (16) + freshness/P3 gates
 node --test tests/context-strata-lib.test.mjs tests/context-overlay.test.ts tests/rfc-freshness.test.mjs
 # corpus side: see packages/pi-context-corpus/README.md (index/project CLI + 20-test suite)
 ```
