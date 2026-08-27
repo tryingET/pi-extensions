@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "d0c2163fe6cea13b6b70ed32e057cc1e9e79016e"
+created_at: "2026-08-27T14:17:08Z"
+intent: "Remove the private pi-interaction group-root script that was not a package release surface"
+files:
+  - "packages/pi-interaction/scripts/release-check.sh"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 8
+  total: 8
+links:
+  task_ids:
+    - 5150
