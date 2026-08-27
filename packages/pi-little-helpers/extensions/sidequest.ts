@@ -62,9 +62,7 @@ import {
   type SelfEvolutionCandidateCloseout,
   startVisibleLoopChildCompleteRunner,
   startVisibleLoopChildRunner,
-  VISIBLE_LOOP_CHILD_COMMAND,
-  VISIBLE_LOOP_CHILD_COMPLETE_COMMAND,
-  VISIBLE_LOOP_COMMAND,
+  type VISIBLE_LOOP_COMMAND,
   type VisibleLoopCommandProfile,
   validatePersistedSelfEvolutionBinding,
   writeVisibleLoopRunConfig,
@@ -89,8 +87,7 @@ import {
 
 export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
 
-const [SIDEQUEST_COMMAND, SCOUTPEER_COMMAND, PARALLELQUEST_COMMAND, HANDOFF_TAB_COMMAND] =
-  LITTLE_HELPERS_COMMAND_NAMES;
+const [SIDEQUEST_COMMAND, , PARALLELQUEST_COMMAND] = LITTLE_HELPERS_COMMAND_NAMES;
 const [
   FORK_PEER_SPAWN_TOOL,
   SCOUT_PEER_SPAWN_TOOL,
@@ -111,6 +108,7 @@ import {
   releasePreparationFailure,
   resolveCandidateRepoRoot,
 } from "./sidequestCandidateWorkspace.ts";
+import { registerSidequestCommands } from "./sidequestCommands.ts";
 import type { ExecRunner } from "./sidequestGhostty.ts";
 import {
   launchAscExecutionObserverSession,
@@ -1558,53 +1556,20 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
     }
 
     if (registerCommands) {
-      pi.registerCommand(HANDOFF_TAB_COMMAND, {
-        description:
-          "Generate a self-contained handoff and auto-submit it in a clean Ghostty Pi tab",
-        handler: runHandoffTabCommand,
-      });
-
-      pi.registerCommand(SIDEQUEST_COMMAND, {
-        description: "Fork the current Pi session into a visible Ghostty peer",
-        handler: (args, ctx) => runForkPeerCommand(args, ctx, SIDEQUEST_COMMAND, "Sidequest"),
-      });
-
-      pi.registerCommand(SCOUTPEER_COMMAND, {
-        description: "Launch a clean visible read-only scout/review peer in the current workspace",
-        handler: runScoutPeerCommand,
-      });
-
-      pi.registerCommand(PARALLELQUEST_COMMAND, {
-        description:
-          "Launch a one-shot candidate peer only after owner authorization for the exact repository and objective; blocked admission must not be retried unchanged",
-        handler: (args, ctx) =>
+      registerSidequestCommands(pi, {
+        handoffTab: runHandoffTabCommand,
+        sidequest: (args, ctx) => runForkPeerCommand(args, ctx, SIDEQUEST_COMMAND, "Sidequest"),
+        scoutPeer: runScoutPeerCommand,
+        parallelQuest: (args, ctx) =>
           runCandidatePeerCommand(args, ctx, PARALLELQUEST_COMMAND, "Parallelquest"),
-      });
-
-      pi.registerCommand(VISIBLE_LOOP_COMMAND, {
-        description:
-          "Launch a visible Ghostty Pi tab that runs the default prompt sequence for N iterations",
-        handler: runVisibleLoopCommand,
-      });
-
-      pi.registerCommand(NEXUS_LOOP_COMMAND, {
-        description:
-          "Launch a visible Ghostty Pi tab that loops deep-review, nexus implementation, atomic-completion, and commit",
-        handler: (args, ctx) => runVisibleLoopCommand(args, ctx, DEFAULT_NEXUS_LOOP_PROFILE),
-      });
-
-      pi.registerCommand(VISIBLE_LOOP_CHILD_COMMAND, {
-        description: "Internal helper for visible-loop launched child sessions",
-        handler: (args, ctx) =>
+        visibleLoop: runVisibleLoopCommand,
+        nexusLoop: (args, ctx) => runVisibleLoopCommand(args, ctx, DEFAULT_NEXUS_LOOP_PROFILE),
+        visibleLoopChild: (args, ctx) =>
           startVisibleLoopChildRunner(args, pi, ctx, options.env ?? process.env, {
             continueInNewSession: createVisibleLoopContinuation(ctx),
             governedDeepReviewPreflight: options.governedDeepReviewPreflight,
           }),
-      });
-
-      pi.registerCommand(VISIBLE_LOOP_CHILD_COMPLETE_COMMAND, {
-        description: "Internal helper that advances a visible-loop child iteration",
-        handler: async (args, ctx) => {
+        visibleLoopChildComplete: async (args, ctx) => {
           await startVisibleLoopChildCompleteRunner(args, pi, ctx, options.env ?? process.env, {
             continueInNewSession: createVisibleLoopContinuation(ctx),
           });

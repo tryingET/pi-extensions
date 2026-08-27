@@ -59,6 +59,7 @@
     "extensions/session-presence.ts",
     "extensions/sidequest.ts",
     "extensions/sidequestContracts.ts",
+    "extensions/sidequestCommands.ts",
     "extensions/sidequestCandidateWorkspace.ts",
     "extensions/sidequestPeerPrompts.ts",
     "extensions/sidequestPeerReportBack.ts",
