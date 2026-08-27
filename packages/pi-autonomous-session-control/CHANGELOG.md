@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.5.2...pi-autonomous-session-control-v0.6.0) (2026-08-27)
+
+
+### Features
+
+* add standing agent registry (AK 5098) ([2546d91](https://github.com/tryingET/pi-extensions/commit/2546d9136d7a3645ee95d57d72e682a136729e54))
+
+
+### Bug Fixes
+
+* honor fast-xml-parser 5.3.6 override in five host-closure locks ([a4ff737](https://github.com/tryingET/pi-extensions/commit/a4ff737ac4a4620c302b65da2bd20a2ed0585d8c))
+* **monorepo:** isolate install-only release checks ([e83c9bd](https://github.com/tryingET/pi-extensions/commit/e83c9bdefbcf5406e8eb4be6beef7245ed0eb655))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+
 ## [0.5.2](https://github.com/tryingET/pi-extensions/compare/pi-autonomous-session-control-v0.5.1...pi-autonomous-session-control-v0.5.2) (2026-08-20)
 
 
