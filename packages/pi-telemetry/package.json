@@ -76,7 +76,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260417.1"
   },
   "overrides": {
-    "fast-xml-parser": "5.3.6"
+    "fast-xml-parser": "5.7.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

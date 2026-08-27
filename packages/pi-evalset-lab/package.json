@@ -86,7 +86,7 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "fast-xml-parser": "5.3.6"
+    "fast-xml-parser": "5.7.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

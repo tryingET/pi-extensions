@@ -64,6 +64,6 @@
     "@biomejs/biome": "2.3.14"
   },
   "overrides": {
-    "fast-xml-parser": "5.3.6"
+    "fast-xml-parser": "5.7.0"
   }
 }
