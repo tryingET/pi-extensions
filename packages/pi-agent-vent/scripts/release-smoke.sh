@@ -6,6 +6,8 @@
 # ---
 set -euo pipefail
 
+: "${TMPDIR:?TMPDIR is required for managed release-smoke scratch}"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
@@ -42,7 +44,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-SMOKE_DIR="$(mktemp -d /tmp/pi-agent-vent-release-smoke-XXXXXX)"
+SMOKE_DIR="$(mktemp -d "$TMPDIR/pi-agent-vent-release-smoke.XXXXXX")"
 SMOKE_LOCAL_PATH_VENT_DIR="$SMOKE_DIR/agent-vent-local-path-store"
 SMOKE_TOOL_VENT_DIR="$SMOKE_DIR/agent-vent-tool-store"
 SMOKE_LOCAL_PATH_OUTPUT="$SMOKE_DIR/agent-vent-local-path.out"
@@ -50,8 +52,10 @@ PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.jso
 PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
 INSTALLED_EXTENSION_PATH="$INSTALLED_PACKAGE_ROOT/extensions/agent-vent.ts"
 
-case "$(realpath -m "$INSTALLED_PACKAGE_ROOT")" in
-  "$(realpath "$PI_CODING_AGENT_DIR")"/*) ;;
+INSTALLED_PACKAGE_ROOT="$(node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$INSTALLED_PACKAGE_ROOT")"
+PI_CODING_AGENT_DIR_REAL="$(node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$PI_CODING_AGENT_DIR")"
+case "$INSTALLED_PACKAGE_ROOT" in
+  "$PI_CODING_AGENT_DIR_REAL"/*) ;;
   *)
     echo "Installed package root escaped isolated Pi agent directory: $INSTALLED_PACKAGE_ROOT" >&2
     exit 1
