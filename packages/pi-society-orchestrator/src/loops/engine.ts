@@ -39,7 +39,7 @@ import {
 } from "../kes/index.ts";
 import { AGENT_PROFILES, type AgentDef } from "../runtime/agent-profiles.ts";
 import type { AgentResolution } from "../runtime/agent-routing.ts";
-import { resolveAkPath, runAkCommandAsync } from "../runtime/ak.ts";
+import { resolveAkPath } from "../runtime/ak.ts";
 import { isBoundaryFailure } from "../runtime/boundaries.ts";
 import { getCognitiveToolByName, probeCognitiveToolSeam } from "../runtime/cognitive-tools.ts";
 import {
@@ -58,13 +58,8 @@ import {
   type EvidenceEntry,
   type EvidenceWriteResult,
   finalizeExecutionEffects,
-  recordEvidence,
 } from "../runtime/evidence.ts";
-import {
-  type ExecutionLike,
-  type ExecutionStatus,
-  getExecutionStatus,
-} from "../runtime/execution-status.ts";
+import { getExecutionStatus } from "../runtime/execution-status.ts";
 import type { GovernedDeepReviewPreflightRuntime } from "../runtime/governed-deep-review-preflight.ts";
 import { resolveSocietyDbPath } from "../runtime/society-db-path.ts";
 import {
@@ -119,379 +114,40 @@ const DEFAULT_LOOP_TIMEOUT_MS = parsePositiveMilliseconds(
   24 * 60 * 60 * 1000,
 );
 
-// ============================================================================
-// TYPES
-// ============================================================================
+import { AgentKernel } from "./agent-kernel.ts";
+import type {
+  Artifact,
+  CompactLoopResult,
+  CompactPhaseResult,
+  LoopContext,
+  LoopDispatchFn,
+  LoopExecutionOptions,
+  LoopPlugin,
+  LoopResult,
+  PhaseResult,
+} from "./contracts.ts";
+import { BUILT_IN_PLUGINS } from "./plugins.ts";
 
-export interface LoopPlugin {
-  name: string;
-  phases: string[];
-  description: string;
-  cognitiveTools: Record<string, string[]>;
-  agents: Record<string, string>;
-  continueOnFailure?: boolean;
-  onEnter?(phase: string, context: LoopContext): Promise<void>;
-  onExit?(phase: string, context: LoopContext): Promise<Artifact[]>;
-  validate?(from: string, to: string, context: LoopContext): boolean;
-  /** Required stable identity whenever executable plugin hooks are present. */
-  producerHookSemantics?: string;
-}
-
-export interface LoopContext {
-  sessionId: string;
-  pluginName: string;
-  objective: string;
-  currentPhase: string;
-  history: PhaseResult[];
-  artifacts: Artifact[];
-  cwd: string;
-}
-
-export interface PhaseResult {
-  phase: string;
-  attemptId?: string;
-  output: string;
-  stderr?: string;
-  outputTruncated?: boolean;
-  exitCode: number;
-  status: ExecutionStatus;
-  failureKind?: string;
-  effectDisposition?: VerifiedDispatchEffectReceipt["disposition"];
-  elapsed: number;
-  artifacts: Artifact[];
-  timestamp: Date;
-}
-
-export interface Artifact {
-  type: string;
-  content: string;
-  metadata: Record<string, unknown>;
-}
-
-export interface LoopResult {
-  plugin: string;
-  sessionId: string;
-  objective: string;
-  resumed: boolean;
-  resumedPhase?: string;
-  phases: PhaseResult[];
-  artifacts: Artifact[];
-  success: boolean;
-  retryable?: boolean;
-  elapsed: number;
-}
-
-export interface CompactPhaseResult {
-  phase: string;
-  status: ExecutionStatus;
-  exitCode: number;
-  elapsed: number;
-  failureKind?: string;
-  effectDisposition?: VerifiedDispatchEffectReceipt["disposition"];
-  artifactPaths: string[];
-  failureSummary?: string;
-}
-
-export interface CompactLoopResult {
-  plugin: string;
-  sessionId: string;
-  objective: string;
-  resumed: boolean;
-  resumedPhase?: string;
-  phases: CompactPhaseResult[];
-  artifactPaths: string[];
-  success: boolean;
-  retryable?: boolean;
-  elapsed: number;
-}
-
-export type LoopExecutionUpdate =
-  | {
-      event: "phase_start";
-      plugin: string;
-      sessionId: string;
-      phase: string;
-      phaseIndex: number;
-      phaseCount: number;
-      agent: string;
-      primaryTool: string;
-    }
-  | {
-      event: "phase_update";
-      plugin: string;
-      sessionId: string;
-      phase: string;
-      update: unknown;
-    }
-  | {
-      event: "phase_complete";
-      plugin: string;
-      sessionId: string;
-      phase: string;
-      status: ExecutionStatus;
-      elapsed: number;
-      failureKind?: string;
-    };
-
-export interface LoopExecutionOptions {
-  continueAfterFailure?: boolean;
-  phaseTimeoutSeconds?: number;
-  onUpdate?: (update: LoopExecutionUpdate) => void;
-  resumeRunId?: string;
-  expectedFailedPhase?: string;
-  recoveryMode?: "validate_then_retry";
-}
-
-export type LoopDispatchFn = (params: {
-  agent: string;
-  cognitiveTool: string;
-  context: string;
-  effectCorrelationId: string;
-  observation: AscExecutionObservationContext;
-  timeoutSeconds?: number;
-  onUpdate?: (update: unknown) => void;
-}) => Promise<
-  ExecutionLike & {
-    output: string;
-    stderr?: string;
-    outputTruncated?: boolean;
-    elapsed: number;
-    failureKind?: string;
-    effectReceipt?: VerifiedDispatchEffectReceipt;
-    /**
-     * Dispatcher-owned attestation: this attempt failed before any child
-     * process was launched (agent resolution, cognitive-tool load, or another
-     * pre-spawn boundary). No ASC receipt can exist because ASC was never
-     * invoked; the dispatcher itself is the only possible effect owner at this
-     * boundary and owns no durable effects here. Treated as
-     * confirmed_no_effects for the effectful dispatch boundary; the
-     * orchestrator checkpoint keeps the failure evidence as internal
-     * bookkeeping (it does not claim literally nothing was ever written).
-     *
-     * MAINTENANCE: every early-return path added to a dispatch()
-     * implementation that fails before subagentExecutor.execute must set
-     * this marker (failureKind + reason naming the boundary); post-spawn
-     * failures must not. See
-     * docs/project/standing-maintenance-notes.md for the full contract.
-     */
-    preDispatchNoEffects?: {
-      failureKind: string;
-      reason: string;
-    };
-  }
->;
-
-// ============================================================================
-// BUILT-IN PLUGINS
-// ============================================================================
-
-export const OODA_PLUGIN: LoopPlugin = {
-  name: "ooda",
-  phases: ["observe", "orient", "decide", "act"],
-  description: "OODA Loop — Observe, Orient, Decide, Act. Military-grade decision cycle.",
-  cognitiveTools: {
-    observe: ["telescopic", "dependency-cartography"],
-    orient: ["inversion", "audit", "evidence-matrix"],
-    decide: ["nexus", "constraint-inventory"],
-    act: ["controlled", "atomic-completion"],
-  },
-  agents: {
-    observe: "scout",
-    orient: "reviewer",
-    decide: "researcher",
-    act: "builder",
-  },
-};
-
-export const STRATEGIC_PLUGIN: LoopPlugin = {
-  name: "strategic",
-  phases: ["mission", "intelligence", "tooling", "operations"],
-  description:
-    "Strategic loop — Mission, Intelligence, Tooling, Operations. Strategic execution frame.",
-  cognitiveTools: {
-    mission: ["first-principles", "nexus"],
-    intelligence: ["telescopic", "inversion"],
-    tooling: ["audit", "blast-radius"],
-    operations: ["controlled", "atomic-completion"],
-  },
-  agents: {
-    mission: "researcher",
-    intelligence: "scout",
-    tooling: "reviewer",
-    operations: "builder",
-  },
-};
-
-export const KAIZEN_PLUGIN: LoopPlugin = {
-  name: "kaizen",
-  phases: ["plan", "do", "check", "act"],
-  description: "Kaizen (PDCA) — Plan, Do, Check, Act. Continuous improvement cycle.",
-  cognitiveTools: {
-    plan: ["first-principles", "nexus", "constraint-inventory"],
-    do: ["controlled", "atomic-completion"],
-    check: ["audit", "inversion", "mirror"],
-    act: ["knowledge-crystallization", "elevate"],
-  },
-  agents: {
-    plan: "researcher",
-    do: "builder",
-    check: "reviewer",
-    act: "researcher",
-  },
-};
-
-export const ADKAR_PLUGIN: LoopPlugin = {
-  name: "adkar",
-  phases: ["awareness", "desire", "knowledge", "ability", "reinforcement"],
-  description: "ADKAR — Awareness, Desire, Knowledge, Ability, Reinforcement. Change management.",
-  cognitiveTools: {
-    awareness: ["telescopic", "dependency-cartography"],
-    desire: ["nexus", "decision"],
-    knowledge: ["knowledge-crystallization", "first-principles"],
-    ability: ["controlled", "atomic-completion"],
-    reinforcement: ["elevate", "temporal-degradation"],
-  },
-  agents: {
-    awareness: "scout",
-    desire: "researcher",
-    knowledge: "researcher",
-    ability: "builder",
-    reinforcement: "reviewer",
-  },
-};
-
-export const TRANSCENDENT_PLUGIN: LoopPlugin = {
-  name: "transcendent",
-  phases: [
-    "diagnose",
-    "first-100x",
-    "second-100x",
-    "debt-targeting",
-    "dissolve",
-    "rebuild",
-    "alien-pass",
-    "closure-gate",
-  ],
-  description:
-    "Transcendent Iteration v4 — Diagnose → 100x → 100x → Debt Targeting → Dissolve → Rebuild → Alien Pass → Closure Gate",
-  continueOnFailure: false,
-  cognitiveTools: {
-    diagnose: ["first-principles", "constraint-inventory", "inversion"],
-    "first-100x": ["nexus", "simplification", "telescopic"],
-    "second-100x": ["audit", "inversion", "telescopic"],
-    "debt-targeting": ["audit", "constraint-inventory", "inversion"],
-    dissolve: ["first-principles", "scaffold"],
-    rebuild: ["first-principles", "scaffold", "recursion-engine"],
-    "alien-pass": ["elevate", "telescopic", "nexus"],
-    "closure-gate": ["knowledge-crystallization", "audit", "elevate"],
-  },
-  agents: {
-    diagnose: "scout",
-    "first-100x": "builder",
-    "second-100x": "reviewer",
-    "debt-targeting": "reviewer",
-    dissolve: "researcher",
-    rebuild: "builder",
-    "alien-pass": "builder",
-    "closure-gate": "researcher",
-  },
-};
-
-export const BUILT_IN_PLUGINS: Record<string, LoopPlugin> = {
-  ooda: OODA_PLUGIN,
-  strategic: STRATEGIC_PLUGIN,
-  kaizen: KAIZEN_PLUGIN,
-  adkar: ADKAR_PLUGIN,
-  transcendent: TRANSCENDENT_PLUGIN,
-};
-
-// ============================================================================
-// AGENT-KERNEL CLI WRAPPER
-// ============================================================================
-
-export class AgentKernel {
-  private akPath: string;
-  private societyDb?: string;
-  private cwd?: string;
-
-  constructor(
-    akPath: string = resolveAkPath({ cwd: process.cwd() }),
-    societyDb?: string,
-    cwd?: string,
-  ) {
-    this.akPath = akPath;
-    this.societyDb = societyDb;
-    this.cwd = cwd;
-  }
-
-  async taskReady(
-    signal?: AbortSignal,
-  ): Promise<Array<{ id: number; title: string; repo: string }>> {
-    const output = await this.run(["task", "ready", "--format", "json"], signal);
-    try {
-      return JSON.parse(output);
-    } catch {
-      return [];
-    }
-  }
-
-  async taskClaim(
-    taskId: number,
-    agent: string,
-    lease: number = 3600,
-    signal?: AbortSignal,
-  ): Promise<boolean> {
-    try {
-      await this.run(
-        ["task", "claim", String(taskId), "--agent", agent, "--lease", String(lease)],
-        signal,
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async taskComplete(
-    taskId: number,
-    result: Record<string, unknown>,
-    signal?: AbortSignal,
-  ): Promise<boolean> {
-    try {
-      await this.run(
-        ["task", "complete", String(taskId), "--result", JSON.stringify(result)],
-        signal,
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  evidenceRecord(params: EvidenceEntry, signal?: AbortSignal): Promise<EvidenceWriteResult> {
-    return recordEvidence(params, signal, {
-      akPath: this.akPath,
-      societyDb: this.societyDb || process.env.SOCIETY_DB || process.env.AK_DB || "",
-      cwd: this.cwd,
-    });
-  }
-
-  private async run(args: string[], signal?: AbortSignal): Promise<string> {
-    const result = await runAkCommandAsync({
-      akPath: this.akPath,
-      societyDb: this.societyDb || process.env.SOCIETY_DB || process.env.AK_DB || "",
-      args,
-      cwd: this.cwd,
-      signal,
-    });
-
-    if (!result.ok) {
-      throw new Error(result.stderr || `ak exited with error`);
-    }
-
-    return result.stdout;
-  }
-}
+export { AgentKernel } from "./agent-kernel.ts";
+export type {
+  Artifact,
+  CompactLoopResult,
+  CompactPhaseResult,
+  LoopContext,
+  LoopDispatchFn,
+  LoopExecutionOptions,
+  LoopPlugin,
+  LoopResult,
+  PhaseResult,
+} from "./contracts.ts";
+export {
+  ADKAR_PLUGIN,
+  BUILT_IN_PLUGINS,
+  KAIZEN_PLUGIN,
+  OODA_PLUGIN,
+  STRATEGIC_PLUGIN,
+  TRANSCENDENT_PLUGIN,
+} from "./plugins.ts";
 
 // ============================================================================
 // LOOP EXECUTOR
