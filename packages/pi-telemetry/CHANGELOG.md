@@ -13,6 +13,20 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-telemetry-v0.3.1...pi-telemetry-v0.4.0) (2026-08-27)
+
+
+### Features
+
+* **pi-telemetry:** causal compaction-failure telemetry via session_compact_failed ([56d5782](https://github.com/tryingET/pi-extensions/commit/56d5782cb4cf159a59fda2e332c14804f85ac0e4))
+
+
+### Bug Fixes
+
+* **monorepo:** isolate provider-free release checks ([2a7c28c](https://github.com/tryingET/pi-extensions/commit/2a7c28cce24a8791f02db404eecdc56e4f8e558c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **pi-telemetry:** remove legacy Pi peer aliases ([5109465](https://github.com/tryingET/pi-extensions/commit/5109465e1b79b148aabea149dd3e88af6a288d9b))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-telemetry-v0.3.0...pi-telemetry-v0.3.1) (2026-08-22)
 
 
