@@ -32,6 +32,7 @@ import {
   buildTitle,
   describeWindowFallback,
   joinLaunchNotes,
+  type ModelLike,
   runGhosttyLaunch,
   summarizeLaunchFailure,
   summarizePrompt,

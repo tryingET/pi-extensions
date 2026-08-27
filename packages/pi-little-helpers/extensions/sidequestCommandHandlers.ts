@@ -68,7 +68,7 @@ async function collectHandoffRuntimeContext({
   cwd,
 }: {
   pi: ExtensionAPI;
-  options: SidequestOptions;
+  options: SidequestCommandHandlerOptions;
   cwd: string;
 }): Promise<string> {
   const execRunner: ExecRunner =

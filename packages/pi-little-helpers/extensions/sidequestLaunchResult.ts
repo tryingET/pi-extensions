@@ -12,7 +12,7 @@ import {
 
 const GHOSTTY_LAUNCH_TIMEOUT_MS = 15000;
 const TITLE_MAX_LEN = 48;
-type ModelLike = { provider: string; id: string };
+export type ModelLike = { provider: string; id: string };
 
 export function summarizePrompt(prompt: string): string {
   const singleLine = prompt.replace(/\s+/g, " ").trim();

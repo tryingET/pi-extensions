@@ -9,6 +9,7 @@ import {
   findGhosttyAncestor,
   type GhosttyAncestor,
   getGhosttySurfaceId,
+  type LaunchMode,
 } from "./sidequestGhostty.ts";
 
 export type SidequestPlacementOptions = {
@@ -97,6 +98,10 @@ function findMatchingPresenceRecord({
 
   candidates.sort((left, right) => right.publishedAtMs - left.publishedAtMs);
   return candidates[0]?.record;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
 
 async function waitForMatchingPresenceRecord(options: {
