@@ -5,7 +5,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
@@ -38,6 +38,12 @@ import {
   getCandidatePeerRegistryPath,
   writeCandidatePeerRegistryRecord,
 } from "../src/candidatePeerRegistry.ts";
+import {
+  type CandidateWorkspaceResolution,
+  candidatePathIsInside,
+  candidateWorkspacePollutionBlocker,
+  resolveCandidateWorkspaceRoot,
+} from "../src/candidateWorkspacePlacement.ts";
 import {
   LITTLE_HELPERS_CAPABILITY_MANIFEST,
   LITTLE_HELPERS_COMMAND_NAMES,
@@ -1543,13 +1549,6 @@ function sanitizeWorkspaceName(value: string | undefined, branchName: string): s
   );
 }
 
-function isPathInside(parent: string, child: string): boolean {
-  const normalizedParent = resolve(parent);
-  const normalizedChild = resolve(child);
-  const rel = relative(normalizedParent, normalizedChild);
-  return Boolean(rel) && !rel.startsWith("..") && !rel.includes(`..${sep}`) && !isAbsolute(rel);
-}
-
 function candidateWorkspaceSymlinkBlocker(path: string): string | undefined {
   let existing = resolve(path);
   while (!existsSync(existing)) {
@@ -1565,13 +1564,6 @@ function candidateWorkspaceSymlinkBlocker(path: string): string | undefined {
     return `candidate workspace path ancestor cannot be verified: ${error instanceof Error ? error.message : String(error)}`;
   }
   return undefined;
-}
-
-function defaultWorkspaceRoot(repoRoot: string, env: NodeJS.ProcessEnv): string {
-  const stateHome = env.XDG_STATE_HOME?.trim() || join(homedir(), ".local", "state");
-  const repoSlug = slugify(basename(repoRoot), "repo");
-  const repoHash = createHash("sha1").update(resolve(repoRoot)).digest("hex").slice(0, 8);
-  return join(stateHome, "pi-quests", "worktrees", `${repoSlug}-${repoHash}`);
 }
 
 async function runGit(execRunner: ExecRunner, cwd: string, args: string[]): Promise<LaunchResult> {
@@ -1661,13 +1653,25 @@ async function prepareCandidatePeerWorktree({
     branchName,
   );
   const workspaceName = sanitizeWorkspaceName(request.workspaceName, branchName);
-  const workspaceRoot = resolve(
-    request.workspaceRoot?.trim()
-      ? isAbsolute(request.workspaceRoot.trim())
-        ? request.workspaceRoot.trim()
-        : resolve(parentCwd, request.workspaceRoot.trim())
-      : defaultWorkspaceRoot(repoRoot, env),
-  );
+  let workspaceResolution: CandidateWorkspaceResolution;
+  try {
+    workspaceResolution = resolveCandidateWorkspaceRoot({
+      requestedWorkspaceRoot: request.workspaceRoot,
+      parentCwd,
+      repoRoot,
+      env,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      parentCwd,
+      repoRoot,
+      branchName,
+      baseRef,
+    };
+  }
+  const { workspaceRoot } = workspaceResolution;
   const worktreePath = resolve(workspaceRoot, workspaceName);
   const naming: CandidatePeerSafeNaming = {
     ...(requestedBranchName ? { requestedBranchName } : {}),
@@ -1693,7 +1697,24 @@ async function prepareCandidatePeerWorktree({
     };
   }
 
-  if (isPathInside(repoRoot, worktreePath) || worktreePath === repoRoot) {
+  const pollutionBlocker = await candidateWorkspacePollutionBlocker({
+    runGit: (cwd, args) => runGit(execRunner, cwd, args),
+    workspaceRoot,
+  });
+  if (pollutionBlocker) {
+    return {
+      ok: false,
+      error: pollutionBlocker,
+      parentCwd,
+      repoRoot,
+      worktreePath,
+      branchName,
+      baseRef,
+      naming,
+    };
+  }
+
+  if (candidatePathIsInside(repoRoot, worktreePath) || worktreePath === repoRoot) {
     return {
       ok: false,
       error: "candidate peer worktree path must not be inside the parent checkout",
@@ -1707,7 +1728,7 @@ async function prepareCandidatePeerWorktree({
   }
 
   const gitDir = join(repoRoot, ".git");
-  if (isPathInside(gitDir, worktreePath) || worktreePath === gitDir) {
+  if (candidatePathIsInside(gitDir, worktreePath) || worktreePath === gitDir) {
     return {
       ok: false,
       error: "candidate peer worktree path must not be inside .git",
@@ -1720,7 +1741,7 @@ async function prepareCandidatePeerWorktree({
     };
   }
 
-  if (!isPathInside(workspaceRoot, worktreePath) && worktreePath !== workspaceRoot) {
+  if (!candidatePathIsInside(workspaceRoot, worktreePath) && worktreePath !== workspaceRoot) {
     return {
       ok: false,
       error: "candidate peer worktree path escaped workspaceRoot",
