@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.3](https://github.com/tryingET/pi-extensions/compare/pi-agent-vent-v0.2.2...pi-agent-vent-v0.2.3) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate provider-free release checks ([2a7c28c](https://github.com/tryingET/pi-extensions/commit/2a7c28cce24a8791f02db404eecdc56e4f8e558c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **pi-agent-vent:** keep release smoke on managed scratch ([a29bb99](https://github.com/tryingET/pi-extensions/commit/a29bb99342142bde0e264c80036ad59ae141adf1))
+
 ## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-agent-vent-v0.2.1...pi-agent-vent-v0.2.2) (2026-08-15)
 
 

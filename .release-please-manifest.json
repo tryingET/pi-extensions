@@ -1,7 +1,7 @@
 {
   "packages/pi-activity-strip": "0.3.0",
   "packages/pi-agent-registry": "0.1.0",
-  "packages/pi-agent-vent": "0.2.2",
+  "packages/pi-agent-vent": "0.2.3",
   "packages/pi-autonomous-session-control": "0.5.2",
   "packages/pi-autoresearch": "0.4.1",
   "packages/pi-better-openai": "0.3.0",
