@@ -92,12 +92,7 @@ function validatePackageJson() {
     }
   }
 
-  const hostPeers = [
-    "@mariozechner/pi-coding-agent",
-    "@mariozechner/pi-ai",
-    "@earendil-works/pi-coding-agent",
-    "@earendil-works/pi-ai",
-  ];
+  const hostPeers = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai"];
   for (const peer of hostPeers) {
     if (p.peerDependencies?.[peer] !== "*") {
       fail(`package.json peerDependencies.${peer} must remain '*' for host-provided compatibility`);
