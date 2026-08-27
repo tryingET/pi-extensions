@@ -87,18 +87,8 @@
     "fast-xml-parser": "5.3.6"
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*",
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
-  },
-  "peerDependenciesMeta": {
-    "@mariozechner/pi-ai": {
-      "optional": true
-    },
-    "@mariozechner/pi-coding-agent": {
-      "optional": true
-    }
   }
 }
