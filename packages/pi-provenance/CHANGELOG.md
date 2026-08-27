@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-provenance-v0.2.1...pi-provenance-v0.2.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate provider-free release checks ([2a7c28c](https://github.com/tryingET/pi-extensions/commit/2a7c28cce24a8791f02db404eecdc56e4f8e558c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-provenance-v0.2.0...pi-provenance-v0.2.1) (2026-08-15)
 
 
