@@ -15,7 +15,7 @@
   "packages/pi-interaction/pi-interaction-kit": "0.2.0",
   "packages/pi-interaction/pi-runtime-registry": "0.2.0",
   "packages/pi-interaction/pi-trigger-adapter": "0.2.2",
-  "packages/pi-little-helpers": "0.6.0",
+  "packages/pi-little-helpers": "0.6.1",
   "packages/pi-model-selection": "0.2.1",
   "packages/pi-modes": "0.3.1",
   "packages/pi-ontology-workflows": "0.4.0",

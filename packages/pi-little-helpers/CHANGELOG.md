@@ -27,6 +27,17 @@ All notable changes to this project should be documented here.
 
 - Delegate `/nexus-loop` commit prompts to `fork_peer_spawn` after resolving the configured `/commit` prompt template, then require intercom `PEER_ACK` / `PEER_FINAL` supervision before loop completion can advance.
 
+## [0.6.1](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.6.0...pi-little-helpers-v0.6.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **little-helpers:** close extracted sidequest types ([ddbaec5](https://github.com/tryingET/pi-extensions/commit/ddbaec56cddd24b7d4cb847a6cb476c3e0072f98))
+* **little-helpers:** handshake detached Ghostty windows ([a9170a9](https://github.com/tryingET/pi-extensions/commit/a9170a9eeddf4c1f64ea727235f74500d9217da5))
+* **pi-little-helpers:** clarify candidate admission retry disposition ([96632fe](https://github.com/tryingET/pi-extensions/commit/96632fe021748a4633a65833de080cefb15486ff))
+* **pi-little-helpers:** isolate packed release smoke ([f47e0ac](https://github.com/tryingET/pi-extensions/commit/f47e0ac79c249033c49b5bf2f79f9970827ef021))
+* **pi-little-helpers:** preserve candidate worktree ancestry ([4069406](https://github.com/tryingET/pi-extensions/commit/4069406757fc2a7ea5b6f639d397aefd7ebd87ac))
+
 ## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-little-helpers-v0.5.1...pi-little-helpers-v0.6.0) (2026-08-15)
 
 
