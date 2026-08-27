@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.3](https://github.com/tryingET/pi-extensions/compare/pi-interaction-v0.3.2...pi-interaction-v0.3.3) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate install-only release checks ([e83c9bd](https://github.com/tryingET/pi-extensions/commit/e83c9bdefbcf5406e8eb4be6beef7245ed0eb655))
+* **pi-interaction:** preserve publish-ready manifests ([3195381](https://github.com/tryingET/pi-extensions/commit/31953819f8c31ee2a84737b82d84d2ac90696df7))
+
 ## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-interaction-v0.3.1...pi-interaction-v0.3.2) (2026-08-15)
 
 
