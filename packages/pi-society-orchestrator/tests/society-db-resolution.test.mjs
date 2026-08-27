@@ -13,7 +13,7 @@ const actualConsumerFiles = [
   "extensions/society-orchestrator.ts",
   "extensions/runtime-footer.ts",
   "extensions/release-evidence-ak-adapter.ts",
-  "src/loops/engine.ts",
+  "src/loops/executor.ts",
   "src/runtime/autoresearch-manifest-campaign-supervision.ts",
   "src/runtime/autoresearch-live-supervision.ts",
   "src/runtime/autoresearch-self-hosting-supervision.ts",
