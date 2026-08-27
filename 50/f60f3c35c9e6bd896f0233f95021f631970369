@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "50f60f3c35c9e6bd896f0233f95021f631970369"
+created_at: "2026-08-27T10:22:09Z"
+intent: "Remove deprecated @mariozechner Pi peers and validate only @earendil-works host ownership"
+files:
+  - "packages/pi-eval-kernel/package.json"
+  - "packages/pi-eval-kernel/package-lock.json"
+  - "packages/pi-eval-kernel/scripts/validate-structure.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 3
+  total: 6
+  rationale: "Keep the peer migration and lock/structure contract atomic within pi-eval-kernel."
+links:
+  task_ids:
+    - 5137
