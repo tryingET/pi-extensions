@@ -16,7 +16,7 @@
 # projection `sessions` — listed, never dropped.
 
 def projection_names:
-  ["occupancy", "faults", "spend", "ghosts", "runway", "sessions", "topfiles"];
+  ["occupancy", "faults", "spend", "ghosts", "runway", "sessions", "topfiles", "compaction"];
 
 def facts: map(select(.replayStatus == "ok" or .replayStatus == "empty"));
 
@@ -68,6 +68,17 @@ def topfiles:
   | .[0:10]
   | map({path: .p, cat: .c, label: .l, tokens: .t, birthR: .b, freedR: .f, tokenTurns: .tt, dead: (.d == 1)});
 
+# P3 compaction tradeoff summary (input: one strata.json; carries its licensing bound)
+def compaction:
+  .meta.compactionTradeoff // null
+  | if . == null then
+      error("strata.json carries no compactionTradeoff (replay with a current pi-context-overlay)")
+    else
+      {available, reason, breakEvenRequests, horizonRequests, verdict,
+       freedTokensPerRequest, continueCostPerRequestUsd, compactPenaltyOnceUsd, savedPerRequestUsd,
+       warmEstimateDegraded, warmthBound}
+    end;
+
 if $p == "occupancy" then occupancy
 elif $p == "faults" then faults
 elif $p == "spend" then spend
@@ -75,6 +86,7 @@ elif $p == "ghosts" then ghosts
 elif $p == "runway" then runway
 elif $p == "sessions" then sessions
 elif $p == "topfiles" then topfiles
+elif $p == "compaction" then compaction
 else
   error("unknown projection '" + $p + "'; available: " + (projection_names | join(", ")))
 end

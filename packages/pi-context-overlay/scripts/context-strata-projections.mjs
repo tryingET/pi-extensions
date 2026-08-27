@@ -12,6 +12,8 @@
 export const IR_SCHEMA_VERSION = 1;
 export const IR_ESTIMATOR = "context-strata:path-qualified-liveness-v2";
 
+import { compactionTradeoff } from "./context-strata-tradeoff.mjs";
+
 export const CATS = [
   { id: "system", label: "system + overhead", color: "#5b6478" },
   { id: "agents", label: "AGENTS/CLAUDE files", color: "#b8a06a" },
@@ -246,6 +248,7 @@ export function assembleStrata(
       forks: forks ?? { count: 0, tokenTurns: 0, tokens: 0 },
       warmthAgreement,
       modelChanges,
+      compactionTradeoff: compactionTradeoff({ requests, faults, runway, totals, warmthAgreement }),
     },
     cats: CATS,
     requests,

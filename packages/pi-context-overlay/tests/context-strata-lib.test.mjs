@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildActiveChain, buildStrataModel } from "../scripts/context-strata-lib.mjs";
+import { compactionTradeoff } from "../scripts/context-strata-tradeoff.mjs";
 
 const line = (obj) => JSON.stringify(obj);
 const session = (id, parentId, cwd) => ({
@@ -371,4 +372,153 @@ test("meta.cwd: measured provenance from the session header crosses into the IR"
 test("meta.cwd: absent header cwd stays absent (additive, never invented)", () => {
   const { strata } = buildStrataModel(LINEAR); // fixture header carries no cwd
   assert.equal("cwd" in strata.meta, false);
+});
+
+// ---------- P3 compaction tradeoff (unit pins, hand-computed) ----------
+
+const req = (over) => ({
+  r: 0,
+  turn: 0,
+  ts: "",
+  model: "m",
+  input: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  output: 0,
+  residentEst: 0,
+  warmModelTokens: 0,
+  costInput: 0,
+  costCacheRead: 0,
+  costOutput: 0,
+  costTotal: 0,
+  ...over,
+});
+
+// Hand-computed fixture: warm 0.0001 $/tok, cold 0.003 $/tok (30x). Post-fault resident
+// 1,000 (observed at r2); last resident 6,000 (grew back).
+const TR = {
+  requests: [
+    req({ r: 0, input: 1000, cacheRead: 0, residentEst: 6000, warmModelTokens: 0 }),
+    req({ r: 1, input: 100, cacheRead: 900, residentEst: 1000, warmModelTokens: 900 }),
+    req({
+      r: 2,
+      input: 100,
+      cacheRead: 5000,
+      residentEst: 6000,
+      warmModelTokens: 5500,
+    }),
+  ],
+  faults: [{ r: 0 }],
+  runway: { requestsRemaining: 50 },
+  totals: { inputTokens: 1000, costInput: 3, cacheReadTokens: 9000, costCacheRead: 0.9 },
+  warmthAgreement: { n: 3, mae: 0.01, p95: 0.02, max: 0.9 },
+};
+
+test("compaction tradeoff: break-even arithmetic is exact against hand-computed numbers", () => {
+  const t = compactionTradeoff(TR);
+  assert.equal(t.available, true);
+  assert.equal(t.warmPricePerToken, 0.0001);
+  assert.equal(t.coldPricePerToken, 0.003);
+  assert.equal(t.observedPostFaultResident, 1000);
+  assert.equal(t.freedTokensPerRequest, 5000);
+  // continue: 6000 tok x 0.0001 = $0.60/request
+  assert.ok(Math.abs(t.continueCostPerRequestUsd - 0.6) < 1e-12);
+  // penalty: 1000 x (0.003 - 0.0001) = $2.90 once
+  assert.ok(Math.abs(t.compactPenaltyOnceUsd - 2.9) < 1e-12);
+  // saving: 5000 x 0.0001 = $0.50/request -> break-even ceil(2.9/0.5) = 6
+  assert.ok(Math.abs(t.savedPerRequestUsd - 0.5) < 1e-12);
+  assert.equal(t.breakEvenRequests, 6);
+  assert.equal(t.horizonRequests, 50);
+  assert.match(t.verdict, /compaction pays: horizon 50 > break-even 6/);
+  // licensing: bound attached verbatim; tail flagged from the last request
+  assert.deepEqual(t.warmthBound, { mae: 0.01, p95: 0.02, max: 0.9 });
+  // last delta = |5000/5100 - 5500/6000| = 0.0334... not > 0.5
+  assert.equal(t.warmEstimateDegraded, false);
+});
+
+test("compaction tradeoff: unavailable paths fail closed with reasons, never invented numbers", () => {
+  const noFault = compactionTradeoff({ ...TR, faults: [] });
+  assert.equal(noFault.available, false);
+  assert.match(noFault.reason, /no observed post-fault request/);
+  assert.ok(noFault.observedPostFaultResident === null);
+  // prices still reported (measured), verdict absent
+  assert.equal(noFault.warmPricePerToken, 0.0001);
+  assert.equal(noFault.breakEvenRequests, undefined);
+
+  const noCache = compactionTradeoff({
+    ...TR,
+    totals: { inputTokens: 1000, costInput: 3, cacheReadTokens: 0, costCacheRead: 0 },
+  });
+  assert.equal(noCache.available, false);
+  assert.match(noCache.reason, /no measured warm\/cold price pair/);
+
+  // tokens present but $ unreported (some routers): must fail closed, never price at 0
+  // (caught live in dogfooding: glm52 fabricated "pays immediately" from $0 prices)
+  const noDollars = compactionTradeoff({
+    ...TR,
+    totals: { inputTokens: 1000, costInput: 0, cacheReadTokens: 9000, costCacheRead: 0 },
+  });
+  assert.equal(noDollars.available, false);
+  assert.match(noDollars.reason, /tokens or \$ unreported/);
+  assert.equal(noDollars.breakEvenRequests, undefined);
+  assert.equal(noDollars.verdict, undefined);
+
+  const faultAtEnd = compactionTradeoff({ ...TR, faults: [{ r: 2 }] });
+  assert.equal(faultAtEnd.available, false);
+  assert.match(faultAtEnd.reason, /no observed post-fault request/);
+
+  const noGain = compactionTradeoff({
+    ...TR,
+    requests: TR.requests.map((q, i) => (i === 2 ? { ...q, residentEst: 900 } : q)),
+  });
+  assert.equal(noGain.available, false);
+  assert.match(noGain.reason, /nothing to free/);
+});
+
+test("compaction tradeoff: warmth discontinuity tail degrades the estimate visibly", () => {
+  // last request in the tail: measured cache share 0.02 vs model 0.95 -> delta 0.93 > 0.5
+  const t = compactionTradeoff({
+    ...TR,
+    requests: TR.requests.map((q, i) =>
+      i === 2 ? { ...q, cacheRead: 100, input: 4900, warmModelTokens: 5700 } : q,
+    ),
+  });
+  assert.equal(t.available, true);
+  assert.equal(t.warmEstimateDegraded, true);
+  assert.ok(t.lastWarmthDelta > 0.5);
+});
+
+test("compaction tradeoff: integrates into strata.meta on a faulted session", () => {
+  const FAULTED = [
+    LINEAR,
+    line(compact("c1", "a2", "summary of everything")),
+    line(userMsg("u2", "c1", "continue")),
+    line(
+      assistant(
+        "a3",
+        "u2",
+        {
+          input: 300,
+          cacheRead: 100,
+          output: 1,
+          cost: { total: 0.03, input: 0.02, cacheRead: 0.01 },
+        },
+        [],
+      ),
+    ),
+  ].join("\n");
+  const { strata } = buildStrataModel(FAULTED);
+  const t = strata.meta.compactionTradeoff;
+  assert.ok(t && typeof t === "object");
+  // fault at r=1 of 3 requests -> post-fault request r=2 exists
+  assert.equal(t.observedPostFaultResident, strata.requests[2].residentEst);
+  assert.deepEqual(t.warmthBound, {
+    mae: strata.meta.warmthAgreement.mae,
+    p95: strata.meta.warmthAgreement.p95,
+    max: strata.meta.warmthAgreement.max,
+  });
+  if (t.available) {
+    assert.ok(t.freedTokensPerRequest > 0);
+    assert.ok(Number.isFinite(t.breakEvenRequests));
+  }
 });

@@ -159,14 +159,14 @@ ring). Warm/cold split remains forensic-only.
 - `scripts/context-strata.template.html` — seven instruments; era membership from the fault
   list (empty-summary compaction still breaks strata); bedrock wins birthR ties so it sits at
   the base; hover/zoom use the same `plotW = width − PADX − PADR` mapping as the renderer.
-- `tests/context-strata-lib.test.mjs` — 18 `node:test` cases pinning conservation, warmth,
+- `tests/context-strata-lib.test.mjs` — 22 `node:test` cases pinning conservation, warmth,
   inclusive residency across faults, empty-summary faults, branch exclusion, liveness
   boundaries, and zero-request sessions.
 - `tests/context-overlay.test.ts` — 16 cases pinning the live TUI surface (occupancy strip
   null-handling, icicle, launch honesty).
 - `tests/rfc-freshness.test.mjs` — rendered-vs-tree check: RFC-claimed test counts and
   §10 command paths must match the actual tree (stale status lines fail the gate).
-- Corpus side (`packages/pi-context-corpus`): 22 `node:test` cases + a cross-package
+- Corpus side (`packages/pi-context-corpus`): 23 `node:test` cases + a cross-package
   integration test that replays a synthetic session through the real overlay replayer and
   indexes the artifact it produced (executable corpus↔overlay tie).
 - Published artifact rev 3: <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
@@ -246,9 +246,17 @@ Still open:
   schema-gate pins), proven over S1/S2; evidence:
   `packages/pi-context-corpus/docs/project/2026-08-26-corpus-slice.md`.
   Prompt: `docs/project/2026-08-26-context-core-corpus-prompt.md`.
-- **P3 — decision support**: compaction tradeoff calculator (fault now vs continue:
-  Δoccupancy gain vs re-cold cost over re-warm horizon), AGENTS-edit re-cold warning
-  ("this edit re-colds N tokens ≈ $X on the next request").
+- **P3 — decision support (calculator shipped 2026-08-26)**: `meta.compactionTradeoff`
+  (additive IR; pure model in `scripts/context-strata-tradeoff.mjs`) computes fault-now vs
+  continue from the session's own measured data only — warm/cold $/token from reported
+  totals, observed post-fault resident size as the summary estimate, break-even requests vs
+  the runway horizon. No global price table; cacheWrite pricing not modeled (open per §9).
+  Licensed under the wire-order bound: output carries `warmthBound` (mae/p95/max) and flags
+  `warmEstimateDegraded` when the last request sits in the discontinuity tail (Δ > 0.5).
+  Corpus projection: `compaction` (strata.json input, like `topfiles`). Evidence:
+  `docs/project/2026-08-26-p3-compaction-tradeoff.md`.
+  AGENTS-edit re-cold warning remains **deferred**: live `/c` has no `cacheRead`, so a live
+  $-estimate would fabricate warmth — needs a host surface that exposes it.
 - **P4 — targeted GC**: liveness-mined compaction input for `pi-session-compaction`.
   Path-qualification unblocks advisory→actionable *for unique paths*; still advisory when
   two same-basename files are both resident.
@@ -331,7 +339,7 @@ Still open:
 ```bash
 # forensic replay: strata.json, requests.csv, speedscope.json, context-strata.html
 node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
-# model tests (18) + live TUI tests (16) + freshness/P3 gates
+# model tests (22) + live TUI tests (16) + freshness/P3 gates
 node --test tests/context-strata-lib.test.mjs tests/context-overlay.test.ts tests/rfc-freshness.test.mjs
 # corpus side: see packages/pi-context-corpus/README.md (index/project CLI + 20-test suite)
 ```

@@ -65,6 +65,7 @@ jq -f projections/corpus.jq --arg p spend corpus/index.json
 | `runway` | index.json | sessions ranked by requests-until-fault (nulls excluded) |
 | `sessions` | index.json | compact per-session overview |
 | `topfiles` | strata.json (one) | top path-qualified allocations by token-turns (≤10) |
+| `compaction` | strata.json (one) | P3 tradeoff summary: break-even vs horizon, with warmth bound + tail flag |
 
 Unknown names fail closed with the available listing (both via the CLI and via jq).
 

@@ -25,6 +25,7 @@ export const PROJECTION_NAMES = [
   "runway",
   "sessions",
   "topfiles",
+  "compaction",
 ];
 
 const JQ_FILE = fileURLToPath(new URL("../projections/corpus.jq", import.meta.url));

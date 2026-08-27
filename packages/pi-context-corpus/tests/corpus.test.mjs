@@ -552,3 +552,52 @@ writeFileSync(join(outDir, "strata.json"), JSON.stringify({
     "src/one.jsonl",
   );
 });
+
+test("projection: compaction — P3 tradeoff summary from one strata.json, bound attached", () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-context-corpus-p3-"));
+  try {
+    const file = join(root, "strata.json");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        meta: {
+          compactionTradeoff: {
+            available: true,
+            freedTokensPerRequest: 5000,
+            continueCostPerRequestUsd: 0.6,
+            compactPenaltyOnceUsd: 2.9,
+            savedPerRequestUsd: 0.5,
+            breakEvenRequests: 6,
+            horizonRequests: 50,
+            verdict: "compaction pays: horizon 50 > break-even 6",
+            warmEstimateDegraded: false,
+            warmthBound: { mae: 0.01, p95: 0.02, max: 0.9 },
+          },
+        },
+        items: [],
+      }),
+    );
+    const out = project("compaction", file, process.cwd());
+    assert.deepEqual(out, {
+      available: true,
+      reason: null,
+      breakEvenRequests: 6,
+      horizonRequests: 50,
+      verdict: "compaction pays: horizon 50 > break-even 6",
+      freedTokensPerRequest: 5000,
+      continueCostPerRequestUsd: 0.6,
+      compactPenaltyOnceUsd: 2.9,
+      savedPerRequestUsd: 0.5,
+      warmEstimateDegraded: false,
+      warmthBound: { mae: 0.01, p95: 0.02, max: 0.9 },
+    });
+    // legacy strata without the field fails closed (no invented tradeoff)
+    const legacy = join(root, "legacy.json");
+    writeFileSync(legacy, JSON.stringify({ meta: {}, items: [] }));
+    const missing = runStatus(["project", "compaction", legacy]);
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stderr, /carries no compactionTradeoff/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

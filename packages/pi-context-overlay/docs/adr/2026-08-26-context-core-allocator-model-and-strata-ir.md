@@ -98,6 +98,10 @@ late-session.
   measured data; otherwise those instruments remain forensic-only.
 - `pi-session-insights` remains a separate IR (`pi.session-insights.v1` chat facts);
   the two never merge.
+- P3 scope note: the compaction tradeoff calculator shipped forensic-side on 2026-08-26
+  under the wire-order licensing (bound stated per session; tail flagged) — recorded in
+  `docs/project/2026-08-26-p3-compaction-tradeoff.md`. The AGENTS-edit re-cold warning and
+  P4 remain unadopted.
 
 ## Alternatives considered
 
