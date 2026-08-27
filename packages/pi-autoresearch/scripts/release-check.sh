@@ -7,6 +7,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
+RELEASE_SANDBOX_ROOT="$(git -C "$ROOT_DIR" rev-parse --show-toplevel)"
+source "$RELEASE_SANDBOX_ROOT/scripts/release-sandbox.sh"
 
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
@@ -25,7 +27,7 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
 fi
 
 echo "== npm pack --dry-run --json"
-PACK_JSON="$(npm pack --dry-run --json)"
+PACK_JSON="$(release_sandbox_npm pack --dry-run --json)"
 echo "$PACK_JSON"
 PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
 
@@ -130,7 +132,7 @@ NODE
 
 echo "== npm publish --dry-run"
 set +e
-PUBLISH_DRY_RUN_OUTPUT="$(npm publish --dry-run 2>&1)"
+PUBLISH_DRY_RUN_OUTPUT="$(release_sandbox_npm publish --dry-run 2>&1)"
 PUBLISH_DRY_RUN_EXIT=$?
 set -e
 echo "$PUBLISH_DRY_RUN_OUTPUT"
@@ -158,69 +160,27 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== npm pack"
-TARBALL="$(npm pack --silent | tail -n 1)"
+TARBALL="$(release_sandbox_npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
   echo "Skipping pi smoke tests (SKIP_PI_SMOKE=1)."
 else
-  if ! command -v pi >/dev/null 2>&1; then
-    echo "pi CLI not found in PATH." >&2
+  TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-autoresearch-release-closure.XXXXXX")"
+  ARTIFACT_DIR="$TEST_AGENT_DIR/artifacts"
+  echo "== exact local-dependency closure pack and isolated install proof"
+  release_sandbox_command node "$RELEASE_SANDBOX_ROOT/scripts/release-artifact.mjs" pack \
+    --package-path packages/pi-autoresearch \
+    --artifact-dir "$ARTIFACT_DIR"
+  ARTIFACT_MANIFEST="$(find "$ARTIFACT_DIR" -maxdepth 1 -type f -name '*.manifest.json' -print -quit)"
+  if [[ -z "$ARTIFACT_MANIFEST" ]]; then
+    echo "Authoritative autoresearch artifact manifest was not produced." >&2
     exit 1
   fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
-
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
-
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Allow override via environment variables for different provider configurations
-  PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
-  PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
-  PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
-
-  cat > "$TEST_AGENT_DIR/settings.json" <<JSON
-{
-  "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
-  "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
-  "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "extensions": []
-}
-JSON
-
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR)"
-  PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
-
-  echo "== verify tarball package recorded in settings"
-  TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
-const settingsPath = path.join(process.env.TEST_AGENT_DIR, "settings.json");
-const packageSpec = process.env.PACKAGE_SPEC;
-const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const packages = Array.isArray(settings.packages) ? settings.packages : [];
-const found = packages.some((entry) => {
-  if (typeof entry === "string") return entry === packageSpec;
-  if (entry && typeof entry === "object") return entry.source === packageSpec;
-  return false;
-});
-if (!found) {
-  console.error(`Could not find ${packageSpec} in settings.packages`);
-  process.exit(1);
-}
-console.log("Tarball package entry present in settings.packages.");
-NODE
-
-  if [[ -x "./scripts/release-smoke.sh" ]]; then
-    echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
-  fi
+  release_sandbox_command node "$RELEASE_SANDBOX_ROOT/scripts/release-artifact.mjs" verify \
+    --manifest "$ARTIFACT_MANIFEST"
+  echo "Exact autoresearch tarball and local dependency closure installed successfully."
 fi
 
 if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
@@ -228,7 +188,7 @@ if [[ "${SKIP_PI_SMOKE:-0}" == "1" ]]; then
 else
   echo "== npm view ${NAME} version (pre-publish may be 404)"
   set +e
-  npm view "$NAME" version --json --registry https://registry.npmjs.org/
+  release_sandbox_npm view "$NAME" version --json --registry https://registry.npmjs.org/
   VIEW_EXIT=$?
   set -e
   echo "npm view exit: $VIEW_EXIT"
