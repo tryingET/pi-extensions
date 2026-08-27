@@ -9,6 +9,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
+RELEASE_SANDBOX_ROOT="$(git -C "$ROOT_DIR" rev-parse --show-toplevel)"
+source "$RELEASE_SANDBOX_ROOT/scripts/release-sandbox.sh"
 
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
@@ -27,7 +29,7 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
 fi
 
 echo "== npm pack --dry-run --json"
-PACK_JSON="$(npm pack --dry-run --json)"
+PACK_JSON="$(release_sandbox_npm pack --dry-run --json)"
 echo "$PACK_JSON"
 PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
 
@@ -132,7 +134,7 @@ NODE
 
 echo "== npm publish --dry-run"
 set +e
-PUBLISH_DRY_RUN_OUTPUT="$(npm publish --dry-run 2>&1)"
+PUBLISH_DRY_RUN_OUTPUT="$(release_sandbox_npm publish --dry-run 2>&1)"
 PUBLISH_DRY_RUN_EXIT=$?
 set -e
 echo "$PUBLISH_DRY_RUN_OUTPUT"
@@ -164,7 +166,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== npm pack"
-TARBALL="$(npm pack --silent | tail -n 1)"
+TARBALL="$(release_sandbox_npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
@@ -175,33 +177,17 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-agent-XXXXXX)"
-  TEST_NPM_PREFIX="$(mktemp -d /tmp/pi-extension-release-check-npm-XXXXXX)"
+  TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-extension-release-agent.XXXXXX")"
+  TEST_NPM_PREFIX="$TEST_AGENT_DIR/npm-prefix"
+  TEST_NPM_CACHE="$TEST_AGENT_DIR/npm-cache"
+  release_sandbox_prepare_runtime "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE"
 
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
-  PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
-  PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
-
-  cat > "$TEST_AGENT_DIR/settings.json" <<JSON
-{
-  "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
-  "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
-  "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "extensions": []
-}
-JSON
-
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR and NPM_CONFIG_PREFIX)"
+  echo "== pi install tarball (credential-isolated Pi and npm roots)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" npm_config_prefix="$TEST_NPM_PREFIX" pi install "$PACKAGE_SPEC"
+  release_sandbox_exec "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE" \
+    pi install "$PACKAGE_SPEC"
+  release_sandbox_link_available_peers "$TEST_AGENT_DIR" "$ROOT_DIR"
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -225,13 +211,14 @@ NODE
 
   if [[ -x "./scripts/release-smoke.sh" ]]; then
     echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" npm_config_prefix="$TEST_NPM_PREFIX" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
+    release_sandbox_exec "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE" \
+      env PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
   fi
 fi
 
 echo "== npm view ${NAME} version (pre-publish may be 404)"
 set +e
-npm view "$NAME" version --json --registry https://registry.npmjs.org/
+release_sandbox_npm view "$NAME" version --json --registry https://registry.npmjs.org/
 VIEW_EXIT=$?
 set -e
 echo "npm view exit: $VIEW_EXIT"

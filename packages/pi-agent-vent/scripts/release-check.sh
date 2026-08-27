@@ -9,6 +9,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
+RELEASE_SANDBOX_ROOT="$(git -C "$ROOT_DIR" rev-parse --show-toplevel)"
+source "$RELEASE_SANDBOX_ROOT/scripts/release-sandbox.sh"
 
 # Scratch-root resolution, from first principles:
 # the invariant is "release-check scratch lands on a managed, disposable root",
@@ -43,46 +45,11 @@ REPOSITORY_URL="$(node -p "(() => { const pkg = JSON.parse(require('node:fs').re
 
 HOST_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).devDependencies['@earendil-works/pi-coding-agent'] || ''")"
 
-# One release-only policy membrane. Every dependency-resolving command, including
-# Pi's nested npm invocation, must enter through here with disposable cache/prefix.
-RELEASE_MIN_AGE=0
-with_release_npm_policy() {
-  local cache="$1"
-  local prefix="$2"
-  shift 2
-  case "$cache" in
-    "$TMP_ROOT"/pi-agent-vent-*-npm-cache-*) ;;
-    *)
-      echo "Release command refused non-isolated npm cache: $cache" >&2
-      return 1
-      ;;
-  esac
-  if [[ "$prefix" != "-" ]]; then
-    case "$prefix" in
-      "$TMP_ROOT"/pi-agent-vent-*-npm-prefix-*) ;;
-      *)
-        echo "Release command refused non-isolated npm prefix: $prefix" >&2
-        return 1
-        ;;
-    esac
-    (
-      export NPM_CONFIG_PREFIX="$prefix" NPM_CONFIG_CACHE="$cache"
-      export NPM_CONFIG_MIN_RELEASE_AGE="$RELEASE_MIN_AGE"
-      "$@"
-    )
-  else
-    (
-      export NPM_CONFIG_CACHE="$cache" NPM_CONFIG_MIN_RELEASE_AGE="$RELEASE_MIN_AGE"
-      "$@"
-    )
-  fi
-}
-
 release_npm_install() {
-  local cache="$1"
-  local prefix="$2"
+  local _cache="$1"
+  local _prefix="$2"
   shift 2
-  with_release_npm_policy "$cache" "$prefix" npm install \
+  release_sandbox_npm install \
     --include=optional --ignore-scripts --no-audit --fund=false "$@"
 }
 
@@ -128,7 +95,7 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
 fi
 
 echo "== npm pack --dry-run --json"
-PACK_JSON="$(npm --cache "$CONTROL_NPM_CACHE" pack --dry-run --json)"
+PACK_JSON="$(release_sandbox_npm pack --dry-run --json)"
 echo "$PACK_JSON"
 if [[ -f "$REPO_ROOT/scripts/npm-pack-json.mjs" ]]; then
   PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
@@ -138,7 +105,7 @@ PACK_JSON="$PACK_JSON" node ./scripts/release-artifact-check.mjs
 
 echo "== npm publish --dry-run"
 set +e
-PUBLISH_DRY_RUN_OUTPUT="$(npm --cache "$CONTROL_NPM_CACHE" publish --dry-run 2>&1)"
+PUBLISH_DRY_RUN_OUTPUT="$(release_sandbox_npm publish --dry-run 2>&1)"
 PUBLISH_DRY_RUN_EXIT=$?
 set -e
 echo "$PUBLISH_DRY_RUN_OUTPUT"
@@ -152,7 +119,7 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
 fi
 
 echo "== npm pack"
-TARBALL="$(npm --cache "$CONTROL_NPM_CACHE" pack --silent | tail -n 1)"
+TARBALL="$(release_sandbox_npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
@@ -165,13 +132,13 @@ tar -xzf "$TARBALL_PATH" -C "$TARBALL_CHECK_DIR"
   # This isolated artifact probe intentionally selects the exact host contract above.
   # Ordinary installs retain the workstation's npm release-age policy.
   release_npm_install "$TARBALL_NPM_CACHE" -
-  npm run check
+  release_sandbox_npm run check
 )
 
 ARTIFACT_NPM_PREFIX="$(release_tmp_dir artifact-npm-prefix)"
 ARTIFACT_NPM_CACHE="$(release_tmp_dir artifact-npm-cache)"
 ARTIFACT_TOOL_VENT_DIR="$(release_tmp_dir artifact-tool-store)"
-ARTIFACT_PACKAGE_ROOT="$(npm --prefix "$ARTIFACT_NPM_PREFIX" root -g)/$NAME"
+ARTIFACT_PACKAGE_ROOT="$(release_sandbox_npm --prefix "$ARTIFACT_NPM_PREFIX" root -g)/$NAME"
 
 case "$ARTIFACT_PACKAGE_ROOT" in
   "$ARTIFACT_NPM_PREFIX"/*) ;;
@@ -199,41 +166,16 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
-  INSTALLED_PI_VERSION="$(pi --version)"
-  node ./scripts/release-smoke-check.mjs assert-exact-host-contract \
-    --package-json package.json \
-    --host-version "$INSTALLED_PI_VERSION"
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
-
   TEST_AGENT_DIR="$(release_tmp_dir pi-agent-dir)"
   TEST_NPM_PREFIX="$(release_tmp_dir pi-npm-prefix)"
   TEST_NPM_CACHE="$(release_tmp_dir pi-npm-cache)"
+  release_sandbox_prepare_runtime "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE"
 
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Allow override via environment variables for different provider configurations
-  PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
-  PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
-  PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
-
-  cat > "$TEST_AGENT_DIR/settings.json" <<JSON
-{
-  "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
-  "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
-  "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "npmCommand": ["npm", "--prefix", "${TEST_NPM_PREFIX}", "--cache", "${TEST_NPM_CACHE}"],
-  "extensions": []
-}
-JSON
-
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR and npm prefix)"
+  echo "== pi install tarball (credential-isolated Pi and npm roots)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
-    with_release_npm_policy "$TEST_NPM_CACHE" "$TEST_NPM_PREFIX" pi install "$PACKAGE_SPEC"
+  release_sandbox_exec "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE" \
+    pi install "$PACKAGE_SPEC"
+  release_sandbox_link_available_peers "$TEST_AGENT_DIR" "$ROOT_DIR"
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -258,15 +200,15 @@ NODE
   if [[ -x "./scripts/release-smoke.sh" ]]; then
     echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
     PI_INSTALLED_PACKAGE_ROOT="$TEST_AGENT_DIR/npm/node_modules/$NAME"
-    NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
-      PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" \
-      INSTALLED_PACKAGE_ROOT="$PI_INSTALLED_PACKAGE_ROOT" bash ./scripts/release-smoke.sh
+    release_sandbox_exec "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE" \
+      env PACKAGE_SPEC="$PACKAGE_SPEC" INSTALLED_PACKAGE_ROOT="$PI_INSTALLED_PACKAGE_ROOT" \
+      bash ./scripts/release-smoke.sh
   fi
 fi
 
 echo "== npm view ${NAME} version (pre-publish may be 404)"
 set +e
-npm --cache "$CONTROL_NPM_CACHE" view "$NAME" version --json --registry https://registry.npmjs.org/
+release_sandbox_npm view "$NAME" version --json --registry https://registry.npmjs.org/
 VIEW_EXIT=$?
 set -e
 echo "npm view exit: $VIEW_EXIT"
