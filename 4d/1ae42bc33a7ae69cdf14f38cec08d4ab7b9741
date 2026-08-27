@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "4d1ae42bc33a7ae69cdf14f38cec08d4ab7b9741"
+created_at: "2026-08-27T09:15:47Z"
+intent: "Normalize pack metadata, isolate release scratch and credentials, and prove the packed agent registry through real Pi discovery"
+files:
+  - "packages/pi-agent-registry/scripts/release-check.sh"
+  - "packages/pi-agent-registry/scripts/release-smoke.sh"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 3
+  rationale: "Keep package release behavior and its packed-runtime proof atomic."
+links:
+  task_ids:
+    - 5111
