@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f47e0ac79c249033c49b5bf2f79f9970827ef021"
+created_at: "2026-08-27T14:16:25Z"
+intent: "Run little-helpers packed installation and direct smoke without inherited credentials"
+files:
+  - "packages/pi-little-helpers/scripts/release-check.sh"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 5
+  total: 8
+links:
+  task_ids:
+    - 5148
