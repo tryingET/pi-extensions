@@ -1,0 +1,6 @@
+{
+  "schema": "ai-society.agent/1",
+  "name": "agent-fixture-duplicate",
+  "system_prompt_file": "agent.json",
+  "tools": ["read"]
+}

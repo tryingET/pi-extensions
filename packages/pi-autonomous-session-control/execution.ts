@@ -19,6 +19,10 @@ export {
   projectAscExecutionResult,
   projectAscExecutionUpdate,
 } from "./extensions/self/execution-observation.ts";
+export {
+  type ResolvedSubagentModelSelection,
+  resolveSubagentModelSelection,
+} from "./extensions/self/subagent-model-selection.ts";
 export { SUBAGENT_PROFILES } from "./extensions/self/subagent-profiles.ts";
 export {
   type AscExecutionRuntime,
@@ -36,11 +40,24 @@ export {
   getDispatchSubagentDisplayOutput,
   type SubagentModelContext,
 } from "./extensions/self/subagent-runtime.ts";
+export type {
+  DispatchMutationPolicy,
+  DispatchThinkingLevel,
+} from "./extensions/self/subagent-runtime-types.ts";
 export type { SubagentState } from "./extensions/self/subagent-session.ts";
 export {
   clearSubagentSessions,
   createSubagentState,
 } from "./extensions/self/subagent-session.ts";
+export {
+  type ExtraSkillProfileResolver,
+  type ResolvedSubagentSkillSelection,
+  resolveSubagentSkillSelection,
+  type SkillRegistryEntry,
+  type SkillRegistryPayload,
+  SubagentSkillSelectionError,
+  type SubagentSkillSelectionOptions,
+} from "./extensions/self/subagent-skill-selection.ts";
 export {
   type AssistantStopReason,
   type ExecutionState,

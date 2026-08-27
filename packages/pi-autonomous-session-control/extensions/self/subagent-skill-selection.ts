@@ -40,7 +40,26 @@ export interface SubagentSkillSelectionOptions {
   requestedSkills?: string[];
   requestedNoSkills?: boolean;
   ctx: SessionScopedContext & { cwd: string };
+  /**
+   * Consumer-supplied allowlisted resolver for skill profiles the built-in
+   * skill-librarian registry does not know (for example pi-agent-registry
+   * agent names backed by engineering-core profiles). Consulted only after
+   * the built-in registry misses; returning undefined keeps the original
+   * fail-closed diagnostics.
+   */
+  extraProfileResolver?: ExtraSkillProfileResolver;
 }
+
+/**
+ * Resolves a skill profile name ASC's built-in registry does not know.
+ * Return a fully-resolved selection to accept the profile, or undefined to
+ * decline it (ASC then fails closed with its own diagnostics). Throw
+ * SubagentSkillSelectionError for resolver-owned fail-closed paths.
+ */
+export type ExtraSkillProfileResolver = (
+  profile: string,
+  options: SubagentSkillSelectionOptions,
+) => Promise<ResolvedSubagentSkillSelection | undefined>;
 
 export class SubagentSkillSelectionError extends Error {
   readonly reason = "skill_profile_failed";
@@ -78,21 +97,45 @@ export async function resolveSubagentSkillSelection(
   }
 
   const registryPath = await findSkillRegistryPath(options.ctx.cwd);
+  let knownProfiles = new Set<string>();
+  if (registryPath) {
+    const registry = await readSkillRegistry(registryPath);
+    knownProfiles = getKnownSkillProfiles(registry);
+    if (knownProfiles.has(profile)) {
+      return resolveBuiltinSkillProfile(profile, registryPath, registry);
+    }
+  }
+
+  const extraSelection = await options.extraProfileResolver?.(profile, options);
+  if (extraSelection) {
+    // Named-profile selections always imply clean-child skill isolation.
+    return {
+      noSkills: true,
+      skillSources: extraSelection.skillSources ?? [],
+      skillProfile: extraSelection.skillProfile ?? profile,
+      loadedSkills: extraSelection.loadedSkills ?? [],
+      librarySkills: extraSelection.librarySkills ?? [],
+      skillWarnings: extraSelection.skillWarnings ?? [],
+      skillRegistry: extraSelection.skillRegistry,
+      cleanup: extraSelection.cleanup,
+    };
+  }
+
   if (!registryPath) {
     throw new SubagentSkillSelectionError(
       `skillProfile=${profile} requested, but no ai-society skill registry was found from cwd ${options.ctx.cwd}.`,
     );
   }
+  throw new SubagentSkillSelectionError(
+    `Unknown skillProfile: ${profile}. Available profiles: ${[...knownProfiles].sort().join(", ") || "none"}.`,
+  );
+}
 
-  const registry = await readSkillRegistry(registryPath);
-  const knownProfiles = getKnownSkillProfiles(registry);
-  if (!knownProfiles.has(profile)) {
-    throw new SubagentSkillSelectionError(
-      `Unknown skillProfile: ${profile}. Available profiles: ${[...knownProfiles].sort().join(", ") || "none"}.`,
-    );
-  }
-
-  const libraryRoot = await resolveLibraryRoot(registryPath, registry);
+async function resolveBuiltinSkillProfile(
+  profile: string,
+  registryPath: string,
+  registry: SkillRegistryPayload,
+): Promise<ResolvedSubagentSkillSelection> {
   const byName = new Map((registry.skills ?? []).map((entry) => [entry.name, entry]));
   const visibleSkills = selectVisibleSkills(profile, registry);
   if (visibleSkills.length === 0) {
@@ -104,6 +147,7 @@ export async function resolveSubagentSkillSelection(
   const outDir = await mkdtemp(join(tmpdir(), `asc-skill-profile-${profile}-`));
 
   try {
+    const libraryRoot = await resolveLibraryRoot(registryPath, registry);
     for (const name of selected) {
       const entry = byName.get(name);
       if (!entry) {

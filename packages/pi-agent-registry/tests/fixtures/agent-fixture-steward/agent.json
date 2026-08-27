@@ -1,0 +1,22 @@
+{
+  "schema": "ai-society.agent/1",
+  "name": "agent-fixture-steward",
+  "version": "0.1.0",
+  "display_name": "Fixture Steward",
+  "system_prompt_file": "docs/person/system-prompt.md",
+  "skills": {
+    "profile": "ec-defaults",
+    "extra": ["local-helper-skill"]
+  },
+  "tools": ["read", "bash", "edit"],
+  "extensions": ["./extensions/fixture.ts"],
+  "defaults": {
+    "model": null,
+    "thinking": "high"
+  },
+  "scope": {
+    "repos": ["/tmp/fixture-owned/*"],
+    "forbidden": [".git", "node_modules"]
+  },
+  "activities": ["prompts/activities/weekly-review.md"]
+}

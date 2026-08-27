@@ -97,6 +97,7 @@ import {
 } from "./subagent-session.ts";
 import { reserveExactSessionName, reserveUniqueSessionName } from "./subagent-session-name.ts";
 import {
+  type ExtraSkillProfileResolver,
   resolveSubagentSkillSelection,
   SubagentSkillSelectionError,
 } from "./subagent-skill-selection.ts";
@@ -198,6 +199,7 @@ export async function executeDispatchSubagentRequest(options: {
   onUpdate?: (update: DispatchSubagentExecutionUpdate) => void;
   signal?: AbortSignal;
   spawner?: SubagentSpawner;
+  extraSkillProfileResolver?: ExtraSkillProfileResolver;
 }): Promise<DispatchSubagentExecutionResult> {
   const normalizedParams = normalizeDispatchParams(options.request);
   const {
@@ -475,6 +477,7 @@ export async function executeDispatchSubagentRequest(options: {
       requestedNoSkills: noSkills,
       requestedSkills: skills,
       ctx: options.ctx,
+      extraProfileResolver: options.extraSkillProfileResolver,
     });
   } catch (error) {
     releaseExecutionReservations();
@@ -887,6 +890,7 @@ export function createAscExecutionRuntime(
         onUpdate,
         signal,
         spawner: options.spawner,
+        extraSkillProfileResolver: options.extraSkillProfileResolver,
       });
     },
   };

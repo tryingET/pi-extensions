@@ -9,6 +9,10 @@
       "release-type": "node",
       "component": "pi-activity-strip"
     },
+    "packages/pi-agent-registry": {
+      "release-type": "node",
+      "component": "pi-agent-registry"
+    },
     "packages/pi-agent-vent": {
       "release-type": "node",
       "component": "pi-agent-vent"

@@ -1,0 +1,101 @@
+{
+  "name": "@tryinget/pi-agent-registry",
+  "version": "0.1.0",
+  "description": "pi extension package for standing-agent manifests (agent.json) with fail-closed resolution and ASC dispatch integration",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/pi-extensions.git",
+    "directory": "packages/pi-agent-registry"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/tryingET/pi-extensions/tree/main/packages/pi-agent-registry",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-agent-registry",
+    "monorepo",
+    "agent-manifest",
+    "subagent-dispatch"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "fix": "bash ./scripts/quality-gate.sh fix",
+    "lint": "bash ./scripts/quality-gate.sh lint",
+    "typecheck": "bash ./scripts/quality-gate.sh typecheck",
+    "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
+    "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
+    "quality:ci": "bash ./scripts/quality-gate.sh ci",
+    "check": "npm run quality:ci",
+    "test": "npm run quality:ci",
+    "docs:list": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs",
+    "docs:list:workspace": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover",
+    "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
+    "release:check": "bash ./scripts/release-check.sh",
+    "release:check:quick": "SKIP_PI_SMOKE=1 bash ./scripts/release-check.sh",
+    "loop-doctor": "bash -lc 'node --version; npm --version; npm pkg get name version >/dev/null; git status --short -- . || true; exit 0'",
+    "loop-verify-fast": "npm run quality:pre-commit",
+    "loop-impact-plan": "bash -lc 'echo \"loop-impact-plan: package-local impact planner is coarse; run npm run loop-impact-run for the full package gate.\"; git status --short -- . || true'",
+    "loop-impact-run": "npm run check",
+    "loop-impact-wide": "npm run check",
+    "loop-landing-check": "npm run check"
+  },
+  "files": [
+    "extensions/pi-agent-registry.ts",
+    "src",
+    "prompts",
+    "examples",
+    "policy/security-policy.json",
+    "policy/engineering-lane.json",
+    "docs/engineering.local.md",
+    "docs/project/vision.md",
+    "docs/project/foundation.md",
+    "docs/project/2026-08-27-agent-registry.md",
+    "node_modules/@tryinget/pi-autonomous-session-control"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-agent-registry.ts"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "x-pi-template": {
+    "scaffoldMode": "simple-package",
+    "workspacePath": "packages/pi-agent-registry",
+    "releaseComponent": "pi-agent-registry",
+    "releaseConfigMode": "component"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@earendil-works/pi-ai": "0.84.2",
+    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@types/node": "^25.3.3",
+    "@typescript/native-preview": "7.0.0-dev.20260417.1"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.6"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "dependencies": {
+    "@tryinget/pi-autonomous-session-control": "0.5.2",
+    "typebox": "1.3.7"
+  },
+  "bundleDependencies": [
+    "@tryinget/pi-autonomous-session-control"
+  ]
+}

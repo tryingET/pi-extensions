@@ -1,0 +1,8 @@
+{
+  "schema": "ai-society.agent/1",
+  "name": "agent-fixture-watcher",
+  "version": "0.2.0",
+  "system_prompt_file": "docs/watcher-prompt.md",
+  "tools": [],
+  "extensions": []
+}

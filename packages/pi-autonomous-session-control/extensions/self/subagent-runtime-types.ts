@@ -8,6 +8,7 @@ import type {
 } from "./subagent-model-selection.ts";
 import type { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
 import type { SubagentState } from "./subagent-session.ts";
+import type { ExtraSkillProfileResolver } from "./subagent-skill-selection.ts";
 import type {
   AssistantStopReason,
   ExecutionState,
@@ -202,6 +203,12 @@ export interface AscExecutionRuntimeOptions {
   customSpawnerCapacityOwnership?: "parent_owned";
   state?: SubagentState;
   maxConcurrent?: number;
+  /**
+   * Consumer-supplied allowlisted resolver consulted when the built-in
+   * skill-librarian registry does not know the requested skill profile
+   * (pi-agent-registry agent names, engineering-core profiles).
+   */
+  extraSkillProfileResolver?: ExtraSkillProfileResolver;
 }
 
 export interface AscExecutionRuntime {
