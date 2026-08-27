@@ -53,7 +53,7 @@ import {
   formatCompactPhaseResult,
   LoopExecutor,
   projectLoopGroupTerminalObservation,
-} from "./engine.ts";
+} from "./executor.ts";
 import { resolveLoopKesPackageRoot } from "./kes.ts";
 import { BUILT_IN_PLUGINS } from "./plugins.ts";
 import { LoopResumeError } from "./run-checkpoint.ts";
