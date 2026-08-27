@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "96632fe021748a4633a65833de080cefb15486ff"
+created_at: "2026-08-27T08:06:36Z"
+intent: "Make candidate admission prerequisites and blocked-retry disposition explicit to harnessed LLMs"
+files:
+  - "packages/pi-little-helpers/extensions/sidequest.ts"
+  - "packages/pi-little-helpers/src/candidatePeerAdmission.ts"
+  - "packages/pi-little-helpers/tests/candidate-peer-admission.test.mjs"
+  - "packages/pi-little-helpers/tests/candidate-peer.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Keep the implementation and its admission/tool-surface regression coverage atomic within pi-little-helpers."
+links:
+  task_ids:
+    - 5110
