@@ -8,33 +8,33 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import {
+  createAutoresearchLearningKesAdapterToolResult,
+  createAutoresearchManifestCampaignToolResult,
+  createAutoresearchSelfHostingToolResult,
+} from "../../extensions/autoresearch-tool-adapters.ts";
+import {
   type AutoresearchLearningKesAdapterAction,
   buildAutoresearchLearningKesAdapterResult,
   loadAutoresearchLearningPacketWithSource,
-} from "../src/runtime/autoresearch-learning-kes-adapter.ts";
-import type { AutoresearchManifestCampaignSupervisor } from "../src/runtime/autoresearch-manifest-campaign-supervision.ts";
+} from "../runtime/autoresearch-learning-kes-adapter.ts";
+import type { AutoresearchManifestCampaignSupervisor } from "../runtime/autoresearch-manifest-campaign-supervision.ts";
 import type {
   AutoresearchLearningKesAdapterToolDetails,
   AutoresearchManifestCampaignSupervisionAction,
   AutoresearchManifestCampaignSupervisionToolDetails,
   AutoresearchSelfHostingSupervisionToolDetails,
-} from "../src/runtime/autoresearch-report-format.ts";
+} from "../runtime/autoresearch-report-format.ts";
 import {
   formatAutoresearchLearningKesAdapterReport,
   formatAutoresearchManifestCampaignEvidenceReport,
   formatAutoresearchManifestCampaignObservationReport,
   formatAutoresearchSelfHostingEvidenceReport,
   formatAutoresearchSelfHostingObservationReport,
-} from "../src/runtime/autoresearch-report-format.ts";
+} from "../runtime/autoresearch-report-format.ts";
 import type {
   AutoresearchSelfHostingSupervisionAction,
   AutoresearchSelfHostingSupervisor,
-} from "../src/runtime/autoresearch-self-hosting-supervision.ts";
-import {
-  createAutoresearchLearningKesAdapterToolResult,
-  createAutoresearchManifestCampaignToolResult,
-  createAutoresearchSelfHostingToolResult,
-} from "./autoresearch-tool-adapters.ts";
+} from "../runtime/autoresearch-self-hosting-supervision.ts";
 
 type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
   parameters?: unknown;

@@ -56,6 +56,12 @@ import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { registerAutoresearchAdapterTools } from "../src/extension/autoresearch-adapter-registrations.ts";
+import { registerAutoresearchLiveSupervisionTool } from "../src/extension/autoresearch-live-registration.ts";
+import {
+  registerWorkflowCommands,
+  registerWorkflowTool,
+} from "../src/extension/workflow-adapter.ts";
 import { registerLoopCommands, registerLoopTools } from "../src/loops/engine.ts";
 import { AGENT_PROFILES } from "../src/runtime/agent-profiles.ts";
 import { autoSelectAgent, resolveAgentForTeam } from "../src/runtime/agent-routing.ts";
@@ -90,10 +96,7 @@ import {
 } from "../src/runtime/ts-quality-release-workflow.ts";
 import { materializeVaultWorkflowBinding } from "../src/runtime/vault-workflow-binding.ts";
 import { createWorkflowExecutor } from "../src/runtime/workflow-execution.ts";
-import { registerAutoresearchAdapterTools } from "./autoresearch-adapter-registrations.ts";
-import { registerAutoresearchLiveSupervisionTool } from "./autoresearch-live-registration.ts";
 import runtimeFooterExtension from "./runtime-footer.ts";
-import { registerWorkflowCommands, registerWorkflowTool } from "./workflow-adapter.ts";
 
 type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
   parameters?: unknown;

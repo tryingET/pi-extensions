@@ -8,10 +8,14 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import {
+  createAutoresearchLiveToolResult,
+  validateAutoresearchLiveIdentity,
+} from "../../extensions/autoresearch-tool-adapters.ts";
 import type {
   AutoresearchLiveSupervisionAction,
   AutoresearchLiveSupervisionToolDetails,
-} from "../src/runtime/autoresearch-report-format.ts";
+} from "../runtime/autoresearch-report-format.ts";
 import {
   formatAutoresearchCampaignStartUnderSupervisionReport,
   formatAutoresearchCandidateWavePlanReport,
@@ -35,16 +39,12 @@ import {
   formatAutoresearchMatrixCampaignRunnerCheckpointReport,
   formatAutoresearchMatrixCampaignRunnerContractReport,
   formatAutoresearchPostFaninFinalizerReport,
-} from "../src/runtime/autoresearch-report-format.ts";
+} from "../runtime/autoresearch-report-format.ts";
 import {
   type AutoresearchLiveSupervisionRunner,
   describeAutoresearchLiveNextStep,
   runAutoresearchLevel4CampaignRunner,
-} from "../src/runtime/autoresearch-supervisor-runner.ts";
-import {
-  createAutoresearchLiveToolResult,
-  validateAutoresearchLiveIdentity,
-} from "./autoresearch-tool-adapters.ts";
+} from "../runtime/autoresearch-supervisor-runner.ts";
 
 type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
   parameters?: unknown;

@@ -9,14 +9,14 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { isBoundaryFailure } from "../src/runtime/boundaries.ts";
-import type { getCognitiveToolByName } from "../src/runtime/cognitive-tools.ts";
-import type { getGlobalSessionTeamStore } from "../src/runtime/team-state.ts";
-import { validateWorkflowRequest, WORKFLOW_AGENT_NAMES } from "../src/runtime/workflow.ts";
+import { isBoundaryFailure } from "../runtime/boundaries.ts";
+import type { getCognitiveToolByName } from "../runtime/cognitive-tools.ts";
+import type { getGlobalSessionTeamStore } from "../runtime/team-state.ts";
+import { validateWorkflowRequest, WORKFLOW_AGENT_NAMES } from "../runtime/workflow.ts";
 import {
   type createWorkflowExecutor,
   WorkflowExecutionError,
-} from "../src/runtime/workflow-execution.ts";
+} from "../runtime/workflow-execution.ts";
 
 type CompatToolDefinition = Omit<Parameters<ExtensionAPI["registerTool"]>[0], "parameters"> & {
   parameters?: unknown;
