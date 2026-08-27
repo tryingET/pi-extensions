@@ -68,14 +68,26 @@ export function assertSciSchemaCompatibility(advertised: readonly AdvertisedTool
   const failures: string[] = [];
 
   for (const spec of SCI_COMPOSITE_TOOL_SPECS) {
-    const remote = byName.get(spec.name)?.inputSchema as JsonSchema | undefined;
-    const local = spec.parameters as JsonSchema;
-    if (!remote) {
-      failures.push(`${spec.name}: missing advertised input schema`);
+    if (!spec.routes) {
+      const remote = byName.get(spec.name)?.inputSchema as JsonSchema | undefined;
+      const local = spec.parameters as JsonSchema;
+      if (!remote) {
+        failures.push(`${spec.name}: missing advertised input schema`);
+        continue;
+      }
+      compareSchemaSubset(local, remote, spec.name, failures);
       continue;
     }
-
-    compareSchemaSubset(local, remote, spec.name, failures);
+    // A multi-route door verifies each mode's parameter subset against its own workflow.
+    for (const route of spec.routes) {
+      const remote = byName.get(route.workflow)?.inputSchema as JsonSchema | undefined;
+      const local = route.parameters as JsonSchema;
+      if (!remote) {
+        failures.push(`${spec.name}(${route.workflow}): missing advertised input schema`);
+        continue;
+      }
+      compareSchemaSubset(local, remote, `${spec.name}(${route.workflow})`, failures);
+    }
   }
 
   if (failures.length > 0) {

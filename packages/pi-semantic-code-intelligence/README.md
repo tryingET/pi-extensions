@@ -21,7 +21,7 @@ This private Pi package makes SCI's existing composite workflows first-class mod
 
 The minimum producer contract consumed or preserved by this companion is:
 
-- five native Pi doors: `explore_symbol_impact`, `locate_confirm_definition`, `rename_safely`, `structural_patch_checks`, and `patch_checks_in_snapshot`; producer MCP/CLI still includes `safe_write`, but Pi does not register a second patch door;
+- four native Pi doors: `explore_symbol_impact`, `locate_confirm_definition`, `rename_safely`, and `preview_patch_checks`; the preview door routes to SCI's `patch_checks_in_snapshot` and `structural_patch_checks` (one patch surface, two input modes: a prepared unified diff or an ast-grep structural rewrite — exactly one, fail closed); producer MCP/CLI still includes `safe_write`, but Pi does not register an apply door;
 - structural public-API, state, registry, and test risk signals with explicit evidence/unknown accounting; path or name conventions remain low-confidence naming fallback rather than structural detection, and no signal claims whole-program semantics;
 - progressive `explore_symbol_impact` disclosure: `compact` is the bounded decision-first default, `standard` adds sparse normalized evidence under `details.schemaVersion: 2`, and `debug` adds separately bounded and redacted diagnostics;
 - a model/operator split in Pi: the compact/standard/debug model projection participates in model context, while the validated, disclosure-sanitized producer packet is retained only in a bounded TUI custom entry;
@@ -36,8 +36,7 @@ The producer candidate supports installed CLI and MCP stdio for one trusted loca
 |---|---|---|
 | unfamiliar symbol or change impact | `explore_symbol_impact` | read-only |
 | uncertain definition | `locate_confirm_definition` | read-only |
-| prepared unified diff | `patch_checks_in_snapshot` | preview-only Pi schema |
-| syntax-shaped transformation | `structural_patch_checks` | preview-only Pi schema |
+| any code-change diff (prepared unified diff OR ast-grep structural rewrite) | `preview_patch_checks` | preview-only Pi schema |
 | symbol rename | `rename_safely` | snapshot/check execution |
 
 The tools use one lazily started, session-scoped `semantic-code-mcp` stdio process per workspace. The process closes on Pi session shutdown. Calls return `pi.sci_composite_call.v1` details containing the workflow, transport, elapsed time, and lightweight utilization evidence.
@@ -52,8 +51,7 @@ Compact risk signals distinguish structurally `detected` evidence from `unknown`
 unknown symbol or impact -> explore_symbol_impact
 uncertain definition     -> locate_confirm_definition only if explore did not confirm
 rename                   -> rename_safely (never apply_rename)
-structural transformation -> structural_patch_checks
-prepared patch           -> patch_checks_in_snapshot
+code-change diff          -> preview_patch_checks (patch=unified diff, or language+pattern+rewrite)
 ```
 
 Do not decompose a composite into primitive searches unless its result is insufficient. Use native Pi `read`/`edit` after the relevant files are known and for exact textual or Markdown changes.

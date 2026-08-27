@@ -20,6 +20,9 @@ import { createSemanticCodeExtension } from "../src/extension.ts";
 import { SciMcpBridge } from "../src/mcp-bridge.ts";
 import { SCI_COMPOSITE_TOOL_NAMES } from "../src/tool-definitions.ts";
 
+// One preview door routes to both patch workflows: four registered doors cover five SCI workflows.
+const PI_DOOR_COUNT = SCI_COMPOSITE_TOOL_NAMES.length - 1;
+
 interface RenderComponent {
   render(width: number): string[];
 }
@@ -128,12 +131,13 @@ try {
   await rm(outsideLinkPath, { force: true });
   const modified = original.replace('"hi " + name', '"hello " + name');
   const patch = unifiedPatch(original, modified, "src/example.js");
-  const patchChecks = await execute("patch_checks_in_snapshot", {
+  // one preview door, both input modes
+  const patchChecks = await execute("preview_patch_checks", {
     patch,
     commands: ["true"],
     timeoutSec: 30,
   });
-  const structural = await execute("structural_patch_checks", {
+  const structural = await execute("preview_patch_checks", {
     language: "javascript",
     pattern: "function greet($NAME) { $$$BODY }",
     rewrite: "function welcome($NAME) { $$$BODY }",
@@ -196,7 +200,7 @@ try {
   const evidence = {
     schema: "pi.sci_composite_dogfood.v1",
     ok:
-      tools.size === SCI_COMPOSITE_TOOL_NAMES.length &&
+      tools.size === PI_DOOR_COUNT &&
       missing.length === 0 &&
       explore.details.workflow === "explore_symbol_impact" &&
       exploreConfirmed &&
@@ -261,7 +265,7 @@ try {
       excludedRuntimeBoundary: ".ontology/",
     },
     assertions: {
-      nativeRegistrationComplete: tools.size === SCI_COMPOSITE_TOOL_NAMES.length,
+      nativeRegistrationComplete: tools.size === PI_DOOR_COUNT,
       installedMcpContractComplete: missing.length === 0,
       exploreUsedSingleNativeCall: explore.details.utilization.sciCompositeCalls.length === 1,
       exploreConfirmed,

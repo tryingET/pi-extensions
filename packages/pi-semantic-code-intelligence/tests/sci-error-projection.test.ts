@@ -3,7 +3,11 @@ import test from "node:test";
 
 import { createSemanticCodeExtension } from "../src/extension.ts";
 import type { SciBridge, SciBridgeCallResult } from "../src/mcp-bridge.ts";
-import { SCI_COMPOSITE_TOOL_NAMES, type SciCompositeToolName } from "../src/tool-definitions.ts";
+import {
+  type PiSciDoorName,
+  SCI_COMPOSITE_TOOL_NAMES,
+  type SciCompositeToolName,
+} from "../src/tool-definitions.ts";
 
 const PRODUCER_MESSAGE = "Requested path must stay within the configured workspace";
 const PRODUCER_REMEDIATION =
@@ -72,13 +76,24 @@ async function rejectedMessage(
   return observed.message;
 }
 
-test("all five native tools project the exact workspace-boundary envelope into local recovery text", async () => {
+test("all native doors project the exact workspace-boundary envelope into local recovery text", async () => {
   const harness = createErrorHarness(() => boundaryResult());
 
-  for (const name of SCI_COMPOSITE_TOOL_NAMES) {
-    const tool = harness.tools.get(name);
+  const doorInputs: Array<[SciCompositeToolName, Record<string, unknown>]> = [
+    ["explore_symbol_impact", { symbol: "Target" }],
+    ["locate_confirm_definition", { symbol: "Target" }],
+    ["patch_checks_in_snapshot", { patch: "diff --git a/a b/a" }],
+    ["structural_patch_checks", { language: "typescript", pattern: "a", rewrite: "b" }],
+    ["rename_safely", { oldName: "a", newName: "b" }],
+  ];
+  for (const [name, params] of doorInputs) {
+    const door: PiSciDoorName =
+      name === "patch_checks_in_snapshot" || name === "structural_patch_checks"
+        ? "preview_patch_checks"
+        : name;
+    const tool = harness.tools.get(door);
     assert.ok(tool);
-    const message = await rejectedMessage(tool);
+    const message = await rejectedMessage(tool, params);
     assert.equal(
       message,
       `SCI workflow ${name} rejected the request (reason: outside_workspace). Use a repo-relative path in a Pi session started at the target repository root. A shell cd does not rebind this Pi session's workspace; start a target-root Pi session and retry. Producer diagnostics, paths, and stderr were withheld.`,
@@ -386,10 +401,15 @@ test("obvious non-relative file inputs fail locally while relative and symlink-s
     }
   }
 
-  const structural = blocked.tools.get("structural_patch_checks");
+  const structural = blocked.tools.get("preview_patch_checks");
   assert.ok(structural);
   for (const file of invalidValues) {
-    const message = await rejectedMessage(structural, { paths: ["src/ok.ts", file] });
+    const message = await rejectedMessage(structural, {
+      language: "typescript",
+      pattern: "a",
+      rewrite: "b",
+      paths: ["src/ok.ts", file],
+    });
     assert.match(message, /reason: repo_relative_path_required/);
     assert.equal(message.includes(file), false);
   }
@@ -405,9 +425,14 @@ test("obvious non-relative file inputs fail locally while relative and symlink-s
     ["structural_patch_checks", { paths: ["src/example.ts", "src/outside-link.ts"] }],
   ];
   for (const [name, params] of relativeCases) {
-    const tool = forwarded.tools.get(name);
+    const door: PiSciDoorName = name === "structural_patch_checks" ? "preview_patch_checks" : name;
+    const routed =
+      name === "structural_patch_checks"
+        ? { language: "typescript", pattern: "a", rewrite: "b", ...params }
+        : params;
+    const tool = forwarded.tools.get(door);
     assert.ok(tool);
-    await tool.execute("relative-call", params, undefined, undefined, { cwd: "/workspace/repo" });
+    await tool.execute("relative-call", routed, undefined, undefined, { cwd: "/workspace/repo" });
   }
   assert.deepEqual(
     forwarded.calls,

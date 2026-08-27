@@ -13,6 +13,23 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [Unreleased]
+
+### Changed
+
+- Merged the two Pi patch tools (`patch_checks_in_snapshot`, `structural_patch_checks`)
+  into one native preview door, `preview_patch_checks` (AK #5012): either a prepared
+  unified diff (`patch`) or a structural rewrite (`language` + `pattern` + `rewrite`),
+  exactly one mode — zero or both fail closed before any bridge call. The door routes to
+  the exact SCI workflow names internally, so producer results, evidence mapping, and
+  schema-compat checks keep the SCI contract; each mode's parameter subset is still
+  verified against its own workflow's advertised schema. Preview-only unchanged: no apply
+  input, `piBridge.previewOnly` sanitization, no working-tree mutation (live-verified).
+- Live-caught fixes during dogfooding: the door's emitted JSON schema no longer
+  requires both modes' mandatory keys (previously unsatisfiable for single-mode calls;
+  pinned by a schema test), and a declared `mode` matching the input shape is accepted
+  (was rejected as "unknown mode").
+
 ## [0.1.1-rc.2] - 2026-08-24
 
 ### Changed

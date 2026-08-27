@@ -292,17 +292,30 @@ async function exists(target: string): Promise<boolean> {
   }
 }
 
-test("registers the five composite workflows as native Pi tools with preferred routing", () => {
+const PI_DOOR_NAMES = [
+  "explore_symbol_impact",
+  "locate_confirm_definition",
+  "preview_patch_checks",
+  "rename_safely",
+] as const;
+
+test("registers four native Pi doors; the patch workflows share one preview door", () => {
   const fake = fakeBridge();
   const harness = createHarness(fake.bridge);
 
-  assert.deepEqual([...harness.tools.keys()], [...SCI_COMPOSITE_TOOL_NAMES]);
-  for (const name of SCI_COMPOSITE_TOOL_NAMES) {
+  assert.deepEqual([...harness.tools.keys()], [...PI_DOOR_NAMES]);
+  for (const name of PI_DOOR_NAMES) {
     const tool = harness.tools.get(name);
     assert.ok(tool);
     assert.match(tool.description, /PREFERRED/);
     assert.ok(tool.parameters);
-    assert.ok(tool.promptGuidelines.some((entry: string) => entry.includes(name)));
+    assert.ok(
+      tool.promptGuidelines.some((entry: string) =>
+        name === "preview_patch_checks"
+          ? entry.includes("preview_patch_checks")
+          : entry.includes(name),
+      ),
+    );
   }
 });
 
@@ -1335,18 +1348,18 @@ test("session shutdown closes the long-lived MCP bridge", async () => {
 test("preview-only Pi tools reject apply before reaching SCI", async () => {
   const fake = fakeBridge();
   const harness = createHarness(fake.bridge);
-  const patchChecks = harness.tools.get("patch_checks_in_snapshot");
-  assert.ok(patchChecks);
+  const preview = harness.tools.get("preview_patch_checks");
+  assert.ok(preview);
 
   await assert.rejects(
-    patchChecks.execute(
+    preview.execute(
       "call-apply",
       { patch: "diff --git a/a b/a", apply: true },
       new AbortController().signal,
       undefined,
       { cwd: "/workspace/repo" },
     ),
-    /patch_checks_in_snapshot is preview-only in Pi/,
+    /preview_patch_checks is preview-only in Pi/,
   );
   assert.deepEqual(fake.calls, []);
 });
@@ -1381,9 +1394,9 @@ test("preview-only results remove raw producer apply instructions from content a
     },
     async close() {},
   };
-  const patchChecks = createHarness(bridge).tools.get("patch_checks_in_snapshot");
-  assert.ok(patchChecks);
-  const result = await patchChecks.execute(
+  const previewDoor = createHarness(bridge).tools.get("preview_patch_checks");
+  assert.ok(previewDoor);
+  const result = await previewDoor.execute(
     "call-preview",
     { patch: "diff --git a/a b/a" },
     new AbortController().signal,
@@ -1425,11 +1438,17 @@ test("preview-only output rejects applied state and recursive apply instructions
       },
       async close() {},
     };
-    const patchChecks = createHarness(bridge).tools.get("patch_checks_in_snapshot");
-    assert.ok(patchChecks);
-    const result = await patchChecks.execute("call-preview-invalid", {}, undefined, undefined, {
-      cwd: "/workspace/repo",
-    });
+    const previewDoor = createHarness(bridge).tools.get("preview_patch_checks");
+    assert.ok(previewDoor);
+    const result = await previewDoor.execute(
+      "call-preview-invalid",
+      { patch: "diff --git a/a b/a" },
+      undefined,
+      undefined,
+      {
+        cwd: "/workspace/repo",
+      },
+    );
     const parsed = JSON.parse(result.content[0].text);
     assert.equal(parsed.ok, false);
     assert.equal(parsed.status, "indeterminate");
@@ -1615,7 +1634,8 @@ test("successful producer results require workflow-specific evidence", async () 
       },
     },
     {
-      tool: "patch_checks_in_snapshot",
+      tool: "preview_patch_checks",
+      input: { patch: "diff --git a/a b/a" },
       payload: {
         workflow: "patch_checks_in_snapshot",
         ok: true,
@@ -1624,11 +1644,13 @@ test("successful producer results require workflow-specific evidence", async () 
       },
     },
     {
-      tool: "structural_patch_checks",
+      tool: "preview_patch_checks",
+      input: { language: "typescript", pattern: "a", rewrite: "b" },
       payload: { workflow: "structural_patch_checks", ok: true, applied: false },
     },
     {
-      tool: "patch_checks_in_snapshot",
+      tool: "preview_patch_checks",
+      input: { patch: "diff --git a/a b/a" },
       payload: { workflow: "patch_checks_in_snapshot", ok: true },
     },
     {
@@ -1637,7 +1659,7 @@ test("successful producer results require workflow-specific evidence", async () 
     },
   ];
 
-  for (const { tool: toolName, payload } of cases) {
+  for (const { tool: toolName, payload, input } of cases) {
     const bridge: SciBridge = {
       async callTool() {
         return { content: [{ type: "text", text: JSON.stringify(payload) }] };
@@ -1649,7 +1671,7 @@ test("successful producer results require workflow-specific evidence", async () 
     };
     const tool = createHarness(bridge).tools.get(toolName);
     assert.ok(tool);
-    const result = await tool.execute("call-incomplete", {}, undefined, undefined, {
+    const result = await tool.execute("call-incomplete", input ?? {}, undefined, undefined, {
       cwd: "/workspace/repo",
     });
     const parsed = JSON.parse(result.content[0].text);
@@ -1659,27 +1681,44 @@ test("successful producer results require workflow-specific evidence", async () 
 });
 
 test("fails closed when installed SCI schemas drift from the registered Pi subset", () => {
-  const advertised = SCI_COMPOSITE_TOOL_SPECS.map((spec) => ({
-    name: spec.name,
-    inputSchema: structuredClone(spec.parameters) as SchemaFixture,
-  }));
+  function advertisedFromRoutes(): Array<{ name: string; inputSchema: SchemaFixture }> {
+    const advertised: Array<{ name: string; inputSchema: SchemaFixture }> = [];
+    for (const spec of SCI_COMPOSITE_TOOL_SPECS) {
+      if (spec.routes) {
+        for (const route of spec.routes) {
+          advertised.push({
+            name: route.workflow,
+            inputSchema: structuredClone(route.parameters) as SchemaFixture,
+          });
+        }
+      } else {
+        advertised.push({
+          name: spec.name,
+          inputSchema: structuredClone(spec.parameters) as SchemaFixture,
+        });
+      }
+    }
+    return advertised;
+  }
+
+  const advertised = advertisedFromRoutes();
   assert.doesNotThrow(() => assertSciSchemaCompatibility(advertised));
 
   const patchChecks = advertised.find((tool) => tool.name === "patch_checks_in_snapshot");
   assert.ok(patchChecks?.inputSchema.properties?.recommendChecks);
   patchChecks.inputSchema.properties.recommendChecks.default = true;
-  assert.throws(() => assertSciSchemaCompatibility(advertised), /patch_checks_in_snapshot/);
+  assert.throws(
+    () => assertSciSchemaCompatibility(advertised),
+    /preview_patch_checks\(patch_checks_in_snapshot\)/,
+  );
 
-  const nestedDrift = SCI_COMPOSITE_TOOL_SPECS.map((spec) => ({
-    name: spec.name,
-    inputSchema: structuredClone(spec.parameters) as SchemaFixture,
-  }));
+  const nestedDrift = advertisedFromRoutes();
   const nestedPatchChecks = nestedDrift.find((tool) => tool.name === "patch_checks_in_snapshot");
-  assert.ok(nestedPatchChecks?.inputSchema.properties?.commands?.items);
+  assert.ok(nestedPatchChecks.inputSchema.properties?.commands?.items);
   nestedPatchChecks.inputSchema.properties.commands.items.type = "number";
   assert.throws(
     () => assertSciSchemaCompatibility(nestedDrift),
-    /patch_checks_in_snapshot\.commands\.items: type differs/,
+    /preview_patch_checks\(patch_checks_in_snapshot\)\.commands\.items: type differs/,
   );
 });
 
@@ -1698,7 +1737,50 @@ test("toolbox bundle exposes read and risk-gated mutating profiles", () => {
   const mutating = registerToolboxBundle(mutatingHarness.pi as never, { profile: "mutating" });
   assert.deepEqual(
     mutating.map((entry) => entry.name),
-    ["patch_checks_in_snapshot", "structural_patch_checks", "rename_safely"],
+    ["preview_patch_checks", "rename_safely"],
   );
   assert.ok(mutating.every((entry) => entry.risk === "mutating"));
+});
+
+test("the preview door's emitted schema admits each single-mode argument set (live-caught gap)", async () => {
+  // The unit harness executes with raw args and bypasses argument-schema validation; this
+  // pinned the door schema against the failure a live session found on 2026-08-27: a
+  // required union of both modes' mandatory keys is unsatisfiable for any single-mode call.
+  const preview = createHarness(fakeBridge().bridge).tools.get("preview_patch_checks");
+  assert.ok(preview);
+  const schema = preview.parameters as SchemaFixture;
+  const required = new Set(schema.required ?? []);
+  assert.equal(
+    required.has("patch") ||
+      required.has("language") ||
+      required.has("pattern") ||
+      required.has("rewrite"),
+    false,
+    "no mode key may be schema-required; exactly-one-mode is enforced by fail-closed routing",
+  );
+  for (const key of ["patch", "language", "pattern", "rewrite", "commands", "timeoutSec"]) {
+    assert.ok(schema.properties?.[key], `door schema must declare ${key}`);
+  }
+
+  // each single-mode arg set passes schema validation and routes to its exact workflow
+  const fake = fakeBridge();
+  const harness = createHarness(fake.bridge);
+  const door = harness.tools.get("preview_patch_checks");
+  assert.ok(door);
+  await door.execute(
+    "schema-patch",
+    { patch: "diff --git a/a b/a", commands: ["true"] },
+    undefined,
+    undefined,
+    { cwd: "/workspace/repo" },
+  );
+  assert.equal(fake.calls.at(-1)?.name, "patch_checks_in_snapshot");
+  await door.execute(
+    "schema-structural",
+    { language: "typescript", pattern: "a", rewrite: "b" },
+    undefined,
+    undefined,
+    { cwd: "/workspace/repo" },
+  );
+  assert.equal(fake.calls.at(-1)?.name, "structural_patch_checks");
 });

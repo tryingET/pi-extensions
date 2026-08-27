@@ -19,7 +19,13 @@ import { type ExploreMode, validExplorePayload } from "./explore-result-validato
 import { type SciBridge, type SciBridgeCallResult, SciMcpBridge } from "./mcp-bridge.ts";
 import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
 import { hasSciErrorSignal, sciErrorText, sciInputPathError } from "./sci-error-projection.ts";
-import { SCI_COMPOSITE_TOOL_SPECS, type SciCompositeToolName } from "./tool-definitions.ts";
+import {
+  type CompositeToolSpec,
+  type PiSciDoorName,
+  resolveSciRoute,
+  SCI_COMPOSITE_TOOL_SPECS,
+  type SciCompositeToolName,
+} from "./tool-definitions.ts";
 
 export interface SemanticCodeExtensionOptions {
   bridgeFactory?: () => SciBridge;
@@ -86,33 +92,32 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
           : {}),
         async execute(toolCallId, params, signal, _onUpdate, ctx) {
           const args = params as Record<string, unknown>;
-          const inputPathError = sciInputPathError(spec.name, args);
-          if (inputPathError) throw new Error(inputPathError);
-          if (
-            (spec.name === "patch_checks_in_snapshot" || spec.name === "structural_patch_checks") &&
-            Object.hasOwn(args, "apply")
-          ) {
+          if (spec.previewOnly && Object.hasOwn(args, "apply")) {
             throw new Error(
               `${spec.name} is preview-only in Pi; the apply argument is not accepted.`,
             );
           }
+          const resolved = resolveSciRoute(spec, args);
+          if ("error" in resolved) throw new Error(resolved.error);
+          const inputPathError = sciInputPathError(resolved.workflow, resolved.args);
+          if (inputPathError) throw new Error(inputPathError);
           const startedAt = Date.now();
           let result: SciBridgeCallResult;
           try {
-            result = await bridge.callTool(spec.name, args, ctx.cwd, signal);
+            result = await bridge.callTool(resolved.workflow, resolved.args, ctx.cwd, signal);
           } catch {
             throw new Error(
-              `SCI workflow ${spec.name} failed. Backend diagnostics, paths, and stderr were withheld.`,
+              `SCI workflow ${resolved.workflow} failed. Backend diagnostics, paths, and stderr were withheld.`,
             );
           }
-          if (hasSciErrorSignal(result)) throw new Error(sciErrorText(spec.name, result));
+          if (hasSciErrorSignal(result)) throw new Error(sciErrorText(resolved.workflow, result));
 
           const formatted = formatPiResult(
-            spec.name,
+            resolved.workflow,
             ctx.cwd,
             Date.now() - startedAt,
             result,
-            args,
+            resolved.args,
             toolCallId,
           );
           if (formatted.operatorEntry) {
@@ -144,7 +149,7 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
 
 export default createSemanticCodeExtension();
 
-function guidelineFor(name: SciCompositeToolName): string {
+function guidelineFor(name: PiSciDoorName): string {
   switch (name) {
     case "explore_symbol_impact":
       return "Use explore_symbol_impact before raw search/read chains when a code task involves an unfamiliar symbol or uncertain impact; use bounded native reads after it identifies relevant files.";
@@ -152,10 +157,10 @@ function guidelineFor(name: SciCompositeToolName): string {
       return "Use locate_confirm_definition only when explore_symbol_impact did not confirm the definition; skip it when explore already returned definitionConfirmed.";
     case "rename_safely":
       return "Use rename_safely for symbol renames. Preview first. Apply only through this workflow or snapshot apply when the operator asks; never apply_rename.";
-    case "structural_patch_checks":
-      return "Use structural_patch_checks for syntax-shaped transformations; this native Pi surface is preview-only.";
-    case "patch_checks_in_snapshot":
-      return "Use patch_checks_in_snapshot as the one Pi door for a prepared diff. Preview only. Apply only via snapshot apply when the operator asks; never apply_rename.";
+    case "preview_patch_checks":
+      return "Use preview_patch_checks as the one Pi preview door for any code-change diff: a prepared unified diff (patch) or a structural rewrite (language + pattern + rewrite), never both. Preview only. Apply only via snapshot apply when the operator asks; never apply_rename.";
+    default:
+      return "Use the matching SCI composite workflow through its Pi door; this native Pi surface stays preview-only.";
   }
 }
 
