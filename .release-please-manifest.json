@@ -3,7 +3,7 @@
   "packages/pi-agent-registry": "0.1.0",
   "packages/pi-agent-vent": "0.2.2",
   "packages/pi-autonomous-session-control": "0.5.2",
-  "packages/pi-autoresearch": "0.4.1",
+  "packages/pi-autoresearch": "0.4.2",
   "packages/pi-better-openai": "0.3.0",
   "packages/pi-context-overlay": "0.2.1",
   "packages/pi-context-packer": "0.4.0",

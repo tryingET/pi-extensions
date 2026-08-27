@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.2](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.4.1...pi-autoresearch-v0.4.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* honor fast-xml-parser 5.3.6 override in five host-closure locks ([a4ff737](https://github.com/tryingET/pi-extensions/commit/a4ff737ac4a4620c302b65da2bd20a2ed0585d8c))
+* **monorepo:** isolate install-only release checks ([e83c9bd](https://github.com/tryingET/pi-extensions/commit/e83c9bdefbcf5406e8eb4be6beef7245ed0eb655))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+
 ## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-autoresearch-v0.4.0...pi-autoresearch-v0.4.1) (2026-08-16)
 
 
