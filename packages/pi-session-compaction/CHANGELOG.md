@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.5.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.4.0...pi-session-compaction-v0.5.0) (2026-08-27)
+
+
+### Features
+
+* **pi-session-compaction:** join internal stage chain with host compaction-failure cause ([22de6c9](https://github.com/tryingET/pi-extensions/commit/22de6c9b07238d7cc61e6a2d17e8f9f620db1728))
+* **pi-session-compaction:** release ownership on host-reported compaction failure ([89f8c35](https://github.com/tryingET/pi-extensions/commit/89f8c35a6b84d0d3ca03dd76905fefe1bad6781f))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-session-compaction-v0.3.0...pi-session-compaction-v0.4.0) (2026-08-20)
 
 
