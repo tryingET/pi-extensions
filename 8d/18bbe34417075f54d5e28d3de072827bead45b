@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "8d18bbe34417075f54d5e28d3de072827bead45b"
+created_at: "2026-08-27T10:47:28Z"
+intent: "Commit the standing-agent manifest convention referenced by pi-agent-registry"
+files:
+  - "docs/project/2026-08-27-agent-manifest-convention.md"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pass"
+group:
+  index: 1
+  total: 6
+  rationale: "Keep the root convention document separate from package implementation and KES captures."
+links:
+  task_ids:
+    - 5136
