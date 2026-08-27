@@ -669,6 +669,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.match(result.details.parentDirtyWarning, /uncommitted changes/);
     assert.equal(result.details.reusedExisting, false);
     assert.equal(result.details.sessionMode, "clean");
+    assert.equal(result.details.effectDisposition, "settled");
     assert.equal(result.details.sourceSessionFile, undefined);
     assert.equal(result.details.titleBase, "Candidatepeer: Try bounded runner guard");
     assert.equal(
@@ -712,6 +713,7 @@ test("candidate_peer_spawn creates an isolated worktree, launches via shared Gho
     assert.equal(registry.parentPeerTarget, "session-019e10d2-15f5-705a-aea4-01ba49d2bbac");
     assert.deepEqual(registry.filesInScope, ["src/runner.ts", "tests/runner.test.mjs"]);
     assert.equal(registry.launch.status, "launched");
+    assert.equal(registry.launch.effectDisposition, "settled");
     assert.equal(registry.launch.launchMode, "tab");
     assert.match(
       registry.cleanupPacket.manualPreconditions.join("\n"),

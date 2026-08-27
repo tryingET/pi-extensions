@@ -272,7 +272,7 @@ test("sidequest uses the Ghostty sidequest wrapper to open a same-window tab eve
   assert.match(harness.notifications[0].message, /current Ghostty tab/);
 });
 
-test("sidequest retries a new Ghostty window when live same-window tab attach fails", async () => {
+test("sidequest does not duplicate a peer after a nonzero same-window launcher exit", async () => {
   const execStub = createExecStub(({ args }) => {
     if (args[0] === "+help") {
       return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
@@ -318,14 +318,13 @@ test("sidequest retries a new Ghostty window when live same-window tab attach fa
       ["/usr/bin/ghostty", "+help"],
       ["/usr/bin/ghostty", "+version"],
       ["/usr/bin/ghostty", "+new-tab"],
-      ["/usr/bin/ghostty", "--working-directory=/repo"],
     ],
   );
   assert.ok(execStub.calls[2].args.includes("--surface-id=0x2b2826e0"));
   assert.equal(harness.notifications.length, 1);
-  assert.equal(harness.notifications[0].type, "info");
-  assert.match(harness.notifications[0].message, /new Ghostty window/);
-  assert.match(harness.notifications[0].message, /same-window tab launch failed/i);
+  assert.equal(harness.notifications[0].type, "error");
+  assert.match(harness.notifications[0].message, /effect is indeterminate/);
+  assert.match(harness.notifications[0].message, /do not retry automatically/);
 });
 
 test("sidequest keeps the launch in the current Ghostty tab when live tab attach succeeds", async () => {
@@ -579,9 +578,6 @@ test("sidequest rejects a killed D-Bus activation even when the executor reports
     if (command === "busctl" && args[1] === "call") {
       return { code: 0, stdout: "", killed: true };
     }
-    if (isLocalGhosttyWrapper(command) && args[0]?.startsWith("--working-directory=")) {
-      return { code: 0, stdout: "" };
-    }
     throw new Error(`Unexpected launch call: ${command} ${args.join(" ")}`);
   });
 
@@ -610,13 +606,13 @@ test("sidequest rejects a killed D-Bus activation even when the executor reports
 
   assert.ok(execStub.calls.some(({ command, args }) => command === "busctl" && args[1] === "call"));
   assert.ok(
-    execStub.calls.some(
+    !execStub.calls.some(
       ({ command, args }) =>
         isLocalGhosttyWrapper(command) && args[0]?.startsWith("--working-directory="),
     ),
   );
-  assert.match(harness.notifications[0].message, /Ghostty launch timed out/);
-  assert.match(harness.notifications[0].message, /opened a new window instead/);
+  assert.match(harness.notifications[0].message, /effect is indeterminate/);
+  assert.match(harness.notifications[0].message, /do not retry automatically/);
 });
 
 test("sidequest reports a post-launch Ghostty window placement mismatch", async () => {

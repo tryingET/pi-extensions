@@ -5,6 +5,7 @@
 import { existsSync, readFileSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import type { GhosttyWindowLaunchHandshake } from "./sidequestDetachedWindow.ts";
 
 export const GHOSTTY_PROBE_TIMEOUT_MS = 4000;
 
@@ -43,8 +44,11 @@ export type ExecRunner = (
   options?: ExecOptions,
 ) => Promise<ExecResult>;
 
+export type LaunchEffectDisposition = "settled" | "confirmed_no_effects" | "effect_indeterminate";
+
 export type LaunchResult = {
   ok: boolean;
+  effectDisposition: LaunchEffectDisposition;
   code: number;
   stdout: string;
   stderr: string;
@@ -55,7 +59,11 @@ function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
-function buildPiShellCommand(titleBase: string | undefined, cwd: string): string {
+function buildPiShellCommand(
+  titleBase: string | undefined,
+  cwd: string,
+  launchHandshake?: GhosttyWindowLaunchHandshake,
+): string {
   const titleSetup = titleBase
     ? [
         `export PI_SESSION_PRESENCE_TITLE_BASE=${shellSingleQuote(titleBase)}`,
@@ -71,6 +79,13 @@ function buildPiShellCommand(titleBase: string | undefined, cwd: string): string
     ...titleSetup,
     'cmd="$1"',
     "shift",
+    ...(launchHandshake
+      ? [
+          'if ! command -v "$cmd" >/dev/null 2>&1; then echo "[sidequest] Pi command is unavailable: $cmd"; exit 127; fi',
+          `launch_handshake_tmp=${shellSingleQuote(launchHandshake.path)}.tmp.$$`,
+          `if ! (umask 077; printf '%s\\n' ${shellSingleQuote(launchHandshake.token)} > "$launch_handshake_tmp" && mv -f -- "$launch_handshake_tmp" ${shellSingleQuote(launchHandshake.path)}); then rm -f -- "$launch_handshake_tmp"; echo "[sidequest] launch handshake failed"; exit 125; fi`,
+        ]
+      : []),
     '"$cmd" "$@"',
     "status=$?",
     'if [ "$status" -ne 0 ]; then echo; echo "[sidequest] pi exited with status $status"; echo "[sidequest] leaving an interactive shell open for debugging"; exec "$' +
@@ -234,7 +249,7 @@ export async function supportsGhosttyNewTab(
     const result = await execRunner(ghosttyBin, ["+help"], {
       timeout: GHOSTTY_PROBE_TIMEOUT_MS,
     });
-    return result.code === 0 && String(result.stdout || "").includes("+new-tab");
+    return !result.killed && result.code === 0 && String(result.stdout || "").includes("+new-tab");
   } catch {
     return false;
   }
@@ -259,7 +274,11 @@ export async function supportsGhosttySurfaceId(
     const result = await execRunner(ghosttyBin, ["+version"], {
       timeout: GHOSTTY_PROBE_TIMEOUT_MS,
     });
-    return result.code === 0 && ghosttyVersionSupportsSurfaceId(String(result.stdout || ""));
+    return (
+      !result.killed &&
+      result.code === 0 &&
+      ghosttyVersionSupportsSurfaceId(String(result.stdout || ""))
+    );
   } catch {
     return false;
   }
@@ -269,17 +288,19 @@ export function buildGhosttyExecArgs({
   cwd,
   title,
   piArgs,
+  launchHandshake,
 }: {
   cwd: string;
   title: string;
   piArgs: string[];
+  launchHandshake?: GhosttyWindowLaunchHandshake;
 }): string[] {
   return [
     `--working-directory=${cwd}`,
     "-e",
     "/bin/sh",
     "-lc",
-    buildPiShellCommand(title, cwd),
+    buildPiShellCommand(title, cwd, launchHandshake),
     "sidequest-pi",
     ...piArgs,
   ];
@@ -291,18 +312,20 @@ export function buildGhosttyArgs({
   launchMode,
   surfaceId,
   piArgs,
+  launchHandshake,
 }: {
   cwd: string;
   title: string;
   launchMode: LaunchMode;
   surfaceId?: string;
   piArgs: string[];
+  launchHandshake?: GhosttyWindowLaunchHandshake;
 }): string[] {
   const args = launchMode === "tab" ? ["+new-tab"] : [];
   if (launchMode === "tab" && surfaceId) {
     args.push(`--surface-id=${surfaceId}`);
   }
-  args.push(...buildGhosttyExecArgs({ cwd, title, piArgs }));
+  args.push(...buildGhosttyExecArgs({ cwd, title, piArgs, launchHandshake }));
   return args;
 }
 
@@ -344,7 +367,7 @@ export async function resolveControllerGhosttyDbusTarget({
     const result = await execRunner("busctl", ["--user", "list", "--no-pager", "--no-legend"], {
       timeout: GHOSTTY_PROBE_TIMEOUT_MS,
     });
-    if (result.code !== 0) return undefined;
+    if (result.code !== 0 || result.killed) return undefined;
     const rows = String(result.stdout || "")
       .split("\n")
       .map((line) => line.trim().split(/\s+/));

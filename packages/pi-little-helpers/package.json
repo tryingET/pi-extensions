@@ -58,6 +58,8 @@
     "extensions/package-update-notify.ts",
     "extensions/session-presence.ts",
     "extensions/sidequest.ts",
+    "extensions/sidequestDetachedWindow.ts",
+    "extensions/sidequestGhostty.ts",
     "extensions/stash.ts",
     "lib/codex-reset.ts",
     "lib/package-utils.ts",

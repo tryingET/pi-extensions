@@ -8,7 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { withCandidateRegistryMutationLock } from "./candidatePeerLifecycleV2State.ts";
 
 export type CandidatePeerReportBack = "intercom" | "manual" | "none";
-export type CandidatePeerLaunchStatus = "launched" | "launch_failed";
+export type CandidatePeerLaunchStatus = "launched" | "launch_failed" | "launch_indeterminate";
 
 export type CandidatePeerCommandPacketCommand = {
   id: string;
@@ -74,6 +74,7 @@ export type CandidatePeerRegistryInput = {
     promptSummary?: string;
     launchNote?: string;
     failure?: string;
+    effectDisposition?: "settled" | "confirmed_no_effects" | "effect_indeterminate";
   };
   controllerSession?: {
     id?: string;

@@ -435,7 +435,7 @@ test("automatic ASC observer does not open another window after exact activation
     await waitFor(() => notifications.length === 1);
     const state = JSON.parse(readFileSync(observerStatePath(root), "utf8"));
     assert.equal(state.observer.launchStatus, "failed");
-    assert.match(state.observer.failure, /Ghostty launch timed out/i);
+    assert.match(state.observer.failure, /launch effect is indeterminate/i);
     assert.equal(
       calls.filter((call) => call.command === "busctl" && call.args[1] === "call").length,
       1,

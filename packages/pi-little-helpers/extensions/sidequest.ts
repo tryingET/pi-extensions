@@ -97,6 +97,11 @@ const HANDOFF_RUNTIME_READ_MAX_BYTES = 12 * 1024;
 const TITLE_MAX_LEN = 48;
 
 import {
+  type DetachedGhosttyWindowLaunchRequest,
+  launchDetachedGhosttyWindow,
+} from "./sidequestDetachedWindow.ts";
+
+import {
   buildControllerGhosttyDbusArgs,
   buildGhosttyArgs,
   buildGhosttyExecArgs,
@@ -154,9 +159,14 @@ type GhosttyCommandSpec = {
   args: string[];
 };
 
+type DetachedGhosttyWindowLauncher = (
+  request: DetachedGhosttyWindowLaunchRequest,
+) => Promise<LaunchResult>;
+
 type SidequestOptions = {
   env?: NodeJS.ProcessEnv;
   exec?: ExecRunner;
+  detachedGhosttyWindowLaunch?: DetachedGhosttyWindowLauncher;
   pathExists?: (path: string) => boolean;
   currentSessionGhosttyBin?: string;
   processId?: number;
@@ -277,6 +287,7 @@ type WorktreePrepareResult = WorktreePrepareSuccess | WorktreePrepareFailure;
 
 type SidequestLaunchSuccess = {
   ok: true;
+  effectDisposition: "settled";
   launchMode: LaunchMode;
   sessionMode: QuestSessionMode;
   cwd: string;
@@ -289,6 +300,7 @@ type SidequestLaunchSuccess = {
 type SidequestLaunchFailure = {
   ok: false;
   failure: string;
+  effectDisposition: LaunchResult["effectDisposition"];
   launchMode: LaunchMode;
   sessionMode: QuestSessionMode;
   cwd: string;
@@ -578,12 +590,17 @@ function buildModelArgs(model: ModelLike | undefined, thinkingLevel: string): st
 }
 
 function normalizeExecResult(result: ExecResult): LaunchResult {
+  const killed = Boolean(result.killed);
+  // An awaited launcher can dispatch the embedded command before exiting nonzero. Without the
+  // detached-window handshake, every non-success result is indeterminate and must not be retried.
+  const effectDisposition = !killed && result.code === 0 ? "settled" : "effect_indeterminate";
   return {
-    ok: result.code === 0 && !result.killed,
+    ok: effectDisposition === "settled",
+    effectDisposition,
     code: result.code,
     stdout: String(result.stdout || "").trim(),
     stderr: String(result.stderr || "").trim(),
-    killed: Boolean(result.killed),
+    killed,
   };
 }
 
@@ -650,6 +667,7 @@ async function runGhosttyLaunch(
   } catch (error) {
     return {
       ok: false,
+      effectDisposition: "effect_indeterminate",
       code: -1,
       stdout: "",
       stderr: error instanceof Error ? error.message : String(error),
@@ -679,15 +697,19 @@ function describeWindowFallback({
 
 function summarizeLaunchFailure(result: LaunchResult): string {
   const detail = result.stderr || result.stdout;
-  if (!detail) {
-    if (result.killed) return "Ghostty launch timed out";
+  const normalizedDetail = detail.replace(/\s+/g, " ").trim();
+  if (result.effectDisposition === "effect_indeterminate") {
+    const prefix = "Ghostty launch effect is indeterminate; do not retry automatically";
+    const message = normalizedDetail ? `${prefix}: ${normalizedDetail}` : prefix;
+    return message.length <= 180 ? message : `${message.slice(0, 179)}…`;
+  }
+  if (!normalizedDetail) {
     if (result.code >= 0) return `exit ${result.code}`;
     return "unknown launch failure";
   }
 
-  const singleLine = detail.replace(/\s+/g, " ").trim();
-  if (singleLine.length <= 180) return singleLine;
-  return `${singleLine.slice(0, 179)}…`;
+  if (normalizedDetail.length <= 180) return normalizedDetail;
+  return `${normalizedDetail.slice(0, 179)}…`;
 }
 
 type SessionPresenceRecord = {
@@ -955,6 +977,35 @@ async function launchPiQuestSession({
         })
       : undefined;
   const promptSummary = summarizePrompt(titlePrompt);
+  const detachedWindowLauncher = options.detachedGhosttyWindowLaunch ?? launchDetachedGhosttyWindow;
+  const useDetachedWindowLaunch =
+    placementPolicy === "visible-fallback" &&
+    (!options.exec || Boolean(options.detachedGhosttyWindowLaunch));
+  const runWindowLaunch = () =>
+    useDetachedWindowLaunch
+      ? detachedWindowLauncher({
+          command: ghosttyBin,
+          cwd,
+          buildArgs: (launchHandshake) =>
+            buildGhosttyArgs({
+              cwd,
+              title,
+              launchMode: "window",
+              piArgs,
+              launchHandshake,
+            }),
+        })
+      : runGhosttyLaunch(
+          execRunner,
+          ghosttyBin,
+          buildGhosttyArgs({
+            cwd,
+            title,
+            launchMode: "window",
+            piArgs,
+          }),
+          cwd,
+        );
   if (placementPolicy === "controller-tab-only" && !controllerDbusTarget) {
     const reason =
       windowFallbackReason ??
@@ -968,6 +1019,7 @@ async function launchPiQuestSession({
     return {
       ok: false,
       failure: `exact controller Ghostty tab unavailable: ${reason}`,
+      effectDisposition: "confirmed_no_effects",
       launchMode: "tab",
       sessionMode,
       cwd,
@@ -979,55 +1031,73 @@ async function launchPiQuestSession({
   await waitForPeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
   const launchedAfterMs = Date.now();
   const ghosttyExecArgs = buildGhosttyExecArgs({ cwd, title, piArgs });
-  let launchResult = controllerDbusTarget
-    ? await runGhosttyLaunch(
-        execRunner,
-        "busctl",
-        buildControllerGhosttyDbusArgs({
-          target: controllerDbusTarget,
-          execArgs: ghosttyExecArgs,
-        }),
-        cwd,
-      )
-    : await runGhosttyLaunch(
-        execRunner,
-        ghosttyBin,
-        buildGhosttyArgs({
-          cwd,
-          title,
-          launchMode,
-          surfaceId,
-          piArgs,
-        }),
-        cwd,
-      );
+  let launchResult =
+    launchMode === "window"
+      ? await runWindowLaunch()
+      : controllerDbusTarget
+        ? await runGhosttyLaunch(
+            execRunner,
+            "busctl",
+            buildControllerGhosttyDbusArgs({
+              target: controllerDbusTarget,
+              execArgs: ghosttyExecArgs,
+            }),
+            cwd,
+          )
+        : await runGhosttyLaunch(
+            execRunner,
+            ghosttyBin,
+            buildGhosttyArgs({
+              cwd,
+              title,
+              launchMode,
+              surfaceId,
+              piArgs,
+            }),
+            cwd,
+          );
   let launchNote = joinLaunchNotes(
     windowFallbackReason ?? wrapperTabAttachNote,
     controllerDbusTarget
       ? `targeted Ghostty single-instance process ${controllerDbusTarget.ownerPid} through ${controllerDbusTarget.busName}`
       : undefined,
+    launchMode === "window" && useDetachedWindowLaunch && launchResult.ok
+      ? "confirmed direct-window command admission through a private handshake"
+      : undefined,
   );
 
-  if (!launchResult.ok && launchMode === "tab" && placementPolicy === "visible-fallback") {
+  if (
+    !launchResult.ok &&
+    launchResult.effectDisposition === "confirmed_no_effects" &&
+    launchMode === "tab" &&
+    placementPolicy === "visible-fallback"
+  ) {
     const tabFailure = summarizeLaunchFailure(launchResult);
-    const fallbackResult = await runGhosttyLaunch(
-      execRunner,
-      ghosttyBin,
-      buildGhosttyArgs({
-        cwd,
-        title,
-        launchMode: "window",
-        piArgs,
-      }),
-      cwd,
+    const fallbackResult = await runWindowLaunch();
+    launchMode = "window";
+    launchResult = fallbackResult;
+    launchNote = fallbackResult.ok
+      ? joinLaunchNotes(
+          wrapperTabAttachNote,
+          `same-window tab launch failed without effects (${tabFailure}); opened a new window instead`,
+          useDetachedWindowLaunch
+            ? "confirmed direct-window command admission through a private handshake"
+            : undefined,
+        )
+      : joinLaunchNotes(
+          wrapperTabAttachNote,
+          `same-window tab launch failed without effects (${tabFailure}); direct new-window fallback did not settle`,
+        );
+  } else if (
+    !launchResult.ok &&
+    launchResult.effectDisposition === "effect_indeterminate" &&
+    launchMode === "tab" &&
+    placementPolicy === "visible-fallback"
+  ) {
+    launchNote = joinLaunchNotes(
+      launchNote,
+      "same-window launch effect is indeterminate; skipped automatic new-window retry to prevent a duplicate peer",
     );
-    if (fallbackResult.ok) {
-      launchMode = "window";
-      launchResult = fallbackResult;
-      launchNote = wrapperTabAttachNote
-        ? `${wrapperTabAttachNote}; same-window tab launch failed (${tabFailure}); opened a new window instead`
-        : `same-window tab launch failed (${tabFailure}); opened a new window instead`;
-    }
   }
 
   if (launchResult.ok && placementPolicy === "visible-fallback") {
@@ -1048,6 +1118,7 @@ async function launchPiQuestSession({
     return {
       ok: false,
       failure: summarizeLaunchFailure(launchResult),
+      effectDisposition: launchResult.effectDisposition,
       launchMode,
       sessionMode,
       cwd,
@@ -1060,6 +1131,7 @@ async function launchPiQuestSession({
 
   return {
     ok: true,
+    effectDisposition: "settled",
     launchMode,
     sessionMode,
     cwd,
@@ -2584,7 +2656,10 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             reportBack: "manual",
             admission: admissionRegistryBinding(admission),
             launch: {
-              status: "launch_failed",
+              status:
+                launch.effectDisposition === "effect_indeterminate"
+                  ? "launch_indeterminate"
+                  : "launch_failed",
               launchMode: launch.launchMode,
               sessionMode: launch.sessionMode,
               cwd: launch.cwd,
@@ -2593,6 +2668,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
               promptSummary: launch.promptSummary,
               launchNote: launch.launchNote,
               failure: launch.failure,
+              effectDisposition: launch.effectDisposition,
             },
             controllerSession: {
               id: ctx.sessionManager.getSessionId?.(),
@@ -2639,6 +2715,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             titleBase: launch.titleBase,
             promptSummary: launch.promptSummary,
             launchNote: launch.launchNote,
+            effectDisposition: launch.effectDisposition,
           },
           controllerSession: {
             id: ctx.sessionManager.getSessionId?.(),
@@ -2740,10 +2817,14 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           promptSummary: launch.promptSummary,
           launchNote: launch.launchNote,
           reportBack,
+          effectDisposition: launch.effectDisposition,
           parentPeerTarget: request.parentPeerTarget?.trim(),
           peerRunId: questId,
           expectedMessages: expectedPeerMessages(reportBack),
-          error: "launch_failed",
+          error:
+            launch.effectDisposition === "effect_indeterminate"
+              ? "launch_indeterminate"
+              : "launch_failed",
         });
       }
 
@@ -2761,6 +2842,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           ok: true,
           tool: toolName,
           canonicalTool: "fork_peer_spawn",
+          effectDisposition: launch.effectDisposition,
           launchMode: launch.launchMode,
           sessionMode: launch.sessionMode,
           cwd: launch.cwd,
@@ -2843,7 +2925,11 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           questId,
           expectedMessages: expectedPeerMessages(reportBack),
           launchNote: launch.launchNote,
-          error: "launch_failed",
+          error:
+            launch.effectDisposition === "effect_indeterminate"
+              ? "launch_indeterminate"
+              : "launch_failed",
+          effectDisposition: launch.effectDisposition,
         });
       }
 
@@ -2851,6 +2937,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         ok: true,
         tool: toolName,
         canonicalTool: "scout_peer_spawn",
+        effectDisposition: launch.effectDisposition,
         launchMode: launch.launchMode,
         sessionMode: launch.sessionMode,
         cwd: launch.cwd,
@@ -3185,7 +3272,10 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             constraints: normalizeStringArray(request.constraints),
             dod: normalizeStringArray(request.dod),
             launch: {
-              status: "launch_failed",
+              status:
+                launch.effectDisposition === "effect_indeterminate"
+                  ? "launch_indeterminate"
+                  : "launch_failed",
               launchMode: launch.launchMode,
               sessionMode: launch.sessionMode,
               cwd: launch.cwd,
@@ -3194,6 +3284,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
               promptSummary: launch.promptSummary,
               launchNote: launch.launchNote,
               failure: launch.failure,
+              effectDisposition: launch.effectDisposition,
             },
             controllerSession: {
               id: ctx.sessionManager.getSessionId?.(),
@@ -3239,7 +3330,11 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           cleanupPacket: registryRecord.cleanupPacket,
           registryWriteError,
           launchNote: launch.launchNote,
-          error: "launch_failed",
+          error:
+            launch.effectDisposition === "effect_indeterminate"
+              ? "launch_indeterminate"
+              : "launch_failed",
+          effectDisposition: launch.effectDisposition,
         });
       }
 
@@ -3273,6 +3368,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
             titleBase: launch.titleBase,
             promptSummary: launch.promptSummary,
             launchNote: launch.launchNote,
+            effectDisposition: launch.effectDisposition,
           },
           controllerSession: {
             id: ctx.sessionManager.getSessionId?.(),
@@ -3295,6 +3391,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         ok: true,
         tool: toolName,
         canonicalTool: "candidate_peer_spawn",
+        effectDisposition: launch.effectDisposition,
         launchMode: launch.launchMode,
         parentCwd: worktree.parentCwd,
         repoRoot: worktree.repoRoot,

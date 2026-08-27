@@ -11,6 +11,7 @@ import {
   createExecStub,
   extractPiArgs,
   extractShellCommand,
+  LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
   registerExtension,
 } from "./sidequest-harness.mjs";
 
@@ -99,6 +100,115 @@ test("fork_peer_spawn launches a forked-context peer", async () => {
   assert.equal(result.details.sessionMode, "fork");
   assert.equal(result.details.canonicalTool, "fork_peer_spawn");
   assert.equal(result.details.reportBack, "manual");
+});
+
+test("fork_peer_spawn confirms a detached direct window handshake over SSH", async () => {
+  const execStub = createExecStub(({ command, args }) => {
+    if (command === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN && args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n  +new-tab\n" };
+    }
+    throw new Error(`Unexpected awaited launch: ${command} ${args.join(" ")}`);
+  });
+  const detachedCalls = [];
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      SSH_CONNECTION: "termux 42000 steve 22",
+      PI_SIDEQUEST_GHOSTTY_BIN: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
+      PI_SIDEQUEST_PI_BIN: "pi",
+    },
+    exec: execStub.exec,
+    async detachedGhosttyWindowLaunch(request) {
+      const args = request.buildArgs({
+        path: "/run/user/1000/private launch/command-admitted",
+        token: "0123456789abcdef",
+      });
+      detachedCalls.push({ ...request, args });
+      return {
+        ok: true,
+        effectDisposition: "settled",
+        code: 0,
+        stdout: "",
+        stderr: "",
+        killed: false,
+      };
+    },
+    pathExists(path) {
+      return path === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN;
+    },
+  });
+  const { tools } = registerExtension(extension);
+
+  const result = await tools
+    .get("fork_peer_spawn")
+    .execute(
+      "tool-call-ssh",
+      { objective: "continue from Android SSH" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  assert.deepEqual(
+    execStub.calls.map(({ command, args }) => [command, args[0]]),
+    [[LOCAL_GHOSTTY_ORIGIN_MAIN_BIN, "+help"]],
+  );
+  assert.equal(detachedCalls.length, 1);
+  assert.equal(detachedCalls[0].command, LOCAL_GHOSTTY_ORIGIN_MAIN_BIN);
+  assert.equal(detachedCalls[0].args[0], "--working-directory=/repo");
+  assert.match(extractShellCommand(detachedCalls[0].args), /0123456789abcdef/);
+  assert.match(extractShellCommand(detachedCalls[0].args), /private launch/);
+  assert.equal(result.details.ok, true);
+  assert.equal(result.details.effectDisposition, "settled");
+  assert.equal(result.details.launchMode, "window");
+  assert.match(result.details.launchNote, /private handshake/);
+});
+
+test("fork_peer_spawn exposes indeterminate direct-window effects without claiming launch", async () => {
+  const execStub = createExecStub(({ args }) => {
+    if (args[0] === "+help") {
+      return { code: 0, stdout: "Available actions:\n  +new-window\n" };
+    }
+    throw new Error(`Unexpected awaited launch: ${args.join(" ")}`);
+  });
+  const extension = createSidequestExtension({
+    registerTools: true,
+    env: {
+      SSH_CONNECTION: "termux 42000 steve 22",
+      PI_SIDEQUEST_GHOSTTY_BIN: LOCAL_GHOSTTY_ORIGIN_MAIN_BIN,
+    },
+    exec: execStub.exec,
+    async detachedGhosttyWindowLaunch() {
+      return {
+        ok: false,
+        effectDisposition: "effect_indeterminate",
+        code: -1,
+        stdout: "",
+        stderr: "command handshake not observed",
+        killed: false,
+      };
+    },
+    pathExists(path) {
+      return path === LOCAL_GHOSTTY_ORIGIN_MAIN_BIN;
+    },
+  });
+  const { tools } = registerExtension(extension);
+
+  const result = await tools
+    .get("fork_peer_spawn")
+    .execute(
+      "tool-call-indeterminate",
+      { objective: "do not duplicate me" },
+      undefined,
+      undefined,
+      createContext().ctx,
+    );
+
+  assert.equal(result.isError, true);
+  assert.equal(result.details.ok, false);
+  assert.equal(result.details.error, "launch_indeterminate");
+  assert.equal(result.details.effectDisposition, "effect_indeterminate");
+  assert.match(result.content[0].text, /do not retry automatically/);
 });
 
 test("fork_peer_spawn can request intercom report-back", async () => {
@@ -227,6 +337,7 @@ test("scout_peer_spawn launches a clean session even when the controller session
   assert.equal(piArgs[4], "medium");
   assert.equal(piArgs.includes("--fork"), false);
   assert.equal(result.details.ok, true);
+  assert.equal(result.details.effectDisposition, "settled");
   assert.equal(result.details.sessionMode, "clean");
   assert.equal(result.details.sourceSessionFile, undefined);
   assert.equal(result.details.enforcement, "prompt_contract");
