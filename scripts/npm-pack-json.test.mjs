@@ -90,23 +90,30 @@ test("every tracked shell consumer that parses npm pack JSON normalizes it first
   const consumers = [];
   for (const relativePath of trackedReleaseCheckScripts()) {
     const source = fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
-    if (!/npm(?: --cache [^\n]+)? pack --dry-run --json/.test(source)) continue;
-    if (!/JSON\.parse\([^\n]*(?:PACK_JSON|PACK_JSON_FILE)|release-artifact-check\.mjs/.test(source)) {
-      continue;
-    }
+    const capturesPackJson =
+      /PACK_JSON(?:_RAW)?="\$\((?:npm(?: --cache [^\n]+)?|isolated_npm) pack --dry-run --json\)"/.test(
+        source,
+      ) ||
+      /(?:npm(?: --cache [^\n]+)?|isolated_npm) pack --dry-run --json > "\$PACK_JSON_FILE"/.test(
+        source,
+      );
+    if (!capturesPackJson) continue;
     consumers.push(relativePath);
-    assert.match(
-      source,
-      /npm-pack-json\.mjs/,
-      `${relativePath} consumes npm pack JSON without the shared normalizer`,
+    const invocation = source.match(
+      /(?:PACK_JSON="\$\(printf '%s' "\$(?:PACK_JSON|PACK_JSON_RAW)" \| node "[^"]*npm-pack-json\.mjs"\)"|node "[^"]*npm-pack-json\.mjs" < "\$PACK_JSON_FILE" > "\$PACK_JSON_NORMALIZED_FILE")/,
     );
     assert.ok(
-      source.indexOf("npm-pack-json.mjs") <
-        Math.max(
-          source.indexOf("PACK_JSON=\"$PACK_JSON\" node"),
-          source.indexOf("PACK_JSON_FILE=\"$PACK_JSON_FILE\" node"),
-        ),
-      `${relativePath} must normalize before its legacy canonical-array parser`,
+      invocation,
+      `${relativePath} consumes npm pack JSON without invoking the shared normalizer`,
+    );
+    const parserIndexes = [
+      source.indexOf("PACK_JSON=\"$PACK_JSON\" node"),
+      source.indexOf("PACK_JSON_FILE=\"$PACK_JSON_FILE\" node"),
+    ].filter((index) => index >= 0);
+    assert.ok(parserIndexes.length > 0, `${relativePath} has an unclassified npm pack parser`);
+    assert.ok(
+      invocation.index < Math.min(...parserIndexes),
+      `${relativePath} must normalize before every legacy canonical-array parser`,
     );
   }
   assert.ok(consumers.length >= 25, `expected all pack parser consumers, got ${consumers.length}`);
