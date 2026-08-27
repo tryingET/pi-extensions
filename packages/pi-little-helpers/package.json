@@ -59,6 +59,8 @@
     "extensions/session-presence.ts",
     "extensions/sidequest.ts",
     "extensions/sidequestContracts.ts",
+    "extensions/sidequestPeerPrompts.ts",
+    "extensions/sidequestPeerReportBack.ts",
     "extensions/sidequestDetachedWindow.ts",
     "extensions/sidequestGhostty.ts",
     "extensions/stash.ts",

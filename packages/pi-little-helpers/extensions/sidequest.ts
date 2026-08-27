@@ -2,7 +2,7 @@
 // read_when:
 //   - "changing peer launch prompts, worktree preparation, report-back policy, cleanup tools, or loop command registration"
 
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -91,7 +91,6 @@ import {
   forkPeerSpawnParameters,
   type PiToolContext,
   type SidequestReportBack,
-  type SidequestRole,
   type SidequestSpawnRequest,
   scoutPeerSpawnParameters,
   visibleLoopChildCompleteToolParameters,
@@ -122,7 +121,6 @@ import {
   type DetachedGhosttyWindowLaunchRequest,
   launchDetachedGhosttyWindow,
 } from "./sidequestDetachedWindow.ts";
-
 import {
   buildControllerGhosttyDbusArgs,
   buildGhosttyArgs,
@@ -141,6 +139,26 @@ import {
   supportsGhosttyNewTab,
   supportsGhosttySurfaceId,
 } from "./sidequestGhostty.ts";
+import {
+  buildCandidatePeerSpawnPrompt,
+  buildForkPeerSpawnPrompt,
+  buildSidequestSpawnPrompt,
+  createQuestId,
+  normalizeCandidatePeerReportBack,
+  normalizeForkPeerReportBack,
+  normalizeReportBack,
+  normalizeSidequestRole,
+  normalizeStringArray,
+} from "./sidequestPeerPrompts.ts";
+import {
+  errorToolResult,
+  expectedPeerMessages,
+  parentPeerTargetFailureResult,
+  peerLaunchResultMessage,
+  reportBackNextStep,
+  successToolResult,
+  validateParentPeerTarget,
+} from "./sidequestPeerReportBack.ts";
 
 export type { GhosttyAncestor } from "./sidequestGhostty.ts";
 export {
@@ -925,284 +943,6 @@ async function launchAscExecutionObserverSession(
       };
 }
 
-function normalizeStringArray(value: string[] | undefined): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((item) => String(item).trim()).filter(Boolean);
-}
-
-function markdownList(items: string[] | undefined, emptyText = "None provided."): string {
-  const normalized = normalizeStringArray(items);
-  if (normalized.length === 0) return emptyText;
-  return normalized.map((item) => `- ${item}`).join("\n");
-}
-
-function contextLine(label: string, value: string | undefined): string | undefined {
-  const normalized = value?.trim();
-  return normalized ? `- ${label}: ${normalized}` : undefined;
-}
-
-function normalizeSidequestRole(value: unknown): SidequestRole {
-  return value === "reviewer" ? "reviewer" : "scout";
-}
-
-function createQuestId(prefix: "sidequest" | "forkpeer" | "scoutpeer" | "candidatepeer"): string {
-  return `${prefix}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
-}
-
-function normalizeForkPeerReportBack(request: ForkPeerSpawnRequest): SidequestReportBack {
-  if (
-    request.reportBack === "intercom" ||
-    request.reportBack === "manual" ||
-    request.reportBack === "none"
-  ) {
-    return request.reportBack;
-  }
-
-  return request.parentPeerTarget?.trim() ? "intercom" : "manual";
-}
-
-function normalizeReportBack(request: SidequestSpawnRequest): SidequestReportBack {
-  if (
-    request.reportBack === "intercom" ||
-    request.reportBack === "manual" ||
-    request.reportBack === "none"
-  ) {
-    return request.reportBack;
-  }
-  return "intercom";
-}
-
-function buildReportBackInstructions({
-  reportBack,
-  parentPeerTarget,
-  questId,
-  peerLabel = "sidequest",
-}: {
-  reportBack: SidequestReportBack;
-  parentPeerTarget?: string;
-  questId: string;
-  peerLabel?: string;
-}): string {
-  const target = parentPeerTarget?.trim();
-  if (reportBack === "intercom" && target) {
-    return [
-      "Use intercom for report-back if the tool is available.",
-      `Report to the exact parent target: ${target}`,
-      `Peer run id: ${questId}`,
-      "",
-      "## Intercom Message Budget",
-      "Send at most two intercom messages unless the controller explicitly asks a clarifying question or assigns new work:",
-      "",
-      `1. \`PEER_ACK peer_run_id=${questId}: ...\` — send once as your first action, identifying yourself as the spawned ${peerLabel}.`,
-      `2. \`PEER_FINAL peer_run_id=${questId}: ...\` — send once as your final DoD report.`,
-      "",
-      "Do not send both a final report and a separate final DoD report. `PEER_FINAL` is the final DoD report.",
-      "After sending `PEER_FINAL`, stop. Do not reply to controller acknowledgements such as received, accepted, or no further action needed unless the controller explicitly asks a new question or assigns new work.",
-      `Use the literal target in tool calls, for example: \`intercom({ action: "send", to: "${target}", message: "PEER_ACK peer_run_id=${questId}: ..." })\`.`,
-      `For the final message, use: \`intercom({ action: "send", to: "${target}", message: "PEER_FINAL peer_run_id=${questId}: ..." })\`.`,
-      "Intercom is communication only; it is not durable evidence or completion authority.",
-    ].join("\n");
-  }
-
-  if (reportBack === "intercom") {
-    return [
-      "Use intercom for report-back if the tool is available.",
-      "No exact parent target was supplied. This should not happen for controller-spawned quest tools; report-back may be ambiguous without the controller's exact session id.",
-      "Intercom is communication only; it is not durable evidence or completion authority.",
-    ].join("\n");
-  }
-
-  if (reportBack === "none") {
-    return `No automatic report-back is requested. Do not claim that a report was delivered; leave findings visible in this ${peerLabel} session unless the controller gives further instructions.`;
-  }
-
-  return `Manual report-back is requested. Do not over-promise delivery; leave a concise visible report in this ${peerLabel} session for the controller/operator to inspect.`;
-}
-
-function buildBootProtocolInstructions({
-  reportBack,
-  parentPeerTarget,
-  questId,
-  peerLabel,
-}: {
-  reportBack: SidequestReportBack;
-  parentPeerTarget?: string;
-  questId: string;
-  peerLabel: string;
-}): string {
-  const target = parentPeerTarget?.trim();
-  if (reportBack !== "intercom") {
-    return `No intercom boot ACK is required because reportBack is ${reportBack}. Follow the report-back mode below.`;
-  }
-
-  if (!target) {
-    return "Intercom boot ACK requires an exact parentPeerTarget. This prompt should not have been launched without one.";
-  }
-
-  return [
-    "Before reading task context, inspecting files, or doing any other work, send the ACK below.",
-    "Only allowed pre-ACK tool: `intercom`.",
-    `Literal ACK call: \`intercom({ action: "send", to: "${target}", message: "PEER_ACK peer_run_id=${questId}: spawned ${peerLabel} started" })\``,
-    "If the ACK send fails or intercom is unavailable, visibly report `ACK_FAILED` in this session and stop; do not continue task work silently.",
-    "After ACK succeeds, continue with the objective and send exactly one `PEER_FINAL` as the final DoD report. After `PEER_FINAL`, stop unless the controller explicitly asks a new question or assigns new work.",
-  ].join("\n");
-}
-
-function buildForkPeerSpawnPrompt({
-  objective,
-  request,
-  reportBack,
-  questId,
-}: {
-  objective: string;
-  request: ForkPeerSpawnRequest;
-  reportBack: SidequestReportBack;
-  questId: string;
-}): string {
-  return [
-    "# Visible Fork Peer Prompt",
-    "",
-    "You are a visible fork peer launched from the controller's current Pi conversation/context. The inherited history is context, not identity: act as the spawned fork peer and report back according to this prompt. You are parallel cognition, not parallel authority.",
-    "",
-    "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
-    buildBootProtocolInstructions({
-      reportBack,
-      parentPeerTarget: request.parentPeerTarget,
-      questId,
-      peerLabel: "fork peer",
-    }),
-    "",
-    "## Quest Protocol",
-    `Peer run id: ${questId}`,
-    "Message budget: at most PEER_ACK and PEER_FINAL unless the controller explicitly asks a clarifying question or assigns new work. Legacy QUEST_ACK / QUEST_FINAL remains controller-compatible but is not preferred.",
-    "",
-    "## Objective",
-    objective,
-    "",
-    "## Report-Back Instructions",
-    buildReportBackInstructions({
-      reportBack,
-      parentPeerTarget: request.parentPeerTarget,
-      questId,
-      peerLabel: "fork peer",
-    }),
-    "",
-    "## Boundary",
-    "This fork peer intentionally inherits the current Pi context. Do not treat intercom messages as durable evidence, task authority, merge authority, or completion truth unless the controller records them through the owning surface.",
-  ].join("\n");
-}
-
-function buildSidequestSpawnPrompt({
-  role,
-  objective,
-  cwd,
-  request,
-  reportBack,
-  questId,
-}: {
-  role: SidequestRole;
-  objective: string;
-  cwd: string;
-  request: SidequestSpawnRequest;
-  reportBack: SidequestReportBack;
-  questId: string;
-}): string {
-  const context = request.context ?? {};
-  const contextLines = [
-    contextLine("Campaign goal", context.campaignGoal),
-    contextLine("Primary metric", context.primaryMetric),
-    contextLine("Current best", context.currentBest),
-    contextLine("Blocker", context.blocker),
-  ].filter((line): line is string => Boolean(line));
-  const customDod = normalizeStringArray(request.dod);
-
-  return [
-    "# Visible Scout Peer Prompt",
-    "",
-    "You are a visible scout peer launched in a clean Pi session. If you are reading this prompt, you are the spawned scout peer, not the controller session. Identify as the scout peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
-    "",
-    "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
-    buildBootProtocolInstructions({
-      reportBack,
-      parentPeerTarget: request.parentPeerTarget,
-      questId,
-      peerLabel: "scout peer",
-    }),
-    "",
-    "## Role",
-    role,
-    "",
-    "## Quest Protocol",
-    `Peer run id: ${questId}`,
-    "Message budget: at most PEER_ACK and PEER_FINAL unless the controller explicitly asks a clarifying question or assigns new work. Legacy QUEST_ACK / QUEST_FINAL remains controller-compatible but is not preferred.",
-    "",
-    "## Objective",
-    objective,
-    "",
-    "## Workspace",
-    `Controller/shared cwd: ${cwd}`,
-    "",
-    "## Campaign / Task Context",
-    contextLines.length ? contextLines.join("\n") : "None provided.",
-    "",
-    "## Artifacts to Inspect",
-    markdownList(context.artifactsToRead),
-    "",
-    "## Files in Scope",
-    markdownList(context.filesInScope),
-    "",
-    "## Off-Limits",
-    markdownList(context.offLimits),
-    "",
-    "## Constraints",
-    markdownList(context.constraints),
-    "",
-    "## Current Findings",
-    markdownList(context.currentFindings),
-    "",
-    "## Mutation Policy",
-    "You are in the controller’s working tree. This scout peer is read-only for controller-spawned use. Do not edit files, run destructive commands, commit, revert, install dependencies, restart services, or change running model services. If a mutation seems necessary, report the exact proposed mutation back to the controller instead of applying it.",
-    "",
-    "Enforcement level: prompt_contract. This is not a hard sandbox yet.",
-    "",
-    "## Allowed Tools",
-    "- `read` and bounded `bash` for inspection and non-destructive validation.",
-    "- `dispatch_subagent` for one focused helper if it reduces risk.",
-    "- `workflow_execute` for a small explicit plan if useful.",
-    "- `intercom` for reporting back if available and requested below.",
-    "",
-    "Do not spawn more quest agents unless explicitly instructed.",
-    "",
-    "## Report-Back Instructions",
-    buildReportBackInstructions({
-      reportBack,
-      parentPeerTarget: request.parentPeerTarget,
-      questId,
-      peerLabel: "scout peer",
-    }),
-    "",
-    "## Definition of Done",
-    "Return a concise report with:",
-    "",
-    "1. Answer or recommendation",
-    "2. Evidence inspected — exact files, artifacts, commands",
-    "3. Most likely root cause or key finding",
-    "4. One concrete next experiment or controller action",
-    "5. Expected impact",
-    "6. Risks and rollback notes",
-    "7. What not to try again",
-    ...(customDod.length
-      ? ["", "## Additional Request-Specific DoD", markdownList(customDod)]
-      : []),
-    "",
-    "## Anti-Goals",
-    "- Do not claim completion for the controller.",
-    "- Do not mutate shared-cwd files; editable shared-cwd work belongs to manual `/sidequest`, not `scout_peer_spawn`.",
-    "- Do not implement candidate changes here; isolated mutation belongs later in `candidate_peer_spawn`.",
-    "- Do not mutate AK, orchestration state, intercom state, or autoresearch runtime authority.",
-  ].join("\n");
-}
-
 const MAX_CANDIDATE_BRANCH_NAME_LENGTH = 96;
 const MAX_CANDIDATE_WORKSPACE_NAME_LENGTH = 80;
 const SAFE_NAME_HASH_LENGTH = 10;
@@ -1623,265 +1363,6 @@ async function prepareCandidatePeerWorktree({
     reusedExisting: false,
     naming,
   };
-}
-
-function normalizeCandidatePeerReportBack(
-  request: CandidatePeerSpawnRequest,
-): CandidatePeerReportBack {
-  if (
-    request.reportBack === "intercom" ||
-    request.reportBack === "manual" ||
-    request.reportBack === "none"
-  ) {
-    return request.reportBack;
-  }
-  return "intercom";
-}
-
-function buildCandidatePeerSpawnPrompt({
-  objective,
-  request,
-  worktree,
-  reportBack,
-  questId,
-}: {
-  objective: string;
-  request: CandidatePeerSpawnRequest;
-  worktree: WorktreePrepareSuccess;
-  reportBack: CandidatePeerReportBack;
-  questId: string;
-}): string {
-  return [
-    "# Visible Candidate Peer Prompt",
-    "",
-    "You are a visible candidate peer launched in a clean Pi session. If you are reading this prompt, you are the spawned candidate peer, not the controller session. Identify as the candidate peer in your visible response and report-back. You are parallel cognition, not parallel authority.",
-    "",
-    "## BOOT PROTOCOL / FIRST ACTION REQUIRED",
-    buildBootProtocolInstructions({
-      reportBack,
-      parentPeerTarget: request.parentPeerTarget,
-      questId,
-      peerLabel: "candidate peer",
-    }),
-    "",
-    "## Quest Protocol",
-    `Peer run id: ${questId}`,
-    "Message budget: at most PEER_ACK and PEER_FINAL unless the controller explicitly asks a clarifying question or assigns new work. Legacy QUEST_ACK / QUEST_FINAL remains controller-compatible but is not preferred.",
-    "",
-    "## Objective",
-    objective,
-    "",
-    "## Workspace Boundary",
-    "You are working in an isolated git worktree.",
-    "",
-    `- Parent/controller cwd: ${worktree.parentCwd}`,
-    `- Your worktree cwd: ${worktree.worktreePath}`,
-    `- Branch: ${worktree.branchName}`,
-    `- Base: ${worktree.baseRef}`,
-    worktree.parentDirtyWarning ? `- Dirty-parent warning: ${worktree.parentDirtyWarning}` : "",
-    "",
-    "All mutations must stay inside your worktree. Do not modify the parent checkout.",
-    "The controller records peer registry metadata and an archive-before-cleanup command packet for this candidate lane; treat that as cleanup guidance, not promotion authority.",
-    "",
-    "## Mutation Policy",
-    "You may inspect, edit, and validate only inside your isolated worktree. Do not merge, push, open PRs, mutate AK, mutate controller runtime state, or claim promotion. If a required action is outside the worktree boundary, report the exact proposed controller action instead of applying it.",
-    "",
-    "## Files in Scope",
-    markdownList(request.filesInScope),
-    "",
-    "## Off-Limits",
-    markdownList(request.offLimits),
-    "",
-    "## Constraints",
-    markdownList(request.constraints),
-    "",
-    "## Allowed Tools",
-    "- `read`, `edit`, `write`, and bounded `bash` only within the worktree boundary and stated scope.",
-    "- `dispatch_subagent` for one focused helper if it reduces risk.",
-    "- `workflow_execute` for a small explicit plan if useful.",
-    "- `intercom` for reporting back if available and requested below.",
-    "",
-    "Do not spawn more quest agents unless explicitly instructed.",
-    "",
-    "## Report-Back Instructions",
-    buildReportBackInstructions({
-      reportBack,
-      parentPeerTarget: request.parentPeerTarget,
-      questId,
-      peerLabel: "candidate peer",
-    }),
-    "",
-    "## Definition of Done",
-    "Return a concise report with:",
-    "",
-    "1. Branch name",
-    "2. Worktree path",
-    "3. Files changed",
-    "4. Commands run and results",
-    "5. Metric/check result if applicable",
-    "6. Patch summary",
-    "7. Risks and rollback notes",
-    "8. Recommended controller action: ignore, inspect, cherry-pick, or merge after review",
-    ...(normalizeStringArray(request.dod).length
-      ? ["", "## Additional Request-Specific DoD", markdownList(request.dod)]
-      : []),
-    "",
-    "## Anti-Goals",
-    "- Do not mutate the parent checkout.",
-    "- Do not merge, push, open PRs, mutate AK, or claim completion/promotion authority.",
-    "- Do not treat intercom or visible launch as durable evidence.",
-  ].join("\n");
-}
-
-function errorToolResult(message: string, details: Record<string, unknown>) {
-  return {
-    content: [{ type: "text" as const, text: message }],
-    details,
-    isError: true,
-  };
-}
-
-function successToolResult(message: string, details: Record<string, unknown>) {
-  return {
-    content: [{ type: "text" as const, text: message }],
-    details,
-  };
-}
-
-const AMBIGUOUS_PARENT_PEER_TARGETS = new Set([
-  "active",
-  "controller",
-  "current",
-  "here",
-  "me",
-  "parent",
-  "self",
-  "this",
-]);
-
-const EXACT_SESSION_ID_PATTERN =
-  /^session-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-type ParentPeerTargetValidation =
-  | { ok: true; target: string }
-  | { ok: false; reason: "missing" | "ambiguous" | "not_exact_session_id"; target?: string };
-
-function validateParentPeerTarget(value: string | undefined): ParentPeerTargetValidation {
-  const target = value?.trim();
-  if (!target) return { ok: false, reason: "missing" };
-  if (AMBIGUOUS_PARENT_PEER_TARGETS.has(target.toLowerCase())) {
-    return { ok: false, reason: "ambiguous", target };
-  }
-  if (!EXACT_SESSION_ID_PATTERN.test(target)) {
-    return { ok: false, reason: "not_exact_session_id", target };
-  }
-  return { ok: true, target };
-}
-
-function parentPeerTargetFailureResult(
-  tool: string,
-  validation: Exclude<ParentPeerTargetValidation, { ok: true }>,
-) {
-  if (validation.reason === "ambiguous") {
-    return errorToolResult(
-      `${tool} defaults to intercom report-back and requires an exact parentPeerTarget. "${validation.target}" is an ambiguous alias, not a deliverable intercom target. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
-      {
-        ok: false,
-        tool,
-        reportBack: "intercom",
-        parentPeerTarget: validation.target,
-        error: "invalid_parent_peer_target",
-        reason: "ambiguous_parent_peer_target",
-        nextStep:
-          'Call intercom({ action: "status" }) in the controller session and retry with parentPeerTarget set to the exact Session ID.',
-      },
-    );
-  }
-
-  const reason =
-    validation.reason === "not_exact_session_id"
-      ? "not_exact_session_id"
-      : "missing_parent_peer_target";
-  return errorToolResult(
-    `${tool} defaults to intercom report-back and requires parentPeerTarget so the peer can report to the exact controller session. Call intercom({ action: "status" }) or intercom({ action: "list" }) first, then pass the exact Session ID as parentPeerTarget; or explicitly set reportBack to "manual" or "none".`,
-    {
-      ok: false,
-      tool,
-      reportBack: "intercom",
-      parentPeerTarget: validation.target,
-      error:
-        validation.reason === "not_exact_session_id"
-          ? "invalid_parent_peer_target"
-          : "missing_parent_peer_target",
-      reason,
-      nextStep:
-        'Call intercom({ action: "status" }) in the controller session and retry with parentPeerTarget set to the exact Session ID.',
-    },
-  );
-}
-
-function expectedPeerMessages(reportBack: SidequestReportBack): string[] {
-  return reportBack === "intercom" ? ["PEER_ACK", "PEER_FINAL"] : [];
-}
-
-function reportBackNextStep({
-  reportBack,
-  peerRunId,
-  peerLabel,
-  manualAction,
-}: {
-  reportBack: SidequestReportBack;
-  peerRunId: string;
-  peerLabel: string;
-  manualAction: string;
-}): string {
-  if (reportBack === "intercom") {
-    return `Next supervision step: intercom({ action: "peer_watch", peerRunId: "${peerRunId}", waitFor: "ack", timeoutMs: 10000 }). Also ${manualAction} if the peer does not report promptly.`;
-  }
-
-  return `Intercom report-back is disabled because reportBack is "${reportBack}"; no PEER_ACK/PEER_FINAL will be emitted, and peer_watch will have nothing to watch. Next supervision step: ${manualAction} in the visible ${peerLabel} session.`;
-}
-
-function peerLaunchResultMessage({
-  toolName,
-  launchMode,
-  promptSummary,
-  peerRunId,
-  reportBack,
-  peerLabel,
-  manualAction,
-}: {
-  toolName: string;
-  launchMode: LaunchMode;
-  promptSummary: string;
-  peerRunId: string;
-  reportBack: SidequestReportBack;
-  peerLabel: string;
-  manualAction: string;
-}): string {
-  const lines = [
-    `Launched ${toolName} in ${launchMode}: ${promptSummary}`,
-    `Peer run id: ${peerRunId}`,
-  ];
-
-  if (reportBack === "intercom") {
-    lines.push("Expected intercom messages: PEER_ACK, PEER_FINAL");
-  } else {
-    lines.push(
-      `Expected intercom messages: none (reportBack=${reportBack}; PEER_ACK/PEER_FINAL disabled)`,
-    );
-  }
-
-  lines.push(
-    reportBackNextStep({
-      reportBack,
-      peerRunId,
-      peerLabel,
-      manualAction,
-    }),
-  );
-
-  return lines.join("\n");
 }
 
 export function createSidequestExtension(options: SidequestOptions = {}) {
