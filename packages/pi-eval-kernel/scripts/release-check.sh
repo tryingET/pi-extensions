@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+RELEASE_SANDBOX_ROOT="$(git -C "$ROOT_DIR" rev-parse --show-toplevel)"
+source "$RELEASE_SANDBOX_ROOT/scripts/release-sandbox.sh"
 
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
@@ -21,7 +23,7 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
 fi
 
 echo "== npm pack --dry-run --json"
-PACK_JSON_RAW="$(npm pack --dry-run --json)"
+PACK_JSON_RAW="$(release_sandbox_npm pack --dry-run --json)"
 echo "$PACK_JSON_RAW"
 PACK_JSON="$(printf '%s' "$PACK_JSON_RAW" | node "$ROOT_DIR/scripts/npm-pack-json.mjs")"
 
@@ -126,7 +128,7 @@ NODE
 
 echo "== npm publish --dry-run"
 set +e
-PUBLISH_DRY_RUN_OUTPUT="$(npm publish --dry-run 2>&1)"
+PUBLISH_DRY_RUN_OUTPUT="$(release_sandbox_npm publish --dry-run 2>&1)"
 PUBLISH_DRY_RUN_EXIT=$?
 set -e
 echo "$PUBLISH_DRY_RUN_OUTPUT"
@@ -144,9 +146,6 @@ TEST_NPM_PREFIX=""
 TEST_NPM_CACHE=""
 TARBALL_PATH=""
 cleanup() {
-  if [[ -n "$TEST_AGENT_DIR" && -f "$TEST_AGENT_DIR/auth.json" ]]; then
-    rm -f "$TEST_AGENT_DIR/auth.json"
-  fi
   if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
     if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
       rm -rf "$TEST_AGENT_DIR"
@@ -165,7 +164,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== npm pack"
-TARBALL="$(npm pack --silent | tail -n 1)"
+TARBALL="$(release_sandbox_npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
@@ -176,113 +175,17 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
 
-# Unset TMPDIR (normal on CI runners) is not an unsafe value; the runner's
-# RUNNER_TEMP is a managed ephemeral scratch root. Resolve accordingly.
-if [[ -z "${TMPDIR:-}" ]]; then
-  if [[ "${GITHUB_ACTIONS:-}" == "true" && -n "${RUNNER_TEMP:-}" && -d "${RUNNER_TEMP:-}" ]]; then
-    TMPDIR="$RUNNER_TEMP"
-  else
-    echo "TMPDIR must point to managed disk-backed scratch storage" >&2
-    exit 1
-  fi
-fi
-  TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-agent.XXXXXX")"
-  TEST_NPM_PREFIX="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-npm-prefix.XXXXXX")"
-  TEST_NPM_CACHE="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-npm-cache.XXXXXX")"
+  TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-extension-release-agent.XXXXXX")"
+  TEST_NPM_PREFIX="$TEST_AGENT_DIR/npm-prefix"
+  TEST_NPM_CACHE="$TEST_AGENT_DIR/npm-cache"
+  release_sandbox_prepare_runtime "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE"
 
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Reuse the operator's complete authenticated default provider/model pair unless
-  # the release invocation explicitly selects another complete pair. Hard-coded or
-  # partially combined catalog defaults can resolve through the wrong provider.
-  mapfile -t GLOBAL_PI_DEFAULTS < <(
-    node - "$HOME/.pi/agent/settings.json" <<'NODE'
-const fs = require("node:fs");
-const settingsPath = process.argv[2];
-let settings = {};
-try {
-  settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-} catch {
-  // Explicit environment overrides remain available when global settings are absent.
-}
-console.log(
-  typeof settings.defaultProvider === "string" ? settings.defaultProvider.trim() : "",
-);
-console.log(typeof settings.defaultModel === "string" ? settings.defaultModel.trim() : "");
-NODE
-  )
-  if [[ -v PI_TEST_DEFAULT_PROVIDER || -v PI_TEST_DEFAULT_MODEL ]]; then
-    if [[ -z "${PI_TEST_DEFAULT_PROVIDER:-}" || -z "${PI_TEST_DEFAULT_MODEL:-}" ]]; then
-      echo "PI_TEST_DEFAULT_PROVIDER and PI_TEST_DEFAULT_MODEL must be set together." >&2
-      exit 1
-    fi
-  else
-    PI_TEST_DEFAULT_PROVIDER="${GLOBAL_PI_DEFAULTS[0]:-}"
-    PI_TEST_DEFAULT_MODEL="${GLOBAL_PI_DEFAULTS[1]:-}"
-    if [[ -z "$PI_TEST_DEFAULT_PROVIDER" || -z "$PI_TEST_DEFAULT_MODEL" ]]; then
-      echo "Global Pi settings must define both defaultProvider and defaultModel, or set both PI_TEST_DEFAULT_PROVIDER and PI_TEST_DEFAULT_MODEL." >&2
-      exit 1
-    fi
-  fi
-  if [[ -z "${PI_TEST_ENABLED_MODELS:-}" ]]; then
-    case "$PI_TEST_DEFAULT_MODEL" in
-      "$PI_TEST_DEFAULT_PROVIDER"/*) PI_TEST_MODEL_PATTERN="$PI_TEST_DEFAULT_MODEL" ;;
-      *) PI_TEST_MODEL_PATTERN="$PI_TEST_DEFAULT_PROVIDER/$PI_TEST_DEFAULT_MODEL" ;;
-    esac
-    PI_TEST_ENABLED_MODELS="$(node -p 'JSON.stringify([process.argv[1]])' "$PI_TEST_MODEL_PATTERN")"
-  fi
-
-  TEST_AGENT_DIR="$TEST_AGENT_DIR" \
-    TEST_NPM_PREFIX="$TEST_NPM_PREFIX" \
-    TEST_NPM_CACHE="$TEST_NPM_CACHE" \
-    PI_TEST_DEFAULT_PROVIDER="$PI_TEST_DEFAULT_PROVIDER" \
-    PI_TEST_DEFAULT_MODEL="$PI_TEST_DEFAULT_MODEL" \
-    PI_TEST_ENABLED_MODELS="$PI_TEST_ENABLED_MODELS" \
-    node <<'NODE'
-const fs = require("node:fs");
-let enabledModels;
-try {
-  enabledModels = JSON.parse(process.env.PI_TEST_ENABLED_MODELS);
-} catch (error) {
-  console.error(`PI_TEST_ENABLED_MODELS must be valid JSON: ${error.message}`);
-  process.exit(1);
-}
-if (!Array.isArray(enabledModels) || enabledModels.some((entry) => typeof entry !== "string")) {
-  console.error("PI_TEST_ENABLED_MODELS must be a JSON array of strings");
-  process.exit(1);
-}
-const settings = {
-  defaultProvider: process.env.PI_TEST_DEFAULT_PROVIDER,
-  defaultModel: process.env.PI_TEST_DEFAULT_MODEL,
-  enabledModels,
-  npmCommand: [
-    "npm",
-    "--prefix",
-    process.env.TEST_NPM_PREFIX,
-    "--cache",
-    process.env.TEST_NPM_CACHE,
-  ],
-  extensions: [],
-};
-fs.writeFileSync(
-  `${process.env.TEST_AGENT_DIR}/settings.json`,
-  `${JSON.stringify(settings, null, 2)}\n`,
-  "utf8",
-);
-NODE
-
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR and npm state)"
+  echo "== pi install tarball (credential-isolated Pi and npm roots)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
-    NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
-    npm_config_prefix="$TEST_NPM_PREFIX" npm_config_cache="$TEST_NPM_CACHE" \
+  release_sandbox_exec "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE" \
     pi install "$PACKAGE_SPEC"
+  release_sandbox_link_available_peers "$TEST_AGENT_DIR" "$ROOT_DIR"
 
   echo "== verify tarball package recorded in settings"
   TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
@@ -315,16 +218,14 @@ NODE
     echo "Installed tarball package missing: $INSTALLED_PACKAGE_ROOT" >&2
     exit 1
   fi
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
-    NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
-    npm_config_prefix="$TEST_NPM_PREFIX" npm_config_cache="$TEST_NPM_CACHE" \
-    PACKAGE_SPEC="$PACKAGE_SPEC" INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" \
+  release_sandbox_exec "$TEST_AGENT_DIR" "$TEST_NPM_PREFIX" "$TEST_NPM_CACHE" \
+    env PACKAGE_SPEC="$PACKAGE_SPEC" INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" \
     bash ./scripts/release-smoke.sh
 fi
 
 echo "== npm view ${NAME} version (pre-publish may be 404)"
 set +e
-npm view "$NAME" version --json --registry https://registry.npmjs.org/
+release_sandbox_npm view "$NAME" version --json --registry https://registry.npmjs.org/
 VIEW_EXIT=$?
 set -e
 echo "npm view exit: $VIEW_EXIT"

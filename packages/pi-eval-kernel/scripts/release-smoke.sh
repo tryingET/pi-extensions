@@ -1,202 +1,91 @@
 #!/usr/bin/env bash
-# ---
-# summary: "Smoke-test the installed pi-eval-kernel tarball through an isolated Pi runtime."
+# summary: "execute JavaScript and Python through the installed eval-kernel artifact without provider credentials"
 # read_when:
-#   - "Verifying packed-artifact installation, extension loading, or Python/JavaScript eval execution."
-# ---
+#   - "verifying packed eval registration, kernel execution, or provider-free release isolation"
 set -euo pipefail
 
 : "${PI_CODING_AGENT_DIR:?PI_CODING_AGENT_DIR is required}"
-: "${NPM_CONFIG_PREFIX:?NPM_CONFIG_PREFIX is required}"
-: "${NPM_CONFIG_CACHE:?NPM_CONFIG_CACHE is required}"
 : "${PACKAGE_SPEC:?PACKAGE_SPEC is required}"
 : "${INSTALLED_PACKAGE_ROOT:?INSTALLED_PACKAGE_ROOT is required}"
-# Unset TMPDIR (normal on CI runners) is not an unsafe value; the runner's
-# RUNNER_TEMP is a managed ephemeral scratch root. Resolve accordingly.
-if [[ -z "${TMPDIR:-}" ]]; then
-  if [[ "${GITHUB_ACTIONS:-}" == "true" && -n "${RUNNER_TEMP:-}" && -d "${RUNNER_TEMP:-}" ]]; then
-    TMPDIR="$RUNNER_TEMP"
-  else
-    echo "TMPDIR must point to managed disk-backed scratch storage" >&2
-    exit 1
-  fi
-fi
+: "${TMPDIR:?TMPDIR is required}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MONOREPO_ROOT="$(git -C "$ROOT_DIR" rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
-
-if ! command -v pi >/dev/null 2>&1; then
-  echo "pi CLI not found in PATH." >&2
-  exit 1
-fi
-
-if [[ ! -f "$PI_CODING_AGENT_DIR/settings.json" ]]; then
-  echo "Isolated Pi settings missing: $PI_CODING_AGENT_DIR/settings.json" >&2
-  exit 1
-fi
 
 PACKAGE_NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
-INSTALLED_PACKAGE_ROOT="$(realpath "$INSTALLED_PACKAGE_ROOT")"
-
+INSTALLED_PACKAGE_ROOT="$(node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$INSTALLED_PACKAGE_ROOT")"
 case "$INSTALLED_PACKAGE_ROOT" in
-  "$(realpath "$PI_CODING_AGENT_DIR")"/* | "$(realpath "$NPM_CONFIG_PREFIX")"/*) ;;
-  *)
-    echo "Installed package root escaped isolated release roots: $INSTALLED_PACKAGE_ROOT" >&2
-    exit 1
-    ;;
+  "$PI_CODING_AGENT_DIR"/*) ;;
+  *) echo "installed eval artifact escaped isolated Pi state: $INSTALLED_PACKAGE_ROOT" >&2; exit 1 ;;
 esac
 
-node --input-type=module - \
-  "$PI_CODING_AGENT_DIR/settings.json" \
-  "$PACKAGE_SPEC" \
-  "$INSTALLED_PACKAGE_ROOT" \
-  "$PACKAGE_NAME" \
-  "$PACKAGE_VERSION" <<'NODE'
-import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
+TSX_BIN=""
+for candidate in \
+  "$ROOT_DIR/node_modules/.bin/tsx" \
+  "$MONOREPO_ROOT/node_modules/.bin/tsx" \
+  "$MONOREPO_ROOT"/packages/*/node_modules/.bin/tsx \
+  "$MONOREPO_ROOT"/packages/*/*/node_modules/.bin/tsx; do
+  if [[ -x "$candidate" ]]; then TSX_BIN="$candidate"; break; fi
+done
+if [[ -z "$TSX_BIN" ]]; then
+  echo "release smoke requires a repo-local tsx binary" >&2
+  exit 1
+fi
 
-const [settingsPath, packageSpec, packageRoot, packageName, packageVersion] = process.argv.slice(2);
-const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const packages = Array.isArray(settings.packages) ? settings.packages : [];
-assert.ok(
-  packages.some((entry) => entry === packageSpec || entry?.source === packageSpec),
-  `Missing ${packageSpec} in isolated Pi settings`,
-);
-
-const packageJsonPath = path.join(packageRoot, "package.json");
-assert.ok(fs.existsSync(packageJsonPath), `Installed package.json missing: ${packageJsonPath}`);
-const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-assert.equal(pkg.name, packageName, "Installed package name mismatch");
-assert.equal(pkg.version, packageVersion, "Installed package version mismatch");
-assert.ok(
-  pkg.pi?.extensions?.includes("./extensions/eval.ts"),
-  "Installed package does not declare ./extensions/eval.ts",
-);
-for (const requiredPath of [
-  "extensions/eval.ts",
-  "src/extension.ts",
-  "runtime/javascript-kernel.mjs",
-  "runtime/python-kernel.py",
-  "runtime/protocol-broker.mjs",
-]) {
-  assert.ok(fs.existsSync(path.join(packageRoot, requiredPath)), `Installed package missing ${requiredPath}`);
-}
-console.log(`installed artifact OK: ${packageName}@${packageVersion}`);
-NODE
-
-SMOKE_DIR=""
-cleanup() {
-  if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" && -n "$SMOKE_DIR" && -d "$SMOKE_DIR" ]]; then
-    rm -rf "$SMOKE_DIR"
-  fi
-}
-trap cleanup EXIT
-
-SMOKE_DIR="$(mktemp -d "$TMPDIR/pi-eval-kernel-release-smoke.XXXXXX")"
-WRAPPER_PATH="$SMOKE_DIR/eval-packed-smoke.ts"
-JAVASCRIPT_OUTPUT="$SMOKE_DIR/javascript.jsonl"
-PYTHON_OUTPUT="$SMOKE_DIR/python.jsonl"
-
-node --input-type=module - "$WRAPPER_PATH" "$INSTALLED_PACKAGE_ROOT/src/extension.ts" <<'NODE'
-import fs from "node:fs";
-import { pathToFileURL } from "node:url";
-
-const [wrapperPath, extensionPath] = process.argv.slice(2);
-const extensionUrl = pathToFileURL(extensionPath).href;
-fs.writeFileSync(
-  wrapperPath,
-  `import { createCodeModeExtension } from ${JSON.stringify(extensionUrl)};\n` +
-    "export default createCodeModeExtension({ allowNonInteractive: true });\n",
-  "utf8",
-);
-NODE
-
-run_eval_smoke() {
-  local prompt="$1"
-  local output_path="$2"
-  (
-    cd "$SMOKE_DIR"
-    PI_CODING_AGENT_DIR="$PI_CODING_AGENT_DIR" \
-      NPM_CONFIG_PREFIX="$NPM_CONFIG_PREFIX" \
-      NPM_CONFIG_CACHE="$NPM_CONFIG_CACHE" \
-      npm_config_prefix="$NPM_CONFIG_PREFIX" \
-      npm_config_cache="$NPM_CONFIG_CACHE" \
-      pi --no-extensions \
-        --extension "$WRAPPER_PATH" \
-        --no-skills --no-prompt-templates --no-context-files --no-themes \
-        --no-session --tools eval --mode json --approve \
-        -p "$prompt"
-  ) >"$output_path"
-}
-
-echo "== packed JavaScript eval through isolated Pi"
-run_eval_smoke \
-  "Use eval exactly once with JavaScript and no other tool. Return {smoke: 'packed-javascript', value: 6 * 7}. After a successful result, reply with exactly PACKED_JS_OK." \
-  "$JAVASCRIPT_OUTPUT"
-
-echo "== packed Python eval through isolated Pi"
-run_eval_smoke \
-  "Use eval exactly once with Python and no other tool. The final expression must be {'smoke': 'packed-python', 'value': 6 * 7}. After a successful result, reply with exactly PACKED_PY_OK." \
-  "$PYTHON_OUTPUT"
-
-node - "$JAVASCRIPT_OUTPUT" "javascript" "packed-javascript" "PACKED_JS_OK" \
-  "$PYTHON_OUTPUT" "python" "packed-python" "PACKED_PY_OK" <<'NODE'
+PACKAGE_NAME="$PACKAGE_NAME" PACKAGE_VERSION="$PACKAGE_VERSION" \
+INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" "$TSX_BIN" --eval '
+const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
-function textContent(message) {
-  return (message?.content ?? [])
-    .filter((entry) => entry?.type === "text" && typeof entry.text === "string")
-    .map((entry) => entry.text)
-    .join("");
-}
+(async () => {
+  const root = process.env.INSTALLED_PACKAGE_ROOT;
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  assert.equal(pkg.name, process.env.PACKAGE_NAME);
+  assert.equal(pkg.version, process.env.PACKAGE_VERSION);
+  assert.ok(pkg.pi?.extensions?.includes("./extensions/eval.ts"));
+  for (const required of [
+    "extensions/eval.ts",
+    "src/extension.ts",
+    "runtime/javascript-kernel.mjs",
+    "runtime/python-kernel.py",
+    "runtime/protocol-broker.mjs",
+  ]) assert.ok(fs.existsSync(path.join(root, required)), `packed artifact missing ${required}`);
 
-function assertSmoke(outputPath, language, resultMarker, finalMarker) {
-  const events = fs
-    .readFileSync(outputPath, "utf8")
-    .split(/\n/)
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-  const evalEnds = events.filter(
-    (event) => event.type === "tool_execution_end" && event.toolName === "eval",
-  );
-  if (evalEnds.length !== 1 || evalEnds[0].isError) {
-    const terminalAssistant = events
-      .filter((event) => event.type === "message_end" && event.message?.role === "assistant")
-      .at(-1)?.message;
-    const terminalFailure = terminalAssistant?.errorMessage
-      ? `; assistant ${terminalAssistant.stopReason ?? "error"}: ${terminalAssistant.errorMessage}`
-      : "";
-    throw new Error(`${outputPath}: expected one successful eval execution${terminalFailure}`);
+  const module = await import(`${pathToFileURL(path.join(root, "extensions/eval.ts")).href}?release=${Date.now()}`);
+  assert.equal(typeof module.createCodeModeExtension, "function");
+  const tools = new Map();
+  const commands = new Map();
+  const events = new Map();
+  module.createCodeModeExtension({ requireConfirmation: false })({
+    registerTool(tool) { tools.set(tool.name, tool); },
+    registerCommand(name, command) { commands.set(name, command); },
+    on(name, handler) { events.set(name, [...(events.get(name) || []), handler]); },
+  });
+  assert.ok(commands.has("code-mode"));
+  assert.ok(commands.has("eval-reset"));
+  const tool = tools.get("eval");
+  assert.ok(tool, "packed extension did not register eval");
+  const context = { cwd: process.cwd(), hasUI: false, ui: { confirm: async () => true, notify() {} } };
+
+  const cases = [
+    ["javascript", "return { smoke: \"packed-javascript\", value: 6 * 7 }", "packed-javascript"],
+    ["python", "{\"smoke\": \"packed-python\", \"value\": 6 * 7}", "packed-python"],
+  ];
+  for (const [language, code, marker] of cases) {
+    const result = await tool.execute(`release-${language}`, { language, code }, undefined, undefined, context);
+    assert.equal(result.details?.ok, true, `${language} eval did not report ok`);
+    assert.equal(result.details?.language, language);
+    const text = (result.content || []).map((entry) => entry.text || "").join("\n");
+    assert.match(text, new RegExp(marker));
+    assert.match(text, /42/);
   }
+  for (const handler of events.get("session_shutdown") || []) await handler();
+  console.log("packed provider-free JavaScript and Python eval execution OK");
+})().catch((error) => { console.error(error); process.exit(1); });
+'
 
-  const evalEnd = evalEnds[0];
-  if (evalEnd.result?.details?.ok !== true || evalEnd.result?.details?.language !== language) {
-    throw new Error(`${outputPath}: eval details did not confirm successful ${language} execution`);
-  }
-  const resultText = textContent(evalEnd.result);
-  if (!resultText.includes(resultMarker) || !resultText.includes('"value": 42')) {
-    throw new Error(`${outputPath}: eval result did not contain ${resultMarker} with value 42`);
-  }
-
-  const finalMessages = events.filter(
-    (event) =>
-      event.type === "message_end" &&
-      event.message?.role === "assistant" &&
-      event.message?.stopReason === "stop",
-  );
-  const finalText = textContent(finalMessages.at(-1)?.message).trim();
-  if (finalText !== finalMarker) {
-    throw new Error(`${outputPath}: final assistant response was not exactly ${finalMarker}`);
-  }
-}
-
-const [jsPath, jsLanguage, jsResult, jsFinal, pyPath, pyLanguage, pyResult, pyFinal] =
-  process.argv.slice(2);
-assertSmoke(jsPath, jsLanguage, jsResult, jsFinal);
-assertSmoke(pyPath, pyLanguage, pyResult, pyFinal);
-console.log("packed JavaScript and Python eval smokes passed");
-NODE
-
-echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC and executed packed JavaScript and Python eval through isolated Pi."
+echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC and directly executed packed JavaScript/Python eval without model or provider credentials."
