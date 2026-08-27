@@ -102,6 +102,7 @@ export const CATALOG: ToolboxBundle[] = [
       "safe write",
       "patch checks",
       "structural patch",
+      "preview patch",
       "unfamiliar code",
     ],
     profiles: [
@@ -118,7 +119,7 @@ export const CATALOG: ToolboxBundle[] = [
         id: "mutating",
         description:
           "Preview-only snapshot/check workflows that may execute caller-selected local commands; require explicit operator intent even though the Pi schemas omit apply.",
-        tools: ["patch_checks_in_snapshot", "structural_patch_checks", "rename_safely"],
+        tools: ["preview_patch_checks", "rename_safely"],
         risk: "mutating",
         defaultTtlTurns: 4,
         requiresExplicitUserIntent: true,

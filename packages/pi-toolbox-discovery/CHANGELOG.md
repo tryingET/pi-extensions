@@ -13,6 +13,14 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [Unreleased]
+
+### Changed
+
+- sci/mutating catalog profile now lists the merged `preview_patch_checks` door
+  (AK #5104, companion to pi-semantic-code-intelligence #5012) instead of the two
+  retired patch tool names; risk posture unchanged (mutating, explicit operator intent).
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.3.0...pi-toolbox-discovery-v0.3.1) (2026-08-15)
 
 

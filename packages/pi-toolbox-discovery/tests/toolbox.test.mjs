@@ -161,7 +161,7 @@ test("session start activates registered SCI reads while keeping check workflows
 
   assert.equal(harness.activeTools.includes("explore_symbol_impact"), true);
   assert.equal(harness.activeTools.includes("locate_confirm_definition"), true);
-  for (const tool of ["patch_checks_in_snapshot", "structural_patch_checks", "rename_safely"]) {
+  for (const tool of ["preview_patch_checks", "rename_safely"]) {
     assert.equal(harness.activeTools.includes(tool), false);
   }
 });
@@ -832,11 +832,7 @@ test("catalog routes composite-first SCI read and risk-gated snapshot profiles",
   assert.deepEqual(read.tools, ["explore_symbol_impact", "locate_confirm_definition"]);
   assert.equal(read.risk, "read");
   assert.equal(read.requiresExplicitUserIntent, false);
-  assert.deepEqual(mutating.tools, [
-    "patch_checks_in_snapshot",
-    "structural_patch_checks",
-    "rename_safely",
-  ]);
+  assert.deepEqual(mutating.tools, ["preview_patch_checks", "rename_safely"]);
   assert.equal(mutating.risk, "mutating");
   assert.equal(mutating.requiresExplicitUserIntent, true);
 
