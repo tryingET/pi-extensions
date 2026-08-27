@@ -19,6 +19,14 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function normalizeNpmViewMultiFieldOutput(value) {
+  // npm 11 emits the selected fields as an object; npm 12 wraps that same object
+  // in a singleton array. No other array shape identifies one unambiguous result.
+  if (isRecord(value)) return value;
+  if (Array.isArray(value) && value.length === 1 && isRecord(value[0])) return value[0];
+  return null;
+}
+
 function parseStrictSemver(version) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
   return match
@@ -161,8 +169,17 @@ export function parseAscRegistryReleaseStateLookup(result) {
 
   try {
     const parsed = JSON.parse(String(result.stdout ?? ""));
-    const versions = Array.isArray(parsed?.versions) ? parsed.versions : [];
-    const time = isRecord(parsed?.time) ? parsed.time : {};
+    const metadata = normalizeNpmViewMultiFieldOutput(parsed);
+    if (!metadata) {
+      return {
+        ok: false,
+        versions: [],
+        time: {},
+        error: "ASC registry release state has an unsupported npm view --json shape.",
+      };
+    }
+    const versions = Array.isArray(metadata.versions) ? metadata.versions : [];
+    const time = isRecord(metadata.time) ? metadata.time : {};
     if (
       versions.length === 0 ||
       versions.some((version) => typeof version !== "string" || !parseStrictSemver(version)) ||
@@ -214,8 +231,15 @@ export function parseAscRegistryArtifactLookup(result, selectedVersion) {
   }
 
   try {
-    const artifact = JSON.parse(String(result.stdout ?? ""));
-    if (artifact?.version !== selectedVersion || !isRecord(artifact?.dist)) {
+    const parsed = JSON.parse(String(result.stdout ?? ""));
+    const artifact = normalizeNpmViewMultiFieldOutput(parsed);
+    if (!artifact) {
+      return {
+        ok: false,
+        error: `Registry artifact metadata for ${ASC_PACKAGE_NAME}@${selectedVersion} has an unsupported npm view --json shape.`,
+      };
+    }
+    if (artifact.version !== selectedVersion || !isRecord(artifact.dist)) {
       return {
         ok: false,
         error: `Registry artifact metadata did not identify ${ASC_PACKAGE_NAME}@${selectedVersion}.`,

@@ -202,6 +202,55 @@ test("registry metadata lookups request release times and exact artifact provena
   assert.equal(calls[0].options.encoding, "utf8");
 });
 
+test("registry metadata parsers accept npm 11 objects and npm 12 singleton arrays", () => {
+  const releaseState = createRegistryReleaseState();
+  const artifact = createRegistryArtifact("0.5.1");
+
+  for (const output of [releaseState, [releaseState]]) {
+    const result = parseAscRegistryReleaseStateLookup({
+      status: 0,
+      stdout: JSON.stringify(output),
+      stderr: "",
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.versions, releaseState.versions);
+    assert.deepEqual(result.time, releaseState.time);
+  }
+
+  for (const output of [artifact, [artifact]]) {
+    const result = parseAscRegistryArtifactLookup(
+      { status: 0, stdout: JSON.stringify(output), stderr: "" },
+      "0.5.1",
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.artifact, artifact);
+  }
+});
+
+test("registry metadata parsers reject malformed or ambiguous npm multi-field arrays", () => {
+  const releaseState = createRegistryReleaseState();
+  const artifact = createRegistryArtifact("0.5.1");
+
+  for (const output of [[], [null], [[releaseState]], [releaseState, releaseState]]) {
+    const result = parseAscRegistryReleaseStateLookup({
+      status: 0,
+      stdout: JSON.stringify(output),
+      stderr: "",
+    });
+    assert.equal(result.ok, false, `expected release state to reject ${JSON.stringify(output)}`);
+    assert.deepEqual(result.versions, []);
+    assert.deepEqual(result.time, {});
+  }
+
+  for (const output of [[], [null], [[artifact]], [artifact, artifact]]) {
+    const result = parseAscRegistryArtifactLookup(
+      { status: 0, stdout: JSON.stringify(output), stderr: "" },
+      "0.5.1",
+    );
+    assert.equal(result.ok, false, `expected artifact to reject ${JSON.stringify(output)}`);
+  }
+});
+
 test("registry metadata parsers fail closed", () => {
   for (const stdout of ["", "not-json", "{}", '{"versions":["0.5.1"],"time":{}}']) {
     assert.equal(
