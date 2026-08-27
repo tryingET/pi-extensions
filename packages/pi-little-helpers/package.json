@@ -68,6 +68,7 @@
     "extensions/sidequestLaunch.ts",
     "extensions/sidequestLaunchPlacement.ts",
     "extensions/sidequestLaunchResult.ts",
+    "extensions/sidequestVisibleLoopAdapter.ts",
     "extensions/stash.ts",
     "lib/codex-reset.ts",
     "lib/package-utils.ts",
