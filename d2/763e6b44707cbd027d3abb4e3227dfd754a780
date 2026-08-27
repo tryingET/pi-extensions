@@ -13,7 +13,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run quality:pre-push"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
