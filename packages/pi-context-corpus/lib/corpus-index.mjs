@@ -145,6 +145,9 @@ export function buildEntry(strataFile, corpusDir, htmlDir, { sourceSession = nul
     id,
     source,
     sourceSession,
+    // measured provenance from strata meta (overlay reads it from the session header);
+    // absent when the artifact predates the field — never inferred from directory names
+    cwd: typeof strata.meta.cwd === "string" && strata.meta.cwd ? strata.meta.cwd : null,
     replayStatus: status,
     html,
     models,
@@ -188,6 +191,7 @@ export function buildIndex(corpusDir, { failedSessions = [], sessionSources = {}
       id: failed.id,
       source: failed.source ?? null,
       sourceSession: failed.sourceSession ?? null,
+      cwd: null,
       replayStatus: "failed",
       html: null,
       error: failed.error ?? "replay produced no strata.json",

@@ -26,7 +26,7 @@ const REPLAY = join(PKG, "..", "pi-context-overlay", "scripts", "context-strata-
 // Minimal valid session: header + user + one measured assistant request (mirrors the
 // overlay's own linear fixture shape, with benign synthetic content only).
 const syntheticSession = [
-  JSON.stringify({ type: "session", id: "root", parentId: null }),
+  JSON.stringify({ type: "session", id: "root", parentId: null, cwd: "/synthetic/probe-repo" }),
   JSON.stringify({
     type: "message",
     id: "u1",
@@ -70,6 +70,8 @@ test("corpus consumes real overlay replay output; IR carries schemaVersion + est
   assert.equal(strata.meta.schemaVersion, 1);
   assert.equal(typeof strata.meta.estimator, "string");
   assert.ok(strata.meta.estimator.length > 0);
+  // measured provenance flows end-to-end: header cwd -> meta.cwd
+  assert.equal(strata.meta.cwd, "/synthetic/probe-repo");
 
   // The corpus index classifies the real artifact end-to-end.
   const index = JSON.parse(readFileSync(join(root, "corpus", "index.json"), "utf8"));
@@ -81,6 +83,7 @@ test("corpus consumes real overlay replay output; IR carries schemaVersion + est
   assert.equal(entry.requests, 1);
   assert.equal(entry.onChainCostUsd, 0.01);
   assert.deepEqual(entry.models, ["synthetic/model"]);
+  assert.equal(entry.cwd, "/synthetic/probe-repo");
 });
 
 test("corpus tolerates pre-versioning strata artifacts (absent schemaVersion stays readable)", (t) => {

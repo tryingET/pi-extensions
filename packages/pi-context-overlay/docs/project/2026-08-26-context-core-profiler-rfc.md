@@ -159,7 +159,7 @@ ring). Warm/cold split remains forensic-only.
 - `scripts/context-strata.template.html` — seven instruments; era membership from the fault
   list (empty-summary compaction still breaks strata); bedrock wins birthR ties so it sits at
   the base; hover/zoom use the same `plotW = width − PADX − PADR` mapping as the renderer.
-- `tests/context-strata-lib.test.mjs` — 15 `node:test` cases pinning conservation, warmth,
+- `tests/context-strata-lib.test.mjs` — 17 `node:test` cases pinning conservation, warmth,
   inclusive residency across faults, empty-summary faults, branch exclusion, liveness
   boundaries, and zero-request sessions.
 - `tests/context-overlay.test.ts` — 16 cases pinning the live TUI surface (occupancy strip
@@ -272,9 +272,10 @@ Still open:
   Self-identity is provenance, not convenience: the overlay emits `meta.schemaVersion` and
   `meta.estimator` (binds `wasteRatio`/ghosts to the miner that produced them). Derived
   convenience fields (`gitBranch`-style labels) remain refused.
-- **`meta.cwd` proposal stands** (measured provenance from the session header; boundary rule:
-  measured provenance may cross into the IR, derived convenience never). Not yet implemented;
-  corpus records `sourceSession` meanwhile and never infers cwd from directory names.
+- **`meta.cwd` shipped** (2026-08-26 dogfood slice): the overlay reads the session header
+  cwd (measured provenance; absent header cwd stays absent) and emits `meta.cwd`; the corpus
+  surfaces it per session. Boundary rule held: measured provenance may cross into the IR,
+  derived convenience never; the corpus never infers cwd from directory names.
 - **Wire-order evidence gate.** No P3 instrument may make positional claims until wire-order
   drift is measured (≥3 real sessions, ≥2 providers, a `warmthAgreement.mae`-style drift bound
   over prefix-divergence points). Order-free quantities (token-turns, $, cacheHit, runway
@@ -325,7 +326,7 @@ Still open:
 ```bash
 # forensic replay: strata.json, requests.csv, speedscope.json, context-strata.html
 node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
-# model tests (15) + live TUI tests (16) + freshness/P3 gates
+# model tests (17) + live TUI tests (16) + freshness/P3 gates
 node --test tests/context-strata-lib.test.mjs tests/context-overlay.test.ts tests/rfc-freshness.test.mjs
 # corpus side: see packages/pi-context-corpus/README.md (index/project CLI + 20-test suite)
 ```

@@ -155,3 +155,33 @@ entry-key contract); ADR written at
 (shipped scope only; P3/P4 excluded; cross-refs this package's AGENTS/README by name).
 
 Corpus suite: 22/22. Freshness gates: 5/5. Both package gates green.
+
+## Dogfood slice (2026-08-26): `meta.cwd` shipped and verified by use
+
+Implemented the ADR's accepted-but-unimplemented decision: the overlay reads
+the session header `cwd` (measured; absent stays absent — additive) and emits
+`meta.cwd`; the corpus surfaces it per session and in the switcher (muted,
+truncated, title-carrying cell). Never inferred from directory names.
+
+Tests: overlay 17 model tests (+2 cwd pins), corpus 22 (cross-check now asserts
+`header cwd -> meta.cwd -> index.cwd` end-to-end through the real replayer).
+
+**Dogfood proof (6 real sessions, 5 distinct repos, one batch run):**
+
+| cwd | requests | on-chain $ |
+|---|---|---|
+| owned/designmd-foundry | 466 | 44.98 |
+| owned/pi-extensions | 300 | 33.03 |
+| owned/dspx | 336 | 30.98 |
+| /home/tryinget (home) | 362 | 30.72 |
+| owned/semantic-code-intelligence | 200 | 19.13 |
+| infra/workstation | 103 | 10.31 |
+
+Verification: for each session, index `cwd` == the session's own header `cwd`
+read independently via jq — **6/6 MATCH** (measured vs measured, separate read
+paths); 6 cwd cells present in `index.html`. The corpus now answers "which repo
+did what spend" across a real fleet — previously unanswerable without cwd.
+
+Note: the rendered-vs-tree freshness gate fired during this slice (15→17 model
+tests, RFC count stale) and was fixed by updating the RFC — first real catch of
+the round-2 staleness mechanism.

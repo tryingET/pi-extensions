@@ -9,15 +9,48 @@
     "costTotal": 0.04,
     "cacheHit": 0.5,
     "faults": [],
-    "runway": { "residentLast": 20, "contextWindow": 200000, "requestsRemaining": 100 },
-    "warmthAgreement": { "n": 1, "mae": 0 },
-    "forks": { "count": 0 },
-    "modelChanges": [{ "r": 0, "model": "any/model" }],
+    "runway": {
+      "residentLast": 20,
+      "contextWindow": 200000,
+      "requestsRemaining": 100
+    },
+    "warmthAgreement": {
+      "n": 1,
+      "mae": 0
+    },
+    "forks": {
+      "count": 0
+    },
+    "modelChanges": [
+      {
+        "r": 0,
+        "model": "any/model"
+      }
+    ],
     "tokenTurns": 20,
     "wasteRatio": 0,
-    "someFutureMetaField": { "nested": ["unknown", "additive"] }
+    "someFutureMetaField": {
+      "nested": [
+        "unknown",
+        "additive"
+      ]
+    },
+    "cwd": "/home/op/z"
   },
-  "requests": [{}],
-  "items": [{ "c": "user", "l": "u", "t": 20, "b": 0, "f": 0, "tt": 20, "d": 0, "r": 0 }],
+  "requests": [
+    {}
+  ],
+  "items": [
+    {
+      "c": "user",
+      "l": "u",
+      "t": 20,
+      "b": 0,
+      "f": 0,
+      "tt": 20,
+      "d": 0,
+      "r": 0
+    }
+  ],
   "someFutureTopLevelField": true
 }

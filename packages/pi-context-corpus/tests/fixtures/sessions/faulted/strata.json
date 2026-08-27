@@ -19,7 +19,11 @@
     "wasteRatio": 0.5,
     "pathedTokenTurns": 1000,
     "calibrationFactor": 1.05,
-    "faults": [{ "r": 1 }],
+    "faults": [
+      {
+        "r": 1
+      }
+    ],
     "runway": {
       "residentLast": 400,
       "burnPerRequest": 0,
@@ -28,35 +32,173 @@
       "rebaselinedAfterFault": true,
       "requestsRemaining": null
     },
-    "excludedBranches": { "records": 1, "requests": 1, "costTotal": 0.01 },
-    "forks": { "count": 1, "tokenTurns": 200, "tokens": 100 },
-    "warmthAgreement": { "n": 3, "mae": 0.12 },
+    "excludedBranches": {
+      "records": 1,
+      "requests": 1,
+      "costTotal": 0.01
+    },
+    "forks": {
+      "count": 1,
+      "tokenTurns": 200,
+      "tokens": 100
+    },
+    "warmthAgreement": {
+      "n": 3,
+      "mae": 0.12
+    },
     "modelChanges": [
-      { "r": 0, "model": "anthropic/claude-sonnet-4-5" },
-      { "r": 2, "model": "openai/gpt-5.2" }
-    ]
+      {
+        "r": 0,
+        "model": "anthropic/claude-sonnet-4-5"
+      },
+      {
+        "r": 2,
+        "model": "openai/gpt-5.2"
+      }
+    ],
+    "cwd": "/home/op/y"
   },
   "cats": [
-    { "id": "system", "label": "system + overhead", "color": "#5b6478" },
-    { "id": "summary", "label": "compaction summary", "color": "#6fbf8f" }
+    {
+      "id": "system",
+      "label": "system + overhead",
+      "color": "#5b6478"
+    },
+    {
+      "id": "summary",
+      "label": "compaction summary",
+      "color": "#6fbf8f"
+    }
   ],
   "requests": [
-    { "r": 0, "turn": 0, "ts": "2026-01-01T00:00:01Z", "model": "anthropic/claude-sonnet-4-5", "input": 2000, "cacheRead": 0, "cacheWrite": 0, "output": 10, "residentEst": 2000, "warmModelTokens": 0, "costInput": 0.03, "costCacheRead": 0, "costOutput": 0.01, "costTotal": 0.04 },
-    { "r": 1, "turn": 1, "ts": "2026-01-01T00:01:01Z", "model": "anthropic/claude-sonnet-4-5", "input": 100, "cacheRead": 1900, "cacheWrite": 0, "output": 10, "residentEst": 2100, "warmModelTokens": 2000, "costInput": 0.001, "costCacheRead": 0.02, "costOutput": 0.01, "costTotal": 0.031 },
-    { "r": 2, "turn": 2, "ts": "2026-01-01T00:03:01Z", "model": "openai/gpt-5.2", "input": 400, "cacheRead": 1100, "cacheWrite": 100, "output": 10, "residentEst": 400, "warmModelTokens": 300, "costInput": 0.004, "costCacheRead": 0.02, "costOutput": 0.01, "costTotal": 0.034 }
+    {
+      "r": 0,
+      "turn": 0,
+      "ts": "2026-01-01T00:00:01Z",
+      "model": "anthropic/claude-sonnet-4-5",
+      "input": 2000,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "output": 10,
+      "residentEst": 2000,
+      "warmModelTokens": 0,
+      "costInput": 0.03,
+      "costCacheRead": 0,
+      "costOutput": 0.01,
+      "costTotal": 0.04
+    },
+    {
+      "r": 1,
+      "turn": 1,
+      "ts": "2026-01-01T00:01:01Z",
+      "model": "anthropic/claude-sonnet-4-5",
+      "input": 100,
+      "cacheRead": 1900,
+      "cacheWrite": 0,
+      "output": 10,
+      "residentEst": 2100,
+      "warmModelTokens": 2000,
+      "costInput": 0.001,
+      "costCacheRead": 0.02,
+      "costOutput": 0.01,
+      "costTotal": 0.031
+    },
+    {
+      "r": 2,
+      "turn": 2,
+      "ts": "2026-01-01T00:03:01Z",
+      "model": "openai/gpt-5.2",
+      "input": 400,
+      "cacheRead": 1100,
+      "cacheWrite": 100,
+      "output": 10,
+      "residentEst": 400,
+      "warmModelTokens": 300,
+      "costInput": 0.004,
+      "costCacheRead": 0.02,
+      "costOutput": 0.01,
+      "costTotal": 0.034
+    }
   ],
   "series": {
-    "system": [800, 800, 800],
-    "summary": [0, 0, 200]
+    "system": [
+      800,
+      800,
+      800
+    ],
+    "summary": [
+      0,
+      0,
+      200
+    ]
   },
   "items": [
-    { "c": "system", "l": "bedrock", "t": 800, "b": 0, "f": 2, "tt": 2400, "d": 0, "r": 0 },
-    { "c": "summary", "l": "summary of everything", "t": 200, "b": 2, "f": 2, "tt": 200, "d": 0, "r": 0 },
-    { "c": "toolCall", "l": "read", "p": "/y/dead.ts", "t": 500, "b": 0, "f": 1, "tt": 1000, "d": 1, "r": 0 },
-    { "c": "assistantText", "l": "text", "t": 1000, "b": 1, "f": 1, "tt": 1000, "d": 0, "r": 0 },
-    { "c": "toolResult", "l": "read", "t": 400, "b": 2, "f": 2, "tt": 400, "d": 0, "r": 0 }
+    {
+      "c": "system",
+      "l": "bedrock",
+      "t": 800,
+      "b": 0,
+      "f": 2,
+      "tt": 2400,
+      "d": 0,
+      "r": 0
+    },
+    {
+      "c": "summary",
+      "l": "summary of everything",
+      "t": 200,
+      "b": 2,
+      "f": 2,
+      "tt": 200,
+      "d": 0,
+      "r": 0
+    },
+    {
+      "c": "toolCall",
+      "l": "read",
+      "p": "/y/dead.ts",
+      "t": 500,
+      "b": 0,
+      "f": 1,
+      "tt": 1000,
+      "d": 1,
+      "r": 0
+    },
+    {
+      "c": "assistantText",
+      "l": "text",
+      "t": 1000,
+      "b": 1,
+      "f": 1,
+      "tt": 1000,
+      "d": 0,
+      "r": 0
+    },
+    {
+      "c": "toolResult",
+      "l": "read",
+      "t": 400,
+      "b": 2,
+      "f": 2,
+      "tt": 400,
+      "d": 0,
+      "r": 0
+    }
   ],
-  "sankey": { "links": [] },
-  "dedup": { "groups": 1, "savedTokens": 50 },
-  "ghosts": [{ "label": "dead.ts (read)", "tokens": 500, "born": 0, "freed": 1, "tokenTurns": 1000 }]
+  "sankey": {
+    "links": []
+  },
+  "dedup": {
+    "groups": 1,
+    "savedTokens": 50
+  },
+  "ghosts": [
+    {
+      "label": "dead.ts (read)",
+      "tokens": 500,
+      "born": 0,
+      "freed": 1,
+      "tokenTurns": 1000
+    }
+  ]
 }

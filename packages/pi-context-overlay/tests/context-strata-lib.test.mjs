@@ -9,7 +9,12 @@ import test from "node:test";
 import { buildActiveChain, buildStrataModel } from "../scripts/context-strata-lib.mjs";
 
 const line = (obj) => JSON.stringify(obj);
-const session = (id, parentId) => ({ type: "session", id, parentId: parentId ?? null });
+const session = (id, parentId, cwd) => ({
+  type: "session",
+  id,
+  parentId: parentId ?? null,
+  ...(cwd ? { cwd } : {}),
+});
 const userMsg = (id, parentId, text) => ({
   type: "message",
   id,
@@ -339,4 +344,19 @@ test("parent-side dispatch_subagent forks are counted, not rolled up as child ar
   const { strata } = buildStrataModel(recs.join("\n"));
   assert.equal(strata.meta.forks.count, 1);
   assert.ok(strata.meta.forks.tokenTurns >= 0);
+});
+
+test("meta.cwd: measured provenance from the session header crosses into the IR", () => {
+  const text = [
+    line(session("root", null, "/home/op/some-repo")),
+    line(userMsg("u1", "root", "go")),
+    line(assistant("a1", "u1", { input: 500, cacheRead: 0, output: 1, cost: { total: 0 } }, [])),
+  ].join("\n");
+  const { strata } = buildStrataModel(text);
+  assert.equal(strata.meta.cwd, "/home/op/some-repo");
+});
+
+test("meta.cwd: absent header cwd stays absent (additive, never invented)", () => {
+  const { strata } = buildStrataModel(LINEAR); // fixture header carries no cwd
+  assert.equal("cwd" in strata.meta, false);
 });

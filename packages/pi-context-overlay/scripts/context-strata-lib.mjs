@@ -423,6 +423,10 @@ export function buildStrataModel(sessionText, opts = {}) {
       dedup,
       excludedBranches,
       forks,
+      // measured provenance from the session header (IR contract: may cross; absent stays absent)
+      cwd:
+        allRecords.find((r) => r?.type === "session" && typeof r.cwd === "string" && r.cwd)?.cwd ??
+        null,
     },
     { contextWindow: CONTEXT_WINDOW, generatedAt: opts.generatedAt, sourceFile: opts.sourceFile },
   );

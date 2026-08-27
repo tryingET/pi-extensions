@@ -42,6 +42,7 @@ export function assembleStrata(
     dedup,
     excludedBranches,
     forks,
+    cwd,
   },
   opts = {},
 ) {
@@ -212,6 +213,9 @@ export function assembleStrata(
     meta: {
       schemaVersion: IR_SCHEMA_VERSION,
       estimator: IR_ESTIMATOR,
+      // measured provenance from the session header; absent (not null) when the header
+      // carried no cwd, so legacy/artifact shapes stay additive-clean
+      ...(cwd ? { cwd } : {}),
       generatedAt: opts.generatedAt ?? new Date().toISOString(),
       ...totals,
       cacheHit,

@@ -72,7 +72,8 @@ Unknown names fail closed with the available listing (both via the CLI and via j
 
 Per-session entries carry `id`, `source`, `sourceSession` (measured provenance:
 the operator-given session `.jsonl` path, recorded verbatim in batch mode;
-`null` otherwise), `replayStatus` (`ok` | `empty` | `failed` | `unsupported`), `html`
+`null` otherwise), `cwd` (measured from the session header via `meta.cwd`;
+`null` when absent), `replayStatus` (`ok` | `empty` | `failed` | `unsupported`), `html`
 (relative link when present), and derived facts sourced only from strata
 `meta`/`requests`: `models`, `requests`, `turns`, `faults`, `lastFaultR`,
 `onChainCostUsd`, `cacheHitShare`, `warmthAgreementMae`, `forks`,
@@ -97,10 +98,10 @@ projection — never a new column, never a widget.
 `$` descending, failed sessions last (still listed), ties broken by id. The
 HTML computes nothing; ranking questions route to jq.
 
-Known gap: `strata.json` does not carry a session `cwd`, so the index cannot
-expose one without an overlay-side change (proposed to the overlay RFC §9; do
-not fork the schema from here, and never decode `cwd` from the sessions
-directory name — that would be inferred class posing as measured).
+`cwd` carries the session's working directory as measured provenance (`meta.cwd`, read
+from the session header by the overlay; `null` for artifacts that predate the field).
+It is never inferred from the sessions directory name — that would be inferred class
+posing as measured.
 
 ## Content rules
 
