@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.4.0...pi-workstation-inference-provider-v0.4.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate install-only release checks ([e83c9bd](https://github.com/tryingET/pi-extensions/commit/e83c9bdefbcf5406e8eb4be6beef7245ed0eb655))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-workstation-inference-provider-v0.3.2...pi-workstation-inference-provider-v0.4.0) (2026-08-22)
 
 
