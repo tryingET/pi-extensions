@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.3.1...pi-modes-v0.3.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* honor fast-xml-parser 5.3.6 override in five host-closure locks ([a4ff737](https://github.com/tryingET/pi-extensions/commit/a4ff737ac4a4620c302b65da2bd20a2ed0585d8c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **pi-modes:** match Pi 0.84.2 custom-base bytes ([cfd53e4](https://github.com/tryingET/pi-extensions/commit/cfd53e43939be9e248a87c7691443ece37c24632))
+
 ## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-modes-v0.3.0...pi-modes-v0.3.1) (2026-08-15)
 
 
