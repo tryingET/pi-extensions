@@ -15,7 +15,7 @@ system4d:
 Status: **P1 forensic shipped and reviewed** (replayer + visual artifact + conservation tests);
 **P2 live occupancy + icicle shipped and operator-verified**; **P2.5 corpus graduate shipped**
 (`packages/pi-context-corpus`, non-live). Open: geological live counterpart (warm/cold,
-runway, session-history core), child-arena rollup, wire-order drift measurement,
+runway, session-history core), cross-session bedrock comparison, provider
 provider-generality of warmth pricing, P3/P4. `strata.json` is a **declared cross-package
 IR** (§9 contract).
 
@@ -159,7 +159,7 @@ ring). Warm/cold split remains forensic-only.
 - `scripts/context-strata.template.html` — seven instruments; era membership from the fault
   list (empty-summary compaction still breaks strata); bedrock wins birthR ties so it sits at
   the base; hover/zoom use the same `plotW = width − PADX − PADR` mapping as the renderer.
-- `tests/context-strata-lib.test.mjs` — 22 `node:test` cases pinning conservation, warmth,
+- `tests/context-strata-lib.test.mjs` — 24 `node:test` cases pinning conservation, warmth,
   inclusive residency across faults, empty-summary faults, branch exclusion, liveness
   boundaries, and zero-request sessions.
 - `tests/context-overlay.test.ts` — 16 cases pinning the live TUI surface (occupancy strip
@@ -219,7 +219,17 @@ Resolved in the follow-up slice:
 Still open:
 - **Provider serialization vs file order**: y-axis is replay order, not wire order. Measured
   `cacheRead` still tracks the prefix model; `meta.warmthAgreement.mae` now reports the gap.
-- **Child-arena rollup**: `--data-agnt-*` session files are not joined as fork-cost children.
+- **Child-arena rollup — resolved (2026-08-27)**: `context-strata-replay.mjs --children <glob>`
+  attributes direct-child session costs under `meta.forks.children[]` (bounded measured
+  aggregates from each child's own replay; `childrenOnChainCostUsd`; scan accounting;
+  depth 1 — grandchildren link to children and are excluded). **Attribution, not modeling**:
+  the parent arena is untouched (requests/series identical with/without the flag; test-pinned).
+  Linkage is measured: the runtime records the parent JSONL path in each child header's
+  `parentSession`; matching is exact (resolved/canonicalized), no inference, and candidate
+  files come only from the operator-provided glob (no bulk session inventory). Evidence:
+  `docs/project/2026-08-27-child-arena-rollup.md`. Open: whether the corpus index surfaces
+  `childrenOnChainCostUsd` (would change spend semantics from parent-only to
+  parent+direct-children — a labeling decision, not a derivation).
 - **Live TUI (P2 occupancy + icicle shipped)**: `/c` is a current-window inspector with a
   groups list (default) and icicle mode. Forensic ledger/JSONL still does not feed the
   overlay. Missing vs the geological live counterpart: warm/cold split, runway slope,
@@ -229,7 +239,7 @@ Still open:
 
 - **P1 — forensic (done, post-review + debt slice)**: replay, artifact, chain walk, conservation
   tests, path-qualified liveness, post-fault runway, model-change ticks, parent-side forks.
-  Next: child-arena rollup, cross-session bedrock comparison.
+  Child-arena rollup shipped 2026-08-27. Next: cross-session bedrock comparison.
 - **P2 — live TUI (shipped, occupancy + icicle)**: `/c` header occupancy strip from host
   `ContextUsage` `{ tokens, contextWindow, percent }` (unknown when `tokens` is null; no
   fabricated warmth; no runway — live overlay does not keep a snapshot ring). Icicle mode
@@ -339,7 +349,7 @@ Still open:
 ```bash
 # forensic replay: strata.json, requests.csv, speedscope.json, context-strata.html
 node scripts/context-strata-replay.mjs <session.jsonl> [--out DIR] [--window 200000]
-# model tests (22) + live TUI tests (16) + freshness/P3 gates
+# model tests (24) + live TUI tests (16) + freshness/P3 gates
 node --test tests/context-strata-lib.test.mjs tests/context-overlay.test.ts tests/rfc-freshness.test.mjs
 # corpus side: see packages/pi-context-corpus/README.md (index/project CLI + 20-test suite)
 ```

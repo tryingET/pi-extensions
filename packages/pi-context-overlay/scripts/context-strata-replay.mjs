@@ -7,11 +7,13 @@
 //
 // Usage:
 //   node context-strata-replay.mjs <session.jsonl> [--out DIR] [--html-out FILE] [--window N]
+//     [--children <glob of candidate child session .jsonl files>]
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { globSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { childLinkMatches, rollupChildren } from "./context-strata-forks.mjs";
 import { buildStrataModel } from "./context-strata-lib.mjs";
 
 const argv = process.argv.slice(2);
@@ -36,6 +38,35 @@ const { strata, speedscope, requestsCsv } = buildStrataModel(sessionText, {
   sourceFile: basename(file),
 });
 strata.meta.file = basename(file);
+
+// ---------- optional child-arena rollup (attribution only, never modeled) ----------
+const childrenGlob = argOf("--children", null);
+if (childrenGlob !== null) {
+  const files = globSync(childrenGlob).filter((f) => f.endsWith(".jsonl"));
+  // The runtime records the parent path as it saw it; canonicalize both spellings so a
+  // symlinked invocation still links. Matching stays exact — no inference.
+  const resolvedParent = resolve(file);
+  let canonicalParent = null;
+  try {
+    canonicalParent = realpathSync(resolvedParent);
+  } catch {
+    canonicalParent = null;
+  }
+  const matchesParent = (header) =>
+    childLinkMatches(header, resolvedParent) ||
+    (canonicalParent !== null && childLinkMatches(header, canonicalParent));
+  const rollup = rollupChildren({ files, matchesParent });
+  strata.meta.forks = {
+    ...strata.meta.forks,
+    children: rollup.children,
+    childrenOnChainCostUsd: rollup.childrenOnChainCostUsd,
+    childrenScan: rollup.scan,
+    childrenDepth: rollup.depth,
+  };
+  console.log(
+    `children: ${rollup.children.length} direct (scan ${rollup.scan.scanned}: matched ${rollup.scan.matched}, unmatched ${rollup.scan.unmatched}, unreadable ${rollup.scan.unreadable}) on-chain $${rollup.childrenOnChainCostUsd.toFixed(2)} — attribution only, not modeled`,
+  );
+}
 
 writeFileSync(join(OUT_DIR, "strata.json"), JSON.stringify(strata));
 writeFileSync(join(OUT_DIR, "requests.csv"), requestsCsv);

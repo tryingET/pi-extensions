@@ -4,8 +4,11 @@
 //   - "Changing context-strata-lib.mjs replay or allocation modeling."
 // ---
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
-
+import { childLinkMatches, rollupChildren } from "../scripts/context-strata-forks.mjs";
 import { buildActiveChain, buildStrataModel } from "../scripts/context-strata-lib.mjs";
 import { compactionTradeoff } from "../scripts/context-strata-tradeoff.mjs";
 
@@ -520,5 +523,107 @@ test("compaction tradeoff: integrates into strata.meta on a faulted session", ()
   if (t.available) {
     assert.ok(t.freedTokensPerRequest > 0);
     assert.ok(Number.isFinite(t.breakEvenRequests));
+  }
+});
+
+// ---------- child-arena fork rollup (attribution, not modeling) ----------
+
+test("fork rollup: direct children attributed by exact parentSession link; grandchildren excluded; arena untouched", () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-strata-forks-"));
+  try {
+    const parentFile = join(root, "parent.jsonl");
+    const childFile = join(root, "child.jsonl");
+    const grandchildFile = join(root, "grandchild.jsonl");
+    const strangerFile = join(root, "stranger.jsonl");
+    const childSession = [
+      line(session("c1", null, "/data/agnt/x")),
+      line(userMsg("u1", "c1", "child task")),
+      line(
+        assistant(
+          "a1",
+          "u1",
+          { input: 400, cacheRead: 0, output: 2, cost: { total: 0.04, input: 0.04, cacheRead: 0 } },
+          [],
+        ),
+      ),
+    ].join("\n");
+    writeFileSync(
+      childFile,
+      `${JSON.stringify({ type: "session", id: "c1", parentId: null, cwd: "/data/agnt/x", parentSession: parentFile })}\n${childSession.split("\n").slice(1).join("\n")}\n`,
+    );
+    // grandchild links to the child, NOT the parent -> must not roll up into parent
+    writeFileSync(
+      grandchildFile,
+      `${JSON.stringify({ type: "session", id: "g1", parentSession: childFile })}\n{}\n`,
+    );
+    writeFileSync(
+      strangerFile,
+      `${JSON.stringify({ type: "session", id: "s1", parentSession: "/elsewhere/other.jsonl" })}\n{}\n`,
+    );
+
+    const files = [childFile, grandchildFile, strangerFile];
+    const matchesParent = (header) => childLinkMatches(header, parentFile);
+    const rollup = rollupChildren({ files, matchesParent });
+
+    assert.equal(rollup.children.length, 1);
+    const only = rollup.children[0];
+    assert.equal(only.id, "c1");
+    assert.equal(only.requests, 1);
+    assert.ok(Math.abs(only.costTotal - 0.04) < 1e-12);
+    assert.equal(only.cwd, "/data/agnt/x");
+    assert.ok(Math.abs(rollup.childrenOnChainCostUsd - 0.04) < 1e-12);
+    assert.deepEqual(rollup.scan, { scanned: 3, matched: 1, unreadable: 0, unmatched: 2 });
+    assert.equal(rollup.depth, 1);
+
+    // attribution never touches the parent arena: identical model with/without rollup
+    const parentText = [
+      line(session("root")),
+      line(userMsg("u1", "root", "go")),
+      line(assistant("a1", "u1", { input: 500, cacheRead: 0, output: 1, cost: { total: 0 } }, [])),
+    ].join("\n");
+    const before = buildStrataModel(parentText).strata;
+    assert.equal(before.requests.length, 1);
+    assert.equal(before.meta.requests, 1);
+    assert.equal(before.meta.costTotal, 0);
+    // simulating the CLI attach: forks gains children keys; requests/series unchanged
+    const after = {
+      ...before,
+      meta: {
+        ...before.meta,
+        forks: {
+          ...before.meta.forks,
+          children: rollup.children,
+          childrenOnChainCostUsd: rollup.childrenOnChainCostUsd,
+          childrenScan: rollup.scan,
+          childrenDepth: 1,
+        },
+      },
+    };
+    assert.deepEqual(after.requests, before.requests);
+    assert.deepEqual(after.series, before.series);
+    assert.equal(after.meta.requests, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("fork rollup: unreadable and empty candidates are counted, never crash, never listed", () => {
+  const root = mkdtempSync(join(tmpdir(), "pi-strata-forks2-"));
+  try {
+    const broken = join(root, "broken.jsonl");
+    writeFileSync(broken, "not json at all\n");
+    const emptyLink = join(root, "empty.jsonl");
+    writeFileSync(emptyLink, `${JSON.stringify({ type: "session", id: "e1" })}\n`);
+    const rollup = rollupChildren({
+      files: [broken, emptyLink],
+      matchesParent: (h) => h?.id === "e1", // empty links to parent but has no records
+    });
+    // empty child links but its model replays to zero requests -> still listed with zeros
+    assert.equal(rollup.children.length, 1);
+    assert.equal(rollup.children[0].requests, 0);
+    assert.equal(rollup.children[0].costTotal, 0);
+    assert.deepEqual(rollup.scan, { scanned: 2, matched: 1, unreadable: 0, unmatched: 1 });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
