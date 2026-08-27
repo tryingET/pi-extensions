@@ -2,7 +2,76 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(git -C "$ROOT_DIR" rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
+
+if [[ -z "${TMPDIR:-}" ]]; then
+  if [[ "${GITHUB_ACTIONS:-}" == "true" && -n "${RUNNER_TEMP:-}" && -d "${RUNNER_TEMP:-}" ]]; then
+    TMPDIR="$RUNNER_TEMP"
+  else
+    echo "TMPDIR must point to managed disk-backed scratch storage." >&2
+    exit 1
+  fi
+fi
+if [[ ! -d "$TMPDIR" ]]; then
+  echo "TMPDIR does not exist: $TMPDIR" >&2
+  exit 1
+fi
+TMPDIR_RESOLVED="$(node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$TMPDIR")"
+if [[ "$TMPDIR_RESOLVED" == "/tmp" || "$TMPDIR_RESOLVED" == /tmp/* ]]; then
+  echo "TMPDIR must not use /tmp: $TMPDIR" >&2
+  exit 1
+fi
+export TMPDIR
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
+
+RELEASE_HOME="$(mktemp -d "$TMPDIR/pi-agent-registry-release-home.XXXXXX")"
+RELEASE_NPM_CACHE="$(mktemp -d "$TMPDIR/pi-agent-registry-release-npm-cache.XXXXXX")"
+TEST_AGENT_DIR=""
+TEST_NPM_PREFIX=""
+TEST_NPM_CACHE=""
+TARBALL_PATH=""
+mkdir -p "$RELEASE_HOME/.config" "$RELEASE_HOME/.cache"
+: > "$RELEASE_HOME/.npmrc"
+: > "$RELEASE_HOME/global.npmrc"
+
+cleanup() {
+  if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
+    for path_to_remove in \
+      "$RELEASE_HOME" \
+      "$RELEASE_NPM_CACHE" \
+      "$TEST_AGENT_DIR" \
+      "$TEST_NPM_PREFIX" \
+      "$TEST_NPM_CACHE"; do
+      if [[ -n "$path_to_remove" && -d "$path_to_remove" ]]; then
+        rm -rf "$path_to_remove"
+      fi
+    done
+    if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
+      rm -f "$TARBALL_PATH"
+    fi
+  fi
+}
+trap cleanup EXIT
+
+isolated_npm() {
+  env -i \
+    PATH="$PATH" \
+    HOME="$RELEASE_HOME" \
+    TMPDIR="$TMPDIR" \
+    TMP="$TMPDIR" \
+    TEMP="$TMPDIR" \
+    XDG_CONFIG_HOME="$RELEASE_HOME/.config" \
+    XDG_CACHE_HOME="$RELEASE_HOME/.cache" \
+    NPM_CONFIG_USERCONFIG="$RELEASE_HOME/.npmrc" \
+    npm_config_userconfig="$RELEASE_HOME/.npmrc" \
+    NPM_CONFIG_GLOBALCONFIG="$RELEASE_HOME/global.npmrc" \
+    npm_config_globalconfig="$RELEASE_HOME/global.npmrc" \
+    NPM_CONFIG_CACHE="$RELEASE_NPM_CACHE" \
+    npm_config_cache="$RELEASE_NPM_CACHE" \
+    npm "$@"
+}
 
 NAME="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")"
 VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
@@ -21,8 +90,9 @@ if [[ "$NAME" != "${NAME,,}" ]]; then
 fi
 
 echo "== npm pack --dry-run --json"
-PACK_JSON="$(npm pack --dry-run --json)"
+PACK_JSON="$(isolated_npm pack --dry-run --json)"
 echo "$PACK_JSON"
+PACK_JSON="$(printf '%s' "$PACK_JSON" | node "$REPO_ROOT/scripts/npm-pack-json.mjs")"
 
 PACK_JSON="$PACK_JSON" node <<'NODE'
 const fs = require("node:fs");
@@ -73,8 +143,13 @@ for (const entry of filesEntries) {
 }
 
 const pack = JSON.parse(process.env.PACK_JSON || "[]");
-if (!Array.isArray(pack) || !pack[0] || !Array.isArray(pack[0].files)) {
-  fail("Could not parse npm pack --dry-run --json output.");
+if (!Array.isArray(pack) || pack.length !== 1 || !pack[0] || !Array.isArray(pack[0].files)) {
+  fail("Could not parse normalized npm pack --dry-run --json output.");
+}
+if (pack[0].name !== pkg.name || pack[0].version !== pkg.version) {
+  fail(
+    `Packed identity mismatch: expected ${pkg.name}@${pkg.version}, got ${pack[0].name}@${pack[0].version}`,
+  );
 }
 
 const actual = pack[0].files.map((f) => normalize(String(f.path || ""))).filter(Boolean).sort();
@@ -125,7 +200,7 @@ NODE
 
 echo "== npm publish --dry-run"
 set +e
-PUBLISH_DRY_RUN_OUTPUT="$(npm publish --dry-run 2>&1)"
+PUBLISH_DRY_RUN_OUTPUT="$(isolated_npm publish --dry-run 2>&1)"
 PUBLISH_DRY_RUN_EXIT=$?
 set -e
 echo "$PUBLISH_DRY_RUN_OUTPUT"
@@ -138,22 +213,8 @@ if [[ "$PUBLISH_DRY_RUN_EXIT" -ne 0 ]]; then
   fi
 fi
 
-TEST_AGENT_DIR=""
-TARBALL_PATH=""
-cleanup() {
-  if [[ "${KEEP_RELEASE_ARTIFACTS:-0}" != "1" ]]; then
-    if [[ -n "$TEST_AGENT_DIR" && -d "$TEST_AGENT_DIR" ]]; then
-      rm -rf "$TEST_AGENT_DIR"
-    fi
-    if [[ -n "$TARBALL_PATH" && -f "$TARBALL_PATH" ]]; then
-      rm -f "$TARBALL_PATH"
-    fi
-  fi
-}
-trap cleanup EXIT
-
 echo "== npm pack"
-TARBALL="$(npm pack --silent | tail -n 1)"
+TARBALL="$(isolated_npm pack --silent | tail -n 1)"
 TARBALL_PATH="$ROOT_DIR/$TARBALL"
 echo "Tarball: $TARBALL_PATH"
 
@@ -164,65 +225,66 @@ else
     echo "pi CLI not found in PATH." >&2
     exit 1
   fi
-  if [[ ! -f "$HOME/.pi/agent/auth.json" ]]; then
-    echo "Missing $HOME/.pi/agent/auth.json (needed for isolated pi smoke tests)." >&2
-    echo "Tip: set SKIP_PI_SMOKE=1 for artifact-only checks." >&2
-    exit 1
-  fi
 
-  TEST_AGENT_DIR="$(mktemp -d /tmp/pi-extension-release-check-XXXXXX)"
-
-  cp "$HOME/.pi/agent/auth.json" "$TEST_AGENT_DIR/auth.json"
-
-  # Allow override via environment variables for different provider configurations
-  PI_TEST_DEFAULT_PROVIDER="${PI_TEST_DEFAULT_PROVIDER:-openai}"
-  PI_TEST_DEFAULT_MODEL="${PI_TEST_DEFAULT_MODEL:-gpt-4o}"
-  PI_TEST_ENABLED_MODELS="${PI_TEST_ENABLED_MODELS:-[\"openai/gpt-4*\"]}"
-
-  cat > "$TEST_AGENT_DIR/settings.json" <<JSON
+  TEST_AGENT_DIR="$(mktemp -d "$TMPDIR/pi-agent-registry-release-agent.XXXXXX")"
+  TEST_NPM_PREFIX="$(mktemp -d "$TMPDIR/pi-agent-registry-release-npm-prefix.XXXXXX")"
+  TEST_NPM_CACHE="$(mktemp -d "$TMPDIR/pi-agent-registry-release-npm-cache.XXXXXX")"
+  cat > "$TEST_AGENT_DIR/settings.json" <<'JSON'
 {
-  "defaultProvider": "${PI_TEST_DEFAULT_PROVIDER}",
-  "defaultModel": "${PI_TEST_DEFAULT_MODEL}",
-  "enabledModels": ${PI_TEST_ENABLED_MODELS},
-  "extensions": []
+  "extensions": [],
+  "packages": []
 }
 JSON
 
-  echo "== pi install tarball (isolated PI_CODING_AGENT_DIR)"
+  echo "== pi install tarball (isolated Pi and npm roots)"
   PACKAGE_SPEC="npm:$TARBALL_PATH"
-  PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" pi install "$PACKAGE_SPEC"
+  env -i \
+    PATH="$PATH" \
+    HOME="$RELEASE_HOME" \
+    TMPDIR="$TMPDIR" \
+    TMP="$TMPDIR" \
+    TEMP="$TMPDIR" \
+    XDG_CONFIG_HOME="$RELEASE_HOME/.config" \
+    XDG_CACHE_HOME="$RELEASE_HOME/.cache" \
+    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
+    NPM_CONFIG_USERCONFIG="$RELEASE_HOME/.npmrc" \
+    npm_config_userconfig="$RELEASE_HOME/.npmrc" \
+    NPM_CONFIG_GLOBALCONFIG="$RELEASE_HOME/global.npmrc" \
+    npm_config_globalconfig="$RELEASE_HOME/global.npmrc" \
+    NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" \
+    npm_config_prefix="$TEST_NPM_PREFIX" \
+    NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
+    npm_config_cache="$TEST_NPM_CACHE" \
+    pi install "$PACKAGE_SPEC"
 
-  echo "== verify tarball package recorded in settings"
-  TEST_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" node <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
-const settingsPath = path.join(process.env.TEST_AGENT_DIR, "settings.json");
-const packageSpec = process.env.PACKAGE_SPEC;
-const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-const packages = Array.isArray(settings.packages) ? settings.packages : [];
-const found = packages.some((entry) => {
-  if (typeof entry === "string") return entry === packageSpec;
-  if (entry && typeof entry === "object") return entry.source === packageSpec;
-  return false;
-});
-if (!found) {
-  console.error(`Could not find ${packageSpec} in settings.packages`);
-  process.exit(1);
-}
-console.log("Tarball package entry present in settings.packages.");
-NODE
-
-  if [[ -x "./scripts/release-smoke.sh" ]]; then
-    echo "== extension-specific smoke checks (scripts/release-smoke.sh)"
-    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" PACKAGE_SPEC="$PACKAGE_SPEC" bash ./scripts/release-smoke.sh
-  fi
+  echo "== extension-specific packed-runtime smoke"
+  env -i \
+    PATH="$PATH" \
+    HOME="$RELEASE_HOME" \
+    TMPDIR="$TMPDIR" \
+    TMP="$TMPDIR" \
+    TEMP="$TMPDIR" \
+    XDG_CONFIG_HOME="$RELEASE_HOME/.config" \
+    XDG_CACHE_HOME="$RELEASE_HOME/.cache" \
+    PI_CODING_AGENT_DIR="$TEST_AGENT_DIR" \
+    NPM_CONFIG_USERCONFIG="$RELEASE_HOME/.npmrc" \
+    npm_config_userconfig="$RELEASE_HOME/.npmrc" \
+    NPM_CONFIG_GLOBALCONFIG="$RELEASE_HOME/global.npmrc" \
+    npm_config_globalconfig="$RELEASE_HOME/global.npmrc" \
+    NPM_CONFIG_PREFIX="$TEST_NPM_PREFIX" \
+    npm_config_prefix="$TEST_NPM_PREFIX" \
+    NPM_CONFIG_CACHE="$TEST_NPM_CACHE" \
+    npm_config_cache="$TEST_NPM_CACHE" \
+    PACKAGE_SPEC="$PACKAGE_SPEC" \
+    bash ./scripts/release-smoke.sh
 fi
 
 echo "== npm view ${NAME} version (pre-publish may be 404)"
 set +e
-npm view "$NAME" version --json --registry https://registry.npmjs.org/
+VIEW_OUTPUT="$(isolated_npm view "$NAME" version --json --registry https://registry.npmjs.org/ 2>&1)"
 VIEW_EXIT=$?
 set -e
+echo "$VIEW_OUTPUT"
 echo "npm view exit: $VIEW_EXIT"
 if [[ "$VIEW_EXIT" -ne 0 ]]; then
   echo "Package likely not published yet (expected for first release)."
