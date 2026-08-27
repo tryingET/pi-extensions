@@ -99,7 +99,7 @@
   "dependencies": {
     "@tryinget/pi-interaction-kit": "0.2.0",
     "@tryinget/pi-runtime-registry": "0.2.0",
-    "@tryinget/pi-trigger-adapter": "0.2.0"
+    "@tryinget/pi-trigger-adapter": "0.2.2"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
