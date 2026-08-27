@@ -13,6 +13,21 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.10.2](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.10.1...pi-society-orchestrator-v0.10.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* honor fast-xml-parser 5.3.6 override in five host-closure locks ([a4ff737](https://github.com/tryingET/pi-extensions/commit/a4ff737ac4a4620c302b65da2bd20a2ed0585d8c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **orchestrator:** accept npm 12 registry metadata arrays ([52438ff](https://github.com/tryingET/pi-extensions/commit/52438ff27934b12bb4c1eaec15ff0f3b97de9e9d))
+* **orchestrator:** exclude [@tryinget](https://github.com/tryinget) ASC from the lock age floor ([06e1e2c](https://github.com/tryingET/pi-extensions/commit/06e1e2cbbc9ee7599ac65b3b553de277360a4f74))
+* **orchestrator:** governed-npm fixture scrubs ambient policy env overrides ([a25c773](https://github.com/tryingET/pi-extensions/commit/a25c7730f714bab233ba222313a782797a4bd0a2))
+* **orchestrator:** isolate release tarball install ([1d99fe9](https://github.com/tryingET/pi-extensions/commit/1d99fe93d619338c2b1624ba934a95597a2d46c3))
+* **orchestrator:** pin governed ASC registry owner to published 0.5.2 ([d859949](https://github.com/tryingET/pi-extensions/commit/d859949714fbcf23f2fbad8db4bce9817668caa7))
+* **orchestrator:** use canonical society.v2.db ([f9faf1c](https://github.com/tryingET/pi-extensions/commit/f9faf1c3726d80121705aff8e7ae32e856a07d67))
+* **pi-society-orchestrator:** fail-closed ASC ^0.5 lock on registry 0.5.1 ([1307942](https://github.com/tryingET/pi-extensions/commit/13079426535d0a8f73a20dcd63707239f754fbbc))
+
 ## [0.10.1](https://github.com/tryingET/pi-extensions/compare/pi-society-orchestrator-v0.10.0...pi-society-orchestrator-v0.10.1) (2026-08-22)
 
 
