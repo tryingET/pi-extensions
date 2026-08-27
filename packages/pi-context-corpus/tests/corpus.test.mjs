@@ -88,6 +88,8 @@ test("IR gate: unknown additive fields are ignored (unknown-field tolerance)", (
   // no unknown-field content leaks into the index beyond the pinned contract
   assert.deepEqual(Object.keys(entry).sort(), [
     "cacheHitShare",
+    "childrenCount",
+    "childrenOnChainCostUsd",
     "contextWindow",
     "cwd",
     "faults",
@@ -148,6 +150,8 @@ test("index build: linear entry matches the pinned data contract exactly", (t) =
     cacheHitShare: 0.6666666666666666,
     warmthAgreementMae: 0.05,
     forks: 0,
+    childrenCount: null,
+    childrenOnChainCostUsd: null,
     lastResidentEst: 1200,
     contextWindow: 200000,
     runwayRequestsRemaining: 1988,
@@ -272,10 +276,38 @@ test("projection: spend — on-chain $ (sum-of-reported) + cache-hit share", (t)
   const { corpusDir } = makeFixtureCorpus(t);
   const out = project("spend", "corpus/index.json", corpusDir);
   assert.deepEqual(out, [
-    { id: ID_FAULTED, onChainCostUsd: 0.09, cacheHitShare: 0.6 },
-    { id: ID_ADDITIVE, onChainCostUsd: 0.04, cacheHitShare: 0.5 },
-    { id: ID_LINEAR, onChainCostUsd: 0.03, cacheHitShare: 0.6666666666666666 },
-    { id: ID_NOREQS, onChainCostUsd: 0, cacheHitShare: 0 },
+    {
+      id: ID_FAULTED,
+      onChainCostUsd: 0.09,
+      childrenCount: 1,
+      childrenOnChainCostUsd: 7.5,
+      inclusiveOnChainCostUsd: 7.59,
+      cacheHitShare: 0.6,
+    },
+    {
+      id: ID_ADDITIVE,
+      onChainCostUsd: 0.04,
+      childrenCount: 0,
+      childrenOnChainCostUsd: 0,
+      inclusiveOnChainCostUsd: 0.04,
+      cacheHitShare: 0.5,
+    },
+    {
+      id: ID_LINEAR,
+      onChainCostUsd: 0.03,
+      childrenCount: 0,
+      childrenOnChainCostUsd: 0,
+      inclusiveOnChainCostUsd: 0.03,
+      cacheHitShare: 0.6666666666666666,
+    },
+    {
+      id: ID_NOREQS,
+      onChainCostUsd: 0,
+      childrenCount: 0,
+      childrenOnChainCostUsd: 0,
+      inclusiveOnChainCostUsd: 0,
+      cacheHitShare: 0,
+    },
   ]);
 });
 
@@ -468,6 +500,8 @@ writeFileSync(join(outDir, "context-strata.html"), "<!doctype html><title>stub</
     turns: 1,
     faults: 0,
     lastFaultR: null,
+    childrenCount: null,
+    childrenOnChainCostUsd: null,
     onChainCostUsd: 0.01,
     cacheHitShare: 0.5,
     warmthAgreementMae: 0,
@@ -600,4 +634,29 @@ test("projection: compaction — P3 tradeoff summary from one strata.json, bound
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("fork-spend labeling: own-cost sum-invariance holds and inclusive is never a stored column", (t) => {
+  const { index } = makeFixtureCorpus(t);
+  // invariant: sum(onChainCostUsd) == corpus own-total regardless of fork attribution.
+  // the child's own spend lives only in the child's own row if it were indexed; the parent's
+  // row carries its own spend only. No stored column may be an inclusive total.
+  const ownSum = index.sessions
+    .filter((s) => s.replayStatus === "ok")
+    .reduce((a, s) => a + s.onChainCostUsd, 0);
+  assert.ok(Math.abs(ownSum - (0.09 + 0.04 + 0.03 + 0)) < 1e-12);
+  // no stored inclusive column anywhere in the index
+  const flat = JSON.stringify(index);
+  assert.ok(
+    !flat.includes('"inclusiveOnChainCostUsd"'),
+    "inclusive spend must be computed at query time only",
+  );
+  // fork attribution present as its own quantity on the parent row
+  const faulted = index.sessions.find((s) => s.id === ID_FAULTED);
+  assert.equal(faulted.childrenCount, 1);
+  assert.equal(faulted.childrenOnChainCostUsd, 7.5);
+  // fork-free session: children fields are null (absent from IR), not zero
+  const linear = index.sessions.find((s) => s.id === ID_LINEAR);
+  assert.equal(linear.childrenOnChainCostUsd, null);
+  assert.equal(linear.childrenCount, null);
 });

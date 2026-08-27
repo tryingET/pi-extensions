@@ -23,8 +23,10 @@ export function expandSessionGlob(pattern) {
  * Run the replay script once per session file, writing each session's artifacts into
  * <corpusDir>/<session-stem>/. Honors TMPDIR: the replay --out is always explicit,
  * so the replay never falls back to its system tmp default.
+ * `childrenGlob` (optional) is forwarded verbatim as the replay's --children flag so
+ * fork attribution is produced by the replay owner, not re-implemented here.
  */
-export function runBatch({ sessions, replayScript, corpusDir }) {
+export function runBatch({ sessions, replayScript, corpusDir, childrenGlob = null }) {
   if (!replayScript || !existsSync(replayScript)) {
     throw new Error(`replay script not found: ${replayScript}`);
   }
@@ -33,7 +35,9 @@ export function runBatch({ sessions, replayScript, corpusDir }) {
     const id = stem(basename(session));
     const outDir = join(corpusDir, id);
     mkdirSync(outDir, { recursive: true });
-    const result = spawnSync(process.execPath, [replayScript, session, "--out", outDir], {
+    const args = [replayScript, session, "--out", outDir];
+    if (childrenGlob) args.push("--children", childrenGlob);
+    const result = spawnSync(process.execPath, args, {
       encoding: "utf8",
     });
     const ok = result.status === 0;

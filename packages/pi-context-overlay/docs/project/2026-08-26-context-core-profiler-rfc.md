@@ -166,7 +166,7 @@ ring). Warm/cold split remains forensic-only.
   null-handling, icicle, launch honesty).
 - `tests/rfc-freshness.test.mjs` — rendered-vs-tree check: RFC-claimed test counts and
   §10 command paths must match the actual tree (stale status lines fail the gate).
-- Corpus side (`packages/pi-context-corpus`): 23 `node:test` cases + a cross-package
+- Corpus side (`packages/pi-context-corpus`): 24 `node:test` cases + a cross-package
   integration test that replays a synthetic session through the real overlay replayer and
   indexes the artifact it produced (executable corpus↔overlay tie).
 - Published artifact rev 3: <https://radius.earendil.com/artifact/01m0ycwbk0frmsdf2k6a9vyyff>
@@ -227,9 +227,19 @@ Still open:
   Linkage is measured: the runtime records the parent JSONL path in each child header's
   `parentSession`; matching is exact (resolved/canonicalized), no inference, and candidate
   files come only from the operator-provided glob (no bulk session inventory). Evidence:
-  `docs/project/2026-08-27-child-arena-rollup.md`. Open: whether the corpus index surfaces
-  `childrenOnChainCostUsd` (would change spend semantics from parent-only to
-  parent+direct-children — a labeling decision, not a derivation).
+  `docs/project/2026-08-27-child-arena-rollup.md`.
+- **Fork-spend labeling — decided (2026-08-27)**: quantities stay separated.
+  `onChainCostUsd` keeps its semantics (the session's OWN on-chain spend, sum-of-reported);
+  the corpus index additionally carries `childrenOnChainCostUsd`/`childrenCount` as
+  already-derived fork-attribution facts; **inclusive spend (own + direct children) is
+  computed at query time in the `spend` projection and is never a stored column** — with
+  parents and children both indexed sessions, a stored inclusive column would break
+  `sum(own)` invariance (double-counting). Test-pinned. HTTP: trigger re-checked 2026-08-27
+  — no non-author consumer, jq answers in <100ms — **files-only stands**. P4 stays
+  unprompted (owned by `pi-session-compaction`'s next slice; the estimator-bound deadness
+  signal it would consume is already shipped). Cross-session bedrock comparison: deferred
+  with a named trigger (becomes a corpus `bedrock` projection when AGENTS-chain growth is a
+  real cost question).
 - **Live TUI (P2 occupancy + icicle shipped)**: `/c` is a current-window inspector with a
   groups list (default) and icicle mode. Forensic ledger/JSONL still does not feed the
   overlay. Missing vs the geological live counterpart: warm/cold split, runway slope,

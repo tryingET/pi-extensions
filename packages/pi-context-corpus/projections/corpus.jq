@@ -32,11 +32,20 @@ def faults:
   | map(select((.faults // 0) > 0))
   | map({id, faults, lastFaultR});
 
-# per-session on-chain $ (sum-of-reported) + measured cache-hit share
+# per-session on-chain $ (own, sum-of-reported) + fork attribution.
+# inclusiveOnChainCostUsd = own + direct-children fork spend, COMPUTED HERE (never stored —
+# storing it would break sum-invariance because parents and children are both sessions).
+# childrenOnChainCostUsd is null when the strata predates the rollup flag (no --children).
 def spend:
   .sessions
   | facts
-  | map({id, onChainCostUsd, cacheHitShare});
+  | map(. as $s
+      | {id: $s.id,
+         onChainCostUsd: $s.onChainCostUsd,
+         childrenCount: ($s.childrenCount // 0),
+         childrenOnChainCostUsd: ($s.childrenOnChainCostUsd // 0),
+         inclusiveOnChainCostUsd: ($s.onChainCostUsd + ($s.childrenOnChainCostUsd // 0)),
+         cacheHitShare: $s.cacheHitShare});
 
 # sessions ranked by mined-dead share of pathed tool token-turns
 def ghosts:

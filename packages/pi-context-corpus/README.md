@@ -95,6 +95,14 @@ carry only identity/provenance fields plus an `error` string.
 already-derived strata facts only. Any new *question* becomes a named jq
 projection — never a new column, never a widget.
 
+**Fork-spend labeling rule**: `onChainCostUsd` always means the session's own
+on-chain spend (sum-of-reported). Fork attribution is a separate quantity
+(`childrenOnChainCostUsd`/`childrenCount`, `null` when the strata predates
+`--children`). Inclusive spend (own + direct children) is **computed in the
+`spend` projection, never stored** — parents and children are both indexed
+sessions, so a stored inclusive column would double-count in any aggregate.
+`sum(onChainCostUsd)` over the index is the corpus own-total (test-pinned).
+
 **Row ordering** is chosen at build time in tested deterministic code: on-chain
 `$` descending, failed sessions last (still listed), ties broken by id. The
 HTML computes nothing; ranking questions route to jq.

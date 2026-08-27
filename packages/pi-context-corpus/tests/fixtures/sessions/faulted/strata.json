@@ -40,7 +40,29 @@
     "forks": {
       "count": 1,
       "tokenTurns": 200,
-      "tokens": 100
+      "tokens": 100,
+      "children": [
+        {
+          "id": "child-1",
+          "file": "child.jsonl",
+          "cwd": "/data/agnt/c1",
+          "requests": 5,
+          "turns": 2,
+          "faults": 0,
+          "costTotal": 7.5,
+          "cacheHit": 0.9,
+          "inputTokens": 1000,
+          "cacheReadTokens": 4000
+        }
+      ],
+      "childrenOnChainCostUsd": 7.5,
+      "childrenScan": {
+        "scanned": 9,
+        "matched": 1,
+        "unreadable": 0,
+        "unmatched": 8
+      },
+      "childrenDepth": 1
     },
     "warmthAgreement": {
       "n": 3,

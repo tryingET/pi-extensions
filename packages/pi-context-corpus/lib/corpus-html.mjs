@@ -34,6 +34,10 @@ export function renderIndexHtml(index) {
       const cwdCell = s.cwd
         ? `<span class="cwd" title="${esc(s.cwd)}">${esc(s.cwd.length > 42 ? `…${s.cwd.slice(-41)}` : s.cwd)}</span>`
         : "—";
+      const costCell =
+        s.childrenOnChainCostUsd !== null && s.childrenOnChainCostUsd !== undefined
+          ? `<span class="fork" title="direct-children on-chain $${fixed(s.childrenOnChainCostUsd)} (attribution; separate quantity from own spend)">+${fixed(s.childrenOnChainCostUsd)} fork</span>`
+          : "";
       const occupancy =
         s.lastResidentEst === null || s.lastResidentEst === undefined
           ? "—"
@@ -48,7 +52,7 @@ export function renderIndexHtml(index) {
         `<td class="num">${dash(s.requests)}</td>`,
         `<td class="num">${dash(s.turns)}</td>`,
         `<td class="num">${dash(s.faults)}</td>`,
-        `<td class="num">${fixed(s.onChainCostUsd)}</td>`,
+        `<td class="num">${fixed(s.onChainCostUsd)}${costCell}</td>`,
         `<td class="num">${pct(s.cacheHitShare)}</td>`,
         `<td class="num">${pct(s.ghostShareOfToolTokenTurns)}</td>`,
         `<td class="num">${occupancy}</td>`,
@@ -79,6 +83,7 @@ export function renderIndexHtml(index) {
   td.id a:hover { text-decoration: underline; }
   td.cats, td.cats * { white-space: normal; }
   span.cwd { color: #7a8296; }
+  span.fork { color: #8a7a5a; margin-left: 4px; }
   tr.failed td { color: #b06a5a; }
   tr.empty td { color: #8a8f9c; }
   .err { color: #7a5a52; }

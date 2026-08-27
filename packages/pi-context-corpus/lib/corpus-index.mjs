@@ -159,6 +159,11 @@ export function buildEntry(strataFile, corpusDir, htmlDir, { sourceSession = nul
     cacheHitShare: num(meta.cacheHit, 0),
     warmthAgreementMae: num(meta.warmthAgreement?.mae),
     forks: num(meta.forks?.count, 0),
+    // fork spend: an already-derived strata fact (never an inclusive total — inclusive is
+    // computed at query time in the spend projection; storing it would break sum-invariance
+    // because parents and children are both indexed sessions)
+    childrenCount: Array.isArray(meta.forks?.children) ? meta.forks.children.length : null,
+    childrenOnChainCostUsd: num(meta.forks?.childrenOnChainCostUsd),
     lastResidentEst: num(meta.runway?.residentLast),
     contextWindow: num(meta.runway?.contextWindow),
     runwayRequestsRemaining: num(meta.runway?.requestsRemaining),

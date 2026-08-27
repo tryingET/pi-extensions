@@ -185,3 +185,31 @@ did what spend" across a real fleet — previously unanswerable without cwd.
 Note: the rendered-vs-tree freshness gate fired during this slice (15→17 model
 tests, RFC count stale) and was fixed by updating the RFC — first real catch of
 the round-2 staleness mechanism.
+
+
+## Fork-spend labeling decision + dogfood (2026-08-27)
+
+Adjudicated (many-of-the-greats) and implemented: **quantities stay separated.**
+
+- `onChainCostUsd` semantics unchanged (session's OWN on-chain spend).
+- Index gains `childrenOnChainCostUsd` + `childrenCount` (already-derived fork-attribution
+  facts; `null` when the strata predates `--children`).
+- **Inclusive spend is computed in the `spend` projection, never stored** — with parents
+  and children both indexed sessions, a stored inclusive column double-counts in any
+  aggregate. Test-pinned: `sum(onChainCostUsd)` is the corpus own-total; no
+  `inclusiveOnChainCostUsd` key may appear in index.json.
+- Batch mode gained a `--children` passthrough (gap found by dogfooding: batch-produced
+  strata previously never carried fork attribution).
+- HTML: fork spend is a separate muted cell (`+743.88 fork`, hover explains it), never
+  merged into the own-$ column.
+
+**Dogfood (6 real sessions incl. the fork pair, parent and child both indexed):**
+parent own $764.84 / children $743.88 / inclusive $1508.72 (computed); child's own row
+shows $743.88 once. Corpus `sum(own) = $1648.42` — the child's spend counted exactly once.
+`storedInclusiveColumn: false` verified against the real index.
+
+Also decided: HTTP trigger re-checked (no consumer, jq <100ms) — files-only stands;
+P4 stays unprompted (owned by `pi-session-compaction`); bedrock comparison deferred with
+a named trigger. Recorded in the overlay RFC §9.
+
+Corpus suite: 24/24. Freshness gate caught the corpus count drift (23→24) mid-slice.

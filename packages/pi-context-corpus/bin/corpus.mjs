@@ -5,7 +5,7 @@
 //   - "Changing the CLI surface (index/project subcommands) or fail-closed argument handling."
 // ---
 // Usage:
-//   node bin/corpus.mjs index <corpusDir> [--sessions <glob>] [--replay-script <path>]
+//   node bin/corpus.mjs index <corpusDir> [--sessions <glob>] [--replay-script <path>] [--children <glob>]
 //   node bin/corpus.mjs project <name> [file]   # file defaults to corpus/index.json
 
 import { spawnSync } from "node:child_process";
@@ -83,6 +83,7 @@ function cmdIndex(argv) {
 
   const sessionsGlob = argOf(argv, "--sessions");
   const replayScript = argOf(argv, "--replay-script");
+  const childrenGlob = argOf(argv, "--children");
   const failedSessions = [];
   const sessionSources = {};
 
@@ -90,9 +91,12 @@ function cmdIndex(argv) {
     if (replayScript === null) {
       fail("--sessions requires --replay-script <path to context-strata-replay.mjs>");
     }
+    if (childrenGlob !== null && replayScript === null) {
+      fail("--children requires --replay-script (fork attribution is produced by the replay)");
+    }
     const sessions = expandSessionGlob(sessionsGlob);
     if (sessions.length === 0) fail(`--sessions glob matched no .jsonl files: ${sessionsGlob}`);
-    for (const result of runBatch({ sessions, replayScript, corpusDir: resolved })) {
+    for (const result of runBatch({ sessions, replayScript, corpusDir: resolved, childrenGlob })) {
       sessionSources[result.id] = result.sourceSession;
       if (!result.ok) {
         failedSessions.push({
@@ -103,7 +107,7 @@ function cmdIndex(argv) {
         });
       }
     }
-  } else if (replayScript !== null) {
+  } else if (replayScript !== null || childrenGlob !== null) {
     fail("--replay-script has no effect without --sessions");
   }
 
