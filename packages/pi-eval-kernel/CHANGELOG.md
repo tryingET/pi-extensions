@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project are documented here.
 
+## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-eval-kernel-v0.2.1...pi-eval-kernel-v0.2.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **pi-eval-kernel:** make packed smoke provider-free ([d549b8c](https://github.com/tryingET/pi-extensions/commit/d549b8c46c753c1de58cbfe8eb415c76c31df2f3))
+* **pi-eval-kernel:** remove legacy Pi peer aliases ([50f60f3](https://github.com/tryingET/pi-extensions/commit/50f60f3c35c9e6bd896f0233f95021f631970369))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-eval-kernel-v0.2.0...pi-eval-kernel-v0.2.1) (2026-08-15)
 
 

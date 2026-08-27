@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-eval-kernel",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Python and JavaScript code-mode tool with persistent logical state and an explicit host capability registry for Pi",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
