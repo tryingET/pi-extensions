@@ -63,6 +63,7 @@
     "extensions/sidequestCandidateWorkspace.ts",
     "extensions/sidequestPeerPrompts.ts",
     "extensions/sidequestPeerReportBack.ts",
+    "extensions/sidequestPeerTools.ts",
     "extensions/sidequestDetachedWindow.ts",
     "extensions/sidequestGhostty.ts",
     "extensions/sidequestLaunch.ts",
