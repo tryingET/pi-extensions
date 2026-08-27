@@ -1,28 +1,27 @@
 #!/usr/bin/env node
-// summary: discover and optionally pack transitive local file-backed runtime dependencies for release checks.
-// read_when:
-//   - assembling clean-room install inputs for a package with local runtime dependencies.
-// Keep this helper mirrored with packages/pi-society-orchestrator/scripts/release-local-dependencies.mjs
-// until task scope allows a shared monorepo release-proof helper.
+// Shared exact local dependency packer. Keep byte-identical with the pi-vault-client copy.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 const runtimeDependencyFields = ["dependencies", "optionalDependencies"];
+const projectedDependencyFields = [...runtimeDependencyFields, "devDependencies"];
 const args = process.argv.slice(2);
 
 function fail(message) {
-  console.error(message);
-  process.exit(1);
+  throw new Error(message);
 }
+
+process.on("uncaughtException", (error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});
 
 function getFlagValue(flag) {
   const index = args.indexOf(flag);
   if (index === -1) return null;
   const value = args[index + 1];
-  if (!value || value.startsWith("--")) {
-    fail(`${flag} requires a value`);
-  }
+  if (!value || value.startsWith("--")) fail(`${flag} requires a value`);
   return value;
 }
 
@@ -31,26 +30,22 @@ const output = getFlagValue("--output") ?? "json";
 
 function loadManifest(dir) {
   const manifestPath = path.join(dir, "package.json");
-  if (!fs.existsSync(manifestPath)) {
-    fail(`Missing package.json in ${dir}`);
-  }
+  if (!fs.existsSync(manifestPath)) fail(`Missing package.json in ${dir}`);
   return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 }
 
-function collectLocalDependencies(dir, seen = new Set(), collected = []) {
-  const manifest = loadManifest(dir);
-
+function collectLocalDependencies(dir, seen = new Set(), visiting = new Set(), collected = []) {
+  const resolvedDir = path.resolve(dir);
+  if (visiting.has(resolvedDir)) {
+    fail(`Local dependency cycle detected at ${resolvedDir}`);
+  }
+  visiting.add(resolvedDir);
+  const manifest = loadManifest(resolvedDir);
   for (const field of runtimeDependencyFields) {
     const dependencies = manifest[field];
-    if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) {
-      continue;
-    }
-
+    if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) continue;
     for (const [dependencyName, spec] of Object.entries(dependencies)) {
-      if (typeof spec !== "string" || !spec.startsWith("file:")) {
-        continue;
-      }
-
+      if (typeof spec !== "string" || !spec.startsWith("file:")) continue;
       const dependencyDir = path.resolve(dir, spec.slice("file:".length));
       const dependencyManifest = loadManifest(dependencyDir);
       if (dependencyManifest.name !== dependencyName) {
@@ -58,13 +53,8 @@ function collectLocalDependencies(dir, seen = new Set(), collected = []) {
           `${manifest.name} ${field}.${dependencyName} points to ${spec}, but resolved package is ${dependencyManifest.name ?? "<missing>"}`,
         );
       }
-
-      collectLocalDependencies(dependencyDir, seen, collected);
-
-      if (seen.has(dependencyDir)) {
-        continue;
-      }
-
+      collectLocalDependencies(dependencyDir, seen, visiting, collected);
+      if (seen.has(dependencyDir)) continue;
       seen.add(dependencyDir);
       collected.push({
         name: dependencyManifest.name,
@@ -73,36 +63,177 @@ function collectLocalDependencies(dir, seen = new Set(), collected = []) {
       });
     }
   }
-
+  visiting.delete(resolvedDir);
   return collected;
 }
 
-function packDependency(dependency) {
-  const result = spawnSync("npm", ["pack", "--silent", "--pack-destination", packDir], {
-    cwd: dependency.dir,
+function isInside(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function commonAncestor(paths) {
+  let current = path.resolve(paths[0]);
+  while (!paths.every((candidate) => isInside(current, path.resolve(candidate)))) {
+    const parent = path.dirname(current);
+    if (parent === current) fail("Could not derive a bounded local dependency source root");
+    current = parent;
+  }
+  return current;
+}
+
+function gitContext(packageDir, dependencyDirs) {
+  const rootResult = spawnSync("git", ["-C", packageDir, "rev-parse", "--show-toplevel"], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    env: process.env,
   });
+  if (rootResult.status !== 0) return null;
+  const root = fs.realpathSync(rootResult.stdout.trim());
+  if (![packageDir, ...dependencyDirs].every((candidate) => isInside(root, candidate))) return null;
+  const gitDirResult = spawnSync("git", ["-C", packageDir, "rev-parse", "--absolute-git-dir"], {
+    encoding: "utf8",
+  });
+  if (gitDirResult.status !== 0) return null;
+  return { root, gitDir: fs.realpathSync(gitDirResult.stdout.trim()) };
+}
 
-  if (result.stderr) process.stderr.write(result.stderr);
+function copySource(source, destination) {
+  fs.cpSync(source, destination, {
+    recursive: true,
+    filter(candidate) {
+      const basename = path.basename(candidate);
+      if (["node_modules", ".git", ".tmp"].includes(basename)) return false;
+      if (basename.endsWith(".tgz")) return false;
+      if (basename.startsWith(".package.json.")) return false;
+      return true;
+    },
+  });
+}
 
-  if (result.status !== 0) {
-    fail(
-      `npm pack failed for ${dependency.name} (${dependency.dir}) with exit code ${result.status ?? "unknown"}`,
-    );
+function prepareWorkspace(packageDir, dependencies) {
+  const dependencyDirs = dependencies.map((dependency) => dependency.dir);
+  const git = gitContext(packageDir, dependencyDirs);
+  const sourceRoot = git?.root ?? commonAncestor([packageDir, ...dependencyDirs]);
+  const workspaceRoot = path.join(packDir, ".source-workspace");
+  fs.mkdirSync(workspaceRoot, { recursive: true, mode: 0o700 });
+  const projected = new Set();
+  const projectDirectory = (sourceDir) => {
+    const resolved = path.resolve(sourceDir);
+    const relative = path.relative(sourceRoot, resolved);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+      fail(`Local dependency escaped scratch projection: ${resolved}`);
+    }
+    const scratchDir = path.join(workspaceRoot, relative);
+    if (!projected.has(resolved)) {
+      fs.mkdirSync(path.dirname(scratchDir), { recursive: true });
+      copySource(resolved, scratchDir);
+      projected.add(resolved);
+      const manifest = loadManifest(resolved);
+      for (const field of projectedDependencyFields) {
+        for (const spec of Object.values(manifest[field] ?? {})) {
+          if (typeof spec === "string" && spec.startsWith("file:")) {
+            projectDirectory(path.resolve(resolved, spec.slice("file:".length)));
+          }
+        }
+      }
+    }
+    return scratchDir;
+  };
+  for (const dependency of dependencies) {
+    dependency.scratchDir = projectDirectory(dependency.dir);
   }
 
+  // Local package prepack scripts share the interaction-group manifest helper without
+  // declaring the private group root as a runtime dependency.
+  const interactionScripts = path.join(sourceRoot, "packages", "pi-interaction", "scripts");
+  if (fs.existsSync(interactionScripts)) {
+    const target = path.join(workspaceRoot, "packages", "pi-interaction", "scripts");
+    if (!fs.existsSync(target)) copySource(interactionScripts, target);
+  }
+
+  const npmHome = path.join(packDir, ".npm-home");
+  fs.mkdirSync(path.join(npmHome, ".config"), { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(npmHome, ".cache"), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(npmHome, "user.npmrc"), "", { mode: 0o600 });
+  fs.writeFileSync(path.join(npmHome, "global.npmrc"), "", { mode: 0o600 });
+  return { workspaceRoot, npmHome, git };
+}
+
+function npmEnv(context) {
+  const tmpDir = process.env.TMPDIR;
+  if (!tmpDir || !fs.existsSync(tmpDir)) fail("TMPDIR is required for local dependency packing");
+  const preservedPolicy = {};
+  for (const key of [
+    "NPM_CONFIG_BEFORE",
+    "npm_config_before",
+    "NPM_CONFIG_MIN_RELEASE_AGE",
+    "npm_config_min_release_age",
+    "NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE",
+    "npm_config_min_release_age_exclude",
+  ]) {
+    if (typeof process.env[key] === "string" && process.env[key]) {
+      preservedPolicy[key] = process.env[key];
+    }
+  }
+  return {
+    PATH: process.env.PATH,
+    HOME: context.npmHome,
+    TMPDIR: tmpDir,
+    TMP: tmpDir,
+    TEMP: tmpDir,
+    XDG_CONFIG_HOME: path.join(context.npmHome, ".config"),
+    XDG_CACHE_HOME: path.join(context.npmHome, ".cache"),
+    NPM_CONFIG_USERCONFIG: path.join(context.npmHome, "user.npmrc"),
+    npm_config_userconfig: path.join(context.npmHome, "user.npmrc"),
+    NPM_CONFIG_GLOBALCONFIG: path.join(context.npmHome, "global.npmrc"),
+    npm_config_globalconfig: path.join(context.npmHome, "global.npmrc"),
+    NPM_CONFIG_CACHE: path.join(context.npmHome, ".npm-cache"),
+    npm_config_cache: path.join(context.npmHome, ".npm-cache"),
+    NPM_CONFIG_IGNORE_SCRIPTS: "false",
+    npm_config_ignore_scripts: "false",
+    ...preservedPolicy,
+    ...(context.git ? { GIT_DIR: context.git.gitDir, GIT_WORK_TREE: context.workspaceRoot } : {}),
+  };
+}
+
+function runNpm(dependency, npmArgs, context, phase) {
+  const result = spawnSync("npm", npmArgs, {
+    cwd: dependency.scratchDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: npmEnv(context),
+  });
+  if (result.stdout) process.stderr.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.status !== 0) {
+    fail(
+      `npm ${phase} failed for ${dependency.name} (${dependency.dir}) with exit code ${result.status ?? "unknown"}`,
+    );
+  }
+  return result;
+}
+
+function packDependency(dependency, context) {
+  if (!fs.existsSync(path.join(dependency.scratchDir, "package-lock.json"))) {
+    fail(`Locked dev dependency preparation is required for ${dependency.name}`);
+  }
+  runNpm(
+    dependency,
+    ["ci", "--include=dev", "--ignore-scripts", "--no-audit", "--fund=false"],
+    context,
+    "dependency preparation",
+  );
+  const result = runNpm(
+    dependency,
+    ["pack", "--ignore-scripts=false", "--silent", "--pack-destination", packDir],
+    context,
+    "pack",
+  );
   const tarballName = `${result.stdout ?? ""}`
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .at(-1);
-
-  if (!tarballName) {
-    fail(`Could not determine tarball name for ${dependency.name} (${dependency.dir})`);
-  }
-
+  if (!tarballName) fail(`Could not determine tarball name for ${dependency.name}`);
   return path.join(packDir, tarballName);
 }
 
@@ -111,45 +242,32 @@ const packageManifest = loadManifest(packageDir);
 const localDependencies = collectLocalDependencies(packageDir);
 
 if (packDir) {
-  fs.mkdirSync(packDir, { recursive: true });
-  for (const dependency of localDependencies) {
-    dependency.tarballPath = packDependency(dependency);
+  fs.mkdirSync(packDir, { recursive: true, mode: 0o700 });
+  const context = prepareWorkspace(packageDir, localDependencies);
+  try {
+    for (const dependency of localDependencies) {
+      dependency.tarballPath = packDependency(dependency, context);
+    }
+  } finally {
+    for (const dependency of localDependencies) delete dependency.scratchDir;
+    fs.rmSync(context.workspaceRoot, { recursive: true, force: true });
+    fs.rmSync(context.npmHome, { recursive: true, force: true });
   }
 }
 
 switch (output) {
-  case "json": {
+  case "json":
     process.stdout.write(
-      `${JSON.stringify(
-        {
-          package: {
-            name: packageManifest.name,
-            version: packageManifest.version,
-            dir: packageDir,
-          },
-          localDependencies,
-        },
-        null,
-        2,
-      )}\n`,
+      `${JSON.stringify({ package: { name: packageManifest.name, version: packageManifest.version, dir: packageDir }, localDependencies }, null, 2)}\n`,
     );
     break;
-  }
-  case "dirs": {
-    for (const dependency of localDependencies) {
-      process.stdout.write(`${dependency.dir}\n`);
-    }
+  case "dirs":
+    for (const dependency of localDependencies) process.stdout.write(`${dependency.dir}\n`);
     break;
-  }
-  case "tarballs": {
-    if (!packDir) {
-      fail("--output tarballs requires --pack-dir");
-    }
-    for (const dependency of localDependencies) {
-      process.stdout.write(`${dependency.tarballPath}\n`);
-    }
+  case "tarballs":
+    if (!packDir) fail("--output tarballs requires --pack-dir");
+    for (const dependency of localDependencies) process.stdout.write(`${dependency.tarballPath}\n`);
     break;
-  }
   default:
     fail(`Unsupported --output value: ${output}`);
 }

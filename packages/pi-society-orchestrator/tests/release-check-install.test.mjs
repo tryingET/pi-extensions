@@ -13,6 +13,10 @@ const releaseLocalDependenciesPath = path.join(
   "scripts",
   "release-local-dependencies.mjs",
 );
+const vaultReleaseLocalDependenciesPath = path.resolve(
+  packageDir,
+  "../pi-vault-client/scripts/release-local-dependencies.mjs",
+);
 const processTmpDirInput = process.env.TMPDIR;
 assert.equal(typeof processTmpDirInput, "string", "TMPDIR is required for focused release tests");
 assert.ok(
@@ -601,13 +605,13 @@ test("shipped-entry closure detects an omitted exported entry and its imports", 
   }
 });
 
-test("local dependency packing prepares dev tools required by prepack", () => {
+test("local dependency packing prepares locked dev tools in isolated scratch", () => {
   const root = makeTestRoot("local-dependency-prepack-dev");
   try {
     const appDir = path.join(root, "app");
     const dependencyDir = path.join(root, "dependency");
     const buildToolDir = path.join(root, "build-tool");
-    const packDir = path.join(root, "packed");
+    const prepackMarker = path.join(root, "prepack.marker");
     fs.mkdirSync(appDir);
     fs.mkdirSync(dependencyDir);
     fs.mkdirSync(buildToolDir);
@@ -625,14 +629,16 @@ test("local dependency packing prepares dev tools required by prepack", () => {
     );
     fs.writeFileSync(path.join(buildToolDir, "index.cjs"), "module.exports = 'ready';\n");
     fs.writeFileSync(
+      path.join(dependencyDir, "verify-prepack.cjs"),
+      `const fs = require("node:fs");\nif (require("@fixture/build-tool") !== "ready") process.exit(1);\nfs.writeFileSync(${JSON.stringify(prepackMarker)}, "ran");\n`,
+    );
+    fs.writeFileSync(
       path.join(dependencyDir, "package.json"),
       `${JSON.stringify({
         name: "@fixture/dependency",
         version: "1.0.0",
         main: "index.cjs",
-        scripts: {
-          prepack: 'node -e \'if (require("@fixture/build-tool") !== "ready") process.exit(1)\'',
-        },
+        scripts: { prepack: "node verify-prepack.cjs" },
         devDependencies: { "@fixture/build-tool": "file:../build-tool" },
       })}\n`,
     );
@@ -643,17 +649,111 @@ test("local dependency packing prepares dev tools required by prepack", () => {
       env: fixtureEnv(root),
     });
     assert.equal(lock.status, 0, lock.stderr);
+    const packagePath = path.join(dependencyDir, "package.json");
+    const lockPath = path.join(dependencyDir, "package-lock.json");
+    const packageBytes = fs.readFileSync(packagePath);
+    const lockBytes = fs.readFileSync(lockPath);
     assert.equal(fs.existsSync(path.join(dependencyDir, "node_modules")), false);
+    assert.deepEqual(
+      fs.readFileSync(releaseLocalDependenciesPath),
+      fs.readFileSync(vaultReleaseLocalDependenciesPath),
+      "orchestrator and vault local dependency helpers must stay byte-identical",
+    );
 
-    const packed = spawnSync(
+    for (const [index, helperPath] of [
+      releaseLocalDependenciesPath,
+      vaultReleaseLocalDependenciesPath,
+    ].entries()) {
+      const packDir = path.join(root, `packed-${index}`);
+      fs.rmSync(prepackMarker, { force: true });
+      const packed = spawnSync(
+        process.execPath,
+        [helperPath, "--pack-dir", packDir, "--output", "tarballs"],
+        {
+          cwd: appDir,
+          encoding: "utf8",
+          env: {
+            ...fixtureEnv(root),
+            NPM_CONFIG_IGNORE_SCRIPTS: "true",
+            npm_config_ignore_scripts: "true",
+          },
+        },
+      );
+      assert.equal(packed.status, 0, packed.stderr);
+      const tarballs = packed.stdout.trim().split(/\r?\n/).filter(Boolean);
+      assert.equal(tarballs.length, 1);
+      assert.ok(fs.existsSync(tarballs[0]));
+      assert.equal(fs.readFileSync(prepackMarker, "utf8"), "ran");
+      assert.equal(fs.existsSync(path.join(packDir, ".source-workspace")), false);
+      assert.equal(fs.existsSync(path.join(packDir, ".npm-home")), false);
+    }
+
+    assert.equal(fs.existsSync(path.join(dependencyDir, "node_modules")), false);
+    assert.deepEqual(fs.readFileSync(packagePath), packageBytes);
+    assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
+
+    fs.rmSync(lockPath);
+    const locklessPackDir = path.join(root, "packed-lockless");
+    const lockless = spawnSync(
       process.execPath,
-      [releaseLocalDependenciesPath, "--pack-dir", packDir, "--output", "tarballs"],
+      [releaseLocalDependenciesPath, "--pack-dir", locklessPackDir, "--output", "tarballs"],
       { cwd: appDir, encoding: "utf8", env: fixtureEnv(root) },
     );
-    assert.equal(packed.status, 0, packed.stderr);
-    const tarballs = packed.stdout.trim().split(/\r?\n/).filter(Boolean);
-    assert.equal(tarballs.length, 1);
-    assert.ok(fs.existsSync(tarballs[0]));
+    assert.notEqual(lockless.status, 0);
+    assert.match(lockless.stderr, /Locked dev dependency preparation is required/);
+    assert.equal(fs.existsSync(path.join(locklessPackDir, ".source-workspace")), false);
+    assert.equal(fs.existsSync(path.join(locklessPackDir, ".npm-home")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("local dependency collection rejects cycles before packing", () => {
+  const root = makeTestRoot("local-dependency-cycle");
+  try {
+    const appDir = path.join(root, "app");
+    const packageA = path.join(root, "package-a");
+    const packageB = path.join(root, "package-b");
+    fs.mkdirSync(appDir);
+    fs.mkdirSync(packageA);
+    fs.mkdirSync(packageB);
+    fs.writeFileSync(
+      path.join(appDir, "package.json"),
+      JSON.stringify({
+        name: "@fixture/app",
+        version: "1.0.0",
+        dependencies: { "@fixture/package-a": "file:../package-a" },
+      }),
+    );
+    fs.writeFileSync(
+      path.join(packageA, "package.json"),
+      JSON.stringify({
+        name: "@fixture/package-a",
+        version: "1.0.0",
+        dependencies: { "@fixture/package-b": "file:../package-b" },
+      }),
+    );
+    fs.writeFileSync(
+      path.join(packageB, "package.json"),
+      JSON.stringify({
+        name: "@fixture/package-b",
+        version: "1.0.0",
+        dependencies: { "@fixture/package-a": "file:../package-a" },
+      }),
+    );
+    const result = spawnSync(
+      process.execPath,
+      [
+        releaseLocalDependenciesPath,
+        "--pack-dir",
+        path.join(root, "packed"),
+        "--output",
+        "tarballs",
+      ],
+      { cwd: appDir, encoding: "utf8", env: fixtureEnv(root) },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Local dependency cycle detected/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
