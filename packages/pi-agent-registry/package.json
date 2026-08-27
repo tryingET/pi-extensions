@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-agent-registry",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "pi extension package for standing-agent manifests (agent.json) with fail-closed resolution and ASC dispatch integration",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
