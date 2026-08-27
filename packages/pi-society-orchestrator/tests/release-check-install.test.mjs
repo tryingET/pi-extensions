@@ -8,6 +8,11 @@ import ts from "typescript";
 const packageDir = path.resolve(import.meta.dirname, "..");
 const releaseCheckPath = path.join(packageDir, "scripts", "release-check.sh");
 const releaseSmokePath = path.join(packageDir, "scripts", "release-smoke.mjs");
+const releaseLocalDependenciesPath = path.join(
+  packageDir,
+  "scripts",
+  "release-local-dependencies.mjs",
+);
 const processTmpDirInput = process.env.TMPDIR;
 assert.equal(typeof processTmpDirInput, "string", "TMPDIR is required for focused release tests");
 assert.ok(
@@ -591,6 +596,64 @@ test("shipped-entry closure detects an omitted exported entry and its imports", 
     const closure = collectStaticRuntimeClosure(listShippedEntrypoints(manifest, root), root);
     const missing = missingPackedClosure(closure, root, new Set(["extension.ts"]));
     assert.deepEqual(missing, ["exported.ts", "helper.ts"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("local dependency packing prepares dev tools required by prepack", () => {
+  const root = makeTestRoot("local-dependency-prepack-dev");
+  try {
+    const appDir = path.join(root, "app");
+    const dependencyDir = path.join(root, "dependency");
+    const buildToolDir = path.join(root, "build-tool");
+    const packDir = path.join(root, "packed");
+    fs.mkdirSync(appDir);
+    fs.mkdirSync(dependencyDir);
+    fs.mkdirSync(buildToolDir);
+    fs.writeFileSync(
+      path.join(appDir, "package.json"),
+      `${JSON.stringify({
+        name: "@fixture/app",
+        version: "1.0.0",
+        dependencies: { "@fixture/dependency": "file:../dependency" },
+      })}\n`,
+    );
+    fs.writeFileSync(
+      path.join(buildToolDir, "package.json"),
+      `${JSON.stringify({ name: "@fixture/build-tool", version: "1.0.0", main: "index.cjs" })}\n`,
+    );
+    fs.writeFileSync(path.join(buildToolDir, "index.cjs"), "module.exports = 'ready';\n");
+    fs.writeFileSync(
+      path.join(dependencyDir, "package.json"),
+      `${JSON.stringify({
+        name: "@fixture/dependency",
+        version: "1.0.0",
+        main: "index.cjs",
+        scripts: {
+          prepack: 'node -e \'if (require("@fixture/build-tool") !== "ready") process.exit(1)\'',
+        },
+        devDependencies: { "@fixture/build-tool": "file:../build-tool" },
+      })}\n`,
+    );
+    fs.writeFileSync(path.join(dependencyDir, "index.cjs"), "module.exports = true;\n");
+    const lock = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts"], {
+      cwd: dependencyDir,
+      encoding: "utf8",
+      env: fixtureEnv(root),
+    });
+    assert.equal(lock.status, 0, lock.stderr);
+    assert.equal(fs.existsSync(path.join(dependencyDir, "node_modules")), false);
+
+    const packed = spawnSync(
+      process.execPath,
+      [releaseLocalDependenciesPath, "--pack-dir", packDir, "--output", "tarballs"],
+      { cwd: appDir, encoding: "utf8", env: fixtureEnv(root) },
+    );
+    assert.equal(packed.status, 0, packed.stderr);
+    const tarballs = packed.stdout.trim().split(/\r?\n/).filter(Boolean);
+    assert.equal(tarballs.length, 1);
+    assert.ok(fs.existsSync(tarballs[0]));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

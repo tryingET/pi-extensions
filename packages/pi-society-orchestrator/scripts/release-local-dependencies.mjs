@@ -74,7 +74,28 @@ function collectLocalDependencies(dir, seen = new Set(), collected = []) {
   return collected;
 }
 
+function prepareDependency(dependency) {
+  const hasLock = fs.existsSync(path.join(dependency.dir, "package-lock.json"));
+  const args = hasLock
+    ? ["ci", "--include=dev"]
+    : ["install", "--include=dev", "--no-package-lock"];
+  const result = spawnSync("npm", args, {
+    cwd: dependency.dir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: process.env,
+  });
+  if (result.stdout) process.stderr.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.status !== 0) {
+    fail(
+      `npm dependency preparation failed for ${dependency.name} (${dependency.dir}) with exit code ${result.status ?? "unknown"}`,
+    );
+  }
+}
+
 function packDependency(dependency) {
+  prepareDependency(dependency);
   const result = spawnSync("npm", ["pack", "--silent", "--pack-destination", packDir], {
     cwd: dependency.dir,
     encoding: "utf8",
