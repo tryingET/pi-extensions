@@ -2,7 +2,7 @@
 // read_when:
 //   - "changing peer launch prompts, worktree preparation, report-back policy, cleanup tools, or loop command registration"
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
@@ -26,37 +26,26 @@ import {
 } from "../src/candidatePeerCloseout.ts";
 import { runCandidatePeerJanitor } from "../src/candidatePeerJanitor.ts";
 import {
-  type CandidatePeerRegistryRecord,
   createCandidatePeerRegistryRecord,
-  getCandidatePeerRegistryPath,
   writeCandidatePeerRegistryRecord,
 } from "../src/candidatePeerRegistry.ts";
 import {
   LITTLE_HELPERS_CAPABILITY_MANIFEST,
   LITTLE_HELPERS_COMMAND_NAMES,
-  LITTLE_HELPERS_PEER_TOOL_NAMES,
 } from "../src/capabilityManifest.ts";
 import {
   type RunVisibleLoopGovernedPreflight,
   resolveParentPeerTarget,
 } from "../src/visibleLoop.ts";
 import {
-  type CandidatePeerCleanupRequest,
-  type CandidatePeerCloseoutRequest,
   type CandidatePeerSpawnRequest,
-  candidatePeerCleanupParameters,
-  candidatePeerCloseoutParameters,
-  candidatePeerSpawnParameters,
   classifyCandidateAdmissionFailure,
-  type PiToolContext,
   type SidequestReportBack,
 } from "./sidequestContracts.ts";
 
 export const SIDEQUEST_CAPABILITY_MANIFEST = LITTLE_HELPERS_CAPABILITY_MANIFEST;
 
 const [SIDEQUEST_COMMAND, , PARALLELQUEST_COMMAND] = LITTLE_HELPERS_COMMAND_NAMES;
-const [, , CANDIDATE_PEER_SPAWN_TOOL, CANDIDATE_PEER_CLEANUP_TOOL, CANDIDATE_PEER_CLOSEOUT_TOOL] =
-  LITTLE_HELPERS_PEER_TOOL_NAMES;
 
 const DEFAULT_PI_BIN = process.env.PI_SIDEQUEST_PI_BIN || "pi";
 const DEFAULT_HANDOFF_GOAL =
@@ -64,6 +53,8 @@ const DEFAULT_HANDOFF_GOAL =
 const HANDOFF_RUNTIME_READ_TIMEOUT_MS = 6000;
 const HANDOFF_RUNTIME_READ_MAX_BYTES = 12 * 1024;
 
+import { registerCandidateCloseoutTools } from "./sidequestCandidateCloseoutTools.ts";
+import { registerCandidatePeerSpawnTool } from "./sidequestCandidateSpawnTool.ts";
 import {
   admissionRegistryBinding,
   prepareCandidatePeerWorktree,
@@ -82,18 +73,7 @@ import {
   buildCandidatePeerSpawnPrompt,
   buildSidequestSpawnPrompt,
   createQuestId,
-  normalizeCandidatePeerReportBack,
-  normalizeStringArray,
 } from "./sidequestPeerPrompts.ts";
-import {
-  errorToolResult,
-  expectedPeerMessages,
-  parentPeerTargetFailureResult,
-  peerLaunchResultMessage,
-  reportBackNextStep,
-  successToolResult,
-  validateParentPeerTarget,
-} from "./sidequestPeerReportBack.ts";
 import { registerSidequestPeerTools } from "./sidequestPeerTools.ts";
 import { createSidequestVisibleLoopAdapter } from "./sidequestVisibleLoopAdapter.ts";
 
@@ -611,473 +591,6 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
       }
     }
 
-    async function executeCandidatePeerCleanup(
-      _toolName: string,
-      params: unknown,
-      _ctx: PiToolContext,
-    ) {
-      const request = params as CandidatePeerCleanupRequest;
-      const peerRunIds = (request.peerRunIds ?? []).map((id) => id.trim()).filter(Boolean);
-      const execute = request.execute === true;
-      const closeVisibleResources = request.closeVisibleResources === true;
-      const env = options.env ?? process.env;
-
-      if (peerRunIds.length === 0) {
-        throw new Error("candidate_peer_cleanup requires at least one exact peerRunId.");
-      }
-      if (execute) {
-        return successToolResult("candidate peer cleanup blocked", {
-          ok: false,
-          execution: "blocked_permanent_v1_quarantine",
-          peerRunIds,
-          blockers: [
-            "Serialized v1 cleanup packets are permanently non-executable under AK decision 59.",
-            "Use candidate-lifecycle-v2 review, disposition, integration proof, restoration-verified archive, authorization, and cleanup for the exact resource generation.",
-          ],
-        });
-      }
-
-      const lanes = peerRunIds.map((peerRunId) => {
-        const registryPath = getCandidatePeerRegistryPath(peerRunId, env);
-        const record = JSON.parse(
-          readFileSync(registryPath, "utf8"),
-        ) as CandidatePeerRegistryRecord;
-        return {
-          peerRunId,
-          registryPath,
-          repoRoot: record.repoRoot,
-          worktreePath: record.worktreePath,
-          branchName: record.branchName,
-          archiveDir: record.archiveDir,
-          cleanupPacket: record.cleanupPacket,
-          tabOrSessionHint: record.launch.titleBase ?? peerRunId,
-          processHint: `sidequest-pi process containing exact worktree path ${record.worktreePath}`,
-          visibleResourceCommands: [
-            {
-              id: "terminate-exact-sidequest-process",
-              description:
-                "Terminate only sidequest/Pi processes whose command line contains the exact registered worktree path; closing that process closes the visible peer tab/session when the tab is owned by the launched process.",
-              command: "sh",
-              args: [
-                "-c",
-                [
-                  "set -eu",
-                  "worktree_path=$1",
-                  "pids=$(ps -eo pid=,args= | grep -F \"$worktree_path\" | grep -E 'sidequest-pi pi| pi ' | grep -v grep | awk '{print $1}' || true)",
-                  'test -n "$pids" || exit 0',
-                  "kill $pids 2>/dev/null || true",
-                  "sleep 1",
-                  "pids=$(ps -eo pid=,args= | grep -F \"$worktree_path\" | grep -E 'sidequest-pi pi| pi ' | grep -v grep | awk '{print $1}' || true)",
-                  'test -z "$pids" || kill -9 $pids 2>/dev/null || true',
-                ].join("; "),
-                "candidate-peer-close-visible-resource",
-                record.worktreePath,
-              ],
-              cwd: record.repoRoot,
-              destructive: true,
-            },
-          ],
-        };
-      });
-
-      return successToolResult("candidate peer cleanup dry run", {
-        ok: true,
-        execution: "dry_run_plan_only",
-        closeVisibleResources,
-        laneCount: lanes.length,
-        lanes,
-        commandResults: [],
-        boundary:
-          "Registry-v1 cleanup is permanently non-executable. This result projects exact historical sidecar commands for inspection only; lifecycle-v2 owner tooling is the sole executable cleanup path.",
-      });
-    }
-
-    async function executeCandidatePeerCloseout(
-      toolName: string,
-      params: unknown,
-      _ctx: PiToolContext,
-    ) {
-      const request = params as CandidatePeerCloseoutRequest;
-      const action = request.action;
-      const env = options.env ?? process.env;
-      const planningContext = {
-        taskId: request.taskId,
-        integrationCloseout: request.integrationCloseout,
-        cleanupTrigger: request.cleanupTrigger,
-        nonAuthorizing: true,
-      };
-      if (action === "status" || action === "plan") {
-        const result = projectCloseout({
-          action,
-          peerRunIds: request.peerRunIds ?? [],
-          env,
-        });
-        return successToolResult(`${toolName} ${action}`, {
-          ok: true,
-          ...result,
-          planningContext,
-        });
-      }
-      if (action === "execute_authorized") {
-        const result = executeCloseout({ peerRunIds: request.peerRunIds ?? [], env });
-        return successToolResult(`${toolName} ${result.execution}`, {
-          ok: result.execution === "completed",
-          ...result,
-          planningContext,
-        });
-      }
-      if (action === "janitor_status" || action === "janitor_execute_authorized") {
-        const repoRoot = request.repoRoot?.trim() ?? "";
-        if (!repoRoot) throw new Error(`${toolName} ${action} requires an exact repoRoot`);
-        const result = runCloseoutJanitor({
-          action: action === "janitor_status" ? "status" : "execute_authorized",
-          repoRoot,
-          ...(request.overdueAfterMs === undefined
-            ? {}
-            : { overdueAfterMs: request.overdueAfterMs }),
-          env,
-        });
-        return successToolResult(`${toolName} ${action} ${result.execution}`, {
-          ok: ["not_requested", "completed"].includes(result.execution),
-          ...result,
-          toolAction: action,
-          planningContext,
-        });
-      }
-      throw new Error(`${toolName} requires a supported lifecycle-v2 action`);
-    }
-
-    async function executeCandidatePeerSpawn(
-      toolName: string,
-      params: unknown,
-      ctx: PiToolContext,
-    ) {
-      const request = params as CandidatePeerSpawnRequest;
-      const objective = request.objective?.trim() ?? "";
-      const reportBack = normalizeCandidatePeerReportBack(request);
-      const parentCwd = request.cwd?.trim() || ctx.cwd || process.cwd();
-      const env = options.env ?? process.env;
-      const pathExists = options.pathExists ?? existsSync;
-      const execRunner: ExecRunner =
-        options.exec ??
-        ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
-
-      if (!objective) {
-        return errorToolResult(`${toolName} requires a non-empty objective.`, {
-          ok: false,
-          tool: toolName,
-          canonicalTool: "candidate_peer_spawn",
-          reportBack,
-          error: "blank_objective",
-        });
-      }
-
-      if (reportBack === "intercom") {
-        const parentPeerTarget = validateParentPeerTarget(request.parentPeerTarget);
-        if (!parentPeerTarget.ok) return parentPeerTargetFailureResult(toolName, parentPeerTarget);
-      }
-
-      const repository = await resolveCandidateRepoRoot(execRunner, parentCwd);
-      if (!repository.ok) {
-        return errorToolResult(`${toolName} failed: ${repository.error}`, {
-          ok: false,
-          tool: toolName,
-          canonicalTool: "candidate_peer_spawn",
-          reportBack,
-          parentCwd,
-          error: "candidate_repo_resolution_failed",
-        });
-      }
-      let admission: CandidateAdmissionReservation;
-      try {
-        admission = reserveAdmission({ repoRoot: repository.repoRoot, objective }, env);
-      } catch (error) {
-        const failure = classifyCandidateAdmissionFailure(error);
-        return errorToolResult(`${toolName} admission blocked: ${failure.message}`, {
-          ok: false,
-          tool: toolName,
-          canonicalTool: "candidate_peer_spawn",
-          reportBack,
-          parentCwd,
-          repoRoot: repository.repoRoot,
-          error: "candidate_admission_blocked",
-          ...failure.details,
-        });
-      }
-
-      const worktree = await prepareCandidatePeerWorktree({
-        execRunner,
-        pathExists,
-        env,
-        request,
-        parentCwd,
-        objective,
-        admittedRepoRoot: repository.repoRoot,
-      });
-
-      if (!worktree.ok) {
-        const admissionReleaseError = releasePreparationFailure(
-          admission,
-          worktree.error,
-          env,
-          releaseAdmission,
-        );
-        return errorToolResult(`${toolName} failed: ${worktree.error}`, {
-          ok: false,
-          tool: toolName,
-          canonicalTool: "candidate_peer_spawn",
-          reportBack,
-          parentCwd: worktree.parentCwd,
-          repoRoot: worktree.repoRoot,
-          worktreePath: worktree.worktreePath,
-          branchName: worktree.branchName,
-          baseRef: worktree.baseRef,
-          parentDirty: worktree.parentDirty,
-          parentDirtyWarning: worktree.parentDirtyWarning,
-          naming: worktree.naming,
-          admissionId: admission.admissionId,
-          admissionReleaseError,
-          error: "worktree_prepare_failed",
-          reason: worktree.error,
-        });
-      }
-
-      const questId = createQuestId("candidatepeer");
-      try {
-        bindAdmission(
-          {
-            admissionId: admission.admissionId,
-            peerRunId: questId,
-            worktreePath: worktree.worktreePath,
-            branchName: worktree.branchName,
-          },
-          env,
-        );
-      } catch (error) {
-        return errorToolResult(
-          `${toolName} created a worktree but admission binding failed closed: ${error instanceof Error ? error.message : String(error)}`,
-          {
-            ok: false,
-            tool: toolName,
-            canonicalTool: "candidate_peer_spawn",
-            reportBack,
-            repoRoot: worktree.repoRoot,
-            worktreePath: worktree.worktreePath,
-            branchName: worktree.branchName,
-            admissionId: admission.admissionId,
-            error: "candidate_admission_binding_failed",
-          },
-        );
-      }
-      const prompt = buildCandidatePeerSpawnPrompt({
-        objective,
-        request,
-        worktree,
-        reportBack,
-        questId,
-      });
-      const launch = await launchPiQuestSession({
-        pi,
-        ctx,
-        options,
-        defaultPiBin: DEFAULT_PI_BIN,
-        prompt,
-        titlePrompt: objective,
-        titlePrefix: "Candidatepeer",
-        cwd: worktree.worktreePath,
-      });
-
-      if (!launch.ok) {
-        const registryRecord = createCandidatePeerRegistryRecord(
-          {
-            peerRunId: questId,
-            tool: toolName,
-            canonicalTool: "candidate_peer_spawn",
-            parentCwd: worktree.parentCwd,
-            repoRoot: worktree.repoRoot,
-            worktreePath: worktree.worktreePath,
-            branchName: worktree.branchName,
-            baseRef: worktree.baseRef,
-            parentDirty: worktree.parentDirty,
-            parentDirtyWarning: worktree.parentDirtyWarning,
-            reusedExisting: worktree.reusedExisting,
-            naming: worktree.naming,
-            reportBack,
-            admission: admissionRegistryBinding(admission),
-            parentPeerTarget: request.parentPeerTarget?.trim(),
-            filesInScope: normalizeStringArray(request.filesInScope),
-            offLimits: normalizeStringArray(request.offLimits),
-            constraints: normalizeStringArray(request.constraints),
-            dod: normalizeStringArray(request.dod),
-            launch: {
-              status:
-                launch.effectDisposition === "effect_indeterminate"
-                  ? "launch_indeterminate"
-                  : "launch_failed",
-              launchMode: launch.launchMode,
-              sessionMode: launch.sessionMode,
-              cwd: launch.cwd,
-              sourceSessionFile: launch.sourceSessionFile,
-              titleBase: launch.titleBase,
-              promptSummary: launch.promptSummary,
-              launchNote: launch.launchNote,
-              failure: launch.failure,
-              effectDisposition: launch.effectDisposition,
-            },
-            controllerSession: {
-              id: ctx.sessionManager.getSessionId?.(),
-              name: ctx.sessionManager.getSessionName?.(),
-              cwd: ctx.sessionManager.getCwd?.(),
-              sessionFile: ctx.sessionManager.getSessionFile?.(),
-            },
-            processHints: { controllerPid: options.processId ?? process.pid },
-          },
-          env,
-        );
-        let registryWriteError: string | undefined;
-        try {
-          writeCandidatePeerRegistryRecord(registryRecord, env);
-        } catch (error) {
-          registryWriteError = error instanceof Error ? error.message : String(error);
-        }
-
-        return errorToolResult(`${toolName} failed to launch Ghostty: ${launch.failure}`, {
-          ok: false,
-          tool: toolName,
-          canonicalTool: "candidate_peer_spawn",
-          launchMode: launch.launchMode,
-          parentCwd: worktree.parentCwd,
-          repoRoot: worktree.repoRoot,
-          worktreePath: worktree.worktreePath,
-          branchName: worktree.branchName,
-          baseRef: worktree.baseRef,
-          parentDirty: worktree.parentDirty,
-          parentDirtyWarning: worktree.parentDirtyWarning,
-          reusedExisting: worktree.reusedExisting,
-          naming: worktree.naming,
-          sessionMode: launch.sessionMode,
-          sourceSessionFile: launch.sourceSessionFile,
-          titleBase: launch.titleBase,
-          promptSummary: launch.promptSummary,
-          reportBack,
-          peerRunId: questId,
-          questId,
-          expectedMessages: expectedPeerMessages(reportBack),
-          registryPath: registryRecord.registryPath,
-          archiveDir: registryRecord.archiveDir,
-          cleanupPacket: registryRecord.cleanupPacket,
-          registryWriteError,
-          launchNote: launch.launchNote,
-          error:
-            launch.effectDisposition === "effect_indeterminate"
-              ? "launch_indeterminate"
-              : "launch_failed",
-          effectDisposition: launch.effectDisposition,
-        });
-      }
-
-      const registryRecord = createCandidatePeerRegistryRecord(
-        {
-          peerRunId: questId,
-          tool: toolName,
-          canonicalTool: "candidate_peer_spawn",
-          parentCwd: worktree.parentCwd,
-          repoRoot: worktree.repoRoot,
-          worktreePath: worktree.worktreePath,
-          branchName: worktree.branchName,
-          baseRef: worktree.baseRef,
-          parentDirty: worktree.parentDirty,
-          parentDirtyWarning: worktree.parentDirtyWarning,
-          reusedExisting: worktree.reusedExisting,
-          naming: worktree.naming,
-          reportBack,
-          admission: admissionRegistryBinding(admission),
-          parentPeerTarget: request.parentPeerTarget?.trim(),
-          filesInScope: normalizeStringArray(request.filesInScope),
-          offLimits: normalizeStringArray(request.offLimits),
-          constraints: normalizeStringArray(request.constraints),
-          dod: normalizeStringArray(request.dod),
-          launch: {
-            status: "launched",
-            launchMode: launch.launchMode,
-            sessionMode: launch.sessionMode,
-            cwd: launch.cwd,
-            sourceSessionFile: launch.sourceSessionFile,
-            titleBase: launch.titleBase,
-            promptSummary: launch.promptSummary,
-            launchNote: launch.launchNote,
-            effectDisposition: launch.effectDisposition,
-          },
-          controllerSession: {
-            id: ctx.sessionManager.getSessionId?.(),
-            name: ctx.sessionManager.getSessionName?.(),
-            cwd: ctx.sessionManager.getCwd?.(),
-            sessionFile: ctx.sessionManager.getSessionFile?.(),
-          },
-          processHints: { controllerPid: options.processId ?? process.pid },
-        },
-        env,
-      );
-      let registryWriteError: string | undefined;
-      try {
-        writeCandidatePeerRegistryRecord(registryRecord, env);
-      } catch (error) {
-        registryWriteError = error instanceof Error ? error.message : String(error);
-      }
-
-      const details = {
-        ok: true,
-        tool: toolName,
-        canonicalTool: "candidate_peer_spawn",
-        effectDisposition: launch.effectDisposition,
-        launchMode: launch.launchMode,
-        parentCwd: worktree.parentCwd,
-        repoRoot: worktree.repoRoot,
-        worktreePath: worktree.worktreePath,
-        branchName: worktree.branchName,
-        baseRef: worktree.baseRef,
-        parentDirty: worktree.parentDirty,
-        ...(worktree.parentDirtyWarning ? { parentDirtyWarning: worktree.parentDirtyWarning } : {}),
-        reusedExisting: worktree.reusedExisting,
-        naming: worktree.naming,
-        sessionMode: launch.sessionMode,
-        admission: admissionRegistryBinding(admission),
-        sourceSessionFile: launch.sourceSessionFile,
-        titleBase: launch.titleBase,
-        promptSummary: launch.promptSummary,
-        reportBack,
-        peerRunId: questId,
-        questId,
-        expectedMessages: expectedPeerMessages(reportBack),
-        registryPath: registryRecord.registryPath,
-        archiveDir: registryRecord.archiveDir,
-        cleanupPacket: registryRecord.cleanupPacket,
-        ...(registryWriteError ? { registryWriteError } : {}),
-        nextStep: reportBackNextStep({
-          reportBack,
-          peerRunId: questId,
-          peerLabel: "candidate peer",
-          manualAction:
-            "Inspect the reported branch/worktree, registry metadata, cleanup packet, and visible candidate peer session manually",
-        }),
-        ...(launch.launchNote ? { launchNote: launch.launchNote } : {}),
-      };
-
-      return successToolResult(
-        peerLaunchResultMessage({
-          toolName,
-          launchMode: launch.launchMode,
-          promptSummary: launch.promptSummary,
-          peerRunId: questId,
-          reportBack,
-          peerLabel: "candidate peer",
-          manualAction:
-            "Inspect the reported branch/worktree, registry metadata, cleanup packet, and visible candidate peer session manually",
-        }),
-        details,
-      );
-    }
-
     if (registerCommands) {
       registerSidequestCommands(pi, {
         handoffTab: runHandoffTabCommand,
@@ -1101,40 +614,20 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
     registerSidequestPeerTools({ pi, options, defaultPiBin: DEFAULT_PI_BIN });
 
-    pi.registerTool({
-      name: CANDIDATE_PEER_SPAWN_TOOL,
-      label: "Candidate Peer Spawn",
-      description:
-        "One-shot owner-authorized candidate launch. Requires exactly one pre-existing lifecycle-v2 permit matching the resolved repository and exact trimmed objective before it creates an isolated git worktree or launches a visible mutation peer; this tool cannot create or broaden that authority.",
-      promptSnippet:
-        "Call only after the owner/controller confirms exactly one lifecycle-v2 permit is authorized for the resolved repository and this exact objective. This is not a permit probe. If admission is blocked, stop and do not repeat the same call; retry only after confirmed owner admission-state change. It does not merge, push, open PRs, mutate AK, or claim promotion.",
-      parameters: candidatePeerSpawnParameters,
-      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeCandidatePeerSpawn(CANDIDATE_PEER_SPAWN_TOOL, params, ctx),
+    registerCandidatePeerSpawnTool({
+      pi,
+      options,
+      defaultPiBin: DEFAULT_PI_BIN,
+      reserveAdmission,
+      bindAdmission,
+      releaseAdmission,
     });
-
-    pi.registerTool({
-      name: CANDIDATE_PEER_CLEANUP_TOOL,
-      label: "Candidate Peer Cleanup",
-      description:
-        "Inspect historical candidate registry-v1 cleanup projections without executing them.",
-      promptSnippet:
-        "Use for read-only inspection of exact registry-v1 sidecars. execute=true is permanently blocked by Decision 59; use lifecycle-v2 owner tooling for cleanup.",
-      parameters: candidatePeerCleanupParameters,
-      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeCandidatePeerCleanup(CANDIDATE_PEER_CLEANUP_TOOL, params, ctx),
-    });
-
-    pi.registerTool({
-      name: CANDIDATE_PEER_CLOSEOUT_TOOL,
-      label: "Candidate Peer Closeout",
-      description:
-        "Resolve exact peer aliases to lifecycle-v2 generations, plan closeout, execute existing cleanup authorization, or run a repository-bounded janitor.",
-      promptSnippet:
-        "Use status/plan for read-only lifecycle-v2 resolution. execute_authorized and janitor_execute_authorized may act only on existing exact cleanup authorization; peer final reports, integration status, and age never authorize cleanup.",
-      parameters: candidatePeerCloseoutParameters,
-      execute: (_toolCallId, params, _signal, _onUpdate, ctx) =>
-        executeCandidatePeerCloseout(CANDIDATE_PEER_CLOSEOUT_TOOL, params, ctx),
+    registerCandidateCloseoutTools({
+      pi,
+      env: options.env ?? process.env,
+      projectCloseout,
+      executeCloseout,
+      runCloseoutJanitor,
     });
   };
 }
