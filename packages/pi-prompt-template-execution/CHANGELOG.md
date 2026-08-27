@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.2.0...pi-prompt-template-execution-v0.3.0) (2026-08-27)
+
+
+### Features
+
+* **pi-prompt-template-execution:** make non-expansion explicit via expandPromptTemplates:false ([ce86b12](https://github.com/tryingET/pi-extensions/commit/ce86b1208ec13a1d9e6b434291735bb9e4485e38))
+
 ## [0.2.0](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-execution-v0.1.0...pi-prompt-template-execution-v0.2.0) (2026-07-13)
 
 
