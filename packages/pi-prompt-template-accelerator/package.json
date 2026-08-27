@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-prompt-template-accelerator",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "pi extension package: pi-prompt-template-accelerator",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

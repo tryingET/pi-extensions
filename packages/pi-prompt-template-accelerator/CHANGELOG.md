@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-accelerator-v0.2.1...pi-prompt-template-accelerator-v0.2.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate install-only release checks ([e83c9bd](https://github.com/tryingET/pi-extensions/commit/e83c9bdefbcf5406e8eb4be6beef7245ed0eb655))
+
 ## [0.2.1](https://github.com/tryingET/pi-extensions/compare/pi-prompt-template-accelerator-v0.2.0...pi-prompt-template-accelerator-v0.2.1) (2026-08-15)
 
 
