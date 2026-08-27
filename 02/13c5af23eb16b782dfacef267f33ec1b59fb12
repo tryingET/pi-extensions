@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "0213c5af23eb16b782dfacef267f33ec1b59fb12"
+created_at: "2026-08-27T15:12:52Z"
+intent: "Install each local dependency's dev toolchain before invoking its prepack lifecycle"
+files:
+  - "packages/pi-society-orchestrator/scripts/release-local-dependencies.mjs"
+  - "packages/pi-society-orchestrator/tests/release-check-install.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+links:
+  task_ids:
+    - 5157
