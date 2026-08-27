@@ -3,7 +3,7 @@
 //   - "changing peer launch prompts, worktree preparation, report-back policy, cleanup tools, or loop command registration"
 
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,7 +15,6 @@ import {
 import {
   ASC_EXECUTION_OBSERVATION_EVENT,
   type AscExecutionObserverController,
-  type AscObserverLaunchRequest,
   createAscExecutionObserverController,
 } from "../src/ascExecutionObserver.ts";
 import {
@@ -109,36 +108,23 @@ const [
 ] = LITTLE_HELPERS_PEER_TOOL_NAMES;
 
 const DEFAULT_PI_BIN = process.env.PI_SIDEQUEST_PI_BIN || "pi";
-const GHOSTTY_LAUNCH_TIMEOUT_MS = 15000;
-const DEFAULT_PEER_LAUNCH_STAGGER_MS = 1000;
 const DEFAULT_HANDOFF_GOAL =
   "Continue the current session's unfinished operator-directed work from the verified next legal step.";
 const HANDOFF_RUNTIME_READ_TIMEOUT_MS = 6000;
 const HANDOFF_RUNTIME_READ_MAX_BYTES = 12 * 1024;
-const TITLE_MAX_LEN = 48;
 
+import type { ExecRunner, LaunchResult } from "./sidequestGhostty.ts";
 import {
-  type DetachedGhosttyWindowLaunchRequest,
-  launchDetachedGhosttyWindow,
-} from "./sidequestDetachedWindow.ts";
+  launchAscExecutionObserverSession,
+  launchPiQuestSession,
+  type SidequestLaunchOptions,
+} from "./sidequestLaunch.ts";
 import {
-  buildControllerGhosttyDbusArgs,
-  buildGhosttyArgs,
-  buildGhosttyExecArgs,
-  type ExecResult,
-  type ExecRunner,
-  findGhosttyAncestor,
-  type GhosttyAncestor,
-  getGhosttySurfaceId,
-  isGhosttySession,
-  type LaunchMode,
-  type LaunchResult,
-  LOCAL_GHOSTTY_WRAPPER,
-  resolveControllerGhosttyDbusTarget,
-  resolveGhosttyBin,
-  supportsGhosttyNewTab,
-  supportsGhosttySurfaceId,
-} from "./sidequestGhostty.ts";
+  formatLaunchModeLabel,
+  runGhosttyLaunch,
+  summarizeLaunchFailure,
+  summarizePrompt,
+} from "./sidequestLaunchResult.ts";
 import {
   buildCandidatePeerSpawnPrompt,
   buildForkPeerSpawnPrompt,
@@ -175,33 +161,7 @@ const ASC_EXECUTION_OBSERVER_SCRIPT = fileURLToPath(
 );
 
 type PiCommandContext = Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1];
-type QuestSessionMode = "fork" | "clean";
-type QuestPlacementPolicy = "visible-fallback" | "controller-tab-only";
-type ModelLike = {
-  provider: string;
-  id: string;
-};
-
-type GhosttyCommandSpec = {
-  command: string;
-  args: string[];
-};
-
-type DetachedGhosttyWindowLauncher = (
-  request: DetachedGhosttyWindowLaunchRequest,
-) => Promise<LaunchResult>;
-
-type SidequestOptions = {
-  env?: NodeJS.ProcessEnv;
-  exec?: ExecRunner;
-  detachedGhosttyWindowLaunch?: DetachedGhosttyWindowLauncher;
-  pathExists?: (path: string) => boolean;
-  currentSessionGhosttyBin?: string;
-  processId?: number;
-  presenceDir?: string;
-  placementVerificationTimeoutMs?: number;
-  currentGhosttyAncestor?: GhosttyAncestor;
-  readProcessExecutable?: (pid: number) => string | undefined;
+type SidequestOptions = SidequestLaunchOptions & {
   registerCommands?: boolean;
   registerTools?: boolean;
   generateHandoffPrompt?: typeof generateSessionCompactionHandoffPrompt;
@@ -247,33 +207,6 @@ type WorktreePrepareFailure = {
 };
 
 type WorktreePrepareResult = WorktreePrepareSuccess | WorktreePrepareFailure;
-
-type SidequestLaunchSuccess = {
-  ok: true;
-  effectDisposition: "settled";
-  launchMode: LaunchMode;
-  sessionMode: QuestSessionMode;
-  cwd: string;
-  sourceSessionFile?: string;
-  titleBase: string;
-  promptSummary: string;
-  launchNote?: string;
-};
-
-type SidequestLaunchFailure = {
-  ok: false;
-  failure: string;
-  effectDisposition: LaunchResult["effectDisposition"];
-  launchMode: LaunchMode;
-  sessionMode: QuestSessionMode;
-  cwd: string;
-  sourceSessionFile?: string;
-  titleBase: string;
-  promptSummary: string;
-  launchNote?: string;
-};
-
-type SidequestLaunchOutcome = SidequestLaunchSuccess | SidequestLaunchFailure;
 
 function getPrompt(args?: string): string | undefined {
   const prompt = args?.trim();
@@ -329,618 +262,6 @@ async function collectHandoffRuntimeContext({
     }),
   );
   return results.join("\n\n");
-}
-
-function summarizePrompt(prompt: string): string {
-  const singleLine = prompt.replace(/\s+/g, " ").trim();
-  if (singleLine.length <= TITLE_MAX_LEN) return singleLine;
-  return `${singleLine.slice(0, TITLE_MAX_LEN - 1)}…`;
-}
-
-function buildTitle(prompt: string, prefix = "Sidequest"): string {
-  return `${prefix}: ${summarizePrompt(prompt)}`;
-}
-
-function buildModelArgs(model: ModelLike | undefined, thinkingLevel: string): string[] {
-  if (!model?.provider || !model.id) return [];
-
-  const args = ["--model", `${model.provider}/${model.id}`];
-  if (thinkingLevel) {
-    args.push("--thinking", thinkingLevel);
-  }
-  return args;
-}
-
-function normalizeExecResult(result: ExecResult): LaunchResult {
-  const killed = Boolean(result.killed);
-  // An awaited launcher can dispatch the embedded command before exiting nonzero. Without the
-  // detached-window handshake, every non-success result is indeterminate and must not be retried.
-  const effectDisposition = !killed && result.code === 0 ? "settled" : "effect_indeterminate";
-  return {
-    ok: effectDisposition === "settled",
-    effectDisposition,
-    code: result.code,
-    stdout: String(result.stdout || "").trim(),
-    stderr: String(result.stderr || "").trim(),
-    killed,
-  };
-}
-
-let peerLaunchStaggerTail: Promise<void> = Promise.resolve();
-let lastPeerLaunchStartedAt = 0;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}
-
-function resolvePeerLaunchStaggerMs({
-  env,
-  hasCustomExec,
-}: {
-  env: NodeJS.ProcessEnv;
-  hasCustomExec: boolean;
-}): number {
-  const raw = env.PI_SIDEQUEST_LAUNCH_STAGGER_MS?.trim();
-  if (raw) {
-    const parsed = Number.parseInt(raw, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  }
-
-  // Unit tests and dry harnesses usually provide a custom exec stub. Keep them fast unless
-  // they explicitly opt into exercising the stagger behavior.
-  return hasCustomExec ? 0 : DEFAULT_PEER_LAUNCH_STAGGER_MS;
-}
-
-async function waitForPeerLaunchStagger(options: {
-  env: NodeJS.ProcessEnv;
-  hasCustomExec: boolean;
-}): Promise<number> {
-  const staggerMs = resolvePeerLaunchStaggerMs(options);
-  if (staggerMs <= 0) return 0;
-
-  const previous = peerLaunchStaggerTail.catch(() => undefined);
-  let waitedMs = 0;
-  const next = previous.then(async () => {
-    const elapsedMs =
-      lastPeerLaunchStartedAt > 0 ? Date.now() - lastPeerLaunchStartedAt : staggerMs;
-    waitedMs = Math.max(0, staggerMs - elapsedMs);
-    if (waitedMs > 0) {
-      await sleep(waitedMs);
-    }
-    lastPeerLaunchStartedAt = Date.now();
-  });
-  peerLaunchStaggerTail = next;
-  await next;
-  return waitedMs;
-}
-
-async function runGhosttyLaunch(
-  execRunner: ExecRunner,
-  ghosttyBin: string,
-  ghosttyArgs: string[],
-  cwd: string,
-): Promise<LaunchResult> {
-  try {
-    const result = await execRunner(ghosttyBin, ghosttyArgs, {
-      cwd,
-      timeout: GHOSTTY_LAUNCH_TIMEOUT_MS,
-    });
-    return normalizeExecResult(result);
-  } catch (error) {
-    return {
-      ok: false,
-      effectDisposition: "effect_indeterminate",
-      code: -1,
-      stdout: "",
-      stderr: error instanceof Error ? error.message : String(error),
-      killed: false,
-    };
-  }
-}
-
-function describeWindowFallback({
-  supportsNewTab,
-  env,
-}: {
-  supportsNewTab: boolean;
-  env: NodeJS.ProcessEnv;
-}): string | undefined {
-  if (process.platform !== "linux") {
-    return "same-window tab launch requires Linux Ghostty support";
-  }
-  if (!isGhosttySession(env)) {
-    return "same-window tab launch only works from an active Ghostty session";
-  }
-  if (!supportsNewTab) {
-    return "current Ghostty binary does not support +new-tab";
-  }
-  return undefined;
-}
-
-function summarizeLaunchFailure(result: LaunchResult): string {
-  const detail = result.stderr || result.stdout;
-  const normalizedDetail = detail.replace(/\s+/g, " ").trim();
-  if (result.effectDisposition === "effect_indeterminate") {
-    const prefix = "Ghostty launch effect is indeterminate; do not retry automatically";
-    const message = normalizedDetail ? `${prefix}: ${normalizedDetail}` : prefix;
-    return message.length <= 180 ? message : `${message.slice(0, 179)}…`;
-  }
-  if (!normalizedDetail) {
-    if (result.code >= 0) return `exit ${result.code}`;
-    return "unknown launch failure";
-  }
-
-  if (normalizedDetail.length <= 180) return normalizedDetail;
-  return `${normalizedDetail.slice(0, 179)}…`;
-}
-
-type SessionPresenceRecord = {
-  pid?: number;
-  cwd?: string;
-  windowTitleBase?: string;
-  publishedAt?: string;
-  ghosttyAncestorPid?: number;
-  ghosttyAncestorExe?: string;
-  ghosttySurfaceId?: string;
-};
-
-function resolvePresenceDir(env: NodeJS.ProcessEnv, options: SidequestOptions): string {
-  if (options.presenceDir) return options.presenceDir;
-  const override = env.PI_SESSION_PRESENCE_DIR?.trim();
-  if (override) return override;
-  const runtimeDir = env.XDG_RUNTIME_DIR?.trim();
-  if (runtimeDir) return join(runtimeDir, "pi-session-presence");
-  return join(homedir(), ".local", "state", "pi-session-presence");
-}
-
-function resolvePlacementVerificationTimeoutMs(
-  env: NodeJS.ProcessEnv,
-  options: SidequestOptions,
-): number {
-  if (typeof options.placementVerificationTimeoutMs === "number") {
-    return Math.max(0, options.placementVerificationTimeoutMs);
-  }
-  const raw = env.PI_SIDEQUEST_PLACEMENT_VERIFY_MS?.trim();
-  if (raw) {
-    const parsed = Number.parseInt(raw, 10);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-  }
-  return options.exec ? 0 : 1800;
-}
-
-function readSessionPresenceRecord(filePath: string): SessionPresenceRecord | undefined {
-  try {
-    const parsed = JSON.parse(readFileSync(filePath, "utf8")) as SessionPresenceRecord;
-    return parsed && typeof parsed === "object" ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function findMatchingPresenceRecord({
-  presenceDir,
-  cwd,
-  titleBase,
-  launchedAfterMs,
-  controllerPid,
-}: {
-  presenceDir: string;
-  cwd: string;
-  titleBase: string;
-  launchedAfterMs: number;
-  controllerPid: number;
-}): SessionPresenceRecord | undefined {
-  let entries: string[] = [];
-  try {
-    entries = readdirSync(presenceDir);
-  } catch {
-    return undefined;
-  }
-
-  const candidates: { record: SessionPresenceRecord; publishedAtMs: number }[] = [];
-  for (const entry of entries) {
-    if (!entry.endsWith(".json")) continue;
-    const record = readSessionPresenceRecord(join(presenceDir, entry));
-    if (!record?.pid || record.pid === controllerPid) continue;
-    if (record.cwd !== cwd || record.windowTitleBase !== titleBase) continue;
-    if (!existsSync(join("/proc", String(record.pid)))) continue;
-    const publishedAtMs = record.publishedAt ? Date.parse(record.publishedAt) : Number.NaN;
-    if (Number.isFinite(publishedAtMs) && publishedAtMs < launchedAfterMs - 2000) continue;
-    candidates.push({ record, publishedAtMs: Number.isFinite(publishedAtMs) ? publishedAtMs : 0 });
-  }
-
-  candidates.sort((left, right) => right.publishedAtMs - left.publishedAtMs);
-  return candidates[0]?.record;
-}
-
-async function waitForMatchingPresenceRecord(options: {
-  env: NodeJS.ProcessEnv;
-  sidequestOptions: SidequestOptions;
-  cwd: string;
-  titleBase: string;
-  launchedAfterMs: number;
-  controllerPid: number;
-}): Promise<SessionPresenceRecord | undefined> {
-  const timeoutMs = resolvePlacementVerificationTimeoutMs(options.env, options.sidequestOptions);
-  if (timeoutMs <= 0) return undefined;
-  const presenceDir = resolvePresenceDir(options.env, options.sidequestOptions);
-  const deadline = Date.now() + timeoutMs;
-  do {
-    const record = findMatchingPresenceRecord({
-      presenceDir,
-      cwd: options.cwd,
-      titleBase: options.titleBase,
-      launchedAfterMs: options.launchedAfterMs,
-      controllerPid: options.controllerPid,
-    });
-    if (record) return record;
-    await sleep(100);
-  } while (Date.now() < deadline);
-  return undefined;
-}
-
-function formatGhosttyPlacementMismatch({
-  controllerGhostty,
-  childRecord,
-  requestedSurfaceId,
-}: {
-  controllerGhostty: GhosttyAncestor;
-  childRecord: SessionPresenceRecord;
-  requestedSurfaceId?: string;
-}): string | undefined {
-  const childGhosttyPid = childRecord.ghosttyAncestorPid;
-  if (!childGhosttyPid || childGhosttyPid === controllerGhostty.pid) return undefined;
-  const details = [
-    `controller ghostty pid ${controllerGhostty.pid}`,
-    `child ghostty pid ${childGhosttyPid}`,
-    requestedSurfaceId ? `requested surface ${requestedSurfaceId}` : undefined,
-    childRecord.ghosttySurfaceId ? `child surface ${childRecord.ghosttySurfaceId}` : undefined,
-  ].filter((item): item is string => Boolean(item));
-  return `post-launch placement mismatch: opened in a different Ghostty window (${details.join(", ")})`;
-}
-
-function joinLaunchNotes(...notes: (string | undefined)[]): string | undefined {
-  const normalized = notes
-    .map((note) => note?.trim())
-    .filter((note): note is string => Boolean(note));
-  return normalized.length > 0 ? normalized.join("; ") : undefined;
-}
-
-function formatLaunchModeLabel(launchMode: LaunchMode, launchNote?: string): string {
-  if (launchMode === "window") return "new Ghostty window";
-  if (launchNote?.includes("post-launch placement mismatch")) {
-    return "different Ghostty window after current-tab request";
-  }
-  return "current Ghostty tab";
-}
-
-async function detectPostLaunchPlacementMismatch({
-  env,
-  options,
-  cwd,
-  titleBase,
-  launchMode,
-  launchedAfterMs,
-}: {
-  env: NodeJS.ProcessEnv;
-  options: SidequestOptions;
-  cwd: string;
-  titleBase: string;
-  launchMode: LaunchMode;
-  launchedAfterMs: number;
-}): Promise<string | undefined> {
-  if (launchMode !== "tab") return undefined;
-  const controllerPid = options.processId ?? process.pid;
-  const controllerGhostty = options.currentGhosttyAncestor ?? findGhosttyAncestor(controllerPid);
-  if (!controllerGhostty) return undefined;
-  const childRecord = await waitForMatchingPresenceRecord({
-    env,
-    sidequestOptions: options,
-    cwd,
-    titleBase,
-    launchedAfterMs,
-    controllerPid,
-  });
-  if (!childRecord) return undefined;
-  return formatGhosttyPlacementMismatch({
-    controllerGhostty,
-    childRecord,
-    requestedSurfaceId: getGhosttySurfaceId(env),
-  });
-}
-
-async function launchPiQuestSession({
-  pi,
-  ctx,
-  options,
-  prompt,
-  titlePrompt,
-  cwd,
-  sourceSessionFile,
-  titlePrefix = "Sidequest",
-  command,
-  placementPolicy = "visible-fallback",
-}: {
-  pi: ExtensionAPI;
-  ctx: { model?: unknown };
-  options: SidequestOptions;
-  prompt: string;
-  titlePrompt: string;
-  cwd: string;
-  sourceSessionFile?: string;
-  titlePrefix?: string;
-  command?: GhosttyCommandSpec;
-  placementPolicy?: QuestPlacementPolicy;
-}): Promise<SidequestLaunchOutcome> {
-  const env = options.env ?? process.env;
-  const pathExists = options.pathExists ?? existsSync;
-  const execRunner: ExecRunner =
-    options.exec ?? ((command, execArgs, execOptions) => pi.exec(command, execArgs, execOptions));
-  const controllerGhostty =
-    options.currentGhosttyAncestor ??
-    (options.exec ? undefined : findGhosttyAncestor(options.processId ?? process.pid));
-  const currentSessionGhosttyBin = options.currentSessionGhosttyBin ?? controllerGhostty?.exe;
-  const strictControllerBin = currentSessionGhosttyBin?.trim();
-  let ghosttyBin =
-    placementPolicy === "controller-tab-only"
-      ? strictControllerBin && pathExists(strictControllerBin)
-        ? strictControllerBin
-        : ""
-      : resolveGhosttyBin({ env, pathExists, currentSessionGhosttyBin });
-  const piBin = env.PI_SIDEQUEST_PI_BIN?.trim() || DEFAULT_PI_BIN;
-  const thinkingLevel = pi.getThinkingLevel();
-  const modelArgs = buildModelArgs(ctx.model as ModelLike | undefined, thinkingLevel);
-  const title = buildTitle(titlePrompt, titlePrefix);
-  let supportsNewTab =
-    process.platform === "linux" && ghosttyBin
-      ? await supportsGhosttyNewTab(execRunner, ghosttyBin)
-      : false;
-  let wrapperTabAttachNote: string | undefined;
-  if (
-    placementPolicy === "visible-fallback" &&
-    process.platform === "linux" &&
-    isGhosttySession(env) &&
-    !supportsNewTab &&
-    pathExists(LOCAL_GHOSTTY_WRAPPER) &&
-    ghosttyBin !== LOCAL_GHOSTTY_WRAPPER
-  ) {
-    const wrapperSupportsNewTab = await supportsGhosttyNewTab(execRunner, LOCAL_GHOSTTY_WRAPPER);
-    if (wrapperSupportsNewTab) {
-      ghosttyBin = LOCAL_GHOSTTY_WRAPPER;
-      supportsNewTab = true;
-      wrapperTabAttachNote =
-        "current Ghostty binary does not support +new-tab; used sidequest wrapper for tab launch";
-    }
-  }
-  const requestedSurfaceId = getGhosttySurfaceId(env);
-  const surfaceId =
-    supportsNewTab && requestedSurfaceId && (await supportsGhosttySurfaceId(execRunner, ghosttyBin))
-      ? requestedSurfaceId
-      : undefined;
-  const windowFallbackReason = describeWindowFallback({
-    supportsNewTab,
-    env,
-  });
-
-  const sessionMode: QuestSessionMode = sourceSessionFile ? "fork" : "clean";
-  const piArgs = command
-    ? [command.command, ...command.args]
-    : sourceSessionFile
-      ? [piBin, "--fork", sourceSessionFile, ...modelArgs, prompt]
-      : [piBin, ...modelArgs, prompt];
-  let launchMode: LaunchMode = windowFallbackReason ? "window" : "tab";
-  const controllerDbusTarget =
-    launchMode === "tab"
-      ? await resolveControllerGhosttyDbusTarget({
-          execRunner,
-          controllerGhostty,
-          surfaceId,
-          readProcessExecutable: options.readProcessExecutable,
-        })
-      : undefined;
-  const promptSummary = summarizePrompt(titlePrompt);
-  const detachedWindowLauncher = options.detachedGhosttyWindowLaunch ?? launchDetachedGhosttyWindow;
-  const useDetachedWindowLaunch =
-    placementPolicy === "visible-fallback" &&
-    (!options.exec || Boolean(options.detachedGhosttyWindowLaunch));
-  const runWindowLaunch = () =>
-    useDetachedWindowLaunch
-      ? detachedWindowLauncher({
-          command: ghosttyBin,
-          cwd,
-          buildArgs: (launchHandshake) =>
-            buildGhosttyArgs({
-              cwd,
-              title,
-              launchMode: "window",
-              piArgs,
-              launchHandshake,
-            }),
-        })
-      : runGhosttyLaunch(
-          execRunner,
-          ghosttyBin,
-          buildGhosttyArgs({
-            cwd,
-            title,
-            launchMode: "window",
-            piArgs,
-          }),
-          cwd,
-        );
-  if (placementPolicy === "controller-tab-only" && !controllerDbusTarget) {
-    const reason =
-      windowFallbackReason ??
-      (!controllerGhostty
-        ? "controller Ghostty process could not be resolved"
-        : !requestedSurfaceId
-          ? "controller Ghostty surface id is unavailable"
-          : !surfaceId
-            ? "controller Ghostty surface targeting is unsupported"
-            : "Ghostty single-instance D-Bus target could not be proven");
-    return {
-      ok: false,
-      failure: `exact controller Ghostty tab unavailable: ${reason}`,
-      effectDisposition: "confirmed_no_effects",
-      launchMode: "tab",
-      sessionMode,
-      cwd,
-      sourceSessionFile,
-      titleBase: title,
-      promptSummary,
-    };
-  }
-  await waitForPeerLaunchStagger({ env, hasCustomExec: Boolean(options.exec) });
-  const launchedAfterMs = Date.now();
-  const ghosttyExecArgs = buildGhosttyExecArgs({ cwd, title, piArgs });
-  let launchResult =
-    launchMode === "window"
-      ? await runWindowLaunch()
-      : controllerDbusTarget
-        ? await runGhosttyLaunch(
-            execRunner,
-            "busctl",
-            buildControllerGhosttyDbusArgs({
-              target: controllerDbusTarget,
-              execArgs: ghosttyExecArgs,
-            }),
-            cwd,
-          )
-        : await runGhosttyLaunch(
-            execRunner,
-            ghosttyBin,
-            buildGhosttyArgs({
-              cwd,
-              title,
-              launchMode,
-              surfaceId,
-              piArgs,
-            }),
-            cwd,
-          );
-  let launchNote = joinLaunchNotes(
-    windowFallbackReason ?? wrapperTabAttachNote,
-    controllerDbusTarget
-      ? `targeted Ghostty single-instance process ${controllerDbusTarget.ownerPid} through ${controllerDbusTarget.busName}`
-      : undefined,
-    launchMode === "window" && useDetachedWindowLaunch && launchResult.ok
-      ? "confirmed direct-window command admission through a private handshake"
-      : undefined,
-  );
-
-  if (
-    !launchResult.ok &&
-    launchResult.effectDisposition === "confirmed_no_effects" &&
-    launchMode === "tab" &&
-    placementPolicy === "visible-fallback"
-  ) {
-    const tabFailure = summarizeLaunchFailure(launchResult);
-    const fallbackResult = await runWindowLaunch();
-    launchMode = "window";
-    launchResult = fallbackResult;
-    launchNote = fallbackResult.ok
-      ? joinLaunchNotes(
-          wrapperTabAttachNote,
-          `same-window tab launch failed without effects (${tabFailure}); opened a new window instead`,
-          useDetachedWindowLaunch
-            ? "confirmed direct-window command admission through a private handshake"
-            : undefined,
-        )
-      : joinLaunchNotes(
-          wrapperTabAttachNote,
-          `same-window tab launch failed without effects (${tabFailure}); direct new-window fallback did not settle`,
-        );
-  } else if (
-    !launchResult.ok &&
-    launchResult.effectDisposition === "effect_indeterminate" &&
-    launchMode === "tab" &&
-    placementPolicy === "visible-fallback"
-  ) {
-    launchNote = joinLaunchNotes(
-      launchNote,
-      "same-window launch effect is indeterminate; skipped automatic new-window retry to prevent a duplicate peer",
-    );
-  }
-
-  if (launchResult.ok && placementPolicy === "visible-fallback") {
-    launchNote = joinLaunchNotes(
-      launchNote,
-      await detectPostLaunchPlacementMismatch({
-        env,
-        options,
-        cwd,
-        titleBase: title,
-        launchMode,
-        launchedAfterMs,
-      }),
-    );
-  }
-
-  if (!launchResult.ok) {
-    return {
-      ok: false,
-      failure: summarizeLaunchFailure(launchResult),
-      effectDisposition: launchResult.effectDisposition,
-      launchMode,
-      sessionMode,
-      cwd,
-      sourceSessionFile,
-      titleBase: title,
-      promptSummary,
-      launchNote,
-    };
-  }
-
-  return {
-    ok: true,
-    effectDisposition: "settled",
-    launchMode,
-    sessionMode,
-    cwd,
-    sourceSessionFile,
-    titleBase: title,
-    promptSummary,
-    launchNote,
-  };
-}
-
-async function launchAscExecutionObserverSession(
-  pi: ExtensionAPI,
-  options: SidequestOptions,
-  request: AscObserverLaunchRequest,
-) {
-  const launch = await launchPiQuestSession({
-    pi,
-    ctx: {},
-    options,
-    prompt: "read-only ASC execution observation",
-    titlePrompt: request.title,
-    titlePrefix: "ASC observer",
-    placementPolicy: "controller-tab-only",
-    cwd: request.cwd,
-    command: {
-      command: process.execPath,
-      args: [
-        ASC_EXECUTION_OBSERVER_SCRIPT,
-        "--state",
-        request.statePath,
-        "--controller-instance",
-        request.controllerInstanceId,
-      ],
-    },
-  });
-  return launch.ok
-    ? {
-        ok: true as const,
-        launchMode: launch.launchMode,
-        ...(launch.launchNote ? { note: launch.launchNote } : {}),
-      }
-    : {
-        ok: false as const,
-        launchMode: launch.launchMode,
-        failure: launch.failure,
-        ...(launch.launchNote ? { note: launch.launchNote } : {}),
-      };
 }
 
 const MAX_CANDIDATE_BRANCH_NAME_LENGTH = 96;
@@ -1384,7 +705,14 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         env: options.env ?? process.env,
         processId: options.processId ?? process.pid,
         stateRoot: options.ascObserverStateRoot,
-        launch: (request) => launchAscExecutionObserverSession(pi, options, request),
+        launch: (request) =>
+          launchAscExecutionObserverSession(
+            pi,
+            options,
+            request,
+            DEFAULT_PI_BIN,
+            ASC_EXECUTION_OBSERVER_SCRIPT,
+          ),
         onLaunchFailure: (message) => {
           if (currentObserverContext?.mode === "tui" && currentObserverContext.hasUI) {
             currentObserverContext.ui.notify(message, "warning");
@@ -1442,6 +770,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt,
         titlePrompt: prompt,
         titlePrefix,
@@ -1490,6 +819,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt,
         titlePrompt: goal,
         titlePrefix: "Handoff",
@@ -1541,6 +871,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt,
         titlePrompt: objective,
         titlePrefix: "Scoutpeer",
@@ -1574,6 +905,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
           pi,
           ctx,
           options,
+          defaultPiBin: DEFAULT_PI_BIN,
           prompt: renderVisibleLoopChildCommand(configPath, claimToken),
           titlePrompt: `${titlePrefix.toLowerCase()} ${nextIteration}/${config.loopCount}`,
           titlePrefix,
@@ -1750,6 +1082,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt: childPrompt,
         titlePrompt: `${titlePrefix.toLowerCase()} x${parsed.loopCount}`,
         titlePrefix,
@@ -1870,6 +1203,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt,
         titlePrompt: objective,
         titlePrefix,
@@ -2035,6 +1369,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt,
         titlePrompt: objective,
         titlePrefix: "Forkpeer",
@@ -2139,6 +1474,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt,
         titlePrompt: objective,
         titlePrefix: "Scoutpeer",
@@ -2480,6 +1816,7 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
         pi,
         ctx,
         options,
+        defaultPiBin: DEFAULT_PI_BIN,
         prompt,
         titlePrompt: objective,
         titlePrefix: "Candidatepeer",
