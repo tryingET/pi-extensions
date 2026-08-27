@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.4.1](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.4.0...pi-context-packer-v0.4.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate provider-free release checks ([2a7c28c](https://github.com/tryingET/pi-extensions/commit/2a7c28cce24a8791f02db404eecdc56e4f8e558c))
+
 ## [0.4.0](https://github.com/tryingET/pi-extensions/compare/pi-context-packer-v0.3.1...pi-context-packer-v0.4.0) (2026-08-20)
 
 
