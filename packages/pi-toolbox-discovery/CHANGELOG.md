@@ -13,6 +13,15 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.3.2](https://github.com/tryingET/pi-extensions/compare/pi-toolbox-discovery-v0.3.1...pi-toolbox-discovery-v0.3.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate provider-free release checks ([2a7c28c](https://github.com/tryingET/pi-extensions/commit/2a7c28cce24a8791f02db404eecdc56e4f8e558c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **pi-toolbox-discovery:** sci/mutating catalog lists the merged preview_patch_checks door (AK [#5104](https://github.com/tryingET/pi-extensions/issues/5104)) ([a490098](https://github.com/tryingET/pi-extensions/commit/a49009808ad754795ea8ddac34ba7d3652761fff))
+
 ## [Unreleased]
 
 ### Changed

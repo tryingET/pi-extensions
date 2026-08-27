@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-toolbox-discovery",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "pi extension package for toolbox workflows in monorepo runtime",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
