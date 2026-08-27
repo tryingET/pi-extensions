@@ -91,10 +91,10 @@ test("every tracked shell consumer that parses npm pack JSON normalizes it first
   for (const relativePath of trackedReleaseCheckScripts()) {
     const source = fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
     const capturesPackJson =
-      /PACK_JSON(?:_RAW)?="\$\((?:npm(?: --cache [^\n]+)?|isolated_npm) pack --dry-run --json\)"/.test(
+      /PACK_JSON(?:_RAW)?="\$\((?:npm(?: --cache [^\n]+)?|isolated_npm|release_sandbox_npm) pack --dry-run --json\)"/.test(
         source,
       ) ||
-      /(?:npm(?: --cache [^\n]+)?|isolated_npm) pack --dry-run --json > "\$PACK_JSON_FILE"/.test(
+      /(?:npm(?: --cache [^\n]+)?|isolated_npm|release_sandbox_npm) pack --dry-run --json > "\$PACK_JSON_FILE"/.test(
         source,
       );
     if (!capturesPackJson) continue;
