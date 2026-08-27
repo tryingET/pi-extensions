@@ -613,6 +613,8 @@ test("vault release check refuses system temporary storage", () => {
   const source = fs.readFileSync(vaultReleaseCheckPath, "utf8");
   assert.doesNotMatch(source, /mktemp(?: -d)? \/tmp\//);
   assert.match(source, /npm install --ignore-scripts --legacy-peer-deps/);
+  assert.match(source, /if ! LOCAL_DEP_TARBALL_OUTPUT=/);
+  assert.doesNotMatch(source, /mapfile[^\n]+< <\(/);
   const result = spawnSync("bash", [vaultReleaseCheckPath], {
     cwd: path.dirname(vaultReleaseCheckPath),
     encoding: "utf8",
@@ -631,6 +633,7 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
     const prepackMarker = path.join(root, "prepack.marker");
     const dependencyLink = path.join(root, "dependency-link");
     const installMarker = path.join(root, "install.marker");
+    const registryMarker = path.join(root, "registry.marker");
     fs.mkdirSync(appDir);
     fs.mkdirSync(dependencyDir);
     fs.mkdirSync(buildToolDir);
@@ -657,7 +660,7 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
     fs.writeFileSync(path.join(buildToolDir, "index.cjs"), "module.exports = 'ready';\n");
     fs.writeFileSync(
       path.join(dependencyDir, "verify-prepack.cjs"),
-      `const fs = require("node:fs");\nif (require("@fixture/build-tool") !== "ready") process.exit(1);\nfs.writeFileSync(${JSON.stringify(prepackMarker)}, "ran");\nfs.writeFileSync("relative-prepack.marker", "scratch-only");\n`,
+      `const { execFileSync } = require("node:child_process");\nconst fs = require("node:fs");\nif (require("@fixture/build-tool") !== "ready") process.exit(1);\nfs.writeFileSync(${JSON.stringify(prepackMarker)}, "ran");\nfs.writeFileSync(${JSON.stringify(registryMarker)}, execFileSync("npm", ["config", "get", "registry"], { encoding: "utf8" }).trim());\nfs.writeFileSync("relative-prepack.marker", "scratch-only");\n`,
     );
     fs.writeFileSync(
       path.join(dependencyDir, "package.json"),
@@ -670,6 +673,10 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
       })}\n`,
     );
     fs.writeFileSync(path.join(dependencyDir, "index.cjs"), "module.exports = true;\n");
+    fs.writeFileSync(
+      path.join(dependencyDir, ".npmrc"),
+      "registry=https://registry.attacker.invalid/\n//registry.npmjs.org/:_authToken=SHOULD_NOT_CROSS\n",
+    );
     const lock = spawnSync("npm", ["install", "--package-lock-only", "--ignore-scripts"], {
       cwd: dependencyDir,
       encoding: "utf8",
@@ -680,6 +687,8 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
     const lockPath = path.join(dependencyDir, "package-lock.json");
     const packageBytes = fs.readFileSync(packagePath);
     const lockBytes = fs.readFileSync(lockPath);
+    const npmrcPath = path.join(dependencyDir, ".npmrc");
+    const npmrcBytes = fs.readFileSync(npmrcPath);
     assert.equal(fs.existsSync(path.join(dependencyDir, "node_modules")), false);
     assert.deepEqual(
       fs.readFileSync(releaseLocalDependenciesPath),
@@ -697,6 +706,7 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
       fs.writeFileSync(path.join(packDir, ".source-workspace", "sentinel"), "preserve");
       fs.writeFileSync(path.join(packDir, ".npm-home", "sentinel"), "preserve");
       fs.rmSync(prepackMarker, { force: true });
+      fs.rmSync(registryMarker, { force: true });
       const packed = spawnSync(
         process.execPath,
         [helperPath, "--pack-dir", packDir, "--output", "tarballs"],
@@ -715,6 +725,7 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
       assert.equal(tarballs.length, 1);
       assert.ok(fs.existsSync(tarballs[0]));
       assert.equal(fs.readFileSync(prepackMarker, "utf8"), "ran");
+      assert.equal(fs.readFileSync(registryMarker, "utf8"), "https://registry.npmjs.org/");
       assert.equal(
         fs.readFileSync(path.join(packDir, ".source-workspace", "sentinel"), "utf8"),
         "preserve",
@@ -741,6 +752,32 @@ test("local dependency packing prepares locked dev tools in isolated scratch", (
     assert.equal(fs.existsSync(installMarker), false);
     assert.deepEqual(fs.readFileSync(packagePath), packageBytes);
     assert.deepEqual(fs.readFileSync(lockPath), lockBytes);
+    assert.deepEqual(fs.readFileSync(npmrcPath), npmrcBytes);
+
+    const outsideFile = path.join(root, "outside.txt");
+    const internalLink = path.join(dependencyDir, "escaping-link");
+    fs.writeFileSync(outsideFile, "outside");
+    fs.symlinkSync(outsideFile, internalLink);
+    const symlinkPackDir = path.join(root, "packed-symlink");
+    const symlinked = spawnSync(
+      process.execPath,
+      [releaseLocalDependenciesPath, "--pack-dir", symlinkPackDir, "--output", "tarballs"],
+      { cwd: appDir, encoding: "utf8", env: fixtureEnv(root) },
+    );
+    assert.notEqual(symlinked.status, 0);
+    assert.match(symlinked.stderr, /Symlink is not allowed/);
+    assert.deepEqual(
+      fs
+        .readdirSync(symlinkPackDir)
+        .filter(
+          (entry) =>
+            entry.startsWith(".source-workspace.") ||
+            entry.startsWith(".npm-home.") ||
+            entry === ".release-local-dependencies.lock",
+        ),
+      [],
+    );
+    fs.rmSync(internalLink);
 
     fs.rmSync(lockPath);
     const locklessPackDir = path.join(root, "packed-lockless");

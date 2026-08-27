@@ -323,7 +323,18 @@ PACKAGE_SPEC="npm:$TARBALL_PATH"
 echo "Tarball: $TARBALL_PATH"
 
 LOCAL_DEP_PACK_DIR="$(release_temp_dir local-deps)"
-mapfile -t LOCAL_DEP_TARBALLS < <(node ./scripts/release-local-dependencies.mjs --pack-dir "$LOCAL_DEP_PACK_DIR" --output tarballs)
+if ! LOCAL_DEP_TARBALL_OUTPUT="$(
+  node ./scripts/release-local-dependencies.mjs \
+    --pack-dir "$LOCAL_DEP_PACK_DIR" \
+    --output tarballs
+)"; then
+  echo "Local dependency artifact preparation failed." >&2
+  exit 1
+fi
+LOCAL_DEP_TARBALLS=()
+if [[ -n "$LOCAL_DEP_TARBALL_OUTPUT" ]]; then
+  mapfile -t LOCAL_DEP_TARBALLS <<<"$LOCAL_DEP_TARBALL_OUTPUT"
+fi
 INSTALL_TARBALLS=("${LOCAL_DEP_TARBALLS[@]}" "$TARBALL_PATH")
 
 PACKED_ARTIFACT_DIR="$(release_temp_dir packed-artifact)"

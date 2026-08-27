@@ -89,11 +89,7 @@ function gitContext(packageDir, dependencyDirs) {
   if (rootResult.status !== 0) return null;
   const root = fs.realpathSync(rootResult.stdout.trim());
   if (![packageDir, ...dependencyDirs].every((candidate) => isInside(root, candidate))) return null;
-  const gitDirResult = spawnSync("git", ["-C", packageDir, "rev-parse", "--absolute-git-dir"], {
-    encoding: "utf8",
-  });
-  if (gitDirResult.status !== 0) return null;
-  return { root, gitDir: fs.realpathSync(gitDirResult.stdout.trim()) };
+  return { root };
 }
 
 function copySource(source, destination) {
@@ -101,7 +97,7 @@ function copySource(source, destination) {
     recursive: true,
     filter(candidate) {
       const basename = path.basename(candidate);
-      if (["node_modules", ".git", ".tmp"].includes(basename)) return false;
+      if (["node_modules", ".git", ".tmp", ".npmrc"].includes(basename)) return false;
       if (basename.endsWith(".tgz")) return false;
       if (basename.startsWith(".package.json.")) return false;
       if (fs.lstatSync(candidate).isSymbolicLink()) {
@@ -125,6 +121,21 @@ function createScratchContext(packageDir, dependencies) {
     fs.mkdirSync(path.join(npmHome, ".cache"), { recursive: true, mode: 0o700 });
     fs.writeFileSync(path.join(npmHome, "user.npmrc"), "", { mode: 0o600 });
     fs.writeFileSync(path.join(npmHome, "global.npmrc"), "", { mode: 0o600 });
+    if (git) {
+      const scratchGitRoot = path.join(workspaceRoot, ".git-context");
+      const clone = spawnSync(
+        "git",
+        ["clone", "--shared", "--no-checkout", "--quiet", sourceRoot, scratchGitRoot],
+        {
+          encoding: "utf8",
+          env: { PATH: process.env.PATH, HOME: npmHome, TMPDIR: process.env.TMPDIR },
+        },
+      );
+      if (clone.status !== 0) {
+        fail(`Could not create isolated release Git context: ${clone.stderr.trim()}`);
+      }
+      git.gitDir = path.join(scratchGitRoot, ".git");
+    }
     return { sourceRoot, workspaceRoot, npmHome, git };
   } catch (error) {
     if (workspaceRoot) fs.rmSync(workspaceRoot, { recursive: true, force: true });
