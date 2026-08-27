@@ -13,6 +13,13 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.2.3](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.2.2...pi-peer-messaging-v0.2.3) (2026-08-27)
+
+
+### Bug Fixes
+
+* **monorepo:** isolate provider-free release checks ([2a7c28c](https://github.com/tryingET/pi-extensions/commit/2a7c28cce24a8791f02db404eecdc56e4f8e558c))
+
 ## [0.2.2](https://github.com/tryingET/pi-extensions/compare/pi-peer-messaging-v0.2.1...pi-peer-messaging-v0.2.2) (2026-08-15)
 
 

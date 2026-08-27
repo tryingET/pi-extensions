@@ -1,6 +1,6 @@
 {
   "name": "@tryinget/pi-peer-messaging",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Stable core contract for same-machine peer-session messaging in pi",
   "type": "module",
   "main": "./index.ts",
