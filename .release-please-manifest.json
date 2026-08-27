@@ -1,5 +1,5 @@
 {
-  "packages/pi-activity-strip": "0.3.0",
+  "packages/pi-activity-strip": "0.3.1",
   "packages/pi-agent-registry": "0.1.0",
   "packages/pi-agent-vent": "0.2.2",
   "packages/pi-autonomous-session-control": "0.5.2",

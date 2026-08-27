@@ -34,6 +34,15 @@ All notable changes to this project should be documented here.
 
 - Make interaction the default and retain `PI_ACTIVITY_STRIP_CLICK_THROUGH=1` as the explicit mouse-transparent escape hatch.
 
+## [0.3.1](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.3.0...pi-activity-strip-v0.3.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **activity-strip:** stop wedged streams from rendering as live activity ([d4f36e6](https://github.com/tryingET/pi-extensions/commit/d4f36e668cd68187289d34667c088a9283d96404))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **pi-activity-strip:** make packed smoke provider-free ([35c611e](https://github.com/tryingET/pi-extensions/commit/35c611e7b8a1caf2dc8b573e9358347467f77358))
+
 ## [0.3.0](https://github.com/tryingET/pi-extensions/compare/pi-activity-strip-v0.2.0...pi-activity-strip-v0.3.0) (2026-08-15)
 
 
