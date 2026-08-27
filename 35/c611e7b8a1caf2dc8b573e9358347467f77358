@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "35c611e7b8a1caf2dc8b573e9358347467f77358"
+created_at: "2026-08-27T14:16:38Z"
+intent: "Replace activity-strip model-backed smoke with installed headless and registration proofs"
+files:
+  - "packages/pi-activity-strip/scripts/release-check.sh"
+  - "packages/pi-activity-strip/scripts/release-smoke.sh"
+validation:
+  fast_gate:
+    command: "npm run quality:pre-commit"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+group:
+  index: 6
+  total: 8
+links:
+  task_ids:
+    - 5149
