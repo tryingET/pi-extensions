@@ -1,0 +1,19 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "b97d95a16a5e66fc76c83f15ca8192933433642c"
+created_at: "2026-08-28T20:19:01Z"
+intent: "Split autoresearch live-control-plane test suite (5379 LOC) into 8 concern suites + fixtures helper, behavior-preserving; AK 5170 commit 3"
+files:
+  - "packages/pi-society-orchestrator/tests/live-control-plane"
+validation:
+  fast_gate:
+    command: "node --test 'tests/live-control-plane/*.test.mjs' && package-quality-gate.sh test packages/pi-society-orchestrator"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+links:
+  task_ids:
+    - 5170
