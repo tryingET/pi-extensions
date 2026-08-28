@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "f063accae25b98a797fd98e8e4ae3c39823738c8"
+created_at: "2026-08-28T20:11:51Z"
+intent: "Implement owner-scoped file-budget exception mechanism (policy contract, discovery, strict validation, adversarial tests) as commit 1 of AK task 5170"
+files:
+  - "scripts/file-budget-audit.mjs"
+  - "scripts/file-budget-exceptions.mjs"
+  - "scripts/file-budget-audit.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test scripts/file-budget-audit.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+links:
+  task_ids:
+    - 5170
