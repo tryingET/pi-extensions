@@ -59,8 +59,7 @@
     "docs/engineering.local.md",
     "docs/project/vision.md",
     "docs/project/foundation.md",
-    "docs/project/2026-08-27-agent-registry.md",
-    "node_modules/@tryinget/pi-autonomous-session-control"
+    "docs/project/2026-08-27-agent-registry.md"
   ],
   "pi": {
     "extensions": [
@@ -94,8 +93,5 @@
   "dependencies": {
     "@tryinget/pi-autonomous-session-control": "0.5.2",
     "typebox": "1.3.7"
-  },
-  "bundleDependencies": [
-    "@tryinget/pi-autonomous-session-control"
-  ]
+  }
 }

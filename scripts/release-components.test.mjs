@@ -81,6 +81,7 @@ function resolveTag(tag) {
     execFileSync(process.execPath, [SCRIPT, "resolve-tag", tag, "--json"], {
       cwd: ROOT,
       encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
     }),
   );
 }
@@ -89,6 +90,7 @@ function resolveTagEnv(tag) {
   return execFileSync(process.execPath, [SCRIPT, "resolve-tag", tag, "--env"], {
     cwd: ROOT,
     encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
   });
 }
 
@@ -97,6 +99,7 @@ function listComponents() {
     execFileSync(process.execPath, [SCRIPT, "list", "--json"], {
       cwd: ROOT,
       encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
     }),
   );
 }
@@ -106,6 +109,7 @@ function releaseProjection(command, ...args) {
     execFileSync(process.execPath, [SCRIPT, command, ...args, "--json"], {
       cwd: ROOT,
       encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
     }),
   );
 }
