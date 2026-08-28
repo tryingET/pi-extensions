@@ -1,0 +1,28 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/transcendent-iteration"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "6a2c714f27957dd8c461ee20e7c5dcbfc8b3c68e"
+created_at: "2026-08-28T10:34:49Z"
+intent: "Enforce immutable propagation-complete release waves and dependency-first dispatch."
+files:
+  - ".github/workflows/publish.yml"
+  - ".github/workflows/release-check.yml"
+  - ".github/workflows/release-please.yml"
+  - ".release-please-config.json"
+  - "docs/project/portfolio-release-plan.md"
+  - "docs/release-recovery.md"
+  - "scripts/release-components.mjs"
+  - "scripts/release-components.test.mjs"
+  - "scripts/release-plan.mjs"
+  - "scripts/release-wave.mjs"
+validation:
+  fast_gate:
+    command: "node --test scripts/release-components.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:ci"
+    status: "pass"
+links:
+  task_ids:
+    - 5162
