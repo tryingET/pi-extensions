@@ -34,7 +34,11 @@ jobs:
         run: node --test ./scripts/release-components.test.mjs
 
       - name: Require a propagation-complete release PR plan
-        if: github.event_name == 'pull_request'
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          startsWith(github.head_ref, 'release-please--branches--main--components--') &&
+          contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
         run: |
           node ./scripts/release-components.mjs plan \
             --base "${{ github.event.pull_request.base.sha }}" \

@@ -443,7 +443,10 @@ test("generic publish path preserves directory-based release check and publish",
 test("release-check CI gates release PRs on the registry-aware portfolio plan", () => {
   const workflow = fs.readFileSync(RELEASE_CHECK_WORKFLOW_PATH, "utf8");
   const gate = workflowStep(workflow, "Require a propagation-complete release PR plan");
-  assert.match(gate, /if: github\.event_name == 'pull_request'/u);
+  assert.match(gate, /github\.event_name == 'pull_request'/u);
+  assert.match(gate, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u);
+  assert.match(gate, /startsWith\(github\.head_ref, 'release-please--branches--main--components--'\)/u);
+  assert.match(gate, /contains\(github\.event\.pull_request\.labels\.\*\.name, 'autorelease: pending'\)/u);
   assert.match(gate, /--base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}"/u);
   assert.match(gate, /--registry/u);
   assert.match(gate, /--require-ready/u);

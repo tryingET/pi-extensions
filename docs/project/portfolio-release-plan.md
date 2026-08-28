@@ -26,7 +26,7 @@ node ./scripts/release-components.mjs plan \
 node ./scripts/release-components.mjs plan --all --json
 ```
 
-Add `--registry` for read-only `npm view` classification. Add `--require-ready` when blockers must produce a non-zero exit. Registry checks are deliberately opt-in locally; release-PR CI enables both flags.
+Add `--registry` for read-only `npm view` classification. Add `--require-ready` when blockers must produce a non-zero exit. Registry checks are deliberately opt-in locally; CI enables both flags only when the pull request is identified by the same-repository Release Please component branch and `autorelease: pending` label. Ordinary pull requests still validate the graph and run component tests, but are not required to contain release-version advances.
 
 ## Contract
 
