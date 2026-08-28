@@ -1,0 +1,19 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "cf1596b95a65982cd458594fbd1bcc6dea6948ae"
+created_at: "2026-08-28T20:16:31Z"
+intent: "Split runtime-shared-paths test suite (3417 LOC) into 9 concern-scoped suites + helpers, behavior-preserving per refactorops; AK 5170 commit 2"
+files:
+  - "packages/pi-society-orchestrator/tests/runtime-shared-paths"
+validation:
+  fast_gate:
+    command: "node --test 'tests/runtime-shared-paths/*.test.mjs' && package-quality-gate.sh test packages/pi-society-orchestrator"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+links:
+  task_ids:
+    - 5170
