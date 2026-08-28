@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/transcendent-iteration"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "0d68165e2347d22f6663585d48129c5e0ce2f9f3"
+created_at: "2026-08-28T10:34:49Z"
+intent: "Restrict strict portfolio readiness to verified Release Please PRs."
+files:
+  - ".github/workflows/release-check.yml"
+  - "docs/project/portfolio-release-plan.md"
+  - "scripts/release-components.test.mjs"
+validation:
+  fast_gate:
+    command: "node --test scripts/release-components.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:ci"
+    status: "pass"
+links:
+  task_ids:
+    - 5160
