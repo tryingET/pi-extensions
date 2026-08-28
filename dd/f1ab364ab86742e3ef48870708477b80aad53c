@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "ddf1ab364ab86742e3ef48870708477b80aad53c"
+created_at: "2026-08-28T20:32:21Z"
+intent: "Record 26 owner-scoped file-budget exceptions for orchestrator and ratchet its package gate to hard-fail via per-package marker; proven green in pre-commit; AK 5170 commit 7"
+files:
+  - "policy/file-budget-exceptions.json"
+  - "packages/pi-society-orchestrator/policy/file-budget-ratchet.json"
+  - "scripts/package-quality-gate.sh"
+validation:
+  fast_gate:
+    command: "package-quality-gate.sh pre-commit packages/pi-society-orchestrator && node --test scripts/file-budget-audit.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+links:
+  task_ids:
+    - 5170
