@@ -32,6 +32,11 @@ const allowedAutoresearchConsumers = [
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
   {
+    // pure move from autoresearch-types.ts (live-core type-catalog slice)
+    file: "src/runtime/autoresearch-live-core-types.ts",
+    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
+  },
+  {
     // pure move from autoresearch-supervisor-runner.ts (live-supervision slice)
     file: "src/runtime/autoresearch-live-supervision.ts",
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
@@ -42,11 +47,6 @@ const allowedAutoresearchConsumers = [
   },
   {
     file: "src/runtime/autoresearch-self-hosting-supervision.ts",
-    specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
-  },
-  {
-    // pure move of type-only imports from autoresearch-supervisor-runner.ts (types slice)
-    file: "src/runtime/autoresearch-types.ts",
     specifier: "@tryinget/pi-autoresearch/src/runtime.ts",
   },
 ];
