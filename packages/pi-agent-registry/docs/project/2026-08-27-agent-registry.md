@@ -55,10 +55,11 @@ requested profile; returning `undefined` preserves ASC's original
 fail-closed diagnostics. The registry maps the agent name to a materialized
 skill-dir selection through that hook, so clean-child skill isolation
 (`--no-skills` + materialized `--skill` dirs), capacity, effect receipts,
-and post-run cleanup remain ASC-owned end to end. ASC is bundled under the
-registry package's `node_modules/` because Pi packages have isolated module
-roots; the runtime dependency remains semver-addressed in the packed
-manifest while the source lock resolves the sibling implementation.
+and post-run cleanup remain ASC-owned end to end. ASC is a semver-exact
+runtime dependency resolved from the npm registry (not bundled: npm 12
+rejects overrides-affected bundles, and ASC `0.5.2` has no runtime
+dependencies of its own); the packed manifest keeps the plain
+`0.5.2` requirement for consumers.
 
 ### Model handling
 

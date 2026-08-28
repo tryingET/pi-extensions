@@ -77,12 +77,13 @@ approval, Pi runtime install/reload proof, or monorepo owner authority.
 
 - Runtime baseline: Node 22+ running TypeScript sources directly; the
   package ships TS sources and has no dist build of its own.
-- Dependency posture: ASC is a semver runtime dependency and an npm bundled
-  dependency because Pi packages have isolated module roots. The lockfile
-  resolves version `0.5.2` from the sibling source with `--install-links`
-  so CI/release packs the exact execution seam under
-  `node_modules/@tryinget/pi-autonomous-session-control`; the packed
-  manifest contains no `file:` runtime dependency.
+- Dependency posture: ASC is a semver-exact runtime dependency (`0.5.2`)
+  resolved from the npm registry. It is deliberately not bundled: npm 12
+  refuses to pack a package whose `overrides` (the `fast-xml-parser`
+  security floor) affect a bundled subtree (EBUNDLEOVERRIDE), and ASC
+  `0.5.2` itself has zero runtime dependencies, so consumers resolve it
+  from the registry while the repo's own lock pins the integrity-checked
+  tarball. The packed manifest contains no `file:` runtime dependency.
 - Tests intentionally read live workspace fixtures (the real steward agent
   repo and the real engineering-core `profiles.json`) to keep the
   convention honest against the fleet, not just against synthetic data.
