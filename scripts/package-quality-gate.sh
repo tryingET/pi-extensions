@@ -287,7 +287,15 @@ run_file_budget_audit_target() {
     return 0
   fi
 
-  node "$audit_script" --root "$workdir" --warn-only
+  # Per-package ratchet opt-in: a checked-in policy/file-budget-ratchet.json
+  # marks a package whose audit must pass hard-fail (clean or fully excepted
+  # via policy/file-budget-exceptions.json) in every gate stage.
+  local audit_mode=("--warn-only")
+  if [[ -f "$workdir/policy/file-budget-ratchet.json" ]]; then
+    audit_mode=("--fail")
+  fi
+
+  node "$audit_script" --root "$workdir" "${audit_mode[@]}"
 }
 
 has_npm_script() {

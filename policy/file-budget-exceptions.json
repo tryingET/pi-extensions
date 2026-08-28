@@ -1,0 +1,161 @@
+{
+  "notes": "Owner-scoped brownfield exceptions for files exceeding readability budgets. Every entry names an owner, a genuine justification, and a reopen trigger that must fire before the exception is reconsidered. Stale entries (file no longer over budget) and unknown paths are rejected by scripts/file-budget-audit.mjs with a non-zero exit in both warn-only and fail modes — remove entries when their files are split below budget.",
+  "exceptions": [
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-matrix-campaign.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Matrix-campaign planning/runner orchestration core: planner, runner contract, checkpoint, controller packets, and operator lanes share one sealed state machine; mechanical extraction would slice the state machine without behavior characterization coverage for runner/checkpoint seams.",
+      "reopen_trigger": "Characterization suite for matrix runner/checkpoint transitions lands, or the file grows past 2600 LOC, or the next owner-approved refactor touches this planner."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-level3-planning.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Level-3 planning pipeline (preflight, policy gates, slice sequencing, lifecycle plans) is one ordered decision sequence; slicing phases before the sequence has per-phase characterization risks reordering gated decisions.",
+      "reopen_trigger": "Per-phase characterization tests land, or the file grows past 2000 LOC, or level-3 planning semantics change next."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-report-format.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Report formatting catalog (shared section renderers plus format-version invariants) is byte-anchored by golden snapshots; a format-module split must land together with golden regeneration to stay behavior-preserving.",
+      "reopen_trigger": "Next report-format version bump that regenerates goldens, or the file grows past 1900 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/registration.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Loop tool/command registration surface binds every loop phase to one registration contract; splitting registration risks silent tool/contract drift between halves.",
+      "reopen_trigger": "Loop tool registration contract is next touched, or the file grows past 1800 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/scripts/release-smoke.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Release smoke is a single sequential narrative over shared subprocess plumbing; splitting phases would obscure the ordered smoke story release operators read end-to-end.",
+      "reopen_trigger": "Next release-process change that restructures smoke phases, or the file grows past 1600 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/extension/autoresearch-live-registration.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Autoresearch live tool registration pairs each tool with its guarded handler bindings in one file so registration and authorization surfaces stay review-adjacent.",
+      "reopen_trigger": "Live supervision tool set changes next, or the file grows past 1500 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-level4-runner.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Level-4 runner resume/closeout paths persist interlocking receipts; extraction needs resume-path characterization that does not exist yet.",
+      "reopen_trigger": "Level-4 resume characterization lands, or the file grows past 1400 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-candidate-wave.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Candidate-wave planning and review flow one packet lifecycle through binding, reliability, and owner-decision stages; the stages share parsing of the same packet shapes.",
+      "reopen_trigger": "Candidate-wave packet schema changes next, or the file grows past 1400 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/executor.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "LoopExecutor core: phase dispatch, resume, and failure semantics are one indistinguishable state machine covered by loop-resume suites; extraction is deferred until resume semantics are frozen.",
+      "reopen_trigger": "Loop resume semantics are declared frozen, or the file grows past 1400 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/run-checkpoint.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checkpoint store, retention, and resume validation share lock/lease invariants that a split would have to restate; validation contracts are still evolving.",
+      "reopen_trigger": "Checkpoint retention contract is next revised, or the file grows past 1150 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/loop-ui.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Loop UI surfaces (status rendering plus interaction handlers) share one view model; splitting would duplicate the view-model derivation.",
+      "reopen_trigger": "Loop UI redesign, or the file grows past 1050 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/extensions/society-orchestrator.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Extension entrypoint wires commands, tools, and runtime options in one registration narrative; it is the operator-facing wiring surface and shrinks as registrations are extracted deliberately.",
+      "reopen_trigger": "Next extension wiring change, or the file grows past 950 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-live-supervision.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Live supervision request router maps every supervision operation onto the shared runner/session lifecycle; the router stays cohesive by design (previously split from supervisor-runner).",
+      "reopen_trigger": "New supervision operations are added, or the file grows past 950 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/workflow-execution.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Workflow executor chains, parallel groups, cancellation, and worktree isolation share one execution invariant set; executor-semantics tests cover behavior but extraction boundaries are not yet owner-approved.",
+      "reopen_trigger": "Workflow executor invariant doc lands, or the file grows past 900 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/governed-deep-review-preflight.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Governed preflight runtime creation and ownership branding are a single security membrane; splitting the membrane would obscure the owner-brand invariants it enforces.",
+      "reopen_trigger": "Governed preflight ownership model changes, or the file grows past 800 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/boundaries.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Lower-plane boundary telemetry and enforcement stay in one module so boundary rules cannot drift across halves; within 50% of budget.",
+      "reopen_trigger": "Boundary rule set changes, or the file grows past 800 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-self-hosting-supervision.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Self-hosting supervision pairs launch/watch/finalize stages over one worktree lifecycle; within 50% of budget and stage extraction has no characterization yet.",
+      "reopen_trigger": "Self-hosting lifecycle changes, or the file grows past 750 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-learning-kes-adapter.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "KES learning adapter translates one telemetry schema end-to-end; single-translation cohesion within 35% of budget.",
+      "reopen_trigger": "KES learning schema changes, or the file grows past 725 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-post-fanin-finalizer.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Post-fan-in finalizer token/request/apply stages implement one authorization protocol; protocol stages stay together by design.",
+      "reopen_trigger": "Finalizer authorization protocol changes, or the file grows past 725 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/kes/scaffold.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "KES scaffold templates one directory convention; within 30% of budget.",
+      "reopen_trigger": "KES scaffold layout changes, or the file grows past 700 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/autoresearch-supervisor.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Autoresearch supervisor ledger and projection loop share one ledger replay contract; within 30% of budget.",
+      "reopen_trigger": "Supervisor ledger contract changes, or the file grows past 675 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/release-evidence-ak-adapter.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Release-evidence AK adapter maps one evidence schema; single-translation cohesion within 20% of budget.",
+      "reopen_trigger": "Release evidence schema changes, or the file grows past 625 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-manifest-campaign-supervision.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Manifest campaign supervision binds tool contract to supervision loop in one file; within 15% of budget.",
+      "reopen_trigger": "Manifest campaign tool contract changes, or the file grows past 600 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/scripts/validate-asc-bridge-lifecycle.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "ASC bridge lifecycle validator is one sequential verification script; barely over budget (521/500).",
+      "reopen_trigger": "ASC bridge lifecycle contract changes, or the file grows past 575 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/telemetry-learning-kes-adapter.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Telemetry KES adapter translates one telemetry schema; single-translation cohesion barely over budget (530/500).",
+      "reopen_trigger": "Telemetry schema changes, or the file grows past 575 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-ak-projector.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "AK projector maps campaign state to AK task projections in one mapping file; barely over budget (510/500).",
+      "reopen_trigger": "AK projection schema changes, or the file grows past 560 LOC."
+    }
+  ]
+}
