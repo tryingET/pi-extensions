@@ -1,5 +1,5 @@
 name: publish
-run-name: publish ${{ inputs.tag }} · wave ${{ inputs.wave_id }}
+run-name: publish ${{ inputs.tag }} · wave ${{ inputs.wave_id }} · dispatch ${{ inputs.dispatch_id }}
 
 on:
   workflow_dispatch:
@@ -14,6 +14,10 @@ on:
         type: string
       wave_base64:
         description: "Base64-encoded immutable portfolio release wave"
+        required: true
+        type: string
+      dispatch_id:
+        description: "Unique identity for this publication attempt"
         required: true
         type: string
 
@@ -36,6 +40,7 @@ jobs:
     timeout-minutes: 60
     environment: npm-publish
     permissions:
+      actions: read
       contents: read
       id-token: write
       attestations: write
@@ -95,11 +100,26 @@ jobs:
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
           done
           predecessors="$RUNNER_TEMP/release-predecessors.txt"
-          node ./scripts/release-wave.mjs predecessors --wave "$wave" --tag "$RELEASE_TAG" > "$predecessors"
+          node ./scripts/release-wave.mjs predecessor-records --wave "$wave" --tag "$RELEASE_TAG" > "$predecessors"
+          while IFS=$'\t' read -r predecessor_tag package; do
+            [[ -n "$predecessor_tag" && -n "$package" ]] || continue
+            npm view "$package" version --json >/dev/null
+            title_prefix="publish $predecessor_tag · wave $actual_wave_id · dispatch "
+            runs_json="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow publish.yml \
+              --event workflow_dispatch --limit 100 --json displayTitle,conclusion)"
+            RUNS_JSON="$runs_json" TITLE_PREFIX="$title_prefix" node <<'NODE'
+          const runs = JSON.parse(process.env.RUNS_JSON || "[]");
+          if (!runs.some((run) => run.conclusion === "success" && run.displayTitle?.startsWith(process.env.TITLE_PREFIX))) {
+            throw new Error(`No successful exact-artifact predecessor run: ${process.env.TITLE_PREFIX}`);
+          }
+          NODE
+          done < "$predecessors"
+          prerequisites="$RUNNER_TEMP/release-registry-prerequisites.txt"
+          node ./scripts/release-wave.mjs registry-prerequisites --wave "$wave" --tag "$RELEASE_TAG" > "$prerequisites"
           while IFS= read -r package; do
             [[ -n "$package" ]] || continue
             npm view "$package" version --json >/dev/null
-          done < "$predecessors"
+          done < "$prerequisites"
 
       - name: Validate release-please component metadata
         run: node ./scripts/release-components.mjs validate

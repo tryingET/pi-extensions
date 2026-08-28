@@ -33,6 +33,7 @@ function writeJson(filePath, value) {
 }
 
 function fixture(t, { localDependency = false } = {}) {
+  fs.mkdirSync(path.join(ROOT, ".git", "tmp"), { recursive: true });
   const root = fs.mkdtempSync(path.join(ROOT, ".git", "tmp", "release-artifact-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -54,12 +55,8 @@ function fixture(t, { localDependency = false } = {}) {
       extensions: ["./index.js"],
     },
     scripts: {
-      prepack: localDependency
-        ? "node ./prepare.mjs prepack"
-        : "node -e \"console.log('[lifecycle-prepack]'); console.log(JSON.stringify({phase:'prepack'}))\"",
-      postpack: localDependency
-        ? "node ./prepare.mjs postpack"
-        : "node -e \"console.log('[lifecycle-postpack]'); console.log(JSON.stringify({phase:'postpack'}))\"",
+      prepack: "node -e \"console.log('[lifecycle-prepack]'); console.log(JSON.stringify({phase:'prepack'}))\"",
+      postpack: "node -e \"console.log('[lifecycle-postpack]'); console.log(JSON.stringify({phase:'postpack'}))\"",
     },
   };
 
@@ -82,23 +79,6 @@ function fixture(t, { localDependency = false } = {}) {
     manifest.dependencies = {
       "@example/release-artifact-dependency": "file:./dependency",
     };
-    fs.writeFileSync(
-      path.join(root, "prepare.mjs"),
-      `import fs from "node:fs";\n` +
-        `const command = process.argv[2];\n` +
-        `const packagePath = new URL("./package.json", import.meta.url);\n` +
-        `const backupPath = new URL("./package.json.release-backup", import.meta.url);\n` +
-        `if (command === "prepack") {\n` +
-        `  fs.copyFileSync(packagePath, backupPath);\n` +
-        `  const manifest = JSON.parse(fs.readFileSync(packagePath, "utf8"));\n` +
-        `  manifest.dependencies["@example/release-artifact-dependency"] = "0.1.0";\n` +
-        `  fs.writeFileSync(packagePath, JSON.stringify(manifest, null, 2) + "\\n");\n` +
-        `} else if (command === "postpack") {\n` +
-        `  fs.copyFileSync(backupPath, packagePath);\n` +
-        `  fs.unlinkSync(backupPath);\n` +
-        `} else { process.exitCode = 2; }\n`,
-      "utf8",
-    );
   }
 
   writeJson(path.join(root, "package.json"), manifest);
@@ -140,7 +120,8 @@ function packFixture(packageRoot, artifactDir, envFile) {
 }
 
 test("builds one exact file dependency manifest and rejects duplicate identities", (t) => {
-  const root = fs.mkdtempSync(path.join(ROOT, ".release-artifact-manifest-test-"));
+  fs.mkdirSync(path.join(ROOT, ".git", "tmp"), { recursive: true });
+  const root = fs.mkdtempSync(path.join(ROOT, ".git", "tmp", "release-artifact-manifest-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const dependencyPath = path.join(root, "dependency.tgz");
   const packagePath = path.join(root, "package.tgz");
@@ -234,6 +215,18 @@ test("packs and installs an unpublished local dependency closure without registr
   assert.ok(fs.existsSync(path.join(artifactDir, dependency.relativePath)));
   assert.ok(fs.existsSync(path.join(artifactDir, `${dependency.relativePath}.sha256`)));
 
+  const tarManifest = spawnSync(
+    "tar",
+    ["-xOf", env.RELEASE_TARBALL_PATH, "package/package.json"],
+    { encoding: "utf8" },
+  );
+  assert.equal(tarManifest.status, 0, tarManifest.stderr);
+  assert.equal(
+    JSON.parse(tarManifest.stdout).dependencies["@example/release-artifact-dependency"],
+    "0.1.0",
+    "published manifest must resolve through the registry, not the source checkout",
+  );
+
   const restored = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
   assert.equal(
     restored.dependencies["@example/release-artifact-dependency"],
@@ -248,6 +241,24 @@ test("packs and installs an unpublished local dependency closure without registr
   const tampered = run(["verify", "--manifest", env.RELEASE_ARTIFACT_MANIFEST_PATH]);
   assert.notEqual(tampered.status, 0);
   assert.match(`${tampered.stdout}\n${tampered.stderr}`, /Local dependency .* SHA-256 changed/);
+});
+
+test("restores the tagged manifest when npm pack fails", (t) => {
+  const packageRoot = fixture(t, { localDependency: true });
+  const manifestPath = path.join(packageRoot, "package.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.scripts.prepack = "node -e \"process.exit(23)\"";
+  writeJson(manifestPath, manifest);
+  const taggedBytes = fs.readFileSync(manifestPath);
+  const result = run([
+    "pack",
+    "--package-path",
+    path.relative(ROOT, packageRoot),
+    "--artifact-dir",
+    path.join(packageRoot, "artifacts"),
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.deepEqual(fs.readFileSync(manifestPath), taggedBytes);
 });
 
 test("refuses a non-empty artifact directory", (t) => {

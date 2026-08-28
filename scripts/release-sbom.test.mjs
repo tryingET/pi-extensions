@@ -99,7 +99,8 @@ function assertLiveGitUnchanged(f) {
 
 function fixture(t, { trackedLock = false } = {}) {
   const liveGitBefore = liveGitSnapshot();
-  const root = fs.mkdtempSync(path.join(ROOT, ".release-sbom-fixture-"));
+  fs.mkdirSync(path.join(ROOT, ".release-test-scratch"), { recursive: true });
+  const root = fs.mkdtempSync(path.join(ROOT, ".release-test-scratch", "release-sbom-fixture-"));
   t.after(() => {
     try {
       assertLiveGitUnchanged({ liveGitBefore });

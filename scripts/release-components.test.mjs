@@ -24,7 +24,9 @@ import {
 import {
   advancedComponents,
   buildReleaseWave,
+  predecessorEntries,
   predecessorSpecs,
+  registryPrerequisiteSpecs,
   validateReleaseWave,
 } from "./release-wave.mjs";
 
@@ -164,6 +166,8 @@ test("immutable wave binds the complete propagation closure and recovery order",
   assert.match(wave.planDigest, /^[0-9a-f]{64}$/u);
   assert.deepEqual(wave.releaseOrder, ["core", "middle", "app"]);
   assert.deepEqual(predecessorSpecs(wave, "app-v1.0.0"), ["@test/core@2.0.0", "@test/middle@1.1.0"]);
+  assert.deepEqual(predecessorEntries(wave, "app-v1.0.0").map((entry) => entry.tag), ["core-v2.0.0", "middle-v1.1.0"]);
+  assert.deepEqual(registryPrerequisiteSpecs(wave, plan, "app-v1.0.0"), ["@test/core@2.0.0", "@test/middle@1.1.0"]);
   assert.deepEqual(validateReleaseWave(wave, plan), wave);
 
   assert.throws(() => buildReleaseWave(plan, paths.slice(0, -1)), /Incomplete or extraneous/u);
@@ -176,6 +180,20 @@ test("immutable wave binds the complete propagation closure and recovery order",
     assert.throws(() => validateReleaseWave(tampered, plan), /stale or has been tampered/u);
   }
   assert.throws(() => predecessorSpecs(wave, "unknown-v1.0.0"), /not in wave/u);
+});
+
+test("registry prerequisites include managed dependencies outside the release wave", () => {
+  const wave = {
+    components: [{ component: "app", tag: "app-v1.0.0" }],
+  };
+  const plan = {
+    components: [
+      { component: "base", packageName: "@test/base", intendedVersion: "3.0.0", dependencies: [] },
+      { component: "library", packageName: "@test/library", intendedVersion: "2.0.0", dependencies: [{ component: "base" }] },
+      { component: "app", packageName: "@test/app", intendedVersion: "1.0.0", dependencies: [{ component: "library" }] },
+    ],
+  };
+  assert.deepEqual(registryPrerequisiteSpecs(wave, plan, "app-v1.0.0"), ["@test/base@3.0.0", "@test/library@2.0.0"]);
 });
 
 test("wave discovery derives participation from exact manifest advancement", () => {
@@ -412,22 +430,27 @@ test("release-please creates one propagation-aware candidate and dispatches the 
   const create = workflowStep(workflow, "Create immutable complete release wave");
   assert.match(create, /release-wave\.mjs create/u);
   assert.match(create, /steps\.release\.outputs\.paths_released/u);
+  assert.match(create, /base_ref="HEAD\^"/u, "manual recovery must resolve an immutable base");
+  assert.match(create, /git rev-parse "\$base_ref\^\{commit\}"/u);
   const dispatch = workflowStep(workflow, "Dispatch dependency-first publication wave");
   assert.match(dispatch, /release-wave\.mjs tags/u);
   assert.match(dispatch, /gh release view "\$tag"/u);
-  assert.match(dispatch, /gh workflow run publish\.yml[\s\S]*wave_id[\s\S]*wave_base64/u);
+  assert.match(dispatch, /gh workflow run publish\.yml[\s\S]*wave_id[\s\S]*wave_base64[\s\S]*dispatch_id/u);
+  assert.match(dispatch, /title="publish \$tag · wave \$WAVE_ID · dispatch \$dispatch_id"/u);
   assert.match(dispatch, /gh run watch "\$run_id"[\s\S]*--exit-status/u);
 });
 
 test("publish effects require a complete wave and published predecessors", () => {
   const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
   assert.doesNotMatch(workflow, /\n  release:/u);
-  assert.match(workflow, /run-name: publish \$\{\{ inputs\.tag \}\} · wave \$\{\{ inputs\.wave_id \}\}/u);
+  assert.match(workflow, /run-name: publish \$\{\{ inputs\.tag \}\} · wave \$\{\{ inputs\.wave_id \}\} · dispatch \$\{\{ inputs\.dispatch_id \}\}/u);
   const gate = workflowStep(workflow, "Validate immutable complete release wave");
   assert.match(gate, /release-wave\.mjs verify/u);
   assert.match(gate, /actual_wave_id.*EXPECTED_WAVE_ID/u);
   assert.match(gate, /release-wave\.mjs tags[\s\S]*gh release view/u);
-  assert.match(gate, /release-wave\.mjs predecessors[\s\S]*npm view/u);
+  assert.match(gate, /release-wave\.mjs predecessor-records[\s\S]*npm view/u);
+  assert.match(gate, /run\.conclusion === "success"[\s\S]*run\.displayTitle\?\.startsWith/u);
+  assert.match(gate, /release-wave\.mjs registry-prerequisites[\s\S]*npm view/u);
   assert.ok(workflow.indexOf("Validate immutable complete release wave") < workflow.indexOf("npm publish"));
 });
 

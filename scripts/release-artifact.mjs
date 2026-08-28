@@ -287,13 +287,33 @@ function validatePackedLocalDependencyVersions(
   }
 }
 
+function registryManifestForPack(packageRoot, manifest) {
+  const packedManifest = structuredClone(manifest);
+  for (const dependency of directLocalDependencies(packageRoot, manifest)) {
+    packedManifest[dependency.field][dependency.manifest.name] = dependency.manifest.version;
+  }
+  return packedManifest;
+}
+
 function packOne(packageRoot, destination, artifactRoot) {
+  const manifestPath = path.join(packageRoot, "package.json");
+  const originalManifestBytes = fs.readFileSync(manifestPath);
   const manifest = readManifest(packageRoot);
-  const result = run(
-    "npm",
-    ["pack", "--json", "--pack-destination", destination],
-    { cwd: packageRoot, capture: true },
-  );
+  const registryManifest = registryManifestForPack(packageRoot, manifest);
+  let result;
+  try {
+    // Release Please intentionally leaves file: ranges untouched. Rewrite only
+    // the transient pack input so the retained/published tarball is registry-
+    // installable while the tagged development manifest remains unchanged.
+    fs.writeFileSync(manifestPath, `${JSON.stringify(registryManifest, null, 2)}\n`);
+    result = run(
+      "npm",
+      ["pack", "--json", "--pack-destination", destination],
+      { cwd: packageRoot, capture: true },
+    );
+  } finally {
+    fs.writeFileSync(manifestPath, originalManifestBytes);
+  }
   const parsedOutput = parseCapturedNpmPackOutput(result.stdout ?? "");
   writeToStderr(parsedOutput.noise);
   writeToStderr(result.stderr);
@@ -578,5 +598,6 @@ export {
   parseCapturedNpmPackOutput,
   collectConcreteTargets,
   collectLocalDependencyClosure,
+  registryManifestForPack,
   sha256File,
 };

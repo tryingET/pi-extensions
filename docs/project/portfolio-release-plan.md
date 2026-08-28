@@ -10,7 +10,7 @@ read_when:
 
 Every package release belongs to one immutable, propagation-complete wave. Release Please creates one combined candidate using its `node-workspace` plugin; it does not create independent component PRs. The plugin follows only managed local dependency edges (`dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`) and does not use `updateAllPackages`, so unrelated packages are not bumped.
 
-This constraint preserves independent component versions and changelogs while making a dependency-bearing candidate satisfiable: a changed dependency causes each transitive managed consumer to receive an intentional version advance in the same candidate.
+This constraint preserves independent component versions and changelogs while making a dependency-bearing candidate satisfiable: a changed dependency causes each transitive managed consumer to receive an intentional version advance in the same candidate. Release Please deliberately does not rewrite protocol ranges such as `file:`. The authoritative artifact builder therefore replaces managed runtime `file:` ranges with the dependency's exact wave version only in the transient `npm pack` input, restores the tagged manifest even on failure, and rejects any retained tarball that is not registry-resolvable. Local development links remain unchanged.
 
 ## Read-only planning
 
@@ -41,8 +41,8 @@ Missing, extra, stale, reordered, or modified content fails verification. The wa
 
 ## Effect boundary and recovery
 
-`publish.yml` has no GitHub Release event trigger. Publication is possible only by externally approved `workflow_dispatch` with the complete wave and matching identity. The release workflow consumes `releaseOrder`, dispatches one component at a time, and waits for success before dispatching its consumer. A component workflow also requires every wave tag to exist and every predecessor version to be present in npm before any package effect.
+`publish.yml` has no GitHub Release event trigger. Publication is possible only by externally approved `workflow_dispatch` with the complete wave and matching identity. The release workflow consumes `releaseOrder`, dispatches one component at a time, and waits for success before dispatching its consumer. A component workflow also requires every wave tag to exist, every earlier wave component to have a successful same-wave exact-artifact run, and every transitive managed dependency (including dependencies outside the wave) to exist at its exact intended npm version before any package effect.
 
-A failed component leaves already published npm versions immutable. Re-run that component with the same wave; exact-artifact inspection makes an exact existing version a verified no-op and rejects mismatched bytes. Continue later components only after the failed predecessor succeeds. Never generate a replacement wave merely to hide a partial wave.
+A failed component leaves already published npm versions immutable. Re-run that component with the same wave and a new unique dispatch identity; exact-artifact inspection makes an exact existing version a verified no-op and rejects mismatched bytes. A consumer additionally requires a successful same-wave publish run for every predecessor, not merely an npm version with the expected name. Continue later components only after the failed predecessor succeeds. Never generate a replacement wave merely to hide a partial wave.
 
 The scripts do not grant approval to merge, push, tag, create a GitHub Release, publish to npm, configure OIDC, or change repository settings. Those remain repository-admin/release-operator effects.

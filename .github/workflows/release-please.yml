@@ -51,13 +51,18 @@ jobs:
         id: wave
         if: steps.release.outputs.releases_created == 'true'
         env:
-          BASE_COMMIT: ${{ github.event.before }}
+          EVENT_BEFORE: ${{ github.event.before }}
           PATHS_RELEASED: ${{ steps.release.outputs.paths_released }}
         run: |
           set -euo pipefail
+          base_ref="$EVENT_BEFORE"
+          if [[ -z "$base_ref" || "$base_ref" =~ ^0+$ ]]; then
+            base_ref="HEAD^"
+          fi
+          base_commit="$(git rev-parse "$base_ref^{commit}")"
           wave="$RUNNER_TEMP/release-wave.json"
           node ./scripts/release-wave.mjs create \
-            --base "$BASE_COMMIT" \
+            --base "$base_commit" \
             --released-paths "$PATHS_RELEASED" \
             --output "$wave" >/dev/null
           wave_id="$(node ./scripts/release-wave.mjs verify --wave "$wave")"
@@ -89,9 +94,11 @@ jobs:
           while IFS= read -r tag; do
             [[ -n "$tag" ]] || continue
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
+            dispatch_id="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$tag"
             gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref main \
-              -f "tag=$tag" -f "wave_id=$WAVE_ID" -f "wave_base64=$WAVE_BASE64"
-            title="publish $tag · wave $WAVE_ID"
+              -f "tag=$tag" -f "wave_id=$WAVE_ID" -f "wave_base64=$WAVE_BASE64" \
+              -f "dispatch_id=$dispatch_id"
+            title="publish $tag · wave $WAVE_ID · dispatch $dispatch_id"
             run_id=""
             for attempt in {1..30}; do
               run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow publish.yml \

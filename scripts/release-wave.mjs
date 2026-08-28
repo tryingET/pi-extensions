@@ -93,10 +93,35 @@ function validateReleaseWave(wave, plan) {
   return expected;
 }
 
-function predecessorSpecs(wave, tag) {
+function predecessorEntries(wave, tag) {
   const index = wave.components.findIndex((entry) => entry.tag === tag);
   if (index < 0) throw new Error(`Release tag is not in wave: ${tag}`);
-  return wave.components.slice(0, index).map((entry) => `${entry.packageName}@${entry.version}`);
+  return wave.components.slice(0, index);
+}
+
+function predecessorSpecs(wave, tag) {
+  return predecessorEntries(wave, tag).map((entry) => `${entry.packageName}@${entry.version}`);
+}
+
+function registryPrerequisiteSpecs(wave, plan, tag) {
+  const target = wave.components.find((entry) => entry.tag === tag);
+  if (!target) throw new Error(`Release tag is not in wave: ${tag}`);
+  const byComponent = new Map(plan.components.map((entry) => [entry.component, entry]));
+  const visited = new Set();
+  const ordered = [];
+  function visit(component) {
+    for (const edge of byComponent.get(component)?.dependencies ?? []) {
+      if (visited.has(edge.component)) continue;
+      visit(edge.component);
+      visited.add(edge.component);
+      ordered.push(edge.component);
+    }
+  }
+  visit(target.component);
+  return ordered.map((component) => {
+    const entry = byComponent.get(component);
+    return `${entry.packageName}@${entry.intendedVersion}`;
+  });
 }
 
 function git(...args) {
@@ -157,7 +182,7 @@ function main() {
     process.stdout.write(`${JSON.stringify(wave)}\n`);
     return;
   }
-  if (["verify", "tags", "predecessors"].includes(command)) {
+  if (["verify", "tags", "predecessors", "predecessor-records", "registry-prerequisites"].includes(command)) {
     if (!options.wave) throw new Error("--wave is required");
     const wave = JSON.parse(fs.readFileSync(options.wave, "utf8"));
     const plan = planForCommits(wave.source?.baseCommit, wave.source?.commit);
@@ -166,10 +191,18 @@ function main() {
       for (const component of wave.components) process.stdout.write(`${component.tag}\n`);
     } else if (command === "predecessors") {
       for (const spec of predecessorSpecs(wave, options.tag)) process.stdout.write(`${spec}\n`);
+    } else if (command === "predecessor-records") {
+      for (const entry of predecessorEntries(wave, options.tag)) {
+        process.stdout.write(`${entry.tag}\t${entry.packageName}@${entry.version}\n`);
+      }
+    } else if (command === "registry-prerequisites") {
+      for (const spec of registryPrerequisiteSpecs(wave, plan, options.tag)) {
+        process.stdout.write(`${spec}\n`);
+      }
     } else process.stdout.write(`${wave.waveId}\n`);
     return;
   }
-  throw new Error("Usage: release-wave.mjs create --base <commit> --released-paths <json> --output <file> | verify|tags --wave <file> | predecessors --wave <file> --tag <tag>");
+  throw new Error("Usage: release-wave.mjs create --base <commit> --released-paths <json> --output <file> | verify|tags --wave <file> | predecessors|predecessor-records|registry-prerequisites --wave <file> --tag <tag>");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
@@ -179,4 +212,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
   }
 }
 
-export { advancedComponents, buildReleaseWave, predecessorSpecs, validateReleaseWave };
+export { advancedComponents, buildReleaseWave, predecessorEntries, predecessorSpecs, registryPrerequisiteSpecs, validateReleaseWave };
