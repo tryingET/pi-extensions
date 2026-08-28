@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -45,34 +47,59 @@ jobs:
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      - name: Dispatch npm publication for created releases
+      - name: Create immutable complete release wave
+        id: wave
         if: steps.release.outputs.releases_created == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          BASE_COMMIT: ${{ github.event.before }}
           PATHS_RELEASED: ${{ steps.release.outputs.paths_released }}
         run: |
           set -euo pipefail
+          wave="$RUNNER_TEMP/release-wave.json"
+          node ./scripts/release-wave.mjs create \
+            --base "$BASE_COMMIT" \
+            --released-paths "$PATHS_RELEASED" \
+            --output "$wave" >/dev/null
+          wave_id="$(node ./scripts/release-wave.mjs verify --wave "$wave")"
+          {
+            echo "wave_id=$wave_id"
+            echo "wave_base64=$(base64 -w0 "$wave")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Retain immutable release wave evidence
+        if: steps.release.outputs.releases_created == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-wave-${{ steps.wave.outputs.wave_id }}
+          path: ${{ runner.temp }}/release-wave.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Dispatch dependency-first publication wave
+        if: steps.release.outputs.releases_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WAVE_ID: ${{ steps.wave.outputs.wave_id }}
+          WAVE_BASE64: ${{ steps.wave.outputs.wave_base64 }}
+        run: |
+          set -euo pipefail
+          wave="$RUNNER_TEMP/release-wave.json"
           tags_file="$RUNNER_TEMP/release-tags.txt"
-          node <<'NODE' > "$tags_file"
-          const fs = require("node:fs");
-          const path = require("node:path");
-          const paths = JSON.parse(process.env.PATHS_RELEASED || "[]");
-          const config = JSON.parse(fs.readFileSync(".release-please-config.json", "utf8"));
-          for (const packagePath of paths) {
-            const component = config.packages?.[packagePath]?.component;
-            const manifestPath = path.join(packagePath, "package.json");
-            if (typeof component !== "string" || !component || !fs.existsSync(manifestPath)) {
-              throw new Error(`Cannot resolve released component at ${packagePath}`);
-            }
-            const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-            if (typeof manifest.version !== "string" || !manifest.version) {
-              throw new Error(`Cannot resolve released version at ${packagePath}`);
-            }
-            process.stdout.write(`${component}-v${manifest.version}\n`);
-          }
-          NODE
+          node ./scripts/release-wave.mjs tags --wave "$wave" > "$tags_file"
           while IFS= read -r tag; do
             [[ -n "$tag" ]] || continue
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
-            gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=$tag"
+            gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref main \
+              -f "tag=$tag" -f "wave_id=$WAVE_ID" -f "wave_base64=$WAVE_BASE64"
+            title="publish $tag · wave $WAVE_ID"
+            run_id=""
+            for attempt in {1..30}; do
+              run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow publish.yml \
+                --event workflow_dispatch --limit 100 --json databaseId,displayTitle \
+                --jq ".[] | select(.displayTitle == \"$title\") | .databaseId" | head -n1)"
+              [[ -n "$run_id" ]] && break
+              sleep 2
+            done
+            [[ -n "$run_id" ]] || { echo "Cannot find dispatched run: $title" >&2; exit 1; }
+            gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
           done < "$tags_file"

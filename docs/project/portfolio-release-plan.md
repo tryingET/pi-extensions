@@ -1,49 +1,48 @@
 ---
-summary: "Operator contract for the root-owned dependency and propagation-aware portfolio release plan."
+summary: "Operator contract for propagation-complete candidates and immutable dependency-ordered portfolio release waves."
 read_when:
-  - "Reviewing a release PR, sequencing multiple package releases, or diagnosing propagation blockers."
+  - "Reviewing a release PR, sequencing package publication, or recovering a partial release wave."
 ---
 
-# Portfolio release plan
+# Portfolio release plan and wave
 
-`node ./scripts/release-components.mjs plan` is the single read-only authority for release-wave discovery, dependency order, and propagation review. Package release scripts remain artifact-validation leaves and do not decide portfolio order.
+## The control-plane constraint
 
-## Inputs
+Every package release belongs to one immutable, propagation-complete wave. Release Please creates one combined candidate using its `node-workspace` plugin; it does not create independent component PRs. The plugin follows only managed local dependency edges (`dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`) and does not use `updateAllPackages`, so unrelated packages are not bumped.
 
-Choose exactly one selection mode:
+This constraint preserves independent component versions and changelogs while making a dependency-bearing candidate satisfiable: a changed dependency causes each transitive managed consumer to receive an intentional version advance in the same candidate.
+
+## Read-only planning
+
+`node ./scripts/release-components.mjs plan` is the read-only authority for dependency discovery, propagation closure, and candidate readiness:
 
 ```sh
-# Components owning files changed since a commit, plus their reverse-dependent closure
 node ./scripts/release-components.mjs plan --base <git-ref> --json
-
-# One or more explicitly selected components, plus their reverse-dependent closure
-node ./scripts/release-components.mjs plan \
-  --changed pi-vault-client \
-  --changed pi-autoresearch \
-  --json
-
-# Inventory-wide dependency-first projection
+node ./scripts/release-components.mjs plan --changed <component> --json
 node ./scripts/release-components.mjs plan --all --json
 ```
 
-Add `--registry` for read-only `npm view` classification. Add `--require-ready` when blockers must produce a non-zero exit. Registry checks are deliberately opt-in locally; CI enables both flags only when the pull request is identified by the same-repository Release Please component branch and `autorelease: pending` label. Ordinary pull requests still validate the graph and run component tests, but are not required to contain release-version advances.
+Add `--registry` for read-only npm classification and `--require-ready` when blockers must fail. Release PR CI uses both; ordinary PRs validate the graph and tests but are not blocked for unchanged versions.
 
-## Contract
+A selected component is blocked if its intended version is not ahead of the base Release Please manifest. Registry checks also reject an existing version, unavailable state, or unexpected owner. Root control-plane paths remain evidence only and never manufacture package releases.
 
-The deterministic `pi.portfolio-release-plan.v1` document binds every managed component to:
+## Immutable wave
 
-- unique component id, npm package name, repository path, intended package version, and source commit;
-- validated internal runtime edges from `dependencies`, `optionalDependencies`, and `peerDependencies`, including local paths and intended-version range compatibility;
-- dependency-first topological order and sorted reverse dependents;
-- `changed` versus transitive `propagation` selection;
-- Release Please manifest `currentVersion` and optional npm registry state.
+After the combined candidate merges and Release Please creates all component releases, `scripts/release-wave.mjs` compares the exact base and source commits, reconstructs all advanced components, computes propagation closure, and requires `paths_released` to equal that closure. It emits `pi.portfolio-release-wave.v1`, binding:
 
-A selected component is blocked when its intended version is behind or equal to a non-bootstrap current version. With registry inspection enabled, an already-existing intended version, unavailable registry state, unavailable owner state, or ownership outside the declared `x-pi-release-policy.npmOwner` also blocks readiness. Credential and publication approval remain explicit external gates, with owners and reopen triggers, rather than pretending that a read-only planner can prove those effects. This prevents a changed dependency from being treated as releasable while an unchanged-version consumer silently escapes the wave.
+- exact base and source commits;
+- changed and propagation-required components;
+- exact package paths, npm names, versions, and tags;
+- dependency-first `releaseOrder`;
+- a canonical plan digest;
+- a wave identity digest over the complete payload.
 
-The root `x-pi-release-policy` declares the expected npm owner, GitHub Actions OIDC credential mode, and GitHub Release approval boundary. It contains no credential and grants no publication authority.
+Missing, extra, stale, reordered, or modified content fails verification. The wave is retained as a workflow artifact and copied into every component's durable release-evidence archive.
 
-`unownedChangedPaths` is evidence, not an implicit portfolio-wide release request. Root control-plane changes do not manufacture package releases.
+## Effect boundary and recovery
 
-## Effects boundary
+`publish.yml` has no GitHub Release event trigger. Publication is possible only by externally approved `workflow_dispatch` with the complete wave and matching identity. The release workflow consumes `releaseOrder`, dispatches one component at a time, and waits for success before dispatching its consumer. A component workflow also requires every wave tag to exist and every predecessor version to be present in npm before any package effect.
 
-The command reads package metadata, Git history, the Release Please manifest, and optionally npm registry metadata. It does not edit versions or manifests, create release PRs/tags, dispatch workflows, publish packages, or work around repository permission settings.
+A failed component leaves already published npm versions immutable. Re-run that component with the same wave; exact-artifact inspection makes an exact existing version a verified no-op and rejects mismatched bytes. Continue later components only after the failed predecessor succeeds. Never generate a replacement wave merely to hide a partial wave.
+
+The scripts do not grant approval to merge, push, tag, create a GitHub Release, publish to npm, configure OIDC, or change repository settings. Those remain repository-admin/release-operator effects.

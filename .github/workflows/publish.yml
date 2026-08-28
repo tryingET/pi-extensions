@@ -1,13 +1,19 @@
 name: publish
+run-name: publish ${{ inputs.tag }} · wave ${{ inputs.wave_id }}
 
 on:
-  release:
-    types:
-      - published
   workflow_dispatch:
     inputs:
       tag:
         description: "Release tag to publish (e.g., pi-vault-client-v0.2.0)"
+        required: true
+        type: string
+      wave_id:
+        description: "Immutable portfolio release wave identity"
+        required: true
+        type: string
+      wave_base64:
+        description: "Base64-encoded immutable portfolio release wave"
         required: true
         type: string
 
@@ -15,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ github.event.release.tag_name || inputs.tag }}
+  group: publish-${{ inputs.wave_id }}-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -37,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
 
       # The tag's own scripts are frozen at release time; npm-state inspection
@@ -65,6 +71,36 @@ jobs:
           echo "$RUNNER_TEMP/npm-global/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/npm-global/bin/npm" --version
 
+      - name: Validate immutable complete release wave
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_WAVE_ID: ${{ inputs.wave_id }}
+          WAVE_BASE64: ${{ inputs.wave_base64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          wave="$RUNNER_TEMP/release-wave.json"
+          printf '%s' "$WAVE_BASE64" | base64 --decode > "$wave"
+          actual_wave_id="$(node ./scripts/release-wave.mjs verify --wave "$wave")"
+          [[ "$actual_wave_id" == "$EXPECTED_WAVE_ID" ]] || {
+            echo "Release wave identity mismatch" >&2
+            exit 1
+          }
+          {
+            echo "RELEASE_WAVE_ID=$actual_wave_id"
+            echo "RELEASE_WAVE_PATH=$wave"
+          } >> "$GITHUB_ENV"
+          node ./scripts/release-wave.mjs tags --wave "$wave" | while IFS= read -r tag; do
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
+          done
+          predecessors="$RUNNER_TEMP/release-predecessors.txt"
+          node ./scripts/release-wave.mjs predecessors --wave "$wave" --tag "$RELEASE_TAG" > "$predecessors"
+          while IFS= read -r package; do
+            [[ -n "$package" ]] || continue
+            npm view "$package" version --json >/dev/null
+          done < "$predecessors"
+
       - name: Validate release-please component metadata
         run: node ./scripts/release-components.mjs validate
 
@@ -73,7 +109,7 @@ jobs:
 
       - name: Resolve release tag to component
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           resolver_env="$(mktemp "$RUNNER_TEMP/release-component-env.XXXXXX")"
@@ -89,7 +125,7 @@ jobs:
       - name: Expose durable release identifiers
         id: release-identifiers
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
@@ -305,6 +341,14 @@ jobs:
             "$RELEASE_ARTIFACT_DIRECTORY/$RELEASE_TARBALL_BASENAME.sbom.sigstore.json"
           cp -- "${{ steps.attest-evidence.outputs.bundle-path }}" \
             "$RELEASE_ARTIFACT_DIRECTORY/$RELEASE_TARBALL_BASENAME.evidence.sigstore.json"
+
+      - name: Bind immutable wave to component evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          wave_name="release-wave-$RELEASE_WAVE_ID.json"
+          cp -- "$RELEASE_WAVE_PATH" "$RELEASE_ARTIFACT_DIRECTORY/$wave_name"
+          (cd "$RELEASE_ARTIFACT_DIRECTORY" && sha256sum "$wave_name" > "$wave_name.sha256")
 
       - name: Create deterministic durable release evidence archive
         shell: bash

@@ -105,7 +105,9 @@ function buildReleasePleaseConfig(components) {
     "release-type": "node",
     "include-v-in-tag": true,
     "include-component-in-tag": true,
-    "separate-pull-requests": true,
+    "separate-pull-requests": false,
+    "always-link-local": true,
+    plugins: [{ type: "node-workspace", merge: true, updatePeerDependencies: true }],
     packages: Object.fromEntries(
       components.map((component) => {
         const packageConfig = {
@@ -382,4 +384,5 @@ export {
   buildReleasePlan,
   buildReleasePleaseConfig,
   buildReleasePleaseManifest,
+  loadManagedComponents,
 };

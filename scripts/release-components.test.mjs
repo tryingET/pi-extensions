@@ -21,6 +21,12 @@ import {
   topologicalOrder,
   validateUniqueIdentities,
 } from "./release-plan.mjs";
+import {
+  advancedComponents,
+  buildReleaseWave,
+  predecessorSpecs,
+  validateReleaseWave,
+} from "./release-wave.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "release-components.mjs");
@@ -136,6 +142,62 @@ test("portfolio plan computes transitive propagation in dependency-first order",
   assert.deepEqual(plan.releaseOrder, ["core", "middle", "app"]);
   assert.equal(plan.status, "ready");
   assert.equal(plan.components.find((entry) => entry.component === "middle")?.selection, "propagation");
+});
+
+test("immutable wave binds the complete propagation closure and recovery order", () => {
+  const plan = buildReleasePlan(planComponents, {
+    changed: ["core"],
+    graph: planGraph,
+    sourceCommit: "a".repeat(40),
+    paths: [],
+    manifest: {
+      "packages/core": "1.0.0",
+      "packages/middle": "1.0.0",
+      "packages/app": "0.9.0",
+    },
+    releasePolicy: planPolicy,
+  });
+  plan.source.baseCommit = "b".repeat(40);
+  const paths = planComponents.map((entry) => entry.packagePath);
+  const wave = buildReleaseWave(plan, paths);
+  assert.match(wave.waveId, /^[0-9a-f]{64}$/u);
+  assert.match(wave.planDigest, /^[0-9a-f]{64}$/u);
+  assert.deepEqual(wave.releaseOrder, ["core", "middle", "app"]);
+  assert.deepEqual(predecessorSpecs(wave, "app-v1.0.0"), ["@test/core@2.0.0", "@test/middle@1.1.0"]);
+  assert.deepEqual(validateReleaseWave(wave, plan), wave);
+
+  assert.throws(() => buildReleaseWave(plan, paths.slice(0, -1)), /Incomplete or extraneous/u);
+  for (const tampered of [
+    { ...wave, planDigest: "0".repeat(64) },
+    { ...wave, releaseOrder: [...wave.releaseOrder].reverse() },
+    { ...wave, source: { ...wave.source, commit: "c".repeat(40) } },
+    { ...wave, components: wave.components.map((entry, index) => index === 0 ? { ...entry, version: "9.9.9" } : entry) },
+  ]) {
+    assert.throws(() => validateReleaseWave(tampered, plan), /stale or has been tampered/u);
+  }
+  assert.throws(() => predecessorSpecs(wave, "unknown-v1.0.0"), /not in wave/u);
+});
+
+test("wave discovery derives participation from exact manifest advancement", () => {
+  const components = [
+    { component: "stable", packagePath: "packages/stable" },
+    { component: "bootstrap", packagePath: "packages/bootstrap" },
+  ];
+  const base = { "packages/stable": "1.0.0", "packages/bootstrap": "0.0.0" };
+  assert.deepEqual(
+    advancedComponents(components, base, {
+      "packages/stable": "1.1.0",
+      "packages/bootstrap": "0.0.0",
+    }),
+    ["stable"],
+  );
+  assert.deepEqual(
+    advancedComponents(components, base, {
+      "packages/stable": "1.1.0",
+      "packages/bootstrap": "0.1.0",
+    }),
+    ["stable", "bootstrap"],
+  );
 });
 
 test("portfolio plan refuses to bind dirty bytes to the source commit", () => {
@@ -336,17 +398,37 @@ test("release quality gate disables machine-local engineering-core smoke", () =>
   assert.match(step, /run: npm run check/);
 });
 
-test("release-please serializes release creation and dispatches created tags to publish", () => {
+test("release-please creates one propagation-aware candidate and dispatches the validated order", () => {
+  const config = buildReleasePleaseConfig(planComponents);
+  assert.equal(config["separate-pull-requests"], false);
+  assert.equal(config["always-link-local"], true);
+  assert.deepEqual(config.plugins, [{ type: "node-workspace", merge: true, updatePeerDependencies: true }]);
+  assert.equal(config.plugins[0].updateAllPackages, undefined, "unrelated packages must not be mass-bumped");
+
   const workflow = fs.readFileSync(RELEASE_PLEASE_WORKFLOW_PATH, "utf8");
   assert.match(workflow, /group: release-please-main/);
   assert.match(workflow, /cancel-in-progress: false/);
-  assert.match(workflow, /actions: write/);
   assert.match(workflowStep(workflow, "Run release-please"), /id: release/);
-  const dispatch = workflowStep(workflow, "Dispatch npm publication for created releases");
-  assert.match(dispatch, /steps\.release\.outputs\.releases_created == 'true'/);
-  assert.match(dispatch, /PATHS_RELEASED: \$\{\{ steps\.release\.outputs\.paths_released \}\}/);
-  assert.match(dispatch, /gh release view "\$tag"/);
-  assert.match(dispatch, /gh workflow run publish\.yml[\s\S]*-f "tag=\$tag"/);
+  const create = workflowStep(workflow, "Create immutable complete release wave");
+  assert.match(create, /release-wave\.mjs create/u);
+  assert.match(create, /steps\.release\.outputs\.paths_released/u);
+  const dispatch = workflowStep(workflow, "Dispatch dependency-first publication wave");
+  assert.match(dispatch, /release-wave\.mjs tags/u);
+  assert.match(dispatch, /gh release view "\$tag"/u);
+  assert.match(dispatch, /gh workflow run publish\.yml[\s\S]*wave_id[\s\S]*wave_base64/u);
+  assert.match(dispatch, /gh run watch "\$run_id"[\s\S]*--exit-status/u);
+});
+
+test("publish effects require a complete wave and published predecessors", () => {
+  const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
+  assert.doesNotMatch(workflow, /\n  release:/u);
+  assert.match(workflow, /run-name: publish \$\{\{ inputs\.tag \}\} · wave \$\{\{ inputs\.wave_id \}\}/u);
+  const gate = workflowStep(workflow, "Validate immutable complete release wave");
+  assert.match(gate, /release-wave\.mjs verify/u);
+  assert.match(gate, /actual_wave_id.*EXPECTED_WAVE_ID/u);
+  assert.match(gate, /release-wave\.mjs tags[\s\S]*gh release view/u);
+  assert.match(gate, /release-wave\.mjs predecessors[\s\S]*npm view/u);
+  assert.ok(workflow.indexOf("Validate immutable complete release wave") < workflow.indexOf("npm publish"));
 });
 
 test("resolve-tag workflow guard sources same-step output and rejects a mismatched tag", () => {
@@ -445,7 +527,7 @@ test("release-check CI gates release PRs on the registry-aware portfolio plan", 
   const gate = workflowStep(workflow, "Require a propagation-complete release PR plan");
   assert.match(gate, /github\.event_name == 'pull_request'/u);
   assert.match(gate, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u);
-  assert.match(gate, /startsWith\(github\.head_ref, 'release-please--branches--main--components--'\)/u);
+  assert.match(gate, /startsWith\(github\.head_ref, 'release-please--branches--main'\)/u);
   assert.match(gate, /contains\(github\.event\.pull_request\.labels\.\*\.name, 'autorelease: pending'\)/u);
   assert.match(gate, /--base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}"/u);
   assert.match(gate, /--registry/u);

@@ -37,7 +37,7 @@ jobs:
         if: >-
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
-          startsWith(github.head_ref, 'release-please--branches--main--components--') &&
+          startsWith(github.head_ref, 'release-please--branches--main') &&
           contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
         run: |
           node ./scripts/release-components.mjs plan \

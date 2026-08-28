@@ -73,7 +73,7 @@ A pair containing only the archive or only the checksum is recoverable only when
 
 ### Component complete, multi-component wave partial
 
-Leave published component versions immutable. Continue only components that are still unpublished. Record the wave as partial; do not create compensating rewrites of already published components merely to make the wave appear atomic.
+Leave published component versions immutable. Re-dispatch the failed component from its exact tag with the original retained wave identity and payload; never mint a replacement wave. Exact npm bytes make a completed publication a verified no-op, while mismatched bytes freeze recovery. Continue later components only in the wave's dependency-first order after every predecessor verifies successfully. Record the wave as partial until all components complete; do not create compensating rewrites merely to make the wave appear atomic.
 
 ### Source or tag mismatch
 

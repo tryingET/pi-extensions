@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST_PATH = path.join(ROOT, ".release-please-manifest.json");
 const ROOT_MANIFEST_PATH = path.join(ROOT, "package.json");
-const RUNTIME_DEPENDENCY_FIELDS = ["dependencies", "optionalDependencies", "peerDependencies"];
+// Match Release Please's node-workspace propagation graph exactly. Development
+// consumers are related components, but packages with no graph edge are never bumped.
+const RUNTIME_DEPENDENCY_FIELDS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 const DEFAULT_RELEASE_POLICY = {
   npmOwner: null,
   credentialMode: null,
