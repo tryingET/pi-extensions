@@ -33,7 +33,7 @@ function writeJson(filePath, value) {
 }
 
 function fixture(t, { localDependency = false } = {}) {
-  const root = fs.mkdtempSync(path.join(ROOT, ".release-artifact-test-"));
+  const root = fs.mkdtempSync(path.join(ROOT, ".git", "tmp", "release-artifact-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const manifest = {
