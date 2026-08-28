@@ -7,6 +7,7 @@ read_when:
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildReleasePlan, loadReleaseGraph, validateUniqueIdentities } from "./release-plan.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
@@ -94,14 +95,7 @@ function loadManagedComponents() {
 
   components.sort((a, b) => a.packagePath.localeCompare(b.packagePath) || a.component.localeCompare(b.component));
 
-  const seenComponents = new Set();
-  for (const component of components) {
-    if (seenComponents.has(component.component)) {
-      fail(`Duplicate release component detected: ${component.component}`);
-    }
-    seenComponents.add(component.component);
-  }
-
+  validateUniqueIdentities(components);
   return components;
 }
 
@@ -218,6 +212,62 @@ function resolveTag(tag, components) {
   };
 }
 
+function printReleasePlan(plan, json) {
+  if (json) return print(plan, true);
+  process.stdout.write(`portfolio release plan: ${plan.status}\n`);
+  process.stdout.write(`source: ${plan.source.commit}\n`);
+  process.stdout.write(`base: ${plan.source.baseCommit ?? "(explicit selection)"}\n`);
+  process.stdout.write(`dirty paths: ${plan.source.dirtyPaths.join(", ") || "(none)"}\n`);
+  process.stdout.write(`changed: ${plan.changedComponents.join(", ") || "(none)"}\n`);
+  process.stdout.write(`propagation: ${plan.propagationRequiredComponents.join(", ") || "(none)"}\n`);
+  process.stdout.write(`unowned paths: ${plan.unownedChangedPaths.join(", ") || "(none)"}\n`);
+  process.stdout.write(`dependency-first order: ${plan.releaseOrder.join(" -> ") || "(none)"}\n`);
+  for (const component of plan.components.filter((entry) => entry.selection)) {
+    const reasons = component.reasons.map((reason) => reason.path ?? reason.chain?.join(" -> ") ?? reason.kind);
+    process.stdout.write(
+      `${component.selection.toUpperCase()} ${component.component}: intended=${component.intendedVersion} current=${component.currentVersion ?? "(none)"} registry=${component.registry.state} owner=${component.ownership.state}\n`,
+    );
+    process.stdout.write(`  reasons: ${reasons.join(", ") || "(none)"}\n`);
+  }
+  for (const blocker of plan.blockers) {
+    process.stdout.write(`BLOCKED ${blocker.component ?? blocker.scope}: ${blocker.reasons.join(", ")}\n`);
+  }
+  for (const blocker of plan.externalBlockers) {
+    process.stdout.write(
+      `EXTERNAL ${blocker.component} ${blocker.kind}: ${blocker.state}; owner=${blocker.owner}; reopen=${blocker.reopenTrigger}\n`,
+    );
+  }
+}
+
+function parsePlanOptions(args) {
+  const options = { base: null, changed: [], all: false, registry: false, requireReady: false };
+  for (let index = 1; index < args.length; index += 1) {
+    const argument = args[index];
+    if (["--json", "--registry", "--require-ready", "--all"].includes(argument)) {
+      if (argument === "--registry") options.registry = true;
+      if (argument === "--require-ready") options.requireReady = true;
+      if (argument === "--all") options.all = true;
+      continue;
+    }
+    if (["--base", "--changed"].includes(argument)) {
+      const value = args[index + 1];
+      if (!value || value.startsWith("--")) throw new Error(`Missing value for ${argument}`);
+      if (argument === "--base") {
+        if (options.base) throw new Error("--base may be specified only once");
+        options.base = value;
+      } else options.changed.push(value);
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown plan option: ${argument}`);
+  }
+  const selectionModes = Number(Boolean(options.base)) + Number(options.changed.length > 0) + Number(options.all);
+  if (selectionModes !== 1) {
+    throw new Error("Choose exactly one plan selection mode: --base, --changed, or --all");
+  }
+  return options;
+}
+
 function print(value, json) {
   if (json) {
     process.stdout.write(stableJson(value));
@@ -290,8 +340,16 @@ function main() {
     }
     case "validate":
       validateCommittedFiles(components);
-      process.stdout.write("release-please component config OK\n");
+      loadReleaseGraph(components);
+      process.stdout.write("release component identities, runtime graph, and release-please config OK\n");
       break;
+    case "plan": {
+      const options = parsePlanOptions(args);
+      const plan = buildReleasePlan(components, options);
+      printReleasePlan(plan, json);
+      if (options.requireReady && plan.status !== "ready") process.exitCode = 2;
+      break;
+    }
     case "resolve-tag": {
       const tag = args.find((arg, index) => index > 0 && !arg.startsWith("--"));
       if (!tag) {
@@ -320,4 +378,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
   }
 }
 
-export { buildReleasePleaseConfig, buildReleasePleaseManifest };
+export {
+  buildReleasePlan,
+  buildReleasePleaseConfig,
+  buildReleasePleaseManifest,
+};

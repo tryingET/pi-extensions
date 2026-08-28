@@ -14,6 +14,13 @@ import {
   buildReleasePleaseConfig,
   buildReleasePleaseManifest,
 } from "./release-components.mjs";
+import {
+  buildReleasePlan,
+  reverseDependentClosure,
+  runtimeRangeIncludesVersion,
+  topologicalOrder,
+  validateUniqueIdentities,
+} from "./release-plan.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "release-components.mjs");
@@ -86,14 +93,127 @@ function listComponents() {
   );
 }
 
-function releaseProjection(command) {
+function releaseProjection(command, ...args) {
   return JSON.parse(
-    execFileSync(process.execPath, [SCRIPT, command, "--json"], {
+    execFileSync(process.execPath, [SCRIPT, command, ...args, "--json"], {
       cwd: ROOT,
       encoding: "utf-8",
     }),
   );
 }
+
+const planComponents = [
+  { component: "core", packageName: "@test/core", packagePath: "packages/core", version: "2.0.0" },
+  { component: "middle", packageName: "@test/middle", packagePath: "packages/middle", version: "1.1.0" },
+  { component: "app", packageName: "@test/app", packagePath: "packages/app", version: "1.0.0" },
+];
+const planGraph = new Map([
+  ["core", []],
+  ["middle", [{ component: "core", field: "dependencies", range: "^2.0.0" }]],
+  ["app", [{ component: "middle", field: "dependencies", range: "^1.0.0" }]],
+]);
+const planPolicy = {
+  npmOwner: "test-owner",
+  credentialMode: "test-oidc",
+  publicationApproval: "test-approval",
+};
+
+test("portfolio plan computes transitive propagation in dependency-first order", () => {
+  const plan = buildReleasePlan(planComponents, {
+    changed: ["core"],
+    graph: planGraph,
+    sourceCommit: "a".repeat(40),
+    paths: ["packages/core/index.js"],
+    manifest: {
+      "packages/core": "1.0.0",
+      "packages/middle": "1.0.0",
+      "packages/app": "0.9.0",
+    },
+    releasePolicy: planPolicy,
+  });
+  assert.deepEqual(plan.changedComponents, ["core"]);
+  assert.deepEqual(plan.propagationRequiredComponents, ["middle", "app"]);
+  assert.deepEqual(plan.releaseOrder, ["core", "middle", "app"]);
+  assert.equal(plan.status, "ready");
+  assert.equal(plan.components.find((entry) => entry.component === "middle")?.selection, "propagation");
+});
+
+test("portfolio plan refuses to bind dirty bytes to the source commit", () => {
+  const plan = buildReleasePlan(planComponents, {
+    changed: [],
+    graph: planGraph,
+    sourceCommit: "b".repeat(40),
+    dirtyPaths: ["scripts/release-plan.mjs"],
+    paths: [],
+    manifest: {},
+    releasePolicy: planPolicy,
+  });
+  assert.equal(plan.status, "blocked");
+  assert.deepEqual(plan.source.dirtyPaths, ["scripts/release-plan.mjs"]);
+  assert.deepEqual(plan.blockers[0], { scope: "source", reasons: ["source-tree-dirty"] });
+});
+
+test("portfolio plan fails closed on unadvanced intended versions", () => {
+  const plan = buildReleasePlan(planComponents, {
+    changed: ["core"],
+    graph: planGraph,
+    sourceCommit: "b".repeat(40),
+    paths: [],
+    manifest: Object.fromEntries(planComponents.map((entry) => [entry.packagePath, entry.version])),
+    releasePolicy: planPolicy,
+  });
+  assert.equal(plan.status, "blocked");
+  assert.deepEqual(plan.blockers.map((entry) => entry.component), ["core", "middle", "app"]);
+  assert.ok(plan.blockers.every((entry) => entry.reasons.includes("version-not-advanced")));
+});
+
+test("release graph rejects identity collisions and dependency cycles", () => {
+  assert.throws(
+    () => validateUniqueIdentities([planComponents[0], { ...planComponents[1], packageName: "@test/core" }]),
+    /Duplicate release packageName/u,
+  );
+  const cyclic = new Map([
+    ["core", [{ component: "app" }]],
+    ["middle", [{ component: "core" }]],
+    ["app", [{ component: "middle" }]],
+  ]);
+  assert.throws(() => topologicalOrder(planComponents, cyclic), /dependency cycle/u);
+  assert.throws(
+    () => topologicalOrder(planComponents, new Map([["core", [{ component: "missing" }]]])),
+    /Unknown release runtime dependency/u,
+  );
+  const closure = reverseDependentClosure(new Set(["core"]), planComponents, planGraph);
+  assert.deepEqual([...closure.closure].sort(), ["app", "core", "middle"]);
+});
+
+test("runtime edge ranges must include the intended dependency version", () => {
+  assert.equal(runtimeRangeIncludesVersion("file:../core", "2.0.0"), true);
+  assert.equal(runtimeRangeIncludesVersion("^2.0.0", "2.3.0"), true);
+  assert.equal(runtimeRangeIncludesVersion("^0.2.0", "0.3.0"), false);
+  assert.equal(runtimeRangeIncludesVersion("1.0.0", "1.0.1"), false);
+  assert.equal(runtimeRangeIncludesVersion(">=1.0.0", "2.0.0"), false);
+});
+
+test("plan command requires exactly one known selection mode", () => {
+  for (const args of [[], ["--all", "--changed", "pi-vault-client"], ["--wat"]]) {
+    const result = spawnSync(process.execPath, [SCRIPT, "plan", ...args], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    assert.notEqual(result.status, 0);
+  }
+});
+
+test("root command emits a deterministic source-bound portfolio plan", () => {
+  const first = releaseProjection("plan", "--changed", "pi-vault-client");
+  const second = releaseProjection("plan", "--changed", "pi-vault-client");
+  assert.deepEqual(first, second);
+  assert.match(first.source.commit, /^[0-9a-f]{40}$/u);
+  assert.deepEqual(first.changedComponents, ["pi-vault-client"]);
+  assert.deepEqual(first.propagationRequiredComponents, ["pi-autoresearch", "pi-society-orchestrator"]);
+  assert.ok(first.releaseOrder.indexOf("pi-vault-client") < first.releaseOrder.indexOf("pi-autoresearch"));
+  assert.ok(first.releaseOrder.indexOf("pi-autoresearch") < first.releaseOrder.indexOf("pi-society-orchestrator"));
+});
 
 test("list reports pi-model-selection as a top-level support package", () => {
   const components = listComponents();
@@ -318,6 +438,16 @@ test("generic publish path preserves directory-based release check and publish",
   assert.match(publish, /npm publish --dry-run --provenance --access public --tag "\$RELEASE_NPM_DIST_TAG"/);
   assert.match(publish, /previously published/);
   assert.ok(workflow.indexOf(check) < workflow.indexOf(publish), "generic check must precede publish");
+});
+
+test("release-check CI gates release PRs on the registry-aware portfolio plan", () => {
+  const workflow = fs.readFileSync(RELEASE_CHECK_WORKFLOW_PATH, "utf8");
+  const gate = workflowStep(workflow, "Require a propagation-complete release PR plan");
+  assert.match(gate, /if: github\.event_name == 'pull_request'/u);
+  assert.match(gate, /--base "\$\{\{ github\.event\.pull_request\.base\.sha \}\}"/u);
+  assert.match(gate, /--registry/u);
+  assert.match(gate, /--require-ready/u);
+  assert.match(workflow, /fetch-depth: 0/u);
 });
 
 test("release-check CI runs pi-modes credential-free installed-artifact smoke", () => {

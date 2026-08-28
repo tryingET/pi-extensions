@@ -136,6 +136,7 @@ npm run quality:pre-push
 npm run quality:ci
 npm run check
 node ./scripts/release-components.mjs list --json   # live release-component inventory
+node ./scripts/release-components.mjs plan --base origin/main --json  # changed + propagation release wave
 npm run engineering:review-surfaces                  # live package-local engineering audit
 npm run release:contracts:validate  # validate publish/package release floors for non-private packages
 npm run compat:canary:list          # list host-compatibility scenarios + exact host contract

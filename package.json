@@ -2,6 +2,11 @@
   "name": "pi-extensions-monorepo",
   "private": true,
   "description": "Monorepo root validation surface for pi-extensions.",
+  "x-pi-release-policy": {
+    "npmOwner": "tryinget",
+    "credentialMode": "github-actions-oidc-trusted-publishing",
+    "publicationApproval": "github-release"
+  },
   "scripts": {
     "quality:pre-commit": "bash ./scripts/quality-gate.sh pre-commit",
     "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
@@ -18,6 +23,7 @@
     "extensions:generations:test:concurrency": "node --test ./scripts/pi-extension-generations.concurrency.test.mjs",
     "governed:runtime": "node ./scripts/governed-deep-review-canary.mjs",
     "release:components:list": "node ./scripts/release-components.mjs list",
+    "release:plan": "node ./scripts/release-components.mjs plan",
     "release:components:check": "node ./scripts/release-components.mjs validate",
     "release:components:sync": "node ./scripts/release-components.mjs sync"
   }

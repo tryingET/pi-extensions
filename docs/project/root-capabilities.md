@@ -93,8 +93,10 @@ system4d:
 - `.release-please-config.json`
 - `.release-please-manifest.json`
 - `scripts/release-components.mjs`
+- `docs/project/portfolio-release-plan.md`
 - root component-mode release automation for publish-ready packages
   - current source of truth: package metadata with `x-pi-template.releaseConfigMode=component`
+  - one read-only `plan` command validates unique identities and runtime edges, computes dependency-first order plus reverse-dependent propagation, binds source/version identity, and classifies current-version/registry blockers
   - first-release bootstrap: `x-pi-template.releaseInitialVersion` is a temporary one-way marker that projects Release Please `initial-version` plus manifest sentinel `0.0.0`; the initial release PR must remove the marker and run `release-components.mjs sync` before advancing the manifest to the released package version
   - independent component PRs/tags/releases
   - publish dispatch by component-scoped tag
