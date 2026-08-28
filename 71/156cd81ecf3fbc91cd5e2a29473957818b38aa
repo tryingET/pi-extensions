@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "71156cd81ecf3fbc91cd5e2a29473957818b38aa"
+created_at: "2026-08-28T20:24:11Z"
+intent: "Split autoresearch type catalog (2543 LOC) into 8 domain type modules with compatibility barrel; export surface verified identical; AK 5170 commit 4"
+files:
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-types.ts"
+  - "packages/pi-society-orchestrator/src/runtime/autoresearch-live-core-types.ts"
+validation:
+  fast_gate:
+    command: "npx tsc --noEmit -p tsconfig.json && package-quality-gate.sh test packages/pi-society-orchestrator"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+links:
+  task_ids:
+    - 5170
