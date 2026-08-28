@@ -125,7 +125,7 @@ function registryPrerequisiteSpecs(wave, plan, tag) {
 }
 
 function git(...args) {
-  const result = spawnSync("git", args, { cwd: ROOT, encoding: "utf8" });
+  const result = spawnSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim()}`);
   return result.stdout.trim();
 }

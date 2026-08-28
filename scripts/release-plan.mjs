@@ -153,7 +153,7 @@ function reverseDependentClosure(changed, components, graph) {
 }
 
 function gitRaw(args) {
-  const result = spawnSync("git", args, { cwd: ROOT, encoding: "utf8" });
+  const result = spawnSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${String(result.stderr).trim()}`);
   return String(result.stdout);
