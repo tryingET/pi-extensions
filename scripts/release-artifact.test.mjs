@@ -20,6 +20,12 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "release-artifact.mjs");
 
+// CI runs these tests inside an immutable `git worktree`, where `.git` is a
+// file rather than a directory. Use the root-ignored scratch directory
+// (same convention as release-sbom.test.mjs) so fixtures stay status-ignored
+// regardless of the checkout's `.git` shape.
+const SCRATCH = path.join(ROOT, ".release-test-scratch");
+
 function run(args, env = {}) {
   return spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: ROOT,
@@ -33,8 +39,8 @@ function writeJson(filePath, value) {
 }
 
 function fixture(t, { localDependency = false } = {}) {
-  fs.mkdirSync(path.join(ROOT, ".git", "tmp"), { recursive: true });
-  const root = fs.mkdtempSync(path.join(ROOT, ".git", "tmp", "release-artifact-test-"));
+  fs.mkdirSync(SCRATCH, { recursive: true });
+  const root = fs.mkdtempSync(path.join(SCRATCH, "release-artifact-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
   const manifest = {
@@ -120,8 +126,8 @@ function packFixture(packageRoot, artifactDir, envFile) {
 }
 
 test("builds one exact file dependency manifest and rejects duplicate identities", (t) => {
-  fs.mkdirSync(path.join(ROOT, ".git", "tmp"), { recursive: true });
-  const root = fs.mkdtempSync(path.join(ROOT, ".git", "tmp", "release-artifact-manifest-test-"));
+  fs.mkdirSync(SCRATCH, { recursive: true });
+  const root = fs.mkdtempSync(path.join(SCRATCH, "release-artifact-manifest-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const dependencyPath = path.join(root, "dependency.tgz");
   const packagePath = path.join(root, "package.tgz");
