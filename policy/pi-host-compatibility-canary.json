@@ -11,8 +11,8 @@
     "current": {
       "description": "Run against the root-owned pinned Pi host contract that defines the current canary baseline for this monorepo.",
       "host": {
-        "version": "0.84.2",
-        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.84.2"
+        "version": "0.84.3",
+        "reviewAnchor": "npm:@earendil-works/pi-coding-agent@0.84.3"
       }
     },
     "upgrade": {
