@@ -29,6 +29,12 @@ fi
 
 "$script_dir/smoke.sh"
 
+# Repo-wide readability-budget ratchet: every over-budget file must be split or
+# carry a validated owner-scoped exception (policy/file-budget-exceptions.json).
+if [ -f "./scripts/file-budget-audit.mjs" ]; then
+  node ./scripts/file-budget-audit.mjs --fail --max-warnings "${PI_FILE_BUDGET_MAX_WARNINGS:-12}"
+fi
+
 node --test "$script_dir/rocs-validation.test.mjs"
 
 if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then

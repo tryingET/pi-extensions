@@ -1,0 +1,3 @@
+{
+  "notes": "Opt-in marker: this package's file-budget audit runs in --fail posture in every package-quality-gate stage (pre-commit, pre-push, ci). Requires the package to be clean or fully excepted under policy/file-budget-exceptions.json at the repository root. Remove this file only with an owner-approved reason; do not delete it to make a red audit green."
+}

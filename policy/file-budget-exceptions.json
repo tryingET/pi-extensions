@@ -2,70 +2,328 @@
   "notes": "Owner-scoped brownfield exceptions for files exceeding readability budgets. Every entry names an owner, a genuine justification, and a reopen trigger that must fire before the exception is reconsidered. Stale entries (file no longer over budget) and unknown paths are rejected by scripts/file-budget-audit.mjs with a non-zero exit in both warn-only and fail modes — remove entries when their files are split below budget.",
   "exceptions": [
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-matrix-campaign.ts",
+      "path": "docs/project/2026-04-22-rfc-peer-session-messaging-primitive.md",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Matrix-campaign planning/runner orchestration core: planner, runner contract, checkpoint, controller packets, and operator lanes share one sealed state machine; mechanical extraction would slice the state machine without behavior characterization coverage for runner/checkpoint seams.",
-      "reopen_trigger": "Characterization suite for matrix runner/checkpoint transitions lands, or the file grows past 2600 LOC, or the next owner-approved refactor touches this planner."
+      "reason": "Adopted historical RFC (917 lines); dated decision records are append-only and are not refactored for length.",
+      "reopen_trigger": "file grows past 1009 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-level3-planning.ts",
+      "path": "docs/project/2026-05-03-rfc-lazy-pi-toolbox-discovery.md",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Level-3 planning pipeline (preflight, policy gates, slice sequencing, lifecycle plans) is one ordered decision sequence; slicing phases before the sequence has per-phase characterization risks reordering gated decisions.",
-      "reopen_trigger": "Per-phase characterization tests land, or the file grows past 2000 LOC, or level-3 planning semantics change next."
+      "reason": "Adopted historical RFC (960 lines); dated decision records are append-only and are not refactored for length.",
+      "reopen_trigger": "file grows past 1056 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-report-format.ts",
+      "path": "packages/pi-agent-registry/src/manifest.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Report formatting catalog (shared section renderers plus format-version invariants) is byte-anchored by golden snapshots; a format-module split must land together with golden regeneration to stay behavior-preserving.",
-      "reopen_trigger": "Next report-format version bump that regenerates goldens, or the file grows past 1900 LOC."
+      "reason": "pi-agent-registry manifest module at 123% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 678 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/loops/registration.ts",
+      "path": "packages/pi-agent-vent/extensions/agent-vent.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Loop tool/command registration surface binds every loop phase to one registration contract; splitting registration risks silent tool/contract drift between halves.",
-      "reopen_trigger": "Loop tool registration contract is next touched, or the file grows past 1800 LOC."
+      "reason": "pi-agent-vent agent-vent module at 293% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1611 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/scripts/release-smoke.mjs",
+      "path": "packages/pi-agent-vent/src/vent-store.js",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Release smoke is a single sequential narrative over shared subprocess plumbing; splitting phases would obscure the ordered smoke story release operators read end-to-end.",
-      "reopen_trigger": "Next release-process change that restructures smoke phases, or the file grows past 1600 LOC."
+      "reason": "pi-agent-vent vent-store module at 584% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 3210 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/extension/autoresearch-live-registration.ts",
+      "path": "packages/pi-autonomous-session-control/extensions/self.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Autoresearch live tool registration pairs each tool with its guarded handler bindings in one file so registration and authorization surfaces stay review-adjacent.",
-      "reopen_trigger": "Live supervision tool set changes next, or the file grows past 1500 LOC."
+      "reason": "pi-autonomous-session-control self module at 137% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 752 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-level4-runner.ts",
+      "path": "packages/pi-autonomous-session-control/extensions/self/query-resolver.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Level-4 runner resume/closeout paths persist interlocking receipts; extraction needs resume-path characterization that does not exist yet.",
-      "reopen_trigger": "Level-4 resume characterization lands, or the file grows past 1400 LOC."
+      "reason": "pi-autonomous-session-control query-resolver module at 113% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 623 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-candidate-wave.ts",
+      "path": "packages/pi-autonomous-session-control/extensions/self/resolvers/action.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Candidate-wave planning and review flow one packet lifecycle through binding, reliability, and owner-decision stages; the stages share parsing of the same packet shapes.",
-      "reopen_trigger": "Candidate-wave packet schema changes next, or the file grows past 1400 LOC."
+      "reason": "pi-autonomous-session-control action module at 112% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 618 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/loops/executor.ts",
+      "path": "packages/pi-autonomous-session-control/extensions/self/resolvers/diagnostic-review.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "LoopExecutor core: phase dispatch, resume, and failure semantics are one indistinguishable state machine covered by loop-resume suites; extraction is deferred until resume semantics are frozen.",
-      "reopen_trigger": "Loop resume semantics are declared frozen, or the file grows past 1400 LOC."
+      "reason": "pi-autonomous-session-control diagnostic-review module at 122% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 669 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/loops/run-checkpoint.ts",
+      "path": "packages/pi-autonomous-session-control/extensions/self/subagent-capacity.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Checkpoint store, retention, and resume validation share lock/lease invariants that a split would have to restate; validation contracts are still evolving.",
-      "reopen_trigger": "Checkpoint retention contract is next revised, or the file grows past 1150 LOC."
+      "reason": "pi-autonomous-session-control subagent-capacity module at 101% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 555 LOC or the next owner-approved refactor touches this module"
     },
     {
-      "path": "packages/pi-society-orchestrator/src/loops/loop-ui.ts",
+      "path": "packages/pi-autonomous-session-control/extensions/self/subagent-pi-json-filter-v2.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Loop UI surfaces (status rendering plus interaction handlers) share one view model; splitting would duplicate the view-model derivation.",
-      "reopen_trigger": "Loop UI redesign, or the file grows past 1050 LOC."
+      "reason": "pi-autonomous-session-control subagent-pi-json-filter-v2 module at 124% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 682 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-autonomous-session-control/extensions/self/subagent-runtime.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autonomous-session-control subagent-runtime module at 179% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 987 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-autonomous-session-control/extensions/self/subagent-spawn.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autonomous-session-control subagent-spawn module at 160% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 878 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-autonomous-session-control/tests/dispatch-subagent-lifecycle-control.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autonomous-session-control suite at 129% of the test budget (1287/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1416 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-autonomous-session-control/tests/subagent-transport-live.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autonomous-session-control suite at 103% of the test budget (1035/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1139 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-autoresearch/extensions/pi-autoresearch/toolStatusControl.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autoresearch toolStatusControl module at 107% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 587 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-autoresearch/src/core/llamacppCampaign.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autoresearch llamacppCampaign module at 663% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 3649 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-autoresearch/src/core/selfHosting.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autoresearch selfHosting module at 553% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 3040 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-autoresearch/tests/lazy-runtime-extension.test.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-autoresearch suite at 127% of the test budget (1266/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1393 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-better-openai/src/image.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-better-openai image module at 159% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 874 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/experiments/source-selection/2026-07-25-v3/experiment-preparation.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Frozen dated source-selection experiment record; experiment scripts are kept verbatim for reproducibility and are not refactored.",
+      "reopen_trigger": "file grows past 604 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/experiments/source-selection/2026-07-25-v3/source-list-observations.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Frozen dated source-selection experiment record; experiment scripts are kept verbatim for reproducibility and are not refactored.",
+      "reopen_trigger": "file grows past 621 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/experiments/source-selection/2026-07-25-v3/v3-experiment.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Frozen dated source-selection experiment record; experiment scripts are kept verbatim for reproducibility and are not refactored.",
+      "reopen_trigger": "file grows past 554 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/experiments/source-selection/2026-07-26-v4/v4-experiment.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Frozen dated source-selection experiment record; experiment scripts are kept verbatim for reproducibility and are not refactored.",
+      "reopen_trigger": "file grows past 576 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/src/context-pack.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-context-packer context-pack module at 137% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 752 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/src/context-plan.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-context-packer context-plan module at 179% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 987 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/src/dogfood-observation.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-context-packer dogfood-observation module at 259% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1423 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/src/sci-provider.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-context-packer sci-provider module at 113% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 621 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-context-packer/tests/dogfood-observation.test.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-context-packer suite at 123% of the test budget (1233/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1357 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-context-packer/tests/sci-provider.test.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-context-packer suite at 117% of the test budget (1173/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1291 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-designmd-foundry/extensions/designmd.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-designmd-foundry designmd module at 316% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1740 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-evalset-lab/extensions/evalset.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-evalset-lab evalset module at 240% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1319 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-interaction/pi-interaction-kit/src/ui.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-interaction ui module at 108% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 594 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-interaction/pi-trigger-adapter/src/TriggerBroker.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-interaction TriggerBroker module at 105% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 577 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-interaction/scripts/release-check-package.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-interaction release-check-package module at 102% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 560 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-little-helpers/src/ascExecutionObserver.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-little-helpers ascExecutionObserver module at 123% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 677 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-little-helpers/src/candidatePeerAdmission.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-little-helpers candidatePeerAdmission module at 151% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 833 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-little-helpers/src/selfEvolutionEnvelope.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-little-helpers selfEvolutionEnvelope module at 125% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 689 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-little-helpers/src/visibleLoop.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-little-helpers visibleLoop module at 471% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 2590 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-little-helpers/tests/candidate-peer.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-little-helpers suite at 103% of the test budget (1034/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1138 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-little-helpers/tests/visible-loop-child-checkpoint.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-little-helpers suite at 104% of the test budget (1039/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1143 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-little-helpers/tests/visible-loop-delegation-recovery.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-little-helpers suite at 102% of the test budget (1018/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1120 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-ontology-workflows/extensions/ontology-workflows.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-ontology-workflows ontology-workflows module at 150% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 826 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-ontology-workflows/src/core/change.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-ontology-workflows change module at 185% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1019 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-ontology-workflows/src/core/proposal.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-ontology-workflows proposal module at 114% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 626 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-ontology-workflows/src/semantic/prepared-runtime.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-ontology-workflows prepared-runtime module at 131% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 723 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-ontology-workflows/src/semantic/protocol.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-ontology-workflows protocol module at 138% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 760 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-prompt-template-accelerator/extensions/ptx.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-prompt-template-accelerator ptx module at 167% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 918 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-semantic-code-intelligence/scripts/dogfood-composite-tools.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-semantic-code-intelligence dogfood-composite-tools module at 101% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 556 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-semantic-code-intelligence/src/explore-risk-validator.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-semantic-code-intelligence explore-risk-validator module at 114% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 630 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-session-compaction/extensions/session-compaction/files-touched.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-session-compaction files-touched module at 185% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1018 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-session-compaction/extensions/session-compaction/guarded-handler.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-session-compaction guarded-handler module at 106% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 581 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-session-compaction/extensions/session-compaction/handler.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-session-compaction handler module at 188% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1037 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-session-compaction/extensions/session-compaction/session-recall.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-session-compaction session-recall module at 123% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 679 LOC or the next owner-approved refactor touches this module"
     },
     {
       "path": "packages/pi-society-orchestrator/extensions/society-orchestrator.ts",
@@ -74,46 +332,22 @@
       "reopen_trigger": "Next extension wiring change, or the file grows past 950 LOC."
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-live-supervision.ts",
+      "path": "packages/pi-society-orchestrator/scripts/release-smoke.mjs",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Live supervision request router maps every supervision operation onto the shared runner/session lifecycle; the router stays cohesive by design (previously split from supervisor-runner).",
-      "reopen_trigger": "New supervision operations are added, or the file grows past 950 LOC."
+      "reason": "Release smoke is a single sequential narrative over shared subprocess plumbing; splitting phases would obscure the ordered smoke story release operators read end-to-end.",
+      "reopen_trigger": "Next release-process change that restructures smoke phases, or the file grows past 1600 LOC."
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/workflow-execution.ts",
+      "path": "packages/pi-society-orchestrator/scripts/validate-asc-bridge-lifecycle.mjs",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Workflow executor chains, parallel groups, cancellation, and worktree isolation share one execution invariant set; executor-semantics tests cover behavior but extraction boundaries are not yet owner-approved.",
-      "reopen_trigger": "Workflow executor invariant doc lands, or the file grows past 900 LOC."
+      "reason": "ASC bridge lifecycle validator is one sequential verification script; barely over budget (521/500).",
+      "reopen_trigger": "ASC bridge lifecycle contract changes, or the file grows past 575 LOC."
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/governed-deep-review-preflight.ts",
+      "path": "packages/pi-society-orchestrator/src/extension/autoresearch-live-registration.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Governed preflight runtime creation and ownership branding are a single security membrane; splitting the membrane would obscure the owner-brand invariants it enforces.",
-      "reopen_trigger": "Governed preflight ownership model changes, or the file grows past 800 LOC."
-    },
-    {
-      "path": "packages/pi-society-orchestrator/src/runtime/boundaries.ts",
-      "owner": "softwareco/owned/pi-extensions",
-      "reason": "Lower-plane boundary telemetry and enforcement stay in one module so boundary rules cannot drift across halves; within 50% of budget.",
-      "reopen_trigger": "Boundary rule set changes, or the file grows past 800 LOC."
-    },
-    {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-self-hosting-supervision.ts",
-      "owner": "softwareco/owned/pi-extensions",
-      "reason": "Self-hosting supervision pairs launch/watch/finalize stages over one worktree lifecycle; within 50% of budget and stage extraction has no characterization yet.",
-      "reopen_trigger": "Self-hosting lifecycle changes, or the file grows past 750 LOC."
-    },
-    {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-learning-kes-adapter.ts",
-      "owner": "softwareco/owned/pi-extensions",
-      "reason": "KES learning adapter translates one telemetry schema end-to-end; single-translation cohesion within 35% of budget.",
-      "reopen_trigger": "KES learning schema changes, or the file grows past 725 LOC."
-    },
-    {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-post-fanin-finalizer.ts",
-      "owner": "softwareco/owned/pi-extensions",
-      "reason": "Post-fan-in finalizer token/request/apply stages implement one authorization protocol; protocol stages stay together by design.",
-      "reopen_trigger": "Finalizer authorization protocol changes, or the file grows past 725 LOC."
+      "reason": "Autoresearch live tool registration pairs each tool with its guarded handler bindings in one file so registration and authorization surfaces stay review-adjacent.",
+      "reopen_trigger": "Live supervision tool set changes next, or the file grows past 1500 LOC."
     },
     {
       "path": "packages/pi-society-orchestrator/src/kes/scaffold.ts",
@@ -128,10 +362,64 @@
       "reopen_trigger": "Supervisor ledger contract changes, or the file grows past 675 LOC."
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/release-evidence-ak-adapter.ts",
+      "path": "packages/pi-society-orchestrator/src/loops/executor.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "Release-evidence AK adapter maps one evidence schema; single-translation cohesion within 20% of budget.",
-      "reopen_trigger": "Release evidence schema changes, or the file grows past 625 LOC."
+      "reason": "LoopExecutor core: phase dispatch, resume, and failure semantics are one indistinguishable state machine covered by loop-resume suites; extraction is deferred until resume semantics are frozen.",
+      "reopen_trigger": "Loop resume semantics are declared frozen, or the file grows past 1400 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/loop-ui.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Loop UI surfaces (status rendering plus interaction handlers) share one view model; splitting would duplicate the view-model derivation.",
+      "reopen_trigger": "Loop UI redesign, or the file grows past 1050 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/registration.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Loop tool/command registration surface binds every loop phase to one registration contract; splitting registration risks silent tool/contract drift between halves.",
+      "reopen_trigger": "Loop tool registration contract is next touched, or the file grows past 1800 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/loops/run-checkpoint.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checkpoint store, retention, and resume validation share lock/lease invariants that a split would have to restate; validation contracts are still evolving.",
+      "reopen_trigger": "Checkpoint retention contract is next revised, or the file grows past 1150 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-ak-projector.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "AK projector maps campaign state to AK task projections in one mapping file; barely over budget (510/500).",
+      "reopen_trigger": "AK projection schema changes, or the file grows past 560 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-candidate-wave.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Candidate-wave planning and review flow one packet lifecycle through binding, reliability, and owner-decision stages; the stages share parsing of the same packet shapes.",
+      "reopen_trigger": "Candidate-wave packet schema changes next, or the file grows past 1400 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-learning-kes-adapter.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "KES learning adapter translates one telemetry schema end-to-end; single-translation cohesion within 35% of budget.",
+      "reopen_trigger": "KES learning schema changes, or the file grows past 725 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-level3-planning.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Level-3 planning pipeline (preflight, policy gates, slice sequencing, lifecycle plans) is one ordered decision sequence; slicing phases before the sequence has per-phase characterization risks reordering gated decisions.",
+      "reopen_trigger": "Per-phase characterization tests land, or the file grows past 2000 LOC, or level-3 planning semantics change next."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-level4-runner.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Level-4 runner resume/closeout paths persist interlocking receipts; extraction needs resume-path characterization that does not exist yet.",
+      "reopen_trigger": "Level-4 resume characterization lands, or the file grows past 1400 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-live-supervision.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Live supervision request router maps every supervision operation onto the shared runner/session lifecycle; the router stays cohesive by design (previously split from supervisor-runner).",
+      "reopen_trigger": "New supervision operations are added, or the file grows past 950 LOC."
     },
     {
       "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-manifest-campaign-supervision.ts",
@@ -140,10 +428,46 @@
       "reopen_trigger": "Manifest campaign tool contract changes, or the file grows past 600 LOC."
     },
     {
-      "path": "packages/pi-society-orchestrator/scripts/validate-asc-bridge-lifecycle.mjs",
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-matrix-campaign.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "ASC bridge lifecycle validator is one sequential verification script; barely over budget (521/500).",
-      "reopen_trigger": "ASC bridge lifecycle contract changes, or the file grows past 575 LOC."
+      "reason": "Matrix-campaign planning/runner orchestration core: planner, runner contract, checkpoint, controller packets, and operator lanes share one sealed state machine; mechanical extraction would slice the state machine without behavior characterization coverage for runner/checkpoint seams.",
+      "reopen_trigger": "Characterization suite for matrix runner/checkpoint transitions lands, or the file grows past 2600 LOC, or the next owner-approved refactor touches this planner."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-post-fanin-finalizer.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Post-fan-in finalizer token/request/apply stages implement one authorization protocol; protocol stages stay together by design.",
+      "reopen_trigger": "Finalizer authorization protocol changes, or the file grows past 725 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-report-format.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Report formatting catalog (shared section renderers plus format-version invariants) is byte-anchored by golden snapshots; a format-module split must land together with golden regeneration to stay behavior-preserving.",
+      "reopen_trigger": "Next report-format version bump that regenerates goldens, or the file grows past 1900 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-self-hosting-supervision.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Self-hosting supervision pairs launch/watch/finalize stages over one worktree lifecycle; within 50% of budget and stage extraction has no characterization yet.",
+      "reopen_trigger": "Self-hosting lifecycle changes, or the file grows past 750 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/boundaries.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Lower-plane boundary telemetry and enforcement stay in one module so boundary rules cannot drift across halves; within 50% of budget.",
+      "reopen_trigger": "Boundary rule set changes, or the file grows past 800 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/governed-deep-review-preflight.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Governed preflight runtime creation and ownership branding are a single security membrane; splitting the membrane would obscure the owner-brand invariants it enforces.",
+      "reopen_trigger": "Governed preflight ownership model changes, or the file grows past 800 LOC."
+    },
+    {
+      "path": "packages/pi-society-orchestrator/src/runtime/release-evidence-ak-adapter.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Release-evidence AK adapter maps one evidence schema; single-translation cohesion within 20% of budget.",
+      "reopen_trigger": "Release evidence schema changes, or the file grows past 625 LOC."
     },
     {
       "path": "packages/pi-society-orchestrator/src/runtime/telemetry-learning-kes-adapter.ts",
@@ -152,10 +476,196 @@
       "reopen_trigger": "Telemetry schema changes, or the file grows past 575 LOC."
     },
     {
-      "path": "packages/pi-society-orchestrator/src/runtime/autoresearch-ak-projector.ts",
+      "path": "packages/pi-society-orchestrator/src/runtime/workflow-execution.ts",
       "owner": "softwareco/owned/pi-extensions",
-      "reason": "AK projector maps campaign state to AK task projections in one mapping file; barely over budget (510/500).",
-      "reopen_trigger": "AK projection schema changes, or the file grows past 560 LOC."
+      "reason": "Workflow executor chains, parallel groups, cancellation, and worktree isolation share one execution invariant set; executor-semantics tests cover behavior but extraction boundaries are not yet owner-approved.",
+      "reopen_trigger": "Workflow executor invariant doc lands, or the file grows past 900 LOC."
+    },
+    {
+      "path": "packages/pi-society-startup-context/extensions/society-context.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-society-startup-context society-context module at 258% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 1418 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-telemetry/src/aggregate.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-telemetry aggregate module at 104% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 571 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-telemetry/src/review-snapshot-validate.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-telemetry review-snapshot-validate module at 112% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 616 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-toolbox-discovery/src/toolbox-runtime.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-toolbox-discovery toolbox-runtime module at 100% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 553 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/dispatchPosture.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 580 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/dispatchPosture.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client dispatchPosture core at 127% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 699 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/dispatchRuntime.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 589 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/dispatchRuntime.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client dispatchRuntime core at 146% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 804 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/evaluator.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 686 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/evaluator.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client evaluator core at 164% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 904 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/promptPlane.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 663 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/promptPlane.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client promptPlane core at 170% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 937 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultCommands.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 963 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultCommands.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultCommands core at 201% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 1106 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultDb.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 1370 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultDb.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultDb core at 312% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 1718 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultGrounding.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultGrounding core at 115% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 631 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultMutations.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultMutations core at 103% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 565 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultReceipts.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 787 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultReceipts.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultReceipts core at 169% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 932 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultReplay.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultReplay core at 106% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 585 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultTools.js",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Checked-in compiled runtime artifact of the matching .ts source (npm run build:runtime; check:generated-runtime enforces parity). Size tracks its source: split the TS module and regenerate artifacts in one change, then remove this exception.",
+      "reopen_trigger": "file grows past 1286 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultTools.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultTools core at 281% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 1547 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/src/vaultTypes.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vaultTypes core at 139% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "file grows past 764 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "packages/pi-vault-client/tests/vault-commands.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vault-commands.test core at 243% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "suite grows past 1335 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-vault-client/tests/vault-update.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Vault-client vault-update.test core at 209% of the code budget; the TS source ships with a checked-in compiled runtime artifact, so extraction must split the module and regenerate artifacts atomically in an owner-approved change.",
+      "reopen_trigger": "suite grows past 1148 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "packages/pi-workstation-inference-provider/extensions/workstation-inference-contract.ts",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "pi-workstation-inference-provider workstation-inference-contract module at 129% of the code budget; behavior-heavy surface whose extraction needs characterization coverage not yet scheduled.",
+      "reopen_trigger": "file grows past 712 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "scripts/governed-deep-review-canary.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Root governed-deep-review-canary script at 264% of the code budget; sequential verification/release narrative over shared subprocess plumbing, split deferred to its next contract change.",
+      "reopen_trigger": "file grows past 1453 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "scripts/pi-host-compatibility-canary.test.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "(root) suite at 102% of the test budget (1022/1000); cohesive per-concern coverage whose mechanical split is deferred behind the package's next test-surface pass.",
+      "reopen_trigger": "suite grows past 1125 LOC or its package adopts a per-concern split pass"
+    },
+    {
+      "path": "scripts/release-artifact.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Root release-artifact script at 121% of the code budget; sequential verification/release narrative over shared subprocess plumbing, split deferred to its next contract change.",
+      "reopen_trigger": "file grows past 664 LOC or the next owner-approved refactor touches this module"
+    },
+    {
+      "path": "scripts/release-sbom.mjs",
+      "owner": "softwareco/owned/pi-extensions",
+      "reason": "Root release-sbom script at 152% of the code budget; sequential verification/release narrative over shared subprocess plumbing, split deferred to its next contract change.",
+      "reopen_trigger": "file grows past 837 LOC or the next owner-approved refactor touches this module"
     }
   ]
 }
