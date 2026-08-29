@@ -1,0 +1,19 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "3861d2d2fa4d67726dd04d81c2402605028219e8"
+created_at: "2026-08-29T05:38:22Z"
+intent: "Split context-packer context-pack test suite (2806 LOC) into 6 concern suites + fixtures; AK 5172; behavior-preserving, 75/75 + package gate 233/233"
+files:
+  - "packages/pi-context-packer/tests"
+validation:
+  fast_gate:
+    command: "package-quality-gate.sh test packages/pi-context-packer"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+links:
+  task_ids:
+    - 5172
