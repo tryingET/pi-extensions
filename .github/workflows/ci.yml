@@ -97,13 +97,21 @@ jobs:
           # relative policy and derives the exact cutoff used by npm effects.
           cat > "$NPM_CONFIG_USERCONFIG" <<EOF
           min-release-age=7
-          min-release-age-exclude[]=@tryinget/*
           registry=https://registry.npmjs.org/
           offline=false
           prefer-offline=false
           force=false
           cache=$GOVERNED_NPM_CACHE
           EOF
+          # Derive the release-age exclusion list from the governed constants so
+          # CI cannot drift from the SRI-pinned host-line exemption posture.
+          node --input-type=module -e '
+            const fs = await import("node:fs");
+            const constants = await import("./packages/pi-society-orchestrator/src/runtime/governed-runtime-constants.ts");
+            for (const entry of constants.GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS) {
+              fs.appendFileSync(process.env.NPM_CONFIG_USERCONFIG, `min-release-age-exclude[]=${entry}\n`);
+            }
+          '
           npm --version
           npm config get min-release-age
           npm config get min-release-age-exclude
