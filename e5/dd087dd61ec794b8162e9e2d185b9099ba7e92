@@ -1,0 +1,19 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/pi-extensions"
+commit: "e5dd087dd61ec794b8162e9e2d185b9099ba7e92"
+created_at: "2026-08-29T05:40:41Z"
+intent: "Split SCI extension test suite (1786 LOC) into 4 flat suites + fixtures; AK 5172; 19/19 + package gate 33/33 + tsc clean"
+files:
+  - "packages/pi-semantic-code-intelligence/tests"
+validation:
+  fast_gate:
+    command: "package-quality-gate.sh test packages/pi-semantic-code-intelligence"
+    status: "pass"
+  full_gate:
+    command: "npm run quality:pre-push"
+    status: "pending"
+links:
+  task_ids:
+    - 5172
