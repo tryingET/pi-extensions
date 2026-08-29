@@ -69,14 +69,93 @@ function minimalManifest(cwd, packages) {
   };
 }
 
+test("zero-package read-only scenario completes its mutation session and leaves recovery clean", () => {
+  const tempDir = mkdtempSync(path.join(ROOT, ".pi-host-zero-package-"));
+  try {
+    const manifestPath = path.join(tempDir, "manifest.json");
+    writeFileSync(manifestPath, `${JSON.stringify(minimalManifest(".", []))}\n`);
+    const run = runJson(["run", "--manifest", manifestPath, "--scenario", "path-containment"]);
+    assert.equal(run.summary.passed, 1, JSON.stringify(run.summary));
+    const status = runJson(["status", "--manifest", manifestPath]);
+    assert.equal(status.status, "clean");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("compatibility canary manifest validates", () => {
   const result = runJson(["validate"]);
   assert.equal(result.ok, true);
   assert.equal(result.defaultProfile, "current");
   assert.equal(result.hostPackage, "@earendil-works/pi-coding-agent");
   assert.ok(result.hostCompanionPackages.includes("@earendil-works/pi-ai"));
-  assert.ok(result.scenarioCount >= 3);
+  assert.ok(result.scenarioCount >= 11, `expected the drift-guard scenario, count=${result.scenarioCount}`);
   assert.ok(result.profiles.includes("upgrade"));
+});
+
+test("dev-pin drift guard passes on the real repository and reports aligned declarations", () => {
+  const result = spawnSync(
+    process.execPath,
+    [path.join(ROOT, "scripts", "pi-host-compatibility-canary", "check-dev-pin-drift.mjs")],
+    { cwd: ROOT, encoding: "utf-8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok: pi host contract dev pins \(\d+ declaration\(s\) at \d+\.\d+\.\d+\)\n?$/);
+});
+
+test("dev-pin drift guard fails closed on drift and refuses vacuous passes", () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "pi-host-dev-pin-drift-"));
+  try {
+    const alignedRoot = path.join(tempDir, "aligned");
+    const driftedRoot = path.join(tempDir, "drifted");
+    const emptyRoot = path.join(tempDir, "empty");
+    for (const root of [alignedRoot, driftedRoot, emptyRoot]) {
+      mkdirSync(path.join(root, "packages", "sample-a"), { recursive: true });
+    }
+    const alignedManifest = {
+      name: "sample-a",
+      devDependencies: {
+        "@earendil-works/pi-ai": "0.83.0",
+        "@earendil-works/pi-coding-agent": "0.83.0",
+      },
+    };
+    writeFileSync(
+      path.join(alignedRoot, "packages", "sample-a", "package.json"),
+      `${JSON.stringify(alignedManifest)}\n`,
+    );
+    const driftedManifest = {
+      ...alignedManifest,
+      devDependencies: { "@earendil-works/pi-ai": "0.82.0" },
+    };
+    writeFileSync(
+      path.join(driftedRoot, "packages", "sample-a", "package.json"),
+      `${JSON.stringify(driftedManifest)}\n`,
+    );
+    const checker = path.join(ROOT, "scripts", "pi-host-compatibility-canary", "check-dev-pin-drift.mjs");
+    const fixtureManifestPath = path.join(tempDir, "manifest.json");
+    writeFileSync(fixtureManifestPath, `${JSON.stringify(minimalManifest(".", []))}\n`);
+    const checkerArgs = ["--manifest", fixtureManifestPath];
+
+    const aligned = spawnSync(process.execPath, [checker, ...checkerArgs, "--repo-root", alignedRoot], {
+      encoding: "utf-8",
+    });
+    assert.equal(aligned.status, 0, aligned.stderr);
+    assert.match(aligned.stdout, /2 declaration/);
+
+    const drifted = spawnSync(process.execPath, [checker, ...checkerArgs, "--repo-root", driftedRoot], {
+      encoding: "utf-8",
+    });
+    assert.notEqual(drifted.status, 0);
+    assert.match(drifted.stderr, /packages\/sample-a\/package\.json: @earendil-works\/pi-ai=0\.82\.0 \(expected 0\.83\.0\)/);
+
+    const vacuous = spawnSync(process.execPath, [checker, ...checkerArgs, "--repo-root", path.join(emptyRoot, "nowhere")], {
+      encoding: "utf-8",
+    });
+    assert.notEqual(vacuous.status, 0);
+    assert.match(vacuous.stderr, /refusing to pass vacuously/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 test("compatibility canary resolves the exact current host contract", () => {
   const result = runJson(["resolve-host", "--profile", "current"]);

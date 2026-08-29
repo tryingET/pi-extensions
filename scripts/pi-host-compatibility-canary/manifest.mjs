@@ -132,7 +132,10 @@ export function validateManifest(manifest, manifestPath) {
       owner: ensureString(scenario.owner, `scenarios[${index}].owner`),
       why: ensureString(scenario.why, `scenarios[${index}].why`),
       profiles: scenarioProfiles,
-      packages: ensureStringArray(scenario.packages, `scenarios[${index}].packages`),
+      // A read-only repo-root scenario (e.g. the dev-pin drift guard) exercises
+      // no package host surface, so packages may be empty; everything else
+      // (profiles, upstreamSurfaces, command) stays non-empty.
+      packages: ensureOptionalStringArray(scenario.packages, `scenarios[${index}].packages`),
       upstreamSurfaces: ensureStringArray(scenario.upstreamSurfaces, `scenarios[${index}].upstreamSurfaces`),
       cwd,
       cwdAbs,

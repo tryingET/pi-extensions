@@ -102,28 +102,29 @@ async function spawnScenario(scenario, host, options, mutationSession) {
     };
   }
 
-  if (
-    !options.dryRun &&
-    preparationTracker.packages.length > 0 &&
-    !mutationSession.hasRecordedChild()
-  ) {
-    try {
-      restoration = await restoreScenarioHost(
-        host,
-        preparationTracker,
-        options,
-        mutationSession,
-      );
-      if (restoration.status !== "failed") mutationSession.completeScenario();
-    } catch (error) {
-      restoration = {
-        status: "failed",
-        changed: true,
-        packages: [],
-        errors: [{ phase: "restoration", operation: "unexpected-exception", message: errorMessage(error) }],
-        error: errorMessage(error),
-      };
+  if (!options.dryRun && !mutationSession.hasRecordedChild()) {
+    if (preparationTracker.packages.length > 0) {
+      try {
+        restoration = await restoreScenarioHost(
+          host,
+          preparationTracker,
+          options,
+          mutationSession,
+        );
+      } catch (error) {
+        restoration = {
+          status: "failed",
+          changed: true,
+          packages: [],
+          errors: [{ phase: "restoration", operation: "unexpected-exception", message: errorMessage(error) }],
+          error: errorMessage(error),
+        };
+      }
     }
+    // Zero-package read-only scenarios (no host preparation, no restoration)
+    // still journal a scenario intent, so they must complete the session too;
+    // otherwise every later run blocks on recovery-required.
+    if (restoration.status !== "failed") mutationSession.completeScenario();
   }
 
   if (options.dryRun && hostPreparation.status !== "failed") {

@@ -305,6 +305,25 @@
         "npm --prefix ../pi-autoresearch ci >/dev/null && npm install --no-save --package-lock=false ../pi-autonomous-session-control >/dev/null && node --test --test-name-pattern 'plan_matrix_campaign|review_matrix_campaign|review_candidate_wave compares' tests/autoresearch-live-control-plane.test.mjs"
       ],
       "notes": "Focused canary for the integrated supervised autoresearch campaign path: plan matrix cells, aggregate managed candidate-wave packets, and preserve dashboard-first/evidence-handoff reporting without running benchmarks or launching peers. The declared package set includes pi-autoresearch because the command hydrates its runtime dependencies before testing, and includes local ASC because published ASC intentionally ships TypeScript sources that raw Node cannot strip from node_modules."
+    },
+    {
+      "id": "host-dev-pin-drift",
+      "title": "Pi host contract dev-pin drift guard",
+      "owner": "monorepo-root",
+      "why": "Every package's devDependencies for the four governed Pi host contract packages must equal the canary policy's current host version, so a partial bump or stale pin cannot silently split the fleet across host lines.",
+      "profiles": [
+        "current"
+      ],
+      "packages": [],
+      "upstreamSurfaces": [
+        "host contract version uniformity across package manifests"
+      ],
+      "cwd": ".",
+      "command": [
+        "node",
+        "./scripts/pi-host-compatibility-canary/check-dev-pin-drift.mjs"
+      ],
+      "notes": "Read-only repo-root check with no host preparation: fails closed listing every off-contract dev pin and refuses to pass vacuously when no package manifests are found."
     }
   ]
 }
