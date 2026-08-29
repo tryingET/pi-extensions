@@ -13,6 +13,37 @@ system4d:
 
 All notable changes to this project should be documented here.
 
+## [0.7.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.6.0...pi-vault-client-v0.7.0) (2026-08-29)
+
+
+### Features
+
+* **file-budget:** exception remaining repo debt and ratchet every gate ([89b9faa](https://github.com/tryingET/pi-extensions/commit/89b9faa30bf47ef9f7d17730aa2c771d12bfca4f))
+* **vault-client:** write retrieval analytics to SQLite sidecar ([d6624fe](https://github.com/tryingET/pi-extensions/commit/d6624fe800303fa46cdf487582661229964c0368))
+
+
+### Bug Fixes
+
+* honor fast-xml-parser 5.3.6 override in five host-closure locks ([a4ff737](https://github.com/tryingET/pi-extensions/commit/a4ff737ac4a4620c302b65da2bd20a2ed0585d8c))
+* **monorepo:** raise fast-xml-parser security floor ([5bc4017](https://github.com/tryingET/pi-extensions/commit/5bc40171be113473b75429e8519dfc5f30e81e7f))
+* **orchestrator:** promote governed runtime pins to the 0.84.3 host line ([9b2fda4](https://github.com/tryingET/pi-extensions/commit/9b2fda4721d37cbfbfc161cd79a971addabe58ea))
+* **pi-vault-client:** advance trigger adapter dependency ([472858d](https://github.com/tryingET/pi-extensions/commit/472858d3a542ba891d84834e6a5d605bcb2237a1))
+* **release:** close local dependency isolation gaps ([f3bbff1](https://github.com/tryingET/pi-extensions/commit/f3bbff1a22b505e1c9ed801ba20390dbb656496c))
+* **release:** harden local dependency scratch ([7485c2c](https://github.com/tryingET/pi-extensions/commit/7485c2ce1dfae48a5d3e37ea169750875e4fe83a))
+* **release:** isolate local dependency packing ([ea9a464](https://github.com/tryingET/pi-extensions/commit/ea9a4648145a18f73008fbb101cc600f0924e5fa))
+* **release:** linearize local dependency traversal ([d0d030f](https://github.com/tryingET/pi-extensions/commit/d0d030fb98d915449fb6260313a797e2a7b5a611))
+* **vault-client:** align schema compatibility contract with Prompt Vault v12 ([07018df](https://github.com/tryingET/pi-extensions/commit/07018df72aa49d70d64e45c0467c8739540a03b4))
+* **vault-client:** gate on compatibility range + epoch, not schema equality ([501163b](https://github.com/tryingET/pi-extensions/commit/501163b609c7d798d75127176cbf4de4427b08f5))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @tryinget/pi-interaction-kit bumped from 0.2.0 to 0.2.1
+    * @tryinget/pi-runtime-registry bumped from 0.2.0 to 0.2.1
+    * @tryinget/pi-trigger-adapter bumped from 0.2.2 to 0.2.3
+
 ## [0.6.0](https://github.com/tryingET/pi-extensions/compare/pi-vault-client-v0.5.0...pi-vault-client-v0.6.0) (2026-08-15)
 
 
