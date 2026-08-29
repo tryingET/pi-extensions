@@ -20,5 +20,8 @@
     "loop-impact-run": "npm run check",
     "loop-impact-wide": "npm run check",
     "loop-landing-check": "npm run check"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "0.84.3"
   }
 }

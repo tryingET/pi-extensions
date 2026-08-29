@@ -22,7 +22,7 @@ import {
 } from "../../src/runtime/governed-runtime-materialization.ts";
 import { createHostLockFixture, SOURCE_ROOT } from "./helpers.mjs";
 
-test("governed runtime pins match the Pi 0.84.2 lock identities", () => {
+test("governed runtime pins match the Pi 0.84.3 lock identities", () => {
   const lock = JSON.parse(
     readFileSync(
       resolve(SOURCE_ROOT, "packages/pi-society-orchestrator/package-lock.json"),
@@ -31,7 +31,7 @@ test("governed runtime pins match the Pi 0.84.2 lock identities", () => {
   );
   const lockedPackages = lock.packages ?? {};
 
-  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "0.84.2");
+  assert.equal(GOVERNED_RUNTIME_HOST_VERSION, "0.84.3");
   for (const [name, expected] of Object.entries(GOVERNED_RUNTIME_HOST_PEERS)) {
     const direct = lockedPackages[`node_modules/${name}`];
     const nested = Object.entries(lockedPackages).find(([packagePath]) =>
@@ -49,7 +49,7 @@ test("governed runtime pins match the Pi 0.84.2 lock identities", () => {
   assert.equal(lockedTypebox?.integrity, GOVERNED_RUNTIME_TYPEBOX_INTEGRITY);
 });
 
-test("cache-backed host closure pins all four Pi 0.84.2 runtime owners", () => {
+test("cache-backed host closure pins all four Pi 0.84.3 runtime owners", () => {
   assert.deepEqual(Object.keys(GOVERNED_RUNTIME_HOST_CACHE_TARBALLS), [
     "@earendil-works/pi-ai",
     "@earendil-works/pi-agent-core",

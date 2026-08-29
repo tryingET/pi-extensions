@@ -23,7 +23,7 @@ export const GOVERNED_RUNTIME_TYPEBOX_VERSION = "1.3.7";
 export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
   "sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==";
 
-export const GOVERNED_RUNTIME_HOST_VERSION = "0.84.2";
+export const GOVERNED_RUNTIME_HOST_VERSION = "0.84.3";
 
 export const GOVERNED_RUNTIME_NPM_MIN_RELEASE_AGE_DAYS = 7;
 // npm matches registry package names, not Git repository ownership. The owned public scope is the
@@ -58,7 +58,7 @@ export const GOVERNED_RUNTIME_ASC_COMPILER = {
 export const GOVERNED_RUNTIME_HOST_PEERS = {
   "@earendil-works/pi-ai": {
     integrity:
-      "sha512-6MzsrYIYNVlE7SfpbL2yYb67Qo58p/7Q+xWG1RZvoX1P80aRCHSod2/13aFpxkow1lPO2LEh3c495J0Gwmyjig==",
+      "sha512-M0YUV8vNO3y2WwWSyY8ijKJV5W4gkSUixuvk+Z00ZBjsyMfsdXfITsHEwP1UIf09YRWXT6oGn0GlCamt+P32XQ==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -74,12 +74,12 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-agent-core": {
     integrity:
-      "sha512-8Pn3wSCxj0cfo5I6jxQYVB/3uuQRmHhAlEclyjqpOuMEdQMIODHizRogv56FLdbU+dTiGnybeHQ2N+sV1/L2YA==",
+      "sha512-VURr+xBRl3RxYcw3kT9Pn3yfi6LbRoCJgHF7h1mAblMjtLNV/MfG/RyF0uJizBAM886AEakSiw3j9c/aSngppg==",
     consumers: [],
   },
   "@earendil-works/pi-coding-agent": {
     integrity:
-      "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA==",
+      "sha512-Yr2p9PubrbFZmYEPYI+C8KmZP9xlFuLDnAG64RtU0ZDgrdiXYWa+y7WGyJO5OlqPliOkVCMd9IzVszO3/t0D0w==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-toolbox-discovery",
@@ -96,7 +96,7 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
   },
   "@earendil-works/pi-tui": {
     integrity:
-      "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg==",
+      "sha512-fS6OEQKEEALnKa6Uw8LcgZZ+9CWck7f3MQSCETQp6leUgIFwMEDtKmOUnL9nsYm+RIPmy7OmplVxYRbV6hiaFg==",
     consumers: [
       "packages/pi-little-helpers",
       "packages/pi-society-orchestrator",
@@ -121,27 +121,27 @@ export const GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES = [
 export const GOVERNED_RUNTIME_HOST_CACHE_TARBALLS = {
   "@earendil-works/pi-ai": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.2.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.84.3.tgz",
     integrity:
-      "sha512-6MzsrYIYNVlE7SfpbL2yYb67Qo58p/7Q+xWG1RZvoX1P80aRCHSod2/13aFpxkow1lPO2LEh3c495J0Gwmyjig==",
+      "sha512-M0YUV8vNO3y2WwWSyY8ijKJV5W4gkSUixuvk+Z00ZBjsyMfsdXfITsHEwP1UIf09YRWXT6oGn0GlCamt+P32XQ==",
   },
   "@earendil-works/pi-agent-core": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.84.2.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.84.3.tgz",
     integrity:
-      "sha512-8Pn3wSCxj0cfo5I6jxQYVB/3uuQRmHhAlEclyjqpOuMEdQMIODHizRogv56FLdbU+dTiGnybeHQ2N+sV1/L2YA==",
+      "sha512-VURr+xBRl3RxYcw3kT9Pn3yfi6LbRoCJgHF7h1mAblMjtLNV/MfG/RyF0uJizBAM886AEakSiw3j9c/aSngppg==",
   },
   "@earendil-works/pi-coding-agent": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.84.2.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.84.3.tgz",
     integrity:
-      "sha512-l4E+B7hgXKWddRo8bC/eSue2aWZjEgJ9xIpf5p0Og+lq8a2TArCwJ0HCoCPCgaBP/tN4zbYH/wOwvx9pJpeLCA==",
+      "sha512-Yr2p9PubrbFZmYEPYI+C8KmZP9xlFuLDnAG64RtU0ZDgrdiXYWa+y7WGyJO5OlqPliOkVCMd9IzVszO3/t0D0w==",
   },
   "@earendil-works/pi-tui": {
     version: GOVERNED_RUNTIME_HOST_VERSION,
-    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.84.2.tgz",
+    url: "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.84.3.tgz",
     integrity:
-      "sha512-ds2TLihOnM5sLJB3VpXV6y0uR5efVuHf4MN7yDpsty6hA2DUO/EDVzjp/0od0G2JslzVLMjT8T8zavtxVb+qbg==",
+      "sha512-fS6OEQKEEALnKa6Uw8LcgZZ+9CWck7f3MQSCETQp6leUgIFwMEDtKmOUnL9nsYm+RIPmy7OmplVxYRbV6hiaFg==",
   },
 } as const;
 

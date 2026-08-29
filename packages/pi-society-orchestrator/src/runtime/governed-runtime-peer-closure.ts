@@ -86,7 +86,7 @@ export function verifyGovernedRuntimePeerClosure(
       ) {
         throw new GovernedRuntimeMaterializationError(
           "materialization_closure_package_proof_missing",
-          `Installed closure package lacks exact SRI or the one bounded Pi 0.84.2 coding-agent shrinkwrap identity: ${key}.`,
+          `Installed closure package lacks exact SRI or the one bounded Pi 0.84.3 coding-agent shrinkwrap identity: ${key}.`,
         );
       }
       return key;

@@ -64,6 +64,7 @@
     "releaseConfigMode": "component"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.4"
+    "@biomejs/biome": "2.4.4",
+    "@earendil-works/pi-agent-core": "0.84.3"
   }
 }
