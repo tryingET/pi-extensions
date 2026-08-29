@@ -84,8 +84,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@earendil-works/pi-ai": "0.84.2",
-    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@earendil-works/pi-ai": "0.84.3",
+    "@earendil-works/pi-coding-agent": "0.84.3",
     "@types/node": "^25.3.3",
     "@typescript/native-preview": "7.0.0-dev.20260417.1",
     "tsx": "^4.20.5",

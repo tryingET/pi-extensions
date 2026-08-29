@@ -70,8 +70,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
-    "@earendil-works/pi-ai": "0.83.0",
-    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@earendil-works/pi-ai": "0.84.3",
+    "@earendil-works/pi-coding-agent": "0.84.3",
     "@types/node": "^22.0.0",
     "@typescript/native-preview": "7.0.0-dev.20260417.1"
   },
