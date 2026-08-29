@@ -62,6 +62,9 @@ test("governed npm policy accepts one explicit-before fallback", () => {
       npmrcPath,
       `before=${before}
 min-release-age-exclude[]=@tryinget/*
+${GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS.filter((entry) => entry !== "@tryinget/*")
+  .map((entry) => `min-release-age-exclude[]=${entry}`)
+  .join("\n")}
 registry=https://registry.npmjs.org/
 offline=false
 prefer-offline=false
@@ -144,7 +147,10 @@ test("npm effects and receipts bind exact executable bytes, sanitized policy, ar
     assert.deepEqual(actualReceipts[0].npmExecutable, npm.npmExecutable);
     assert.equal("NODE_OPTIONS" in actualReceipts[0].environment, false);
     assert.equal(actualReceipts[0].environment.npm_config_before, npm.effectiveBefore);
-    assert.equal(actualReceipts[0].environment.npm_config_min_release_age_exclude, "@tryinget/*");
+    assert.equal(
+      actualReceipts[0].environment.npm_config_min_release_age_exclude,
+      GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS.join(","),
+    );
     const ascEnvironment = governedRuntimeAscBuildEnvironment(npm);
     assert.equal("NODE_OPTIONS" in ascEnvironment, false);
     assert.equal(Object.keys(ascEnvironment).length, 7);

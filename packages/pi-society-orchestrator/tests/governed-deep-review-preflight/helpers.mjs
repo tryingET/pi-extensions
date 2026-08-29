@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS } from "../../src/runtime/governed-runtime-constants.ts";
 import {
   GOVERNED_RUNTIME_HOST_CACHE_TARBALLS,
   GOVERNED_RUNTIME_PACKAGE_GENERATION_PREFIX,
@@ -178,6 +179,9 @@ export function withGovernedNpmPolicyFixture(run) {
     npmrcPath,
     `min-release-age=7
 min-release-age-exclude[]=@tryinget/*
+${GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS.filter((entry) => entry !== "@tryinget/*")
+  .map((entry) => `min-release-age-exclude[]=${entry}`)
+  .join("\n")}
 registry=https://registry.npmjs.org/
 offline=false
 prefer-offline=false

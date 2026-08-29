@@ -76,8 +76,10 @@ function npmText(nodeExecutable: string, npmExecutable: string, args: string[]):
 }
 
 function npmStringList(nodeExecutable: string, npmExecutable: string, key: string): string[] {
+  // npm renders array-valued config as one comma-joined line (and, depending
+  // on source format, possibly several lines), so split on both separators.
   return npmText(nodeExecutable, npmExecutable, ["config", "get", key])
-    .split(/\r?\n/u)
+    .split(/[\r\n,]/u)
     .map((value) => value.trim())
     .filter(Boolean);
 }
@@ -339,7 +341,8 @@ export function governedRuntimeNpmEffectEnvironment(
     TMPDIR: npm.temporaryDirectoryRealpath,
     npm_config_audit: "false",
     npm_config_before: npm.effectiveBefore,
-    npm_config_min_release_age_exclude: npm.minReleaseAgeExclusions.join("\n"),
+    // npm parses list-valued environment config as comma-separated.
+    npm_config_min_release_age_exclude: npm.minReleaseAgeExclusions.join(","),
     npm_config_cache: npm.cacheRealpath,
     npm_config_force: "false",
     npm_config_fund: "false",

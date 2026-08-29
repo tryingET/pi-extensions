@@ -25,11 +25,30 @@ export const GOVERNED_RUNTIME_TYPEBOX_INTEGRITY =
 
 export const GOVERNED_RUNTIME_HOST_VERSION = "0.84.3";
 
-export const GOVERNED_RUNTIME_NPM_MIN_RELEASE_AGE_DAYS = 7;
-// npm matches registry package names, not Git repository ownership. The owned public scope is the
-// narrow exemption; dependencies of matching packages remain age-gated unless they also match.
+export const GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES = [
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-client",
+  "@earendil-works/pi-protocol",
+  "@earendil-works/pi-telemetry",
+  "@earendil-works/pi-tui",
+] as const;
 
-export const GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS = ["@tryinget/*"] as const;
+export const GOVERNED_RUNTIME_NPM_MIN_RELEASE_AGE_DAYS = 7;
+// npm matches registry package names, not Git repository ownership. Exempt:
+// the owned public scope, plus the governed Pi host line - the coding agent
+// and its shrinkwrap closure, all pinned to exact versions with registry-
+// verified SRI integrity (GOVERNED_RUNTIME_HOST_CACHE_TARBALLS and
+// GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES), so the pin itself is
+// the vetting and the age gate adds no protection while blocking deliberate
+// promotions of young host lines (operator-authorized 2026-08-29, AK-5125).
+// Dependencies outside that closure remain age-gated unless they also match.
+
+export const GOVERNED_RUNTIME_NPM_RELEASE_AGE_EXCLUSIONS = [
+  "@tryinget/*",
+  "@earendil-works/pi-coding-agent",
+  ...GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES,
+] as const;
 
 export const GOVERNED_RUNTIME_NPM_REGISTRY = "https://registry.npmjs.org/";
 
@@ -108,15 +127,6 @@ export const GOVERNED_RUNTIME_HOST_PEERS = {
     ],
   },
 } as const;
-
-export const GOVERNED_RUNTIME_CODING_AGENT_SHRINKWRAP_PACKAGES = [
-  "@earendil-works/pi-agent-core",
-  "@earendil-works/pi-ai",
-  "@earendil-works/pi-client",
-  "@earendil-works/pi-protocol",
-  "@earendil-works/pi-telemetry",
-  "@earendil-works/pi-tui",
-] as const;
 
 export const GOVERNED_RUNTIME_HOST_CACHE_TARBALLS = {
   "@earendil-works/pi-ai": {
