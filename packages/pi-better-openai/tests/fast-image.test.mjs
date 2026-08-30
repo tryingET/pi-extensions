@@ -9,9 +9,20 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import betterOpenAI, { _test } from "../extensions/fast.ts";
+import betterOpenAI, {
+  _test,
+  BETTER_OPENAI_FAST_STATE_EVENT,
+  BETTER_OPENAI_FAST_STATE_SCHEMA,
+} from "../extensions/fast.ts";
 
 function harness(flags = {}, sharedExtensionEvents = {}) {
+  const extensionEvents = {
+    emit() {},
+    on() {
+      return () => {};
+    },
+    ...sharedExtensionEvents,
+  };
   const resolvedFlags = typeof flags === "boolean" ? { fast: flags } : flags;
   const commands = new Map();
   const events = new Map();
@@ -25,7 +36,7 @@ function harness(flags = {}, sharedExtensionEvents = {}) {
     tools,
     registrations,
     api: {
-      events: sharedExtensionEvents,
+      events: extensionEvents,
       registerFlag(name) {
         increment(registrations.flags, name);
       },
@@ -119,6 +130,30 @@ test("registered --fast initializes provider injection state in headless session
   }
 });
 
+test("fast mode remains usable when the host does not expose an inter-extension event bus", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "better-openai-no-event-bus-"));
+  try {
+    const configDir = path.join(dir, ".pi", "extensions");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "better-openai.json"),
+      JSON.stringify({ persistState: false, supportedModels: ["openai/gpt-5.4"] }),
+    );
+    const pi = harness(true);
+    delete pi.api.events;
+    betterOpenAI(pi.api);
+    const ctx = context(dir);
+    await assert.doesNotReject(pi.events.get("session_start")({ reason: "startup" }, ctx));
+    const payload = await pi.events.get("before_provider_request")(
+      { payload: { model: "gpt-5.4" } },
+      ctx,
+    );
+    assert.equal(payload.service_tier, "priority");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("fast mode publishes rabbit and turtle footer status across toggles and model changes", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "better-openai-fast-status-"));
   try {
@@ -133,7 +168,12 @@ test("fast mode publishes rabbit and turtle footer status across toggles and mod
       }),
     );
 
-    const pi = harness(false);
+    const fastStates = [];
+    const pi = harness(false, {
+      emit(channel, payload) {
+        if (channel === BETTER_OPENAI_FAST_STATE_EVENT) fastStates.push(payload);
+      },
+    });
     betterOpenAI(pi.api);
     const statuses = [];
     const lastFastStatus = () => statuses.findLast(([key]) => key === _test.FAST_STATUS_KEY);
@@ -150,9 +190,12 @@ test("fast mode publishes rabbit and turtle footer status across toggles and mod
 
     await pi.events.get("session_start")({ reason: "startup" }, ctx);
     assert.deepEqual(lastFastStatus(), [_test.FAST_STATUS_KEY, "🐢"]);
+    assert.equal(fastStates.at(-1).schema, BETTER_OPENAI_FAST_STATE_SCHEMA);
+    assert.equal(fastStates.at(-1).mode, "off");
 
     await pi.commands.get("fast").handler("", ctx);
     assert.deepEqual(lastFastStatus(), [_test.FAST_STATUS_KEY, "🐇"]);
+    assert.equal(fastStates.at(-1).mode, "on");
 
     const unsupportedCtx = {
       ...ctx,

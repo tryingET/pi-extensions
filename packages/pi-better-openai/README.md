@@ -16,6 +16,7 @@ Standalone Pi extension package extracted from `contrib/pi-better-openai` for fo
 - `/fast` toggles OpenAI priority service tier injection (`service_tier: "priority"`). It defaults to every model exposed through the `openai-codex` provider (`openai-codex/*`).
 - `/pro` toggles GPT-5.6 Sol Pro request injection (`reasoning.mode: "pro"`) independently of Pi's reasoning effort. It defaults to exact `openai-codex/gpt-5.6-sol` and `openai/gpt-5.6-sol` model routes.
 - In UI modes, fast state is published through Pi footer status key `better-openai-fast` (`🐇`/`🐢`), while Pro injection eligibility is shown under `better-openai-pro` (`P+`/`P−`).
+- Fast mode also publishes a versioned inter-extension state event. When `pi-autonomous-session-control` is loaded, new `dispatch_subagent` children inherit the parent's current desired `/fast` on/off state through the package's minimal `extensions/fast-child.ts` hook; the full Pro/image surface is not loaded into the child.
 - `/openai-image` and the `openai_image` tool generate or edit images through OpenAI Codex subscription auth and the hosted `image_generation` tool.
 
 - Workspace path: `packages/pi-better-openai`

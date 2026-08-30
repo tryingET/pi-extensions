@@ -52,6 +52,7 @@
   },
   "files": [
     "extensions/fast.ts",
+    "extensions/fast-child.ts",
     "extensions/pro.ts",
     "src/",
     "prompts",

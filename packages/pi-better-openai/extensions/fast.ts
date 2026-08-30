@@ -27,6 +27,8 @@ const COMMAND = "fast";
 const FLAG = "fast";
 const SERVICE_TIER = "priority";
 const FAST_STATUS_KEY = "better-openai-fast";
+export const BETTER_OPENAI_FAST_STATE_EVENT = "pi-better-openai:fast-state";
+export const BETTER_OPENAI_FAST_STATE_SCHEMA = "pi.better_openai.fast_state.v1";
 
 function currentModelKey(ctx: ExtensionContext): string {
   return ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "none";
@@ -67,6 +69,16 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
   let lastInjectedAt: number | undefined;
   let lastInjectedModel: string | undefined;
   let lastInjectedTier: string | undefined;
+
+  function publishFastState(ctx: ExtensionContext): void {
+    if (!pi.events || typeof pi.events.emit !== "function") return;
+    pi.events.emit(BETTER_OPENAI_FAST_STATE_EVENT, {
+      schema: BETTER_OPENAI_FAST_STATE_SCHEMA,
+      mode: desiredActive ? "on" : "off",
+      active,
+      model: currentModelKey(ctx),
+    });
+  }
 
   function updateFastStatus(ctx: ExtensionContext): void {
     if (ctx.hasUI) {
@@ -109,6 +121,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     applyDesiredFastState(ctx, nextConfig);
     persistFast(nextConfig);
     updateFastStatus(ctx);
+    publishFastState(ctx);
     if (next && !active) {
       if (!ctx.hasUI) return;
       ctx.ui.notify(
@@ -133,6 +146,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     if (pi.getFlag(FLAG) === true) desiredActive = true;
     applyDesiredFastState(ctx, cfg);
     updateFastStatus(ctx);
+    publishFastState(ctx);
   });
 
   pi.registerCommand(COMMAND, {
@@ -182,6 +196,7 @@ export default function betterOpenAI(pi: ExtensionAPI): void {
     const wasActive = active;
     applyDesiredFastState(ctx, cfg);
     updateFastStatus(ctx);
+    publishFastState(ctx);
     if (active !== wasActive) {
       persistFast(cfg);
       if (ctx.hasUI) {
