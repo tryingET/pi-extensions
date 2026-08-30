@@ -657,7 +657,6 @@ test("catalog includes autoresearch foreground resume executor", () => {
 });
 
 const ORCHESTRATOR_READ_TOOLS = [
-  "society_query",
   "orchestrator_boundary_telemetry",
   "direction_controller_readback",
   "ontology_context",

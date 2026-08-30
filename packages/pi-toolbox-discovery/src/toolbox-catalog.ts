@@ -230,7 +230,6 @@ export const CATALOG: ToolboxBundle[] = [
         id: "read",
         description: "Read-only society/orchestrator diagnostics and context tools.",
         tools: [
-          "society_query",
           "orchestrator_boundary_telemetry",
           "direction_controller_readback",
           "ontology_context",
