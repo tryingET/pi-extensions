@@ -22,11 +22,23 @@ import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-contr
 
 Current intent:
 - `createAscExecutionRuntime(...)` is the supported non-UI execution seam
+- `resolveSubagentSessionsDir(...)`, `getPiNativeSessionDirForCwd(...)`, and `resolvePiAgentDir(...)` are the supported ASC-owned session-root resolution helpers for consumers that must align before runtime construction
+- raw `spawnSubagent` / `spawnSubagentWithSpawn` functions are deliberately not value exports from this entrypoint; only their types remain public, and executable consumers must use `createAscExecutionRuntime(...)`
 - `execution.ts` remains the explicit source/typecheck entrypoint; package preparation compiles it to the published `./dist/execution.js` export with adjacent declarations, so installed Node runtimes never depend on ambient TypeScript loaders
 - the `dispatch_subagent` tool continues to bind the same runtime internally, but helper-level tool registration is intentionally not part of the headless public entrypoint
 - consumers should stop treating `extensions/self/*` as their integration API
 - the companion seam charter explains why this seam exists at all and when it should be reconsidered: [Execution seam charter](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-charter.md)
 - the first time-boxed review outcome is recorded in [Execution seam review](../../../pi-society-orchestrator/docs/project/2026-03-31-execution-seam-review.md) and still concludes that the seam should stay small because only one real external runtime consumer exists today; AK task `#629` now closes as a no-op checkpoint until new evidence introduces a second real external runtime consumer with distinct capability needs
+
+### Fleet Phase-0 narrowing (AK 5130)
+
+AK 5130 intentionally narrows the executable public surface: raw spawn
+functions are internal implementation details, not supported bypasses around
+runtime-owned capacity, receipts, resume validation, and option admission.
+This is a compatibility-significant export removal and must be proven against
+the packed JavaScript/declaration artifact. Consumers must migrate to
+`createAscExecutionRuntime(...)`; deep-importing `extensions/self/*` is not a
+supported fallback.
 
 ## Why this seam exists
 
@@ -44,6 +56,7 @@ The public runtime preserves the existing ASC execution-plane behavior:
 - request normalization and invariant checks
 - preservation of the complete normalized non-empty objective without truncation or an ASC-owned character-count ceiling; host/model context capacity remains external to this request invariant
 - runtime-owned in-process and cross-process capacity leases before spawn; the first reservation atomically fixes one persistent `maxConcurrent` contract for the repository session root, so custom spawners and later Pi processes must match it rather than expanding the slot namespace around holders
+- construction-time capture of every admitted runtime dependency; retained caller references cannot replace the sessions root, capacity limit, model provider, spawner, or extra skill-profile resolver after validation, and caller-supplied state receives non-writable/non-configurable session/capacity identity fields
 - model selection failure shaping before spawn, including whitespace/empty model rejection, deterministic release of the reserved concurrency slot, and no exposure of internal concurrency counters on `model_selection_failed`
 - prompt-envelope application plus an advisory typed task contract (`deliverable`, acceptance criteria, constraints, evidence, mutation posture, stop conditions, and path scope), composed once into the initial user task message after Pi's stable host/project system context rather than into the early system prefix
 - profile/request thinking selection and effective-child-model extension bootstrap
@@ -83,7 +96,7 @@ The public execution seam now also carries explicit transport-safety expectation
 - cancellation only signals a sidecar owner whose live PID start identity and repository ownership verify; unsupported process identity fails closed, failed signals roll back cancellation intent, and custom-spawner sidecars cannot signal the parent Pi process
 - session-name reservation that treats status sidecars as occupied artifacts, plus repository-session-root-scoped capacity leases across Pi processes; new leases declare `helper_owned` or `parent_owned`, while helper-owned custody is single-writer/no-replace and exists before raw Pi can start
 - post-spawn release and recovery are fail-closed for the managed raw supervisor process group: exact helper/supervisor identity must be stale and only kernel `killpg(..., 0)` `ESRCH` proves group absence; a failed exact release changes the terminal result to `capacity_release_deferred`, `error`, and effect-indeterminate
-- custom `AscExecutionRuntimeOptions.spawner` injection requires `customSpawnerCapacityOwnership: "parent_owned"`; its promise defines capacity lifetime and it receives no helper custody binding
+- custom `AscExecutionRuntimeOptions.spawner` injection requires `customSpawnerCapacityOwnership: "parent_owned"`; the admitted spawner and ownership declaration are snapshotted at construction, its promise defines capacity lifetime, and it receives no helper custody binding
 - the managed process group is not an OS sandbox or cgroup; descendants that deliberately escape with `setsid` are outside this containment proof and require a stronger external confinement owner
 - helper-owned shared-capacity recovery is Linux-specific because it depends on `/proc` PID start identity and Linux process-group signaling; unsupported platforms fail closed rather than certifying reclaim
 - missing or malformed helper-owned post-spawn custody stays blocked; malformed effect-bearing leases never become reclaimable by age and appear as bounded unreadable holders, while proven dead-owner pre-spawn leases remain reclaimable
@@ -114,7 +127,7 @@ The current seam proof is intentionally split across distinct truth layers:
 - **ASC package-local contract truth** — `tsconfig.json` typechecks the public `execution.ts` source entrypoint, while `tsconfig.runtime.json` emits the installed `dist/execution.js` plus declaration graph; `tests/public-execution-contract.test.mjs`, `tests/public-execution-parity.test.mjs`, `tests/dispatch-subagent-diagnostics.test.mjs`, `tests/subagent-protocol.test.mjs`, `tests/subagent-transport-live.test.mjs`, and `tests/subagent-file-lock.test.mjs` prove the seam semantics and transport-safety invariants owned by ASC.
 - **Orchestrator package-local consumer truth** — `packages/pi-society-orchestrator/tests/runtime-shared-paths.test.mjs` proves the narrow consumer-side adapter preserves the expected timeout/truncation/abort and `result.details` semantics in repo-local source, and `packages/pi-society-orchestrator/tests/execution-seam-guardrails.test.mjs` fail-closes private ASC imports plus orchestrator-local runtime revival drift.
 - **Cross-extension discoverability truth** — default checks keep parser/unit prompt-vault contract coverage in `tests/prompt-vault-cross-extension.test.mjs`, while `npm run test:live:prompt-vault` opts into `tests/prompt-vault-cross-extension.live.mjs` and proves the real `vault_query`/`vault_retrieve` registration path stays coherent with ASC-owned prompt provenance on `dispatch_subagent`; `.live.mjs` files are not discovered by default, so live prompt-vault validation cannot become a skip-based green signal.
-- **Installed-package smoke / packaging truth** — `cd packages/pi-society-orchestrator && npm run release:check` proves the packaged orchestrator artifact can still import and use the seam after install, including the current bundled ASC bridge while the temporary lifecycle in [bundled ASC bridge lifecycle](../../../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains active.
+- **Installed-package smoke / packaging truth** — ASC's packed transport smoke imports the installed `./execution` entrypoint, requires the session-root resolver, and proves raw spawn values are absent; `cd packages/pi-society-orchestrator && npm run release:check` separately proves the packaged orchestrator artifact can still import and use the seam, including the current bundled ASC bridge while the temporary lifecycle in [bundled ASC bridge lifecycle](../../../pi-society-orchestrator/docs/project/2026-03-31-bundled-asc-bridge-lifecycle.md) remains active.
 
 Shared across those layers is the [execution seam casebook](../../../../governance/execution-seam-cases/README.md): named canonical scenarios such as `timeout-empty-output`, `assistant-protocol-semantic-error`, `assistant-protocol-parse-error`, and `bundled-bridge-import` that turn learned seam failures into reusable compatibility memory.
 
@@ -150,7 +163,7 @@ const result = await runtime.execute(
 `modelProvider` may also inspect the execution context (for example `ctx?.model`) when a consumer wants subagents to follow the currently active session model instead of a hard-coded selector.
 
 Useful properties:
-- `runtime.state` exposes the backing `SubagentState`
+- `runtime.state` exposes the backing `SubagentState`; counters remain runtime-mutable, while `sessionsDir` and `maxConcurrent` are non-writable/non-configurable identity fields
 - `result.ok` tells the consumer whether execution completed successfully
 - `result.text` preserves the human-readable execution summary
 - `result.details.displayOutput` preserves the normalized body text consumers should render or forward, even when `fullOutput` is empty/whitespace on failing executions

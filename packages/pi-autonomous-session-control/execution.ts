@@ -50,6 +50,12 @@ export {
   createSubagentState,
 } from "./extensions/self/subagent-session.ts";
 export {
+  getPiNativeSessionDirForCwd,
+  type ResolvedSubagentSessionsDir,
+  resolvePiAgentDir,
+  resolveSubagentSessionsDir,
+} from "./extensions/self/subagent-session-paths.ts";
+export {
   type ExtraSkillProfileResolver,
   type ResolvedSubagentSkillSelection,
   resolveSubagentSkillSelection,
@@ -58,12 +64,10 @@ export {
   SubagentSkillSelectionError,
   type SubagentSkillSelectionOptions,
 } from "./extensions/self/subagent-skill-selection.ts";
-export {
-  type AssistantStopReason,
-  type ExecutionState,
-  type SubagentDef,
-  type SubagentResult,
-  type SubagentSpawner,
-  spawnSubagent,
-  spawnSubagentWithSpawn,
+export type {
+  AssistantStopReason,
+  ExecutionState,
+  SubagentDef,
+  SubagentResult,
+  SubagentSpawner,
 } from "./extensions/self/subagent-spawn.ts";

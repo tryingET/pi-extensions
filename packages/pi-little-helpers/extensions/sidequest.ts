@@ -158,6 +158,16 @@ export function createSidequestExtension(options: SidequestOptions = {}) {
 
     if (!registerTools) return;
 
+    pi.on?.("tool_result", (event) => {
+      if (event.toolName !== "candidate_peer_spawn") return;
+      const details =
+        event.details && typeof event.details === "object"
+          ? (event.details as Record<string, unknown>)
+          : undefined;
+      if (details?.ok !== false) return;
+      return { isError: true };
+    });
+
     if (registerCommands) visibleLoopAdapter.registerCompletionTool();
 
     registerSidequestPeerTools({ pi, options, defaultPiBin: DEFAULT_PI_BIN });

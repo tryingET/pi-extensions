@@ -21,6 +21,7 @@ import {
   runningStatusHasLiveOwner,
   type SubagentSessionStatus,
 } from "./subagent-session-status.ts";
+import { hardenSubagentStateIdentity } from "./subagent-state-identity.ts";
 
 export {
   getProcessStartTicks,
@@ -31,10 +32,10 @@ export {
 } from "./subagent-session-status.ts";
 
 export interface SubagentState {
-  sessionsDir: string;
+  readonly sessionsDir: string;
   activeCount: number;
   completedCount: number;
-  maxConcurrent: number;
+  readonly maxConcurrent: number;
   reservedSessionNames: Set<string>;
 }
 
@@ -234,13 +235,14 @@ export function createSubagentState(
 
   reconcileAbandonedSessionStatuses(sessionsDir);
 
-  return {
+  const state: SubagentState = {
     sessionsDir,
     activeCount: 0,
     completedCount: 0,
     maxConcurrent: options?.maxConcurrent ?? DEFAULT_MAX_CONCURRENT,
     reservedSessionNames: new Set(),
   };
+  return hardenSubagentStateIdentity(state);
 }
 
 export function clearSubagentSessions(

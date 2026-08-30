@@ -6,14 +6,9 @@
 
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import {
-  createSubagentState,
-  type SubagentState,
-} from "@tryinget/pi-autonomous-session-control/execution";
 import { Type } from "typebox";
-import { AgentDispatchError, dispatchAgent } from "../src/dispatch.ts";
+import { dispatchAgent, STANDING_AGENT_PHASE0_GATE } from "../src/dispatch.ts";
 import { type AgentRegistry, AgentRegistryError, createAgentRegistry } from "../src/registry.ts";
-import { resolveRegistrySubagentSessionsDir } from "../src/sessions-dir.ts";
 
 interface RegistryHandle {
   registry: AgentRegistry;
@@ -64,8 +59,6 @@ function formatAgentListing(agent: {
 }
 
 export default function (pi: ExtensionAPI) {
-  const sessionsDir = resolveRegistrySubagentSessionsDir();
-  let subagentState: SubagentState | undefined;
   let registryState: RegistryState | undefined;
   let registryPromise: Promise<RegistryState> | undefined;
 
@@ -90,11 +83,6 @@ export default function (pi: ExtensionAPI) {
       throw new AgentRegistryError(`agent registry failed to load: ${state.error}`);
     }
     return state.registry;
-  };
-
-  const getState = (): SubagentState => {
-    subagentState ??= createSubagentState(sessionsDir);
-    return subagentState;
   };
 
   pi.registerCommand("agents", {
@@ -140,7 +128,7 @@ Engineering-core skill profiles come from PI_AGENT_REGISTRY_EC_PROFILES or ~/ai-
 Fail-closed: unknown skill names, unknown EC profiles, missing files, or schema mismatches surface as resolution errors; use validate to see them without dispatching.`,
     promptSnippet: "List or inspect standing agents declared by agent.json manifests.",
     promptGuidelines: [
-      "Use agent_registry action=list before dispatch_agent when unsure which standing agents exist.",
+      "Use agent_registry for read-only discovery and validation; dispatch_agent is disabled throughout Fleet Phase 0.",
       "Use action=validate to diagnose manifest drift after editing agent.json files; it never dispatches.",
       "Never treat the advisory scope.repos as a sandbox; it is rendered into the system prompt only.",
     ],
@@ -257,142 +245,41 @@ Fail-closed: unknown skill names, unknown EC profiles, missing files, or schema 
     },
   });
 
+  pi.on("tool_result", (event) => {
+    if (event.toolName !== "dispatch_agent" || !event.isError) return;
+    const text = event.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n");
+    if (!text.includes("standing-agent dispatch is disabled in Fleet Phase 0")) return;
+    return {
+      details: {
+        ...STANDING_AGENT_PHASE0_GATE,
+        error: STANDING_AGENT_PHASE0_GATE.code,
+      },
+      isError: true,
+    };
+  });
+
   pi.registerTool({
     name: "dispatch_agent",
-    label: "Dispatch Standing Agent",
-    description: `Dispatch a standing agent declared by an agent.json manifest (ai-society.agent/1).
+    label: "Dispatch Standing Agent (Phase 0 Gate)",
+    description: `Standing-agent execution is disabled during Fleet Phase 0.
 
-The registry resolves the agent name into an ASC custom-profile launch: the manifest's system prompt file contents plus rendered advisory scope, least-privilege tool allowlist, thinking/model defaults, child extension allowlist, and materialized skill dirs from its engineering-core skill profile plus extras. Execution, session custody, capacity, effect receipts, and resume stay owned by ASC's dispatch machinery; the result carries the same dispatchId/attemptId semantics as dispatch_subagent.
-
-Use dispatch_agent instead of dispatch_subagent when a named standing agent exists; use dispatch_subagent directly for built-in explorer/reviewer/tester/researcher/minimal profiles.
-
-Fail-closed: unknown agent names, unknown skills/profiles, or missing manifest files reject before spawn. Discover names with agent_registry action=list.`,
-    promptSnippet: "Dispatch a registered standing agent through ASC's custom-profile path.",
+The read-only registry remains available through agent_registry. AK task 5132 must land and prove an exact-task, immutable-receipt, read-only ASC launch contract before dispatch_agent is enabled. This gate performs no registry resolution, skill materialization, ASC runtime construction, capacity reservation, worktree creation, spawn, evidence write, or authority mutation.`,
+    promptSnippet: "Report the Fleet Phase-0 standing-agent dispatch gate.",
     promptGuidelines: [
-      "Call agent_registry action=list first when the standing agent set is unknown.",
-      "Pass mutationPolicy=read_only for read-only agents; manifest scope stays advisory regardless.",
-      "The manifest may pin a model; omit the model field to honor it or to inherit the parent session model.",
+      "Use agent_registry for read-only discovery and validation.",
+      "Do not route a standing agent through fork_peer_spawn, scout_peer_spawn, candidate_peer_spawn, dispatch_subagent, workflow_execute, or loop_execute as a workaround.",
+      "Wait for the exact-task read-only dispatch contract owned by AK task 5132.",
     ],
     parameters: Type.Object({
-      agent: Type.String({ description: "Registered agent name from agent.json" }),
+      agent: Type.String({ description: "Registered standing-agent name." }),
       objective: Type.String({
-        description: "Clear objective for the standing agent (maximum 100000 characters)",
+        description: "Requested objective (reported only; no launch occurs in Phase 0).",
         maxLength: 100_000,
       }),
-      name: Type.Optional(
-        Type.String({ description: "Session name override (default: agent name)" }),
-      ),
-      deliverable: Type.Optional(
-        Type.String({ description: "Expected result shape or artifact." }),
-      ),
-      acceptanceCriteria: Type.Optional(
-        Type.Array(Type.String(), { description: "Observable completion criteria." }),
-      ),
-      constraints: Type.Optional(
-        Type.Array(Type.String(), { description: "Task-specific constraints." }),
-      ),
-      evidenceRequired: Type.Optional(
-        Type.Array(Type.String(), { description: "Evidence the agent should cite." }),
-      ),
-      mutationPolicy: Type.Optional(
-        StringEnum(["read_only", "bounded_mutation"] as const, {
-          description: "Declared mutation posture (advisory; tool policy still applies).",
-        }),
-      ),
-      stopConditions: Type.Optional(
-        Type.Array(Type.String(), { description: "Conditions that require the agent to stop." }),
-      ),
-      allowedPaths: Type.Optional(
-        Type.Array(Type.String(), {
-          description: "Advisory allowed path scope override (default: manifest scope.repos).",
-        }),
-      ),
-      forbiddenPaths: Type.Optional(
-        Type.Array(Type.String(), {
-          description:
-            "Advisory forbidden path scope override (default: manifest scope.forbidden).",
-        }),
-      ),
-      thinking: Type.Optional(
-        StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
-          description: "Thinking override (default: manifest defaults.thinking).",
-        }),
-      ),
-      model: Type.Optional(
-        Type.String({
-          description:
-            "Model override like provider/model-id (default: manifest defaults.model or inherit).",
-        }),
-      ),
-      extensions: Type.Optional(
-        Type.Array(Type.String(), {
-          description: "Additional child-only extension allowlist entries beyond the manifest.",
-        }),
-      ),
-      timeout: Type.Optional(
-        Type.Number({
-          description:
-            "Absolute execution deadman in seconds after bootstrap. Omit for the ASC default long emergency deadman.",
-        }),
-      ),
-      startupTimeout: Type.Optional(
-        Type.Number({ description: "Bootstrap timeout in seconds (default: 30, maximum: 300)." }),
-      ),
     }),
-    async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      let outcome: Awaited<ReturnType<typeof dispatchAgent>>;
-      try {
-        outcome = await dispatchAgent(
-          {
-            sessionsDir: sessionsDir,
-            registry: await getRegistry(),
-            state: getState(),
-          },
-          {
-            agent: params.agent,
-            objective: params.objective,
-            ...(params.name ? { name: params.name } : {}),
-            ...(params.deliverable ? { deliverable: params.deliverable } : {}),
-            ...(params.acceptanceCriteria ? { acceptanceCriteria: params.acceptanceCriteria } : {}),
-            ...(params.constraints ? { constraints: params.constraints } : {}),
-            ...(params.evidenceRequired ? { evidenceRequired: params.evidenceRequired } : {}),
-            ...(params.mutationPolicy ? { mutationPolicy: params.mutationPolicy } : {}),
-            ...(params.stopConditions ? { stopConditions: params.stopConditions } : {}),
-            ...(params.allowedPaths ? { allowedPaths: params.allowedPaths } : {}),
-            ...(params.forbiddenPaths ? { forbiddenPaths: params.forbiddenPaths } : {}),
-            ...(params.thinking ? { thinking: params.thinking } : {}),
-            ...(params.model ? { model: params.model } : {}),
-            ...(params.extensions ? { extensions: params.extensions } : {}),
-            ...(params.timeout !== undefined ? { timeout: params.timeout } : {}),
-            ...(params.startupTimeout !== undefined
-              ? { startupTimeout: params.startupTimeout }
-              : {}),
-          },
-          { cwd: ctx.cwd || process.cwd() },
-          (update) => {
-            onUpdate?.({
-              content: [{ type: "text", text: update.text }],
-              details: update.details as Record<string, unknown>,
-            });
-          },
-          signal ?? undefined,
-        );
-      } catch (error) {
-        if (error instanceof AgentDispatchError) {
-          return textResult(error.message, { error: error.reason, agent: params.agent });
-        }
-        const message = error instanceof Error ? error.message : String(error);
-        return textResult(`dispatch_agent failed: ${message}`, {
-          error: "dispatch_failed",
-          agent: params.agent,
-        });
-      }
-
-      const { result } = outcome;
-      return {
-        content: [{ type: "text" as const, text: result.text }],
-        details: { ...result.details, agent: params.agent } as Record<string, unknown>,
-      };
-    },
+    execute: () => dispatchAgent(),
   });
 }

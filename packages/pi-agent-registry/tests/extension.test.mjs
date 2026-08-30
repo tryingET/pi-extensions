@@ -19,8 +19,12 @@ const REAL_EC_PROFILES = join(
 function createPiHarness() {
   const tools = new Map();
   const commands = new Map();
+  const handlers = new Map();
   const notifications = [];
   const pi = {
+    on(event, handler) {
+      handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+    },
     registerTool(definition) {
       tools.set(definition.name, definition);
     },
@@ -28,7 +32,7 @@ function createPiHarness() {
       commands.set(name, definition);
     },
   };
-  return { pi, tools, commands, notifications };
+  return { pi, tools, commands, handlers, notifications };
 }
 
 async function withExtensionEnv(fn) {
@@ -69,6 +73,8 @@ test("extension registers agent_registry, dispatch_agent, and /agents", async ()
     assert.match(dispatchTool.description, /ASC/);
     assert.equal(dispatchTool.parameters.properties.agent.type, "string");
     assert.equal(dispatchTool.parameters.properties.objective.maxLength, 100000);
+    assert.match(dispatchTool.description, /disabled during Fleet Phase 0/);
+    assert.deepEqual(Object.keys(dispatchTool.parameters.properties), ["agent", "objective"]);
   });
 });
 
@@ -131,22 +137,48 @@ test("agent_registry validate reports per-agent fail-closed results", async () =
   });
 });
 
-test("dispatch_agent returns a structured error for unknown agents without spawning", async () => {
+test("dispatch_agent throws the Phase-0 gate and projects structured no-effect details", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "agent-ext-dispatch-"));
   await withExtensionEnv(async () => {
     const harness = createPiHarness();
     await loadExtension(harness.pi);
     const tool = harness.tools.get("dispatch_agent");
-    const result = await tool.execute(
-      "t5",
-      { agent: "no-such-agent", objective: "x" },
-      null,
-      null,
-      { cwd: sessionsDir },
+    let requestRead = false;
+    const request = new Proxy(
+      {},
+      {
+        get() {
+          requestRead = true;
+          throw new Error("Phase-0 tool must not read request properties");
+        },
+      },
     );
-    assert.match(result.content[0].text, /unknown agent: no-such-agent/);
-    assert.equal(result.details.error, "unknown_agent");
-    assert.equal(result.details.agent, "no-such-agent");
+    await assert.rejects(
+      tool.execute("t5", request, null, null, { cwd: sessionsDir }),
+      /standing-agent dispatch is disabled in Fleet Phase 0/,
+    );
+    assert.equal(requestRead, false);
+    assert.deepEqual(await readdir(sessionsDir), []);
+
+    const toolResultHandler = harness.handlers.get("tool_result")?.at(-1);
+    const patch = await toolResultHandler({
+      toolName: "dispatch_agent",
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "standing-agent dispatch is disabled in Fleet Phase 0; AK task 5132 must land",
+        },
+      ],
+    });
+    assert.equal(patch.isError, true);
+    assert.equal(patch.details.error, "fleet_phase0_dispatch_disabled");
+    assert.equal(patch.details.effectDisposition, "confirmed_no_effects");
+    assert.equal(patch.details.spawnAttempted, false);
+    assert.equal(patch.details.capacityReserved, false);
+    assert.equal(patch.details.worktreeCreated, false);
+    assert.equal(patch.details.authorityGranted, false);
+    assert.equal(patch.details.nextTaskId, 5132);
   });
   await rm(sessionsDir, { recursive: true, force: true });
 });

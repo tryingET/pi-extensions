@@ -40,6 +40,20 @@ test("createSubagentState accepts custom maxConcurrent", () => {
   assert.equal(state.maxConcurrent, 10);
 });
 
+test("capacity identity fields are runtime-immutable while counters remain mutable", () => {
+  const state = createSubagentState("/tmp/test-sessions", { maxConcurrent: 5 });
+  assert.throws(() => {
+    state.sessionsDir = "/tmp/alternate-capacity-domain";
+  }, TypeError);
+  assert.throws(() => {
+    state.maxConcurrent = 500;
+  }, TypeError);
+  state.activeCount = 1;
+  assert.equal(state.sessionsDir, "/tmp/test-sessions");
+  assert.equal(state.maxConcurrent, 5);
+  assert.equal(state.activeCount, 1);
+});
+
 test("canSpawnSubagent returns true when under limit", () => {
   const state = createSubagentState("/tmp/test-sessions", { maxConcurrent: 5 });
   state.activeCount = 3;

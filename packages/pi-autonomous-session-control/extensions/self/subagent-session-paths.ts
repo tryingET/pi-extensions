@@ -1,8 +1,8 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
+const PI_AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
 const PI_SESSION_DIR_ENV = "PI_CODING_AGENT_SESSION_DIR";
 const ASC_NATIVE_SUBAGENT_DIR = "asc-subagents";
 
@@ -17,6 +17,11 @@ export function expandTildePath(value: string): string {
   return value;
 }
 
+export function resolvePiAgentDir(explicitAgentDir?: string): string {
+  const configured = explicitAgentDir?.trim() || process.env[PI_AGENT_DIR_ENV]?.trim();
+  return configured ? expandTildePath(configured) : join(homedir(), ".pi", "agent");
+}
+
 export function getPiNativeSessionDirForCwd(
   cwd: string,
   options?: { agentDir?: string; sessionDir?: string },
@@ -27,7 +32,7 @@ export function getPiNativeSessionDirForCwd(
   }
 
   const safePath = `--${cwd.replace(/^[\\/]/, "").replace(/[\\/:]/g, "-")}--`;
-  return join(options?.agentDir ?? getAgentDir(), "sessions", safePath);
+  return join(resolvePiAgentDir(options?.agentDir), "sessions", safePath);
 }
 
 export function resolveSubagentSessionsDir(options?: {

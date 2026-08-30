@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { verifyCandidateWorktreeIdentity } from "../src/candidateGitWorktreeIdentity.ts";
 import {
   type CandidateAdmissionReservation,
   releaseCandidateAdmission,
@@ -364,17 +365,27 @@ export async function prepareCandidatePeerWorktree({
       "--abbrev-ref",
       "HEAD",
     ]);
-    if (
-      !insideResult.ok ||
-      insideResult.stdout.trim() !== "true" ||
-      !topResult.ok ||
-      resolve(topResult.stdout.trim()) !== worktreePath ||
-      !branchResult.ok ||
-      branchResult.stdout.trim() !== branchName
-    ) {
+    const basicIdentityMatches =
+      insideResult.ok &&
+      insideResult.stdout.trim() === "true" &&
+      topResult.ok &&
+      resolve(topResult.stdout.trim()) === worktreePath &&
+      branchResult.ok &&
+      branchResult.stdout.trim() === branchName;
+    let identityFailure: string | undefined = "path_or_branch_mismatch";
+    if (basicIdentityMatches) {
+      const identity = await verifyCandidateWorktreeIdentity({
+        runGit: (cwd, args) => runGit(execRunner, cwd, args),
+        repoRoot,
+        worktreePath,
+        branchName,
+      });
+      identityFailure = identity.ok ? undefined : identity.reason;
+    }
+    if (identityFailure) {
       return {
         ok: false,
-        error: "existing candidate peer path is not the requested verified git worktree",
+        error: `existing candidate peer path is not the requested verified git worktree (${identityFailure})`,
         parentCwd,
         repoRoot,
         worktreePath,

@@ -111,6 +111,7 @@ import {
   spawnSubagent,
   validateSubagentRequestEnv,
 } from "./subagent-spawn.ts";
+import { hardenSubagentStateIdentity } from "./subagent-state-identity.ts";
 
 function withImmediateConfirmedNoEffects(
   result: DispatchSubagentExecutionResult,
@@ -851,24 +852,25 @@ export async function executeDispatchSubagentRequest(options: {
 export function createAscExecutionRuntime(
   options: AscExecutionRuntimeOptions,
 ): AscExecutionRuntime {
-  if (
-    options.spawner &&
-    options.spawner !== spawnSubagent &&
-    options.customSpawnerCapacityOwnership !== "parent_owned"
-  ) {
+  const sessionsDir = options.sessionsDir;
+  const suppliedState = options.state;
+  const maxConcurrent = options.maxConcurrent;
+  const modelProvider = options.modelProvider;
+  const spawner = options.spawner;
+  const customSpawnerCapacityOwnership = options.customSpawnerCapacityOwnership;
+  const extraSkillProfileResolver = options.extraSkillProfileResolver;
+
+  if (spawner && spawner !== spawnSubagent && customSpawnerCapacityOwnership !== "parent_owned") {
     throw new Error(
       "AscExecutionRuntime custom spawners require customSpawnerCapacityOwnership=parent_owned.",
     );
   }
-  if (options.state && options.state.sessionsDir !== options.sessionsDir) {
-    throw new Error(
-      `AscExecutionRuntime state.sessionsDir (${options.state.sessionsDir}) must match options.sessionsDir (${options.sessionsDir}).`,
-    );
-  }
-
-  const state =
-    options.state ??
-    createSubagentState(options.sessionsDir, { maxConcurrent: options.maxConcurrent });
+  const state = suppliedState
+    ? hardenSubagentStateIdentity(suppliedState, {
+        sessionsDir,
+        ...(maxConcurrent !== undefined ? { maxConcurrent } : {}),
+      })
+    : createSubagentState(sessionsDir, { maxConcurrent });
 
   return {
     state,
@@ -885,12 +887,12 @@ export function createAscExecutionRuntime(
       return executeDispatchSubagentRequest({
         request,
         state,
-        modelProvider: options.modelProvider,
+        modelProvider,
         ctx,
         onUpdate,
         signal,
-        spawner: options.spawner,
-        extraSkillProfileResolver: options.extraSkillProfileResolver,
+        spawner,
+        extraSkillProfileResolver,
       });
     },
   };

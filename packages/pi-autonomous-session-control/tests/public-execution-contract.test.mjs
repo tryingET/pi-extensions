@@ -3,7 +3,7 @@
 //   - "Changing public execution exports, runtime results, or dispatch integration."
 
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -100,6 +100,11 @@ test("public execution export target stays published, compiled, and typechecked"
   assert.ok(runtimeTsconfig.include?.includes("extensions/self/subagent-pi-json-filter.ts"));
   assert.ok(runtimeTsconfig.include?.includes("extensions/self/subagent-pi-json-filter-v2.ts"));
   assert.ok(runtimeTsconfig.include?.includes("extensions/self/subagent-protocol-v2.ts"));
+
+  const publicExecution = await import("../execution.ts");
+  assert.equal(typeof publicExecution.resolveSubagentSessionsDir, "function");
+  assert.equal("spawnSubagent" in publicExecution, false);
+  assert.equal("spawnSubagentWithSpawn" in publicExecution, false);
 });
 
 async function withFakePiOnPath(scriptBody, run, version = "0.80.6") {
@@ -139,6 +144,161 @@ test("custom spawners require explicit parent-owned capacity semantics", async (
         }),
       /customSpawnerCapacityOwnership=parent_owned/,
     );
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
+test("public runtime hardens caller-supplied session and capacity identity", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-supplied-state-owner-"));
+  const alternateDir = await mkdtemp(join(tmpdir(), "asc-supplied-state-alternate-"));
+  const suppliedState = {
+    sessionsDir,
+    activeCount: 0,
+    completedCount: 0,
+    maxConcurrent: 1,
+    reservedSessionNames: new Set(),
+  };
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    state: suppliedState,
+    modelProvider: () => "test/model",
+    customSpawnerCapacityOwnership: "parent_owned",
+    spawner: async () => ({ output: "done", exitCode: 0, elapsed: 1, status: "done" }),
+  });
+
+  try {
+    assert.equal(runtime.state, suppliedState);
+    assert.throws(() => {
+      suppliedState.sessionsDir = alternateDir;
+    }, TypeError);
+    assert.throws(() => {
+      suppliedState.maxConcurrent = 500;
+    }, TypeError);
+    assert.throws(
+      () =>
+        Object.defineProperty(suppliedState, "sessionsDir", {
+          value: alternateDir,
+        }),
+      TypeError,
+    );
+
+    const result = await runtime.execute(
+      { profile: "reviewer", objective: "Prove fixed runtime capacity identity" },
+      { cwd: process.cwd(), sessionKey: "fixed-capacity-owner" },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(runtime.state.sessionsDir, sessionsDir);
+    assert.equal(runtime.state.maxConcurrent, 1);
+    assert.equal(runtime.state.activeCount, 0);
+    assert.deepEqual(await readdir(alternateDir), []);
+
+    const mismatchedState = {
+      sessionsDir,
+      activeCount: 0,
+      completedCount: 0,
+      maxConcurrent: 1,
+      reservedSessionNames: new Set(),
+    };
+    assert.throws(
+      () =>
+        createAscExecutionRuntime({
+          sessionsDir,
+          state: mismatchedState,
+          maxConcurrent: 2,
+          modelProvider: () => "test/model",
+        }),
+      /maxConcurrent \(1\) must match the owner maxConcurrent \(2\)/,
+    );
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+    await rm(alternateDir, { recursive: true, force: true });
+  }
+});
+
+test("public runtime snapshots admitted options against retained-reference mutation", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-snapshot-options-owner-"));
+  const alternateDir = await mkdtemp(join(tmpdir(), "asc-snapshot-options-alternate-"));
+  let admittedSpawnerCalls = 0;
+  let injectedSpawnerCalls = 0;
+  const options = {
+    sessionsDir,
+    modelProvider: () => "test/original-model",
+    customSpawnerCapacityOwnership: "parent_owned",
+    spawner: async () => {
+      admittedSpawnerCalls += 1;
+      return { output: "admitted", exitCode: 0, elapsed: 1, status: "done" };
+    },
+  };
+  const runtime = createAscExecutionRuntime(options);
+
+  options.sessionsDir = alternateDir;
+  options.modelProvider = () => "test/injected-model";
+  options.customSpawnerCapacityOwnership = undefined;
+  options.spawner = async () => {
+    injectedSpawnerCalls += 1;
+    return { output: "injected", exitCode: 0, elapsed: 1, status: "done" };
+  };
+
+  try {
+    const result = await runtime.execute(
+      { profile: "reviewer", objective: "Use only construction-time runtime dependencies" },
+      { cwd: process.cwd(), sessionKey: "snapshot-runtime-options" },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.details.effectiveModel, "test/original-model");
+    assert.equal(admittedSpawnerCalls, 1);
+    assert.equal(injectedSpawnerCalls, 0);
+    assert.equal(runtime.state.sessionsDir, sessionsDir);
+    assert.deepEqual(await readdir(alternateDir), []);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+    await rm(alternateDir, { recursive: true, force: true });
+  }
+});
+
+test("malformed resume requests fail before fresh dispatch allocation or spawn", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-malformed-resume-"));
+  let spawnCount = 0;
+  let modelProviderCount = 0;
+  const updates = [];
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => {
+      modelProviderCount += 1;
+      return "test/model";
+    },
+    customSpawnerCapacityOwnership: "parent_owned",
+    spawner: async () => {
+      spawnCount += 1;
+      return { output: "unexpected", exitCode: 0, elapsed: 1, status: "done" };
+    },
+  });
+
+  try {
+    const initialArtifacts = await readdir(sessionsDir);
+    for (const resumeDispatchId of [123, "", " dispatch-owned", "bad/id", "a".repeat(201)]) {
+      const result = await runtime.execute(
+        {
+          profile: "reviewer",
+          objective: "Malformed resume must not become a fresh dispatch",
+          resumeDispatchId,
+        },
+        { cwd: process.cwd(), sessionKey: "malformed-resume-owner" },
+        (update) => updates.push(update),
+      );
+      assert.equal(result.ok, false);
+      assert.equal(result.details.failureKind, "invariant_failed");
+      assert.equal(result.details.effectDisposition, "confirmed_no_effects");
+      assert.equal(result.details.preDispatchFailure?.identityAllocated, false);
+      assert.equal(result.details.preDispatchFailure?.spawnAttempted, false);
+      assert.match(result.text, /resumeDispatchId must be an exact ASC dispatch id token/);
+      assert.deepEqual(await readdir(sessionsDir), initialArtifacts);
+    }
+    assert.equal(spawnCount, 0);
+    assert.equal(modelProviderCount, 0);
+    assert.deepEqual(updates, []);
+    assert.equal(runtime.state.activeCount, 0);
   } finally {
     await rm(sessionsDir, { recursive: true, force: true });
   }
@@ -400,9 +560,12 @@ test("compiled execution entrypoint stays headless-importable without package-lo
       cp(join(packageRoot, "dist"), join(fixturePackageRoot, "dist"), { recursive: true }),
     ]);
 
-    await import(
+    const compiledExecution = await import(
       `${pathToFileURL(join(fixturePackageRoot, "dist", "execution.js")).href}?headless=${Date.now()}`
     );
+    assert.equal(typeof compiledExecution.resolveSubagentSessionsDir, "function");
+    assert.equal("spawnSubagent" in compiledExecution, false);
+    assert.equal("spawnSubagentWithSpawn" in compiledExecution, false);
   } finally {
     await rm(fixtureRoot, { recursive: true, force: true });
   }

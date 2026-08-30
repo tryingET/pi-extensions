@@ -159,7 +159,9 @@ const { pathToFileURL } = require("node:url");
 
   const tools = new Map();
   const commands = new Map();
+  const handlers = new Map();
   extensionModule.default({
+    on(event, handler) { handlers.set(event, [...(handlers.get(event) ?? []), handler]); },
     registerTool(tool) { tools.set(tool.name, tool); },
     registerCommand(name, command) { commands.set(name, command); },
   });
@@ -184,7 +186,33 @@ const { pathToFileURL } = require("node:url");
   assert.equal(shown.details.tools, "read");
   assert.deepEqual(shown.details.scopeRepos, ["/release-smoke/*"]);
   assert.match(shown.content[0].text, /system_prompt_file:/);
-  console.log("packed agent-registry registration and read-only tool execution OK");
+
+  let dispatchRequestRead = false;
+  await assert.rejects(
+    tools.get("dispatch_agent").execute(
+      "release-dispatch-gate",
+      new Proxy({}, { get() { dispatchRequestRead = true; throw new Error("request read"); } }),
+      undefined,
+      undefined,
+      context,
+    ),
+    /standing-agent dispatch is disabled in Fleet Phase 0/,
+  );
+  assert.equal(dispatchRequestRead, false);
+  const gated = await handlers.get("tool_result").at(-1)({
+    toolName: "dispatch_agent",
+    isError: true,
+    content: [{ type: "text", text: "standing-agent dispatch is disabled in Fleet Phase 0" }],
+  });
+  assert.equal(gated.isError, true);
+  assert.equal(gated.details.error, "fleet_phase0_dispatch_disabled");
+  assert.equal(gated.details.effectDisposition, "confirmed_no_effects");
+  assert.equal(gated.details.spawnAttempted, false);
+  assert.equal(gated.details.capacityReserved, false);
+  assert.equal(gated.details.worktreeCreated, false);
+  assert.equal(gated.details.authorityGranted, false);
+  assert.equal(gated.details.nextTaskId, 5132);
+  console.log("packed agent-registry read-only inspection and Phase-0 gate execution OK");
 })().catch((error) => {
   console.error(error);
   process.exit(1);

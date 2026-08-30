@@ -76,6 +76,7 @@
     "extensions/stash.ts",
     "lib/codex-reset.ts",
     "lib/package-utils.ts",
+    "src/candidateGitWorktreeIdentity.ts",
     "src/candidatePeerRegistry.ts",
     "src/candidatePeerLifecycleV2.ts",
     "src/candidatePeerLifecycleV2Adoption.ts",

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
   getPiNativeSessionDirForCwd,
+  resolvePiAgentDir,
   resolveSubagentSessionsDir,
 } from "../extensions/self/subagent-session-paths.ts";
 
@@ -37,6 +38,16 @@ test("getPiNativeSessionDirForCwd mirrors Pi's encoded cwd session directory", (
     getPiNativeSessionDirForCwd("/tmp/example:repo", { agentDir: "/agent" }),
     "/agent/sessions/--tmp-example-repo--",
   );
+});
+
+test("public path resolution honors the Pi agent-dir environment without host imports", async () => {
+  await withTemporaryEnv({ PI_CODING_AGENT_DIR: "~/custom-pi-agent" }, async () => {
+    assert.equal(resolvePiAgentDir(), join(homedir(), "custom-pi-agent"));
+    assert.equal(
+      getPiNativeSessionDirForCwd("/work/repo"),
+      join(homedir(), "custom-pi-agent", "sessions", "--work-repo--"),
+    );
+  });
 });
 
 test("resolveSubagentSessionsDir defaults below the Pi native session tree", async () => {

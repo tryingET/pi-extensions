@@ -53,6 +53,7 @@ test("state placement remains the compatibility default", () => {
 test("published package includes every newly required runtime module", () => {
   const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
   assert.equal(manifest.files.includes("src/candidateWorkspacePlacement.ts"), true);
+  assert.equal(manifest.files.includes("src/candidateGitWorktreeIdentity.ts"), true);
   assert.equal(manifest.files.includes("src/visibleLoopIntercom.ts"), true);
 });
 

@@ -1,8 +1,24 @@
+---
+summary: "Agent manifest convention v1 plus the Fleet Phase-0 execution quarantine."
+read_when:
+  - "Authoring or validating a standing-agent agent.json manifest."
+  - "Changing pi-agent-registry discovery, resolution, or dispatch posture."
+type: "reference"
+---
+
 # Agent manifest convention v1 (AK 5098/5100)
 
 A standing agent is declared by an `agent.json` at its agent-repo root. The
-registry resolver (pi-agent-registry) maps the agent name to a composed
-launch for dispatch_subagent / fork / candidate / scout spawners.
+registry resolver (`pi-agent-registry`) maps the agent name to composed,
+read-only inspection metadata: persona, skills, tools, defaults, scope, and
+activities.
+
+**Fleet Phase 0 (AK 5130): standing-agent execution is disabled.**
+`dispatch_agent` is a static confirmed-no-effects gate and does not resolve a
+manifest or route through `dispatch_subagent`, fork, scout, candidate,
+workflow, or loop surfaces. Those peer/workflow tools remain separate explicit
+capabilities, not standing-agent launch adapters. AK 5132 owns any future
+exact-task, immutable-receipt, read-only ASC launch contract.
 
 ## Schema (agent.json)
 
@@ -54,11 +70,19 @@ registry.resolve(name) -> {
   tools, thinking, model, extensions
 }
 
+This resolution object is inspectable through `agent_registry` and is not
+execution authority. Materialized skill directories are cleaned up after the
+read-only inspection action. No public Phase-0 path may turn the object into a
+child launch.
+
 Fail-closed: unknown skill name, missing system-prompt file, unknown profile
-key, or schema mismatch => resolution error, no spawn.
+key, or schema mismatch => resolution error. Independently, every
+`dispatch_agent` request returns the Phase-0 gate before registry resolution,
+capacity/session allocation, worktree creation, spawn, or authority effects.
 
 ## Sources of truth
 
 - Manifest authoring: the agent L2 repo (healthco template family)
 - Skill profiles: engineering-core `skills/profiles.json` (generated, CI-checked)
-- Execution: pi-autonomous-session-control subagent machinery (existing)
+- Future authorized execution: pi-autonomous-session-control (ASC), only after
+  the AK 5132 contract lands; Phase 0 exposes no standing-agent execution

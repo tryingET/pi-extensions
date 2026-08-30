@@ -1,12 +1,12 @@
 ---
 summary: "Design and implementation record for the pi-agent-registry package (AK 5098)."
 read_when:
-  - "Changing the manifest loader, resolver, or ASC dispatch integration."
+  - "Changing the manifest loader, resolver, or Fleet Phase-0 dispatch gate."
   - "Onboarding to the agent manifest convention implementation."
 system4d:
   container: "Monorepo package implementing the agent manifest convention v1."
-  compass: "Fail-closed name-to-launch resolution with ASC-owned execution."
-  engine: "Validate manifests -> compose launch -> feed ASC custom profile."
+  compass: "Fail-closed manifest inspection with standing-agent execution disabled in Phase 0."
+  engine: "Validate manifests -> compose inspection metadata -> report the static dispatch gate."
   fog: "Convention drift between the spec doc, the fleet, and this package."
 ---
 
@@ -17,7 +17,7 @@ Implements the agent manifest convention v1
 (`docs/project/2026-08-27-agent-manifest-convention.md` at the monorepo root,
 authoritative spec). Conventions owner for the fleet layout is
 `softwareco-agents/docs/agent-registry.md`; this package implements
-resolution and dispatch, not fleet policy.
+resolution and the Phase-0 dispatch gate, not fleet policy.
 
 ## Non-goals
 
@@ -41,31 +41,38 @@ agent.json (agent repo root)
                           materialized layout <dir>/<skill>/SKILL.md
   └─ src/registry.ts      pattern discovery (~/ai-society/agents/agent-* …),
                           duplicate-name fail-closed index, resolve(name)
-  └─ src/dispatch.ts      feeds ASC createAscExecutionRuntime with
-                          profile="custom" + skillProfile=<agent name>
-  └─ extensions/…         agent_registry + dispatch_agent tools, /agents
+  └─ src/dispatch.ts      static frozen confirmed-no-effects Phase-0 gate;
+                          no registry, ASC, peer, workflow, or loop routing
+  └─ src/sessions-dir.ts  quarantined legacy registry-owned path resolver
+  └─ extensions/…         read-only agent_registry, gated dispatch_agent, /agents
 ```
 
-### ASC integration (minimal seam, no fork)
+### Fleet Phase-0 execution quarantine (AK 5130)
 
-ASC gained one opt-in hook: `extraSkillProfileResolver` on
-`AscExecutionRuntimeOptions` / `SubagentSkillSelectionOptions`. It is
-consulted only when the built-in skill-librarian registry misses the
-requested profile; returning `undefined` preserves ASC's original
-fail-closed diagnostics. The registry maps the agent name to a materialized
-skill-dir selection through that hook, so clean-child skill isolation
-(`--no-skills` + materialized `--skill` dirs), capacity, effect receipts,
-and post-run cleanup remain ASC-owned end to end. ASC is a semver-exact
-runtime dependency resolved from the npm registry (not bundled: npm 12
-rejects overrides-affected bundles, and ASC `0.5.2` has no runtime
-dependencies of its own); the packed manifest keeps the plain
-`0.5.2` requirement for consumers.
+The resolver still composes persona, skills, tools, model/thinking defaults,
+extensions, and advisory scope for read-only `agent_registry` inspection.
+That object is not execution authority.
 
-### Model handling
+`dispatch_agent` and the shipped `src/dispatch.ts` adapter reject statically
+before reading caller properties or touching registry resolution, skill
+materialization, ASC runtime construction, session/capacity state, worktrees,
+spawners, evidence, or authority. They do not route through
+`dispatch_subagent`, fork/scout/candidate peers, workflows, or loops. The
+legacy registry-local session-root adapter is also quarantined; registry code
+must not reproduce ASC path/capacity policy.
 
-`defaults.model: null` inherits the parent session model via ASC's
-`resolveSubagentModelSelection`; a pinned `provider/model` string is passed
-through. Request-level `model` overrides both.
+ASC remains the execution owner, and its `extraSkillProfileResolver` seam is
+available for an intentionally versioned future consumer. AK 5132 must first
+land and prove an exact-task, immutable-receipt, read-only contract. Until
+then the registry's exact `0.5.2` ASC dependency is not used as a launch path,
+and no unpublished monorepo export is assumed.
+
+### Model metadata
+
+`defaults.model: null` means a future authorized ASC consumer would inherit
+the parent model; a pinned `provider/model` remains inspectable registry
+metadata. Phase 0 accepts no request-level model or policy override because it
+never launches.
 
 ### Discovery (fleet rule)
 
@@ -85,7 +92,8 @@ silently.
 - unknown EC profile (at load, when profiles are supplied), unknown extra
   skill (at resolution), EC profile member missing on disk
 - glob activities matching no files; duplicate agent names across repos
-- unknown agent at dispatch; resolution failure rejects before any spawn
+- every dispatch request receives the static Phase-0 gate before agent lookup
+- no legacy session-root, raw-spawn, or alternate peer/workflow route
 
 ## Verification
 
@@ -93,15 +101,16 @@ silently.
 - `tests/registry.test.mjs` — discovery, resolution happy path, materialization
   from the real EC `profiles.json`, live fixture against the real
   `~/ai-society/agents/agent-adoption-steward` repo
-- `tests/dispatch.test.mjs` — ASC custom-profile composition, model
-  inheritance, no-spawn failure paths, post-run skill cleanup
+- `tests/dispatch.test.mjs` — hostile caller proxies, immutable no-effect
+  metadata, legacy policy/session-root quarantine, and no alternate route
 - `tests/extension.test.mjs` — tool registration, list/show/validate/refresh,
-  unknown-agent structured error
-- ASC: `tests/dispatch-subagent-extra-skill-profile.test.mjs` — seam fallback,
-  built-in-registry precedence, spawn-def passthrough
+  and public Phase-0 gate behavior without request-property reads
+- ASC contract tests — public runtime option/state identity hardening,
+  malformed-resume no-effect behavior, and packed entrypoint boundaries
 
 ## Future
 
-- `resumeDispatchId` passthrough for standing-agent continuation.
-- Extension allowlist hardening beyond ASC's current resolution.
+- AK 5132: exact-task, immutable-receipt, read-only standing-agent dispatch.
+- Resume, extension allowlists, and any model override only after that
+  contract proves no authority/capacity bypass.
 - Optional per-agent override of discovery depth — intentionally absent now.

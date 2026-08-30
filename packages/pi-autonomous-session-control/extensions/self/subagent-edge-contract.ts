@@ -47,6 +47,7 @@ export interface NormalizedDispatchParams {
   effectCorrelationId?: string;
   rawTimeout: unknown;
   rawStartupTimeout: unknown;
+  rawResumeDispatchId: unknown;
   rawThinking: unknown;
   rawMutationPolicy: unknown;
   contractArraysValid: boolean;
@@ -98,6 +99,7 @@ export function normalizeDispatchParams(params: unknown): NormalizedDispatchPara
     effectCorrelationId: normalizeString(normalized.effectCorrelationId, { maxLength: 200 }),
     rawTimeout: normalized.timeout,
     rawStartupTimeout: normalized.startupTimeout,
+    rawResumeDispatchId: normalized.resumeDispatchId,
     rawThinking: normalized.thinking,
     rawMutationPolicy: normalized.mutationPolicy,
     contractArraysValid: contractArrayKeys.every((key) => isValidContractArray(normalized[key])),
@@ -144,6 +146,17 @@ export function validateDispatchParams(params: NormalizedDispatchParams): Invari
       id: "dispatch.startup_timeout.bounded",
       check: params.rawStartupTimeout === undefined || params.startupTimeout !== undefined,
       message: "startupTimeout must be a finite number from 1 through 300 seconds.",
+    },
+    {
+      id: "dispatch.resume_dispatch_id.exact",
+      check:
+        params.rawResumeDispatchId === undefined ||
+        (typeof params.rawResumeDispatchId === "string" &&
+          params.rawResumeDispatchId === params.rawResumeDispatchId.trim() &&
+          /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(params.rawResumeDispatchId) &&
+          params.resumeDispatchId === params.rawResumeDispatchId),
+      message:
+        "resumeDispatchId must be an exact ASC dispatch id token; malformed resume requests never become fresh dispatches.",
     },
     {
       id: "dispatch.thinking.allowed",

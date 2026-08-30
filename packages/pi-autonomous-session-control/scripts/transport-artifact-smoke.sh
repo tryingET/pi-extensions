@@ -53,8 +53,11 @@ done
     TMPDIR="$RUNTIME_TMP" \
     "$NODE_BIN" --input-type=module <<'NODE'
 import assert from "node:assert/strict";
-import { createAscExecutionRuntime } from "@tryinget/pi-autonomous-session-control/execution";
-assert.equal(typeof createAscExecutionRuntime, "function");
+import * as execution from "@tryinget/pi-autonomous-session-control/execution";
+assert.equal(typeof execution.createAscExecutionRuntime, "function");
+assert.equal(typeof execution.resolveSubagentSessionsDir, "function");
+assert.equal("spawnSubagent" in execution, false);
+assert.equal("spawnSubagentWithSpawn" in execution, false);
 NODE
 )
 
