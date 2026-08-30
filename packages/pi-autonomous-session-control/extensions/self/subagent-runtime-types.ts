@@ -7,6 +7,7 @@ import type {
   SubagentModelSelectionSource,
 } from "./subagent-model-selection.ts";
 import type { SUBAGENT_PROFILES } from "./subagent-profiles.ts";
+import type { SubagentRuntimeInheritanceProvider } from "./subagent-runtime-inheritance.ts";
 import type { SubagentState } from "./subagent-session.ts";
 import type { ExtraSkillProfileResolver } from "./subagent-skill-selection.ts";
 import type {
@@ -67,6 +68,7 @@ export type DispatchSubagentFailureKind =
   | "unknown_profile"
   | "rate_limited"
   | "model_selection_failed"
+  | "runtime_inheritance_failed"
   | "effect_receipt_write_failed"
   | "capacity_release_deferred";
 
@@ -122,6 +124,7 @@ export interface DispatchSubagentDetails {
   resumed?: boolean;
   resumeDispatchId?: string;
   configuredThinking?: DispatchThinkingLevel;
+  inheritedFastMode?: "on" | "off";
   startupTimeoutSeconds?: number;
   executionTimeoutSeconds?: number;
   timeoutPhase?: "startup" | "execution";
@@ -192,6 +195,7 @@ export interface SubagentModelContext extends SessionScopedContext {
     provider?: unknown;
     id?: unknown;
   };
+  thinkingLevel?: unknown;
 }
 
 export type SubagentModelProviderResult = string | ResolvedSubagentModelSelection;
@@ -203,6 +207,7 @@ export interface AscExecutionRuntimeOptions {
   customSpawnerCapacityOwnership?: "parent_owned";
   state?: SubagentState;
   maxConcurrent?: number;
+  runtimeInheritanceProvider?: SubagentRuntimeInheritanceProvider;
   /**
    * Consumer-supplied allowlisted resolver consulted when the built-in
    * skill-librarian registry does not know the requested skill profile

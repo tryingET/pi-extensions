@@ -225,6 +225,14 @@ export function registerSubagentTool(pi, state) {
   );
 
   await writeFile(
+    path.join(underTestModuleDir, "subagent-runtime-inheritance.ts"),
+    `export function registerSubagentRuntimeInheritance() {
+  return () => undefined;
+}
+`,
+  );
+
+  await writeFile(
     path.join(underTestModuleDir, "session-context.ts"),
     `export function getContextSessionKey(ctx) {
   if (typeof ctx?.sessionKey === "string") return ctx.sessionKey;

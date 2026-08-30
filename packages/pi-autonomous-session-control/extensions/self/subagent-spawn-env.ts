@@ -1,6 +1,7 @@
 import type { InvariantIssue } from "./edge-contract-kernel.ts";
 
 const SUBAGENT_REQUEST_ENV_ALLOWED_PATTERN = /^PI_PROVENANCE_[A-Z0-9_]+$/u;
+export const BETTER_OPENAI_INHERITED_FAST_MODE_ENV = "PI_BETTER_OPENAI_INHERITED_FAST_MODE";
 const SUBAGENT_REQUEST_ENV_POLICY_SUMMARY =
   "DispatchSubagentRequest.env only allows PI_PROVENANCE_* keys; control-plane environment such as PATH, NODE_OPTIONS, and PI_CODING_AGENT_DIR is inherited from the parent runtime and cannot be overridden by request env.";
 
@@ -71,4 +72,19 @@ export function assertSafeSubagentRequestEnv(
     throw new SubagentEnvPolicyError(result.issues);
   }
   return result.env;
+}
+
+export function assertSafeSubagentRuntimeEnv(
+  env: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!env) return undefined;
+  const entries = Object.entries(env);
+  if (
+    entries.length !== 1 ||
+    entries[0]?.[0] !== BETTER_OPENAI_INHERITED_FAST_MODE_ENV ||
+    (entries[0]?.[1] !== "on" && entries[0]?.[1] !== "off")
+  ) {
+    throw new Error("Invalid ASC-owned subagent runtime environment overlay.");
+  }
+  return { [BETTER_OPENAI_INHERITED_FAST_MODE_ENV]: entries[0][1] };
 }

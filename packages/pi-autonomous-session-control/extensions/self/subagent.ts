@@ -23,6 +23,7 @@ import {
   type SubagentModelContext,
   type SubagentModelProviderResult,
 } from "./subagent-runtime.ts";
+import type { SubagentRuntimeInheritanceProvider } from "./subagent-runtime-inheritance.ts";
 import {
   clearSubagentSessions,
   createSubagentState,
@@ -227,7 +228,8 @@ Child skill profile bootstrap (optional):
       ),
       thinking: Type.Optional(
         StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
-          description: "Child thinking level. Defaults by profile.",
+          description:
+            "Child thinking level. Defaults to the current session level when available, then the profile default.",
         }),
       ),
       startupTimeout: Type.Optional(
@@ -386,6 +388,7 @@ export function registerSubagentTool(
   modelProvider: (ctx?: SubagentModelContext) => SubagentModelProviderResult,
   spawner: SubagentSpawner = spawnSubagent,
   customSpawnerCapacityOwnership?: "parent_owned",
+  runtimeInheritanceProvider?: SubagentRuntimeInheritanceProvider,
 ): void {
   registerDispatchSubagentTool(
     pi,
@@ -395,6 +398,7 @@ export function registerSubagentTool(
       modelProvider,
       customSpawnerCapacityOwnership,
       spawner,
+      runtimeInheritanceProvider,
     }),
   );
 }

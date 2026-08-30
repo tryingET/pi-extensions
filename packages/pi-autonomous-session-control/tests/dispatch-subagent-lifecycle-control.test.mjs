@@ -222,6 +222,108 @@ test("profile thinking defaults remain distinct and explicit request thinking wi
   }
 });
 
+test("runtime inherits parent thinking and Better OpenAI fast mode while explicit thinking wins", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-dispatch-runtime-inheritance-"));
+  const extensionDir = await mkdtemp(join(tmpdir(), "asc-fast-child-extension-"));
+  const packageExtensionsDir = join(extensionDir, "extensions");
+  const extensionPath = join(packageExtensionsDir, "fast-child.ts");
+  const defs = [];
+  await mkdir(packageExtensionsDir, { recursive: true });
+  await writeFile(
+    join(extensionDir, "package.json"),
+    JSON.stringify({ name: "@tryinget/pi-better-openai" }),
+  );
+  await writeFile(extensionPath, "export default () => {};\n");
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    modelProvider: () => "openai/gpt-5.4",
+    runtimeInheritanceProvider: () => ({
+      betterOpenAIFast: { mode: "on", childExtensionSource: extensionPath },
+    }),
+    customSpawnerCapacityOwnership: "parent_owned",
+    spawner: async (def) => {
+      defs.push(def);
+      return doneResult();
+    },
+  });
+
+  try {
+    const inherited = await runtime.execute(
+      { profile: "reviewer", objective: "Inherit runtime state" },
+      { cwd: process.cwd(), thinkingLevel: "high" },
+    );
+    await runtime.execute(
+      { profile: "reviewer", objective: "Override thinking", thinking: "max" },
+      { cwd: process.cwd(), thinkingLevel: "high" },
+    );
+
+    assert.equal(defs[0].thinking, "high");
+    assert.equal(defs[1].thinking, "max");
+    assert.deepEqual(defs[0].extensionSources, [extensionPath]);
+    assert.deepEqual(defs[0].runtimeEnv, {
+      PI_BETTER_OPENAI_INHERITED_FAST_MODE: "on",
+    });
+    assert.equal(inherited.details.inheritedFastMode, "on");
+    assert.deepEqual(inherited.details.loadedExtensions, [extensionPath]);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+    await rm(extensionDir, { recursive: true, force: true });
+  }
+});
+
+test("runtime inheritance failure releases dispatch capacity before returning", async () => {
+  const sessionsDir = await mkdtemp(join(tmpdir(), "asc-dispatch-inheritance-failure-"));
+  let providerMode = "throw";
+  let spawnCount = 0;
+  const runtime = createAscExecutionRuntime({
+    sessionsDir,
+    maxConcurrent: 1,
+    modelProvider: () => "test/model",
+    runtimeInheritanceProvider: () => {
+      if (providerMode === "throw") throw new Error("inheritance unavailable");
+      if (providerMode === "malformed") return [];
+      return undefined;
+    },
+    customSpawnerCapacityOwnership: "parent_owned",
+    spawner: async () => {
+      spawnCount++;
+      return doneResult();
+    },
+  });
+
+  try {
+    const failed = await runtime.execute(
+      { profile: "reviewer", objective: "Fail before spawn" },
+      { cwd: process.cwd() },
+    );
+    assert.equal(failed.ok, false);
+    assert.equal(failed.details.failureKind, "runtime_inheritance_failed");
+    assert.equal(failed.details.effectDisposition, "confirmed_no_effects");
+    assert.equal(runtime.state.activeCount, 0);
+    assert.equal(spawnCount, 0);
+
+    providerMode = "malformed";
+    const malformed = await runtime.execute(
+      { profile: "reviewer", objective: "Reject malformed inheritance" },
+      { cwd: process.cwd() },
+    );
+    assert.equal(malformed.ok, false);
+    assert.equal(malformed.details.failureKind, "runtime_inheritance_failed");
+    assert.equal(runtime.state.activeCount, 0);
+    assert.equal(spawnCount, 0);
+
+    providerMode = "valid";
+    const retried = await runtime.execute(
+      { profile: "reviewer", objective: "Retry after failure" },
+      { cwd: process.cwd() },
+    );
+    assert.equal(retried.ok, true);
+    assert.equal(spawnCount, 1);
+  } finally {
+    await rm(sessionsDir, { recursive: true, force: true });
+  }
+});
+
 test("unlimited execution requires both request and host opt-in while startup stays bounded", async () => {
   const sessionsDir = await mkdtemp(join(tmpdir(), "asc-dispatch-unlimited-"));
   let capturedDef;

@@ -66,6 +66,7 @@ import {
   resolveSubagentModel,
   resolveSubagentModelSelection,
 } from "./self/subagent-model-selection.ts";
+import { registerSubagentRuntimeInheritance } from "./self/subagent-runtime-inheritance.ts";
 import { resolveSubagentSessionsDir as resolveSubagentSessionsDirPath } from "./self/subagent-session-paths.ts";
 import type { SelfState } from "./self/types.ts";
 
@@ -93,7 +94,15 @@ function resolveSelfMemoryPath(sessionsDir: string): string {
 export { DEFAULT_SUBAGENT_MODEL, resolveSubagentModel, resolveSubagentModelSelection };
 
 function registerDelegationRuntime(pi: ExtensionAPI, subagentState: SubagentState): void {
-  registerSubagentTool(pi, subagentState, (ctx) => resolveSubagentModelSelection(ctx));
+  const runtimeInheritanceProvider = registerSubagentRuntimeInheritance(pi);
+  registerSubagentTool(
+    pi,
+    subagentState,
+    (ctx) => resolveSubagentModelSelection(ctx),
+    undefined,
+    undefined,
+    runtimeInheritanceProvider,
+  );
 
   registerSubagentCommands(pi, subagentState);
   registerSubagentDashboard(pi, subagentState);

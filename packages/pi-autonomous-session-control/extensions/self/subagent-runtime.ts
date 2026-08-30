@@ -31,6 +31,10 @@ import {
   toDispatchSubagentStatus,
   truncateDispatchSubagentDisplayOutput,
 } from "./subagent-runtime-display.ts";
+import {
+  resolveSubagentRuntimeInheritance,
+  type SubagentRuntimeInheritanceProvider,
+} from "./subagent-runtime-inheritance.ts";
 import { normalizeModelProviderResult } from "./subagent-runtime-model.ts";
 import type {
   AscExecutionRuntime,
@@ -102,6 +106,7 @@ import {
   SubagentSkillSelectionError,
 } from "./subagent-skill-selection.ts";
 import {
+  BETTER_OPENAI_INHERITED_FAST_MODE_ENV,
   formatSubagentEnvPolicyIssues,
   resolveDefaultSubagentTimeoutMs,
   type SubagentDef,
@@ -112,6 +117,22 @@ import {
   validateSubagentRequestEnv,
 } from "./subagent-spawn.ts";
 import { hardenSubagentStateIdentity } from "./subagent-state-identity.ts";
+
+const DISPATCH_THINKING_LEVELS = new Set([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+
+function inheritedThinkingLevel(ctx: SubagentModelContext) {
+  return typeof ctx.thinkingLevel === "string" && DISPATCH_THINKING_LEVELS.has(ctx.thinkingLevel)
+    ? (ctx.thinkingLevel as NonNullable<DispatchSubagentRequest["thinking"]>)
+    : undefined;
+}
 
 function withImmediateConfirmedNoEffects(
   result: DispatchSubagentExecutionResult,
@@ -201,6 +222,7 @@ export async function executeDispatchSubagentRequest(options: {
   signal?: AbortSignal;
   spawner?: SubagentSpawner;
   extraSkillProfileResolver?: ExtraSkillProfileResolver;
+  runtimeInheritanceProvider?: SubagentRuntimeInheritanceProvider;
 }): Promise<DispatchSubagentExecutionResult> {
   const normalizedParams = normalizeDispatchParams(options.request);
   const {
@@ -442,11 +464,39 @@ export async function executeDispatchSubagentRequest(options: {
       },
     });
   }
-  const extensionSelection = resolveSubagentExtensionSelection({
-    requestedExtensions: extensions,
-    effectiveModel: selectedModel.effectiveModel,
-    ctx: options.ctx,
-  });
+  let inheritedRuntime: ReturnType<typeof resolveSubagentRuntimeInheritance>;
+  let extensionSelection: ReturnType<typeof resolveSubagentExtensionSelection>;
+  try {
+    inheritedRuntime = resolveSubagentRuntimeInheritance(options.runtimeInheritanceProvider);
+    const inheritedFastSource = inheritedRuntime?.betterOpenAIFast?.childExtensionSource;
+    extensionSelection = resolveSubagentExtensionSelection({
+      requestedExtensions: [
+        ...(extensions ?? []),
+        ...(inheritedFastSource ? [inheritedFastSource] : []),
+      ],
+      effectiveModel: selectedModel.effectiveModel,
+      ctx: options.ctx,
+    });
+  } catch (error) {
+    releaseExecutionReservations();
+    const message = error instanceof Error ? error.message : String(error);
+    return failBeforeSpawn({
+      ok: false,
+      text: `Subagent runtime inheritance failed before spawn: ${message}`,
+      details: {
+        profile: profile as DispatchSubagentProfile,
+        objective: safeObjective,
+        requestedModel: selectedModel.requestedModel,
+        effectiveModel: selectedModel.effectiveModel,
+        modelSelectionSource: selectedModel.source,
+        modelSelectionWarning: selectedModel.warning,
+        status: "error",
+        reason: "runtime_inheritance_failed",
+        failureKind: "runtime_inheritance_failed",
+      },
+    });
+  }
+  const inheritedFast = inheritedRuntime?.betterOpenAIFast;
 
   if (extensionSelection.missingRequired.length > 0) {
     releaseExecutionReservations();
@@ -465,6 +515,7 @@ export async function executeDispatchSubagentRequest(options: {
         modelSelectionWarning: selectedModel.warning,
         loadedExtensions: extensionSelection.extensions,
         extensionWarnings: extensionSelection.warnings,
+        inheritedFastMode: inheritedFast?.mode,
         status: "error",
         failureKind: "extension_bootstrap_missing",
       },
@@ -523,7 +574,8 @@ export async function executeDispatchSubagentRequest(options: {
   const timeoutMs = typeof timeout === "number" ? timeout * 1000 : undefined;
   const executionTimeoutSeconds = (timeoutMs ?? resolveDefaultSubagentTimeoutMs()) / 1000;
   const startupTimeoutMs = (startupTimeout ?? 30) * 1000;
-  const configuredThinking = thinking ?? profileDef?.thinking ?? "medium";
+  const configuredThinking =
+    thinking ?? inheritedThinkingLevel(options.ctx) ?? profileDef?.thinking ?? "medium";
   try {
     sessionReservation = resume?.ok
       ? reserveExactSessionName(
@@ -570,6 +622,9 @@ export async function executeDispatchSubagentRequest(options: {
       noSkills: skillSelection.noSkills,
       skillSources: skillSelection.skillSources,
       env: envPolicy.env,
+      runtimeEnv: inheritedFast
+        ? { [BETTER_OPENAI_INHERITED_FAST_MODE_ENV]: inheritedFast.mode }
+        : undefined,
       capacityCustody: spawner === spawnSubagent ? sharedCapacityLease.custodyBinding : undefined,
     };
     activeDef = def;
@@ -586,6 +641,7 @@ export async function executeDispatchSubagentRequest(options: {
         resumed: Boolean(resume?.ok),
         resumeDispatchId,
         configuredThinking,
+        inheritedFastMode: inheritedFast?.mode,
         startupTimeoutSeconds: startupTimeoutMs / 1000,
         executionTimeoutSeconds,
         taskContract,
@@ -652,6 +708,7 @@ export async function executeDispatchSubagentRequest(options: {
             sessionFile,
             resumed: Boolean(resume?.ok),
             configuredThinking,
+            inheritedFastMode: inheritedFast?.mode,
             startupTimeoutSeconds: startupTimeoutMs / 1000,
             executionTimeoutSeconds,
             taskContract,
@@ -806,6 +863,7 @@ export async function executeDispatchSubagentRequest(options: {
       resumed: Boolean(resume?.ok),
       resumeDispatchId,
       configuredThinking,
+      inheritedFastMode: inheritedFast?.mode,
       startupTimeoutSeconds: startupTimeoutMs / 1000,
       executionTimeoutSeconds,
       timeoutPhase: result.timeoutPhase,
@@ -859,6 +917,7 @@ export function createAscExecutionRuntime(
   const spawner = options.spawner;
   const customSpawnerCapacityOwnership = options.customSpawnerCapacityOwnership;
   const extraSkillProfileResolver = options.extraSkillProfileResolver;
+  const runtimeInheritanceProvider = options.runtimeInheritanceProvider;
 
   if (spawner && spawner !== spawnSubagent && customSpawnerCapacityOwnership !== "parent_owned") {
     throw new Error(
@@ -893,6 +952,7 @@ export function createAscExecutionRuntime(
         signal,
         spawner,
         extraSkillProfileResolver,
+        runtimeInheritanceProvider,
       });
     },
   };

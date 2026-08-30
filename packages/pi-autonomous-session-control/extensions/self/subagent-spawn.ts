@@ -5,7 +5,10 @@ import { getMatchingSubagentCancelRequest } from "./subagent-control.ts";
 import type { SubagentSettlementMode } from "./subagent-protocol.ts";
 import type { SubagentState } from "./subagent-session.ts";
 import { createSubagentProtocolArgs } from "./subagent-spawn-args.ts";
-import { assertSafeSubagentRequestEnv } from "./subagent-spawn-env.ts";
+import {
+  assertSafeSubagentRequestEnv,
+  assertSafeSubagentRuntimeEnv,
+} from "./subagent-spawn-env.ts";
 import {
   consumeSubagentEventLine,
   createExecutionState,
@@ -640,9 +643,10 @@ export function spawnSubagentWithSpawn(
 
     try {
       const requestEnv = assertSafeSubagentRequestEnv(def.env);
+      const runtimeEnv = assertSafeSubagentRuntimeEnv(def.runtimeEnv);
       proc = spawnImpl(process.execPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, ...(requestEnv ?? {}) },
+        env: { ...process.env, ...(runtimeEnv ?? {}), ...(requestEnv ?? {}) },
         cwd: ctx.cwd || process.cwd(),
       });
       const hasSignalSafeChildPid =

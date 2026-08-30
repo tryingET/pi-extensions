@@ -296,6 +296,9 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
           PI_PROVENANCE_REVIEW_LANE_ID: "lane-spawn",
           PI_PROVENANCE_OUTPUT_FILE: "/tmp/lane-spawn.json",
         },
+        runtimeEnv: {
+          PI_BETTER_OPENAI_INHERITED_FAST_MODE: "on",
+        },
       },
       "test/model",
       { cwd: process.cwd() },
@@ -325,6 +328,7 @@ test("spawnSubagentWithSpawn forwards explicit child extensions to the helper pr
     assert.ok(capturedArgs.includes("/tmp/vault.ts"));
     assert.equal(capturedEnv.PI_PROVENANCE_REVIEW_LANE_ID, "lane-spawn");
     assert.equal(capturedEnv.PI_PROVENANCE_OUTPUT_FILE, "/tmp/lane-spawn.json");
+    assert.equal(capturedEnv.PI_BETTER_OPENAI_INHERITED_FAST_MODE, "on");
   } finally {
     await rm(state.sessionsDir, { recursive: true, force: true });
   }

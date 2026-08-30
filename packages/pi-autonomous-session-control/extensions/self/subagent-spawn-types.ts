@@ -19,6 +19,8 @@ export interface SubagentDef {
   resumed?: boolean;
   taskContract?: Record<string, unknown>;
   env?: Record<string, string>;
+  /** ASC-owned child runtime overlay; never populated from request env. */
+  runtimeEnv?: Record<string, string>;
   noSkills?: boolean;
   skillSources?: string[];
   executionSlotReserved?: boolean;
