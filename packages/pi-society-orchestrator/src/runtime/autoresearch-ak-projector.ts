@@ -14,12 +14,8 @@ import {
   observeAutoresearchSupervisor,
 } from "../loops/autoresearch-supervisor.ts";
 import { type RunAkCommandResult, runAkCommandAsync } from "./ak.ts";
-import {
-  type BoundaryResult,
-  escapeSqlLiteral,
-  isBoundaryFailure,
-  querySqliteJsonAsync,
-} from "./boundaries.ts";
+import { findLatestAkTaskEvidence, readAkTaskEvidence } from "./ak-machine.ts";
+import { type BoundaryResult, isBoundaryFailure } from "./boundaries.ts";
 import { type EvidenceWriteResult, recordEvidence } from "./evidence.ts";
 
 export const AUTORESEARCH_AK_PROJECTION_CONTRACT_VERSION = 1 as const;
@@ -111,12 +107,6 @@ export interface AutoresearchAkProjectorParams {
     signal?: AbortSignal;
   }) => Promise<RunAkCommandResult>;
   runRepoBootstrap?: Parameters<typeof recordEvidence>[2]["runRepoBootstrap"];
-  runSql?: Parameters<typeof recordEvidence>[2]["runSql"];
-  querySqliteJson?: <T>(
-    dbPath: string,
-    sql: string,
-    signal?: AbortSignal,
-  ) => Promise<BoundaryResult<T[]>>;
 }
 
 export interface AutoresearchAkProjectorResult {
@@ -303,6 +293,7 @@ export async function projectAutoresearchAkMilestone(
     taskId: params.taskId,
     checkType: payload.checkType,
     projectionKey: payload.details.projection_key,
+    cwd: payload.details.cwd,
   });
   if (isBoundaryFailure(existingProjection)) {
     return {
@@ -339,8 +330,6 @@ export async function projectAutoresearchAkMilestone(
       cwd: payload.details.cwd,
       runAk: params.runAk,
       runRepoBootstrap: params.runRepoBootstrap,
-      runSql: params.runSql,
-      querySqliteJson: params.querySqliteJson,
     },
   );
 
@@ -442,31 +431,36 @@ function parseTaskAnchor(
 }
 
 async function readExistingProjectionByKey(
-  params: Pick<AutoresearchAkProjectorParams, "societyDb" | "querySqliteJson" | "signal">,
-  input: { taskId: number; checkType: string; projectionKey: string },
+  params: Pick<AutoresearchAkProjectorParams, "akPath" | "societyDb" | "runAk" | "signal">,
+  input: { taskId: number; checkType: string; projectionKey: string; cwd: string },
 ): Promise<BoundaryResult<ProjectionRow | null>> {
-  const querySqliteJson = params.querySqliteJson || querySqliteJsonAsync;
-  const rows = await querySqliteJson<ProjectionRow>(
-    params.societyDb,
-    [
-      "SELECT id, json_extract(details, '$.projection_key') AS projection_key",
-      "FROM evidence",
-      `WHERE task_id = ${input.taskId}`,
-      `AND check_type = '${escapeSqlLiteral(input.checkType)}'`,
-      `AND json_extract(details, '$.projection_key') = '${escapeSqlLiteral(input.projectionKey)}'`,
-      "ORDER BY id DESC",
-      "LIMIT 1",
-    ].join(" "),
-    params.signal,
+  const evidence = await readAkTaskEvidence(
+    {
+      akPath: params.akPath,
+      societyDb: params.societyDb,
+      cwd: input.cwd,
+      runAk: params.runAk,
+      signal: params.signal,
+    },
+    input.taskId,
   );
+  if (isBoundaryFailure(evidence)) return evidence;
 
-  if (isBoundaryFailure(rows)) {
-    return rows;
-  }
-
+  const latest = findLatestAkTaskEvidence(evidence.value, {
+    checkType: input.checkType,
+    projectionKey: input.projectionKey,
+  });
   return {
     ok: true,
-    value: rows.value[0] ?? null,
+    value: latest
+      ? {
+          id: latest.id,
+          projection_key:
+            typeof latest.details?.projection_key === "string"
+              ? latest.details.projection_key
+              : null,
+        }
+      : null,
   };
 }
 

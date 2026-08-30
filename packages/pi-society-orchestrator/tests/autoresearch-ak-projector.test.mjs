@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -71,55 +70,97 @@ function createLedger(overrides = {}) {
   };
 }
 
-function createSqliteDb(repoRoot) {
-  const dbPath = path.join(repoRoot, "society.db");
-  execFileSync(
-    "sqlite3",
-    [
-      dbPath,
-      [
-        "CREATE TABLE repos (path TEXT NOT NULL);",
-        `INSERT INTO repos(path) VALUES('${escapeSql(repoRoot)}');`,
-        [
-          "CREATE TABLE evidence (",
-          "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-          "  task_id INTEGER,",
-          "  repo TEXT,",
-          "  check_type TEXT NOT NULL,",
-          "  result TEXT NOT NULL,",
-          "  details JSON,",
-          "  checked_at TEXT DEFAULT CURRENT_TIMESTAMP,",
-          "  checked_by TEXT",
-          ");",
-        ].join("\n"),
-      ].join("\n"),
-    ],
-    { encoding: "utf8" },
-  );
-  return dbPath;
+function machineEnvelope(surface, payloadKind, payload) {
+  return {
+    ok: true,
+    stdout: JSON.stringify({
+      surface,
+      schema_version: 1,
+      emitted_at: "2026-08-30T00:00:00Z",
+      payload_kind: payloadKind,
+      schema_locator: `ak machine schema ${surface.replaceAll(".", "-")}`,
+      ok: true,
+      payload,
+      error: null,
+    }),
+    stderr: "",
+  };
 }
 
-function queryRows(dbPath, sql) {
-  const output = execFileSync("sqlite3", [dbPath, "-json", sql], { encoding: "utf8" });
-  return output.trim().length > 0 ? JSON.parse(output) : [];
-}
+function createFakeAkState({ repoRoot, taskId, task = {} }) {
+  const evidence = [];
+  const calls = [];
 
-function escapeSql(value) {
-  return value.replaceAll("'", "''");
-}
+  function insertEvidence({ taskId: rowTaskId, checkType, result, details }) {
+    const row = {
+      id: evidence.length + 1,
+      task_id: rowTaskId,
+      task_ref: rowTaskId,
+      repo: repoRoot,
+      repo_scope: repoRoot,
+      check_type: checkType,
+      result,
+      details,
+      checked_at: "2026-08-30T00:00:00Z",
+      checked_by: "test",
+    };
+    evidence.push(row);
+    return row;
+  }
 
-function insertEvidenceRow(dbPath, { taskId, checkType, result, details }) {
-  execFileSync(
-    "sqlite3",
-    [
-      dbPath,
-      [
-        "INSERT INTO evidence (task_id, check_type, result, details)",
-        `VALUES (${taskId}, '${escapeSql(checkType)}', '${escapeSql(result)}', '${escapeSql(JSON.stringify(details))}');`,
-      ].join(" "),
-    ],
-    { encoding: "utf8" },
-  );
+  async function runAk(params) {
+    calls.push(params.args.join(" "));
+    if (params.args[0] === "task" && params.args[1] === "show") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({ id: taskId, repo: repoRoot, status: "claimed", ...task }),
+        stderr: "",
+      };
+    }
+
+    if (params.args[0] === "evidence" && params.args[1] === "task") {
+      const rows = evidence.filter((row) => row.task_id === taskId);
+      return machineEnvelope("evidence.task", "evidence_collection", {
+        task_id: taskId,
+        count: rows.length,
+        evidence: rows,
+      });
+    }
+
+    if (params.args[0] === "repo" && params.args[1] === "resolve") {
+      const input = params.args[2];
+      return machineEnvelope("repo.resolve", "repo_resolution", {
+        input,
+        canonical_path: repoRoot,
+        registered: true,
+        repo: {
+          path: repoRoot,
+          company: "softwareco",
+          archetype: "project",
+          layer: "L2",
+          generated_from: null,
+          copier_answers: null,
+          ontology_ref: null,
+          last_sync: "2026-08-30T00:00:00Z",
+          created_at: "2026-03-06T00:00:00Z",
+        },
+      });
+    }
+
+    if (params.args[0] === "evidence" && params.args[1] === "record") {
+      insertEvidence({
+        taskId: Number(params.args[params.args.indexOf("--task") + 1]),
+        checkType: params.args[params.args.indexOf("--check-type") + 1],
+        result: params.args[params.args.indexOf("--result") + 1],
+        details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
+      });
+      return { ok: true, stdout: "ak-ok", stderr: "" };
+    }
+
+    throw new Error(`Unexpected ak args: ${params.args.join(" ")}`);
+  }
+
+  return { calls, evidence, insertEvidence, runAk };
 }
 
 function createAwaitingDecisionCampaign() {
@@ -446,47 +487,22 @@ test("projectAutoresearchAkMilestone fails closed when the anchored AK task is u
 
 test("projectAutoresearchAkMilestone records one durable row and deduplicates unchanged projections", async () => {
   const { repoRoot, runtime, ledger } = createAwaitingDecisionCampaign();
-  const dbPath = createSqliteDb(repoRoot);
   const taskId = 4201;
-  const akCalls = [];
-
-  const runAk = async (params) => {
-    akCalls.push(params.args.join(" "));
-    if (params.args[0] === "task" && params.args[1] === "show") {
-      return {
-        ok: true,
-        stdout: JSON.stringify({
-          id: taskId,
-          repo: repoRoot,
-          title: "Autoresearch projection anchor",
-          status: "claimed",
-          entity_version: 7,
-        }),
-        stderr: "",
-      };
-    }
-
-    if (params.args[0] === "evidence" && params.args[1] === "record") {
-      insertEvidenceRow(dbPath, {
-        taskId: Number(params.args[params.args.indexOf("--task") + 1]),
-        checkType: params.args[params.args.indexOf("--check-type") + 1],
-        result: params.args[params.args.indexOf("--result") + 1],
-        details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
-      });
-      return {
-        ok: true,
-        stdout: "ak-ok",
-        stderr: "",
-      };
-    }
-
-    throw new Error(`Unexpected ak args: ${params.args.join(" ")}`);
-  };
+  const fakeAk = createFakeAkState({
+    repoRoot,
+    taskId,
+    task: {
+      title: "Autoresearch projection anchor",
+      entity_version: 7,
+    },
+  });
+  const { calls: akCalls, evidence, runAk } = fakeAk;
+  const societyDb = "/tmp/society.v2.db";
 
   const first = await projectAutoresearchAkMilestone({
     taskId,
     akPath: "/tmp/fake-ak",
-    societyDb: dbPath,
+    societyDb,
     runtime,
     ledger,
     runAk,
@@ -497,27 +513,15 @@ test("projectAutoresearchAkMilestone records one durable row and deduplicates un
   assert.equal(first.evidence?.via, "ak");
   assert.equal(first.task?.repo, repoRoot);
 
-  const rowsAfterFirst = queryRows(
-    dbPath,
-    [
-      "SELECT id, task_id, check_type, result,",
-      "json_extract(details, '$.projection_key') AS projection_key,",
-      "json_extract(details, '$.summary') AS summary,",
-      "json_extract(details, '$.task_anchor.id') AS task_anchor_id,",
-      "json_extract(details, '$.task_anchor.repo') AS task_anchor_repo,",
-      "json_extract(details, '$.task_anchor.entity_version') AS task_anchor_entity_version",
-      "FROM evidence ORDER BY id",
-    ].join(" "),
-  );
-  assert.equal(rowsAfterFirst.length, 1);
-  assert.equal(rowsAfterFirst[0].task_id, taskId);
-  assert.equal(rowsAfterFirst[0].check_type, "autoresearch:milestone:decision-required");
-  assert.equal(rowsAfterFirst[0].result, "pass");
-  assert.match(rowsAfterFirst[0].summary, /awaiting next bounded decision/);
-  assert.equal(rowsAfterFirst[0].projection_key, first.candidate.payload.details.projection_key);
-  assert.equal(rowsAfterFirst[0].task_anchor_id, taskId);
-  assert.equal(rowsAfterFirst[0].task_anchor_repo, repoRoot);
-  assert.equal(rowsAfterFirst[0].task_anchor_entity_version, 7);
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].task_id, taskId);
+  assert.equal(evidence[0].check_type, "autoresearch:milestone:decision-required");
+  assert.equal(evidence[0].result, "pass");
+  assert.match(evidence[0].details.summary, /awaiting next bounded decision/);
+  assert.equal(evidence[0].details.projection_key, first.candidate.payload.details.projection_key);
+  assert.equal(evidence[0].details.task_anchor.id, taskId);
+  assert.equal(evidence[0].details.task_anchor.repo, repoRoot);
+  assert.equal(evidence[0].details.task_anchor.entity_version, 7);
 
   const expectedRecordedDetails = {
     ...first.candidate.payload.details,
@@ -533,7 +537,7 @@ test("projectAutoresearchAkMilestone records one durable row and deduplicates un
   const second = await projectAutoresearchAkMilestone({
     taskId,
     akPath: "/tmp/fake-ak",
-    societyDb: dbPath,
+    societyDb,
     runtime,
     ledger,
     runAk,
@@ -543,48 +547,31 @@ test("projectAutoresearchAkMilestone records one durable row and deduplicates un
   assert.equal(second.action, "already-projected");
   assert.equal(second.existingEvidenceId, 1);
 
-  const rowsAfterSecond = queryRows(dbPath, "SELECT id FROM evidence ORDER BY id");
-  assert.deepEqual(rowsAfterSecond, [{ id: 1 }]);
+  assert.deepEqual(
+    evidence.map(({ id }) => ({ id })),
+    [{ id: 1 }],
+  );
   assert.deepEqual(akCalls, [
     `task show ${taskId} -F json`,
+    `evidence task ${taskId} --machine`,
+    `repo resolve ${runtime.cwd} --machine`,
     `evidence record --check-type autoresearch:milestone:decision-required --result pass --task 4201 --details ${JSON.stringify(expectedRecordedDetails)}`,
     `task show ${taskId} -F json`,
+    `evidence task ${taskId} --machine`,
   ]);
 });
 
 test("projectAutoresearchAkMilestone deduplicates by projection key across later evidence rows", async () => {
   const { repoRoot, runtime, ledger } = createAwaitingDecisionCampaign();
-  const dbPath = createSqliteDb(repoRoot);
   const taskId = 4202;
-  const akCalls = [];
-
-  const runAk = async (params) => {
-    akCalls.push(params.args.join(" "));
-    if (params.args[0] === "task" && params.args[1] === "show") {
-      return {
-        ok: true,
-        stdout: JSON.stringify({ id: taskId, repo: repoRoot, status: "claimed" }),
-        stderr: "",
-      };
-    }
-
-    if (params.args[0] === "evidence" && params.args[1] === "record") {
-      insertEvidenceRow(dbPath, {
-        taskId: Number(params.args[params.args.indexOf("--task") + 1]),
-        checkType: params.args[params.args.indexOf("--check-type") + 1],
-        result: params.args[params.args.indexOf("--result") + 1],
-        details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
-      });
-      return { ok: true, stdout: "ak-ok", stderr: "" };
-    }
-
-    throw new Error(`Unexpected ak args: ${params.args.join(" ")}`);
-  };
+  const fakeAk = createFakeAkState({ repoRoot, taskId });
+  const { calls: akCalls, evidence, insertEvidence, runAk } = fakeAk;
+  const societyDb = "/tmp/society.v2.db";
 
   const first = await projectAutoresearchAkMilestone({
     taskId,
     akPath: "/tmp/fake-ak",
-    societyDb: dbPath,
+    societyDb,
     runtime,
     ledger,
     runAk,
@@ -592,7 +579,7 @@ test("projectAutoresearchAkMilestone deduplicates by projection key across later
 
   assert.equal(first.action, "recorded");
 
-  insertEvidenceRow(dbPath, {
+  insertEvidence({
     taskId,
     checkType: first.candidate.payload.checkType,
     result: "pass",
@@ -605,7 +592,7 @@ test("projectAutoresearchAkMilestone deduplicates by projection key across later
   const second = await projectAutoresearchAkMilestone({
     taskId,
     akPath: "/tmp/fake-ak",
-    societyDb: dbPath,
+    societyDb,
     runtime,
     ledger,
     runAk,
@@ -615,7 +602,9 @@ test("projectAutoresearchAkMilestone deduplicates by projection key across later
   assert.equal(second.action, "already-projected");
   assert.equal(second.existingEvidenceId, 1);
 
-  const rows = queryRows(dbPath, "SELECT id FROM evidence ORDER BY id");
-  assert.deepEqual(rows, [{ id: 1 }, { id: 2 }]);
+  assert.deepEqual(
+    evidence.map(({ id }) => ({ id })),
+    [{ id: 1 }, { id: 2 }],
+  );
   assert.equal(akCalls.filter((args) => args.startsWith("evidence record")).length, 1);
 });

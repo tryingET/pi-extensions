@@ -39,14 +39,18 @@ test("orchestrator toolbox bundle registers orchestrator tools and reports reque
 
   const summaries = registerToolboxBundle(harness.pi, {
     profile: "read",
-    requestedTools: ["society_query", "direction_controller_readback", "ontology_context"],
+    requestedTools: [
+      "orchestrator_boundary_telemetry",
+      "direction_controller_readback",
+      "ontology_context",
+    ],
   });
 
   assert.deepEqual(
     summaries.map((summary) => summary.name),
-    ["society_query", "direction_controller_readback", "ontology_context"],
+    ["orchestrator_boundary_telemetry", "direction_controller_readback", "ontology_context"],
   );
-  assert.equal(harness.tools.has("society_query"), true);
+  assert.equal(harness.tools.has("society_query"), false);
   assert.equal(harness.tools.has("direction_controller_readback"), true);
   assert.equal(harness.tools.has("ontology_context"), true);
   assert.equal(harness.tools.has("workflow_execute"), true);

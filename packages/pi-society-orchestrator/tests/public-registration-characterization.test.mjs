@@ -75,18 +75,11 @@ const TOOL_CONTRACTS = [
     "ed6edc5796247dbb77ae97f583e48a9aa9bd8a143e3493bf8fa234ef786ec535",
   ],
   [
-    "society_query",
-    ["query"],
-    ["query"],
-    "d61f12232d2c1c240a43dea24875e2f3684ad130debe88f646f8f1f445c3470a",
-    "8f855ef9586caa3d9e2e9ee025850ae1429112941ef57c978074a30f38ce54bb",
-  ],
-  [
     "orchestrator_boundary_telemetry",
     ["limit"],
     [],
     "93f1dd45ec830bde48c5bba74fd2aef7f9c4964092fa487a01211d46a5893cc3",
-    "629251323df0352d64799b3c5429900231653446ea21a54ed579d010e5e40e84",
+    "94c2624805454ae0e53b61ecefb5719dcea4bf6d522750d23137636e26255379",
   ],
   [
     "cognitive_dispatch",
@@ -100,7 +93,7 @@ const TOOL_CONTRACTS = [
     ["check_type", "result", "task_id", "details"],
     ["check_type", "result"],
     "2f7a044ae2384ad1846123e2bb1ab1c2d41145ebc23794bd84577ba47a01b8a4",
-    "b8c12d369bbd59e169fe37b82e3ebf0a92be507b6927502cc0435defeba19b8a",
+    "b557a870f57970f05b995021b06d6f7d6a2a76996e45d5e7c4728a00c5e23a25",
   ],
   [
     "ontology_context",
@@ -288,7 +281,6 @@ test("orchestrator freezes exact public tool, command, and event registration or
     ]),
     [
       ["direction_controller_readback", true, true],
-      ["society_query", true, true],
       ["orchestrator_boundary_telemetry", true, true],
       ["cognitive_dispatch", true, true],
       ["evidence_record", false, false],
@@ -317,17 +309,6 @@ test("orchestrator freezes representative renderer output", () => {
       return text;
     },
   };
-
-  const societyQuery = tools.get("society_query");
-  assert.equal(
-    societyQuery.renderCall({ query: "SELECT 123" }, theme).text,
-    "society_query SELECT 123",
-  );
-  assert.equal(
-    societyQuery.renderResult({ content: [{ type: "text", text: "diagnostic row" }] }, {}, theme)
-      .text,
-    "diagnostic row",
-  );
 
   const loopExecute = tools.get("loop_execute");
   assert.equal(
@@ -413,7 +394,9 @@ test("orchestrator and loop command adapters preserve representative current mes
 });
 
 test("compat registration adapters propagate a host malformed-schema rejection unchanged", () => {
-  const orchestratorHostError = new TypeError("host rejected malformed society_query schema");
+  const orchestratorHostError = new TypeError(
+    "host rejected malformed direction_controller_readback schema",
+  );
   assert.throws(
     () =>
       registerSocietyOrchestrator({
@@ -426,7 +409,7 @@ test("compat registration adapters propagate a host malformed-schema rejection u
         on() {},
         registerCommand() {},
         registerTool(tool) {
-          if (tool.name === "society_query") throw orchestratorHostError;
+          if (tool.name === "direction_controller_readback") throw orchestratorHostError;
         },
       }),
     (error) => error === orchestratorHostError,

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,55 +8,91 @@ import {
   deriveAutoresearchManifestCampaignEvidenceCandidate,
 } from "../src/runtime/autoresearch-manifest-campaign-supervision.ts";
 
-function createSqliteDb(repoRoot) {
-  const dbPath = path.join(repoRoot, "society.db");
-  execFileSync(
-    "sqlite3",
-    [
-      dbPath,
-      [
-        "CREATE TABLE repos (path TEXT NOT NULL);",
-        `INSERT INTO repos(path) VALUES('${escapeSql(repoRoot)}');`,
-        [
-          "CREATE TABLE evidence (",
-          "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-          "  task_id INTEGER,",
-          "  repo TEXT,",
-          "  check_type TEXT NOT NULL,",
-          "  result TEXT NOT NULL,",
-          "  details JSON,",
-          "  checked_at TEXT DEFAULT CURRENT_TIMESTAMP,",
-          "  checked_by TEXT",
-          ");",
-        ].join("\n"),
-      ].join("\n"),
-    ],
-    { encoding: "utf8" },
-  );
-  return dbPath;
+function machineEnvelope(surface, payloadKind, payload) {
+  return {
+    ok: true,
+    stdout: JSON.stringify({
+      surface,
+      schema_version: 1,
+      emitted_at: "2026-08-30T00:00:00Z",
+      payload_kind: payloadKind,
+      schema_locator: `ak machine schema ${surface.replaceAll(".", "-")}`,
+      ok: true,
+      payload,
+      error: null,
+    }),
+    stderr: "",
+  };
 }
 
-function queryRows(dbPath, sql) {
-  const output = execFileSync("sqlite3", [dbPath, "-json", sql], { encoding: "utf8" });
-  return output.trim().length > 0 ? JSON.parse(output) : [];
-}
+function createFakeAkState({ repoRoot, taskId, task = {} }) {
+  const evidence = [];
+  const calls = [];
 
-function escapeSql(value) {
-  return value.replaceAll("'", "''");
-}
+  function insertEvidence({ taskId: rowTaskId, checkType, result, details }) {
+    evidence.push({
+      id: evidence.length + 1,
+      task_id: rowTaskId,
+      task_ref: rowTaskId,
+      repo: repoRoot,
+      repo_scope: repoRoot,
+      check_type: checkType,
+      result,
+      details,
+      checked_at: "2026-08-30T00:00:00Z",
+      checked_by: "test",
+    });
+  }
 
-function insertEvidenceRow(dbPath, { taskId, checkType, result, details }) {
-  execFileSync(
-    "sqlite3",
-    [
-      dbPath,
-      [
-        "INSERT INTO evidence (task_id, check_type, result, details)",
-        `VALUES (${taskId}, '${escapeSql(checkType)}', '${escapeSql(result)}', '${escapeSql(JSON.stringify(details))}');`,
-      ].join(" "),
-    ],
-    { encoding: "utf8" },
-  );
+  async function runAk(params) {
+    calls.push(params.args.join(" "));
+    if (params.args[0] === "task" && params.args[1] === "show") {
+      return {
+        ok: true,
+        stdout: JSON.stringify({ id: taskId, repo: repoRoot, status: "claimed", ...task }),
+        stderr: "",
+      };
+    }
+    if (params.args[0] === "evidence" && params.args[1] === "task") {
+      const rows = evidence.filter((row) => row.task_id === taskId);
+      return machineEnvelope("evidence.task", "evidence_collection", {
+        task_id: taskId,
+        count: rows.length,
+        evidence: rows,
+      });
+    }
+    if (params.args[0] === "repo" && params.args[1] === "resolve") {
+      const input = params.args[2];
+      return machineEnvelope("repo.resolve", "repo_resolution", {
+        input,
+        canonical_path: repoRoot,
+        registered: true,
+        repo: {
+          path: repoRoot,
+          company: "softwareco",
+          archetype: "project",
+          layer: "L2",
+          generated_from: null,
+          copier_answers: null,
+          ontology_ref: null,
+          last_sync: "2026-08-30T00:00:00Z",
+          created_at: "2026-03-06T00:00:00Z",
+        },
+      });
+    }
+    if (params.args[0] === "evidence" && params.args[1] === "record") {
+      insertEvidence({
+        taskId: Number(params.args[params.args.indexOf("--task") + 1]),
+        checkType: params.args[params.args.indexOf("--check-type") + 1],
+        result: params.args[params.args.indexOf("--result") + 1],
+        details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
+      });
+      return { ok: true, stdout: "ak-ok", stderr: "" };
+    }
+    throw new Error(`Unexpected ak args: ${params.args.join(" ")}`);
+  }
+
+  return { calls, evidence, runAk };
 }
 
 function createBinding({
@@ -297,52 +332,26 @@ test("recordEvidence records package-derived evidence exactly once per projectio
   const repoRoot = mkdtempSync(path.join(os.tmpdir(), "pi-orch-manifest-campaign-"));
   const cwd = path.join(repoRoot, "campaigns", "wave-001");
   mkdirSync(cwd, { recursive: true });
-  const dbPath = createSqliteDb(repoRoot);
   const controlResult = createControlResult({
     cwd,
     taskId: 4201,
     projectionKey: "projection:stage41:A",
   });
-  const akCalls = [];
+  const fakeAk = createFakeAkState({
+    repoRoot,
+    taskId: 4201,
+    task: { entity_version: 7 },
+  });
+  const { calls: akCalls, evidence, runAk } = fakeAk;
   const supervisor = new AutoresearchManifestCampaignSupervisor({
     akPath: "/tmp/fake-ak",
-    societyDb: dbPath,
+    societyDb: "/tmp/society.v2.db",
     inspectControl: () => controlResult,
     persistProjection: ({ cwd: observedCwd, projection }) => ({
       path: path.join(observedCwd, "autoresearch.llamacpp-campaign.json"),
       projection,
     }),
-    runAk: async (params) => {
-      akCalls.push(params.args.join(" "));
-      if (params.args[0] === "task" && params.args[1] === "show") {
-        return {
-          ok: true,
-          stdout: JSON.stringify({
-            id: 4201,
-            repo: repoRoot,
-            status: "claimed",
-            entity_version: 7,
-          }),
-          stderr: "",
-        };
-      }
-
-      if (params.args[0] === "evidence" && params.args[1] === "record") {
-        insertEvidenceRow(dbPath, {
-          taskId: Number(params.args[params.args.indexOf("--task") + 1]),
-          checkType: params.args[params.args.indexOf("--check-type") + 1],
-          result: params.args[params.args.indexOf("--result") + 1],
-          details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
-        });
-        return {
-          ok: true,
-          stdout: "ak-ok",
-          stderr: "",
-        };
-      }
-
-      throw new Error(`Unexpected ak args: ${params.args.join(" ")}`);
-    },
+    runAk,
   });
 
   const first = await supervisor.recordEvidence({
@@ -356,21 +365,12 @@ test("recordEvidence records package-derived evidence exactly once per projectio
   assert.equal(first.evidence?.via, "ak");
   assert.equal(first.task?.repo, repoRoot);
 
-  const rowsAfterFirst = queryRows(
-    dbPath,
-    [
-      "SELECT id, task_id, check_type, result,",
-      "json_extract(details, '$.projection_key') AS projection_key,",
-      "json_extract(details, '$.milestone') AS milestone",
-      "FROM evidence ORDER BY id",
-    ].join(" "),
-  );
-  assert.equal(rowsAfterFirst.length, 1);
-  assert.equal(rowsAfterFirst[0].task_id, 4201);
-  assert.equal(rowsAfterFirst[0].check_type, "autoresearch:llamacpp-campaign:stage41-complete");
-  assert.equal(rowsAfterFirst[0].result, "pass");
-  assert.equal(rowsAfterFirst[0].projection_key, "projection:stage41:A");
-  assert.equal(rowsAfterFirst[0].milestone, "stage41_complete");
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0].task_id, 4201);
+  assert.equal(evidence[0].check_type, "autoresearch:llamacpp-campaign:stage41-complete");
+  assert.equal(evidence[0].result, "pass");
+  assert.equal(evidence[0].details.projection_key, "projection:stage41:A");
+  assert.equal(evidence[0].details.milestone, "stage41_complete");
 
   const second = await supervisor.recordEvidence({
     cwd,
@@ -382,12 +382,17 @@ test("recordEvidence records package-derived evidence exactly once per projectio
   assert.equal(second.action, "already-projected");
   assert.equal(second.existingEvidenceId, 1);
 
-  const rowsAfterSecond = queryRows(dbPath, "SELECT id FROM evidence ORDER BY id");
-  assert.deepEqual(rowsAfterSecond, [{ id: 1 }]);
+  assert.deepEqual(
+    evidence.map(({ id }) => ({ id })),
+    [{ id: 1 }],
+  );
   assert.deepEqual(akCalls, [
     "task show 4201 -F json",
+    "evidence task 4201 --machine",
+    `repo resolve ${cwd} --machine`,
     `evidence record --check-type autoresearch:llamacpp-campaign:stage41-complete --result pass --task 4201 --details ${JSON.stringify(first.candidate.payload.details)}`,
     "task show 4201 -F json",
+    "evidence task 4201 --machine",
   ]);
 });
 
@@ -395,7 +400,6 @@ test("recordEvidence stays evidence-only for terminal_stage_complete milestones"
   const repoRoot = mkdtempSync(path.join(os.tmpdir(), "pi-orch-manifest-terminal-"));
   const cwd = path.join(repoRoot, "campaigns", "wave-terminal");
   mkdirSync(cwd, { recursive: true });
-  const dbPath = createSqliteDb(repoRoot);
   const controlResult = createControlResult({
     cwd,
     taskId: 4301,
@@ -406,45 +410,17 @@ test("recordEvidence stays evidence-only for terminal_stage_complete milestones"
     completionCandidate: true,
     terminalStage: 43,
   });
-  const akCalls = [];
+  const fakeAk = createFakeAkState({ repoRoot, taskId: 4301 });
+  const { calls: akCalls, runAk } = fakeAk;
   const supervisor = new AutoresearchManifestCampaignSupervisor({
     akPath: "/tmp/fake-ak",
-    societyDb: dbPath,
+    societyDb: "/tmp/society.v2.db",
     inspectControl: () => controlResult,
     persistProjection: ({ cwd: observedCwd, projection }) => ({
       path: path.join(observedCwd, "autoresearch.llamacpp-campaign.json"),
       projection,
     }),
-    runAk: async (params) => {
-      akCalls.push(params.args.join(" "));
-      if (params.args[0] === "task" && params.args[1] === "show") {
-        return {
-          ok: true,
-          stdout: JSON.stringify({
-            id: 4301,
-            repo: repoRoot,
-            status: "claimed",
-          }),
-          stderr: "",
-        };
-      }
-
-      if (params.args[0] === "evidence" && params.args[1] === "record") {
-        insertEvidenceRow(dbPath, {
-          taskId: Number(params.args[params.args.indexOf("--task") + 1]),
-          checkType: params.args[params.args.indexOf("--check-type") + 1],
-          result: params.args[params.args.indexOf("--result") + 1],
-          details: JSON.parse(params.args[params.args.indexOf("--details") + 1]),
-        });
-        return {
-          ok: true,
-          stdout: "ak-ok",
-          stderr: "",
-        };
-      }
-
-      throw new Error(`Unexpected ak args: ${params.args.join(" ")}`);
-    },
+    runAk,
   });
 
   const result = await supervisor.recordEvidence({

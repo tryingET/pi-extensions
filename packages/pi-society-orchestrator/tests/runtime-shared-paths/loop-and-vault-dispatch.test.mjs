@@ -142,7 +142,7 @@ test("vault_execute_template dispatches known loop and D2E workflow bindings thr
         read_only: true,
         evaluated_at: "2026-08-01T22:00:00.000000000Z",
         database: {
-          canonical_path: "/disposable/society.db",
+          canonical_path: "/disposable/society.v2.db",
           schema_version: 41,
           supported_schema_min: 41,
           supported_schema_max: 41,

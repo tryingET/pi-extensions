@@ -25,11 +25,11 @@ printf '%s' "${bashAkDbExpansion}" > ${JSON.stringify(marker)}
     delete process.env.AK_DB;
     const result = runAkCommand({
       akPath,
-      societyDb: "/tmp/custom-society.db",
+      societyDb: "/tmp/custom-society.v2.db",
       args: [],
     });
     assert.equal(result.ok, true);
-    assert.equal(fs.readFileSync(marker, "utf8"), "/tmp/custom-society.db");
+    assert.equal(fs.readFileSync(marker, "utf8"), "/tmp/custom-society.v2.db");
   } finally {
     if (previousAkDb === undefined) {
       delete process.env.AK_DB;
@@ -59,11 +59,11 @@ printf '%s' "${bashAkDbExpansion}" > ${JSON.stringify(marker)}
     process.env.AK_DB = "/tmp/ambient-ak.db";
     const result = runAkCommand({
       akPath,
-      societyDb: "/tmp/explicit-society.db",
+      societyDb: "/tmp/explicit-society.v2.db",
       args: [],
     });
     assert.equal(result.ok, true);
-    assert.equal(fs.readFileSync(marker, "utf8"), "/tmp/explicit-society.db");
+    assert.equal(fs.readFileSync(marker, "utf8"), "/tmp/explicit-society.v2.db");
   } finally {
     if (previousAkDb === undefined) {
       delete process.env.AK_DB;
@@ -154,7 +154,7 @@ printf 'async-ok'
     const start = Date.now();
     const resultPromise = runAkCommandAsync({
       akPath,
-      societyDb: "/tmp/async-society.db",
+      societyDb: "/tmp/async-society.v2.db",
       args: [],
     });
 
@@ -169,7 +169,7 @@ printf 'async-ok'
     const result = await resultPromise;
     assert.equal(result.ok, true);
     assert.equal(result.stdout, "async-ok");
-    assert.equal(fs.readFileSync(marker, "utf8"), "/tmp/async-society.db");
+    assert.equal(fs.readFileSync(marker, "utf8"), "/tmp/async-society.v2.db");
   } finally {
     if (previousAkDb === undefined) {
       delete process.env.AK_DB;
@@ -199,13 +199,40 @@ printf 'cwd-ok'
   try {
     const result = await runAkCommandAsync({
       akPath,
-      societyDb: "/tmp/cwd-society.db",
+      societyDb: "/tmp/cwd-society.v2.db",
       args: [],
       cwd: nestedCwd,
     });
     assert.equal(result.ok, true);
     assert.equal(result.stdout, "cwd-ok");
     assert.equal(fs.readFileSync(marker, "utf8").trim(), nestedCwd);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runAkCommandAsync fails closed when machine output exceeds its capture bound", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-ak-capture-"));
+  const akPath = path.join(tempDir, "ak-capture.sh");
+  fs.writeFileSync(
+    akPath,
+    `#!/usr/bin/env bash
+printf '0123456789abcdef'
+`,
+  );
+  fs.chmodSync(akPath, 0o755);
+
+  try {
+    const result = await runAkCommandAsync({
+      akPath,
+      societyDb: "/tmp/capture-society.v2.db",
+      args: [],
+      maxStdoutBytes: 8,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.stdoutTruncated, true);
+    assert.equal(result.stdout, "01234567");
+    assert.match(result.stderr, /stdout exceeded the bounded capture limit/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -226,7 +253,7 @@ sleep 2
   try {
     const result = await runAkCommandAsync({
       akPath,
-      societyDb: "/tmp/timeout-society.db",
+      societyDb: "/tmp/timeout-society.v2.db",
       args: [],
       timeoutMs: 50,
     });

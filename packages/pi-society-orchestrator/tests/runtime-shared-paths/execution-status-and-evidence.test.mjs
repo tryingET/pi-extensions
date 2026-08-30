@@ -6,6 +6,41 @@ import test from "node:test";
 import { finalizeExecutionEffects, recordEvidence } from "../../src/runtime/evidence.ts";
 import { getExecutionStatus, isExecutionSuccess } from "../../src/runtime/execution-status.ts";
 
+function repoResolveMachineResult(input, canonicalPath = null) {
+  const registered = canonicalPath !== null;
+  return {
+    ok: true,
+    stdout: JSON.stringify({
+      surface: "repo.resolve",
+      schema_version: 1,
+      emitted_at: "2026-08-30T00:00:00Z",
+      payload_kind: "repo_resolution",
+      schema_locator: "ak machine schema repo-resolve",
+      ok: true,
+      payload: {
+        input,
+        canonical_path: canonicalPath,
+        registered,
+        repo: registered
+          ? {
+              path: canonicalPath,
+              company: "softwareco",
+              archetype: "project",
+              layer: "L2",
+              generated_from: null,
+              copier_answers: null,
+              ontology_ref: null,
+              last_sync: "2026-08-30T00:00:00Z",
+              created_at: "2026-03-06T00:00:00Z",
+            }
+          : null,
+      },
+      error: null,
+    }),
+    stderr: "",
+  };
+}
+
 test("execution status classifier honors explicit transport/protocol precedence", () => {
   assert.equal(getExecutionStatus({ exitCode: 0 }), "done");
   assert.equal(getExecutionStatus({ exitCode: 0, timedOut: true }), "timed_out");
@@ -123,7 +158,6 @@ test("recordEvidence uses ak when the current cwd is nested inside a registered 
   const repoRoot = path.join(os.tmpdir(), `pi-orch-registered-root-${Date.now()}`);
   const cwd = path.join(repoRoot, "packages", "demo");
   const akCalls = [];
-  let sqlWrites = 0;
 
   const outcome = await recordEvidence(
     {
@@ -135,30 +169,22 @@ test("recordEvidence uses ak when the current cwd is nested inside a registered 
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
       cwd,
-      async querySqliteJson() {
-        return { ok: true, value: [{ path: repoRoot }] };
-      },
       async runAk(params) {
         akCalls.push(params);
-        return {
-          ok: true,
-          stdout: "ak-ok",
-          stderr: "",
-        };
-      },
-      async runSql() {
-        sqlWrites += 1;
-        return { ok: true, value: undefined };
+        if (params.args[0] === "repo" && params.args[1] === "resolve") {
+          return repoResolveMachineResult(cwd, repoRoot);
+        }
+        return { ok: true, stdout: "ak-ok", stderr: "" };
       },
     },
   );
 
   assert.equal(outcome.ok, true);
   assert.equal(outcome.via, "ak");
-  assert.equal(akCalls.length, 1);
+  assert.equal(akCalls.length, 2);
   assert.equal(akCalls[0].cwd, cwd);
-  assert.deepEqual(akCalls[0].args.slice(0, 2), ["evidence", "record"]);
-  assert.equal(sqlWrites, 0);
+  assert.deepEqual(akCalls[0].args, ["repo", "resolve", cwd, "--machine"]);
+  assert.deepEqual(akCalls[1].args.slice(0, 2), ["evidence", "record"]);
 });
 
 test("recordEvidence bootstraps a missing repo registration through ak before writing evidence", async () => {
@@ -166,7 +192,6 @@ test("recordEvidence bootstraps a missing repo registration through ak before wr
   const cwd = path.join(repoRoot, "packages", "demo");
   const bootstrapCalls = [];
   const akCalls = [];
-  let sqlWrites = 0;
 
   const outcome = await recordEvidence(
     {
@@ -178,9 +203,6 @@ test("recordEvidence bootstraps a missing repo registration through ak before wr
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
       cwd,
-      async querySqliteJson() {
-        return { ok: true, value: [] };
-      },
       async runRepoBootstrap(params) {
         bootstrapCalls.push(params);
         return {
@@ -213,15 +235,10 @@ test("recordEvidence bootstraps a missing repo registration through ak before wr
       },
       async runAk(params) {
         akCalls.push(params);
-        return {
-          ok: true,
-          stdout: "ak-ok",
-          stderr: "",
-        };
-      },
-      async runSql() {
-        sqlWrites += 1;
-        return { ok: true, value: undefined };
+        if (params.args[0] === "repo" && params.args[1] === "resolve") {
+          return repoResolveMachineResult(cwd);
+        }
+        return { ok: true, stdout: "ak-ok", stderr: "" };
       },
     },
   );
@@ -230,16 +247,15 @@ test("recordEvidence bootstraps a missing repo registration through ak before wr
   assert.equal(outcome.via, "ak");
   assert.equal(bootstrapCalls.length, 1);
   assert.equal(bootstrapCalls[0].requestedPath, path.resolve(cwd));
-  assert.equal(akCalls.length, 1);
-  assert.equal(akCalls[0].cwd, path.resolve(cwd));
-  assert.equal(sqlWrites, 0);
+  assert.equal(akCalls.length, 2);
+  assert.deepEqual(akCalls[0].args, ["repo", "resolve", path.resolve(cwd), "--machine"]);
+  assert.equal(akCalls[1].cwd, path.resolve(cwd));
 });
 
 test("recordEvidence fails closed when guarded bootstrap excludes the current cwd", async () => {
   const cwd = path.join(os.tmpdir(), `pi-orch-excluded-${Date.now()}`);
   let bootstrapCalls = 0;
   let akCalls = 0;
-  let sqlWrites = 0;
 
   const outcome = await recordEvidence(
     {
@@ -252,9 +268,6 @@ test("recordEvidence fails closed when guarded bootstrap excludes the current cw
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
       cwd,
-      async querySqliteJson() {
-        return { ok: true, value: [] };
-      },
       async runRepoBootstrap() {
         bootstrapCalls += 1;
         return {
@@ -275,17 +288,10 @@ test("recordEvidence fails closed when guarded bootstrap excludes the current cw
           },
         };
       },
-      async runAk() {
+      async runAk(params) {
         akCalls += 1;
-        return {
-          ok: false,
-          stdout: "",
-          stderr: "ak should not have been called",
-        };
-      },
-      async runSql() {
-        sqlWrites += 1;
-        return { ok: true, value: undefined };
+        assert.deepEqual(params.args, ["repo", "resolve", path.resolve(cwd), "--machine"]);
+        return repoResolveMachineResult(path.resolve(cwd));
       },
     },
   );
@@ -293,23 +299,24 @@ test("recordEvidence fails closed when guarded bootstrap excludes the current cw
   assert.equal(outcome.ok, false);
   assert.equal(outcome.via, "failed");
   assert.equal(bootstrapCalls, 1);
-  assert.equal(akCalls, 0);
-  assert.equal(sqlWrites, 0);
+  assert.equal(akCalls, 1);
   assert.match(outcome.akError || "", /excluded the current cwd/i);
 });
 
 test("recordEvidence caches excluded guarded-bootstrap failures for the same cwd", async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-bootstrap-cache-"));
   let bootstrapCalls = 0;
-  let sqlWrites = 0;
+  let akCalls = 0;
 
   try {
     const config = {
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
       cwd,
-      async querySqliteJson() {
-        return { ok: true, value: [] };
+      async runAk(params) {
+        akCalls += 1;
+        assert.deepEqual(params.args, ["repo", "resolve", path.resolve(cwd), "--machine"]);
+        return repoResolveMachineResult(path.resolve(cwd));
       },
       async runRepoBootstrap() {
         bootstrapCalls += 1;
@@ -330,10 +337,6 @@ test("recordEvidence caches excluded guarded-bootstrap failures for the same cwd
             governance_receipt_id: 2,
           },
         };
-      },
-      async runSql() {
-        sqlWrites += 1;
-        return { ok: true, value: undefined };
       },
     };
 
@@ -357,7 +360,7 @@ test("recordEvidence caches excluded guarded-bootstrap failures for the same cwd
     assert.equal(first.via, "failed");
     assert.equal(second.via, "failed");
     assert.equal(bootstrapCalls, 1);
-    assert.equal(sqlWrites, 0);
+    assert.equal(akCalls, 2);
     assert.match(first.akError || "", /excluded/i);
     assert.match(second.akError || "", /excluded/i);
   } finally {
@@ -367,7 +370,6 @@ test("recordEvidence caches excluded guarded-bootstrap failures for the same cwd
 
 test("recordEvidence fails closed after guarded bootstrap times out", async () => {
   let akCalls = 0;
-  let sqlWrites = 0;
 
   const outcome = await recordEvidence(
     {
@@ -379,9 +381,6 @@ test("recordEvidence fails closed after guarded bootstrap times out", async () =
       akPath: "/tmp/fake-ak",
       societyDb: "/tmp/fake.db",
       cwd: "/tmp/pi-orch-bootstrap-timeout",
-      async querySqliteJson() {
-        return { ok: true, value: [] };
-      },
       async runRepoBootstrap() {
         return {
           ok: false,
@@ -390,31 +389,20 @@ test("recordEvidence fails closed after guarded bootstrap times out", async () =
           timedOut: true,
         };
       },
-      async runAk() {
+      async runAk(params) {
         akCalls += 1;
-        return {
-          ok: true,
-          stdout: "ak-ok",
-          stderr: "",
-        };
-      },
-      async runSql() {
-        sqlWrites += 1;
-        return { ok: true, value: undefined };
+        return repoResolveMachineResult(params.cwd);
       },
     },
   );
 
   assert.equal(outcome.ok, false);
   assert.equal(outcome.via, "failed");
-  assert.equal(akCalls, 0);
-  assert.equal(sqlWrites, 0);
+  assert.equal(akCalls, 1);
   assert.match(outcome.akError || "", /bootstrap timed out/);
 });
 
 test("recordEvidence fails closed after non-timeout ak failure", async () => {
-  let sqlWrites = 0;
-
   const outcome = await recordEvidence(
     {
       check_type: "validation:fallback",
@@ -432,22 +420,15 @@ test("recordEvidence fails closed after non-timeout ak failure", async () => {
           stderr: "ak unavailable",
         };
       },
-      async runSql() {
-        sqlWrites += 1;
-        return { ok: true, value: undefined };
-      },
     },
   );
 
   assert.equal(outcome.ok, false);
   assert.equal(outcome.via, "failed");
-  assert.equal(sqlWrites, 0);
   assert.match(outcome.akError || "", /ak unavailable/);
 });
 
 test("recordEvidence fails closed after ak timeout", async () => {
-  let sqlWrites = 0;
-
   const outcome = await recordEvidence(
     {
       check_type: "validation:timeout",
@@ -465,15 +446,10 @@ test("recordEvidence fails closed after ak timeout", async () => {
           timedOut: true,
         };
       },
-      async runSql() {
-        sqlWrites += 1;
-        return { ok: true, value: undefined };
-      },
     },
   );
 
   assert.equal(outcome.ok, false);
   assert.equal(outcome.via, "failed");
-  assert.equal(sqlWrites, 0);
   assert.match(outcome.akError || "", /ak timed out/);
 });

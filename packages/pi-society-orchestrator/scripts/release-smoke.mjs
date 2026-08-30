@@ -205,7 +205,7 @@ fs.mkdirSync(tempRoot);
 const binDir = path.join(tempRoot, "bin");
 const homeDir = path.join(tempRoot, "home");
 const vaultDir = path.join(tempRoot, "vault");
-const societyDbPath = path.join(tempRoot, "society.db");
+const societyDbPath = path.join(tempRoot, "society.v2.db");
 const akCallLogPath = path.join(tempRoot, "ak-calls.log");
 const fakeAkPath = path.join(binDir, "ak");
 const fakePiPath = path.join(binDir, "pi");
@@ -238,8 +238,6 @@ execFileSync(
   ],
   { cwd: loopRepoDir },
 );
-seedSocietyDb(societyDbPath, [tempRoot]);
-
 function writeExecutable(filePath, content) {
   const executableContent =
     filePath === fakePiPath
@@ -434,21 +432,6 @@ function seedVault(dir) {
       ].join(" "),
     ],
     { cwd: dir, encoding: "utf8" },
-  );
-}
-
-function escapeSqlText(value) {
-  return String(value).replace(/'/g, "''");
-}
-
-function seedSocietyDb(dbPath, registeredRepoPaths) {
-  const inserts = registeredRepoPaths
-    .map((repoPath) => `INSERT INTO repos(path) VALUES ('${escapeSqlText(repoPath)}');`)
-    .join(" ");
-  execFileSync(
-    "sqlite3",
-    [dbPath, ["CREATE TABLE repos(path TEXT PRIMARY KEY);", inserts].join(" ")],
-    { encoding: "utf8" },
   );
 }
 
@@ -690,6 +673,44 @@ fs.appendFileSync(
   ${JSON.stringify(akCallLogPath)},
   JSON.stringify({ cwd: process.cwd(), args }) + "\\n",
 );
+
+if (args[0] === "repo" && args[1] === "resolve") {
+  const input = args[2] || "";
+  const requestedPath = path.resolve(input);
+  const registeredRoot = ${JSON.stringify(path.resolve(tempRoot))};
+  const registered =
+    requestedPath === registeredRoot || requestedPath.startsWith(registeredRoot + path.sep);
+  process.stdout.write(
+    JSON.stringify({
+      surface: "repo.resolve",
+      schema_version: 1,
+      emitted_at: "2026-08-30T00:00:00Z",
+      payload_kind: "repo_resolution",
+      schema_locator: "ak machine schema repo-resolve",
+      ok: true,
+      payload: {
+        input,
+        canonical_path: registered ? registeredRoot : null,
+        registered,
+        repo: registered
+          ? {
+              path: registeredRoot,
+              company: "softwareco",
+              archetype: "project",
+              layer: "L2",
+              generated_from: null,
+              copier_answers: null,
+              ontology_ref: null,
+              last_sync: "2026-08-30T00:00:00Z",
+              created_at: "2026-03-06T00:00:00Z",
+            }
+          : null,
+      },
+      error: null,
+    }),
+  );
+  process.exit(0);
+}
 
 if (args[0] === "repo" && args[1] === "bootstrap") {
   const pathFlagIndex = args.indexOf("--path");
@@ -997,8 +1018,18 @@ try {
   assert.match(getText(bootstrapResult), /\] error in /);
 
   const bootstrapAkCalls = readAkCallRecords(akCallLogPath);
-  assert.equal(bootstrapAkCalls.length, 2, "Expected one bootstrap and one evidence write");
+  assert.equal(
+    bootstrapAkCalls.length,
+    3,
+    "Expected one repo resolution, one bootstrap, and one evidence write",
+  );
   assert.deepEqual(bootstrapAkCalls[0]?.args, [
+    "repo",
+    "resolve",
+    path.resolve(bootstrapNestedPath),
+    "--machine",
+  ]);
+  assert.deepEqual(bootstrapAkCalls[1]?.args, [
     "repo",
     "bootstrap",
     "--path",
@@ -1006,10 +1037,10 @@ try {
     "-F",
     "json",
   ]);
-  assert.equal(bootstrapAkCalls[1]?.cwd, path.resolve(bootstrapNestedPath));
-  assert.deepEqual(bootstrapAkCalls[1]?.args.slice(0, 2), ["evidence", "record"]);
-  assert.match(bootstrapAkCalls[1]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
-  assert.match(bootstrapAkCalls[1]?.args.join(" ") || "", /--result fail/);
+  assert.equal(bootstrapAkCalls[2]?.cwd, path.resolve(bootstrapNestedPath));
+  assert.deepEqual(bootstrapAkCalls[2]?.args.slice(0, 2), ["evidence", "record"]);
+  assert.match(bootstrapAkCalls[2]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
+  assert.match(bootstrapAkCalls[2]?.args.join(" ") || "", /--result fail/);
   fs.writeFileSync(akCallLogPath, "");
   console.log("installed guarded bootstrap smoke: ok");
 
@@ -1135,23 +1166,34 @@ try {
   console.log("installed truncation smoke: ok");
 
   const akCallsAfterDispatch = readAkCallRecords(akCallLogPath);
+  const dispatchRepoReads = akCallsAfterDispatch.filter(
+    (call) => call.args[0] === "repo" && call.args[1] === "resolve",
+  );
+  const dispatchEvidenceWrites = akCallsAfterDispatch.filter(
+    (call) => call.args[0] === "evidence" && call.args[1] === "record",
+  );
+  assert.equal(dispatchRepoReads.length, 4, "Expected one canonical repo read per evidence write");
   assert.equal(
-    akCallsAfterDispatch.length,
+    dispatchEvidenceWrites.length,
     4,
     "Expected four evidence writes after dispatch smokes (abort skips evidence)",
   );
-  assert.deepEqual(akCallsAfterDispatch[0]?.args.slice(0, 2), ["evidence", "record"]);
-  assert.match(akCallsAfterDispatch[0]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
-  assert.match(akCallsAfterDispatch[0]?.args.join(" ") || "", /--result fail/);
-  assert.deepEqual(akCallsAfterDispatch[1]?.args.slice(0, 2), ["evidence", "record"]);
-  assert.match(akCallsAfterDispatch[1]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
-  assert.match(akCallsAfterDispatch[1]?.args.join(" ") || "", /--result fail/);
-  assert.deepEqual(akCallsAfterDispatch[2]?.args.slice(0, 2), ["evidence", "record"]);
-  assert.match(akCallsAfterDispatch[2]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
-  assert.match(akCallsAfterDispatch[2]?.args.join(" ") || "", /--result fail/);
-  assert.deepEqual(akCallsAfterDispatch[3]?.args.slice(0, 2), ["evidence", "record"]);
-  assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--check-type cognitive:dispatch/);
-  assert.match(akCallsAfterDispatch[3]?.args.join(" ") || "", /--result pass/);
+  for (const [index, expectedResult] of ["fail", "fail", "fail", "pass"].entries()) {
+    assert.deepEqual(dispatchRepoReads[index]?.args, [
+      "repo",
+      "resolve",
+      path.resolve(tempRoot),
+      "--machine",
+    ]);
+    assert.match(
+      dispatchEvidenceWrites[index]?.args.join(" ") || "",
+      /--check-type cognitive:dispatch/,
+    );
+    assert.match(
+      dispatchEvidenceWrites[index]?.args.join(" ") || "",
+      new RegExp(`--result ${expectedResult}`),
+    );
+  }
 
   writeFakePi("success");
   const workflowResult = await workflowExecute.execute(
@@ -1243,18 +1285,20 @@ try {
     "Expected one installed-package KES diary entry to record the crystallization-oriented phase",
   );
   const akCallsAfterKesLoop = readAkCallRecords(akCallLogPath);
-  assert.equal(
-    akCallsAfterKesLoop.length,
-    4,
-    "Expected four evidence writes for the kaizen loop phases",
+  const kesRepoReads = akCallsAfterKesLoop.filter(
+    (call) => call.args[0] === "repo" && call.args[1] === "resolve",
   );
+  const kesEvidenceWrites = akCallsAfterKesLoop.filter(
+    (call) => call.args[0] === "evidence" && call.args[1] === "record",
+  );
+  assert.equal(kesRepoReads.length, 4, "Expected one canonical repo read per loop phase");
+  assert.equal(kesEvidenceWrites.length, 4, "Expected four evidence writes for the loop phases");
   for (const [index, phase] of ["plan", "do", "check", "act"].entries()) {
-    assert.deepEqual(akCallsAfterKesLoop[index]?.args.slice(0, 2), ["evidence", "record"]);
     assert.match(
-      akCallsAfterKesLoop[index]?.args.join(" ") || "",
+      kesEvidenceWrites[index]?.args.join(" ") || "",
       new RegExp(`--check-type loop:kaizen:${phase}`),
     );
-    assert.match(akCallsAfterKesLoop[index]?.args.join(" ") || "", /--result pass/);
+    assert.match(kesEvidenceWrites[index]?.args.join(" ") || "", /--result pass/);
   }
   console.log("installed KES loop smoke: ok");
 
@@ -1297,14 +1341,20 @@ try {
   const transcendentAkCalls = readAkCallRecords(akCallLogPath);
   assert.equal(
     transcendentAkCalls.length,
-    1,
-    "Expected fail-fast transcendent to record one phase",
+    2,
+    "Expected fail-fast transcendent to resolve repo and record one phase",
   );
+  assert.deepEqual(transcendentAkCalls[0]?.args, [
+    "repo",
+    "resolve",
+    path.resolve(loopRepoDir),
+    "--machine",
+  ]);
   assert.match(
-    transcendentAkCalls[0]?.args.join(" ") || "",
+    transcendentAkCalls[1]?.args.join(" ") || "",
     /--check-type loop:transcendent:diagnose/,
   );
-  assert.match(transcendentAkCalls[0]?.args.join(" ") || "", /--result fail/);
+  assert.match(transcendentAkCalls[1]?.args.join(" ") || "", /--result fail/);
   console.log("installed transcendent fail-fast loop smoke: ok");
 
   fs.writeFileSync(akCallLogPath, "");

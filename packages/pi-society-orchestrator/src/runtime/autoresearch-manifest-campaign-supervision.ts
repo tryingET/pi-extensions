@@ -15,12 +15,8 @@ import {
   persistDerivedLlamacppCampaignProjection,
 } from "@tryinget/pi-autoresearch/src/runtime.ts";
 import { type RunAkCommandResult, runAkCommandAsync } from "./ak.ts";
-import {
-  type BoundaryResult,
-  escapeSqlLiteral,
-  isBoundaryFailure,
-  querySqliteJsonAsync,
-} from "./boundaries.ts";
+import { findLatestAkTaskEvidence, readAkTaskEvidence } from "./ak-machine.ts";
+import { type BoundaryResult, isBoundaryFailure } from "./boundaries.ts";
 import { type EvidenceWriteResult, recordEvidence } from "./evidence.ts";
 import { resolveSocietyDbPath } from "./society-db-path.ts";
 
@@ -101,12 +97,6 @@ export interface AutoresearchManifestCampaignSupervisionConfig {
     signal?: AbortSignal;
   }) => Promise<RunAkCommandResult>;
   runRepoBootstrap?: Parameters<typeof recordEvidence>[2]["runRepoBootstrap"];
-  runSql?: Parameters<typeof recordEvidence>[2]["runSql"];
-  querySqliteJson?: <T>(
-    dbPath: string,
-    sql: string,
-    signal?: AbortSignal,
-  ) => Promise<BoundaryResult<T[]>>;
 }
 
 interface LatestProjectionRow {
@@ -228,13 +218,15 @@ export class AutoresearchManifestCampaignSupervisor {
 
     const latestProjection = await readLatestProjection(
       {
+        akPath: this.resolveAkPath(),
         societyDb: this.resolveSocietyDbPath(),
-        querySqliteJson: this.config.querySqliteJson,
+        runAk: this.config.runAk,
         signal: input.signal,
       },
       {
         taskId: candidate.payload.taskId,
         checkType: candidate.payload.checkType,
+        cwd: observation.cwd,
       },
     );
     if (isBoundaryFailure(latestProjection)) {
@@ -283,8 +275,6 @@ export class AutoresearchManifestCampaignSupervisor {
         cwd: observation.cwd,
         runAk: this.config.runAk,
         runRepoBootstrap: this.config.runRepoBootstrap,
-        runSql: this.config.runSql,
-        querySqliteJson: this.config.querySqliteJson,
       },
     );
 
@@ -460,35 +450,37 @@ function parseTaskAnchor(
 
 async function readLatestProjection(
   params: {
+    akPath: string;
     societyDb: string;
-    querySqliteJson?: <T>(
-      dbPath: string,
-      sql: string,
-      signal?: AbortSignal,
-    ) => Promise<BoundaryResult<T[]>>;
+    runAk?: AutoresearchManifestCampaignSupervisionConfig["runAk"];
     signal?: AbortSignal;
   },
-  input: { taskId: number; checkType: string },
+  input: { taskId: number; checkType: string; cwd: string },
 ): Promise<BoundaryResult<LatestProjectionRow | null>> {
-  const rows = await (params.querySqliteJson || querySqliteJsonAsync)<LatestProjectionRow>(
-    params.societyDb,
-    [
-      "SELECT id, json_extract(details, '$.projection_key') AS projection_key",
-      "FROM evidence",
-      `WHERE task_id = ${input.taskId} AND check_type = '${escapeSqlLiteral(input.checkType)}'`,
-      "ORDER BY id DESC",
-      "LIMIT 1",
-    ].join(" "),
-    params.signal,
+  const evidence = await readAkTaskEvidence(
+    {
+      akPath: params.akPath,
+      societyDb: params.societyDb,
+      cwd: input.cwd,
+      runAk: params.runAk,
+      signal: params.signal,
+    },
+    input.taskId,
   );
+  if (isBoundaryFailure(evidence)) return evidence;
 
-  if (isBoundaryFailure(rows)) {
-    return rows;
-  }
-
+  const latest = findLatestAkTaskEvidence(evidence.value, { checkType: input.checkType });
   return {
     ok: true,
-    value: rows.value[0] ?? null,
+    value: latest
+      ? {
+          id: latest.id,
+          projection_key:
+            typeof latest.details?.projection_key === "string"
+              ? latest.details.projection_key
+              : null,
+        }
+      : null,
   };
 }
 

@@ -12,6 +12,8 @@ system4d:
 
 # Lower-plane boundary hardening — 2026-03-12
 
+> **Historical status:** this note describes the 2026-03-12 intermediate state. AK task #5127 later removed the stock-SQLite runtime and the public raw-query exception; current society reads use AK-owned CLI/machine surfaces.
+
 ## Scope
 
 Complete one bounded hardening pack from the deep-review NEXUS recommendation:

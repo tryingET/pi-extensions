@@ -45,9 +45,9 @@ The fast packet includes:
 The background full packet gathers the richer compact packet with:
 - cwd, git repo root, and path-derived company/lane/repo identity
 - read-only dirty git posture from `git status --short`
-- AK health/repo posture from bounded machine/json surfaces
+- canonical AK repo resolution plus runtime/task posture from strict machine envelopes
 - direction export/check posture
-- ready task posture plus filtered claimed/running/blocked task posture
+- ready queue count/sample plus claimed/running/blocked counts from `startup.snapshot` v1 (which intentionally emits no active/blocked task samples)
 - active decision warnings and bounded passport summaries when active decisions are found
 - capability-map and read-first file pointers, without pasting those docs
 - bounded warnings for unavailable tools, unregistered repos, timeouts, or missing machine surfaces
@@ -72,15 +72,10 @@ Automatic startup must not:
 The implementation enforces this by only using no-shell read commands:
 - `git rev-parse --show-toplevel`
 - `git status --short`
-- `ak doctor --machine`
-- `ak machine schema task-ready -F json`
-- `ak repo show <repo> --machine`
-- `ak direction export --repo <repo> --machine`
-- `ak direction check --repo <repo> --machine`
-- `ak task ready --repo <repo> --machine`
-- `ak task list --repo <repo> --status claimed --machine`
-- `ak task list --repo <repo> --status running --machine`
-- `ak task list --repo <repo> --status blocked --machine`
+- `ak repo resolve <cwd> --machine`
+- `ak startup snapshot --repo <canonical-repo> --ready-sample <n> --machine`
+- `ak direction export --repo <canonical-repo> --machine`
+- `ak direction check --repo <canonical-repo> --machine`
 - `ak decision list --machine --limit 10`
 - `ak decision passport <id> --machine` only for a small number of active relevant decisions
 
@@ -114,7 +109,7 @@ Environment variables:
 | `PI_SOCIETY_CONTEXT_INJECT_OUTSIDE` | `0` | Inject a minimal not-applicable packet outside `~/ai-society`. |
 | `PI_SOCIETY_CONTEXT_NOTIFY_OUTSIDE` | `0` | Show a UI notification outside `~/ai-society`. |
 
-AK uses `AK_DB` when set, otherwise `~/ai-society/society.v2.db`.
+The extension invokes the configured/installed `ak` executable and inherits `AK_DB` unchanged when the operator sets it. It does not inject a database filename or prefer a local build; AK owns selection of its configured fsqlite-backed runtime.
 
 ## Live package activation
 

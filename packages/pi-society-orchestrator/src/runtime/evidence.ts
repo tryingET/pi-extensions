@@ -6,12 +6,8 @@ import {
   runAkCommandAsync,
   runAkRepoBootstrap,
 } from "./ak.ts";
-import {
-  type BoundaryResult,
-  escapeSqlLiteral,
-  isBoundaryFailure,
-  querySqliteJsonAsync,
-} from "./boundaries.ts";
+import { resolveAkRepo } from "./ak-machine.ts";
+import { type BoundaryResult, isBoundaryFailure } from "./boundaries.ts";
 import {
   type ExecutionLike,
   type ExecutionStatus,
@@ -55,12 +51,6 @@ export interface RecordEvidenceConfig {
     requestedPath: string;
     signal?: AbortSignal;
   }) => Promise<RunAkRepoBootstrapResult>;
-  runSql?: (dbPath: string, sql: string, signal?: AbortSignal) => Promise<BoundaryResult<void>>;
-  querySqliteJson?: <T>(
-    dbPath: string,
-    sql: string,
-    signal?: AbortSignal,
-  ) => Promise<BoundaryResult<T[]>>;
 }
 
 export interface FinalizeExecutionEffectsParams {
@@ -99,27 +89,21 @@ async function findRegisteredRepoAncestor(
   signal: AbortSignal | undefined,
   repoPath: string,
 ): Promise<BoundaryResult<string | null>> {
-  const repoPathSql = escapeSqlLiteral(repoPath);
-  const repoPathWithSlashSql = escapeSqlLiteral(`${repoPath}/`);
-  const queryResult = await (config.querySqliteJson || querySqliteJsonAsync)<{ path?: string }>(
-    config.societyDb,
-    [
-      "SELECT path",
-      "FROM repos",
-      `WHERE path = '${repoPathSql}' OR instr('${repoPathWithSlashSql}', path || '/') = 1`,
-      "ORDER BY length(path) DESC",
-      "LIMIT 1",
-    ].join(" "),
-    signal,
+  const resolution = await resolveAkRepo(
+    {
+      akPath: config.akPath,
+      societyDb: config.societyDb,
+      cwd: repoPath,
+      signal,
+      runAk: config.runAk,
+    },
+    repoPath,
   );
 
-  if (isBoundaryFailure(queryResult)) {
-    return queryResult;
-  }
-
+  if (isBoundaryFailure(resolution)) return resolution;
   return {
     ok: true,
-    value: queryResult.value[0]?.path || null,
+    value: resolution.value.registered ? resolution.value.canonical_path : null,
   };
 }
 
@@ -130,7 +114,10 @@ async function determineEvidenceWriteMode(
 ): Promise<{ mode: "ak" | "failed"; akError?: string }> {
   const registeredRepo = await findRegisteredRepoAncestor(config, signal, repoPath);
   if (isBoundaryFailure(registeredRepo)) {
-    return { mode: "ak" };
+    return {
+      mode: "failed",
+      akError: truncateAkError(registeredRepo.error, "ak repo resolve failed"),
+    };
   }
 
   if (registeredRepo.value) {

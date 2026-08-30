@@ -26,7 +26,7 @@ system4d:
 - primary workflows / capabilities:
   - detect canonical repo root from any cwd via git
   - classify that repo root into auto-safe, explicit-only, or excluded
-  - auto-register only auto-safe roots into AK / `society.db`
+  - auto-register only auto-safe roots through AK's canonical repo-registration surface
   - preserve existing fail-closed behavior for excluded or ambiguous roots
 - hard constraints / invariants:
   - `contrib/` remains excluded from auto-registration
@@ -44,7 +44,7 @@ system4d:
   - exclusion of `contrib/`, worktrees, submodules, hidden fixture/backups, and embedded repos
   - package checks, release smoke, and a live Ghostty-hosted Pi validation pass
 - authority boundaries that matter:
-  - AK / `society.db` own canonical repo registration state
+  - AK owns canonical repo registration state; its configured fsqlite-backed database is substrate, not a consumer API
   - repo docs own the policy note and tactical decomposition
   - package runtime/tests own the implementation and proof packet
 

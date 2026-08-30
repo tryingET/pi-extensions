@@ -1,56 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  previewRecentEvidence,
-  runSocietyDiagnosticQuery,
-  splitAkEvidenceBlocks,
-} from "../src/runtime/society.ts";
-
-test("runSocietyDiagnosticQuery rejects mutating SQL before reaching sqlite", async () => {
-  let sqliteCalls = 0;
-
-  const result = await runSocietyDiagnosticQuery("DELETE FROM evidence", {
-    akPath: "/tmp/fake-ak",
-    societyDb: "/tmp/fake.db",
-    async querySqliteJson() {
-      sqliteCalls += 1;
-      return { ok: true, value: [] };
-    },
-  });
-
-  assert.equal(result.ok, false);
-  if (!result.ok) {
-    assert.match(result.error, /read-only SELECT\/WITH\/EXPLAIN\/PRAGMA/i);
-  }
-  assert.equal(sqliteCalls, 0);
-});
-
-test("runSocietyDiagnosticQuery executes read-only diagnostics through sqlite", async () => {
-  const seen = [];
-
-  const result = await runSocietyDiagnosticQuery(
-    "WITH latest AS (SELECT 1 AS n) SELECT * FROM latest",
-    {
-      akPath: "/tmp/fake-ak",
-      societyDb: "/tmp/fake.db",
-      async querySqliteJson(dbPath, sql) {
-        seen.push({ dbPath, sql });
-        return { ok: true, value: [{ n: 1 }] };
-      },
-    },
-  );
-
-  assert.equal(result.ok, true);
-  if (result.ok) {
-    assert.deepEqual(result.value, [{ n: 1 }]);
-  }
-  assert.deepEqual(seen, [
-    {
-      dbPath: "/tmp/fake.db",
-      sql: "WITH latest AS (SELECT 1 AS n) SELECT * FROM latest",
-    },
-  ]);
-});
+import { previewRecentEvidence, splitAkEvidenceBlocks } from "../src/runtime/society.ts";
 
 test("splitAkEvidenceBlocks groups ak evidence text into entry blocks", () => {
   const text = [

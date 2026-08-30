@@ -53,7 +53,7 @@ The manual `/society-context refresh` command reruns the full read-only probes a
 
 The packet repeats the current AI Society authority split:
 
-- AK + `society.v2.db` = canonical runtime/lineage/task/evidence/decision authority
+- AK = canonical runtime/lineage/task/evidence/decision authority; its configured fsqlite-backed database is durable substrate, not a consumer API
 - ROCS = semantic authority
 - Prompt Vault = reusable procedures/prompts, not runtime authority
 - Pi = live execution harness and operator workbench
@@ -69,19 +69,14 @@ The automatic path may run only bounded read commands:
 |---|---|---|
 | Git root | `git rev-parse --show-toplevel` | locate repo root |
 | Git dirty state | `git status --short` | summarize changed paths |
-| AK health | `ak doctor --machine` | bounded health summary |
-| AK schema discovery | `ak machine schema task-ready -F json` | prove machine surface availability |
-| AK repo posture | `ak repo show <repo> --machine` | repo registration/company/layer metadata |
-| Direction export | `ak direction export --repo <repo> --machine` | active/next direction nodes |
-| Direction check | `ak direction check --repo <repo> --machine` | drift/stale warnings in the standardized AK machine envelope |
-| Ready tasks | `ak task ready --repo <repo> --machine` | ready queue count and sample |
-| Claimed tasks | `ak task list --repo <repo> --status claimed --machine` | bounded active execution posture |
-| Running tasks | `ak task list --repo <repo> --status running --machine` | bounded active execution posture |
-| Blocked tasks | `ak task list --repo <repo> --status blocked --machine` | bounded blocked-work posture |
+| AK repo posture | `ak repo resolve <cwd> --machine` | canonical registration/company/layer metadata without implicit bootstrap |
+| AK startup snapshot | `ak startup snapshot --repo <canonical-repo> --ready-sample <n> --machine` | runtime schema, ready queue count/sample, task-status counts, deferrals, and expired-lease posture |
+| Direction export | `ak direction export --repo <canonical-repo> --machine` | active/next direction nodes |
+| Direction check | `ak direction check --repo <canonical-repo> --machine` | drift/stale warnings in the standardized AK machine envelope |
 | Decisions | `ak decision list --machine --limit 10` | relevant active decision warnings |
 | Decision passport | `ak decision passport <id> --machine` | only for a small number of active relevant decisions |
 
-The implementation uses `execFile`, not a shell, and bounds command execution with `PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS`.
+The implementation uses `execFile`, not a shell, and bounds command execution with `PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS`. It validates exact `repo.resolve` v1 and `startup.snapshot` v1 envelope surface/schema/payload-kind fields. It invokes installed/configured `ak`, inherits an explicitly supplied `AK_DB`, and neither injects a backing filename nor prefers a local build.
 
 ## Compression rule
 
@@ -89,7 +84,8 @@ Raw machine JSON must not be pasted into the LLM prompt.
 
 The extension parses machine/json output and emits semantic markdown bullets:
 - counts, not full collections
-- short task/decision samples, not raw payloads
+- the ready-task sample emitted by `startup.snapshot` v1; active/blocked posture is count-only because v1 emits no such samples
+- short decision samples, not raw payloads; an empty bounded decision sample is never presented as proof of global absence
 - file pointers, not pasted docs
 - package-local `docs/project/product-posture.md` and `docs/project/vision.md` pointers when cwd is inside a package that owns them
 - bounded warnings, not full stderr dumps

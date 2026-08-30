@@ -62,7 +62,7 @@ Status update:
 | B9 | Plan strangler rollout with seam-level feature flags + rollback points | 4 | 3 | 3 | Q2 | Needed before code migration lands |
 | B10 | Decide whether any reusable presentation helpers belong in `pi-interaction`, a dedicated UI helper package, or should stay local for now | 4 | 2 | 3 | Q2 | Must follow Phase A; likely no extraction yet |
 | B11 | Centralize prompt-vault compatibility truth after the upstream boundary becomes canonical | 4 | 2 | 3 | Q2 | Should follow upstream implementation instead of preempting it |
-| B12 | Remove or rename `society_query` diagnostic escape hatch after canonical adapters exist | 3 | 2 | 3 | Q4 | Depends on adapter migration |
+| B12 | Retire the `society_query` diagnostic escape hatch after canonical adapters exist | 3 | 2 | 3 | Q4 | Complete under AK #5127: public raw SQL retired; repo/evidence reads use typed AK machine envelopes |
 
 ## HTN
 
@@ -137,6 +137,7 @@ Status update:
 14. Routed `cognitive_dispatch` evidence recording through a shared `ak`-first helper instead of a direct raw SQL insert, while keeping an explicit SQL fallback path.
 15. Aligned `runAk(...)` to the extension's configured society DB (`SOCIETY_DB`/`AK_DB`) so canonical-path evidence writes do not silently target a different database than the remaining raw paths.
 16. Moved `/evidence` onto `ak evidence search` and isolated `society_query` behind a dedicated bounded diagnostic-exception helper in `src/runtime/society.ts`.
+17. AK #5127 retired that temporary exception after AK exposed truthful machine reads: repo preflight uses `ak repo resolve --machine`, projection idempotency uses `ak evidence task --machine`, and the shipped stock-SQLite helper surface is removed.
 
 ## Immediate next leaves after packet reconciliation
 
@@ -215,9 +216,9 @@ Goal for this wave:
 
 | Current location | Current behavior | Intended canonical replacement | Status |
 |---|---|---|---|
-| `extensions/society-orchestrator.ts` + `src/runtime/society.ts` (`society_query`, `/evidence`) | `/evidence` now uses `ak evidence search`; `society_query` remains a dedicated raw sqlite diagnostic exception helper | canonical AK read/query surface when it exists; until then keep only the bounded diagnostic exception | partial |
+| `extensions/society-orchestrator.ts` + `src/runtime/society.ts` (`/evidence`) | `/evidence` uses `ak evidence search`; the former arbitrary SQL tool is retired | typed AK reads only; no general database-query replacement | complete |
 | `src/runtime/cognitive-tools.ts` | exact cognitive-tool prompt preparation now consumes `pi-vault-client/prompt-plane`; bounded local metadata listing remains for `/cognitive` and runtime-health counts | supported `pi-vault-client` prompt-plane seam for prepared prompt bodies, plus either a future public catalog/list seam or an explicit local-listing decision | partial |
-| `src/runtime/evidence.ts` | evidence writes now route through shared `recordEvidence(...)` and fail closed unless the canonical `ak` path is available | canonical `ak` evidence path only | complete |
+| `src/runtime/evidence.ts` + autoresearch projection readers | repo preflight uses `ak repo resolve --machine`; task evidence uses `ak evidence task --machine`; writes use `ak evidence record` | canonical AK machine/read/write surfaces only | complete |
 | `extensions/society-orchestrator.ts` + `src/runtime/ontology.ts` | ontology reads now resolve through shared ROCS build/id-index artifacts instead of local SQL table assumptions | `rocs-cli`-backed ontology adapter | complete |
 
 ### Inventory command used

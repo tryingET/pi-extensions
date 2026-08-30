@@ -20,7 +20,7 @@ function snapshot() {
     model: "test-model",
     contextUsage: { tokens: 20_000, contextWindow: 128_000 },
     sessionTokens: { input: 1_200, cacheRead: 300, cacheWrite: 200, output: 400 },
-    societyDbPath: "/tmp/society.db",
+    societyDbPath: "/tmp/society.v2.db",
     societyDbAvailable: true,
     vaultAvailable: true,
     vaultSummary: "available",

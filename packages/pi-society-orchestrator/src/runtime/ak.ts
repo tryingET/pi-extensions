@@ -17,6 +17,8 @@ export interface RunAkCommandParams {
   cwd?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
+  maxStdoutBytes?: number;
+  maxStderrBytes?: number;
 }
 
 export interface RunAkCommandResult {
@@ -25,6 +27,8 @@ export interface RunAkCommandResult {
   stderr: string;
   aborted?: boolean;
   timedOut?: boolean;
+  stdoutTruncated?: boolean;
+  stderrTruncated?: boolean;
 }
 
 export interface RepoBootstrapReport {
@@ -162,7 +166,30 @@ export async function runAkCommandAsync(params: RunAkCommandParams): Promise<Run
     env: buildAkEnv(params.societyDb),
     signal: params.signal,
     timeoutMs: params.timeoutMs ?? DEFAULT_AK_TIMEOUT_MS,
+    maxStdoutBytes: params.maxStdoutBytes,
+    maxStderrBytes: params.maxStderrBytes,
   });
+
+  if (
+    result.exitCode === 0 &&
+    !result.aborted &&
+    !result.timedOut &&
+    (result.stdoutTruncated || result.stderrTruncated)
+  ) {
+    const streams = [
+      result.stdoutTruncated ? "stdout" : undefined,
+      result.stderrTruncated ? "stderr" : undefined,
+    ]
+      .filter(Boolean)
+      .join(" and ");
+    return {
+      ok: false,
+      stdout: result.stdout,
+      stderr: `ak ${streams} exceeded the bounded capture limit`,
+      stdoutTruncated: result.stdoutTruncated,
+      stderrTruncated: result.stderrTruncated,
+    };
+  }
 
   if (result.exitCode === 0 && !result.aborted && !result.timedOut) {
     return { ok: true, stdout: result.stdout, stderr: result.stderr };
@@ -174,6 +201,8 @@ export async function runAkCommandAsync(params: RunAkCommandParams): Promise<Run
     stderr: result.stderr || result.error || `ak exited with code ${result.exitCode}`,
     aborted: result.aborted,
     timedOut: result.timedOut,
+    stdoutTruncated: result.stdoutTruncated,
+    stderrTruncated: result.stderrTruncated,
   };
 }
 

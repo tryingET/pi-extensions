@@ -24,6 +24,43 @@ const ACTIVE_DECISION_STATES = new Set([
   "tasks_reevaluation_pending",
 ]);
 
+interface MachineContract {
+  surface: string;
+  schemaVersion: number;
+  payloadKind: string;
+}
+
+const REPO_RESOLVE_CONTRACT: MachineContract = {
+  surface: "repo.resolve",
+  schemaVersion: 1,
+  payloadKind: "repo_resolution",
+};
+const STARTUP_SNAPSHOT_CONTRACT: MachineContract = {
+  surface: "startup.snapshot",
+  schemaVersion: 1,
+  payloadKind: "startup_snapshot",
+};
+const DIRECTION_EXPORT_CONTRACT: MachineContract = {
+  surface: "direction.export",
+  schemaVersion: 1,
+  payloadKind: "direction_graph",
+};
+const DIRECTION_CHECK_CONTRACT: MachineContract = {
+  surface: "direction.check",
+  schemaVersion: 1,
+  payloadKind: "direction_check_report",
+};
+const DECISION_LIST_CONTRACT: MachineContract = {
+  surface: "decision.list",
+  schemaVersion: 1,
+  payloadKind: "decision_collection",
+};
+const DECISION_PASSPORT_CONTRACT: MachineContract = {
+  surface: "decision.passport",
+  schemaVersion: 1,
+  payloadKind: "decision_passport",
+};
+
 type JsonRecord = Record<string, unknown>;
 
 type CommandResult =
@@ -89,10 +126,14 @@ interface DirectionSummary {
 
 interface AkSummary {
   executable: string;
-  doctor: string;
-  schema: string;
+  machineSurfaces: string[];
+  runtimeSchemaVersion?: number;
+  canonicalRepoPath?: string;
   repoRegistered: boolean | null;
   repoMetadata: string[];
+  snapshotGeneratedAt?: string;
+  activeDeferralCount?: number;
+  expiredLeaseCount?: number;
 }
 
 interface GitSummary {
@@ -127,6 +168,7 @@ interface StartupContextPacket {
   blockedTasks: TaskSummary[];
   blockedTaskCount?: number;
   activeDecisions: DecisionSummary[];
+  decisionSampleChecked?: boolean;
   decisionPassports: string[];
   readFirstHints: string[];
   capabilityHints: string[];
@@ -214,7 +256,11 @@ function machineErrorSummary(parsed: JsonRecord): string | undefined {
   return `${code}: ${message}`;
 }
 
-function parseJsonMachine(stdout: string, surfaceLabel: string): MachineRead<JsonRecord> {
+function parseJsonMachine(
+  stdout: string,
+  surfaceLabel: string,
+  contract?: MachineContract,
+): MachineRead<JsonRecord> {
   if (!stdout.trim()) {
     return { ok: false, warning: `${surfaceLabel}: no machine output emitted` };
   }
@@ -225,12 +271,42 @@ function parseJsonMachine(stdout: string, surfaceLabel: string): MachineRead<Jso
     if (!record) {
       return { ok: false, warning: `${surfaceLabel}: machine output was not a JSON object` };
     }
-    if (record.ok === false) {
+    if (record.ok !== true) {
       return {
         ok: false,
-        warning: `${surfaceLabel}: ${machineErrorSummary(record) || "ok=false"}`,
+        warning: `${surfaceLabel}: ${machineErrorSummary(record) || `expected ok=true, received ${String(record.ok)}`}`,
         value: record,
       };
+    }
+    if (contract) {
+      if (record.surface !== contract.surface) {
+        return {
+          ok: false,
+          warning: `${surfaceLabel}: expected surface ${contract.surface}, received ${String(record.surface)}`,
+          value: record,
+        };
+      }
+      if (record.schema_version !== contract.schemaVersion) {
+        return {
+          ok: false,
+          warning: `${surfaceLabel}: expected envelope schema ${contract.schemaVersion}, received ${String(record.schema_version)}`,
+          value: record,
+        };
+      }
+      if (record.payload_kind !== contract.payloadKind) {
+        return {
+          ok: false,
+          warning: `${surfaceLabel}: expected payload kind ${contract.payloadKind}, received ${String(record.payload_kind)}`,
+          value: record,
+        };
+      }
+      if (!asRecord(record.payload)) {
+        return {
+          ok: false,
+          warning: `${surfaceLabel}: machine envelope omitted its payload object`,
+          value: record,
+        };
+      }
     }
     return { ok: true, value: record };
   } catch (error) {
@@ -287,16 +363,33 @@ async function runJsonCommand(
   command: string,
   args: string[],
   label: string,
-  options: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal } = {},
+  options: {
+    cwd?: string;
+    timeoutMs?: number;
+    env?: NodeJS.ProcessEnv;
+    signal?: AbortSignal;
+    contract?: MachineContract;
+  } = {},
 ): Promise<MachineRead<JsonRecord>> {
   const result = await runCommand(command, args, options);
   if (!result.ok) {
-    const parsed = parseJsonMachine(result.stdout, label);
-    if (parsed.ok || parsed.value) {
-      return parsed;
+    const parsed = parseJsonMachine(result.stdout, label, options.contract);
+    const reason = result.timedOut
+      ? "timed out"
+      : result.code !== null && result.code !== undefined
+        ? `exited with code ${result.code}`
+        : result.error;
+    if (parsed.ok) {
+      return {
+        ok: false,
+        warning: `${label}: process ${reason} despite an ok=true machine envelope`,
+        value: parsed.value,
+        stdout: result.stdout.slice(0, 400),
+        stderr: result.stderr.slice(0, 400),
+      };
     }
+    if (parsed.value) return parsed;
 
-    const reason = result.timedOut ? "timed out" : result.error;
     return {
       ok: false,
       warning: `${label}: ${reason}`,
@@ -304,7 +397,7 @@ async function runJsonCommand(
       stderr: result.stderr.slice(0, 400),
     };
   }
-  return parseJsonMachine(result.stdout, label);
+  return parseJsonMachine(result.stdout, label, options.contract);
 }
 
 async function findGitRepoRoot(
@@ -356,28 +449,11 @@ async function readGitStatus(repoRoot: string, signal?: AbortSignal): Promise<Gi
 
 function resolveAkExecutable(): string {
   const explicit = process.env.PI_SOCIETY_CONTEXT_AK || process.env.AGENT_KERNEL;
-  if (explicit?.trim()) return explicit.trim();
-
-  const releaseAk = path.join(
-    os.homedir(),
-    "ai-society",
-    "softwareco",
-    "owned",
-    "agent-kernel",
-    "target",
-    "release",
-    "ak",
-  );
-  if (fs.existsSync(releaseAk)) return releaseAk;
-
-  return "ak";
+  return explicit?.trim() || "ak";
 }
 
 function buildAkEnv(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    AK_DB: process.env.AK_DB || path.join(os.homedir(), "ai-society", "society.v2.db"),
-  };
+  return { ...process.env };
 }
 
 function deriveRepoIdentityFromRelativePath(relativePath: string): RepoIdentity {
@@ -417,43 +493,59 @@ function formatIdentity(identity?: RepoIdentity): string {
   );
 }
 
-function summarizeRepoShow(read: MachineRead<JsonRecord>): {
+function summarizeRepoResolution(
+  read: MachineRead<JsonRecord>,
+  expectedInput: string,
+): {
   registered: boolean | null;
+  canonicalPath?: string;
   metadata: string[];
   warning?: string;
 } {
   if (!read.ok) return { registered: null, metadata: [], warning: read.warning };
-  const repo = asRecord(getPathValue(read.value, ["payload", "repo"]));
-  if (!repo)
-    return { registered: null, metadata: [], warning: "ak repo show: payload.repo missing" };
+  const payload = asRecord(read.value.payload);
+  if (!payload || typeof payload.registered !== "boolean") {
+    return {
+      registered: null,
+      metadata: [],
+      warning: "ak repo resolve: payload.registered missing or invalid",
+    };
+  }
+  if (asString(payload.input) !== expectedInput) {
+    return {
+      registered: null,
+      metadata: [],
+      warning: `ak repo resolve: input mismatch for ${expectedInput}`,
+    };
+  }
+
+  if (!payload.registered) {
+    if (payload.canonical_path !== null || payload.repo !== null) {
+      return {
+        registered: null,
+        metadata: [],
+        warning: "ak repo resolve: unregistered payload carried canonical repo data",
+      };
+    }
+    return { registered: false, metadata: [] };
+  }
+
+  const canonicalPath = asString(payload.canonical_path);
+  const repo = asRecord(payload.repo);
+  if (!canonicalPath || !repo || asString(repo.path) !== canonicalPath) {
+    return {
+      registered: null,
+      metadata: [],
+      warning: "ak repo resolve: registered payload failed canonical path validation",
+    };
+  }
   const metadata = [
     asString(repo.company) ? `company=${repo.company}` : undefined,
     asString(repo.archetype) ? `archetype=${repo.archetype}` : undefined,
     asString(repo.layer) ? `layer=${repo.layer}` : undefined,
     asString(repo.generated_from) ? `generated_from=${repo.generated_from}` : undefined,
   ].filter((item): item is string => Boolean(item));
-  return { registered: true, metadata };
-}
-
-function summarizeDoctor(read: MachineRead<JsonRecord>): string {
-  if (!read.ok) return `unavailable (${read.warning})`;
-  const payload = asRecord(read.value.payload);
-  const status = asString(payload?.status) || asString(payload?.summary);
-  if (status) return status;
-  return "machine envelope ok";
-}
-
-function summarizeSchema(read: MachineRead<JsonRecord>): string {
-  if (!read.ok) return `unavailable (${read.warning})`;
-  const surfaces = asArray(read.value.surfaces);
-  const firstSurface = asRecord(surfaces[0]);
-  if (firstSurface) {
-    const name = asString(firstSurface.surface) || "unknown";
-    const version = asNumber(firstSurface.schema_version);
-    return `${name}${version === null ? "" : ` v${version}`}`;
-  }
-  const version = asNumber(read.value.schema_discovery_version);
-  return version === null ? "schema catalog readable" : `schema catalog v${version}`;
+  return { registered: true, canonicalPath, metadata };
 }
 
 function summarizeDirection(
@@ -517,57 +609,100 @@ function toTaskSummary(task: unknown): TaskSummary | undefined {
   };
 }
 
-function summarizeTaskCollection(read: MachineRead<JsonRecord>): {
-  tasks: TaskSummary[];
-  count?: number;
-  warnings: string[];
-} {
-  if (!read.ok) return { tasks: [], warnings: [read.warning] };
-  const payload = asRecord(read.value.payload);
-  return {
-    count: asNumber(payload?.count) ?? undefined,
-    tasks: asArray(payload?.tasks).map(toTaskSummary).filter(Boolean) as TaskSummary[],
-    warnings: [],
-  };
+function readSnapshotStatusCount(counts: JsonRecord, status: string): number | undefined {
+  if (!(status in counts)) return 0;
+  const value = asNumber(counts[status]);
+  return value !== null && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
-function boundedTaskSample(tasks: TaskSummary[]): TaskSummary[] {
-  return tasks.slice(0, readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_TASKS", DEFAULT_MAX_TASKS));
+function asNonNegativeInteger(value: unknown): number | undefined {
+  const number = asNumber(value);
+  return number !== null && Number.isInteger(number) && number >= 0 ? number : undefined;
 }
 
-function sumKnownCounts(...counts: Array<number | undefined>): number | undefined {
-  if (!counts.every((count) => count !== undefined)) return undefined;
-  return counts.reduce((sum, count) => sum + count, 0);
-}
-
-function summarizeTasks(
-  readyRead: MachineRead<JsonRecord>,
-  claimedRead: MachineRead<JsonRecord>,
-  runningRead: MachineRead<JsonRecord>,
-  blockedRead: MachineRead<JsonRecord>,
+function summarizeStartupSnapshot(
+  read: MachineRead<JsonRecord>,
+  expectedRepoScope: string,
 ): {
   readyTasks: TaskSummary[];
   readyTaskCount?: number;
-  activeTasks: TaskSummary[];
   activeTaskCount?: number;
-  blockedTasks: TaskSummary[];
   blockedTaskCount?: number;
+  runtimeSchemaVersion?: number;
+  generatedAt?: string;
+  activeDeferralCount?: number;
+  expiredLeaseCount?: number;
   warnings: string[];
 } {
-  const ready = summarizeTaskCollection(readyRead);
-  const claimed = summarizeTaskCollection(claimedRead);
-  const running = summarizeTaskCollection(runningRead);
-  const blocked = summarizeTaskCollection(blockedRead);
-  const activeTasks = [...claimed.tasks, ...running.tasks];
+  if (!read.ok) return { readyTasks: [], warnings: [read.warning] };
+  const payload = asRecord(read.value.payload);
+  const counts = asRecord(payload?.task_status_counts);
+  if (!payload || !counts || asString(payload.repo_scope) !== expectedRepoScope) {
+    return {
+      readyTasks: [],
+      warnings: ["ak startup snapshot: payload failed canonical repo-scope validation"],
+    };
+  }
+
+  const readyTaskCount = asNonNegativeInteger(payload.ready_task_count);
+  const runtimeSchemaVersion = asNonNegativeInteger(payload.schema_version);
+  const activeDeferralCount = asNonNegativeInteger(payload.active_deferral_count);
+  const expiredLeaseCount = asNonNegativeInteger(payload.expired_lease_count);
+  const claimedCount = readSnapshotStatusCount(counts, "claimed");
+  const runningCount = readSnapshotStatusCount(counts, "running");
+  const blockedTaskCount = readSnapshotStatusCount(counts, "blocked");
+  const generatedAt = asString(payload.generated_at);
+  if (
+    readyTaskCount === undefined ||
+    runtimeSchemaVersion === undefined ||
+    runtimeSchemaVersion === 0 ||
+    activeDeferralCount === undefined ||
+    expiredLeaseCount === undefined ||
+    claimedCount === undefined ||
+    runningCount === undefined ||
+    blockedTaskCount === undefined ||
+    !generatedAt
+  ) {
+    return {
+      readyTasks: [],
+      warnings: ["ak startup snapshot: count or schema fields failed validation"],
+    };
+  }
+
+  if (!Array.isArray(payload.ready_sample)) {
+    return {
+      readyTasks: [],
+      warnings: ["ak startup snapshot: ready_sample was not an array"],
+    };
+  }
+  const readyRows = payload.ready_sample;
+  const readyTasks = readyRows.map(toTaskSummary).filter(Boolean) as TaskSummary[];
+  if (
+    readyTasks.length !== readyRows.length ||
+    readyTasks.length > readyTaskCount ||
+    readyTasks.some(
+      (task) => task.id === null || task.priority === null || task.priority === undefined,
+    )
+  ) {
+    return {
+      readyTasks: [],
+      warnings: ["ak startup snapshot: ready sample failed validation"],
+    };
+  }
 
   return {
-    readyTasks: boundedTaskSample(ready.tasks),
-    readyTaskCount: ready.count,
-    activeTasks: boundedTaskSample(activeTasks),
-    activeTaskCount: sumKnownCounts(claimed.count, running.count),
-    blockedTasks: boundedTaskSample(blocked.tasks),
-    blockedTaskCount: blocked.count,
-    warnings: [...ready.warnings, ...claimed.warnings, ...running.warnings, ...blocked.warnings],
+    readyTasks: readyTasks.slice(
+      0,
+      readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_TASKS", DEFAULT_MAX_TASKS),
+    ),
+    readyTaskCount,
+    activeTaskCount: claimedCount + runningCount,
+    blockedTaskCount,
+    runtimeSchemaVersion,
+    generatedAt,
+    activeDeferralCount,
+    expiredLeaseCount,
+    warnings: [],
   };
 }
 
@@ -670,7 +805,7 @@ export function collectReadFirstHints(repoRoot: string, cwd: string): string[] {
 
 function buildRecommendedNext(packet: Omit<StartupContextPacket, "recommendedNext">): string[] {
   const recommendations = [
-    "Treat AK + society.v2.db as canonical runtime authority; treat docs/capability maps as orientation/projection until promoted through runtime authority.",
+    "Treat AK as canonical runtime authority and its configured fsqlite-backed database as substrate; treat docs/capability maps as orientation/projection until promoted through runtime authority.",
   ];
 
   if (packet.packetTier === "fast") {
@@ -775,7 +910,7 @@ export function createFastStartupContextPacket(
     repoRoot,
     identity,
     authoritativeRuntime: [
-      "AK + society.v2.db = canonical runtime/lineage/task/evidence/decision authority",
+      "AK is canonical runtime/lineage/task/evidence/decision authority; its configured fsqlite-backed database is the durable substrate.",
       "ROCS = semantic authority",
       "Prompt Vault = reusable procedures/prompts, not runtime authority",
       "Pi = live execution harness/operator workbench; session registry/JSONL are not canonical authority",
@@ -801,7 +936,7 @@ export function createFastStartupContextPacket(
   };
 }
 
-async function buildStartupContextPacket(
+export async function buildStartupContextPacket(
   cwd: string,
   signal?: AbortSignal,
 ): Promise<StartupContextPacket> {
@@ -809,7 +944,6 @@ async function buildStartupContextPacket(
   if (!readBooleanEnv("PI_SOCIETY_STARTUP_CONTEXT", true)) {
     return createNotApplicablePacket(cwd, aiSocietyRoot, true);
   }
-
   if (!isInsideAiSocietyPath(cwd)) {
     return createNotApplicablePacket(cwd, aiSocietyRoot);
   }
@@ -818,82 +952,114 @@ async function buildStartupContextPacket(
   const { repoRoot, warning: repoRootWarning } = await findGitRepoRoot(cwd, signal);
   if (repoRootWarning) warnings.push(repoRootWarning);
 
-  const identity = deriveRepoIdentity(aiSocietyRoot, repoRoot);
   const akExecutable = resolveAkExecutable();
   const akEnv = buildAkEnv();
   const commandTimeoutMs = readPositiveIntegerEnv(
     "PI_SOCIETY_CONTEXT_COMMAND_TIMEOUT_MS",
     DEFAULT_COMMAND_TIMEOUT_MS,
   );
-  const runAkJson = (args: string[], label: string) =>
+  const runAkJson = (args: string[], label: string, contract?: MachineContract) =>
     runJsonCommand(akExecutable, args, label, {
       cwd: repoRoot,
       env: akEnv,
       timeoutMs: commandTimeoutMs,
       signal,
+      contract,
     });
 
-  const [
-    git,
-    doctorRead,
-    schemaRead,
-    repoRead,
-    directionExportRead,
-    directionCheckRead,
-    readyRead,
-    claimedTaskRead,
-    runningTaskRead,
-    blockedTaskRead,
-    decisionListRead,
-  ] = await Promise.all([
+  const [git, repoRead] = await Promise.all([
     readGitStatus(repoRoot, signal),
-    runAkJson(["doctor", "--machine"], "ak doctor"),
-    runAkJson(["machine", "schema", "task-ready", "-F", "json"], "ak machine schema"),
-    runAkJson(["repo", "show", repoRoot, "--machine"], "ak repo show"),
-    runAkJson(["direction", "export", "--repo", repoRoot, "--machine"], "ak direction export"),
-    runAkJson(["direction", "check", "--repo", repoRoot, "--machine"], "ak direction check"),
-    runAkJson(["task", "ready", "--repo", repoRoot, "--machine"], "ak task ready"),
-    runAkJson(
-      ["task", "list", "--repo", repoRoot, "--status", "claimed", "--machine"],
-      "ak task list --status claimed",
-    ),
-    runAkJson(
-      ["task", "list", "--repo", repoRoot, "--status", "running", "--machine"],
-      "ak task list --status running",
-    ),
-    runAkJson(
-      ["task", "list", "--repo", repoRoot, "--status", "blocked", "--machine"],
-      "ak task list --status blocked",
-    ),
-    runAkJson(["decision", "list", "--machine", "--limit", "10"], "ak decision list"),
+    runAkJson(["repo", "resolve", cwd, "--machine"], "ak repo resolve", REPO_RESOLVE_CONTRACT),
   ]);
-
   if (git.warning) warnings.push(git.warning);
 
-  const repo = summarizeRepoShow(repoRead);
+  const repo = summarizeRepoResolution(repoRead, cwd);
   if (repo.warning) warnings.push(repo.warning);
+  const akScope = repo.registered ? repo.canonicalPath : undefined;
+  const identity = deriveRepoIdentity(aiSocietyRoot, akScope || repoRoot);
 
-  const direction = summarizeDirection(directionExportRead, directionCheckRead);
-  warnings.push(...direction.warnings);
+  let tasks: ReturnType<typeof summarizeStartupSnapshot> = {
+    readyTasks: [],
+    warnings: [],
+  };
+  let direction: ReturnType<typeof summarizeDirection> = {
+    summary: { exportOk: false, checkOk: false, activeNodes: [], issues: [] },
+    warnings: [],
+  };
+  let decisions: ReturnType<typeof summarizeDecisions> = { active: [], warnings: [] };
+  let decisionSampleChecked = false;
+  let snapshotRead: MachineRead<JsonRecord> | undefined;
+  let passportReads: Array<{ decision: DecisionSummary; read: MachineRead<JsonRecord> }> = [];
 
-  const tasks = summarizeTasks(readyRead, claimedTaskRead, runningTaskRead, blockedTaskRead);
-  warnings.push(...tasks.warnings);
-
-  const decisions = summarizeDecisions(decisionListRead, repoRoot);
-  warnings.push(...decisions.warnings);
-
-  const passportReads = await Promise.all(
-    decisions.active
-      .filter((decision) => decision.id !== null)
-      .slice(0, 2)
-      .map(async (decision) => ({
-        decision,
-        read: await runAkJson(
-          ["decision", "passport", String(decision.id), "--machine"],
-          `ak decision passport #${decision.id}`,
+  if (akScope) {
+    const readySample = readPositiveIntegerEnv("PI_SOCIETY_CONTEXT_MAX_TASKS", DEFAULT_MAX_TASKS);
+    const [snapshot, directionExportRead, directionCheckRead, decisionListRead] = await Promise.all(
+      [
+        runAkJson(
+          [
+            "startup",
+            "snapshot",
+            "--repo",
+            akScope,
+            "--ready-sample",
+            String(readySample),
+            "--machine",
+          ],
+          "ak startup snapshot",
+          STARTUP_SNAPSHOT_CONTRACT,
         ),
-      })),
-  );
+        runAkJson(
+          ["direction", "export", "--repo", akScope, "--machine"],
+          "ak direction export",
+          DIRECTION_EXPORT_CONTRACT,
+        ),
+        runAkJson(
+          ["direction", "check", "--repo", akScope, "--machine"],
+          "ak direction check",
+          DIRECTION_CHECK_CONTRACT,
+        ),
+        runAkJson(
+          ["decision", "list", "--machine", "--limit", "10"],
+          "ak decision list",
+          DECISION_LIST_CONTRACT,
+        ),
+      ],
+    );
+
+    snapshotRead = snapshot;
+    tasks = summarizeStartupSnapshot(snapshot, akScope);
+    warnings.push(...tasks.warnings);
+    direction = summarizeDirection(directionExportRead, directionCheckRead);
+    warnings.push(...direction.warnings);
+    decisions = summarizeDecisions(decisionListRead, akScope);
+    warnings.push(...decisions.warnings);
+    decisionSampleChecked = decisionListRead.ok;
+
+    passportReads = await Promise.all(
+      decisions.active
+        .filter((decision) => decision.id !== null)
+        .slice(0, 2)
+        .map(async (decision) => ({
+          decision,
+          read: await runAkJson(
+            ["decision", "passport", String(decision.id), "--machine"],
+            `ak decision passport #${decision.id}`,
+            DECISION_PASSPORT_CONTRACT,
+          ),
+        })),
+    );
+  } else {
+    warnings.push(
+      repo.registered === false
+        ? "AK scoped startup reads were skipped because repo.resolve reported the cwd as unregistered; no bootstrap was attempted."
+        : "AK scoped startup reads were skipped because canonical repo resolution was unavailable.",
+    );
+  }
+
+  const machineSurfaces = [
+    repoRead.ok && repo.registered !== null ? "repo.resolve v1" : undefined,
+    snapshotRead?.ok ? "startup.snapshot v1" : undefined,
+  ].filter((item): item is string => Boolean(item));
 
   const packetWithoutRecommendations = {
     applicable: true,
@@ -906,7 +1072,7 @@ async function buildStartupContextPacket(
     repoRoot,
     identity,
     authoritativeRuntime: [
-      "AK + society.v2.db = canonical runtime/lineage/task/evidence/decision authority",
+      "AK is canonical runtime/lineage/task/evidence/decision authority; its configured fsqlite-backed database is the durable substrate.",
       "ROCS = semantic authority",
       "Prompt Vault = reusable procedures/prompts, not runtime authority",
       "Pi = live execution harness/operator workbench; session registry/JSONL are not canonical authority",
@@ -916,19 +1082,24 @@ async function buildStartupContextPacket(
     git,
     ak: {
       executable: akExecutable,
-      doctor: summarizeDoctor(doctorRead),
-      schema: summarizeSchema(schemaRead),
+      machineSurfaces,
+      runtimeSchemaVersion: tasks.runtimeSchemaVersion,
+      canonicalRepoPath: repo.canonicalPath,
       repoRegistered: repo.registered,
       repoMetadata: repo.metadata,
+      snapshotGeneratedAt: tasks.generatedAt,
+      activeDeferralCount: tasks.activeDeferralCount,
+      expiredLeaseCount: tasks.expiredLeaseCount,
     },
     direction: direction.summary,
     readyTasks: tasks.readyTasks,
     readyTaskCount: tasks.readyTaskCount,
-    activeTasks: tasks.activeTasks,
+    activeTasks: [],
     activeTaskCount: tasks.activeTaskCount,
-    blockedTasks: tasks.blockedTasks,
+    blockedTasks: [],
     blockedTaskCount: tasks.blockedTaskCount,
     activeDecisions: decisions.active,
+    decisionSampleChecked,
     decisionPassports: passportReads.map(({ decision, read }) => summarizePassport(read, decision)),
     readFirstHints: collectReadFirstHints(repoRoot, cwd),
     capabilityHints: collectCapabilityHints(aiSocietyRoot, identity),
@@ -1020,12 +1191,23 @@ export function renderStartupContextPacket(packet: StartupContextPacket): string
   if (packet.ak) {
     lines.push(
       `- executable: \`${packet.ak.executable}\``,
-      `- doctor: ${packet.ak.doctor}`,
-      `- machine schema discovery: ${packet.ak.schema}`,
+      `- validated machine surfaces: ${packet.ak.machineSurfaces.join(", ") || "none"}`,
+      `- runtime schema: ${packet.ak.runtimeSchemaVersion ?? "unavailable"}`,
       `- repo registration: ${packet.ak.repoRegistered === true ? "registered" : packet.ak.repoRegistered === false ? "not registered" : "unknown"}`,
     );
+    if (packet.ak.canonicalRepoPath) {
+      lines.push(`- canonical repo: \`${packet.ak.canonicalRepoPath}\``);
+    }
     if (packet.ak.repoMetadata.length > 0) {
       lines.push(`- repo metadata: ${packet.ak.repoMetadata.join(", ")}`);
+    }
+    if (packet.ak.snapshotGeneratedAt) {
+      lines.push(`- startup snapshot generated_at: ${packet.ak.snapshotGeneratedAt}`);
+    }
+    if (packet.ak.activeDeferralCount !== undefined || packet.ak.expiredLeaseCount !== undefined) {
+      lines.push(
+        `- snapshot posture: active_deferrals=${packet.ak.activeDeferralCount ?? "?"}, expired_leases=${packet.ak.expiredLeaseCount ?? "?"} (informational; no repair or release performed)`,
+      );
     }
   } else if (isFastTier) {
     lines.push(
@@ -1082,19 +1264,27 @@ export function renderStartupContextPacket(packet: StartupContextPacket): string
   }
   if (packet.activeTasks.length > 0) {
     lines.push("- active sample:", ...packet.activeTasks.map((task) => `  - ${formatTask(task)}`));
+  } else if (!isFastTier && (packet.activeTaskCount ?? 0) > 0) {
+    lines.push("- active sample: not emitted by startup.snapshot v1; count only");
   }
   if (packet.blockedTasks.length > 0) {
     lines.push(
       "- blocked sample:",
       ...packet.blockedTasks.map((task) => `  - ${formatTask(task)}`),
     );
+  } else if (!isFastTier && (packet.blockedTaskCount ?? 0) > 0) {
+    lines.push("- blocked sample: not emitted by startup.snapshot v1; count only");
   }
 
   lines.push("", "### Decision posture");
   if (isFastTier) {
     lines.push("- not checked in fast startup tier; no absence-of-blockers claim is made");
+  } else if (!packet.decisionSampleChecked) {
+    lines.push("- bounded decision sample unavailable or skipped; no absence claim is made");
   } else if (packet.activeDecisions.length === 0) {
-    lines.push("- no active repo-scoped decision blockers found in bounded decision list");
+    lines.push(
+      "- no active repo-scoped decisions found in the bounded decision sample; absence is not proven",
+    );
   } else {
     lines.push(
       "- active decision warnings:",

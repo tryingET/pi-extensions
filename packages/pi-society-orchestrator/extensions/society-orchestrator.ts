@@ -8,9 +8,9 @@
  * Society Orchestrator — Cognitive-driven multi-agent orchestration
  *
  * Integrates:
- * - society.db (canonical state, tasks, evidence, ontology)
+ * - agent-kernel (canonical runtime, tasks, evidence, and bounded machine reads)
  * - prompt-vault (30+ cognitive tools)
- * - agent-kernel (Rust CLI for MVCC operations)
+ * - ROCS (canonical ontology reads)
  *
  * This is not a manager. This is not a supervisor.
  * This is a cognitive orchestrator that thinks about HOW to think
@@ -35,7 +35,6 @@
  *
  * Tools:
  *   cognitive_dispatch             — Cognitive-first agent dispatch
- *   society_query                  — Bounded read-only diagnostic SQL against society.db
  *   evidence_record                — Record evidence
  *   orchestrator_boundary_telemetry — Inspect lower-plane boundary telemetry
  *   direction_controller_readback  — Read existing AK D2E state and controls without mutation
@@ -86,7 +85,7 @@ import {
 import { getExecutionIcon } from "../src/runtime/execution-status.ts";
 import { createGovernedDeepReviewPreflightRuntime } from "../src/runtime/governed-deep-review-preflight.ts";
 import { formatOntologyConcepts, lookupOntologyConcepts } from "../src/runtime/ontology.ts";
-import { previewRecentEvidence, runSocietyDiagnosticQuery } from "../src/runtime/society.ts";
+import { previewRecentEvidence } from "../src/runtime/society.ts";
 import { resolveSocietyDbPath } from "../src/runtime/society-db-path.ts";
 import { createOrchestratorSubagentExecutor, toExecutionLike } from "../src/runtime/subagent.ts";
 import { getGlobalSessionTeamStore } from "../src/runtime/team-state.ts";
@@ -199,85 +198,6 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
   );
 
   // ===========================================================================
-  // TOOL: society_query
-  // ===========================================================================
-
-  registerCompatTool(pi, {
-    name: "society_query",
-    label: "Society Query",
-    description: "Execute a bounded read-only diagnostic SQL query against society.db.",
-    promptSnippet: "Run a bounded read-only diagnostic SQL query against society.db.",
-    promptGuidelines: [
-      "Use society_query for diagnostic reads against society.db instead of inventing schema details.",
-      "Keep queries read-only and reasonably scoped so results stay inspectable.",
-    ],
-    parameters: Type.Object({
-      query: Type.String({ description: "Read-only SQL query to execute" }),
-    }),
-    async execute(_toolCallId, params, signal) {
-      const { query } = params as { query: string };
-
-      const results = await runSocietyDiagnosticQuery<Record<string, unknown>>(
-        query,
-        {
-          akPath: AGENT_KERNEL,
-          societyDb: SOCIETY_DB,
-        },
-        signal,
-      );
-      if (isBoundaryFailure(results)) {
-        return {
-          content: [{ type: "text", text: `society_query failed: ${results.error}` }],
-          details: {
-            ok: false,
-            rowCount: 0,
-            error: results.error,
-            boundedDiagnosticException: true,
-          },
-        };
-      }
-
-      if (results.value.length === 0) {
-        return {
-          content: [{ type: "text", text: "No results found." }],
-          details: {
-            ok: true,
-            rowCount: 0,
-            error: "",
-            boundedDiagnosticException: true,
-          },
-        };
-      }
-
-      const output = JSON.stringify(results.value, null, 2);
-      const truncated = output.length > 8000 ? `${output.slice(0, 8000)}\n... [truncated]` : output;
-
-      return {
-        content: [{ type: "text", text: truncated }],
-        details: {
-          ok: true,
-          rowCount: results.value.length,
-          error: "",
-          boundedDiagnosticException: true,
-        },
-      };
-    },
-    renderCall(args, theme) {
-      const query = (args as { query?: string }).query || "";
-      const preview = query.length > 50 ? `${query.slice(0, 47)}...` : query;
-      return new Text(
-        theme.fg("toolTitle", theme.bold("society_query ")) + theme.fg("muted", preview),
-        0,
-        0,
-      );
-    },
-    renderResult(result, _options, _theme) {
-      const text = result.content[0];
-      return new Text(text?.type === "text" ? text.text.slice(0, 500) : "", 0, 0);
-    },
-  });
-
-  // ===========================================================================
   // TOOL: orchestrator_boundary_telemetry
   // ===========================================================================
 
@@ -286,11 +206,11 @@ export default function (pi: ExtensionAPI, options: SocietyOrchestratorExtension
     label: "Orchestrator Boundary Telemetry",
     description: `Inspect session-local lower-plane execution telemetry for the orchestrator.
 
-Use when investigating sqlite3, ak, rocs, or other boundary command behavior.
+Use when investigating ak, rocs, or other owned boundary-command behavior.
 Reports call counts, latency summary, command mix, and recent boundary events captured by the orchestrator runtime.`,
     promptSnippet: "Inspect session-local lower-plane execution telemetry for the orchestrator.",
     promptGuidelines: [
-      "Use orchestrator_boundary_telemetry when investigating lower-plane command behavior such as sqlite3, ak, or rocs.",
+      "Use orchestrator_boundary_telemetry when investigating lower-plane command behavior such as ak or rocs.",
     ],
     parameters: Type.Object({
       limit: Type.Optional(
@@ -540,7 +460,7 @@ This is cognitive-first dispatch — think about HOW to think before acting.`,
   registerCompatTool(pi, {
     name: "evidence_record",
     label: "Record Evidence",
-    description: "Record evidence in the society.db evidence ledger.",
+    description: "Record evidence through the canonical AK evidence boundary.",
     promptSnippet: "Record a pass/fail/skip evidence entry in the society evidence ledger.",
     promptGuidelines: [
       "Use evidence_record after a meaningful check or execution outcome you want preserved in the ledger.",

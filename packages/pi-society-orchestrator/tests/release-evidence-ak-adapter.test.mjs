@@ -137,7 +137,7 @@ test("records only on explicit action and preserves repo custody scope", async (
     artifactRef: "github-release://tryingET/pi-extensions/pi-example-v1.2.3/release-evidence",
     repoRoot: f.root,
     action: "record",
-    akConfig: { akPath: "/opt/ak", societyDb: "/tmp/society.db" },
+    akConfig: { akPath: "/opt/ak", societyDb: "/tmp/society.v2.db" },
     recordEvidenceFn: async (entry, _signal, config) => {
       observed = { entry, config };
       return { ok: true, via: "ak" };

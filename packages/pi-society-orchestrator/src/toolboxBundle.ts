@@ -17,7 +17,6 @@ interface ToolboxRegisteredToolSummary {
 
 const PROFILE_TOOLS: Record<string, ToolboxRegisteredToolSummary[]> = {
   read: [
-    { name: "society_query", profile: "read", risk: "read" },
     { name: "orchestrator_boundary_telemetry", profile: "read", risk: "read" },
     { name: "direction_controller_readback", profile: "read", risk: "read" },
     { name: "ontology_context", profile: "read", risk: "read" },

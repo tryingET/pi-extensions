@@ -12,6 +12,8 @@ system4d:
 
 # Society read boundary exception — 2026-03-30
 
+> **Superseded on 2026-08-30 by AK task #5127.** This file preserves the historical rationale for the temporary exception. The exception is now removed: there is no public arbitrary SQL tool, repo resolution uses `ak repo resolve --machine`, task evidence reads use `ak evidence task --machine`, and the package no longer ships a stock-SQLite boundary.
+
 ## Scope
 
 Complete one bounded pack from `next_session_prompt.md`:

@@ -1,5 +1,5 @@
 import { type RunAkCommandResult, runAkCommandAsync } from "./ak.ts";
-import { type BoundaryResult, isReadOnlySql, querySqliteJsonAsync } from "./boundaries.ts";
+import type { BoundaryResult } from "./boundaries.ts";
 
 const DEFAULT_EVIDENCE_PREVIEW_LIMIT = 20;
 
@@ -14,32 +14,12 @@ export interface SocietyRuntimeConfig {
     cwd?: string;
     signal?: AbortSignal;
   }) => Promise<RunAkCommandResult>;
-  querySqliteJson?: <T>(
-    dbPath: string,
-    sql: string,
-    signal?: AbortSignal,
-  ) => Promise<BoundaryResult<T[]>>;
 }
 
 export interface EvidencePreview {
   text: string;
   entryCount: number;
   truncated: boolean;
-}
-
-export async function runSocietyDiagnosticQuery<T>(
-  query: string,
-  config: SocietyRuntimeConfig,
-  signal?: AbortSignal,
-): Promise<BoundaryResult<T[]>> {
-  if (!isReadOnlySql(query)) {
-    return {
-      ok: false,
-      error: "society_query only allows read-only SELECT/WITH/EXPLAIN/PRAGMA statements.",
-    };
-  }
-
-  return (config.querySqliteJson || querySqliteJsonAsync)<T>(config.societyDb, query, signal);
 }
 
 export async function previewRecentEvidence(

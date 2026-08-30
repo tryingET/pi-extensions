@@ -263,7 +263,7 @@ Interpretation:
 
 | Consumer | Provider | Allowed seam(s) | Forbidden seam(s) | Notes |
 |---|---|---|---|---|
-| `pi-society-orchestrator` | `ak` | canonical CLI / explicit adapter wrapper | raw `sqlite3` against society DB as primary path | Keep read/write intent explicit |
+| `pi-society-orchestrator` | `ak` | canonical CLI plus strict machine-envelope adapters | raw database access—including stock `sqlite3` or engine shells—against the active AK runtime | Keep read/write intent explicit; AK #5127 removed the former diagnostic exception |
 | `pi-society-orchestrator` | `rocs-cli` | canonical CLI / explicit ROCS wrapper | local ontology SQL/table contract as primary path | Avoid accidental ontology schema ownership |
 | `pi-society-orchestrator` | `pi-vault-client` | public runtime export, extracted shared runtime, or stable structured tool contract **after** the upstream Vault execution boundary lands and is reviewed | raw `dolt sql`; private `../pi-vault-client/src/*` imports | Prompt-plane ownership stays in vault-client; final seam selection is intentionally deferred until the new upstream boundary exists |
 | `pi-society-orchestrator` | ASC | public execution contract or extracted execution runtime | copied spawn/session logic; private `../pi-autonomous-session-control/extensions/self/*` imports | Execution-plane ownership stays in ASC |
@@ -285,7 +285,7 @@ Interpretation:
 
 The architecture should be considered **non-compliant** if any of the following become true without an explicit exception ADR:
 
-1. `pi-society-orchestrator` contains direct `sqlite3` invocation as a primary backend path.
+1. `pi-society-orchestrator` contains direct stock `sqlite3` invocation or another raw database bypass against the active AK runtime.
 2. `pi-society-orchestrator` contains direct `dolt sql` invocation as a primary backend path.
 3. `pi-society-orchestrator` imports private internals from:
    - `../pi-vault-client/src/*`

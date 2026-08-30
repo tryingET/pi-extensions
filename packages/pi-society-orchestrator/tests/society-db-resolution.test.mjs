@@ -92,6 +92,30 @@ test("the society.v2.db fallback literal is owned only by the shared resolver", 
   assert.deepEqual(literalOwners, [resolverOwnerFile]);
 });
 
+test("shipped runtime and release smoke reject stock SQLite and arbitrary society queries", () => {
+  const shippedSupportFiles = ["README.md", "package.json", "scripts/release-smoke.mjs"];
+  const sources = [
+    ...productionSources,
+    ...shippedSupportFiles.map((relativePath) => [
+      relativePath,
+      readFileSync(path.join(packageRoot, relativePath), "utf8"),
+    ]),
+  ];
+
+  for (const [relativePath, source] of sources) {
+    assert.doesNotMatch(source, /\bsqlite3\b/, `${relativePath} must not invoke stock sqlite3`);
+    assert.doesNotMatch(
+      source,
+      /society_query/,
+      `${relativePath} must not restore the arbitrary database-query tool`,
+    );
+  }
+  for (const relativePath of ["README.md", "package.json"]) {
+    const source = readFileSync(path.join(packageRoot, relativePath), "utf8");
+    assert.doesNotMatch(source, /society\.db/, `${relativePath} must use current AK terminology`);
+  }
+});
+
 test("all seven behaviorally used fallbacks call the shared resolver", () => {
   for (const relativePath of actualConsumerFiles) {
     const source = productionSources.get(relativePath);

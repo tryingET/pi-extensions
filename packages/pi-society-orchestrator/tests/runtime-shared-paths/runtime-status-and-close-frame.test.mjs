@@ -34,7 +34,7 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
       averageLatencyMs: 12.3,
       maxLatencyMs: 45.6,
       commandCounts: {
-        "sqlite3:select": 3,
+        "ak:repo": 3,
         "ak:evidence": 2,
       },
       latestFailure: {
@@ -44,7 +44,7 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
         error: "process exited with code 7",
       },
     },
-    societyDbPath: "/tmp/society.db",
+    societyDbPath: "/tmp/society.v2.db",
     societyDbAvailable: true,
     vaultAvailable: true,
     vaultSummary: "available (7 cognitive tools)",
@@ -58,7 +58,7 @@ test("runtime status report centralizes the shared runtime truth descriptor", ()
   assert.match(text, /context: 20,000 tokens \(window 128,000\)/);
   assert.match(text, /session tokens: in 1,200 · cache 500 \(300 read \+ 200 write\) · out 400/);
   assert.match(text, /lower-plane telemetry: 5 calls · 4 ok · 1 fail · avg 12\.3ms · max 45\.6ms/);
-  assert.match(text, /lower-plane command mix: sqlite3:select=3, ak:evidence=2/);
+  assert.match(text, /lower-plane command mix: ak:repo=3, ak:evidence=2/);
   assert.match(
     text,
     /latest lower-plane failure: 2026-04-21T15:00:00\.000Z · ak:evidence · exit=7 · process exited with code 7/,
@@ -151,7 +151,7 @@ test("AK close-frame status reader uses read-only AK surfaces", async () => {
 
   const snapshot = await readAkCloseFrameStatus({
     cwd: "/repo",
-    societyDb: "/tmp/society.db",
+    societyDb: "/tmp/society.v2.db",
     akPath: "ak",
     runAk,
   });
@@ -265,7 +265,7 @@ test("AK close-frame status reader renders no-wave active-frame discovery postur
 
   const snapshot = await readAkCloseFrameStatus({
     cwd: "/repo",
-    societyDb: "/tmp/society.db",
+    societyDb: "/tmp/society.v2.db",
     akPath: "ak",
     runAk,
   });

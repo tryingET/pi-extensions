@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,35 +15,13 @@ import {
   resolveTranscendentIterationObjective,
 } from "../src/loops/engine.ts";
 import {
-  buildSqlContainsExpression,
   execFileText,
   execFileTextAsync,
   getBoundaryTelemetryStats,
-  isReadOnlySql,
   listBoundaryTelemetry,
-  querySqliteJson,
-  querySqliteJsonAsync,
   resetBoundaryTelemetry,
   summarizeBoundaryTelemetry,
 } from "../src/runtime/boundaries.ts";
-
-test("isReadOnlySql accepts read-only statements and rejects mutating or stacked SQL", () => {
-  assert.equal(isReadOnlySql("SELECT 1"), true);
-  assert.equal(isReadOnlySql("-- comment\nSELECT 1"), true);
-  assert.equal(isReadOnlySql("WITH x AS (SELECT 1 AS n) SELECT * FROM x"), true);
-  assert.equal(
-    isReadOnlySql(
-      "WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM cnt LIMIT 3) SELECT * FROM cnt",
-    ),
-    true,
-  );
-  assert.equal(isReadOnlySql("WITH x AS (SELECT 1) DELETE FROM evidence"), false);
-  assert.equal(isReadOnlySql("PRAGMA table_info('ontology')"), true);
-  assert.equal(isReadOnlySql("PRAGMA main.table_info('ontology')"), true);
-  assert.equal(isReadOnlySql("PRAGMA user_version = 7"), false);
-  assert.equal(isReadOnlySql("INSERT INTO evidence VALUES (1)"), false);
-  assert.equal(isReadOnlySql("SELECT 1; DROP TABLE evidence"), false);
-});
 
 test("execFileText passes argv literally without shell interpolation", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-boundary-"));
@@ -99,71 +76,11 @@ printf 'async-ok'
   }
 });
 
-test("buildSqlContainsExpression neutralizes hostile LIKE input without dropping tables", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-sqlite-"));
-  const dbPath = path.join(tempDir, "ontology.db");
-  const hostile = "x%' ; DROP TABLE ontology; --";
-
-  try {
-    execFileSync(
-      "sqlite3",
-      [
-        dbPath,
-        "CREATE TABLE ontology(concept text, definition text, layer text); INSERT INTO ontology VALUES ('safe', 'definition', 'layer');",
-      ],
-      { encoding: "utf-8" },
-    );
-
-    const result = querySqliteJson(
-      dbPath,
-      `SELECT concept FROM ontology WHERE ${buildSqlContainsExpression("concept", hostile)} LIMIT 10`,
-    );
-    assert.equal(result.ok, true);
-    if (result.ok) {
-      assert.deepEqual(result.value, []);
-    }
-
-    const tables = execFileSync("sqlite3", [dbPath, ".tables"], { encoding: "utf-8" });
-    assert.match(tables, /\bontology\b/);
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("querySqliteJsonAsync keeps runtime society reads off the blocking path", async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-sqlite-async-"));
-  const dbPath = path.join(tempDir, "ontology.db");
-
-  try {
-    execFileSync(
-      "sqlite3",
-      [dbPath, "CREATE TABLE ontology(concept text); INSERT INTO ontology VALUES ('safe');"],
-      { encoding: "utf-8" },
-    );
-
-    const result = await querySqliteJsonAsync(dbPath, "SELECT concept FROM ontology LIMIT 1");
-    assert.equal(result.ok, true);
-    if (result.ok) {
-      assert.deepEqual(result.value, [{ concept: "safe" }]);
-    }
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
 test("boundary telemetry summarizes lower-plane command usage", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-orch-boundary-telemetry-"));
-  const dbPath = path.join(tempDir, "ontology.db");
-
   try {
     resetBoundaryTelemetry();
-    execFileSync(
-      "sqlite3",
-      [dbPath, "CREATE TABLE ontology(concept text); INSERT INTO ontology VALUES ('safe');"],
-      { encoding: "utf-8" },
-    );
 
-    const success = querySqliteJson(dbPath, "SELECT concept FROM ontology LIMIT 1");
+    const success = execFileText(process.execPath, ["-e", "process.stdout.write('ok')"]);
     assert.equal(success.ok, true);
 
     const failure = execFileText(process.execPath, ["-e", "process.exit(7)"]);
@@ -173,8 +90,7 @@ test("boundary telemetry summarizes lower-plane command usage", () => {
     assert.equal(stats.totalCalls, 2);
     assert.equal(stats.successCount, 1);
     assert.equal(stats.failureCount, 1);
-    assert.equal(stats.commandCounts["sqlite3:select"], 1);
-    assert.equal(stats.commandCounts.node, 1);
+    assert.equal(stats.commandCounts.node, 2);
 
     const recent = listBoundaryTelemetry(5);
     assert.equal(recent.length, 2);
@@ -182,13 +98,11 @@ test("boundary telemetry summarizes lower-plane command usage", () => {
 
     const summary = summarizeBoundaryTelemetry();
     assert.match(summary, /# Orchestrator Boundary Telemetry/);
-    assert.match(summary, /command_mix: .*sqlite3:select=1/);
-    assert.match(summary, /command_mix: .*node=1/);
+    assert.match(summary, /command_mix: node=2/);
     assert.match(summary, /failure_count: 1/);
     assert.match(summary, /latest_failure:/);
   } finally {
     resetBoundaryTelemetry();
-    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
