@@ -87,7 +87,7 @@ export function createNiriNativeWindowRuntime(options) {
         await options.execFileAsync(
           "niri",
           ["msg", "action", "move-window-to-floating", "--id", String(niriWindow.id)],
-          { env: options.env },
+          { env: options.env, timeout: options.timeoutMs },
         );
         animated = true;
       } catch {
@@ -118,7 +118,7 @@ export function createNiriNativeWindowRuntime(options) {
                 "-y",
                 formatDelta(deltaY),
               ],
-              { env: options.env },
+              { env: options.env, timeout: options.timeoutMs },
             );
             animated = true;
           } catch {

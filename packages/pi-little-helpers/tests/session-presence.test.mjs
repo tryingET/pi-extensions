@@ -107,7 +107,7 @@ test("session presence publishes exact session metadata and updates the title", 
     await sessionStart({}, ctx);
 
     const state = JSON.parse(readFileSync(path.join(presenceDir, "424242.json"), "utf8"));
-    assert.equal(state.schemaVersion, 1);
+    assert.equal(state.schemaVersion, 2);
     assert.equal(state.cwd, "/home/tryinget/ai-society/softwareco/owned/agent-kernel");
     assert.equal(state.cwdLabel, "agent-kernel");
     assert.equal(state.sessionIdShort, "77bc82bb");
@@ -133,14 +133,20 @@ test("session presence records a valid Ghostty surface id from the environment",
       presenceDir,
       processId: 434343,
       now: () => "2026-04-12T02:30:30.000Z",
-      env: { GHOSTTY_SURFACE_ID: "0x1234" },
+      env: { TERM_PROGRAM: "ghostty", GHOSTTY_SURFACE_ID: "0x1234" },
+      stdinIsTTY: true,
+      tty: "/dev/pts/9",
+      ghosttyAncestor: {
+        pid: 99,
+        exe: "/home/tryinget/.local/opt/ghostty-origin-main/bin/ghostty",
+      },
     });
 
     const { handlers } = registerExtension(extension);
     const sessionStart = handlers.get("session_start");
     assert.equal(typeof sessionStart, "function");
 
-    const { ctx } = createContext({
+    const { ctx, titles } = createContext({
       cwd: "/repo",
       sessionId: "77bc82bb-21b8-4651-a058-8b6e4d50636c",
       sessionFile: "/sessions/main.jsonl",
@@ -150,7 +156,44 @@ test("session presence records a valid Ghostty surface id from the environment",
     await sessionStart({}, ctx);
 
     const state = JSON.parse(readFileSync(path.join(presenceDir, "434343.json"), "utf8"));
+    assert.equal(state.schemaVersion, 2);
     assert.equal(state.ghosttySurfaceId, "0x1234");
+    assert.equal(state.ghosttySurfaceIdNormalized, "4660");
+    assert.equal(state.ghosttyFamily, "main");
+    assert.equal(state.terminalBound, true);
+    assert.equal(state.terminalKey, "ghostty:main:4660");
+    assert.equal(state.windowTitle, "π - repo · gs:main:4660 · 77bc82bb21b84651a0588b6e4d50636c");
+    assert.deepEqual(titles, [state.windowTitle]);
+  } finally {
+    rmSync(presenceDir, { recursive: true, force: true });
+  }
+});
+
+test("headless descendants cannot claim an inherited Ghostty surface", async () => {
+  const presenceDir = createTempDir();
+  try {
+    const extension = createSessionPresenceExtension({
+      presenceDir,
+      processId: 444444,
+      env: { TERM_PROGRAM: "ghostty", GHOSTTY_SURFACE_ID: "17" },
+      stdinIsTTY: false,
+      tty: "/dev/pts/9",
+      ghosttyAncestor: { pid: 99, exe: "/opt/ghostty-origin-main/bin/ghostty" },
+    });
+    const { handlers } = registerExtension(extension);
+    const { ctx, titles } = createContext({
+      cwd: "/repo",
+      sessionId: "77bc82bb-21b8-4651-a058-8b6e4d50636c",
+      sessionFile: "/sessions/main.jsonl",
+      sessionName: undefined,
+    });
+
+    await handlers.get("session_start")({}, ctx);
+
+    const state = JSON.parse(readFileSync(path.join(presenceDir, "444444.json"), "utf8"));
+    assert.equal(state.terminalBound, false);
+    assert.equal(state.terminalKey, undefined);
+    assert.deepEqual(titles, ["π - repo · 77bc82bb21b84651a0588b6e4d50636c"]);
   } finally {
     rmSync(presenceDir, { recursive: true, force: true });
   }

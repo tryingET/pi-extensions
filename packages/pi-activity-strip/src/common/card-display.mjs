@@ -46,3 +46,8 @@ export function disambiguatedRepoLabel(session, duplicateLabels) {
     ? `${label} · ${String(processId).slice(-4)}`
     : label;
 }
+
+/** @param {{hovered?: boolean; activeElement?: boolean; documentFocused?: boolean}} state */
+export function shouldRetainExpandedCard({ hovered, activeElement, documentFocused }) {
+  return Boolean(hovered || (documentFocused && activeElement));
+}

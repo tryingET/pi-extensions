@@ -7,8 +7,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("activityStrip", {
-  activate(sessionId) {
-    return ipcRenderer.invoke("pi-activity-strip:focus", String(sessionId ?? ""));
+  activate(cardId) {
+    return ipcRenderer.invoke("pi-activity-strip:focus", String(cardId ?? ""));
   },
   setExpanded(expanded) {
     return ipcRenderer.invoke("pi-activity-strip:set-expanded", Boolean(expanded));

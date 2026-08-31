@@ -112,7 +112,12 @@ export async function requestBrokerShutdown(options = {}) {
 
 /** @param {SessionSnapshot} session @param {BrokerClientOptions} [options] */
 export async function publishSessionSnapshot(session, options = {}) {
-  await sendBrokerMessage(makeMessage("upsert", { session }), options);
+  const result = await sendBrokerMessage(makeMessage("upsert", { session }), {
+    ...options,
+    expectReply: true,
+  });
+  if (result?.ok !== true)
+    throw new Error(result?.error || "Activity strip broker rejected upsert.");
 }
 
 /** @param {{ sessionId: string; publisherId: string }} session @param {BrokerClientOptions} [options] */
@@ -125,11 +130,13 @@ export async function removeSession(session, options = {}) {
   } else {
     fallbackId = String(session ?? "");
   }
-  await sendBrokerMessage(
+  const result = await sendBrokerMessage(
     makeMessage("remove", {
       sessionId: String(record.sessionId ?? fallbackId),
       publisherId: String(record.publisherId ?? ""),
     }),
-    options,
+    { ...options, expectReply: true },
   );
+  if (result?.ok !== true)
+    throw new Error(result?.error || "Activity strip broker rejected remove.");
 }

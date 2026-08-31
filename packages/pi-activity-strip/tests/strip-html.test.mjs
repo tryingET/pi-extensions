@@ -5,7 +5,8 @@ read_when:
 */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createStripHtml, shouldRetainExpandedCard } from "../src/ui/strip-html.mjs";
+import { shouldRetainExpandedCard } from "../src/common/card-display.mjs";
+import { createStripHtml } from "../src/ui/strip-html.mjs";
 
 test("strip keeps freshness live while ordering refreshes on a calm cadence", () => {
   const html = createStripHtml();
@@ -68,7 +69,7 @@ test("interactive cards expose hover detail, exact activation, and focus-scoped 
   assert.match(html, /card\.setAttribute\("aria-expanded", "false"\)/);
   assert.match(html, /candidate\.setAttribute\("aria-expanded", isOpen \? "true" : "false"\)/);
   assert.match(html, /aria-live="polite"/);
-  assert.match(html, /api\.activate\(session\.sessionId\)/);
+  assert.match(html, /api\.activate\(session\.cardId \|\| session\.sessionId\)/);
   assert.match(html, /api\.setExpanded\(Boolean\(expanded\)\)/);
   assert.match(html, /event\.key !== "ArrowLeft"/);
   assert.match(html, /event\.shiftKey/);
@@ -89,7 +90,8 @@ test("interactive cards expose hover detail, exact activation, and focus-scoped 
   assert.match(html, /height: 228px/);
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /--shadow: none/);
-  assert.match(html, /focusedSessionId/);
+  assert.match(html, /focusedCardId/);
+  assert.match(html, /card\.dataset\.cardId/);
   assert.match(html, /card\.dataset\.current = isCurrent \? "true" : "false"/);
   assert.match(html, /card\.setAttribute\("aria-current", "true"\)/);
   assert.match(html, /card\.removeAttribute\("aria-current"\)/);

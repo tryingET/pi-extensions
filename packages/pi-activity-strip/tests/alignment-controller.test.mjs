@@ -74,6 +74,23 @@ test("latest-only alignment invalidates stale asynchronous geometry work", async
   ]);
 });
 
+test("latest-only runner cannot drop a request during worker finalization", async () => {
+  const release = deferred();
+  const generations = [];
+  const runner = createLatestOnlyRunner(async ({ generation }) => {
+    generations.push(generation);
+    if (generation === 1) await release.promise;
+  });
+
+  runner.request();
+  release.promise.then(() => runner.request());
+  release.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  await runner.waitForIdle();
+
+  assert.deepEqual(generations, [1, 2]);
+});
+
 test("alignment runner recovers after a best-effort attempt fails", async () => {
   const generations = [];
   const runner = createLatestOnlyRunner(async ({ generation }) => {

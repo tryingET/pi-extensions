@@ -42,7 +42,7 @@ test("session membership comparison ignores detail and order changes", () => {
       [{ sessionId: "a" }, { sessionId: "a" }],
       [{ sessionId: "a" }, { sessionId: "a" }],
     ),
-    false,
+    true,
   );
 });
 
@@ -400,7 +400,7 @@ test("unexpected workspace-query rejection hides the stale renderer view", async
   assert.deepEqual(harness.events, ["collapse", "conceal", "publish:", "hide"]);
 });
 
-test("fallback requests queue once without invalidating slow reconciliation", async () => {
+test("fallback requests probe once without forcing redundant full reconciliation", async () => {
   let readCount = 0;
   let releaseFirstRead;
   let reportFirstReadStarted;
@@ -450,8 +450,8 @@ test("fallback requests queue once without invalidating slow reconciliation", as
   releaseFirstRead();
   await runtime.waitForIdle();
 
-  assert.equal(readCount, 2, "multiple fallback ticks coalesce into one follow-up");
-  assert.deepEqual(events, ["publish:1", "reveal", "publish:1", "reveal"]);
+  assert.equal(readCount, 1, "multiple fallback ticks use the bounded workspace probe");
+  assert.deepEqual(events, ["publish:1", "reveal"]);
 });
 
 test("fallback queued during initial reads rechecks focus before reveal", async () => {

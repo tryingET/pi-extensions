@@ -128,6 +128,62 @@ test("heartbeat republish keeps liveness without advancing lastEventAt", async (
   assert.ok(last.updatedAt >= last.lastEventAt);
 });
 
+test("publisher delivery is serialized and shutdown removal follows in-flight publication", async () => {
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  const events = [];
+  let concurrent = 0;
+  let maxConcurrent = 0;
+  let publishCount = 0;
+  const telemetry = createSessionTelemetry({
+    cwd: "/tmp/demo",
+    transport: {
+      publish: async (session) => {
+        publishCount += 1;
+        concurrent += 1;
+        maxConcurrent = Math.max(maxConcurrent, concurrent);
+        events.push(`publish:${session.publisherSequence}:start`);
+        if (publishCount === 1) await firstGate;
+        events.push(`publish:${session.publisherSequence}:finish`);
+        concurrent -= 1;
+      },
+      remove: async () => events.push("remove"),
+    },
+  });
+
+  const starting = telemetry.onSessionStart({ cwd: "/tmp/demo" });
+  telemetry.onBeforeAgentStart({ prompt: "newer state" });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(maxConcurrent, 1);
+  releaseFirst();
+  await starting;
+  await telemetry.shutdown();
+
+  assert.equal(maxConcurrent, 1);
+  assert.equal(events.at(-1), "remove");
+  assert.ok(publishCount >= 2);
+});
+
+test("session start binds only an admitted interactive terminal surface", async () => {
+  const telemetry = createSessionTelemetry({
+    cwd: "/tmp/demo",
+    env: { TERM_PROGRAM: "ghostty", GHOSTTY_SURFACE_ID: "17" },
+    stdinIsTTY: true,
+    resolveTerminalIdentity: () => ({
+      terminalKind: "ghostty-surface",
+      terminalKey: "ghostty:main:17",
+      terminalFamily: "main",
+      terminalSurfaceId: "17",
+    }),
+    transport: { publish: async () => {}, remove: async () => {} },
+  });
+  await telemetry.onSessionStart({ cwd: "/tmp/demo", hasUI: true });
+  assert.equal(telemetry.getSnapshot().terminalKey, "ghostty:main:17");
+  await telemetry.shutdown();
+});
+
 test("provider error on turn end surfaces as error, not silent done", async () => {
   const telemetry = createSessionTelemetry({
     cwd: "/tmp/demo",

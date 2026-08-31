@@ -7,7 +7,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-const SESSION_PRESENCE_SCHEMA_VERSION = 1;
+const SESSION_PRESENCE_SCHEMA_VERSION = 2;
 const DEFAULT_TITLE_PREFIX = "π - ";
 const DEFAULT_TITLE_MODE = "session-short-id";
 const DEFAULT_TITLE_REFRESH_DELAYS_MS = [0, 250, 1000, 3000, 8000];
@@ -24,6 +24,9 @@ export interface SessionPresenceOptions {
   titleBase?: string;
   titleRefreshDelaysMs?: number[];
   env?: NodeJS.ProcessEnv;
+  stdinIsTTY?: boolean;
+  tty?: string;
+  ghosttyAncestor?: { pid: number; exe?: string };
 }
 
 export interface SessionPresenceState {
@@ -43,6 +46,10 @@ export interface SessionPresenceState {
   ghosttyAncestorPid?: number;
   ghosttyAncestorExe?: string;
   ghosttySurfaceId?: string;
+  ghosttySurfaceIdNormalized?: string;
+  ghosttyFamily?: "main" | "legacy";
+  terminalKey?: string;
+  terminalBound: boolean;
   windowTitleBase: string;
   windowTitle?: string;
   publishedAt: string;
@@ -148,6 +155,27 @@ function resolveGhosttySurfaceId(env: NodeJS.ProcessEnv): string | undefined {
   return /^\d+$/.test(value) || /^0x[0-9a-f]+$/i.test(value) ? value : undefined;
 }
 
+export function normalizeGhosttySurfaceId(value: string | undefined): string | undefined {
+  try {
+    const normalized = BigInt(String(value ?? "").trim());
+    return normalized >= 0n && normalized <= 18_446_744_073_709_551_615n
+      ? normalized.toString(10)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function classifyGhosttyFamily(
+  executable: string | undefined,
+): "main" | "legacy" | undefined {
+  const normalized = String(executable ?? "").toLowerCase();
+  if (normalized.includes("ghostty-sidequest")) return "legacy";
+  if (path.basename(normalized) === "ghostty" || normalized.includes("ghostty-origin"))
+    return "main";
+  return undefined;
+}
+
 function ensureDir(dirPath: string): void {
   fs.mkdirSync(dirPath, { recursive: true });
 }
@@ -205,9 +233,12 @@ function buildWindowTitle(
   baseTitle: string,
   sessionIdentityToken: string,
   titleMode: SessionPresenceTitleMode,
+  terminalTitleSegment?: string,
 ): string | undefined {
   if (titleMode === "off") return undefined;
-  return `${baseTitle} · ${sessionIdentityToken}`;
+  const terminalSegment = terminalTitleSegment ? ` · ${terminalTitleSegment}` : "";
+  // Keep the full logical session token last so older consumers retain their exact suffix match.
+  return `${baseTitle}${terminalSegment} · ${sessionIdentityToken}`;
 }
 
 function buildSessionPresenceState(
@@ -222,10 +253,33 @@ function buildSessionPresenceState(
   const sessionIdentityToken = buildSessionIdentityToken(sessionId);
   const windowTitleBase = resolveTitleBase(cwd, options);
   const titleMode = resolveTitleMode(options);
-  const windowTitle = buildWindowTitle(windowTitleBase, sessionIdentityToken, titleMode);
   const piBin = resolvePiBin(options);
-  const ghosttyAncestor = findGhosttyAncestor(resolveProcessId(options));
-  const ghosttySurfaceId = resolveGhosttySurfaceId(options.env ?? process.env);
+  const env = options.env ?? process.env;
+  const ghosttyAncestor = options.ghosttyAncestor ?? findGhosttyAncestor(resolveProcessId(options));
+  const ghosttySurfaceId = resolveGhosttySurfaceId(env);
+  const ghosttySurfaceIdNormalized = normalizeGhosttySurfaceId(ghosttySurfaceId);
+  const ghosttyFamily = classifyGhosttyFamily(ghosttyAncestor?.exe);
+  const tty = options.tty ?? safeReadLink("/proc/self/fd/0");
+  const terminalBound = Boolean(
+    ctx.hasUI &&
+      (options.stdinIsTTY ?? Boolean(process.stdin.isTTY)) &&
+      tty?.startsWith("/dev/") &&
+      env.TERM_PROGRAM?.trim().toLowerCase() === "ghostty" &&
+      ghosttySurfaceIdNormalized &&
+      ghosttyFamily,
+  );
+  const terminalKey = terminalBound
+    ? `ghostty:${ghosttyFamily}:${ghosttySurfaceIdNormalized}`
+    : undefined;
+  const terminalTitleSegment = terminalBound
+    ? `gs:${ghosttyFamily}:${ghosttySurfaceIdNormalized}`
+    : undefined;
+  const windowTitle = buildWindowTitle(
+    windowTitleBase,
+    sessionIdentityToken,
+    titleMode,
+    terminalTitleSegment,
+  );
 
   return {
     schemaVersion: SESSION_PRESENCE_SCHEMA_VERSION,
@@ -238,12 +292,16 @@ function buildSessionPresenceState(
     sessionIdentityToken,
     sessionFile,
     sessionName,
-    tty: safeReadLink("/proc/self/fd/0"),
+    tty,
     piBin,
     resumeArgv: sessionFile ? [piBin, "--session", sessionFile] : undefined,
     ghosttyAncestorPid: ghosttyAncestor?.pid,
     ghosttyAncestorExe: ghosttyAncestor?.exe,
     ghosttySurfaceId,
+    ghosttySurfaceIdNormalized,
+    ghosttyFamily,
+    terminalKey,
+    terminalBound,
     windowTitleBase,
     windowTitle,
     publishedAt: (options.now ?? (() => new Date().toISOString()))(),

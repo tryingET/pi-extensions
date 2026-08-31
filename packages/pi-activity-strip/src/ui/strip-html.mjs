@@ -5,6 +5,7 @@
 // ---
 
 import {
+  activityCardKey,
   isActiveSession,
   isMonitoringSession,
   moveOrderItem,
@@ -14,6 +15,7 @@ import {
   disambiguatedRepoLabel,
   findDuplicateLabels,
   isStalledSession,
+  shouldRetainExpandedCard,
 } from "../common/card-display.mjs";
 import {
   ACTIVITY_STRIP_EVENT_STALL_MS,
@@ -23,6 +25,7 @@ import {
 const ORDER_RUNTIME = [
   'const ACTIVE_STATES = new Set(["thinking", "tool", "waiting"]);',
   isActiveSession.toString(),
+  activityCardKey.toString(),
   isMonitoringSession.toString(),
   reconcileActivityOrder.toString(),
   moveOrderItem.toString(),
@@ -30,10 +33,6 @@ const ORDER_RUNTIME = [
   findDuplicateLabels.toString(),
   disambiguatedRepoLabel.toString(),
 ].join("\n");
-
-export function shouldRetainExpandedCard({ hovered, activeElement, documentFocused }) {
-  return Boolean(hovered || (documentFocused && activeElement));
-}
 
 const INTERACTION_RUNTIME = shouldRetainExpandedCard.toString();
 
@@ -231,7 +230,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         onVisibility() { return () => {}; },
         subscribe() { return () => {}; },
       };
-      let snapshot = { generatedAt: Date.now(), focusedSessionId: null, sessions: [] };
+      let snapshot = { generatedAt: Date.now(), focusedSessionId: null, focusedCardId: null, sessions: [] };
       let orderedIds = [];
       let nextOrderRefreshAt = 0;
       let collapseTimer = null;
@@ -252,29 +251,29 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         const anchor = Number(session.lastEventAt || session.updatedAt || snapshot.generatedAt || Date.now());
         return formatDuration(Math.max(0, Math.floor((Date.now() - anchor) / 1000)));
       }
-      function sessionById(sessionId) {
-        return (Array.isArray(snapshot.sessions) ? snapshot.sessions : []).find((session) => session.sessionId === sessionId);
+      function sessionById(cardId) {
+        return (Array.isArray(snapshot.sessions) ? snapshot.sessions : []).find((session) => (session.cardId || session.sessionId) === cardId);
       }
-      function safeDomId(sessionId) {
-        return "session-detail-" + String(sessionId).replace(/[^a-zA-Z0-9_-]/g, "-");
+      function safeDomId(cardId) {
+        return "session-detail-" + String(cardId).replace(/[^a-zA-Z0-9_-]/g, "-");
       }
       function setText(card, selector, value) {
         const target = card.querySelector(selector);
         if (target) target.textContent = String(value ?? "");
       }
-      function cardTemplate(sessionId) {
+      function cardTemplate(cardId) {
         const card = document.createElement("button");
         card.type = "button";
         card.className = "card";
-        card.dataset.sessionId = sessionId;
+        card.dataset.cardId = cardId;
         card.dataset.current = "false";
         card.dataset.open = "false";
         card.setAttribute("aria-expanded", "false");
-        card.setAttribute("aria-describedby", safeDomId(sessionId));
+        card.setAttribute("aria-describedby", safeDomId(cardId));
         card.innerHTML = [
           '<div class="card__header"><div class="card__label"><div class="card__repo"></div><div class="card__phase"></div></div><div class="card__state"></div></div>',
           '<div class="card__footer"><div class="tool"></div><div class="elapsed"></div></div>',
-          '<div class="inspector" id="' + safeDomId(sessionId) + '" role="tooltip">',
+          '<div class="inspector" id="' + safeDomId(cardId) + '" role="tooltip">',
           '<div class="inspector__key">detail</div><div class="inspector__value detail"></div>',
           '<div class="inspector__key">prompt</div><div class="inspector__value prompt"></div>',
           '<div class="inspector__key">reply</div><div class="inspector__value reply"></div>',
@@ -288,7 +287,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         const stalled = isStalledSession(session, Date.now(), EVENT_STALL_MS);
         const stateColor = stalled ? "var(--waiting)" : STATE_COLORS[session.state] || "var(--accent)";
         const stateLabel = stalled ? "stalled" : STATE_LABELS[session.state] || session.state || "idle";
-        const isCurrent = session.sessionId === snapshot.focusedSessionId;
+        const isCurrent = (session.cardId || session.sessionId) === (snapshot.focusedCardId || snapshot.focusedSessionId);
         card.style.setProperty("--state-color", stateColor);
         card.dataset.stalled = stalled ? "true" : "false";
         card.dataset.group = isMonitoringSession(session)
@@ -318,7 +317,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
       }
       function render() {
         const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : [];
-        const byId = new Map(sessions.map((session) => [session.sessionId, session]));
+        const byId = new Map(sessions.map((session) => [session.cardId || session.sessionId, session]));
         const activeCount = sessions.filter(isActiveSession).length;
         meta.textContent = sessions.length
           ? String(activeCount) + " active · " + String(sessions.length - activeCount) + " settled · order " + String(Math.max(0, Math.ceil((nextOrderRefreshAt - Date.now()) / 1000))) + "s"
@@ -332,12 +331,12 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         cards.classList.remove("cards--empty");
         cards.querySelector(".placeholder")?.remove();
         const cardById = new Map(
-          [...cards.querySelectorAll(".card")].map((card) => [card.dataset.sessionId, card]),
+          [...cards.querySelectorAll(".card")].map((card) => [card.dataset.cardId, card]),
         );
-        for (const [sessionId, orphan] of cardById) {
-          if (!byId.has(sessionId)) {
+        for (const [cardId, orphan] of cardById) {
+          if (!byId.has(cardId)) {
             orphan.remove();
-            cardById.delete(sessionId);
+            cardById.delete(cardId);
           }
         }
         if (
@@ -348,13 +347,13 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         }
         let targetIndex = 0;
         const duplicateLabels = findDuplicateLabels(sessions);
-        for (const sessionId of orderedIds) {
-          const session = byId.get(sessionId);
+        for (const cardId of orderedIds) {
+          const session = byId.get(cardId);
           if (!session) continue;
-          let card = cardById.get(sessionId);
+          let card = cardById.get(cardId);
           if (!card) {
-            card = cardTemplate(sessionId);
-            cardById.set(sessionId, card);
+            card = cardTemplate(cardId);
+            cardById.set(cardId, card);
           }
           updateCard(card, session, duplicateLabels);
           const nodeAtTarget = cards.children[targetIndex] ?? null;
@@ -362,7 +361,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
           targetIndex += 1;
         }
       }
-      async function setExpanded(card, expanded) {
+      async function setExpanded(card, expanded, notifyMain = true) {
         if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null; }
         for (const candidate of cards.querySelectorAll(".card")) {
           const isOpen = candidate === card && expanded;
@@ -370,7 +369,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
           candidate.setAttribute("aria-expanded", isOpen ? "true" : "false");
         }
         document.body.dataset.expanded = expanded ? "true" : "false";
-        await api.setExpanded(Boolean(expanded));
+        if (notifyMain) await api.setExpanded(Boolean(expanded));
       }
       function scheduleCollapse() {
         if (collapseTimer) clearTimeout(collapseTimer);
@@ -390,13 +389,13 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         }, 120);
       }
       async function activate(card) {
-        const session = sessionById(card.dataset.sessionId);
+        const session = sessionById(card.dataset.cardId);
         if (!session) return;
         const activation = card.querySelector(".activation");
         if (activation) { activation.dataset.kind = ""; activation.textContent = "Locating exact Ghostty session…"; }
         let result;
         try {
-          result = await api.activate(session.sessionId);
+          result = await api.activate(session.cardId || session.sessionId);
         } catch {
           result = { ok: false, error: "Focus bridge failed; nothing focused." };
         }
@@ -423,7 +422,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         const card = event.target.closest?.(".card");
         if (card && !card.contains(event.relatedTarget)) scheduleCollapse();
       });
-      window.addEventListener("blur", () => setExpanded(null, false).catch(() => {}));
+      window.addEventListener("blur", () => setExpanded(null, false, false).catch(() => {}));
       document.addEventListener("pointerleave", () =>
         setExpanded(null, false).catch(() => {}),
       );
@@ -440,18 +439,18 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         event.preventDefault();
         const direction = event.key === "ArrowLeft" ? -1 : 1;
         if (event.shiftKey) {
-          orderedIds = moveOrderItem(orderedIds, card.dataset.sessionId, direction);
+          orderedIds = moveOrderItem(orderedIds, card.dataset.cardId, direction);
           nextOrderRefreshAt = Date.now() + ORDER_REFRESH_MS;
           render();
-          const moved = [...cards.querySelectorAll(".card")].find((candidate) => candidate.dataset.sessionId === card.dataset.sessionId);
+          const moved = [...cards.querySelectorAll(".card")].find((candidate) => candidate.dataset.cardId === card.dataset.cardId);
           moved?.focus();
           moved?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
           announcer.textContent = "Session card moved " + (direction < 0 ? "left" : "right") + ".";
           return;
         }
-        const index = orderedIds.indexOf(card.dataset.sessionId);
+        const index = orderedIds.indexOf(card.dataset.cardId);
         const targetId = orderedIds[Math.max(0, Math.min(orderedIds.length - 1, index + direction))];
-        const target = [...cards.querySelectorAll(".card")].find((candidate) => candidate.dataset.sessionId === targetId);
+        const target = [...cards.querySelectorAll(".card")].find((candidate) => candidate.dataset.cardId === targetId);
         target?.focus();
         target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
       });
@@ -460,7 +459,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         if (Date.now() >= nextOrderRefreshAt) syncOrder(true);
         render();
       }, 1000);
-      api.onCollapse?.(() => setExpanded(null, false).catch(() => {}));
+      api.onCollapse?.(() => setExpanded(null, false, false).catch(() => {}));
       api.onVisibility?.(async (visible, isCurrent = () => true) => {
         if (!visible) {
           document.documentElement.dataset.stripVisible = "false";
@@ -488,7 +487,7 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         return true;
       });
       api.subscribe((nextSnapshot) => {
-        snapshot = nextSnapshot || { generatedAt: Date.now(), focusedSessionId: null, sessions: [] };
+        snapshot = nextSnapshot || { generatedAt: Date.now(), focusedSessionId: null, focusedCardId: null, sessions: [] };
         syncOrder(orderedIds.length === 0);
         render();
       });

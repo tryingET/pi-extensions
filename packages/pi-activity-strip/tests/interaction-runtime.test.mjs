@@ -12,6 +12,10 @@ const rendererVisibilityRuntime = fs.readFileSync(
   new URL("../src/electron/renderer-visibility-runtime.mjs", import.meta.url),
   "utf8",
 );
+const rendererProjection = fs.readFileSync(
+  new URL("../src/electron/renderer-projection.mjs", import.meta.url),
+  "utf8",
+);
 const workspaceViewRuntime = fs.readFileSync(
   new URL("../src/electron/workspace-view-runtime.mjs", import.meta.url),
   "utf8",
@@ -19,7 +23,7 @@ const workspaceViewRuntime = fs.readFileSync(
 const cli = fs.readFileSync(new URL("../bin/pi-activity-strip.mjs", import.meta.url), "utf8");
 
 test("sandbox bridge allowlists only snapshot, activation, expansion, and visibility interactions", () => {
-  assert.match(preload, /activate\(sessionId\)/);
+  assert.match(preload, /activate\(cardId\)/);
   assert.match(preload, /pi-activity-strip:focus/);
   assert.match(preload, /setExpanded\(expanded\)/);
   assert.match(preload, /pi-activity-strip:set-expanded/);
@@ -42,7 +46,9 @@ test("Electron runtime projects one workspace-local Niri view and keeps it top-a
   assert.match(main, /createNiriWorkspaceEventWatcher/);
   assert.match(main, /onFocusedWorkspace: \(\) => workspaceViewRuntime\.request\(\)/);
   assert.match(main, /onFallback: \(\) => workspaceViewRuntime\.requestPassive\(\)/);
-  assert.match(main, /workspaceSessionIds\.has\(session\.sessionId\)/);
+  assert.match(main, /createRendererProjection/);
+  assert.match(rendererProjection, /projectSessionCards\(/);
+  assert.match(rendererProjection, /workspaceCardIds/);
   assert.match(main, /workspaceViewRuntime\.request\(\)/);
   assert.match(main, /createStripHtml\(\{ interactive, initiallyVisible: !isNiriSession\(\) \}\)/);
   assert.match(main, /createBrowserWindowVisibilityRuntime/);
@@ -78,9 +84,10 @@ test("Electron runtime projects one workspace-local Niri view and keeps it top-a
   assert.match(main, /Always reconcile the native surface/);
   assert.match(main, /createdWindow\.on\("blur"/);
   assert.match(main, /pi-activity-strip:collapse/);
-  assert.match(main, /resolveSnapshotSession\(latestSnapshot\.sessions, sessionId\)/);
-  assert.match(main, /if \(result\.ok\)/);
-  assert.match(main, /focusedSessionId = session\.sessionId/);
+  assert.match(main, /rendererProjection\.resolveTarget\(targetId\)/);
+  assert.match(main, /if \(result\.ok\) rendererProjection\.setFocused\(session\)/);
+  assert.match(rendererProjection, /focusedSessionId = String\(session\.sessionId/);
+  assert.match(rendererProjection, /focusedCardId = String\(session\.cardId/);
 
   assert.match(workspaceViewRuntime, /resolveFocusedWorkspaceView/);
   assert.match(workspaceViewRuntime, /view\.sessions\.length === 0/);

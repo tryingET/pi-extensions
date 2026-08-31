@@ -5,12 +5,28 @@
 // ---
 
 import { randomUUID } from "node:crypto";
+import { canonicalGhosttyTerminalKey, normalizeGhosttySurfaceId } from "./terminal-identity.mjs";
 
 /** @typedef {import("./contracts.ts").SessionState} SessionState */
 /** @typedef {import("./contracts.ts").SessionSnapshot} SessionSnapshot */
 
 /** @type {Set<SessionState>} */
 const SESSION_STATES = new Set(["idle", "thinking", "tool", "waiting", "success", "error"]);
+
+const MAX_CLOCK_SKEW_MS = 60_000;
+
+/** @param {unknown} value @param {number} maxLength */
+function boundedString(value, maxLength) {
+  return String(value ?? "").slice(0, maxLength);
+}
+
+/** @param {unknown} value @param {number} fallback @param {number} now */
+function finiteTimestamp(value, fallback, now) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp >= 0 && timestamp <= now + MAX_CLOCK_SKEW_MS
+    ? timestamp
+    : fallback;
+}
 
 /** @param {string} type @param {Record<string, unknown>} [payload] */
 export function makeMessage(type, payload = {}) {
@@ -23,30 +39,46 @@ export function makeMessage(type, payload = {}) {
 
 /** @param {Partial<SessionSnapshot> | Record<string, unknown>} [session] @returns {SessionSnapshot} */
 export function normalizeSessionSnapshot(session = {}) {
+  if (!session || typeof session !== "object") session = {};
   const now = Date.now();
-  const updatedAt = Number(session.updatedAt ?? now) || now;
-  const lastEventAt = Number(session.lastEventAt ?? updatedAt) || updatedAt;
-  const startedAt = Number(session.startedAt ?? updatedAt) || updatedAt;
+  const updatedAt = finiteTimestamp(session.updatedAt, now, now);
+  const lastEventAt = finiteTimestamp(session.lastEventAt, updatedAt, now);
+  const startedAt = finiteTimestamp(session.startedAt, updatedAt, now);
+  const normalizedAgentStartedAt = finiteTimestamp(session.agentStartedAt, 0, now);
   const agentStartedAt =
-    session.agentStartedAt == null ? null : Number(session.agentStartedAt) || null;
+    session.agentStartedAt == null || !normalizedAgentStartedAt ? null : normalizedAgentStartedAt;
   const rawState = typeof session.state === "string" ? session.state : "idle";
   /** @type {SessionState} */
   const state = SESSION_STATES.has(/** @type {SessionState} */ (rawState))
     ? /** @type {SessionState} */ (rawState)
     : "idle";
 
+  const terminalKey = canonicalGhosttyTerminalKey(session);
+  const terminalKind = terminalKey ? "ghostty-surface" : "unbound";
+  const terminalFamily = terminalKey ? String(session.terminalFamily) : "";
+  const terminalSurfaceId = terminalKey ? normalizeGhosttySurfaceId(session.terminalSurfaceId) : "";
+  const rawPublisherSequence = Number(session.publisherSequence ?? 0);
+  const publisherSequence =
+    Number.isSafeInteger(rawPublisherSequence) && rawPublisherSequence >= 0
+      ? rawPublisherSequence
+      : 0;
   return {
-    sessionId: String(session.sessionId ?? ""),
-    publisherId: String(session.publisherId ?? ""),
+    sessionId: boundedString(session.sessionId, 256),
+    publisherId: boundedString(session.publisherId, 256),
+    publisherSequence,
     processId: Number(session.processId ?? 0) || 0,
-    cwd: String(session.cwd ?? ""),
-    repoLabel: String(session.repoLabel ?? "pi session"),
-    sessionName: String(session.sessionName ?? ""),
-    phase: String(session.phase ?? "Idle"),
-    detail: String(session.detail ?? "Ready"),
-    assistantPreview: String(session.assistantPreview ?? ""),
-    toolName: String(session.toolName ?? ""),
-    toolTarget: String(session.toolTarget ?? ""),
+    terminalKind,
+    terminalKey,
+    terminalFamily,
+    terminalSurfaceId,
+    cwd: boundedString(session.cwd, 4096),
+    repoLabel: boundedString(session.repoLabel ?? "pi session", 256),
+    sessionName: boundedString(session.sessionName, 256),
+    phase: boundedString(session.phase ?? "Idle", 512),
+    detail: boundedString(session.detail ?? "Ready", 2048),
+    assistantPreview: boundedString(session.assistantPreview, 2048),
+    toolName: boundedString(session.toolName, 256),
+    toolTarget: boundedString(session.toolTarget, 2048),
     state,
     turnIndex: Number(session.turnIndex ?? 0) || 0,
     updatedAt,
@@ -54,8 +86,8 @@ export function normalizeSessionSnapshot(session = {}) {
     startedAt,
     agentStartedAt,
     agentActive: Boolean(session.agentActive),
-    lastPromptPreview: String(session.lastPromptPreview ?? ""),
-    errorMessage: String(session.errorMessage ?? ""),
+    lastPromptPreview: boundedString(session.lastPromptPreview, 2048),
+    errorMessage: boundedString(session.errorMessage, 2048),
   };
 }
 

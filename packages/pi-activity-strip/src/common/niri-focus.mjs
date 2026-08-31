@@ -6,6 +6,13 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { projectSessionCards, sessionCardId } from "./session-cards.mjs";
+import {
+  appIdForGhosttyFamily,
+  canonicalGhosttyTerminalKey,
+  normalizeGhosttySurfaceId,
+  terminalTitleSegment,
+} from "./terminal-identity.mjs";
 
 const GHOSTTY_APP_IDS = new Set(["com.mitchellh.ghostty", "com.tryinget.ghosttysidequest"]);
 const PI_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,11 +99,15 @@ export function shortSessionId(value, hexLength = SESSION_TITLE_TOKEN_HEX_LENGTH
     .toLowerCase();
 }
 
-/** @param {Array<Record<string, unknown>>} sessions @param {string} sessionId */
-export function resolveSnapshotSession(sessions, sessionId) {
-  const requestedId = String(sessionId ?? "");
-  const matches = sessions.filter((session) => session?.sessionId === requestedId);
-  return matches.length === 1 ? matches[0] : null;
+/** @param {Array<Record<string, unknown>>} sessions @param {string} targetId */
+export function resolveSnapshotSession(sessions, targetId) {
+  const requestedId = String(targetId ?? "");
+  const cardMatches = sessions.filter(
+    (session) => session?.cardId === requestedId || sessionCardId(session) === requestedId,
+  );
+  if (cardMatches.length === 1) return cardMatches[0];
+  const logicalMatches = sessions.filter((session) => session?.sessionId === requestedId);
+  return logicalMatches.length === 1 ? logicalMatches[0] : null;
 }
 
 /**
@@ -105,8 +116,9 @@ export function resolveSnapshotSession(sessions, sessionId) {
  * must also identify a known Ghostty build, and ambiguity always returns no match.
  * @param {Array<Record<string, unknown>>} windows
  * @param {string} sessionId
+ * @param {Record<string, unknown>} [session]
  */
-export function resolveExactGhosttyWindow(windows, sessionId) {
+export function resolveExactGhosttyWindow(windows, sessionId, session = {}) {
   const fullId = String(sessionId ?? "").trim();
   if (!PI_SESSION_ID.test(fullId)) return null;
 
@@ -123,6 +135,22 @@ export function resolveExactGhosttyWindow(windows, sessionId) {
   };
 
   const currentToken = shortSessionId(fullId);
+  if (session.terminalKind === "ghostty-surface" && !canonicalGhosttyTerminalKey(session)) {
+    return null;
+  }
+  const surfaceId = normalizeGhosttySurfaceId(session.terminalSurfaceId);
+  const titleSegment = terminalTitleSegment(session);
+  const expectedAppId = appIdForGhosttyFamily(String(session.terminalFamily ?? ""));
+  if (surfaceId && titleSegment && expectedAppId) {
+    const surfaceSuffix = ` · ${titleSegment} · ${currentToken}`;
+    const surfaceMatches = windows.filter(
+      (window) =>
+        Number.isInteger(window?.id) &&
+        String(window?.app_id ?? "") === expectedAppId &&
+        String(window?.title ?? "").endsWith(surfaceSuffix),
+    );
+    return surfaceMatches.length === 1 ? surfaceMatches[0] : null;
+  }
   const currentMatches = matchesForToken(currentToken);
   if (currentMatches.length > 0) return currentMatches.length === 1 ? currentMatches[0] : null;
 
@@ -153,16 +181,15 @@ export function resolveFocusedSnapshotSessionId(windows, sessions, options = {})
   const matches = sessions.filter((session) => {
     const sessionId = resolvePiSessionIdentity(session, options);
     if (!sessionId) return false;
-    return resolveExactGhosttyWindow(windows, sessionId)?.id === focusedWindow.id;
+    return resolveExactGhosttyWindow(windows, sessionId, session)?.id === focusedWindow.id;
   });
   return matches.length === 1 ? String(matches[0]?.sessionId ?? "") || null : null;
 }
 
 /**
  * Project the global broker snapshot onto one exact Niri workspace. Membership
- * requires an exact, unique Ghostty window; two telemetry records resolving to
- * the same window are both excluded rather than guessed. Activity state does
- * not affect membership.
+ * requires an exact Ghostty window. Multiple publisher streams bound to the same terminal are
+ * aggregated into one stable card; ambiguity between distinct windows still fails closed.
  * @param {Array<Record<string, unknown>>} windows
  * @param {Record<string, unknown>} workspace
  * @param {Array<Record<string, unknown>>} sessions
@@ -170,26 +197,57 @@ export function resolveFocusedSnapshotSessionId(windows, sessions, options = {})
  */
 export function resolveWorkspaceView(windows, workspace, sessions, options = {}) {
   if (!Number.isInteger(workspace?.id)) return null;
-  /** @type {Array<{session: Record<string, unknown>; window: Record<string, unknown>}>} */
+  /** @type {Array<{cardId: string; session: Record<string, unknown>; window: Record<string, unknown>}>} */
   const candidates = [];
   for (const session of sessions) {
     const sessionIdentity = resolvePiSessionIdentity(session, options);
     if (!sessionIdentity) continue;
-    const window = resolveExactGhosttyWindow(windows, sessionIdentity);
+    const window = resolveExactGhosttyWindow(windows, sessionIdentity, session);
     if (!window || window.workspace_id !== workspace.id) continue;
-    candidates.push({ session, window });
+    const cardId = sessionCardId(session);
+    if (!cardId) continue;
+    candidates.push({ cardId, session: { ...session, cardId }, window });
   }
-  const windowCounts = new Map();
+
+  const cardIdsByWindow = new Map();
   for (const candidate of candidates) {
-    windowCounts.set(candidate.window.id, (windowCounts.get(candidate.window.id) ?? 0) + 1);
+    const ids = cardIdsByWindow.get(candidate.window.id) ?? new Set();
+    ids.add(candidate.cardId);
+    cardIdsByWindow.set(candidate.window.id, ids);
   }
-  const projectedSessions = candidates
-    .filter((candidate) => windowCounts.get(candidate.window.id) === 1)
-    .map((candidate) => candidate.session);
+  const allowedCardByWindow = new Map();
+  for (const [windowId, ids] of cardIdsByWindow) {
+    const terminalIds = [...ids].filter((cardId) => cardId.startsWith("terminal:"));
+    if (terminalIds.length === 1) allowedCardByWindow.set(windowId, terminalIds[0]);
+    else if (ids.size === 1) allowedCardByWindow.set(windowId, [...ids][0]);
+  }
+
+  /** @type {Map<string, Array<{session: Record<string, unknown>; window: Record<string, unknown>}>>} */
+  const groups = new Map();
+  for (const candidate of candidates) {
+    if (allowedCardByWindow.get(candidate.window.id) !== candidate.cardId) continue;
+    const group = groups.get(candidate.cardId) ?? [];
+    group.push(candidate);
+    groups.set(candidate.cardId, group);
+  }
+
+  const projectedSessions = [];
+  for (const [cardId, group] of groups) {
+    const windowIds = new Set(group.map((candidate) => candidate.window.id));
+    if (windowIds.size !== 1) continue;
+    const [card] = projectSessionCards(group.map((candidate) => candidate.session));
+    if (!card) continue;
+    const window = group[0]?.window;
+    projectedSessions.push({ ...card, cardId, windowId: window?.id });
+  }
+  const focusedCard = projectedSessions.find((session) =>
+    windows.some((window) => window?.id === session.windowId && window?.is_focused === true),
+  );
   return {
     workspace,
     sessions: projectedSessions,
-    focusedSessionId: resolveFocusedSnapshotSessionId(windows, projectedSessions, options),
+    focusedSessionId: focusedCard ? String(focusedCard.sessionId ?? "") || null : null,
+    focusedCardId: focusedCard ? String(focusedCard.cardId ?? "") || null : null,
   };
 }
 
@@ -304,7 +362,8 @@ export async function focusNiriSession(session, execFileAsync, env = process.env
   if (!Array.isArray(windows)) {
     return { ok: false, error: "Unexpected Niri window data; focus did nothing." };
   }
-  const target = resolveExactGhosttyWindow(windows, sessionId);
+  const record = session && typeof session === "object" ? session : {};
+  const target = resolveExactGhosttyWindow(windows, sessionId, record);
   if (!target) {
     return {
       ok: false,

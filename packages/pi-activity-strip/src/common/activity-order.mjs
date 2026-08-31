@@ -6,6 +6,11 @@
 
 const ACTIVE_STATES = new Set(["thinking", "tool", "waiting"]);
 
+/** @param {{cardId?: string; sessionId?: string}} session */
+export function activityCardKey(session) {
+  return String(session?.cardId ?? session?.sessionId ?? "");
+}
+
 /** @param {{ state?: string; agentActive?: boolean }} session */
 export function isActiveSession(session) {
   return Boolean(session?.agentActive || ACTIVE_STATES.has(String(session?.state ?? "")));
@@ -24,18 +29,19 @@ export function isMonitoringSession(session) {
  * Reconcile at the calm clock: green settled/monitoring cards first, then active cards,
  * then other inactive cards. Preserve previous/manual order inside each group and append
  * new cards deterministically.
- * @param {Array<{ sessionId: string; state?: string; agentActive?: boolean; toolName?: string; toolTarget?: string; updatedAt?: number }>} sessions
+ * @param {Array<{ sessionId: string; cardId?: string; state?: string; agentActive?: boolean; toolName?: string; toolTarget?: string; updatedAt?: number }>} sessions
  * @param {string[]} previousOrder
  * @param {{ regroup?: boolean }} [options]
  */
 export function reconcileActivityOrder(sessions, previousOrder = [], { regroup = true } = {}) {
-  const byId = new Map(sessions.map((session) => [session.sessionId, session]));
+  const byId = new Map(sessions.map((session) => [activityCardKey(session), session]));
   const surviving = previousOrder.filter((id) => byId.has(id));
   const known = new Set(surviving);
   for (const session of sessions) {
-    if (!session.sessionId || known.has(session.sessionId)) continue;
-    surviving.push(session.sessionId);
-    known.add(session.sessionId);
+    const id = activityCardKey(session);
+    if (!id || known.has(id)) continue;
+    surviving.push(id);
+    known.add(id);
   }
   if (!regroup) return surviving;
 
@@ -45,16 +51,16 @@ export function reconcileActivityOrder(sessions, previousOrder = [], { regroup =
     const rightPriority = isMonitoringSession(right) ? 2 : isActiveSession(right) ? 1 : 0;
     const groupDelta = rightPriority - leftPriority;
     if (groupDelta) return groupDelta;
-    const leftPrior = priorIndex.get(left.sessionId);
-    const rightPrior = priorIndex.get(right.sessionId);
+    const leftPrior = priorIndex.get(activityCardKey(left));
+    const rightPrior = priorIndex.get(activityCardKey(right));
     if (leftPrior != null || rightPrior != null) {
       return (leftPrior ?? Number.MAX_SAFE_INTEGER) - (rightPrior ?? Number.MAX_SAFE_INTEGER);
     }
     const updateDelta = Number(right.updatedAt ?? 0) - Number(left.updatedAt ?? 0);
     if (updateDelta) return updateDelta;
-    return left.sessionId.localeCompare(right.sessionId);
+    return activityCardKey(left).localeCompare(activityCardKey(right));
   });
-  return ordered.map((session) => session.sessionId).filter((id) => byId.has(id));
+  return ordered.map(activityCardKey).filter((id) => byId.has(id));
 }
 
 /** @param {string[]} order @param {string} sessionId @param {-1 | 1} delta */

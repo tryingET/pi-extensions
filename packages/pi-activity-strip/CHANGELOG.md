@@ -25,8 +25,10 @@ All notable changes to this project should be documented here.
 
 - Split transport liveness (`updatedAt`) from real activity (`lastEventAt`); heartbeat republishes no longer mask a frozen event stream, and cards with no lifecycle events for 15 minutes render as dimmed `stalled` instead of live activity.
 - Classify provider-level run failures (`turn_end` with `stopReason: "error"`) as `error`/`Needs attention` instead of settling as `done`, and settle aborted runs as `Stopped`.
-- Key broker cards by `(sessionId, publisherId)` so one session resumed into a second process no longer lets an idle process overwrite a working card; duplicate repo labels gain a short process suffix.
-- Retry lost state-transition publishes with a bounded 250ms/750ms backoff instead of silently dropping them.
+- Key broker publisher records by `(sessionId, publisherId)` while projecting one stable card per admitted Ghostty terminal surface; unbound duplicate publishers collapse to one logical-session containment card.
+- Separate publisher, logical-session, terminal-surface, and renderer-card identities so duplicate session IDs cannot trigger perpetual Niri conceal/reveal reconciliation or shadow active work behind an idle publisher.
+- Serialize publisher delivery, add monotonic publisher sequences, expire leases by broker receipt time, bound broker input/cardinality, and retry lost state transitions without allowing late writes to regress or resurrect state.
+- Make publisher-record membership comparison reflexive, fix the latest-only worker finalization race, bound every Niri action, and prevent passive focus probes or main-issued collapse events from feeding redundant reconciliation.
 - Collapse expanded detail when pointer/focus leaves the strip or another desktop window becomes active, and disable compositor/CSS shadows on the transparent overlay.
 - Keep the Wayland surface resize-capable, explicitly floating, and reconcile its native dimensions on every collapse request, so the transparent input mask returns to compact height with the card content.
 - Recover exact Pi identities for already-running tabs only through validated process-bound `pi-session-presence` sidecars; otherwise retain the `/reload` fail-closed path.

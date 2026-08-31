@@ -28,10 +28,11 @@ test("session store sorts active sessions ahead of idle ones", () => {
 test("session store purges stale sessions", () => {
   const store = new SessionStore({ staleAfterMs: 10 });
   const stale = createInitialSnapshot({ cwd: "/tmp/stale", sessionName: "stale" });
-  stale.updatedAt = Date.now() - 500;
-  store.upsert(stale);
+  const now = Date.now();
+  stale.updatedAt = now - 500;
+  store.upsert(stale, now - 500);
 
-  const snapshot = store.snapshot();
+  const snapshot = store.snapshot(now);
   assert.equal(snapshot.sessions.length, 0);
 });
 
@@ -61,6 +62,66 @@ test("two live processes sharing one session id keep separate cards", () => {
   sessions = store.snapshot().sessions;
   assert.equal(sessions.length, 1);
   assert.equal(sessions[0].publisherId, "publisher-new");
+});
+
+test("publisher sequence rejects late state regression", () => {
+  const store = new SessionStore({ staleAfterMs: 60_000 });
+  const base = {
+    sessionId: "session-sequenced",
+    publisherId: "publisher-a",
+    state: "tool",
+    publisherSequence: 2,
+  };
+  assert.equal(store.upsert(base), true);
+  assert.equal(store.upsert({ ...base, state: "idle", publisherSequence: 1 }), false);
+  assert.equal(store.upsert({ ...base, state: "idle", publisherSequence: 0 }), false);
+  assert.equal(store.snapshot().sessions[0].state, "tool");
+});
+
+test("publisher tombstone prevents late resurrection and expires boundedly", () => {
+  const store = new SessionStore({ staleAfterMs: 10 });
+  const base = {
+    sessionId: "session-removed",
+    publisherId: "publisher-a",
+    state: "tool",
+    publisherSequence: 2,
+  };
+  const now = Date.now();
+  assert.equal(store.upsert(base, now), true);
+  assert.equal(store.remove(base.sessionId, base.publisherId, now + 1), true);
+  assert.equal(store.upsert({ ...base, state: "idle", publisherSequence: 1 }, now + 2), false);
+  assert.equal(store.snapshot(now + 2).sessions.length, 0);
+  assert.equal(store.upsert({ ...base, publisherSequence: 3 }, now + 20), true);
+});
+
+test("unknown removes cannot evict a live publisher tombstone", () => {
+  const store = new SessionStore({ staleAfterMs: 60_000, maxSessions: 1 });
+  const session = {
+    sessionId: "session-a",
+    publisherId: "publisher-a",
+    publisherSequence: 2,
+  };
+  assert.equal(store.upsert(session), true);
+  assert.equal(store.remove(session.sessionId, session.publisherId), true);
+  assert.equal(store.remove("unknown", "unknown-publisher"), false);
+  assert.equal(store.upsert({ ...session, publisherSequence: 1 }), false);
+});
+
+test("broker receipt time governs expiry instead of publisher clock", () => {
+  const store = new SessionStore({ staleAfterMs: 10 });
+  const now = Date.now();
+  store.upsert({ sessionId: "future", updatedAt: Number.POSITIVE_INFINITY }, now - 20);
+  assert.equal(store.snapshot(now).sessions.length, 0);
+});
+
+test("session cardinality is bounded", () => {
+  const store = new SessionStore({ staleAfterMs: 60_000, maxSessions: 1 });
+  assert.equal(store.upsert({ sessionId: "one" }), true);
+  assert.equal(store.upsert({ sessionId: "two" }), false);
+  assert.deepEqual(
+    store.snapshot().sessions.map((session) => session.sessionId),
+    ["one"],
+  );
 });
 
 test("legacy publishers without publisherId keep bare session keys", () => {

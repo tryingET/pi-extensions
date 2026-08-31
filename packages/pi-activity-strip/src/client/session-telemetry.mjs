@@ -30,6 +30,7 @@ import {
   extractToolResultText,
   summarizeToolResult,
 } from "../common/telemetry.mjs";
+import { resolveTerminalIdentity as resolveTerminalIdentityDefault } from "../common/terminal-identity.mjs";
 import { publishSessionSnapshot, removeSession } from "./broker-client.mjs";
 
 function now() {
@@ -47,6 +48,9 @@ export function createSessionTelemetry({
   pi,
   cwd = process.cwd(),
   sessionName = "",
+  env = process.env,
+  stdinIsTTY = Boolean(process.stdin.isTTY),
+  resolveTerminalIdentity = resolveTerminalIdentityDefault,
   transport,
 } = {}) {
   const publish = transport?.publish ?? publishSessionSnapshot;
@@ -62,6 +66,9 @@ export function createSessionTelemetry({
   let lastStopReason = "";
   let confirmedSignature = "";
   let retryIndex = 0;
+  /** @type {Promise<void> | null} */
+  let flushPromise = null;
+  let flushAgain = false;
 
   /** Signature of the display-relevant fields, used to detect lost transitions. */
   function publishSignature() {
@@ -75,15 +82,20 @@ export function createSessionTelemetry({
       snapshot.toolName,
       snapshot.toolTarget,
       snapshot.errorMessage,
+      snapshot.terminalKey,
     ].join("\u001f");
   }
 
-  async function flush() {
+  function clearScheduledFlush() {
+    if (!flushTimer) return;
+    clearTimeout(flushTimer);
     flushTimer = null;
-    if (disposed) return;
-    // Heartbeat republish refreshes transport liveness only; lastEventAt stays
-    // pinned to the last real lifecycle event so stalled streams stay visible.
+  }
+
+  async function publishLatest() {
+    // Heartbeats refresh transport liveness only; lastEventAt remains the last real event.
     snapshot.updatedAt = now();
+    snapshot.publisherSequence += 1;
     snapshot.repoLabel = formatRepoLabel(
       snapshot.cwd,
       pi?.getSessionName?.() ?? snapshot.sessionName,
@@ -91,29 +103,48 @@ export function createSessionTelemetry({
     snapshot.sessionName = compactWhitespace(pi?.getSessionName?.() ?? snapshot.sessionName);
     const signature = publishSignature();
     try {
-      await publish(snapshot);
+      await publish({ ...snapshot });
       confirmedSignature = signature;
       retryIndex = 0;
     } catch {
-      // Broker is optional at runtime; silent failure keeps pi stable. Retry a
-      // bounded number of times when a state transition may not have landed so
-      // a transient connect failure cannot freeze the displayed state.
       if (
+        !disposed &&
         signature !== confirmedSignature &&
         retryIndex < ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS.length
       ) {
-        scheduleFlush(ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS[retryIndex]);
+        const delayMs = ACTIVITY_STRIP_FLUSH_RETRY_DELAYS_MS[retryIndex];
         retryIndex += 1;
+        scheduleFlush(delayMs);
       }
     }
   }
 
-  function scheduleFlush(delayMs = ACTIVITY_STRIP_SEND_THROTTLE_MS) {
+  async function flush() {
+    clearScheduledFlush();
     if (disposed) return;
-    if (flushTimer) return;
+    if (flushPromise) {
+      flushAgain = true;
+      return flushPromise;
+    }
+    flushPromise = (async () => {
+      do {
+        flushAgain = false;
+        if (disposed) break;
+        await publishLatest();
+      } while (flushAgain && !disposed);
+    })().finally(() => {
+      flushPromise = null;
+    });
+    return flushPromise;
+  }
+
+  function scheduleFlush(delayMs = ACTIVITY_STRIP_SEND_THROTTLE_MS) {
+    if (disposed || flushTimer) return;
     flushTimer = setTimeout(() => {
+      flushTimer = null;
       flush().catch(() => {});
     }, delayMs);
+    flushTimer.unref?.();
   }
 
   function startHeartbeat() {
@@ -149,8 +180,15 @@ export function createSessionTelemetry({
     async onSessionStart(ctx) {
       const exactSessionId = String(ctx?.sessionManager?.getSessionId?.() ?? "").trim();
       const nextCwd = ctx?.cwd ?? snapshot.cwd;
+      const terminalIdentity = resolveTerminalIdentity({
+        env,
+        hasUI: Boolean(ctx?.hasUI),
+        stdinIsTTY,
+        processId: process.pid,
+      });
       update({
         ...(exactSessionId ? { sessionId: exactSessionId } : {}),
+        ...terminalIdentity,
         cwd: nextCwd,
         sessionName: pi?.getSessionName?.() ?? snapshot.sessionName,
         detail: previewPath(nextCwd, 72) || "Ready",
@@ -276,9 +314,11 @@ export function createSessionTelemetry({
     async shutdown() {
       disposed = true;
       stopHeartbeat();
-      if (flushTimer) {
-        clearTimeout(flushTimer);
-        flushTimer = null;
+      clearScheduledFlush();
+      try {
+        await flushPromise;
+      } catch {
+        // Broker absence remains non-fatal; publisher removal is still attempted below.
       }
       try {
         await removePublisher({

@@ -10,6 +10,7 @@ import {
   resolveFocusedWorkspaceView,
   resolveWorkspaceView,
 } from "../common/niri-focus.mjs";
+import { haveSameRecordMembership } from "../common/session-cards.mjs";
 
 const STRIP_DISCOVERY_ATTEMPTS = 8;
 const STRIP_DISCOVERY_DELAY_MS = 80;
@@ -17,15 +18,16 @@ const STRIP_DISCOVERY_DELAY_MS = 80;
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 function emptyView(workspace = null) {
-  return { workspace, sessions: [], focusedSessionId: null };
+  return { workspace, sessions: [], focusedSessionId: null, focusedCardId: null };
 }
 
 /** @param {Array<Record<string, unknown>>} left @param {Array<Record<string, unknown>>} right */
-export function haveSameSessionIds(left, right) {
-  if (left.length !== right.length) return false;
-  const leftIds = new Set(left.map((session) => session.sessionId));
-  return leftIds.size === left.length && right.every((session) => leftIds.has(session.sessionId));
+export function haveSameSessionRecords(left, right) {
+  return haveSameRecordMembership(left, right);
 }
+
+// Compatibility alias for existing imports. Membership is publisher-record based and reflexive.
+export const haveSameSessionIds = haveSameSessionRecords;
 
 /**
  * Keep the global broker snapshot authoritative while projecting one exact,
@@ -44,7 +46,7 @@ export function haveSameSessionIds(left, right) {
  *   revealWindow: (isCurrent: () => boolean) => Promise<boolean | void> | boolean | void;
  *   cancelReveal: () => void;
  *   collapseWindow: () => Promise<unknown> | unknown;
- *   publishView: (view: {workspace: Record<string, unknown> | null; sessions: Array<Record<string, unknown>>; focusedSessionId: string | null}) => void;
+ *   publishView: (view: {workspace: Record<string, unknown> | null; sessions: Array<Record<string, unknown>>; focusedSessionId: string | null; focusedCardId?: string | null}) => void;
  *   moveWindowToWorkspace: (window: Record<string, unknown>, workspace: Record<string, unknown>) => Promise<boolean>;
  *   alignWindow: (isCurrent: () => boolean) => Promise<{ok: boolean; animated: boolean}>;
  *   settleWindow: (isCurrent: () => boolean) => Promise<boolean>;
@@ -70,6 +72,7 @@ export function createNiriWorkspaceViewRuntime(options) {
   function probeFocusedWorkspace() {
     const expectedWorkspaceId = reconcilingWorkspaceId;
     if (expectedWorkspaceId == null || passiveProbe) return passiveProbe;
+    passiveRequestQueued = false;
     passiveProbe = Promise.resolve()
       .then(() => options.readWorkspaces())
       .then((workspaces) => {

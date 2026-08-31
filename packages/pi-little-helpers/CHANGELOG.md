@@ -22,6 +22,7 @@ All notable changes to this project should be documented here.
 ### Changed
 
 - Replace the truncated Ghostty title suffix with the full hyphenless 32-hex session UUID, while retaining the legacy 8-character sidecar field for compatibility.
+- Publish session-presence schema v2 terminal bindings for admitted interactive Ghostty surfaces and insert `gs:<family>:<surface>` before the final session token, preserving old suffix matching while disambiguating two terminals that resume the same logical session. Headless descendants cannot claim an inherited surface.
 
 - Make controller-targeted Ghostty D-Bus tab activation fire-and-return. Direct new windows now detach from the controller timeout and require a private terminal-shell command-admission handshake; killed or unconfirmed launches remain effect-indeterminate and never trigger an automatic duplicate-peer fallback.
 

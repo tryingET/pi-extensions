@@ -37,34 +37,42 @@ export function createLatestOnlyRunner(run) {
   if (typeof run !== "function") throw new TypeError("run must be a function");
 
   let requestedGeneration = 0;
+  let completedGeneration = 0;
   /** @type {Promise<void> | null} */
   let worker = null;
 
+  function ensureWorker() {
+    if (!worker) worker = drain();
+  }
+
   async function drain() {
-    while (true) {
-      const generation = requestedGeneration;
-      const isCurrent = () => generation === requestedGeneration;
-      try {
-        await run({ generation, isCurrent });
-      } catch {
-        // Alignment is best effort. A newer request must still be allowed to reconcile the window.
+    try {
+      while (completedGeneration < requestedGeneration) {
+        const generation = requestedGeneration;
+        const isCurrent = () => generation === requestedGeneration;
+        try {
+          await run({ generation, isCurrent });
+        } catch {
+          // Alignment is best effort. A newer request must still be allowed to reconcile the window.
+        }
+        completedGeneration = generation;
       }
-      if (isCurrent()) return;
+    } finally {
+      worker = null;
+      // A request can arrive after the loop condition was checked but before this finally block.
+      // Hand it to a successor synchronously so no requested generation is lost.
+      if (completedGeneration < requestedGeneration) ensureWorker();
     }
   }
 
   function request() {
     requestedGeneration += 1;
-    if (!worker) {
-      worker = drain().finally(() => {
-        worker = null;
-      });
-    }
+    ensureWorker();
     return requestedGeneration;
   }
 
   async function waitForIdle() {
-    await worker;
+    while (worker) await worker;
   }
 
   return {

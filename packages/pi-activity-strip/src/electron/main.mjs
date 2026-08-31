@@ -19,17 +19,16 @@ import {
   ACTIVITY_STRIP_WIDTH_PADDING,
   ACTIVITY_STRIP_WORKSPACE_SYNC_MS,
 } from "../common/constants.mjs";
-import {
-  focusNiriSession,
-  readNiriWindows,
-  readNiriWorkspaces,
-  resolveSnapshotSession,
-} from "../common/niri-focus.mjs";
+import { focusNiriSession, readNiriWindows, readNiriWorkspaces } from "../common/niri-focus.mjs";
 import { createStripHtml } from "../ui/strip-html.mjs";
 import { createNiriNativeWindowRuntime } from "./niri-native-window-runtime.mjs";
 import { createNiriWorkspaceEventWatcher } from "./niri-workspace-events.mjs";
+import { createRendererProjection } from "./renderer-projection.mjs";
 import { createBrowserWindowVisibilityRuntime } from "./renderer-visibility-runtime.mjs";
-import { createNiriWorkspaceViewRuntime, haveSameSessionIds } from "./workspace-view-runtime.mjs";
+import {
+  createNiriWorkspaceViewRuntime,
+  haveSameSessionRecords,
+} from "./workspace-view-runtime.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,9 +44,6 @@ let appQuitting = false;
 let rendererVisible = !isNiriSession();
 let focusedWorkspaceViewVisible = !isNiriSession();
 let expanded = false;
-let latestSnapshot = { generatedAt: Date.now(), sessions: [] };
-let focusedSessionId = null;
-let workspaceSessionIds = new Set();
 const runtimeStatus = {
   state: "starting",
   startedAt: Date.now(),
@@ -57,6 +53,7 @@ const runtimeStatus = {
   windowManager: detectWindowManager(process.env),
   displayCount: null,
   alignmentMode: isNiriSession() ? "niri" : "generic",
+  rendererVisibilityTransitionCount: 0,
   warnings: [],
   error: null,
 };
@@ -64,11 +61,20 @@ const alignmentController = createLatestOnlyRunner(({ isCurrent }) =>
   niriNativeWindowRuntime.alignWindowToTop(isCurrent),
 );
 const visibilityRuntime = createBrowserWindowVisibilityRuntime(() => browserWindow, interactive);
+const rendererProjection = createRendererProjection({
+  isNiriSession,
+  getWindow: () => browserWindow,
+  isUsableWindow: isUsableBrowserWindow,
+});
 
 async function applyRendererVisibility(visible, isCurrent = () => true) {
   if (appQuitting) return false;
   const applied = await visibilityRuntime.apply(visible, () => !appQuitting && isCurrent());
-  if (applied) rendererVisible = Boolean(visible);
+  if (applied) {
+    const nextVisible = Boolean(visible);
+    if (rendererVisible !== nextVisible) runtimeStatus.rendererVisibilityTransitionCount += 1;
+    rendererVisible = nextVisible;
+  }
   refreshRuntimeStatus();
   return applied;
 }
@@ -120,23 +126,8 @@ const getNiriWindows = () =>
 const getNiriWorkspaces = () =>
   readNiriWorkspaces(execFileAsync, process.env, ACTIVITY_STRIP_WORKSPACE_SYNC_MS);
 
-function sendRendererSnapshot() {
-  if (appQuitting || !isUsableBrowserWindow(browserWindow)) return;
-  const sessions = isNiriSession()
-    ? latestSnapshot.sessions.filter((session) => workspaceSessionIds.has(session.sessionId))
-    : latestSnapshot.sessions;
-  browserWindow.webContents.send("pi-activity-strip:snapshot", {
-    ...latestSnapshot,
-    sessions,
-    focusedSessionId,
-  });
-}
-
 function publishWorkspaceView(view) {
-  workspaceSessionIds = new Set(view.sessions.map((session) => session.sessionId));
-  focusedSessionId = view.focusedSessionId;
-  focusedWorkspaceViewVisible = Boolean(view.workspace?.is_focused && view.sessions.length > 0);
-  sendRendererSnapshot();
+  focusedWorkspaceViewVisible = rendererProjection.publishWorkspaceView(view);
 }
 
 const niriNativeWindowRuntime = createNiriNativeWindowRuntime({
@@ -153,7 +144,7 @@ const niriNativeWindowRuntime = createNiriNativeWindowRuntime({
 const workspaceViewRuntime = createNiriWorkspaceViewRuntime({
   readWindows: getNiriWindows,
   readWorkspaces: getNiriWorkspaces,
-  getSessions: () => latestSnapshot.sessions,
+  getSessions: rendererProjection.getRawSessions,
   getStripWindow: niriNativeWindowRuntime.resolveProcessWindow,
   isWindowVisible: () =>
     Boolean(browserWindow && !browserWindow.isDestroyed() && browserWindow.isVisible()),
@@ -204,7 +195,7 @@ function requestWindowRecovery() {
     .then((window) => {
       if (!window || appQuitting) return;
       window.showInactive?.();
-      sendRendererSnapshot();
+      rendererProjection.send();
       scheduleTopAlignment();
     })
     .catch(() => {});
@@ -345,7 +336,7 @@ async function createWindow() {
     runtimeStatus.error = null;
     if (!isNiriSession()) {
       createdWindow.showInactive?.();
-      sendRendererSnapshot();
+      rendererProjection.send();
       scheduleTopAlignment();
     }
     refreshRuntimeStatus();
@@ -390,7 +381,7 @@ async function createWindow() {
 
   if (!isNiriSession() && !createdWindow.isVisible()) {
     createdWindow.showInactive?.();
-    sendRendererSnapshot();
+    rendererProjection.send();
     refreshRuntimeStatus();
     scheduleTopAlignment();
   }
@@ -404,8 +395,8 @@ async function main() {
     return;
   }
 
-  const focusSession = async (sessionId) => {
-    const session = resolveSnapshotSession(latestSnapshot.sessions, sessionId);
+  const focusSession = async (targetId) => {
+    const session = rendererProjection.resolveTarget(targetId);
     if (!session) {
       return {
         ok: false,
@@ -413,32 +404,32 @@ async function main() {
       };
     }
     const result = await focusNiriSession(session, execFileAsync, process.env);
-    if (result.ok) {
-      focusedSessionId = session.sessionId;
-      sendRendererSnapshot();
-    }
+    if (result.ok) rendererProjection.setFocused(session);
     return result;
   };
   broker = await createActivityStripBroker({
     focusSession,
-    getRuntimeStatus: () => ({
-      ...runtimeStatus,
-      warnings: [...runtimeStatus.warnings],
-    }),
+    getRuntimeStatus: () => {
+      const cards = rendererProjection.getDisplaySessions();
+      return {
+        ...runtimeStatus,
+        rendererCardCount: cards.length,
+        rendererCardIds: cards.map((card) => String(card.cardId ?? "")),
+        warnings: [...runtimeStatus.warnings],
+      };
+    },
   });
-  ipcMain.handle("pi-activity-strip:focus", (_event, sessionId) => focusSession(String(sessionId)));
+  ipcMain.handle("pi-activity-strip:focus", (_event, targetId) => focusSession(String(targetId)));
   ipcMain.handle("pi-activity-strip:set-expanded", (_event, nextExpanded) =>
     setExpanded(Boolean(nextExpanded)),
   );
   ipcMain.on(visibilityRuntime.appliedChannel, visibilityRuntime.acknowledge);
   broker.on("snapshot", (snapshot) => {
-    const sessionMembershipChanged = !haveSameSessionIds(
-      latestSnapshot.sessions,
+    const sessionMembershipChanged = !haveSameSessionRecords(
+      rendererProjection.getRawSessions(),
       snapshot.sessions,
     );
-    latestSnapshot = snapshot;
-    if (!resolveSnapshotSession(latestSnapshot.sessions, focusedSessionId)) focusedSessionId = null;
-    sendRendererSnapshot();
+    rendererProjection.updateSnapshot(snapshot);
     if (isNiriSession() && sessionMembershipChanged) workspaceViewRuntime.request();
   });
   broker.on("shutdown-requested", async () => {

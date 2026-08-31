@@ -23,6 +23,11 @@ class FakeSocket extends EventEmitter {
 
   setEncoding() {}
 
+  destroy() {
+    this.destroyed = true;
+    this.writable = false;
+  }
+
   write(value, callback) {
     this.writes.push(value);
     callback?.(this.writeError);
@@ -75,19 +80,40 @@ test("broker reports unexpected socket failures without using the fatal error ch
   assert.equal(unexpected[0].code, "EPERM");
 });
 
-test("broker delegates exact session focus and returns the bounded result", async () => {
+test("broker destroys clients whose unterminated message exceeds the byte limit", () => {
+  const broker = new ActivityStripBroker();
+  const socket = new FakeSocket();
+  broker.handleConnection(socket);
+
+  socket.emit("data", "x".repeat(300_000));
+
+  assert.equal(socket.destroyed, true);
+  assert.match(socket.writes[0], /message is too large/);
+});
+
+test("malformed upsert fails closed and leaves the broker responsive", () => {
+  const broker = new ActivityStripBroker();
+  const socket = new FakeSocket();
+  broker.handleConnection(socket);
+
+  assert.doesNotThrow(() =>
+    socket.emit("data", `${JSON.stringify({ type: "upsert", session: null })}\n`),
+  );
+  assert.equal(JSON.parse(socket.writes.at(-1)).ok, false);
+  socket.emit("data", `${JSON.stringify({ type: "ping" })}\n`);
+  assert.equal(JSON.parse(socket.writes.at(-1)).type, "pong");
+});
+
+test("broker delegates exact card focus and returns the bounded result", async () => {
   const broker = new ActivityStripBroker({
-    async focusSession(sessionId) {
-      assert.equal(sessionId, "019fa4d0-7142-7fb4-8d30-f98e951f0513");
+    async focusSession(cardId) {
+      assert.equal(cardId, "terminal:ghostty:main:17");
       return { ok: true, windowId: 44 };
     },
   });
   const socket = new FakeSocket();
   broker.handleConnection(socket);
-  socket.emit(
-    "data",
-    `${JSON.stringify({ type: "focus", sessionId: "019fa4d0-7142-7fb4-8d30-f98e951f0513" })}\n`,
-  );
+  socket.emit("data", `${JSON.stringify({ type: "focus", cardId: "terminal:ghostty:main:17" })}\n`);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(JSON.parse(socket.writes.at(-1)), { type: "focus", ok: true, windowId: 44 });
 });
@@ -120,14 +146,24 @@ test("remove messages scope to one publisher when publisherId is present", async
   try {
     const base = { sessionId: "019fa4d0-7142-7fb4-8d30-f98e951f0513", updatedAt: Date.now() };
     await publishSessionSnapshot(
-      { ...base, publisherId: "pub-a", state: "success" },
+      { ...base, publisherId: "pub-a", publisherSequence: 2, state: "success" },
       clientOptions,
     );
-    await publishSessionSnapshot({ ...base, publisherId: "pub-b", state: "tool" }, clientOptions);
+    await publishSessionSnapshot(
+      { ...base, publisherId: "pub-b", publisherSequence: 1, state: "tool" },
+      clientOptions,
+    );
     await delay(150);
     assert.equal(store.snapshot().sessions.length, 2);
 
     await removeSession({ sessionId: base.sessionId, publisherId: "pub-a" }, clientOptions);
+    await assert.rejects(
+      publishSessionSnapshot(
+        { ...base, publisherId: "pub-a", publisherSequence: 1, state: "idle" },
+        clientOptions,
+      ),
+      /rejected upsert/,
+    );
     await delay(150);
     const sessions = store.snapshot().sessions;
     assert.equal(sessions.length, 1);

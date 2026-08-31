@@ -23,8 +23,8 @@ This package is designed for the exact workflow you asked for:
 ## What it does
 
 - auto-starts a local top-row overlay when Pi starts in a TUI session
-- tracks each active Pi session independently
-- on Niri, shows one card per tracked live Pi terminal on only the focused workspace; non-Niri desktops retain the global live-session view
+- tracks each publisher stream independently while aggregating them beneath one stable terminal card
+- on Niri, shows one card per admitted live Ghostty terminal surface on only the focused workspace; two terminals may safely resume the same logical Pi session
 - surfaces:
   - repo/session label
   - current phase
@@ -42,9 +42,10 @@ This package is designed for the exact workflow you asked for:
 ## Architecture
 
 ```text
-Pi session
-  -> activity-strip extension
-  -> local unix-socket broker
+Pi publisher stream
+  -> admitted terminal binding or unbound logical-session containment
+  -> local unix-socket broker with publisher leases
+  -> stable terminal-card projection
   -> Electron top-row overlay
 ```
 
@@ -56,8 +57,9 @@ It does not require moving your workflow onto `pi-server` first.
 Implemented now:
 - local per-host broker
 - primary-display top-row strip
-- one card per tracked live Pi terminal on the focused Niri workspace, regardless of activity state
-- headless-safe telemetry publishing
+- one card per admitted Ghostty terminal surface on the focused Niri workspace, regardless of activity state
+- aggregation of multiple publisher incarnations beneath one terminal card, with active real-event work preferred over idle heartbeats
+- headless-safe telemetry publishing that cannot claim an inherited Ghostty surface
 - explicit open/focus-strip/focus-session/status/doctor/snapshot/fix-top/stop commands
 - focus-scoped Left/Right navigation and Shift+Left/Right manual card movement
 - local visual capture helpers so the agent can inspect the strip directly
@@ -129,10 +131,10 @@ In Pi with UI support:
 
 - **Workspace locality:** one strip follows the Niri workspace selected with Up/Down and renders only tracked Pi terminals whose exact Ghostty windows are on that workspace. Focused-workspace events trigger reconciliation immediately, with polling retained as a fallback. When an empty workspace is visited, an aligned strip whose resident workspace still has tracked terminals remains rendered on that prior workspace; Niri keeps it off the empty workspace and returning brings the already-positioned strip back with its row. If its resident terminals disappear, the renderer is concealed and input-disabled. When an actual remap or floating correction is unavoidable, reveal waits beyond Niri's compositor movement animation and then re-verifies placement and membership. The broker remains global and non-Niri desktops retain the global card view.
 - **Ordering:** green `done` cards whose footer reads `monitoring` stay at the far left beside the Activity tile. Active tool/thinking/waiting cards follow, then other settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
-- **Current terminal:** on Niri, the card matching the focused Ghostty window gets a stronger border and left rail without an extra label. Matching uses the same exact session-title identity seam as click-to-focus and fails closed when focus or identity is missing or ambiguous.
-- **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the one Ghostty title carrying that exact Pi session-id suffix.
+- **Current terminal:** on Niri, the card matching the focused Ghostty window gets a stronger border and left rail without an extra label. Current titles carry a `gs:<family>:<surface>` segment before the final logical-session token, so two terminals that resumed the same session remain distinct.
+- **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the exact terminal-surface title; legacy session-only titles remain a fail-closed migration fallback.
 - **Keyboard inside the strip:** Left/Right changes card focus, Enter activates the focused card, and Shift+Left/Right manually moves it. Manual movement lasts until a later activity regroup or runtime restart.
-- **Fail-closed focus:** current telemetry uses the exact Pi identity directly. For already-running tabs that still publish a legacy broker id, the strip may recover only the process-bound `pi-session-presence` sidecar when its source, PID, and cwd all agree; this is not repo-name guessing or arbitrary-PID focusing. If identity still matches zero or multiple Ghostty windows, focus does nothing and asks for one `/reload`.
+- **Fail-closed focus:** terminal, publisher, process, and logical-session identities remain separate. A surface binding requires an interactive UI, a real TTY, a recognized Ghostty process family, and a bounded surface ID. Already-running legacy tabs may recover only through a process-bound `pi-session-presence` sidecar whose source, PID, and cwd agree. Ambiguity disables only the unsafe focus action; it does not churn or conceal unrelated cards.
 
 ### Keyboard-only entry on Niri
 
@@ -220,11 +222,11 @@ Use `doctor` before opening the strip when the host/display assumptions are unce
 
 If you want this for all current tabs:
 
-1. install the package once with `pi install`
-2. run `/reload` inside each already-open Pi tab
-3. open the strip once with `/activity-strip` or `npm run strip:open`
-4. from then on, every loaded Pi session should report into the same top-row ribbon
-5. ensure `pi-little-helpers` session presence is loaded when you want exact click-to-Ghostty focus; its `· <full-32-hex-session-id-token>` title suffix is the preferred fail-closed identity seam (an 8-hex legacy title remains usable only when no legacy duplicate or migrated full title shares its prefix)
+1. install both local package paths with `pi install`
+2. stop any already-running old strip broker with `npm run strip:stop`
+3. run `/reload` inside each already-open Pi tab so telemetry and session-presence title contracts advance together
+4. open the new broker once with `/activity-strip` or `npm run strip:open`
+5. confirm current titles use `· gs:<family>:<surface> · <full-32-hex-session-id-token>`; the final session suffix preserves old-consumer compatibility, while the surface segment disambiguates duplicate resumes
 
 ## References
 

@@ -67,18 +67,25 @@ export function createSessionId() {
   return `${os.hostname()}-${process.pid}-${Date.now()}-${randomUUID().slice(0, 6)}`;
 }
 
-/** @param {{ cwd?: string; sessionName?: string; sessionId?: string; publisherId?: string }} [options] @returns {SessionSnapshot} */
+/** @param {{ cwd?: string; sessionName?: string; sessionId?: string; publisherId?: string; terminalIdentity?: {terminalKind?: string; terminalKey?: string; terminalFamily?: string; terminalSurfaceId?: string} }} [options] @returns {SessionSnapshot} */
 export function createInitialSnapshot({
   cwd = process.cwd(),
   sessionName = "",
   sessionId = "",
   publisherId = "",
+  terminalIdentity = {},
 } = {}) {
   const now = Date.now();
   return {
     sessionId: sessionId.trim() || createSessionId(),
     publisherId: publisherId.trim() || randomUUID(),
+    publisherSequence: 0,
     processId: process.pid,
+    terminalKind:
+      terminalIdentity.terminalKind === "ghostty-surface" ? "ghostty-surface" : "unbound",
+    terminalKey: String(terminalIdentity.terminalKey ?? ""),
+    terminalFamily: String(terminalIdentity.terminalFamily ?? ""),
+    terminalSurfaceId: String(terminalIdentity.terminalSurfaceId ?? ""),
     cwd,
     repoLabel: formatRepoLabel(cwd, sessionName),
     sessionName: compactWhitespace(sessionName),

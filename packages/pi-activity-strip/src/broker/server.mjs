@@ -10,6 +10,8 @@ import net from "node:net";
 /** @typedef {import("../common/contracts.ts").ActivityStripBrokerOptions} ActivityStripBrokerOptions */
 import {
   ACTIVITY_STRIP_BROADCAST_TICK_MS,
+  ACTIVITY_STRIP_CLIENT_IDLE_TIMEOUT_MS,
+  ACTIVITY_STRIP_MAX_MESSAGE_BYTES,
   ACTIVITY_STRIP_SOCKET_DIR,
   ACTIVITY_STRIP_SOCKET_PATH,
 } from "../common/constants.mjs";
@@ -98,12 +100,18 @@ export class ActivityStripBroker extends EventEmitter {
   handleConnection(socket) {
     let buffer = "";
     socket.setEncoding("utf8");
+    socket.setTimeout?.(ACTIVITY_STRIP_CLIENT_IDLE_TIMEOUT_MS, () => socket.destroy());
     socket.on("error", (error) => {
       if (!isExpectedClientDisconnect(error)) this.emit("client-error", error);
     });
 
     socket.on("data", (chunk) => {
       buffer += chunk;
+      if (Buffer.byteLength(buffer, "utf8") > ACTIVITY_STRIP_MAX_MESSAGE_BYTES) {
+        this.reply(socket, { ok: false, error: "Activity strip broker message is too large." });
+        socket.destroy();
+        return;
+      }
       let newlineIndex = buffer.indexOf("\n");
       while (newlineIndex >= 0) {
         const line = buffer.slice(0, newlineIndex);
@@ -139,7 +147,7 @@ export class ActivityStripBroker extends EventEmitter {
         });
         return;
       case "focus":
-        Promise.resolve(this.focusSession(String(message.sessionId ?? "")))
+        Promise.resolve(this.focusSession(String(message.cardId ?? message.sessionId ?? "")))
           .then((result) => this.reply(socket, { type: "focus", ...result }))
           .catch(() =>
             this.reply(socket, { ok: false, type: "focus", error: "Focus failed closed." }),
@@ -151,14 +159,29 @@ export class ActivityStripBroker extends EventEmitter {
           this.emit("shutdown-requested");
         }, 20);
         return;
-      case "remove":
-        this.store.remove(String(message.sessionId ?? ""), String(message.publisherId ?? ""));
-        this.emitSnapshot();
+      case "remove": {
+        const accepted = this.store.remove(
+          String(message.sessionId ?? ""),
+          String(message.publisherId ?? ""),
+        );
+        if (accepted) this.emitSnapshot();
+        this.reply(socket, {
+          ok: accepted,
+          type: "remove",
+          ...(accepted ? {} : { error: "Activity strip broker rejected remove." }),
+        });
         return;
-      case "upsert":
-        this.store.upsert(message.session);
-        this.emitSnapshot();
+      }
+      case "upsert": {
+        const accepted = this.store.upsert(message.session);
+        if (accepted) this.emitSnapshot();
+        this.reply(socket, {
+          ok: accepted,
+          type: "upsert",
+          ...(accepted ? {} : { error: "Activity strip broker rejected upsert." }),
+        });
         return;
+      }
       default:
         this.reply(socket, { ok: false, error: `Unsupported message type: ${message.type}` });
     }

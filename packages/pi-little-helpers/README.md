@@ -146,10 +146,11 @@ This package now includes a deliberately **Steve-specific** helper for exact Pi 
 
 The `session-presence` extension does two things:
 
-1. writes a live sidecar JSON for the current Pi process under `$XDG_RUNTIME_DIR/pi-session-presence/` (fallback `~/.local/state/pi-session-presence/`)
-2. sets and briefly re-applies the terminal title with the full hyphenless 32-hex Pi session UUID, for example `π - agent-kernel · 77bc82bb21b84651a0588b6e4d50636c`
+1. writes a schema-v2 live sidecar JSON for the current Pi process under `$XDG_RUNTIME_DIR/pi-session-presence/` (fallback `~/.local/state/pi-session-presence/`)
+2. admits a terminal binding only for an interactive TUI on a real TTY with a recognized Ghostty ancestor and bounded `GHOSTTY_SURFACE_ID`
+3. sets and briefly re-applies a terminal title such as `π - agent-kernel · gs:main:4660 · 77bc82bb21b84651a0588b6e4d50636c`
 
-Using the full identity avoids truncated UUIDv7 timestamp-prefix collisions. The title base can also be overridden for special flows such as `/sidequest`, so a forked tab/window can read like `Sidequest: trace this failure · 6e7c38f08b3340edaa6f4852c5aa64c4` instead of only using the cwd label.
+The `gs:<family>:<surface>` segment distinguishes two terminal surfaces that resume the same logical Pi session. The full session token remains last so older suffix-based consumers keep working, while inherited Ghostty environment variables cannot make a headless descendant claim the operator's terminal. The title base can still be overridden for special flows such as `/sidequest`.
 
 This lets the workstation hourly observer join:
 

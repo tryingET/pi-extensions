@@ -158,3 +158,26 @@ The bounded repair collapses on renderer and BrowserWindow blur, ignores stale D
 A subsequent live run exposed a second compositor boundary: the renderer could close the card while the non-resizable Wayland surface remained at 252px, leaving a transparent input mask over the desktop. The follow-up keeps the native surface resize-capable, explicitly moves it to Niri's floating layout, and reapplies its target size on every expansion/collapse request rather than treating matching logical state as proof of matching compositor geometry. Live acceptance requires observing the Niri `window_size` return from `1904×252` to `1904×84` after pointer leave.
 
 A later focus failure exposed an identity collision rather than a focus-command failure: `rocs-cli` and `ontology-kernel` both had the legacy UUIDv7 prefix `019f4f3f`. Current session-presence titles therefore use the full 32 hexadecimal UUID characters with hyphens removed. Activity Strip prefers that identity and accepts an 8-hex migration fallback only when neither another legacy title nor a migrated full title shares its prefix. Install/restart Activity Strip first, then reload affected Pi tabs before claiming collision repair live.
+
+## AK #5217 duplicate-session flicker repair on 2026-08-31
+
+The repair separates logical-session, publisher, terminal-surface, renderer-card, and Niri-window identities. Publisher records remain independent in the broker, but the renderer receives one card per admitted Ghostty surface. Session-presence schema v2 inserts `gs:<family>:<surface>` before the final full session token; old suffix consumers remain compatible, while headless descendants cannot claim inherited Ghostty surface variables.
+
+Deterministic evidence:
+
+- `npm run check` passed in `pi-activity-strip` with `119/119` tests, file budgets, type checking, formatting, and quick release packaging.
+- `npm run check` passed in `pi-little-helpers` with `326/326` tests and quick release packaging.
+- `npm run reality:check` passed the live schema-v2 title binding and two controller-family assertions; one unrelated SSH/custom-Ghostty assertion skipped because its optional custom binary was absent.
+- Regression coverage includes reflexive duplicate membership, publisher aggregation, two surfaces sharing one session, exact surface misses, mixed bound/unbound migration, stale same-surface publisher exclusion, acknowledged upsert/remove ordering, bounded anti-resurrection tombstones, malformed broker input, coherent terminal fields, latest-runner finalization, and passive reconciliation.
+
+Live Niri/Electron evidence after installing both local package paths and restarting the broker:
+
+- Thirty acknowledged updates from a second publisher on the same terminal produced `30/30` visible samples, one renderer card, and two raw publisher records.
+- The renderer visibility-transition counter remained exactly `5 → 5` during that duplicate update storm: no conceal/reveal transition occurred.
+- The strip remained floating and aligned at `[8,0]` with `window_size 1904×84`.
+- A deliberately stale different logical session on the same terminal key remained present in raw broker data but could not replace the admitted renderer publisher; exact card focus still selected the current window.
+- Two interactive Ghostty surfaces resumed the same logical Pi session and produced two distinct renderer card IDs. Broker activation focused their exact Niri windows independently (`54` and `62` in the final run).
+- Closing the temporary duplicate surface removed only its publisher/card after expiry; the original card remained visible and exact focus continued to succeed.
+- A post-remove late upsert from the closed publisher was rejected by the acknowledged broker protocol and bounded tombstone.
+
+This is live acceptance for the duplicate-session flicker and exact multi-surface identity boundary. It is not a claim of multi-monitor support or exact activation of an inactive tab hidden inside one top-level Ghostty window; those remain outside the current contract.

@@ -76,6 +76,56 @@ test("session focus resolves only one exact Ghostty title suffix", () => {
   assert.equal(resolveExactGhosttyWindow([exact], sessionId.slice(0, 8)), null);
 });
 
+test("terminal surface title segment disambiguates two windows sharing one logical session", () => {
+  const token = sessionId.replaceAll("-", "");
+  const windows = [
+    ghostty(44, `π - dspx · gs:legacy:17 · ${token}`),
+    ghostty(45, `π - dspx · gs:legacy:18 · ${token}`),
+  ];
+  const terminal = {
+    sessionId,
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:legacy:17",
+    terminalFamily: "legacy",
+    terminalSurfaceId: "17",
+  };
+  assert.equal(resolveExactGhosttyWindow(windows, sessionId, terminal)?.id, 44);
+  assert.equal(
+    resolveExactGhosttyWindow(windows, sessionId, {
+      ...terminal,
+      terminalKey: "ghostty:legacy:18",
+    }),
+    null,
+    "incoherent terminal fields must fail closed",
+  );
+  assert.equal(
+    resolveExactGhosttyWindow([windows[1]], sessionId, terminal),
+    null,
+    "a bound surface must never fall back to another surface with the same logical session",
+  );
+  assert.equal(resolveExactGhosttyWindow(windows, sessionId), null);
+});
+
+test("Niri projection prefers one bound terminal card over an unbound mixed-version publisher", () => {
+  const token = sessionId.replaceAll("-", "");
+  const window = ghostty(44, `π - dspx · gs:legacy:17 · ${token}`);
+  const bound = {
+    sessionId,
+    publisherId: "bound",
+    terminalKind: "ghostty-surface",
+    terminalKey: "ghostty:legacy:17",
+    terminalFamily: "legacy",
+    terminalSurfaceId: "17",
+  };
+  const view = resolveFocusedWorkspaceView(
+    [window],
+    [{ id: 76, idx: 2, name: null, is_focused: true }],
+    [bound, { sessionId, publisherId: "unbound" }],
+  );
+  assert.equal(view?.sessions.length, 1);
+  assert.equal(view?.sessions[0]?.cardId, "terminal:ghostty:legacy:17");
+});
+
 test("session focus rejects colliding legacy prefixes and resolves full identity titles", () => {
   const rocsSessionId = "019f4f3f-5d94-751e-a458-ddbc430dc568";
   const ontologySessionId = "019f4f3f-acde-751e-a458-ddbc430dc568";
@@ -282,7 +332,12 @@ test("focused workspace view includes every exact tracked terminal on only that 
     sessions,
   );
   assert.equal(view?.workspace.id, 76);
-  assert.deepEqual(view?.sessions, [sessions[0]], "activity state must not filter membership");
+  assert.deepEqual(
+    view?.sessions.map((session) => session.sessionId),
+    [sessions[0].sessionId],
+    "activity state must not filter membership",
+  );
+  assert.equal(view?.sessions[0]?.cardId, `session:${sessionId}`);
   assert.equal(view?.focusedSessionId, null, "browser focus must not hide other local terminals");
 
   const terminalFocused = resolveFocusedWorkspaceView(
@@ -307,12 +362,12 @@ test("focused workspace view includes every exact tracked terminal on only that 
     ),
     null,
   );
-  assert.deepEqual(
-    resolveFocusedWorkspaceView([localWindow], workspaces, [sessions[0], { ...sessions[0] }])
-      ?.sessions,
-    [],
-    "duplicate telemetry mapping to one window must fail closed",
-  );
+  const duplicateView = resolveFocusedWorkspaceView([localWindow], workspaces, [
+    { ...sessions[0], publisherId: "publisher-a" },
+    { ...sessions[0], publisherId: "publisher-b" },
+  ]);
+  assert.equal(duplicateView?.sessions.length, 1);
+  assert.equal(duplicateView?.sessions[0]?.publisherCount, 2);
   assert.deepEqual(
     resolveFocusedWorkspaceView([{ ...localWindow, workspace_id: "76" }], workspaces, sessions)
       ?.sessions,
@@ -337,7 +392,14 @@ test("workspace membership includes every activity state", () => {
     [{ id: 76, idx: 2, name: null, is_focused: true }],
     sessions,
   );
-  assert.deepEqual(view?.sessions, sessions);
+  assert.deepEqual(
+    view?.sessions.map(({ sessionId: id, state, agentActive }) => ({
+      sessionId: id,
+      state,
+      agentActive,
+    })),
+    sessions,
+  );
 });
 
 test("focused-workspace resolution is exact and supports empty focused workspaces", () => {

@@ -9,7 +9,16 @@ export type SessionState = "idle" | "thinking" | "tool" | "waiting" | "success" 
 export interface SessionSnapshot {
   sessionId: string;
   publisherId: string;
+  publisherSequence: number;
   processId: number;
+  terminalKind: "ghostty-surface" | "unbound";
+  terminalKey: string;
+  terminalFamily: string;
+  terminalSurfaceId: string;
+  cardId?: string;
+  publisherCount?: number;
+  publisherIds?: string[];
+  publisherRecordKeys?: string[];
   cwd: string;
   repoLabel: string;
   sessionName: string;
@@ -45,6 +54,9 @@ export interface ActivityStripRuntimeStatus {
   windowManager?: string | null;
   displayCount?: number | null;
   alignmentMode?: "niri" | "generic";
+  rendererCardCount?: number;
+  rendererCardIds?: string[];
+  rendererVisibilityTransitionCount?: number;
   warnings?: string[];
   error?: string | null;
 }
@@ -65,6 +77,7 @@ export interface BrokerClientOptions {
 
 export interface SessionStoreOptions {
   staleAfterMs?: number;
+  maxSessions?: number;
 }
 
 export interface ActivityStripBrokerOptions {
@@ -76,7 +89,7 @@ export interface ActivityStripBrokerOptions {
     remove(sessionId: string, publisherId?: string): boolean;
   };
   getRuntimeStatus?: () => ActivityStripRuntimeStatus | undefined;
-  focusSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; windowId?: number }>;
+  focusSession?: (targetId: string) => Promise<{ ok: boolean; error?: string; windowId?: number }>;
 }
 
 export interface ToolCallDescription {
@@ -143,6 +156,21 @@ export interface SessionTelemetryOptions {
   pi?: TelemetryPiLike;
   cwd?: string;
   sessionName?: string;
+  env?: NodeJS.ProcessEnv;
+  stdinIsTTY?: boolean;
+  resolveTerminalIdentity?: (options: {
+    env?: NodeJS.ProcessEnv;
+    hasUI?: boolean;
+    stdinIsTTY?: boolean;
+    ttyPath?: string;
+    processId?: number;
+    ancestorExecutable?: string;
+  }) => {
+    terminalKind: "ghostty-surface" | "unbound";
+    terminalKey: string;
+    terminalFamily: string;
+    terminalSurfaceId: string;
+  };
   transport?: {
     publish: (session: SessionSnapshot) => Promise<unknown>;
     remove: (session: { sessionId: string; publisherId: string }) => Promise<unknown>;
