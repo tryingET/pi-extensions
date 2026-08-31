@@ -28,6 +28,14 @@ Observed source validation:
 - independent reviewer final verdict: PASS for the Pi bridge blocker/high matrix.
 - `git diff --check` passed for the scoped package files.
 
+## Controlled live canary
+
+After explicit operator authorization, fresh Ghostty Pi sessions loaded the committed source and published mode-`0600` descriptors. A non-sensitive two-line scratch buffer was committed through the real focused Niri/Ghostty/session-presence bridge and workstation client using a deterministic in-memory model seam because the canonical live model port was down.
+
+The live bridge reported matching input/output hashes, `status=committed`, and `effect=applied`; the full multiline buffer and both line anchors survived, and the clipboard digest did not change. Exact presence included the known Ghostty process family, normalized surface, terminal key, full bound title, and one focused window. Focus on Activity Strip/Brave failed before snapshot.
+
+An automated `wtype` attempt to deliver `Ctrl+-` did not restore the preimage. Synthetic key delivery itself was not proven, so this is an unresolved live-proof gap rather than evidence that native undo is broken. The source-level inherited `setText` undo contract and tests still pass.
+
 ## Proof boundary
 
-No Pi package install/reload, live TUI editor mutation, model call, clipboard operation, or workstation runtime mutation was performed in this source-validation slice. Live same-session multi-publisher focus, physical OpenDeck invocation, and `Ctrl+-` restoration remain rollout proof, not completed behavior.
+No explicit Pi install/reload was needed for fresh local-path sessions, and no production model/service or physical OpenDeck mutation was performed. The real live bridge commit is proven with a deterministic model seam. Same-session multi-publisher focus, successful production-model execution, physical OpenDeck invocation, and `Ctrl+-` restoration remain rollout proof, not completed behavior.
