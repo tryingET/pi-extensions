@@ -181,3 +181,17 @@ Live Niri/Electron evidence after installing both local package paths and restar
 - A post-remove late upsert from the closed publisher was rejected by the acknowledged broker protocol and bounded tombstone.
 
 This is live acceptance for the duplicate-session flicker and exact multi-surface identity boundary. It is not a claim of multi-monitor support or exact activation of an inactive tab hidden inside one top-level Ghostty window; those remain outside the current contract.
+
+## AK #5229 persistent empty-workspace shell on 2026-08-31
+
+The operator observed that the ribbon disappeared after focusing a workspace without a tracked Pi card. The process was healthy; the prior policy deliberately parked the strip on the last workspace with sessions. That contradicted the product's persistent-ribbon intent.
+
+The focused-workspace projection now treats an empty session set as a valid view. It moves, aligns, verifies, publishes the empty placeholder, and reveals the strip shell instead of parking it off-screen. An expanded strip collapses before showing the compact placeholder; ambiguous or failed Niri observations still conceal fail-closed.
+
+Evidence:
+
+- `npm run check` passed with `120/120` tests and quick release packaging.
+- Deterministic coverage proves visible empty projections, hidden-window remap, focused empty-workspace following, membership loss during placement, compositor barriers, and continued fail-closed behavior on ambiguous observations.
+- Live Niri proof focused empty workspace index `7`; the strip moved to workspace id `37`. When focus moved to empty workspace index `1`, the strip followed to workspace id `1`, remained aligned at `[8,0]` with `window_size 1904×84`, and reported `windowVisible=true` with `rendererCardCount=0`.
+
+This closes the disappearance report: the strip shell now remains present while its card row truthfully shows the empty-workspace placeholder.

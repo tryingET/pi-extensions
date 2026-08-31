@@ -37,7 +37,7 @@ This package is designed for the exact workflow you asked for:
 - keeps green `done`/`monitoring` cards directly beside the Activity tile, followed by active work and then other settled sessions, on a calm 15-second ordering clock
 - reveals prompt, response, path, and full activity detail on hover or keyboard focus
 - focuses the exact matching Ghostty/Niri window on click or Enter, failing closed when identity is missing or ambiguous
-- keeps an aligned strip resident on its Niri workspace while that workspace still has tracked terminals, so visiting an empty workspace does not unmap or reposition it
+- keeps the aligned strip shell persistent on the focused Niri workspace; an empty workspace shows the calm placeholder instead of making the ribbon disappear
 
 ## Architecture
 
@@ -129,7 +129,7 @@ In Pi with UI support:
 
 ## Interaction model
 
-- **Workspace locality:** one strip follows the Niri workspace selected with Up/Down and renders only tracked Pi terminals whose exact Ghostty windows are on that workspace. Focused-workspace events trigger reconciliation immediately, with polling retained as a fallback. When an empty workspace is visited, an aligned strip whose resident workspace still has tracked terminals remains rendered on that prior workspace; Niri keeps it off the empty workspace and returning brings the already-positioned strip back with its row. If its resident terminals disappear, the renderer is concealed and input-disabled. When an actual remap or floating correction is unavoidable, reveal waits beyond Niri's compositor movement animation and then re-verifies placement and membership. The broker remains global and non-Niri desktops retain the global card view.
+- **Workspace locality:** one strip follows the Niri workspace selected with Up/Down and renders only tracked Pi terminals whose exact Ghostty windows are on that workspace. Focused-workspace events trigger reconciliation immediately, with polling retained as a fallback. The strip shell remains visible when the focused workspace has no tracked Pi terminals and renders its empty placeholder there. Actual remaps remain concealed and input-disabled until Niri placement and membership are re-verified beyond the compositor animation. The broker remains global and non-Niri desktops retain the global card view.
 - **Ordering:** green `done` cards whose footer reads `monitoring` stay at the far left beside the Activity tile. Active tool/thinking/waiting cards follow, then other settled cards. The group order refreshes every 15 seconds rather than on every telemetry packet; text and timers still update live.
 - **Current terminal:** on Niri, the card matching the focused Ghostty window gets a stronger border and left rail without an extra label. Current titles carry a `gs:<family>:<surface>` segment before the final logical-session token, so two terminals that resumed the same session remain distinct.
 - **Pointer:** hover expands the strip and reveals detail, last prompt, assistant preview, and path. Leaving the strip or activating another window collapses it immediately. Single click asks Niri to focus the exact terminal-surface title; legacy session-only titles remain a fail-closed migration fallback.
@@ -146,7 +146,7 @@ binds {
 }
 ```
 
-`focus-strip` gives keyboard focus only to the unique strip already resident on the currently focused workspace; it never moves a strip between workspaces. When the focused workspace has no tracked live Pi terminals, the command fails closed rather than forcing an empty bar into view. This keeps shortcut ownership explicit in Niri and avoids application-level global-key collisions.
+`focus-strip` gives keyboard focus only to the unique strip already resident on the currently focused workspace; it never moves a strip between workspaces. The persistent empty placeholder remains visible, but keyboard entry still fails closed when there is no tracked card to activate. This keeps shortcut ownership explicit in Niri and avoids application-level global-key collisions.
 
 ## Verification commands
 

@@ -75,6 +75,8 @@ test("interactive cards expose hover detail, exact activation, and focus-scoped 
   assert.match(html, /event\.shiftKey/);
   assert.match(html, /moveOrderItem\(orderedIds/);
   assert.match(html, /cards\.querySelector\("\.placeholder"\)\?\.remove\(\)/);
+  assert.match(html, /No Pi sessions on this workspace/);
+  assert.match(html, /No tracked sessions on this workspace/);
   assert.match(html, /const cardById = new Map/);
   assert.match(html, /if \(nodeAtTarget !== card\) cards\.insertBefore\(card, nodeAtTarget\)/);
   assert.doesNotMatch(html, /cards\.append\(card\)/);

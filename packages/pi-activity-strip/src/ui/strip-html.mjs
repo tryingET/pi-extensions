@@ -321,11 +321,11 @@ export function createStripHtml({ interactive = true, initiallyVisible = true } 
         const activeCount = sessions.filter(isActiveSession).length;
         meta.textContent = sessions.length
           ? String(activeCount) + " active · " + String(sessions.length - activeCount) + " settled · order " + String(Math.max(0, Math.ceil((nextOrderRefreshAt - Date.now()) / 1000))) + "s"
-          : "Waiting for sessions…";
+          : "No tracked sessions on this workspace";
         if (sessions.length === 0) {
           if (document.body.dataset.expanded === "true") setExpanded(null, false).catch(() => {});
           cards.classList.add("cards--empty");
-          cards.innerHTML = '<div class="placeholder"><div class="placeholder__eyebrow">ready</div><div class="placeholder__title">No active Pi sessions yet</div><div class="placeholder__copy">Open Pi in Ghostty and the ribbon will populate automatically.</div></div>';
+          cards.innerHTML = '<div class="placeholder"><div class="placeholder__eyebrow">ready</div><div class="placeholder__title">No Pi sessions on this workspace</div><div class="placeholder__copy">The ribbon will populate when a tracked Pi terminal appears here.</div></div>';
           return;
         }
         cards.classList.remove("cards--empty");

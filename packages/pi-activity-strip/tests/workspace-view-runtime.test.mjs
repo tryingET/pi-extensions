@@ -139,29 +139,29 @@ function createHarness({
   };
 }
 
-test("empty focused workspaces conceal and clear without unmapping a resident strip", async () => {
+test("empty focused workspaces keep a compact persistent strip visible", async () => {
   const harness = createHarness({ sessions: [] });
   harness.runtime.request();
   await harness.runtime.waitForIdle();
-  assert.deepEqual(harness.events, ["conceal", "publish:"]);
+  assert.deepEqual(harness.events, ["publish:", "reveal"]);
 
   const terminalClosed = createHarness({ windows: [strip] });
   terminalClosed.runtime.request();
   await terminalClosed.runtime.waitForIdle();
-  assert.deepEqual(terminalClosed.events, ["conceal", "publish:"]);
+  assert.deepEqual(terminalClosed.events, ["publish:", "reveal"]);
 
   const expandedStrip = createHarness({ sessions: [], expanded: true });
   expandedStrip.runtime.request();
   await expandedStrip.runtime.waitForIdle();
-  assert.deepEqual(expandedStrip.events, ["collapse", "conceal", "publish:"]);
+  assert.deepEqual(expandedStrip.events, ["collapse", "publish:", "reveal"]);
 
   const alreadyHidden = createHarness({ sessions: [], visible: false });
   alreadyHidden.runtime.request();
   await alreadyHidden.runtime.waitForIdle();
   assert.deepEqual(
     alreadyHidden.events,
-    ["conceal", "publish:"],
-    "an already-hidden, collapsed strip must not churn native geometry",
+    ["conceal", "publish:", "show", "align-native", "settle", "publish:", "reveal"],
+    "an already-hidden strip must remap and reveal its empty-workspace placeholder",
   );
 });
 
@@ -175,7 +175,7 @@ test("ambiguous focused-workspace truth conceals instead of reviving a resident 
   assert.equal(harness.events.includes("reveal"), false);
 });
 
-test("an inactive resident strip stays rendered when its workspace still has sessions", async () => {
+test("a persistent strip follows the focused empty workspace", async () => {
   const focusedEmptyWorkspace = { id: 3, idx: 1, name: null, is_focused: true };
   const inactiveResidentWorkspace = { ...workspace, is_focused: false };
   const harness = createHarness({
@@ -183,7 +183,15 @@ test("an inactive resident strip stays rendered when its workspace still has ses
   });
   harness.runtime.request();
   await harness.runtime.waitForIdle();
-  assert.deepEqual(harness.events, [`publish:${sessionId}`, "reveal"]);
+  assert.deepEqual(harness.events, [
+    "conceal",
+    "publish:",
+    "move:3",
+    "align-native",
+    "settle",
+    "publish:",
+    "reveal",
+  ]);
 });
 
 test("a hidden strip stays concealed until its local view is remapped", async () => {
@@ -372,10 +380,11 @@ test("successful move commands must still prove focused-workspace placement", as
   assert.equal(focusChanged.events.at(-1), "hide");
 });
 
-test("placement verification re-resolves terminal membership before reveal", async () => {
+test("placement verification re-resolves lost membership into a persistent empty view", async () => {
   const terminalClosed = createHarness({
     windows: [ghostty, { ...strip, workspace_id: 102 }],
     postMoveWindows: [{ ...strip, workspace_id: 76 }],
+    expanded: true,
   });
   terminalClosed.runtime.request();
   await terminalClosed.runtime.waitForIdle();
@@ -387,9 +396,13 @@ test("placement verification re-resolves terminal membership before reveal", asy
     "conceal",
     "publish:",
     "move:76",
+    "align-native",
+    "settle",
     "collapse",
+    "align-native",
+    "settle",
     "publish:",
-    "hide",
+    "reveal",
   ]);
 });
 

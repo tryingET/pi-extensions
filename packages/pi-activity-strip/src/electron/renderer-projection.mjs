@@ -55,7 +55,7 @@ export function createRendererProjection({ isNiriSession, getWindow, isUsableWin
       focusedSessionId = view.focusedSessionId;
       focusedCardId = view.focusedCardId ?? null;
       send();
-      return Boolean(view.workspace?.is_focused && view.sessions.length > 0);
+      return Boolean(view.workspace?.is_focused);
     },
     send,
     setFocused(session) {

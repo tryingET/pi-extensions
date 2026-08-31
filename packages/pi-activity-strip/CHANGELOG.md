@@ -20,6 +20,7 @@ All notable changes to this project should be documented here.
 - Add calm 15-second active-first ordering with live keyed card updates and manual keyboard movement.
 - Add rich hover/focus detail, accessible card navigation, exact fail-closed Ghostty focus, and a compositor-bindable `focus-strip` command.
 - Follow the focused Niri workspace and keep compact/expanded strip states top-aligned.
+- Keep the strip shell visible on focused empty workspaces with its placeholder instead of parking it off-screen on the last workspace that had tracked sessions.
 
 ### Changes
 

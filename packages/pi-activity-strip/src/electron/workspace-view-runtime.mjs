@@ -5,11 +5,7 @@
 // ---
 
 import { createLatestOnlyRunner } from "../common/alignment-controller.mjs";
-import {
-  resolveFocusedNiriWorkspace,
-  resolveFocusedWorkspaceView,
-  resolveWorkspaceView,
-} from "../common/niri-focus.mjs";
+import { resolveFocusedNiriWorkspace, resolveFocusedWorkspaceView } from "../common/niri-focus.mjs";
 import { haveSameRecordMembership } from "../common/session-cards.mjs";
 
 const STRIP_DISCOVERY_ATTEMPTS = 8;
@@ -198,7 +194,7 @@ export function createNiriWorkspaceViewRuntime(options) {
           options.getSessions(),
           options.identityOptions,
         );
-        return verifiedView?.sessions.length ? verifiedView : null;
+        return verifiedView;
       }
       if (focusedWorkspace && focusedWorkspace.id !== expectedWorkspace.id) return null;
       if (attempt === STRIP_DISCOVERY_ATTEMPTS - 1) break;
@@ -228,32 +224,9 @@ export function createNiriWorkspaceViewRuntime(options) {
     }
     reconcilingWorkspaceId = view.workspace.id;
     if (passiveRequestQueued) void probeFocusedWorkspace();
-    if (view.sessions.length === 0) {
-      // Keep an aligned surface rendered on its prior workspace while that workspace still owns
-      // exact tracked terminals. It then travels only with the workspace itself and never reopens
-      // at Niri's middle-left default position on a return visit.
-      const residentStrip = options.getStripWindow(windows);
-      const residentWorkspaces = residentStrip
-        ? workspaces.filter((workspace) => workspace?.id === residentStrip.workspace_id)
-        : [];
-      const residentView =
-        residentWorkspaces.length === 1 && residentStrip && options.isWindowAligned(residentStrip)
-          ? resolveWorkspaceView(
-              windows,
-              residentWorkspaces[0],
-              options.getSessions(),
-              options.identityOptions,
-            )
-          : null;
-      if (residentView?.sessions.length) {
-        if (!(await waitForPassiveProbe(isCurrent))) return;
-        options.publishView(residentView);
-        if (!isCurrent()) return;
-        await revealView(residentView, isCurrent);
-        return;
-      }
-      await parkView(view, isCurrent);
-      return;
+    if (view.sessions.length === 0 && options.isWindowExpanded()) {
+      await options.collapseWindow();
+      if (!isCurrent()) return;
     }
 
     const wasVisible = options.isWindowVisible();
@@ -328,6 +301,29 @@ export function createNiriWorkspaceViewRuntime(options) {
       view = verifiedView;
     }
     if (!isCurrent() || !(await waitForPassiveProbe(isCurrent))) return;
+
+    // Membership may disappear during move/alignment verification after an initially non-empty,
+    // expanded view. Reconcile compact native geometry before revealing the persistent placeholder.
+    if (view.sessions.length === 0 && options.isWindowExpanded()) {
+      await options.collapseWindow();
+      if (!isCurrent()) return;
+      const alignment = await options.alignWindow(isCurrent);
+      if (!isCurrent()) return;
+      if (!alignment.ok) {
+        await hideView(view, isCurrent, { skipConceal: true });
+        return;
+      }
+      if (alignment.animated && !(await options.settleWindow(isCurrent))) {
+        if (isCurrent()) await hideView(view, isCurrent, { skipConceal: true });
+        return;
+      }
+      const compactView = await verifyPlacement(view.workspace, isCurrent, true);
+      if (!compactView) {
+        if (isCurrent()) await hideView(view, isCurrent, { skipConceal: true });
+        return;
+      }
+      view = compactView;
+    }
 
     options.publishView(view);
     if (!isCurrent()) return;

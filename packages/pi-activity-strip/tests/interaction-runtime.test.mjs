@@ -90,9 +90,12 @@ test("Electron runtime projects one workspace-local Niri view and keeps it top-a
   assert.match(rendererProjection, /focusedCardId = String\(session\.cardId/);
 
   assert.match(workspaceViewRuntime, /resolveFocusedWorkspaceView/);
-  assert.match(workspaceViewRuntime, /view\.sessions\.length === 0/);
-  assert.match(workspaceViewRuntime, /resolveWorkspaceView/);
-  assert.match(workspaceViewRuntime, /residentView\?\.sessions\.length/);
+  assert.doesNotMatch(workspaceViewRuntime, /residentView|resolveWorkspaceView/);
+  assert.match(
+    workspaceViewRuntime,
+    /view\.sessions\.length === 0 && options\.isWindowExpanded\(\)/,
+  );
+  assert.match(workspaceViewRuntime, /return verifiedView;/);
   assert.match(workspaceViewRuntime, /options\.hideWindow\(\)/);
   assert.match(workspaceViewRuntime, /await options\.showWindow\(\)/);
   assert.match(workspaceViewRuntime, /options\.concealWindow\(\)/);

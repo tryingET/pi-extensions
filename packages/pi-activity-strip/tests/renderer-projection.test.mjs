@@ -113,6 +113,26 @@ test("renderer cannot re-admit a rejected stale logical session sharing one term
   assert.equal(card.publisherCount, 1);
 });
 
+test("focused empty workspaces remain visible with an empty renderer projection", () => {
+  const delivered = [];
+  const window = { webContents: { send: (_channel, snapshot) => delivered.push(snapshot) } };
+  const projection = createRendererProjection({
+    isNiriSession: () => true,
+    getWindow: () => window,
+    isUsableWindow: () => true,
+  });
+
+  const visible = projection.publishWorkspaceView({
+    workspace: { id: 1, is_focused: true },
+    sessions: [],
+    focusedSessionId: null,
+    focusedCardId: null,
+  });
+
+  assert.equal(visible, true);
+  assert.deepEqual(delivered.at(-1).sessions, []);
+});
+
 test("focused card clears only when its projected card disappears", () => {
   const window = { webContents: { send() {} } };
   const projection = createRendererProjection({
