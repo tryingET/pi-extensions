@@ -49,6 +49,8 @@ test("valid manifest loads with normalized defaults", async () => {
   assert.equal(manifest.name, "agent-fixture-steward");
   assert.equal(manifest.version, "0.1.0");
   assert.equal(manifest.display_name, "Fixture Steward");
+  assert.equal(manifest.role, "Fixture Steward");
+  assert.equal(manifest.creation_task, "AK-5098");
   assert.equal(manifest.system_prompt_file, "docs/person/system-prompt.md");
   assert.deepEqual(manifest.skills, { profile: "ec-defaults", extra: ["local-helper-skill"] });
   assert.deepEqual(manifest.tools, ["read", "bash", "edit"]);
@@ -61,6 +63,56 @@ test("valid manifest loads with normalized defaults", async () => {
   assert.equal(manifest.root, STEWARD_FIXTURE.replace(/\/$/u, ""));
 });
 
+test("agent.json symlinks fail closed before manifest bytes are read", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-manifest-symlink-file-"));
+  const outside = await mkdtemp(join(tmpdir(), "agent-manifest-symlink-target-"));
+  try {
+    await writeFile(join(outside, "agent.json"), JSON.stringify(baseValid()), "utf8");
+    await symlink(join(outside, "agent.json"), join(root, "agent.json"));
+    await assert.rejects(loadAgentManifest(root), /non-symlink regular file/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("manifest and prompt bytes reject malformed UTF-8, BOM, and unpaired surrogates", async () => {
+  const validBytes = Buffer.from(JSON.stringify(baseValid()), "utf8");
+  await withManifestDir(
+    {
+      "agent.json": Buffer.concat([
+        validBytes.subarray(0, -1),
+        Buffer.from([0xff]),
+        Buffer.from("}"),
+      ]),
+    },
+    async (dir) => {
+      await assert.rejects(loadAgentManifest(dir), /not strict UTF-8/);
+    },
+  );
+  await withManifestDir(
+    { "agent.json": Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), validBytes]) },
+    async (dir) => {
+      await assert.rejects(loadAgentManifest(dir), /not valid JSON/);
+    },
+  );
+  await withManifestDir(
+    {
+      "agent.json": `{"schema":"${AGENT_MANIFEST_SCHEMA}","name":"agent-test-fixture","system_prompt_file":"prompt.md","tools":[],"role":"\\ud800"}`,
+    },
+    async (dir) => {
+      await assert.rejects(loadAgentManifest(dir), /unpaired Unicode surrogate/);
+    },
+  );
+  await withManifestDir(
+    { "agent.json": JSON.stringify(baseValid()), "prompt.md": Buffer.from([0xff]) },
+    async (dir) => {
+      const manifest = await loadAgentManifest(dir);
+      await assert.rejects(readAgentSystemPrompt(manifest), /not strict UTF-8/);
+    },
+  );
+});
+
 test("schema mismatch fails closed", async () => {
   await withManifestDir(
     { "agent.json": JSON.stringify({ ...baseValid(), schema: "other/2" }) },
@@ -70,12 +122,47 @@ test("schema mismatch fails closed", async () => {
   );
 });
 
-test("unknown top-level keys fail closed", async () => {
+test("schema-1 additive top-level fields are ignored by runtime normalization", async () => {
   await withManifestDir(
-    { "agent.json": JSON.stringify({ ...baseValid(), surprise: true }) },
+    { "agent.json": JSON.stringify({ ...baseValid(), additive_future_field: true }) },
     async (dir) => {
-      await assert.rejects(loadAgentManifest(dir), /unknown top-level keys: surprise/);
+      const manifest = await loadAgentManifest(dir);
+      assert.equal("additive_future_field" in manifest, false);
     },
+  );
+});
+
+test("ratified v2 template fields and null profile validate without breaking legacy manifests", () => {
+  const manifest = validateAgentManifest(
+    {
+      ...baseValid(),
+      version: "0.1.0",
+      role: "Quality Reviewer",
+      creation_task: "AK-5105",
+      system_prompt_file: "docs/person/system-prompt.md",
+      skills: { profile: null, extra: [] },
+      extensions: [],
+      defaults: { model: null, thinking: "medium" },
+      scope: { repos: [], forbidden: [], note: "" },
+      activities: ["prompts/activities/*.md"],
+      tools: [],
+    },
+    "/tmp/agent-root",
+    "/tmp/agent-root/agent.json",
+  );
+  assert.equal(manifest.role, "Quality Reviewer");
+  assert.equal(manifest.creation_task, "AK-5105");
+  assert.deepEqual(manifest.skills, { extra: [] });
+  assert.deepEqual(manifest.scope, { repos: [], forbidden: [] });
+
+  assert.throws(
+    () =>
+      validateAgentManifest(
+        { ...baseValid(), role: "bad\u0000role", creation_task: "AK-0" },
+        "/tmp/agent-root",
+        "/tmp/agent-root/agent.json",
+      ),
+    /role must be|creation_task must match/,
   );
 });
 
@@ -175,7 +262,7 @@ test("tools shape failures fail closed", async () => {
   );
 });
 
-test("defaults and scope unknown keys fail closed", async () => {
+test("known nested fields remain strict while schema-1 nested additions are ignored", async () => {
   await withManifestDir(
     {
       "agent.json": JSON.stringify({ ...baseValid(), defaults: { thinking: "ultra" } }),
@@ -187,20 +274,19 @@ test("defaults and scope unknown keys fail closed", async () => {
   );
   await withManifestDir(
     {
-      "agent.json": JSON.stringify({ ...baseValid(), defaults: { temperature: 0 } }),
+      "agent.json": JSON.stringify({
+        ...baseValid(),
+        defaults: { temperature: 0 },
+        scope: { territory: [] },
+        skills: { future_selector: "value" },
+      }),
       "prompt.md": "body",
     },
     async (dir) => {
-      await assert.rejects(loadAgentManifest(dir), /unknown defaults keys: temperature/);
-    },
-  );
-  await withManifestDir(
-    {
-      "agent.json": JSON.stringify({ ...baseValid(), scope: { territory: [] } }),
-      "prompt.md": "body",
-    },
-    async (dir) => {
-      await assert.rejects(loadAgentManifest(dir), /unknown scope keys: territory/);
+      const manifest = await loadAgentManifest(dir);
+      assert.deepEqual(manifest.defaults, { model: null, thinking: "medium" });
+      assert.equal(manifest.scope, undefined);
+      assert.equal(manifest.skills, undefined);
     },
   );
 });

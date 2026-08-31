@@ -4,9 +4,8 @@
 //   - changing manifest discovery depth, registry roots configuration, or the resolution contract.
 // ---
 
-import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   type EcProfileSource,
   knownEcProfiles,
@@ -15,26 +14,17 @@ import {
   planSkillSelection,
 } from "./ec-profiles.ts";
 import {
-  AGENT_MANIFEST_FILENAME,
   type AgentManifest,
   assertAgentExtensionsExist,
   defaultUserSkillsRoot,
   expandAgentActivities,
-  globToRegExp,
   loadAgentManifest,
   readAgentSystemPrompt,
   resolveAgentExtensions,
 } from "./manifest.ts";
+import { discoverAgentManifestPaths } from "./registry-discovery.ts";
 
 export const AGENT_REGISTRY_ROOTS_ENV = "PI_AGENT_REGISTRY_ROOTS";
-const DISCOVERY_SKIP_DIRS: ReadonlySet<string> = new Set([
-  "node_modules",
-  ".git",
-  ".cache",
-  "dist",
-  "build",
-]);
-
 export class AgentRegistryError extends Error {
   constructor(message: string) {
     super(message);
@@ -55,6 +45,8 @@ export interface AgentListing {
   name: string;
   display_name?: string;
   version?: string;
+  role?: string;
+  creation_task?: string;
   tools: string[];
   skills: { profile?: string; extra?: string[] };
   extensions: string[];
@@ -66,6 +58,8 @@ export interface AgentListing {
 export interface ResolvedAgentLaunch {
   name: string;
   /** Composed system prompt: system_prompt_file contents + rendered advisory scope. */
+  role?: string;
+  creation_task?: string;
   systemPrompt: string;
   /** Comma-separated tool allowlist for the ASC custom profile (read-only default: read). */
   tools: string;
@@ -94,6 +88,8 @@ export interface AgentRegistry {
   /** Configured discovery roots (agent-repo patterns or explicit dirs). */
   roots: string[];
   ec: EcProfileSource;
+  /** Configured user-level skills root used for `skills.extra` resolution. */
+  userSkillsRoot: string;
   agents: Map<string, AgentManifest>;
   list(): AgentListing[];
   get(name: string): AgentManifest | undefined;
@@ -145,8 +141,11 @@ export async function createAgentRegistry(options?: AgentRegistryOptions): Promi
   const ec = options?.ec ?? (await loadEcProfiles());
   const userSkillsRoot = options?.userSkillsRoot ?? defaultUserSkillsRoot();
 
-  const envConfigured = Boolean(process.env[AGENT_REGISTRY_ROOTS_ENV]?.trim());
-  const manifestPaths = await discoverAgentManifestPaths(roots, envConfigured);
+  const envConfigured =
+    options?.roots !== undefined || Boolean(process.env[AGENT_REGISTRY_ROOTS_ENV]?.trim());
+  const manifestPaths = await discoverAgentManifestPaths(roots, envConfigured).catch((error) => {
+    throw new AgentRegistryError(error instanceof Error ? error.message : String(error));
+  });
   const agents = new Map<string, AgentManifest>();
   for (const manifestPath of manifestPaths) {
     const manifest = await loadAgentManifest(dirname(manifestPath), {
@@ -164,6 +163,7 @@ export async function createAgentRegistry(options?: AgentRegistryOptions): Promi
   return {
     roots,
     ec,
+    userSkillsRoot,
     agents,
     list() {
       return [...agents.values()]
@@ -173,6 +173,8 @@ export async function createAgentRegistry(options?: AgentRegistryOptions): Promi
             name: manifest.name,
             ...(manifest.display_name ? { display_name: manifest.display_name } : {}),
             ...(manifest.version ? { version: manifest.version } : {}),
+            ...(manifest.role ? { role: manifest.role } : {}),
+            ...(manifest.creation_task ? { creation_task: manifest.creation_task } : {}),
             tools: [...manifest.tools],
             skills: manifest.skills
               ? {
@@ -229,7 +231,9 @@ export async function createAgentRegistry(options?: AgentRegistryOptions): Promi
       return {
         name: manifest.name,
         systemPrompt,
-        tools: manifest.tools.length > 0 ? manifest.tools.join(",") : "read",
+        ...(manifest.role ? { role: manifest.role } : {}),
+        ...(manifest.creation_task ? { creation_task: manifest.creation_task } : {}),
+        tools: manifest.tools.join(","),
         thinking: manifest.defaults.thinking,
         model: manifest.defaults.model,
         extensions: resolveAgentExtensions(manifest),
@@ -273,65 +277,4 @@ export function renderScopeSection(manifest: AgentManifest): string {
     }
   }
   return lines.join("\n");
-}
-
-/**
- * Discover agent.json manifests under the configured roots.
- *
- * Fleet rule: ONE STANDALONE REPO PER AGENT. A root is either
- *   - a glob pattern whose last segment matches agent-repo directory names
- *     (for example `.../core/agent-*`), expanded against its parent dir, or
- *   - an explicit agent-repo directory whose root holds agent.json directly.
- * There is no recursion into children and no nesting: an agent.json is only
- * ever read at an agent-repo root, never inside a product repo.
- */
-async function discoverAgentManifestPaths(
-  roots: string[],
-  envConfigured: boolean,
-): Promise<string[]> {
-  const paths = new Set<string>();
-  for (const root of roots) {
-    const leafGlob = /[*?[]/u.test(root);
-    const scanDir = leafGlob ? dirname(root) : root;
-    const entries = await readdir(scanDir, { withFileTypes: true }).catch(() => undefined);
-    if (entries === undefined) {
-      if (envConfigured) {
-        throw new AgentRegistryError(`configured agent registry root does not exist: ${root}`);
-      }
-      continue;
-    }
-
-    if (!leafGlob) {
-      const manifestPath = join(root, AGENT_MANIFEST_FILENAME);
-      if (
-        await stat(manifestPath)
-          .then((s) => s.isFile())
-          .catch(() => false)
-      ) {
-        paths.add(manifestPath);
-      }
-      continue;
-    }
-
-    const leafPattern = globToRegExp(basename(root));
-    for (const entry of entries) {
-      if (
-        !entry.isDirectory() ||
-        entry.name.startsWith(".") ||
-        DISCOVERY_SKIP_DIRS.has(entry.name) ||
-        !leafPattern.test(entry.name)
-      ) {
-        continue;
-      }
-      const manifestPath = join(scanDir, entry.name, AGENT_MANIFEST_FILENAME);
-      if (
-        await stat(manifestPath)
-          .then((s) => s.isFile())
-          .catch(() => false)
-      ) {
-        paths.add(manifestPath);
-      }
-    }
-  }
-  return [...paths].sort();
 }

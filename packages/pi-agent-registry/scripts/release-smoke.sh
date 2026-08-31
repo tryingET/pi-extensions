@@ -75,19 +75,30 @@ NODE
 )"
 
 SMOKE_DIR="$PI_CODING_AGENT_DIR/agent-registry-release-smoke"
+SMOKE_FLEET_ROOT="$SMOKE_DIR/fleet"
+SMOKE_AGENT_ROOT="$SMOKE_FLEET_ROOT/agent-release-smoke"
+SMOKE_EC_ROOT="$SMOKE_DIR/engineering-core"
+SMOKE_PROFILES="$SMOKE_EC_ROOT/skills/profiles.json"
 rm -rf "$SMOKE_DIR"
-mkdir -p "$SMOKE_DIR/agent-release-smoke/docs/person"
-cat > "$SMOKE_DIR/agent-release-smoke/docs/person/system-prompt.md" <<'MARKDOWN'
+mkdir -p "$SMOKE_AGENT_ROOT/docs/person" "$SMOKE_AGENT_ROOT/diary" "$SMOKE_EC_ROOT/skills"
+cat > "$SMOKE_AGENT_ROOT/docs/person/system-prompt.md" <<'MARKDOWN'
 # Release Smoke Agent
 
 Read-only packed artifact verification persona.
 MARKDOWN
-cat > "$SMOKE_DIR/agent-release-smoke/agent.json" <<'JSON'
+for persona in README.md identity.md reason.md main_task.md dream_goal.md behavior_rules.md; do
+  printf '# %s\n\nrelease smoke persona\n' "$persona" > "$SMOKE_AGENT_ROOT/docs/person/$persona"
+done
+printf '# recent activity\n' > "$SMOKE_AGENT_ROOT/diary/release-smoke.md"
+cat > "$SMOKE_AGENT_ROOT/agent.json" <<'JSON'
 {
   "schema": "ai-society.agent/1",
   "name": "agent-release-smoke",
   "version": "1.0.0",
+  "role": "Release Smoke Reviewer",
+  "creation_task": "AK-5131",
   "system_prompt_file": "docs/person/system-prompt.md",
+  "skills": { "profile": null, "extra": [] },
   "tools": ["read"],
   "extensions": [],
   "defaults": {
@@ -101,7 +112,7 @@ cat > "$SMOKE_DIR/agent-release-smoke/agent.json" <<'JSON'
   "activities": []
 }
 JSON
-cat > "$SMOKE_DIR/profiles.json" <<'JSON'
+cat > "$SMOKE_PROFILES" <<'JSON'
 {
   "schema": "engineering-core.skill-profiles/1",
   "generated": true,
@@ -109,6 +120,13 @@ cat > "$SMOKE_DIR/profiles.json" <<'JSON'
   "deprecated_aliases": {}
 }
 JSON
+for repo in "$SMOKE_AGENT_ROOT" "$SMOKE_EC_ROOT"; do
+  git -C "$repo" init --quiet --initial-branch main
+  git -C "$repo" config user.name "Agent Registry Release Smoke"
+  git -C "$repo" config user.email "agent-registry-release-smoke@example.invalid"
+  git -C "$repo" add -A
+  git -C "$repo" commit --quiet -m "release smoke fixture"
+done
 
 echo "Installed artifact root: $INSTALLED_PACKAGE_ROOT"
 PACKAGE_NAME="$PACKAGE_NAME" \
@@ -116,8 +134,8 @@ PACKAGE_VERSION="$PACKAGE_VERSION" \
 PACKAGE_SPEC="$PACKAGE_SPEC" \
 INSTALLED_PACKAGE_ROOT="$INSTALLED_PACKAGE_ROOT" \
 SMOKE_DIR="$SMOKE_DIR" \
-PI_AGENT_REGISTRY_ROOTS="$SMOKE_DIR/agent-*" \
-PI_AGENT_REGISTRY_EC_PROFILES="$SMOKE_DIR/profiles.json" \
+PI_AGENT_REGISTRY_ROOTS="$SMOKE_FLEET_ROOT/agent-*" \
+PI_AGENT_REGISTRY_EC_PROFILES="$SMOKE_PROFILES" \
 PI_AGENT_REGISTRY_USER_SKILLS="$SMOKE_DIR/user-skills" \
 "$TSX_BIN" --eval '
 const assert = require("node:assert/strict");
@@ -148,6 +166,9 @@ const { pathToFileURL } = require("node:url");
     "src/registry.ts",
     "src/manifest.ts",
     "src/ec-profiles.ts",
+    "src/fleet-lint.ts",
+    "src/fleet-git-snapshot.ts",
+    "scripts/fleet-lint.mjs",
     "src/dispatch.ts",
   ]) {
     assert.ok(fs.existsSync(path.join(packageRoot, requiredPath)), `packed artifact missing ${requiredPath}`);
@@ -187,37 +208,71 @@ const { pathToFileURL } = require("node:url");
   assert.deepEqual(shown.details.scopeRepos, ["/release-smoke/*"]);
   assert.match(shown.content[0].text, /system_prompt_file:/);
 
-  let dispatchRequestRead = false;
-  await assert.rejects(
-    tools.get("dispatch_agent").execute(
-      "release-dispatch-gate",
-      new Proxy({}, { get() { dispatchRequestRead = true; throw new Error("request read"); } }),
-      undefined,
-      undefined,
-      context,
-    ),
-    /standing-agent dispatch is disabled in Fleet Phase 0/,
+  const linted = await registryTool.execute(
+    "release-lint",
+    { action: "lint" },
+    undefined,
+    undefined,
+    context,
   );
-  assert.equal(dispatchRequestRead, false);
-  const gated = await handlers.get("tool_result").at(-1)({
-    toolName: "dispatch_agent",
-    isError: true,
-    content: [{ type: "text", text: "standing-agent dispatch is disabled in Fleet Phase 0" }],
-  });
-  assert.equal(gated.isError, true);
-  assert.equal(gated.details.error, "fleet_phase0_dispatch_disabled");
+  assert.equal(linted.details.schema, "ai-society.agent-fleet-lint/1");
+  assert.equal(linted.details.authorityEffect, "none");
+  assert.equal(linted.details.summary.candidateRepositories, 1);
+  assert.equal(linted.details.summary.manifests, 1);
+  assert.equal(linted.details.summary.errors, 2);
+  assert.match(linted.content[0].text, /fleet lint unhealthy/);
+  assert.match(linted.content[0].text, /Observation only/);
+
+  const dispatchSchema = tools.get("dispatch_agent").parameters;
+  assert.deepEqual(Object.keys(dispatchSchema.properties), ["agent", "task", "objective"],
+    "packed dispatch_agent must expose the exact Phase-2 request shape");
+
+  const gated = await tools.get("dispatch_agent").execute(
+    "release-dispatch-gate",
+    { agent: "agent-release-smoke", task: 5132, objective: "packed read-only observation" },
+    undefined,
+    undefined,
+    context,
+  );
+  assert.equal(gated.isError, true, "packed Phase-2 dispatch must fail closed before any effect");
+  assert.equal(gated.details.ok, false);
+  assert.equal(gated.details.phase, "fleet_phase_2");
+  // Against the currently published ASC (pre execution-exports) the surface is
+  // unavailable; once ASC >= 0.5.3 ships the same call reaches the dispatch-origin
+  // gate instead. Both are documented pre-spawn fail-closed gates.
+  assert.ok(
+    gated.details.reason === "asc_execution_unavailable" ||
+      gated.details.reason === "parent_repo_unobservable",
+    `unexpected packed dispatch reason: ${gated.details.reason}`,
+  );
   assert.equal(gated.details.effectDisposition, "confirmed_no_effects");
   assert.equal(gated.details.spawnAttempted, false);
-  assert.equal(gated.details.capacityReserved, false);
-  assert.equal(gated.details.worktreeCreated, false);
-  assert.equal(gated.details.authorityGranted, false);
-  assert.equal(gated.details.nextTaskId, 5132);
-  console.log("packed agent-registry read-only inspection and Phase-0 gate execution OK");
+  assert.equal(handlers.has("tool_result"), false, "Phase-2 tool owns its result projection");
+  console.log("packed agent-registry read-only inspection and Phase-2 fail-closed dispatch execution OK");
 })().catch((error) => {
   console.error(error);
   process.exit(1);
 });
 '
+
+echo "== packed fleet lint CLI"
+PI_AGENT_REGISTRY_ROOTS="$SMOKE_FLEET_ROOT/agent-*" \
+PI_AGENT_REGISTRY_EC_PROFILES="$SMOKE_PROFILES" \
+"$TSX_BIN" "$INSTALLED_PACKAGE_ROOT/scripts/fleet-lint.mjs" \
+  --allow-unhealthy \
+  --root "$SMOKE_FLEET_ROOT/agent-*" \
+  --ec-profiles "$SMOKE_PROFILES" \
+  > "$SMOKE_DIR/fleet-lint.json"
+node --input-type=module - "$SMOKE_DIR/fleet-lint.json" <<'NODE'
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const report = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+assert.equal(report.schema, "ai-society.agent-fleet-lint/1");
+assert.equal(report.authorityEffect, "none");
+assert.equal(report.summary.candidateRepositories, 1);
+assert.equal(report.summary.errors, 2);
+assert.equal(report.policy.dispatchPosture, "fleet_phase_0_disabled");
+NODE
 
 PI_LOADER_OUTPUT="$SMOKE_DIR/pi-loader.out"
 
@@ -236,8 +291,8 @@ echo "== packed extension discovery through the real Pi package loader"
 set +e
 (
   cd "$SMOKE_DIR"
-  PI_AGENT_REGISTRY_ROOTS="$SMOKE_DIR/agent-*" \
-    PI_AGENT_REGISTRY_EC_PROFILES="$SMOKE_DIR/profiles.json" \
+  PI_AGENT_REGISTRY_ROOTS="$SMOKE_FLEET_ROOT/agent-*" \
+    PI_AGENT_REGISTRY_EC_PROFILES="$SMOKE_PROFILES" \
     PI_AGENT_REGISTRY_USER_SKILLS="$SMOKE_DIR/user-skills" \
     pi --offline --no-session --no-builtin-tools --no-skills --no-prompt-templates \
       --no-context-files --no-themes -p "/agents"
@@ -252,4 +307,4 @@ if [[ "$PI_LOADER_EXIT" -ne 0 ]] ||
   exit 1
 fi
 
-echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC, loaded it through real Pi package discovery, and executed packed agent_registry list/show paths without inherited credentials."
+echo "release smoke done: installed $PACKAGE_NAME@$PACKAGE_VERSION from $PACKAGE_SPEC; proved packed list/show/lint, shipped fleet-lint CLI, real Pi package discovery, and the Phase-2 fail-closed dispatch contract without inherited credentials."

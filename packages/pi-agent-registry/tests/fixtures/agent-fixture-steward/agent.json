@@ -3,6 +3,8 @@
   "name": "agent-fixture-steward",
   "version": "0.1.0",
   "display_name": "Fixture Steward",
+  "role": "Fixture Steward",
+  "creation_task": "AK-5098",
   "system_prompt_file": "docs/person/system-prompt.md",
   "skills": {
     "profile": "ec-defaults",

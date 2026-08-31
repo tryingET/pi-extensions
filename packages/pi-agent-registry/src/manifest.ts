@@ -4,8 +4,8 @@
 //   - changing the manifest schema, validation rules, or path-containment policy.
 // ---
 
-import type { Stats } from "node:fs";
-import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { constants, type Stats } from "node:fs";
+import { lstat, open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
@@ -18,6 +18,7 @@ const MANIFEST_MAX_BYTES = 64 * 1024;
 const SYSTEM_PROMPT_MAX_BYTES = 512 * 1024;
 const AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*$/u;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u;
+export const AGENT_CREATION_TASK_PATTERN = /^AK-[1-9][0-9]*$/u;
 const TOOL_NAME_PATTERN = /^[a-z0-9_]+$/u;
 const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/u;
 const EXTENSION_NAME_PATTERN = /^[A-Za-z0-9@.][A-Za-z0-9@/._-]*$/u;
@@ -38,11 +39,13 @@ const RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set([
   "researcher",
   "minimal",
 ]);
-const TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
+export const AGENT_MANIFEST_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
   "schema",
   "name",
   "version",
   "display_name",
+  "role",
+  "creation_task",
   "system_prompt_file",
   "skills",
   "tools",
@@ -51,6 +54,37 @@ const TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
   "scope",
   "activities",
 ]);
+
+function decodeStrictUtf8(bytes: Buffer, label: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    throw new Error(`${label} is not strict UTF-8`);
+  }
+}
+
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function containsUnpairedSurrogate(value: unknown): boolean {
+  if (typeof value === "string") return hasUnpairedSurrogate(value);
+  if (Array.isArray(value)) return value.some(containsUnpairedSurrogate);
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, entry]) => hasUnpairedSurrogate(key) || containsUnpairedSurrogate(entry),
+  );
+}
 
 export class AgentManifestError extends Error {
   readonly manifestPath: string;
@@ -84,6 +118,10 @@ export interface AgentManifest {
   name: string;
   version?: string;
   display_name?: string;
+  /** Canonical human-readable role-card name; required by v2 fleet lint. */
+  role?: string;
+  /** Exact AK creation-task provenance reference; required by v2 fleet lint. */
+  creation_task?: string;
   system_prompt_file: string;
   skills?: AgentManifestSkills;
   tools: string[];
@@ -113,14 +151,37 @@ export async function loadAgentManifest(
   const manifestPath = resolve(root, AGENT_MANIFEST_FILENAME);
   let rawText: string;
   try {
-    const fileStat = await stat(manifestPath);
-    if (!fileStat.isFile()) {
-      throw new AgentManifestError("agent.json is not a regular file", manifestPath);
+    const initialStat = await lstat(manifestPath);
+    if (!initialStat.isFile() || initialStat.isSymbolicLink()) {
+      throw new AgentManifestError("agent.json is not a non-symlink regular file", manifestPath);
     }
-    if (fileStat.size > MANIFEST_MAX_BYTES) {
+    if (initialStat.size > MANIFEST_MAX_BYTES) {
       throw new AgentManifestError(`agent.json exceeds ${MANIFEST_MAX_BYTES} bytes`, manifestPath);
     }
-    rawText = await readFile(manifestPath, "utf8");
+    const handle = await open(manifestPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const openedStat = await handle.stat();
+      if (
+        !openedStat.isFile() ||
+        openedStat.dev !== initialStat.dev ||
+        openedStat.ino !== initialStat.ino ||
+        openedStat.size !== initialStat.size
+      ) {
+        throw new AgentManifestError("agent.json identity changed while opening", manifestPath);
+      }
+      const rawBytes = await handle.readFile();
+      rawText = decodeStrictUtf8(rawBytes, "agent.json");
+      const finalStat = await handle.stat();
+      if (
+        finalStat.dev !== openedStat.dev ||
+        finalStat.ino !== openedStat.ino ||
+        finalStat.size !== openedStat.size
+      ) {
+        throw new AgentManifestError("agent.json identity changed while reading", manifestPath);
+      }
+    } finally {
+      await handle.close();
+    }
   } catch (error) {
     if (error instanceof AgentManifestError) throw error;
     throw new AgentManifestError(
@@ -156,9 +217,8 @@ export function validateAgentManifest(
   }
   const record = candidate as Record<string, unknown>;
 
-  const unknownKeys = Object.keys(record).filter((key) => !TOP_LEVEL_KEYS.has(key));
-  if (unknownKeys.length > 0) {
-    throw fail(`unknown top-level keys: ${unknownKeys.sort().join(", ")}`);
+  if (containsUnpairedSurrogate(candidate)) {
+    throw fail("agent.json contains an unpaired Unicode surrogate");
   }
 
   if (record.schema !== AGENT_MANIFEST_SCHEMA) {
@@ -190,6 +250,19 @@ export function validateAgentManifest(
     display_name = requireString(record.display_name, "display_name", fail);
   }
 
+  let role: string | undefined;
+  if (record.role !== undefined) {
+    role = requireString(record.role, "role", fail);
+  }
+
+  let creation_task: string | undefined;
+  if (record.creation_task !== undefined) {
+    creation_task = requireString(record.creation_task, "creation_task", fail);
+    if (!AGENT_CREATION_TASK_PATTERN.test(creation_task)) {
+      throw fail("creation_task must match AK-<positive integer>");
+    }
+  }
+
   const system_prompt_file = requireString(record.system_prompt_file, "system_prompt_file", fail);
   if (isAbsolute(system_prompt_file) || hasParentSegment(system_prompt_file)) {
     throw fail(
@@ -208,13 +281,8 @@ export function validateAgentManifest(
       throw fail("skills must be an object");
     }
     const skillsRecord = record.skills as Record<string, unknown>;
-    const skillKeys = Object.keys(skillsRecord);
-    const unknownSkillKeys = skillKeys.filter((key) => key !== "profile" && key !== "extra");
-    if (unknownSkillKeys.length > 0) {
-      throw fail(`unknown skills keys: ${unknownSkillKeys.sort().join(", ")}`);
-    }
     let profile: string | undefined;
-    if (skillsRecord.profile !== undefined) {
+    if (skillsRecord.profile !== undefined && skillsRecord.profile !== null) {
       profile = requireString(skillsRecord.profile, "skills.profile", fail);
       if (options?.ecProfiles && !options.ecProfiles.has(profile)) {
         throw fail(
@@ -237,10 +305,9 @@ export function validateAgentManifest(
         throw fail("skills.extra contains duplicate entries");
       }
     }
-    if (profile === undefined && extra === undefined) {
-      throw fail("skills object must declare at least one of profile or extra");
+    if (profile !== undefined || extra !== undefined) {
+      skills = { ...(profile ? { profile } : {}), ...(extra ? { extra } : {}) };
     }
-    skills = { ...(profile ? { profile } : {}), ...(extra ? { extra } : {}) };
   }
 
   if (!Array.isArray(record.tools)) {
@@ -292,12 +359,6 @@ export function validateAgentManifest(
       throw fail("defaults must be an object");
     }
     const defaultsRecord = record.defaults as Record<string, unknown>;
-    const unknownDefaultsKeys = Object.keys(defaultsRecord).filter(
-      (key) => key !== "model" && key !== "thinking",
-    );
-    if (unknownDefaultsKeys.length > 0) {
-      throw fail(`unknown defaults keys: ${unknownDefaultsKeys.sort().join(", ")}`);
-    }
     let model: string | null = null;
     if (defaultsRecord.model !== undefined && defaultsRecord.model !== null) {
       if (typeof defaultsRecord.model !== "string" || defaultsRecord.model.trim().length === 0) {
@@ -326,12 +387,6 @@ export function validateAgentManifest(
       throw fail("scope must be an object");
     }
     const scopeRecord = record.scope as Record<string, unknown>;
-    const unknownScopeKeys = Object.keys(scopeRecord).filter(
-      (key) => key !== "repos" && key !== "forbidden" && key !== "note",
-    );
-    if (unknownScopeKeys.length > 0) {
-      throw fail(`unknown scope keys: ${unknownScopeKeys.sort().join(", ")}`);
-    }
     const scopeOut: AgentManifestScope = {};
     if (scopeRecord.repos !== undefined) {
       scopeOut.repos = requireStringArray(scopeRecord.repos, "scope.repos", fail);
@@ -340,19 +395,19 @@ export function validateAgentManifest(
       scopeOut.forbidden = requireStringArray(scopeRecord.forbidden, "scope.forbidden", fail);
     }
     if (scopeRecord.note !== undefined) {
-      if (typeof scopeRecord.note !== "string" || scopeRecord.note.trim().length === 0) {
-        throw fail("scope.note must be a non-empty string");
+      if (typeof scopeRecord.note !== "string") {
+        throw fail("scope.note must be a string");
       }
-      scopeOut.note = scopeRecord.note.trim();
+      const note = scopeRecord.note.trim();
+      if (note) scopeOut.note = note;
     }
     if (
-      scopeOut.repos === undefined &&
-      scopeOut.forbidden === undefined &&
-      scopeOut.note === undefined
+      scopeOut.repos !== undefined ||
+      scopeOut.forbidden !== undefined ||
+      scopeOut.note !== undefined
     ) {
-      throw fail("scope object must declare at least one of repos, forbidden, or note");
+      scope = scopeOut;
     }
-    scope = scopeOut;
   }
 
   let activities: string[] = [];
@@ -379,6 +434,8 @@ export function validateAgentManifest(
     name,
     ...(version ? { version } : {}),
     ...(display_name ? { display_name } : {}),
+    ...(role ? { role } : {}),
+    ...(creation_task ? { creation_task } : {}),
     system_prompt_file,
     ...(skills ? { skills } : {}),
     tools,
@@ -413,7 +470,12 @@ export async function readAgentSystemPrompt(manifest: AgentManifest): Promise<st
         manifest.manifestPath,
       );
     }
-    return await readFile(realSystemPromptPath, "utf8");
+    const bytes = await readFile(realSystemPromptPath);
+    try {
+      return decodeStrictUtf8(bytes, "system_prompt_file");
+    } catch {
+      throw new AgentManifestError("system_prompt_file is not strict UTF-8", manifest.manifestPath);
+    }
   } catch (error) {
     if (error instanceof AgentManifestError) throw error;
     throw new AgentManifestError(

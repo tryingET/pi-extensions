@@ -34,6 +34,8 @@ test("discovers agent repos through agent-* fleet patterns without nesting", asy
     const listing = registry.list();
     const steward = listing.find((agent) => agent.name === "agent-fixture-steward");
     assert.equal(steward.display_name, "Fixture Steward");
+    assert.equal(steward.role, "Fixture Steward");
+    assert.equal(steward.creation_task, "AK-5098");
     assert.deepEqual(steward.tools, ["read", "bash", "edit"]);
     assert.equal(steward.skills.profile, "ec-defaults");
     assert.deepEqual(steward.skills.extra, ["local-helper-skill"]);
@@ -117,11 +119,11 @@ test("resolution happy path composes prompt, tools, skills, scope, and activitie
   });
 });
 
-test("read-only agent resolves to the read-only default tool set", async () => {
+test("read-only agent preserves an empty least-privilege tool declaration", async () => {
   await withRegistry([join(FIXTURES_ROOT, "agent-fixture-watcher")], {}, async (registry) => {
     const launch = await registry.resolve("agent-fixture-watcher");
     try {
-      assert.equal(launch.tools, "read");
+      assert.equal(launch.tools, "");
       assert.deepEqual(launch.skillDirs, []);
       assert.deepEqual(launch.loadedSkills, []);
       assert.match(launch.systemPrompt, /# Watcher persona/);

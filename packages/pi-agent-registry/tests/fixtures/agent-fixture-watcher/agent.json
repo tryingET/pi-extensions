@@ -2,6 +2,8 @@
   "schema": "ai-society.agent/1",
   "name": "agent-fixture-watcher",
   "version": "0.2.0",
+  "role": "Fleet Watcher",
+  "creation_task": "AK-5098",
   "system_prompt_file": "docs/watcher-prompt.md",
   "tools": [],
   "extensions": []

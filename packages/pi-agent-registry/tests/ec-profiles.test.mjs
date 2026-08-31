@@ -5,6 +5,7 @@
 // ---
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -156,5 +157,51 @@ test("rejects skill-source symlinks that escape their owning root", async () => 
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("profiles.json symlinks and oversized inputs fail before parsing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "ec-profile-file-root-"));
+  const outside = await mkdtemp(join(tmpdir(), "ec-profile-file-outside-"));
+  try {
+    await writeFile(
+      join(outside, "profiles.json"),
+      JSON.stringify({ schema: EC_PROFILE_SCHEMA, profiles: {}, deprecated_aliases: {} }),
+    );
+    await symlink(join(outside, "profiles.json"), join(root, "profiles.json"));
+    await assert.rejects(loadEcProfiles(join(root, "profiles.json")), /non-symlink regular file/);
+    await rm(join(root, "profiles.json"));
+    await writeFile(join(root, "profiles.json"), " ".repeat(2 * 1024 * 1024 + 1));
+    await assert.rejects(loadEcProfiles(join(root, "profiles.json")), /at most 2097152 bytes/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("profiles.json uses exact strict UTF-8 bytes and rejects Unicode ambiguity", async () => {
+  const root = await mkdtemp(join(tmpdir(), "ec-profile-encoding-root-"));
+  const path = join(root, "profiles.json");
+  try {
+    await writeFile(path, Buffer.from([0xff]));
+    await assert.rejects(loadEcProfiles(path), /not strict UTF-8/);
+
+    const valid = Buffer.from(
+      `${JSON.stringify({ schema: EC_PROFILE_SCHEMA, profiles: {}, deprecated_aliases: {} })}\n`,
+    );
+    await writeFile(path, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), valid]));
+    await assert.rejects(loadEcProfiles(path), /could not be read/);
+
+    await writeFile(
+      path,
+      `{"schema":"${EC_PROFILE_SCHEMA}","generated":"\\ud800","profiles":{},"deprecated_aliases":{}}`,
+    );
+    await assert.rejects(loadEcProfiles(path), /unpaired Unicode surrogate/);
+
+    await writeFile(path, valid);
+    const ec = await loadEcProfiles(path);
+    assert.equal(ec.rawSha256, createHash("sha256").update(valid).digest("hex"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

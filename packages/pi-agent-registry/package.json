@@ -1,7 +1,7 @@
 {
   "name": "@tryinget/pi-agent-registry",
   "version": "0.2.0",
-  "description": "Pi standing-agent manifest discovery and validation with a fail-closed Fleet Phase-0 dispatch gate",
+  "description": "Pi standing-agent manifest inspection, immutable fleet lint, and the Fleet Phase-2 exact-task read-only dispatch contract",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -28,6 +28,9 @@
   "engines": {
     "node": ">=22.19.0"
   },
+  "bin": {
+    "pi-agent-registry-lint": "scripts/fleet-lint.mjs"
+  },
   "scripts": {
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
@@ -37,6 +40,7 @@
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "npm run quality:ci",
     "test": "npm run quality:ci",
+    "fleet:lint": "node ./scripts/fleet-lint.mjs",
     "docs:list": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs",
     "docs:list:workspace": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --workspace --discover",
     "docs:list:json": "node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --json",
@@ -47,11 +51,14 @@
     "loop-impact-plan": "bash -lc 'echo \"loop-impact-plan: package-local impact planner is coarse; run npm run loop-impact-run for the full package gate.\"; git status --short -- . || true'",
     "loop-impact-run": "npm run check",
     "loop-impact-wide": "npm run check",
-    "loop-landing-check": "npm run check"
+    "loop-landing-check": "npm run check",
+    "prepack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs prepack",
+    "postpack": "node ../pi-interaction/scripts/prepare-publish-manifest.mjs postpack"
   },
   "files": [
     "extensions/pi-agent-registry.ts",
     "src",
+    "scripts/fleet-lint.mjs",
     "prompts",
     "examples",
     "policy/security-policy.json",
@@ -92,7 +99,7 @@
     "typebox": "*"
   },
   "dependencies": {
-    "@tryinget/pi-autonomous-session-control": "0.6.0",
+    "@tryinget/pi-autonomous-session-control": "file:../pi-autonomous-session-control",
     "typebox": "1.3.7"
   }
 }

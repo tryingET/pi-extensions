@@ -4,14 +4,16 @@
 //   - changing EC profile handling, extras resolution roots, or materialized skill directory layout.
 // ---
 
-import { existsSync, realpathSync, statSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { constants, existsSync, realpathSync, statSync } from "node:fs";
+import { lstat, mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 export const DEFAULT_EC_PROFILES_RELATIVE = "ai-society/core/engineering-core/skills/profiles.json";
 export const EC_PROFILES_ENV = "PI_AGENT_REGISTRY_EC_PROFILES";
 export const EC_PROFILE_SCHEMA = "engineering-core.skill-profiles/1";
+const EC_PROFILES_MAX_BYTES = 2 * 1024 * 1024;
 const PROFILE_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/u;
 const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/u;
 const ENVELOPE_KEYS: ReadonlySet<string> = new Set([
@@ -21,11 +23,44 @@ const ENVELOPE_KEYS: ReadonlySet<string> = new Set([
   "deprecated_aliases",
 ]);
 
+function decodeStrictUtf8(bytes: Buffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    throw new Error("profiles.json is not strict UTF-8");
+  }
+}
+
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function containsUnpairedSurrogate(value: unknown): boolean {
+  if (typeof value === "string") return hasUnpairedSurrogate(value);
+  if (Array.isArray(value)) return value.some(containsUnpairedSurrogate);
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value as Record<string, unknown>).some(
+    ([key, entry]) => hasUnpairedSurrogate(key) || containsUnpairedSurrogate(entry),
+  );
+}
+
 export interface EcProfileSource {
   /** Absolute path of the loaded profiles.json. */
   path: string;
   /** Absolute engineering-core skills root (dirname of profiles.json). */
   skillsRoot: string;
+  /** SHA-256 of the exact profiles.json bytes parsed into this source. */
+  rawSha256: string;
   /** Loaded source contract (legacy is transition-read compatibility only). */
   schema: typeof EC_PROFILE_SCHEMA | "legacy-raw-map";
   /** Canonical profile name -> ordered member skill names. */
@@ -52,11 +87,43 @@ export function defaultEcProfilesPath(): string {
 export async function loadEcProfiles(path?: string): Promise<EcProfileSource> {
   const resolvedPath = resolve(path ?? defaultEcProfilesPath());
   let parsed: unknown;
+  let rawText: string;
+  let rawBytes = Buffer.alloc(0);
   try {
-    parsed = JSON.parse(await readFile(resolvedPath, "utf8"));
+    const initial = await lstat(resolvedPath);
+    if (!initial.isFile() || initial.isSymbolicLink() || initial.size > EC_PROFILES_MAX_BYTES) {
+      throw new Error(
+        `profiles.json must be a non-symlink regular file at most ${EC_PROFILES_MAX_BYTES} bytes`,
+      );
+    }
+    const handle = await open(resolvedPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const before = await handle.stat();
+      if (
+        before.dev !== initial.dev ||
+        before.ino !== initial.ino ||
+        before.size !== initial.size
+      ) {
+        throw new Error("profiles.json identity changed while opening");
+      }
+      rawBytes = await handle.readFile();
+      rawText = decodeStrictUtf8(rawBytes);
+      const after = await handle.stat();
+      if (after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size) {
+        throw new Error("profiles.json identity changed while reading");
+      }
+    } finally {
+      await handle.close();
+    }
+    parsed = JSON.parse(rawText);
   } catch (error) {
     throw new EcProfileError(
       `engineering-core skill profiles could not be read from ${resolvedPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (containsUnpairedSurrogate(parsed)) {
+    throw new EcProfileError(
+      "engineering-core skill profiles contain an unpaired Unicode surrogate",
     );
   }
   if (!isRecord(parsed)) {
@@ -125,6 +192,7 @@ export async function loadEcProfiles(path?: string): Promise<EcProfileSource> {
   return {
     path: resolvedPath,
     skillsRoot: dirname(resolvedPath),
+    rawSha256: createHash("sha256").update(rawBytes).digest("hex"),
     schema,
     profiles,
     deprecatedAliases,
