@@ -132,6 +132,27 @@ test("allowlisted reason projection tolerates safe producer wording drift withou
   assert.equal(message.includes(bridgeRemediation), false);
 });
 
+test("allowlisted NEXUS reasons receive local recovery without producer prose", async () => {
+  const producerMessage = "The workspace path does not resolve in the configured workspace";
+  const producerRemediation = "Verify the current workspace and repository relative path";
+  const harness = createErrorHarness(() => ({
+    isError: true,
+    error: {
+      code: "InvalidParams",
+      message: producerMessage,
+      data: { reason: "workspace_path_unresolved", remediation: producerRemediation },
+    },
+    content: [{ type: "text", text: producerMessage }],
+  }));
+  const tool = harness.tools.get("locate_confirm_definition");
+  assert.ok(tool);
+  const message = await rejectedMessage(tool, { symbol: "Target" });
+  assert.match(message, /reason: workspace_path_unresolved/);
+  assert.match(message, /target-root Pi session/);
+  assert.equal(message.includes(producerMessage), false);
+  assert.equal(message.includes(producerRemediation), false);
+});
+
 test("forged or drifted boundary metadata falls back to the generic redacted error", async () => {
   const cases: Array<{ label: string; result: SciBridgeCallResult }> = [
     {

@@ -17,7 +17,6 @@ const FORBIDDEN_FIELDS = new Set([
   "stderr",
   "traceback",
   "workingdirectory",
-  "workspace",
   "workspaceroot",
 ]);
 const PREVIEW_WORKFLOWS = new Set<SciCompositeToolName>([

@@ -1,5 +1,10 @@
 import { validExploreDetails, validLocation } from "./explore-detail-validator.ts";
 import { validEditRisk } from "./explore-risk-validator.ts";
+import {
+  isWorkspacePathRefV1,
+  isWorkspaceRefV1,
+  isWorkspaceStateRefV1,
+} from "./nexus-workspace.ts";
 
 export type ExploreMode = "compact" | "standard" | "debug";
 
@@ -47,6 +52,8 @@ export function validExplorePayload(
         "nextReads",
         "limitations",
         "details",
+        "workspace",
+        "state",
       ]
     : [
         "schemaVersion",
@@ -61,13 +68,19 @@ export function validExplorePayload(
         "limitations",
         "details",
         "truncation",
+        "workspace",
+        "state",
       ];
-  if (!onlyKeys(packet, allowed)) return false;
+  if (!onlyKeys(packet, allowed) || !validNexusPair(packet.workspace, packet.state)) return false;
   if (confirmed) {
     if (!packet.nextReads.every(validPathNextRead)) return false;
   } else if (
-    packet.nextReads.length !== 1 ||
-    !validRecoveryNextRead(packet.nextReads[0], packet.symbol)
+    !(
+      (packet.status === "indeterminate" &&
+        packet.nextReads.length === 0 &&
+        packet.workspace !== undefined) ||
+      (packet.nextReads.length === 1 && validRecoveryNextRead(packet.nextReads[0], packet.symbol))
+    )
   ) {
     return false;
   }
@@ -132,8 +145,9 @@ function validRankedFile(value: unknown): boolean {
   const item = record(value);
   return !!(
     item &&
-    onlyKeys(item, ["path", "score", "reasons", "signals", "line"]) &&
+    onlyKeys(item, ["path", "pathRef", "score", "reasons", "signals", "line"]) &&
     typeof item.path === "string" &&
+    (item.pathRef === undefined || isWorkspacePathRefV1(item.pathRef)) &&
     item.path.length <= 1_024 &&
     Number.isFinite(item.score) &&
     stringArray(item.reasons, 8) &&
@@ -146,8 +160,9 @@ function validPathNextRead(value: unknown): boolean {
   const next = record(value);
   return !!(
     next &&
-    onlyKeys(next, ["path", "line", "reason"]) &&
+    onlyKeys(next, ["path", "pathRef", "line", "reason"]) &&
     typeof next.path === "string" &&
+    (next.pathRef === undefined || isWorkspacePathRefV1(next.pathRef)) &&
     next.path.length <= 1_024 &&
     optionalNumber(next.line) &&
     typeof next.reason === "string" &&
@@ -165,9 +180,19 @@ function validRecoveryNextRead(value: unknown, symbol: unknown): boolean {
     typeof next.reason === "string" &&
     next.reason.length > 0 &&
     args &&
-    onlyKeys(args, ["symbol", "precise"]) &&
+    onlyKeys(args, ["symbol", "precise", "workspace", "state"]) &&
     args.symbol === symbol &&
-    args.precise === true
+    args.precise === true &&
+    validNexusPair(args.workspace, args.state)
+  );
+}
+
+function validNexusPair(workspace: unknown, state: unknown): boolean {
+  if (workspace === undefined && state === undefined) return true;
+  return Boolean(
+    isWorkspaceRefV1(workspace) &&
+      isWorkspaceStateRefV1(state) &&
+      state.workspaceId === workspace.workspaceId,
   );
 }
 

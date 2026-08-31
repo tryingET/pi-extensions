@@ -18,6 +18,11 @@ import path from "node:path";
 
 import { createSemanticCodeExtension } from "../src/extension.ts";
 import { SciMcpBridge } from "../src/mcp-bridge.ts";
+import {
+  isSnapshotRefV1,
+  isWorkspaceRefV1,
+  isWorkspaceStateRefV1,
+} from "../src/nexus-workspace.ts";
 import { SCI_COMPOSITE_TOOL_NAMES } from "../src/tool-definitions.ts";
 
 // One preview door routes to both patch workflows: four registered doors cover five SCI workflows.
@@ -79,6 +84,17 @@ await mkdir(path.dirname(sourcePath), { recursive: true });
 const original = 'export function greet(name) {\n  return "hi " + name;\n}\n';
 await writeFile(sourcePath, original, "utf8");
 await writeFile(outsideSourcePath, "export const outside = true;\n", "utf8");
+await writeFile(path.join(workspace, ".gitignore"), ".ontology/\n", "utf8");
+for (const args of [
+  ["init", "-q"],
+  ["config", "user.email", "pi-sci-dogfood@example.invalid"],
+  ["config", "user.name", "Pi SCI Dogfood"],
+  ["add", ".gitignore", "src/example.js"],
+  ["commit", "-qm", "fixture"],
+]) {
+  const git = spawnSync("git", args, { cwd: workspace, stdio: "pipe" });
+  if (git.status !== 0) throw new Error("failed to initialize bounded dogfood repository");
+}
 const beforeSourceInventory = await inventoryWorkspaceSource(workspace);
 
 const bridge = new SciMcpBridge();
@@ -196,6 +212,26 @@ try {
   const structuralBackendWithheld = !/"backend"\s*:/.test(
     String(structural.content[0]?.text ?? ""),
   );
+  const nexusWorkspaceIds = [
+    explorePayload.workspace,
+    locatePayload.workspace,
+    noDefinitionPayload.workspace,
+    patchChecksPayload.workspace,
+    structuralPayload.workspace,
+  ]
+    .filter(isWorkspaceRefV1)
+    .map((reference) => reference.workspaceId);
+  const nexusWorkspaceStable =
+    nexusWorkspaceIds.length === 5 && new Set(nexusWorkspaceIds).size === 1;
+  const nexusStateBound =
+    isWorkspaceStateRefV1(explorePayload.state) &&
+    isWorkspaceStateRefV1(locatePayload.state) &&
+    explorePayload.state.workspaceId === locatePayload.state.workspaceId;
+  const nexusSnapshotBound =
+    isSnapshotRefV1(patchChecksPayload.snapshotRef) &&
+    isSnapshotRefV1(structuralPayload.snapshotRef) &&
+    patchChecksPayload.snapshotRef.revision === 1 &&
+    structuralPayload.snapshotRef.revision === 1;
 
   const evidence = {
     schema: "pi.sci_composite_dogfood.v1",
@@ -223,6 +259,9 @@ try {
       structuralChecksPassed &&
       structuralPayload.applied === false &&
       structuralBackendWithheld &&
+      nexusWorkspaceStable &&
+      nexusStateBound &&
+      nexusSnapshotBound &&
       after === original &&
       sourceInventoryUnchanged,
     transport: "mcp-stdio",
@@ -237,6 +276,12 @@ try {
       reason: "outside_workspace",
     },
     workspaceBoundary: {
+      nexus: {
+        workspaceStable: nexusWorkspaceStable,
+        stateBound: nexusStateBound,
+        exactSnapshotRefs: nexusSnapshotBound,
+        workspaceId: nexusWorkspaceIds[0] ?? null,
+      },
       workflow: "locate_confirm_definition",
       threw: workspaceBoundaryFailure.threw,
       actionable: workspaceBoundaryActionable,
@@ -290,6 +335,9 @@ try {
       structuralChecksPassed,
       structuralRemainedPreviewOnly: structuralPayload.applied === false,
       structuralBackendWithheld,
+      nexusWorkspaceStable,
+      nexusStateBound,
+      nexusSnapshotBound,
       previewLeftWorkspaceUnchanged: after === original,
       allSourceOutsideOntologyUnchanged: sourceInventoryUnchanged,
     },
@@ -428,6 +476,7 @@ function previewChecksPassed(payload: Record<string, unknown>, workflow: string)
     return false;
   if (workflow === "structural_patch_checks" && payload.applied !== false) return false;
   if (workflow === "structural_patch_checks") {
+    if (!isWorkspaceRefV1(payload.workspace) || !isSnapshotRefV1(payload.snapshotRef)) return false;
     const checks = payload.checks;
     return (
       Boolean(checks) &&
@@ -437,6 +486,10 @@ function previewChecksPassed(payload: Record<string, unknown>, workflow: string)
     );
   }
   const validationPlan = payload.validationPlan;
+  if (isSnapshotRefV1(payload.snapshotRef)) {
+    const checks = record(payload.checks);
+    return isWorkspaceRefV1(payload.workspace) && checks?.ok === true;
+  }
   return (
     Boolean(validationPlan) &&
     typeof validationPlan === "object" &&
@@ -453,7 +506,14 @@ async function inventoryWorkspaceSource(root: string): Promise<InventoryEntry[]>
     const names = (await readdir(absoluteDir)).sort();
     for (const name of names) {
       const relativePath = relativeDir ? `${relativeDir}/${name}` : name;
-      if (relativePath === ".ontology" || relativePath.startsWith(".ontology/")) continue;
+      if (
+        relativePath === ".ontology" ||
+        relativePath.startsWith(".ontology/") ||
+        relativePath === ".git" ||
+        relativePath.startsWith(".git/")
+      ) {
+        continue;
+      }
       const absolutePath = path.join(root, relativePath);
       const stat = await lstat(absolutePath);
       const mode = stat.mode & 0o7777;

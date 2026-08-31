@@ -17,10 +17,15 @@ import {
 } from "./explore-renderer.ts";
 import { type ExploreMode, validExplorePayload } from "./explore-result-validator.ts";
 import { type SciBridge, type SciBridgeCallResult, SciMcpBridge } from "./mcp-bridge.ts";
+import {
+  isSnapshotRefV1,
+  isWorkspacePathRefV1,
+  isWorkspaceRefV1,
+  isWorkspaceStateRefV1,
+} from "./nexus-workspace.ts";
 import { sanitizeProducerDisclosure } from "./producer-disclosure.ts";
 import { hasSciErrorSignal, sciErrorText, sciInputPathError } from "./sci-error-projection.ts";
 import {
-  type CompositeToolSpec,
   type PiSciDoorName,
   resolveSciRoute,
   SCI_COMPOSITE_TOOL_SPECS,
@@ -103,8 +108,12 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
           if (inputPathError) throw new Error(inputPathError);
           const startedAt = Date.now();
           let result: SciBridgeCallResult;
+          let boundArgs = resolved.args;
           try {
-            result = await bridge.callTool(resolved.workflow, resolved.args, ctx.cwd, signal);
+            boundArgs = bridge.bindArgs
+              ? await bridge.bindArgs(resolved.workflow, resolved.args, ctx.cwd)
+              : resolved.args;
+            result = await bridge.callTool(resolved.workflow, boundArgs, ctx.cwd, signal);
           } catch {
             throw new Error(
               `SCI workflow ${resolved.workflow} failed. Backend diagnostics, paths, and stderr were withheld.`,
@@ -117,7 +126,7 @@ export function createSemanticCodeExtension(options: SemanticCodeExtensionOption
             ctx.cwd,
             Date.now() - startedAt,
             result,
-            resolved.args,
+            boundArgs,
             toolCallId,
           );
           if (formatted.operatorEntry) {
@@ -312,18 +321,25 @@ function validProducerPayload(
 ): value is Record<string, unknown> {
   const record = recordOrUndefined(value);
   if (!record || typeof record.ok !== "boolean" || record.workflow !== workflow) return false;
+  if (!validOptionalNexusFields(record)) return false;
   if (workflow === "explore_symbol_impact") return validExplorePayload(record, expectedMode);
   if (record.ok === false) return true;
   switch (workflow) {
     case "locate_confirm_definition":
       return validLocatePayload(record);
     case "structural_patch_checks":
-      return record.applied === false && recordOrUndefined(record.checks)?.ok === true;
+      return (
+        record.applied === false &&
+        recordOrUndefined(record.checks)?.ok === true &&
+        (record.snapshotRef === undefined || isSnapshotRefV1(record.snapshotRef))
+      );
     case "patch_checks_in_snapshot":
       return (
         typeof record.snapshot === "string" &&
         recordOrUndefined(record.stage)?.accepted === true &&
-        validValidationPlan(record.validationPlan)
+        (isSnapshotRefV1(record.snapshotRef)
+          ? recordOrUndefined(record.checks)?.ok === true
+          : validValidationPlan(record.validationPlan))
       );
     case "rename_safely":
       return (
@@ -345,8 +361,28 @@ function validLocatePayload(record: Record<string, unknown>): boolean {
   }
   return record.definitions.every((definition) => {
     const candidate = recordOrUndefined(definition);
-    return candidate !== undefined && typeof candidate.uri === "string";
+    return (
+      candidate !== undefined &&
+      typeof candidate.uri === "string" &&
+      (candidate.pathRef === undefined || isWorkspacePathRefV1(candidate.pathRef))
+    );
   });
+}
+
+function validOptionalNexusFields(record: Record<string, unknown>): boolean {
+  return Boolean(
+    (record.workspace === undefined || isWorkspaceRefV1(record.workspace)) &&
+      (record.state === undefined || isWorkspaceStateRefV1(record.state)) &&
+      (record.snapshotRef === undefined || isSnapshotRefV1(record.snapshotRef)) &&
+      (record.workspace === undefined ||
+        record.state === undefined ||
+        (record.state as { workspaceId?: unknown }).workspaceId ===
+          (record.workspace as { workspaceId?: unknown }).workspaceId) &&
+      (record.workspace === undefined ||
+        record.snapshotRef === undefined ||
+        (record.snapshotRef as { workspaceId?: unknown }).workspaceId ===
+          (record.workspace as { workspaceId?: unknown }).workspaceId),
+  );
 }
 
 function validValidationPlan(value: unknown): boolean {

@@ -239,6 +239,8 @@ function buildModelProjection(packet: Record<string, unknown>, requestedMode: Ex
     requestedMode,
     status,
     symbol: boundedText(packet.symbol, 256),
+    ...(record(packet.workspace) ? { workspace: packet.workspace } : {}),
+    ...(record(packet.state) ? { state: packet.state } : {}),
     decision: {
       definitionConfirmed: confirmed,
       editPlanning: confirmed ? "review_producer_edit_risk" : "blocked_until_definition_confirmed",
@@ -292,6 +294,8 @@ function buildModelProjection(packet: Record<string, unknown>, requestedMode: Ex
     requestedMode,
     sourceStatus: status,
     symbol: boundedText(packet.symbol, 256),
+    ...(record(packet.workspace) ? { workspace: packet.workspace } : {}),
+    ...(record(packet.state) ? { state: packet.state } : {}),
     decision: {
       definitionConfirmed: confirmed,
       editPlanning: "blocked_by_model_projection_budget",
@@ -351,6 +355,7 @@ function projectImpactFile(value: unknown): Record<string, unknown> {
   const item = record(value);
   return {
     path: boundedText(item?.path, 1_024),
+    ...(record(item?.pathRef) ? { pathRef: item?.pathRef } : {}),
     ...(Number.isFinite(item?.line) ? { line: Number(item?.line) } : {}),
     ...(Number.isFinite(item?.score) ? { score: Number(item?.score) } : {}),
     reasons: boundedStrings(item?.reasons, 4, 120),
@@ -362,6 +367,7 @@ function projectLocation(value: unknown): Record<string, unknown> {
   const item = record(value);
   return {
     path: boundedText(item?.path, 1_024),
+    ...(record(item?.pathRef) ? { pathRef: item?.pathRef } : {}),
     ...(Number.isFinite(item?.line) ? { line: Number(item?.line) } : {}),
     ...(Number.isFinite(item?.character) ? { character: Number(item?.character) } : {}),
     ...(typeof item?.kind === "string" ? { kind: boundedText(item.kind, 80) } : {}),
@@ -377,7 +383,12 @@ function projectNextAction(value: unknown): Record<string, unknown> | null {
     const args = record(next.arguments);
     return {
       action: "locate_confirm_definition",
-      arguments: { symbol: boundedText(args?.symbol, 256), precise: true },
+      arguments: {
+        symbol: boundedText(args?.symbol, 256),
+        precise: true,
+        ...(record(args?.workspace) ? { workspace: args?.workspace } : {}),
+        ...(record(args?.state) ? { state: args?.state } : {}),
+      },
       reason: boundedText(next.reason, 240),
     };
   }
@@ -386,6 +397,7 @@ function projectNextAction(value: unknown): Record<string, unknown> | null {
       action: "read",
       arguments: {
         path: boundedText(next.path, 1_024),
+        ...(record(next.pathRef) ? { pathRef: next.pathRef } : {}),
         ...(Number.isFinite(next.line) ? { offset: Number(next.line) } : {}),
       },
       reason: boundedText(next.reason, 240),

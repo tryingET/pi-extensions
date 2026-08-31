@@ -91,6 +91,25 @@ const structuralModeParameters = {
 
 const sharedParameters = { commands, timeoutSec };
 
+const workspaceStateRef = Type.Optional(
+  Type.Object({
+    schema: Type.Literal("semantic-code-intelligence.workspace_state_ref.v1"),
+    workspaceId: Type.String({ pattern: "^wsp_[0-9a-f]{32}$" }),
+    digest: Type.String({ pattern: "^sha256:[0-9a-f]{64}$" }),
+  }),
+);
+
+const snapshotRef = Type.Optional(
+  Type.Object({
+    schema: Type.Literal("semantic-code-intelligence.snapshot_ref.v1"),
+    workspaceId: Type.String({ pattern: "^wsp_[0-9a-f]{32}$" }),
+    snapshotId: Type.String(),
+    revision: Type.Number({ minimum: 0 }),
+    baseDigest: Type.String({ pattern: "^sha256:[0-9a-f]{64}$" }),
+    overlayDigest: Type.String({ pattern: "^sha256:[0-9a-f]{64}$" }),
+  }),
+);
+
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
@@ -100,6 +119,7 @@ const patchRoute: SciRoute = {
   parameters: Type.Object({
     patch: Type.String({ description: "Unified diff to stage and validate." }),
     snapshot: patchModeParameters.snapshot,
+    snapshotRef,
     recommendChecks: patchModeParameters.recommendChecks,
     impactSummary: patchModeParameters.impactSummary,
     onlyTouched: patchModeParameters.onlyTouched,
@@ -111,6 +131,7 @@ const patchRoute: SciRoute = {
     for (const key of [
       "patch",
       "snapshot",
+      "snapshotRef",
       "recommendChecks",
       "impactSummary",
       "onlyTouched",
@@ -130,6 +151,7 @@ const structuralRoute: SciRoute = {
     language: Type.String({ description: "ast-grep language, for example typescript or python." }),
     pattern: Type.String({ description: "ast-grep match pattern." }),
     rewrite: Type.String({ description: "ast-grep rewrite template." }),
+    snapshotRef,
     paths: structuralModeParameters.paths,
     timeoutMs: structuralModeParameters.timeoutMs,
     maxBuffer: structuralModeParameters.maxBuffer,
@@ -146,6 +168,7 @@ const structuralRoute: SciRoute = {
       "language",
       "pattern",
       "rewrite",
+      "snapshotRef",
       "paths",
       "commands",
       "timeoutSec",
@@ -169,6 +192,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     parameters: Type.Object({
       symbol: Type.String({ description: "Symbol to investigate." }),
       file: Type.Optional(Type.String({ description: "Repo-relative context file when known." })),
+      state: workspaceStateRef,
       precise: Type.Optional(Type.Boolean({ default: true })),
       depth: Type.Optional(Type.Number({ minimum: 1, maximum: 5, default: 1 })),
       limit: Type.Optional(Type.Number({ minimum: 1, maximum: 200, default: 50 })),
@@ -190,6 +214,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     parameters: Type.Object({
       symbol: Type.String({ description: "Symbol whose definition must be confirmed." }),
       file: Type.Optional(Type.String({ description: "Repo-relative context file when known." })),
+      state: workspaceStateRef,
       precise: Type.Optional(Type.Boolean({ default: true })),
       maxResults: Type.Optional(Type.Number({ minimum: 1, maximum: 200, default: 50 })),
     }),
@@ -203,7 +228,9 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
     previewOnly: true,
     parameters: Type.Object({
       ...patchModeParameters,
+      snapshotRef,
       ...structuralModeParameters,
+      state: workspaceStateRef,
       ...sharedParameters,
       mode: Type.Optional(
         StringEnum(["patch", "structural"] as const, {
@@ -224,6 +251,7 @@ export const SCI_COMPOSITE_TOOL_SPECS: readonly CompositeToolSpec[] = [
       oldName: Type.String({ description: "Original symbol name." }),
       newName: Type.String({ description: "Replacement symbol name." }),
       file: Type.Optional(Type.String({ description: "Repo-relative context file when known." })),
+      state: workspaceStateRef,
       commands,
       timeoutSec,
       runChecks: Type.Optional(Type.Boolean({ default: true })),

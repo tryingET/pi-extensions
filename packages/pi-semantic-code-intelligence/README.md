@@ -70,6 +70,12 @@ At MCP connect time, the bridge compares every registered Pi schema subset with 
 
 This package does not authorize hosted, network-exposed, multi-user, or public SCI operation.
 
+### Pi Composite NEXUS v1 workspace binding
+
+The bridge now performs a hidden `get_snapshot { nexus:true }` handshake before the first composite call. SCI mints one opaque `workspace_ref.v1`; the bridge pins the originating `ctx.cwd`, injects that reference into all five workflows, and refuses later root drift instead of closing/rebinding to another repository. Explore/locate model evidence preserves bounded workspace-state and path references. Preview/rename results preserve exact revisioned snapshot references while the native Pi surface remains preview-only.
+
+Workspace and snapshot references are identity/lineage, not authorization tokens. They cannot select a filesystem root, do not replace SCI lexical/realpath/descriptor containment, and do not grant cross-repo access. NEXUS reasons such as `workspace_path_unresolved`, `workspace_state_changed`, and `stale_snapshot_ref` receive locally authored path-redacted recovery; unknown or malformed producer errors remain generic.
+
 ### Safe workspace-boundary recovery
 
 All five native composites recognize SCI's allowlisted `outside_workspace` reason contract from AK #4862 / SCI commit `b4f3c96ed4fc77439390426393244362f14334b2` without matching or copying producer prose. The bridge emits locally authored model-visible recovery: use a repo-relative path in a Pi session started at the target repository root. A shell `cd` does not rebind the session's `ctx.cwd`; start a target-root Pi session instead. Obvious absolute, file-URI, Windows drive/UNC, NUL, and `..` traversal inputs fail locally for the declared repo-relative `file` and `paths` fields, while repo-relative symlinks still reach SCI so realpath containment remains final authority. Unknown, malformed, extended, secret-bearing, transport, startup, stderr, and backend errors retain generic redaction, and no rejected path or workspace path is reflected.
@@ -79,8 +85,7 @@ All five native composites recognize SCI's allowlisted `outside_workspace` reaso
 Clone or open this repo only to install the companion. SCI itself should come from a reviewed
 local tarball so `semantic-code-mcp` is on `PATH`:
 
-1. Install a published SCI local candidate so `semantic-code-mcp` is on `PATH`. Pair this companion
-   with `2.1.0-rc.3` (or the earlier `2.1.0-rc.2` / `2.1.0-rc.1` CLI + MCP stdio contract).
+1. For the NEXUS source profile, use an SCI source build containing decision-145 producer commit `a4fe097` or later and point `SCI_MCP_COMMAND` at that build's `bin/semantic-code-mcp`. The frozen published `2.1.0-rc.1` through `2.1.0-rc.3` artifacts predate the NEXUS handshake and are not compatible with this unreleased companion source. Released companion tags retain their documented historical pairings.
 2. Install that archive with SCI's bundled lifecycle (`SCI_ROOT` / `versions/<version>` / `current`).
 3. Prepend the activated `node_modules/.bin` directory to `PATH`.
 4. Install this package from source (`pi install "$PWD"`) and `/reload`.

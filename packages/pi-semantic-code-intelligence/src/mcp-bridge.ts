@@ -5,7 +5,11 @@ import {
   getDefaultEnvironment,
   StdioClientTransport,
 } from "@modelcontextprotocol/sdk/client/stdio.js";
-
+import {
+  bindNexusArgs,
+  type NexusWorkspaceContext,
+  parseNexusHandshake,
+} from "./nexus-workspace.ts";
 import {
   SCI_COMPOSITE_TOOL_NAMES,
   SCI_COMPOSITE_TOOL_SPECS,
@@ -31,6 +35,12 @@ export interface SciBridge {
     signal?: AbortSignal,
   ): Promise<SciBridgeCallResult>;
   advertisedToolNames(cwd: string): Promise<string[]>;
+  bindArgs?(
+    name: SciCompositeToolName,
+    args: Record<string, unknown>,
+    cwd: string,
+  ): Promise<Record<string, unknown>>;
+  workspaceContext?(cwd: string): Promise<NexusWorkspaceContext>;
   close(): Promise<void>;
 }
 
@@ -39,6 +49,7 @@ interface LiveConnection {
   client: Client;
   transport: StdioClientTransport;
   advertisedTools: Set<string>;
+  nexus: NexusWorkspaceContext;
 }
 
 export interface McpBridgeOptions {
@@ -181,8 +192,21 @@ function compareSchemaSubset(
 export class SciMcpBridge implements SciBridge {
   private connection: LiveConnection | undefined;
   private connecting: Promise<LiveConnection> | undefined;
+  private pinnedCwd: string | undefined;
 
   constructor(private readonly options: McpBridgeOptions = {}) {}
+
+  async bindArgs(
+    _name: SciCompositeToolName,
+    args: Record<string, unknown>,
+    cwd: string,
+  ): Promise<Record<string, unknown>> {
+    return bindNexusArgs(args, (await this.ensureConnection(cwd)).nexus);
+  }
+
+  async workspaceContext(cwd: string): Promise<NexusWorkspaceContext> {
+    return (await this.ensureConnection(cwd)).nexus;
+  }
 
   async callTool(
     name: SciCompositeToolName,
@@ -204,7 +228,8 @@ export class SciMcpBridge implements SciBridge {
     const timeout = timeoutSeconds * 1000 + 30_000;
 
     try {
-      return (await connection.client.callTool({ name, arguments: args }, undefined, {
+      const boundArgs = bindNexusArgs(args, connection.nexus);
+      return (await connection.client.callTool({ name, arguments: boundArgs }, undefined, {
         signal,
         timeout,
         maxTotalTimeout: timeout,
@@ -231,6 +256,12 @@ export class SciMcpBridge implements SciBridge {
 
   private async ensureConnection(cwd: string): Promise<LiveConnection> {
     const workspace = path.resolve(cwd);
+    if (this.pinnedCwd && this.pinnedCwd !== workspace) {
+      throw new Error(
+        "SCI bridge workspace is immutable for this Pi session; start a target-root session.",
+      );
+    }
+    this.pinnedCwd ??= workspace;
     if (this.connection?.cwd === workspace) return this.connection;
     if (this.connection) await this.close();
     if (this.connecting) return this.connecting;
@@ -282,7 +313,15 @@ export class SciMcpBridge implements SciBridge {
       if (missing.length > 0) {
         throw new Error(`missing required composite tools: ${missing.join(", ")}`);
       }
-      return { cwd, client, transport, advertisedTools };
+      if (!advertisedTools.has("get_snapshot"))
+        throw new Error("missing NEXUS workspace handshake tool");
+      const handshake = (await client.callTool(
+        { name: "get_snapshot", arguments: { nexus: true, preferExisting: true } },
+        undefined,
+        { timeout: 30_000, maxTotalTimeout: 30_000 },
+      )) as SciBridgeCallResult;
+      const nexus = parseNexusHandshake(handshake);
+      return { cwd, client, transport, advertisedTools, nexus };
     } catch {
       await Promise.allSettled([client.close(), transport.close()]);
       const stderrObserved = stderrTail.some((entry) => entry.length > 0);

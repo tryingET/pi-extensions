@@ -13,45 +13,36 @@ const PRODUCER_BOUNDARY_CODE = "InvalidParams";
 const WITHHELD_NOTICE = "Producer diagnostics, paths, and stderr were withheld.";
 const TARGET_ROOT_RECOVERY =
   "Use a repo-relative path in a Pi session started at the target repository root. A shell cd does not rebind this Pi session's workspace; start a target-root Pi session and retry.";
-const OUTSIDE_WORKSPACE_RECOVERY = `rejected the request (reason: ${OUTSIDE_WORKSPACE_REASON}). ${TARGET_ROOT_RECOVERY}`;
+const NEXUS_RECOVERY_BY_REASON = new Map<string, string>([
+  [
+    OUTSIDE_WORKSPACE_REASON,
+    `rejected the request (reason: ${OUTSIDE_WORKSPACE_REASON}). ${TARGET_ROOT_RECOVERY}`,
+  ],
+  [
+    "workspace_path_unresolved",
+    "could not resolve the repository-relative path in this bound workspace (reason: workspace_path_unresolved). Verify the target-root Pi session before retrying.",
+  ],
+  [
+    "workspace_ref_mismatch",
+    "received a different workspace identity (reason: workspace_ref_mismatch). Start a target-root Pi session instead of rebinding this one.",
+  ],
+  [
+    "workspace_state_changed",
+    "observed workspace drift (reason: workspace_state_changed). Retry only from a stable repository state.",
+  ],
+  [
+    "stale_snapshot_ref",
+    "rejected stale snapshot lineage (reason: stale_snapshot_ref). Restart from the latest exact snapshot reference and rerun checks.",
+  ],
+  [
+    "legacy_unbound_snapshot",
+    "rejected legacy unbound snapshot state (reason: legacy_unbound_snapshot). Create a fresh workspace-bound snapshot.",
+  ],
+]);
 const REPO_RELATIVE_INPUT_TOOLS = new Set<SciCompositeToolName>([
   "explore_symbol_impact",
   "locate_confirm_definition",
   "rename_safely",
-]);
-const SAFE_BOUNDARY_PROSE_WORDS = new Set([
-  "a",
-  "absolute",
-  "and",
-  "as",
-  "at",
-  "be",
-  "belong",
-  "by",
-  "configured",
-  "contained",
-  "does",
-  "expressed",
-  "file",
-  "in",
-  "intended",
-  "must",
-  "not",
-  "of",
-  "open",
-  "or",
-  "path",
-  "project",
-  "relative",
-  "request",
-  "requested",
-  "stay",
-  "the",
-  "this",
-  "to",
-  "use",
-  "within",
-  "workspace",
 ]);
 
 export function sciInputPathError(
@@ -108,7 +99,8 @@ function allowlistedRecovery(result: SciBridgeCallResult): string | undefined {
       !hasExactKeys(data, ["reason", "remediation"]) ||
       error.code !== PRODUCER_BOUNDARY_CODE ||
       !safeProducerText(error.message) ||
-      data.reason !== OUTSIDE_WORKSPACE_REASON ||
+      typeof data.reason !== "string" ||
+      !NEXUS_RECOVERY_BY_REASON.has(data.reason) ||
       !safeProducerText(data.remediation)
     ) {
       return undefined;
@@ -121,7 +113,7 @@ function allowlistedRecovery(result: SciBridgeCallResult): string | undefined {
       text.type === "text" &&
       text.text === error.message &&
       safeProducerText(text.text)
-      ? OUTSIDE_WORKSPACE_RECOVERY
+      ? NEXUS_RECOVERY_BY_REASON.get(data.reason)
       : undefined;
   } catch {
     return undefined;
@@ -152,14 +144,15 @@ function safeProducerText(value: unknown): value is string {
   const inspected = decodeForInspection(value);
   if (
     containsHighConfidenceCredential(inspected) ||
+    /\b(?:stderr|stdout|stack|traceback|password|passwd|secret|token|api key|private key)\b/iu.test(
+      inspected,
+    ) ||
     !/^[A-Za-z][A-Za-z .,'()-]*$/u.test(inspected)
   ) {
     return false;
   }
   const words = inspected.toLowerCase().match(/[a-z]+/gu);
-  return Boolean(
-    words && words.length >= 3 && words.every((word) => SAFE_BOUNDARY_PROSE_WORDS.has(word)),
-  );
+  return Boolean(words && words.length >= 3);
 }
 
 function decodeForInspection(value: string): string {

@@ -1,3 +1,5 @@
+import { isWorkspacePathRefV1 } from "./nexus-workspace.ts";
+
 export const SECTION_NAMES = [
   "definitions",
   "declarations",
@@ -23,6 +25,7 @@ export function validLocation(value: unknown): boolean {
     item &&
     onlyKeys(item, [
       "path",
+      "pathRef",
       "line",
       "character",
       "kind",
@@ -32,6 +35,7 @@ export function validLocation(value: unknown): boolean {
       "caller",
     ]) &&
     typeof item.path === "string" &&
+    (item.pathRef === undefined || isWorkspacePathRefV1(item.pathRef)) &&
     item.path.length <= 1_024 &&
     optionalNumber(item.line) &&
     optionalNumber(item.character) &&
